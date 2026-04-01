@@ -1,0 +1,18 @@
+{
+  "_README": "Add users here. Token = any unique string. Replace with real DB (Supabase) later.",
+  "DEMO_FREE_TOKEN_123": {
+    "email": "free_user@example.com",
+    "tier": "free",
+    "created": "2026-03-19"
+  },
+  "DEMO_PREMIUM_TOKEN_456": {
+    "email": "premium_user@example.com",
+    "tier": "premium",
+    "created": "2026-03-19"
+  },
+  "DEMO_PRO_TOKEN_789": {
+    "email": "pro_user@example.com",
+    "tier": "pro",
+    "created": "2026-03-19"
+  }
+}
