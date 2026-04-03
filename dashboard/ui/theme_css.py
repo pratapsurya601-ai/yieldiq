@@ -338,7 +338,7 @@ def get_bar_colors(theme_name: str) -> dict:
         "line":      t["chart_line"],
         "fill":      t["chart_fill"],
         "heatmap":   t["chart_heatmap"],
-        "scatter":   t["chart_scatter"],
+        "scatter":   t["chart_line"],
     }
 
 

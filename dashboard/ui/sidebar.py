@@ -113,11 +113,11 @@ def render_sidebar(
         st.markdown("---")
         _theme_key = st.session_state.get("theme", "forest")
         # Quick-cycle through themes from sidebar
-        _theme_cycle = ["forest", "forest_light", "sakura", "violet", "ocean", "slate"]
+        _theme_cycle = ["forest", "ocean", "aurora", "sakura", "violet", "slate"]
         _theme_names = {
-            "forest": "\U0001f33f Forest", "forest_light": "\U0001f305 Aurora",
-            "sakura": "\U0001f338 Sakura", "violet": "\U0001f49c Violet",
-            "ocean": "\U0001f30a Ocean", "slate": "\U0001faa8 Slate",
+            "forest": "\U0001f33f Forest", "ocean": "\U0001f30a Ocean",
+            "aurora": "\U0001f305 Aurora", "sakura": "\U0001f338 Sakura",
+            "violet": "\U0001f49c Violet", "slate": "\U0001faa8 Slate",
         }
         _cur_label = _theme_names.get(_theme_key, _theme_key)
         if st.button(f"\U0001f3a8  {_cur_label}", key="sb_theme_toggle", use_container_width=True):
