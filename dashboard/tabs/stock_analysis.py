@@ -11,6 +11,8 @@ from plotly.subplots import make_subplots
 import json as _json
 import time as _time
 from datetime import datetime, date as _date
+from ui.verdict_card import render_verdict_strip
+from ui.theme_css import get_plotly_layout, get_bar_colors
 
 # Utility / formatting functions — loaded by file path to avoid utils/ name collision
 import importlib.util as _ilu, pathlib as _pl
@@ -1261,6 +1263,61 @@ def render() -> None:
             mos_pct=mos_pct,
             wacc=wacc,
         )
+        # ── NEW VERDICT STRIP ─────────────────────────────
+        _theme = st.session_state.get("theme", "forest")
+        _fcf_raw = enriched.get("latest_fcf", 0) or 0
+        _fcf_str = (f"${_fcf_raw/1e9:.0f}B"
+                    if abs(_fcf_raw) > 1e9
+                    else f"${_fcf_raw/1e6:.0f}M")
+        _co_name = enriched.get("company_name", ticker_input)
+        _fcf_g   = (forecast_result.get("fcf_growth_rate", 0) or 0) * 100
+
+        if mos_pct >= 10:
+            _summary = (
+                f"{_co_name} generates {_fcf_str} in annual "
+                f"free cash. Model estimates fair value at "
+                f"${iv_d:,.0f}, above the current price of "
+                f"${price_d:,.0f}. FCF projected to grow "
+                f"{_fcf_g:.0f}% annually."
+            )
+        elif mos_pct >= -5:
+            _summary = (
+                f"{_co_name} generates {_fcf_str} in annual "
+                f"free cash. At ${price_d:,.0f}, the stock "
+                f"trades close to the model's fair value of "
+                f"${iv_d:,.0f}. Thin margin of safety."
+            )
+        else:
+            _impl_g = abs(mos_pct / 10)
+            _summary = (
+                f"{_co_name} generates {_fcf_str} in annual "
+                f"free cash. At ${price_d:,.0f}, the market "
+                f"implies {_impl_g:.0f}%+ annual growth. "
+                f"Model fair value: ${iv_d:,.0f}."
+            )
+
+        _yiq = 50
+        _breakdown = {
+            "valuation": 12, "quality": 20,
+            "growth": 12, "sentiment": 6,
+            "fcf_growth_pct": round(_fcf_g, 1),
+        }
+
+        render_verdict_strip(
+            ticker          = ticker_input,
+            company         = _co_name,
+            exchange        = enriched.get("exchange", ""),
+            sector          = enriched.get("sector_name", ""),
+            price           = float(price_d),
+            fair_value      = float(iv_d),
+            mos_pct         = float(mos_pct),
+            yieldiq_score   = _yiq,
+            score_breakdown = _breakdown,
+            summary_text    = _summary,
+            theme_name      = _theme,
+        )
+        # ── END VERDICT STRIP ─────────────────────────────
+
         mos_w     = min(max(abs(mos_pct), 2), 100)
         pt        = inv_plan["price_targets"]
         hp        = inv_plan["holding_period"]

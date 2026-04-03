@@ -244,7 +244,7 @@ inject_sidebar_nav_css()
 inject_fonts()
 inject_tooltip_css()
 # ── Theme: inject dark/light CSS overrides (runs on every rerun) ──
-inject_theme_css(st.session_state.get("theme", "light"))
+inject_theme_css(st.session_state.get("theme", "forest"))
 inject_main_css()
 inject_typography_css()
 
