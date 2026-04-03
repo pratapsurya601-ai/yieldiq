@@ -292,8 +292,8 @@ def _build_heatmap(df: pd.DataFrame, show_rs: bool = False) -> go.Figure:
     fig.update_layout(**KL(
         height=420,
         margin=dict(l=10, r=10, t=30, b=10),
-        plot_bgcolor  = _get_active_theme()["plot_bg"],
-        paper_bgcolor = _get_active_theme()["paper_bg"],
+        plot_bgcolor  = _get_active_theme()["chart_bg"],
+        paper_bgcolor = _get_active_theme()["chart_paper"],
         xaxis=dict(
             side      = "top",
             tickfont  = dict(color="#e6edf3", size=12, family="Inter, sans-serif"),
