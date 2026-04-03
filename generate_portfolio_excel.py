@@ -275,7 +275,7 @@ def build_portfolio_sheets(wb, ticker, enriched, dcf_res, forecast_result,
         ("Full Kelly (aggressive)",       kelly_full, cap_full, shares_full,
          cap_full * abs(downside), "Rarely used — too volatile for most PMs",
          C_BEAR_BG, C_RED),
-        ("Half Kelly (recommended)",      kelly_half, cap_half, shares_half,
+        ("Half Kelly (model default)",     kelly_half, cap_half, shares_half,
          cap_half * abs(downside), "Industry standard — optimal risk-adjusted",
          C_KELLY,   C_GREEN),
         ("Quarter Kelly (conservative)",  kelly_qtr,  cap_qtr,  int(cap_qtr/price) if price>0 else 0,
@@ -621,9 +621,9 @@ def build_portfolio_sheets(wb, ticker, enriched, dcf_res, forecast_result,
         f"EXPECTED VALUE: Bear {sym}{bear_iv:,.0f} (25%) + Base {sym}{base_iv:,.0f} (50%) + Bull {sym}{bull_iv:,.0f} (25%) = "
         f"EV {sym}{ev:,.0f} vs price {sym}{price:,.0f} = {edge:+.0%} EDGE.\n\n"
         f"POSITION SIZING (Kelly): Full Kelly {kelly_full:.0%} | Half Kelly {kelly_half:.0%} | "
-        f"Recommended: {sym}{cap_half:,.0f} ({kelly_half:.0%} of {sym}{portfolio_size/1e6:.1f}M portfolio) = {shares_half:,} shares.\n\n"
+        f"Model sizing: {sym}{cap_half:,.0f} ({kelly_half:.0%} of {sym}{portfolio_size/1e6:.1f}M portfolio) = {shares_half:,} shares.\n\n"
         f"RISK/REWARD: Upside {upside:+.0%} (Bull) vs Downside {downside:.0%} (Bear) = {rr_ratio:.1f}x ratio. "
-        f"Hard stop at {sym}{stop_loss_px:,.0f} ({-max_loss_pct:.0%}). Max loss on recommended position: {sym}{cap_half*max_loss_pct:,.0f}.\n\n"
+        f"Hard stop at {sym}{stop_loss_px:,.0f} ({-max_loss_pct:.0%}). Max loss on model position: {sym}{cap_half*max_loss_pct:,.0f}.\n\n"
         f"PORTFOLIO ROLE: {position_type}. Beta {profile['beta']:.1f}, {profile['cycle']} sector, "
         f"rate sensitivity {profile['rate_sens']}. {'Adds diversification.' if profile['div']=='HIGH' else 'Monitor concentration.'}\n\n"
         f"THESIS BREAK: Exit if revenue turns negative, margins drop >500bps, or ROIC sustains below WACC.\n\n"

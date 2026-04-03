@@ -579,7 +579,7 @@ def _render_breadth_bar(dcf_cache: dict) -> None:
 
     pcts   = {k: v / total * 100 for k, v in buckets.items()}
     colors = {"BUY": "#059669", "WATCH": "#EAB308", "HOLD": "#94A3B8", "SELL": "#DC2626"}
-    labels = {"BUY": "▲ BUY", "WATCH": "◆ WATCH", "HOLD": "● HOLD", "SELL": "▼ SELL"}
+    labels = {"BUY": "▲ BUY SIGNAL", "WATCH": "◆ WATCH", "HOLD": "● HOLD", "SELL": "▼ SELL SIGNAL"}
 
     # Build bar segments
     segments_html = ""
@@ -878,7 +878,7 @@ def _render_sector_detail(dcf_cache: dict, snap: dict, active_sector: str | None
             st.html('<div style="height:4px;"></div>')
             _btn_c, _ = st.columns([1, 3])
             with _btn_c:
-                if st.button(f"Analyze top pick: {top_pick} →", type="primary",
+                if st.button(f"Analyse highest-MoS stock: {top_pick} →", type="primary",
                               key=f"detail_analyze_{chosen}"):
                     st.session_state["_prefill_ticker"] = top_pick
                     st.rerun()

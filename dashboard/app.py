@@ -706,10 +706,10 @@ if _active_main_tab == "about":
           <div style="font-size:12px;font-weight:700;color:#0F172A;margin-bottom:12px;">What our model signals mean</div>
         """)
         for human_label, internal, cond, color, bg in [
-            ("📊 Trading below model estimate",  "Undervalued 🟢",    "Model price > market price by 20%+",  "#0D7A4E","#F0FDF4"),
-            ("📉 Slight discount to model value","Slight Discount 🟡","Model price > market price by 5–20%", "#B45309","#FFFBEB"),
-            ("⚖️ Near model fair value",          "Fairly Valued 🔵",  "Market price ≈ model fair value",      "#1D4ED8","#EFF6FF"),
-            ("📈 Trading above model estimate",  "Overvalued 🔴",     "Market price > model price",           "#B91C1C","#FEF2F2"),
+            ("📊 Trading below model estimate",  "Model: Undervalued 🟢",    "Model price > market price by 20%+",  "#0D7A4E","#F0FDF4"),
+            ("📉 Slight discount to model value","Model: Slight Discount 🟡","Model price > market price by 5–20%", "#B45309","#FFFBEB"),
+            ("⚖️ Near model fair value",          "Model: Fairly Valued 🔵",  "Market price ≈ model fair value",      "#1D4ED8","#EFF6FF"),
+            ("📈 Trading above model estimate",  "Model: Overvalued 🔴",     "Market price > model price",           "#B91C1C","#FEF2F2"),
             ("⏳ Not applicable",                "N/A",               "Bank/NBFC or insufficient data",       "#64748b","#F8FAFC"),
         ]:
             st.html(f"""

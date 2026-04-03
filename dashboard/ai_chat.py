@@ -47,7 +47,9 @@ _SYSTEM_PROMPT = (
     "financial concepts in simple terms. Do not give generic investment advice. "
     "Always reference specific metrics from the analysis. "
     "Never use the words 'recommend', 'buy', 'sell', or 'rated' — instead "
-    "say the model indicates, the analysis shows, or the DCF suggests."
+    "say the model indicates, the analysis shows, or the DCF suggests. "
+    "Every response must end with: "
+    "This is model output, not personalized investment advice."
 )
 
 _AI_LIMITS: dict[str, int] = {

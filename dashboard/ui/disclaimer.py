@@ -9,6 +9,10 @@ import streamlit.components.v1 as _stc
 
 
 _DISCLAIMER_TEXT = """\
+YieldIQ is a quantitative research tool, not a registered investment adviser. \
+All outputs are mathematical model results based on publicly available data and \
+do not constitute personalized investment advice under the Investment Advisers Act of 1940.
+
 YieldIQ is a quantitative research tool for **informational and educational purposes only**.
 It is **NOT** investment advice and does **NOT** constitute a recommendation to buy, sell,
 or hold any security.

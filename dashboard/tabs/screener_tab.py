@@ -329,7 +329,7 @@ def render() -> None:
                 mime="text/csv", width='stretch')
         with _ex3:
             if not _filtered.empty:
-                if st.button("🚀 Analyse top pick: " + str(_sc_best),
+                if st.button("🚀 Analyse #1 ranked: " + str(_sc_best),
                              width='stretch', key="sc_analyse_top"):
                     st.session_state["_prefill_ticker"] = _sc_best
                     st.rerun()

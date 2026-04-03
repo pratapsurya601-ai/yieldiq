@@ -363,7 +363,7 @@ def check_ticker_allowed(ticker: str):
 
 UPGRADE_COPY = {
     "analyses":      {"emoji": "🔍", "title": "Daily limit reached",         "benefit": "run up to 50 analyses per day",                            "desc": "5 free analyses/day — upgrade for up to 50 (Starter) or unlimited (Pro).",        "cta": "Upgrade to Starter"},
-    "action_plan":   {"emoji": "📋", "title": "Investment action plan",       "benefit": "see DCF price levels and risk ranges",                      "desc": "DCF discount threshold, model fair value estimate, risk range.",                   "cta": "Upgrade to Starter"},
+    "action_plan":   {"emoji": "📋", "title": "Model-generated analysis",     "benefit": "see DCF price levels and risk ranges",                      "desc": "DCF discount threshold, model fair value estimate, risk range.",                   "cta": "Upgrade to Starter"},
     "quality_score": {"emoji": "⭐", "title": "Business quality score",       "benefit": "see the 8-factor quality grade",                            "desc": "8-factor grade — growth, margins, debt, FCF.",                                    "cta": "Upgrade to Starter"},
     "scenarios":     {"emoji": "🐻", "title": "Bear/Base/Bull scenarios",     "benefit": "stress-test across growth and discount assumptions",         "desc": "3-scenario DCF across growth & discount assumptions.",                            "cta": "Upgrade to Starter"},
     "sensitivity":   {"emoji": "🗂",  "title": "Sensitivity analysis",         "benefit": "see how IV changes with WACC and growth",                   "desc": "Fair value vs WACC and growth assumptions.",                                      "cta": "Upgrade to Starter"},
