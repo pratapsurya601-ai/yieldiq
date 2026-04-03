@@ -544,9 +544,9 @@ def render() -> None:
                 # ── Retry: try appending .NS for Indian stocks entered without suffix ──
                 if not ticker_input.endswith((".NS", ".BO")):
                     try:
-                        _r2, _ph2, _wd2 = fetch_stock_data(ticker_input + ".NS")
+                        _r2, _ph2, _wd2, _mr2 = fetch_stock_data(ticker_input + ".NS")
                         if _r2 is not None:
-                            raw, price_hist, wacc_data = _r2, _ph2, _wd2
+                            raw, price_hist, wacc_data, momentum_result = _r2, _ph2, _wd2, _mr2
                             ticker_input = ticker_input + ".NS"
                     except Exception:
                         pass
