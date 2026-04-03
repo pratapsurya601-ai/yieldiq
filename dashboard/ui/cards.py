@@ -83,7 +83,7 @@ def verdict_card(
     gn = score_breakdown.get("growth", 0)
     sn = score_breakdown.get("sentiment", 0)
 
-    st.markdown(f"""
+    st.html(f"""
 <div style="border-radius:14px;overflow:hidden;border:1px solid #E2E8F0;
             font-family:'Inter',-apple-system,sans-serif;margin-bottom:14px;
             box-shadow:0 1px 3px rgba(0,0,0,0.05);">
@@ -166,7 +166,7 @@ def verdict_card(
     </div>
   </div>
 </div>
-""", unsafe_allow_html=True)
+""")
 
 
 def kpi_row(metrics: list) -> None:
@@ -185,8 +185,8 @@ def kpi_row(metrics: list) -> None:
                   line-height:1.1;">{m['value']}</div>
       {sub_html}
     </div>"""
-    st.markdown(f"""
+    st.html(f"""
 <div style="display:grid;grid-template-columns:repeat({n},1fr);gap:10px;
             margin-bottom:14px;">
   {cols}
-</div>""", unsafe_allow_html=True)
+</div>""")
