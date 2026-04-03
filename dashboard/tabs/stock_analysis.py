@@ -1445,7 +1445,7 @@ def render() -> None:
                 # Momentum Score
                 with _qs_cols[6]:
                     _mom_score = momentum_result.get('momentum_score', 0) if 'momentum_result' in locals() else 0
-                    _mom_grade = momentum_result.get('grade', 'N/A')
+                    _mom_grade = momentum_result.get('grade', 'N/A') if 'momentum_result' in locals() else 'N/A'
                     if _mom_score > 0:
                         themed_metric("\U0001f680 Momentum", f"{_mom_score}/100", delta=_mom_grade, theme_name=_tm)
                     else:
