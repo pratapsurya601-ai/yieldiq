@@ -536,7 +536,7 @@ def render_backtest_tab() -> None:
             _fig_eq.add_hline(y=10_000, line=dict(color="#30363d", width=1, dash="dash"))
 
             _fig_eq.update_layout(
-                paper_bgcolor=_get_active_theme()["paper_bg"], plot_bgcolor=_get_active_theme()["plot_bg"],
+                paper_bgcolor=_get_active_theme()["chart_paper"], plot_bgcolor=_get_active_theme()["chart_bg"],
                 font=dict(family="Inter, sans-serif", color="#e6edf3", size=11),
                 height=260,
                 margin=dict(t=44, b=40, l=60, r=20),

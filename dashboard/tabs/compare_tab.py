@@ -758,8 +758,8 @@ def _build_radar(results: list[dict]) -> go.Figure:
                 linecolor = "#30363d",
             ),
         ),
-        paper_bgcolor = _get_active_theme()["paper_bg"],
-        plot_bgcolor  = _get_active_theme()["plot_bg"],
+        paper_bgcolor = _get_active_theme()["chart_paper"],
+        plot_bgcolor  = _get_active_theme()["chart_bg"],
         font          = dict(family="Inter, sans-serif", color="#e6edf3"),
         legend        = dict(
             bgcolor="rgba(0,0,0,0)", bordercolor="#30363d",
