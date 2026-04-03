@@ -22,6 +22,13 @@ import numpy as np
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
+
+# Force cache clear on deploy — prevents stale data after code fixes
+_APP_CACHE_VERSION = "d569ec1"
+if st.session_state.get("_cache_version") != _APP_CACHE_VERSION:
+    st.cache_data.clear()
+    st.session_state["_cache_version"] = _APP_CACHE_VERSION
+
 from features import (
     render_live_price_header,
     render_analyst_consensus,
