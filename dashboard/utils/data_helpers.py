@@ -91,12 +91,22 @@ def fetch_stock_data(ticker):
 @st.cache_data(ttl=0, show_spinner=False)
 def _fetch_stock_data_cached(ticker, _ttl_key):
     """Actual cached fetch — ttl=0 forces fresh fetch every time (debug)."""
-    collector  = StockDataCollector(ticker)
-    raw        = collector.get_all()
+    try:
+        collector  = StockDataCollector(ticker)
+        raw        = collector.get_all()
+    except Exception as _fetch_err:
+        print(f"FETCH_ERROR {ticker}: {type(_fetch_err).__name__}: {_fetch_err}")
+        raw = None
+        collector = None
+
+    if raw is None:
+        print(f"FETCH_FAIL {ticker}: raw is None — data provider may be blocking this IP")
+        return None, pd.DataFrame(), {}, {'momentum_score': 0, 'grade': 'N/A', 'signal': 'N/A ⬜', 'components': {}, 'indicators': {}}
+
     price_hist = pd.DataFrame()
     wacc_data  = {}
 
-    if collector._ticker_obj:
+    if collector and collector._ticker_obj:
         price_hist = collector.get_price_history(period="1y")
         is_indian  = ticker.endswith(".NS") or ticker.endswith(".BO")
         wacc_data  = compute_wacc(collector._ticker_obj, is_indian)
