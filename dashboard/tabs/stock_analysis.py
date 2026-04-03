@@ -11,8 +11,7 @@ from plotly.subplots import make_subplots
 import json as _json
 import time as _time
 from datetime import datetime, date as _date
-from ui.verdict_card import render_verdict_strip
-from ui.theme_css import get_plotly_layout, get_bar_colors
+from ui.cards import inject_styles as _inject_card_styles, verdict_card as _verdict_card, kpi_row as _kpi_row
 
 # Utility / formatting functions — loaded by file path to avoid utils/ name collision
 import importlib.util as _ilu, pathlib as _pl
@@ -1263,44 +1262,8 @@ def render() -> None:
             mos_pct=mos_pct,
             wacc=wacc,
         )
-        # ── BIG MoS CARD ──────────────────────────────────
-        _mos_color = "#16A34A" if mos_pct >= 0 else "#DC2626"
-        _mos_bg    = "#F0FDF4" if mos_pct >= 0 else "#FEF2F2"
-        _mos_label = ("Undervalued" if mos_pct >= 10 else
-                      "Near Fair Value" if mos_pct >= -5 else
-                      "Overvalued")
-        st.markdown(f"""
-<div style="
-  background:{_mos_bg};
-  border:1px solid {_mos_color}33;
-  border-radius:12px;
-  padding:16px 20px;
-  text-align:center;
-  margin-bottom:12px;
-">
-  <div style="font-size:10px;color:{_mos_color};
-              letter-spacing:1px;font-weight:700;
-              margin-bottom:4px;">
-    MODEL OUTPUT \u2014 MARGIN OF SAFETY
-  </div>
-  <div style="font-size:52px;font-weight:900;
-              color:{_mos_color};line-height:1;">
-    {mos_pct:+.1f}%
-  </div>
-  <div style="font-size:14px;font-weight:700;
-              color:{_mos_color};margin-top:4px;">
-    {_mos_label}
-  </div>
-  <div style="font-size:11px;color:#6B7280;
-              margin-top:6px;">
-    Model fair value: {sym}{iv_d:,.0f} &nbsp;\u00b7&nbsp;
-    Current price: {sym}{price_d:,.0f} &nbsp;\u00b7&nbsp;
-    Model output only \u2014 not investment advice
-  </div>
-</div>
-""", unsafe_allow_html=True)
-
-        # ── PLAIN ENGLISH SUMMARY ─────────────────────────
+        # ── VERDICT CARD ──────────────────────────────────
+        _inject_card_styles()
         _co_name = enriched.get("company_name", ticker_input)
         _fcf_raw = enriched.get("latest_fcf", 0) or 0
         _fcf_str = (f"{sym}{_fcf_raw/1e9:.0f}B" if abs(_fcf_raw) > 1e9
@@ -1318,18 +1281,37 @@ def render() -> None:
             _summary = (
                 f"{_co_name} generates {_fcf_str} in annual free cash. "
                 f"At {sym}{price_d:,.0f}, the stock trades close to "
-                f"the model's fair value of {sym}{iv_d:,.0f}. "
-                f"Thin margin of safety \u2014 monitor for better entry."
+                f"the model\u2019s fair value of {sym}{iv_d:,.0f}. "
+                f"Thin margin of safety."
             )
         else:
             _summary = (
                 f"{_co_name} generates {_fcf_str} in annual free cash. "
                 f"At {sym}{price_d:,.0f}, the market prices in aggressive "
-                f"growth. Our model estimates fair value at {sym}{iv_d:,.0f} "
-                f"\u2014 the stock trades {abs(mos_pct):.0f}% above that."
+                f"growth. Model fair value: {sym}{iv_d:,.0f} "
+                f"\u2014 stock trades {abs(mos_pct):.0f}% above."
             )
-        st.info(f"**Plain English:** {_summary}")
-        # ── END MoS + SUMMARY ─────────────────────────────
+
+        _verdict_card(
+            ticker=ticker_input, company=_co_name,
+            exchange=enriched.get("exchange", ""),
+            sector=enriched.get("sector_name", ""),
+            price=float(price_d), fair_value=float(iv_d),
+            mos_pct=float(mos_pct), summary=_summary,
+            score_breakdown={"valuation": 12, "quality": 20,
+                             "growth": 12, "sentiment": 6},
+            sym=sym,
+        )
+
+        _kpi_row([
+            {"label": "Market Price", "value": f"{sym}{price_d:,.2f}"},
+            {"label": "Model Fair Value", "value": f"{sym}{iv_d:,.2f}",
+             "color": "#16A34A" if mos_pct >= 0 else "#DC2626"},
+            {"label": "WACC", "value": f"{wacc*100:.1f}%"},
+            {"label": "FCF Growth", "value": f"{_fcf_g:+.1f}%",
+             "color": "#16A34A" if _fcf_g >= 0 else "#DC2626"},
+        ])
+        # ── END VERDICT CARD ─────────────────────────────
 
         mos_w     = min(max(abs(mos_pct), 2), 100)
         pt        = inv_plan["price_targets"]
