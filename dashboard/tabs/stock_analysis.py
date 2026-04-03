@@ -930,10 +930,9 @@ def render() -> None:
                     else f"{sym}{_fcf_raw/1e6:.0f}M")
         _fcf_g   = (enriched.get("fcf_growth", 0) or 0) * 100
 
-        # Use the investment plan target price as the "fair value" for consistency
-        _tgt_price_d = (inv_plan.get("price_targets", {}).get("target_price", 0) or 0) * fx
-        _display_iv  = _tgt_price_d if _tgt_price_d > 0 else iv_d
-        _display_mos = ((_display_iv - price_d) / price_d * 100) if price_d > 0 else 0
+        # Use iv_d (moat-adjusted DCF fair value) as the single source of truth
+        _display_iv  = iv_d
+        _display_mos = mos_pct
 
         if _display_mos >= 10:
             _summary = (
