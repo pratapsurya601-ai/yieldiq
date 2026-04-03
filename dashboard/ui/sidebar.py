@@ -68,7 +68,7 @@ def render_sidebar(
         # ── 2. VERTICAL NAV MENU ─────────────────────────────────
         # Groups: None = regular item, "divider" = insert hr before next group
         _NAV_ITEMS = [
-            ("\U0001f3e0", "Morning Brief",  "morning_brief"),
+            ("\U0001f3e0", "Home",  "morning_brief"),
             ("\U0001f50d", "Stock Analysis", "stock"),
             None,                                           # ── divider ──
             ("\U0001f4ca", "Financials",     "financials"),

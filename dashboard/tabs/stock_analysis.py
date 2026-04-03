@@ -234,15 +234,63 @@ def render() -> None:
         _show_brief = False
 
     if not analyse_btn and not _has_results:
-        # ── First visit / no analysis yet — empty state ─────────
-        render_empty_state(sym)
-        # Functional ticker chip buttons (styled as chips via CSS)
-        _es_tickers = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "NVDA"]
-        _es_cols = st.columns(len(_es_tickers))
-        for _ei, _et in enumerate(_es_tickers):
-            with _es_cols[_ei]:
-                if st.button(_et, key=f"es_{_et}", width="stretch"):
-                    st.session_state["_prefill_ticker"] = _et
+        # ── Empty state — search hero + quick picks ─────────
+        st.markdown("""
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+            padding:32px 0 16px;">
+  <div style="text-align:center;margin-bottom:32px;">
+    <div style="font-size:32px;font-weight:900;color:#0F172A;
+                letter-spacing:-1px;line-height:1.2;margin-bottom:8px;">
+      Is this stock cheap or expensive?
+    </div>
+    <div style="font-size:15px;color:#64748B;font-weight:400;
+                max-width:420px;margin:0 auto;line-height:1.6;">
+      Enter any US ticker to get institutional-grade DCF valuation,
+      grade badges, and a plain English verdict in seconds.
+    </div>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);
+              gap:12px;max-width:640px;margin:0 auto 32px;">
+    <div style="background:#F0FDF4;border:1px solid #BBF7D0;
+                border-radius:12px;padding:16px;text-align:center;">
+      <div style="font-size:24px;margin-bottom:8px;">\U0001f4ca</div>
+      <div style="font-size:12px;font-weight:700;color:#15803D;
+                  margin-bottom:4px;">DCF Valuation</div>
+      <div style="font-size:11px;color:#166534;line-height:1.4;">
+        Fair value estimate with margin of safety</div>
+    </div>
+    <div style="background:#EFF6FF;border:1px solid #BFDBFE;
+                border-radius:12px;padding:16px;text-align:center;">
+      <div style="font-size:24px;margin-bottom:8px;">\U0001f393</div>
+      <div style="font-size:12px;font-weight:700;color:#1D4ED8;
+                  margin-bottom:4px;">Grade Badges</div>
+      <div style="font-size:11px;color:#1E40AF;line-height:1.4;">
+        A/B/C/D for Valuation, Quality, Growth, Sentiment</div>
+    </div>
+    <div style="background:#FFF7ED;border:1px solid #FED7AA;
+                border-radius:12px;padding:16px;text-align:center;">
+      <div style="font-size:24px;margin-bottom:8px;">\U0001f4ac</div>
+      <div style="font-size:12px;font-weight:700;color:#C2410C;
+                  margin-bottom:4px;">Plain English</div>
+      <div style="font-size:11px;color:#9A3412;line-height:1.4;">
+        What it means in language anyone understands</div>
+    </div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+        st.markdown(
+            "<div style='text-align:center;font-size:11px;color:#94A3B8;"
+            "letter-spacing:0.5px;margin-bottom:10px;'>"
+            "POPULAR STOCKS \u2014 CLICK TO ANALYSE</div>",
+            unsafe_allow_html=True,
+        )
+        _quick_picks = ["AAPL", "MSFT", "GOOGL", "NVDA", "AMZN", "META", "TSLA", "JPM"]
+        _qp_cols = st.columns(len(_quick_picks))
+        for _qc, _qt in zip(_qp_cols, _quick_picks):
+            with _qc:
+                if st.button(_qt, key=f"qp_{_qt}", use_container_width=True):
+                    st.session_state["_prefill_ticker"] = _qt
                     st.session_state["_auto_analyse"]   = True
                     st.session_state["_show_morning_brief"] = False
                     st.rerun()
@@ -255,401 +303,6 @@ def render() -> None:
             theme=st.session_state.get("theme", "light"),
         )
 
-    if False:  # dead code — original hero kept here for reference only
-        st.html("""
-<style>
-/* ── Hero animations ─────────────────────────────────────── */
-@keyframes yiq-hero-shift {
-  0%   { background-position: 0%   50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0%   50%; }
-}
-@keyframes yiq-fade-up {
-  from { opacity: 0; transform: translateY(16px); }
-  to   { opacity: 1; transform: translateY(0);    }
-}
-@keyframes yiq-marquee {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-@keyframes yiq-blink {
-  0%,49%  { opacity: 1; }
-  50%,100%{ opacity: 0; }
-}
-/* Typewriter cycle: show each hint for 2s, total 8s loop */
-@keyframes tw-show { 0%,25%{opacity:1;width:auto} 26%,100%{opacity:0;width:0} }
-
-.yiq-hero {
-  margin-top: 24px;
-  border-radius: 16px;
-  overflow: hidden;
-  background: linear-gradient(135deg, #020817 0%, #0d1f35 30%, #0a1628 60%, #061220 100%);
-  background-size: 300% 300%;
-  animation: yiq-hero-shift 10s ease infinite;
-  padding: 52px 48px 40px;
-  text-align: center;
-  position: relative;
-}
-.yiq-hero::before {
-  content: "";
-  position: absolute; inset: 0;
-  background-image:
-    linear-gradient(rgba(0,180,216,0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,180,216,0.05) 1px, transparent 1px);
-  background-size: 40px 40px;
-  pointer-events: none;
-}
-.yiq-hero::after {
-  content: "";
-  position: absolute;
-  top: -60px; left: 50%; transform: translateX(-50%);
-  width: 400px; height: 280px;
-  background: radial-gradient(ellipse, rgba(0,180,216,0.15) 0%, transparent 70%);
-  pointer-events: none;
-}
-.yiq-hero-inner {
-  position: relative; z-index: 2;
-  animation: yiq-fade-up 0.6s ease both;
-}
-.yiq-hero-eyebrow {
-  display: inline-block;
-  font-size: 11px; font-weight: 600;
-  letter-spacing: 0.18em; text-transform: uppercase;
-  color: #00b4d8;
-  background: rgba(0,180,216,0.12);
-  border: 1px solid rgba(0,180,216,0.3);
-  border-radius: 20px;
-  padding: 4px 14px;
-  margin-bottom: 12px;
-}
-
-/* ── Scrolling stats ticker ──────────────────────────────── */
-.yiq-ticker-wrap {
-  overflow: hidden;
-  width: 100%;
-  margin: 0 auto 20px;
-  max-width: 760px;
-  mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
-}
-.yiq-ticker-track {
-  display: inline-flex;
-  gap: 8px;
-  white-space: nowrap;
-  animation: yiq-marquee 28s linear infinite;
-}
-.yiq-ticker-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 4px 12px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 20px;
-  font-size: 11px;
-  color: rgba(255,255,255,0.55);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.yiq-hero-headline {
-  font-family: 'Barlow Condensed', 'Inter', sans-serif;
-  font-size: 42px; font-weight: 700; line-height: 1.15;
-  color: #FFFFFF;
-  letter-spacing: -0.01em;
-  margin-bottom: 16px;
-  max-width: 680px; margin-left: auto; margin-right: auto;
-}
-.yiq-hero-headline span {
-  background: linear-gradient(90deg, #00b4d8, #38e8ff);
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-.yiq-hero-sub {
-  font-size: 15px; font-weight: 400; line-height: 1.7;
-  color: rgba(255,255,255,0.6);
-  max-width: 520px; margin: 0 auto 32px;
-}
-
-/* ── Value prop cards ─────────────────────────────────────── */
-.yiq-cards {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
-  max-width: 760px;
-  margin: 0 auto 28px;
-}
-.yiq-card {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.09);
-  border-radius: 10px;
-  padding: 16px;
-  text-align: left;
-  transition: background 0.2s, border-color 0.2s;
-}
-.yiq-card:hover {
-  background: rgba(0,180,216,0.09);
-  border-color: rgba(0,180,216,0.3);
-}
-.yiq-card-icon { font-size: 20px; margin-bottom: 6px; display: block; }
-.yiq-card-title { font-size: 13px; font-weight: 600; color: #FFFFFF; margin-bottom: 3px; }
-.yiq-card-desc  { font-size: 11px; color: rgba(255,255,255,0.45); line-height: 1.5; }
-
-/* ── Social proof stat blocks ────────────────────────────── */
-.yiq-stats {
-  display: flex; align-items: center; justify-content: center;
-  gap: 0; max-width: 680px; margin: 0 auto 24px;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 10px; overflow: hidden;
-}
-.yiq-stat {
-  flex: 1; padding: 14px 16px; text-align: center;
-  border-right: 1px solid rgba(255,255,255,0.08);
-}
-.yiq-stat:last-child { border-right: none; }
-.yiq-stat-num  { font-size: 18px; font-weight: 700; color: #00b4d8; line-height: 1.1; }
-.yiq-stat-sub  { font-size: 10px; color: rgba(255,255,255,0.4); margin-top: 2px; line-height: 1.4; }
-
-/* ── Trust bar ───────────────────────────────────────────── */
-.yiq-trust {
-  font-size: 11px; color: rgba(255,255,255,0.3);
-  letter-spacing: 0.06em;
-  margin-bottom: 20px;
-}
-.yiq-trust strong { color: rgba(255,255,255,0.5); font-weight: 500; }
-
-/* ── Ticker chips ────────────────────────────────────────── */
-.yiq-tickers {
-  display: flex; align-items: center; justify-content: center;
-  flex-wrap: wrap; gap: 6px;
-  margin-bottom: 16px;
-}
-.yiq-ticker-pill {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px; font-weight: 500;
-  color: rgba(255,255,255,0.5);
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 4px;
-  padding: 3px 9px;
-}
-.yiq-ticker-sep { color: rgba(255,255,255,0.2); font-size: 11px; }
-
-/* ── Scrolling stock news ticker ─────────────────────────── */
-@keyframes yiq-stock-scroll {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(-50%); }
-}
-.yiq-stock-ticker-wrap {
-  width: 100%;
-  overflow: hidden;
-  margin: 6px 0 14px;
-  mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
-  -webkit-mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
-}
-.yiq-stock-ticker-track {
-  display: inline-flex;
-  align-items: center;
-  gap: 0;
-  white-space: nowrap;
-  animation: yiq-stock-scroll 35s linear infinite;
-}
-.yiq-stock-ticker-track:hover {
-  animation-play-state: paused;
-}
-.yiq-stock-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 14px;
-  cursor: pointer;
-  transition: opacity 0.2s;
-}
-.yiq-stock-item:hover { opacity: 0.75; }
-.yiq-avatar {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10px;
-  font-weight: 800;
-  color: #fff;
-  flex-shrink: 0;
-  font-family: 'Inter', sans-serif;
-}
-.yiq-stock-name {
-  font-family: 'Inter', sans-serif;
-  font-size: 11px;
-  font-weight: 500;
-  color: rgba(255,255,255,0.55);
-}
-.yiq-stock-sym {
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
-  font-weight: 700;
-  color: #60A5FA;
-  letter-spacing: 0.03em;
-}
-.yiq-stock-sep {
-  color: rgba(255,255,255,0.12);
-  font-size: 14px;
-  flex-shrink: 0;
-}
-
-/* ── Typewriter search hints ─────────────────────────────── */
-.yiq-tw-wrap {
-  font-size: 12px; color: rgba(255,255,255,0.3);
-  letter-spacing: 0.04em; height: 18px;
-  overflow: hidden; margin-bottom: 4px;
-}
-.yiq-tw-item {
-  display: inline-block;
-  overflow: hidden; white-space: nowrap;
-  opacity: 0; width: 0;
-  animation: tw-show 8s infinite;
-}
-.yiq-tw-item:nth-child(1) { animation-delay: 0s;   }
-.yiq-tw-item:nth-child(2) { animation-delay: 2s;   }
-.yiq-tw-item:nth-child(3) { animation-delay: 4s;   }
-.yiq-tw-item:nth-child(4) { animation-delay: 6s;   }
-.yiq-cursor {
-  display: inline-block; width: 2px; height: 12px;
-  background: #00b4d8; margin-left: 2px; vertical-align: middle;
-  animation: yiq-blink 0.8s step-end infinite;
-}
-</style>
-
-<div class="yiq-hero">
-  <div class="yiq-hero-inner">
-
-    <div class="yiq-hero-eyebrow">Institutional-Grade Stock Analysis</div>
-
-    <!-- Scrolling stats ticker -->
-    <div class="yiq-ticker-wrap">
-      <div class="yiq-ticker-track">
-        <span class="yiq-ticker-chip">📊 47,293 stocks analysed</span>
-        <span class="yiq-ticker-chip">🎯 89.2% DCF accuracy (backtest)</span>
-        <span class="yiq-ticker-chip">⚡ Real-time price data</span>
-        <span class="yiq-ticker-chip">🌍 US + India markets</span>
-        <span class="yiq-ticker-chip">🔒 Model-grade analysis</span>
-        <span class="yiq-ticker-chip">📈 10-yr FCF forecasting</span>
-        <span class="yiq-ticker-chip">🧮 Monte Carlo simulation</span>
-        <span class="yiq-ticker-chip">⚖️ Economic moat scoring</span>
-        <!-- Duplicate for seamless loop -->
-        <span class="yiq-ticker-chip">📊 47,293 stocks analysed</span>
-        <span class="yiq-ticker-chip">🎯 89.2% DCF accuracy (backtest)</span>
-        <span class="yiq-ticker-chip">⚡ Real-time price data</span>
-        <span class="yiq-ticker-chip">🌍 US + India markets</span>
-        <span class="yiq-ticker-chip">🔒 Model-grade analysis</span>
-        <span class="yiq-ticker-chip">📈 10-yr FCF forecasting</span>
-        <span class="yiq-ticker-chip">🧮 Monte Carlo simulation</span>
-        <span class="yiq-ticker-chip">⚖️ Economic moat scoring</span>
-      </div>
-    </div>
-
-    <div class="yiq-hero-headline">
-      Know What a Stock Is<br><span>Really Worth</span> — Before You Invest
-    </div>
-
-    <div class="yiq-hero-sub">
-      DCF-powered intrinsic value, margin of safety, scenario analysis,
-      and quality scoring — in plain English.
-    </div>
-
-    <div class="yiq-cards">
-      <div class="yiq-card">
-        <span class="yiq-card-icon">📊</span>
-        <div class="yiq-card-title">Intrinsic Value</div>
-        <div class="yiq-card-desc">DCF-based fair value with margin of safety and 3-scenario analysis</div>
-      </div>
-      <div class="yiq-card">
-        <span class="yiq-card-icon">🏢</span>
-        <div class="yiq-card-title">Company Quality</div>
-        <div class="yiq-card-desc">Revenue trends, profit margins, debt levels and earnings consistency</div>
-      </div>
-      <div class="yiq-card">
-        <span class="yiq-card-icon">⚡</span>
-        <div class="yiq-card-title">Live Data</div>
-        <div class="yiq-card-desc">Real-time price vs estimated value — updated every minute</div>
-      </div>
-    </div>
-
-    <!-- Social proof stat blocks -->
-    <div class="yiq-stats">
-      <div class="yiq-stat">
-        <div class="yiq-stat-num">10+</div>
-        <div class="yiq-stat-sub">Valuation Models<br>DCF, DDM, EV/EBITDA, Moat Score &amp; more</div>
-      </div>
-      <div class="yiq-stat">
-        <div class="yiq-stat-num">US + India</div>
-        <div class="yiq-stat-sub">Markets Supported<br>NYSE, NASDAQ, NSE, BSE</div>
-      </div>
-      <div class="yiq-stat">
-        <div class="yiq-stat-num">1,000×</div>
-        <div class="yiq-stat-sub">Monte Carlo Ready<br>Simulation scenarios per stock</div>
-      </div>
-    </div>
-
-    <div class="yiq-trust">
-      <strong>Trusted analytical framework</strong> · DCF · Economic Moat · Monte Carlo · Piotroski Score
-    </div>
-
-    <!-- Typewriter search hints -->
-    <div class="yiq-tw-wrap">
-      <span class="yiq-tw-item">Try AAPL...</span>
-      <span class="yiq-tw-item">Try NVDA...</span>
-      <span class="yiq-tw-item">Try MSFT...</span>
-      <span class="yiq-tw-item">Try GOOGL...</span>
-      <span class="yiq-cursor"></span>
-    </div>
-
-    <!-- Scrolling stock news ticker (CSS letter avatars, no external deps) -->
-    <div class="yiq-stock-ticker-wrap">
-      <div class="yiq-stock-ticker-track">
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#555;">🍎</span><span class="yiq-stock-name">Apple</span><span class="yiq-stock-sym">AAPL</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#0078d4;">M</span><span class="yiq-stock-name">Microsoft</span><span class="yiq-stock-sym">MSFT</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#76b900;">N</span><span class="yiq-stock-name">NVIDIA</span><span class="yiq-stock-sym">NVDA</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#4285f4;">G</span><span class="yiq-stock-name">Alphabet</span><span class="yiq-stock-sym">GOOGL</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#ff9900;">A</span><span class="yiq-stock-name">Amazon</span><span class="yiq-stock-sym">AMZN</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#cc0000;">T</span><span class="yiq-stock-name">Tesla</span><span class="yiq-stock-sym">TSLA</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#0668e1;">f</span><span class="yiq-stock-name">Meta</span><span class="yiq-stock-sym">META</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#1a5276;">J</span><span class="yiq-stock-name">JPMorgan</span><span class="yiq-stock-sym">JPM</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#1b4f72;">B</span><span class="yiq-stock-name">Berkshire</span><span class="yiq-stock-sym">BRK-B</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#1a6b3c;">U</span><span class="yiq-stock-name">UnitedHealth</span><span class="yiq-stock-sym">UNH</span></span>
-        <!-- Duplicate set for seamless loop -->
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#555;">🍎</span><span class="yiq-stock-name">Apple</span><span class="yiq-stock-sym">AAPL</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#0078d4;">M</span><span class="yiq-stock-name">Microsoft</span><span class="yiq-stock-sym">MSFT</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#76b900;">N</span><span class="yiq-stock-name">NVIDIA</span><span class="yiq-stock-sym">NVDA</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#4285f4;">G</span><span class="yiq-stock-name">Alphabet</span><span class="yiq-stock-sym">GOOGL</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#ff9900;">A</span><span class="yiq-stock-name">Amazon</span><span class="yiq-stock-sym">AMZN</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#cc0000;">T</span><span class="yiq-stock-name">Tesla</span><span class="yiq-stock-sym">TSLA</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#0668e1;">f</span><span class="yiq-stock-name">Meta</span><span class="yiq-stock-sym">META</span></span>
-        <span class="yiq-stock-sep">·</span>
-        <span class="yiq-stock-item"><span class="yiq-avatar" style="background:#1a5276;">J</span><span class="yiq-stock-name">JPMorgan</span><span class="yiq-stock-sym">JPM</span></span>
-      </div>
-    </div>
-
-  </div>
-</div>
-        """)
 
     # Re-render from session state if we already have results
     # This prevents page reset on any rerun (form submit, button click etc.)
