@@ -88,19 +88,19 @@ def fetch_stock_data(ticker):
     """Wrapper that applies tiered TTL caching."""
     return _fetch_stock_data_cached(ticker, _get_cache_ttl())
 
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=0, show_spinner=False)
 def _fetch_stock_data_cached(ticker, _ttl_key):
-    """Actual cached fetch — _ttl_key parameter busts cache per tier."""
+    """Actual cached fetch — ttl=0 forces fresh fetch every time (debug)."""
     collector  = StockDataCollector(ticker)
     raw        = collector.get_all()
     price_hist = pd.DataFrame()
     wacc_data  = {}
-    
+
     if collector._ticker_obj:
         price_hist = collector.get_price_history(period="1y")
         is_indian  = ticker.endswith(".NS") or ticker.endswith(".BO")
         wacc_data  = compute_wacc(collector._ticker_obj, is_indian)
-    
+
     momentum_result = {
         'momentum_score': 0,
         'grade': 'N/A',
@@ -108,13 +108,16 @@ def _fetch_stock_data_cached(ticker, _ttl_key):
         'components': {},
         'indicators': {}
     }
-    
+
     if not price_hist.empty and len(price_hist) >= 50:
         try:
             momentum_result = calculate_momentum(price_hist)
         except Exception as e:
             st.warning(f"⚠️ Could not calculate momentum: {e}")
-    
+
+    if raw:
+        print(f"LIVE_CHECK div_yield={raw.get('dividend_yield')} fh_div={raw.get('fh_div_yield')} pe={raw.get('forward_pe')} fcf_g={raw.get('fcf_growth')}")
+
     return raw, price_hist, wacc_data, momentum_result
 
 def fmt(v, sym, d=2):
