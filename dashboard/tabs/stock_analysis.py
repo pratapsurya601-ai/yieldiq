@@ -928,7 +928,7 @@ def render() -> None:
         _fcf_raw = enriched.get("latest_fcf", 0) or 0
         _fcf_str = (f"{sym}{_fcf_raw/1e9:.0f}B" if abs(_fcf_raw) > 1e9
                     else f"{sym}{_fcf_raw/1e6:.0f}M")
-        _fcf_g   = (forecast_result.get("fcf_growth_rate", 0) or 0) * 100
+        _fcf_g   = (enriched.get("fcf_growth", 0) or 0) * 100
 
         if mos_pct >= 10:
             _summary = (
