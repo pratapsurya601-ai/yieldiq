@@ -40,8 +40,11 @@ def _safe_cagr(series: pd.Series) -> float:
     if len(vals) < 2:
         return 0.0
     try:
-        log_returns = np.diff(np.log(vals))
-        return float(np.mean(log_returns))
+        n = len(vals) - 1
+        first, last = float(vals[0]), float(vals[-1])
+        if first <= 0:
+            return 0.0
+        return float((last / first) ** (1.0 / n) - 1.0)
     except Exception:
         return 0.0
 

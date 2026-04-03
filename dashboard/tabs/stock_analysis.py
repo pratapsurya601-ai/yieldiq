@@ -1051,7 +1051,8 @@ def render() -> None:
             _qs_pe      = raw.get("forward_pe") or raw.get("pe_ratio")
             _qs_eveb    = raw.get("ev_to_ebitda")
             _qs_beta    = raw.get("fh_beta")
-            _qs_div     = raw.get("dividend_yield") or raw.get("fh_div_yield") or 0
+            _qs_div_raw = raw.get("dividend_yield") or raw.get("fh_div_yield") or 0
+            _qs_div     = _qs_div_raw / 100 if _qs_div_raw > 1 else _qs_div_raw
             _qs_hi52    = (raw.get("fh_52w_high") or 0) * fx
             _qs_lo52    = (raw.get("fh_52w_low")  or 0) * fx
             _qs_fcf_raw = raw.get("yahoo_fcf_ttm") or 0
