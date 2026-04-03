@@ -28,6 +28,16 @@ from screener.moat_engine import compute_moat_score, apply_moat_adjustments
 from tab_helpers import ccard, ccard_end
 
 
+def _get_active_theme():
+    import importlib.util as _ilu2, pathlib as _pl2
+    _tp = _pl2.Path(__file__).resolve().parent.parent / "ui" / "themes.py"
+    _ts = _ilu2.spec_from_file_location("_yiq_th_x", _tp)
+    _tm = _ilu2.module_from_spec(_ts); _ts.loader.exec_module(_tm)
+    import streamlit as st
+    return _tm.get_theme(st.session_state.get("theme", "forest"))
+
+
+
 # ── Palette & rank maps ────────────────────────────────────────
 _PALETTE = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"]
 
@@ -747,8 +757,8 @@ def _build_radar(results: list[dict]) -> go.Figure:
                 linecolor = "#30363d",
             ),
         ),
-        paper_bgcolor = "#0d1117",
-        plot_bgcolor  = "#0d1117",
+        paper_bgcolor = _get_active_theme()["paper_bg"],
+        plot_bgcolor  = _get_active_theme()["plot_bg"],
         font          = dict(family="Inter, sans-serif", color="#e6edf3"),
         legend        = dict(
             bgcolor="rgba(0,0,0,0)", bordercolor="#30363d",

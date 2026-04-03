@@ -32,6 +32,15 @@ except Exception:
     _LAUNCH_REGION = "US"
 
 
+def _get_active_theme():
+    import importlib.util as _ilu2, pathlib as _pl2
+    _tp = _pl2.Path(__file__).resolve().parent / "ui" / "themes.py"
+    _ts = _ilu2.spec_from_file_location("_yiq_th_x", _tp)
+    _tm = _ilu2.module_from_spec(_ts); _ts.loader.exec_module(_tm)
+    import streamlit as st
+    return _tm.get_theme(st.session_state.get("theme", "forest"))
+
+
 # ══════════════════════════════════════════════════════════════
 # SECTOR DEFINITIONS — 11 GICS sectors + SPDR ETF proxies
 # ══════════════════════════════════════════════════════════════
@@ -283,8 +292,8 @@ def _build_heatmap(df: pd.DataFrame, show_rs: bool = False) -> go.Figure:
     fig.update_layout(**KL(
         height=420,
         margin=dict(l=10, r=10, t=30, b=10),
-        plot_bgcolor  = "#0d1117",
-        paper_bgcolor = "#0d1117",
+        plot_bgcolor  = _get_active_theme()["plot_bg"],
+        paper_bgcolor = _get_active_theme()["paper_bg"],
         xaxis=dict(
             side      = "top",
             tickfont  = dict(color="#e6edf3", size=12, family="Inter, sans-serif"),

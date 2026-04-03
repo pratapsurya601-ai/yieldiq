@@ -109,12 +109,20 @@ def render_sidebar(
                     st.session_state.pop("_show_morning_brief", None)
                 st.rerun()
 
-        # ── 2b. DARK / LIGHT MODE TOGGLE ─────────────────────────
+        # ── 2b. THEME INDICATOR ────────────────────────────────��─
         st.markdown("---")
-        _theme        = st.session_state.get("theme", "light")
-        _toggle_label = "\U0001f319  Dark Mode" if _theme == "light" else "\u2600\ufe0f  Light Mode"
-        if st.button(_toggle_label, key="sb_theme_toggle", use_container_width=True):
-            st.session_state["theme"] = "dark" if _theme == "light" else "light"
+        _theme_key = st.session_state.get("theme", "forest")
+        # Quick-cycle through themes from sidebar
+        _theme_cycle = ["forest", "forest_light", "sakura", "violet", "ocean", "slate"]
+        _theme_names = {
+            "forest": "\U0001f33f Forest", "forest_light": "\U0001f305 Aurora",
+            "sakura": "\U0001f338 Sakura", "violet": "\U0001f49c Violet",
+            "ocean": "\U0001f30a Ocean", "slate": "\U0001faa8 Slate",
+        }
+        _cur_label = _theme_names.get(_theme_key, _theme_key)
+        if st.button(f"\U0001f3a8  {_cur_label}", key="sb_theme_toggle", use_container_width=True):
+            _idx = _theme_cycle.index(_theme_key) if _theme_key in _theme_cycle else 0
+            st.session_state["theme"] = _theme_cycle[(_idx + 1) % len(_theme_cycle)]
             st.rerun()
 
         # ── 3. MARKET PULSE ──────────────────────────────────────

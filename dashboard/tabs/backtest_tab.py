@@ -27,6 +27,15 @@ from portfolio import (
     init_db as _init_portfolio_db,
 )
 
+def _get_active_theme():
+    import importlib.util as _ilu2, pathlib as _pl2
+    _tp = _pl2.Path(__file__).resolve().parent.parent / "ui" / "themes.py"
+    _ts = _ilu2.spec_from_file_location("_yiq_th_x", _tp)
+    _tm = _ilu2.module_from_spec(_ts); _ts.loader.exec_module(_tm)
+    import streamlit as st
+    return _tm.get_theme(st.session_state.get("theme", "forest"))
+
+
 HORIZONS = {90: "3 Months", 180: "6 Months", 365: "12 Months"}
 
 
@@ -527,7 +536,7 @@ def render_backtest_tab() -> None:
             _fig_eq.add_hline(y=10_000, line=dict(color="#30363d", width=1, dash="dash"))
 
             _fig_eq.update_layout(
-                paper_bgcolor="#0d1117", plot_bgcolor="#161b22",
+                paper_bgcolor=_get_active_theme()["paper_bg"], plot_bgcolor=_get_active_theme()["plot_bg"],
                 font=dict(family="Inter, sans-serif", color="#e6edf3", size=11),
                 height=260,
                 margin=dict(t=44, b=40, l=60, r=20),
