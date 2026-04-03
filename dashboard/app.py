@@ -220,7 +220,7 @@ session_defaults = {
     'sector_dashboard': {},
     'nav': 'Stock Analysis',
     'ticker': '',
-    'theme': 'forest',
+    'theme': 'light',
     'disclaimer_shown': False,
     '_tier': 'free',
 }
@@ -247,16 +247,6 @@ inject_tooltip_css()
 inject_theme_css(st.session_state.get("theme", "forest"))
 inject_main_css()
 inject_typography_css()
-
-# ── YieldIQ Theme System (layers on top of base CSS) ──────────
-_theme_css_path = _ob_pl.Path(__file__).parent / "ui" / "theme_css.py"
-_theme_css_spec = _ob_ilu.spec_from_file_location("_yiq_theme_css", _theme_css_path)
-_theme_css_mod  = _ob_ilu.module_from_spec(_theme_css_spec)
-_theme_css_spec.loader.exec_module(_theme_css_mod)
-st.markdown(
-    _theme_css_mod.build_theme_css(st.session_state.get("theme", "forest")),
-    unsafe_allow_html=True,
-)
 
 
 # ══════════════════════════════════════════════════════════════
@@ -680,121 +670,6 @@ if _active_main_tab == "watchlist":
 
 if _active_main_tab == "about":
 
-    # ── Theme Switcher ───────────────────────────────────────
-    _ts_themes_path = _ob_pl.Path(__file__).parent / "ui" / "themes.py"
-    _ts_spec = _ob_ilu.spec_from_file_location("_yiq_ts", _ts_themes_path)
-    _ts_mod  = _ob_ilu.module_from_spec(_ts_spec)
-    _ts_spec.loader.exec_module(_ts_mod)
-    _all_themes = _ts_mod.get_all_themes()
-    _cur_theme  = st.session_state.get("theme", "forest")
-
-    st.markdown(
-        '<div style="font-size:11px;letter-spacing:1px;text-transform:uppercase;'
-        'margin-bottom:16px;font-weight:700;color:var(--yiq-text3,#64748B);">'
-        'Choose your theme</div>',
-        unsafe_allow_html=True,
-    )
-
-    for _row_start in range(0, len(_all_themes), 3):
-        _row = _all_themes[_row_start:_row_start + 3]
-        _cols = st.columns(3)
-        for _col, _t in zip(_cols, _row):
-            with _col:
-                _is_active = _t["key"] == _cur_theme
-                _border = (
-                    f"2px solid {_t['accent']}"
-                    if _is_active
-                    else f"1px solid {_t['border']}"
-                )
-                _active_badge = (
-                    f'<div style="margin-left:auto;font-size:9px;'
-                    f'background:{_t["accent"]};color:{_t["btn_primary_fg"]};'
-                    f'padding:2px 8px;border-radius:10px;font-weight:700;">'
-                    f'ACTIVE</div>' if _is_active else ''
-                )
-                st.markdown(f"""
-                <div style="
-                    background:{_t['bg']};
-                    border:{_border};
-                    border-radius:12px;
-                    padding:14px;
-                    margin-bottom:8px;
-                ">
-                  <div style="display:flex;align-items:center;
-                              gap:8px;margin-bottom:10px;">
-                    <span style="font-size:18px">{_t['emoji']}</span>
-                    <div>
-                      <div style="font-size:13px;font-weight:700;
-                                  color:{_t['text']}">{_t['name']}</div>
-                      <div style="font-size:10px;color:{_t['text3']}">
-                        {_t['desc']}</div>
-                    </div>
-                    {_active_badge}
-                  </div>
-                  <div style="display:flex;flex-direction:column;gap:5px;">
-                    <div style="display:flex;align-items:center;gap:6px;">
-                      <div style="font-size:9px;color:{_t['text3']};
-                                  width:52px">Valuation</div>
-                      <div style="flex:1;height:6px;border-radius:3px;
-                                  background:{_t['bar_valuation']}22">
-                        <div style="width:30%;height:6px;border-radius:3px;
-                                    background:{_t['bar_valuation']}"></div>
-                      </div>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:6px;">
-                      <div style="font-size:9px;color:{_t['text3']};
-                                  width:52px">Quality</div>
-                      <div style="flex:1;height:6px;border-radius:3px;
-                                  background:{_t['bar_quality']}22">
-                        <div style="width:83%;height:6px;border-radius:3px;
-                                    background:{_t['bar_quality']}"></div>
-                      </div>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:6px;">
-                      <div style="font-size:9px;color:{_t['text3']};
-                                  width:52px">Growth</div>
-                      <div style="flex:1;height:6px;border-radius:3px;
-                                  background:{_t['bar_growth']}22">
-                        <div style="width:70%;height:6px;border-radius:3px;
-                                    background:{_t['bar_growth']}"></div>
-                      </div>
-                    </div>
-                  </div>
-                  <div style="margin-top:10px;display:flex;gap:6px;">
-                    <div style="flex:1;height:22px;border-radius:6px;
-                                background:{_t['btn_primary_bg']};
-                                display:flex;align-items:center;
-                                justify-content:center;
-                                font-size:9px;font-weight:700;
-                                color:{_t['btn_primary_fg']}">
-                      Primary
-                    </div>
-                    <div style="flex:1;height:22px;border-radius:6px;
-                                background:{_t['btn_secondary_bg']};
-                                border:1px solid {_t['border2']};
-                                display:flex;align-items:center;
-                                justify-content:center;
-                                font-size:9px;font-weight:600;
-                                color:{_t['btn_secondary_fg']}">
-                      Secondary
-                    </div>
-                  </div>
-                </div>
-                """, unsafe_allow_html=True)
-
-                if st.button(
-                    f"{'✓ Active' if _is_active else 'Select'} — {_t['name']}",
-                    key=f"theme_btn_{_t['key']}",
-                    type="primary" if _is_active else "secondary",
-                    use_container_width=True,
-                ):
-                    if not _is_active:
-                        st.session_state["theme"] = _t["key"]
-                        st.rerun()
-
-    st.markdown("---")
-
-    # ── Original Settings content ────────────────────────────
     a1, a2 = st.columns([3, 2])
 
     with a1:
