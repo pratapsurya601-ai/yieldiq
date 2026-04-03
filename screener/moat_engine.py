@@ -430,7 +430,7 @@ def compute_moat_score(enriched: dict, wacc: float) -> dict:
     else:
         summary = f"{grade} moat. Score {total}/100."
 
-    log.info(f"[{ticker}] Moat: {grade} ({total}/100) — {', '.join(moat_types) if moat_types else 'No identifiable moat'}")
+    log.info(f"[{ticker}] Moat: {grade} ({total}/100) — {', '.join(moat_types) if moat_types else summary}")
 
     return {
         "score":      total,
