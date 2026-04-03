@@ -1,0 +1,543 @@
+ticker,name,sector
+AAPL,Apple Inc,Technology
+MSFT,Microsoft Corp,Technology
+NVDA,NVIDIA Corp,Technology
+AVGO,Broadcom Inc,Technology
+ORCL,Oracle Corp,Technology
+CRM,Salesforce Inc,Technology
+CSCO,Cisco Systems,Technology
+ACN,Accenture PLC,Technology
+ADBE,Adobe Inc,Technology
+INTU,Intuit Inc,Technology
+AMD,Advanced Micro Devices,Technology
+QCOM,Qualcomm Inc,Technology
+TXN,Texas Instruments,Technology
+AMAT,Applied Materials,Technology
+LRCX,Lam Research,Technology
+KLAC,KLA Corp,Technology
+MRVL,Marvell Technology,Technology
+NOW,ServiceNow Inc,Technology
+PANW,Palo Alto Networks,Technology
+CRWD,CrowdStrike Holdings,Technology
+FTNT,Fortinet Inc,Technology
+WDAY,Workday Inc,Technology
+VEEV,Veeva Systems,Technology
+INTC,Intel Corp,Technology
+MU,Micron Technology,Technology
+ADI,Analog Devices,Technology
+NXPI,NXP Semiconductors,Technology
+MCHP,Microchip Technology,Technology
+MPWR,Monolithic Power Systems,Technology
+ON,ON Semiconductor,Technology
+CDNS,Cadence Design Systems,Technology
+SNPS,Synopsys Inc,Technology
+ANSS,Ansys Inc,Technology
+PLTR,Palantir Technologies,Technology
+SNOW,Snowflake Inc,Technology
+DDOG,Datadog Inc,Technology
+NET,Cloudflare Inc,Technology
+ZS,Zscaler Inc,Technology
+OKTA,Okta Inc,Technology
+ADSK,Autodesk Inc,Technology
+CTSH,Cognizant Technology Solutions,Technology
+HPQ,HP Inc,Technology
+HPE,Hewlett Packard Enterprise,Technology
+WDC,Western Digital,Technology
+STX,Seagate Technology,Technology
+NTAP,NetApp Inc,Technology
+GDDY,GoDaddy Inc,Technology
+ZBRA,Zebra Technologies,Technology
+CDW,CDW Corp,Technology
+VRSK,Verisk Analytics,Technology
+MSCI,MSCI Inc,Technology
+LDOS,Leidos Holdings,Technology
+SAIC,Science Applications International,Technology
+BAH,Booz Allen Hamilton,Technology
+KEYS,Keysight Technologies,Technology
+TDY,Teledyne Technologies,Technology
+EPAM,EPAM Systems,Technology
+SWKS,Skyworks Solutions,Technology
+HUBS,HubSpot Inc,Technology
+TWLO,Twilio Inc,Technology
+PTC,PTC Inc,Technology
+GEN,Gen Digital,Technology
+JNPR,Juniper Networks,Technology
+FSLR,First Solar,Technology
+ENPH,Enphase Energy,Technology
+GOOGL,Alphabet Inc Class A,Technology
+GOOG,Alphabet Inc Class C,Technology
+META,Meta Platforms,Technology
+NFLX,Netflix Inc,Communication Services
+DIS,Walt Disney Co,Communication Services
+CMCSA,Comcast Corp,Communication Services
+T,AT&T Inc,Communication Services
+VZ,Verizon Communications,Communication Services
+TMUS,T-Mobile US,Communication Services
+CHTR,Charter Communications,Communication Services
+WBD,Warner Bros Discovery,Communication Services
+PARA,Paramount Global,Communication Services
+FOXA,Fox Corp Class A,Communication Services
+FOX,Fox Corp Class B,Communication Services
+OMC,Omnicom Group,Communication Services
+IPG,Interpublic Group,Communication Services
+IAC,IAC Inc,Communication Services
+TTD,Trade Desk,Communication Services
+SNAP,Snap Inc,Communication Services
+PINS,Pinterest Inc,Communication Services
+RBLX,Roblox Corp,Communication Services
+MTCH,Match Group,Communication Services
+LYFT,Lyft Inc,Communication Services
+ZG,Zillow Group,Communication Services
+UNH,UnitedHealth Group,Healthcare
+JNJ,Johnson & Johnson,Healthcare
+LLY,Eli Lilly,Healthcare
+ABT,Abbott Laboratories,Healthcare
+MRK,Merck & Co,Healthcare
+ABBV,AbbVie Inc,Healthcare
+TMO,Thermo Fisher Scientific,Healthcare
+DHR,Danaher Corp,Healthcare
+PFE,Pfizer Inc,Healthcare
+AMGN,Amgen Inc,Healthcare
+GILD,Gilead Sciences,Healthcare
+CVS,CVS Health,Healthcare
+CI,Cigna Group,Healthcare
+HCA,HCA Healthcare,Healthcare
+ELV,Elevance Health,Healthcare
+HUM,Humana Inc,Healthcare
+MCK,McKesson Corp,Healthcare
+BMY,Bristol-Myers Squibb,Healthcare
+REGN,Regeneron Pharmaceuticals,Healthcare
+VRTX,Vertex Pharmaceuticals,Healthcare
+BIIB,Biogen Inc,Healthcare
+MRNA,Moderna Inc,Healthcare
+ZTS,Zoetis Inc,Healthcare
+BSX,Boston Scientific,Healthcare
+MDT,Medtronic PLC,Healthcare
+SYK,Stryker Corp,Healthcare
+ISRG,Intuitive Surgical,Healthcare
+IDXX,IDEXX Laboratories,Healthcare
+EW,Edwards Lifesciences,Healthcare
+DXCM,DexCom Inc,Healthcare
+PODD,Insulet Corp,Healthcare
+RMD,ResMed Inc,Healthcare
+IQV,IQVIA Holdings,Healthcare
+MTD,Mettler-Toledo International,Healthcare
+A,Agilent Technologies,Healthcare
+HOLX,Hologic Inc,Healthcare
+ALGN,Align Technology,Healthcare
+CRL,Charles River Laboratories,Healthcare
+INCY,Incyte Corp,Healthcare
+ALNY,Alnylam Pharmaceuticals,Healthcare
+BIO,Bio-Rad Laboratories,Healthcare
+COO,Cooper Companies,Healthcare
+CAH,Cardinal Health,Healthcare
+CNC,Centene Corp,Healthcare
+MOH,Molina Healthcare,Healthcare
+UHS,Universal Health Services,Healthcare
+THC,Tenet Healthcare,Healthcare
+STE,Steris PLC,Healthcare
+GEHC,GE HealthCare Technologies,Healthcare
+PKI,Revvity Inc,Healthcare
+HSIC,Henry Schein Inc,Healthcare
+WMT,Walmart Inc,Consumer Staples
+PG,Procter & Gamble,Consumer Staples
+KO,Coca-Cola Co,Consumer Staples
+PEP,PepsiCo Inc,Consumer Staples
+PM,Philip Morris,Consumer Staples
+MO,Altria Group,Consumer Staples
+COST,Costco Wholesale,Consumer Staples
+CL,Colgate-Palmolive,Consumer Staples
+GIS,General Mills,Consumer Staples
+SYY,Sysco Corp,Consumer Staples
+HSY,Hershey Co,Consumer Staples
+MKC,McCormick Company,Consumer Staples
+EL,Estee Lauder,Consumer Staples
+STZ,Constellation Brands,Consumer Staples
+KR,Kroger Co,Consumer Staples
+MDLZ,Mondelez International,Consumer Staples
+ADM,Archer-Daniels-Midland,Consumer Staples
+BG,Bunge Global,Consumer Staples
+TSN,Tyson Foods,Consumer Staples
+K,Kellanova,Consumer Staples
+CAG,Conagra Brands,Consumer Staples
+HRL,Hormel Foods,Consumer Staples
+CPB,Campbell Soup Co,Consumer Staples
+SJM,JM Smucker Co,Consumer Staples
+KMB,Kimberly-Clark,Consumer Staples
+CLX,Clorox Co,Consumer Staples
+CHD,Church & Dwight,Consumer Staples
+TAP,Molson Coors Beverage,Consumer Staples
+POST,Post Holdings,Consumer Staples
+AMZN,Amazon.com Inc,Consumer Discretionary
+TSLA,Tesla Inc,Consumer Discretionary
+HD,Home Depot,Consumer Discretionary
+MCD,McDonald's Corp,Consumer Discretionary
+NKE,Nike Inc,Consumer Discretionary
+SBUX,Starbucks Corp,Consumer Discretionary
+TGT,Target Corp,Consumer Discretionary
+LOW,Lowes Companies,Consumer Discretionary
+BKNG,Booking Holdings,Consumer Discretionary
+UBER,Uber Technologies,Consumer Discretionary
+ABNB,Airbnb Inc,Consumer Discretionary
+ROST,Ross Stores,Consumer Discretionary
+DRI,Darden Restaurants,Consumer Discretionary
+YUM,Yum Brands,Consumer Discretionary
+CMG,Chipotle Mexican Grill,Consumer Discretionary
+MAR,Marriott International,Consumer Discretionary
+HLT,Hilton Worldwide,Consumer Discretionary
+F,Ford Motor,Consumer Discretionary
+GM,General Motors,Consumer Discretionary
+LULU,Lululemon Athletica,Consumer Discretionary
+BBY,Best Buy Co,Consumer Discretionary
+EBAY,eBay Inc,Consumer Discretionary
+ETSY,Etsy Inc,Consumer Discretionary
+AZO,AutoZone Inc,Consumer Discretionary
+ORLY,O'Reilly Automotive,Consumer Discretionary
+GPC,Genuine Parts Co,Consumer Discretionary
+LKQ,LKQ Corp,Consumer Discretionary
+AN,AutoNation Inc,Consumer Discretionary
+KMX,CarMax Inc,Consumer Discretionary
+APTV,Aptiv PLC,Consumer Discretionary
+PHM,PulteGroup Inc,Consumer Discretionary
+LEN,Lennar Corp,Consumer Discretionary
+DHI,D.R. Horton Inc,Consumer Discretionary
+TOL,Toll Brothers,Consumer Discretionary
+NVR,NVR Inc,Consumer Discretionary
+POOL,Pool Corp,Consumer Discretionary
+DECK,Deckers Outdoor,Consumer Discretionary
+HAS,Hasbro Inc,Consumer Discretionary
+MAT,Mattel Inc,Consumer Discretionary
+RCL,Royal Caribbean Cruises,Consumer Discretionary
+CCL,Carnival Corp,Consumer Discretionary
+NCLH,Norwegian Cruise Line,Consumer Discretionary
+CZR,Caesars Entertainment,Consumer Discretionary
+MGM,MGM Resorts International,Consumer Discretionary
+WYNN,Wynn Resorts,Consumer Discretionary
+LVS,Las Vegas Sands,Consumer Discretionary
+DKNG,DraftKings Inc,Consumer Discretionary
+BRK-B,Berkshire Hathaway,Financials
+JPM,JPMorgan Chase,Financials
+V,Visa Inc,Financials
+MA,Mastercard Inc,Financials
+BAC,Bank of America,Financials
+WFC,Wells Fargo,Financials
+GS,Goldman Sachs,Financials
+MS,Morgan Stanley,Financials
+BLK,BlackRock Inc,Financials
+AXP,American Express,Financials
+SCHW,Charles Schwab,Financials
+CB,Chubb Ltd,Financials
+PYPL,PayPal Holdings,Financials
+USB,US Bancorp,Financials
+PNC,PNC Financial Services,Financials
+COF,Capital One Financial,Financials
+ICE,Intercontinental Exchange,Financials
+CME,CME Group,Financials
+SPGI,S&P Global Inc,Financials
+MCO,Moodys Corp,Financials
+AFL,Aflac Inc,Financials
+ALL,Allstate Corp,Financials
+TRV,Travelers Companies,Financials
+MET,MetLife Inc,Financials
+PRU,Prudential Financial,Financials
+AIG,American International Group,Financials
+FI,Fiserv Inc,Financials
+GPN,Global Payments Inc,Financials
+BX,Blackstone Inc,Financials
+KKR,KKR & Co,Financials
+APO,Apollo Global Management,Financials
+ARES,Ares Management,Financials
+AMP,Ameriprise Financial,Financials
+RJF,Raymond James Financial,Financials
+NDAQ,Nasdaq Inc,Financials
+CBOE,Cboe Global Markets,Financials
+STT,State Street Corp,Financials
+NTRS,Northern Trust Corp,Financials
+TFC,Truist Financial,Financials
+MTB,M&T Bank Corp,Financials
+FITB,Fifth Third Bancorp,Financials
+KEY,KeyCorp,Financials
+HBAN,Huntington Bancshares,Financials
+RF,Regions Financial,Financials
+CFG,Citizens Financial Group,Financials
+WRB,W.R. Berkley Corp,Financials
+HIG,Hartford Financial Services,Financials
+CINF,Cincinnati Financial,Financials
+RE,Everest Group,Financials
+BEN,Franklin Resources,Financials
+IVZ,Invesco Ltd,Financials
+AMG,Affiliated Managers Group,Financials
+XOM,Exxon Mobil,Energy
+CVX,Chevron Corp,Energy
+COP,ConocoPhillips,Energy
+EOG,EOG Resources,Energy
+SLB,SLB,Energy
+PSX,Phillips 66,Energy
+VLO,Valero Energy,Energy
+MPC,Marathon Petroleum,Energy
+DVN,Devon Energy,Energy
+FANG,Diamondback Energy,Energy
+HAL,Halliburton Co,Energy
+OXY,Occidental Petroleum,Energy
+HES,Hess Corp,Energy
+APA,APA Corp,Energy
+MRO,Marathon Oil,Energy
+BKR,Baker Hughes,Energy
+WMB,Williams Companies,Energy
+KMI,Kinder Morgan,Energy
+OKE,ONEOK Inc,Energy
+LNG,Cheniere Energy,Energy
+TRGP,Targa Resources,Energy
+AM,Antero Midstream,Energy
+CTRA,Coterra Energy,Energy
+SM,SM Energy,Energy
+NOG,Northern Oil and Gas,Energy
+LIN,Linde PLC,Materials
+FCX,Freeport-McMoRan,Materials
+NEM,Newmont Corp,Materials
+DOW,Dow Inc,Materials
+LYB,LyondellBasell Industries,Materials
+APD,Air Products & Chemicals,Materials
+ECL,Ecolab Inc,Materials
+PPG,PPG Industries,Materials
+SHW,Sherwin-Williams,Materials
+NUE,Nucor Corp,Materials
+STLD,Steel Dynamics,Materials
+ALB,Albemarle Corp,Materials
+CF,CF Industries Holdings,Materials
+MOS,Mosaic Co,Materials
+IFF,International Flavors & Fragrances,Materials
+EMN,Eastman Chemical,Materials
+CE,Celanese Corp,Materials
+AA,Alcoa Corp,Materials
+BALL,Ball Corp,Materials
+IP,International Paper,Materials
+PKG,Packaging Corp of America,Materials
+SEE,Sealed Air Corp,Materials
+AVY,Avery Dennison Corp,Materials
+RPM,RPM International,Materials
+VMC,Vulcan Materials,Materials
+MLM,Martin Marietta Materials,Materials
+RTX,Raytheon Technologies,Industrials
+HON,Honeywell International,Industrials
+UPS,United Parcel Service,Industrials
+CAT,Caterpillar Inc,Industrials
+DE,Deere & Company,Industrials
+GE,GE Aerospace,Industrials
+BA,Boeing Co,Industrials
+LMT,Lockheed Martin,Industrials
+NOC,Northrop Grumman,Industrials
+GD,General Dynamics,Industrials
+MMM,3M Company,Industrials
+EMR,Emerson Electric,Industrials
+ETN,Eaton Corp,Industrials
+FDX,FedEx Corp,Industrials
+CSX,CSX Corp,Industrials
+NSC,Norfolk Southern,Industrials
+UNP,Union Pacific,Industrials
+DAL,Delta Air Lines,Industrials
+UAL,United Airlines Holdings,Industrials
+AAL,American Airlines Group,Industrials
+LUV,Southwest Airlines,Industrials
+IR,Ingersoll Rand,Industrials
+OTIS,Otis Worldwide,Industrials
+CARR,Carrier Global,Industrials
+ROK,Rockwell Automation,Industrials
+ITW,Illinois Tool Works,Industrials
+CTAS,Cintas Corp,Industrials
+RSG,Republic Services,Industrials
+WM,Waste Management,Industrials
+LHX,L3Harris Technologies,Industrials
+AXON,Axon Enterprise,Industrials
+PWR,Quanta Services,Industrials
+AME,AMETEK Inc,Industrials
+ROP,Roper Technologies,Industrials
+IEX,IDEX Corp,Industrials
+XYL,Xylem Inc,Industrials
+GNRC,Generac Holdings,Industrials
+PH,Parker-Hannifin,Industrials
+HUBB,Hubbell Inc,Industrials
+FAST,Fastenal Co,Industrials
+GGG,Graco Inc,Industrials
+NDSN,Nordson Corp,Industrials
+FTV,Fortive Corp,Industrials
+SNA,Snap-on Inc,Industrials
+CHRW,CH Robinson Worldwide,Industrials
+EXPD,Expeditors International,Industrials
+JBHT,JB Hunt Transport Services,Industrials
+ODFL,Old Dominion Freight Line,Industrials
+XPO,XPO Inc,Industrials
+CPRT,Copart Inc,Industrials
+VRNT,Verint Systems,Industrials
+TT,Trane Technologies,Industrials
+JCI,Johnson Controls,Industrials
+GEV,GE Vernova,Industrials
+TRMB,Trimble Inc,Industrials
+NEE,NextEra Energy,Utilities
+DUK,Duke Energy,Utilities
+SO,Southern Co,Utilities
+D,Dominion Energy,Utilities
+AEP,American Electric Power,Utilities
+XEL,Xcel Energy,Utilities
+EXC,Exelon Corp,Utilities
+ED,Consolidated Edison,Utilities
+AWK,American Water Works,Utilities
+SRE,Sempra Energy,Utilities
+PCG,PG&E Corp,Utilities
+PEG,Public Service Enterprise Group,Utilities
+WEC,WEC Energy Group,Utilities
+DTE,DTE Energy,Utilities
+ETR,Entergy Corp,Utilities
+FE,FirstEnergy Corp,Utilities
+CMS,CMS Energy,Utilities
+CNP,CenterPoint Energy,Utilities
+NI,NiSource Inc,Utilities
+AES,AES Corp,Utilities
+NRG,NRG Energy,Utilities
+VST,Vistra Corp,Utilities
+PLD,Prologis Inc,Real Estate
+AMT,American Tower,Real Estate
+EQIX,Equinix Inc,Real Estate
+SPG,Simon Property Group,Real Estate
+PSA,Public Storage,Real Estate
+AVB,AvalonBay Communities,Real Estate
+EQR,Equity Residential,Real Estate
+O,Realty Income Corp,Real Estate
+DLR,Digital Realty Trust,Real Estate
+CCI,Crown Castle Inc,Real Estate
+WELL,Welltower Inc,Real Estate
+VTR,Ventas Inc,Real Estate
+IRM,Iron Mountain Inc,Real Estate
+SBAC,SBA Communications,Real Estate
+GLPI,Gaming and Leisure Properties,Real Estate
+VICI,VICI Properties,Real Estate
+ARE,Alexandria Real Estate Equities,Real Estate
+BXP,BXP Inc,Real Estate
+VNO,Vornado Realty Trust,Real Estate
+KIM,Kimco Realty,Real Estate
+REG,Regency Centers,Real Estate
+EXR,Extra Space Storage,Real Estate
+CUBE,CubeSmart,Real Estate
+INVH,Invitation Homes,Real Estate
+AMH,American Homes 4 Rent,Real Estate
+UDR,UDR Inc,Real Estate
+CPT,Camden Property Trust,Real Estate
+ELS,Equity LifeStyle Properties,Real Estate
+SUI,Sun Communities,Real Estate
+NNN,NNN REIT,Real Estate
+STAG,STAG Industrial,Real Estate
+REXR,Rexford Industrial Realty,Real Estate
+TRNO,Terreno Realty,Real Estate
+PAYC,Paycom Software,Technology
+PCTY,Paylocity Holding,Technology
+MANH,Manhattan Associates,Technology
+TYL,Tyler Technologies,Technology
+GWRE,Guidewire Software,Technology
+AZPN,Aspen Technology,Technology
+CGNX,Cognex Corp,Technology
+SPSC,SPS Commerce,Technology
+NOVT,Novanta Inc,Technology
+NTNX,Nutanix Inc,Technology
+PSTG,Pure Storage,Technology
+SMCI,Super Micro Computer,Technology
+ALAB,Astera Labs,Technology
+ARM,Arm Holdings,Technology
+AVAV,AeroVironment,Technology
+EXLS,ExlService Holdings,Technology
+GLOB,Globant SA,Technology
+TOST,Toast Inc,Technology
+EXP,Eagle Materials,Materials
+OLN,Olin Corp,Materials
+AXTA,Axalta Coating Systems,Materials
+WLK,Westlake Corp,Materials
+TROX,Tronox Holdings,Materials
+CC,Chemours Co,Materials
+IOSP,Innospec Inc,Materials
+MASI,Masimo Corp,Healthcare
+MMSI,Merit Medical Systems,Healthcare
+IRTC,iRhythm Technologies,Healthcare
+INSP,Inspire Medical Systems,Healthcare
+NVCR,NovoCure Ltd,Healthcare
+ARWR,Arrowhead Pharmaceuticals,Healthcare
+EXEL,Exelixis Inc,Healthcare
+IONS,Ionis Pharmaceuticals,Healthcare
+NBIX,Neurocrine Biosciences,Healthcare
+RARE,Ultragenyx Pharmaceutical,Healthcare
+TMDX,TransMedics Group,Healthcare
+ACAD,Acadia Pharmaceuticals,Healthcare
+RXRX,Recursion Pharmaceuticals,Healthcare
+DOCS,Doximity Inc,Healthcare
+SDGR,Schrodinger Inc,Healthcare
+ITGR,Integer Holdings,Healthcare
+TROW,T. Rowe Price Group,Financials
+EFX,Equifax Inc,Financials
+WTFC,Wintrust Financial,Financials
+WBS,Webster Financial,Financials
+EWBC,East West Bancorp,Financials
+HOMB,Home BancShares,Financials
+BOH,Bank of Hawaii,Financials
+HWC,Hancock Whitney,Financials
+BOKF,BOK Financial,Financials
+GL,Globe Life Inc,Financials
+RGA,Reinsurance Group of America,Financials
+PFG,Principal Financial Group,Financials
+FHN,First Horizon Corp,Financials
+NWBI,Northwest Bancshares,Financials
+MKTX,MarketAxess Holdings,Financials
+VIRT,Virtu Financial,Financials
+TW,Tradeweb Markets,Financials
+GXO,GXO Logistics,Industrials
+JBLU,JetBlue Airways,Industrials
+ALK,Alaska Air Group,Industrials
+GATX,GATX Corp,Industrials
+TTC,Toro Co,Industrials
+MIDD,Middleby Corp,Industrials
+WCC,WESCO International,Industrials
+AIT,Applied Industrial Technologies,Industrials
+DCI,Donaldson Co,Industrials
+ESAB,ESAB Corp,Industrials
+MSA,MSA Safety,Industrials
+REXNORD,Rexnord Corp,Industrials
+SWK,Stanley Black & Decker,Industrials
+SRCL,Stericycle Inc,Industrials
+ALSN,Allison Transmission,Industrials
+AXE,Anixter International,Industrials
+DNOW,NOW Inc,Industrials
+DKS,Dicks Sporting Goods,Consumer Discretionary
+EXPE,Expedia Group,Consumer Discretionary
+GPS,Gap Inc,Consumer Discretionary
+PVH,PVH Corp,Consumer Discretionary
+RL,Ralph Lauren Corp,Consumer Discretionary
+VFC,VF Corp,Consumer Discretionary
+CPRI,Capri Holdings,Consumer Discretionary
+TPR,Tapestry Inc,Consumer Discretionary
+URBN,Urban Outfitters,Consumer Discretionary
+CRI,Carter's Inc,Consumer Discretionary
+SIG,Signet Jewelers,Consumer Discretionary
+DPZ,Domino's Pizza,Consumer Discretionary
+EAT,Brinker International,Consumer Discretionary
+TXRH,Texas Roadhouse,Consumer Discretionary
+WH,Wyndham Hotels & Resorts,Consumer Discretionary
+PLYA,Playa Hotels & Resorts,Consumer Discretionary
+PFGC,Performance Food Group,Consumer Staples
+INGR,Ingredion Inc,Consumer Staples
+COTY,Coty Inc,Consumer Staples
+BFA,Brown-Forman Corp,Consumer Staples
+DEO,Diageo PLC,Consumer Staples
+EQT,EQT Corp,Energy
+RRC,Range Resources,Energy
+AR,Antero Resources,Energy
+CHRD,Chord Energy,Energy
+CIVI,Civitas Resources,Energy
+MTDR,Matador Resources,Energy
+PR,Permian Resources,Energy
+DINO,HF Sinclair Corp,Energy
+MUR,Murphy Oil Corp,Energy
+SUN,Sunoco LP,Energy
+COLD,Americold Realty Trust,Real Estate
+ALEX,Alexander & Baldwin,Real Estate
+JBGS,JBG SMITH Properties,Real Estate
+MAC,Macerich Co,Real Estate
+WPT,WPT Industrial REIT,Real Estate
+IRT,Independence Realty Trust,Real Estate
+NXRT,NexPoint Residential Trust,Real Estate
