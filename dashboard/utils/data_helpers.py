@@ -3,10 +3,13 @@ Utility functions, formatting, FX, data fetching, and display helpers.
 Moved from app.py to break circular imports.
 """
 from __future__ import annotations
+import logging
 import streamlit as st
 import pandas as pd
 import requests
 import plotly.graph_objects as go
+
+log = logging.getLogger(__name__)
 from data.collector import StockDataCollector
 from models.forecaster import compute_wacc
 from screener.momentum import calculate_momentum
