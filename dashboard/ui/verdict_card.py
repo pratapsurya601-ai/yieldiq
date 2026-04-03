@@ -11,6 +11,18 @@ get_theme = _th_mod.get_theme
 get_signal_style = _th_mod.get_signal_style
 
 
+def _score_to_grade(score: int, max_score: int) -> tuple:
+    """Convert numeric score to letter grade + description."""
+    pct = score / max_score if max_score > 0 else 0
+    if pct >= 0.85:   return "A+", "Excellent"
+    elif pct >= 0.75: return "A",  "Strong"
+    elif pct >= 0.65: return "B+", "Above avg"
+    elif pct >= 0.50: return "B",  "Average"
+    elif pct >= 0.35: return "C+", "Below avg"
+    elif pct >= 0.20: return "C",  "Weak"
+    else:             return "D",  "Poor"
+
+
 def render_verdict_strip(
     ticker:      str,
     company:     str,
@@ -41,6 +53,11 @@ def render_verdict_strip(
     qual_num = score_breakdown.get("quality",   0)
     grow_num = score_breakdown.get("growth",    0)
     sent_num = score_breakdown.get("sentiment", 0)
+
+    val_grade,  val_desc  = _score_to_grade(val_num,  40)
+    qual_grade, qual_desc = _score_to_grade(qual_num, 30)
+    grow_grade, grow_desc = _score_to_grade(grow_num, 20)
+    sent_grade, sent_desc = _score_to_grade(sent_num, 10)
 
     st.markdown(f"""
 <div style="
@@ -96,58 +113,63 @@ def render_verdict_strip(
                 margin-bottom:10px;">
       {summary_text}
     </div>
-    <div style="display:flex;flex-direction:column;gap:5px;">
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:10px;color:{t['text3']};
-                     width:58px;font-weight:600;">Valuation</span>
-        <div style="flex:1;height:7px;border-radius:4px;
-                    background:{t['bar_valuation']}22;">
-          <div style="width:{val_pct}%;height:7px;border-radius:4px;
-                      background:{t['bar_valuation']};
-                      transition:width 0.8s ease;"></div>
-        </div>
-        <span style="font-size:10px;font-weight:700;
-                     color:{t['text']};min-width:32px;
-                     text-align:right;">{val_num}/40</span>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);
+                gap:8px;margin-top:14px;">
+      <div style="background:{t['bar_valuation']}15;
+                  border:1px solid {t['bar_valuation']}33;
+                  border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:9px;color:{t['bar_valuation']};
+                    letter-spacing:0.8px;font-weight:700;
+                    margin-bottom:4px;">VALUATION</div>
+        <div style="font-size:28px;font-weight:900;
+                    color:{t['bar_valuation']};
+                    line-height:1;">{val_grade}</div>
+        <div style="font-size:9px;color:{t['bar_valuation']};
+                    opacity:0.7;margin-top:3px;">{val_desc}</div>
+        <div style="font-size:9px;color:{t['text3']};
+                    margin-top:1px;">{val_num}/40 pts</div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:10px;color:{t['text3']};
-                     width:58px;font-weight:600;">Quality</span>
-        <div style="flex:1;height:7px;border-radius:4px;
-                    background:{t['bar_quality']}22;">
-          <div style="width:{qual_pct}%;height:7px;border-radius:4px;
-                      background:{t['bar_quality']};
-                      transition:width 0.8s ease;"></div>
-        </div>
-        <span style="font-size:10px;font-weight:700;
-                     color:{t['text']};min-width:32px;
-                     text-align:right;">{qual_num}/30</span>
+      <div style="background:{t['bar_quality']}15;
+                  border:1px solid {t['bar_quality']}33;
+                  border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:9px;color:{t['bar_quality']};
+                    letter-spacing:0.8px;font-weight:700;
+                    margin-bottom:4px;">QUALITY</div>
+        <div style="font-size:28px;font-weight:900;
+                    color:{t['bar_quality']};
+                    line-height:1;">{qual_grade}</div>
+        <div style="font-size:9px;color:{t['bar_quality']};
+                    opacity:0.7;margin-top:3px;">{qual_desc}</div>
+        <div style="font-size:9px;color:{t['text3']};
+                    margin-top:1px;">{qual_num}/30 pts</div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:10px;color:{t['text3']};
-                     width:58px;font-weight:600;">Growth</span>
-        <div style="flex:1;height:7px;border-radius:4px;
-                    background:{t['bar_growth']}22;">
-          <div style="width:{grow_pct}%;height:7px;border-radius:4px;
-                      background:{t['bar_growth']};
-                      transition:width 0.8s ease;"></div>
-        </div>
-        <span style="font-size:10px;font-weight:700;
-                     color:{t['text']};min-width:32px;
-                     text-align:right;">{grow_num}/20</span>
+      <div style="background:{t['bar_growth']}15;
+                  border:1px solid {t['bar_growth']}33;
+                  border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:9px;color:{t['bar_growth']};
+                    letter-spacing:0.8px;font-weight:700;
+                    margin-bottom:4px;">GROWTH</div>
+        <div style="font-size:28px;font-weight:900;
+                    color:{t['bar_growth']};
+                    line-height:1;">{grow_grade}</div>
+        <div style="font-size:9px;color:{t['bar_growth']};
+                    opacity:0.7;margin-top:3px;">{grow_desc}</div>
+        <div style="font-size:9px;color:{t['text3']};
+                    margin-top:1px;">{grow_num}/20 pts</div>
       </div>
-      <div style="display:flex;align-items:center;gap:8px;">
-        <span style="font-size:10px;color:{t['text3']};
-                     width:58px;font-weight:600;">Sentiment</span>
-        <div style="flex:1;height:7px;border-radius:4px;
-                    background:{t['bar_sentiment']}22;">
-          <div style="width:{sent_pct}%;height:7px;border-radius:4px;
-                      background:{t['bar_sentiment']};
-                      transition:width 0.8s ease;"></div>
-        </div>
-        <span style="font-size:10px;font-weight:700;
-                     color:{t['text']};min-width:32px;
-                     text-align:right;">{sent_num}/10</span>
+      <div style="background:{t['bar_sentiment']}15;
+                  border:1px solid {t['bar_sentiment']}33;
+                  border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:9px;color:{t['bar_sentiment']};
+                    letter-spacing:0.8px;font-weight:700;
+                    margin-bottom:4px;">SENTIMENT</div>
+        <div style="font-size:28px;font-weight:900;
+                    color:{t['bar_sentiment']};
+                    line-height:1;">{sent_grade}</div>
+        <div style="font-size:9px;color:{t['bar_sentiment']};
+                    opacity:0.7;margin-top:3px;">{sent_desc}</div>
+        <div style="font-size:9px;color:{t['text3']};
+                    margin-top:1px;">{sent_num}/10 pts</div>
       </div>
     </div>
     <div style="margin-top:8px;font-size:10px;

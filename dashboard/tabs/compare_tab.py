@@ -26,6 +26,7 @@ from screener.piotroski import compute_piotroski_fscore as _piotroski_raw
 from screener.earnings_quality import compute_earnings_quality as _eq_raw
 from screener.moat_engine import compute_moat_score, apply_moat_adjustments
 from tab_helpers import ccard, ccard_end
+from ui.helpers import themed_metric
 
 
 def _get_active_theme():
@@ -1123,10 +1124,13 @@ div[data-testid="stDataFrame"] td {
             for _ci, _r in enumerate(result_list):
                 _color = _PALETTE[_ci % len(_PALETTE)]
                 with _gr_cols[_ci]:
-                    st.metric(
-                        label   = _r["ticker"],
-                        value   = f"{_r.get('revenue_growth', 0):+.1f}% Rev",
-                        delta   = f"{_r.get('fcf_growth', 0):+.1f}% FCF",
+                    _fcf_g = _r.get('fcf_growth', 0)
+                    themed_metric(
+                        label=_r["ticker"],
+                        value=f"{_r.get('revenue_growth', 0):+.1f}% Rev",
+                        delta=f"{_fcf_g:+.1f}% FCF",
+                        delta_positive=(_fcf_g >= 0),
+                        theme_name=st.session_state.get("theme", "forest"),
                     )
 
         # ── TAB 3 · Quality ───────────────────────────────────────────

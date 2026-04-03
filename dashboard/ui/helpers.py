@@ -663,3 +663,51 @@ def render_fin_table(df, title, rows_config, accent="#3b82f6"):
     """)
     ccard_end()
 
+
+def themed_metric(
+    label: str,
+    value: str,
+    delta: str = "",
+    delta_positive: bool = True,
+    theme_name: str = "forest",
+    help_text: str = "",
+) -> None:
+    """
+    Themed replacement for st.metric.
+    Renders a card that respects the active theme.
+    """
+    import importlib.util as _ilu_tm, pathlib as _pl_tm
+    _tp = _pl_tm.Path(__file__).resolve().parent / "themes.py"
+    _ts = _ilu_tm.spec_from_file_location("_yiq_th_tm", _tp)
+    _tm = _ilu_tm.module_from_spec(_ts); _ts.loader.exec_module(_tm)
+    t = _tm.get_theme(theme_name)
+
+    delta_color = t["positive"] if delta_positive else t["negative"]
+    delta_html = (
+        f'<div style="font-size:11px;font-weight:600;'
+        f'color:{delta_color};margin-top:2px;">{delta}</div>'
+        if delta else ""
+    )
+    help_html = (
+        f'<div style="font-size:9px;color:{t["text3"]};'
+        f'margin-top:2px;">{help_text}</div>'
+        if help_text else ""
+    )
+
+    st.markdown(f"""
+<div style="
+  background:{t['bg2']};
+  border:1px solid {t['border']};
+  border-radius:10px;
+  padding:10px 14px;
+">
+  <div style="font-size:9px;color:{t['text3']};
+              margin-bottom:4px;letter-spacing:0.5px;
+              text-transform:uppercase;">{label}</div>
+  <div style="font-size:18px;font-weight:800;
+              color:{t['text']};line-height:1.1;">{value}</div>
+  {delta_html}
+  {help_html}
+</div>
+""", unsafe_allow_html=True)
+
