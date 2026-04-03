@@ -800,7 +800,7 @@ class StockDataCollector:
                 return fh_q["price"]
 
         # yfinance fallback
-        info  = self._yf_info
+        info  = self._yf_info or {}
         price = _safe_float(
             info.get("currentPrice")
             or info.get("regularMarketPrice")
@@ -1077,13 +1077,16 @@ class StockDataCollector:
                 return cached
 
         # ── Step 1: Load yfinance ──────────────────────────────
-        if not self._load_yf():
-            log.warning(f"[{self.ticker}] yfinance load failed")
-            return None
+        _yf_ok = self._load_yf()
+        if not _yf_ok:
+            log.warning(f"[{self.ticker}] yfinance load failed — trying Finnhub-only mode")
 
-        info       = self._yf_info
+        info       = self._yf_info if _yf_ok else {}
         is_indian  = self.ticker.endswith(".NS") or self.ticker.endswith(".BO")
-        self._fin_multiplier = _detect_financial_currency(info, is_indian)
+        if _yf_ok:
+            self._fin_multiplier = _detect_financial_currency(info, is_indian)
+        else:
+            self._fin_multiplier = 1.0
 
         if self._fin_multiplier != 1.0:
             log.info(f"[{self.ticker}] USD→INR multiplier ×{self._fin_multiplier:.0f}")
@@ -1095,10 +1098,20 @@ class StockDataCollector:
             return None
 
         # ── Step 3: Financial statements (yfinance) ────────────
-        income_df = self.get_income_history(force_refresh=force_refresh)
-        cf_df     = self.get_cashflow_history(force_refresh=force_refresh)
-        bs        = self.get_balance_sheet_snapshot(force_refresh=force_refresh)
-        shares    = self.get_shares_outstanding(force_refresh=force_refresh)
+        if _yf_ok:
+            income_df = self.get_income_history(force_refresh=force_refresh)
+            cf_df     = self.get_cashflow_history(force_refresh=force_refresh)
+            bs        = self.get_balance_sheet_snapshot(force_refresh=force_refresh)
+            shares    = self.get_shares_outstanding(force_refresh=force_refresh)
+        else:
+            income_df = pd.DataFrame()
+            cf_df     = pd.DataFrame()
+            bs        = {"total_debt": 0, "total_cash": 0, "shares_prev_year": 0,
+                         "total_assets": 0, "current_ratio": 0, "current_ratio_prev": 0,
+                         "lt_debt": 0, "lt_debt_prev": 0, "total_assets_prev": 0}
+            # Estimate shares from Finnhub market cap / price
+            shares    = 0
+            log.info(f"[{self.ticker}] Finnhub-only mode — financial statements unavailable")
         # Use shares from info; prior-year from BS extraction
         shares_prev = bs.get("shares_prev_year", 0)
         total_assets    = bs.get("total_assets", 0)
