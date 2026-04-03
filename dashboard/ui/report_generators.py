@@ -225,7 +225,7 @@ def generate_excel_dcf_model(
     inv_rows = [
         ("Entry Signal",      pt.get("entry_signal", "")),
         ("Buy Zone Price",    f"{sym}{(pt.get('buy_price') or 0)*fx:,.2f}"),
-        ("Target Price",      f"{sym}{(pt.get('target_price') or 0)*fx:,.2f}"),
+        ("Model Alert Threshold", f"{sym}{(pt.get('target_price') or 0)*fx:,.2f}"),
         ("Stop Loss",         f"{sym}{(pt.get('stop_loss') or 0)*fx:,.2f}  (−{pt.get('sl_pct',0):.1f}%)"),
         ("Risk / Reward",     f"{pt.get('rr_ratio',0):.2f}x"),
         ("Suggested Holding", hp.get("label", "N/A")),

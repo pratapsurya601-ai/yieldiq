@@ -25,8 +25,8 @@ def render() -> None:
             Sign in to use Price Alerts
           </div>
           <div style="font-size:13px;color:#475569;max-width:380px;margin:0 auto 20px;line-height:1.7;">
-            Get notified when a stock crosses your target price or reaches its
-            intrinsic value &#8212; even while you&#8217;re away from the dashboard.
+            Get notified when a stock crosses your model alert threshold or reaches its
+            model fair value &#8212; even while you&#8217;re away from the dashboard.
           </div>
         </div>""")
         upgrade_prompt("action_plan", compact=True)
@@ -51,7 +51,7 @@ def render() -> None:
                 &#128276; Price Alerts
               </div>
               <div style="font-size:13px;color:#475569;">
-                Get notified when stocks hit your target price or intrinsic value.
+                Get notified when stocks hit your model alert threshold or model fair value.
               </div>
             </div>""")
         with _tal_c2:
