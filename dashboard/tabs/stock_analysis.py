@@ -1123,14 +1123,15 @@ def render() -> None:
             # ══════════════════════════════════════════════════════════
             # MOMENTUM ANALYSIS SECTION
             # ══════════════════════════════════════════════════════════
-            if momentum_result.get('momentum_score', 0) > 0:
+            _mr = momentum_result if 'momentum_result' in locals() else {}
+            if _mr.get('momentum_score', 0) > 0:
                 st.subheader("📊 Momentum Analysis")
                 
                 col1, col2 = st.columns(2)
                 
                 with col1:
                     st.write("**Component Breakdown:**")
-                    components = momentum_result.get('components', {})
+                    components = _mr.get('components', {})
                     
                     price_trend = components.get('price_trend', 0)
                     st.progress(price_trend / 100, text=f"Price Trend: {price_trend}/100")
@@ -1146,7 +1147,7 @@ def render() -> None:
                 
                 with col2:
                     st.write("**Technical Indicators:**")
-                    indicators = momentum_result.get('indicators', {})
+                    indicators = _mr.get('indicators', {})
                     
                     rsi = indicators.get('rsi_14')
                     if rsi:
