@@ -930,43 +930,57 @@ def render() -> None:
                     else f"{sym}{_fcf_raw/1e6:.0f}M")
         _fcf_g   = (enriched.get("fcf_growth", 0) or 0) * 100
 
-        if mos_pct >= 10:
+        # Use the investment plan target price as the "fair value" for consistency
+        _tgt_price_d = (inv_plan.get("price_targets", {}).get("target_price", 0) or 0) * fx
+        _display_iv  = _tgt_price_d if _tgt_price_d > 0 else iv_d
+        _display_mos = ((_display_iv - price_d) / price_d * 100) if price_d > 0 else 0
+
+        if _display_mos >= 10:
             _summary = (
                 f"{_co_name} generates {_fcf_str} in annual free cash. "
                 f"At {sym}{price_d:,.0f}, our model estimates the stock "
-                f"trades {mos_pct:.0f}% below fair value of {sym}{iv_d:,.0f}. "
+                f"trades {_display_mos:.0f}% below fair value of {sym}{_display_iv:,.0f}. "
                 f"FCF projected to grow {_fcf_g:.0f}% annually."
             )
-        elif mos_pct >= -5:
+        elif _display_mos >= -5:
             _summary = (
                 f"{_co_name} generates {_fcf_str} in annual free cash. "
                 f"At {sym}{price_d:,.0f}, the stock trades close to "
-                f"the model\u2019s fair value of {sym}{iv_d:,.0f}. "
+                f"the model\u2019s fair value of {sym}{_display_iv:,.0f}. "
                 f"Thin margin of safety."
             )
         else:
             _summary = (
                 f"{_co_name} generates {_fcf_str} in annual free cash. "
                 f"At {sym}{price_d:,.0f}, the market prices in aggressive "
-                f"growth. Model fair value: {sym}{iv_d:,.0f} "
-                f"\u2014 stock trades {abs(mos_pct):.0f}% above."
+                f"growth. Model fair value: {sym}{_display_iv:,.0f} "
+                f"\u2014 stock trades {abs(_display_mos):.0f}% above."
             )
+
+        # Use actual YieldIQ score if computed later, otherwise estimate
+        _ys_data = st.session_state.get("_yiq_score_data", {})
+        _ys_comps = _ys_data.get("components", {})
+        _breakdown = {
+            "valuation":  _ys_comps.get("Valuation (40pts)", 7),
+            "quality":    _ys_comps.get("Business Quality (30pts)", 20),
+            "growth":     _ys_comps.get("Growth (20pts)", 12),
+            "sentiment":  _ys_comps.get("Sentiment (10pts)", 6),
+        }
 
         _verdict_card(
             ticker=ticker_input, company=_co_name,
             exchange=enriched.get("exchange", ""),
             sector=enriched.get("sector_name", ""),
-            price=float(price_d), fair_value=float(iv_d),
-            mos_pct=float(mos_pct), summary=_summary,
-            score_breakdown={"valuation": 12, "quality": 20,
-                             "growth": 12, "sentiment": 6},
+            price=float(price_d), fair_value=float(_display_iv),
+            mos_pct=float(_display_mos), summary=_summary,
+            score_breakdown=_breakdown,
             sym=sym,
         )
 
         _kpi_row([
             {"label": "Market Price", "value": f"{sym}{price_d:,.2f}"},
-            {"label": "Model Fair Value", "value": f"{sym}{iv_d:,.2f}",
-             "color": "#16A34A" if mos_pct >= 0 else "#DC2626"},
+            {"label": "Model Fair Value", "value": f"{sym}{_display_iv:,.2f}",
+             "color": "#16A34A" if _display_mos >= 0 else "#DC2626"},
             {"label": "WACC", "value": f"{wacc*100:.1f}%"},
             {"label": "FCF Growth", "value": f"{_fcf_g:+.1f}%",
              "color": "#16A34A" if _fcf_g >= 0 else "#DC2626"},
@@ -1504,6 +1518,7 @@ def render() -> None:
                 rev_growth     = _rev_growth,
                 analyst_upside = _ys_upside,
             )
+            st.session_state["_yiq_score_data"] = _ys
             _grade_colors = {
                 "A+": "#16a34a", "A": "#22c55e", "B+": "#65a30d", "B": "#84cc16",
                 "C+": "#ca8a04", "C": "#f59e0b", "D": "#dc2626",
