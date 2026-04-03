@@ -110,11 +110,11 @@ def verdict_card(
                   font-style:italic;">
         Model output only. Not personalized investment advice.</div>
     </div>
-    <div class="yiq-mos-pulse" style="background:{mos_bg};border:1.5px solid {mos_bc};
+    <div  style="background:{mos_bg};border:1.5px solid {mos_bc};
                 border-radius:14px;padding:16px 20px;text-align:center;min-width:130px;">
       <div style="font-size:10px;color:{mos_tc};letter-spacing:0.8px;
                   font-weight:700;margin-bottom:6px;">MARGIN OF SAFETY</div>
-      <div class="yiq-animate-in" style="font-size:52px;font-weight:900;
+      <div  style="font-size:52px;font-weight:900;
                   color:{mos_tc};line-height:1;">{mos_pct:+.1f}%</div>
       <div style="font-size:13px;font-weight:700;color:{mos_tc};
                   margin-top:6px;">{sig_label}</div>
@@ -128,7 +128,7 @@ def verdict_card(
   </div>
   <div style="background:#fff;display:grid;grid-template-columns:repeat(4,1fr);
               border-top:1px solid #E2E8F0;">
-    <div class="yiq-grade-card">
+    <div style="padding:14px 10px;text-align:center;border-right:1px solid #E2E8F0;">
       <div style="font-size:9px;color:{vc};font-weight:700;
                   letter-spacing:0.8px;margin-bottom:5px;">VALUATION</div>
       <div style="font-size:32px;font-weight:900;color:{vc};
@@ -137,7 +137,7 @@ def verdict_card(
                   margin-top:3px;">{vl}</div>
       <div style="font-size:9px;color:#94A3B8;margin-top:2px;">{vn}/40</div>
     </div>
-    <div class="yiq-grade-card">
+    <div style="padding:14px 10px;text-align:center;border-right:1px solid #E2E8F0;">
       <div style="font-size:9px;color:{qc};font-weight:700;
                   letter-spacing:0.8px;margin-bottom:5px;">QUALITY</div>
       <div style="font-size:32px;font-weight:900;color:{qc};
@@ -146,7 +146,7 @@ def verdict_card(
                   margin-top:3px;">{ql}</div>
       <div style="font-size:9px;color:#94A3B8;margin-top:2px;">{qn}/30</div>
     </div>
-    <div class="yiq-grade-card">
+    <div style="padding:14px 10px;text-align:center;border-right:1px solid #E2E8F0;">
       <div style="font-size:9px;color:{gc};font-weight:700;
                   letter-spacing:0.8px;margin-bottom:5px;">GROWTH</div>
       <div style="font-size:32px;font-weight:900;color:{gc};
@@ -155,7 +155,7 @@ def verdict_card(
                   margin-top:3px;">{gl}</div>
       <div style="font-size:9px;color:#94A3B8;margin-top:2px;">{gn}/20</div>
     </div>
-    <div class="yiq-grade-card" style="border-right:none;">
+    <div style="padding:14px 10px;text-align:center;">
       <div style="font-size:9px;color:{sc_};font-weight:700;
                   letter-spacing:0.8px;margin-bottom:5px;">SENTIMENT</div>
       <div style="font-size:32px;font-weight:900;color:{sc_};
@@ -174,17 +174,19 @@ def kpi_row(metrics: list) -> None:
     cols = ""
     for m in metrics[:4]:
         c = m.get("color", "#0F172A")
+        sub = m.get("sub", "")
+        sub_html = f'<div style="font-size:10px;color:#94A3B8;margin-top:3px;">{sub}</div>' if sub else ""
         cols += f"""
-    <div class="yiq-kpi-card">
+    <div style="background:#fff;border:1px solid #E2E8F0;border-radius:10px;
+                padding:12px 14px;font-family:'Inter',-apple-system,sans-serif;">
       <div style="font-size:9px;color:#94A3B8;letter-spacing:0.5px;
                   text-transform:uppercase;margin-bottom:5px;">{m['label']}</div>
       <div style="font-size:20px;font-weight:800;color:{c};
                   line-height:1.1;">{m['value']}</div>
-      <div style="font-size:10px;color:#94A3B8;margin-top:3px;">
-        {m.get('sub','')}</div>
+      {sub_html}
     </div>"""
     st.markdown(f"""
 <div style="display:grid;grid-template-columns:repeat({n},1fr);gap:10px;
-            margin-bottom:14px;font-family:'Inter',-apple-system,sans-serif;">
+            margin-bottom:14px;">
   {cols}
 </div>""", unsafe_allow_html=True)
