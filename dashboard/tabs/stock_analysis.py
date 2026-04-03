@@ -1052,7 +1052,9 @@ def render() -> None:
             _qs_eveb    = raw.get("ev_to_ebitda")
             _qs_beta    = raw.get("fh_beta")
             _qs_div_raw = raw.get("dividend_yield") or raw.get("fh_div_yield") or 0
-            _qs_div     = _qs_div_raw / 100 if _qs_div_raw > 1 else _qs_div_raw
+            # Yahoo/Finnhub return div yield as percentage (0.97 = 0.97%)
+            # Convert to decimal for display: _qs_div * 100 later
+            _qs_div     = _qs_div_raw / 100 if _qs_div_raw > 0.05 else _qs_div_raw
             _qs_hi52    = (raw.get("fh_52w_high") or 0) * fx
             _qs_lo52    = (raw.get("fh_52w_low")  or 0) * fx
             _qs_fcf_raw = raw.get("yahoo_fcf_ttm") or 0
@@ -3269,7 +3271,7 @@ ro.observe(document.getElementById('wrap'));
                 _div_yield_raw = _div_y1 or _div_y2 or 0
                 _div_rate_raw  = _div_r1 or _div_r2 or 0
                 # Normalize: Yahoo sometimes returns yield as integer % (e.g. 276 = 2.76%)
-                if _div_yield_raw > 1:
+                if _div_yield_raw > 0.05:
                     _div_yield_raw = _div_yield_raw / 100
                 if _div_yield_raw == 0 and _div_rate_raw > 0 and price_n > 0:
                     _div_yield_raw = _div_rate_raw / price_n

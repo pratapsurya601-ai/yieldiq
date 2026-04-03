@@ -88,9 +88,9 @@ def fetch_stock_data(ticker):
     """Wrapper that applies tiered TTL caching."""
     return _fetch_stock_data_cached(ticker, _get_cache_ttl())
 
-@st.cache_data(ttl=0, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def _fetch_stock_data_cached(ticker, _ttl_key):
-    """Actual cached fetch — ttl=0 forces fresh fetch every time (debug)."""
+    """Actual cached fetch — _ttl_key parameter busts cache per tier."""
     try:
         collector  = StockDataCollector(ticker)
         raw        = collector.get_all()
