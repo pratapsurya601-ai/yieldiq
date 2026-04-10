@@ -687,6 +687,31 @@ def render() -> None:
                 st.stop()
 
             _update_progress(3)
+
+            # ── Guard: skip DCF if financial statements are empty (Finnhub-only mode) ──
+            _has_financials = (
+                enriched.get("shares", 0) > 0
+                and enriched.get("latest_revenue", 0) != 0
+            )
+            if not _has_financials:
+                if "_prog_ph" in dir():
+                    try: _prog_ph.empty()
+                    except Exception: pass
+                st.warning(
+                    f"**{ticker_input}**: Yahoo Finance is temporarily rate-limiting this server. "
+                    f"We got the price ({sym}{enriched.get('price', 0):,.2f}) and basic ratios from Finnhub, "
+                    f"but financial statements are unavailable for DCF analysis.\n\n"
+                    f"**Try again in 2\u20133 minutes** — the rate limit resets automatically."
+                )
+                _kpi_row([
+                    {"label": "Market Price", "value": f"{sym}{enriched.get('price', 0) * fx:,.2f}"},
+                    {"label": "Beta", "value": f"{raw.get('fh_beta', 0):.2f}" if raw.get('fh_beta') else "\u2014"},
+                    {"label": "Div Yield", "value": f"{raw.get('fh_div_yield', 0):.2f}%" if raw.get('fh_div_yield') else "\u2014"},
+                    {"label": "P/E (Finnhub)", "value": f"{raw.get('forward_pe', 0):.1f}\u00d7" if raw.get('forward_pe') else "\u2014"},
+                ])
+                st.caption("Model output only. Not investment advice. Full DCF requires financial statement data from Yahoo Finance.")
+                st.stop()
+
             dcf_engine      = DCFEngine(discount_rate=wacc, terminal_growth=terminal_g)
             forecast_result = forecaster.predict(enriched, years=forecast_yrs)
             projected       = forecast_result["projections"]
