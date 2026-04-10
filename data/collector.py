@@ -940,8 +940,9 @@ class StockDataCollector:
 
     # ── yfinance load ─────────────────────────────────────────
     def _load_yf(self) -> bool:
-        # Aggressive backoff: 0s, 10s, 30s, 60s, 90s — survives even heavy rate limits
-        _backoff = [0, 10, 30, 60, 90]
+        # If FMP is available, short retry (we have a fallback)
+        # If not, longer retry (yfinance is our only hope)
+        _backoff = [0, 5, 10] if FMP_KEY else [0, 10, 30, 60, 90]
         for attempt in range(1, len(_backoff) + 1):
             try:
                 self._ticker_obj = _yf_ticker(self.ticker)
@@ -1279,8 +1280,14 @@ class StockDataCollector:
         # ── Step 2: Get real-time price ────────────────────────
         price = self.get_price(force_refresh=force_refresh)
         if price <= 0:
-            log.warning(f"[{self.ticker}] Invalid price: {price}")
-            return None
+            # Last resort: try FMP for price
+            _fmp_p = _fmp_profile(self.ticker.split(".")[0])
+            if _fmp_p.get("price", 0) > 0:
+                price = _fmp_p["price"]
+                print(f"FMP_PRICE_OK: {self.ticker} price={price} from FMP profile")
+            else:
+                log.warning(f"[{self.ticker}] Invalid price: {price} (Finnhub + FMP both failed)")
+                return None
 
         # ── Step 3: Financial statements (yfinance) ────────────
         if _yf_ok:
