@@ -703,8 +703,9 @@ def render() -> None:
                     f"but financial statements are unavailable for DCF analysis.\n\n"
                     f"**Try again in 2\u20133 minutes** — the rate limit resets automatically."
                 )
+                _fh_price = enriched.get('price', 0)
                 _kpi_row([
-                    {"label": "Market Price", "value": f"{sym}{enriched.get('price', 0) * fx:,.2f}"},
+                    {"label": "Market Price", "value": f"{sym}{_fh_price:,.2f}"},
                     {"label": "Beta", "value": f"{raw.get('fh_beta', 0):.2f}" if raw.get('fh_beta') else "\u2014"},
                     {"label": "Div Yield", "value": f"{raw.get('fh_div_yield', 0):.2f}%" if raw.get('fh_div_yield') else "\u2014"},
                     {"label": "P/E (Finnhub)", "value": f"{raw.get('forward_pe', 0):.1f}\u00d7" if raw.get('forward_pe') else "\u2014"},
