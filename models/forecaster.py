@@ -261,7 +261,7 @@ def _rule_based_growth(enriched: dict) -> float:
         "us_it_services":         0.045,
         "us_pharma":              0.040,
         "us_healthcare_services": 0.040,
-        "us_consumer_disc":       0.040,
+        "us_consumer_disc":       0.050,  # includes TSLA, AMZN retail — higher growth
         "us_communication":       0.045,
         "us_financial_data":      0.045,
     }
@@ -271,6 +271,15 @@ def _rule_based_growth(enriched: dict) -> float:
         LONG_RUN_TARGET = 0.10                               # India nominal GDP anchor
     # 60/40 blend: trust actual historical data more, mean-revert less aggressively
     mean_reverted   = 0.60 * blended_growth + 0.40 * LONG_RUN_TARGET
+
+    # Floor: companies with positive FCF and margins don't permanently shrink
+    # At minimum, grow at half the long-run nominal GDP rate
+    op_margin = enriched.get("op_margin", 0)
+    latest_fcf = enriched.get("latest_fcf", 0)
+    if latest_fcf > 0 and op_margin > 0.05 and mean_reverted < 0:
+        _growth_floor = LONG_RUN_TARGET * 0.5  # half of long-run anchor
+        mean_reverted = max(mean_reverted, _growth_floor)
+        log.debug(f"[{enriched.get('ticker','?')}] Growth floored: {mean_reverted:.2%} (min {_growth_floor:.2%})")
 
     return _clamp(mean_reverted)
 
