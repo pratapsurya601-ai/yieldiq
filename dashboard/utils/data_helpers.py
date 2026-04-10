@@ -84,13 +84,15 @@ def _get_cache_ttl() -> int:
     t = st.session_state.get("_tier", "free")
     return {"pro": 60, "starter": 180, "premium": 180, "free": 600}.get(t, 600)
 
+_DATA_VERSION = "v3_fmp_growth_floor"  # bump this to bust cache after engine changes
+
 def fetch_stock_data(ticker):
     """Wrapper that applies tiered TTL caching."""
-    return _fetch_stock_data_cached(ticker, _get_cache_ttl())
+    return _fetch_stock_data_cached(ticker, _get_cache_ttl(), _DATA_VERSION)
 
 @st.cache_data(ttl=600, show_spinner=False)
-def _fetch_stock_data_cached(ticker, _ttl_key):
-    """Actual cached fetch — _ttl_key parameter busts cache per tier."""
+def _fetch_stock_data_cached(ticker, _ttl_key, _version):
+    """Actual cached fetch — _version parameter busts cache after code changes."""
     try:
         collector  = StockDataCollector(ticker)
         raw        = collector.get_all()
