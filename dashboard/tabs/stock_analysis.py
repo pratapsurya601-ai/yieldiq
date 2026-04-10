@@ -1635,10 +1635,10 @@ def render() -> None:
             # LAYER 3b — Model Insight Card (target / downside / horizon)
             # ══════════════════════════════════════════════════════════
             if pt.get("buy_price") and forecast_result.get("reliable", True):
-                _ins_tgt_d   = (pt.get("target_price") or 0) * fx
+                _ins_tgt_d   = iv_d  # Use moat-adjusted DCF fair value (same as verdict card)
                 _ins_sl_d    = (pt.get("stop_loss")    or 0) * fx
                 _ins_price_d = price_d
-                _ins_upside  = ((_ins_tgt_d - _ins_price_d) / _ins_price_d * 100) if _ins_price_d > 0 else 0
+                _ins_upside  = ((iv_d - _ins_price_d) / _ins_price_d * 100) if _ins_price_d > 0 else 0
                 _ins_down    = pt.get("sl_pct", 12)
                 _ins_rr      = pt.get("rr_ratio", 0)
                 _ins_hp      = (hp.get("label","Long-term") or "Long-term").replace("'","&#39;").replace('"','&quot;')
