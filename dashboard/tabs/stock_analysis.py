@@ -552,6 +552,39 @@ def render() -> None:
                         pass
 
             if raw is None:
+                # ── Last resort: try Finnhub directly for basic data ──
+                try:
+                    from data.collector import _fh_quote, _fh_profile, _fh_basic_financials, FINNHUB_KEY
+                    if FINNHUB_KEY:
+                        _fh_q = _fh_quote(ticker_input)
+                        _fh_p = _fh_profile(ticker_input)
+                        _fh_f = _fh_basic_financials(ticker_input)
+                        _fh_price = _fh_q.get("price", 0) if _fh_q else 0
+                        if _fh_price > 0:
+                            if "_prog_ph" in dir():
+                                try: _prog_ph.empty()
+                                except Exception: pass
+                            _inject_card_styles()
+                            st.warning(
+                                f"**{ticker_input}**: Yahoo Finance is rate-limiting this server. "
+                                f"Showing Finnhub data only — full DCF analysis unavailable.\n\n"
+                                f"**Try again in 2\u20133 minutes** for the complete analysis."
+                            )
+                            _fh_co = (_fh_p or {}).get("company_name", ticker_input)
+                            _fh_beta = (_fh_f or {}).get("beta", 0)
+                            _fh_pe = (_fh_f or {}).get("pe_ttm", 0)
+                            _fh_dy = (_fh_f or {}).get("div_yield_ttm", 0)
+                            _kpi_row([
+                                {"label": "Market Price", "value": f"{sym}{_fh_price:,.2f}"},
+                                {"label": "P/E (TTM)", "value": f"{_fh_pe:.1f}\u00d7" if _fh_pe else "\u2014"},
+                                {"label": "Beta", "value": f"{_fh_beta:.2f}" if _fh_beta else "\u2014"},
+                                {"label": "Div Yield", "value": f"{_fh_dy*100:.2f}%" if _fh_dy else "\u2014"},
+                            ])
+                            st.caption(f"Data: Finnhub \u00b7 {_fh_co} \u00b7 Model output only, not investment advice.")
+                            st.stop()
+                except Exception:
+                    pass
+
                 if "_prog_ph" in dir():
                     try: _prog_ph.empty()
                     except Exception: pass
