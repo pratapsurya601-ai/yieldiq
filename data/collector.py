@@ -182,12 +182,30 @@ def _load_env():
         pass
 
 _load_env()
+
+# Try os.environ first, then st.secrets (Streamlit Cloud)
 FINNHUB_KEY = os.environ.get("FINNHUB_API_KEY", "")
+if not FINNHUB_KEY:
+    try:
+        import streamlit as _st_fh
+        FINNHUB_KEY = _st_fh.secrets.get("FINNHUB_API_KEY", "")
+        if FINNHUB_KEY:
+            os.environ["FINNHUB_API_KEY"] = FINNHUB_KEY
+    except Exception:
+        pass
+
 FINNHUB_BASE = "https://finnhub.io/api/v1"
 if FINNHUB_KEY:
-    log.info(f"Finnhub API key loaded ({len(FINNHUB_KEY)} chars)")
+    print(f"FINNHUB_OK: key loaded ({len(FINNHUB_KEY)} chars, starts with '{FINNHUB_KEY[:2]}...')")
 else:
-    log.warning("FINNHUB_API_KEY not set — Finnhub fallback disabled. Add it to Streamlit Secrets.")
+    print("FINNHUB_MISSING: no API key found in os.environ or st.secrets")
+    # Also dump what keys ARE available for debugging
+    try:
+        import streamlit as _st_dbg
+        _avail = list(_st_dbg.secrets.keys()) if hasattr(_st_dbg, 'secrets') else []
+        print(f"FINNHUB_DEBUG: st.secrets keys available: {_avail}")
+    except Exception as _e:
+        print(f"FINNHUB_DEBUG: could not read st.secrets: {_e}")
 
 # ── Batch mode flag ──────────────────────────────────────────────
 # When YIELDIQ_BATCH_MODE=1 is set (by nightly_precompute.py),
