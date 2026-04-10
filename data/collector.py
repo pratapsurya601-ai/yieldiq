@@ -775,7 +775,20 @@ class StockDataCollector:
         self._ticker_obj: Optional[yf.Ticker] = None
         self._fin_multiplier: float = 1.0
         self._yf_info: dict  = {}
-        self._fh_available   = bool(FINNHUB_KEY)
+        # Lazy check: re-read key at construction time in case st.secrets
+        # wasn't available when module was first imported
+        global FINNHUB_KEY
+        if not FINNHUB_KEY:
+            try:
+                import streamlit as _st_lazy
+                _k = _st_lazy.secrets.get("FINNHUB_API_KEY", "")
+                if _k:
+                    FINNHUB_KEY = _k
+                    os.environ["FINNHUB_API_KEY"] = _k
+                    print(f"FINNHUB_LAZY_OK: key loaded from st.secrets ({len(_k)} chars)")
+            except Exception:
+                pass
+        self._fh_available = bool(FINNHUB_KEY)
 
         if self._fh_available:
             log.debug(f"[{self.ticker}] Finnhub mode active")
