@@ -765,8 +765,8 @@ class StockDataCollector:
 
     # ── yfinance load ─────────────────────────────────────────
     def _load_yf(self) -> bool:
-        # Exponential backoff: 0s, 5s, 15s, 30s — survives Yahoo rate limits
-        _backoff = [0, 5, 15, 30]
+        # Aggressive backoff: 0s, 10s, 30s, 60s, 90s — survives even heavy rate limits
+        _backoff = [0, 10, 30, 60, 90]
         for attempt in range(1, len(_backoff) + 1):
             try:
                 self._ticker_obj = _yf_ticker(self.ticker)

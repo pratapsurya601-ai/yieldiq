@@ -335,10 +335,10 @@ def generate_ai_summary(
     return "AI summary unavailable: add GEMINI_API_KEY or GROQ_API_KEY to .env"
 
 
-def _yf_fast_info_with_retry(sym: str, max_attempts: int = 3):
+def _yf_fast_info_with_retry(sym: str, max_attempts: int = 4):
     """Fetch yfinance fast_info with exponential backoff for rate limits."""
     import yfinance as yf, time as _t
-    _waits = [0, 5, 15]
+    _waits = [0, 10, 30, 60]
     for i in range(max_attempts):
         try:
             fi = yf.Ticker(sym).fast_info
