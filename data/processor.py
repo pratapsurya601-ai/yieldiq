@@ -23,7 +23,7 @@ log = get_logger(__name__)
 # ── Global fallback caps (sector-specific caps override these) ──
 MAX_REV_GROWTH  =  0.40   # fallback only — sector caps are tighter
 MIN_REV_GROWTH  = -0.15
-MAX_FCF_GROWTH  =  0.35   # fallback only
+MAX_FCF_GROWTH  =  0.50   # fallback cap — sector-specific caps override this
 MIN_FCF_GROWTH  = -0.20
 
 # ── Minimum viable company thresholds ─────────────────────────

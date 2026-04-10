@@ -841,7 +841,7 @@ def _fetch_comparison_row(ticker: str) -> dict:
             "roe":       _safe(info.get("returnOnEquity")),
             "rev_growth":_safe(info.get("revenueGrowth")),
             "op_margin": _safe(info.get("operatingMargins")),
-            "div_yield": _safe(info.get("dividendYield")) / 100 if _safe(info.get("dividendYield")) > 0.05 else _safe(info.get("dividendYield")),
+            "div_yield": _safe(info.get("dividendYield")) / 100 if _safe(info.get("dividendYield")) > 0.20 else _safe(info.get("dividendYield")),
             "sector":    info.get("sector", "—"),
             "name":      info.get("shortName", ticker),
             "ok":        True,

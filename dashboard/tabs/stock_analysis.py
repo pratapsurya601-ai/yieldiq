@@ -1087,13 +1087,14 @@ def render() -> None:
         # Beta, Div Yield, 52W Range always in context.
         # ══════════════════════════════════════════════════════════
         if raw and enriched:
-            _qs_pe      = raw.get("forward_pe") or raw.get("pe_ratio")
+            _qs_pe      = (raw.get("forward_pe")
+                          or raw.get("pe_ratio")
+                          or (raw.get("finnhub_financials") or {}).get("pe_ttm")
+                          or 0)
             _qs_eveb    = raw.get("ev_to_ebitda")
             _qs_beta    = raw.get("fh_beta")
-            _qs_div_raw = raw.get("dividend_yield") or raw.get("fh_div_yield") or 0
-            # Yahoo/Finnhub return div yield as percentage (0.97 = 0.97%)
-            # Convert to decimal for display: _qs_div * 100 later
-            _qs_div     = _qs_div_raw / 100 if _qs_div_raw > 0.05 else _qs_div_raw
+            # div yield is normalized to decimal at source (collector.py)
+            _qs_div     = raw.get("dividend_yield") or raw.get("fh_div_yield") or 0
             _qs_hi52    = (raw.get("fh_52w_high") or 0) * fx
             _qs_lo52    = (raw.get("fh_52w_low")  or 0) * fx
             _qs_fcf_raw = raw.get("yahoo_fcf_ttm") or 0
@@ -3311,8 +3312,8 @@ ro.observe(document.getElementById('wrap'));
                 _div_yield_raw = _div_y1 or _div_y2 or 0
                 _div_rate_raw  = _div_r1 or _div_r2 or 0
                 # Normalize: Yahoo sometimes returns yield as integer % (e.g. 276 = 2.76%)
-                if _div_yield_raw > 0.05:
-                    _div_yield_raw = _div_yield_raw / 100
+                # div yield normalized to decimal at source (collector.py)
+                pass
                 if _div_yield_raw == 0 and _div_rate_raw > 0 and price_n > 0:
                     _div_yield_raw = _div_rate_raw / price_n
                 if _div_yield_raw > 0:
@@ -3343,8 +3344,7 @@ ro.observe(document.getElementById('wrap'));
                                 <div style="font-size:13px;color:#0F172A;line-height:1.7;">{ddm["summary"]}</div></div>''',
                             )
                             dm1,dm2,dm3,dm4,dm5 = st.columns(5)
-                            _ddm_dy = ddm['div_yield'] if ddm['div_yield'] > 0.05 else ddm['div_yield'] * 100
-                            dm1.metric("Dividend yield",  f"{_ddm_dy:.1f}%")
+                            dm1.metric("Dividend yield",  f"{ddm['div_yield']*100:.2f}%")
                             dm2.metric("Annual dividend", fmts(ddm['div_rate'], sym))
                             dm3.metric("DDM fair value",  fmts(ddm['ddm_iv'], sym), help=ddm['model_used'])
                             dm4.metric("Blended IV",      fmts(ddm['blended_iv'], sym),
@@ -3498,8 +3498,7 @@ ro.observe(document.getElementById('wrap'));
                         """)
                         sy1, sy2, sy3 = st.columns(3)
                         sy1.metric("FCF yield",      f"{fy['fcf_yield']*100:.1f}%")
-                        _fy_dy = fy['div_yield'] if fy['div_yield'] > 0.05 else fy['div_yield'] * 100
-                        sy2.metric("Dividend yield", f"{_fy_dy:.1f}%")
+                        sy2.metric("Dividend yield", f"{fy['div_yield']*100:.2f}%")
                         sy3.metric("Total sh. yield",f"{fy['total_sh_yield']*100:.1f}%",
                                    help="FCF yield + dividend yield — total cash return to shareholders")
 

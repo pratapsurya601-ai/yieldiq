@@ -397,8 +397,9 @@ def compute_confidence_score(enriched: dict) -> dict:
                     score = max(0, score - 20)   # heavy penalty
                 elif recent_yoy < 0:
                     warnings.append(f"Revenue slightly negative {recent_yoy:.1%} YoY")
-                elif decel > 0.10:
-                    warnings.append(f"Revenue decelerating sharply: {prev_yoy:.1%} → {recent_yoy:.1%} YoY")
+                elif decel > 0.10 and recent_yoy < 0.15:
+                    # Only warn if deceleration brings growth below 15%
+                    warnings.append(f"Revenue decelerating: {prev_yoy:.1%} → {recent_yoy:.1%} YoY")
                     score = max(0, score - 10)
     else:
         factors["Revenue Stability"] = "0/20"
@@ -413,10 +414,15 @@ def compute_confidence_score(enriched: dict) -> dict:
             score += s
 
             # Detect FCF spike — may be one-time (patent, asset sale)
+            # But exclude genuine hypergrowth (revenue also grew similarly)
             if len(fcf) >= 3:
                 recent_fcf = float(fcf.iloc[-1])
                 median_fcf = float(fcf.median())
-                if median_fcf > 0 and recent_fcf > median_fcf * 2.5:
+                _rev_also_spiked = False
+                if not rev.empty and len(rev) >= 3:
+                    _rev_ratio = float(rev.iloc[-1]) / float(rev.median()) if float(rev.median()) > 0 else 1
+                    _rev_also_spiked = _rev_ratio > 2.0
+                if median_fcf > 0 and recent_fcf > median_fcf * 2.5 and not _rev_also_spiked:
                     warnings.append("FCF spike detected — may be one-time (patent/asset sale). Forward FCF likely lower.")
                     score = max(0, score - 15)
                 elif recent_fcf < 0:

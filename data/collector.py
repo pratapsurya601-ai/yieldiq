@@ -700,7 +700,7 @@ def _fh_basic_financials(ticker: str) -> dict:
         "beta":            float(m.get("beta",           0) or 0),
         "52w_high":        float(m.get("52WeekHigh",     0) or 0),
         "52w_low":         float(m.get("52WeekLow",      0) or 0),
-        "div_yield_ttm":   float(m.get("dividendYieldIndicatedAnnual", 0) or 0),
+        "div_yield_ttm":   _normalize_pct_to_decimal(float(m.get("dividendYieldIndicatedAnnual", 0) or 0)),
         "eps_ttm":         float(m.get("epsTTM",         0) or 0),
         "rev_per_share":   float(m.get("revenuePerShareTTM", 0) or 0),
         "fcf_per_share":   float(m.get("freeCashFlowPerShareTTM", 0) or 0),
@@ -712,6 +712,22 @@ def _fh_basic_financials(ticker: str) -> dict:
 # ════════════════════════════════════════════════════════════════
 # YFINANCE HELPERS (unchanged from v4)
 # ════════════════════════════════════════════════════════════════
+
+def _normalize_pct_to_decimal(val: float) -> float:
+    """Normalize a percentage value to decimal form.
+    Yahoo/Finnhub inconsistently return div yield as:
+      0.0097 (decimal) or 0.97 (percentage) or 97 (percentage*100)
+    This normalizes everything to decimal (0.0097).
+    Rule: real dividend yields are almost always < 20%.
+    """
+    if val <= 0:
+        return 0.0
+    if val > 1.0:       # e.g. 97 or 2.5 — already percentage, divide by 100
+        return val / 100
+    if val > 0.20:       # e.g. 0.97 — percentage in decimal form
+        return val / 100
+    return val           # e.g. 0.0097 — already decimal
+
 
 def _safe_float(val, default: float = 0.0) -> float:
     try:
@@ -1209,10 +1225,10 @@ class StockDataCollector:
                          info.get("sector", ""))
         company_name  = (fh_profile.get("company_name") or
                          info.get("shortName", self.ticker))
-        dividend_yield   = _safe_float(
+        dividend_yield   = _normalize_pct_to_decimal(_safe_float(
             info.get("dividendYield") or
             info.get("trailingAnnualDividendYield") or 0
-        )
+        ))
         dividend_rate    = _safe_float(
             info.get("dividendRate") or
             info.get("trailingAnnualDividendRate") or 0
