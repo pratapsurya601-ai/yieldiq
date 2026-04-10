@@ -187,7 +187,8 @@ def _fetch_one_sector_stock(tk: str) -> dict:
             w52_hi    = float(info.get("fiftyTwoWeekHigh", 0) or 0)
             w52_lo    = float(info.get("fiftyTwoWeekLow", 0) or 0)
             rec       = info.get("recommendationKey") or ""
-            div_y     = float(info.get("dividendYield", 0) or 0) * 100
+            _raw_dy   = float(info.get("dividendYield", 0) or 0)
+            div_y     = _raw_dy if _raw_dy > 0.05 else _raw_dy * 100  # yfinance may return % or decimal
             name      = info.get("shortName", tk)[:20]
             if mkt_cap == 0:
                 mkt_cap = float(info.get("marketCap", 0) or 0)

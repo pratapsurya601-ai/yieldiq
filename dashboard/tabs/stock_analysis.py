@@ -3342,7 +3342,8 @@ ro.observe(document.getElementById('wrap'));
                                 <div style="font-size:13px;color:#0F172A;line-height:1.7;">{ddm["summary"]}</div></div>''',
                             )
                             dm1,dm2,dm3,dm4,dm5 = st.columns(5)
-                            dm1.metric("Dividend yield",  f"{ddm['div_yield']*100:.1f}%")
+                            _ddm_dy = ddm['div_yield'] if ddm['div_yield'] > 0.05 else ddm['div_yield'] * 100
+                            dm1.metric("Dividend yield",  f"{_ddm_dy:.1f}%")
                             dm2.metric("Annual dividend", fmts(ddm['div_rate'], sym))
                             dm3.metric("DDM fair value",  fmts(ddm['ddm_iv'], sym), help=ddm['model_used'])
                             dm4.metric("Blended IV",      fmts(ddm['blended_iv'], sym),
@@ -3496,7 +3497,8 @@ ro.observe(document.getElementById('wrap'));
                         """)
                         sy1, sy2, sy3 = st.columns(3)
                         sy1.metric("FCF yield",      f"{fy['fcf_yield']*100:.1f}%")
-                        sy2.metric("Dividend yield", f"{fy['div_yield']*100:.1f}%")
+                        _fy_dy = fy['div_yield'] if fy['div_yield'] > 0.05 else fy['div_yield'] * 100
+                        sy2.metric("Dividend yield", f"{_fy_dy:.1f}%")
                         sy3.metric("Total sh. yield",f"{fy['total_sh_yield']*100:.1f}%",
                                    help="FCF yield + dividend yield — total cash return to shareholders")
 

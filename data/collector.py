@@ -184,6 +184,10 @@ def _load_env():
 _load_env()
 FINNHUB_KEY = os.environ.get("FINNHUB_API_KEY", "")
 FINNHUB_BASE = "https://finnhub.io/api/v1"
+if FINNHUB_KEY:
+    log.info(f"Finnhub API key loaded ({len(FINNHUB_KEY)} chars)")
+else:
+    log.warning("FINNHUB_API_KEY not set — Finnhub fallback disabled. Add it to Streamlit Secrets.")
 
 # ── Batch mode flag ──────────────────────────────────────────────
 # When YIELDIQ_BATCH_MODE=1 is set (by nightly_precompute.py),
