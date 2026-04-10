@@ -335,23 +335,18 @@ def generate_ai_summary(
     return "AI summary unavailable: add GEMINI_API_KEY or GROQ_API_KEY to .env"
 
 
-def _yf_fast_info_with_retry(sym: str, max_attempts: int = 4):
-    """Fetch yfinance fast_info with exponential backoff for rate limits."""
-    import yfinance as yf, time as _t
-    _waits = [0, 10, 30, 60]
-    for i in range(max_attempts):
-        try:
-            fi = yf.Ticker(sym).fast_info
-            return fi
-        except Exception as _e:
-            if i < max_attempts - 1 and ("429" in str(_e) or "rate" in str(_e).lower() or "Too Many" in str(_e)):
-                _t.sleep(_waits[min(i, len(_waits) - 1)])
-            else:
-                raise
-    return None
+def _yf_fast_info_with_retry(sym: str, max_attempts: int = 1):
+    """Fetch yfinance fast_info — single attempt, no blocking retries.
+    Market overview/pulse are cosmetic; they must not block page load."""
+    import yfinance as yf
+    try:
+        fi = yf.Ticker(sym).fast_info
+        return fi
+    except Exception:
+        return None
 
 
-@st.cache_data(ttl=300, show_spinner=False)
+@st.cache_data(ttl=900, show_spinner=False)
 def fetch_market_overview():
     symbols = {
         "S&P 500":   "^GSPC",
@@ -374,7 +369,7 @@ def fetch_market_overview():
     return results
 
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def fetch_market_pulse():
     """Fetch S&P 500, 10Y Treasury, VIX for the sidebar Market Pulse widget."""
     _pulse_syms = [("S&P 500", "^GSPC"), ("10Y Yield", "^TNX"), ("VIX", "^VIX")]

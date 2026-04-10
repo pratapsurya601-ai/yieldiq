@@ -407,14 +407,16 @@ st.html(f"""
 """)
 
 
-mkt = fetch_market_overview()
+mkt = fetch_market_overview() or {}
 
 # ── Scrolling ticker bar ──────────────────────────────────────
 ticker_items = ""
 for name, data in mkt.items():
-    chg = data["change_pct"]
+    chg = data.get("change_pct", 0)
+    if data.get("price", 0) == 0:
+        continue  # skip indices that failed to load
     chg_color = "#34d399" if chg >= 0 else "#ef4444"
-    chg_sym = "▲" if chg >= 0 else "▼"
+    chg_sym = "\u25b2" if chg >= 0 else "\u25bc"
     price_fmt = f"{data['price']:,.2f}"
     ticker_items += f"""
     <div style="display:inline-flex;align-items:center;gap:8px;padding:4px 18px;
@@ -430,10 +432,13 @@ st.html(f"""
 """)
 
 # ── 2x2 market cards grid ────────────────────────────────────
-mkt_list = list(mkt.items())[:4]
-cols = st.columns(4)
+mkt_list = [(n, d) for n, d in mkt.items() if d.get("price", 0) > 0][:4]
+if mkt_list:
+    cols = st.columns(len(mkt_list))
+else:
+    cols = []
 for col, (name, data) in zip(cols, mkt_list):
-    chg = data["change_pct"]
+    chg = data.get("change_pct", 0)
     chg_color = "#059669" if chg >= 0 else "#dc2626"
     chg_sym = "▲" if chg >= 0 else "▼"
     bar_w = min(abs(chg) * 15 + 40, 95)
