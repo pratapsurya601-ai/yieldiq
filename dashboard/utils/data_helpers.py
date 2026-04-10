@@ -102,7 +102,85 @@ def _fetch_stock_data_cached(ticker, _ttl_key, _version):
         collector = None
 
     if raw is None:
-        print(f"FETCH_FAIL {ticker}: raw is None — data provider may be blocking this IP")
+        print(f"FETCH_FAIL {ticker}: raw is None — trying FMP direct fallback")
+        # ── FMP DIRECT FALLBACK — build raw dict entirely from FMP ──
+        try:
+            from data.collector import (
+                _fmp_income_statement, _fmp_cashflow, _fmp_balance_sheet,
+                _fmp_profile, _fh_quote, _fh_basic_financials, FMP_KEY, FINNHUB_KEY,
+            )
+            _fmp_t = ticker.split(".")[0]
+            _fmp_inc = _fmp_income_statement(_fmp_t) if FMP_KEY else pd.DataFrame()
+            _fmp_cf  = _fmp_cashflow(_fmp_t) if FMP_KEY else pd.DataFrame()
+            _fmp_bs  = _fmp_balance_sheet(_fmp_t) if FMP_KEY else {}
+            _fmp_pr  = _fmp_profile(_fmp_t) if FMP_KEY else {}
+            _fh_q    = _fh_quote(ticker) if FINNHUB_KEY else {}
+            _fh_f    = _fh_basic_financials(ticker) if FINNHUB_KEY else {}
+
+            _price = (_fh_q or {}).get("price", 0) or (_fmp_pr or {}).get("price", 0)
+            _shares = (_fmp_pr or {}).get("shares", 0)
+
+            if _price > 0 and not _fmp_inc.empty:
+                print(f"FMP_DIRECT_OK {ticker}: price={_price}, {len(_fmp_inc)} yrs financials, shares={_shares:,.0f}")
+                # Build a minimal raw dict that compute_metrics can process
+                raw = {
+                    "ticker": ticker,
+                    "price": _price,
+                    "shares": _shares,
+                    "total_debt": (_fmp_bs or {}).get("total_debt", 0),
+                    "total_cash": (_fmp_bs or {}).get("total_cash", 0),
+                    "income_df": _fmp_inc,
+                    "cf_df": _fmp_cf,
+                    "native_ccy": "USD",
+                    "fin_multiplier": 1.0,
+                    "forward_eps": (_fh_f or {}).get("eps_ttm", 0),
+                    "trailing_eps": (_fh_f or {}).get("eps_ttm", 0),
+                    "forward_pe": (_fh_f or {}).get("pe_ttm", 0),
+                    "peg_ratio": 0,
+                    "roe": (_fh_f or {}).get("roe_ttm", 0),
+                    "roce_proxy": 0,
+                    "de_ratio": (_fh_f or {}).get("debt_to_equity", 0),
+                    "interest_cov": 0,
+                    "gross_margin": (_fh_f or {}).get("gross_margin_ttm", 0),
+                    "sector_name": (_fmp_pr or {}).get("sector", ""),
+                    "company_name": (_fmp_pr or {}).get("company_name", ticker),
+                    "norm_capex_pct": None,
+                    "ebitda": 0,
+                    "enterprise_value": 0,
+                    "ev_to_ebitda": (_fh_f or {}).get("ev_ebitda_ttm", 0),
+                    "ev_to_revenue": 0,
+                    "yahoo_fcf_ttm": 0,
+                    "dividend_yield": (_fh_f or {}).get("div_yield_ttm", 0),
+                    "dividend_rate": 0,
+                    "payout_ratio": 0,
+                    "five_yr_avg_div_yield": 0,
+                    "price_change_pct": (_fh_q or {}).get("change_pct", 0),
+                    "day_high": (_fh_q or {}).get("day_high", 0),
+                    "day_low": (_fh_q or {}).get("day_low", 0),
+                    "finnhub_price_target": {},
+                    "finnhub_rec_trend": [],
+                    "finnhub_earnings": [],
+                    "earnings_track_record": {},
+                    "finnhub_next_earnings": {},
+                    "news": [],
+                    "finnhub_financials": _fh_f or {},
+                    "fh_beta": (_fh_f or {}).get("beta", 0),
+                    "fh_div_yield": (_fh_f or {}).get("div_yield_ttm", 0),
+                    "fh_52w_high": (_fh_f or {}).get("52w_high", 0),
+                    "fh_52w_low": (_fh_f or {}).get("52w_low", 0),
+                    "exchange": "",
+                    "pe_ratio": (_fh_f or {}).get("pe_ttm", 0),
+                }
+                # Return the FMP-built raw dict — full DCF will run
+                return raw, pd.DataFrame(), {}, {
+                    'momentum_score': 0, 'grade': 'N/A',
+                    'signal': 'N/A ⬜', 'components': {}, 'indicators': {}
+                }
+            else:
+                print(f"FMP_DIRECT_FAIL {ticker}: price={_price}, income_rows={len(_fmp_inc) if not _fmp_inc.empty else 0}")
+        except Exception as _fmp_err:
+            print(f"FMP_DIRECT_ERROR {ticker}: {type(_fmp_err).__name__}: {_fmp_err}")
+
         return None, pd.DataFrame(), {}, {'momentum_score': 0, 'grade': 'N/A', 'signal': 'N/A ⬜', 'components': {}, 'indicators': {}}
 
     price_hist = pd.DataFrame()
