@@ -335,9 +335,24 @@ def generate_ai_summary(
     return "AI summary unavailable: add GEMINI_API_KEY or GROQ_API_KEY to .env"
 
 
+def _yf_fast_info_with_retry(sym: str, max_attempts: int = 3):
+    """Fetch yfinance fast_info with exponential backoff for rate limits."""
+    import yfinance as yf, time as _t
+    _waits = [0, 5, 15]
+    for i in range(max_attempts):
+        try:
+            fi = yf.Ticker(sym).fast_info
+            return fi
+        except Exception as _e:
+            if i < max_attempts - 1 and ("429" in str(_e) or "rate" in str(_e).lower() or "Too Many" in str(_e)):
+                _t.sleep(_waits[min(i, len(_waits) - 1)])
+            else:
+                raise
+    return None
+
+
 @st.cache_data(ttl=300, show_spinner=False)
 def fetch_market_overview():
-    import yfinance as yf
     symbols = {
         "S&P 500":   "^GSPC",
         "NASDAQ":    "^IXIC",
@@ -348,10 +363,9 @@ def fetch_market_overview():
     results = {}
     for name, sym in symbols.items():
         try:
-            t = yf.Ticker(sym)
-            fi = t.fast_info
-            price = float(getattr(fi, "last_price", 0) or 0)
-            prev  = float(getattr(fi, "previous_close", 0) or 0)
+            fi = _yf_fast_info_with_retry(sym)
+            price = float(getattr(fi, "last_price", 0) or 0) if fi else 0
+            prev  = float(getattr(fi, "previous_close", 0) or 0) if fi else 0
             chg   = ((price - prev) / prev * 100) if prev > 0 else 0
             results[name] = {"price": price, "change_pct": chg, "symbol": sym}
         except Exception as _e:
@@ -363,14 +377,13 @@ def fetch_market_overview():
 @st.cache_data(ttl=60, show_spinner=False)
 def fetch_market_pulse():
     """Fetch S&P 500, 10Y Treasury, VIX for the sidebar Market Pulse widget."""
-    import yfinance as yf
     _pulse_syms = [("S&P 500", "^GSPC"), ("10Y Yield", "^TNX"), ("VIX", "^VIX")]
     result = {}
     for name, sym in _pulse_syms:
         try:
-            fi    = yf.Ticker(sym).fast_info
-            price = float(getattr(fi, "last_price", 0) or 0)
-            prev  = float(getattr(fi, "previous_close", 0) or 0)
+            fi    = _yf_fast_info_with_retry(sym)
+            price = float(getattr(fi, "last_price", 0) or 0) if fi else 0
+            prev  = float(getattr(fi, "previous_close", 0) or 0) if fi else 0
             chg   = ((price - prev) / prev * 100) if prev > 0 else 0
             result[name] = {"price": price, "chg": chg}
         except Exception as _e:

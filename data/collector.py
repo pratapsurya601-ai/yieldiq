@@ -765,14 +765,24 @@ class StockDataCollector:
 
     # ── yfinance load ─────────────────────────────────────────
     def _load_yf(self) -> bool:
-        for attempt in range(1, MAX_RETRIES + 1):
+        # Exponential backoff: 0s, 5s, 15s, 30s — survives Yahoo rate limits
+        _backoff = [0, 5, 15, 30]
+        for attempt in range(1, len(_backoff) + 1):
             try:
                 self._ticker_obj = _yf_ticker(self.ticker)
                 self._yf_info    = self._ticker_obj.info or {}
+                if attempt > 1:
+                    log.info(f"[{self.ticker}] yfinance succeeded on attempt {attempt}")
                 return True
             except Exception as exc:
-                log.warning(f"[{self.ticker}] yfinance attempt {attempt}: {exc}")
-                time.sleep(1.5 * attempt)
+                _wait = _backoff[attempt - 1]
+                _is_rate_limit = "429" in str(exc) or "rate" in str(exc).lower() or "Too Many" in str(exc)
+                if _is_rate_limit:
+                    log.warning(f"[{self.ticker}] yfinance rate-limited (attempt {attempt}/{len(_backoff)}), waiting {_wait}s...")
+                else:
+                    log.warning(f"[{self.ticker}] yfinance attempt {attempt}: {exc}")
+                if attempt < len(_backoff):
+                    time.sleep(_wait)
         return False
 
     # ── Price resolution ──────────────────────────────────────
