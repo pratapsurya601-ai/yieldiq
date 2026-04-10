@@ -207,6 +207,117 @@ else:
     except Exception as _e:
         print(f"FINNHUB_DEBUG: could not read st.secrets: {_e}")
 
+# ── FMP (Financial Modeling Prep) — fallback for financial statements ──
+FMP_KEY = os.environ.get("FMP_API_KEY", "")
+if not FMP_KEY:
+    try:
+        import streamlit as _st_fmp
+        FMP_KEY = _st_fmp.secrets.get("FMP_API_KEY", "")
+        if FMP_KEY:
+            os.environ["FMP_API_KEY"] = FMP_KEY
+    except Exception:
+        pass
+FMP_BASE = "https://financialmodelingprep.com/api/v3"
+if FMP_KEY:
+    print(f"FMP_OK: key loaded ({len(FMP_KEY)} chars)")
+else:
+    print("FMP_MISSING: no FMP_API_KEY — FMP fallback disabled")
+
+
+def _fmp_get(endpoint: str, ticker: str) -> list:
+    """Fetch from FMP API. Returns list of annual records or []."""
+    if not FMP_KEY:
+        return []
+    try:
+        url = f"{FMP_BASE}/{endpoint}/{ticker}?period=annual&apikey={FMP_KEY}"
+        resp = requests.get(url, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            return data if isinstance(data, list) else []
+    except Exception as _e:
+        log.warning(f"[FMP] {endpoint}/{ticker}: {_e}")
+    return []
+
+
+def _fmp_income_statement(ticker: str) -> pd.DataFrame:
+    """Fetch income statement from FMP, return DataFrame matching yfinance format."""
+    records = _fmp_get("income-statement", ticker)
+    if not records:
+        return pd.DataFrame()
+    rows = []
+    for r in records[:5]:  # last 5 years
+        rows.append({
+            "year":     int(r.get("calendarYear", 0)) or int(r.get("date", "0")[:4]),
+            "revenue":  float(r.get("revenue", 0) or 0),
+            "gross_profit": float(r.get("grossProfit", 0) or 0),
+            "operating_income": float(r.get("operatingIncome", 0) or 0),
+            "net_income": float(r.get("netIncome", 0) or 0),
+            "ebitda":   float(r.get("ebitda", 0) or 0),
+        })
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df = df.sort_values("year").reset_index(drop=True)
+    return df
+
+
+def _fmp_cashflow(ticker: str) -> pd.DataFrame:
+    """Fetch cash flow statement from FMP, return DataFrame matching yfinance format."""
+    records = _fmp_get("cash-flow-statement", ticker)
+    if not records:
+        return pd.DataFrame()
+    rows = []
+    for r in records[:5]:
+        ocf   = float(r.get("operatingCashFlow", 0) or 0)
+        capex = abs(float(r.get("capitalExpenditure", 0) or 0))
+        rows.append({
+            "year":   int(r.get("calendarYear", 0)) or int(r.get("date", "0")[:4]),
+            "ocf":    ocf,
+            "capex":  capex,
+            "fcf":    ocf - capex,
+        })
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df = df.sort_values("year").reset_index(drop=True)
+    return df
+
+
+def _fmp_balance_sheet(ticker: str) -> dict:
+    """Fetch latest balance sheet from FMP."""
+    records = _fmp_get("balance-sheet-statement", ticker)
+    if not records:
+        return {}
+    r = records[0]  # most recent
+    return {
+        "total_debt":    float(r.get("totalDebt", 0) or 0),
+        "total_cash":    float(r.get("cashAndCashEquivalents", 0) or r.get("cashAndShortTermInvestments", 0) or 0),
+        "total_assets":  float(r.get("totalAssets", 0) or 0),
+        "shares_outstanding": float(r.get("commonStock", 0) or 0),
+    }
+
+
+def _fmp_profile(ticker: str) -> dict:
+    """Fetch company profile from FMP for shares outstanding."""
+    if not FMP_KEY:
+        return {}
+    try:
+        url = f"{FMP_BASE}/profile/{ticker}?apikey={FMP_KEY}"
+        resp = requests.get(url, timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            if isinstance(data, list) and data:
+                p = data[0]
+                return {
+                    "shares": float(p.get("mktCap", 0) or 0) / float(p.get("price", 1) or 1) if p.get("price") else 0,
+                    "market_cap": float(p.get("mktCap", 0) or 0),
+                    "company_name": p.get("companyName", ticker),
+                    "sector": p.get("sector", ""),
+                    "price": float(p.get("price", 0) or 0),
+                }
+    except Exception:
+        pass
+    return {}
+
+
 # ── Batch mode flag ──────────────────────────────────────────────
 # When YIELDIQ_BATCH_MODE=1 is set (by nightly_precompute.py),
 # all Finnhub API calls are skipped to avoid rate-limit delays
@@ -806,6 +917,19 @@ class StockDataCollector:
                 pass
         self._fh_available = bool(FINNHUB_KEY)
 
+        # Lazy-load FMP key too
+        global FMP_KEY
+        if not FMP_KEY:
+            try:
+                import streamlit as _st_fmp_lazy
+                _fk = _st_fmp_lazy.secrets.get("FMP_API_KEY", "")
+                if _fk:
+                    FMP_KEY = _fk
+                    os.environ["FMP_API_KEY"] = _fk
+                    print(f"FMP_LAZY_OK: key loaded from st.secrets ({len(_fk)} chars)")
+            except Exception:
+                pass
+
         if self._fh_available:
             log.debug(f"[{self.ticker}] Finnhub mode active")
         else:
@@ -1165,14 +1289,27 @@ class StockDataCollector:
             bs        = self.get_balance_sheet_snapshot(force_refresh=force_refresh)
             shares    = self.get_shares_outstanding(force_refresh=force_refresh)
         else:
-            income_df = pd.DataFrame()
-            cf_df     = pd.DataFrame()
-            bs        = {"total_debt": 0, "total_cash": 0, "shares_prev_year": 0,
-                         "total_assets": 0, "current_ratio": 0, "current_ratio_prev": 0,
-                         "lt_debt": 0, "lt_debt_prev": 0, "total_assets_prev": 0}
-            # Estimate shares from Finnhub market cap / price
-            shares    = 0
-            log.info(f"[{self.ticker}] Finnhub-only mode — financial statements unavailable")
+            # ── FMP fallback for financial statements ─────────────
+            _fmp_ticker = self.ticker.split(".")[0]  # Remove .NS/.BO suffix for FMP
+            income_df = _fmp_income_statement(_fmp_ticker)
+            cf_df     = _fmp_cashflow(_fmp_ticker)
+            _fmp_bs   = _fmp_balance_sheet(_fmp_ticker)
+            _fmp_prof = _fmp_profile(_fmp_ticker)
+
+            if not income_df.empty:
+                log.info(f"[{self.ticker}] FMP fallback: got {len(income_df)} years of financials")
+            else:
+                log.warning(f"[{self.ticker}] FMP fallback: no financial data available")
+
+            shares = _fmp_prof.get("shares", 0)
+            bs = {
+                "total_debt":       _fmp_bs.get("total_debt", 0),
+                "total_cash":       _fmp_bs.get("total_cash", 0),
+                "total_assets":     _fmp_bs.get("total_assets", 0),
+                "shares_prev_year": 0,
+                "current_ratio":    0, "current_ratio_prev": 0,
+                "lt_debt": 0, "lt_debt_prev": 0, "total_assets_prev": 0,
+            }
         # Use shares from info; prior-year from BS extraction
         shares_prev = bs.get("shares_prev_year", 0)
         total_assets    = bs.get("total_assets", 0)

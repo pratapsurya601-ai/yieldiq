@@ -24,7 +24,7 @@ from plotly.subplots import make_subplots
 import streamlit as st
 
 # Force cache clear on deploy — prevents stale data after code fixes
-_APP_CACHE_VERSION = "finnhub_fallback_v1"
+_APP_CACHE_VERSION = "fmp_fallback_v1"
 if st.session_state.get("_cache_version") != _APP_CACHE_VERSION:
     st.cache_data.clear()
     # Also clear collector.py's disk cache
