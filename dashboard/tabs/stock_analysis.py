@@ -1091,32 +1091,7 @@ def render() -> None:
             sym=sym,
         )
 
-        _verdict_card(
-            ticker=ticker_input, company=_co_name,
-            exchange=enriched.get("exchange", ""),
-            sector=enriched.get("sector_name", ""),
-            price=float(price_d), fair_value=float(_display_iv),
-            mos_pct=float(_display_mos), summary=_summary,
-            score_breakdown=_breakdown,
-            sym=sym,
-        )
-
-        _kpi_row([
-            {"label": "Market Price", "value": f"{sym}{price_d:,.2f}"},
-            {"label": "Model Fair Value", "value": f"{sym}{_display_iv:,.2f}",
-             "color": "#16A34A" if _display_mos >= 0 else "#DC2626"},
-            {"label": "WACC", "value": f"{wacc*100:.1f}%"},
-            {"label": "FCF Growth", "value": f"{_fcf_g:+.1f}%",
-             "color": "#16A34A" if _fcf_g >= 0 else "#DC2626"},
-        ])
-
-        # ── VALUATION GAUGE (GuruFocus-style) ─────────────
-        _valuation_gauge(
-            price=float(price_d),
-            fair_value=float(_display_iv),
-            mos_pct=float(_display_mos),
-            sym=sym,
-        )
+        # (Old verdict_card, kpi_row, gauge removed — replaced by valuation_hero above)
 
         # ── SNOWFLAKE RADAR (Simply Wall St-style) ───────
         _snowflake_chart(

@@ -190,31 +190,19 @@ details summary svg,details>summary>svg,
 </style>""", unsafe_allow_html=True)
     st.html("""<script>
 (function(){
-  var RE=/^_[a-z][a-z_]+$/;
-  function isIcon(t){t=(t||"").trim();
-    return t=="_arrow_right"||t.startsWith("_arrow")||
-           t.startsWith("_expand")||t.startsWith("_chevron")||RE.test(t);}
+  // Minimal: only hide SVGs in summaries on the login page
   function clean(){
-    ["[data-testid=\"stExpander\"] summary","details>summary",
-     ".streamlit-expanderHeader","[data-testid=\"stTabs\"] button[role=\"tab\"]"
-    ].forEach(function(s){
-      document.querySelectorAll(s).forEach(function(el){
-        var kill=[];
-        el.childNodes.forEach(function(n){
-          if(n.nodeType===3&&isIcon(n.textContent)){n.textContent="";return;}
-          if(n.nodeType===1){var t=n.tagName.toLowerCase(),x=n.textContent||"";
-            if(t=="svg"||isIcon(x.trim())){kill.push(n);return;}
-          }
-        });
-        kill.forEach(function(n){try{n.parentNode.removeChild(n);}catch(e){}});
+    document.querySelectorAll('summary svg').forEach(function(s){s.style.display='none';});
+    document.querySelectorAll('summary').forEach(function(el){
+      el.childNodes.forEach(function(n){
+        if(n.nodeType===3){var t=(n.textContent||'').trim();
+          if(t==="_arrow_right"||t.startsWith("_arrow")||t.startsWith("_expand")||
+             t.startsWith("keyboard_")||/^_[a-z][a-z_]+$/.test(t)){n.textContent='';}}
       });
     });
   }
   clean();
-  [50,150,300,600,1200,2500].forEach(function(ms){setTimeout(clean,ms);});
-  new MutationObserver(function(m){for(var i=0;i<m.length;i++){
-    if(m[i].addedNodes.length||m[i].type=="characterData"){clean();break;}
-  }}).observe(document.body,{childList:true,subtree:true,characterData:true});
+  [100,500,1500].forEach(function(ms){setTimeout(clean,ms);});
 })();
 </script>
 <div class="yiq-aw"><div class="yiq-ac">
