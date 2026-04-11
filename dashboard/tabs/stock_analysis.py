@@ -1016,13 +1016,23 @@ def render() -> None:
             )
 
         # Use actual YieldIQ score if computed later, otherwise estimate
+        # Quick score estimate for verdict card (full score computed later)
         _ys_data = st.session_state.get("_yiq_score_data", {})
         _ys_comps = _ys_data.get("components", {})
+        if not _ys_comps:
+            # Estimate from available data
+            _v_est = 40 if mos_pct >= 40 else 32 if mos_pct >= 25 else 22 if mos_pct >= 10 else 14 if mos_pct >= 0 else 7 if mos_pct >= -15 else 0
+            _q_est = min(int((enriched.get("piotroski_score", 5) or 5) / 9 * 20) + 5, 30)
+            _g_est = 20 if enriched.get("revenue_growth", 0) >= 0.20 else 15 if enriched.get("revenue_growth", 0) >= 0.10 else 10 if enriched.get("revenue_growth", 0) >= 0.05 else 5
+            _s_est = 7
+        else:
+            _v_est = _ys_comps.get("Valuation (40pts)", 14)
+            _q_est = _ys_comps.get("Business Quality (30pts)", 20)
+            _g_est = _ys_comps.get("Growth (20pts)", 12)
+            _s_est = _ys_comps.get("Sentiment (10pts)", 6)
         _breakdown = {
-            "valuation":  _ys_comps.get("Valuation (40pts)", 7),
-            "quality":    _ys_comps.get("Business Quality (30pts)", 20),
-            "growth":     _ys_comps.get("Growth (20pts)", 12),
-            "sentiment":  _ys_comps.get("Sentiment (10pts)", 6),
+            "valuation": _v_est, "quality": _q_est,
+            "growth": _g_est, "sentiment": _s_est,
         }
 
         _verdict_card(

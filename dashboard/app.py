@@ -388,6 +388,7 @@ _stc.html("""
     return t === '_arrow_right' || t === '_arrow_drop_down' ||
            t === '_expand_more' || t.startsWith('_arrow') ||
            t.startsWith('_expand') || t.startsWith('_chevron') ||
+           t.startsWith('keyboard_') || t === 'double_arrow_right' ||
            ICON_RE.test(t);
   }
   function cleanNode(node) {

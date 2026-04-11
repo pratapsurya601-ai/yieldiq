@@ -1246,7 +1246,7 @@ class StockDataCollector:
             # cfo alias: financial table config expects "cfo" column
             result["cfo"] = result["ocf"]
             # fcf_growth: YoY % change in FCF for each year row
-            result["fcf_growth"] = result["fcf"].pct_change()
+            result["fcf_growth"] = result["fcf"].pct_change().replace([np.inf, -np.inf], np.nan)
             _cache.set(ck, result, TTL_FINANCIALS)
             return result
         except Exception as exc:
