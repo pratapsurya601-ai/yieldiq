@@ -272,16 +272,15 @@ def _rule_based_growth(enriched: dict) -> float:
     # 60/40 blend: trust actual historical data more, mean-revert less aggressively
     mean_reverted   = 0.60 * blended_growth + 0.40 * LONG_RUN_TARGET
 
-    # Floor: companies with positive FCF and margins don't permanently shrink
-    # At minimum, grow at half the long-run nominal GDP rate
-    op_margin = enriched.get("op_margin", 0)
+    # Floor: ANY company with positive FCF gets at minimum half the sector's
+    # long-run growth rate. No profitable company permanently shrinks.
     latest_fcf = enriched.get("latest_fcf", 0)
     _ticker_dbg = enriched.get('ticker', '?')
-    print(f"GROWTH_CHECK {_ticker_dbg}: blended={blended_growth:.4f} mean_rev={mean_reverted:.4f} fcf={latest_fcf} op_margin={op_margin:.4f} LONG_RUN={LONG_RUN_TARGET:.4f}")
-    if latest_fcf > 0 and op_margin > 0.02 and mean_reverted < LONG_RUN_TARGET * 0.5:
-        _growth_floor = LONG_RUN_TARGET * 0.5  # half of long-run anchor
-        mean_reverted = max(mean_reverted, _growth_floor)
-        print(f"GROWTH_FLOORED {_ticker_dbg}: {mean_reverted:.4f} (floor={_growth_floor:.4f})")
+    _growth_floor = LONG_RUN_TARGET * 0.5
+    print(f"GROWTH_CHECK {_ticker_dbg}: blended={blended_growth:.4f} mean_rev={mean_reverted:.4f} fcf={latest_fcf} floor={_growth_floor:.4f}")
+    if latest_fcf > 0 and mean_reverted < _growth_floor:
+        mean_reverted = _growth_floor
+        print(f"GROWTH_FLOORED {_ticker_dbg}: set to {mean_reverted:.4f}")
 
     return _clamp(mean_reverted)
 
