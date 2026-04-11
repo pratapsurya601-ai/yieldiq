@@ -1118,159 +1118,24 @@ section[data-testid="stSidebar"] .stSlider p {
 
 
 def inject_arrow_fix_js() -> None:
+    """Minimal JS — ONLY hides SVGs inside expander summaries.
+    Does NOT touch text nodes or spans (that was breaking labels).
+    CSS handles all visual styling."""
     st.html("""
 <script>
 (function() {
   'use strict';
-
-  // Pattern: exactly "_arrow_right", or starts with "_arrow", or is a
-  // Material icon string: starts with "_" followed only by lowercase a-z and "_".
-  // Also covers "keyboard_*" icons (keyboard_double_arrow_right, etc.)
-  // which do NOT start with "_" so ICON_RE misses them — caught explicitly below.
-  var ICON_EXACT   = '_arrow_right';
-  var ICON_RE      = /^_[a-z][a-z_]+$/;   // e.g. _arrow_right, _expand_more
-
-  function isIconText(txt) {
-    if (!txt) return false;
-    var t = txt.trim();
-    return t === ICON_EXACT         ||
-           t.startsWith('_arrow')   ||
-           t.startsWith('_expand')  ||
-           t.startsWith('_chevron') ||
-           t.startsWith('keyboard_double') ||   // keyboard_double_arrow_right, etc.
-           t.startsWith('keyboard_')         ||  // any other keyboard_* icon
-           ICON_RE.test(t);
-  }
-
-  function cleanSummary(summary) {
-    // Collect nodes to remove (don't mutate during iteration)
-    var toRemove = [];
-    summary.childNodes.forEach(function(node) {
-      // TEXT NODES
-      if (node.nodeType === Node.TEXT_NODE) {
-        if (isIconText(node.textContent)) {
-          node.textContent = '';
-        }
-      }
-      // ELEMENT NODES
-      if (node.nodeType === Node.ELEMENT_NODE) {
-        var tag  = node.tagName.toLowerCase();
-        var txt  = node.textContent || '';
-        // SVG: always kill (icon SVGs have no user content)
-        if (tag === 'svg') {
-          toRemove.push(node);
-          return;
-        }
-        // Span/i/em whose ENTIRE content is an icon string
-        if (['span','i','em','b','small'].includes(tag) && isIconText(txt)) {
-          toRemove.push(node);
-          return;
-        }
-        // Any element whose trimmed text is EXACTLY the icon string
-        // and has no useful child elements (button, p, div, etc.)
-        if (isIconText(txt.trim()) && !node.querySelector('p,div,button,a')) {
-          toRemove.push(node);
-          return;
-        }
-        // If it has children, walk them recursively
-        if (node.children.length > 0) {
-          Array.from(node.children).forEach(function(child) {
-            var ctag  = child.tagName.toLowerCase();
-            var ctxt  = child.textContent || '';
-            if (ctag === 'svg' || isIconText(ctxt.trim())) {
-              child.style.cssText =
-                'display:none!important;width:0!important;height:0!important;' +
-                'font-size:0!important;line-height:0!important;opacity:0!important;' +
-                'visibility:hidden!important;position:absolute!important;' +
-                'pointer-events:none!important;color:transparent!important;';
-            }
-          });
-        }
-      }
-    });
-    // Execute removal
-    toRemove.forEach(function(n) {
-      try { n.parentNode && n.parentNode.removeChild(n); } catch(e) {}
+  function hideSummarySVGs() {
+    document.querySelectorAll(
+      '[data-testid="stExpander"] summary svg, details > summary svg'
+    ).forEach(function(svg) {
+      svg.style.display = 'none';
     });
   }
-
-  function cleanAll() {
-    var sels = [
-      '[data-testid="stExpander"] summary',
-      '[data-testid="stExpander"] > details > summary',
-      'details > summary',
-      '.streamlit-expanderHeader',
-    ];
-    sels.forEach(function(sel) {
-      document.querySelectorAll(sel).forEach(cleanSummary);
-    });
-
-    // Clean stray icon text nodes outside expanders/tabs
-    // (e.g. "keyboard_double_arrow_right" from sidebar collapse button)
-    var walker = document.createTreeWalker(
-      document.body, NodeFilter.SHOW_TEXT, null, false
-    );
-    var node;
-    while (node = walker.nextNode()) {
-      var txt = (node.textContent || '').trim();
-      if (!txt) continue;
-      // Only blank if it's EXACTLY an icon string (not inside a paragraph/label)
-      var parent = node.parentElement;
-      if (!parent) continue;
-      var ptag = parent.tagName.toLowerCase();
-      // Skip text inside paragraphs, labels, divs with content, buttons, links
-      if (['p','label','button','a','h1','h2','h3','h4','h5','h6','td','th','li'].indexOf(ptag) >= 0) continue;
-      if (isIconText(txt)) {
-        node.textContent = '';
-      }
-    }
-  }
-
-  // Run immediately
-  cleanAll();
-
-  // Run at multiple delays to catch Streamlit's staggered renders
-  [100, 300, 600, 1200, 2500].forEach(function(ms) {
-    setTimeout(cleanAll, ms);
-  });
-
-  // MutationObserver: re-clean on ANY DOM change (new expanders, re-renders)
-  var observer = new MutationObserver(function(mutations) {
-    var needsClean = false;
-    for (var i = 0; i < mutations.length; i++) {
-      var m = mutations[i];
-      if (m.type === 'childList' && m.addedNodes.length > 0) {
-        needsClean = true; break;
-      }
-      if (m.type === 'characterData') {
-        needsClean = true; break;
-      }
-    }
-    if (needsClean) { cleanAll(); }
-  });
-
-  // Observe document.body AND #root (Streamlit's React root)
-  var targets = [document.body];
-  var root = document.getElementById('root');
-  if (root) targets.push(root);
-
-  targets.forEach(function(target) {
-    observer.observe(target, {
-      childList:     true,
-      subtree:       true,
-      characterData: true,
-    });
-  });
-
-  // Final safety net: if Streamlit does a full React re-render,
-  // re-attach the observer to the new #root
-  setTimeout(function() {
-    var r2 = document.getElementById('root');
-    if (r2 && !targets.includes(r2)) {
-      observer.observe(r2, { childList: true, subtree: true, characterData: true });
-    }
-  }, 3000);
-
+  hideSummarySVGs();
+  [200, 500, 1500].forEach(function(ms) { setTimeout(hideSummarySVGs, ms); });
+  new MutationObserver(function() { hideSummarySVGs(); })
+    .observe(document.body, { childList: true, subtree: true });
 })();
 </script>
 """)
