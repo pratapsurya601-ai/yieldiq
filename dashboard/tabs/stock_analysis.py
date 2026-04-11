@@ -12,9 +12,7 @@ import json as _json
 import time as _time
 from datetime import datetime, date as _date
 from ui.cards import (
-    inject_styles as _inject_card_styles,
-    verdict_card as _verdict_card, kpi_row as _kpi_row,
-    valuation_gauge as _valuation_gauge, snowflake_chart as _snowflake_chart,
+    snowflake_chart as _snowflake_chart,
     valuation_hero as _valuation_hero,
 )
 
@@ -591,6 +589,7 @@ def render() -> None:
                             if "_prog_ph" in dir():
                                 try: _prog_ph.empty()
                                 except Exception: pass
+                            from ui.cards import inject_styles as _inject_card_styles, kpi_row as _kpi_row
                             _inject_card_styles()
                             st.warning(
                                 f"**{ticker_input}**: Yahoo Finance is rate-limiting this server. "
@@ -763,6 +762,7 @@ def render() -> None:
                     f"but financial statements are unavailable for DCF analysis.\n\n"
                     f"**Try again in 2\u20133 minutes** — the rate limit resets automatically."
                 )
+                from ui.cards import kpi_row as _kpi_row
                 _fh_price = enriched.get('price', 0)
                 _kpi_row([
                     {"label": "Market Price", "value": f"{sym}{_fh_price:,.2f}"},
@@ -1021,7 +1021,6 @@ def render() -> None:
             "future results. Not investment advice."
         )
         # ── VERDICT CARD ──────────────────────────────────
-        _inject_card_styles()
         _co_name = enriched.get("company_name", ticker_input)
         _fcf_raw = enriched.get("latest_fcf", 0) or 0
         _fcf_str = (f"{sym}{_fcf_raw/1e9:.0f}B" if abs(_fcf_raw) > 1e9
@@ -1675,97 +1674,8 @@ def render() -> None:
                 st.info("Run an analysis first to see this section.")
                 st.stop()
 
-            # ══════════════════════════════════════════════════════════
-            # SECTION 1 — Valuation Summary (top card)
-            # ══════════════════════════════════════════════════════════
-            _vl_val_label  = (
-                "Undervalued"   if mos_pct > 10 else
-                "Near model fair value" if mos_pct > -10 else
-                "Overvalued"
-            )
-            _vl_val_color  = (
-                "#0D7A4E" if _vl_val_label == "Undervalued"   else
-                "#1D4ED8" if _vl_val_label == "Near model fair value" else "#B91C1C"
-            )
-            _vl_val_bg     = (
-                "#F0FDF4" if _vl_val_label == "Undervalued"   else
-                "#EFF6FF" if _vl_val_label == "Near model fair value" else "#FEF2F2"
-            )
-            _vl_val_bd     = (
-                "#BBF7D0" if _vl_val_label == "Undervalued"   else
-                "#BFDBFE" if _vl_val_label == "Near model fair value" else "#FECACA"
-            )
-            _vl_gauge_w = min(max(abs(mos_pct), 2), 100)
-            _vl_upside  = (("+" if mos_pct >= 0 else "") + f"{mos_pct:.1f}%")
+            # (Old valuation summary card removed — replaced by Valuation Hero above tabs)
 
-            _summary_tpl = (
-                '<div style="background:#FFFFFF;border-radius:12px;border:1px solid #E2E8F0;'
-                'overflow:hidden;margin-bottom:8px;">'
-                '<div style="height:4px;background:linear-gradient(90deg,VAL_COLOR,#06B6D4,transparent);"></div>'
-                '<div style="padding:20px 24px;">'
-
-                # label + upside
-                '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">'
-                '<div>'
-                '<div style="font-size:11px;color:#94A3B8;text-transform:uppercase;letter-spacing:0.14em;margin-bottom:6px;">Valuation</div>'
-                '<div style="display:inline-flex;align-items:center;gap:8px;padding:6px 14px;'
-                'background:VAL_BG;border:1px solid VAL_BD;border-radius:20px;">'
-                '<span style="font-size:14px;font-weight:700;color:VAL_COLOR;">VAL_LABEL</span>'
-                '</div>'
-                '</div>'
-                '<div style="text-align:right;">'
-                '<div style="font-size:11px;color:#94A3B8;margin-bottom:3px;">vs estimated fair value</div>'
-                '<div style="font-size:28px;font-weight:700;color:VAL_COLOR;">UPSIDE</div>'
-                '</div>'
-                '</div>'
-
-                # 3 metrics row
-                '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;'
-                'background:#F1F5F9;border-radius:8px;overflow:hidden;margin-bottom:16px;">'
-
-                '<div style="background:#FFFFFF;padding:14px 16px;">'
-                '<div style="font-size:11px;color:#94A3B8;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Current price</div>'
-                '<div style="font-size:20px;font-weight:700;color:#0F172A;">PRICE</div>'
-                '</div>'
-
-                '<div style="background:#FFFFFF;padding:14px 16px;">'
-                '<div style="font-size:11px;color:#94A3B8;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Estimated fair value</div>'
-                '<div style="font-size:20px;font-weight:700;color:#1D4ED8;">IV</div>'
-                '</div>'
-
-                '<div style="background:#FFFFFF;padding:14px 16px;">'
-                '<div style="font-size:11px;color:#94A3B8;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:4px;">Model confidence</div>'
-                '<div style="font-size:20px;font-weight:700;color:#334155;">CONF</div>'
-                '</div>'
-
-                '</div>'
-
-                # progress bar
-                '<div style="display:flex;justify-content:space-between;margin-bottom:5px;">'
-                '<span style="font-size:12px;color:#64748B;">Discount to fair value</span>'
-                '<span style="font-size:12px;font-weight:700;color:VAL_COLOR;">MOS_PCT%</span>'
-                '</div>'
-                '<div style="height:7px;background:#F1F5F9;border-radius:4px;overflow:hidden;">'
-                '<div style="height:100%;width:GAUGE_W%;background:VAL_COLOR;border-radius:4px;"></div>'
-                '</div>'
-
-                '</div>'  # end padding
-                '</div>'  # end card
-            )
-            _summary_tpl = (
-                _summary_tpl
-                .replace("VAL_COLOR",  _vl_val_color)
-                .replace("VAL_BG",     _vl_val_bg)
-                .replace("VAL_BD",     _vl_val_bd)
-                .replace("VAL_LABEL",  _vl_val_label)
-                .replace("UPSIDE",     _vl_upside)
-                .replace("PRICE",      fmts(price_d, sym))
-                .replace("IV",         fmts(iv_d, sym))
-                .replace("CONF",       f"{confidence.get('grade','N/A')} · {confidence.get('score',0)}/100")
-                .replace("MOS_PCT",    f"{mos_pct:.1f}")
-                .replace("GAUGE_W",    str(int(_vl_gauge_w)))
-            )
-            st.html(_summary_tpl)
 
             # ══════════════════════════════════════════════════════════
             # INTERACTIVE DCF ENGINE — Centerpiece Feature
