@@ -740,7 +740,7 @@ def render() -> None:
                 _kpi_row([
                     {"label": "Market Price", "value": f"{sym}{_fh_price:,.2f}"},
                     {"label": "Beta", "value": f"{raw.get('fh_beta', 0):.2f}" if raw.get('fh_beta') else "\u2014"},
-                    {"label": "Div Yield", "value": f"{raw.get('fh_div_yield', 0):.2f}%" if raw.get('fh_div_yield') else "\u2014"},
+                    {"label": "Div Yield", "value": f"{raw.get('fh_div_yield', 0)*100:.2f}%" if raw.get('fh_div_yield') else "\u2014"},
                     {"label": "P/E (Finnhub)", "value": f"{raw.get('forward_pe', 0):.1f}\u00d7" if raw.get('forward_pe') else "\u2014"},
                 ])
                 st.caption("Model output only. Not investment advice. Full DCF requires financial statement data from Yahoo Finance.")
@@ -1124,10 +1124,26 @@ def render() -> None:
                           or raw.get("pe_ratio")
                           or (raw.get("finnhub_financials") or {}).get("pe_ttm")
                           or 0)
+            # Sanity check: calculate P/E from price and EPS if available
+            _eps_ttm = (raw.get("trailing_eps") or
+                       (raw.get("finnhub_financials") or {}).get("eps_ttm") or 0)
+            _price_pe = raw.get("price", 0) or 0
+            if _eps_ttm > 0 and _price_pe > 0:
+                _calc_pe = _price_pe / _eps_ttm
+                # If calculated PE is reasonable and different from API PE, prefer it
+                if 1 < _calc_pe < 500 and abs(_calc_pe - (_qs_pe or 999)) > 5:
+                    _qs_pe = _calc_pe
             _qs_eveb    = raw.get("ev_to_ebitda")
             _qs_beta    = raw.get("fh_beta")
-            # div yield is normalized to decimal at source (collector.py)
-            _qs_div     = raw.get("dividend_yield") or raw.get("fh_div_yield") or 0
+            # Calculate div yield from rate/price for accuracy (APIs return inconsistent formats)
+            _div_rate = raw.get("dividend_rate", 0) or 0
+            _price_for_dy = raw.get("price", 0) or 0
+            if _div_rate > 0 and _price_for_dy > 0:
+                _qs_div = _div_rate / _price_for_dy  # decimal: 0.0097 = 0.97%
+            else:
+                _raw_dy = raw.get("dividend_yield") or raw.get("fh_div_yield") or 0
+                # Normalize: if > 0.20 it's a percentage, convert to decimal
+                _qs_div = _raw_dy / 100 if _raw_dy > 0.20 else _raw_dy
             _qs_hi52    = (raw.get("fh_52w_high") or 0) * fx
             _qs_lo52    = (raw.get("fh_52w_low")  or 0) * fx
             _qs_fcf_raw = raw.get("yahoo_fcf_ttm") or 0
