@@ -1075,8 +1075,8 @@ def render() -> None:
         }
 
         # ── VALUATION HERO (new primary component) ────────
-        _bear_iv = st.session_state.get("_scenarios", {}).get("Bear case", {}).get("iv", fair_value * 0.7) * fx
-        _bull_iv = st.session_state.get("_scenarios", {}).get("Bull case", {}).get("iv", fair_value * 1.4) * fx
+        _bear_iv = st.session_state.get("_scenarios", {}).get("Bear case", {}).get("iv", _display_iv * 0.7 / fx if fx else 0) * fx
+        _bull_iv = st.session_state.get("_scenarios", {}).get("Bull case", {}).get("iv", _display_iv * 1.4 / fx if fx else 0) * fx
         _rev_g = enriched.get("revenue_growth", 0) * 100
         _fcf_m = enriched.get("op_margin", 0) * 100
         _conf_score = st.session_state.get("_confidence", {}).get("score", 70)
