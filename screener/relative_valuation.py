@@ -196,7 +196,11 @@ def _fetch_ratios(ticker: str, raw: dict | None = None) -> dict[str, float]:
         "price":      _f("currentPrice", "regularMarketPrice", "price"),
         "name":       str(info.get("longName") or info.get("shortName") or ""),
         "market_cap": _f("marketCap"),
-        "dividend_yield": round(float(info.get("dividendYield") or 0) * 100, 2),
+        "dividend_yield": round(
+            (float(info.get("dividendYield") or 0) * 100)
+            if float(info.get("dividendYield") or 0) < 0.20
+            else float(info.get("dividendYield") or 0),  # already percentage
+        2),
         "beta":       _f("beta"),
         "52w_high":   _f("fiftyTwoWeekHigh"),
         "52w_low":    _f("fiftyTwoWeekLow"),

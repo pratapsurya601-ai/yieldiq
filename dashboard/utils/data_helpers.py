@@ -670,7 +670,8 @@ def _render_relative_valuation_view(
     def _kstat(col, label, val):
         col.metric(label, val)
     _kstat(ks1, "Market Cap", f"{sym}{mkt_cap/1e9:.1f}B" if mkt_cap else "—")
-    _kstat(ks2, "Dividend Yield", f"{div_yield*100:.2f}%" if div_yield else "—")
+    # div_yield from relative_valuation.py is already in percentage form (e.g. 1.94)
+    _kstat(ks2, "Dividend Yield", f"{div_yield:.2f}%" if div_yield else "\u2014")
     _kstat(ks3, "Beta", f"{beta:.2f}" if beta else "—")
     _kstat(ks4, "52W Range", f"{sym}{lo52:,.0f} – {sym}{hi52:,.0f}" if hi52 else "—")
 
