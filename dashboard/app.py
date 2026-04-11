@@ -337,31 +337,8 @@ results_file = _sb["results_file"]
 # ── "View Disclaimer" sidebar link ────────────────────────────
 render_view_disclaimer_link()
 
-# ── PRO MODE CSS INJECTION ────────────────────────────────────
-if pro_mode:
-    st.html("""
-    <style>
-    /* PRO MODE — dark dense layout */
-    .main .block-container { background: #0d1117 !important; }
-    .stApp { background: #0d1117 !important; }
-    [data-testid="stMetric"] {
-      background: #161b22 !important;
-      border: 1px solid #21262d !important;
-      border-radius: 8px !important;
-      padding: 12px !important;
-    }
-    [data-testid="stMetricLabel"] { color: #8b949e !important; font-size: 11px !important; }
-    [data-testid="stMetricValue"] { color: #e6edf3 !important; font-family: 'IBM Plex Mono', monospace !important; }
-    [data-testid="stMetricDelta"] { font-family: 'IBM Plex Mono', monospace !important; }
-    [data-testid="stExpander"] summary { border-bottom: 1px solid #E2E8F0 !important; }
-    [data-testid="stExpander"] summary p { color: #1E293B !important; font-weight: 600 !important; }
-    [data-testid="stExpander"] > div { background: #F8FAFC !important; }
-    .stTabs [data-baseweb="tab-list"] { background: #161b22 !important; border-bottom: 1px solid #21262d !important; }
-    .stTabs [data-baseweb="tab"] { color: #8b949e !important; }
-    .stTabs [aria-selected="true"] { color: #00b4d8 !important; border-bottom-color: #00b4d8 !important; }
-    p, div, span, label { color: #e6edf3 !important; }
-    </style>
-    """)
+# ── PRO MODE — no separate CSS, just shows more charts/data ──
+# (Pro mode = more content, not a different visual theme)
 
 
 # (Global CSS is handled by ui/styles.py — no inline CSS needed here)
