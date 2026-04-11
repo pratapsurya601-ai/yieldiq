@@ -569,8 +569,8 @@ def maybe_show_wizard() -> None:
     """
     email = st.session_state.get("auth_email", "")
 
-    # Don't show for guests / unauthenticated
-    if not email or email == "guest":
+    # Don't show for guests, unauthenticated, or admin
+    if not email or email == "guest" or email == "admin":
         return
 
     # Already finished onboarding this session → skip DB check
