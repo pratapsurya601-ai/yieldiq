@@ -54,7 +54,7 @@ def render_sidebar(
     <div style="padding:20px 0 10px;text-align:center;">
       <div style="display:inline-block;width:100px;height:100px;border-radius:50%;
                   overflow:hidden;box-shadow:0 4px 20px rgba(29,78,216,0.35);
-                  border:2px solid rgba(255,255,255,0.1);">
+                  border:none;">
         <img src="data:image/jpeg;base64,{_logo_b64}"
              style="width:100%;height:100%;object-fit:cover;" alt="YieldIQ"/>
       </div>
