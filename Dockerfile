@@ -2,21 +2,19 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# Install system dependencies needed for some Python packages
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements first for better Docker layer caching
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy all app code
 COPY . .
 
-# Railway sets PORT dynamically
-ENV PORT=8501
+# Use STREAMLIT_SERVER_PORT env var instead of --server.port flag
+ENV STREAMLIT_SERVER_PORT=8501
+ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
+ENV STREAMLIT_SERVER_HEADLESS=true
 
-# Run Streamlit
-CMD sh -c "streamlit run dashboard/app.py --server.port=$PORT --server.address=0.0.0.0 --server.headless=true"
+# Railway sets PORT env var — copy it to Streamlit's expected var
+CMD bash -c "export STREAMLIT_SERVER_PORT=\${PORT:-8501} && streamlit run dashboard/app.py"
