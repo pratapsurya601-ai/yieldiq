@@ -363,7 +363,23 @@ if pro_mode:
 mkt = fetch_market_overview() or {}
 
 
-# Arrow killer removed — was stripping expander labels
+# ── Hide Streamlit's leaking icon text (CSS-only, safe) ──────
+st.markdown("""<style>
+/* Hide the sidebar collapse button text that leaks as visible text */
+.stSidebarCollapsedControl span,
+[data-testid="stSidebarCollapsedControl"] span,
+[data-testid="collapsedControl"] span {
+    font-size: 0 !important;
+    color: transparent !important;
+}
+/* Hide any raw icon text that Streamlit renders outside elements */
+.main > div:first-child > div:first-child {
+    font-size: 0;
+    line-height: 0;
+    height: 0;
+    overflow: hidden;
+}
+</style>""", unsafe_allow_html=True)
 
 # ══════════════════════════════════════════════════════════════
 # TRIGGERED-ALERT BANNER
