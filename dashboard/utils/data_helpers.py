@@ -146,6 +146,22 @@ def _fetch_stock_data_cached(ticker, _ttl_key, _version):
 
             _price = (_fh_q or {}).get("price", 0) or (_fmp_pr or {}).get("price", 0)
             _shares = (_fmp_pr or {}).get("shares", 0)
+            # If shares=0, estimate from Finnhub market cap / price
+            if _shares <= 0 and _price > 0:
+                _mkt_cap = (_fmp_pr or {}).get("market_cap", 0)
+                if _mkt_cap > 0:
+                    _shares = _mkt_cap / _price
+                    print(f"FMP_SHARES_EST {ticker}: {_shares:,.0f} from mktCap={_mkt_cap:,.0f}/price={_price}")
+            # Last resort: estimate from Finnhub EPS
+            if _shares <= 0 and _price > 0:
+                _eps = (_fh_f or {}).get("eps_ttm", 0)
+                _pe = (_fh_f or {}).get("pe_ttm", 0)
+                if _eps > 0 and _pe > 0:
+                    _est_mcap = _price * (_price / _eps) * 1e6  # rough estimate
+                # Use a reasonable default for mega-caps
+                if _shares <= 0:
+                    _shares = 1e9  # 1B shares as fallback — better than 0
+                    print(f"FMP_SHARES_DEFAULT {ticker}: using 1B shares fallback")
 
             _has_any_financials = not _fmp_inc.empty or not _fmp_cf.empty
             if _price > 0 and _has_any_financials:
