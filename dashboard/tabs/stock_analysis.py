@@ -1510,11 +1510,11 @@ def render() -> None:
             if not pro_mode:
                 with st.expander("💡 Why These Signals? — Plain English Explanation"):
                     _why_val = (
-                        f"Our model estimates this stock's fair value at **{fmts(iv_d, sym)}**. "
-                        f"At the current price of **{fmts(price_d, sym)}**, it appears **{_val_label.lower()}** "
-                        f"by around **{abs(mos_pct):.0f}%**."
+                        f"Our model estimates this stock's fair value at {fmts(iv_d, sym)}. "
+                        f"At the current price of {fmts(price_d, sym)}, it appears **{_val_label.lower()}** "
+                        f"by around {abs(mos_pct):.0f}%."
                         if abs(mos_pct) > 2 else
-                        f"The stock is trading very close to our estimated fair value of **{fmts(iv_d, sym)}**."
+                        f"The stock is trading very close to our estimated fair value of {fmts(iv_d, sym)}."
                     )
                     _why_qual = (
                         f"We rate this company's financial health as **{_qual_label}** "
@@ -1575,6 +1575,19 @@ def render() -> None:
                             op_margin       = enriched.get("op_margin", 0),
                             moat_grade      = moat_grade,
                             sym             = sym,
+                        )
+                    # Graceful fallback if AI fails
+                    if not _ai_text or "error" in _ai_text.lower()[:50] or "INVALID" in _ai_text[:80]:
+                        _ai_text = (
+                            f"{company_name} ({ticker_input}) trades at {fmts(price_d, sym)} versus our "
+                            f"estimated fair value of {fmts(iv_d, sym)}, implying the stock is "
+                            f"{'trading at a discount' if mos_pct > 0 else 'trading at a premium'} "
+                            f"of {abs(mos_pct):.0f}% to the model estimate.\n\n"
+                            f"The company has a Piotroski F-Score of {_ai_pf_score}/9 and a "
+                            f"{'wide' if moat_grade in ('Wide','Narrow') else 'limited'} competitive moat. "
+                            f"Revenue growth is {enriched.get('revenue_growth',0)*100:.1f}% with "
+                            f"operating margins of {enriched.get('op_margin',0)*100:.1f}%.\n\n"
+                            f"This is a model-generated summary. Not investment advice."
                         )
                     _ai_safe = _ai_text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
                     # Split into paragraphs for nicer rendering
