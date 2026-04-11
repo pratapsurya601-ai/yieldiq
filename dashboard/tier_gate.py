@@ -120,10 +120,10 @@ TIER_NAMES  = {"free": "Free", "starter": "Starter", "premium": "Starter", "pro"
 TIER_COLORS = {"free": "#6B7280", "starter": "#1D4ED8", "premium": "#1D4ED8", "pro": "#059669"}
 
 # Pricing constants — single source of truth
-_STARTER_MONTHLY  = "$29/mo"
-_STARTER_ANNUAL   = "$23/mo"   # ~20% off ($276/yr)
-_PRO_MONTHLY      = "$79/mo"
-_PRO_ANNUAL       = "$63/mo"   # ~20% off ($756/yr)
+_STARTER_MONTHLY  = "₹499/mo"
+_STARTER_ANNUAL   = "₹399/mo"   # ~20% off (₹4,788/yr)
+_PRO_MONTHLY      = "₹1,999/mo"
+_PRO_ANNUAL       = "₹1,599/mo"  # ~20% off (₹19,188/yr)
 _SESSION_KEY      = "yiq_session_token"
 
 
