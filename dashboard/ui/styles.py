@@ -526,6 +526,23 @@ details > summary p {
   opacity:     1       !important;
   margin:      0       !important;
 }
+/* Sidebar expander labels need light text on dark bg */
+section[data-testid="stSidebar"] [data-testid="stExpander"] summary p,
+section[data-testid="stSidebar"] details > summary p {
+  color:       #CBD5E1 !important;
+}
+section[data-testid="stSidebar"] [data-testid="stExpander"] summary,
+section[data-testid="stSidebar"] details > summary {
+  background:  rgba(255,255,255,0.04) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+}
+section[data-testid="stSidebar"] [data-testid="stExpander"] summary::before,
+section[data-testid="stSidebar"] details > summary::before {
+  border-color: #64748B !important;
+}
+section[data-testid="stSidebar"] [data-testid="stExpander"] summary:hover p {
+  color: #38BDF8 !important;
+}
 /* Custom CSS chevron — zero dependency on Streamlit internals */
 [data-testid="stExpander"] summary::before,
 details > summary::before {
@@ -1184,14 +1201,22 @@ def inject_arrow_fix_js() -> None:
       document.querySelectorAll(sel).forEach(cleanSummary);
     });
 
-    // Also clean stray icon text nodes anywhere in the body
+    // Clean stray icon text nodes outside expanders/tabs
     // (e.g. "keyboard_double_arrow_right" from sidebar collapse button)
     var walker = document.createTreeWalker(
       document.body, NodeFilter.SHOW_TEXT, null, false
     );
     var node;
     while (node = walker.nextNode()) {
-      if (isIconText(node.textContent)) {
+      var txt = (node.textContent || '').trim();
+      if (!txt) continue;
+      // Only blank if it's EXACTLY an icon string (not inside a paragraph/label)
+      var parent = node.parentElement;
+      if (!parent) continue;
+      var ptag = parent.tagName.toLowerCase();
+      // Skip text inside paragraphs, labels, divs with content, buttons, links
+      if (['p','label','button','a','h1','h2','h3','h4','h5','h6','td','th','li'].indexOf(ptag) >= 0) continue;
+      if (isIconText(txt)) {
         node.textContent = '';
       }
     }
