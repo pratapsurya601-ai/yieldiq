@@ -51,22 +51,34 @@ def render_sidebar(
         if _logo_path.exists():
             _logo_b64 = _b64.b64encode(_logo_path.read_bytes()).decode()
             st.html(f"""
-    <div style="padding:20px 0 12px;text-align:center;">
-      <div style="display:inline-block;width:72px;height:72px;border-radius:50%;
-                  overflow:hidden;box-shadow:0 0 24px rgba(29,78,216,0.5),
-                  0 0 48px rgba(6,182,212,0.15);">
-        <img src="data:image/jpeg;base64,{_logo_b64}"
-             style="width:100%;height:100%;object-fit:cover;transform:scale(1.25);" alt="YieldIQ"/>
+    <div style="padding:24px 0 16px;text-align:center;">
+      <!-- Logo with animated glow ring -->
+      <div style="display:inline-block;position:relative;">
+        <div style="position:absolute;inset:-4px;border-radius:50%;
+                    background:linear-gradient(135deg,#1D4ED8,#06B6D4,#1D4ED8);
+                    opacity:0.4;filter:blur(8px);"></div>
+        <div style="position:relative;width:76px;height:76px;border-radius:50%;
+                    overflow:hidden;border:2px solid rgba(29,78,216,0.3);
+                    box-shadow:0 0 24px rgba(29,78,216,0.4),
+                               0 0 48px rgba(6,182,212,0.12),
+                               inset 0 0 12px rgba(29,78,216,0.1);">
+          <img src="data:image/jpeg;base64,{_logo_b64}"
+               style="width:100%;height:100%;object-fit:cover;transform:scale(1.25);" alt="YieldIQ"/>
+        </div>
       </div>
-      <div style="margin-top:10px;font-size:15px;font-weight:800;color:#F1F5F9;
+      <!-- Brand text -->
+      <div style="margin-top:12px;font-size:17px;font-weight:800;
+                  background:linear-gradient(135deg,#F1F5F9,#93C5FD);
+                  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
                   letter-spacing:-0.02em;">YieldIQ</div>
-      <div style="font-size:8px;color:#64748B;letter-spacing:0.12em;
-                  font-weight:500;text-transform:uppercase;margin-top:2px;">
+      <div style="font-size:8px;color:rgba(148,163,184,0.5);letter-spacing:0.18em;
+                  font-weight:600;text-transform:uppercase;margin-top:3px;">
         Quantitative Research
       </div>
-      <div style="height:1px;background:linear-gradient(90deg,transparent,
-                  rgba(29,78,216,0.3),rgba(6,182,212,0.3),transparent);
-                  margin-top:14px;"></div>
+      <!-- Gradient divider -->
+      <div style="height:1px;margin:16px 20px 0;
+                  background:linear-gradient(90deg,transparent,
+                  rgba(29,78,216,0.25),rgba(6,182,212,0.20),transparent);"></div>
     </div>
     """)
         else:

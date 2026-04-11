@@ -1203,44 +1203,110 @@ def inject_arrow_fix_js() -> None:
 
 
 def inject_sidebar_nav_css() -> None:
-    """Sidebar nav button CSS — moved from app.py."""
+    """Premium sidebar design — matches YieldIQ logo aesthetic."""
     st.markdown("""<style>
-/* ── Sidebar nav buttons: base state ── */
+
+/* ── Sidebar container — deep navy with subtle noise ── */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(175deg, #080E1A 0%, #0F172A 30%, #131B2E 100%) !important;
+    border-right: 1px solid rgba(29,78,216,0.08) !important;
+}
+
+/* ── Nav buttons: glassmorphism base state ── */
 section[data-testid="stSidebar"] .stButton > button {
     width: 100% !important;
     background: transparent !important;
     border: none !important;
     border-left: 3px solid transparent !important;
-    border-radius: 0px !important;
-    color: rgba(255,255,255,0.7) !important;
+    border-radius: 0 8px 8px 0 !important;
+    color: rgba(148,163,184,0.85) !important;
     text-align: left !important;
-    padding: 10px 16px !important;
+    padding: 11px 18px !important;
     font-size: 13px !important;
+    font-weight: 500 !important;
     font-family: 'Inter', sans-serif !important;
-    transition: all 0.15s ease !important;
+    letter-spacing: 0.01em !important;
+    transition: all 0.2s cubic-bezier(0.4,0,0.2,1) !important;
     box-shadow: none !important;
+    margin: 1px 0 !important;
 }
 section[data-testid="stSidebar"] .stButton > button:hover {
-    background: rgba(255,255,255,0.08) !important;
-    color: white !important;
-    border-left-color: rgba(29,78,216,0.5) !important;
+    background: linear-gradient(90deg,
+        rgba(29,78,216,0.12) 0%,
+        rgba(6,182,212,0.06) 100%) !important;
+    color: #E2E8F0 !important;
+    border-left-color: rgba(29,78,216,0.4) !important;
+    transform: translateX(2px) !important;
 }
-/* Active nav item — primary type */
+
+/* ── Active nav: blue-cyan gradient glow ── */
 section[data-testid="stSidebar"] .stButton > button[kind="primaryFormSubmit"],
 section[data-testid="stSidebar"] .stButton > button[data-testid*="primary"],
 section[data-testid="stSidebar"] .stButton > button[data-testid="baseButton-primary"],
 section[data-testid="stSidebar"] .stButton > button[kind="primary"] {
-    background: rgba(29,78,216,0.15) !important;
-    border-left: 3px solid #1D4ED8 !important;
-    color: white !important;
+    background: linear-gradient(90deg,
+        rgba(29,78,216,0.20) 0%,
+        rgba(6,182,212,0.08) 100%) !important;
+    border-left: 3px solid transparent !important;
+    border-image: linear-gradient(180deg, #1D4ED8, #06B6D4) 1 !important;
+    color: #F1F5F9 !important;
     font-weight: 600 !important;
+    box-shadow: 0 0 20px rgba(29,78,216,0.08),
+                inset 0 0 20px rgba(29,78,216,0.04) !important;
 }
 section[data-testid="stSidebar"] .stButton > button[kind="primaryFormSubmit"]:hover,
 section[data-testid="stSidebar"] .stButton > button[data-testid*="primary"]:hover,
 section[data-testid="stSidebar"] .stButton > button[data-testid="baseButton-primary"]:hover,
 section[data-testid="stSidebar"] .stButton > button[kind="primary"]:hover {
-    background: rgba(29,78,216,0.25) !important;
+    background: linear-gradient(90deg,
+        rgba(29,78,216,0.30) 0%,
+        rgba(6,182,212,0.12) 100%) !important;
     color: #93C5FD !important;
+    box-shadow: 0 0 30px rgba(29,78,216,0.15),
+                inset 0 0 30px rgba(29,78,216,0.06) !important;
+}
+
+/* ── Sidebar dividers: gradient line ── */
+section[data-testid="stSidebar"] hr {
+    border: none !important;
+    height: 1px !important;
+    background: linear-gradient(90deg,
+        transparent,
+        rgba(29,78,216,0.15),
+        rgba(6,182,212,0.10),
+        transparent) !important;
+    margin: 8px 16px !important;
+}
+
+/* ── Sidebar section labels ── */
+section[data-testid="stSidebar"] .stMarkdown p {
+    color: rgba(148,163,184,0.6) !important;
+}
+
+/* ── Market Pulse section styling ── */
+.yiq-pulse {
+    background: rgba(255,255,255,0.03) !important;
+    border: 1px solid rgba(29,78,216,0.08) !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+}
+.yiq-pulse-row {
+    border-bottom-color: rgba(255,255,255,0.04) !important;
+}
+
+/* ── User profile section ── */
+.yiq-profile {
+    background: rgba(255,255,255,0.03) !important;
+    border: 1px solid rgba(29,78,216,0.08) !important;
+    border-radius: 10px !important;
+    padding: 12px !important;
+}
+.yiq-tier-badge {
+    border-radius: 20px !important;
+    padding: 3px 12px !important;
+    font-size: 10px !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.08em !important;
 }
 /* Sidebar HR divider */
 section[data-testid="stSidebar"] hr {
