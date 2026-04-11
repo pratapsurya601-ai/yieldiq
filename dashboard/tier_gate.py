@@ -587,6 +587,17 @@ def render_upgrade_banner() -> None:
 
 def _launch_razorpay_checkout(email: str, chosen_tier: str, billing: str = "monthly") -> None:
     """Create a Razorpay subscription and open the checkout overlay."""
+    # Prevent re-opening checkout on Streamlit rerun
+    if st.session_state.get("_rzp_checkout_open"):
+        st.info("Payment in progress... If you completed the payment, please refresh the page.")
+        if st.button("✅ I completed payment — refresh", key="_rzp_done"):
+            st.session_state.pop("_rzp_checkout_open", None)
+            st.rerun()
+        if st.button("❌ Cancel", key="_rzp_cancel"):
+            st.session_state.pop("_rzp_checkout_open", None)
+            st.rerun()
+        return
+
     rzp_key = os.environ.get("RAZORPAY_KEY_ID", "")
     if not rzp_key:
         st.error("Payment system not configured. Please contact support.")
@@ -632,6 +643,7 @@ def _launch_razorpay_checkout(email: str, chosen_tier: str, billing: str = "mont
     app_url = os.environ.get("YIELDIQ_APP_URL", "")
     callback = f"{app_url}?payment_status=success&sub_id={sub_id}"
 
+    st.session_state["_rzp_checkout_open"] = True
     import streamlit.components.v1 as components
     components.html(f"""
     <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
