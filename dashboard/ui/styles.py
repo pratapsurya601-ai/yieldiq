@@ -506,6 +506,19 @@ details > summary svg {
   height:   0    !important;
 }
 
+/* ══ ICON TEXT FIX — CSS-only, bulletproof ══════════════════
+   Streamlit renders Material icon names (keyboard_arrow_right,
+   _expand_more, etc.) inside <span data-testid="stIconMaterial">.
+   Hide these spans entirely via CSS — no JS needed. */
+[data-testid="stIconMaterial"] {
+  font-size:      0           !important;
+  width:          0           !important;
+  height:         0           !important;
+  overflow:       hidden      !important;
+  position:       absolute    !important;
+  pointer-events: none        !important;
+}
+
 /* Ensure label text is visible — both p and span */
 [data-testid="stExpander"] summary p,
 [data-testid="stExpander"] summary span:not(:empty),
@@ -1118,10 +1131,8 @@ section[data-testid="stSidebar"] .stSlider p {
 
 
 def inject_arrow_fix_js() -> None:
-    """Clean Streamlit icon text leaks from expander summaries.
-    Targets ONLY bare text nodes matching icon patterns like _arrow_right,
-    keyboard_double_arrow_right, _expand_more, etc.
-    Does NOT remove spans or p tags (those contain actual labels)."""
+    """Icon text is now hidden by CSS via [data-testid="stIconMaterial"].
+    This JS is minimal — only handles edge cases the CSS can't reach."""
     st.markdown("""
 <script>
 (function() {

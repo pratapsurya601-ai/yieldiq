@@ -1729,14 +1729,17 @@ def render() -> None:
                 _eng_proj = [fcf * _eng_growth_mult for fcf in projected]
                 _eng_term = terminal_norm * _eng_growth_mult
 
-                _eng_dcf = DCFEngine(discount_rate=_eng_wacc_dec, terminal_growth=_eng_tg_dec)
-                _eng_result = _eng_dcf.intrinsic_value_per_share(
-                    projected_fcfs=_eng_proj, terminal_fcf_norm=_eng_term,
-                    total_debt=enriched["total_debt"], total_cash=enriched["total_cash"],
-                    shares_outstanding=enriched["shares"],
-                    current_price=enriched["price"], ticker=ticker_input,
-                )
-                _eng_iv = _eng_result.get("iv_per_share", 0) * fx
+                try:
+                    _eng_dcf = DCFEngine(discount_rate=_eng_wacc_dec, terminal_growth=_eng_tg_dec)
+                    _eng_result = _eng_dcf.intrinsic_value_per_share(
+                        projected_fcfs=_eng_proj, terminal_fcf_norm=_eng_term,
+                        total_debt=enriched["total_debt"], total_cash=enriched["total_cash"],
+                        shares_outstanding=enriched["shares"],
+                        current_price=enriched["price"], ticker=ticker_input,
+                    )
+                    _eng_iv = _eng_result.get("iv_per_share", 0) * fx
+                except Exception:
+                    _eng_iv = iv_d  # fallback to base case
                 _eng_mos = ((_eng_iv - price_d) / price_d * 100) if price_d > 0 else 0
 
                 # Color based on valuation
