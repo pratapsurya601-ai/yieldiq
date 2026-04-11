@@ -168,7 +168,9 @@ def _init_usage_counters():
         if st.query_params.get("signout") == "1":
             token = _get_stored_token()
             if token and token != "_guest_": _logout_session(token)
-            _clear_token(); st.rerun()
+            _clear_token()
+            del st.query_params["signout"]  # clear so it doesn't re-trigger
+            st.rerun()
     except Exception: pass
 
 
