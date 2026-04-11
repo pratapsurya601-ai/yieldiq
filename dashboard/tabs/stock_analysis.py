@@ -1818,6 +1818,114 @@ def render() -> None:
             )
             st.html(_summary_tpl)
 
+            # ══════════════════════════════════════════════════════════
+            # INTERACTIVE DCF ENGINE — Centerpiece Feature
+            # Users adjust assumptions → fair value updates instantly
+            # ══════════════════════════════════════════════════════════
+            st.html('<div style="font-size:11px;font-weight:700;color:#94A3B8;text-transform:uppercase;'
+                    'letter-spacing:0.14em;margin:20px 0 10px;padding-left:2px;'
+                    'font-family:IBM Plex Mono,monospace;">🔧 Interactive DCF Engine</div>')
+
+            with st.container(border=True):
+                st.html('<div style="font-size:12px;color:#475569;margin-bottom:12px;">'
+                        'Adjust assumptions below to see how fair value changes. '
+                        'The model recalculates instantly.</div>')
+
+                _eng_c1, _eng_c2, _eng_c3 = st.columns(3)
+
+                with _eng_c1:
+                    _eng_wacc = st.slider(
+                        "Discount Rate (WACC)",
+                        min_value=5.0, max_value=18.0,
+                        value=float(round(wacc * 100, 1)),
+                        step=0.5, format="%.1f%%",
+                        key="_dcf_eng_wacc",
+                        help="Higher discount rate = more conservative (lower) fair value"
+                    )
+
+                with _eng_c2:
+                    _eng_tg = st.slider(
+                        "Terminal Growth Rate",
+                        min_value=1.0, max_value=5.0,
+                        value=float(round(terminal_g * 100, 1)),
+                        step=0.5, format="%.1f%%",
+                        key="_dcf_eng_tg",
+                        help="Long-run perpetual growth rate (typically 2-3%)"
+                    )
+
+                with _eng_c3:
+                    _eng_growth_adj = st.slider(
+                        "Growth Adjustment",
+                        min_value=-50, max_value=50,
+                        value=0, step=5, format="%+d%%",
+                        key="_dcf_eng_growth",
+                        help="Scale projected FCFs up or down to test different growth scenarios"
+                    )
+
+                # ── Recalculate fair value with adjusted assumptions ──
+                _eng_wacc_dec = _eng_wacc / 100
+                _eng_tg_dec = _eng_tg / 100
+                _eng_growth_mult = 1 + (_eng_growth_adj / 100)
+
+                _eng_proj = [fcf * _eng_growth_mult for fcf in projected]
+                _eng_term = terminal_norm * _eng_growth_mult
+
+                _eng_dcf = DCFEngine(discount_rate=_eng_wacc_dec, terminal_growth=_eng_tg_dec)
+                _eng_result = _eng_dcf.intrinsic_value_per_share(
+                    projected_fcfs=_eng_proj, terminal_fcf_norm=_eng_term,
+                    total_debt=enriched["total_debt"], total_cash=enriched["total_cash"],
+                    shares_outstanding=enriched["shares"],
+                    current_price=enriched["price"], ticker=ticker_input,
+                )
+                _eng_iv = _eng_result.get("iv_per_share", 0) * fx
+                _eng_mos = ((_eng_iv - price_d) / price_d * 100) if price_d > 0 else 0
+
+                # Color based on valuation
+                if _eng_mos >= 10:
+                    _eng_color, _eng_label = "#059669", "Discount to estimated fair value"
+                elif _eng_mos >= -10:
+                    _eng_color, _eng_label = "#D97706", "Near estimated fair value"
+                else:
+                    _eng_color, _eng_label = "#DC2626", "Premium to estimated fair value"
+
+                # ── Display result ──
+                _eng_r1, _eng_r2, _eng_r3 = st.columns(3)
+                with _eng_r1:
+                    st.html(f'<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;'
+                            f'padding:16px;text-align:center;">'
+                            f'<div style="font-size:10px;color:#94A3B8;font-weight:700;'
+                            f'letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;'
+                            f'font-family:IBM Plex Mono,monospace;">Adjusted Fair Value</div>'
+                            f'<div style="font-size:28px;font-weight:900;color:{_eng_color};'
+                            f'font-family:IBM Plex Mono,monospace;">{sym}{_eng_iv:,.0f}</div>'
+                            f'</div>')
+                with _eng_r2:
+                    st.html(f'<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;'
+                            f'padding:16px;text-align:center;">'
+                            f'<div style="font-size:10px;color:#94A3B8;font-weight:700;'
+                            f'letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;'
+                            f'font-family:IBM Plex Mono,monospace;">Implied Upside/Downside</div>'
+                            f'<div style="font-size:28px;font-weight:900;color:{_eng_color};'
+                            f'font-family:IBM Plex Mono,monospace;">{_eng_mos:+.1f}%</div>'
+                            f'</div>')
+                with _eng_r3:
+                    _eng_diff = _eng_iv - iv_d
+                    _eng_diff_pct = ((_eng_iv / iv_d - 1) * 100) if iv_d > 0 else 0
+                    _eng_diff_color = "#059669" if _eng_diff >= 0 else "#DC2626"
+                    st.html(f'<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;'
+                            f'padding:16px;text-align:center;">'
+                            f'<div style="font-size:10px;color:#94A3B8;font-weight:700;'
+                            f'letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;'
+                            f'font-family:IBM Plex Mono,monospace;">vs Base Case ({sym}{iv_d:,.0f})</div>'
+                            f'<div style="font-size:28px;font-weight:900;color:{_eng_diff_color};'
+                            f'font-family:IBM Plex Mono,monospace;">{_eng_diff_pct:+.1f}%</div>'
+                            f'</div>')
+
+                st.html(f'<div style="text-align:center;margin-top:10px;font-size:12px;color:{_eng_color};'
+                        f'font-weight:600;">{_eng_label}</div>'
+                        f'<div style="text-align:center;margin-top:4px;font-size:10px;color:#94A3B8;">'
+                        f'Base case: {sym}{iv_d:,.0f} · Current price: {sym}{price_d:,.2f}</div>')
+
             # ── Live RF Rate assumptions banner ────────────────────────
             _rf_ui = st.session_state.get("_rf_rate_info", {})
             if _rf_ui:
