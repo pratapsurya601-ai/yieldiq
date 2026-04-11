@@ -175,6 +175,7 @@ from ui.helpers import (
 from ui.styles import (
     inject_theme_css, inject_fonts, inject_main_css,
     inject_typography_css, inject_sidebar_nav_css,
+    inject_arrow_fix_js,
 )
 # tier_gate lives in the same folder as app.py — use a path-safe import
 import importlib.util as _ilu, pathlib as _pl
@@ -262,6 +263,7 @@ inject_tooltip_css()
 inject_theme_css(st.session_state.get("theme", "slate"))
 inject_main_css()
 inject_typography_css()
+inject_arrow_fix_js()
 
 
 # ══════════════════════════════════════════════════════════════
@@ -446,6 +448,17 @@ st.markdown("""<style>
 [data-testid="collapsedControl"] span {
     font-size: 0 !important;
     color: transparent !important;
+}
+/* Hide ALL Streamlit icon text leaks — they render as raw text like
+   "keyboard_double_arrow_right", "_arrow_right", "_expand_more" etc.
+   These appear as bare text nodes in the DOM outside their containers. */
+.stApp > header,
+.stApp > header * {
+    font-size: 0 !important;
+    color: transparent !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    overflow: hidden !important;
 }
 /* Hide any raw icon text that Streamlit renders outside elements */
 .main > div:first-child > div:first-child {

@@ -1183,6 +1183,18 @@ def inject_arrow_fix_js() -> None:
     sels.forEach(function(sel) {
       document.querySelectorAll(sel).forEach(cleanSummary);
     });
+
+    // Also clean stray icon text nodes anywhere in the body
+    // (e.g. "keyboard_double_arrow_right" from sidebar collapse button)
+    var walker = document.createTreeWalker(
+      document.body, NodeFilter.SHOW_TEXT, null, false
+    );
+    var node;
+    while (node = walker.nextNode()) {
+      if (isIconText(node.textContent)) {
+        node.textContent = '';
+      }
+    }
   }
 
   // Run immediately
