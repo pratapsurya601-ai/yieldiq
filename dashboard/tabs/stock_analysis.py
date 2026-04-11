@@ -188,13 +188,8 @@ def render() -> None:
     )
 
     with sc3:
-        # 🏠 Home button when analysis results exist — lets users return to Morning Brief
-        if _has_results:
-            if st.button("🏠 Home", width='stretch', key="btn_go_home",
-                         help="Return to the Morning Brief dashboard"):
-                st.session_state["_show_morning_brief"] = True
-                st.rerun()
-        else:
+        # Show ticker hint only when no results
+        if not _has_results:
             if LAUNCH_REGION == "US":
                 st.html("""
                 <div style="padding:10px 16px;background:#FFFFFF;border:1px solid #E2E8F0;
@@ -211,25 +206,28 @@ def render() -> None:
                 </div>
                 """)
 
-    # ── Popular ticker pills ──────────────────────────────────────
-    st.caption("Popular stocks:")
-    _popular = ["AAPL", "MSFT", "NVDA", "GOOGL", "TSLA", "JPM", "AMZN", "META"]
-    _pop_cols = st.columns(len(_popular))
-    for _i, _t in enumerate(_popular):
-        with _pop_cols[_i]:
-            if st.button(_t, key=f"pop_{_t}", width="stretch"):
-                st.session_state.pop("fin_ticker",   None)   # clear stale analysis
-                st.session_state.pop("fin_enriched", None)
-                st.session_state["_prefill_ticker"]      = _t
-                st.session_state["_auto_analyse"]        = True
-                st.session_state["_show_morning_brief"]  = False
-                st.rerun()
+    # ── Popular ticker pills — only show when no analysis running ──
+    if not _has_results:
+        st.caption("Popular stocks:")
+        _popular = ["AAPL", "MSFT", "NVDA", "GOOGL", "TSLA", "JPM", "AMZN", "META"]
+        _pop_cols = st.columns(len(_popular))
+        for _i, _t in enumerate(_popular):
+            with _pop_cols[_i]:
+                if st.button(_t, key=f"pop_{_t}", width="stretch"):
+                    st.session_state.pop("fin_ticker",   None)
+                    st.session_state.pop("fin_enriched", None)
+                    st.session_state["_prefill_ticker"]      = _t
+                    st.session_state["_auto_analyse"]        = True
+                    st.session_state["_show_morning_brief"]  = False
+                    st.rerun()
 
     # Show Morning Brief when:
     #   (a) no analysis triggered AND no cached results, OR
     #   (b) user explicitly navigated home via session state flag
-    _show_brief = st.session_state.get("_show_morning_brief", True)
-    if analyse_btn:
+    # Morning Brief only shows when explicitly navigated (sidebar Home click)
+    # NOT as default — analysis results take priority
+    _show_brief = st.session_state.get("_show_morning_brief", False)
+    if analyse_btn or _has_results:
         st.session_state["_show_morning_brief"] = False
         _show_brief = False
 
