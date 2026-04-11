@@ -1265,7 +1265,7 @@ def render() -> None:
             )
 
             with st.container(border=True):
-                _qs_cols = st.columns(8)
+                _qs_cols = st.columns(4)
 
                 # P/E
                 with _qs_cols[0]:
@@ -1662,7 +1662,7 @@ def render() -> None:
             # ══════════════════════════════════════════════════════════
             # LAYER 4 — Advanced Analysis (all hidden)
             # ══════════════════════════════════════════════════════════
-            with st.expander("📊 Live Price, Analyst Views & Earnings — Detailed Data"):
+            with (st.expander("📊 Live Price, Analyst Views & Earnings — Detailed Data") if pro_mode else st.empty()):
                 render_live_price_header(ticker=ticker_input, sym=sym, fx=fx, refresh_every=60)
                 ccard("What do professional analysts say?", "#7C3AED")
                 render_analyst_consensus(ticker=ticker_input, current_price=price_d, sym=sym, fx=fx, raw_data=raw)
@@ -1671,7 +1671,7 @@ def render() -> None:
                 render_earnings_calendar(ticker=ticker_input, sym=sym, raw_data=raw)
                 ccard_end()
 
-            with st.expander("📋 Detailed Financial Metrics & Key Ratios"):
+            with (st.expander("📋 Detailed Financial Metrics & Key Ratios") if pro_mode else st.empty()):
                 k1,k2,k3,k4 = st.columns(4)
                 _dcf_iv_d = enriched.get("dcf_iv", 0) * fx
                 _pe_iv_d  = enriched.get("pe_iv",  0) * fx
@@ -3907,7 +3907,7 @@ ro.observe(document.getElementById('wrap'));
                     sc4.metric(
                         "Sector BUY signals",
                         f"{screen['buy_pct']:.0f}%",
-                        help=f"% of sector with BUY signal. SELL: {screen['sell_pct']:.0f}%"
+                        help=f"% of sector at discount to model estimate. Premium: {screen['sell_pct']:.0f}%"
                     )
 
                     # Sector signal distribution bar
@@ -3929,7 +3929,7 @@ ro.observe(document.getElementById('wrap'));
                       <div style="width:{screen['sell_pct']}%;background:#DC2626;
                                   display:flex;align-items:center;justify-content:center;
                                   font-size:12px;color:#fff;font-weight:700;min-width:0;">
-                        {'SELL ' + str(round(screen['sell_pct'])) + '%' if screen['sell_pct'] > 8 else ''}
+                        {'PREMIUM ' + str(round(screen['sell_pct'])) + '%' if screen['sell_pct'] > 8 else ''}
                       </div>
                     </div>
                     <div style="display:flex;gap:16px;margin-top:4px;font-size:12px;color:#64748B;">
