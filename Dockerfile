@@ -3,7 +3,7 @@ FROM python:3.12-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential dos2unix \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -11,7 +11,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Fix Windows line endings and make executable
-RUN dos2unix start.sh && chmod +x start.sh
-
-CMD ["bash", "start.sh"]
+CMD python -c "import os; port=os.environ.get('PORT','8501'); os.execvp('streamlit',['streamlit','run','dashboard/app.py','--server.port='+port,'--server.address=0.0.0.0','--server.headless=true'])"
