@@ -226,16 +226,32 @@ else:
 
 def _fmp_get(endpoint: str, ticker: str) -> list:
     """Fetch from FMP API. Returns list of annual records or []."""
-    if not FMP_KEY:
+    # Read key fresh every call — module-level FMP_KEY may be stale
+    _key = FMP_KEY or os.environ.get("FMP_API_KEY", "")
+    if not _key:
+        try:
+            import streamlit as _st_fmp_call
+            _key = _st_fmp_call.secrets.get("FMP_API_KEY", "")
+        except Exception:
+            pass
+    if not _key:
         return []
     try:
-        url = f"{FMP_BASE}/{endpoint}/{ticker}?period=annual&apikey={FMP_KEY}"
+        url = f"{FMP_BASE}/{endpoint}/{ticker}?period=annual&apikey={_key}"
         resp = requests.get(url, timeout=10)
+        print(f"FMP_API {endpoint}/{ticker}: status={resp.status_code}, len={len(resp.text)}")
         if resp.status_code == 200:
             data = resp.json()
-            return data if isinstance(data, list) else []
+            if isinstance(data, list):
+                print(f"FMP_API {endpoint}/{ticker}: got {len(data)} records")
+                return data
+            elif isinstance(data, dict) and "Error Message" in str(data):
+                print(f"FMP_API {endpoint}/{ticker}: ERROR: {data}")
+            return []
+        else:
+            print(f"FMP_API {endpoint}/{ticker}: HTTP {resp.status_code}: {resp.text[:200]}")
     except Exception as _e:
-        log.warning(f"[FMP] {endpoint}/{ticker}: {_e}")
+        print(f"FMP_API {endpoint}/{ticker}: EXCEPTION: {_e}")
     return []
 
 
@@ -297,10 +313,17 @@ def _fmp_balance_sheet(ticker: str) -> dict:
 
 def _fmp_profile(ticker: str) -> dict:
     """Fetch company profile from FMP for shares outstanding."""
-    if not FMP_KEY:
+    _key = FMP_KEY or os.environ.get("FMP_API_KEY", "")
+    if not _key:
+        try:
+            import streamlit as _st_fmp_p
+            _key = _st_fmp_p.secrets.get("FMP_API_KEY", "")
+        except Exception:
+            pass
+    if not _key:
         return {}
     try:
-        url = f"{FMP_BASE}/profile/{ticker}?apikey={FMP_KEY}"
+        url = f"{FMP_BASE}/profile/{ticker}?apikey={_key}"
         resp = requests.get(url, timeout=10)
         if resp.status_code == 200:
             data = resp.json()
