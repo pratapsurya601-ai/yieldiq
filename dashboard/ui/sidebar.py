@@ -45,20 +45,26 @@ def render_sidebar(
 
         # ── 1. LOGO ──────────────────────────────────────────────
         import base64 as _b64, pathlib as _logo_pl
-        _logo_path = _logo_pl.Path(__file__).resolve().parent.parent / "static" / "logo_dark.jpeg"
+        _logo_path = _logo_pl.Path(__file__).resolve().parent.parent / "static" / "logo_circle.jpeg"
+        if not _logo_path.exists():
+            _logo_path = _logo_pl.Path(__file__).resolve().parent.parent / "static" / "logo_dark.jpeg"
         if _logo_path.exists():
             _logo_b64 = _b64.b64encode(_logo_path.read_bytes()).decode()
             st.html(f"""
-    <div style="padding:14px 4px 14px;text-align:center;">
-      <img src="data:image/jpeg;base64,{_logo_b64}"
-           style="width:180px;height:auto;margin-bottom:4px;" alt="YieldIQ"/>
-      <div style="font-size:9px;color:#64748B;letter-spacing:0.08em;
-                  font-weight:500;text-transform:uppercase;">
-        Quantitative research platform
+    <div style="padding:20px 0 10px;text-align:center;">
+      <div style="display:inline-block;width:100px;height:100px;border-radius:50%;
+                  overflow:hidden;box-shadow:0 4px 20px rgba(29,78,216,0.35);
+                  border:2px solid rgba(255,255,255,0.1);">
+        <img src="data:image/jpeg;base64,{_logo_b64}"
+             style="width:100%;height:100%;object-fit:cover;" alt="YieldIQ"/>
+      </div>
+      <div style="font-size:9px;color:#64748B;letter-spacing:0.12em;
+                  font-weight:600;text-transform:uppercase;margin-top:10px;">
+        Quantitative Research Platform
       </div>
       <div style="height:1px;
-                  background:linear-gradient(90deg,#1D4ED8,#06B6D4,transparent);
-                  margin-top:10px;opacity:0.5;"></div>
+                  background:linear-gradient(90deg,transparent,#1D4ED8,#06B6D4,transparent);
+                  margin-top:12px;opacity:0.4;"></div>
     </div>
     """)
         else:
