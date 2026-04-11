@@ -84,7 +84,7 @@ def _get_cache_ttl() -> int:
     t = st.session_state.get("_tier", "free")
     return {"pro": 60, "starter": 180, "premium": 180, "free": 600}.get(t, 600)
 
-_DATA_VERSION = "v7_ui_cleanup"  # bump this to bust cache after engine changes
+_DATA_VERSION = "v8_shares_validation"  # bump this to bust cache after engine changes
 
 def fetch_stock_data(ticker):
     """Wrapper that applies tiered TTL caching."""
@@ -146,22 +146,29 @@ def _fetch_stock_data_cached(ticker, _ttl_key, _version):
 
             _price = (_fh_q or {}).get("price", 0) or (_fmp_pr or {}).get("price", 0)
             _shares = (_fmp_pr or {}).get("shares", 0)
-            # If shares=0, estimate from Finnhub market cap / price
+            # If shares=0, estimate from market cap / price
             if _shares <= 0 and _price > 0:
                 _mkt_cap = (_fmp_pr or {}).get("market_cap", 0)
                 if _mkt_cap > 0:
                     _shares = _mkt_cap / _price
-                    print(f"FMP_SHARES_EST {ticker}: {_shares:,.0f} from mktCap={_mkt_cap:,.0f}/price={_price}")
-            # Last resort: estimate from Finnhub EPS
-            if _shares <= 0 and _price > 0:
-                _eps = (_fh_f or {}).get("eps_ttm", 0)
-                _pe = (_fh_f or {}).get("pe_ttm", 0)
-                if _eps > 0 and _pe > 0:
-                    _est_mcap = _price * (_price / _eps) * 1e6  # rough estimate
-                # Use a reasonable default for mega-caps
-                if _shares <= 0:
-                    _shares = 1e9  # 1B shares as fallback — better than 0
-                    print(f"FMP_SHARES_DEFAULT {ticker}: using 1B shares fallback")
+                    print(f"FMP_SHARES_EST {ticker}: {_shares:,.0f} from mktCap/price")
+            # Cross-validate with EPS: shares = net_income / EPS
+            _eps_val = (_fh_f or {}).get("eps_ttm", 0)
+            if _eps_val > 0 and not _fmp_inc.empty and "net_income" in _fmp_inc.columns:
+                _ni = float(_fmp_inc["net_income"].iloc[-1])
+                if _ni > 0:
+                    _eps_shares = _ni / _eps_val
+                    if _shares > 0 and abs(_eps_shares / _shares - 1) > 0.3:
+                        print(f"FMP_SHARES_FIX {ticker}: profile={_shares:,.0f} vs NI/EPS={_eps_shares:,.0f} (off by {abs(_eps_shares/_shares-1)*100:.0f}%) — using NI/EPS")
+                        _shares = _eps_shares
+                    elif _shares <= 0:
+                        _shares = _eps_shares
+                        print(f"FMP_SHARES_FROM_EPS {ticker}: {_shares:,.0f}")
+            # Last resort
+            if _shares <= 0:
+                _shares = 1e9
+                print(f"FMP_SHARES_DEFAULT {ticker}: using 1B fallback")
+            print(f"FMP_SHARES_FINAL {ticker}: {_shares:,.0f}")
 
             _has_any_financials = not _fmp_inc.empty or not _fmp_cf.empty
             if _price > 0 and _has_any_financials:
