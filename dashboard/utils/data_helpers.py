@@ -338,80 +338,19 @@ def _get_active_theme() -> dict:
     _name = st.session_state.get("theme", "slate")
     return _tm.get_theme(_name)
 
-def KL(**kw):
-    """Theme-aware chart layout — apply to every fig.update_layout()."""
-    t = _get_active_theme()
-    base = dict(
-        paper_bgcolor=t["chart_paper"],
-        plot_bgcolor=t["chart_bg"],
-        font=dict(family="Inter, DM Sans, system-ui, sans-serif", color=t["chart_font"], size=11),
-        margin=dict(l=48, r=24, t=48, b=44),
-        hovermode="x unified",
-        hoverlabel=dict(
-            bgcolor=t["bg3"],
-            font=dict(color=t["text"], family="IBM Plex Mono, monospace", size=12),
-            bordercolor=t["border2"],
-        ),
-        legend=dict(
-            bgcolor="rgba(0,0,0,0)",
-            bordercolor=t["border"],
-            borderwidth=1,
-            font=dict(color=t["text2"], size=11),
-        ),
-        xaxis=dict(
-            gridcolor=t["chart_grid"],
-            linecolor=t["border"],
-            tickfont=dict(color=t["text3"], size=10),
-            zeroline=False,
-        ),
-        yaxis=dict(
-            gridcolor=t["chart_grid"],
-            linecolor=t["border"],
-            tickfont=dict(color=t["text3"], size=10),
-            zeroline=False,
-        ),
-        colorway=[t["chart_line"], t["chart_accent2"], t["chart_accent3"],
-                  t["chart_bar_pos"], t["chart_bar_neg"]],
-    )
-    base.update(kw)
-    return base
-
-def apply_koyfin(fig, accent=None, height=280, title_txt="", extra_kw=None):
-    """One-call upgrade: themed layout + accent top border + axis polish."""
-    t = _get_active_theme()
-    if accent is None:
-        accent = t["accent"]
-    kw = dict(height=height)
-    if title_txt:
-        kw["title"] = dict(text=title_txt, font=dict(color=t["text"], size=13, family="Inter, sans-serif"), x=0, pad=dict(l=4))
-    if extra_kw:
-        kw.update(extra_kw)
-    fig.update_layout(**KL(**kw))
-    fig.update_xaxes(gridcolor=t["chart_grid"], linecolor=t["border"], tickfont=dict(color=t["text3"], size=10))
-    fig.update_yaxes(gridcolor=t["chart_grid"], linecolor=t["border"], tickfont=dict(color=t["text3"], size=10))
-    # Accent top-border
-    fig.add_shape(type="line", xref="paper", yref="paper",
-                  x0=0, x1=1, y0=1, y1=1,
-                  line=dict(color=accent, width=2),
-                  layer="above")
-    return fig
-
-def CL(**kw):
-    """Theme-aware clean/light chart layout."""
-    t = _get_active_theme()
-    base = dict(
-        paper_bgcolor=t["chart_paper"], plot_bgcolor=t["chart_bg"],
-        font=dict(family="Inter,sans-serif", color=t["text2"], size=11),
-        margin=dict(t=20, b=40, l=10, r=10),
-        xaxis=dict(gridcolor=t["chart_grid"], linecolor=t["border"], zeroline=False, tickcolor=t["border2"], tickfont=dict(color=t["text3"])),
-        yaxis=dict(gridcolor=t["chart_grid"], linecolor=t["border"], zeroline=False, tickcolor=t["border2"], tickfont=dict(color=t["text3"])),
-        hoverlabel=dict(bgcolor=t["bg3"], bordercolor=t["accent"],
-                        font=dict(color=t["text"], family="IBM Plex Mono", size=12)),
-        colorway=[t["chart_line"], t["chart_accent2"], t["chart_accent3"],
-                  t["chart_bar_pos"], t["chart_bar_neg"]],
-    )
-    base.update(kw)
-    return base
+# ── Chart layout functions — single source of truth in chart_layouts.py ──
+import importlib.util as _cl_ilu, pathlib as _cl_pl
+_cl_path = _cl_pl.Path(__file__).resolve().parent / "chart_layouts.py"
+_cl_spec = _cl_ilu.spec_from_file_location("_yiq_cl", _cl_path)
+_cl_mod  = _cl_ilu.module_from_spec(_cl_spec)
+_cl_spec.loader.exec_module(_cl_mod)
+KL           = _cl_mod.KL
+CL           = _cl_mod.CL
+apply_koyfin = _cl_mod.apply_koyfin
+style_fig    = _cl_mod.style_fig
+T            = _cl_mod.T
+bar_colors   = _cl_mod.bar_colors
+signal_colors = _cl_mod.signal_colors
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def generate_ai_summary(

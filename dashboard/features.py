@@ -755,9 +755,9 @@ def render_earnings_calendar(ticker: str, sym: str = "$", raw_data: dict = None)
             bgcolor="rgba(0,0,0,0)",
             font=dict(size=10),
         ),
-        xaxis=dict(gridcolor="#F1F5F9", linecolor="#E2E8F0", tickfont=dict(size=9)),
+        xaxis=dict(gridcolor="rgba(0,0,0,0.04)", linecolor="#E2E8F0", tickfont=dict(size=9)),
         yaxis=dict(
-            gridcolor="#F1F5F9", linecolor="#E2E8F0",
+            gridcolor="rgba(0,0,0,0.04)", linecolor="#E2E8F0",
             title="EPS", title_font=dict(size=9), tickfont=dict(size=9),
         ),
         hoverlabel=dict(bgcolor="#0F172A", font=dict(color="#F1F5F9", family="JetBrains Mono")),

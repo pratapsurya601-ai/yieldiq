@@ -429,7 +429,7 @@ def _render_surprise_chart(ticker: str) -> None:
             pad=dict(l=0, t=0),
         ),
         paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="#FAFBFF",
+        plot_bgcolor="#FFFFFF",
         font=dict(family="IBM Plex Mono, monospace", color="#64748B", size=10),
         margin=dict(t=40, b=40, l=10, r=10),
         height=280,
@@ -441,7 +441,7 @@ def _render_surprise_chart(ticker: str) -> None:
         yaxis=dict(
             title="EPS ($)",
             showgrid=True,
-            gridcolor="#F1F5F9",
+            gridcolor="rgba(0,0,0,0.04)",
             tickfont=dict(family="IBM Plex Mono, monospace", size=10),
             tickprefix="$",
             zeroline=True,

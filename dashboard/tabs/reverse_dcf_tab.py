@@ -136,8 +136,8 @@ def render(
         )
         apply_koyfin(fig_rdcf, height=240, extra_kw=dict(
             margin=dict(t=44, b=20, l=20, r=20),
-            yaxis=dict(title="Annual FCF Growth (%)", gridcolor="#21262d",
-                       tickfont=dict(color="#8b949e")),
+            yaxis=dict(title="Annual FCF Growth (%)", gridcolor="rgba(0,0,0,0.04)",
+                       tickfont=dict(color="#64748B")),
             showlegend=False,
         ))
         st.plotly_chart(fig_rdcf, width="stretch",

@@ -279,10 +279,10 @@ def _build_heatmap(df: pd.DataFrame, show_rs: bool = False) -> go.Figure:
             title      = dict(
                 text = "RS vs SPY (%)" if show_rs else "Return (%)",
                 side = "right",
-                font = dict(color="#8b949e", size=11),
+                font = dict(color="#64748B", size=11),
             ),
             tickfont   = dict(color="#8b949e", size=10),
-            outlinecolor="#30363d",
+            outlinecolor="#CBD5E1",
             outlinewidth=1,
             len        = 0.85,
             thickness  = 14,
@@ -296,14 +296,14 @@ def _build_heatmap(df: pd.DataFrame, show_rs: bool = False) -> go.Figure:
         paper_bgcolor = _get_active_theme()["chart_paper"],
         xaxis=dict(
             side      = "top",
-            tickfont  = dict(color="#e6edf3", size=12, family="Inter, sans-serif"),
-            linecolor = "#30363d",
-            gridcolor = "#21262d",
+            tickfont  = dict(color="#475569", size=12, family="Inter, sans-serif"),
+            linecolor = "#CBD5E1",
+            gridcolor = "rgba(0,0,0,0.04)",
         ),
         yaxis=dict(
-            tickfont  = dict(color="#e6edf3", size=12, family="Inter, sans-serif"),
-            linecolor = "#30363d",
-            gridcolor = "#21262d",
+            tickfont  = dict(color="#475569", size=12, family="Inter, sans-serif"),
+            linecolor = "#CBD5E1",
+            gridcolor = "rgba(0,0,0,0.04)",
             autorange = "reversed",
         ),
     ))
@@ -620,7 +620,7 @@ def _build_momentum_bar(df: pd.DataFrame) -> go.Figure:
         extra_kw  = dict(
             xaxis=dict(
                 zeroline     = True,
-                zerolinecolor= "#30363d",
+                zerolinecolor= "#CBD5E1",
                 zerolinewidth= 1.5,
                 ticksuffix   = "%",
             ),

@@ -3199,12 +3199,11 @@ ro.observe(document.getElementById('wrap'));
                         annotation_font=dict(color="#3B82F6", size=11),
                     )
 
+                    from utils.chart_layouts import style_fig as _style_fig
+                    _style_fig(fig_fy, height=260)
                     fig_fy.update_layout(
-                        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="#FFFFFF",
-                        height=260, margin=dict(t=30, b=20, l=40, r=80),
-                        yaxis=dict(title="Yield (%)", gridcolor="#F1F5F9",
-                                   ticksuffix="%"),
-                        xaxis=dict(gridcolor="#F1F5F9"),
+                        margin=dict(t=30, b=20, l=40, r=80),
+                        yaxis=dict(title="Yield (%)", ticksuffix="%"),
                         showlegend=False,
                     )
                     st.plotly_chart(fig_fy, width="stretch",
@@ -3323,24 +3322,15 @@ ro.observe(document.getElementById('wrap'));
                     annotation_font=dict(size=11, color="#059669"),
                 )
                 _pt_upside = (((_pt_mean - price_d) / price_d) * 100) if price_d else 0
+                from utils.chart_layouts import style_fig as _style_fig, T as _T
+                _style_fig(_pt_fig, height=170,
+                           title_txt=f"Analyst PT: {sym}{_pt_low:,.2f} – {sym}{_pt_high:,.2f}"
+                                     f"  ·  {_pt_count} analysts"
+                                     + (f"  ·  {_pt_upside:+.1f}% upside to mean" if _pt_upside else ""))
                 _pt_fig.update_layout(
-                    title=dict(
-                        text=f"Analyst PT: {sym}{_pt_low:,.2f} – {sym}{_pt_high:,.2f}"
-                             f"  ·  {_pt_count} analysts"
-                             + (f"  ·  {_pt_upside:+.1f}% upside to mean" if _pt_upside else ""),
-                        font_size=12,
-                        x=0,
-                    ),
-                    height=170,
                     margin=dict(t=40, b=20, l=10, r=20),
-                    plot_bgcolor="#FAFAFA",
-                    paper_bgcolor="#FFFFFF",
                     showlegend=False,
-                    xaxis=dict(
-                        title=f"Price ({sym})",
-                        gridcolor="#E2E8F0",
-                        tickformat=",.0f",
-                    ),
+                    xaxis=dict(title=f"Price ({sym})", tickformat=",.0f"),
                     yaxis=dict(showticklabels=False, showgrid=False),
                 )
                 st.plotly_chart(_pt_fig, width='stretch')
@@ -3373,16 +3363,12 @@ ro.observe(document.getElementById('wrap'));
                         _go_pt.Bar(name="Sell",        x=_rt_periods, y=_rt_s,   marker_color="#fca5a5"),
                         _go_pt.Bar(name="Strong Sell", x=_rt_periods, y=_rt_ss,  marker_color="#dc2626"),
                     ])
+                    _style_fig(_rt_fig, height=220, title_txt="Analyst Recommendation Trend")
                     _rt_fig.update_layout(
                         barmode="stack",
-                        title=dict(text="Analyst Recommendation Trend", font_size=12, x=0),
-                        height=220,
                         margin=dict(t=36, b=20, l=10, r=10),
-                        plot_bgcolor="#FAFAFA",
-                        paper_bgcolor="#FFFFFF",
                         legend=dict(orientation="h", y=-0.25, x=0),
-                        yaxis=dict(title="# Analysts", gridcolor="#E2E8F0"),
-                        xaxis=dict(gridcolor="#E2E8F0"),
+                        yaxis=dict(title="# Analysts"),
                     )
                     st.plotly_chart(_rt_fig, width='stretch')
 
@@ -3506,18 +3492,12 @@ ro.observe(document.getElementById('wrap'));
                         )
                     )
                     _fig_ins.update_layout(
-                        title="Monthly Net Insider Share Activity (12M)",
-                        title_font_size=13,
-                        height=260,
+                    )
+                    _style_fig(_fig_ins, height=260,
+                               title_txt="Monthly Net Insider Share Activity (12M)")
+                    _fig_ins.update_layout(
                         margin=dict(t=40, b=30, l=50, r=20),
-                        plot_bgcolor="#FAFAFA",
-                        paper_bgcolor="#FFFFFF",
-                        yaxis=dict(
-                            title="Net Shares",
-                            gridcolor="#E2E8F0",
-                            zerolinecolor="#94A3B8",
-                        ),
-                        xaxis=dict(gridcolor="#E2E8F0"),
+                        yaxis=dict(title="Net Shares"),
                         showlegend=False,
                     )
                     _fig_ins.add_hline(y=0, line_color="#94A3B8", line_width=1)
@@ -3693,29 +3673,17 @@ ro.observe(document.getElementById('wrap'));
                         opacity=0.7,
                         yaxis="y2",
                     ))
+                    _style_fig(_fig_inst, height=270,
+                               title_txt="Institutional Ownership Trend")
                     _fig_inst.update_layout(
-                        title="Institutional Ownership Trend",
-                        title_font_size=13,
-                        height=270,
                         margin=dict(t=40, b=30, l=50, r=60),
-                        plot_bgcolor="#FAFAFA",
-                        paper_bgcolor="#FFFFFF",
                         legend=dict(orientation="h", y=-0.15, x=0),
-                        yaxis=dict(
-                            title="Total Ownership %",
-                            gridcolor="#E2E8F0",
-                            ticksuffix="%",
-                        ),
+                        yaxis=dict(title="Total Ownership %", ticksuffix="%"),
                         yaxis2=dict(
-                            title="QoQ Δ%",
-                            overlaying="y",
-                            side="right",
-                            showgrid=False,
-                            ticksuffix="%",
-                            zeroline=True,
-                            zerolinecolor="#94A3B8",
+                            title="QoQ Δ%", overlaying="y", side="right",
+                            showgrid=False, ticksuffix="%",
+                            zeroline=True, zerolinecolor=_T()["text3"],
                         ),
-                        xaxis=dict(gridcolor="#E2E8F0"),
                     )
                     st.plotly_chart(_fig_inst, width='stretch')
                 elif len(_hist) == 1:

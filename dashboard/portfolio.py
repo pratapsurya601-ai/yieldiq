@@ -800,12 +800,12 @@ def _render_performance_chart(holdings: list) -> None:
         yaxis=dict(
             ticksuffix="%",
             tickfont=dict(family="IBM Plex Mono, monospace", color="#6B7280", size=10),
-            gridcolor="#F3F4F6", griddash="dash", gridwidth=0.5,
+            gridcolor="rgba(0,0,0,0.04)", griddash="dash", gridwidth=0.5,
             zeroline=False,
         ),
         xaxis=dict(
             tickfont=dict(color="#6B7280", size=10),
-            gridcolor="#F3F4F6", griddash="dash", gridwidth=0.5,
+            gridcolor="rgba(0,0,0,0.04)", griddash="dash", gridwidth=0.5,
             zeroline=False,
         ),
         hoverlabel=dict(

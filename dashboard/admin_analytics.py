@@ -461,7 +461,7 @@ def _chart_dau(df: "pd.DataFrame") -> "go.Figure":
     fig = go.Figure()
     if df is None or df.empty:
         fig.add_annotation(text="No data yet", showarrow=False,
-                           font=dict(color="#64748B", size=14))
+                           font=dict(color="#475569", size=14))
         return _style_fig(fig)
 
     fig.add_trace(go.Bar(
@@ -476,7 +476,7 @@ def _chart_dau(df: "pd.DataFrame") -> "go.Figure":
         marker=dict(size=5),
     ))
     fig.update_layout(
-        yaxis=dict(title="Unique Users (DAU)", gridcolor="rgba(255,255,255,0.06)"),
+        yaxis=dict(title="Unique Users (DAU)", gridcolor="rgba(0,0,0,0.04)"),
         yaxis2=dict(title="Total Analyses", overlaying="y", side="right",
                     gridcolor="rgba(255,255,255,0.0)"),
         legend=dict(x=0.01, y=0.99, bgcolor="rgba(0,0,0,0)"),
@@ -490,7 +490,7 @@ def _chart_top_tickers(df: "pd.DataFrame") -> "go.Figure":
     fig = go.Figure()
     if df is None or df.empty:
         fig.add_annotation(text="No data yet", showarrow=False,
-                           font=dict(color="#64748B", size=14))
+                           font=dict(color="#475569", size=14))
         return _style_fig(fig)
 
     df = df.sort_values("runs", ascending=True)
@@ -513,7 +513,7 @@ def _chart_top_tickers(df: "pd.DataFrame") -> "go.Figure":
         ),
     ))
     fig.update_layout(
-        xaxis=dict(title="Analysis runs", gridcolor="rgba(255,255,255,0.06)"),
+        xaxis=dict(title="Analysis runs", gridcolor="rgba(0,0,0,0.04)"),
         yaxis=dict(tickfont=dict(family="IBM Plex Mono", size=11)),
     )
     return _style_fig(fig)
@@ -523,7 +523,7 @@ def _chart_tier_pie(df: "pd.DataFrame") -> "go.Figure":
     fig = go.Figure()
     if df is None or df.empty:
         fig.add_annotation(text="No user data", showarrow=False,
-                           font=dict(color="#64748B", size=14))
+                           font=dict(color="#475569", size=14))
         return _style_fig(fig)
 
     labels = df["tier"].tolist()
@@ -546,7 +546,7 @@ def _chart_feature_usage(df: "pd.DataFrame") -> "go.Figure":
     fig = go.Figure()
     if df is None or df.empty:
         fig.add_annotation(text="No data yet", showarrow=False,
-                           font=dict(color="#64748B", size=14))
+                           font=dict(color="#475569", size=14))
         return _style_fig(fig)
 
     tiers = ["free", "starter", "pro"]
@@ -565,7 +565,7 @@ def _chart_feature_usage(df: "pd.DataFrame") -> "go.Figure":
     fig.update_layout(
         barmode="group",
         xaxis=dict(title="Feature"),
-        yaxis=dict(title="Events", gridcolor="rgba(255,255,255,0.06)"),
+        yaxis=dict(title="Events", gridcolor="rgba(0,0,0,0.04)"),
         legend=dict(x=0.01, y=0.99, bgcolor="rgba(0,0,0,0)"),
     )
     return _style_fig(fig)
@@ -618,20 +618,19 @@ def _chart_signal_dist(df: "pd.DataFrame") -> "go.Figure":
     ))
     fig.update_layout(
         xaxis=dict(title="Signal"),
-        yaxis=dict(title="Count", gridcolor="rgba(255,255,255,0.06)"),
+        yaxis=dict(title="Count", gridcolor="rgba(0,0,0,0.04)"),
     )
     return _style_fig(fig)
 
 
 def _style_fig(fig: "go.Figure") -> "go.Figure":
-    """Apply consistent dark theme to all charts."""
-    fig.update_layout(
-        paper_bgcolor="rgba(15,23,42,0.0)",
-        plot_bgcolor ="rgba(15,23,42,0.0)",
-        font=dict(color="#94A3B8", family="Inter, sans-serif", size=12),
-        margin=dict(l=10, r=10, t=30, b=30),
-        height=320,
-    )
+    """Apply consistent themed styling to all admin charts."""
+    import importlib.util as _ilu, pathlib as _pl
+    _cl = _pl.Path(__file__).resolve().parent / "utils" / "chart_layouts.py"
+    _sp = _ilu.spec_from_file_location("_cl", _cl)
+    _md = _ilu.module_from_spec(_sp); _sp.loader.exec_module(_md)
+    _md.style_fig(fig, height=320, compact=True)
+    fig.update_layout(margin=dict(l=10, r=10, t=30, b=30))
     return fig
 
 
