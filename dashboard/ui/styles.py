@@ -474,13 +474,12 @@ section[data-testid="stSidebar"] code {
 
 
 
-/* ══ ARROW FIX v4 — CSS layer (belt) ══════════════════════════
-   Hides icon span via font-size:0 and color:transparent.
-   The JS postMessage bridge below is the real fix (suspenders).
+/* ══ EXPANDER STYLING v5 ══════════════════════════════════════
+   Clean expander design. Hides native icons/SVGs but preserves
+   ALL label text (p, span, or bare text nodes).
    ══════════════════════════════════════════════════════════════ */
 
-/* Make summary a flex row; set its own color transparent so
-   any un-caught text node bleeds invisibly */
+/* Summary row layout */
 [data-testid="stExpander"] summary,
 details > summary {
   display:        flex         !important;
@@ -489,36 +488,29 @@ details > summary {
   list-style:     none         !important;
   cursor:         pointer      !important;
   padding:        11px 16px    !important;
-  background:     #F7F9FC      !important;
+  background:     #FAFBFC      !important;
   border-bottom:  1px solid #E2E8F0 !important;
-  color:          transparent  !important;
+  color:          #334155      !important;
+  font-size:      13px         !important;
+  font-weight:    500          !important;
 }
 /* Kill native disclosure triangle */
 [data-testid="stExpander"] summary::-webkit-details-marker,
 details > summary::-webkit-details-marker { display: none !important; }
 
-/* Kill icon spans (not p — the label p must stay visible) */
-[data-testid="stExpander"] summary > span,
-details > summary > span {
-  font-size:   0           !important;
-  width:       0           !important;
-  height:      0           !important;
-  overflow:    hidden      !important;
-  visibility:  hidden      !important;
-  color:       transparent !important;
-  position:    absolute    !important;
-  pointer-events: none     !important;
-}
-/* Kill all SVGs inside summary */
+/* Hide SVGs inside summary (Streamlit's expand/collapse icons) */
 [data-testid="stExpander"] summary svg,
 details > summary svg {
   display:  none !important;
   width:    0    !important;
   height:   0    !important;
 }
-/* Restore the label paragraph */
+
+/* Ensure label text is visible — both p and span */
 [data-testid="stExpander"] summary p,
-details > summary p {
+[data-testid="stExpander"] summary span:not(:empty),
+details > summary p,
+details > summary span:not(:empty) {
   color:       #334155 !important;
   font-size:   13px    !important;
   font-weight: 500     !important;
@@ -526,24 +518,30 @@ details > summary p {
   opacity:     1       !important;
   margin:      0       !important;
 }
-/* Sidebar expander labels need light text on dark bg */
-section[data-testid="stSidebar"] [data-testid="stExpander"] summary p,
-section[data-testid="stSidebar"] details > summary p {
-  color:       #CBD5E1 !important;
-}
+
+/* Sidebar expander labels — light text on dark bg */
 section[data-testid="stSidebar"] [data-testid="stExpander"] summary,
 section[data-testid="stSidebar"] details > summary {
   background:  rgba(255,255,255,0.04) !important;
   border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+  color:       #CBD5E1 !important;
 }
-section[data-testid="stSidebar"] [data-testid="stExpander"] summary::before,
-section[data-testid="stSidebar"] details > summary::before {
-  border-color: #64748B !important;
+section[data-testid="stSidebar"] [data-testid="stExpander"] summary p,
+section[data-testid="stSidebar"] [data-testid="stExpander"] summary span,
+section[data-testid="stSidebar"] details > summary p,
+section[data-testid="stSidebar"] details > summary span {
+  color:       #CBD5E1 !important;
 }
-section[data-testid="stSidebar"] [data-testid="stExpander"] summary:hover p {
+section[data-testid="stSidebar"] [data-testid="stExpander"] summary:hover,
+section[data-testid="stSidebar"] details > summary:hover {
+  background:  rgba(255,255,255,0.08) !important;
+}
+section[data-testid="stSidebar"] [data-testid="stExpander"] summary:hover p,
+section[data-testid="stSidebar"] [data-testid="stExpander"] summary:hover span {
   color: #38BDF8 !important;
 }
-/* Custom CSS chevron — zero dependency on Streamlit internals */
+
+/* Custom CSS chevron */
 [data-testid="stExpander"] summary::before,
 details > summary::before {
   content:       ""               !important;
@@ -557,6 +555,10 @@ details > summary::before {
   transition:    transform 0.2s ease !important;
   margin-right:  2px              !important;
 }
+section[data-testid="stSidebar"] [data-testid="stExpander"] summary::before,
+section[data-testid="stSidebar"] details > summary::before {
+  border-color: #64748B !important;
+}
 details[open] > summary::before,
 [data-testid="stExpander"][open] summary::before {
   transform: rotate(45deg) !important;
@@ -567,8 +569,10 @@ details > summary:hover { background: #EFF6FF !important; }
   border-color: #1D4ED8 !important;
 }
 [data-testid="stExpander"] summary:hover p,
-details > summary:hover p { color: #1D4ED8 !important; }
-/* ══ END CSS ARROW FIX ══ */
+[data-testid="stExpander"] summary:hover span,
+details > summary:hover p,
+details > summary:hover span { color: #1D4ED8 !important; }
+/* ══ END EXPANDER STYLING ══ */
 
 /* ══════════════════════════════════════════════════════════════
    INNER SUB-TABS — Make Summary/Valuation/Quality/Signals
