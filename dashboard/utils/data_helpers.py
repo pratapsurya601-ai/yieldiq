@@ -431,13 +431,21 @@ def _yf_fast_info_with_retry(sym: str, max_attempts: int = 1):
 
 @st.cache_data(ttl=900, show_spinner=False)
 def fetch_market_overview():
-    symbols = {
-        "S&P 500":   "^GSPC",
-        "NASDAQ":    "^IXIC",
-        "Dow Jones": "^DJI",
-        "Gold":      "GC=F",
-        "10Y UST":   "^TNX",
-    }
+    # Use country config for indices, fallback to US
+    try:
+        from config.countries import get_active_country
+        _cc = get_active_country()
+        symbols = _cc.get("indices", {})
+        # Add Gold and bond yield as universal
+        symbols.setdefault("Gold", "GC=F")
+    except Exception:
+        symbols = {
+            "S&P 500":   "^GSPC",
+            "NASDAQ":    "^IXIC",
+            "Dow Jones": "^DJI",
+            "Gold":      "GC=F",
+            "10Y UST":   "^TNX",
+        }
     results = {}
     for name, sym in symbols.items():
         try:

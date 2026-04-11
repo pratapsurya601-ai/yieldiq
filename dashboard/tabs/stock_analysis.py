@@ -309,7 +309,13 @@ def render() -> None:
             "POPULAR STOCKS \u2014 CLICK TO ANALYSE</div>",
             unsafe_allow_html=True,
         )
-        _quick_picks = ["AAPL", "MSFT", "GOOGL", "NVDA", "AMZN", "META", "TSLA", "JPM"]
+        # Popular stocks from country config
+        try:
+            from config.countries import get_active_country as _gac
+            _country = _gac()
+            _quick_picks = _country.get("popular_display", ["AAPL", "MSFT", "GOOGL", "NVDA", "AMZN", "META", "TSLA", "JPM"])
+        except Exception:
+            _quick_picks = ["AAPL", "MSFT", "GOOGL", "NVDA", "AMZN", "META", "TSLA", "JPM"]
         _qp_cols = st.columns(len(_quick_picks))
         for _qc, _qt in zip(_qp_cols, _quick_picks):
             with _qc:
