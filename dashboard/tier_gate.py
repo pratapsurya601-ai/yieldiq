@@ -659,8 +659,12 @@ def _launch_razorpay_checkout(email: str, chosen_tier: str, billing: str = "mont
     var rzp = new Razorpay(options);
     rzp.open();
     </script>
-    <div style="text-align:center;padding:40px;font-size:14px;color:#6B7280;">
-      Loading payment gateway...
+    <div style="text-align:center;padding:20px;font-size:13px;color:#6B7280;">
+      <div style="margin-bottom:12px;">Loading secure payment gateway...</div>
+      <div style="font-size:11px;color:#94A3B8;line-height:1.6;">
+        🔒 Powered by Razorpay (RBI approved) · Cancel anytime · No hidden charges<br>
+        💡 Tip: Use UPI Autopay for the smoothest experience
+      </div>
     </div>
     """, height=500)
 
