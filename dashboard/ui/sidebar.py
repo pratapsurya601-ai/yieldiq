@@ -96,6 +96,7 @@ def render_sidebar(
             ("\U0001f4cb", "Screener",       "screener"),
             ("\U0001f4c5", "Earnings",       "earnings"),
             None,                                           # ── divider ──
+            ("\U0001f4b3", "Pricing",         "pricing"),
             ("\u2699\ufe0f", "Settings",       "about"),
         ]
         _is_brief = (
@@ -130,7 +131,7 @@ def render_sidebar(
         st.markdown("---")
         _theme_key = st.session_state.get("theme", "slate")
         # Quick-cycle through themes from sidebar
-        _theme_cycle = ["forest", "ocean", "aurora", "sakura", "violet", "slate"]
+        _theme_cycle = ["slate", "forest", "ocean", "aurora", "sakura", "violet"]
         _theme_names = {
             "forest": "\U0001f33f Forest", "ocean": "\U0001f30a Ocean",
             "aurora": "\U0001f305 Aurora", "sakura": "\U0001f338 Sakura",

@@ -2528,7 +2528,7 @@ ro.observe(document.getElementById('wrap'));
                 # ── FIXED Sensitivity Heatmap ──────────────────────────
                 # ── TIER CHECK: sensitivity ───────────────────────────
                 if not _show_sensitive:
-                    show_upgrade_modal("Sensitivity & scenario analysis")
+                    blur_and_lock("sensitivity")
                 else:
                     sa_df = sensitivity_analysis(
                     projected_fcfs=projected, terminal_fcf_norm=terminal_norm,

@@ -111,8 +111,9 @@ def _track_nudge(user_email: str, tier_name: str, nudge_type: str, action: str =
         pass
 
 
-WEBSITE_URL = "https://yourdomain.com"
+WEBSITE_URL = os.environ.get("YIELDIQ_WEBSITE_URL", "https://yieldiq.app")
 PRICING_URL = WEBSITE_URL + "/pricing.html"
+# In-app upgrade: navigate to the pricing tab via query param
 UPGRADE_URL = PRICING_URL
 TIER_NAMES  = {"free": "Free", "starter": "Starter", "premium": "Starter", "pro": "Pro"}
 TIER_COLORS = {"free": "#6B7280", "starter": "#1D4ED8", "premium": "#1D4ED8", "pro": "#059669"}
@@ -1137,10 +1138,9 @@ def sidebar_upgrade_button() -> None:
     if st.sidebar.button("⚡ Upgrade to Starter", key="_sidebar_upgrade_btn",
                          use_container_width=True, type="primary"):
         _track_nudge(em, tier(), "sidebar_upgrade", "clicked")
-        st.sidebar.markdown(f'<meta http-equiv="refresh" content="0;url={UPGRADE_URL}">',
-                            unsafe_allow_html=True)
-    st.sidebar.html(
-        f'<div style="text-align:center;margin-top:4px;">'
-        f'<a href="{PRICING_URL}" style="font-size:11px;color:#1D4ED8;">'
-        f'Compare plans</a></div>'
-    )
+        st.session_state["main_tab"] = "pricing"
+        st.rerun()
+    if st.sidebar.button("Compare plans", key="_sidebar_compare_plans",
+                         use_container_width=True):
+        st.session_state["main_tab"] = "pricing"
+        st.rerun()

@@ -207,6 +207,9 @@ show_analysis_limit_modal = _tg_mod.show_analysis_limit_modal
 show_india_gate_message   = _tg_mod.show_india_gate_message
 show_report_upsell        = _tg_mod.show_report_upsell
 sidebar_upgrade_button    = _tg_mod.sidebar_upgrade_button
+render_upgrade_banner     = _tg_mod.render_upgrade_banner
+render_pricing_page       = _tg_mod.render_pricing_page
+render_usage_meter        = _tg_mod.render_usage_meter
 
 APP_VERSION = "v6"
 
@@ -453,6 +456,9 @@ st.markdown("""<style>
 }
 </style>""", unsafe_allow_html=True)
 
+# ── Free-tier upgrade banner ────────────────────────────────
+render_upgrade_banner()
+
 # ══════════════════════════════════════════════════════════════
 # TRIGGERED-ALERT BANNER
 # Check at most once every 5 minutes per browser session.
@@ -685,6 +691,12 @@ if _active_main_tab == "about":
 from tabs.alerts_tab import render as _render_alerts
 if _active_main_tab == "alerts":
     _render_alerts()
+
+# ══════════════════════════════════════════════════════════════
+# TAB — PRICING PAGE
+# ══════════════════════════════════════════════════════════════
+if _active_main_tab == "pricing":
+    render_pricing_page()
 
 # ══════════════════════════════════════════════════════════════
 # TAB — ADMIN ANALYTICS  (YIELDIQ_ADMIN=1 only)
