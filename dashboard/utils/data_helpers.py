@@ -105,17 +105,44 @@ def _fetch_stock_data_cached(ticker, _ttl_key, _version):
         print(f"FETCH_FAIL {ticker}: raw is None — trying FMP direct fallback")
         # ── FMP DIRECT FALLBACK — build raw dict entirely from FMP ──
         try:
+            import os as _os
             from data.collector import (
                 _fmp_income_statement, _fmp_cashflow, _fmp_balance_sheet,
-                _fmp_profile, _fh_quote, _fh_basic_financials, FMP_KEY, FINNHUB_KEY,
+                _fmp_profile, _fh_quote, _fh_basic_financials,
             )
+            # Read keys fresh — don't use imported module-level values (may be stale)
+            _has_fmp = bool(_os.environ.get("FMP_API_KEY", ""))
+            _has_fh  = bool(_os.environ.get("FINNHUB_API_KEY", ""))
+            if not _has_fmp:
+                try:
+                    _has_fmp = bool(st.secrets.get("FMP_API_KEY", ""))
+                    if _has_fmp:
+                        _os.environ["FMP_API_KEY"] = st.secrets["FMP_API_KEY"]
+                except Exception:
+                    pass
+            if not _has_fh:
+                try:
+                    _has_fh = bool(st.secrets.get("FINNHUB_API_KEY", ""))
+                    if _has_fh:
+                        _os.environ["FINNHUB_API_KEY"] = st.secrets["FINNHUB_API_KEY"]
+                except Exception:
+                    pass
+            # Also update collector module globals
+            import data.collector as _coll_mod
+            if _has_fmp and not _coll_mod.FMP_KEY:
+                _coll_mod.FMP_KEY = _os.environ.get("FMP_API_KEY", "")
+            if _has_fh and not _coll_mod.FINNHUB_KEY:
+                _coll_mod.FINNHUB_KEY = _os.environ.get("FINNHUB_API_KEY", "")
+
+            print(f"FMP_FALLBACK_CHECK {ticker}: FMP={'YES' if _has_fmp else 'NO'}, FH={'YES' if _has_fh else 'NO'}")
+
             _fmp_t = ticker.split(".")[0]
-            _fmp_inc = _fmp_income_statement(_fmp_t) if FMP_KEY else pd.DataFrame()
-            _fmp_cf  = _fmp_cashflow(_fmp_t) if FMP_KEY else pd.DataFrame()
-            _fmp_bs  = _fmp_balance_sheet(_fmp_t) if FMP_KEY else {}
-            _fmp_pr  = _fmp_profile(_fmp_t) if FMP_KEY else {}
-            _fh_q    = _fh_quote(ticker) if FINNHUB_KEY else {}
-            _fh_f    = _fh_basic_financials(ticker) if FINNHUB_KEY else {}
+            _fmp_inc = _fmp_income_statement(_fmp_t) if _has_fmp else pd.DataFrame()
+            _fmp_cf  = _fmp_cashflow(_fmp_t) if _has_fmp else pd.DataFrame()
+            _fmp_bs  = _fmp_balance_sheet(_fmp_t) if _has_fmp else {}
+            _fmp_pr  = _fmp_profile(_fmp_t) if _has_fmp else {}
+            _fh_q    = _fh_quote(ticker) if _has_fh else {}
+            _fh_f    = _fh_basic_financials(ticker) if _has_fh else {}
 
             _price = (_fh_q or {}).get("price", 0) or (_fmp_pr or {}).get("price", 0)
             _shares = (_fmp_pr or {}).get("shares", 0)
