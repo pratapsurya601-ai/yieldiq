@@ -4272,7 +4272,7 @@ ro.observe(document.getElementById('wrap'));
                         border-radius:8px;text-align:center;">
               <div style="font-size:12px;color:#475569;margin-bottom:4px;text-transform:uppercase;letter-spacing:0.04em;">Report contents</div>
               <div style="font-size:12px;color:#64748B;margin-top:4px;">
-                4 pages: Overview · DCF Model<br>Quality Score · Recommendation<br>
+                4 pages: Overview · DCF Model<br>Quality Score · Valuation Summary<br>
                 <span style="color:#0F2942;font-weight:600;">Starter 5/mo · Pro Unlimited</span>
               </div>
             </div>

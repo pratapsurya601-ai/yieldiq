@@ -847,6 +847,38 @@ details > summary:hover span { color: #1D4ED8 !important; }
   div[style*="font-size: 40px"] {
     font-size: 28px !important;
   }
+
+  /* ── Valuation Hero: stack 2-col grid on mobile ─────────── */
+  .stApp [style*="grid-template-columns:1fr 1fr"],
+  .stApp [style*="grid-template-columns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── Bear/Base/Bull scenario cards: keep 3-col but smaller ─ */
+  div[style*="grid-template-columns:repeat(3"] {
+    gap: 6px !important;
+  }
+  div[style*="grid-template-columns:repeat(3"] > div {
+    font-size: 11px !important;
+    padding: 8px 6px !important;
+  }
+  div[style*="grid-template-columns:repeat(3"] div[style*="font-size:20px"],
+  div[style*="grid-template-columns:repeat(3"] div[style*="font-size: 20px"],
+  div[style*="grid-template-columns:repeat(3"] div[style*="font-size:22px"],
+  div[style*="grid-template-columns:repeat(3"] div[style*="font-size: 22px"] {
+    font-size: 16px !important;
+  }
+
+  /* ── Snowflake: stack score bars above radar chart ────────── */
+  div[style*="grid-template-columns:1fr 1fr"][style*="snowflake"],
+  div[style*="grid-template-columns:1fr 1fr"][style*="radar"],
+  div[style*="grid-template-columns:1fr 1fr"][style*="score"] {
+    grid-template-columns: 1fr !important;
+  }
+  /* Also catch Streamlit columns used for snowflake layout */
+  .snowflake-container [data-testid="stHorizontalBlock"] {
+    flex-direction: column !important;
+  }
 }
 
 /* ── ≤ 480px: Small phone layout ────────────────────────────── */

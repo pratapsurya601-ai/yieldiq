@@ -763,6 +763,13 @@ def render_earnings_calendar(ticker: str, sym: str = "$", raw_data: dict = None)
         hoverlabel=dict(bgcolor="#0F172A", font=dict(color="#F1F5F9", family="JetBrains Mono")),
     )
 
+    # Accent top border (koyfin-style polish)
+    fig.add_shape(
+        type="line", xref="paper", yref="paper",
+        x0=0, x1=1, y0=1, y1=1,
+        line=dict(color="#1D4ED8", width=2), layer="above",
+    )
+
     st.plotly_chart(fig, width='stretch',
                     config={"displayModeBar": False})
 
