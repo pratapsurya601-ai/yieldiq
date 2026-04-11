@@ -353,9 +353,9 @@ def render_ai_chat(analysis_data: dict) -> None:
     signal = analysis_data.get("signal", "")
     # Short signal label for button text
     _sig_short = (
-        "BUY"  if any(k in signal.upper() for k in ("BUY", "UNDERVALUED")) else
-        "SELL" if any(k in signal.upper() for k in ("SELL", "OVERVALUED"))  else
-        "HOLD"
+        "undervalued"  if any(k in signal.upper() for k in ("BUY", "UNDERVALUED")) else
+        "overvalued"   if any(k in signal.upper() for k in ("SELL", "OVERVALUED"))  else
+        "near fair value"
     )
 
     # ── Section header ────────────────────────────────────────
