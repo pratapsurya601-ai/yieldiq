@@ -159,6 +159,61 @@ def render() -> None:
     _sc_m = _ilu.module_from_spec(_sc_s); _sc_s.loader.exec_module(_sc_m)
     compute_yieldiq_score = _sc_m.compute_yieldiq_score
 
+    # ── Analysis page CSS polish ────────────────────────────────
+    st.html("""<style>
+    /* Smooth fade-in for analysis results */
+    @keyframes yiq-fade { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+    .element-container { animation: yiq-fade 0.3s ease-out; }
+
+    /* Section label style (VALUATION, SCENARIOS, etc.) */
+    .yiq-section-label {
+        font-family: 'IBM Plex Mono', monospace;
+        font-size: 11px; font-weight: 700;
+        color: #94A3B8; letter-spacing: 0.14em;
+        text-transform: uppercase; margin: 20px 0 10px;
+        padding-left: 2px;
+    }
+
+    /* Plotly chart containers — subtle card wrapper */
+    [data-testid="stPlotlyChart"] {
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        border-radius: 12px;
+        padding: 8px;
+        box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+        margin-bottom: 8px;
+    }
+
+    /* Metric cards — tighter spacing */
+    [data-testid="stMetric"] {
+        margin-bottom: 4px !important;
+    }
+
+    /* Better expander styling for analysis */
+    [data-testid="stExpander"] {
+        border: 1px solid #E2E8F0 !important;
+        border-radius: 12px !important;
+        overflow: hidden !important;
+        margin-bottom: 10px !important;
+        box-shadow: 0 1px 3px rgba(15,23,42,0.03) !important;
+    }
+    [data-testid="stExpander"] summary {
+        background: #FAFBFC !important;
+        border-bottom: 1px solid #F1F5F9 !important;
+    }
+    [data-testid="stExpander"] summary:hover {
+        background: #F0F4FF !important;
+    }
+
+    /* Dividers — subtler */
+    [data-testid="stHorizontalRule"] hr,
+    hr {
+        border: none !important;
+        border-top: 1px solid #F1F5F9 !important;
+        margin: 16px 0 !important;
+    }
+    </style>""")
+
     # ── Original code from app.py (lines 2075–6665) ────────────
     sc1, sc2, sc3 = st.columns([2, 1, 3])
     with sc1:
@@ -1108,19 +1163,46 @@ def render() -> None:
         if "active_section" not in st.session_state:
             st.session_state["active_section"] = "summary"
 
-        _cols = st.columns(len(_pill_options))
-        for _i, (_pill_label, _pill_key) in enumerate(_pill_options):
-            with _cols[_i]:
-                if st.button(
-                    _pill_label,
-                    key=f"pill_{_i}",
-                    width="stretch",
-                    type="primary" if st.session_state["active_section"] == _pill_key else "secondary",
-                ):
-                    st.session_state["active_section"] = _pill_key
-                    st.rerun()
+        # Segmented control CSS
+        st.html("""<style>
+        /* Pill navigation — segmented control style */
+        .pill-nav [data-testid="stHorizontalBlock"] {
+            background: #F1F5F9; border-radius: 12px; padding: 4px; gap: 4px !important;
+        }
+        .pill-nav .stButton > button {
+            border-radius: 8px !important; border: none !important;
+            font-size: 12px !important; font-weight: 600 !important;
+            font-family: Inter, sans-serif !important;
+            padding: 10px 8px !important; transition: all 0.15s !important;
+            box-shadow: none !important;
+        }
+        .pill-nav .stButton > button[kind="primary"] {
+            background: #0F172A !important; color: #FFFFFF !important;
+            box-shadow: 0 2px 8px rgba(15,23,42,0.15) !important;
+        }
+        .pill-nav .stButton > button[kind="secondary"] {
+            background: transparent !important; color: #64748B !important;
+        }
+        .pill-nav .stButton > button[kind="secondary"]:hover {
+            background: #E2E8F0 !important; color: #0F172A !important;
+            transform: none !important; box-shadow: none !important;
+        }
+        </style>""")
 
-        st.divider()
+        with st.container():
+            st.html('<div class="pill-nav">')
+            _cols = st.columns(len(_pill_options))
+            for _i, (_pill_label, _pill_key) in enumerate(_pill_options):
+                with _cols[_i]:
+                    if st.button(
+                        _pill_label,
+                        key=f"pill_{_i}",
+                        width="stretch",
+                        type="primary" if st.session_state["active_section"] == _pill_key else "secondary",
+                    ):
+                        st.session_state["active_section"] = _pill_key
+                        st.rerun()
+            st.html('</div>')
         _active = st.session_state["active_section"]
 
         # ══════════════════════════════════════════════════════════
@@ -1417,14 +1499,16 @@ def render() -> None:
             _ysc1, _ysc2 = st.columns([1, 2])
             with _ysc1:
                 st.html(
-                    f'<div style="text-align:center;padding:20px 16px;border-radius:12px;'
-                    f'background:#0a1628;border:2px solid {_gc};">'
-                    f'<div style="font-size:48px;font-weight:900;color:{_gc};line-height:1;">'
+                    f'<div style="text-align:center;padding:24px 16px;border-radius:14px;'
+                    f'background:#FFFFFF;border:2px solid {_gc};'
+                    f'box-shadow:0 2px 12px rgba(15,23,42,0.06);">'
+                    f'<div style="font-size:52px;font-weight:900;color:{_gc};line-height:1;">'
                     f'{_ys["score"]}</div>'
-                    f'<div style="font-size:24px;font-weight:700;color:{_gc};margin-top:4px;">'
+                    f'<div style="font-size:22px;font-weight:800;color:{_gc};margin-top:6px;">'
                     f'{_ys["grade"]}</div>'
-                    f'<div style="font-size:11px;color:#94a3b8;margin-top:6px;'
-                    f'text-transform:uppercase;letter-spacing:.08em;">YieldIQ Score</div>'
+                    f'<div style="font-size:10px;color:#94A3B8;margin-top:8px;'
+                    f'text-transform:uppercase;letter-spacing:.1em;'
+                    f'font-family:IBM Plex Mono,monospace;">YieldIQ Score</div>'
                     f'</div>'
                 )
             with _ysc2:
