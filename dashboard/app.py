@@ -359,9 +359,57 @@ if pro_mode:
     """)
 
 
-# Market data loaded for sidebar (no display)
+# Market data
 mkt = fetch_market_overview() or {}
 
+# ══════════════════════════════════════════════════════════════
+# TOP NAV — Blue header with market data
+# ══════════════════════════════════════════════════════════════
+_nav_items = ""
+for name, data in mkt.items():
+    if data.get("price", 0) == 0:
+        continue
+    chg = data.get("change_pct", 0)
+    chg_color = "#34d399" if chg >= 0 else "#ef4444"
+    chg_sym = "\u25b2" if chg >= 0 else "\u25bc"
+    _nav_items += (
+        f'<div style="display:inline-flex;align-items:center;gap:8px;padding:4px 18px;'
+        f'border-right:1px solid rgba(255,255,255,0.08);white-space:nowrap;">'
+        f'<span style="font-size:11px;font-weight:700;color:#e2e8f0;">{name}</span>'
+        f'<span style="font-size:11px;color:#e2e8f0;">{data["price"]:,.2f}</span>'
+        f'<span style="font-size:10px;font-weight:600;color:{chg_color};">{chg_sym} {abs(chg):.2f}%</span>'
+        f'</div>'
+    )
+if _nav_items:
+    st.html(f"""
+<div style="background:#0f2537;border-radius:8px;padding:8px 0;overflow:hidden;margin-bottom:12px;">
+  <div style="display:flex;overflow:hidden;">{_nav_items}</div>
+</div>
+""")
+
+# ── Market cards grid ────────────────────────────────────────
+mkt_list = [(n, d) for n, d in mkt.items() if d.get("price", 0) > 0][:4]
+if mkt_list:
+    cols = st.columns(len(mkt_list))
+    for col, (name, data) in zip(cols, mkt_list):
+        chg = data.get("change_pct", 0)
+        chg_color = "#059669" if chg >= 0 else "#dc2626"
+        chg_sym = "\u25b2" if chg >= 0 else "\u25bc"
+        bar_w = min(abs(chg) * 15 + 40, 95)
+        bar_col = "#059669" if chg >= 0 else "#dc2626"
+        col.html(f"""
+        <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;
+                    padding:12px 14px;margin-bottom:8px;">
+          <div style="font-size:10px;font-weight:600;color:#94A3B8;text-transform:uppercase;
+                      letter-spacing:0.08em;margin-bottom:4px;">{name}</div>
+          <div style="font-size:16px;font-weight:700;color:#0F172A;
+                      font-family:'IBM Plex Mono',monospace;">{data['price']:,.2f}</div>
+          <div style="font-size:11px;font-weight:600;color:{chg_color};margin-top:2px;">
+            {chg_sym} {abs(chg):.2f}%</div>
+          <div style="height:3px;background:#F1F5F9;border-radius:2px;margin-top:8px;">
+            <div style="height:100%;width:{bar_w:.0f}%;background:{bar_col};border-radius:2px;"></div>
+          </div>
+        </div>""")
 
 # ── Hide Streamlit's leaking icon text (CSS-only, safe) ──────
 st.markdown("""<style>
