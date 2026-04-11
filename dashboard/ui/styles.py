@@ -1118,23 +1118,61 @@ section[data-testid="stSidebar"] .stSlider p {
 
 
 def inject_arrow_fix_js() -> None:
-    """Minimal JS — ONLY hides SVGs inside expander summaries.
-    Does NOT touch text nodes or spans (that was breaking labels).
-    CSS handles all visual styling."""
+    """Clean Streamlit icon text leaks from expander summaries.
+    Targets ONLY bare text nodes matching icon patterns like _arrow_right,
+    keyboard_double_arrow_right, _expand_more, etc.
+    Does NOT remove spans or p tags (those contain actual labels)."""
     st.html("""
 <script>
 (function() {
   'use strict';
-  function hideSummarySVGs() {
+
+  // Matches Streamlit Material icon text patterns
+  function isIcon(t) {
+    t = (t || '').trim();
+    if (!t) return false;
+    return t === '_arrow_right' ||
+           t.startsWith('_arrow') ||
+           t.startsWith('_expand') ||
+           t.startsWith('_chevron') ||
+           t.startsWith('keyboard_') ||
+           /^_[a-z][a-z_]+$/.test(t);
+  }
+
+  function clean() {
+    // 1. Hide SVGs in summaries
     document.querySelectorAll(
       '[data-testid="stExpander"] summary svg, details > summary svg'
-    ).forEach(function(svg) {
-      svg.style.display = 'none';
+    ).forEach(function(svg) { svg.style.display = 'none'; });
+
+    // 2. Clean ONLY bare text nodes inside summaries (not spans/p)
+    document.querySelectorAll(
+      '[data-testid="stExpander"] summary, details > summary'
+    ).forEach(function(sum) {
+      sum.childNodes.forEach(function(n) {
+        if (n.nodeType === 3 && isIcon(n.textContent)) {
+          n.textContent = '';
+        }
+      });
+    });
+
+    // 3. Clean stray icon text anywhere (e.g. sidebar collapse button)
+    document.querySelectorAll('span').forEach(function(sp) {
+      var t = (sp.textContent || '').trim();
+      // Only blank spans that contain NOTHING but an icon string
+      // and have no child elements (pure icon spans)
+      if (isIcon(t) && sp.children.length === 0 &&
+          !sp.closest('p') && !sp.closest('label') &&
+          !sp.closest('button') && !sp.closest('a')) {
+        sp.style.cssText = 'font-size:0!important;width:0!important;height:0!important;' +
+                           'overflow:hidden!important;position:absolute!important;';
+      }
     });
   }
-  hideSummarySVGs();
-  [200, 500, 1500].forEach(function(ms) { setTimeout(hideSummarySVGs, ms); });
-  new MutationObserver(function() { hideSummarySVGs(); })
+
+  clean();
+  [100, 300, 800, 2000].forEach(function(ms) { setTimeout(clean, ms); });
+  new MutationObserver(function() { clean(); })
     .observe(document.body, { childList: true, subtree: true });
 })();
 </script>
