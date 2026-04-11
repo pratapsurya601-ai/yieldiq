@@ -217,7 +217,9 @@ if not FMP_KEY:
             os.environ["FMP_API_KEY"] = FMP_KEY
     except Exception:
         pass
-FMP_BASE = "https://financialmodelingprep.com/api/v3"
+# Try /stable/ first (new free tier), fallback to /api/v3 (legacy)
+FMP_BASE = "https://financialmodelingprep.com/stable"
+FMP_BASE_V3 = "https://financialmodelingprep.com/api/v3"
 if FMP_KEY:
     print(f"FMP_OK: key loaded ({len(FMP_KEY)} chars)")
 else:
@@ -236,22 +238,27 @@ def _fmp_get(endpoint: str, ticker: str) -> list:
             pass
     if not _key:
         return []
-    try:
-        url = f"{FMP_BASE}/{endpoint}/{ticker}?period=annual&apikey={_key}"
-        resp = requests.get(url, timeout=10)
-        print(f"FMP_API {endpoint}/{ticker}: status={resp.status_code}, len={len(resp.text)}")
-        if resp.status_code == 200:
-            data = resp.json()
-            if isinstance(data, list):
-                print(f"FMP_API {endpoint}/{ticker}: got {len(data)} records")
-                return data
-            elif isinstance(data, dict) and "Error Message" in str(data):
-                print(f"FMP_API {endpoint}/{ticker}: ERROR: {data}")
-            return []
-        else:
-            print(f"FMP_API {endpoint}/{ticker}: HTTP {resp.status_code}: {resp.text[:200]}")
-    except Exception as _e:
-        print(f"FMP_API {endpoint}/{ticker}: EXCEPTION: {_e}")
+    # Try both URL patterns — FMP changed their API structure
+    for _base in [FMP_BASE, FMP_BASE_V3]:
+        try:
+            url = f"{_base}/{endpoint}/{ticker}?period=annual&apikey={_key}"
+            resp = requests.get(url, timeout=10)
+            print(f"FMP_API {_base}/{endpoint}/{ticker}: status={resp.status_code}")
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, list) and len(data) > 0:
+                    print(f"FMP_API {endpoint}/{ticker}: got {len(data)} records from {_base}")
+                    return data
+                elif isinstance(data, dict):
+                    print(f"FMP_API {endpoint}/{ticker}: dict response: {str(data)[:200]}")
+                # Empty list — try next base URL
+                continue
+            elif resp.status_code == 403:
+                print(f"FMP_API {endpoint}/{ticker}: 403 Forbidden — check API key/plan")
+            else:
+                print(f"FMP_API {endpoint}/{ticker}: HTTP {resp.status_code}")
+        except Exception as _e:
+            print(f"FMP_API {endpoint}/{ticker}: EXCEPTION: {_e}")
     return []
 
 
@@ -322,22 +329,23 @@ def _fmp_profile(ticker: str) -> dict:
             pass
     if not _key:
         return {}
-    try:
-        url = f"{FMP_BASE}/profile/{ticker}?apikey={_key}"
-        resp = requests.get(url, timeout=10)
-        if resp.status_code == 200:
-            data = resp.json()
-            if isinstance(data, list) and data:
-                p = data[0]
-                return {
-                    "shares": float(p.get("mktCap", 0) or 0) / float(p.get("price", 1) or 1) if p.get("price") else 0,
-                    "market_cap": float(p.get("mktCap", 0) or 0),
-                    "company_name": p.get("companyName", ticker),
-                    "sector": p.get("sector", ""),
-                    "price": float(p.get("price", 0) or 0),
-                }
-    except Exception:
-        pass
+    for _base in [FMP_BASE, FMP_BASE_V3]:
+        try:
+            url = f"{_base}/profile/{ticker}?apikey={_key}"
+            resp = requests.get(url, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                if isinstance(data, list) and data:
+                    p = data[0]
+                    return {
+                        "shares": float(p.get("mktCap", 0) or 0) / float(p.get("price", 1) or 1) if p.get("price") else 0,
+                        "market_cap": float(p.get("mktCap", 0) or 0),
+                        "company_name": p.get("companyName", ticker),
+                        "sector": p.get("sector", ""),
+                        "price": float(p.get("price", 0) or 0),
+                    }
+        except Exception:
+            continue
     return {}
 
 
