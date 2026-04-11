@@ -5,6 +5,7 @@ Moved from app.py.
 from __future__ import annotations
 import streamlit as st
 import pandas as pd
+import plotly.graph_objects as go
 from datetime import datetime
 from ui.helpers import ccard, ccard_end, apply_koyfin
 import importlib.util as _ilu, pathlib as _pl
