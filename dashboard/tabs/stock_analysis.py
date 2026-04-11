@@ -1464,9 +1464,12 @@ def render() -> None:
             }
             _gc = _grade_colors.get(_ys["grade"], "#94a3b8")
 
-            st.html('<div style="font-size:11px;color:#94A3B8;text-transform:uppercase;'
+            if not pro_mode:
+                pass  # Snowflake chart above already shows quality scores
+            else:
+                st.html('<div style="font-size:11px;color:#94A3B8;text-transform:uppercase;'
                     'letter-spacing:0.14em;margin:16px 0 8px;padding-left:2px;">YieldIQ Composite Score</div>')
-            _ysc1, _ysc2 = st.columns([1, 2])
+            _ysc1, _ysc2 = st.columns([1, 2]) if pro_mode else (st.empty(), st.empty())
             with _ysc1:
                 st.html(
                     f'<div style="text-align:center;padding:24px 16px;border-radius:14px;'
