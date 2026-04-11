@@ -43,25 +43,34 @@ def render_sidebar(
 </style>
 """)
 
-        # ── 1. LOGO / WORDMARK ───────────────────────────────────
-        st.html("""
-    <div style="padding:14px 4px 14px;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="width:36px;height:36px;flex-shrink:0;
-                    background:linear-gradient(135deg,#1D4ED8,#06B6D4);
-                    border-radius:9px;display:flex;align-items:center;
-                    justify-content:center;font-size:18px;
-                    box-shadow:0 4px 12px rgba(29,78,216,0.35);">📊</div>
-        <div>
-          <div style="font-size:17px;font-weight:800;color:#FFFFFF;
-                      letter-spacing:-0.02em;line-height:1.1;">YieldIQ</div>
-          <div style="font-size:10px;color:#64748B;letter-spacing:0.05em;
-                      font-weight:500;margin-top:2px;">Institutional-grade valuation</div>
-        </div>
+        # ── 1. LOGO ──────────────────────────────────────────────
+        import base64 as _b64, pathlib as _logo_pl
+        _logo_path = _logo_pl.Path(__file__).resolve().parent.parent / "static" / "logo_dark.jpeg"
+        if _logo_path.exists():
+            _logo_b64 = _b64.b64encode(_logo_path.read_bytes()).decode()
+            st.html(f"""
+    <div style="padding:14px 4px 14px;text-align:center;">
+      <img src="data:image/jpeg;base64,{_logo_b64}"
+           style="width:180px;height:auto;margin-bottom:4px;" alt="YieldIQ"/>
+      <div style="font-size:9px;color:#64748B;letter-spacing:0.08em;
+                  font-weight:500;text-transform:uppercase;">
+        Quantitative research platform
       </div>
       <div style="height:1px;
                   background:linear-gradient(90deg,#1D4ED8,#06B6D4,transparent);
-                  margin-top:14px;opacity:0.5;"></div>
+                  margin-top:10px;opacity:0.5;"></div>
+    </div>
+    """)
+        else:
+            st.html("""
+    <div style="padding:14px 4px 14px;">
+      <div style="font-size:17px;font-weight:800;color:#FFFFFF;
+                  letter-spacing:-0.02em;line-height:1.1;">YieldIQ</div>
+      <div style="font-size:9px;color:#64748B;letter-spacing:0.08em;
+                  font-weight:500;margin-top:2px;">Quantitative research platform</div>
+      <div style="height:1px;
+                  background:linear-gradient(90deg,#1D4ED8,#06B6D4,transparent);
+                  margin-top:10px;opacity:0.5;"></div>
     </div>
     """)
 

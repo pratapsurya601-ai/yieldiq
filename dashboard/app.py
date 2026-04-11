@@ -219,8 +219,8 @@ from ui.disclaimer import show_disclaimer_if_needed, render_view_disclaimer_link
 # PAGE CONFIG
 # ══════════════════════════════════════════════════════════════
 st.set_page_config(
-    page_title="YieldIQ",
-    page_icon="📈",
+    page_title="YieldIQ \u2014 Quantitative Research",
+    page_icon="\U0001f4ca",
     layout="wide",
     initial_sidebar_state="expanded",
 )
