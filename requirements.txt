@@ -21,3 +21,7 @@ reportlab>=4.0.0
 # ── Google Sheets export ──────────────────────────────────────
 gspread>=6.0.0
 google-auth>=2.28.0
+# ── Payment integration (Razorpay) ───────────────────────────
+razorpay>=1.4.0
+fastapi>=0.115.0
+uvicorn[standard]>=0.30.0

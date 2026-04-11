@@ -272,6 +272,9 @@ Not investment advice. YieldIQ is not a registered investment adviser.
 # ══════════════════════════════════════════════════════════════
 
 def init_tier():
+    # Handle Razorpay payment callback (if returning from checkout)
+    _handle_payment_callback()
+
     if os.environ.get("YIELDIQ_ADMIN") == "1":
         st.session_state["tier"] = "pro"; st.session_state["auth_email"] = "admin"
         _init_usage_counters(); return
@@ -557,6 +560,128 @@ def render_upgrade_banner() -> None:
 
 
 # ══════════════════════════════════════════════════════════════
+# RAZORPAY CHECKOUT
+# ══════════════════════════════════════════════════════════════
+
+def _launch_razorpay_checkout(email: str, chosen_tier: str, billing: str = "monthly") -> None:
+    """Create a Razorpay subscription and open the checkout overlay."""
+    rzp_key = os.environ.get("RAZORPAY_KEY_ID", "")
+    if not rzp_key:
+        st.error("Payment system not configured. Please contact support.")
+        return
+
+    try:
+        from payments.razorpay_client import create_subscription
+        sub = create_subscription(email, chosen_tier, billing)
+        sub_id = sub["id"]
+    except Exception as e:
+        st.error(f"Could not create subscription: {e}")
+        return
+
+    app_url = os.environ.get("YIELDIQ_APP_URL", "")
+    callback = f"{app_url}?payment_status=success&sub_id={sub_id}"
+
+    import streamlit.components.v1 as components
+    components.html(f"""
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+    <script>
+    var options = {{
+        "key": "{rzp_key}",
+        "subscription_id": "{sub_id}",
+        "name": "YieldIQ",
+        "description": "{chosen_tier.title()} Plan",
+        "image": "",
+        "handler": function(response) {{
+            window.top.location.href = "{callback}" +
+                "&razorpay_payment_id=" + response.razorpay_payment_id +
+                "&razorpay_subscription_id=" + response.razorpay_subscription_id +
+                "&razorpay_signature=" + response.razorpay_signature;
+        }},
+        "prefill": {{ "email": "{email}" }},
+        "theme": {{ "color": "#1D4ED8" }},
+        "modal": {{
+            "ondismiss": function() {{
+                // User closed checkout — do nothing
+            }}
+        }}
+    }};
+    var rzp = new Razorpay(options);
+    rzp.open();
+    </script>
+    <div style="text-align:center;padding:40px;font-size:14px;color:#6B7280;">
+      Loading payment gateway...
+    </div>
+    """, height=500)
+
+
+def _handle_payment_callback() -> None:
+    """Check query params for Razorpay payment callback and upgrade tier."""
+    try:
+        status = st.query_params.get("payment_status", "")
+        if status != "success":
+            return
+
+        sub_id = st.query_params.get("razorpay_subscription_id", "") or st.query_params.get("sub_id", "")
+        payment_id = st.query_params.get("razorpay_payment_id", "")
+        signature = st.query_params.get("razorpay_signature", "")
+
+        if not sub_id:
+            return
+
+        # Verify signature if available
+        if payment_id and signature:
+            from payments.razorpay_client import verify_payment_signature
+            valid = verify_payment_signature({
+                "razorpay_payment_id": payment_id,
+                "razorpay_subscription_id": sub_id,
+                "razorpay_signature": signature,
+            })
+            if not valid:
+                st.error("Payment verification failed. Please contact support.")
+                return
+
+        # Look up subscription to get tier
+        from payments.models import update_subscription_status, get_active_subscription
+        email = st.session_state.get("auth_email", "")
+        update_subscription_status(sub_id, "active", payment_id)
+
+        # Determine tier from subscription
+        sub = get_active_subscription(email)
+        new_tier = sub["tier"] if sub else "starter"
+
+        # Upgrade user
+        st.session_state["tier"] = new_tier
+        # Also update in auth.db
+        try:
+            import sqlite3
+            from pathlib import Path
+            db_path = Path(__file__).parent / "auth.db"
+            conn = sqlite3.connect(str(db_path))
+            conn.execute("UPDATE users SET tier = ? WHERE email = ?", (new_tier, email))
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+        # Clear payment params and show success
+        try:
+            for k in ["payment_status", "sub_id", "razorpay_payment_id",
+                       "razorpay_subscription_id", "razorpay_signature"]:
+                if k in st.query_params:
+                    del st.query_params[k]
+        except Exception:
+            pass
+
+        st.success(f"🎉 Welcome to YieldIQ {new_tier.title()}! Your account has been upgraded.")
+        _init_usage_counters()
+        st.rerun()
+
+    except Exception as e:
+        # Silently handle — don't break the app
+        pass
+
+
+# ══════════════════════════════════════════════════════════════
 # 3 — PRICING PAGE   (full 3-column comparison with toggle)
 # ══════════════════════════════════════════════════════════════
 
@@ -726,8 +851,7 @@ def render_pricing_page() -> None:
         if st.button("Choose Starter →", key="_pricing_starter_btn",
                      type="primary", use_container_width=True):
             _track_nudge(em, tier(), "pricing_page", "chose_starter")
-            st.markdown(f'<meta http-equiv="refresh" content="0;url={UPGRADE_URL}">',
-                        unsafe_allow_html=True)
+            _launch_razorpay_checkout(em, "starter", billing)
 
     # ·· PRO ···················································
     with pro_col:
@@ -781,8 +905,7 @@ def render_pricing_page() -> None:
         if st.button("Choose Pro →", key="_pricing_pro_btn",
                      use_container_width=True):
             _track_nudge(em, tier(), "pricing_page", "chose_pro")
-            st.markdown(f'<meta http-equiv="refresh" content="0;url={UPGRADE_URL}">',
-                        unsafe_allow_html=True)
+            _launch_razorpay_checkout(em, "pro", billing)
 
     # ── Footer note ─────────────────────────────────────────────
     st.html("""

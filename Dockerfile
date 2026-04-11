@@ -2,9 +2,8 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# v5 clean build
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
+    build-essential supervisor \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -12,4 +11,5 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-CMD ["streamlit", "run", "dashboard/app.py", "--server.port=8501", "--server.address=0.0.0.0", "--server.headless=true"]
+# Run both Streamlit (8501) and FastAPI webhook server (8000)
+CMD ["supervisord", "-c", "supervisord.conf"]
