@@ -721,8 +721,8 @@ def render() -> None:
 
             # ── Guard: skip DCF if financial statements are empty (Finnhub-only mode) ──
             _has_financials = (
-                enriched.get("shares", 0) > 0
-                and enriched.get("latest_revenue", 0) != 0
+                enriched.get("latest_revenue", 0) != 0
+                or enriched.get("latest_fcf", 0) != 0
             )
             if not _has_financials:
                 if "_prog_ph" in dir():
