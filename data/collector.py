@@ -294,11 +294,17 @@ def _fmp_cashflow(ticker: str) -> pd.DataFrame:
     for r in records[:5]:
         ocf   = float(r.get("operatingCashFlow", 0) or 0)
         capex = abs(float(r.get("capitalExpenditure", 0) or 0))
+        # FMP provides freeCashFlow directly — use it if available (more accurate)
+        fmp_fcf = float(r.get("freeCashFlow", 0) or 0)
+        calc_fcf = ocf - capex
+        # Use FMP's FCF if it exists and is reasonable, otherwise calculate
+        fcf = fmp_fcf if fmp_fcf != 0 else calc_fcf
+        print(f"FMP_CF {ticker} {r.get('date','?')[:4]}: OCF={ocf/1e9:.1f}B CapEx={capex/1e9:.1f}B FMP_FCF={fmp_fcf/1e9:.1f}B calc={calc_fcf/1e9:.1f}B → using={fcf/1e9:.1f}B")
         rows.append({
             "year":   int(r.get("calendarYear", 0)) or int(r.get("date", "0")[:4]),
             "ocf":    ocf,
             "capex":  capex,
-            "fcf":    ocf - capex,
+            "fcf":    fcf,
         })
     df = pd.DataFrame(rows)
     if not df.empty:
