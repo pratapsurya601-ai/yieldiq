@@ -3,7 +3,7 @@ __pycache__/
 *.db
 *.db-shm
 *.db-wal 
-.env 
-cache/ 
+.env
+cache/
 logs/ 
 .streamlit/secrets.toml 
