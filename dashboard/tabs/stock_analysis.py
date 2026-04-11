@@ -1754,6 +1754,8 @@ def render() -> None:
                         current_price=enriched["price"], ticker=ticker_input,
                     )
                     _eng_iv = _eng_result.get("iv_per_share", 0) * fx
+                    if _eng_iv <= 0:
+                        _eng_iv = iv_d  # fallback if engine returns 0
                 except Exception:
                     _eng_iv = iv_d  # fallback to base case
                 _eng_mos = ((_eng_iv - price_d) / price_d * 100) if price_d > 0 else 0
