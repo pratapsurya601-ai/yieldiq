@@ -11,10 +11,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-# Use STREAMLIT_SERVER_PORT env var instead of --server.port flag
-ENV STREAMLIT_SERVER_PORT=8501
-ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
-ENV STREAMLIT_SERVER_HEADLESS=true
+# Create a startup script that handles PORT properly
+RUN echo '#!/bin/bash\nstreamlit run dashboard/app.py --server.port=${PORT:-8501} --server.address=0.0.0.0 --server.headless=true' > /app/start.sh && chmod +x /app/start.sh
 
-# Railway sets PORT env var — copy it to Streamlit's expected var
-CMD bash -c "export STREAMLIT_SERVER_PORT=\${PORT:-8501} && streamlit run dashboard/app.py"
+CMD ["/bin/bash", "/app/start.sh"]
