@@ -1122,7 +1122,7 @@ def inject_arrow_fix_js() -> None:
     Targets ONLY bare text nodes matching icon patterns like _arrow_right,
     keyboard_double_arrow_right, _expand_more, etc.
     Does NOT remove spans or p tags (those contain actual labels)."""
-    st.html("""
+    st.markdown("""
 <script>
 (function() {
   'use strict';
@@ -1180,12 +1180,15 @@ def inject_arrow_fix_js() -> None:
   }
 
   clean();
-  [100, 300, 800, 2000].forEach(function(ms) { setTimeout(clean, ms); });
-  new MutationObserver(function() { clean(); })
+  // Run repeatedly for the first 10 seconds to catch late Streamlit renders
+  var _iv = setInterval(clean, 500);
+  setTimeout(function() { clearInterval(_iv); }, 10000);
+  // Also run on DOM changes
+  new MutationObserver(function() { setTimeout(clean, 50); })
     .observe(document.body, { childList: true, subtree: true });
 })();
 </script>
-""")
+""", unsafe_allow_html=True)
 
 
 def inject_sidebar_nav_css() -> None:

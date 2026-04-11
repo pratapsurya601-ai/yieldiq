@@ -37,6 +37,7 @@ def render() -> None:
         </div>""")
     else:
         df_screen = None
+        results_file = st.session_state.get("results_file", None)
         if results_file is not None:
             df_screen = pd.read_csv(results_file)
         else:
