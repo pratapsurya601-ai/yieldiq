@@ -1,7 +1,7 @@
 # dashboard/pdf_report.py
 # ═══════════════════════════════════════════════════════════════
 # YieldIQ — Institutional PDF Report Generator  (ReportLab)
-# 4-page PDF: Overview · DCF · Quality · Recommendation
+# 4-page PDF: Overview · DCF · Quality · Valuation Summary
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 import io

@@ -162,8 +162,8 @@ def _annualized_return(pnl_pct: float, saved_at: str) -> float:
 def _sig_label(raw_signal: str) -> str:
     """Normalise signal to a short readable label."""
     s = (raw_signal or "").lower()
-    if "undervalued" in s:  return "BUY"
-    if "overvalued"  in s:  return "SELL"
+    if "undervalued" in s:  return "DISCOUNT"
+    if "overvalued"  in s:  return "PREMIUM"
     if "fairly"      in s:  return "HOLD"
     if "neutral"     in s:  return "HOLD"
     return raw_signal or "—"
@@ -305,8 +305,8 @@ def _conditional_fmt(sheet_id: int, n_rows: int, sig_col: int) -> list[dict]:
         }
 
     return [
-        _rule("BUY",  "undervalued",   0),
-        _rule("SELL", "overvalued",    1),
+        _rule("DISCOUNT",  "undervalued",   0),
+        _rule("PREMIUM", "overvalued",    1),
         _rule("HOLD", "fairly valued", 2),
     ]
 

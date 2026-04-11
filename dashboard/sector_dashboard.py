@@ -402,10 +402,10 @@ def _sig_badge_css(sig: str) -> tuple[str, str, str]:
 def _classify_signal(sig: str) -> str:
     """Bucket signal into BUY / WATCH / HOLD / SELL."""
     s = (sig or "").upper()
-    if "BUY"  in s: return "BUY"
+    if "BUY"  in s: return "DISCOUNT"
     if "WATCH" in s: return "WATCH"
     if "HOLD"  in s: return "HOLD"
-    if "SELL"  in s: return "SELL"
+    if "SELL"  in s: return "PREMIUM"
     return "WATCH"
 
 def _section_title(text):
