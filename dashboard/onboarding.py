@@ -215,25 +215,30 @@ def _render_progress(step: int) -> None:
 
 def _step1() -> None:
     """Step 1 — Welcome to YieldIQ."""
-    # Hero banner
+    # Hero banner — dark theme matching sidebar
     st.html("""
-    <div style="background:linear-gradient(135deg,#1E3A8A 0%,#1D4ED8 60%,#0369A1 100%);
-                border-radius:16px;padding:32px 28px;text-align:center;
-                margin-bottom:20px;position:relative;overflow:hidden;">
-      <div style="position:absolute;top:-30px;right:-30px;width:120px;height:120px;
-                  background:rgba(255,255,255,0.06);border-radius:50%;"></div>
-      <div style="position:absolute;bottom:-20px;left:-20px;width:80px;height:80px;
-                  background:rgba(255,255,255,0.04);border-radius:50%;"></div>
+    <div style="background:linear-gradient(135deg,#080E1A 0%,#0F172A 40%,#1E293B 100%);
+                border-radius:16px;padding:36px 28px;text-align:center;
+                margin-bottom:20px;position:relative;overflow:hidden;
+                border:1px solid rgba(29,78,216,0.15);">
+      <div style="position:absolute;top:-40px;right:-40px;width:140px;height:140px;
+                  background:radial-gradient(circle,rgba(29,78,216,0.12),transparent);
+                  border-radius:50%;"></div>
+      <div style="position:absolute;bottom:-30px;left:-30px;width:100px;height:100px;
+                  background:radial-gradient(circle,rgba(6,182,212,0.08),transparent);
+                  border-radius:50%;"></div>
       <div style="font-size:44px;margin-bottom:14px;position:relative;">📊</div>
-      <div style="font-size:24px;font-weight:800;color:#FFFFFF;
+      <div style="font-size:26px;font-weight:800;position:relative;
+                  background:linear-gradient(135deg,#F1F5F9,#93C5FD);
+                  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
                   font-family:Inter,sans-serif;letter-spacing:-0.01em;
-                  margin-bottom:8px;position:relative;">
+                  margin-bottom:10px;">
         Welcome to YieldIQ
       </div>
-      <div style="font-size:13px;color:rgba(255,255,255,0.80);
-                  max-width:380px;margin:0 auto;line-height:1.7;position:relative;">
-        Professional DCF valuation and stock analysis — built for investors who think
-        in terms of <strong style="color:#BAE6FD;">intrinsic value</strong>, not price momentum.
+      <div style="font-size:13px;color:rgba(148,163,184,0.90);
+                  max-width:400px;margin:0 auto;line-height:1.7;position:relative;">
+        Professional DCF valuation — built for investors who think
+        in terms of <strong style="color:#93C5FD;">estimated fair value</strong>, not price momentum.
       </div>
     </div>
     """)
@@ -274,54 +279,56 @@ def _step1() -> None:
 
     st.html('<div style="height:16px;"></div>')
 
-    # Mock analysis preview — static HTML showing what output looks like
+    # Mock analysis preview — compliant language
     st.html("""
-    <div style="background:#F8FAFC;border:1.5px solid #E2E8F0;border-radius:14px;
+    <div style="background:#080E1A;border:1px solid rgba(29,78,216,0.15);border-radius:14px;
                 padding:0;overflow:hidden;margin-top:4px;">
-      <div style="background:linear-gradient(90deg,#1E3A8A,#1D4ED8);
-                  padding:10px 18px;display:flex;align-items:center;
+      <div style="background:linear-gradient(90deg,#0F172A,#1E293B);
+                  padding:12px 18px;display:flex;align-items:center;
                   justify-content:space-between;">
-        <div style="font-size:13px;font-weight:700;color:#FFFFFF;">
+        <div style="font-size:13px;font-weight:700;color:#F1F5F9;">
           Apple Inc. · AAPL
         </div>
-        <div style="background:#059669;color:#FFFFFF;font-size:11px;
-                    font-weight:800;padding:3px 14px;border-radius:100px;">
-          BUY
+        <div style="background:rgba(22,163,74,0.15);color:#4ADE80;font-size:10px;
+                    font-weight:700;padding:3px 12px;border-radius:100px;
+                    border:1px solid rgba(22,163,74,0.3);
+                    letter-spacing:0.06em;">
+          DISCOUNT
         </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;
                   gap:0;padding:16px 18px;">
         <div style="text-align:center;padding:0 8px;
-                    border-right:1px solid #E5E7EB;">
-          <div style="font-size:10px;color:#9CA3AF;margin-bottom:4px;
+                    border-right:1px solid rgba(255,255,255,0.06);">
+          <div style="font-size:10px;color:#64748B;margin-bottom:4px;
                       text-transform:uppercase;letter-spacing:0.05em;">Price</div>
-          <div style="font-size:18px;font-weight:800;color:#111827;
+          <div style="font-size:18px;font-weight:800;color:#F1F5F9;
                       font-family:'IBM Plex Mono',monospace;">$213</div>
         </div>
         <div style="text-align:center;padding:0 8px;
-                    border-right:1px solid #E5E7EB;">
-          <div style="font-size:10px;color:#9CA3AF;margin-bottom:4px;
-                      text-transform:uppercase;letter-spacing:0.05em;">Intrinsic Value</div>
-          <div style="font-size:18px;font-weight:800;color:#1D4ED8;
+                    border-right:1px solid rgba(255,255,255,0.06);">
+          <div style="font-size:10px;color:#64748B;margin-bottom:4px;
+                      text-transform:uppercase;letter-spacing:0.05em;">Fair Value</div>
+          <div style="font-size:18px;font-weight:800;color:#93C5FD;
                       font-family:'IBM Plex Mono',monospace;">$268</div>
         </div>
         <div style="text-align:center;padding:0 8px;
-                    border-right:1px solid #E5E7EB;">
-          <div style="font-size:10px;color:#9CA3AF;margin-bottom:4px;
-                      text-transform:uppercase;letter-spacing:0.05em;">Margin of Safety</div>
-          <div style="font-size:18px;font-weight:800;color:#059669;
+                    border-right:1px solid rgba(255,255,255,0.06);">
+          <div style="font-size:10px;color:#64748B;margin-bottom:4px;
+                      text-transform:uppercase;letter-spacing:0.05em;">Implied Upside</div>
+          <div style="font-size:18px;font-weight:800;color:#4ADE80;
                       font-family:'IBM Plex Mono',monospace;">+20.5%</div>
         </div>
         <div style="text-align:center;padding:0 8px;">
-          <div style="font-size:10px;color:#9CA3AF;margin-bottom:4px;
+          <div style="font-size:10px;color:#64748B;margin-bottom:4px;
                       text-transform:uppercase;letter-spacing:0.05em;">Moat</div>
-          <div style="font-size:18px;font-weight:800;color:#D97706;
+          <div style="font-size:18px;font-weight:800;color:#FBBF24;
                       font-family:'IBM Plex Mono',monospace;">Wide</div>
         </div>
       </div>
-      <div style="padding:8px 18px 14px;font-size:11px;color:#9CA3AF;
-                  text-align:center;font-style:italic;">
-        Example analysis output · Your results will use live market data
+      <div style="padding:8px 18px 14px;font-size:10px;color:#475569;
+                  text-align:center;">
+        Example model output · Your results will use live market data
       </div>
     </div>
     """)
@@ -462,15 +469,17 @@ def _onboarding_dialog() -> None:
     email = st.session_state.get("auth_email", "")
     step  = st.session_state.get(_STEP_KEY, 1)
 
-    # Wizard card styling
+    # Wizard card styling — premium dark theme
     st.html("""
     <style>
-    /* Onboarding wizard: style the container border */
+    /* Onboarding wizard container */
     div[data-testid="stVerticalBlockBorderWrapper"] {
         border-radius: 18px !important;
-        border: 1.5px solid #E0E7FF !important;
-        box-shadow: 0 8px 32px rgba(29,78,216,0.10) !important;
+        border: 1px solid rgba(29,78,216,0.12) !important;
+        box-shadow: 0 8px 40px rgba(0,0,0,0.12),
+                    0 0 60px rgba(29,78,216,0.04) !important;
         overflow: hidden !important;
+        background: #FFFFFF !important;
     }
     </style>
     """)
