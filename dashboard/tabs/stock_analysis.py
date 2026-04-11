@@ -2523,8 +2523,20 @@ ro.observe(document.getElementById('wrap'));
                     st.plotly_chart(fig_wf, width="stretch", config={"displayModeBar":True,"modeBarButtonsToRemove":["lasso2d","select2d"],"toImageButtonOptions":{"filename":"dcf_waterfall","scale":2}})
                     ccard_end()
 
-                # ── FIXED Sensitivity Heatmap
-            with st.expander("🎯 Sensitivity Analysis — How WACC & Growth Rate Affect Fair Value"):
+                # ── SIMPLE MODE nudge ──────────────────────────
+                if not pro_mode:
+                    st.html(
+                        '<div style="padding:18px 24px;background:linear-gradient(135deg,#F8FAFC,#EFF6FF);'
+                        'border:1px solid #DBEAFE;border-radius:12px;text-align:center;margin:16px 0;">'
+                        '<div style="font-size:14px;font-weight:600;color:#1E40AF;margin-bottom:4px;">'
+                        '⚡ Want deeper analysis?</div>'
+                        '<div style="font-size:13px;color:#64748B;line-height:1.6;">'
+                        'Switch to <strong>Pro mode</strong> in the sidebar to unlock '
+                        'Sensitivity, Monte Carlo, Reverse DCF, EV/EBITDA, and more.</div></div>'
+                    )
+
+                # ── FIXED Sensitivity Heatmap (Pro only)
+            with (st.expander("🎯 Sensitivity Analysis — How WACC & Growth Rate Affect Fair Value") if pro_mode else st.empty()):
                 # ── FIXED Sensitivity Heatmap ──────────────────────────
                 # ── TIER CHECK: sensitivity ───────────────────────────
                 if not _show_sensitive:
@@ -2650,7 +2662,7 @@ ro.observe(document.getElementById('wrap'));
                             mc5.metric("P(Undervalued)", f"{mc_result['prob_undervalued']:.0%}")
 
                 # ── Reverse DCF
-            with st.expander("🔍 Reverse DCF — What Growth Rate Does the Current Price Imply?"):
+            with (st.expander("🔍 Reverse DCF — What Growth Rate Does the Current Price Imply?") if pro_mode else st.empty()):
                 reverse_dcf_tab.render(
                     enriched=enriched, price_n=price_n, wacc=wacc,
                     terminal_g=terminal_g, forecast_yrs=forecast_yrs,
@@ -2658,7 +2670,7 @@ ro.observe(document.getElementById('wrap'));
                 )
 
                 # ── EV/EBITDA Multiples
-            with st.expander("⚖️ Peer Comparison — EV/EBITDA & P/E vs Similar Companies"):
+            with (st.expander("⚖️ Peer Comparison — EV/EBITDA & P/E vs Similar Companies") if pro_mode else st.empty()):
                 try:
                     ev_res = run_ev_ebitda_analysis(
                         enriched=enriched,
@@ -2857,7 +2869,7 @@ ro.observe(document.getElementById('wrap'));
                     st.exception(_ev_err)
 
                 # ── Historical Fair Value Chart
-            with st.expander("📅 Historical Fair Value vs Actual Price — Model Track Record"):
+            with (st.expander("📅 Historical Fair Value vs Actual Price — Model Track Record") if pro_mode else st.empty()):
                 try:
                     hist = compute_historical_iv(
                         enriched=enriched,
@@ -3024,7 +3036,7 @@ ro.observe(document.getElementById('wrap'));
                     st.exception(_hv_err)
 
                 # ── Dividend Discount Model
-            with st.expander("💰 DDM — Dividend-Based Valuation (for Income Investors)"):
+            with (st.expander("💰 DDM — Dividend-Based Valuation (for Income Investors)") if pro_mode else st.empty()):
                 # Collect dividend yield from all possible sources
                 _div_y1 = enriched.get("dividend_yield", 0) or 0
                 _div_y2 = raw.get("dividend_yield", 0) or 0
@@ -3100,7 +3112,7 @@ ro.observe(document.getElementById('wrap'));
                         import traceback; st.code(traceback.format_exc())
 
                         # ── FCF Yield vs Bond Yield
-            with st.expander("🛡️ Risk-Adjusted Return — FCF Yield vs Risk-Free Bond Rate"):
+            with (st.expander("🛡️ Risk-Adjusted Return — FCF Yield vs Risk-Free Bond Rate") if pro_mode else st.empty()):
                 # ── FCF Yield vs Bond Yield ────────────────────────────
                 try:
                     fy = compute_fcf_yield_analysis(
@@ -3375,8 +3387,20 @@ ro.observe(document.getElementById('wrap'));
                 ccard_end()
                 st.markdown("---")
 
+            # ── SIMPLE MODE nudge for consensus ──────────────────
+            if not pro_mode:
+                st.html(
+                    '<div style="padding:18px 24px;background:linear-gradient(135deg,#F8FAFC,#EFF6FF);'
+                    'border:1px solid #DBEAFE;border-radius:12px;text-align:center;margin:16px 0;">'
+                    '<div style="font-size:14px;font-weight:600;color:#1E40AF;margin-bottom:4px;">'
+                    '⚡ More insights in Pro mode</div>'
+                    '<div style="font-size:13px;color:#64748B;line-height:1.6;">'
+                    'Switch to <strong>Pro mode</strong> to see Insider Activity, '
+                    'Institutional Ownership, and Sector Peers.</div></div>'
+                )
+
             # ══════════════════════════════════════════════════════════
-            # SECTION — Insider Activity
+            # SECTION — Insider Activity (Pro only)
             # ══════════════════════════════════════════════════════════
             ccard("🔍 Insider Activity", "#1a1a2e")
 
