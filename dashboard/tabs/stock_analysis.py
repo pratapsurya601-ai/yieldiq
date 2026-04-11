@@ -1115,11 +1115,9 @@ def render() -> None:
         _active = st.session_state["active_section"]
 
         # ══════════════════════════════════════════════════════════
-        # QUICK STATS STRIP
-        # Visible on every section — P/E, EV/EBITDA, FCF Yield,
-        # Beta, Div Yield, 52W Range always in context.
+        # QUICK STATS STRIP — only show on Summary tab
         # ══════════════════════════════════════════════════════════
-        if raw and enriched:
+        if raw and enriched and _active == "summary":
             _qs_pe      = (raw.get("forward_pe")
                           or raw.get("pe_ratio")
                           or (raw.get("finnhub_financials") or {}).get("pe_ttm")
@@ -1216,7 +1214,7 @@ def render() -> None:
             # ══════════════════════════════════════════════════════════
             _mr = momentum_result if 'momentum_result' in locals() else {}
             if _mr.get('momentum_score', 0) > 0:
-                st.subheader("📊 Momentum Analysis")
+              with st.expander("\U0001f4ca Momentum Analysis", expanded=False):
                 
                 col1, col2 = st.columns(2)
                 
@@ -1333,176 +1331,6 @@ def render() -> None:
                 "None":   "No clear competitive advantage",
             }.get(_moat_grade, "Competitive advantage unknown")
 
-            # ══════════════════════════════════════════════════════════
-            # LAYER 1 — 5-Second Insight (Hero card)
-            # ══════════════════════════════════════════════════════════
-            _l1_insight = (
-                f"Our model estimates {_display_name} is trading "
-                f"<strong>~{mos_pct:.0f}% below</strong> its calculated fair value."
-                if mos_pct > 5 else
-                f"Our model estimates {_display_name} is trading "
-                f"<strong>near its calculated fair value</strong>."
-                if mos_pct > -5 else
-                f"Our model estimates {_display_name} is trading "
-                f"<strong>~{abs(mos_pct):.0f}% above</strong> its calculated fair value."
-            )
-
-            # ── Market open detection ────────────────────────────────
-            import pytz as _pytz
-            _now_et   = datetime.now(_pytz.timezone('US/Eastern'))
-            _is_mkt   = (
-                _now_et.weekday() < 5 and
-                9*60+30 <= _now_et.hour*60+_now_et.minute <= 16*60
-            )
-            _mkt_dot   = "\u25cf" if _is_mkt else "\u25cb"
-            _mkt_label = "LIVE" if _is_mkt else "CLOSED"
-            _mkt_color = "#10B981" if _is_mkt else "#64748B"
-            _pulse_css = "animation:_wlPulse 1.8s ease infinite;" if _is_mkt else ""
-
-            # ── Day change ────────────────────────────────────────────
-            _day_chg_pct = (raw.get("day_change_pct", 0) or 0) if raw else 0
-            _chg_sym_h   = "\u25b2" if _day_chg_pct >= 0 else "\u25bc"
-            _chg_col_h   = "#10B981" if _day_chg_pct >= 0 else "#EF4444"
-
-            # ── FX label ─────────────────────────────────────────────
-            _from_code = native_ccy if "native_ccy" in dir() else "USD"
-            _fx_label  = f"FX: {_from_code} \u2192 {to_code}" if _from_code != to_code else f"CCY: {to_code}"
-
-            # ── MoS badge ────────────────────────────────────────────
-            _upside_str   = (f"+{mos_pct:.1f}%" if mos_pct >= 0 else f"{mos_pct:.1f}%")
-            _mos_pill_bg  = "#ECFDF5" if mos_pct >= 10 else "#FFFBEB" if mos_pct >= 0 else "#FEF2F2"
-            _mos_pill_col = "#059669" if mos_pct >= 10 else "#D97706" if mos_pct >= 0 else "#DC2626"
-
-            _hero = (
-                "<style>"
-                "@keyframes _wlPulse {"
-                "  0%,100% { box-shadow:0 0 0 0 rgba(16,185,129,0.45); }"
-                "  70%      { box-shadow:0 0 0 5px rgba(16,185,129,0);  }"
-                "}"
-                ".yiq-terminal-hdr {"
-                "  position:sticky; top:0; z-index:100;"
-                "  background:rgba(13,20,36,0.97);"
-                "  backdrop-filter:blur(10px);"
-                "  -webkit-backdrop-filter:blur(10px);"
-                "  border-radius:12px;"
-                "  overflow:hidden;"
-                "  margin-bottom:10px;"
-                "  border:1px solid rgba(255,255,255,0.07);"
-                "  box-shadow:0 8px 32px rgba(0,0,0,0.3);"
-                "}"
-                ".yiq-terminal-hdr::after {"
-                "  content:'';"
-                "  display:block;"
-                "  height:2px;"
-                "  background:linear-gradient(90deg,#00b4d8 0%,#3b82f6 50%,transparent 100%);"
-                "}"
-                "</style>"
-                '<div class="yiq-terminal-hdr">' +
-                '<div style="display:flex;align-items:center;justify-content:space-between;' +
-                'padding:12px 22px 10px;gap:16px;flex-wrap:wrap;">' +
-
-                # LEFT: Branding
-                '<div style="display:flex;flex-direction:column;gap:3px;min-width:140px;">' +
-                '<div style="display:flex;align-items:center;gap:8px;">' +
-                '<span style="font-family:&apos;Barlow Condensed&apos;,sans-serif;font-size:24px;' +
-                'font-weight:700;color:#E2E8F0;letter-spacing:-0.01em;line-height:1;">' +
-                'Yield<span style="color:#00b4d8;">IQ</span></span>' +
-                '<span style="font-size:10px;font-weight:700;padding:2px 7px;' +
-                'background:rgba(0,180,216,0.14);border:1px solid rgba(0,180,216,0.32);' +
-                'border-radius:4px;color:#00b4d8;letter-spacing:0.07em;">v6</span>' +
-                '</div>' +
-                '<div style="font-family:&apos;IBM Plex Mono&apos;,monospace;font-size:9px;' +
-                'color:#475569;letter-spacing:0.16em;text-transform:uppercase;">' +
-                'Institutional DCF Platform</div></div>' +
-
-                # CENTRE: Ticker + Price
-                '<div style="display:flex;flex-direction:column;align-items:center;gap:3px;' +
-                'flex:1;min-width:200px;">' +
-                '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:center;">' +
-                f'<span style="font-family:&apos;IBM Plex Mono&apos;,monospace;font-size:21px;font-weight:700;' +
-                f'color:#FFFFFF;background:rgba(255,255,255,0.07);padding:4px 14px;border-radius:7px;' +
-                f'letter-spacing:0.07em;border:1px solid rgba(255,255,255,0.1);">{ticker_input}</span>' +
-                '<div style="display:flex;flex-direction:column;align-items:flex-start;gap:2px;">' +
-                f'<div style="display:flex;align-items:center;gap:7px;">' +
-                f'<span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;' +
-                f'background:{_mkt_color};display:inline-block;{_pulse_css}"></span>' +
-                f'<span style="font-family:&apos;IBM Plex Mono&apos;,monospace;font-size:19px;' +
-                f'font-weight:700;color:#F1F5F9;letter-spacing:0.02em;">{fmts(price_d, sym)}</span>' +
-                f'</div>' +
-                f'<div style="font-size:12px;font-weight:600;color:{_chg_col_h};padding-left:15px;">' +
-                f'{_chg_sym_h} {abs(_day_chg_pct):.2f}%&nbsp;day change</div>' +
-                '</div></div>' +
-                f'<div style="font-size:11px;color:#475569;letter-spacing:0.02em;">{_display_name}</div>' +
-                '</div>' +
-
-                # RIGHT: metric pills
-                '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;' +
-                'justify-content:flex-end;min-width:260px;">' +
-                f'<div title="{ob_tooltip("wacc")}" style="padding:5px 10px;background:rgba(255,255,255,0.05);' +
-                f'border:1px solid rgba(255,255,255,0.1);border-radius:6px;' +
-                f'font-family:&apos;IBM Plex Mono&apos;,monospace;font-size:11px;' +
-                f'color:#CBD5E1;white-space:nowrap;cursor:help;">WACC&nbsp;{wacc:.1%}</div>' +
-                f'<div title="{ob_tooltip("terminal_g")}" style="padding:5px 10px;background:rgba(255,255,255,0.05);' +
-                f'border:1px solid rgba(255,255,255,0.1);border-radius:6px;' +
-                f'font-family:&apos;IBM Plex Mono&apos;,monospace;font-size:11px;' +
-                f'color:#CBD5E1;white-space:nowrap;cursor:help;">TERM.G&nbsp;{terminal_g:.1%}</div>' +
-                f'<div style="padding:5px 10px;background:rgba(255,255,255,0.05);' +
-                f'border:1px solid rgba(255,255,255,0.1);border-radius:6px;' +
-                f'font-family:&apos;IBM Plex Mono&apos;,monospace;font-size:11px;' +
-                f'color:#CBD5E1;white-space:nowrap;">{_fx_label}</div>' +
-                f'<div style="padding:5px 10px;background:rgba(255,255,255,0.05);' +
-                f'border:1px solid rgba(255,255,255,0.1);border-radius:6px;' +
-                f'font-family:&apos;IBM Plex Mono&apos;,monospace;font-size:11px;' +
-                f'color:{_mkt_color};font-weight:600;white-space:nowrap;">' +
-                f'{_mkt_dot}&nbsp;{_mkt_label}</div>' +
-                f'<div title="{ob_tooltip("mos")}" style="padding:5px 12px;background:{_mos_pill_bg};' +
-                f'border:1px solid {_mos_pill_col}44;border-radius:6px;' +
-                f'font-family:&apos;IBM Plex Mono&apos;,monospace;font-size:12px;' +
-                f'font-weight:700;color:{_mos_pill_col};white-space:nowrap;cursor:help;">' +
-                f'MoS&nbsp;{_upside_str}</div>' +
-                '</div>' +
-                '</div></div>'
-            )
-            st.html(_hero)
-
-            # ── "Last updated" timestamp ──────────────────────────
-            _fetch_ts = st.session_state.get("last_fetch_time")
-            if _fetch_ts:
-                _mins_ago = int((_time.time() - _fetch_ts) / 60)
-                if _mins_ago < 1:
-                    st.caption("🟢 Updated just now · Live data")
-                elif _mins_ago < 60:
-                    st.caption(f"⏱ Updated {_mins_ago} min ago · Click Analyse to refresh")
-                else:
-                    st.caption("📦 Cached data · Click Analyse to refresh")
-
-            # ── MoS context caption ───────────────────────────────
-            if mos_pct >= 30:
-                st.caption("📊 Deep discount to model fair value — historically strong entry range per DCF")
-            elif mos_pct >= 10:
-                st.caption("📊 Moderate discount to model estimated fair value")
-            elif mos_pct >= -10:
-                st.caption("⚖️ Trading near model estimated fair value")
-            else:
-                st.caption("⚠️ Trading above model estimated fair value — premium to DCF estimate")
-
-            # ── 🎓 First-run tooltip banner ───────────────────────
-            if ob_show_tooltips():
-                st.html("""
-                <div style="background:rgba(29,78,216,0.08);border:1px solid rgba(29,78,216,0.28);
-                            border-radius:10px;padding:10px 16px;margin:8px 0;
-                            display:flex;align-items:center;gap:12px;">
-                  <div style="font-size:20px;flex-shrink:0;">💡</div>
-                  <div style="font-size:11px;color:#93C5FD;line-height:1.7;">
-                    <strong style="color:#60A5FA;">First-run tip:</strong>
-                    Hover over the <strong>WACC</strong>, <strong>TERM.G</strong> and
-                    <strong>MoS</strong> pills above to see what each metric means.
-                    Check the sidebar Advanced Settings to adjust DCF assumptions.
-                    Use the <strong>▶ Resume Tutorial</strong> button in the sidebar to continue your tour.
-                  </div>
-                </div>
-                """)
-
             # ── 📌 Add to Watchlist ───────────────────────────────
             _in_wl    = is_in_watchlist(ticker_input)
             _wl_label = " Already in Watchlist — click to update" if _in_wl else "📌 Add to Watchlist"
@@ -1553,31 +1381,6 @@ def render() -> None:
                 st.warning("⚠️ Our model flagged unusual patterns in this company's financials. Treat this analysis with extra caution.")
             for _w in _conf_warnings:
                 st.warning(f"⚠️ {_w}")
-
-            # ══════════════════════════════════════════════════════════
-            # LAYER 2 — Quick Signals (4 pill badges)
-            # ══════════════════════════════════════════════════════════
-            st.html('<div style="font-size:11px;color:#94A3B8;text-transform:uppercase;'
-                    'letter-spacing:0.14em;margin:16px 0 8px;padding-left:2px;">Quick signals</div>')
-
-            _sig_col1, _sig_col2, _sig_col3, _sig_col4 = st.columns(4)
-
-            def _pill(col, label, value, color, bg, help_txt=""):
-                _h = (
-                    '<div style="background:BG;border:1px solid COLOR;border-radius:10px;'
-                    'padding:14px 16px;text-align:center;">'
-                    '<div style="font-size:11px;color:#94A3B8;text-transform:uppercase;'
-                    'letter-spacing:0.11em;margin-bottom:6px;">LABEL</div>'
-                    '<div style="font-size:18px;font-weight:700;color:COLOR;">VALUE</div>'
-                    '</div>'
-                )
-                _h = _h.replace("BG", bg).replace("COLOR", color).replace("LABEL", label).replace("VALUE", value)
-                col.html(_h)
-
-            _pill(_sig_col1, "Valuation",       _val_label,    _val_color,    "#F8FAFC")
-            _pill(_sig_col2, "Quality score", _qual_label,   _qual_color,   "#F8FAFC")
-            _pill(_sig_col3, "Growth",          _growth_label, _growth_color, "#F8FAFC")
-            _pill(_sig_col4, "Risk indicator",      _risk_label,   _risk_color,   "#F8FAFC")
 
             # ══════════════════════════════════════════════════════════
             # LAYER 2b — YieldIQ Composite Score
@@ -1681,126 +1484,6 @@ def render() -> None:
 
                     if _moat_summary:
                         st.markdown(f"*{_moat_summary[:200]}{'...' if len(_moat_summary) > 200 else ''}*")
-
-            # ══════════════════════════════════════════════════════════
-            # LAYER 3b — Model Insight Card (target / downside / horizon)
-            # ══════════════════════════════════════════════════════════
-            if pt.get("buy_price") and forecast_result.get("reliable", True):
-                _ins_tgt_d   = iv_d  # Use moat-adjusted DCF fair value (same as verdict card)
-                _ins_sl_d    = (pt.get("stop_loss")    or 0) * fx
-                _ins_price_d = price_d
-                _ins_upside  = ((iv_d - _ins_price_d) / _ins_price_d * 100) if _ins_price_d > 0 else 0
-                _ins_down    = pt.get("sl_pct", 12)
-                _ins_rr      = pt.get("rr_ratio", 0)
-                _ins_hp      = (hp.get("label","Long-term") or "Long-term").replace("'","&#39;").replace('"','&quot;')
-                _ins_summary = (inv_plan.get("summary","") or "")[:220].replace("'","&#39;").replace('"','&quot;').replace('<','&lt;').replace('>','&gt;')
-
-                if _ins_mos_pct := mos_pct:
-                    pass
-                _ins_badge_color, _ins_badge_bg, _ins_badge_bd, _ins_gauge_color = (
-                    ("#0D7A4E","#F0FDF4","#BBF7D0","#0D7A4E") if mos_pct >= 20 else
-                    ("#B45309","#FFFBEB","#FDE68A","#B45309") if mos_pct >= 5  else
-                    ("#1D4ED8","#EFF6FF","#BFDBFE","#1D4ED8") if mos_pct >= -5 else
-                    ("#B91C1C","#FEF2F2","#FECACA","#B91C1C")
-                )
-                _ins_badge_txt = (
-                    f"{mos_pct:.0f}% below estimated fair value"   if mos_pct >= 5  else
-                    "Near estimated fair value"                      if mos_pct >= -5 else
-                    f"{abs(mos_pct):.0f}% above estimated fair value"
-                )
-                _ins_gauge_w  = min(max(abs(mos_pct), 2), 100)
-                _ins_ret_str  = ("+" if _ins_upside >= 0 else "") + f"{_ins_upside:.1f}%"
-                _ins_ret_color = "#0D7A4E" if _ins_upside >= 0 else "#B91C1C"
-                _ins_risk_label = "Lower risk" if _ins_down <= 8 else "Bear case scenario" if _ins_down <= 15 else "Higher risk"
-                _ins_risk_color = "#0D7A4E"    if _ins_down <= 8 else "#B45309"       if _ins_down <= 15 else "#B91C1C"
-                _ins_rr_txt = (
-                    "The model estimate is " + _ins_ret_str +
-                    " above current price against a downside scenario of -" + f"{_ins_down:.0f}%" +
-                    (f" (model upside/downside ratio: {_ins_rr:.1f}×)." if _ins_rr else ".")
-                )
-
-                _tpl = (
-                    '<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;'
-                    'overflow:hidden;margin-bottom:6px;">'
-
-                    '<div style="padding:16px 24px 12px;border-bottom:1px solid #F1F5F9;'
-                    'background:linear-gradient(135deg,#FAFBFD,#F4F7FC);">'
-                    '<div style="font-size:11px;color:#94A3B8;text-transform:uppercase;'
-                    'letter-spacing:0.14em;margin-bottom:8px;">📊 Model Output</div>'
-                    '<div style="display:inline-block;padding:5px 14px;background:BADGE_BG;'
-                    'border:1px solid BADGE_BD;border-radius:20px;margin-bottom:10px;">'
-                    '<span style="font-size:13px;font-weight:700;color:BADGE_COLOR;">BADGE_TXT</span>'
-                    '</div>'
-                    '<div style="height:7px;background:#F1F5F9;border-radius:4px;overflow:hidden;">'
-                    '<div style="height:100%;width:GAUGE_W%;background:GAUGE_COLOR;border-radius:4px;"></div>'
-                    '</div>'
-                    '</div>'
-
-                    '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;">'
-
-                    '<div style="padding:16px 20px;border-right:1px solid #F1F5F9;">'
-                    '<div style="font-size:11px;color:#94A3B8;text-transform:uppercase;'
-                    'letter-spacing:0.11em;margin-bottom:5px;">DCF Model Estimate</div>'
-                    '<div style="font-size:21px;font-weight:700;color:RET_COLOR;">TGT_D</div>'
-                    '<div style="font-size:12px;color:RET_COLOR;margin-top:3px;font-weight:600;">'
-                    'RET_STR above current market price per model</div>'
-                    '</div>'
-
-                    '<div style="padding:16px 20px;border-right:1px solid #F1F5F9;">'
-                    '<div style="font-size:11px;color:#94A3B8;text-transform:uppercase;'
-                    'letter-spacing:0.11em;margin-bottom:5px;">Downside scenario</div>'
-                    '<div style="font-size:21px;font-weight:700;color:RISK_COLOR;">SL_D</div>'
-                    '<div style="font-size:12px;color:RISK_COLOR;margin-top:3px;font-weight:500;">'
-                    'RISK_LABEL · -DOWN% range</div>'
-                    '</div>'
-
-                    '<div style="padding:16px 20px;">'
-                    '<div style="font-size:11px;color:#94A3B8;text-transform:uppercase;'
-                    'letter-spacing:0.11em;margin-bottom:5px;">DCF projection horizon</div>'
-                    '<div style="font-size:16px;font-weight:600;color:#334155;margin-top:4px;">HP_LABEL</div>'
-                    '<div style="font-size:12px;color:#94A3B8;margin-top:3px;">Model forecast period</div>'
-                    '</div>'
-
-                    '</div>'
-
-                    '<div style="padding:10px 24px 8px;background:#FAFBFD;border-top:1px solid #F1F5F9;">'
-                    '<div style="font-size:12px;color:#64748B;line-height:1.6;">RR_TXT</div>'
-                    '</div>'
-
-                    '<div style="padding:8px 24px 12px;background:#FAFBFD;">'
-                    '<div style="font-size:11px;color:#94A3B8;line-height:1.5;font-style:italic;'
-                    'border-top:1px dashed #E2E8F0;padding-top:8px;">'
-                    '⚠️ Model-based estimate for informational purposes only. '
-                    'Not a price target, return projection, or investment advice. '
-                    'YieldIQ is not a registered investment adviser.'
-                    '</div>'
-                    '</div>'
-                    '</div>'
-                )
-                _tpl = (
-                    _tpl
-                    .replace("BADGE_BG",    _ins_badge_bg)
-                    .replace("BADGE_BD",    _ins_badge_bd)
-                    .replace("BADGE_COLOR", _ins_badge_color)
-                    .replace("BADGE_TXT",   _ins_badge_txt)
-                    .replace("GAUGE_W",     str(int(_ins_gauge_w)))
-                    .replace("GAUGE_COLOR", _ins_gauge_color)
-                    .replace("RET_COLOR",   _ins_ret_color)
-                    .replace("TGT_D",       fmts(_ins_tgt_d, sym))
-                    .replace("RET_STR",     _ins_ret_str)
-                    .replace("RISK_COLOR",  _ins_risk_color)
-                    .replace("SL_D",        fmts(_ins_sl_d, sym))
-                    .replace("RISK_LABEL",  _ins_risk_label)
-                    .replace("DOWN",        f"{_ins_down:.0f}")
-                    .replace("HP_LABEL",    _ins_hp)
-                    .replace("RR_TXT",      _ins_rr_txt)
-                )
-                st.html(_tpl)
-
-                if _ins_summary:
-                    with st.expander("🧮 Model Reasoning — Key Drivers of This Estimate"):
-                        st.markdown("> " + _ins_summary.replace("&#39;","'").replace("&quot;",'"').replace("&lt;","<").replace("&gt;",">"))
-                        st.caption("Model output based on public data. Not a recommendation.")
 
             # ══════════════════════════════════════════════════════════
             # LAYER 3c — AI Analysis Summary (Premium / Pro only)

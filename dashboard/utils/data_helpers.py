@@ -84,7 +84,7 @@ def _get_cache_ttl() -> int:
     t = st.session_state.get("_tier", "free")
     return {"pro": 60, "starter": 180, "premium": 180, "free": 600}.get(t, 600)
 
-_DATA_VERSION = "v6_simple_growth_floor"  # bump this to bust cache after engine changes
+_DATA_VERSION = "v7_ui_cleanup"  # bump this to bust cache after engine changes
 
 def fetch_stock_data(ticker):
     """Wrapper that applies tiered TTL caching."""
