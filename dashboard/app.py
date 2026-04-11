@@ -24,7 +24,7 @@ from plotly.subplots import make_subplots
 import streamlit as st
 
 # Force cache clear on deploy — prevents stale data after code fixes
-_APP_CACHE_VERSION = "v6_shares_fix"
+_APP_CACHE_VERSION = "v10_amzn_fcf"
 if st.session_state.get("_cache_version") != _APP_CACHE_VERSION:
     st.cache_data.clear()
     # Also clear collector.py's disk cache
