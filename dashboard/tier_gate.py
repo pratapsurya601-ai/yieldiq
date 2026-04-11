@@ -593,13 +593,26 @@ def _launch_razorpay_checkout(email: str, chosen_tier: str, billing: str = "mont
         return
 
     try:
-        import sys as _sys
-        _sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        from payments.razorpay_client import create_subscription
-        sub = create_subscription(email, chosen_tier, billing)
+        import razorpay as _rzp
+        _rzp_secret = os.environ.get("RAZORPAY_KEY_SECRET", "")
+        _rzp_client = _rzp.Client(auth=(rzp_key, _rzp_secret))
+        _plan_map = {
+            "starter": os.environ.get("RZP_PLAN_STARTER_MONTHLY", ""),
+            "pro":     os.environ.get("RZP_PLAN_PRO_MONTHLY", ""),
+        }
+        _plan_id = _plan_map.get(chosen_tier, "")
+        if not _plan_id:
+            st.error(f"No plan configured for {chosen_tier}.")
+            return
+        sub = _rzp_client.subscription.create({
+            "plan_id": _plan_id,
+            "total_count": 120,
+            "quantity": 1,
+            "notes": {"email": email, "tier": chosen_tier, "app": "yieldiq"},
+        })
         sub_id = sub["id"]
-    except ImportError as e:
-        st.error(f"Payment module not available: {e}. Please contact support.")
+    except ImportError:
+        st.error("Razorpay package not installed. Contact support.")
         return
     except Exception as e:
         st.error(f"Could not create subscription: {e}")
