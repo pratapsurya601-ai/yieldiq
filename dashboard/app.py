@@ -359,78 +359,7 @@ if pro_mode:
     """)
 
 
-# ── Global UI polish CSS ──────────────────────────────────────
-st.markdown("""<style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-
-/* Clean font everywhere */
-html, body, [class*="css"], .stApp {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
-}
-
-/* Softer backgrounds */
-.stApp { background: #F8FAFC !important; }
-section.main > div { background: #F8FAFC !important; }
-
-/* Better buttons */
-.stButton > button {
-    border-radius: 8px !important;
-    font-weight: 600 !important;
-    font-size: 13px !important;
-    transition: all 0.15s ease !important;
-}
-.stButton > button:hover {
-    transform: translateY(-1px) !important;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
-}
-
-/* Clean expanders */
-[data-testid="stExpander"] {
-    border: 1px solid #E2E8F0 !important;
-    border-radius: 10px !important;
-    overflow: hidden !important;
-    margin-bottom: 8px !important;
-}
-[data-testid="stExpander"] summary {
-    padding: 12px 16px !important;
-    font-weight: 600 !important;
-    color: #0F172A !important;
-}
-
-/* Tab pills */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 4px !important;
-    background: transparent !important;
-    border-bottom: none !important;
-}
-.stTabs [data-baseweb="tab"] {
-    border-radius: 8px !important;
-    padding: 8px 16px !important;
-    font-weight: 500 !important;
-    font-size: 13px !important;
-    color: #64748B !important;
-    background: #F1F5F9 !important;
-    border: none !important;
-}
-.stTabs [aria-selected="true"] {
-    background: #0F172A !important;
-    color: #FFFFFF !important;
-    font-weight: 600 !important;
-}
-
-/* Sidebar polish */
-section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0F172A 0%, #1E293B 100%) !important;
-}
-
-/* Hide Streamlit branding */
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-header {visibility: hidden;}
-
-/* Smooth scrolling */
-html { scroll-behavior: smooth; }
-</style>""", unsafe_allow_html=True)
+# (Global CSS is handled by ui/styles.py — no inline CSS needed here)
 
 # Market data
 mkt = fetch_market_overview() or {}
@@ -443,20 +372,37 @@ for name, data in mkt.items():
     if data.get("price", 0) == 0:
         continue
     chg = data.get("change_pct", 0)
-    chg_color = "#34d399" if chg >= 0 else "#ef4444"
+    chg_color = "#34d399" if chg >= 0 else "#f87171"
+    chg_bg = "rgba(52,211,153,0.12)" if chg >= 0 else "rgba(248,113,113,0.12)"
     chg_sym = "\u25b2" if chg >= 0 else "\u25bc"
     _nav_items += (
-        f'<div style="display:inline-flex;align-items:center;gap:8px;padding:4px 18px;'
-        f'border-right:1px solid rgba(255,255,255,0.08);white-space:nowrap;">'
-        f'<span style="font-size:11px;font-weight:700;color:#e2e8f0;">{name}</span>'
-        f'<span style="font-size:11px;color:#e2e8f0;">{data["price"]:,.2f}</span>'
-        f'<span style="font-size:10px;font-weight:600;color:{chg_color};">{chg_sym} {abs(chg):.2f}%</span>'
+        f'<div style="display:inline-flex;align-items:center;gap:10px;padding:6px 20px;'
+        f'white-space:nowrap;">'
+        f'<span style="font-size:11px;font-weight:700;color:#CBD5E1;letter-spacing:0.04em;">{name}</span>'
+        f'<span style="font-size:12px;font-weight:600;color:#F1F5F9;'
+        f'font-family:\'IBM Plex Mono\',monospace;">{data["price"]:,.2f}</span>'
+        f'<span style="font-size:10px;font-weight:700;color:{chg_color};'
+        f'background:{chg_bg};padding:2px 7px;border-radius:4px;'
+        f'font-family:\'IBM Plex Mono\',monospace;">{chg_sym} {abs(chg):.2f}%</span>'
         f'</div>'
     )
 if _nav_items:
     st.html(f"""
-<div style="background:#0f2537;border-radius:8px;padding:8px 0;overflow:hidden;margin-bottom:12px;">
-  <div style="display:flex;overflow:hidden;">{_nav_items}</div>
+<style>
+@keyframes yiq-ticker {{
+  0% {{ transform: translateX(0); }}
+  100% {{ transform: translateX(-50%); }}
+}}
+</style>
+<div style="background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%);
+            border-radius:10px;padding:0;overflow:hidden;margin-bottom:14px;
+            border:1px solid rgba(255,255,255,0.06);">
+  <div style="display:flex;overflow:hidden;padding:8px 0;">
+    <div style="display:flex;animation:yiq-ticker 30s linear infinite;
+                will-change:transform;">
+      {_nav_items}{_nav_items}
+    </div>
+  </div>
 </div>
 """)
 
@@ -466,21 +412,26 @@ if mkt_list:
     cols = st.columns(len(mkt_list))
     for col, (name, data) in zip(cols, mkt_list):
         chg = data.get("change_pct", 0)
-        chg_color = "#059669" if chg >= 0 else "#dc2626"
+        chg_color = "#059669" if chg >= 0 else "#DC2626"
+        chg_bg = "#F0FDF4" if chg >= 0 else "#FEF2F2"
         chg_sym = "\u25b2" if chg >= 0 else "\u25bc"
-        bar_w = min(abs(chg) * 15 + 40, 95)
-        bar_col = "#059669" if chg >= 0 else "#dc2626"
+        accent = "#059669" if chg >= 0 else "#DC2626"
         col.html(f"""
-        <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:10px;
-                    padding:12px 14px;margin-bottom:8px;">
-          <div style="font-size:10px;font-weight:600;color:#94A3B8;text-transform:uppercase;
-                      letter-spacing:0.08em;margin-bottom:4px;">{name}</div>
-          <div style="font-size:16px;font-weight:700;color:#0F172A;
-                      font-family:'IBM Plex Mono',monospace;">{data['price']:,.2f}</div>
-          <div style="font-size:11px;font-weight:600;color:{chg_color};margin-top:2px;">
-            {chg_sym} {abs(chg):.2f}%</div>
-          <div style="height:3px;background:#F1F5F9;border-radius:2px;margin-top:8px;">
-            <div style="height:100%;width:{bar_w:.0f}%;background:{bar_col};border-radius:2px;"></div>
+        <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;
+                    padding:16px 18px;margin-bottom:8px;position:relative;overflow:hidden;
+                    box-shadow:0 1px 3px rgba(15,23,42,0.06);
+                    transition:box-shadow 0.2s,transform 0.2s;
+                    border-top:3px solid {accent};">
+          <div style="font-size:10px;font-weight:700;color:#94A3B8;text-transform:uppercase;
+                      letter-spacing:0.1em;margin-bottom:6px;
+                      font-family:'IBM Plex Mono',monospace;">{name}</div>
+          <div style="display:flex;align-items:baseline;gap:10px;">
+            <div style="font-size:18px;font-weight:700;color:#0F172A;
+                        font-family:'IBM Plex Mono',monospace;">{data['price']:,.2f}</div>
+            <div style="font-size:11px;font-weight:700;color:{chg_color};
+                        background:{chg_bg};padding:2px 8px;border-radius:6px;
+                        font-family:'IBM Plex Mono',monospace;">
+              {chg_sym} {abs(chg):.2f}%</div>
           </div>
         </div>""")
 

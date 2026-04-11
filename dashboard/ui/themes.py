@@ -176,8 +176,8 @@ THEMES: dict[str, dict] = {
     },
 }
 
-DEFAULT_THEME = "forest"
-THEME_ORDER   = ["forest", "ocean", "aurora", "sakura", "violet", "slate"]
+DEFAULT_THEME = "slate"
+THEME_ORDER   = ["slate", "forest", "ocean", "aurora", "sakura", "violet"]
 
 
 def get_theme(name: str) -> dict:

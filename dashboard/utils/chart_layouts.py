@@ -24,34 +24,39 @@ def KL(**kw):
         fig.update_layout(**KL(height=400, title="My Chart"))
     """
     t = _get_active_theme()
+    _is_light = not t.get("dark", True)
     base = dict(
-        paper_bgcolor=t["chart_paper"],
-        plot_bgcolor=t["chart_bg"],
-        font=dict(family="Inter, DM Sans, system-ui, sans-serif", color=t["chart_font"], size=11),
+        paper_bgcolor="rgba(0,0,0,0)" if _is_light else t["chart_paper"],
+        plot_bgcolor="#FFFFFF" if _is_light else t["chart_bg"],
+        font=dict(family="Inter, system-ui, sans-serif", color=t["chart_font"], size=11),
         margin=dict(l=48, r=24, t=48, b=44),
         hovermode="x unified",
         hoverlabel=dict(
-            bgcolor=t["bg3"],
+            bgcolor="#FFFFFF" if _is_light else t["bg3"],
             font=dict(color=t["text"], family="IBM Plex Mono, monospace", size=12),
             bordercolor=t["border2"],
         ),
         legend=dict(
             bgcolor="rgba(0,0,0,0)",
-            bordercolor=t["border"],
-            borderwidth=1,
+            bordercolor="rgba(0,0,0,0)",
+            borderwidth=0,
             font=dict(color=t["text2"], size=11),
         ),
         xaxis=dict(
-            gridcolor=t["chart_grid"],
+            gridcolor="rgba(0,0,0,0.04)" if _is_light else t["chart_grid"],
             linecolor=t["border"],
             tickfont=dict(color=t["text3"], size=10),
             zeroline=False,
+            showgrid=True,
+            gridwidth=1,
         ),
         yaxis=dict(
-            gridcolor=t["chart_grid"],
+            gridcolor="rgba(0,0,0,0.04)" if _is_light else t["chart_grid"],
             linecolor=t["border"],
             tickfont=dict(color=t["text3"], size=10),
             zeroline=False,
+            showgrid=True,
+            gridwidth=1,
         ),
         colorway=[t["chart_line"], t["chart_accent2"], t["chart_accent3"],
                   t["chart_bar_pos"], t["chart_bar_neg"]],
@@ -69,6 +74,7 @@ def apply_koyfin(fig, accent=None, height=280, title_txt="", extra_kw=None):
         fig = apply_koyfin(fig, height=350, title_txt="Revenue Growth")
     """
     t = _get_active_theme()
+    _is_light = not t.get("dark", True)
     if accent is None:
         accent = t["accent"]
     kw = dict(height=height)
@@ -83,8 +89,9 @@ def apply_koyfin(fig, accent=None, height=280, title_txt="", extra_kw=None):
         kw.update(extra_kw)
 
     fig.update_layout(**KL(**kw))
-    fig.update_xaxes(gridcolor=t["chart_grid"], linecolor=t["border"], tickfont=dict(color=t["text3"], size=10))
-    fig.update_yaxes(gridcolor=t["chart_grid"], linecolor=t["border"], tickfont=dict(color=t["text3"], size=10))
+    _grid = "rgba(0,0,0,0.04)" if _is_light else t["chart_grid"]
+    fig.update_xaxes(gridcolor=_grid, linecolor=t["border"], tickfont=dict(color=t["text3"], size=10))
+    fig.update_yaxes(gridcolor=_grid, linecolor=t["border"], tickfont=dict(color=t["text3"], size=10))
 
     fig.add_shape(
         type="line",
@@ -105,27 +112,32 @@ def CL(**kw):
         fig.update_layout(**CL(height=350))
     """
     t = _get_active_theme()
+    _is_light = not t.get("dark", True)
     base = dict(
-        paper_bgcolor=t["chart_paper"],
-        plot_bgcolor=t["chart_bg"],
+        paper_bgcolor="rgba(0,0,0,0)" if _is_light else t["chart_paper"],
+        plot_bgcolor="#FFFFFF" if _is_light else t["chart_bg"],
         font=dict(family="Inter,sans-serif", color=t["text2"], size=11),
         margin=dict(t=20, b=40, l=10, r=10),
         xaxis=dict(
-            gridcolor=t["chart_grid"],
+            gridcolor="rgba(0,0,0,0.04)" if _is_light else t["chart_grid"],
             linecolor=t["border"],
             zeroline=False,
             tickcolor=t["border2"],
-            tickfont=dict(color=t["text3"])
+            tickfont=dict(color=t["text3"]),
+            showgrid=True,
+            gridwidth=1,
         ),
         yaxis=dict(
-            gridcolor=t["chart_grid"],
+            gridcolor="rgba(0,0,0,0.04)" if _is_light else t["chart_grid"],
             linecolor=t["border"],
             zeroline=False,
             tickcolor=t["border2"],
-            tickfont=dict(color=t["text3"])
+            tickfont=dict(color=t["text3"]),
+            showgrid=True,
+            gridwidth=1,
         ),
         hoverlabel=dict(
-            bgcolor=t["bg3"],
+            bgcolor="#FFFFFF" if _is_light else t["bg3"],
             bordercolor=t["accent"],
             font=dict(color=t["text"], family="IBM Plex Mono", size=12)
         ),
