@@ -18,6 +18,10 @@ _cfg_spec = _ilu.spec_from_file_location("_yiq_cfg", _cfg_path)
 _cfg_mod  = _ilu.module_from_spec(_cfg_spec); _cfg_spec.loader.exec_module(_cfg_mod)
 RESULTS_PATH = _cfg_mod.RESULTS_PATH; LAUNCH_REGION = _cfg_mod.LAUNCH_REGION
 from tier_gate import can_run_screener, record_screener, tier
+try:
+    from admin_analytics import track_event
+except Exception:
+    def track_event(*a, **kw): pass
 
 
 def render() -> None:

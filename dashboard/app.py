@@ -419,30 +419,25 @@ if mkt_list:
 
 # ── Hide Streamlit's leaking icon text (CSS-only, safe) ──────
 st.markdown("""<style>
-/* Hide the sidebar collapse button text that leaks as visible text */
-.stSidebarCollapsedControl span,
-[data-testid="stSidebarCollapsedControl"] span,
-[data-testid="collapsedControl"] span {
+/* Hide ALL sidebar collapse button elements + stray icon text */
+.stSidebarCollapsedControl,
+[data-testid="stSidebarCollapsedControl"],
+[data-testid="collapsedControl"] {
     font-size: 0 !important;
     color: transparent !important;
 }
-/* Hide ALL Streamlit icon text leaks — they render as raw text like
-   "keyboard_double_arrow_right", "_arrow_right", "_expand_more" etc.
-   These appear as bare text nodes in the DOM outside their containers. */
-.stApp > header,
-.stApp > header * {
+.stSidebarCollapsedControl span,
+[data-testid="stSidebarCollapsedControl"] span {
     font-size: 0 !important;
     color: transparent !important;
-    visibility: hidden !important;
-    height: 0 !important;
+    width: 0 !important;
     overflow: hidden !important;
 }
-/* Hide any raw icon text that Streamlit renders outside elements */
-.main > div:first-child > div:first-child {
-    font-size: 0;
-    line-height: 0;
-    height: 0;
-    overflow: hidden;
+/* Streamlit header — hide completely */
+header[data-testid="stHeader"] {
+    height: 0 !important;
+    overflow: hidden !important;
+    visibility: hidden !important;
 }
 </style>""", unsafe_allow_html=True)
 
