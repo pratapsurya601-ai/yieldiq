@@ -359,6 +359,79 @@ if pro_mode:
     """)
 
 
+# ── Global UI polish CSS ──────────────────────────────────────
+st.markdown("""<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+/* Clean font everywhere */
+html, body, [class*="css"], .stApp {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+/* Softer backgrounds */
+.stApp { background: #F8FAFC !important; }
+section.main > div { background: #F8FAFC !important; }
+
+/* Better buttons */
+.stButton > button {
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 13px !important;
+    transition: all 0.15s ease !important;
+}
+.stButton > button:hover {
+    transform: translateY(-1px) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+}
+
+/* Clean expanders */
+[data-testid="stExpander"] {
+    border: 1px solid #E2E8F0 !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    margin-bottom: 8px !important;
+}
+[data-testid="stExpander"] summary {
+    padding: 12px 16px !important;
+    font-weight: 600 !important;
+    color: #0F172A !important;
+}
+
+/* Tab pills */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 4px !important;
+    background: transparent !important;
+    border-bottom: none !important;
+}
+.stTabs [data-baseweb="tab"] {
+    border-radius: 8px !important;
+    padding: 8px 16px !important;
+    font-weight: 500 !important;
+    font-size: 13px !important;
+    color: #64748B !important;
+    background: #F1F5F9 !important;
+    border: none !important;
+}
+.stTabs [aria-selected="true"] {
+    background: #0F172A !important;
+    color: #FFFFFF !important;
+    font-weight: 600 !important;
+}
+
+/* Sidebar polish */
+section[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0F172A 0%, #1E293B 100%) !important;
+}
+
+/* Hide Streamlit branding */
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+header {visibility: hidden;}
+
+/* Smooth scrolling */
+html { scroll-behavior: smooth; }
+</style>""", unsafe_allow_html=True)
+
 # Market data
 mkt = fetch_market_overview() or {}
 
