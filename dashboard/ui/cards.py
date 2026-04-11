@@ -169,6 +169,209 @@ def verdict_card(
 """)
 
 
+def valuation_hero(
+    ticker: str, company: str, sector: str,
+    price: float, fair_value: float, mos_pct: float,
+    confidence: int,
+    bear_iv: float, bull_iv: float,
+    rev_growth: float, fcf_margin: float, wacc: float, terminal_g: float,
+    sym: str = "$",
+) -> None:
+    """
+    Valuation-first hero section — the #1 visual on the page.
+    Combines: fair value vs price, implied upside, valuation range, key assumptions.
+    Designed to answer "Is this stock undervalued?" in 2 seconds.
+    """
+    implied = mos_pct  # positive = discount (undervalued), negative = premium (overvalued)
+    implied_label = "Implied Upside" if implied >= 0 else "Implied Downside"
+    implied_color = "#059669" if implied >= 0 else "#DC2626"
+    implied_bg = "#F0FDF4" if implied >= 0 else "#FEF2F2"
+
+    # Confidence label
+    if confidence >= 80:
+        conf_label, conf_color = "HIGH", "#059669"
+    elif confidence >= 60:
+        conf_label, conf_color = "MODERATE", "#D97706"
+    else:
+        conf_label, conf_color = "LOW", "#DC2626"
+
+    # Gauge position: map MoS from +60 to -60 → 0% to 100%
+    gauge_pct = max(2, min(98, ((60 - max(-60, min(60, implied))) / 120) * 100))
+
+    # Active zone
+    if implied >= 20:
+        zone_label = "Significant discount to estimated fair value"
+    elif implied >= 5:
+        zone_label = "Trading below estimated fair value"
+    elif implied >= -5:
+        zone_label = "Trading near estimated fair value"
+    elif implied >= -20:
+        zone_label = "Trading above estimated fair value"
+    else:
+        zone_label = "Significant premium to estimated fair value"
+
+    # Assumption context
+    def _ctx(val, hist_val=None, label=""):
+        if hist_val is not None:
+            diff = val - hist_val
+            return f'<span style="color:#94A3B8;font-size:10px;">vs {hist_val:.1f}% hist</span>'
+        return ""
+
+    st.html(f"""
+<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:16px;
+            overflow:hidden;margin-bottom:16px;
+            box-shadow:0 2px 12px rgba(15,23,42,0.06);">
+
+  <!-- Header bar -->
+  <div style="background:linear-gradient(135deg,#0F172A 0%,#1E293B 100%);
+              padding:16px 24px;display:flex;justify-content:space-between;align-items:center;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="width:38px;height:38px;background:#fff;border-radius:10px;
+                  display:flex;align-items:center;justify-content:center;
+                  font-size:11px;font-weight:800;color:#0F172A;">{ticker[:4]}</div>
+      <div>
+        <div style="font-size:18px;font-weight:800;color:#F8FAFC;">{company}</div>
+        <div style="font-size:10px;color:#94A3B8;">{ticker} · {sector}</div>
+      </div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:20px;font-weight:800;color:#F8FAFC;
+                  font-family:'IBM Plex Mono',monospace;">{sym}{price:,.2f}</div>
+    </div>
+  </div>
+
+  <!-- Main valuation area -->
+  <div style="padding:24px;display:grid;grid-template-columns:1fr 1fr;gap:24px;">
+
+    <!-- Left: Fair Value vs Price -->
+    <div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:20px;">
+        <div>
+          <div style="font-size:10px;font-weight:700;color:#94A3B8;
+                      letter-spacing:0.1em;text-transform:uppercase;
+                      font-family:'IBM Plex Mono',monospace;margin-bottom:4px;">
+            Estimated Fair Value</div>
+          <div style="font-size:32px;font-weight:900;color:#0F172A;
+                      font-family:'IBM Plex Mono',monospace;">{sym}{fair_value:,.0f}</div>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-size:10px;font-weight:700;color:#94A3B8;
+                      letter-spacing:0.1em;text-transform:uppercase;
+                      font-family:'IBM Plex Mono',monospace;margin-bottom:4px;">
+            {implied_label}</div>
+          <div style="font-size:32px;font-weight:900;color:{implied_color};
+                      font-family:'IBM Plex Mono',monospace;">{implied:+.1f}%</div>
+        </div>
+      </div>
+
+      <!-- Valuation bar -->
+      <div style="position:relative;margin-bottom:8px;">
+        <div style="display:flex;gap:1px;height:10px;">
+          <div style="flex:1;background:#059669;border-radius:5px 0 0 5px;opacity:{1 if implied>20 else 0.25};"></div>
+          <div style="flex:1;background:#22C55E;opacity:{1 if 5<implied<=20 else 0.25};"></div>
+          <div style="flex:1;background:#EAB308;opacity:{1 if -5<implied<=5 else 0.25};"></div>
+          <div style="flex:1;background:#EF4444;opacity:{1 if -20<implied<=-5 else 0.25};"></div>
+          <div style="flex:1;background:#991B1B;border-radius:0 5px 5px 0;opacity:{1 if implied<=-20 else 0.25};"></div>
+        </div>
+        <div style="position:absolute;top:-4px;left:{gauge_pct:.1f}%;transform:translateX(-50%);">
+          <div style="width:0;height:0;border-left:5px solid transparent;
+                      border-right:5px solid transparent;
+                      border-top:7px solid #0F172A;"></div>
+          <div style="width:2px;height:14px;background:#0F172A;margin:0 auto;"></div>
+        </div>
+      </div>
+      <div style="font-size:11px;color:#64748B;text-align:center;margin-bottom:12px;">
+        {zone_label}</div>
+
+      <!-- Confidence badge -->
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="font-size:10px;color:#94A3B8;">Model Confidence:</div>
+        <div style="font-size:11px;font-weight:700;color:{conf_color};
+                    background:{conf_color}15;padding:2px 10px;border-radius:4px;
+                    font-family:'IBM Plex Mono',monospace;">{conf_label} · {confidence}/100</div>
+      </div>
+    </div>
+
+    <!-- Right: Valuation Range + Key Assumptions -->
+    <div>
+      <!-- Valuation Range -->
+      <div style="font-size:10px;font-weight:700;color:#94A3B8;
+                  letter-spacing:0.1em;text-transform:uppercase;
+                  font-family:'IBM Plex Mono',monospace;margin-bottom:12px;">
+        Valuation Range</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:20px;">
+        <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:10px;
+                    padding:12px;text-align:center;">
+          <div style="font-size:9px;font-weight:700;color:#991B1B;
+                      letter-spacing:0.08em;margin-bottom:4px;">BEAR</div>
+          <div style="font-size:18px;font-weight:800;color:#DC2626;
+                      font-family:'IBM Plex Mono',monospace;">{sym}{bear_iv:,.0f}</div>
+          <div style="font-size:10px;color:#991B1B;margin-top:2px;">
+            {((bear_iv - price) / price * 100):+.0f}%</div>
+        </div>
+        <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;
+                    padding:12px;text-align:center;">
+          <div style="font-size:9px;font-weight:700;color:#1E40AF;
+                      letter-spacing:0.08em;margin-bottom:4px;">BASE</div>
+          <div style="font-size:18px;font-weight:800;color:#1D4ED8;
+                      font-family:'IBM Plex Mono',monospace;">{sym}{fair_value:,.0f}</div>
+          <div style="font-size:10px;color:#1E40AF;margin-top:2px;">
+            {((fair_value - price) / price * 100):+.0f}%</div>
+        </div>
+        <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px;
+                    padding:12px;text-align:center;">
+          <div style="font-size:9px;font-weight:700;color:#166534;
+                      letter-spacing:0.08em;margin-bottom:4px;">BULL</div>
+          <div style="font-size:18px;font-weight:800;color:#16A34A;
+                      font-family:'IBM Plex Mono',monospace;">{sym}{bull_iv:,.0f}</div>
+          <div style="font-size:10px;color:#166534;margin-top:2px;">
+            {((bull_iv - price) / price * 100):+.0f}%</div>
+        </div>
+      </div>
+
+      <!-- Key Assumptions -->
+      <div style="font-size:10px;font-weight:700;color:#94A3B8;
+                  letter-spacing:0.1em;text-transform:uppercase;
+                  font-family:'IBM Plex Mono',monospace;margin-bottom:10px;">
+        Key Assumptions</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;">
+          <div style="font-size:9px;color:#94A3B8;font-weight:600;
+                      letter-spacing:0.06em;text-transform:uppercase;">Revenue Growth</div>
+          <div style="font-size:16px;font-weight:700;color:#0F172A;
+                      font-family:'IBM Plex Mono',monospace;">{rev_growth:.1f}%</div>
+        </div>
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;">
+          <div style="font-size:9px;color:#94A3B8;font-weight:600;
+                      letter-spacing:0.06em;text-transform:uppercase;">FCF Margin</div>
+          <div style="font-size:16px;font-weight:700;color:#0F172A;
+                      font-family:'IBM Plex Mono',monospace;">{fcf_margin:.1f}%</div>
+        </div>
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;">
+          <div style="font-size:9px;color:#94A3B8;font-weight:600;
+                      letter-spacing:0.06em;text-transform:uppercase;">Discount Rate (WACC)</div>
+          <div style="font-size:16px;font-weight:700;color:#0F172A;
+                      font-family:'IBM Plex Mono',monospace;">{wacc:.1f}%</div>
+        </div>
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:10px 12px;">
+          <div style="font-size:9px;color:#94A3B8;font-weight:600;
+                      letter-spacing:0.06em;text-transform:uppercase;">Terminal Growth</div>
+          <div style="font-size:16px;font-weight:700;color:#0F172A;
+                      font-family:'IBM Plex Mono',monospace;">{terminal_g:.1f}%</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Disclaimer footer -->
+  <div style="padding:8px 24px;background:#F8FAFC;border-top:1px solid #F1F5F9;
+              font-size:10px;color:#94A3B8;text-align:center;">
+    Model output only — not investment advice. Estimates based on publicly available data.
+  </div>
+</div>
+""")
+
+
 def valuation_gauge(price: float, fair_value: float, mos_pct: float, sym: str = "$") -> None:
     """
     GuruFocus-style 5-zone valuation gauge.

@@ -11,7 +11,12 @@ from plotly.subplots import make_subplots
 import json as _json
 import time as _time
 from datetime import datetime, date as _date
-from ui.cards import inject_styles as _inject_card_styles, verdict_card as _verdict_card, kpi_row as _kpi_row, valuation_gauge as _valuation_gauge, snowflake_chart as _snowflake_chart
+from ui.cards import (
+    inject_styles as _inject_card_styles,
+    verdict_card as _verdict_card, kpi_row as _kpi_row,
+    valuation_gauge as _valuation_gauge, snowflake_chart as _snowflake_chart,
+    valuation_hero as _valuation_hero,
+)
 
 # Utility / formatting functions — loaded by file path to avoid utils/ name collision
 import importlib.util as _ilu, pathlib as _pl
@@ -1068,6 +1073,23 @@ def render() -> None:
             "valuation": _v_est, "quality": _q_est,
             "growth": _g_est, "sentiment": _s_est,
         }
+
+        # ── VALUATION HERO (new primary component) ────────
+        _bear_iv = st.session_state.get("_scenarios", {}).get("Bear case", {}).get("iv", fair_value * 0.7) * fx
+        _bull_iv = st.session_state.get("_scenarios", {}).get("Bull case", {}).get("iv", fair_value * 1.4) * fx
+        _rev_g = enriched.get("revenue_growth", 0) * 100
+        _fcf_m = enriched.get("op_margin", 0) * 100
+        _conf_score = st.session_state.get("_confidence", {}).get("score", 70)
+        _valuation_hero(
+            ticker=ticker_input, company=_co_name,
+            sector=enriched.get("sector_name", ""),
+            price=float(price_d), fair_value=float(_display_iv),
+            mos_pct=float(_display_mos), confidence=int(_conf_score),
+            bear_iv=float(_bear_iv), bull_iv=float(_bull_iv),
+            rev_growth=float(_rev_g), fcf_margin=float(_fcf_m),
+            wacc=float(wacc * 100), terminal_g=float(terminal_g * 100),
+            sym=sym,
+        )
 
         _verdict_card(
             ticker=ticker_input, company=_co_name,
