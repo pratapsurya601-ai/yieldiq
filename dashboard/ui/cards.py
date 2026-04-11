@@ -287,6 +287,171 @@ def valuation_gauge(price: float, fair_value: float, mos_pct: float, sym: str = 
 """)
 
 
+def snowflake_chart(
+    mos_pct: float,
+    piotroski: int,
+    rev_growth: float,
+    fcf_growth: float,
+    op_margin: float,
+    debt_to_equity: float,
+    moat_score: float,
+    ticker: str = "",
+) -> None:
+    """
+    Simply Wall St-style snowflake radar chart.
+    5 axes scored 0-100, rendered as a filled Plotly radar.
+    A full snowflake = exceptional stock.
+    """
+    import plotly.graph_objects as go
+
+    # ── Score each axis 0-100 ──────────────────────────────────
+    # VALUE: MoS +40% → 100, MoS -40% → 0
+    value_score = max(0, min(100, (mos_pct + 40) / 80 * 100))
+
+    # QUALITY: Piotroski F-Score (0-9) → 0-100
+    quality_score = max(0, min(100, (piotroski / 9) * 100))
+
+    # GROWTH: Blend of revenue growth + FCF growth
+    _rg = max(-20, min(40, rev_growth))  # clamp
+    _fg = max(-20, min(40, fcf_growth))
+    growth_score = max(0, min(100, ((_rg + 20) / 60 * 50) + ((_fg + 20) / 60 * 50)))
+
+    # HEALTH: Based on debt-to-equity (lower = healthier) + operating margin
+    _de = max(0, min(3, debt_to_equity))  # clamp 0-3
+    _de_score = max(0, (1 - _de / 3) * 60)  # 0 debt = 60, 3x debt = 0
+    _om = max(-10, min(40, op_margin))
+    _om_score = max(0, min(40, (_om + 10) / 50 * 40))
+    health_score = max(0, min(100, _de_score + _om_score))
+
+    # MOAT: Direct from moat_engine (0-100 scale)
+    moat_sc = max(0, min(100, moat_score))
+
+    categories = ['Value', 'Quality', 'Growth', 'Health', 'Moat']
+    scores = [value_score, quality_score, growth_score, health_score, moat_sc]
+    avg_score = sum(scores) / len(scores)
+
+    # Close the radar polygon
+    cats_closed = categories + [categories[0]]
+    scores_closed = scores + [scores[0]]
+
+    # ── Color based on average score ───────────────────────────
+    if avg_score >= 70:
+        fill_color = "rgba(22,163,74,0.18)"
+        line_color = "#16A34A"
+        dot_color = "#16A34A"
+        grade_label = "Strong"
+    elif avg_score >= 50:
+        fill_color = "rgba(29,78,216,0.18)"
+        line_color = "#1D4ED8"
+        dot_color = "#1D4ED8"
+        grade_label = "Good"
+    elif avg_score >= 35:
+        fill_color = "rgba(217,119,6,0.18)"
+        line_color = "#D97706"
+        dot_color = "#D97706"
+        grade_label = "Average"
+    else:
+        fill_color = "rgba(220,38,38,0.18)"
+        line_color = "#DC2626"
+        dot_color = "#DC2626"
+        grade_label = "Weak"
+
+    fig = go.Figure()
+
+    # Filled area
+    fig.add_trace(go.Scatterpolar(
+        r=scores_closed,
+        theta=cats_closed,
+        fill='toself',
+        fillcolor=fill_color,
+        line=dict(color=line_color, width=2.5),
+        marker=dict(size=7, color=dot_color, line=dict(width=1, color="#FFFFFF")),
+        name=ticker,
+        hovertemplate='%{theta}: %{r:.0f}/100<extra></extra>',
+    ))
+
+    fig.update_layout(
+        polar=dict(
+            bgcolor="rgba(0,0,0,0)",
+            radialaxis=dict(
+                visible=True,
+                range=[0, 100],
+                showticklabels=False,
+                gridcolor="rgba(0,0,0,0.06)",
+                linecolor="rgba(0,0,0,0)",
+                tickvals=[25, 50, 75, 100],
+            ),
+            angularaxis=dict(
+                linecolor="rgba(0,0,0,0.08)",
+                gridcolor="rgba(0,0,0,0.06)",
+                tickfont=dict(
+                    family="Inter, sans-serif",
+                    size=12,
+                    color="#475569",
+                    weight=600,
+                ),
+            ),
+        ),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        font=dict(family="Inter, sans-serif"),
+        margin=dict(l=60, r=60, t=30, b=30),
+        height=320,
+        showlegend=False,
+    )
+
+    # ── Render in a card container ─────────────────────────────
+    c1, c2 = st.columns([2, 3])
+    with c1:
+        st.html(f"""
+        <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;
+                    padding:20px 24px;height:100%;
+                    box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+          <div style="font-size:11px;font-weight:700;color:#64748B;
+                      letter-spacing:0.1em;text-transform:uppercase;
+                      font-family:'IBM Plex Mono',monospace;margin-bottom:16px;">
+            Snowflake Score</div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+        """)
+        for cat, sc in zip(categories, scores):
+            bar_w = max(2, sc)
+            if sc >= 70:
+                bar_c = "#16A34A"
+            elif sc >= 50:
+                bar_c = "#1D4ED8"
+            elif sc >= 35:
+                bar_c = "#D97706"
+            else:
+                bar_c = "#DC2626"
+            st.html(f"""
+            <div>
+              <div style="display:flex;justify-content:space-between;margin-bottom:3px;">
+                <span style="font-size:12px;font-weight:600;color:#334155;">{cat}</span>
+                <span style="font-size:12px;font-weight:700;color:{bar_c};
+                             font-family:'IBM Plex Mono',monospace;">{sc:.0f}</span>
+              </div>
+              <div style="height:6px;background:#F1F5F9;border-radius:3px;overflow:hidden;">
+                <div style="height:100%;width:{bar_w:.0f}%;background:{bar_c};
+                            border-radius:3px;transition:width 0.5s;"></div>
+              </div>
+            </div>
+            """)
+        st.html(f"""
+          </div>
+          <div style="margin-top:16px;padding-top:12px;border-top:1px solid #F1F5F9;
+                      text-align:center;">
+            <span style="font-size:24px;font-weight:800;color:{line_color};
+                         font-family:'IBM Plex Mono',monospace;">{avg_score:.0f}</span>
+            <span style="font-size:13px;color:#94A3B8;margin-left:6px;">/100</span>
+            <div style="font-size:11px;font-weight:600;color:{line_color};
+                        margin-top:2px;">{grade_label}</div>
+          </div>
+        </div>
+        """)
+    with c2:
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+
 def kpi_row(metrics: list) -> None:
     n = min(len(metrics), 4)
     cols = ""

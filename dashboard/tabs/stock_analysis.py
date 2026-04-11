@@ -11,7 +11,7 @@ from plotly.subplots import make_subplots
 import json as _json
 import time as _time
 from datetime import datetime, date as _date
-from ui.cards import inject_styles as _inject_card_styles, verdict_card as _verdict_card, kpi_row as _kpi_row, valuation_gauge as _valuation_gauge
+from ui.cards import inject_styles as _inject_card_styles, verdict_card as _verdict_card, kpi_row as _kpi_row, valuation_gauge as _valuation_gauge, snowflake_chart as _snowflake_chart
 
 # Utility / formatting functions — loaded by file path to avoid utils/ name collision
 import importlib.util as _ilu, pathlib as _pl
@@ -1039,6 +1039,18 @@ def render() -> None:
             fair_value=float(_display_iv),
             mos_pct=float(_display_mos),
             sym=sym,
+        )
+
+        # ── SNOWFLAKE RADAR (Simply Wall St-style) ───────
+        _snowflake_chart(
+            mos_pct=float(_display_mos),
+            piotroski=int(enriched.get("piotroski_score", 5) or 5),
+            rev_growth=float(enriched.get("revenue_growth", 0) * 100),
+            fcf_growth=float(enriched.get("fcf_growth", 0) * 100),
+            op_margin=float(enriched.get("op_margin", 0) * 100),
+            debt_to_equity=float(enriched.get("debt_to_equity", 0) or 0),
+            moat_score=float(enriched.get("moat_score", 0) or 0),
+            ticker=ticker_input,
         )
         # ── END VERDICT CARD ─────────────────────────────
 
