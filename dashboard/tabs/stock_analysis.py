@@ -2815,10 +2815,10 @@ ro.observe(document.getElementById('wrap'));
                     st.caption(f"White border = base case  ·  Green = undervalued  ·  Red = overvalued  ·  Values in {to_code}")
                     ccard_end()
 
-                # ── Monte Carlo
-                if _show_mc:
+                # ── Monte Carlo (Pro mode + must have results)
+                if _show_mc and pro_mode and run_mc and mc_result and mc_result.get("iv_values") is not None:
                     with st.expander("🎲 Monte Carlo Simulation — Probability Range of 1,000 Outcomes"):
-                        if run_mc and mc_result and "iv_values" in mc_result:
+                        if True:  # data already validated above
                             mc_arr = mc_result["iv_values"] * fx
                             fig_mc = go.Figure()
                             fig_mc.add_trace(go.Histogram(

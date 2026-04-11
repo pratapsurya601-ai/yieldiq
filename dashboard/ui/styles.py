@@ -1139,33 +1139,42 @@ def inject_arrow_fix_js() -> None:
            /^_[a-z][a-z_]+$/.test(t);
   }
 
+  // Regex to match icon text patterns anywhere in a string
+  var ICON_RX = /(_arrow_right|_arrow_\w+|_expand_\w+|_chevron_\w+|keyboard_double_arrow_\w+|keyboard_\w+)/g;
+
   function clean() {
     // 1. Hide SVGs in summaries
     document.querySelectorAll(
       '[data-testid="stExpander"] summary svg, details > summary svg'
     ).forEach(function(svg) { svg.style.display = 'none'; });
 
-    // 2. Clean ONLY bare text nodes inside summaries (not spans/p)
+    // 2. Strip icon text from ALL text nodes and spans inside summaries
     document.querySelectorAll(
       '[data-testid="stExpander"] summary, details > summary'
     ).forEach(function(sum) {
-      sum.childNodes.forEach(function(n) {
-        if (n.nodeType === 3 && isIcon(n.textContent)) {
-          n.textContent = '';
+      // Walk all descendant nodes (text + elements)
+      var walker = document.createTreeWalker(sum, NodeFilter.SHOW_TEXT);
+      var node;
+      while (node = walker.nextNode()) {
+        var t = node.textContent;
+        if (ICON_RX.test(t)) {
+          node.textContent = t.replace(ICON_RX, '');
         }
-      });
+      }
     });
 
-    // 3. Clean stray icon text anywhere (e.g. sidebar collapse button)
-    document.querySelectorAll('span').forEach(function(sp) {
-      var t = (sp.textContent || '').trim();
-      // Only blank spans that contain NOTHING but an icon string
-      // and have no child elements (pure icon spans)
-      if (isIcon(t) && sp.children.length === 0 &&
-          !sp.closest('p') && !sp.closest('label') &&
-          !sp.closest('button') && !sp.closest('a')) {
-        sp.style.cssText = 'font-size:0!important;width:0!important;height:0!important;' +
-                           'overflow:hidden!important;position:absolute!important;';
+    // 3. Strip stray icon text from body-level spans
+    document.querySelectorAll('.stApp span').forEach(function(sp) {
+      if (sp.children.length > 0) return; // skip spans with child elements
+      var t = sp.textContent || '';
+      if (ICON_RX.test(t)) {
+        var cleaned = t.replace(ICON_RX, '').trim();
+        if (!cleaned) {
+          sp.style.cssText = 'font-size:0!important;width:0!important;height:0!important;' +
+                             'overflow:hidden!important;position:absolute!important;';
+        } else {
+          sp.textContent = cleaned;
+        }
       }
     });
   }
