@@ -33,7 +33,7 @@ def _get_active_theme():
     _ts = _ilu2.spec_from_file_location("_yiq_th_x", _tp)
     _tm = _ilu2.module_from_spec(_ts); _ts.loader.exec_module(_tm)
     import streamlit as st
-    return _tm.get_theme(st.session_state.get("theme", "forest"))
+    return _tm.get_theme(st.session_state.get("theme", "slate"))
 
 
 HORIZONS = {90: "3 Months", 180: "6 Months", 365: "12 Months"}

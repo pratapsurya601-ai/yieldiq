@@ -35,7 +35,7 @@ def _get_active_theme():
     _ts = _ilu2.spec_from_file_location("_yiq_th_x", _tp)
     _tm = _ilu2.module_from_spec(_ts); _ts.loader.exec_module(_tm)
     import streamlit as st
-    return _tm.get_theme(st.session_state.get("theme", "forest"))
+    return _tm.get_theme(st.session_state.get("theme", "slate"))
 
 
 
@@ -1130,7 +1130,7 @@ div[data-testid="stDataFrame"] td {
                         value=f"{_r.get('revenue_growth', 0):+.1f}% Rev",
                         delta=f"{_fcf_g:+.1f}% FCF",
                         delta_positive=(_fcf_g >= 0),
-                        theme_name=st.session_state.get("theme", "forest"),
+                        theme_name=st.session_state.get("theme", "slate"),
                     )
 
         # ── TAB 3 · Quality ───────────────────────────────────────────

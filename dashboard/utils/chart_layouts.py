@@ -11,7 +11,7 @@ def _get_active_theme() -> dict:
     _tp = _pl2.Path(__file__).resolve().parent.parent / "ui" / "themes.py"
     _ts = _ilu2.spec_from_file_location("_yiq_th_cl", _tp)
     _tm = _ilu2.module_from_spec(_ts); _ts.loader.exec_module(_tm)
-    _name = st.session_state.get("theme", "forest")
+    _name = st.session_state.get("theme", "slate")
     return _tm.get_theme(_name)
 
 

@@ -266,7 +266,7 @@ def render() -> None:
             watchlist_rows=get_watchlist(),
             sym=sym,
             has_prior_results=_has_results,
-            theme=st.session_state.get("theme", "light"),
+            theme=st.session_state.get("theme", "slate"),
         )
 
 
@@ -1146,7 +1146,7 @@ def render() -> None:
                 # P/E
                 with _qs_cols[0]:
                     _qs_pe_str = f"{_qs_pe:.1f}×" if (_qs_pe and 0 < _qs_pe < 500) else "—"
-                    _tm = st.session_state.get("theme", "forest")
+                    _tm = st.session_state.get("theme", "slate")
                     themed_metric("P/E", _qs_pe_str, theme_name=_tm)
 
                 # EV/EBITDA

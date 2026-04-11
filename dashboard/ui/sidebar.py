@@ -128,7 +128,7 @@ def render_sidebar(
 
         # ── 2b. THEME INDICATOR ────────────────────────────────��─
         st.markdown("---")
-        _theme_key = st.session_state.get("theme", "forest")
+        _theme_key = st.session_state.get("theme", "slate")
         # Quick-cycle through themes from sidebar
         _theme_cycle = ["forest", "ocean", "aurora", "sakura", "violet", "slate"]
         _theme_names = {
