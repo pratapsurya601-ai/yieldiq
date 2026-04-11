@@ -595,6 +595,12 @@ def _launch_razorpay_checkout(email: str, chosen_tier: str, billing: str = "mont
     try:
         import razorpay as _rzp
         _rzp_secret = os.environ.get("RAZORPAY_KEY_SECRET", "")
+        # Fallback: try streamlit secrets
+        if not _rzp_secret:
+            try:
+                _rzp_secret = st.secrets.get("RAZORPAY_KEY_SECRET", "")
+            except Exception:
+                pass
         _rzp_client = _rzp.Client(auth=(rzp_key, _rzp_secret))
         _plan_map = {
             "starter": os.environ.get("RZP_PLAN_STARTER_MONTHLY", ""),
@@ -615,10 +621,12 @@ def _launch_razorpay_checkout(email: str, chosen_tier: str, billing: str = "mont
         st.error("Razorpay package not installed. Contact support.")
         return
     except Exception as e:
+        # Debug: list all RAZORPAY env vars
+        _all_rzp = {k: v[:8]+"..." for k, v in os.environ.items() if "RAZORPAY" in k or "RZP" in k}
         _dbg_key = rzp_key[:12] + "..." if rzp_key else "EMPTY"
         _dbg_sec = _rzp_secret[:6] + "..." if _rzp_secret else "EMPTY"
         _dbg_plan = _plan_id[:12] + "..." if _plan_id else "EMPTY"
-        st.error(f"Could not create subscription: {e} | key={_dbg_key} secret={_dbg_sec} plan={_dbg_plan}")
+        st.error(f"Could not create subscription: {e} | key={_dbg_key} secret={_dbg_sec} plan={_dbg_plan} | all_vars={_all_rzp}")
         return
 
     app_url = os.environ.get("YIELDIQ_APP_URL", "")
