@@ -111,7 +111,7 @@ def _track_nudge(user_email: str, tier_name: str, nudge_type: str, action: str =
         pass
 
 
-WEBSITE_URL = os.environ.get("YIELDIQ_WEBSITE_URL", "https://yieldiq.app")
+WEBSITE_URL = os.environ.get("YIELDIQ_WEBSITE_URL", "https://www.yieldiq.in")
 PRICING_URL = WEBSITE_URL + "/pricing.html"
 # In-app upgrade: navigate to the pricing tab via query param
 UPGRADE_URL = PRICING_URL
