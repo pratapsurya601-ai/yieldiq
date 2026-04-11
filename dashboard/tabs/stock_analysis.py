@@ -1278,39 +1278,13 @@ def render() -> None:
                     _qs_eveb_str = f"{_qs_eveb:.1f}\u00d7" if (_qs_eveb and 0 < _qs_eveb < 300) else "\u2014"
                     themed_metric("EV/EBITDA", _qs_eveb_str, theme_name=_tm)
 
-                # FCF Yield
+                # Div Yield
                 with _qs_cols[2]:
-                    _qs_fcfy_str = f"{_qs_fcf_yld:.1f}%" if _qs_fcf_yld is not None else "\u2014"
-                    themed_metric("FCF Yield", _qs_fcfy_str, theme_name=_tm)
-
-                # Beta
-                with _qs_cols[3]:
-                    _qs_beta_str = f"{_qs_beta:.2f}" if _qs_beta else "\u2014"
-                    themed_metric("Beta", _qs_beta_str, theme_name=_tm)
-# Div Yield
-                with _qs_cols[4]:
                     _qs_div_str = f"{_qs_div * 100:.1f}%" if _qs_div else "\u2014"
                     themed_metric("Div Yield", _qs_div_str, theme_name=_tm)
 
-                # 52W Range
-                with _qs_cols[5]:
-                    _qs_52w_str = (
-                        f"{sym}{_qs_lo52:,.0f} \u2013 {sym}{_qs_hi52:,.0f}"
-                        if _qs_hi52 and _qs_lo52 else "\u2014"
-                    )
-                    themed_metric("52W Range", _qs_52w_str, theme_name=_tm)
-
-                # Momentum Score
-                with _qs_cols[6]:
-                    _mom_score = momentum_result.get('momentum_score', 0) if 'momentum_result' in locals() else 0
-                    _mom_grade = momentum_result.get('grade', 'N/A') if 'momentum_result' in locals() else 'N/A'
-                    if _mom_score > 0:
-                        themed_metric("\U0001f680 Momentum", f"{_mom_score}/100", delta=_mom_grade, theme_name=_tm)
-                    else:
-                        themed_metric("\U0001f680 Momentum", "\u2014", theme_name=_tm)
-
-               # Piotroski F-Score
-                with _qs_cols[7]:
+                # Piotroski F-Score
+                with _qs_cols[3]:
                     from screener.piotroski import compute_piotroski_fscore
                     piotroski_result = compute_piotroski_fscore(enriched)
                     f_score = piotroski_result.get('score', 0)
