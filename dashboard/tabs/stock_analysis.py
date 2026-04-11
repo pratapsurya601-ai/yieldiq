@@ -321,6 +321,7 @@ def render() -> None:
         # ── Skip fetch/compute if redisplaying from session state ──
         _from_cache = (
             _should_redisplay and
+            not analyse_btn and  # clicking Analyse always does fresh fetch
             st.session_state.get("fin_ticker") == ticker_input and
             st.session_state.get("fin_enriched") is not None and
             st.session_state.get("_dcf_res") is not None
