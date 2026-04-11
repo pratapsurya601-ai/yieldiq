@@ -26,6 +26,7 @@ _auth_spec.loader.exec_module(_auth_mod)
 _init_auth_db     = _auth_mod.init_auth_db
 _login_user       = _auth_mod.login_user
 _register_user    = _auth_mod.register_user
+_reset_password   = _auth_mod.reset_password
 _validate_session = _auth_mod.validate_session
 _logout_session   = _auth_mod.logout_session
 _init_auth_db()
@@ -214,7 +215,7 @@ details summary svg,details>summary>svg,
   <div style="font-size:13px;color:#64748B;margin-top:4px;">Institutional DCF Analysis</div>
 </div>""")
 
-    l_tab, r_tab, f_tab = st.tabs(["  Sign in  ", "  Create account  ", "  Continue free  "])
+    l_tab, r_tab, fp_tab, f_tab = st.tabs(["  Sign in  ", "  Create account  ", "  Reset password  ", "  Continue free  "])
 
     with l_tab:
         with st.form("_yiq_login"):
@@ -251,6 +252,25 @@ details summary svg,details>summary>svg,
                             st.session_state["auth_email"] = re
                             _init_usage_counters(); st.rerun()
                     else: st.error(res["error"])
+
+    with fp_tab:
+        with st.form("_yiq_reset_pw"):
+            rpe = st.text_input("Email", placeholder="you@example.com", key="_rpe")
+            rpn1 = st.text_input("New password (8+ chars)", type="password", key="_rpn1")
+            rpn2 = st.text_input("Confirm new password", type="password", key="_rpn2")
+            if st.form_submit_button("Reset password →", width='stretch', type="primary"):
+                if not rpe or not rpn1:
+                    st.error("Fill in all fields.")
+                elif rpn1 != rpn2:
+                    st.error("Passwords don't match.")
+                elif len(rpn1) < 8:
+                    st.error("Password must be 8+ characters.")
+                else:
+                    res = _reset_password(rpe, rpn1)
+                    if res["ok"]:
+                        st.success("✅ Password reset! You can now sign in with your new password.")
+                    else:
+                        st.error(res["error"])
 
     with f_tab:
         st.markdown("**5 free analyses per day, no account required.**")

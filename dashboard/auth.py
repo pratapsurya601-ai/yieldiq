@@ -164,6 +164,27 @@ def register_user(email: str, password: str, tier: str = "free") -> dict:
         return {"ok": False, "error": str(exc)}
 
 
+def reset_password(email: str, new_password: str) -> dict:
+    """Reset a user's password. Returns {"ok": True} or {"ok": False, "error": str}."""
+    email = email.strip().lower()
+    if not email or "@" not in email:
+        return {"ok": False, "error": "Invalid email address."}
+    if len(new_password) < 8:
+        return {"ok": False, "error": "New password must be at least 8 characters."}
+    pw_hash = _hash_password(new_password)
+    try:
+        with _conn() as con:
+            cur = con.execute(
+                "UPDATE users SET password_hash = ? WHERE email = ?",
+                (pw_hash, email),
+            )
+            if cur.rowcount == 0:
+                return {"ok": False, "error": "No account found with that email."}
+            return {"ok": True}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
 def login_user(
     email:      str,
     password:   str,
