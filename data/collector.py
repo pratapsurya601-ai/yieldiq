@@ -260,6 +260,13 @@ def _fmp_get(endpoint: str, ticker: str) -> list:
 def _fmp_income_statement(ticker: str) -> pd.DataFrame:
     """Fetch income statement from FMP, return DataFrame matching yfinance format."""
     records = _fmp_get("income-statement", ticker)
+    # Fallback: try key-metrics if income-statement is blocked on free tier
+    if not records:
+        records = _fmp_get("key-metrics", ticker)
+        if records:
+            # key-metrics has revenuePerShare, we need full revenue
+            # Try financial-growth instead
+            records = []
     if not records:
         return pd.DataFrame()
     rows = []

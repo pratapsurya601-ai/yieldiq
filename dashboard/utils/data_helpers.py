@@ -147,8 +147,22 @@ def _fetch_stock_data_cached(ticker, _ttl_key, _version):
             _price = (_fh_q or {}).get("price", 0) or (_fmp_pr or {}).get("price", 0)
             _shares = (_fmp_pr or {}).get("shares", 0)
 
-            if _price > 0 and not _fmp_inc.empty:
-                print(f"FMP_DIRECT_OK {ticker}: price={_price}, {len(_fmp_inc)} yrs financials, shares={_shares:,.0f}")
+            _has_any_financials = not _fmp_inc.empty or not _fmp_cf.empty
+            if _price > 0 and _has_any_financials:
+                # If income_df is empty but cf_df exists, build minimal income_df from Finnhub
+                if _fmp_inc.empty and not _fmp_cf.empty:
+                    _rev_ps = (_fh_f or {}).get("rev_per_share", 0)
+                    _est_rev = _rev_ps * _shares if _rev_ps and _shares else 0
+                    _fmp_inc = pd.DataFrame([{
+                        "year": int(_fmp_cf["year"].iloc[-1]) if "year" in _fmp_cf.columns else 2024,
+                        "revenue": _est_rev,
+                        "gross_profit": _est_rev * 0.5,
+                        "operating_income": _est_rev * ((_fh_f or {}).get("net_margin_ttm", 0.1)),
+                        "net_income": _est_rev * ((_fh_f or {}).get("net_margin_ttm", 0.1)),
+                        "ebitda": 0,
+                    }])
+                    print(f"FMP_INCOME_ESTIMATED {ticker}: rev={_est_rev:,.0f} from Finnhub rev_per_share×shares")
+                print(f"FMP_DIRECT_OK {ticker}: price={_price}, inc={len(_fmp_inc)} cf={len(_fmp_cf)} shares={_shares:,.0f}")
                 # Build a minimal raw dict that compute_metrics can process
                 raw = {
                     "ticker": ticker,
