@@ -755,6 +755,18 @@ def render() -> None:
             _growth_str     = f"{base_growth:.1%} projected FCF growth" if base_growth else ""
             _update_progress(3, _growth_str)
 
+            # Guard: estimate shares if still 0 at DCF time
+            _dcf_shares = enriched.get("shares", 0)
+            if _dcf_shares <= 0 and enriched.get("price", 0) > 0:
+                # Try market_cap / price
+                _mc_est = (raw or {}).get("finnhub_financials", {}).get("market_cap", 0)
+                if not _mc_est:
+                    _mc_est = enriched.get("price", 0) * 1e9  # rough: assume $1T for mega-caps
+                _dcf_shares = _mc_est / enriched["price"] if enriched["price"] > 0 else 1e9
+                enriched["shares"] = _dcf_shares
+                print(f"DCF_SHARES_FIX {ticker_input}: estimated {_dcf_shares:,.0f} shares at DCF time")
+            print(f"DCF_INPUT {ticker_input}: shares={enriched.get('shares',0):,.0f} debt={enriched.get('total_debt',0)/1e9:.1f}B cash={enriched.get('total_cash',0)/1e9:.1f}B fcf_base={fcf_base/1e9:.1f}B")
+
             dcf_res = dcf_engine.intrinsic_value_per_share(
                 projected_fcfs=projected, terminal_fcf_norm=terminal_norm,
                 total_debt=enriched["total_debt"], total_cash=enriched["total_cash"],
