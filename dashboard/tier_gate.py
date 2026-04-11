@@ -593,9 +593,14 @@ def _launch_razorpay_checkout(email: str, chosen_tier: str, billing: str = "mont
         return
 
     try:
+        import sys as _sys
+        _sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         from payments.razorpay_client import create_subscription
         sub = create_subscription(email, chosen_tier, billing)
         sub_id = sub["id"]
+    except ImportError as e:
+        st.error(f"Payment module not available: {e}. Please contact support.")
+        return
     except Exception as e:
         st.error(f"Could not create subscription: {e}")
         return
