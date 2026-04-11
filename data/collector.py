@@ -1347,6 +1347,27 @@ class StockDataCollector:
                 log.warning(f"[{self.ticker}] FMP fallback: no financial data available")
 
             shares = _fmp_prof.get("shares", 0)
+            # Estimate shares if FMP profile returned 0
+            if shares <= 0 and price > 0:
+                _mc = _fmp_prof.get("market_cap", 0)
+                if _mc > 0:
+                    shares = _mc / price
+                    log.info(f"[{self.ticker}] FMP shares from mktCap/price: {shares:,.0f}")
+            # Cross-check with NI/EPS
+            if not income_df.empty and "net_income" in income_df.columns:
+                _ni = float(income_df["net_income"].iloc[-1])
+                _fh_eps = (fh_financials or {}).get("eps_ttm", 0)
+                if _ni > 0 and _fh_eps > 0:
+                    _eps_shares = _ni / _fh_eps
+                    if shares <= 0:
+                        shares = _eps_shares
+                        log.info(f"[{self.ticker}] FMP shares from NI/EPS: {shares:,.0f}")
+                    elif abs(_eps_shares / shares - 1) > 0.3:
+                        shares = _eps_shares
+                        log.info(f"[{self.ticker}] FMP shares corrected by NI/EPS: {shares:,.0f}")
+            if shares <= 0:
+                shares = 1e9
+                log.warning(f"[{self.ticker}] FMP shares fallback: 1B")
             bs = {
                 "total_debt":       _fmp_bs.get("total_debt", 0),
                 "total_cash":       _fmp_bs.get("total_cash", 0),
