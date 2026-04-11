@@ -84,20 +84,23 @@ def render_sidebar(
 
         # ── 2. VERTICAL NAV MENU ─────────────────────────────────
         # Groups: None = regular item, "divider" = insert hr before next group
+        # Primary nav — 6 core items
         _NAV_ITEMS = [
-            ("\U0001f3e0", "Home",  "morning_brief"),
-            ("\U0001f50d", "Stock Analysis", "stock"),
+            ("\U0001f3e0", "Home",           "morning_brief"),
+            ("\U0001f4ca", "Stock Analysis", "stock"),
             None,                                           # ── divider ──
-            ("\U0001f4ca", "Financials",     "financials"),
-            ("\U0001f3ed", "Sector Map",     "markets"),
-            ("\u2696\ufe0f", "Compare",        "compare"),
-            None,                                           # ── divider ──
+            ("\U0001f50d", "Screener",       "screener"),
+            ("\U0001f4cb", "Watchlist",      "watchlist"),
             ("\U0001f4bc", "Portfolio",      "portfolio"),
-            ("\U0001f4cb", "Screener",       "screener"),
+        ]
+        # Secondary nav — in a "More" expander
+        _MORE_ITEMS = [
+            ("\U0001f4c8", "Financials",     "financials"),
+            ("\U0001f3ed", "Sector Map",     "markets"),
+            ("\u2696\ufe0f",  "Compare",       "compare"),
             ("\U0001f4c5", "Earnings",       "earnings"),
-            None,                                           # ── divider ──
-            ("\U0001f4b3", "Pricing",         "pricing"),
-            ("\u2699\ufe0f", "Settings",       "about"),
+            ("\U0001f4b3", "Pricing",        "pricing"),
+            ("\u2699\ufe0f",  "Settings",      "about"),
         ]
         _is_brief = (
             _active_main_tab == "stock"
@@ -128,6 +131,18 @@ def render_sidebar(
                 st.rerun()
 
         # ── 2b. THEME INDICATOR ────────────────────────────────��─
+        # ── 2a. MORE ITEMS (secondary nav in expander) ────────
+        with st.expander("More", expanded=False):
+            for _mi, _ml, _mk in _MORE_ITEMS:
+                _ma = _active_main_tab == _mk
+                if st.button(f"{_mi}  {_ml}", key=f"nav_{_mk}",
+                             use_container_width=True,
+                             type="primary" if _ma else "secondary"):
+                    st.session_state["main_tab"] = _mk
+                    st.session_state.pop("_show_morning_brief", None)
+                    st.rerun()
+
+        # ── 2b. THEME INDICATOR ──
         st.markdown("---")
         _theme_key = st.session_state.get("theme", "slate")
         # Quick-cycle through themes from sidebar

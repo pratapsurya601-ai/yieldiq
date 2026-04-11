@@ -1154,14 +1154,14 @@ def render() -> None:
         # ══════════════════════════════════════════════════
         # Stable keys (no emojis) prevent serialisation issues across Streamlit versions
         _pill_options = [
-            ("⚡ Summary",          "summary"),
-            ("💰 Valuation",        "valuation"),
-            ("🏗️ Fundamentals",    "fundamentals"),
-            ("📡 Street Consensus", "consensus"),
+            ("⚡ Overview",          "overview"),
+            ("💰 DCF Model",        "dcf_model"),
+            ("📊 Financials",       "financials"),
+            ("📡 Consensus",        "consensus"),
             ("🤖 Ask AI",           "ask_ai"),
         ]
         if "active_section" not in st.session_state:
-            st.session_state["active_section"] = "summary"
+            st.session_state["active_section"] = "overview"
 
         # Segmented control CSS
         st.html("""<style>
@@ -1208,7 +1208,7 @@ def render() -> None:
         # ══════════════════════════════════════════════════════════
         # QUICK STATS STRIP — only show on Summary tab
         # ══════════════════════════════════════════════════════════
-        if raw and enriched and _active == "summary":
+        if raw and enriched and _active == "overview":
             _qs_pe      = (raw.get("forward_pe")
                           or raw.get("pe_ratio")
                           or (raw.get("finnhub_financials") or {}).get("pe_ttm")
@@ -1299,7 +1299,7 @@ def render() -> None:
                     else:
                         themed_metric("\U0001f4aa F-Score", "\u2014", theme_name=_tm)
 
-        if _active == "summary":
+        if _active == "overview":
             # ══════════════════════════════════════════════════════════
             # MOMENTUM ANALYSIS SECTION
             # ══════════════════════════════════════════════════════════
@@ -1699,7 +1699,7 @@ def render() -> None:
                     w4.metric("Risk-free rate",             f"{wacc_data['rf']:.1%}")
                     w5.metric("Cost of debt",               f"{wacc_data['rd']:.1%}")
 
-        if _active == "valuation":
+        if _active == "dcf_model":
             if not st.session_state.get("fin_enriched"):
                 st.info("Run an analysis first to see this section.")
                 st.stop()
@@ -3374,7 +3374,7 @@ ro.observe(document.getElementById('wrap'));
                 ccard_end()
 
                 # ── Quality (Bloomberg-grade redesign)
-        if _active == "fundamentals":
+        if _active == "financials":
             if not enriched:
                 st.warning("Analysis data unavailable. Please run a new analysis.")
             else:
