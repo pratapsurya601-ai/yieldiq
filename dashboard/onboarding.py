@@ -14,6 +14,7 @@
 # ════════════════════════════════════════════════════════════════
 
 from __future__ import annotations
+import os
 import sqlite3
 import pathlib
 import threading
@@ -22,7 +23,7 @@ from datetime import datetime
 import streamlit as st
 
 # ── same portfolio.db used by the rest of the app ────────────
-_DB_PATH = pathlib.Path(__file__).parent / "portfolio.db"
+_DB_PATH = pathlib.Path(os.environ.get("YIELDIQ_DATA_DIR", str(pathlib.Path(__file__).parent))) / "portfolio.db"
 _lock    = threading.Lock()
 
 # ── session-state keys ───────────────────────────────────────

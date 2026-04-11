@@ -26,7 +26,7 @@ def _set_user_tier(email: str, tier: str) -> None:
     """Update user tier in auth.db."""
     import sqlite3
     from pathlib import Path
-    db_path = Path(__file__).resolve().parent.parent / "dashboard" / "auth.db"
+    db_path = Path(os.environ.get("YIELDIQ_DATA_DIR", str(Path(__file__).resolve().parent.parent / "dashboard"))) / "auth.db"
     try:
         conn = sqlite3.connect(str(db_path))
         conn.execute("PRAGMA journal_mode=WAL")

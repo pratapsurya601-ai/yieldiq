@@ -30,7 +30,7 @@ try:
 except ImportError:
     _BCRYPT = False
 
-DB_PATH = Path(__file__).parent / "auth.db"
+DB_PATH = Path(os.environ.get("YIELDIQ_DATA_DIR", str(Path(__file__).parent))) / "auth.db"
 
 # ── Session lifetime (tier-based) ────────────────────────────
 SESSION_EXPIRY_DAYS_FREE    = 7   # free tier: 7-day sessions

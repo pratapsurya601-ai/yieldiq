@@ -1,12 +1,13 @@
 # payments/models.py
 # Subscription DB helpers — CRUD for subscriptions table in auth.db.
 from __future__ import annotations
+import os
 import sqlite3
 import threading
 from pathlib import Path
 from datetime import datetime
 
-_DB_PATH = Path(__file__).resolve().parent.parent / "dashboard" / "auth.db"
+_DB_PATH = Path(os.environ.get("YIELDIQ_DATA_DIR", str(Path(__file__).resolve().parent.parent / "dashboard"))) / "auth.db"
 _lock = threading.Lock()
 
 

@@ -55,8 +55,8 @@ except ImportError:
 # CONSTANTS
 # ════════════════════════════════════════════════════════════════
 
-_DB_PATH   = pathlib.Path(__file__).parent / "analytics.db"
-_AUTH_PATH = pathlib.Path(__file__).parent / "auth.db"
+_DB_PATH   = pathlib.Path(os.environ.get("YIELDIQ_DATA_DIR", str(pathlib.Path(__file__).parent))) / "analytics.db"
+_AUTH_PATH = pathlib.Path(os.environ.get("YIELDIQ_DATA_DIR", str(pathlib.Path(__file__).parent))) / "auth.db"
 _lock      = threading.Lock()
 
 _ADMIN_ENV = "YIELDIQ_ADMIN"

@@ -20,11 +20,12 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import datetime, timedelta, timezone
+import os
 from pathlib import Path
 from typing import Optional
 
 # Shares auth.db so we can JOIN against users if needed
-DB_PATH = Path(__file__).parent / "auth.db"
+DB_PATH = Path(os.environ.get("YIELDIQ_DATA_DIR", str(Path(__file__).parent))) / "auth.db"
 
 ALERT_LIMITS: dict[str, int] = {
     "free":    3,

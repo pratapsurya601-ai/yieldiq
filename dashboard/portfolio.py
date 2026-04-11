@@ -22,6 +22,7 @@
 from __future__ import annotations
 import json
 import sqlite3
+import os
 import pathlib
 import threading
 from datetime import datetime, timedelta
@@ -31,7 +32,7 @@ import pandas as pd
 import streamlit as st
 
 # ── DB location: same folder as this file ─────────────────────
-_DB_PATH = pathlib.Path(__file__).parent / "portfolio.db"
+_DB_PATH = pathlib.Path(os.environ.get("YIELDIQ_DATA_DIR", str(pathlib.Path(__file__).parent))) / "portfolio.db"
 _lock    = threading.Lock()
 
 

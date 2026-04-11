@@ -76,7 +76,7 @@ LIMITS = {
 # Keep "premium" as a backwards-compat alias for "starter"
 LIMITS["premium"] = LIMITS["starter"]
 
-_ANALYTICS_DB = Path(__file__).parent / "analytics.db"
+_ANALYTICS_DB = Path(os.environ.get("YIELDIQ_DATA_DIR", str(Path(__file__).parent))) / "analytics.db"
 _nudge_lock   = threading.Lock()
 
 # ── Nudge tracking ─────────────────────────────────────────────
