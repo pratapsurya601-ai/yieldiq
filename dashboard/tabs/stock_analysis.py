@@ -11,7 +11,7 @@ from plotly.subplots import make_subplots
 import json as _json
 import time as _time
 from datetime import datetime, date as _date
-from ui.cards import inject_styles as _inject_card_styles, verdict_card as _verdict_card, kpi_row as _kpi_row
+from ui.cards import inject_styles as _inject_card_styles, verdict_card as _verdict_card, kpi_row as _kpi_row, valuation_gauge as _valuation_gauge
 
 # Utility / formatting functions — loaded by file path to avoid utils/ name collision
 import importlib.util as _ilu, pathlib as _pl
@@ -1032,6 +1032,14 @@ def render() -> None:
             {"label": "FCF Growth", "value": f"{_fcf_g:+.1f}%",
              "color": "#16A34A" if _fcf_g >= 0 else "#DC2626"},
         ])
+
+        # ── VALUATION GAUGE (GuruFocus-style) ─────────────
+        _valuation_gauge(
+            price=float(price_d),
+            fair_value=float(_display_iv),
+            mos_pct=float(_display_mos),
+            sym=sym,
+        )
         # ── END VERDICT CARD ─────────────────────────────
 
         mos_w     = min(max(abs(mos_pct), 2), 100)

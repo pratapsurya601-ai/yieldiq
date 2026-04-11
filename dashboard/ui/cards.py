@@ -169,6 +169,124 @@ def verdict_card(
 """)
 
 
+def valuation_gauge(price: float, fair_value: float, mos_pct: float, sym: str = "$") -> None:
+    """
+    GuruFocus-style 5-zone valuation gauge.
+    Shows where the stock sits on a spectrum from Significantly Undervalued → Significantly Overvalued.
+    """
+    # 5 zones based on Margin of Safety %
+    # MoS > 30%: Significantly Undervalued
+    # MoS 10-30%: Undervalued
+    # MoS -10% to +10%: Fairly Valued
+    # MoS -10% to -30%: Overvalued
+    # MoS < -30%: Significantly Overvalued
+
+    zones = [
+        {"label": "Significantly<br>Undervalued", "color": "#065F46", "bg": "#059669", "range": (30, 100)},
+        {"label": "Undervalued",                  "color": "#16A34A", "bg": "#22C55E", "range": (10, 30)},
+        {"label": "Fairly<br>Valued",             "color": "#CA8A04", "bg": "#EAB308", "range": (-10, 10)},
+        {"label": "Overvalued",                   "color": "#DC2626", "bg": "#EF4444", "range": (-30, -10)},
+        {"label": "Significantly<br>Overvalued",  "color": "#991B1B", "bg": "#DC2626", "range": (-100, -30)},
+    ]
+
+    # Clamp mos_pct to -60..+60 for needle position
+    clamped = max(-60, min(60, mos_pct))
+    # Map to 0-100% position (60 = 0%, 0 = 50%, -60 = 100%)
+    needle_pct = ((60 - clamped) / 120) * 100
+
+    # Determine active zone
+    if mos_pct >= 30:
+        active_idx, verdict = 0, "Significantly Undervalued"
+        needle_color = "#065F46"
+    elif mos_pct >= 10:
+        active_idx, verdict = 1, "Undervalued"
+        needle_color = "#16A34A"
+    elif mos_pct >= -10:
+        active_idx, verdict = 2, "Fairly Valued"
+        needle_color = "#CA8A04"
+    elif mos_pct >= -30:
+        active_idx, verdict = 3, "Overvalued"
+        needle_color = "#DC2626"
+    else:
+        active_idx, verdict = 4, "Significantly Overvalued"
+        needle_color = "#991B1B"
+
+    # Build zone segments HTML
+    zone_html = ""
+    for i, z in enumerate(zones):
+        opacity = "1" if i == active_idx else "0.3"
+        border_r = "0" if i < 4 else "8px"
+        border_l = "0" if i > 0 else "8px"
+        zone_html += (
+            f'<div style="flex:1;height:12px;background:{z["bg"]};opacity:{opacity};'
+            f'border-radius:{border_l} {border_r} {border_r} {border_l};'
+            f'transition:opacity 0.3s;"></div>'
+        )
+
+    # Zone labels
+    label_html = ""
+    for i, z in enumerate(zones):
+        weight = "700" if i == active_idx else "400"
+        color = z["color"] if i == active_idx else "#94A3B8"
+        label_html += (
+            f'<div style="flex:1;text-align:center;font-size:9px;font-weight:{weight};'
+            f'color:{color};line-height:1.3;font-family:Inter,sans-serif;">{z["label"]}</div>'
+        )
+
+    st.html(f"""
+<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;
+            padding:20px 24px 18px;margin-bottom:12px;
+            box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+
+  <!-- Header row -->
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+    <div style="font-size:11px;font-weight:700;color:#64748B;
+                letter-spacing:0.1em;text-transform:uppercase;
+                font-family:'IBM Plex Mono',monospace;">Valuation Gauge</div>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div style="font-size:11px;color:#94A3B8;">
+        Price <span style="font-weight:700;color:#0F172A;font-family:'IBM Plex Mono',monospace;">
+        {sym}{price:,.2f}</span></div>
+      <div style="font-size:11px;color:#94A3B8;">
+        Fair Value <span style="font-weight:700;color:{needle_color};font-family:'IBM Plex Mono',monospace;">
+        {sym}{fair_value:,.2f}</span></div>
+    </div>
+  </div>
+
+  <!-- Gauge bar -->
+  <div style="position:relative;margin-bottom:8px;">
+    <!-- Zone segments -->
+    <div style="display:flex;gap:2px;">
+      {zone_html}
+    </div>
+
+    <!-- Needle / marker -->
+    <div style="position:absolute;top:-6px;left:{needle_pct:.1f}%;transform:translateX(-50%);
+                display:flex;flex-direction:column;align-items:center;z-index:2;">
+      <div style="width:0;height:0;border-left:6px solid transparent;
+                  border-right:6px solid transparent;
+                  border-top:8px solid {needle_color};"></div>
+      <div style="width:3px;height:18px;background:{needle_color};border-radius:0 0 2px 2px;"></div>
+    </div>
+  </div>
+
+  <!-- Zone labels -->
+  <div style="display:flex;gap:2px;margin-top:6px;">
+    {label_html}
+  </div>
+
+  <!-- Verdict text -->
+  <div style="text-align:center;margin-top:14px;padding-top:12px;
+              border-top:1px solid #F1F5F9;">
+    <span style="font-size:13px;font-weight:700;color:{needle_color};
+                 font-family:Inter,sans-serif;">{verdict}</span>
+    <span style="font-size:12px;color:#94A3B8;margin-left:8px;">
+      Model estimates {abs(mos_pct):.0f}% {'discount' if mos_pct > 0 else 'premium'} to fair value</span>
+  </div>
+</div>
+""")
+
+
 def kpi_row(metrics: list) -> None:
     n = min(len(metrics), 4)
     cols = ""
