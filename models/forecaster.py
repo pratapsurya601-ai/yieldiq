@@ -276,10 +276,12 @@ def _rule_based_growth(enriched: dict) -> float:
     # At minimum, grow at half the long-run nominal GDP rate
     op_margin = enriched.get("op_margin", 0)
     latest_fcf = enriched.get("latest_fcf", 0)
-    if latest_fcf > 0 and op_margin > 0.05 and mean_reverted < 0:
+    _ticker_dbg = enriched.get('ticker', '?')
+    print(f"GROWTH_CHECK {_ticker_dbg}: blended={blended_growth:.4f} mean_rev={mean_reverted:.4f} fcf={latest_fcf} op_margin={op_margin:.4f} LONG_RUN={LONG_RUN_TARGET:.4f}")
+    if latest_fcf > 0 and op_margin > 0.02 and mean_reverted < LONG_RUN_TARGET * 0.5:
         _growth_floor = LONG_RUN_TARGET * 0.5  # half of long-run anchor
         mean_reverted = max(mean_reverted, _growth_floor)
-        log.debug(f"[{enriched.get('ticker','?')}] Growth floored: {mean_reverted:.2%} (min {_growth_floor:.2%})")
+        print(f"GROWTH_FLOORED {_ticker_dbg}: {mean_reverted:.4f} (floor={_growth_floor:.4f})")
 
     return _clamp(mean_reverted)
 
