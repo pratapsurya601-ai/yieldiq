@@ -1094,6 +1094,31 @@ def render() -> None:
             sym=sym,
         )
 
+        # ── ONE-LINE VERDICT ──────────────────────────────
+        if _display_mos > 30:
+            _verdict_txt = f"Our model estimates this stock trades significantly below fair value — {_display_mos:.0f}% margin of safety."
+            _verdict_clr, _verdict_bg = "#065F46", "#ECFDF5"
+        elif _display_mos > 10:
+            _verdict_txt = f"Stock appears to trade below estimated fair value by {_display_mos:.0f}%."
+            _verdict_clr, _verdict_bg = "#16A34A", "#F0FDF4"
+        elif _display_mos > -10:
+            _verdict_txt = f"Stock trades near our estimated fair value ({_display_mos:+.0f}%)."
+            _verdict_clr, _verdict_bg = "#D97706", "#FFFBEB"
+        elif _display_mos > -30:
+            _verdict_txt = f"Stock appears to trade above estimated fair value by {abs(_display_mos):.0f}%."
+            _verdict_clr, _verdict_bg = "#DC2626", "#FEF2F2"
+        else:
+            _verdict_txt = f"Stock trades significantly above our model estimate — {abs(_display_mos):.0f}% premium."
+            _verdict_clr, _verdict_bg = "#991B1B", "#FEF2F2"
+        st.html(
+            f'<div style="background:{_verdict_bg};border-left:4px solid {_verdict_clr};'
+            f'border-radius:0 12px 12px 0;padding:12px 20px;margin-bottom:12px;">'
+            f'<div style="font-size:13px;color:{_verdict_clr};font-weight:600;line-height:1.5;">'
+            f'{_verdict_txt}</div>'
+            f'<div style="font-size:10px;color:#94A3B8;margin-top:2px;">'
+            f'Model output only — not investment advice</div></div>'
+        )
+
         # ── PATIENCE METER ─────────────────────────────────
         if _display_mos > 0 and enriched.get("revenue_growth", 0) > 0:
             _rev_g_annual = enriched.get("revenue_growth", 0)
@@ -1154,6 +1179,22 @@ def render() -> None:
         # Revenue declining
         if _rev_g < -0.10:
             _red_flags.append(("Declining revenue", f"Revenue shrank {abs(_rev_g)*100:.0f}% — a significant contraction that could signal structural problems."))
+
+        # "Too Good To Be True" — stock looks cheap but has hidden issues
+        if _display_mos > 30 and _piotroski <= 4:
+            _red_flags.append(("Cheap but weak fundamentals", "Stock appears significantly undervalued but has weak financial health. Cheap stocks are sometimes cheap for a reason — verify the business fundamentals."))
+
+        # Insider selling while stock looks undervalued
+        _ins_data = (raw or {}).get("finnhub_insider", {})
+        _ins_net = _ins_data.get("net_shares_90d", 0) if isinstance(_ins_data, dict) else 0
+        if _display_mos > 15 and _ins_net < -100000:
+            _red_flags.append(("Insiders selling while stock looks undervalued", "Company executives are selling shares even though the model shows the stock is undervalued. Insiders may know something the market doesn't."))
+
+        # Earnings growing but operating cash flow flat/declining
+        _ocf_growth = enriched.get("ocf_growth", 0) or 0
+        _ni_growth = enriched.get("ni_growth", 0) or 0
+        if _ni_growth > 0.10 and _ocf_growth < 0:
+            _red_flags.append(("Earnings growing but cash flow declining", f"Net income grew {_ni_growth*100:.0f}% but operating cash flow shrank. This divergence could indicate accounting manipulation or unsustainable growth."))
 
         if _red_flags:
             _flag_html = ""
@@ -1219,6 +1260,45 @@ def render() -> None:
                 )
         except Exception:
             pass
+
+        # ── DIVIDEND INSIGHT ──────────────────────────────
+        _div_yield = enriched.get("dividend_yield", 0) or 0
+        _div_rate = (raw or {}).get("dividend_rate", 0) or 0
+        if _div_yield > 0.005:  # more than 0.5%
+            _div_pct = _div_yield * 100
+            _fd_10y = (raw or {}).get("fh_10y_yield", 0) or 0.07  # India 10Y ~7%
+            _div_vs_bond = "above" if _div_pct > _fd_10y * 100 else "below"
+            _div_icon = "💰" if _div_pct > 3 else "📈"
+            st.html(
+                f'<div style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:12px;'
+                f'padding:12px 20px;margin-bottom:12px;display:flex;align-items:center;gap:14px;">'
+                f'<div style="font-size:20px;">{_div_icon}</div>'
+                f'<div style="flex:1;font-size:12px;color:#92400E;">'
+                f'Dividend yield: <strong>{_div_pct:.2f}%</strong>'
+                f' ({_div_vs_bond} the risk-free rate) · '
+                f'Annual dividend: {sym}{_div_rate * fx:,.2f} per share'
+                f'</div></div>'
+            )
+
+        # ── SECTOR CONTEXT CARD ───────────────────────────
+        _sector_name = enriched.get("sector_name", "") or enriched.get("sector", "")
+        if _sector_name and _sector_name != "general":
+            _sector_pe = enriched.get("sector_pe", 0) or 0
+            _stock_pe = enriched.get("pe_ratio", 0) or (raw or {}).get("pe_ratio", 0) or 0
+            if _stock_pe > 0 and _sector_pe > 0:
+                _pe_vs = ((_stock_pe / _sector_pe) - 1) * 100
+                _pe_label = "premium" if _pe_vs > 0 else "discount"
+                _pe_color = "#DC2626" if _pe_vs > 20 else "#D97706" if _pe_vs > 0 else "#059669"
+                st.html(
+                    f'<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;'
+                    f'padding:12px 20px;margin-bottom:12px;display:flex;align-items:center;gap:16px;">'
+                    f'<div style="font-size:20px;">🏭</div>'
+                    f'<div style="flex:1;font-size:12px;color:#475569;">'
+                    f'<strong>{_sector_name}</strong> sector average P/E: {_sector_pe:.1f}x · '
+                    f'This stock: {_stock_pe:.1f}x '
+                    f'(<span style="color:{_pe_color};font-weight:700;">{abs(_pe_vs):.0f}% {_pe_label}</span>)'
+                    f'</div></div>'
+                )
 
         # ── EARNINGS ALERT BADGE ─────────────────────────
         _next_earn = (raw or {}).get("next_earnings_date", "")
