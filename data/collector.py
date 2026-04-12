@@ -1537,6 +1537,17 @@ class StockDataCollector:
             "lt_debt":              lt_debt,
             "lt_debt_prev":         lt_debt_prev,
         }
+
+        # ── NSE Data Validation ────────────────────────────────
+        try:
+            import time as _time_mod
+            from data.validator import validate_stock_data
+            output["_fetched_at"] = _time_mod.time()
+            output["_validation"] = validate_stock_data(self.ticker, output)
+        except Exception:
+            output["_fetched_at"] = 0
+            output["_validation"] = None
+
         _cache.set(ck, output, TTL_PRICE)
         return output
 

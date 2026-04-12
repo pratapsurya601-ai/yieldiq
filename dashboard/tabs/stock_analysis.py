@@ -679,6 +679,24 @@ def render() -> None:
                 _rt.append(ticker_input)
             st.session_state["recent_tickers"] = _rt[-10:]  # keep last 10
 
+            # ── NSE Data Validation ──────────────────────────────
+            _validation = (raw or {}).get("_validation")
+            if _validation:
+                try:
+                    from data.validator import get_confidence_badge, render_partial_analysis
+                    st.html(get_confidence_badge(_validation))
+                    if _validation.ui_message:
+                        st.warning(_validation.ui_message)
+                    if not _validation.show_dcf:
+                        st.info(
+                            f"Full DCF analysis unavailable for {ticker_input} due to data quality. "
+                            f"Showing available signals only."
+                        )
+                        render_partial_analysis(ticker_input, raw or {})
+                        st.stop()
+                except Exception:
+                    pass
+
         if not _from_cache:
             _price_n_tmp = (raw or {}).get("price", 0)
             _price_str   = f"{sym}{_price_n_tmp:,.2f}" if _price_n_tmp else ""
