@@ -180,11 +180,26 @@ def _init_usage_counters():
 
 def _render_landing_page() -> None:
     """Beautiful landing page — the first thing visitors see at yieldiq.in."""
-    st.html("""
+    # Add logo
+    import base64 as _b64, pathlib as _lp
+    _logo_path = _lp.Path(__file__).parent / "static" / "logo_circle.jpeg"
+    _logo_html = ""
+    if _logo_path.exists():
+        _logo_b64 = _b64.b64encode(_logo_path.read_bytes()).decode()
+        _logo_html = (
+            f'<div style="display:inline-block;width:80px;height:80px;border-radius:50%;'
+            f'overflow:hidden;box-shadow:0 0 24px rgba(29,78,216,0.4);margin-bottom:16px;">'
+            f'<img src="data:image/jpeg;base64,{_logo_b64}" '
+            f'style="width:100%;height:100%;object-fit:cover;transform:scale(1.25);" alt="YieldIQ"/>'
+            f'</div>'
+        )
+
+    st.html(f"""
     <div style="max-width:800px;margin:0 auto;padding:20px 0;">
 
       <!-- Hero -->
       <div style="text-align:center;padding:40px 20px 30px;">
+        {_logo_html}
         <div style="font-size:11px;font-weight:700;color:#1D4ED8;
                     letter-spacing:0.15em;text-transform:uppercase;
                     margin-bottom:12px;">QUANTITATIVE RESEARCH PLATFORM</div>
@@ -253,8 +268,8 @@ def _render_landing_page() -> None:
       <div style="text-align:center;padding:12px 0 20px;">
         <div style="font-size:11px;color:#94A3B8;line-height:1.7;">
           🔒 Model output only — not investment advice ·
-          YieldIQ is not a registered investment adviser<br>
-          Trusted by retail investors across India 🇮🇳
+          YieldIQ is not registered with SEBI as an investment adviser or research analyst<br>
+          Built for Indian retail investors 🇮🇳
         </div>
       </div>
     </div>
