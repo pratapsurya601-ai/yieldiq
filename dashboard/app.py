@@ -232,6 +232,11 @@ st.set_page_config(
 # ══════════════════════════════════════════════════════════════
 # Initialize Session State Keys (prevent KeyErrors)
 # ══════════════════════════════════════════════════════════════
+try:
+    from utils.session_state import init_session_state
+    init_session_state()
+except Exception:
+    pass  # fallback to manual init below
 session_defaults = {
     'sector_dashboard': {},
     'nav': 'Stock Analysis',
@@ -480,8 +485,17 @@ if _al_fired:
 # ══════════════════════════════════════════════════════════════
 # MAIN CONTENT — session-state tab routing
 # ══════════════════════════════════════════════════════════════
+# TOP NAVBAR — 5-tab navigation
+# ══════════════════════════════════════════════════════════════
+try:
+    from ui.navbar import render_navbar
+    _nav_tab = render_navbar()
+except Exception:
+    _nav_tab = None  # fallback to sidebar nav if navbar fails
+
 _ADMIN_MODE = os.environ.get("YIELDIQ_ADMIN", "0") == "1"
 # _active_main_tab is already set above (before the sidebar block)
+# navbar updates main_tab via session state for backward compatibility
 
 
 # ══════════════════════════════════════════════════════════════
