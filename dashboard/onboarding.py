@@ -343,7 +343,7 @@ def _step2() -> None:
                   font-family:Inter,sans-serif;letter-spacing:-0.01em;
                   margin-bottom:8px;">Try It: Analyse a Stock</div>
       <div style="font-size:14px;color:#6B7280;line-height:1.6;">
-        Enter any US ticker below to run your first full DCF analysis.
+        Enter any stock ticker below to run your first full DCF analysis.
         We've pre-filled <strong style="color:#1D4ED8;">Apple (AAPL)</strong> to get you started.
       </div>
     </div>
@@ -369,7 +369,7 @@ def _step2() -> None:
                 display:flex;align-items:flex-start;gap:8px;">
       <span style="font-size:14px;flex-shrink:0;">💡</span>
       <span>
-        US stocks: <code style="background:#FEF3C7;padding:1px 5px;border-radius:3px;">AAPL</code>,
+        Stocks: <code style="background:#FEF3C7;padding:1px 5px;border-radius:3px;">AAPL</code>,
         <code style="background:#FEF3C7;padding:1px 5px;border-radius:3px;">MSFT</code> &nbsp;·&nbsp;
         Indian stocks: add <code style="background:#FEF3C7;padding:1px 5px;border-radius:3px;">.NS</code>
         suffix, e.g. <code style="background:#FEF3C7;padding:1px 5px;border-radius:3px;">RELIANCE.NS</code>

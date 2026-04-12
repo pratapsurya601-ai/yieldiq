@@ -269,7 +269,7 @@ def render() -> None:
     </div>
     <div style="font-size:15px;color:#64748B;font-weight:400;
                 max-width:420px;margin:0 auto;line-height:1.6;">
-      Enter any US ticker to get institutional-grade DCF valuation,
+      Enter any stock ticker to get institutional-grade DCF valuation,
       grade badges, and a plain English verdict in seconds.
     </div>
   </div>

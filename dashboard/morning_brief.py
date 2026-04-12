@@ -776,7 +776,7 @@ def _render_quick_analyze() -> None:
     🔍 Quick Analyse a Stock
   </div>
   <div style="font-size:13px;color:#64748B;">
-    Enter any US or Indian ticker — full DCF analysis in ~10 seconds
+    Enter any stock ticker — full DCF analysis in ~10 seconds
   </div>
 </div>
 """)

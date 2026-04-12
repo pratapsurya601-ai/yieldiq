@@ -37,7 +37,7 @@ def render() -> None:
         st.html("""
         <div style="margin-top:16px;padding:16px 20px;background:#f8fafc;
                     border:1px solid #e2e8f0;border-radius:10px;font-size:13px;color:#4a5568;">
-          <strong>What the screener does:</strong> Runs our DCF model on 542+ US stocks
+          <strong>What the screener does:</strong> Runs our DCF model on 6,000+ stocks
           and 2,270+ Indian stocks — ranked by margin of safety. Updated nightly.
         </div>""")
     else:
