@@ -605,15 +605,20 @@ def _launch_razorpay_checkout(email: str, chosen_tier: str, billing: str = "mont
 
     try:
         import razorpay as _rzp
-        # Read secret — try multiple methods
+        # Read secret — try every possible method
         _rzp_secret = ""
-        for _env_name in ["RAZORPAY_KEY_SECRET", "RAZORPAY_SECRET", "RZP_SECRET"]:
-            _rzp_secret = os.environ.get(_env_name, "")
-            if _rzp_secret:
-                break
+        # Method 1: os.environ
+        _rzp_secret = os.environ.get("RAZORPAY_KEY_SECRET", "").strip().strip('"').strip("'")
+        # Method 2: try alternate names
+        if not _rzp_secret:
+            for _n in ["RAZORPAY_SECRET", "RZP_SECRET", "RZP_KEY_SECRET"]:
+                _rzp_secret = os.environ.get(_n, "").strip().strip('"').strip("'")
+                if _rzp_secret:
+                    break
+        # Method 3: streamlit secrets
         if not _rzp_secret:
             try:
-                _rzp_secret = st.secrets.get("RAZORPAY_KEY_SECRET", "")
+                _rzp_secret = str(st.secrets.get("RAZORPAY_KEY_SECRET", "")).strip().strip('"')
             except Exception:
                 pass
         if not _rzp_secret:
