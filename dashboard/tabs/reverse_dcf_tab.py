@@ -45,6 +45,27 @@ def render(
         }
         txt_c, bg_c, bd_c = COLOUR_MAP.get(colour, COLOUR_MAP["amber"])
 
+        # Plain English insight
+        _price_d = price_n * fx
+        _hist_pct = hist_g * 100
+        _impl_pct = impl_g * 100
+        if _impl_pct > _hist_pct * 1.3:
+            _insight = f"At {sym}{_price_d:,.0f}, the market is pricing in {_impl_pct:.0f}% annual growth — significantly above the historical {_hist_pct:.0f}%. You're paying for optimism."
+        elif _impl_pct < _hist_pct * 0.7:
+            _insight = f"At {sym}{_price_d:,.0f}, the market only expects {_impl_pct:.0f}% growth — well below the historical {_hist_pct:.0f}%. The market may be underestimating this company."
+        else:
+            _insight = f"At {sym}{_price_d:,.0f}, the market expects {_impl_pct:.0f}% annual growth, roughly in line with the historical {_hist_pct:.0f}%. The price reflects realistic expectations."
+
+        st.html(f"""
+        <div style="padding:16px 20px;background:#F0F4FF;border:1px solid #BFDBFE;
+                    border-radius:12px;margin-bottom:16px;">
+          <div style="font-size:14px;font-weight:600;color:#1E40AF;margin-bottom:6px;">
+            💡 What the market is telling you</div>
+          <div style="font-size:13px;color:#334155;line-height:1.7;">
+            {_insight}</div>
+        </div>
+        """)
+
         # Verdict banner
         st.html(f"""
         <div style="padding:14px 20px;background:{bg_c};
@@ -53,7 +74,7 @@ def render(
           <div style="font-size:13px;font-weight:700;color:{txt_c};
                       text-transform:uppercase;letter-spacing:.05em;
                       margin-bottom:6px;">
-            {level.upper()} — {impl_g*100:.1f}% implied annual FCF growth
+            {level.upper()} — {_impl_pct:.1f}% implied annual FCF growth
           </div>
           <div style="font-size:13px;color:#0F172A;line-height:1.7;">
             {summary}

@@ -1094,7 +1094,97 @@ def render() -> None:
             sym=sym,
         )
 
-        # (Old verdict_card, kpi_row, gauge removed — replaced by valuation_hero above)
+        # ── PATIENCE METER ─────────────────────────────────
+        if _display_mos > 0 and enriched.get("revenue_growth", 0) > 0:
+            _rev_g_annual = enriched.get("revenue_growth", 0)
+            _years_to_fv = abs(_display_mos) / (_rev_g_annual * 100) if _rev_g_annual > 0 else 99
+            _years_to_fv = min(_years_to_fv, 10)
+            if _years_to_fv < 2:
+                _patience_color, _patience_label = "#059669", "Short wait"
+                _patience_msg = f"At current growth ({_rev_g_annual*100:.0f}%/yr), the stock could reach fair value in ~{_years_to_fv:.1f} years."
+            elif _years_to_fv < 5:
+                _patience_color, _patience_label = "#D97706", "Moderate patience needed"
+                _patience_msg = f"At current growth, reaching fair value may take ~{_years_to_fv:.0f} years. Good for medium-term investors."
+            else:
+                _patience_color, _patience_label = "#DC2626", "Long-term play"
+                _patience_msg = f"Current growth suggests {_years_to_fv:.0f}+ years to reach fair value. Suitable for very patient investors only."
+            st.html(f"""
+            <div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;
+                        padding:14px 20px;margin-bottom:12px;display:flex;align-items:center;gap:16px;
+                        box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+              <div style="font-size:24px;">⏳</div>
+              <div style="flex:1;">
+                <div style="font-size:11px;font-weight:700;color:{_patience_color};
+                            text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">
+                  {_patience_label}</div>
+                <div style="font-size:12px;color:#475569;line-height:1.5;">
+                  {_patience_msg}</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:22px;font-weight:800;color:{_patience_color};
+                            font-family:'IBM Plex Mono',monospace;">~{_years_to_fv:.1f}yr</div>
+              </div>
+            </div>
+            """)
+
+        # ── RED FLAG SCANNER ─────────────────────────────
+        _red_flags = []
+        _rev_g = enriched.get("revenue_growth", 0)
+        _fcf_g = enriched.get("fcf_growth", 0)
+        _op_margin = enriched.get("op_margin", 0)
+        _de_ratio = enriched.get("debt_to_equity", 0) or 0
+        _piotroski = enriched.get("piotroski_score", 5) or 5
+
+        # Revenue growing but FCF shrinking
+        if _rev_g > 0.05 and _fcf_g < -0.05:
+            _red_flags.append(("Revenue growing but cash flow shrinking", "Revenue is up but free cash flow is declining — could indicate aggressive accounting or rising costs eating profits."))
+
+        # High debt relative to equity
+        if _de_ratio > 2.0:
+            _red_flags.append(("High debt levels", f"Debt-to-equity ratio is {_de_ratio:.1f}x — significantly above healthy levels. High leverage increases risk of financial distress."))
+
+        # Low Piotroski score
+        if _piotroski <= 3:
+            _red_flags.append(("Weak financial health", f"Piotroski F-Score is {_piotroski}/9 — indicates deteriorating fundamentals. Only 3 of 9 accounting signals are positive."))
+
+        # Negative operating margin
+        if _op_margin < 0:
+            _red_flags.append(("Negative operating margins", f"Operating margin is {_op_margin*100:.1f}% — the company is losing money on its core operations."))
+
+        # Revenue declining
+        if _rev_g < -0.10:
+            _red_flags.append(("Declining revenue", f"Revenue shrank {abs(_rev_g)*100:.0f}% — a significant contraction that could signal structural problems."))
+
+        if _red_flags:
+            _flag_html = ""
+            for _title, _desc in _red_flags:
+                _flag_html += (
+                    f'<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid #FEE2E2;">'
+                    f'<span style="color:#DC2626;font-size:16px;flex-shrink:0;">🚩</span>'
+                    f'<div><div style="font-size:12px;font-weight:700;color:#991B1B;">{_title}</div>'
+                    f'<div style="font-size:11px;color:#7F1D1D;line-height:1.5;margin-top:2px;">{_desc}</div></div></div>'
+                )
+            st.html(f"""
+            <div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:12px;
+                        padding:16px 20px;margin-bottom:12px;">
+              <div style="font-size:11px;font-weight:700;color:#991B1B;
+                          text-transform:uppercase;letter-spacing:0.1em;margin-bottom:10px;
+                          font-family:'IBM Plex Mono',monospace;">
+                🚩 Red Flag Scanner — {len(_red_flags)} Warning{'s' if len(_red_flags) > 1 else ''} Detected</div>
+              {_flag_html}
+              <div style="font-size:10px;color:#B91C1C;margin-top:8px;">
+                Red flags are data observations, not recommendations. Always do your own research.</div>
+            </div>
+            """)
+        else:
+            st.html("""
+            <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px;
+                        padding:12px 20px;margin-bottom:12px;display:flex;align-items:center;gap:10px;">
+              <span style="font-size:16px;">✅</span>
+              <div style="font-size:12px;color:#166534;">
+                <strong>No red flags detected.</strong> Financial indicators appear healthy based on available data.</div>
+            </div>
+            """)
 
         # ── SNOWFLAKE RADAR (Simply Wall St-style) ───────
         _snowflake_chart(
@@ -2650,7 +2740,7 @@ ro.observe(document.getElementById('wrap'));
                         '⚡ Want deeper analysis?</div>'
                         '<div style="font-size:13px;color:#64748B;line-height:1.6;">'
                         'Switch to <strong>Pro mode</strong> in the sidebar to unlock '
-                        'Sensitivity, Monte Carlo, Reverse DCF, EV/EBITDA, and more.</div></div>'
+                        'Sensitivity, Monte Carlo, Market Expectations, EV/EBITDA, and more.</div></div>'
                     )
 
                 # ── FIXED Sensitivity Heatmap (Pro only)
@@ -2780,7 +2870,7 @@ ro.observe(document.getElementById('wrap'));
                             mc5.metric("P(Undervalued)", f"{mc_result['prob_undervalued']:.0%}")
 
                 # ── Reverse DCF
-            with (st.expander("🔍 Reverse DCF — What Growth Rate Does the Current Price Imply?") if pro_mode else st.empty()):
+            with (st.expander("💡 What Is The Market Pricing In? — Implied Growth Analysis") if pro_mode else st.empty()):
                 reverse_dcf_tab.render(
                     enriched=enriched, price_n=price_n, wacc=wacc,
                     terminal_g=terminal_g, forecast_yrs=forecast_yrs,
