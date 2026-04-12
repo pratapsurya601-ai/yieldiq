@@ -1019,6 +1019,32 @@ def detect_sector(ticker: str, yf_sector: str = "") -> str:
             return "logistics"
         if any(k in s for k in ["infrastructure","construction"]):
             return "infrastructure"
+        if any(k in s for k in ["bank","financ","insurance","nbfc","lending","credit"]):
+            return "banking"
+
+    # ── Indian banking/NBFC/insurance ticker overrides ────────
+    _IN_BANKS = [
+        "hdfcbank","icicibank","sbin","kotakbank","axisbank","indusindbk",
+        "bandhanbnk","idfcfirstb","federalbnk","pnb","bankbaroda","canbk",
+        "unionbank","iob","centralbk","mahabank","ucobank","indianb",
+        "rblbank","dcbbank","cub","karur","tmb","southbank","karurvysya",
+    ]
+    _IN_NBFC = [
+        "bajfinance","bajajfinsv","cholafin","manappuram","muthootfin",
+        "sbicard","lichsgfin","pfc","recltd","irfc","iifl","jmfinancil",
+        "sundarmfin","poonawalla","creditacc","aavas","homefirst",
+        "aptus","canfinhome","repco","shriramfin",
+    ]
+    _IN_INSURANCE = [
+        "sbilife","hdfclife","icicipruli","icicigi","starhealth",
+        "niacl","gicre","licindia","bajajhldng",
+    ]
+    if any(kw in t for kw in _IN_BANKS):
+        return "banking"
+    if any(kw in t for kw in _IN_NBFC):
+        return "nbfc"
+    if any(kw in t for kw in _IN_INSURANCE):
+        return "insurance"
 
     # Ticker keyword fallback
     for sector_key, sector_data in INDUSTRY_WACC.items():

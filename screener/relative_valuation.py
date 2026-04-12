@@ -30,7 +30,7 @@ log = get_logger(__name__)
 
 # detect_sector() key prefixes that indicate non-DCF sectors
 _NON_DCF_SECTOR_KEYS: set[str] = {
-    "us_banks", "us_reits", "us_insurance", "in_banks",
+    "us_banks", "us_reits", "us_insurance", "in_banks", "banking", "nbfc", "insurance",
 }
 
 # GICS sector name strings (from Yahoo Finance / usa_tickers.csv)
@@ -70,6 +70,27 @@ _SECTOR_MEDIANS: dict[str, dict[str, float]] = {
         "pb":           2.0,
         "ps":           3.5,
         "ev_ebitda":   12.0,
+    },
+    "banking": {  # Indian banks (alias for in_banks)
+        "pe":          14.0,
+        "forward_pe":  12.0,
+        "pb":           2.0,
+        "ps":           3.5,
+        "ev_ebitda":   12.0,
+    },
+    "nbfc": {  # Indian NBFCs — higher P/B due to higher ROE
+        "pe":          18.0,
+        "forward_pe":  15.0,
+        "pb":           2.7,
+        "ps":           5.0,
+        "ev_ebitda":   14.0,
+    },
+    "insurance": {  # Indian insurance — EV-based valuation
+        "pe":          20.0,
+        "forward_pe":  16.0,
+        "pb":           3.0,
+        "ps":           4.0,
+        "ev_ebitda":   15.0,
     },
     # Generic fallbacks keyed by GICS sector name
     "Financials": {

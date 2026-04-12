@@ -9,7 +9,7 @@
 # Controls market availability throughout the app.
 #   "US"     — US-only launch: hides India/Europe, locks tickers to usa_tickers.csv
 #   "GLOBAL" — Full multi-market mode: India, Europe, and US all accessible
-LAUNCH_REGION = "US"
+LAUNCH_REGION = "GLOBAL"
 
 # ── DCF Engine Parameters ──────────────────────────────────────
 DISCOUNT_RATE        = 0.10   # WACC / required rate of return (10%)

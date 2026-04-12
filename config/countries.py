@@ -25,12 +25,16 @@ COUNTRIES: dict[str, dict] = {
             "India VIX":   "^INDIAVIX",
         },
         "popular_stocks": [
-            "RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS",
+            "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS",
             "ICICIBANK.NS", "HINDUNILVR.NS", "ITC.NS", "BHARTIARTL.NS",
+            "SBIN.NS", "BAJFINANCE.NS", "LT.NS", "SUNPHARMA.NS",
+            "TATAMOTORS.NS", "MARUTI.NS", "TITAN.NS", "WIPRO.NS",
         ],
         "popular_display": [
-            "RELIANCE", "TCS", "INFY", "HDFC BANK",
+            "RELIANCE", "TCS", "HDFC BANK", "INFY",
             "ICICI BANK", "HUL", "ITC", "AIRTEL",
+            "SBI", "BAJAJ FIN", "L&T", "SUN PHARMA",
+            "TATA MOTORS", "MARUTI", "TITAN", "WIPRO",
         ],
 
         # ── Valuation defaults ────────────────────────────────
