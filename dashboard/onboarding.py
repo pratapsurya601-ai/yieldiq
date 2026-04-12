@@ -580,7 +580,13 @@ def maybe_show_wizard() -> None:
     email = st.session_state.get("auth_email", "")
 
     # Don't show for guests, unauthenticated, or admin
+    # Also skip by default — only show if user explicitly requests via resume button
     if not email or email == "guest" or email == "admin":
+        return
+
+    # Skip auto-show — wizard only appears when user clicks "Resume Tutorial"
+    if not st.session_state.get(_SHOW_KEY):
+        st.session_state[_DONE_KEY] = True
         return
 
     # Already finished onboarding this session → skip DB check

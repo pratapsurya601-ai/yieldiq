@@ -104,6 +104,8 @@ def render_sidebar(
             ("\U0001f50d", "Screener",       "screener"),
             ("\U0001f4cb", "Watchlist",      "watchlist"),
             ("\U0001f4bc", "Portfolio",      "portfolio"),
+            None,                                           # ── divider ──
+            ("\U0001f4b3", "Pricing",        "pricing"),
         ]
         # Secondary nav — in a "More" expander
         _MORE_ITEMS = [
@@ -111,7 +113,6 @@ def render_sidebar(
             ("\U0001f3ed", "Sector Map",     "markets"),
             ("\u2696\ufe0f",  "Compare",       "compare"),
             ("\U0001f4c5", "Earnings",       "earnings"),
-            ("\U0001f4b3", "Pricing",        "pricing"),
             ("\u2699\ufe0f",  "Settings",      "about"),
         ]
         _is_brief = (

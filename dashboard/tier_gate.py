@@ -175,10 +175,100 @@ def _init_usage_counters():
 
 
 # ══════════════════════════════════════════════════════════════
+# LANDING PAGE  (shown before login card for first-time visitors)
+# ══════════════════════════════════════════════════════════════
+
+def _render_landing_page() -> None:
+    """Beautiful landing page — the first thing visitors see at yieldiq.in."""
+    st.html("""
+    <div style="max-width:800px;margin:0 auto;padding:20px 0;">
+
+      <!-- Hero -->
+      <div style="text-align:center;padding:40px 20px 30px;">
+        <div style="font-size:11px;font-weight:700;color:#1D4ED8;
+                    letter-spacing:0.15em;text-transform:uppercase;
+                    margin-bottom:12px;">QUANTITATIVE RESEARCH PLATFORM</div>
+        <div style="font-size:36px;font-weight:900;color:#0F172A;
+                    line-height:1.15;margin-bottom:16px;
+                    font-family:Inter,sans-serif;">
+          Know if a stock is<br>
+          <span style="background:linear-gradient(135deg,#1D4ED8,#06B6D4);
+                       -webkit-background-clip:text;-webkit-text-fill-color:transparent;">
+          cheap or expensive</span>
+        </div>
+        <div style="font-size:16px;color:#64748B;line-height:1.7;
+                    max-width:520px;margin:0 auto;">
+          DCF valuation engine for retail investors. Get institutional-grade
+          fair value estimates in seconds — not hours.
+        </div>
+      </div>
+
+      <!-- Stats bar -->
+      <div style="display:flex;justify-content:center;gap:40px;
+                  padding:20px 0;margin-bottom:20px;">
+        <div style="text-align:center;">
+          <div style="font-size:28px;font-weight:900;color:#0F172A;">6,000+</div>
+          <div style="font-size:11px;color:#94A3B8;">Stocks covered</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:28px;font-weight:900;color:#0F172A;">10-Year</div>
+          <div style="font-size:11px;color:#94A3B8;">DCF projections</div>
+        </div>
+        <div style="text-align:center;">
+          <div style="font-size:28px;font-weight:900;color:#0F172A;">Free</div>
+          <div style="font-size:11px;color:#94A3B8;">5 analyses/day</div>
+        </div>
+      </div>
+
+      <!-- Feature cards -->
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;
+                  margin-bottom:24px;">
+        <div style="background:#F0F9FF;border:1px solid #BAE6FD;border-radius:12px;
+                    padding:20px 16px;text-align:center;">
+          <div style="font-size:24px;margin-bottom:8px;">📊</div>
+          <div style="font-size:13px;font-weight:700;color:#0369A1;margin-bottom:4px;">
+            Fair Value Engine</div>
+          <div style="font-size:11px;color:#64748B;line-height:1.5;">
+            Multi-year DCF with WACC, terminal value & scenario analysis</div>
+        </div>
+        <div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px;
+                    padding:20px 16px;text-align:center;">
+          <div style="font-size:24px;margin-bottom:8px;">❄️</div>
+          <div style="font-size:13px;font-weight:700;color:#166534;margin-bottom:4px;">
+            Quality Snowflake</div>
+          <div style="font-size:11px;color:#64748B;line-height:1.5;">
+            5-axis radar: Value, Quality, Growth, Health, Moat</div>
+        </div>
+        <div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:12px;
+                    padding:20px 16px;text-align:center;">
+          <div style="font-size:24px;margin-bottom:8px;">🔧</div>
+          <div style="font-size:13px;font-weight:700;color:#9A3412;margin-bottom:4px;">
+            Interactive DCF</div>
+          <div style="font-size:11px;color:#64748B;line-height:1.5;">
+            Adjust WACC, growth, terminal rate — see fair value change instantly</div>
+        </div>
+      </div>
+
+      <!-- Trust -->
+      <div style="text-align:center;padding:12px 0 20px;">
+        <div style="font-size:11px;color:#94A3B8;line-height:1.7;">
+          🔒 Model output only — not investment advice ·
+          YieldIQ is not a registered investment adviser<br>
+          Trusted by retail investors across India 🇮🇳
+        </div>
+      </div>
+    </div>
+    """)
+
+
+# ══════════════════════════════════════════════════════════════
 # LOGIN CARD  (unchanged logic, keeps existing tab-based flow)
 # ══════════════════════════════════════════════════════════════
 
 def _render_login_card():
+    # Show landing page above login card
+    _render_landing_page()
+
     # CSS targeting Streamlit elements must use st.markdown(), not st.html()
     st.markdown("""<style>
 .yiq-aw{max-width:420px;margin:60px auto 0;font-family:'Inter',sans-serif}
