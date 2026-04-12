@@ -652,41 +652,38 @@ def _launch_razorpay_checkout(email: str, chosen_tier: str, billing: str = "mont
     callback = f"{app_url}?payment_status=success&sub_id={sub_id}"
 
     st.session_state["_rzp_checkout_open"] = True
-    import streamlit.components.v1 as components
-    components.html(f"""
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-    <script>
-    var options = {{
-        "key": "{rzp_key}",
-        "subscription_id": "{sub_id}",
-        "name": "YieldIQ",
-        "description": "{chosen_tier.title()} Plan",
-        "image": "",
-        "handler": function(response) {{
-            window.top.location.href = "{callback}" +
-                "&razorpay_payment_id=" + response.razorpay_payment_id +
-                "&razorpay_subscription_id=" + response.razorpay_subscription_id +
-                "&razorpay_signature=" + response.razorpay_signature;
-        }},
-        "prefill": {{ "email": "{email}" }},
-        "theme": {{ "color": "#1D4ED8" }},
-        "modal": {{
-            "ondismiss": function() {{
-                // User closed checkout — do nothing
-            }}
-        }}
-    }};
-    var rzp = new Razorpay(options);
-    rzp.open();
-    </script>
-    <div style="text-align:center;padding:20px;font-size:13px;color:#6B7280;">
-      <div style="margin-bottom:12px;">Loading secure payment gateway...</div>
-      <div style="font-size:11px;color:#94A3B8;line-height:1.6;">
-        🔒 Powered by Razorpay (RBI approved) · Cancel anytime · No hidden charges<br>
-        💡 Tip: Use UPI Autopay for the smoothest experience
-      </div>
-    </div>
-    """, height=500)
+
+    # Use Razorpay payment link instead of JS checkout (more reliable in Streamlit)
+    try:
+        _short_url = sub.get("short_url", "")
+        if _short_url:
+            st.markdown(
+                f'<meta http-equiv="refresh" content="0;url={_short_url}">',
+                unsafe_allow_html=True,
+            )
+            st.markdown(
+                f"""
+                <div style="text-align:center;padding:40px;">
+                  <div style="font-size:16px;font-weight:600;color:#0F172A;margin-bottom:12px;">
+                    Redirecting to secure payment...
+                  </div>
+                  <div style="font-size:13px;color:#64748B;margin-bottom:20px;">
+                    If not redirected automatically,
+                    <a href="{_short_url}" target="_blank" style="color:#1D4ED8;font-weight:600;">
+                      click here to pay ₹{499 if chosen_tier == 'starter' else 1999}
+                    </a>
+                  </div>
+                  <div style="font-size:11px;color:#94A3B8;">
+                    🔒 Powered by Razorpay (RBI approved) · Cancel anytime
+                  </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+        else:
+            st.error("Could not generate payment link. Please try again.")
+    except Exception as e:
+        st.error(f"Payment redirect failed: {e}")
 
 
 def _handle_payment_callback() -> None:
