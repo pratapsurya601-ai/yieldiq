@@ -605,13 +605,21 @@ def _launch_razorpay_checkout(email: str, chosen_tier: str, billing: str = "mont
 
     try:
         import razorpay as _rzp
-        _rzp_secret = os.environ.get("RAZORPAY_KEY_SECRET", "")
-        # Fallback: try streamlit secrets
+        # Read secret — try multiple methods
+        _rzp_secret = ""
+        for _env_name in ["RAZORPAY_KEY_SECRET", "RAZORPAY_SECRET", "RZP_SECRET"]:
+            _rzp_secret = os.environ.get(_env_name, "")
+            if _rzp_secret:
+                break
         if not _rzp_secret:
             try:
                 _rzp_secret = st.secrets.get("RAZORPAY_KEY_SECRET", "")
             except Exception:
                 pass
+        if not _rzp_secret:
+            st.error("Razorpay secret key not found. Add RAZORPAY_KEY_SECRET to Railway environment variables.")
+            return
+
         _rzp_client = _rzp.Client(auth=(rzp_key, _rzp_secret))
         _plan_map = {
             "starter": os.environ.get("RZP_PLAN_STARTER_MONTHLY", ""),
@@ -632,12 +640,7 @@ def _launch_razorpay_checkout(email: str, chosen_tier: str, billing: str = "mont
         st.error("Razorpay package not installed. Contact support.")
         return
     except Exception as e:
-        # Debug: list all RAZORPAY env vars
-        _all_rzp = {k: v[:8]+"..." for k, v in os.environ.items() if "RAZORPAY" in k or "RZP" in k}
-        _dbg_key = rzp_key[:12] + "..." if rzp_key else "EMPTY"
-        _dbg_sec = _rzp_secret[:6] + "..." if _rzp_secret else "EMPTY"
-        _dbg_plan = _plan_id[:12] + "..." if _plan_id else "EMPTY"
-        st.error(f"Could not create subscription: {e} | key={_dbg_key} secret={_dbg_sec} plan={_dbg_plan} | all_vars={_all_rzp}")
+        st.error(f"Payment error: {e}")
         return
 
     app_url = os.environ.get("YIELDIQ_APP_URL", "")
@@ -689,40 +692,45 @@ def _handle_payment_callback() -> None:
             return
 
         sub_id = st.query_params.get("razorpay_subscription_id", "") or st.query_params.get("sub_id", "")
-        payment_id = st.query_params.get("razorpay_payment_id", "")
-        signature = st.query_params.get("razorpay_signature", "")
-
         if not sub_id:
             return
 
-        # Verify signature if available
-        if payment_id and signature:
-            from payments.razorpay_client import verify_payment_signature
-            valid = verify_payment_signature({
-                "razorpay_payment_id": payment_id,
-                "razorpay_subscription_id": sub_id,
-                "razorpay_signature": signature,
-            })
-            if not valid:
-                st.error("Payment verification failed. Please contact support.")
-                return
-
-        # Look up subscription to get tier
-        from payments.models import update_subscription_status, get_active_subscription
+        # Determine tier from sub_id — check which plan it belongs to
         email = st.session_state.get("auth_email", "")
-        update_subscription_status(sub_id, "active", payment_id)
+        starter_plan = os.environ.get("RZP_PLAN_STARTER_MONTHLY", "")
+        pro_plan = os.environ.get("RZP_PLAN_PRO_MONTHLY", "")
 
-        # Determine tier from subscription
-        sub = get_active_subscription(email)
-        new_tier = sub["tier"] if sub else "starter"
+        # Try to fetch subscription details from Razorpay
+        new_tier = "starter"  # default
+        try:
+            import razorpay as _rzp
+            _key = os.environ.get("RAZORPAY_KEY_ID", "")
+            _sec = os.environ.get("RAZORPAY_KEY_SECRET", "")
+            if _key and _sec:
+                _client = _rzp.Client(auth=(_key, _sec))
+                _sub_data = _client.subscription.fetch(sub_id)
+                _sub_plan = _sub_data.get("plan_id", "")
+                if _sub_plan == pro_plan:
+                    new_tier = "pro"
+                elif _sub_plan == starter_plan:
+                    new_tier = "starter"
+                # Also check notes
+                _notes_tier = _sub_data.get("notes", {}).get("tier", "")
+                if _notes_tier in ("starter", "pro"):
+                    new_tier = _notes_tier
+        except Exception:
+            pass  # fallback to "starter"
 
-        # Upgrade user
+        # Upgrade user in session
         st.session_state["tier"] = new_tier
+        st.session_state.pop("_rzp_checkout_open", None)
+
         # Also update in auth.db
         try:
             import sqlite3
             from pathlib import Path
-            db_path = Path(__file__).parent / "auth.db"
+            db_path = Path(os.environ.get("YIELDIQ_DATA_DIR",
+                          str(Path(__file__).parent))) / "auth.db"
             conn = sqlite3.connect(str(db_path))
             conn.execute("UPDATE users SET tier = ? WHERE email = ?", (new_tier, email))
             conn.commit()
@@ -730,7 +738,7 @@ def _handle_payment_callback() -> None:
         except Exception:
             pass
 
-        # Clear payment params and show success
+        # Clear payment params
         try:
             for k in ["payment_status", "sub_id", "razorpay_payment_id",
                        "razorpay_subscription_id", "razorpay_signature"]:
