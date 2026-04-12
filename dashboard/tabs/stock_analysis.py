@@ -1094,6 +1094,71 @@ def render() -> None:
             sym=sym,
         )
 
+        # ── MARKET MOOD (is the market expensive?) ──────
+        _nifty_pe = 0
+        try:
+            import yfinance as _yf_mm
+            _nifty = _yf_mm.Ticker("^NSEI")
+            _nifty_info = _nifty.info
+            _nifty_pe = _nifty_info.get("trailingPE", 0) or 0
+        except Exception:
+            pass
+        if _nifty_pe > 0:
+            if _nifty_pe > 25:
+                _mm_icon, _mm_label, _mm_color = "🔴", "Market looks expensive", "#DC2626"
+                _mm_msg = f"NIFTY 50 P/E is {_nifty_pe:.1f}x — above historical average (~22x). Valuations are stretched."
+            elif _nifty_pe > 20:
+                _mm_icon, _mm_label, _mm_color = "🟡", "Market fairly valued", "#D97706"
+                _mm_msg = f"NIFTY 50 P/E is {_nifty_pe:.1f}x — near historical average. Neither cheap nor expensive."
+            else:
+                _mm_icon, _mm_label, _mm_color = "🟢", "Market looks cheap", "#059669"
+                _mm_msg = f"NIFTY 50 P/E is {_nifty_pe:.1f}x — below historical average. Could be a good time to find bargains."
+            st.html(
+                f'<div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:12px;'
+                f'padding:10px 20px;margin-bottom:12px;display:flex;align-items:center;gap:12px;">'
+                f'<span style="font-size:16px;">{_mm_icon}</span>'
+                f'<div style="font-size:11px;color:#64748B;">'
+                f'<strong style="color:{_mm_color};">{_mm_label}</strong> · {_mm_msg}</div>'
+                f'</div>'
+            )
+
+        # ── YIELDIQ QUICK SCORE (aggregated) ─────────────
+        _qs_value = max(0, min(100, (_display_mos + 40) / 80 * 100))
+        _qs_quality = max(0, min(100, (_piotroski / 9) * 100)) if enriched.get("piotroski_score") else 50
+        _qs_growth = max(0, min(100, ((enriched.get("revenue_growth", 0) * 100 + 20) / 60 * 50 +
+                                       (enriched.get("fcf_growth", 0) * 100 + 20) / 60 * 50)))
+        _qs_total = int((_qs_value * 0.4 + _qs_quality * 0.3 + _qs_growth * 0.3))
+        _qs_total = max(0, min(100, _qs_total))
+
+        if _qs_total >= 75:
+            _qs_color, _qs_bg, _qs_label = "#059669", "#F0FDF4", "Strong Opportunity"
+        elif _qs_total >= 55:
+            _qs_color, _qs_bg, _qs_label = "#1D4ED8", "#EFF6FF", "Worth Investigating"
+        elif _qs_total >= 35:
+            _qs_color, _qs_bg, _qs_label = "#D97706", "#FFFBEB", "Mixed Signals"
+        else:
+            _qs_color, _qs_bg, _qs_label = "#DC2626", "#FEF2F2", "Proceed With Caution"
+
+        st.html(
+            f'<div style="background:{_qs_bg};border:2px solid {_qs_color}30;border-radius:14px;'
+            f'padding:16px 20px;margin-bottom:12px;display:flex;align-items:center;gap:16px;">'
+            f'<div style="text-align:center;min-width:70px;">'
+            f'<div style="font-size:36px;font-weight:900;color:{_qs_color};'
+            f'font-family:IBM Plex Mono,monospace;line-height:1;">{_qs_total}</div>'
+            f'<div style="font-size:9px;color:{_qs_color};opacity:0.7;">/100</div></div>'
+            f'<div style="flex:1;">'
+            f'<div style="font-size:13px;font-weight:700;color:{_qs_color};margin-bottom:4px;">'
+            f'{_qs_label}</div>'
+            f'<div style="display:flex;gap:12px;font-size:10px;color:#64748B;">'
+            f'<span>Value: {_qs_value:.0f}</span>'
+            f'<span>Quality: {_qs_quality:.0f}</span>'
+            f'<span>Growth: {_qs_growth:.0f}</span></div>'
+            f'</div>'
+            f'<div style="font-size:10px;color:#94A3B8;text-align:right;">'
+            f'Model output only<br>Not investment advice</div>'
+            f'</div>'
+        )
+
         # ── ONE-LINE VERDICT ──────────────────────────────
         if _display_mos > 30:
             _verdict_txt = f"Our model estimates this stock trades significantly below fair value — {_display_mos:.0f}% margin of safety."
@@ -1360,6 +1425,29 @@ def render() -> None:
                 f'Dividend yield: <strong>{_div_pct:.2f}%</strong>'
                 f' ({_div_vs_bond} the risk-free rate) · '
                 f'Annual dividend: {sym}{_div_rate * fx:,.2f} per share'
+                f'</div></div>'
+            )
+
+        # ── OWNERSHIP BREAKDOWN ──────────────────────────
+        _inst_pct = enriched.get("institutional_pct", 0) or 0
+        _insider_pct = enriched.get("insider_pct", 0) or 0
+        if _inst_pct > 0 or _insider_pct > 0:
+            _retail_pct = max(0, 100 - _inst_pct - _insider_pct)
+            st.html(
+                f'<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;'
+                f'padding:14px 20px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
+                f'<div style="font-size:11px;font-weight:700;color:#94A3B8;'
+                f'text-transform:uppercase;letter-spacing:0.08em;margin-bottom:10px;'
+                f'font-family:IBM Plex Mono,monospace;">Ownership Breakdown</div>'
+                f'<div style="display:flex;height:10px;border-radius:5px;overflow:hidden;margin-bottom:8px;">'
+                f'<div style="width:{_inst_pct:.0f}%;background:#1D4ED8;" title="Institutional {_inst_pct:.0f}%"></div>'
+                f'<div style="width:{_insider_pct:.0f}%;background:#059669;" title="Insider {_insider_pct:.0f}%"></div>'
+                f'<div style="width:{_retail_pct:.0f}%;background:#E2E8F0;" title="Retail {_retail_pct:.0f}%"></div>'
+                f'</div>'
+                f'<div style="display:flex;gap:16px;font-size:10px;color:#64748B;">'
+                f'<span>🔵 Institutional {_inst_pct:.0f}%</span>'
+                f'<span>🟢 Insider {_insider_pct:.0f}%</span>'
+                f'<span>⚪ Retail {_retail_pct:.0f}%</span>'
                 f'</div></div>'
             )
 

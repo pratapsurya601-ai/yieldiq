@@ -101,6 +101,7 @@ def render_sidebar(
             ("\U0001f3e0", "Home",           "morning_brief"),
             ("\U0001f4ca", "Stock Analysis", "stock"),
             None,                                           # ── divider ──
+            ("\U0001f3c6", "YieldIQ 50",     "yieldiq50"),
             ("\U0001f50d", "Screener",       "screener"),
             ("\U0001f4cb", "Watchlist",      "watchlist"),
             ("\U0001f4bc", "Portfolio",      "portfolio"),

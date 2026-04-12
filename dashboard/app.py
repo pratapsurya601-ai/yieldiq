@@ -525,6 +525,13 @@ if _active_main_tab == "screener":
     _render_screener()
 
 # ══════════════════════════════════════════════════════════════
+# TAB — YIELDIQ 50 INDEX
+# ══════════════════════════════════════════════════════════════
+from tabs.yieldiq50_tab import render as _render_yieldiq50
+if _active_main_tab == "yieldiq50":
+    _render_yieldiq50()
+
+# ══════════════════════════════════════════════════════════════
 # TAB — PORTFOLIO
 # ══════════════════════════════════════════════════════════════
 if _active_main_tab == "portfolio":
