@@ -29,10 +29,10 @@ def fmts(v, sym):
 
 # Signal translation mapping
 _SIG_HUMAN = {
-    "Undervalued 🟢":    ("📊 Undervalued by model estimate",  "#0D7A4E", "#F0FDF4", "#BBF7D0"),
+    "Undervalued 🟢":    ("📊 Undervalued by model estimate",  "#185FA5", "#EFF6FF", "#BFDBFE"),
     "Near Fair Value 🟡":("📉 Slightly below model fair value", "#B45309", "#FFFBEB", "#FDE68A"),
-    "Fairly Valued 🔵":  ("⚖️ Near model fair value",           "#1D4ED8", "#EFF6FF", "#BFDBFE"),
-    "Overvalued 🔴":     ("📈 Overvalued by model estimate",    "#B91C1C", "#FEF2F2", "#FECACA"),
+    "Fairly Valued 🔵":  ("⚖️ Near model fair value",           "#475569", "#F8FAFC", "#E2E8F0"),
+    "Overvalued 🔴":     ("📈 Overvalued by model estimate",    "#B45309", "#FFFBEB", "#FDE68A"),
     "⚠️ Data Limited":   ("🔍 Model data needs review",         "#B45309", "#FFFBEB", "#FDE68A"),
     "N/A ⬜":            ("⏳ Analysing…",                     "#4A5E7A", "#FFFFFF", "#F8FAFC"),
 }
@@ -77,6 +77,61 @@ def mos_insight(mos_pct: float, sig: str, company: str, suspicious: bool) -> str
         return f"📊 Our model estimates {company} is trading ~{abs(mos_pct):.0f}% above its calculated fair value."
     else:
         return f"📊 Our model estimates {company} is trading ~{abs(mos_pct):.0f}% above its calculated fair value."
+
+
+def format_currency_regional(value: float, region: str = "IN", sym: str = "") -> str:
+    """
+    Format currency value with region-appropriate abbreviation.
+    India: ₹1.2Cr, ₹45.3L, ₹12,345
+    US/UK: $1.2B, $45.3M, $12,345
+    """
+    if not sym:
+        sym = "₹" if region == "IN" else "$"
+
+    _abs = abs(value)
+
+    if region == "IN":
+        if _abs >= 1e7:
+            return f"{sym}{value / 1e7:.1f}Cr"
+        elif _abs >= 1e5:
+            return f"{sym}{value / 1e5:.1f}L"
+        return f"{sym}{value:,.0f}"
+    else:
+        if _abs >= 1e9:
+            return f"{sym}{value / 1e9:.1f}B"
+        elif _abs >= 1e6:
+            return f"{sym}{value / 1e6:.1f}M"
+        return f"{sym}{value:,.0f}"
+
+
+def format_market_cap(value: float, region: str = "IN", sym: str = "") -> str:
+    """Format market cap with appropriate scale."""
+    if not sym:
+        sym = "₹" if region == "IN" else "$"
+
+    if region == "IN":
+        if value >= 1e7:
+            return f"{sym}{value / 1e7:,.0f}Cr"
+        elif value >= 1e5:
+            return f"{sym}{value / 1e5:,.0f}L"
+        return f"{sym}{value:,.0f}"
+    else:
+        if value >= 1e12:
+            return f"{sym}{value / 1e12:.2f}T"
+        elif value >= 1e9:
+            return f"{sym}{value / 1e9:.1f}B"
+        elif value >= 1e6:
+            return f"{sym}{value / 1e6:.1f}M"
+        return f"{sym}{value:,.0f}"
+
+
+def get_region() -> str:
+    """Get current region from config."""
+    try:
+        from config.countries import get_active_country
+        return get_active_country().get("code", "IN")
+    except Exception:
+        return "IN"
 
 
 def plain_kpi_label(label: str) -> str:

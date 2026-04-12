@@ -25,13 +25,13 @@ def render_export_options(
         c1, c2, c3 = st.columns(3)
         with c1:
             if st.button("📄 PDF Report", key="_exp_pdf", use_container_width=True):
-                st.info("PDF export triggered — check downloads.")
+                st.info("PDF report ready — check your downloads")
         with c2:
             if st.button("📊 Excel Model", key="_exp_excel", use_container_width=True):
-                st.info("Excel export triggered — check downloads.")
+                st.info("Excel model ready — check your downloads")
         with c3:
             if st.button("📋 Google Sheets", key="_exp_sheets", use_container_width=True):
-                st.info("Sheets export triggered.")
+                st.info("Google Sheets export ready")
 
     elif _tier == "starter":
         # Starter: PDF + share
@@ -39,7 +39,7 @@ def render_export_options(
         with c1:
             if st.button("📄 Download PDF", key="_exp_pdf_s", use_container_width=True,
                          type="primary"):
-                st.info("PDF export triggered — check downloads.")
+                st.info("PDF report ready — check your downloads")
         with c2:
             if st.button("📤 Share Link", key="_exp_share_s", use_container_width=True):
                 st.code(f"https://www.yieldiq.in/?ticker={ticker}", language=None)

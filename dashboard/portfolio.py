@@ -1047,7 +1047,7 @@ def _render_portfolio_table(holdings: list, sym: str) -> None:
             )
             if st.button("Save Notes", key=f"_save_notes_{selected}", type="primary"):
                 update_notes(selected, new_notes)
-                st.success("Notes saved.")
+                st.success("Got it — your notes are saved")
                 st.rerun()
 
 
@@ -1205,7 +1205,7 @@ def _render_add_form(analysed_ticker: str, analysed_data: dict | None, sym: str)
                     notes        = manual_notes,
                 )
                 if ok:
-                    st.success(f"✓ {t} added to portfolio!")
+                    st.success(f"{t} added to your portfolio")
                     st.rerun()
 
 
@@ -1450,7 +1450,7 @@ def _render_sheets_sync(holdings: list) -> None:
                         st.session_state["_sheets_url"]    = url
                         st.session_state["_sheets_synced"] = \
                             datetime.now().strftime("%d %b %Y %H:%M")
-                        st.success("✓ Portfolio synced!")
+                        st.success("Portfolio synced with latest data")
                         st.rerun()
                     except Exception as _e:
                         st.error(f"Sheets sync failed: {_e}")

@@ -213,8 +213,8 @@ def render() -> None:
                        "margin_of_safety":"Discount","signal":"Signal","fundamental_grade":"Grade",
                        "fundamental_score":"Quality","revenue_growth":"Rev Gr","op_margin":"Margin",
                        "rr_ratio":"R/R"}
-        _SIG_META = {"Undervalued 🟢":("#0D7A4E","#022c1d"),"Near Fair Value 🟡":("#B45309","#2d1f05"),
-                     "Fairly Valued 🔵":("#1D4ED8","#07112e"),"Overvalued 🔴":("#B91C1C","#2d0606")}
+        _SIG_META = {"Undervalued 🟢":("#185FA5","#0a1e3d"),"Near Fair Value 🟡":("#B45309","#2d1f05"),
+                     "Fairly Valued 🔵":("#475569","#1a1f27"),"Overvalued 🔴":("#B45309","#2d1f05")}
 
         def _badge(s):
             fg,bg = _SIG_META.get(str(s), ("#475569","#161b22"))

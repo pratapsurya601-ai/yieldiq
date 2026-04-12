@@ -44,7 +44,7 @@ def render_action_bar(ticker: str, current_price: float) -> None:
         if _tier in ("starter", "pro"):
             if st.button("📥 Export PDF", key=f"_ab_export_{ticker}",
                          use_container_width=True):
-                st.info("PDF export triggered — check downloads.")
+                st.info("PDF report ready — check your downloads")
         else:
             if st.button("📤 Share", key=f"_ab_share_{ticker}",
                          use_container_width=True):

@@ -62,12 +62,12 @@ _lock      = threading.Lock()
 _ADMIN_ENV = "YIELDIQ_ADMIN"
 
 _TIER_PRICES  = {"free": 0, "starter": 19, "premium": 19, "pro": 49}
-_TIER_COLORS  = {"free": "#64748B", "starter": "#5046e4", "premium": "#5046e4", "pro": "#059669"}
+_TIER_COLORS  = {"free": "#64748B", "starter": "#5046e4", "premium": "#5046e4", "pro": "#1D4ED8"}
 _SIGNAL_ORDER = ["STRONG BUY", "BUY", "WATCH", "HOLD", "SELL", "STRONG SELL"]
 _SIGNAL_COLS  = {
-    "STRONG BUY":  "#059669", "BUY": "#16a34a",
-    "WATCH":       "#d97706", "HOLD": "#2563eb",
-    "SELL":        "#dc2626", "STRONG SELL": "#7f1d1d",
+    "STRONG BUY":  "#1E40AF", "BUY": "#185FA5",
+    "WATCH":       "#d97706", "HOLD": "#475569",
+    "SELL":        "#B45309", "STRONG SELL": "#92400E",
 }
 
 _EVENT_LABELS = {

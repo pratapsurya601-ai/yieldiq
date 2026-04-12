@@ -119,7 +119,8 @@ def render() -> None:
                         _tal_uid, _new_ticker, _new_type, _new_price, _tal_tier
                     )
                     if _al_res["ok"]:
-                        st.success(f"Alert created for {_new_ticker}.")
+                        _t = _new_ticker.replace(".NS", "").replace(".BO", "")
+                        st.success(f"Alert set — we'll notify you when {_t} hits your target")
                         st.rerun()
                     else:
                         st.error(_al_res["error"])

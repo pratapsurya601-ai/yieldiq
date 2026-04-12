@@ -140,13 +140,13 @@ def render() -> None:
                 # ── Colour scheme by MoS ──────────────────────────
                 _alert_triggered = _mos >= _thresh
                 if _alert_triggered:
-                    _mos_col, _mos_bg, _top_bar = "#059669", "#ECFDF5", "#059669"
+                    _mos_col, _mos_bg, _top_bar = "#185FA5", "#EFF6FF", "#1D4ED8"
                 elif _mos > 10:
-                    _mos_col, _mos_bg, _top_bar = "#0D7A4E", "#F0FDF4", "#10B981"
+                    _mos_col, _mos_bg, _top_bar = "#185FA5", "#EFF6FF", "#3B82F6"
                 elif _mos > 0:
                     _mos_col, _mos_bg, _top_bar = "#D97706", "#FFFBEB", "#F59E0B"
                 else:
-                    _mos_col, _mos_bg, _top_bar = "#DC2626", "#FEF2F2", "#EF4444"
+                    _mos_col, _mos_bg, _top_bar = "#B45309", "#FFFBEB", "#D97706"
 
                 _since_col = "#059669" if _since_added >= 0 else "#DC2626"
                 _since_sym = "▲" if _since_added >= 0 else "▼"

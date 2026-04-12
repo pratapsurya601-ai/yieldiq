@@ -51,16 +51,16 @@ _SIG_RANK = {
     "N/A ⬜":            0,
 }
 _SIG_COLORS = {
-    "Undervalued 🟢":    "#059669",
+    "Undervalued 🟢":    "#185FA5",
     "Near Fair Value 🟡":"#D97706",
-    "Fairly Valued 🔵":  "#2563EB",
-    "Overvalued 🔴":     "#DC2626",
+    "Fairly Valued 🔵":  "#475569",
+    "Overvalued 🔴":     "#B45309",
     "⚠️ Data Limited":   "#D97706",
     "N/A ⬜":            "#64748B",
 }
 _EQ_RANK   = {"STRONG": 4, "GOOD": 3, "AVERAGE": 2, "WEAK": 1, "N/A": 0}
 _EQ_COLORS = {
-    "STRONG":  "#059669",
+    "STRONG":  "#185FA5",
     "GOOD":    "#2563EB",
     "AVERAGE": "#D97706",
     "WEAK":    "#DC2626",

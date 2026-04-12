@@ -568,10 +568,10 @@ def render_backtest_tab() -> None:
 
     # ── UPGRADE 3: Styled results table ─────────────────────
     _SIG_COLORS = {
-        "Undervalued 🟢":    ("#0D7A4E", "#022c1d"),
+        "Undervalued 🟢":    ("#185FA5", "#0a1e3d"),
         "Slight Discount 🟡":("#B45309", "#2d1f05"),
-        "Fairly Valued 🔵":  ("#1D4ED8", "#07112e"),
-        "Overvalued 🔴":     ("#B91C1C", "#2d0606"),
+        "Fairly Valued 🔵":  ("#475569", "#1a1f27"),
+        "Overvalued 🔴":     ("#B45309", "#2d1f05"),
     }
 
     def _sig_pill(s: str) -> str:

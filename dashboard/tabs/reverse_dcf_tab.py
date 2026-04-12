@@ -39,9 +39,9 @@ def render(
         summary  = rdcf.get("summary", "")
 
         COLOUR_MAP = {
-            "green": ("#0D7A4E", "#ECFDF5", "#BBF7D0"),
+            "green": ("#185FA5", "#EFF6FF", "#BFDBFE"),
             "amber": ("#B45309", "#FFFBEB", "#FDE68A"),
-            "red":   ("#B91C1C", "#FEF2F2", "#FECACA"),
+            "red":   ("#DC2626", "#FEF2F2", "#FECACA"),
         }
         txt_c, bg_c, bd_c = COLOUR_MAP.get(colour, COLOUR_MAP["amber"])
 

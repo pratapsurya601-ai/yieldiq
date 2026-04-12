@@ -425,9 +425,9 @@ def render() -> None:
             _show_scenarios = can("scenarios")
             _show_sensitive = can("sensitivity")
             _show_mc        = can("monte_carlo")
-            mos_color = "#0D7A4E" if mos_pct>20 else "#B8972A" if mos_pct>0 else "#A62020"
+            mos_color = "#185FA5" if mos_pct>20 else "#B45309" if mos_pct>0 else "#B45309"
             mos_w     = min(max(abs(mos_pct), 2), 100)
-            _fs_color_map = {"STRONG":"#0D7A4E","GOOD":"#2563EB","AVERAGE":"#B8972A","WEAK":"#A62020"}
+            _fs_color_map = {"STRONG":"#185FA5","GOOD":"#2563EB","AVERAGE":"#B45309","WEAK":"#DC2626"}
             _fs_color = _fs_color_map.get(fs.get("grade",""), "#4A5E7A")
             _fs_label = fs.get("grade", "N/A")
             # Use human language signal helper for colors
@@ -993,7 +993,7 @@ def render() -> None:
         # Use human language signal helper for colors
         _h_label_m, sig_fg, sig_bg, sig_bd = sig_human(sig)
         mos_pct   = mos * 100
-        mos_color = "#0D7A4E" if mos_pct > 20 else "#B8972A" if mos_pct > 0 else "#A62020"
+        mos_color = "#185FA5" if mos_pct > 20 else "#B45309" if mos_pct > 0 else "#B45309"
         st.session_state["fin_mos_pct"] = mos_pct
         st.session_state["fin_signal"]  = sig
 
@@ -1148,18 +1148,38 @@ def render() -> None:
         st.markdown("---")
 
         # ═══════════════════════════════════════════════════
-        # ── TRUST STRIP (model transparency) ─────────────
-        _wacc_pct = wacc * 100
-        _fcf_g_trust = enriched.get("fcf_growth", 0) * 100
-        st.html(
-            f'<div style="font-size:11px;color:#94A3B8;padding:8px 0;margin-bottom:8px;'
-            f'border-top:1px solid #F1F5F9;border-bottom:1px solid #F1F5F9;">'
-            f'Model: WACC {_wacc_pct:.1f}% · '
-            f'FCF growth {_fcf_g_trust:+.1f}%/yr · '
-            f'Confidence: {"High" if _conf_score > 75 else "Medium" if _conf_score > 50 else "Low"} · '
-            f'<span style="color:#1D4ED8;cursor:pointer;">Adjust assumptions ↗</span>'
-            f'</div>'
-        )
+        # ── TRANSPARENCY STRIP (model assumptions as ranges)
+        try:
+            from ui.components.transparency_strip import render_transparency_strip
+            _wacc_pct = wacc * 100
+            _fcf_g_trust = enriched.get("fcf_growth", 0) * 100
+            _fcf_g_hist = enriched.get("historical_fcf_growth_avg", _fcf_g_trust * 0.9) * 100 if enriched.get("historical_fcf_growth_avg") else _fcf_g_trust * 0.9
+            render_transparency_strip(
+                wacc=_wacc_pct,
+                wacc_industry_range=(max(6, _wacc_pct - 2), min(16, _wacc_pct + 2)),
+                fcf_growth=_fcf_g_trust,
+                fcf_growth_historical_avg=_fcf_g_hist,
+                confidence_score=int(_conf_score),
+                ticker=ticker_input,
+            )
+        except Exception:
+            _wacc_pct = wacc * 100
+            _fcf_g_trust = enriched.get("fcf_growth", 0) * 100
+            st.html(
+                f'<div style="font-size:11px;color:#94A3B8;padding:8px 0;margin-bottom:8px;'
+                f'border-top:1px solid #F1F5F9;border-bottom:1px solid #F1F5F9;">'
+                f'Model: WACC {_wacc_pct:.1f}% · '
+                f'FCF growth {_fcf_g_trust:+.1f}%/yr · '
+                f'Confidence: {"High" if _conf_score > 75 else "Medium" if _conf_score > 50 else "Low"}'
+                f'</div>'
+            )
+
+        # ── ACCURACY TRACKER (collapsible) ────────────────
+        try:
+            from ui.components.accuracy_tracker import render_accuracy_tracker
+            render_accuracy_tracker(ticker=ticker_input, current_fair_value=float(_display_iv))
+        except Exception:
+            pass
 
         # LAYER 2 — THE STORY (first scroll)
         # Insight cards providing context
@@ -1211,9 +1231,9 @@ def render() -> None:
         _qs_total = max(0, min(100, _qs_total))
 
         if _qs_total >= 75:
-            _qs_color, _qs_bg, _qs_label = "#059669", "#F0FDF4", "Strong Opportunity"
+            _qs_color, _qs_bg, _qs_label = "#1D4ED8", "#EFF6FF", "Strong Opportunity"
         elif _qs_total >= 55:
-            _qs_color, _qs_bg, _qs_label = "#1D4ED8", "#EFF6FF", "Worth Investigating"
+            _qs_color, _qs_bg, _qs_label = "#185FA5", "#EFF6FF", "Worth Investigating"
         elif _qs_total >= 35:
             _qs_color, _qs_bg, _qs_label = "#D97706", "#FFFBEB", "Mixed Signals"
         else:
@@ -1239,22 +1259,22 @@ def render() -> None:
             f'</div>'
         )
 
-        # ── ONE-LINE VERDICT ──────────────────────────────
+        # ── ONE-LINE VERDICT (color psychology: blue=undervalued, amber=overvalued) ──
         if _display_mos > 30:
             _verdict_txt = f"Our model estimates this stock trades significantly below fair value — {_display_mos:.0f}% margin of safety."
-            _verdict_clr, _verdict_bg = "#065F46", "#ECFDF5"
+            _verdict_clr, _verdict_bg = "#1E40AF", "#EFF6FF"
         elif _display_mos > 10:
             _verdict_txt = f"Stock appears to trade below estimated fair value by {_display_mos:.0f}%."
-            _verdict_clr, _verdict_bg = "#16A34A", "#F0FDF4"
+            _verdict_clr, _verdict_bg = "#185FA5", "#EFF6FF"
         elif _display_mos > -10:
             _verdict_txt = f"Stock trades near our estimated fair value ({_display_mos:+.0f}%)."
-            _verdict_clr, _verdict_bg = "#D97706", "#FFFBEB"
+            _verdict_clr, _verdict_bg = "#475569", "#F8FAFC"
         elif _display_mos > -30:
             _verdict_txt = f"Stock appears to trade above estimated fair value by {abs(_display_mos):.0f}%."
-            _verdict_clr, _verdict_bg = "#DC2626", "#FEF2F2"
+            _verdict_clr, _verdict_bg = "#B45309", "#FFFBEB"
         else:
             _verdict_txt = f"Stock trades significantly above our model estimate — {abs(_display_mos):.0f}% premium."
-            _verdict_clr, _verdict_bg = "#991B1B", "#FEF2F2"
+            _verdict_clr, _verdict_bg = "#92400E", "#FFFBEB"
         st.html(
             f'<div style="background:{_verdict_bg};border-left:4px solid {_verdict_clr};'
             f'border-radius:0 12px 12px 0;padding:12px 20px;margin-bottom:12px;">'
@@ -2054,8 +2074,8 @@ def render() -> None:
                 "Moderate"
             )
             _risk_color = (
-                "#0D7A4E" if _risk_label == "Lower"   else
-                "#B91C1C" if _risk_label == "Higher"  else "#B45309"
+                "#185FA5" if _risk_label == "Lower"   else
+                "#DC2626" if _risk_label == "Higher"  else "#B45309"
             )
 
             _val_label = (
@@ -2064,8 +2084,8 @@ def render() -> None:
                 "Overvalued"
             )
             _val_color = (
-                "#0D7A4E" if _val_label == "Undervalued" else
-                "#1D4ED8" if _val_label == "Near model fair value" else "#B91C1C"
+                "#185FA5" if _val_label == "Undervalued" else
+                "#475569" if _val_label == "Near model fair value" else "#B45309"
             )
 
             # ── moat plain description ────────────────────────────────
@@ -2115,7 +2135,11 @@ def render() -> None:
                         notes                = _wl_notes,
                     )
                     if _wl_ok:
-                        st.success(f" **{ticker_input}** saved to watchlist! Switch to the 📊 Watchlist tab to track it.")
+                        try:
+                            from utils.feedback_copy import msg_watchlist_added
+                            st.success(msg_watchlist_added(ticker_input))
+                        except Exception:
+                            st.success(f"{ticker_input} added to watchlist — we'll track it for you")
                         track_event(st.session_state.get("auth_email",""), tier(), "watchlist_add", {"ticker": ticker_input})
                     else:
                         st.error("Could not save to watchlist — please try again.")
@@ -3493,9 +3517,9 @@ ro.observe(document.getElementById('wrap'));
                     if not ev_res.get("applicable"):
                         st.info(f"ℹ️ {ev_res.get('reason', 'EV/EBITDA not applicable for this sector')}")
                     else:
-                        ev_colour_map = {"green":("🟢","#0D7A4E","#ECFDF5","#BBF7D0"),
+                        ev_colour_map = {"green":("🔵","#185FA5","#EFF6FF","#BFDBFE"),
                                          "amber":("🟡","#B45309","#FFFBEB","#FDE68A"),
-                                         "red":  ("🔴","#B91C1C","#FEF2F2","#FECACA")}
+                                         "red":  ("🔴","#DC2626","#FEF2F2","#FECACA")}
                         ev_emoji, ev_txt_c, ev_bg_c, ev_bd_c = ev_colour_map.get(
                             ev_res["verdict_colour"], ev_colour_map["amber"])
 
@@ -3583,7 +3607,7 @@ ro.observe(document.getElementById('wrap'));
                                 annotation_text=label, annotation_font=dict(color=clr, size=11))
 
                         # Current multiple marker
-                        ev_marker_clr = "#0D7A4E" if curr_m <= med_m else "#B91C1C"
+                        ev_marker_clr = "#185FA5" if curr_m <= med_m else "#B45309"
                         fig_ev.add_trace(go.Scatter(
                             x=[curr_m], y=[0.5], mode="markers+text",
                             marker=dict(size=18, color=ev_marker_clr, symbol="diamond"),
