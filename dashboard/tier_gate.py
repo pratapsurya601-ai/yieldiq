@@ -634,12 +634,17 @@ def _launch_razorpay_checkout(email: str, chosen_tier: str, billing: str = "mont
         if not _plan_id:
             st.error(f"No plan configured for {chosen_tier}.")
             return
-        sub = _rzp_client.subscription.create({
+        _app_url = os.environ.get("YIELDIQ_APP_URL", "").strip().strip('"')
+        _cb_url = f"{_app_url}?payment_status=success&tier={chosen_tier}" if _app_url else ""
+        _sub_data = {
             "plan_id": _plan_id,
             "total_count": 120,
             "quantity": 1,
             "notes": {"email": email, "tier": chosen_tier, "app": "yieldiq"},
-        })
+        }
+        if _cb_url:
+            _sub_data["notify_info"] = {"redirect_url": _cb_url}
+        sub = _rzp_client.subscription.create(_sub_data)
         sub_id = sub["id"]
     except ImportError:
         st.error("Razorpay package not installed. Contact support.")
@@ -694,16 +699,16 @@ def _handle_payment_callback() -> None:
             return
 
         sub_id = st.query_params.get("razorpay_subscription_id", "") or st.query_params.get("sub_id", "")
-        if not sub_id:
-            return
 
-        # Determine tier from sub_id — check which plan it belongs to
+        # Get tier directly from query param (simplest)
+        _tier_param = st.query_params.get("tier", "")
+
         email = st.session_state.get("auth_email", "")
         starter_plan = os.environ.get("RZP_PLAN_STARTER_MONTHLY", "")
         pro_plan = os.environ.get("RZP_PLAN_PRO_MONTHLY", "")
 
-        # Try to fetch subscription details from Razorpay
-        new_tier = "starter"  # default
+        # Determine tier — use query param first, then try Razorpay API
+        new_tier = _tier_param if _tier_param in ("starter", "pro") else "starter"
         try:
             import razorpay as _rzp
             _key = os.environ.get("RAZORPAY_KEY_ID", "")
