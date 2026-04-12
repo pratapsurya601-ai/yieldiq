@@ -251,7 +251,7 @@ details summary svg,details>summary>svg,
   [100,500,1500].forEach(function(ms){setTimeout(clean,ms);});
 })();
 </script>
-<div class="yiq-aw"><div class="yiq-ac">""")
+""")
 
     l_tab, r_tab, fp_tab, f_tab = st.tabs(["  Sign in  ", "  Create account  ", "  Reset password  ", "  Continue free  "])
 
@@ -321,7 +321,7 @@ details summary svg,details>summary>svg,
     st.html("""<div style="font-size:11px;color:#94A3B8;text-align:center;
 margin-top:16px;line-height:1.6;">For informational purposes only.
 Not investment advice. YieldIQ is not a registered investment adviser.
-</div></div></div>""")
+</div>""")
     st.stop()
 
 
