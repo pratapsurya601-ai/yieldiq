@@ -117,18 +117,24 @@ def render_navbar() -> str:
             f'</div></div>'
         )
 
-    # ── Mode toggles (right side) ─────────────────────────────
-    _mode_c1, _mode_c2 = st.columns([1, 1])
+    # ── Notification bell + Mode toggles ─────────────────────
+    _bell_c, _mode_c1, _mode_c2 = st.columns([1, 1, 1])
+    with _bell_c:
+        try:
+            from utils.notifications import render_notification_dropdown
+            render_notification_dropdown()
+        except Exception:
+            pass
     with _mode_c1:
         _learn = st.session_state.get("learn_mode", True)
-        if st.checkbox("📚 Learn Mode", value=_learn, key="_nav_learn"):
+        if st.checkbox("Learn Mode", value=_learn, key="_nav_learn"):
             st.session_state.learn_mode = True
         else:
             st.session_state.learn_mode = False
     with _mode_c2:
         if _tier in ("pro", "starter"):
             _pro = st.session_state.get("mode", "simple") == "pro"
-            if st.checkbox("⚡ Pro Mode", value=_pro, key="_nav_pro"):
+            if st.checkbox("Pro Mode", value=_pro, key="_nav_pro"):
                 st.session_state.mode = "pro"
                 st.session_state.pro_mode = True
             else:
