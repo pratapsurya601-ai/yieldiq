@@ -18,11 +18,19 @@ try:
 except Exception:
     _LAUNCH_REGION = "US"   # safe default
 
+# Auth — use Supabase if available, fallback to SQLite
 import importlib.util as _ilu
-_auth_path = Path(__file__).parent / "auth.py"
-_auth_spec = _ilu.spec_from_file_location("auth", _auth_path)
-_auth_mod  = _ilu.module_from_spec(_auth_spec)
-_auth_spec.loader.exec_module(_auth_mod)
+try:
+    _auth_path = Path(__file__).parent / "auth_supabase.py"
+    _auth_spec = _ilu.spec_from_file_location("auth_sb", _auth_path)
+    _auth_mod  = _ilu.module_from_spec(_auth_spec)
+    _auth_spec.loader.exec_module(_auth_mod)
+except Exception:
+    # Fallback to SQLite auth if Supabase not configured
+    _auth_path = Path(__file__).parent / "auth.py"
+    _auth_spec = _ilu.spec_from_file_location("auth", _auth_path)
+    _auth_mod  = _ilu.module_from_spec(_auth_spec)
+    _auth_spec.loader.exec_module(_auth_mod)
 _init_auth_db     = _auth_mod.init_auth_db
 _login_user       = _auth_mod.login_user
 _register_user    = _auth_mod.register_user
@@ -770,14 +778,12 @@ def _handle_payment_callback() -> None:
 
         # Also update in auth.db
         try:
-            import sqlite3
-            from pathlib import Path
-            db_path = Path(os.environ.get("YIELDIQ_DATA_DIR",
-                          str(Path(__file__).parent))) / "auth.db"
-            conn = sqlite3.connect(str(db_path))
-            conn.execute("UPDATE users SET tier = ? WHERE email = ?", (new_tier, email))
-            conn.commit()
-            conn.close()
+            # Update tier in Supabase
+            try:
+                from db.supabase_client import set_user_tier
+                set_user_tier(email, new_tier)
+            except Exception:
+                pass  # fallback: tier already set in session state
         except Exception:
             pass
 
@@ -1046,15 +1052,10 @@ def render_pricing_page() -> None:
                             _new_tier = _notes.get("tier", "starter")
                             st.session_state["tier"] = _new_tier
                             st.session_state.pop("_rzp_checkout_open", None)
-                            # Update auth.db
+                            # Update tier in Supabase
                             try:
-                                import sqlite3
-                                from pathlib import Path
-                                _db = Path(os.environ.get("YIELDIQ_DATA_DIR", str(Path(__file__).parent))) / "auth.db"
-                                _con = sqlite3.connect(str(_db))
-                                _con.execute("UPDATE users SET tier = ? WHERE email = ?", (_new_tier, _em))
-                                _con.commit()
-                                _con.close()
+                                from db.supabase_client import set_user_tier
+                                set_user_tier(_em, _new_tier)
                             except Exception:
                                 pass
                             st.success(f"🎉 Payment verified! Welcome to YieldIQ {_new_tier.title()}!")
