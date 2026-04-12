@@ -510,10 +510,10 @@ def render() -> None:
             _prog_ph = st.empty()
             _PROG_STEPS = [
                 "Fetching live price data",
-                "Loading financial statements",
+                "Loading 5 years of financial statements",
                 "Running AI growth forecast",
-                "Computing DCF valuation",
-                "Running scenario analysis",
+                "Computing DCF valuation + 8 quality checks",
+                "Running Bear/Base/Bull scenario analysis",
             ]
 
             def _update_progress(step: int, detail: str = "") -> None:
@@ -1093,6 +1093,62 @@ def render() -> None:
             wacc=float(wacc * 100), terminal_g=float(terminal_g * 100),
             sym=sym,
         )
+
+        # ═══════════════════════════════════════════════════
+        # LAYER 1 — INSTANT VERDICT (above the fold)
+        # Conviction Ring + AI Summary + Action Bar
+        # ═══════════════════════════════════════════════════
+        _layer1_c1, _layer1_c2 = st.columns([1, 3])
+        with _layer1_c1:
+            try:
+                from ui.components.conviction_ring import render_conviction_ring
+                _yiq_score = st.session_state.get("_yiq_score_data", {}).get("score", 50)
+                render_conviction_ring(
+                    yieldiq_score=int(_yiq_score),
+                    confidence_score=int(_conf_score),
+                )
+            except Exception:
+                pass
+
+        with _layer1_c2:
+            # AI Summary
+            try:
+                from ui.components.ai_summary import render_ai_summary
+                _moat_g = enriched.get("moat_grade", "None") or "None"
+                _fcf_g_pct = enriched.get("fcf_growth", 0) * 100
+                render_ai_summary(
+                    ticker=ticker_input,
+                    company_name=_co_name,
+                    mos=float(_display_mos),
+                    moat=_moat_g,
+                    fcf_growth=float(_fcf_g_pct),
+                    confidence=int(_conf_score),
+                )
+            except Exception:
+                pass
+
+        # Action Bar
+        try:
+            from ui.components.action_bar import render_action_bar
+            render_action_bar(ticker=ticker_input, current_price=float(price_d))
+        except Exception:
+            pass
+
+        st.markdown("---")
+
+        # ═══════════════════════════════════════════════════
+        # LAYER 2 — THE STORY (first scroll)
+        # Insight cards providing context
+        # ═══════════════════════════════════════════════════
+
+        # ── Learn Mode tips for Layer 1 ──────────────────
+        try:
+            from utils.learn_mode import learn_tip
+            learn_tip("score")
+            learn_tip("mos")
+            learn_tip("confidence")
+        except Exception:
+            pass
 
         # ── MARKET MOOD (is the market expensive?) ──────
         _nifty_pe = 0
@@ -1675,6 +1731,10 @@ def render() -> None:
             except Exception:
                 pass
 
+        # ═══════════════════════════════════════════════════
+        # LAYER 3 — DEEP ANALYSIS (Snowflake + Tabs)
+        # ═══════════════════════════════════════════════════
+
         # ── SNOWFLAKE RADAR (Simply Wall St-style) ───────
         _snowflake_chart(
             mos_pct=float(_display_mos),
@@ -1829,11 +1889,21 @@ def render() -> None:
                     _qs_pe_str = f"{_qs_pe:.1f}×" if (_qs_pe and 0 < _qs_pe < 500) else "—"
                     _tm = st.session_state.get("theme", "slate")
                     themed_metric("P/E", _qs_pe_str, theme_name=_tm)
+                    try:
+                        from utils.learn_mode import learn_tip
+                        learn_tip("pe_ratio")
+                    except Exception:
+                        pass
 
                 # EV/EBITDA
                 with _qs_cols[1]:
                     _qs_eveb_str = f"{_qs_eveb:.1f}\u00d7" if (_qs_eveb and 0 < _qs_eveb < 300) else "\u2014"
                     themed_metric("EV/EBITDA", _qs_eveb_str, theme_name=_tm)
+                    try:
+                        from utils.learn_mode import learn_tip
+                        learn_tip("ev_ebitda")
+                    except Exception:
+                        pass
 
                 # Div Yield
                 with _qs_cols[2]:
@@ -2319,6 +2389,14 @@ def render() -> None:
                         key="_dcf_eng_growth",
                         help="Scale projected FCFs up or down to test different growth scenarios"
                     )
+
+                # Learn Mode tips for DCF Engine
+                try:
+                    from utils.learn_mode import learn_tip
+                    learn_tip("wacc")
+                    learn_tip("dcf")
+                except Exception:
+                    pass
 
                 # ── Recalculate fair value with adjusted assumptions ──
                 _eng_wacc_dec = _eng_wacc / 100
@@ -3222,6 +3300,9 @@ ro.observe(document.getElementById('wrap'));
 
                 # ── SIMPLE MODE nudge ──────────────────────────
                 if not pro_mode:
+                    # ═══════════════════════════════════════════════════
+                    # LAYER 4 — PRO MODE (Advanced signals)
+                    # ═══════════════════════════════════════════════════
                     st.html(
                         '<div style="padding:18px 24px;background:linear-gradient(135deg,#F8FAFC,#EFF6FF);'
                         'border:1px solid #DBEAFE;border-radius:12px;text-align:center;margin:16px 0;">'
