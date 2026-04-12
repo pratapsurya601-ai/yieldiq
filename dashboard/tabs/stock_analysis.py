@@ -1186,6 +1186,71 @@ def render() -> None:
             </div>
             """)
 
+        # ── EMOTIONAL BIAS DETECTOR ──────────────────────
+        try:
+            from portfolio import is_in_watchlist, is_in_portfolio
+            _owns_stock = is_in_portfolio(ticker_input) or is_in_watchlist(ticker_input)
+            if _owns_stock and _display_mos < -10:
+                st.html(
+                    '<div style="background:#FFF7ED;border:1px solid #FED7AA;border-radius:12px;'
+                    'padding:14px 20px;margin-bottom:12px;display:flex;align-items:center;gap:14px;">'
+                    '<div style="font-size:24px;">🧠</div>'
+                    '<div style="flex:1;">'
+                    '<div style="font-size:12px;font-weight:700;color:#9A3412;margin-bottom:2px;">'
+                    'Bias Check — You own this stock</div>'
+                    '<div style="font-size:11px;color:#7C2D12;line-height:1.5;">'
+                    'Our model suggests this stock trades above estimated fair value, but you already '
+                    'own it. Research shows investors rate stocks they own 40% more favourably. '
+                    'Consider whether your analysis is objective.</div>'
+                    '</div></div>'
+                )
+            elif _owns_stock and _display_mos > 20:
+                st.html(
+                    '<div style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:12px;'
+                    'padding:14px 20px;margin-bottom:12px;display:flex;align-items:center;gap:14px;">'
+                    '<div style="font-size:24px;">🧠</div>'
+                    '<div style="flex:1;">'
+                    '<div style="font-size:12px;font-weight:700;color:#166534;margin-bottom:2px;">'
+                    'Bias Check — Conviction confirmed</div>'
+                    '<div style="font-size:11px;color:#14532D;line-height:1.5;">'
+                    'You own this stock and our model agrees — it appears to trade below estimated fair value. '
+                    'Your conviction aligns with the data.</div>'
+                    '</div></div>'
+                )
+        except Exception:
+            pass
+
+        # ── EARNINGS ALERT BADGE ─────────────────────────
+        _next_earn = (raw or {}).get("next_earnings_date", "")
+        if not _next_earn:
+            try:
+                _ec = (raw or {}).get("finnhub_earnings_calendar", [])
+                if _ec:
+                    _next_earn = _ec[0].get("date", "")
+            except Exception:
+                pass
+        if _next_earn:
+            from datetime import datetime as _dt_earn, timedelta
+            try:
+                _edt = _dt_earn.strptime(str(_next_earn)[:10], "%Y-%m-%d")
+                _days = (_edt - _dt_earn.now()).days
+                if 0 <= _days <= 30:
+                    _eicon = "🔴" if _days <= 7 else "🟡" if _days <= 14 else "🔵"
+                    st.html(
+                        f'<div style="background:linear-gradient(90deg,#EFF6FF,#F0F9FF);'
+                        f'border:1px solid #BFDBFE;border-radius:12px;padding:14px 20px;'
+                        f'margin-bottom:12px;display:flex;align-items:center;gap:14px;">'
+                        f'<div style="font-size:28px;">{_eicon}</div>'
+                        f'<div style="flex:1;">'
+                        f'<div style="font-size:12px;font-weight:700;color:#1E40AF;margin-bottom:2px;">'
+                        f'Earnings in {_days} day{"s" if _days != 1 else ""}</div>'
+                        f'<div style="font-size:11px;color:#475569;">'
+                        f'Watch for price volatility around earnings · {_next_earn[:10]}</div>'
+                        f'</div></div>'
+                    )
+            except Exception:
+                pass
+
         # ── SNOWFLAKE RADAR (Simply Wall St-style) ───────
         _snowflake_chart(
             mos_pct=float(_display_mos),
@@ -3490,10 +3555,42 @@ ro.observe(document.getElementById('wrap'));
                 st.stop()
 
             # ══════════════════════════════════════════════════════════
-            # SECTION — Analyst Price Target Distribution
+            # DISAGREEMENT ENGINE — Where YieldIQ differs from Wall Street
             # ══════════════════════════════════════════════════════════
             _pt_data = raw.get("finnhub_price_target", {}) if raw else {}
             _rec_trend = raw.get("finnhub_rec_trend", []) if raw else []
+            _analyst_mean = float(_pt_data.get("mean", 0)) * fx if _pt_data.get("mean") else 0
+            if _analyst_mean > 0 and iv_d > 0:
+                _diff_pct = ((iv_d - _analyst_mean) / _analyst_mean * 100)
+                if abs(_diff_pct) > 15:
+                    if _diff_pct > 15:
+                        _dis_color, _dis_bg = "#166534", "#F0FDF4"
+                        _dis_msg = (
+                            f"Wall Street average target is {sym}{_analyst_mean:,.0f}. "
+                            f"YieldIQ model estimates {sym}{iv_d:,.0f} — "
+                            f"**{abs(_diff_pct):.0f}% higher** than analyst consensus. "
+                            f"Our model sees more value than the street."
+                        )
+                    else:
+                        _dis_color, _dis_bg = "#991B1B", "#FEF2F2"
+                        _dis_msg = (
+                            f"Wall Street average target is {sym}{_analyst_mean:,.0f}. "
+                            f"YieldIQ model estimates {sym}{iv_d:,.0f} — "
+                            f"**{abs(_diff_pct):.0f}% lower** than analyst consensus. "
+                            f"Analysts may have conflicts — banks rarely issue sell ratings on clients."
+                        )
+                    st.html(
+                        f'<div style="background:{_dis_bg};border:1px solid {"#BBF7D0" if _diff_pct > 0 else "#FECACA"};'
+                        f'border-radius:12px;padding:16px 20px;margin-bottom:16px;">'
+                        f'<div style="font-size:11px;font-weight:700;color:{_dis_color};'
+                        f'text-transform:uppercase;letter-spacing:0.1em;margin-bottom:6px;'
+                        f'font-family:IBM Plex Mono,monospace;">'
+                        f'⚡ Model vs Wall Street — {abs(_diff_pct):.0f}% Disagreement</div>'
+                        f'<div style="font-size:13px;color:#334155;line-height:1.7;">{_dis_msg}</div>'
+                        f'<div style="font-size:10px;color:#94A3B8;margin-top:6px;">'
+                        f'Model estimates are not recommendations. Always do your own research.</div>'
+                        f'</div>'
+                    )
 
             if _pt_data and _pt_data.get("mean"):
                 ccard("🎯 Analyst Price Target Distribution", "#0f4c75")
