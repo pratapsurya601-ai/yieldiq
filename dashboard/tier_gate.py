@@ -426,7 +426,7 @@ UPGRADE_COPY = {
     "scenarios":     {"emoji": "🐻", "title": "Bear/Base/Bull scenarios",     "benefit": "stress-test across growth and discount assumptions",         "desc": "3-scenario DCF across growth & discount assumptions.",                            "cta": "Upgrade to Starter"},
     "sensitivity":   {"emoji": "🗂",  "title": "Sensitivity analysis",         "benefit": "see how IV changes with WACC and growth",                   "desc": "Fair value vs WACC and growth assumptions.",                                      "cta": "Upgrade to Starter"},
     "monte_carlo":   {"emoji": "🎲", "title": "Monte Carlo simulation",       "benefit": "see probability distributions across 1,000 scenarios",      "desc": "1,000 scenarios showing probability of outcomes.",                                "cta": "Upgrade to Pro"},
-    "screener":      {"emoji": "📊", "title": "Stock screener",               "benefit": "screen 1,500 S&P stocks for undervalued names",              "desc": "Find undervalued stocks across the S&P 1500.",                                    "cta": "Upgrade to Starter"},
+    "screener":      {"emoji": "📊", "title": "Stock screener",               "benefit": "screen 6,000+ stocks for undervalued names",              "desc": "Find undervalued stocks across NSE, BSE, and global markets.",                                    "cta": "Upgrade to Starter"},
     "excel":         {"emoji": "📄", "title": "Excel model download",         "benefit": "download the full DCF model in Excel",                       "desc": "DCF, scenarios, WACC build-up in Excel.",                                        "cta": "Upgrade to Starter"},
     "excel_export":  {"emoji": "📄", "title": "Excel model download",         "benefit": "download the full DCF model in Excel",                       "desc": "DCF, scenarios, WACC build-up in Excel.",                                        "cta": "Upgrade to Starter"},
     "pdf_report":    {"emoji": "📑", "title": "PDF report",                   "benefit": "download institutional-quality PDF reports",                 "desc": "Institutional PDF: DCF · Quality · Model Signals.",                              "cta": "Upgrade to Starter"},
@@ -694,7 +694,7 @@ def _launch_razorpay_checkout(email: str, chosen_tier: str, billing: str = "mont
         st.error("Razorpay package not installed. Contact support.")
         return
     except Exception as e:
-        st.error(f"Payment error: {e}")
+        st.error("Payment processing error. Please try again or contact support.")
         return
 
     app_url = os.environ.get("YIELDIQ_APP_URL", "")
@@ -1071,20 +1071,14 @@ def render_pricing_page() -> None:
                             st.rerun()
                             break
                     if not _found:
-                        # Show what we found for debugging
-                        _sub_list = [
-                            f"{s.get('notes',{}).get('email','?')} ({s.get('status','?')})"
-                            for s in _subs.get("items", [])[:5]
-                        ]
                         st.warning(
-                            f"No active subscription found for {_em}. "
-                            f"Found {len(_subs.get('items',[]))} subscriptions. "
-                            f"Recent: {', '.join(_sub_list) if _sub_list else 'none'}"
+                            "No active subscription found for your email. "
+                            "If you just paid, please wait a minute and try again."
                         )
                 else:
                     st.error("Payment system not configured.")
             except Exception as _e:
-                st.error(f"Could not verify payment: {_e}")
+                st.error("Could not verify payment. Please try again or contact support.")
 
     # ── Footer note ─────────────────────────────────────────────
     st.html("""
@@ -1316,9 +1310,9 @@ def show_analysis_limit_modal() -> None:
 |---|:---:|:---:|:---:|
 | Analyses / day | **5** | 50 | Unlimited |
 | Watchlist stocks | 10 | 50 | Unlimited |
-| US stocks (DCF) | ✅ | ✅ | ✅ |
-| Indian stocks (NSE/BSE) | ❌ | ❌ | ✅ |
-| European markets | ❌ | ❌ | ✅ |
+| Stocks (DCF) | ✅ | ✅ | ✅ |
+| Indian stocks | ❌ | ❌ | ✅ |
+| Global markets | ❌ | ❌ | ✅ |
 | Scenario analysis | ❌ | ✅ | ✅ |
 | Monte Carlo simulation | ❌ | ❌ | ✅ |
 | Stock screener | ❌ | ✅ | ✅ |

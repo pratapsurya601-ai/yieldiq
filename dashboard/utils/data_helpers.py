@@ -57,7 +57,7 @@ def get_fx_rate(from_ccy: str, to_ccy: str) -> float:
             if rate > 0:
                 return rate
     except Exception as _e1:
-        print(f"[YieldIQ] FX tier-1 fetch failed ({fc}→{tc}): {_e1}")
+        pass
     try:
         r = requests.get(
             f"https://api.frankfurter.app/latest?from={fc}&to={tc}",
@@ -68,7 +68,7 @@ def get_fx_rate(from_ccy: str, to_ccy: str) -> float:
             if rate > 0:
                 return rate
     except Exception as _e2:
-        print(f"[YieldIQ] FX tier-2 fetch failed ({fc}→{tc}): {_e2}")
+        pass
     # Tier 3: hardcoded fallback
     fallback = _FX_FALLBACK.get((fc, tc))
     if fallback:
@@ -97,12 +97,10 @@ def _fetch_stock_data_cached(ticker, _ttl_key, _version):
         collector  = StockDataCollector(ticker)
         raw        = collector.get_all()
     except Exception as _fetch_err:
-        print(f"FETCH_ERROR {ticker}: {type(_fetch_err).__name__}: {_fetch_err}")
         raw = None
         collector = None
 
     if raw is None:
-        print(f"FETCH_FAIL {ticker}: raw is None — trying FMP direct fallback")
         # ── FMP DIRECT FALLBACK — build raw dict entirely from FMP ──
         try:
             import os as _os
@@ -134,7 +132,6 @@ def _fetch_stock_data_cached(ticker, _ttl_key, _version):
             if _has_fh and not _coll_mod.FINNHUB_KEY:
                 _coll_mod.FINNHUB_KEY = _os.environ.get("FINNHUB_API_KEY", "")
 
-            print(f"FMP_FALLBACK_CHECK {ticker}: FMP={'YES' if _has_fmp else 'NO'}, FH={'YES' if _has_fh else 'NO'}")
 
             _fmp_t = ticker.split(".")[0]
             _fmp_inc = _fmp_income_statement(_fmp_t) if _has_fmp else pd.DataFrame()
@@ -151,7 +148,6 @@ def _fetch_stock_data_cached(ticker, _ttl_key, _version):
                 _mkt_cap = (_fmp_pr or {}).get("market_cap", 0)
                 if _mkt_cap > 0:
                     _shares = _mkt_cap / _price
-                    print(f"FMP_SHARES_EST {ticker}: {_shares:,.0f} from mktCap/price")
             # Cross-validate with EPS: shares = net_income / EPS
             _eps_val = (_fh_f or {}).get("eps_ttm", 0)
             if _eps_val > 0 and not _fmp_inc.empty and "net_income" in _fmp_inc.columns:
@@ -159,16 +155,12 @@ def _fetch_stock_data_cached(ticker, _ttl_key, _version):
                 if _ni > 0:
                     _eps_shares = _ni / _eps_val
                     if _shares > 0 and abs(_eps_shares / _shares - 1) > 0.3:
-                        print(f"FMP_SHARES_FIX {ticker}: profile={_shares:,.0f} vs NI/EPS={_eps_shares:,.0f} (off by {abs(_eps_shares/_shares-1)*100:.0f}%) — using NI/EPS")
                         _shares = _eps_shares
                     elif _shares <= 0:
                         _shares = _eps_shares
-                        print(f"FMP_SHARES_FROM_EPS {ticker}: {_shares:,.0f}")
             # Last resort
             if _shares <= 0:
                 _shares = 1e9
-                print(f"FMP_SHARES_DEFAULT {ticker}: using 1B fallback")
-            print(f"FMP_SHARES_FINAL {ticker}: {_shares:,.0f}")
 
             _has_any_financials = not _fmp_inc.empty or not _fmp_cf.empty
             if _price > 0 and _has_any_financials:
@@ -184,8 +176,6 @@ def _fetch_stock_data_cached(ticker, _ttl_key, _version):
                         "net_income": _est_rev * ((_fh_f or {}).get("net_margin_ttm", 0.1)),
                         "ebitda": 0,
                     }])
-                    print(f"FMP_INCOME_ESTIMATED {ticker}: rev={_est_rev:,.0f} from Finnhub rev_per_share×shares")
-                print(f"FMP_DIRECT_OK {ticker}: price={_price}, inc={len(_fmp_inc)} cf={len(_fmp_cf)} shares={_shares:,.0f}")
                 # Build a minimal raw dict that compute_metrics can process
                 raw = {
                     "ticker": ticker,
@@ -241,9 +231,9 @@ def _fetch_stock_data_cached(ticker, _ttl_key, _version):
                     'signal': 'N/A ⬜', 'components': {}, 'indicators': {}
                 }
             else:
-                print(f"FMP_DIRECT_FAIL {ticker}: price={_price}, income_rows={len(_fmp_inc) if not _fmp_inc.empty else 0}")
+                pass
         except Exception as _fmp_err:
-            print(f"FMP_DIRECT_ERROR {ticker}: {type(_fmp_err).__name__}: {_fmp_err}")
+            pass
 
         return None, pd.DataFrame(), {}, {'momentum_score': 0, 'grade': 'N/A', 'signal': 'N/A ⬜', 'components': {}, 'indicators': {}}
 
@@ -268,9 +258,6 @@ def _fetch_stock_data_cached(ticker, _ttl_key, _version):
             momentum_result = calculate_momentum(price_hist)
         except Exception as e:
             st.warning(f"⚠️ Could not calculate momentum: {e}")
-
-    if raw:
-        print(f"LIVE_CHECK div_yield={raw.get('dividend_yield')} fh_div={raw.get('fh_div_yield')} pe={raw.get('forward_pe')} fcf_g={raw.get('fcf_growth')}")
 
     return raw, price_hist, wacc_data, momentum_result
 

@@ -364,7 +364,7 @@ def render_sidebar(
         st.markdown("---")
         st.caption(
             "\u2696\ufe0f Model outputs only. Not investment advice. "
-            "YieldIQ is not an SEC-registered investment adviser."
+            "YieldIQ is not a registered investment adviser."
         )
 
     return {

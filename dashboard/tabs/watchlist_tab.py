@@ -30,7 +30,6 @@ def render() -> None:
             chg   = ((price - prev) / prev * 100) if prev > 0 else 0.0
             return price, chg
         except Exception as _wl_pe:
-            print(f"[YieldIQ] Watchlist price fetch failed: {_wl_pe}")
             return 0.0, 0.0
 
     # ── Load watchlist items ──────────────────────────────────
