@@ -1134,6 +1134,17 @@ def render() -> None:
         except Exception:
             pass
 
+        # Export Options (tiered)
+        try:
+            from ui.components.export_gate import render_export_options
+            render_export_options(
+                ticker=ticker_input,
+                fair_value=float(_display_iv),
+                sym=sym,
+            )
+        except Exception:
+            pass
+
         st.markdown("---")
 
         # ═══════════════════════════════════════════════════
@@ -1911,7 +1922,11 @@ def render() -> None:
                 # EV/EBITDA
                 with _qs_cols[1]:
                     _qs_eveb_str = f"{_qs_eveb:.1f}\u00d7" if (_qs_eveb and 0 < _qs_eveb < 300) else "\u2014"
-                    themed_metric("EV/EBITDA", _qs_eveb_str, theme_name=_tm)
+                    try:
+                        from ui.components.blur_gate import render_blurred_metric
+                        render_blurred_metric("EV/EBITDA", _qs_eveb_str)
+                    except Exception:
+                        themed_metric("EV/EBITDA", _qs_eveb_str, theme_name=_tm)
                     try:
                         from utils.learn_mode import learn_tip
                         learn_tip("ev_ebitda")
@@ -1930,10 +1945,12 @@ def render() -> None:
                     f_score = piotroski_result.get('score', 0)
                     f_emoji = piotroski_result.get('grade_emoji', '\u26a0\ufe0f')
 
-                    if f_score and f_score > 0:
-                        themed_metric("\U0001f4aa F-Score", f"{f_score}/9", delta=f_emoji, theme_name=_tm)
-                    else:
-                        themed_metric("\U0001f4aa F-Score", "\u2014", theme_name=_tm)
+                    _fs_str = f"{f_score}/9" if (f_score and f_score > 0) else "\u2014"
+                    try:
+                        from ui.components.blur_gate import render_blurred_metric
+                        render_blurred_metric("\U0001f4aa F-Score", _fs_str)
+                    except Exception:
+                        themed_metric("\U0001f4aa F-Score", _fs_str, theme_name=_tm)
 
         if _active == "overview":
             # ══════════════════════════════════════════════════════════
@@ -3311,20 +3328,24 @@ ro.observe(document.getElementById('wrap'));
                     st.plotly_chart(fig_wf, width="stretch", config={"displayModeBar":True,"modeBarButtonsToRemove":["lasso2d","select2d"],"toImageButtonOptions":{"filename":"dcf_waterfall","scale":2}})
                     ccard_end()
 
-                # ── SIMPLE MODE nudge ──────────────────────────
+                # ── PRO CARD PEEK (non-Pro users see teaser) ──
                 if not pro_mode:
-                    # ═══════════════════════════════════════════════════
-                    # LAYER 4 — PRO MODE (Advanced signals)
-                    # ═══════════════════════════════════════════════════
-                    st.html(
-                        '<div style="padding:18px 24px;background:linear-gradient(135deg,#F8FAFC,#EFF6FF);'
-                        'border:1px solid #DBEAFE;border-radius:12px;text-align:center;margin:16px 0;">'
-                        '<div style="font-size:14px;font-weight:600;color:#1E40AF;margin-bottom:4px;">'
-                        '⚡ Want deeper analysis?</div>'
-                        '<div style="font-size:13px;color:#64748B;line-height:1.6;">'
-                        'Switch to <strong>Pro mode</strong> in the sidebar to unlock '
-                        'Sensitivity, Monte Carlo, Market Expectations, EV/EBITDA, and more.</div></div>'
-                    )
+                    try:
+                        from ui.components.pro_card_peek import render_pro_card_peek
+                        render_pro_card_peek(
+                            fair_value=float(_display_iv),
+                            sym=sym,
+                        )
+                    except Exception:
+                        st.html(
+                            '<div style="padding:18px 24px;background:linear-gradient(135deg,#F8FAFC,#EFF6FF);'
+                            'border:1px solid #DBEAFE;border-radius:12px;text-align:center;margin:16px 0;">'
+                            '<div style="font-size:14px;font-weight:600;color:#1E40AF;margin-bottom:4px;">'
+                            '⚡ Want deeper analysis?</div>'
+                            '<div style="font-size:13px;color:#64748B;line-height:1.6;">'
+                            'Switch to <strong>Pro mode</strong> in the sidebar to unlock '
+                            'Sensitivity, Monte Carlo, Market Expectations, EV/EBITDA, and more.</div></div>'
+                        )
 
                 # ── FIXED Sensitivity Heatmap (Pro only)
             with (st.expander("🎯 Sensitivity Analysis — How WACC & Growth Rate Affect Fair Value") if pro_mode else st.empty()):
