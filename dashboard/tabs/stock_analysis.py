@@ -1363,6 +1363,126 @@ def render() -> None:
                 f'</div></div>'
             )
 
+        # ── GROWTH RUNWAY ────────────────────────────────
+        _rev_growth_pct = (enriched.get("revenue_growth", 0) or 0) * 100
+        _fcf_growth_pct = (enriched.get("fcf_growth", 0) or 0) * 100
+        _avg_growth = (_rev_growth_pct + _fcf_growth_pct) / 2
+        if abs(_avg_growth) > 0.5:
+            if _avg_growth > 20:
+                _gr_icon, _gr_label, _gr_color = "🚀", "Hypergrowth", "#059669"
+                _gr_msg = f"Revenue {_rev_growth_pct:+.0f}%, FCF {_fcf_growth_pct:+.0f}% — the company is growing rapidly. Typically commands a premium valuation."
+            elif _avg_growth > 8:
+                _gr_icon, _gr_label, _gr_color = "📈", "Strong Growth", "#16A34A"
+                _gr_msg = f"Revenue {_rev_growth_pct:+.0f}%, FCF {_fcf_growth_pct:+.0f}% — healthy growth trajectory. The business is expanding consistently."
+            elif _avg_growth > 2:
+                _gr_icon, _gr_label, _gr_color = "➡️", "Stable Growth", "#64748B"
+                _gr_msg = f"Revenue {_rev_growth_pct:+.0f}%, FCF {_fcf_growth_pct:+.0f}% — mature business with stable, predictable growth."
+            elif _avg_growth > -5:
+                _gr_icon, _gr_label, _gr_color = "⚠️", "Stagnating", "#D97706"
+                _gr_msg = f"Revenue {_rev_growth_pct:+.0f}%, FCF {_fcf_growth_pct:+.0f}% — growth is slowing or flat. The company may need reinvention."
+            else:
+                _gr_icon, _gr_label, _gr_color = "📉", "Declining", "#DC2626"
+                _gr_msg = f"Revenue {_rev_growth_pct:+.0f}%, FCF {_fcf_growth_pct:+.0f}% — the business is contracting. Value trap risk."
+
+            st.html(
+                f'<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;'
+                f'padding:12px 20px;margin-bottom:12px;display:flex;align-items:center;gap:14px;'
+                f'box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
+                f'<div style="font-size:20px;">{_gr_icon}</div>'
+                f'<div style="flex:1;">'
+                f'<div style="font-size:11px;font-weight:700;color:{_gr_color};'
+                f'text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">{_gr_label}</div>'
+                f'<div style="font-size:11px;color:#475569;line-height:1.5;">{_gr_msg}</div>'
+                f'</div></div>'
+            )
+
+        # ── MANAGEMENT EFFECTIVENESS ─────────────────────
+        _roe = enriched.get("roe", 0) or 0
+        _roce = enriched.get("roce", 0) or 0
+        if _roe > 0:
+            if _roe > 0.20:
+                _mgmt_icon, _mgmt_label, _mgmt_color = "🏆", "Excellent Management", "#059669"
+                _mgmt_msg = f"ROE of {_roe*100:.1f}% — management generates exceptional returns on shareholder equity."
+            elif _roe > 0.12:
+                _mgmt_icon, _mgmt_label, _mgmt_color = "👍", "Good Management", "#16A34A"
+                _mgmt_msg = f"ROE of {_roe*100:.1f}% — management delivers solid returns above cost of equity."
+            elif _roe > 0.06:
+                _mgmt_icon, _mgmt_label, _mgmt_color = "➡️", "Average Management", "#D97706"
+                _mgmt_msg = f"ROE of {_roe*100:.1f}% — returns are moderate. Management is not destroying value but not creating much either."
+            else:
+                _mgmt_icon, _mgmt_label, _mgmt_color = "👎", "Below Average", "#DC2626"
+                _mgmt_msg = f"ROE of {_roe*100:.1f}% — returns below cost of equity. Management may be destroying shareholder value."
+
+            st.html(
+                f'<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;'
+                f'padding:12px 20px;margin-bottom:12px;display:flex;align-items:center;gap:14px;'
+                f'box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
+                f'<div style="font-size:20px;">{_mgmt_icon}</div>'
+                f'<div style="flex:1;">'
+                f'<div style="font-size:11px;font-weight:700;color:{_mgmt_color};'
+                f'text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">{_mgmt_label}</div>'
+                f'<div style="font-size:11px;color:#475569;line-height:1.5;">{_mgmt_msg}</div>'
+                f'</div></div>'
+            )
+
+        # ── CASH GENERATION QUALITY ──────────────────────
+        _latest_fcf = enriched.get("latest_fcf", 0) or 0
+        _latest_ni = enriched.get("latest_net_income", 0) or enriched.get("net_income", 0) or 0
+        if _latest_fcf != 0 and _latest_ni != 0:
+            _fcf_ni_ratio = _latest_fcf / _latest_ni if _latest_ni != 0 else 0
+            if _fcf_ni_ratio > 1.2:
+                _cq_icon, _cq_label, _cq_color = "💎", "Excellent Cash Conversion", "#059669"
+                _cq_msg = f"FCF is {_fcf_ni_ratio:.1f}x net income — the company generates more cash than it reports as profit. High-quality earnings."
+            elif _fcf_ni_ratio > 0.8:
+                _cq_icon, _cq_label, _cq_color = "✅", "Good Cash Conversion", "#16A34A"
+                _cq_msg = f"FCF is {_fcf_ni_ratio:.1f}x net income — cash earnings closely match reported profits. Healthy sign."
+            elif _fcf_ni_ratio > 0.4:
+                _cq_icon, _cq_label, _cq_color = "⚠️", "Moderate Cash Conversion", "#D97706"
+                _cq_msg = f"FCF is only {_fcf_ni_ratio:.1f}x net income — a significant portion of reported profits isn't converting to cash. Watch for rising receivables or inventory."
+            else:
+                _cq_icon, _cq_label, _cq_color = "🚨", "Weak Cash Conversion", "#DC2626"
+                _cq_msg = f"FCF is {_fcf_ni_ratio:.1f}x net income — very little of reported earnings turns into actual cash. This is a red flag for earnings quality."
+
+            st.html(
+                f'<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;'
+                f'padding:12px 20px;margin-bottom:12px;display:flex;align-items:center;gap:14px;'
+                f'box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
+                f'<div style="font-size:20px;">{_cq_icon}</div>'
+                f'<div style="flex:1;">'
+                f'<div style="font-size:11px;font-weight:700;color:{_cq_color};'
+                f'text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">{_cq_label}</div>'
+                f'<div style="font-size:11px;color:#475569;line-height:1.5;">{_cq_msg}</div>'
+                f'</div></div>'
+            )
+
+        # ── VOLATILITY INSIGHT ────────────────────────────
+        _beta = (raw or {}).get("fh_beta", 0) or 0
+        if _beta > 0:
+            if _beta > 1.5:
+                _vol_icon, _vol_label, _vol_color = "🌊", "High Volatility", "#DC2626"
+                _vol_msg = f"Beta of {_beta:.2f} — this stock moves {(_beta-1)*100:.0f}% more than the market. Expect large swings. Not suitable for risk-averse investors."
+            elif _beta > 1.1:
+                _vol_icon, _vol_label, _vol_color = "📊", "Above Average Volatility", "#D97706"
+                _vol_msg = f"Beta of {_beta:.2f} — slightly more volatile than the market. Moderate risk."
+            elif _beta > 0.8:
+                _vol_icon, _vol_label, _vol_color = "🛡️", "Average Volatility", "#64748B"
+                _vol_msg = f"Beta of {_beta:.2f} — moves roughly in line with the market. Standard risk profile."
+            else:
+                _vol_icon, _vol_label, _vol_color = "🏰", "Low Volatility", "#059669"
+                _vol_msg = f"Beta of {_beta:.2f} — less volatile than the market. Defensive stock, lower risk."
+
+            st.html(
+                f'<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;'
+                f'padding:12px 20px;margin-bottom:12px;display:flex;align-items:center;gap:14px;'
+                f'box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
+                f'<div style="font-size:20px;">{_vol_icon}</div>'
+                f'<div style="flex:1;">'
+                f'<div style="font-size:11px;font-weight:700;color:{_vol_color};'
+                f'text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">{_vol_label}</div>'
+                f'<div style="font-size:11px;color:#475569;line-height:1.5;">{_vol_msg}</div>'
+                f'</div></div>'
+            )
+
         # ── COMPETITIVE MOAT INSIGHT ─────────────────────
         _moat_grade = enriched.get("moat_grade", "None") or "None"
         _moat_types = enriched.get("moat_types", []) or []
