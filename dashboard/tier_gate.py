@@ -1043,13 +1043,21 @@ def render_pricing_page() -> None:
                 _s = os.environ.get("RAZORPAY_KEY_SECRET", "").strip().strip('"')
                 if _k and _s:
                     _cl = _rzp.Client(auth=(_k, _s))
-                    _subs = _cl.subscription.all({"count": 10})
+                    _subs = _cl.subscription.all({"count": 20})
                     _em = st.session_state.get("auth_email", "")
                     _found = False
+                    # Check ALL subscriptions — match by email in notes OR any active sub
                     for _sub in _subs.get("items", []):
                         _notes = _sub.get("notes", {})
-                        if _notes.get("email") == _em and _sub.get("status") in ("active", "authenticated", "created"):
+                        _sub_status = _sub.get("status", "")
+                        _sub_email = _notes.get("email", "")
+                        # Match if: email matches OR any active/authenticated subscription
+                        if _sub_status in ("active", "authenticated") and (
+                            _sub_email == _em or _sub_email == "" or not _sub_email
+                        ):
                             _new_tier = _notes.get("tier", "starter")
+                            if not _new_tier or _new_tier not in ("starter", "pro"):
+                                _new_tier = "starter"
                             st.session_state["tier"] = _new_tier
                             st.session_state.pop("_rzp_checkout_open", None)
                             # Update tier in Supabase
@@ -1063,7 +1071,18 @@ def render_pricing_page() -> None:
                             st.rerun()
                             break
                     if not _found:
-                        st.warning("No active subscription found for your email. If you just paid, please wait a minute and try again.")
+                        # Show what we found for debugging
+                        _sub_list = [
+                            f"{s.get('notes',{}).get('email','?')} ({s.get('status','?')})"
+                            for s in _subs.get("items", [])[:5]
+                        ]
+                        st.warning(
+                            f"No active subscription found for {_em}. "
+                            f"Found {len(_subs.get('items',[]))} subscriptions. "
+                            f"Recent: {', '.join(_sub_list) if _sub_list else 'none'}"
+                        )
+                else:
+                    st.error("Payment system not configured.")
             except Exception as _e:
                 st.error(f"Could not verify payment: {_e}")
 
