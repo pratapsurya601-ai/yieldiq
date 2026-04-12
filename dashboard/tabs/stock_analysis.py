@@ -1137,6 +1137,19 @@ def render() -> None:
         st.markdown("---")
 
         # ═══════════════════════════════════════════════════
+        # ── TRUST STRIP (model transparency) ─────────────
+        _wacc_pct = wacc * 100
+        _fcf_g_trust = enriched.get("fcf_growth", 0) * 100
+        st.html(
+            f'<div style="font-size:11px;color:#94A3B8;padding:8px 0;margin-bottom:8px;'
+            f'border-top:1px solid #F1F5F9;border-bottom:1px solid #F1F5F9;">'
+            f'Model: WACC {_wacc_pct:.1f}% · '
+            f'FCF growth {_fcf_g_trust:+.1f}%/yr · '
+            f'Confidence: {"High" if _conf_score > 75 else "Medium" if _conf_score > 50 else "Low"} · '
+            f'<span style="color:#1D4ED8;cursor:pointer;">Adjust assumptions ↗</span>'
+            f'</div>'
+        )
+
         # LAYER 2 — THE STORY (first scroll)
         # Insight cards providing context
         # ═══════════════════════════════════════════════════
