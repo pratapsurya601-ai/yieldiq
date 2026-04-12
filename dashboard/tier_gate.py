@@ -224,7 +224,7 @@ def _render_login_card():
 
     # CSS targeting Streamlit elements must use st.markdown(), not st.html()
     st.markdown("""<style>
-.yiq-aw{max-width:420px;margin:60px auto 0;font-family:'Inter',sans-serif}
+.yiq-aw{max-width:420px;margin:0 auto;font-family:'Inter',sans-serif}
 .yiq-ac{background:#fff;border:1px solid #E2E8F0;border-radius:16px;
         padding:36px 32px 28px;box-shadow:0 4px 24px rgba(15,23,42,.08)}
 details summary svg,details>summary>svg,
@@ -251,14 +251,7 @@ details summary svg,details>summary>svg,
   [100,500,1500].forEach(function(ms){setTimeout(clean,ms);});
 })();
 </script>
-<div class="yiq-aw"><div class="yiq-ac">
-<div style="text-align:center;margin-bottom:20px;">
-  <div style="width:48px;height:48px;background:linear-gradient(135deg,#1D4ED8,#06B6D4);
-              border-radius:12px;display:inline-flex;align-items:center;
-              justify-content:center;font-size:24px;margin-bottom:8px;">📈</div>
-  <div style="font-size:22px;font-weight:700;color:#0F172A;">YieldIQ</div>
-  <div style="font-size:13px;color:#64748B;margin-top:4px;">Institutional DCF Analysis</div>
-</div>""")
+<div class="yiq-aw"><div class="yiq-ac">""")
 
     l_tab, r_tab, fp_tab, f_tab = st.tabs(["  Sign in  ", "  Create account  ", "  Reset password  ", "  Continue free  "])
 
