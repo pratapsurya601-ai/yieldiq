@@ -337,6 +337,14 @@ def render_sidebar(
             f'<div style="margin-top:8px;">{_usage_html}</div>'
             f'</div>'
         )
+        # Sign out button (proper Streamlit button, not URL link)
+        if st.button("🚪 Sign out", key="_sidebar_signout", use_container_width=True):
+            import streamlit as _st2
+            # Clear session
+            for _k in list(_st2.session_state.keys()):
+                del _st2.session_state[_k]
+            _st2.rerun()
+
         sidebar_upgrade_button()
         render_resume_button()
 

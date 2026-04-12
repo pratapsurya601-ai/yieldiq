@@ -1209,12 +1209,7 @@ def usage_bar_html() -> str:
             f'<div style="height:100%;width:{pct:.0f}%;background:{clr};border-radius:3px;"></div></div>'
         )
 
-    return (
-        ab + rb
-        + f'<div style="text-align:center;margin-top:10px;">'
-          f'<a href="?signout=1" style="font-size:11px;color:#1D4ED8;">Sign out</a>'
-          f'</div>'
-    )
+    return ab + rb
 
 
 # ══════════════════════════════════════════════════════════════
