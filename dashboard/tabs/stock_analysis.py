@@ -1227,6 +1227,45 @@ def render() -> None:
             </div>
             """)
 
+        # ── RISK-REWARD RATIO ────────────────────────────
+        _bear_iv_rr = st.session_state.get("_scenarios", {}).get("Bear case", {}).get("iv", 0) * fx
+        _bull_iv_rr = st.session_state.get("_scenarios", {}).get("Bull case", {}).get("iv", 0) * fx
+        if _bear_iv_rr > 0 and _bull_iv_rr > 0 and price_d > 0:
+            _downside = abs(price_d - _bear_iv_rr)
+            _upside = abs(_bull_iv_rr - price_d)
+            _rr_ratio = _upside / _downside if _downside > 0 else 0
+            if _rr_ratio >= 3:
+                _rr_color, _rr_label = "#059669", "Excellent"
+                _rr_msg = f"For every ₹1 of downside risk, there's ₹{_rr_ratio:.1f} of potential upside. Strongly favourable risk-reward."
+            elif _rr_ratio >= 2:
+                _rr_color, _rr_label = "#16A34A", "Good"
+                _rr_msg = f"Risk-reward ratio of {_rr_ratio:.1f}:1 — upside potential outweighs downside risk."
+            elif _rr_ratio >= 1:
+                _rr_color, _rr_label = "#D97706", "Balanced"
+                _rr_msg = f"Risk-reward ratio of {_rr_ratio:.1f}:1 — upside and downside are roughly balanced."
+            else:
+                _rr_color, _rr_label = "#DC2626", "Unfavourable"
+                _rr_msg = f"Risk-reward ratio of {_rr_ratio:.1f}:1 — downside risk exceeds upside potential at current prices."
+
+            st.html(
+                f'<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;'
+                f'padding:14px 20px;margin-bottom:12px;display:flex;align-items:center;gap:16px;'
+                f'box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
+                f'<div style="text-align:center;min-width:60px;">'
+                f'<div style="font-size:22px;font-weight:900;color:{_rr_color};'
+                f'font-family:IBM Plex Mono,monospace;">{_rr_ratio:.1f}:1</div>'
+                f'<div style="font-size:9px;color:#94A3B8;text-transform:uppercase;'
+                f'letter-spacing:0.06em;">Risk/Reward</div></div>'
+                f'<div style="flex:1;">'
+                f'<div style="font-size:11px;font-weight:700;color:{_rr_color};'
+                f'margin-bottom:2px;">{_rr_label} Risk-Reward</div>'
+                f'<div style="font-size:11px;color:#475569;line-height:1.5;">{_rr_msg}</div>'
+                f'</div>'
+                f'<div style="text-align:right;font-size:10px;color:#94A3B8;line-height:1.6;">'
+                f'Upside: {sym}{_upside:,.0f}<br>Downside: {sym}{_downside:,.0f}</div>'
+                f'</div>'
+            )
+
         # ── EMOTIONAL BIAS DETECTOR ──────────────────────
         try:
             from portfolio import is_in_watchlist, is_in_portfolio
@@ -1261,6 +1300,50 @@ def render() -> None:
         except Exception:
             pass
 
+        # ── VALUATION TREND (is it getting cheaper?) ─────
+        _52w_high = ((raw or {}).get("fh_52w_high", 0) or 0) * fx
+        _52w_low = ((raw or {}).get("fh_52w_low", 0) or 0) * fx
+        if _52w_high > 0 and _52w_low > 0 and iv_d > 0:
+            _price_range_pct = ((price_d - _52w_low) / (_52w_high - _52w_low) * 100) if (_52w_high - _52w_low) > 0 else 50
+            _mos_at_high = ((iv_d - _52w_high) / _52w_high * 100) if _52w_high > 0 else 0
+            _mos_at_low = ((iv_d - _52w_low) / _52w_low * 100) if _52w_low > 0 else 0
+
+            if _price_range_pct < 25:
+                _trend_icon, _trend_label = "📉", "Near 52-week low"
+                _trend_color = "#059669"
+                _trend_msg = f"Stock is near its 52-week low ({sym}{_52w_low:,.0f}). At the low, margin of safety would be {_mos_at_low:+.0f}%."
+            elif _price_range_pct > 75:
+                _trend_icon, _trend_label = "📈", "Near 52-week high"
+                _trend_color = "#DC2626"
+                _trend_msg = f"Stock is near its 52-week high ({sym}{_52w_high:,.0f}). At the high, margin of safety would be {_mos_at_high:+.0f}%."
+            else:
+                _trend_icon, _trend_label = "➡️", "Mid-range"
+                _trend_color = "#64748B"
+                _trend_msg = f"Trading in the middle of its 52-week range ({sym}{_52w_low:,.0f} — {sym}{_52w_high:,.0f})."
+
+            _bar_pct = max(2, min(98, _price_range_pct))
+            st.html(
+                f'<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;'
+                f'padding:14px 20px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
+                f'<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">'
+                f'<span style="font-size:20px;">{_trend_icon}</span>'
+                f'<div style="flex:1;">'
+                f'<div style="font-size:11px;font-weight:700;color:{_trend_color};'
+                f'text-transform:uppercase;letter-spacing:0.08em;">{_trend_label}</div>'
+                f'<div style="font-size:11px;color:#64748B;">{_trend_msg}</div>'
+                f'</div></div>'
+                f'<div style="position:relative;height:8px;background:#F1F5F9;border-radius:4px;">'
+                f'<div style="position:absolute;height:100%;width:{_bar_pct:.0f}%;'
+                f'background:linear-gradient(90deg,#22C55E,#EAB308,#DC2626);border-radius:4px;"></div>'
+                f'<div style="position:absolute;top:-3px;left:{_bar_pct:.0f}%;transform:translateX(-50%);'
+                f'width:14px;height:14px;background:#0F172A;border-radius:50%;border:2px solid white;"></div>'
+                f'</div>'
+                f'<div style="display:flex;justify-content:space-between;margin-top:4px;">'
+                f'<span style="font-size:9px;color:#94A3B8;">52W Low: {sym}{_52w_low:,.0f}</span>'
+                f'<span style="font-size:9px;color:#94A3B8;">52W High: {sym}{_52w_high:,.0f}</span>'
+                f'</div></div>'
+            )
+
         # ── DIVIDEND INSIGHT ──────────────────────────────
         _div_yield = enriched.get("dividend_yield", 0) or 0
         _div_rate = (raw or {}).get("dividend_rate", 0) or 0
@@ -1277,6 +1360,29 @@ def render() -> None:
                 f'Dividend yield: <strong>{_div_pct:.2f}%</strong>'
                 f' ({_div_vs_bond} the risk-free rate) · '
                 f'Annual dividend: {sym}{_div_rate * fx:,.2f} per share'
+                f'</div></div>'
+            )
+
+        # ── COMPETITIVE MOAT INSIGHT ─────────────────────
+        _moat_grade = enriched.get("moat_grade", "None") or "None"
+        _moat_types = enriched.get("moat_types", []) or []
+        _moat_score = enriched.get("moat_score", 0) or 0
+        if _moat_grade != "None" and _moat_score > 0:
+            _moat_icons = {"Wide": "🏰", "Narrow": "🔒", "None": "⚠️"}
+            _moat_colors = {"Wide": "#059669", "Narrow": "#D97706", "None": "#DC2626"}
+            _m_icon = _moat_icons.get(_moat_grade, "🔒")
+            _m_color = _moat_colors.get(_moat_grade, "#64748B")
+            _moat_desc = " · ".join(_moat_types[:3]) if _moat_types else "Based on financial metrics"
+            st.html(
+                f'<div style="background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;'
+                f'padding:14px 20px;margin-bottom:12px;display:flex;align-items:center;gap:14px;'
+                f'box-shadow:0 1px 3px rgba(0,0,0,0.04);">'
+                f'<div style="font-size:28px;">{_m_icon}</div>'
+                f'<div style="flex:1;">'
+                f'<div style="font-size:11px;font-weight:700;color:{_m_color};'
+                f'text-transform:uppercase;letter-spacing:0.08em;margin-bottom:2px;">'
+                f'{_moat_grade} Moat · {_moat_score}/100</div>'
+                f'<div style="font-size:11px;color:#475569;">{_moat_desc}</div>'
                 f'</div></div>'
             )
 
@@ -1299,6 +1405,36 @@ def render() -> None:
                     f'(<span style="color:{_pe_color};font-weight:700;">{abs(_pe_vs):.0f}% {_pe_label}</span>)'
                     f'</div></div>'
                 )
+
+        # ── SIMILAR STOCKS (quick links) ─────────────────
+        _sector_key = enriched.get("sector", "general")
+        _SECTOR_PEERS = {
+            "it_services": ["TCS.NS", "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS"],
+            "fmcg": ["HINDUNILVR.NS", "ITC.NS", "NESTLEIND.NS", "BRITANNIA.NS", "DABUR.NS"],
+            "pharma": ["SUNPHARMA.NS", "DRREDDY.NS", "CIPLA.NS", "DIVISLAB.NS", "LUPIN.NS"],
+            "auto_oem": ["TATAMOTORS.NS", "MARUTI.NS", "M&M.NS", "BAJAJ-AUTO.NS", "HEROMOTOCO.NS"],
+            "banking": ["HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "KOTAKBANK.NS", "AXISBANK.NS"],
+            "oil_gas": ["RELIANCE.NS", "ONGC.NS", "IOC.NS", "BPCL.NS", "GAIL.NS"],
+            "metals": ["TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS", "VEDL.NS", "NMDC.NS"],
+            "power": ["NTPC.NS", "POWERGRID.NS", "TATAPOWER.NS", "ADANIGREEN.NS", "NHPC.NS"],
+            "telecom": ["BHARTIARTL.NS", "IDEA.NS", "TTML.NS"],
+            "cement": ["ULTRACEMCO.NS", "SHREECEM.NS", "AMBUJACEM.NS", "ACC.NS", "DALMIACEM.NS"],
+        }
+        _peers = _SECTOR_PEERS.get(_sector_key, [])
+        _peers = [p for p in _peers if p.replace(".NS", "").replace(".BO", "").upper() != ticker_input.replace(".NS", "").replace(".BO", "").upper()][:4]
+        if _peers:
+            _peer_btns = "".join(
+                f'<span style="display:inline-block;padding:4px 12px;background:#F1F5F9;'
+                f'border:1px solid #E2E8F0;border-radius:6px;font-size:11px;font-weight:600;'
+                f'color:#475569;margin-right:6px;">{p.replace(".NS","")}</span>'
+                for p in _peers
+            )
+            st.html(
+                f'<div style="margin-bottom:12px;">'
+                f'<span style="font-size:10px;color:#94A3B8;text-transform:uppercase;'
+                f'letter-spacing:0.08em;margin-right:8px;">Similar stocks:</span>'
+                f'{_peer_btns}</div>'
+            )
 
         # ── EARNINGS ALERT BADGE ─────────────────────────
         _next_earn = (raw or {}).get("next_earnings_date", "")
