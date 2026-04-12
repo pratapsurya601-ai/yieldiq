@@ -989,6 +989,47 @@ def render_pricing_page() -> None:
             _track_nudge(em, tier(), "pricing_page", "chose_pro")
             _launch_razorpay_checkout(em, "pro", billing)
 
+    # ── Verify Payment button ──────────────────────────────────
+    if tier() == "free":
+        st.markdown("---")
+        st.html('<div style="text-align:center;font-size:13px;color:#64748B;margin-bottom:8px;">'
+                'Already paid? Click below to verify and activate your plan.</div>')
+        if st.button("🔄 Verify My Payment", key="_verify_payment", use_container_width=True):
+            try:
+                import razorpay as _rzp
+                _k = os.environ.get("RAZORPAY_KEY_ID", "").strip().strip('"')
+                _s = os.environ.get("RAZORPAY_KEY_SECRET", "").strip().strip('"')
+                if _k and _s:
+                    _cl = _rzp.Client(auth=(_k, _s))
+                    _subs = _cl.subscription.all({"count": 10})
+                    _em = st.session_state.get("auth_email", "")
+                    _found = False
+                    for _sub in _subs.get("items", []):
+                        _notes = _sub.get("notes", {})
+                        if _notes.get("email") == _em and _sub.get("status") in ("active", "authenticated", "created"):
+                            _new_tier = _notes.get("tier", "starter")
+                            st.session_state["tier"] = _new_tier
+                            st.session_state.pop("_rzp_checkout_open", None)
+                            # Update auth.db
+                            try:
+                                import sqlite3
+                                from pathlib import Path
+                                _db = Path(os.environ.get("YIELDIQ_DATA_DIR", str(Path(__file__).parent))) / "auth.db"
+                                _con = sqlite3.connect(str(_db))
+                                _con.execute("UPDATE users SET tier = ? WHERE email = ?", (_new_tier, _em))
+                                _con.commit()
+                                _con.close()
+                            except Exception:
+                                pass
+                            st.success(f"🎉 Payment verified! Welcome to YieldIQ {_new_tier.title()}!")
+                            _found = True
+                            st.rerun()
+                            break
+                    if not _found:
+                        st.warning("No active subscription found for your email. If you just paid, please wait a minute and try again.")
+            except Exception as _e:
+                st.error(f"Could not verify payment: {_e}")
+
     # ── Footer note ─────────────────────────────────────────────
     st.html("""
     <div style="text-align:center;margin-top:24px;font-size:12px;color:#9CA3AF;
