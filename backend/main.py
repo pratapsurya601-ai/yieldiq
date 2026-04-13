@@ -2,6 +2,13 @@
 # ═══════════════════════════════════════════════════════════════
 # YieldIQ API — FastAPI entry point
 # Wraps existing 20,000+ lines of valuation logic in REST API.
+#
+# RAILWAY DEPLOYMENT:
+# 1. Create new Railway service → connect GitHub repo
+# 2. Root directory: / (not /backend)
+# 3. Start command: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+# 4. Add env vars from backend/.env.railway.example
+# 5. Add custom domain: api.yieldiq.in
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 import sys

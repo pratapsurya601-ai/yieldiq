@@ -1,0 +1,7 @@
+{
+  "note": "Keep this service running during Next.js transition",
+  "service_name": "yieldiq-streamlit-legacy",
+  "start_command": "streamlit run dashboard/app.py --server.port $PORT --server.address 0.0.0.0",
+  "custom_domain": "legacy.yieldiq.in",
+  "decommission_when": "Next.js version has full feature parity and 50+ active users"
+}
