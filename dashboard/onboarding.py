@@ -151,10 +151,10 @@ METRIC_TOOLTIPS: dict[str, str] = {
     "insider_sent":  "Insider Sentiment: derived from net share purchases by executives/directors in the last 90 days. Insiders buying = bullish signal.",
     "inst_pct":      "Institutional ownership % — share of float held by funds, ETFs, pension funds. High % signals professional investor conviction.",
     # Trade plan
-    "buy_price":     "Maximum price at which to start a position while maintaining adequate margin of safety.",
-    "target_price":  "Price target derived from bear/base/bull scenario analysis — the base-case intrinsic value.",
-    "stop_loss":     "Recommended stop-loss level to limit downside if the investment thesis fails.",
-    "rr_ratio":      "Risk/Reward ratio = upside to target ÷ downside to stop-loss. Aim for ≥ 2.0 before entering a position.",
+    "buy_price":     "Model discount zone — the price at which the DCF model shows a meaningful margin of safety.",
+    "target_price":  "Model estimate derived from bear/base/bull scenario analysis — the base-case intrinsic value.",
+    "stop_loss":     "Model downside range — level where the investment thesis would need re-evaluation.",
+    "rr_ratio":      "Model risk/reward ratio = estimated upside vs estimated downside. Higher is better.",
     # Scenarios
     "scenarios":     "Bear / Base / Bull scenarios stress-test the DCF with different growth and margin assumptions to bound the range of fair values.",
     "sensitivity":   "Sensitivity table: how intrinsic value changes across different WACC (±1%) and terminal growth (±0.5%) combinations.",

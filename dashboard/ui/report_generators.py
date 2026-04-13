@@ -8,71 +8,182 @@ import numpy as np
 
 
 def generate_dcf_report(ticker, result_data: dict, scenarios: dict, sym: str) -> bytes:
-    """Generate a downloadable text-based DCF report."""
+    """Generate a premium text-based DCF valuation report."""
     r = result_data
-    lines = [
-        "=" * 65,
-        f"  YieldIQ Valuation Report — {ticker}",
-        f"  Generated: {datetime.now().strftime('%d %b %Y %H:%M')}",
-        "=" * 65,
-        "",
-        "VALUATION SUMMARY",
-        "-" * 40,
-        f"  Current Price      : {sym}{r.get('price', 0):,.2f}",
-        f"  Intrinsic Value    : {sym}{r.get('iv', 0):,.2f}",
-        f"  Margin of Safety   : {r.get('mos_pct', 0):.1f}%",
-        f"  Signal             : {r.get('signal', '')}",
-        f"  WACC Used          : {r.get('wacc', 0):.1%}",
-        f"  Terminal Growth    : {r.get('term_g', 0):.1%}",
-        "",
-        "FUNDAMENTALS",
-        "-" * 40,
-        f"  Revenue Growth     : {r.get('rev_growth', 0):.1%} p.a.",
-        f"  FCF Growth         : {r.get('fcf_growth', 0):.1%} p.a.",
-        f"  Operating Margin   : {r.get('op_margin', 0):.1%}",
-        f"  Fundamental Grade  : {r.get('fund_grade', 'N/A')} ({r.get('fund_score', 0)}/100)",
-        "",
-        "MODEL PRICE LEVELS (research only — not investment advice)",
-        "-" * 40,
-        f"  Model Signal              : {r.get('entry_signal', '')}",
-        f"  DCF Discount Threshold    : {sym}{(r.get('buy_price') or 0):,.2f}",
-        f"  DCF Model Estimate        : {sym}{(r.get('target_price') or 0):,.2f}",
-        f"  Model Risk Range          : {sym}{(r.get('stop_loss') or 0):,.2f}  (-{(r.get('sl_pct') or 0):.1f}%)",
-        f"  Model Upside/Downside Ratio: {(r.get('rr_ratio') or 0):.1f}x",
-        f"  DCF Projection Horizon    : {r.get('holding_period') or 'N/A'}",
-        "",
-        "THREE SCENARIO ANALYSIS",
-        "-" * 40,
-    ]
+    W = 72  # report width
+    _display = ticker.replace(".NS", "").replace(".BO", "")
+    _company = r.get("company_name", _display)
+    _now = datetime.now().strftime("%d %b %Y  %H:%M")
+    _price = r.get("price", 0)
+    _iv = r.get("iv", 0)
+    _mos = r.get("mos_pct", 0)
+    _signal = r.get("signal", "N/A").replace("\U0001f7e2", "").replace("\U0001f534", "").replace("\U0001f535", "").replace("\U0001f7e1", "").replace("\u26a0\ufe0f", "").replace("\u2b1c", "").strip()
+
+    def _box_top():    return "\u250c" + "\u2500" * (W - 2) + "\u2510"
+    def _box_bot():    return "\u2514" + "\u2500" * (W - 2) + "\u2518"
+    def _box_mid():    return "\u251c" + "\u2500" * (W - 2) + "\u2524"
+    def _box_line(t):  return "\u2502" + f" {t}".ljust(W - 2) + "\u2502"
+    def _box_empty():  return "\u2502" + " " * (W - 2) + "\u2502"
+    def _section(t):
+        pad = (W - 4 - len(t)) // 2
+        return "\u2502" + " " * pad + f" {t} " + " " * (W - 4 - pad - len(t)) + "\u2502"
+    def _kv(k, v, indent=2):
+        _k = " " * indent + k
+        return "\u2502" + f" {_k:<30s} {v}".ljust(W - 2) + "\u2502"
+    def _bar():
+        return "\u2502" + "\u2500" * (W - 2) + "\u2502"
+
+    lines = []
+
+    # ── HEADER ────────────────────────────────────────────────
+    lines.append("")
+    lines.append(_box_top())
+    lines.append(_box_empty())
+    lines.append(_box_line(f"Y I E L D I Q"))
+    lines.append(_box_line(f"Quantitative Valuation Report"))
+    lines.append(_box_empty())
+    lines.append(_box_mid())
+    lines.append(_box_line(f"Company:    {_company}"))
+    lines.append(_box_line(f"Ticker:     {ticker}"))
+    lines.append(_box_line(f"Generated:  {_now}"))
+    lines.append(_box_mid())
+
+    # ── HEADLINE VALUATION ────────────────────────────────────
+    lines.append(_box_empty())
+    lines.append(_box_line(f"  VALUATION VERDICT"))
+    lines.append(_box_empty())
+    lines.append(_kv("Current Price", f"{sym}{_price:>12,.2f}"))
+    lines.append(_kv("Fair Value Estimate", f"{sym}{_iv:>12,.2f}"))
+    lines.append(_kv("Margin of Safety", f"{_mos:>12.1f}%"))
+    lines.append(_kv("Model Signal", f"{_signal:>12s}"))
+    lines.append(_box_empty())
+
+    # Verdict bar
+    if _mos > 20:
+        _verdict = "UNDERVALUED by model"
+    elif _mos > 5:
+        _verdict = "SLIGHTLY UNDERVALUED"
+    elif _mos > -5:
+        _verdict = "NEAR FAIR VALUE"
+    elif _mos > -20:
+        _verdict = "SLIGHTLY OVERVALUED"
+    else:
+        _verdict = "OVERVALUED by model"
+    _bar_len = max(1, min(40, int(abs(_mos) / 2)))
+    _bar_char = "\u2588" if _mos > 0 else "\u2591"
+    lines.append(_box_line(f"  {_verdict}"))
+    lines.append(_box_line(f"  {'':>4s}{_bar_char * _bar_len} {_mos:+.1f}%"))
+    lines.append(_box_empty())
+    lines.append(_box_mid())
+
+    # ── MODEL ASSUMPTIONS ─────────────────────────────────────
+    lines.append(_box_empty())
+    lines.append(_box_line(f"  MODEL ASSUMPTIONS"))
+    lines.append(_box_empty())
+    lines.append(_kv("WACC (discount rate)", f"{r.get('wacc', 0):.1%}"))
+    lines.append(_kv("Terminal Growth Rate", f"{r.get('term_g', 0):.1%}"))
+    lines.append(_kv("Projection Period", f"{r.get('holding_period', '10 years')}"))
+    lines.append(_box_empty())
+    lines.append(_box_mid())
+
+    # ── FUNDAMENTAL QUALITY ───────────────────────────────────
+    lines.append(_box_empty())
+    lines.append(_box_line(f"  FUNDAMENTAL QUALITY"))
+    lines.append(_box_empty())
+    lines.append(_kv("Revenue Growth", f"{r.get('rev_growth', 0):.1%} p.a."))
+    lines.append(_kv("FCF Growth", f"{r.get('fcf_growth', 0):.1%} p.a."))
+    lines.append(_kv("Operating Margin", f"{r.get('op_margin', 0):.1%}"))
+    _grade = r.get('fund_grade', 'N/A')
+    _score = r.get('fund_score', 0)
+    lines.append(_kv("Quality Grade", f"{_grade} ({_score}/100)"))
+    lines.append(_box_empty())
+    lines.append(_box_mid())
+
+    # ── MODEL PRICE LEVELS ────────────────────────────────────
+    lines.append(_box_empty())
+    lines.append(_box_line(f"  MODEL PRICE LEVELS"))
+    lines.append(_box_line(f"  (research output only - not investment advice)"))
+    lines.append(_box_empty())
+    lines.append(_kv("DCF Discount Zone", f"{sym}{(r.get('buy_price') or 0):>12,.2f}"))
+    lines.append(_kv("DCF Base Estimate", f"{sym}{(r.get('target_price') or 0):>12,.2f}"))
+    lines.append(_kv("Model Downside Range", f"{sym}{(r.get('stop_loss') or 0):>12,.2f}  ({(r.get('sl_pct') or 0):.1f}%)"))
+    lines.append(_kv("Model Risk/Reward", f"{(r.get('rr_ratio') or 0):>12.1f}x"))
+    lines.append(_box_empty())
+    lines.append(_box_mid())
+
+    # ── SCENARIO ANALYSIS ─────────────────────────────────────
+    lines.append(_box_empty())
+    lines.append(_box_line(f"  SCENARIO ANALYSIS"))
+    lines.append(_box_empty())
+
+    # Table header
+    lines.append(_box_line(f"  {'Scenario':<16s} {'Growth':>8s} {'WACC':>8s} {'Term.g':>8s} {'Fair Value':>14s} {'MoS':>8s}"))
+    lines.append(_box_line(f"  {'-'*16:<16s} {'-'*8:>8s} {'-'*8:>8s} {'-'*8:>8s} {'-'*14:>14s} {'-'*8:>8s}"))
 
     for sname, sdata in scenarios.items():
-        lines += [
-            f"  {sname}",
-            f"    Growth: {sdata['growth']:.1%}  WACC: {sdata['wacc']:.1%}  Terminal g: {sdata['term_g']:.1%}",
-            f"    Intrinsic Value: {sym}{sdata['iv']:,.2f}  |  MoS: {sdata['mos_pct']:.1f}%",
-            "",
-        ]
+        _sn = sname.replace("\U0001f43b", "Bear").replace("\U0001f4ca", "Base").replace("\U0001f402", "Bull").strip()
+        if len(_sn) > 16:
+            _sn = _sn[:16]
+        lines.append(_box_line(
+            f"  {_sn:<16s} {sdata['growth']:>7.1%} {sdata['wacc']:>7.1%} {sdata['term_g']:>7.1%}"
+            f" {sym}{sdata['iv']:>12,.2f} {sdata['mos_pct']:>+7.1f}%"
+        ))
 
-    lines += [
-        "DCF WATERFALL  (raw DCF — before PE blend)",
-        "-" * 40,
-        f"  PV of FCFs         : {sym}{r.get('sum_pv_fcfs', 0):,.0f}",
-        f"  PV Terminal Value  : {sym}{r.get('pv_tv', 0):,.0f}",
-        f"  Enterprise Value   : {sym}{r.get('ev', 0):,.0f}",
-        f"  Less: Total Debt   : {sym}{r.get('debt', 0):,.0f}",
-        f"  Plus: Cash         : {sym}{r.get('cash', 0):,.0f}",
-        f"  Equity Value       : {sym}{r.get('equity', 0):,.0f}",
-        f"  Shares Outstanding : {r.get('shares', 0)/1e9:.3f}B",
-        f"  DCF IV/share       : {sym}{r.get('dcf_only_iv', r.get('iv', 0)):,.2f}",
-        f"  PE-blended IV/sh   : {sym}{r.get('iv', 0):,.2f}  ← headline number",
-        "",
-        "=" * 65,
-        "DISCLAIMER: Model output only — not investment advice.",
-        "YieldIQ is not a registered investment adviser.",
-        "Past model performance does not predict future results.",
-        "Always conduct independent research before investing.",
-        "=" * 65,
-    ]
+    lines.append(_box_empty())
+    lines.append(_box_mid())
+
+    # ── DCF WATERFALL ─────────────────────────────────────────
+    lines.append(_box_empty())
+    lines.append(_box_line(f"  DCF WATERFALL"))
+    lines.append(_box_line(f"  (raw DCF before PE blend)"))
+    lines.append(_box_empty())
+    _shares = r.get('shares', 0)
+    _shares_str = f"{_shares/1e9:.2f}B" if _shares >= 1e9 else f"{_shares/1e6:.0f}M" if _shares >= 1e6 else f"{_shares:,.0f}"
+    lines.append(_kv("(+) PV of FCFs", f"{sym}{r.get('sum_pv_fcfs', 0):>18,.0f}"))
+    lines.append(_kv("(+) PV Terminal Value", f"{sym}{r.get('pv_tv', 0):>18,.0f}"))
+    lines.append(_box_line(f"  {'':>32s}{'_' * 22}"))
+    lines.append(_kv("(=) Enterprise Value", f"{sym}{r.get('ev', 0):>18,.0f}"))
+    lines.append(_kv("(-) Total Debt", f"{sym}{r.get('debt', 0):>18,.0f}"))
+    lines.append(_kv("(+) Cash & Equivalents", f"{sym}{r.get('cash', 0):>18,.0f}"))
+    lines.append(_box_line(f"  {'':>32s}{'_' * 22}"))
+    lines.append(_kv("(=) Equity Value", f"{sym}{r.get('equity', 0):>18,.0f}"))
+    lines.append(_kv("(/) Shares Outstanding", f"{_shares_str:>18s}"))
+    lines.append(_box_line(f"  {'':>32s}{'_' * 22}"))
+    lines.append(_kv("DCF IV per share", f"{sym}{r.get('dcf_only_iv', r.get('iv', 0)):>18,.2f}"))
+    lines.append(_kv("PE-blended IV/share", f"{sym}{r.get('iv', 0):>18,.2f}"))
+    lines.append(_box_empty())
+    lines.append(_box_mid())
+
+    # ── YieldIQ SCORE SUMMARY ─────────────────────────────────
+    lines.append(_box_empty())
+    lines.append(_box_line(f"  YIELDIQ SCORE SUMMARY"))
+    lines.append(_box_empty())
+    _yiq_score = r.get("yieldiq_score", r.get("score", 0))
+    _conf = r.get("confidence", 0)
+    _moat = r.get("moat", "N/A")
+    lines.append(_kv("YieldIQ Score", f"{_yiq_score:>12d}/100"))
+    lines.append(_kv("Model Confidence", f"{_conf:>12d}/100"))
+    lines.append(_kv("Moat Rating", f"{_moat:>12s}"))
+    lines.append(_box_empty())
+    lines.append(_box_mid())
+
+    # ── DISCLAIMER ────────────────────────────────────────────
+    lines.append(_box_empty())
+    lines.append(_box_line(f"  IMPORTANT DISCLAIMER"))
+    lines.append(_box_empty())
+    lines.append(_box_line(f"  All outputs are generated by a quantitative model using"))
+    lines.append(_box_line(f"  publicly available data. This is NOT investment advice."))
+    lines.append(_box_line(f"  YieldIQ is not registered with SEBI, SEC, or any"))
+    lines.append(_box_line(f"  regulatory body as an investment adviser."))
+    lines.append(_box_empty())
+    lines.append(_box_line(f"  Past model performance does not predict future results."))
+    lines.append(_box_line(f"  Always conduct independent research before investing."))
+    lines.append(_box_empty())
+    lines.append(_box_bot())
+    lines.append("")
+    lines.append(f"  Report generated by YieldIQ | yieldiq.in")
+    lines.append("")
+
     return "\n".join(lines).encode("utf-8")
 
 
@@ -223,10 +334,10 @@ def generate_excel_dcf_model(
 
     sec(ws1, 14, "INVESTMENT ACTION PLAN", 5, GREEN_HDR)
     inv_rows = [
-        ("Entry Signal",      pt.get("entry_signal", "")),
-        ("Buy Zone Price",    f"{sym}{(pt.get('buy_price') or 0)*fx:,.2f}"),
+        ("Model Signal",      pt.get("entry_signal", "")),
+        ("DCF Discount Zone", f"{sym}{(pt.get('buy_price') or 0)*fx:,.2f}"),
         ("Model Alert Threshold", f"{sym}{(pt.get('target_price') or 0)*fx:,.2f}"),
-        ("Stop Loss",         f"{sym}{(pt.get('stop_loss') or 0)*fx:,.2f}  (−{pt.get('sl_pct',0):.1f}%)"),
+        ("Downside Range",    f"{sym}{(pt.get('stop_loss') or 0)*fx:,.2f}(−{pt.get('sl_pct',0):.1f}%)"),
         ("Risk / Reward",     f"{pt.get('rr_ratio',0):.2f}x"),
         ("Suggested Holding", hp.get("label", "N/A")),
         ("Rationale",         hp.get("rationale","")[:80]),
