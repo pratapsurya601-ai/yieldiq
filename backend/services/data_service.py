@@ -1,7 +1,7 @@
 # backend/services/data_service.py
 # Wraps data/ and market data logic for FastAPI.
 from __future__ import annotations
-import sys, os
+import sys, os, logging
 from pathlib import Path
 from datetime import datetime
 
@@ -17,6 +17,8 @@ try:
     import yfinance as yf
 except ImportError:
     yf = None
+
+logger = logging.getLogger(__name__)
 
 
 class DataService:
@@ -108,3 +110,57 @@ class DataService:
             SectorOverviewItem(name="Consumer Staples", avg_score=55, pct_undervalued=40, trend="flat"),
             SectorOverviewItem(name="Energy", avg_score=52, pct_undervalued=48, trend="down"),
         ]
+
+
+def get_stock_data(ticker: str) -> dict:
+    """
+    Primary data fetch function for YieldIQ.
+    1. Try local database first (fast, reliable)
+    2. Fall back to yfinance if DB has no data
+    3. Validate data quality either way
+    """
+    try:
+        from data_pipeline.db import Session as PipelineSession
+        from data_pipeline.pipeline import get_stock_data_from_db
+    except Exception:
+        # Pipeline not configured (no DATABASE_URL) — skip to yfinance
+        logger.info(f"{ticker}: data pipeline not available, using yfinance")
+        return _fetch_yfinance_direct(f"{ticker}.NS")
+
+    if PipelineSession is None:
+        return _fetch_yfinance_direct(f"{ticker}.NS")
+
+    db = PipelineSession()
+    try:
+        data = get_stock_data_from_db(ticker, db)
+
+        if data.get("currentPrice") and data.get("_has_financials"):
+            logger.info(f"{ticker}: served from local DB")
+        else:
+            logger.warning(f"{ticker}: DB incomplete, falling back to yfinance")
+            yf_data = _fetch_yfinance_direct(f"{ticker}.NS")
+            if yf_data:
+                merged = {**yf_data, **{k: v for k, v in data.items() if v is not None}}
+                data = merged
+            data["_source"] = "yfinance_fallback"
+
+        from data.validator import validate_stock_data
+        validation = validate_stock_data(ticker, data)
+        data["_validation"] = validation
+
+        return data
+
+    finally:
+        db.close()
+
+
+def _fetch_yfinance_direct(ticker_ns: str) -> dict:
+    """Direct yfinance fetch when pipeline DB is unavailable."""
+    try:
+        if yf is None:
+            return {}
+        stock = yf.Ticker(ticker_ns)
+        info = stock.info
+        return info if info else {}
+    except Exception:
+        return {}

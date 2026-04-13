@@ -47,12 +47,93 @@ if _utils_spec:
     except Exception:
         pass
 
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routers import analysis, screener, portfolio, watchlist, alerts, market, auth
-from backend.routers import payments
+from backend.routers import payments, pipeline
 from backend.middleware.cors import ALLOWED_ORIGINS, ALLOWED_ORIGIN_REGEX
+
+logger = logging.getLogger(__name__)
+
+
+# ── Scheduler for data pipeline ─────────────────────────────
+def _start_pipeline_scheduler():
+    """Start APScheduler for daily price + weekly fundamentals updates."""
+    try:
+        from apscheduler.schedulers.background import BackgroundScheduler
+        from apscheduler.triggers.cron import CronTrigger
+    except ImportError:
+        logger.warning("apscheduler not installed — pipeline scheduler disabled")
+        return None
+
+    if not os.environ.get("DATABASE_URL"):
+        logger.info("DATABASE_URL not set — pipeline scheduler disabled")
+        return None
+
+    scheduler = BackgroundScheduler(timezone="Asia/Kolkata")
+
+    # Daily price update — 4:30pm IST (after market close)
+    scheduler.add_job(
+        _run_daily_prices,
+        CronTrigger(hour=16, minute=30, timezone="Asia/Kolkata"),
+        id="daily_prices",
+        name="NSE Bhavcopy daily update",
+        replace_existing=True,
+    )
+
+    # Weekly fundamentals — Sunday 11pm IST
+    scheduler.add_job(
+        _run_weekly_fundamentals,
+        CronTrigger(day_of_week="sun", hour=23, minute=0, timezone="Asia/Kolkata"),
+        id="weekly_fundamentals",
+        name="Weekly fundamentals update",
+        replace_existing=True,
+    )
+
+    scheduler.start()
+    logger.info("Pipeline scheduler started: daily 4:30pm IST, weekly Sun 11pm IST")
+    return scheduler
+
+
+def _run_daily_prices():
+    from data_pipeline.db import Session
+    from data_pipeline.pipeline import run_daily_update
+    if Session is None:
+        return
+    db = Session()
+    try:
+        run_daily_update(db)
+    except Exception as e:
+        logger.error(f"Daily pipeline failed: {e}")
+    finally:
+        db.close()
+
+
+def _run_weekly_fundamentals():
+    from data_pipeline.db import Session
+    from data_pipeline.pipeline import run_weekly_update
+    if Session is None:
+        return
+    db = Session()
+    try:
+        run_weekly_update(db)
+    except Exception as e:
+        logger.error(f"Weekly pipeline failed: {e}")
+    finally:
+        db.close()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup/shutdown lifecycle — starts scheduler on boot."""
+    sched = _start_pipeline_scheduler()
+    yield
+    if sched:
+        sched.shutdown(wait=False)
 
 app = FastAPI(
     title="YieldIQ API",
@@ -60,6 +141,7 @@ app = FastAPI(
     version="1.0.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
+    lifespan=lifespan,
 )
 
 # CORS
@@ -81,6 +163,7 @@ app.include_router(watchlist.router)
 app.include_router(alerts.router)
 app.include_router(market.router)
 app.include_router(payments.router)
+app.include_router(pipeline.router)
 
 
 @app.get("/health")
