@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { useQuery } from "@tanstack/react-query"
 import {
   ResponsiveContainer,
   LineChart,
@@ -11,6 +12,7 @@ import {
   ReferenceLine,
 } from "recharts"
 import { cn, formatCurrency } from "@/lib/utils"
+import { getChartData } from "@/lib/api"
 
 interface PriceChartProps {
   ticker: string
@@ -25,10 +27,10 @@ interface PricePoint {
 }
 
 const TIME_PERIODS = [
-  { label: "1M", enabled: true },
-  { label: "3M", enabled: false },
-  { label: "6M", enabled: false },
-  { label: "1Y", enabled: false },
+  { label: "1M", value: "1m" },
+  { label: "3M", value: "3m" },
+  { label: "6M", value: "6m" },
+  { label: "1Y", value: "1y" },
 ] as const
 
 function generateMockData(currentPrice: number, days: number): PricePoint[] {
@@ -51,18 +53,42 @@ function generateMockData(currentPrice: number, days: number): PricePoint[] {
   return points
 }
 
+const PERIOD_DAYS: Record<string, number> = {
+  "1m": 30,
+  "3m": 90,
+  "6m": 180,
+  "1y": 365,
+}
+
 export default function PriceChart({
   ticker,
   currentPrice,
   fairValue,
   currency = "INR",
 }: PriceChartProps) {
-  const [activePeriod, setActivePeriod] = useState("1M")
+  const [period, setPeriod] = useState("1m")
 
-  const data = useMemo(
-    () => generateMockData(currentPrice, 30),
-    [currentPrice]
-  )
+  const { data: chartResponse, isLoading } = useQuery({
+    queryKey: ["chart-data", ticker, period],
+    queryFn: () => getChartData(ticker, period),
+    enabled: !!ticker,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const data: PricePoint[] = useMemo(() => {
+    // Use API data if available
+    if (chartResponse?.prices?.length) {
+      return chartResponse.prices.map((p: { date: string; price: number }) => ({
+        date: new Date(p.date).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+        }),
+        price: p.price,
+      }))
+    }
+    // Fallback to mock data
+    return generateMockData(currentPrice, PERIOD_DAYS[period] ?? 30)
+  }, [chartResponse, currentPrice, period])
 
   const prices = data.map((d) => d.price)
   const minPrice = Math.min(...prices, fairValue) * 0.98
@@ -70,7 +96,12 @@ export default function PriceChart({
 
   return (
     <div className="rounded-xl bg-white border border-gray-100 p-4 shadow-sm">
-      <div className="h-[200px]">
+      <div className="h-[200px] relative">
+        {isLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-white/70 z-10">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          </div>
+        )}
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
             <XAxis
@@ -124,20 +155,18 @@ export default function PriceChart({
       </div>
 
       <div className="mt-3 flex gap-2">
-        {TIME_PERIODS.map((period) => (
+        {TIME_PERIODS.map((tp) => (
           <button
-            key={period.label}
-            disabled={!period.enabled}
-            onClick={() => period.enabled && setActivePeriod(period.label)}
+            key={tp.value}
+            onClick={() => setPeriod(tp.value)}
             className={cn(
               "rounded-lg px-3 py-1 text-xs font-medium transition-colors",
-              activePeriod === period.label
+              period === tp.value
                 ? "bg-blue-50 text-blue-700"
-                : "text-gray-500 hover:text-gray-700",
-              !period.enabled && "cursor-not-allowed opacity-40"
+                : "text-gray-500 hover:text-gray-700"
             )}
           >
-            {period.label}
+            {tp.label}
           </button>
         ))}
       </div>

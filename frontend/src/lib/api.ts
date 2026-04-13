@@ -30,6 +30,9 @@ export const getAnalysis = (ticker: string): Promise<AnalysisResponse> =>
 export const getAISummary = (ticker: string): Promise<{ summary: string }> =>
   api.get(`/api/v1/analysis/${ticker}/summary`).then(r => r.data)
 
+export const getChartData = (ticker: string, period: string = "1m") =>
+  api.get(`/api/v1/analysis/${ticker}/chart-data?period=${period}`).then(r => r.data)
+
 export const getYieldIQ50 = (): Promise<ScreenerResponse> =>
   api.get("/api/v1/yieldiq50").then(r => r.data)
 

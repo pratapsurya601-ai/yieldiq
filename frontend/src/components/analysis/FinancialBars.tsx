@@ -11,9 +11,16 @@ import {
 } from "recharts"
 import { formatCurrency } from "@/lib/utils"
 
+interface FinancialDataPoint {
+  year: string
+  value: number
+}
+
 interface FinancialBarsProps {
   ticker: string
   currency?: string
+  revenue?: FinancialDataPoint[]
+  fcf?: FinancialDataPoint[]
 }
 
 interface YearlyData {
@@ -52,8 +59,35 @@ function generateMockData(currency: string): YearlyData[] {
 export default function FinancialBars({
   ticker,
   currency = "INR",
+  revenue: revenueProp,
+  fcf: fcfProp,
 }: FinancialBarsProps) {
-  const data = useMemo(() => generateMockData(currency), [currency])
+  const data: YearlyData[] = useMemo(() => {
+    // If real data is provided, merge revenue and FCF by year
+    if (revenueProp?.length || fcfProp?.length) {
+      const yearMap = new Map<string, YearlyData>()
+
+      for (const r of revenueProp ?? []) {
+        yearMap.set(r.year, { year: r.year, revenue: r.value, fcf: 0 })
+      }
+      for (const f of fcfProp ?? []) {
+        const existing = yearMap.get(f.year)
+        if (existing) {
+          existing.fcf = f.value
+        } else {
+          yearMap.set(f.year, { year: f.year, revenue: 0, fcf: f.value })
+        }
+      }
+
+      // Sort by year and return
+      return Array.from(yearMap.values()).sort((a, b) =>
+        a.year.localeCompare(b.year)
+      )
+    }
+
+    // Fallback to mock data
+    return generateMockData(currency)
+  }, [currency, revenueProp, fcfProp])
 
   const yFormatter = currency === "INR" ? formatCrore : formatUSD
 

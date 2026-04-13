@@ -1,7 +1,8 @@
 "use client"
+import { useEffect } from "react"
 import { useParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { getAnalysis } from "@/lib/api"
+import { getAnalysis, getChartData } from "@/lib/api"
 import ConvictionRing from "@/components/analysis/ConvictionRing"
 import VerdictChip from "@/components/analysis/VerdictChip"
 import BlurredValue from "@/components/ui/BlurredValue"
@@ -26,6 +27,13 @@ export default function AnalysisPage() {
     staleTime: 5 * 60 * 1000,
   })
 
+  const { data: chartData } = useQuery({
+    queryKey: ["chart-data", ticker, "1m"],
+    queryFn: () => getChartData(ticker, "1m"),
+    enabled: !!ticker,
+    staleTime: 5 * 60 * 1000,
+  })
+
   if (isLoading) return <LoadingSteps />
   if (error) return (
     <div className="max-w-md mx-auto px-4 py-16 text-center">
@@ -38,6 +46,45 @@ export default function AnalysisPage() {
   if (!data) return null
 
   const { company, valuation, quality, insights } = data
+
+  // Dynamic SEO meta tags (client-side update after data loads)
+  useEffect(() => {
+    if (data) {
+      const displayTicker = data.ticker.replace(".NS", "").replace(".BO", "")
+      const verdict = data.valuation.verdict.replace("_", " ")
+      document.title = `${displayTicker} — ${verdict} | YieldIQ`
+
+      // Update meta description
+      const desc = `${data.company.company_name} (${data.ticker}) fair value ₹${data.valuation.fair_value.toFixed(0)} vs price ₹${data.valuation.current_price.toFixed(0)}. YieldIQ Score: ${data.quality.yieldiq_score}/100. ${data.quality.moat} moat.`
+      const metaDesc = document.querySelector('meta[name="description"]')
+      if (metaDesc) {
+        metaDesc.setAttribute("content", desc)
+      } else {
+        const meta = document.createElement("meta")
+        meta.name = "description"
+        meta.content = desc
+        document.head.appendChild(meta)
+      }
+
+      // Open Graph tags for social sharing
+      const ogTags: Record<string, string> = {
+        "og:title": `${displayTicker} Stock Analysis — ${verdict} | YieldIQ`,
+        "og:description": desc,
+        "og:url": `https://yieldiq.in/analysis/${data.ticker}`,
+        "og:type": "website",
+        "og:site_name": "YieldIQ",
+      }
+      Object.entries(ogTags).forEach(([property, content]) => {
+        let tag = document.querySelector(`meta[property="${property}"]`)
+        if (!tag) {
+          tag = document.createElement("meta")
+          tag.setAttribute("property", property)
+          document.head.appendChild(tag)
+        }
+        tag.setAttribute("content", content)
+      })
+    }
+  }, [data])
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
@@ -98,7 +145,12 @@ export default function AnalysisPage() {
       {/* Financial Bars */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5">
         <h2 className="text-sm font-semibold text-gray-900 mb-3">Financial Overview</h2>
-        <FinancialBars ticker={ticker} currency={company.currency} />
+        <FinancialBars
+          ticker={ticker}
+          currency={company.currency}
+          revenue={chartData?.financials?.revenue}
+          fcf={chartData?.financials?.fcf}
+        />
       </div>
 
       {/* LAYER 3 -- Scenarios */}

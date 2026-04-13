@@ -1,5 +1,16 @@
 # backend/routers/analysis.py
 from __future__ import annotations
+import sys
+from pathlib import Path
+
+# Ensure project root and dashboard root are on sys.path
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+_DASHBOARD_ROOT = str(Path(_PROJECT_ROOT) / "dashboard")
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+if _DASHBOARD_ROOT not in sys.path:
+    sys.path.insert(0, _DASHBOARD_ROOT)
+
 from fastapi import APIRouter, Depends, HTTPException
 from backend.models.responses import AnalysisResponse, ScreenerResponse, ScreenerStock
 from backend.services.analysis_service import AnalysisService
@@ -165,3 +176,73 @@ async def search_stocks(
     """
     results = search_tickers(q, limit=8)
     return {"query": q, "results": results}
+
+
+# ── Chart data endpoint ──────────────────────────────────────
+_PERIOD_MAP = {"1m": "1mo", "3m": "3mo", "6m": "6mo", "1y": "1y"}
+
+
+@router.get("/analysis/{ticker}/chart-data")
+async def get_chart_data(
+    ticker: str,
+    period: str = "1m",
+    user: dict = Depends(get_current_user),
+):
+    """Get price history and financial data for charts."""
+    ticker = ticker.upper().strip()
+    yf_period = _PERIOD_MAP.get(period, "1mo")
+
+    _cache_key = f"chart_data:{ticker}:{period}"
+    cached = cache.get(_cache_key)
+    if cached:
+        return cached
+
+    # --- Price history via yfinance ---
+    prices: list[dict] = []
+    try:
+        import yfinance as yf
+
+        hist = yf.Ticker(ticker).history(period=yf_period)
+        if hist is not None and not hist.empty:
+            hist = hist.reset_index()
+            for _, row in hist.iterrows():
+                prices.append({
+                    "date": row["Date"].strftime("%Y-%m-%d"),
+                    "price": round(float(row["Close"]), 2),
+                })
+    except Exception:
+        pass  # prices stays empty → frontend falls back to mock
+
+    # --- Financial data (revenue + FCF) from collector ---
+    financials: dict = {}
+    try:
+        from data.collector import StockDataCollector
+
+        collector = StockDataCollector(ticker)
+
+        revenue_list: list[dict] = []
+        income_df = collector.get_income_history()
+        if income_df is not None and not income_df.empty:
+            for _, row in income_df.iterrows():
+                revenue_list.append({
+                    "year": str(row.get("year", "")),
+                    "value": round(float(row.get("revenue", 0))),
+                })
+
+        fcf_list: list[dict] = []
+        cf_df = collector.get_cashflow_history()
+        if cf_df is not None and not cf_df.empty:
+            for _, row in cf_df.iterrows():
+                fcf_list.append({
+                    "year": str(row.get("year", "")),
+                    "value": round(float(row.get("fcf", 0))),
+                })
+
+        if revenue_list or fcf_list:
+            financials = {"revenue": revenue_list, "fcf": fcf_list}
+    except Exception:
+        pass  # financials stays empty
+
+    result = {"prices": prices, "period": period, "financials": financials}
+    cache.set(_cache_key, result, ttl=900)  # 15 min cache
+    return result
