@@ -35,7 +35,7 @@ export default function HomePage() {
         </div>
       )}
 
-      {hasData ? (
+      {hasData && topPick && topPick.score > 0 ? (
         <>
           <div>
             <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Top pick today</p>

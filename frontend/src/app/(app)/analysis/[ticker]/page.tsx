@@ -94,7 +94,14 @@ export default function AnalysisPage() {
             <VerdictChip verdict={valuation.verdict} size="lg" />
             <LearnTip tipKey="mos" />
             <BlurredValue value={valuation.fair_value} currency={company.currency} label="Fair value estimate" />
-            <p className="text-sm text-gray-500">Margin of safety: {formatPct(valuation.margin_of_safety)}</p>
+            <p className="text-sm text-gray-500">
+              Margin of safety: {valuation.margin_of_safety > 80 ? "+80%+" : formatPct(valuation.margin_of_safety)}
+            </p>
+            {valuation.margin_of_safety > 80 && (
+              <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-1">
+                Model shows significant undervaluation. Verify assumptions before acting on this signal.
+              </div>
+            )}
           </div>
         </div>
 

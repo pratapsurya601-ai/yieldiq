@@ -119,49 +119,95 @@ async def get_yieldiq50(user: dict = Depends(get_current_user)):
     if cached:
         return cached
 
-    # Load from screener_results.csv
+    stocks: list[ScreenerStock] = []
+
+    # Try loading from screener_results.csv
     try:
         import pandas as pd
         from pathlib import Path
         _path = Path(__file__).resolve().parent.parent.parent / "data" / "screener_results.csv"
         if _path.exists():
             df = pd.read_csv(_path)
-            _score_col = next((c for c in df.columns if c.lower() in ("score", "yieldiq_score")), None)
+            _score_col = next((c for c in df.columns if c.lower() in ("score", "yieldiq_score", "yiq_score")), None)
             _ticker_col = next((c for c in df.columns if c.lower() in ("ticker", "symbol")), df.columns[0])
-            _mos_col = next((c for c in df.columns if c.lower() in ("mos", "mos_pct")), None)
-            _company_col = next((c for c in df.columns if c.lower() in ("company", "company_name")), None)
+            _mos_col = next((c for c in df.columns if c.lower() in ("mos", "mos_pct", "margin_of_safety")), None)
+            _company_col = next((c for c in df.columns if c.lower() in ("company", "company_name", "name")), None)
+            _moat_col = next((c for c in df.columns if "moat" in c.lower()), None)
+            _sector_col = next((c for c in df.columns if c.lower() in ("sector", "sector_name")), None)
 
             if _score_col:
                 df = df.nlargest(50, _score_col)
 
-            stocks = []
             for _, row in df.iterrows():
-                stocks.append(ScreenerStock(
-                    ticker=str(row.get(_ticker_col, "")),
-                    company_name=str(row.get(_company_col, "")) if _company_col else "",
-                    score=int(row.get(_score_col, 0)) if _score_col else 0,
-                    margin_of_safety=float(row.get(_mos_col, 0)) if _mos_col else 0,
-                ))
-
-            result = ScreenerResponse(results=stocks, total=len(stocks))
-            cache.set(_cache_key, result, ttl=86400)
-            return result
+                _s = int(row.get(_score_col, 0)) if _score_col else 0
+                _m = float(row.get(_mos_col, 0)) if _mos_col else 0
+                if _s > 0:  # Only include stocks with valid scores
+                    stocks.append(ScreenerStock(
+                        ticker=str(row.get(_ticker_col, "")),
+                        company_name=str(row.get(_company_col, "")) if _company_col else "",
+                        score=_s,
+                        margin_of_safety=_m,
+                        moat=str(row.get(_moat_col, "")) if _moat_col else "",
+                        sector=str(row.get(_sector_col, "")) if _sector_col else "",
+                    ))
     except Exception:
         pass
 
-    return ScreenerResponse()
+    # If no CSV data or all zeros, generate from pre-analyzed cache
+    if not stocks:
+        # Use recently analyzed stocks from the analysis cache
+        _cached_analyses = []
+        for key in list(cache._store.keys()):
+            if key.startswith("analysis:") and ".NS" in key:
+                val = cache.get(key)
+                if val and hasattr(val, "quality") and val.quality.yieldiq_score > 30:
+                    _cached_analyses.append(val)
+
+        for a in sorted(_cached_analyses, key=lambda x: x.quality.yieldiq_score, reverse=True)[:50]:
+            stocks.append(ScreenerStock(
+                ticker=a.ticker,
+                company_name=a.company.company_name,
+                score=a.quality.yieldiq_score,
+                margin_of_safety=round(a.valuation.margin_of_safety, 1),
+                moat=a.quality.moat,
+                sector=a.company.sector,
+                verdict=a.valuation.verdict,
+            ))
+
+    # Sort by score descending
+    stocks.sort(key=lambda x: x.score, reverse=True)
+
+    result = ScreenerResponse(results=stocks[:50], total=len(stocks))
+    if stocks:  # Only cache if we have valid data
+        cache.set(_cache_key, result, ttl=86400)
+    return result
 
 
 @router.get("/top-pick")
 async def get_top_pick(user: dict = Depends(get_current_user)):
-    """Single highest-conviction stock of the day."""
+    """Highest conviction stock from YieldIQ 50. Never returns score 0."""
     yiq50 = await get_yieldiq50(user)
-    if yiq50.results:
-        top = yiq50.results[0]
-        return {"ticker": top.ticker, "company_name": top.company_name,
-                "score": top.score, "mos": top.margin_of_safety}
-    return {"ticker": "RELIANCE.NS", "company_name": "Reliance Industries",
-            "score": 70, "mos": 15}
+
+    # Filter for valid high-conviction stocks
+    valid = [
+        r for r in yiq50.results
+        if r.score > 50 and r.margin_of_safety > 5
+    ]
+
+    if valid:
+        # Sort by combined conviction: 60% score + 40% MoS (capped at 50)
+        best = max(valid, key=lambda r: r.score * 0.6 + min(r.margin_of_safety, 50) * 0.4)
+        return {
+            "ticker": best.ticker,
+            "company_name": best.company_name,
+            "score": best.score,
+            "mos": best.margin_of_safety,
+            "moat": best.moat,
+            "summary": "",
+        }
+
+    # Fallback — never show score 0
+    return None
 
 
 @router.get("/search")

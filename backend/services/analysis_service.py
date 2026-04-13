@@ -285,6 +285,13 @@ class AnalysisService:
                 fair_value=round(iv, 2),
                 current_price=round(price, 2),
                 margin_of_safety=round(mos_pct, 1),
+                margin_of_safety_display=round(min(mos_pct, 80), 1),
+                mos_is_extreme=mos_pct > 80,
+                mos_extreme_note=(
+                    "Model shows significant undervaluation. "
+                    "This may reflect sector-specific factors. "
+                    "Verify assumptions before acting."
+                ) if mos_pct > 80 else None,
                 verdict=verdict,
                 bear_case=_sc("Bear case").iv or _sc("Bear 🐻").iv,
                 base_case=round(iv, 2),

@@ -42,6 +42,9 @@ export interface ValuationOutput {
   pv_terminal: number
   enterprise_value: number
   equity_value: number
+  margin_of_safety_display: number
+  mos_is_extreme: boolean
+  mos_extreme_note: string | null
 }
 
 export interface QualityOutput {

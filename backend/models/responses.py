@@ -43,6 +43,9 @@ class ValuationOutput(BaseModel):
     pv_terminal: float = 0
     enterprise_value: float = 0
     equity_value: float = 0
+    margin_of_safety_display: float = 0
+    mos_is_extreme: bool = False
+    mos_extreme_note: str | None = None
 
 
 class QualityOutput(BaseModel):

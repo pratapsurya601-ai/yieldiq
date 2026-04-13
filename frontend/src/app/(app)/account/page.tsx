@@ -90,7 +90,9 @@ export default function AccountPage() {
         <p className="font-medium text-gray-900">{email || "Not signed in"}</p>
         <div className="flex items-center gap-2">
           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 uppercase">{tier}</span>
-          <span className="text-xs text-gray-400">{analysesToday}/{analysisLimit} analyses today</span>
+          <span className="text-xs text-gray-400">
+            {analysisLimit >= 999999 ? "Unlimited analyses" : `${analysesToday}/${analysisLimit} analyses today`}
+          </span>
         </div>
       </div>
 
