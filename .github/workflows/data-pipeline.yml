@@ -1,0 +1,108 @@
+name: YieldIQ Data Pipeline
+
+# Runs daily at 4:30pm IST (11:00 UTC) — after NSE market close
+# Also runs weekly Sunday 11pm IST (17:30 UTC) for full fundamentals
+# Can be triggered manually from GitHub Actions tab
+
+on:
+  schedule:
+    # Daily at 4:30pm IST (11:00 UTC) — prices + corporate actions
+    - cron: "0 11 * * 1-5"
+    # Weekly Sunday 5:30pm IST (12:00 UTC) — full fundamentals
+    - cron: "0 12 * * 0"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Pipeline mode"
+        required: true
+        default: "full"
+        type: choice
+        options:
+          - full
+          - prices-only
+          - fundamentals
+          - shareholding
+          - corporate
+          - rbi
+      days:
+        description: "Days of price history (for prices-only/full)"
+        required: false
+        default: "7"
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240  # 4 hour max
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install yfinance pandas requests sqlalchemy psycopg2-binary
+
+      - name: Determine mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            # Weekday = daily prices, Sunday = full
+            DAY=$(date -u +%u)
+            if [ "$DAY" = "7" ]; then
+              echo "mode=full" >> $GITHUB_OUTPUT
+              echo "days=7" >> $GITHUB_OUTPUT
+            else
+              echo "mode=prices-only" >> $GITHUB_OUTPUT
+              echo "days=3" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "mode=${{ inputs.mode || 'full' }}" >> $GITHUB_OUTPUT
+            echo "days=${{ inputs.days || '7' }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run data pipeline
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_PUBLIC_URL }}
+        run: |
+          MODE="${{ steps.mode.outputs.mode }}"
+          DAYS="${{ steps.mode.outputs.days }}"
+
+          echo "Running pipeline: mode=$MODE, days=$DAYS"
+
+          if [ "$MODE" = "full" ]; then
+            python data_pipeline/run_local.py --full --days "$DAYS"
+          elif [ "$MODE" = "prices-only" ]; then
+            python data_pipeline/run_local.py --prices-only --days "$DAYS"
+          elif [ "$MODE" = "fundamentals" ]; then
+            python data_pipeline/run_local.py --fundamentals
+          elif [ "$MODE" = "shareholding" ]; then
+            python data_pipeline/run_local.py --shareholding
+          elif [ "$MODE" = "corporate" ]; then
+            python data_pipeline/run_local.py --corporate
+          elif [ "$MODE" = "rbi" ]; then
+            python data_pipeline/run_local.py --rbi
+          fi
+
+      - name: Check pipeline results
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_PUBLIC_URL }}
+        run: |
+          python -c "
+          from sqlalchemy import create_engine, text
+          import os
+          engine = create_engine(os.environ['DATABASE_URL'])
+          with engine.connect() as conn:
+              for table in ['stocks', 'daily_prices', 'financials', 'shareholding_pattern', 'market_metrics']:
+                  try:
+                      result = conn.execute(text(f'SELECT COUNT(*) FROM {table}'))
+                      print(f'{table}: {result.scalar()} records')
+                  except:
+                      print(f'{table}: not found')
+          "
