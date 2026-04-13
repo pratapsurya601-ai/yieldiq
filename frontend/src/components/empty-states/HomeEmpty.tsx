@@ -4,10 +4,12 @@ import Link from "next/link"
 import { cn } from "@/lib/utils"
 
 const POPULAR_TICKERS = [
-  { ticker: "RELIANCE", label: "Reliance" },
-  { ticker: "TCS", label: "TCS" },
-  { ticker: "INFY", label: "Infy" },
-  { ticker: "HDFCBANK", label: "HDFC Bank" },
+  { ticker: "RELIANCE.NS", label: "Reliance" },
+  { ticker: "TCS.NS", label: "TCS" },
+  { ticker: "INFY.NS", label: "Infosys" },
+  { ticker: "HDFCBANK.NS", label: "HDFC Bank" },
+  { ticker: "ITC.NS", label: "ITC" },
+  { ticker: "SBIN.NS", label: "SBI" },
 ]
 
 export default function HomeEmpty() {

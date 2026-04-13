@@ -35,10 +35,11 @@ class DataService:
         country = get_active_country()
         is_india = country.get("currency_code") == "INR"
 
+        # India-first launch — always show Indian indices
         indices_config = [
-            ("NIFTY 50", "^NSEI"), ("SENSEX", "^BSESN"),
-        ] if is_india else [
-            ("S&P 500", "^GSPC"), ("NASDAQ", "^IXIC"),
+            ("NIFTY 50", "^NSEI"),
+            ("SENSEX", "^BSESN"),
+            ("NIFTY Bank", "^NSEBANK"),
         ]
 
         indices = []
@@ -56,14 +57,12 @@ class DataService:
         # Fear & greed from VIX
         fg_idx, fg_label = None, None
         try:
-            _vix_sym = "^INDIAVIX" if is_india else "^VIX"
+            _vix_sym = "^INDIAVIX"  # India-first launch
             _vix = yf.Ticker(_vix_sym).fast_info
             _val = getattr(_vix, "last_price", 20) or 20
             fg_idx = int(_val)
-            if is_india:
-                fg_label = "Greed" if _val < 12 else "Neutral" if _val < 18 else "Fear" if _val < 25 else "Extreme Fear"
-            else:
-                fg_label = "Extreme Greed" if _val < 15 else "Greed" if _val < 20 else "Neutral" if _val < 25 else "Fear" if _val < 30 else "Extreme Fear"
+            # India VIX thresholds
+            fg_label = "Greed" if _val < 12 else "Neutral" if _val < 18 else "Fear" if _val < 25 else "Extreme Fear"
         except Exception:
             pass
 

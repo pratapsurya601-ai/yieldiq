@@ -18,8 +18,10 @@ const INVESTOR_TYPES = [
 const STOCKS = [
   { ticker: "RELIANCE.NS", label: "Reliance" },
   { ticker: "TCS.NS", label: "TCS" },
-  { ticker: "INFY.NS", label: "Infosys" },
   { ticker: "HDFCBANK.NS", label: "HDFC Bank" },
+  { ticker: "INFY.NS", label: "Infosys" },
+  { ticker: "ITC.NS", label: "ITC" },
+  { ticker: "SBIN.NS", label: "SBI" },
 ]
 
 export default function OnboardingPage() {
@@ -88,7 +90,7 @@ export default function OnboardingPage() {
 
         {step === 2 && (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               {STOCKS.map((s) => (
                 <button key={s.ticker} onClick={() => handleStockPick(s.ticker)}
                   className="bg-white rounded-xl border border-gray-100 p-4 text-center hover:border-blue-300 transition">

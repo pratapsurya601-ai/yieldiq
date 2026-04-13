@@ -121,7 +121,7 @@ class AnalysisService:
             ticker=ticker,
             company_name=raw.get("company_name", ticker),
             sector=enriched.get("sector_name", raw.get("sector_name", "")),
-            currency="INR" if is_indian else "USD",
+            currency="INR",  # India-first launch
             market_cap=price * enriched.get("shares", 0),
         )
 

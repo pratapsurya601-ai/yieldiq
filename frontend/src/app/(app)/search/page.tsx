@@ -5,12 +5,16 @@ import { useRouter } from "next/navigation"
 const POPULAR = [
   { ticker: "RELIANCE.NS", label: "RELIANCE" },
   { ticker: "TCS.NS", label: "TCS" },
-  { ticker: "INFY.NS", label: "INFY" },
+  { ticker: "INFY.NS", label: "INFOSYS" },
   { ticker: "HDFCBANK.NS", label: "HDFC BANK" },
   { ticker: "ICICIBANK.NS", label: "ICICI BANK" },
   { ticker: "ITC.NS", label: "ITC" },
   { ticker: "SBIN.NS", label: "SBI" },
-  { ticker: "TATAMOTORS.NS", label: "TATA MOTORS" },
+  { ticker: "BHARTIARTL.NS", label: "AIRTEL" },
+  { ticker: "LT.NS", label: "L&T" },
+  { ticker: "SUNPHARMA.NS", label: "SUN PHARMA" },
+  { ticker: "TITAN.NS", label: "TITAN" },
+  { ticker: "BAJFINANCE.NS", label: "BAJAJ FIN" },
 ]
 
 export default function SearchPage() {
@@ -20,7 +24,8 @@ export default function SearchPage() {
   const handleAnalyse = () => {
     if (!ticker.trim()) return
     let t = ticker.trim().toUpperCase()
-    if (!t.includes(".") && !t.match(/^[A-Z]{1,5}$/)) {
+    // India-first: append .NS if no exchange suffix
+    if (!t.includes(".")) {
       t = t + ".NS"
     }
     router.push(`/analysis/${t}`)
@@ -39,7 +44,7 @@ export default function SearchPage() {
           value={ticker}
           onChange={(e) => setTicker(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleAnalyse()}
-          placeholder="e.g. RELIANCE.NS, TCS.NS, AAPL"
+          placeholder="e.g. RELIANCE.NS, TCS.NS, INFY.NS"
           className="flex-1 px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
         <button
