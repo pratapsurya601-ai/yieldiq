@@ -27,7 +27,7 @@ except Exception:
 
 def render() -> None:
     """Render the Screener tab."""
-    _cur = st.session_state.get("sb_currency", "USD")
+    _cur = st.session_state.get("sb_currency", "INR")
     sym  = CURRENCIES[_cur]["symbol"]
 
     _screener_ok, _screener_reason = can_run_screener()

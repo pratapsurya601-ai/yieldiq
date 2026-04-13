@@ -120,7 +120,7 @@ APP_VERSION = "v6"
 
 def _read_sidebar_vars():
     """Read sidebar variables from session_state."""
-    _cur = st.session_state.get("sb_currency", "USD")
+    _cur = st.session_state.get("sb_currency", "INR")
     return {
         "sym":           CURRENCIES[_cur]["symbol"],
         "to_code":       CURRENCIES[_cur]["code"],
@@ -368,7 +368,7 @@ def render() -> None:
                     ticker=ticker_input,
                     rv=_rel_val or {},
                     raw=raw,
-                    sym=st.session_state.get("fin_sym", "$"),
+                    sym=st.session_state.get("fin_sym", "\u20b9"),
                     fx=st.session_state.get("fin_fx", 1.0),
                 )
                 st.stop()
@@ -379,7 +379,7 @@ def render() -> None:
             raw             = st.session_state.get("fin_raw", {})
             fx              = st.session_state.get("fin_fx", 1.0)
             to_code         = st.session_state.get("fin_to_code", "USD")
-            sym             = st.session_state.get("fin_sym", "$")
+            sym             = st.session_state.get("fin_sym", "\u20b9")
             iv_d            = st.session_state.get("fin_iv_d", 0)
             mos_pct         = st.session_state.get("fin_mos_pct", 0)
             sig             = st.session_state.get("fin_signal", "N/A ⬜")

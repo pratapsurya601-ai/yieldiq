@@ -201,7 +201,15 @@ def render_sidebar(
         st.html('<div class="yiq-sb-divider"></div>')
         st.html('<div style="font-size:11px;font-weight:700;color:#38BDF8;'
                 'letter-spacing:0.1em;text-transform:uppercase;margin-bottom:6px;">\U0001f4b1 Currency</div>')
-        cur_key = st.selectbox("Currency", list(CURRENCIES.keys()), index=1,
+        # Default to INR for India market, USD otherwise
+        _cur_list = list(CURRENCIES.keys())
+        try:
+            from config.countries import get_active_country
+            _default_ccy = get_active_country().get("currency_code", "INR")
+            _cur_idx = _cur_list.index(_default_ccy) if _default_ccy in _cur_list else 0
+        except Exception:
+            _cur_idx = 0  # INR is first
+        cur_key = st.selectbox("Currency", _cur_list, index=_cur_idx,
                                label_visibility="collapsed", key="sb_currency")
         sym     = CURRENCIES[cur_key]["symbol"]
         to_code = CURRENCIES[cur_key]["code"]

@@ -14,7 +14,7 @@ from portfolio import get_watchlist, remove_from_watchlist
 
 def render() -> None:
     """Render the Watchlist tab."""
-    _cur = st.session_state.get("sb_currency", "USD")
+    _cur = st.session_state.get("sb_currency", "INR")
     sym  = CURRENCIES[_cur]["symbol"]
 
 

@@ -16,7 +16,7 @@ fmt = _dh_mod.fmt; CURRENCIES = _dh_mod.CURRENCIES
 
 def render() -> None:
     """Render the Financial Statements tab."""
-    _cur = st.session_state.get("sb_currency", "USD")
+    _cur = st.session_state.get("sb_currency", "INR")
     sym     = CURRENCIES[_cur]["symbol"]
     to_code = CURRENCIES[_cur]["code"]
 
