@@ -1325,12 +1325,31 @@ class StockDataCollector:
                 return cached
 
         # ── Step 1: Load yfinance ──────────────────────────────
-        _yf_ok = self._load_yf()
+        is_indian  = self.ticker.endswith(".NS") or self.ticker.endswith(".BO")
+
+        # For Indian stocks: try yfinance with shorter timeout to avoid long waits
+        if is_indian and FMP_KEY:
+            # Quick yfinance attempt (1 try only) — if it fails, FMP will cover
+            _backoff_orig = [0]  # Single fast attempt for Indian stocks
+            try:
+                self._ticker_obj = _yf_ticker(self.ticker)
+                self._yf_info = self._ticker_obj.info or {}
+                _yf_ok = bool(self._yf_info.get("regularMarketPrice") or self._yf_info.get("currentPrice"))
+                if _yf_ok:
+                    log.info(f"[{self.ticker}] yfinance quick load OK")
+                else:
+                    _yf_ok = False
+            except Exception:
+                _yf_ok = False
+            if not _yf_ok:
+                log.info(f"[{self.ticker}] Indian stock — skipping yfinance retry, using FMP+Finnhub")
+        else:
+            _yf_ok = self._load_yf()
+
         if not _yf_ok:
-            log.warning(f"[{self.ticker}] yfinance load failed — trying Finnhub-only mode")
+            log.warning(f"[{self.ticker}] yfinance load failed — trying FMP/Finnhub fallback")
 
         info       = self._yf_info if _yf_ok else {}
-        is_indian  = self.ticker.endswith(".NS") or self.ticker.endswith(".BO")
         if _yf_ok:
             self._fin_multiplier = _detect_financial_currency(info, is_indian)
         else:
