@@ -61,9 +61,25 @@ except ImportError:
     _CURL_CFFI_AVAILABLE = False
 
 
+_USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 Safari/605.1.15",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 Chrome/129.0.0.0 Safari/537.36",
+]
+
 def _yf_ticker(symbol: str) -> "yf.Ticker":
-    """Return a yf.Ticker; curl_cffi Chrome impersonation is handled by yfinance internally."""
-    return yf.Ticker(symbol)
+    """Return a yf.Ticker with rotated User-Agent to reduce rate-limiting."""
+    import random
+    try:
+        # Rotate UA on each call to avoid fingerprinting
+        _ua = random.choice(_USER_AGENTS)
+        _sess = yf.utils.requests.Session()
+        _sess.headers["User-Agent"] = _ua
+        return yf.Ticker(symbol, session=_sess)
+    except Exception:
+        return yf.Ticker(symbol)
 
 from utils.logger import get_logger
 from utils.config import MAX_RETRIES, FCF_HISTORY_YEARS
@@ -978,21 +994,29 @@ class StockDataCollector:
 
     # ── yfinance load ─────────────────────────────────────────
     def _load_yf(self) -> bool:
-        # If FMP is available, short retry (we have a fallback)
-        # If not, longer retry (yfinance is our only hope)
-        _backoff = [0, 5, 10] if FMP_KEY else [0, 10, 30, 60, 90]
+        import random
+        # Aggressive retry: 4 attempts with jitter to beat rate-limiting
+        _backoff = [0, 3, 8, 15] if FMP_KEY else [0, 5, 15, 30, 60]
         for attempt in range(1, len(_backoff) + 1):
             try:
                 self._ticker_obj = _yf_ticker(self.ticker)
                 self._yf_info    = self._ticker_obj.info or {}
+                # Verify we got real data (not an empty/error response)
+                if not self._yf_info or self._yf_info.get("trailingPegRatio") is None and not self._yf_info.get("currentPrice"):
+                    # Sometimes yfinance returns empty info without error
+                    if self._yf_info.get("regularMarketPrice") or self._yf_info.get("previousClose"):
+                        pass  # Has some price data — good enough
+                    else:
+                        raise ValueError("Empty yfinance response")
                 if attempt > 1:
                     log.info(f"[{self.ticker}] yfinance succeeded on attempt {attempt}")
                 return True
             except Exception as exc:
-                _wait = _backoff[attempt - 1]
-                _is_rate_limit = "429" in str(exc) or "rate" in str(exc).lower() or "Too Many" in str(exc)
+                _wait = _backoff[attempt - 1] + random.uniform(0, 3)  # Add jitter
+                _exc_str = str(exc).lower()
+                _is_rate_limit = "429" in _exc_str or "rate" in _exc_str or "too many" in _exc_str or "forbidden" in _exc_str
                 if _is_rate_limit:
-                    log.warning(f"[{self.ticker}] yfinance rate-limited (attempt {attempt}/{len(_backoff)}), waiting {_wait}s...")
+                    log.warning(f"[{self.ticker}] yfinance rate-limited (attempt {attempt}/{len(_backoff)}), waiting {_wait:.0f}s...")
                 else:
                     log.warning(f"[{self.ticker}] yfinance attempt {attempt}: {exc}")
                 if attempt < len(_backoff):

@@ -87,8 +87,28 @@ def _get_cache_ttl() -> int:
 _DATA_VERSION = "v11_shares_everywhere"  # bump this to bust cache after engine changes
 
 def fetch_stock_data(ticker):
-    """Wrapper that applies tiered TTL caching."""
-    return _fetch_stock_data_cached(ticker, _get_cache_ttl(), _DATA_VERSION)
+    """Wrapper with retry logic for rate-limited environments (Railway/Docker)."""
+    import time as _time_mod
+    import random as _random_mod
+
+    # First try with cache
+    result = _fetch_stock_data_cached(ticker, _get_cache_ttl(), _DATA_VERSION)
+    if result and result[0] is not None:
+        return result
+
+    # Cache miss AND fetch failed — retry with delays (Yahoo rate-limiting)
+    for _attempt in range(1, 4):  # 3 retries
+        _wait = _attempt * 5 + _random_mod.uniform(0, 3)
+        print(f"[{ticker}] Data fetch failed, retry {_attempt}/3 in {_wait:.0f}s...")
+        _time_mod.sleep(_wait)
+        # Bust the Streamlit cache for this ticker by varying the version
+        _bust_version = f"{_DATA_VERSION}_retry{_attempt}"
+        result = _fetch_stock_data_cached(ticker, _get_cache_ttl(), _bust_version)
+        if result and result[0] is not None:
+            return result
+
+    # All retries failed — return the last result (may have partial data from fallbacks)
+    return result
 
 @st.cache_data(ttl=600, show_spinner=False)
 def _fetch_stock_data_cached(ticker, _ttl_key, _version):

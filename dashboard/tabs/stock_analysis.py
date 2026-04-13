@@ -641,33 +641,50 @@ def render() -> None:
                     _reason = f"Ticker not found — possible alias detected."
                     _action = _sugg
                 else:
-                    _reason = (
-                        "No data found for this ticker. "
-                        "It may be delisted, private, or entered incorrectly. "
-                        "Indian stocks need the suffix: <b>RELIANCE.NS</b>"
-                    )
-                    _action = "→ Double-check the symbol and try again"
+                    # Check if this looks like a valid Indian ticker
+                    _is_ns = ticker_input.endswith((".NS", ".BO"))
+                    if _is_ns:
+                        _reason = (
+                            "Our data provider is temporarily unavailable for this stock. "
+                            "This usually resolves within 1-2 minutes."
+                        )
+                        _action = "→ Click Retry below or wait a moment"
+                    else:
+                        _reason = (
+                            "No data found for this ticker. "
+                            "It may be delisted, private, or entered incorrectly. "
+                            "Indian stocks need the suffix: <b>RELIANCE.NS</b>"
+                        )
+                        _action = "→ Double-check the symbol and try again"
                 st.html(f"""
-<div style="border-left:4px solid #DC2626;background:#FEF2F2;
-            border-radius:0 12px 12px 0;padding:18px 22px;margin:16px 0;
-            box-shadow:0 2px 8px rgba(220,38,38,0.07);">
+<div style="border-left:4px solid {'#D97706' if ticker_input.endswith(('.NS','.BO')) else '#DC2626'};
+            background:{'#FFFBEB' if ticker_input.endswith(('.NS','.BO')) else '#FEF2F2'};
+            border-radius:0 12px 12px 0;padding:18px 22px;margin:16px 0;">
   <div style="display:flex;align-items:flex-start;gap:14px;">
-    <span style="font-size:22px;flex-shrink:0;">⚠️</span>
+    <span style="font-size:22px;flex-shrink:0;">{'⏳' if ticker_input.endswith(('.NS','.BO')) else '⚠️'}</span>
     <div>
-      <div style="font-size:14px;font-weight:700;color:#991B1B;
-                  margin-bottom:6px;font-family:'Inter',sans-serif;">
+      <div style="font-size:14px;font-weight:700;color:{'#92400E' if ticker_input.endswith(('.NS','.BO')) else '#991B1B'};
+                  margin-bottom:6px;">
         Could not load data for
-        <code style="background:rgba(220,38,38,0.1);color:#991B1B;
-               padding:1px 6px;border-radius:4px;font-size:13px;">{ticker_input}</code>
+        <code style="background:rgba(0,0,0,0.05);padding:1px 6px;border-radius:4px;font-size:13px;">{ticker_input}</code>
       </div>
-      <div style="font-size:13px;color:#7F1D1D;line-height:1.65;
-                  font-family:'Inter',sans-serif;">{_reason}</div>
-      <div style="margin-top:10px;font-size:12px;color:#1D4ED8;
-                  font-weight:600;font-family:'Inter',sans-serif;">{_action}</div>
+      <div style="font-size:13px;color:#64748B;line-height:1.65;">{_reason}</div>
+      <div style="margin-top:10px;font-size:12px;color:#1D4ED8;font-weight:600;">{_action}</div>
     </div>
   </div>
 </div>
 """)
+                # Add retry button for Indian stocks
+                if ticker_input.endswith((".NS", ".BO")):
+                    if st.button(f"🔄 Retry {ticker_input}", key="_retry_fetch", type="primary"):
+                        # Clear cache for this ticker and retry
+                        try:
+                            from data.collector import cache_key as _ck, _cache as _dc
+                            _dc.delete(_ck(ticker_input, "all"))
+                            _dc.delete(_ck(ticker_input, "price"))
+                        except Exception:
+                            pass
+                        st.rerun()
                 st.stop()
 
             # Record this analysis
