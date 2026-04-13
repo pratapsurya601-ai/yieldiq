@@ -51,20 +51,7 @@ def render_navbar() -> str:
     # ── Get current active tab ────────────────────────────────
     active = st.session_state.get("active_tab", "Home")
 
-    # ── Render HTML pills (visual only) ───────────────────────
-    pills_html = ""
-    for icon, label in _TABS:
-        is_active = active == label
-        extra_class = "active" if is_active else ""
-        if label == "Search":
-            extra_class += " search-btn"
-        pills_html += (
-            f'<div class="yiq-nav-btn {extra_class}">'
-            f'{icon}<br><span style="font-size:10px;">{label}</span></div>'
-        )
-    st.html(f'<div class="yiq-navbar">{pills_html}</div>')
-
-    # ── Render Streamlit buttons (functional) ─────────────────
+    # ── Single row of functional nav buttons ─────────────────
     cols = st.columns(len(_TABS))
     for i, (icon, label) in enumerate(_TABS):
         with cols[i]:
@@ -76,7 +63,6 @@ def render_navbar() -> str:
                 type=btn_type,
             ):
                 st.session_state.active_tab = label
-                # Map to old main_tab for backward compatibility
                 _TAB_MAP = {
                     "Home": "morning_brief",
                     "Discover": "yieldiq50",
@@ -86,14 +72,6 @@ def render_navbar() -> str:
                 }
                 st.session_state.main_tab = _TAB_MAP.get(label, "stock")
                 st.rerun()
-
-    # ── Hide the Streamlit buttons (pills above are the visual) ──
-    st.markdown("""<style>
-    .stApp > div > div > div > div:has(button[kind]) {
-        margin-top: -52px; opacity: 0; height: 0;
-        overflow: hidden; pointer-events: auto;
-    }
-    </style>""", unsafe_allow_html=True)
 
     # ── Usage meter for free users ────────────────────────────
     _tier = st.session_state.get("tier", st.session_state.get("user_tier", "free"))
