@@ -12,10 +12,17 @@
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 
-# PATH SETUP — must happen before ANY other imports
+# PATH + ENV SETUP — must happen before ANY other imports
 import sys, os
 from pathlib import Path
 _ROOT = str(Path(__file__).resolve().parent.parent)
+
+# Load .env file if it exists (local dev — Railway uses dashboard env vars)
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(_ROOT, ".env"))
+except ImportError:
+    pass
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 _DASHBOARD = os.path.join(_ROOT, "dashboard")
