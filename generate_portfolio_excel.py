@@ -268,7 +268,7 @@ def build_portfolio_sheets(wb, ticker, enriched, dcf_res, forecast_result,
     c_formula.alignment = Alignment(horizontal="left", vertical="center")
     c_formula.border = bdr("medium", C_SUBHDR)
 
-    hdr(ws15, 13, ["Allocation Type", "Kelly %", "Capital ({})".format(sym), "Shares", "Max Loss (₹)", "Recommendation"],
+    hdr(ws15, 13, ["Allocation Type", "Kelly %", "Capital ({})".format(sym), "Shares", "Max Loss (₹)", "Model Note"],
         bg=C_SUBHDR)
 
     kelly_rows = [
@@ -433,7 +433,7 @@ def build_portfolio_sheets(wb, ticker, enriched, dcf_res, forecast_result,
         ws17.column_dimensions[col].width = w
 
     title(ws17, 1, f"RISK MANAGEMENT — {ticker}",
-          f"Step 7: Maximum acceptable loss, stop-loss levels, thesis-break conditions", 5)
+          f"Step 7: Model downside levels and thesis-review triggers", 5)
 
     # Max loss framework
     max_loss_pct  = min(abs(downside), 0.30)    # never lose more than 30%
@@ -444,12 +444,12 @@ def build_portfolio_sheets(wb, ticker, enriched, dcf_res, forecast_result,
     hdr(ws17, 4, ["Level", "Price", "% from Current", "Type", "Action"], bg=C_SUBHDR)
 
     stop_levels = [
-        ("Current Price (reference)",   price,        0.0,           "Entry",        "Buy at or below this level"),
-        ("Soft Alert (−10%)",           price*0.90,  -0.10,          "Warning",      "Re-evaluate thesis — check if anything changed"),
-        ("Hard Stop Loss",              stop_loss_px, -max_loss_pct, "Capital prot.", "EXIT — maximum acceptable loss reached"),
-        ("Thesis Break Price",          thesis_break, (thesis_break-price)/price, "Thesis break", "EXIT — bear case exceeded, thesis invalidated"),
-        ("Bear Case IV",                bear_iv,      (bear_iv-price)/price, "Valuation floor","Monitor — worst-case fundamental value"),
-        ("Half Position Level (−15%)",  price*0.85,  -0.15,          "Trim trigger", "Reduce to half Kelly if thesis weakening"),
+        ("Current Price (reference)",   price,        0.0,           "Reference",    "Current market price"),
+        ("Review Alert (-10%)",         price*0.90,  -0.10,          "Review",       "Re-evaluate thesis — check if anything changed"),
+        ("Model Risk Level",            stop_loss_px, -max_loss_pct, "Risk mgmt",    "Model-defined risk threshold"),
+        ("Thesis Review Price",         thesis_break, (thesis_break-price)/price, "Thesis review", "Bear case exceeded — thesis needs re-evaluation"),
+        ("Bear Case IV",                bear_iv,      (bear_iv-price)/price, "Model floor",  "Worst-case fundamental value estimate"),
+        ("Caution Level (-15%)",        price*0.85,  -0.15,          "Caution",      "Model suggests reviewing position sizing"),
     ]
     for i, (label, px, pct, typ, action) in enumerate(stop_levels):
         r = 5 + i
@@ -530,18 +530,18 @@ def build_portfolio_sheets(wb, ticker, enriched, dcf_res, forecast_result,
         moat in ["Wide", "Narrow"],
     ])
 
-    if passes_count >= 4 and edge > 0.25:     final_call = "HIGH CONVICTION BUY"
-    elif passes_count >= 3 and edge > 0.10:   final_call = "BUY"
-    elif passes_count >= 2 and edge > 0:      final_call = "HOLD / ACCUMULATE"
-    elif edge < -0.20 and rr_ratio < 1:       final_call = "SHORT"
-    else:                                      final_call = "AVOID"
+    if passes_count >= 4 and edge > 0.25:     final_call = "STRONG UNDERVALUED"
+    elif passes_count >= 3 and edge > 0.10:   final_call = "UNDERVALUED"
+    elif passes_count >= 2 and edge > 0:      final_call = "NEAR FAIR VALUE"
+    elif edge < -0.20 and rr_ratio < 1:       final_call = "SIGNIFICANTLY OVERVALUED"
+    else:                                      final_call = "OVERVALUED"
 
     call_colors = {
-        "HIGH CONVICTION BUY": (C_BULL_BG, C_GREEN, 32),
-        "BUY":                 ("CCFFCC",   C_GREEN, 28),
-        "HOLD / ACCUMULATE":   (C_YELLOW,   C_AMBER, 24),
-        "AVOID":               (C_BEAR_BG,  C_RED,   28),
-        "SHORT":               ("FCE4D6",   C_RED,   28),
+        "STRONG UNDERVALUED":         (C_BULL_BG, C_GREEN, 32),
+        "UNDERVALUED":                ("CCFFCC",   C_GREEN, 28),
+        "NEAR FAIR VALUE":            (C_YELLOW,   C_AMBER, 24),
+        "OVERVALUED":                 (C_BEAR_BG,  C_RED,   28),
+        "SIGNIFICANTLY OVERVALUED":   ("FCE4D6",   C_RED,   28),
     }
     call_bg, call_fg, call_sz = call_colors.get(final_call, (C_YELLOW, C_AMBER, 24))
 
@@ -614,21 +614,21 @@ def build_portfolio_sheets(wb, ticker, enriched, dcf_res, forecast_result,
     ws18.row_dimensions[18].height = 200
     ws18.merge_cells("A18:E18")
     memo = (
-        f"INVESTMENT MEMO — {ticker}  |  {sector}  |  Moat: {moat}  |  {datetime.now().strftime('%d %b %Y')}\n\n"
-        f"RECOMMENDATION: {final_call}\n\n"
+        f"MODEL ANALYSIS MEMO — {ticker}  |  {sector}  |  Moat: {moat}  |  {datetime.now().strftime('%d %b %Y')}\n\n"
+        f"MODEL VERDICT: {final_call}\n\n"
         f"MARKET-IMPLIED: At {sym}{price:,.0f}, market prices {enriched.get('revenue_growth',0)*1.2:.0%} FCF growth. "
-        f"{'Bar is HIGH vs our {:.0%} base case.'.format(enriched.get('revenue_growth',0)) if enriched.get('revenue_growth',0)*1.2 > enriched.get('revenue_growth',0) else 'Bar appears CONSERVATIVE vs fundamentals.'}\n\n"
+        f"{'Model base case ({:.0%}) is lower.'.format(enriched.get('revenue_growth',0)) if enriched.get('revenue_growth',0)*1.2 > enriched.get('revenue_growth',0) else 'Model base case appears conservative vs fundamentals.'}\n\n"
         f"EXPECTED VALUE: Bear {sym}{bear_iv:,.0f} (25%) + Base {sym}{base_iv:,.0f} (50%) + Bull {sym}{bull_iv:,.0f} (25%) = "
-        f"EV {sym}{ev:,.0f} vs price {sym}{price:,.0f} = {edge:+.0%} EDGE.\n\n"
+        f"EV {sym}{ev:,.0f} vs price {sym}{price:,.0f} = {edge:+.0%} model edge.\n\n"
         f"POSITION SIZING (Kelly): Full Kelly {kelly_full:.0%} | Half Kelly {kelly_half:.0%} | "
         f"Model sizing: {sym}{cap_half:,.0f} ({kelly_half:.0%} of {sym}{portfolio_size/1e6:.1f}M portfolio) = {shares_half:,} shares.\n\n"
         f"RISK/REWARD: Upside {upside:+.0%} (Bull) vs Downside {downside:.0%} (Bear) = {rr_ratio:.1f}x ratio. "
-        f"Hard stop at {sym}{stop_loss_px:,.0f} ({-max_loss_pct:.0%}). Max loss on model position: {sym}{cap_half*max_loss_pct:,.0f}.\n\n"
+        f"Model risk level at {sym}{stop_loss_px:,.0f} ({-max_loss_pct:.0%}). Max model loss: {sym}{cap_half*max_loss_pct:,.0f}.\n\n"
         f"PORTFOLIO ROLE: {position_type}. Beta {profile['beta']:.1f}, {profile['cycle']} sector, "
         f"rate sensitivity {profile['rate_sens']}. {'Adds diversification.' if profile['div']=='HIGH' else 'Monitor concentration.'}\n\n"
-        f"THESIS BREAK: Exit if revenue turns negative, margins drop >500bps, or ROIC sustains below WACC.\n\n"
-        f"CONVICTION: {passes_count}/5 criteria met. "
-        f"{'All green lights — size up confidently.' if passes_count==5 else 'Most criteria pass — standard position sizing.' if passes_count>=3 else 'Mixed signals — reduce size or wait for better entry.'}"
+        f"THESIS REVIEW TRIGGER: Review if revenue turns negative, margins drop >500bps, or ROIC sustains below WACC.\n\n"
+        f"CONVICTION: {passes_count}/5 model criteria met. "
+        f"{'All criteria pass.' if passes_count==5 else 'Most criteria pass — standard model sizing.' if passes_count>=3 else 'Mixed model signals — consider smaller position.'}"
     )
     c_memo = ws18.cell(18, 1, value=memo)
     c_memo.fill = hf("F8FBFF")

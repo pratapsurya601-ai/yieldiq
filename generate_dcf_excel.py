@@ -827,7 +827,7 @@ def generate_institutional_dcf(ticker, enriched, dcf_res, forecast_result,
     section_header(ws8, 7, "VALUATION SUMMARY", 3)
     header_row(ws8, 8, ["Metric", "Value", "Note"], bg=C_SUBHDR_BG)
     notes = {
-        "Margin of Safety": "Target >20% for BUY; <0% = potential SELL",
+        "Margin of Safety": ">20% = undervalued by model; <0% = overvalued by model",
         "TV% of EV": "Flag if >75% — model relies too heavily on terminal assumptions",
         "Moat Grade": "Wide=sustainable 10yr+ advantage; None=commodity business",
         "Probability-Weighted IV": "25% Bear + 50% Base + 25% Bull",

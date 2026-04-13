@@ -542,7 +542,7 @@ def build_hedge_fund_sheets(wb, ticker, enriched, dcf_res, forecast_result,
     wc(ws12, 11, 1, "MAX REALISTIC DOWNSIDE",   bg=C_BEAR_BG, fg=C_RED, bold=True, sz=11, align="left")
     c = wc(ws12, 11, 2, worst_case, bg=C_BEAR_BG, fg=C_RED, bold=True, sz=12, nf=f'"{sym}"#,##0')
     wc(ws12, 11, 3, max_loss, bg=C_BEAR_BG, fg=C_RED, bold=True, sz=12, nf="0.0%;(0.0%);-")
-    wc(ws12, 11, 4, "Floor before forced selling / structural break", bg=C_BEAR_BG, fg="595959", sz=9, italic=True, align="left")
+    wc(ws12, 11, 4, "Model worst-case floor estimate", bg=C_BEAR_BG, fg="595959", sz=9, italic=True, align="left")
 
     # Step 8 — Upside
     sec(ws12, 13, "STEP 8 — UPSIDE ASYMMETRY (Is the upside worth the risk?)", 4)
@@ -608,23 +608,23 @@ def build_hedge_fund_sheets(wb, ticker, enriched, dcf_res, forecast_result,
     mos_mc     = (mc_mean - price) / price if price > 0 else 0
 
     if mos_pw > 0.30 and asymmetry > 2.5 and prob_under > 0.65:
-        final_call = "STRONG BUY"
+        final_call = "STRONG UNDERVALUED"
         call_color = C_GREEN
         call_bg    = C_BULL_BG
     elif mos_pw > 0.15 and asymmetry > 1.5:
-        final_call = "BUY"
+        final_call = "UNDERVALUED"
         call_color = "00B050"
         call_bg    = "CCFFCC"
     elif mos_pw > -0.10:
-        final_call = "HOLD"
+        final_call = "NEAR FAIR VALUE"
         call_color = C_AMBER
         call_bg    = "FFF2CC"
     elif mos_pw > -0.25 and asymmetry < 1:
-        final_call = "AVOID"
+        final_call = "OVERVALUED"
         call_color = C_RED
         call_bg    = C_BEAR_BG
     else:
-        final_call = "SHORT / AVOID"
+        final_call = "SIGNIFICANTLY OVERVALUED"
         call_color = C_RED
         call_bg    = "FCE4D6"
 
