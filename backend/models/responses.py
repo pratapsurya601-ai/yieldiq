@@ -53,10 +53,10 @@ class QualityOutput(BaseModel):
     earnings_quality_grade: str = ""
     earnings_quality_score: float = 0
     moat: Literal["Wide", "Narrow", "None"] = "None"
-    moat_score: int = 0
-    momentum_score: int = 0
+    moat_score: float = 0
+    momentum_score: float = 0
     momentum_grade: str = ""
-    fundamental_score: int = 0
+    fundamental_score: float = 0
     fundamental_grade: str = ""
     roe: Optional[float] = None
     de_ratio: Optional[float] = None
