@@ -110,7 +110,7 @@ class AnalysisResponse(BaseModel):
     scenarios: ScenariosOutput = ScenariosOutput()
     price_levels: PriceLevels = PriceLevels()
     ai_summary: Optional[str] = None
-    data_confidence: Literal["high", "medium", "low"] = "medium"
+    data_confidence: Literal["high", "medium", "low", "unusable"] = "medium"
     data_issues: list[str] = []
     cached: bool = False
     timestamp: str = ""

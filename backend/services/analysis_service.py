@@ -93,7 +93,8 @@ class AnalysisService:
 
         # ── Step 2: Validate ──────────────────────────────────
         validation = validate_stock_data(ticker, raw)
-        _confidence = validation.confidence if validation else "medium"
+        _raw_confidence = validation.confidence if validation else "medium"
+        _confidence = _raw_confidence if _raw_confidence in ("high", "medium", "low", "unusable") else "medium"
         _data_issues = (validation.issues + validation.warnings) if validation else []
 
         if raw is None or (validation and not validation.show_dcf):

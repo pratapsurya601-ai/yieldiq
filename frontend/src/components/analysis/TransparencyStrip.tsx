@@ -16,6 +16,7 @@ const CONFIDENCE_LABEL: Record<Confidence, string> = {
   high: "High",
   medium: "Medium",
   low: "Low",
+  unusable: "Very Low",
 }
 
 export default function TransparencyStrip({
