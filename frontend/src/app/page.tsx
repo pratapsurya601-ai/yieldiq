@@ -7,7 +7,7 @@ import { useSettingsStore } from "@/store/settingsStore"
 import Link from "next/link"
 import {
   Search, Shuffle, LineChart, Banknote, ChevronDown,
-  ArrowRight, Star, Shield, BarChart3, Target, Layers,
+  ArrowRight, Shield, BarChart3, Target, Layers,
   Zap, TrendingUp, Play,
 } from "lucide-react"
 
@@ -303,28 +303,27 @@ function FAQItem({ q, a }: { q: string; a: string }) {
   )
 }
 
-/* ── Testimonials data ───────────────────────────────── */
-const testimonials = [
+/* ── "Why Not Just Use..." comparison ────────────────── */
+const comparisons = [
   {
-    quote: "Finally, a tool that tells me what a stock is actually worth. I used to rely on tips from WhatsApp groups.",
-    name: "Rahul M.",
-    title: "Chartered Accountant, Mumbai",
-    initials: "RM",
-    gradient: "from-blue-500 to-cyan-400",
+    tool: "Screener.in",
+    limitation: "Shows ratios, not intrinsic value",
+    yieldiq: "Full DCF with fair value estimate",
   },
   {
-    quote: "The DCF model is what sold me. I can adjust WACC and growth myself instead of trusting some black box.",
-    name: "Priya S.",
-    title: "Software Engineer, Bangalore",
-    initials: "PS",
-    gradient: "from-purple-500 to-pink-400",
+    tool: "Tickertape",
+    limitation: "Screening only, no DCF engine",
+    yieldiq: "15 valuation engines + scenarios",
   },
   {
-    quote: "I check YieldIQ before every investment now. The conviction score saves me from emotional decisions.",
-    name: "Amit K.",
-    title: "Retail Investor, Delhi",
-    initials: "AK",
-    gradient: "from-amber-500 to-orange-400",
+    tool: "Bloomberg",
+    limitation: "\u20B920L/year, institutional only",
+    yieldiq: "Free tier, built for retail",
+  },
+  {
+    tool: "Excel DCF",
+    limitation: "Hours of manual work per stock",
+    yieldiq: "Instant analysis, any stock",
   },
 ]
 
@@ -395,16 +394,11 @@ function LandingContent() {
                 </Link>
               </div>
 
-              {/* Social proof */}
-              <div className="flex items-center gap-3 justify-center lg:justify-start">
-                <div className="flex -space-x-2">
-                  {["from-blue-500 to-cyan-400", "from-purple-500 to-pink-400", "from-amber-500 to-orange-400", "from-green-500 to-emerald-400"].map((g, i) => (
-                    <div key={i} className={`w-8 h-8 rounded-full bg-gradient-to-br ${g} border-2 border-[#0F172A] flex items-center justify-center text-white text-[10px] font-bold`}>
-                      {["RM", "PS", "AK", "VS"][i]}
-                    </div>
-                  ))}
-                </div>
-                <span className="text-gray-400 text-sm">Trusted by <span className="text-white font-semibold">2,900+</span> Indian investors</span>
+              {/* Real stats instead of fake avatars */}
+              <div className="flex items-center gap-6 justify-center lg:justify-start text-sm text-gray-400">
+                <span><span className="text-white font-semibold">$0</span> forever for core features</span>
+                <span className="text-gray-600">&bull;</span>
+                <span>No credit card required</span>
               </div>
             </div>
 
@@ -616,31 +610,30 @@ function LandingContent() {
         </div>
       </section>
 
-      {/* ── Testimonials ──────────────────────────────── */}
+      {/* ── Why Not Just Use... ─────────────────────── */}
       <section className="py-20 bg-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <FadeIn>
-            <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase text-center mb-3">What Investors Say</p>
-            <h2 className="text-3xl md:text-4xl font-black text-center mb-16">Loved by Indian Investors.</h2>
+            <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase text-center mb-3">Comparison</p>
+            <h2 className="text-3xl md:text-4xl font-black text-center mb-4">Why YieldIQ?</h2>
+            <p className="text-gray-500 text-center mb-12 max-w-2xl mx-auto">
+              Screeners show you ratios. YieldIQ tells you what a stock is <span className="font-semibold text-gray-900">actually worth</span>.
+            </p>
           </FadeIn>
-          <div className="grid md:grid-cols-3 gap-8">
-            {testimonials.map((t, i) => (
-              <FadeIn key={t.name} delay={i * 100}>
-                <div className="bg-white rounded-2xl p-6 border border-gray-100 shadow-sm hover:shadow-lg transition">
-                  <div className="flex gap-0.5 mb-4">
-                    {[1, 2, 3, 4, 5].map(s => (
-                      <Star key={s} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    ))}
-                  </div>
-                  <p className="text-gray-600 text-sm leading-relaxed mb-6">&ldquo;{t.quote}&rdquo;</p>
-                  <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full bg-gradient-to-br ${t.gradient} flex items-center justify-center text-white text-xs font-bold`}>
-                      {t.initials}
-                    </div>
-                    <div>
-                      <div className="font-semibold text-sm">{t.name}</div>
-                      <div className="text-gray-400 text-xs">{t.title}</div>
-                    </div>
+          <div className="max-w-3xl mx-auto">
+            {/* Table header */}
+            <div className="grid grid-cols-3 gap-4 pb-4 border-b border-gray-200 text-xs font-bold uppercase tracking-wider text-gray-400">
+              <div>Tool</div>
+              <div>Limitation</div>
+              <div className="text-blue-600">YieldIQ</div>
+            </div>
+            {comparisons.map((c, i) => (
+              <FadeIn key={c.tool} delay={i * 80}>
+                <div className="grid grid-cols-3 gap-4 py-4 border-b border-gray-100 items-center text-sm">
+                  <div className="font-semibold text-gray-900">{c.tool}</div>
+                  <div className="text-gray-400">{c.limitation}</div>
+                  <div className="text-blue-600 font-medium flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 flex-shrink-0" /> {c.yieldiq}
                   </div>
                 </div>
               </FadeIn>
