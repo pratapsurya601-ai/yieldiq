@@ -1,7 +1,8 @@
 # data_pipeline/pipeline.py
-# Main pipeline orchestrator — runs all data sources in correct order.
-# Called by scheduler for daily updates.
-# Called manually for initial backfill.
+# Main pipeline orchestrator.
+# PRIMARY SOURCE: yfinance (NSE/BSE block Railway cloud IPs).
+# NSE Bhavcopy and BSE XBRL are kept as optional sources for
+# self-hosted deployments where IPs aren't blocked.
 from __future__ import annotations
 
 import logging
@@ -11,20 +12,17 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from data_pipeline.models import (
-    CorporateAction,
     DailyPrice,
     Financials,
     MarketMetrics,
     ShareholdingPattern,
 )
-from data_pipeline.sources.bse_xbrl import batch_update_financials
-from data_pipeline.sources.nse_bhavcopy import (
-    backfill_history,
-    download_corporate_actions,
-    run_daily as bhavcopy_daily,
+from data_pipeline.sources.yfinance_supplement import (
+    batch_fetch_fundamentals,
+    batch_fetch_prices,
+    fetch_and_store_yfinance,
+    fetch_price_history,
 )
-from data_pipeline.sources.nse_shareholding import download_bulk_shareholding
-from data_pipeline.sources.yfinance_supplement import fetch_and_store_yfinance
 
 logger = logging.getLogger(__name__)
 
@@ -59,47 +57,51 @@ ISIN_MAP: dict[str, str] = {}
 def run_initial_setup(db: Session):
     """
     Run once when setting up the database for the first time.
-    Downloads 3 years of price history + all available fundamentals.
-    Takes 2-4 hours. Schedule daily updates after this.
+    Uses yfinance as primary source (NSE/BSE block cloud IPs).
+    Takes ~60-90 minutes for 100 stocks.
     """
-    logger.info("=== Starting initial YieldIQ data setup ===")
+    logger.info("=== Starting initial YieldIQ data setup (yfinance) ===")
 
-    # Step 1: 3-year price history
-    logger.info("Step 1/5: Downloading 3-year price history from NSE Bhavcopy")
-    backfill_history(db, days=365 * 3)
+    # Step 1: 3-year price history via yfinance
+    logger.info("Step 1/3: Downloading 3-year price history via yfinance")
+    price_ok, price_total = batch_fetch_prices(NSE_UNIVERSE, db, period="3y")
+    logger.info(f"Prices done: {price_ok} stocks, {price_total} records")
 
-    # Step 2: Corporate actions (splits, bonuses)
-    logger.info("Step 2/5: Downloading corporate actions")
-    download_corporate_actions(db)
+    # Step 2: Fundamentals (financials + market metrics)
+    logger.info("Step 2/3: Downloading fundamentals via yfinance")
+    fund_ok, fund_fail = batch_fetch_fundamentals(NSE_UNIVERSE, db)
+    logger.info(f"Fundamentals done: {fund_ok} ok, {fund_fail} failed")
 
-    # Step 3: Shareholding patterns (last 4 quarters)
-    logger.info("Step 3/5: Downloading shareholding patterns")
-    current_year = date.today().year
-    for quarter in [1, 2, 3, 4]:
-        download_bulk_shareholding(current_year - 1, quarter, db)
-    download_bulk_shareholding(current_year, 1, db)
+    # Step 3: Try NSE/BSE as bonus (will silently fail on Railway)
+    logger.info("Step 3/3: Attempting NSE/BSE supplement (may fail on cloud)")
+    try:
+        from data_pipeline.sources.nse_bhavcopy import download_corporate_actions
+        download_corporate_actions(db)
+    except Exception as e:
+        logger.info(f"NSE corporate actions skipped: {e}")
 
-    # Step 4: Financial data via yfinance (bulk)
-    logger.info("Step 4/5: Downloading fundamentals via yfinance")
-    for ticker in NSE_UNIVERSE:
-        fetch_and_store_yfinance(f"{ticker}.NS", ticker, db)
-
-    # Step 5: Supplement with BSE XBRL where available
-    logger.info("Step 5/5: Supplementing with BSE XBRL data")
-    if ISIN_MAP:
-        batch_update_financials(db, NSE_UNIVERSE, ISIN_MAP)
+    try:
+        from data_pipeline.sources.nse_shareholding import download_bulk_shareholding
+        current_year = date.today().year
+        for quarter in [1, 2, 3, 4]:
+            download_bulk_shareholding(current_year - 1, quarter, db)
+    except Exception as e:
+        logger.info(f"NSE shareholding skipped: {e}")
 
     logger.info("=== Initial setup complete ===")
 
 
 def run_daily_update(db: Session):
     """
-    Daily update — runs every trading day after market close (4pm IST).
-    Fast — only downloads today's data.
+    Daily update — runs every trading day after market close.
+    Re-downloads latest prices for all stocks.
     """
     logger.info("Starting daily data update")
-    bhavcopy_daily(db)
-    download_corporate_actions(db)
+
+    # Update prices for last 5 days (covers weekends + missed days)
+    for ticker in NSE_UNIVERSE:
+        fetch_price_history(f"{ticker}.NS", ticker, db, period="5d")
+
     logger.info("Daily update complete")
 
 
@@ -109,14 +111,7 @@ def run_weekly_update(db: Session):
     Updates fundamentals for all stocks. Takes 30-60 minutes.
     """
     logger.info("Starting weekly fundamentals update")
-
-    for ticker in NSE_UNIVERSE:
-        fetch_and_store_yfinance(f"{ticker}.NS", ticker, db)
-
-    today = date.today()
-    quarter = (today.month - 1) // 3 + 1
-    download_bulk_shareholding(today.year, quarter, db)
-
+    batch_fetch_fundamentals(NSE_UNIVERSE, db)
     logger.info("Weekly update complete")
 
 
@@ -153,8 +148,8 @@ def get_stock_data_from_db(ticker: str, db: Session) -> dict:
         DailyPrice.trade_date >= one_year_ago,
     ).order_by(DailyPrice.trade_date).all()
 
-    week_52_high = max((p.high_price for p in price_history), default=None) if price_history else None
-    week_52_low = min((p.low_price for p in price_history), default=None) if price_history else None
+    week_52_high = max((p.high_price for p in price_history if p.high_price), default=None) if price_history else None
+    week_52_low = min((p.low_price for p in price_history if p.low_price), default=None) if price_history else None
 
     return {
         "ticker": ticker,
