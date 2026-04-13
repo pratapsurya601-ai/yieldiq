@@ -183,11 +183,16 @@ class AnalysisService:
         fund_result = score_fundamentals(enriched)
         confidence = compute_confidence_score(enriched)
 
+        # Analyst upside: (target - price) / price * 100
+        _analyst_target = (raw.get("finnhub_price_target") or {}).get("mean", 0) or 0
+        _analyst_upside = ((_analyst_target - price) / price * 100) if price > 0 and _analyst_target > 0 else 0
+
         yiq_score = compute_yieldiq_score(
             mos_pct=mos_pct,
             piotroski=piotroski.get("score", 0),
             moat_grade=moat_result.get("grade", "None"),
             rev_growth=enriched.get("revenue_growth", 0),
+            analyst_upside=_analyst_upside,
         )
 
         # ── Step 8: Scenarios ─────────────────────────────────
