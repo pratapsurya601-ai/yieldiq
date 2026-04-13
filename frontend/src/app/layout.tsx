@@ -4,7 +4,8 @@ import { Providers } from "./providers";
 
 export const metadata: Metadata = {
   title: "YieldIQ — Know if a stock is undervalued",
-  description: "Institutional-grade DCF valuation for Indian and global markets. Free stock analysis with YieldIQ Score, margin of safety, and AI insights.",
+  description: "Free DCF valuation for NSE & BSE stocks. YieldIQ Score, margin of safety, Piotroski F-Score, and AI insights for Indian investors.",
+  icons: { icon: "/logo_icon.jpeg" },
 };
 
 export default function RootLayout({

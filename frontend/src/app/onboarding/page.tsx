@@ -63,7 +63,7 @@ export default function OnboardingPage() {
         {step === 0 && (
           <div className="space-y-4">
             <div className="bg-white rounded-2xl border border-gray-100 p-6 text-center space-y-3">
-              <div className="text-4xl">&#128200;</div>
+              <img src="/logo.jpeg" alt="YieldIQ" className="w-20 h-20 rounded-full mx-auto" />
               <p className="text-sm text-gray-600 leading-relaxed">
                 YieldIQ runs a professional DCF model on any stock and tells you
                 if it is trading above or below its estimated fair value.

@@ -34,6 +34,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
+          <img src="/logo.jpeg" alt="YieldIQ" className="w-16 h-16 rounded-full mx-auto mb-3" />
           <h1 className="text-2xl font-bold text-gray-900">YieldIQ</h1>
           <p className="text-sm text-gray-500 mt-1">Know if a stock is undervalued</p>
         </div>
