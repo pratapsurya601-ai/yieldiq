@@ -11,17 +11,34 @@
 # 5. Add custom domain: api.yieldiq.in
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
-import sys
-import os
-from pathlib import Path
 
-# Ensure project root is importable
+# PATH SETUP — must happen before ANY other imports
+import sys, os
+from pathlib import Path
 _ROOT = str(Path(__file__).resolve().parent.parent)
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
 _DASHBOARD = os.path.join(_ROOT, "dashboard")
 if _DASHBOARD not in sys.path:
     sys.path.insert(0, _DASHBOARD)
+
+# Verify path works before importing anything else
+import importlib.util as _ilu
+_logger_spec = _ilu.spec_from_file_location("utils.logger", os.path.join(_ROOT, "utils", "logger.py"))
+if _logger_spec and _logger_spec.loader:
+    _logger_mod = _ilu.module_from_spec(_logger_spec)
+    sys.modules["utils.logger"] = _logger_mod
+    _logger_spec.loader.exec_module(_logger_mod)
+# Also pre-load utils package
+_utils_spec = _ilu.spec_from_file_location("utils", os.path.join(_ROOT, "utils", "__init__.py"),
+                                            submodule_search_locations=[os.path.join(_ROOT, "utils")])
+if _utils_spec:
+    _utils_mod = _ilu.module_from_spec(_utils_spec)
+    sys.modules.setdefault("utils", _utils_mod)
+    try:
+        _utils_spec.loader.exec_module(_utils_mod)
+    except Exception:
+        pass
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
