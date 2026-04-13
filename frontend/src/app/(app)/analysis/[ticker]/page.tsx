@@ -80,7 +80,7 @@ export default function AnalysisPage() {
       </div>
 
       {/* LAYER 2 -- The Story (Insight Cards) */}
-      <InsightCards quality={quality} insights={insights} valuation={valuation} />
+      <InsightCards quality={quality} insights={insights} valuation={valuation} currency={company.currency} />
 
       {/* LAYER 3 -- Scenarios */}
       {data.scenarios && (

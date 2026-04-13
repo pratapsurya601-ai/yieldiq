@@ -8,6 +8,7 @@ interface InsightCardsProps {
   quality: QualityOutput
   insights: InsightCardsType
   valuation: ValuationOutput
+  currency?: string
 }
 
 interface CardData {
@@ -17,7 +18,7 @@ interface CardData {
   color: string
 }
 
-export default function InsightCards({ quality, insights, valuation }: InsightCardsProps) {
+export default function InsightCards({ quality, insights, valuation, currency = "INR" }: InsightCardsProps) {
   const cards: CardData[] = [
     {
       title: "Piotroski F-Score",
@@ -47,12 +48,14 @@ export default function InsightCards({ quality, insights, valuation }: InsightCa
     },
     {
       title: "Wall Street Target",
-      value: insights.wall_street_avg_target !== null
-        ? formatCurrency(insights.wall_street_avg_target, valuation.current_price > 10000 ? "INR" : "USD")
+      value: insights.wall_street_avg_target !== null && insights.wall_street_avg_target > 0
+        ? formatCurrency(insights.wall_street_avg_target, currency)
         : "N/A",
-      subtitle: insights.wall_street_target_count !== null
+      subtitle: insights.wall_street_target_count !== null && insights.wall_street_target_count > 0
         ? `${insights.wall_street_target_count} analyst${insights.wall_street_target_count !== 1 ? "s" : ""}`
-        : "No analyst coverage",
+        : insights.wall_street_avg_target !== null && insights.wall_street_avg_target > 0
+          ? "Analyst consensus"
+          : "No analyst coverage",
       color: "text-gray-700",
     },
     {
