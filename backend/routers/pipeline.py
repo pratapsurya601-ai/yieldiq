@@ -287,27 +287,49 @@ async def test_fetch_one(ticker: str):
 
 @router.get("/test/raw-price/{ticker}")
 async def test_raw_price(ticker: str):
-    """Test: show raw yfinance download result for a stock."""
+    """Test: show raw yfinance result for a stock using both methods."""
+    import yfinance as yf
+    results = {}
+
+    # Method 1: Ticker.history
     try:
-        import yfinance as yf
-        import pandas as pd
-        df = yf.download(f"{ticker}.NS", period="5d", progress=False, auto_adjust=True)
-        if df is None or df.empty:
-            return {"status": "empty", "ticker": ticker}
-
-        # Flatten MultiIndex if present
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
-
-        return {
-            "status": "ok",
-            "ticker": ticker,
-            "rows": len(df),
-            "columns": list(df.columns),
-            "sample": df.tail(3).reset_index().to_dict("records"),
-        }
+        stock = yf.Ticker(f"{ticker}.NS")
+        df1 = stock.history(period="5d")
+        if df1 is not None and not df1.empty:
+            results["ticker_history"] = {
+                "rows": len(df1), "columns": list(df1.columns),
+                "sample": df1.tail(2).reset_index().astype(str).to_dict("records"),
+            }
+        else:
+            results["ticker_history"] = "empty"
     except Exception as e:
-        return {"status": "error", "error": str(e)}
+        results["ticker_history"] = f"error: {e}"
+
+    # Method 2: yf.download
+    try:
+        import pandas as pd
+        df2 = yf.download(f"{ticker}.NS", period="5d", progress=False)
+        if df2 is not None and not df2.empty:
+            if isinstance(df2.columns, pd.MultiIndex):
+                df2.columns = [col[0] if isinstance(col, tuple) else col for col in df2.columns]
+            results["yf_download"] = {
+                "rows": len(df2), "columns": list(df2.columns),
+                "sample": df2.tail(2).reset_index().astype(str).to_dict("records"),
+            }
+        else:
+            results["yf_download"] = "empty"
+    except Exception as e:
+        results["yf_download"] = f"error: {e}"
+
+    # Method 3: Ticker.info (quick check)
+    try:
+        info = stock.info
+        results["info_price"] = info.get("regularMarketPrice") or info.get("currentPrice")
+        results["info_name"] = info.get("longName")
+    except Exception as e:
+        results["info"] = f"error: {e}"
+
+    return {"ticker": ticker, **results}
 
 
 @router.get("/test/bhavcopy")

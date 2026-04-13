@@ -109,19 +109,24 @@ def fetch_price_history(ticker_ns: str, ticker: str, db: Session,
                         period: str = "3y") -> int:
     """
     Download price history from yfinance and store in daily_prices.
-    Uses yf.download() which is more reliable than Ticker.history().
+    Uses Ticker.history() which worked for the first 50 stocks.
     """
     try:
-        # yf.download is more reliable than Ticker.history for Indian stocks
-        df = yf.download(ticker_ns, period=period, progress=False, auto_adjust=True)
+        stock = yf.Ticker(ticker_ns)
+
+        # Try auto_adjust=True first (newer yfinance), fall back to False
+        df = None
+        for auto_adj in [True, False]:
+            try:
+                df = stock.history(period=period, auto_adjust=auto_adj)
+                if df is not None and not df.empty:
+                    break
+            except Exception:
+                continue
 
         if df is None or df.empty:
             logger.warning(f"No price history for {ticker_ns}")
             return 0
-
-        # Flatten MultiIndex columns if present (yf.download quirk)
-        if isinstance(df.columns, pd.MultiIndex):
-            df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
 
         logger.info(f"{ticker}: got {len(df)} rows, columns={list(df.columns)}")
 
@@ -130,11 +135,13 @@ def fetch_price_history(ticker_ns: str, ticker: str, db: Session,
             try:
                 trade_date = idx.date() if hasattr(idx, "date") else idx
 
-                close = _safe_float(row.get("Close") or row.get("Adj Close"))
+                # Try multiple column name variants
+                close = _safe_float(
+                    row.get("Close") or row.get("Adj Close") or row.get("close")
+                )
                 if close is None or close <= 0:
                     continue
 
-                # Skip if already exists
                 existing = db.query(DailyPrice).filter_by(
                     ticker=ticker, trade_date=trade_date,
                 ).first()
@@ -144,17 +151,16 @@ def fetch_price_history(ticker_ns: str, ticker: str, db: Session,
                 price = DailyPrice(
                     ticker=ticker,
                     trade_date=trade_date,
-                    open_price=_safe_float(row.get("Open")),
-                    high_price=_safe_float(row.get("High")),
-                    low_price=_safe_float(row.get("Low")),
+                    open_price=_safe_float(row.get("Open") or row.get("open")),
+                    high_price=_safe_float(row.get("High") or row.get("high")),
+                    low_price=_safe_float(row.get("Low") or row.get("low")),
                     close_price=close,
-                    volume=int(row.get("Volume", 0) or 0),
+                    volume=int(row.get("Volume") or row.get("volume") or 0),
                     adj_close=close,
                 )
                 db.add(price)
                 stored += 1
-            except Exception as e:
-                logger.debug(f"Row error for {ticker}/{idx}: {e}")
+            except Exception:
                 continue
 
         db.commit()
@@ -211,8 +217,8 @@ def batch_fetch_prices(tickers: list[str], db: Session,
                 except Exception:
                     pass
 
-        # Rate limit — 1s between calls (safer than 0.5s)
-        time.sleep(1)
+        # Rate limit — 2s between calls to avoid yfinance blocking
+        time.sleep(2)
 
         # Save progress every 10 stocks
         if (i + 1) % 10 == 0:
