@@ -43,7 +43,7 @@ LIMITS = {
     "free": {
         "analyses_per_day": 5,          "reports_per_month": 0,
         "report_cost": 14.99,           "screener_per_week": 0,
-        "watchlist_stocks": 10,         "india_access": False,
+        "watchlist_stocks": 10,         "india_access": True,
         "europe_access": False,         "action_plan": False,
         "quality_score": False,         "scenarios": False,
         "sensitivity": False,           "monte_carlo": False,
@@ -56,7 +56,7 @@ LIMITS = {
     "starter": {
         "analyses_per_day": 50,         "reports_per_month": 5,
         "report_cost": 0,               "screener_per_week": 9999,
-        "watchlist_stocks": 50,         "india_access": False,
+        "watchlist_stocks": 50,         "india_access": True,
         "europe_access": False,         "action_plan": True,
         "quality_score": True,          "scenarios": True,
         "sensitivity": True,            "monte_carlo": False,
