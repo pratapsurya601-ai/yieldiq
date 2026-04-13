@@ -199,3 +199,66 @@ async def run_initial_setup():
         raise
     except Exception as e:
         raise HTTPException(500, f"Setup failed to start: {e}")
+
+
+@router.get("/test/bhavcopy")
+async def test_bhavcopy():
+    """Test: try downloading one day of NSE Bhavcopy. Diagnoses connectivity."""
+    from datetime import date, timedelta
+    try:
+        from data_pipeline.sources.nse_bhavcopy import download_bhavcopy
+
+        # Try last few weekdays
+        today = date.today()
+        for delta in range(1, 8):
+            target = today - timedelta(days=delta)
+            if target.weekday() < 5:
+                df = download_bhavcopy(target)
+                if df is not None:
+                    return {
+                        "status": "ok",
+                        "date": target.isoformat(),
+                        "stocks_found": len(df),
+                        "sample": df[["ticker", "close_price", "volume"]].head(5).to_dict("records"),
+                    }
+        return {"status": "no_data", "message": "No bhavcopy found for last 7 days"}
+    except Exception as e:
+        return {"status": "error", "error": str(e), "type": type(e).__name__}
+
+
+@router.get("/test/yfinance")
+async def test_yfinance():
+    """Test: try fetching one stock via yfinance."""
+    try:
+        import yfinance as yf
+        stock = yf.Ticker("RELIANCE.NS")
+        info = stock.info
+        price = info.get("regularMarketPrice") or info.get("currentPrice")
+        return {
+            "status": "ok" if price else "no_price",
+            "ticker": "RELIANCE.NS",
+            "price": price,
+            "name": info.get("longName"),
+            "market_cap": info.get("marketCap"),
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e), "type": type(e).__name__}
+
+
+@router.get("/test/bse")
+async def test_bse():
+    """Test: try fetching RELIANCE from BSE API."""
+    try:
+        from data_pipeline.sources.bse_xbrl import download_financials_bse
+        data = download_financials_bse("500325", "RELIANCE")  # 500325 = RELIANCE BSE code
+        if data:
+            return {
+                "status": "ok",
+                "ticker": "RELIANCE",
+                "revenue": data.get("revenue"),
+                "pe": data.get("pe_ratio"),
+                "market_cap": data.get("market_cap_cr"),
+            }
+        return {"status": "no_data", "message": "BSE returned empty response"}
+    except Exception as e:
+        return {"status": "error", "error": str(e), "type": type(e).__name__}
