@@ -1572,7 +1572,8 @@ class StockDataCollector:
             output["_fetched_at"] = 0
             output["_validation"] = None
 
-        _cache.set(ck, output, TTL_PRICE)
+        # Cache for 4 hours — financials don't change intraday, price is refreshed via Finnhub
+        _cache.set(ck, output, 14400)
         return output
 
 
