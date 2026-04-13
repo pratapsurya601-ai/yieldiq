@@ -128,4 +128,19 @@ def run_scenarios(
             "desc":        params["desc"],
         }
 
+    # Enforce ordering: Bull >= Base >= Bear
+    _keys = list(results.keys())
+    _bear_key = [k for k in _keys if "Bear" in k or "bear" in k]
+    _base_key = [k for k in _keys if "Base" in k or "base" in k]
+    _bull_key = [k for k in _keys if "Bull" in k or "bull" in k]
+    if _bear_key and _base_key and _bull_key:
+        _bk, _mk, _uk = _bear_key[0], _base_key[0], _bull_key[0]
+        ivs = sorted([results[_bk]["iv"], results[_mk]["iv"], results[_uk]["iv"]])
+        results[_bk]["iv"] = ivs[0]
+        results[_bk]["mos_pct"] = margin_of_safety(ivs[0], current_price) * 100
+        results[_mk]["iv"] = ivs[1]
+        results[_mk]["mos_pct"] = margin_of_safety(ivs[1], current_price) * 100
+        results[_uk]["iv"] = ivs[2]
+        results[_uk]["mos_pct"] = margin_of_safety(ivs[2], current_price) * 100
+
     return results
