@@ -1,9 +1,5 @@
 "use client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { useAuthStore } from "@/store/authStore"
-import { useSettingsStore } from "@/store/settingsStore"
 import Link from "next/link"
 import { useState } from "react"
 
@@ -42,7 +38,55 @@ function MarketingNav() {
   )
 }
 
-function LandingContent() {
+function MarketingFooter() {
+  return (
+    <footer className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] border-t border-white/5 py-12">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6">
+        <div className="flex flex-col md:flex-row justify-between items-start gap-8">
+          <div>
+            <div className="flex items-center gap-2 mb-3">
+              <img src="/logo.jpeg" alt="YieldIQ" className="w-8 h-8 rounded-full" />
+              <span className="text-white font-bold text-lg">YieldIQ</span>
+            </div>
+            <p className="text-gray-500 text-sm max-w-xs">
+              Institutional-grade DCF valuation for Indian retail investors.
+            </p>
+          </div>
+          <div className="flex gap-16 flex-wrap">
+            <div>
+              <h4 className="text-gray-300 font-semibold text-sm mb-3">Product</h4>
+              <div className="space-y-2">
+                <Link href="/features" className="block text-gray-500 text-sm hover:text-gray-300 transition">Features</Link>
+                <Link href="/pricing" className="block text-gray-500 text-sm hover:text-gray-300 transition">Pricing</Link>
+              </div>
+            </div>
+            <div>
+              <h4 className="text-gray-300 font-semibold text-sm mb-3">Company</h4>
+              <div className="space-y-2">
+                <a href="mailto:hello@yieldiq.in" className="block text-gray-500 text-sm hover:text-gray-300 transition">Contact</a>
+              </div>
+            </div>
+            <div>
+              <h4 className="text-gray-300 font-semibold text-sm mb-3">Legal</h4>
+              <div className="space-y-2">
+                <Link href="#" className="block text-gray-500 text-sm hover:text-gray-300 transition">Privacy</Link>
+                <Link href="#" className="block text-gray-500 text-sm hover:text-gray-300 transition">Terms</Link>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="border-t border-white/5 mt-10 pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-gray-600 text-xs">&copy; 2026 YieldIQ. Made in India.</p>
+          <p className="text-gray-600 text-xs">
+            Model output only &mdash; not investment advice. YieldIQ is not registered with SEBI as an investment adviser.
+          </p>
+        </div>
+      </div>
+    </footer>
+  )
+}
+
+export default function LandingPage() {
   return (
     <div className="bg-white text-gray-900">
       <MarketingNav />
@@ -230,82 +274,7 @@ function LandingContent() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] border-t border-white/5 py-12">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="flex flex-col md:flex-row justify-between items-start gap-8">
-            <div>
-              <div className="flex items-center gap-2 mb-3">
-                <img src="/logo.jpeg" alt="YieldIQ" className="w-8 h-8 rounded-full" />
-                <span className="text-white font-bold text-lg">YieldIQ</span>
-              </div>
-              <p className="text-gray-500 text-sm max-w-xs">
-                Institutional-grade DCF valuation for Indian retail investors.
-              </p>
-            </div>
-            <div className="flex gap-16 flex-wrap">
-              <div>
-                <h4 className="text-gray-300 font-semibold text-sm mb-3">Product</h4>
-                <div className="space-y-2">
-                  <Link href="/features" className="block text-gray-500 text-sm hover:text-gray-300 transition">Features</Link>
-                  <Link href="/pricing" className="block text-gray-500 text-sm hover:text-gray-300 transition">Pricing</Link>
-                </div>
-              </div>
-              <div>
-                <h4 className="text-gray-300 font-semibold text-sm mb-3">Company</h4>
-                <div className="space-y-2">
-                  <a href="mailto:hello@yieldiq.in" className="block text-gray-500 text-sm hover:text-gray-300 transition">Contact</a>
-                </div>
-              </div>
-              <div>
-                <h4 className="text-gray-300 font-semibold text-sm mb-3">Legal</h4>
-                <div className="space-y-2">
-                  <Link href="#" className="block text-gray-500 text-sm hover:text-gray-300 transition">Privacy</Link>
-                  <Link href="#" className="block text-gray-500 text-sm hover:text-gray-300 transition">Terms</Link>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="border-t border-white/5 mt-10 pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
-            <p className="text-gray-600 text-xs">&copy; 2026 YieldIQ. Made in India.</p>
-            <p className="text-gray-600 text-xs">
-              Model output only &mdash; not investment advice. YieldIQ is not registered with SEBI as an investment adviser.
-            </p>
-          </div>
-        </div>
-      </footer>
+      <MarketingFooter />
     </div>
   )
-}
-
-export default function RootPage() {
-  const router = useRouter()
-  const { token } = useAuthStore()
-  const { onboardingComplete } = useSettingsStore()
-
-  useEffect(() => {
-    if (token) {
-      if (!onboardingComplete) {
-        router.replace("/onboarding")
-      } else {
-        router.replace("/home")
-      }
-    }
-    // If no token, stay on this page — show landing
-  }, [token, onboardingComplete, router])
-
-  // If logged in, show loading while redirecting
-  if (token) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="text-2xl font-bold text-gray-900 mb-2">YieldIQ</div>
-          <div className="text-sm text-gray-500">Loading...</div>
-        </div>
-      </div>
-    )
-  }
-
-  // Not logged in — show landing page
-  return <LandingContent />
 }
