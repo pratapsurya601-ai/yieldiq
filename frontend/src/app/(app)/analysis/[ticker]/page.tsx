@@ -34,6 +34,26 @@ export default function AnalysisPage() {
     staleTime: 5 * 60 * 1000,
   })
 
+  // Dynamic SEO meta tags — must be before any conditional returns (Rules of Hooks)
+  useEffect(() => {
+    if (data) {
+      const displayTicker = data.ticker.replace(".NS", "").replace(".BO", "")
+      const verdict = data.valuation.verdict.replace("_", " ")
+      document.title = `${displayTicker} — ${verdict} | YieldIQ`
+
+      const desc = `${data.company.company_name} (${data.ticker}) fair value ₹${data.valuation.fair_value.toFixed(0)} vs price ₹${data.valuation.current_price.toFixed(0)}. YieldIQ Score: ${data.quality.yieldiq_score}/100. ${data.quality.moat} moat.`
+      const metaDesc = document.querySelector('meta[name="description"]')
+      if (metaDesc) {
+        metaDesc.setAttribute("content", desc)
+      } else {
+        const meta = document.createElement("meta")
+        meta.name = "description"
+        meta.content = desc
+        document.head.appendChild(meta)
+      }
+    }
+  }, [data])
+
   if (isLoading) return <LoadingSteps />
   if (error) return (
     <div className="max-w-md mx-auto px-4 py-16 text-center">
@@ -46,45 +66,6 @@ export default function AnalysisPage() {
   if (!data) return null
 
   const { company, valuation, quality, insights } = data
-
-  // Dynamic SEO meta tags (client-side update after data loads)
-  useEffect(() => {
-    if (data) {
-      const displayTicker = data.ticker.replace(".NS", "").replace(".BO", "")
-      const verdict = data.valuation.verdict.replace("_", " ")
-      document.title = `${displayTicker} — ${verdict} | YieldIQ`
-
-      // Update meta description
-      const desc = `${data.company.company_name} (${data.ticker}) fair value ₹${data.valuation.fair_value.toFixed(0)} vs price ₹${data.valuation.current_price.toFixed(0)}. YieldIQ Score: ${data.quality.yieldiq_score}/100. ${data.quality.moat} moat.`
-      const metaDesc = document.querySelector('meta[name="description"]')
-      if (metaDesc) {
-        metaDesc.setAttribute("content", desc)
-      } else {
-        const meta = document.createElement("meta")
-        meta.name = "description"
-        meta.content = desc
-        document.head.appendChild(meta)
-      }
-
-      // Open Graph tags for social sharing
-      const ogTags: Record<string, string> = {
-        "og:title": `${displayTicker} Stock Analysis — ${verdict} | YieldIQ`,
-        "og:description": desc,
-        "og:url": `https://yieldiq.in/analysis/${data.ticker}`,
-        "og:type": "website",
-        "og:site_name": "YieldIQ",
-      }
-      Object.entries(ogTags).forEach(([property, content]) => {
-        let tag = document.querySelector(`meta[property="${property}"]`)
-        if (!tag) {
-          tag = document.createElement("meta")
-          tag.setAttribute("property", property)
-          document.head.appendChild(tag)
-        }
-        tag.setAttribute("content", content)
-      })
-    }
-  }, [data])
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
