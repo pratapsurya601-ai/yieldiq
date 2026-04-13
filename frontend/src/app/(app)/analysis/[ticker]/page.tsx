@@ -15,6 +15,7 @@ import LoadingSteps from "@/components/ui/LoadingSteps"
 import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
 import { formatCurrency, formatPct } from "@/lib/utils"
+import Link from "next/link"
 
 export default function AnalysisPage() {
   const params = useParams<{ ticker: string }>()
@@ -136,6 +137,10 @@ export default function AnalysisPage() {
         />
 
         <ActionBar ticker={ticker} currentPrice={valuation.current_price} />
+
+        <Link href={`/compare?stock1=${ticker}`} className="text-xs text-blue-600 hover:underline">
+          Compare with another stock &rarr;
+        </Link>
       </div>
 
       {/* LAYER 2 -- The Story (Insight Cards) */}

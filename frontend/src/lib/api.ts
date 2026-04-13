@@ -45,6 +45,10 @@ export const getYieldIQ50 = (): Promise<ScreenerResponse> =>
 export const getTopPick = () =>
   api.get("/api/v1/top-pick").then(r => r.data)
 
+// Compare
+export const compareStocks = (ticker1: string, ticker2: string) =>
+  api.get(`/api/v1/compare?ticker1=${ticker1}&ticker2=${ticker2}`).then(r => r.data)
+
 // Screener
 export const runScreener = (filters: Record<string, unknown>): Promise<ScreenerResponse> =>
   api.get("/api/v1/screener/run", { params: filters }).then(r => r.data)

@@ -52,6 +52,44 @@ async def get_analysis(
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
+@router.get("/analysis/{ticker}/og-data")
+async def get_og_data(ticker: str):
+    """Return Open Graph data for social sharing. No auth required."""
+    ticker = ticker.upper().strip()
+    _cache_key = f"og:{ticker}"
+    cached = cache.get(_cache_key)
+    if cached:
+        return cached
+
+    try:
+        result = service.get_full_analysis(ticker)
+        display_ticker = ticker.replace(".NS", "").replace(".BO", "")
+        verdict_text = result.valuation.verdict.replace("_", " ").title()
+
+        og = {
+            "title": f"{display_ticker} — {verdict_text} | YieldIQ",
+            "description": (
+                f"{result.company.company_name} fair value ₹{result.valuation.fair_value:,.0f} "
+                f"vs price ₹{result.valuation.current_price:,.0f}. "
+                f"Score: {result.quality.yieldiq_score}/100. "
+                f"Moat: {result.quality.moat}."
+            ),
+            "ticker": ticker,
+            "score": result.quality.yieldiq_score,
+            "verdict": result.valuation.verdict,
+            "fair_value": result.valuation.fair_value,
+            "price": result.valuation.current_price,
+            "mos": result.valuation.margin_of_safety,
+        }
+        cache.set(_cache_key, og, ttl=3600)
+        return og
+    except Exception:
+        return {
+            "title": f"{ticker} Stock Analysis | YieldIQ",
+            "description": "Free DCF valuation for Indian stocks. Know if a stock is undervalued.",
+        }
+
+
 @router.get("/analysis/preview/{ticker}")
 async def get_analysis_preview(ticker: str):
     """
@@ -327,6 +365,66 @@ async def get_chart_data(
     result = {"prices": prices, "period": period, "financials": financials}
     cache.set(_cache_key, result, ttl=900)  # 15 min cache
     return result
+
+
+@router.get("/compare")
+async def compare_stocks(
+    ticker1: str,
+    ticker2: str,
+    user: dict = Depends(get_current_user),
+):
+    """Compare two stocks side by side."""
+    ticker1 = ticker1.upper().strip()
+    ticker2 = ticker2.upper().strip()
+
+    # Get both analyses (uses cache if available)
+    a1 = service.get_full_analysis(ticker1)
+    a2 = service.get_full_analysis(ticker2)
+
+    return {
+        "stock1": {
+            "ticker": a1.ticker,
+            "company_name": a1.company.company_name,
+            "sector": a1.company.sector,
+            "price": a1.valuation.current_price,
+            "fair_value": a1.valuation.fair_value,
+            "mos": a1.valuation.margin_of_safety,
+            "verdict": a1.valuation.verdict,
+            "score": a1.quality.yieldiq_score,
+            "piotroski": a1.quality.piotroski_score,
+            "moat": a1.quality.moat,
+            "moat_score": a1.quality.moat_score,
+            "wacc": a1.valuation.wacc,
+            "fcf_growth": a1.valuation.fcf_growth_rate,
+            "confidence": a1.valuation.confidence_score,
+            "roe": a1.quality.roe,
+            "de_ratio": a1.quality.de_ratio,
+        },
+        "stock2": {
+            "ticker": a2.ticker,
+            "company_name": a2.company.company_name,
+            "sector": a2.company.sector,
+            "price": a2.valuation.current_price,
+            "fair_value": a2.valuation.fair_value,
+            "mos": a2.valuation.margin_of_safety,
+            "verdict": a2.valuation.verdict,
+            "score": a2.quality.yieldiq_score,
+            "piotroski": a2.quality.piotroski_score,
+            "moat": a2.quality.moat,
+            "moat_score": a2.quality.moat_score,
+            "wacc": a2.valuation.wacc,
+            "fcf_growth": a2.valuation.fcf_growth_rate,
+            "confidence": a2.valuation.confidence_score,
+            "roe": a2.quality.roe,
+            "de_ratio": a2.quality.de_ratio,
+        },
+        "winner": {
+            "score": ticker1 if a1.quality.yieldiq_score > a2.quality.yieldiq_score else ticker2,
+            "value": ticker1 if a1.valuation.margin_of_safety > a2.valuation.margin_of_safety else ticker2,
+            "quality": ticker1 if a1.quality.piotroski_score > a2.quality.piotroski_score else ticker2,
+            "moat": ticker1 if a1.quality.moat_score > a2.quality.moat_score else ticker2,
+        }
+    }
 
 
 @router.get("/analysis/{ticker}/report")

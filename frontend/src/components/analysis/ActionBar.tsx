@@ -64,19 +64,30 @@ export default function ActionBar({ ticker, currentPrice }: ActionBarProps) {
 
   const handleShare = async () => {
     const shareUrl = `https://yieldiq.in/analysis/${ticker}`
+    const displayTicker = ticker.replace(".NS", "").replace(".BO", "")
+    const shareData = {
+      title: `${displayTicker} — Stock Analysis`,
+      text: `${displayTicker} analysis on YieldIQ — check if it's undervalued or overvalued`,
+      url: shareUrl,
+    }
+
+    // On mobile / supported browsers, use native share sheet
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData)
+        return
+      } catch {
+        // User cancelled or share failed — fall through to clipboard
+      }
+    }
+
+    // Desktop fallback: copy URL to clipboard
     try {
       await navigator.clipboard.writeText(shareUrl)
       setShowCopied(true)
       setTimeout(() => setShowCopied(false), 2000)
     } catch {
-      // Fallback for browsers that block clipboard API
-      if (navigator.share) {
-        navigator.share({
-          title: `${ticker} Analysis — YieldIQ`,
-          text: `Check out the YieldIQ analysis for ${ticker}`,
-          url: shareUrl,
-        }).catch(() => {})
-      }
+      // Last resort: do nothing
     }
   }
 
