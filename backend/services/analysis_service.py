@@ -77,9 +77,19 @@ class AnalysisService:
         """
         _ts = datetime.now().isoformat()
 
-        # ── Step 1: Fetch data ────────────────────────────────
-        collector = StockDataCollector(ticker)
-        raw = collector.get_all()
+        # ── Step 1: Fetch data (with retry for rate-limited .NS stocks) ─
+        import time as _time
+        raw = None
+        for _attempt in range(3):
+            try:
+                collector = StockDataCollector(ticker)
+                raw = collector.get_all()
+                if raw is not None:
+                    break
+            except Exception:
+                pass
+            if raw is None and _attempt < 2:
+                _time.sleep(3 + _attempt * 3)  # 3s, 6s delays
 
         # ── Step 2: Validate ──────────────────────────────────
         validation = validate_stock_data(ticker, raw)
