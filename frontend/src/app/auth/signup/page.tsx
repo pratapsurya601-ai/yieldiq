@@ -22,6 +22,12 @@ export default function SignupPage() {
       const res = await signup(email, password)
       Cookies.set("yieldiq_token", res.access_token, { expires: 7 })
       setAuth(res.access_token, res.user_id, res.email, res.tier, 0, 5)
+      // Reset onboarding state for new users
+      const settingsStore = JSON.parse(localStorage.getItem("yieldiq-settings") || "{}")
+      if (settingsStore.state) {
+        settingsStore.state.onboardingComplete = false
+        localStorage.setItem("yieldiq-settings", JSON.stringify(settingsStore))
+      }
       router.push("/onboarding")
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Signup failed"

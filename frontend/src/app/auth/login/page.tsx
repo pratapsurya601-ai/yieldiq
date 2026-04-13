@@ -21,7 +21,10 @@ export default function LoginPage() {
       const res = await login(email, password)
       Cookies.set("yieldiq_token", res.access_token, { expires: 7 })
       setAuth(res.access_token, res.user_id, res.email, res.tier, res.analyses_today, res.analysis_limit)
-      router.push("/home")
+      // Check if onboarding is complete
+      const settings = JSON.parse(localStorage.getItem("yieldiq-settings") || "{}")
+      const onboardingDone = settings?.state?.onboardingComplete
+      router.push(onboardingDone ? "/home" : "/onboarding")
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Login failed"
       setError(msg)
