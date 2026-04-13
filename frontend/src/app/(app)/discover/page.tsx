@@ -6,13 +6,15 @@ import ScreenerPresets from "@/components/discover/ScreenerPresets"
 import { useAuthStore } from "@/store/authStore"
 import Link from "next/link"
 
+const RANK_COLORS = ["bg-yellow-500", "bg-gray-400", "bg-amber-600"]
+
 export default function DiscoverPage() {
   const { tier } = useAuthStore()
   const { data: topPick } = useQuery({ queryKey: ["top-pick"], queryFn: getTopPick, staleTime: 86400000 })
   const { data: yiq50 } = useQuery({ queryKey: ["yieldiq50"], queryFn: getYieldIQ50, staleTime: 86400000 })
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-8">
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-8 pb-20">
       {/* Top Pick */}
       {topPick && (
         <section>
@@ -38,9 +40,13 @@ export default function DiscoverPage() {
         {yiq50 && yiq50.results.length > 0 ? (
           <>
             <div className="grid grid-cols-3 gap-2 mb-3">
-              {yiq50.results.slice(0, 3).map((s) => (
+              {yiq50.results.slice(0, 3).map((s, i) => (
                 <Link key={s.ticker} href={`/analysis/${s.ticker}`}
-                  className="bg-white rounded-xl border border-gray-100 p-3 text-center hover:border-blue-200 transition">
+                  className="relative bg-white rounded-xl border border-gray-100 p-3 text-center hover:border-blue-200 transition">
+                  {/* Rank badge */}
+                  <span className={`absolute -top-2 -left-2 w-6 h-6 rounded-full ${RANK_COLORS[i]} text-white text-[10px] font-bold flex items-center justify-center shadow-sm`}>
+                    #{i + 1}
+                  </span>
                   <p className="text-sm font-bold text-gray-900">{s.ticker.replace(".NS", "")}</p>
                   <p className="text-lg font-bold text-blue-700 font-mono">{s.margin_of_safety > 0 ? "+" : ""}{s.margin_of_safety.toFixed(0)}%</p>
                   <p className="text-[10px] text-gray-400">Score: {s.score}</p>
@@ -60,7 +66,7 @@ export default function DiscoverPage() {
                   </thead>
                   <tbody>
                     {yiq50.results.map((s, i) => (
-                      <tr key={s.ticker} className="border-b border-gray-50 hover:bg-gray-50">
+                      <tr key={s.ticker} className={`border-b border-gray-50 hover:bg-blue-50 transition-colors ${i % 2 === 1 ? "bg-gray-50/50" : ""}`}>
                         <td className="px-3 py-2 text-gray-400">{i + 1}</td>
                         <td className="px-3 py-2 font-medium">
                           <Link href={`/analysis/${s.ticker}`} className="text-blue-700 hover:underline">

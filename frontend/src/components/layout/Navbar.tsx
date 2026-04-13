@@ -67,8 +67,10 @@ export default function Navbar() {
   const tier = useAuthStore((s) => s.tier)
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 pb-safe" aria-label="Main navigation">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-gray-200 pb-[env(safe-area-inset-bottom)]" aria-label="Main navigation">
       {tier === "free" && <AnalysisCounter />}
+      {/* Thin separator between counter and nav items */}
+      {tier === "free" && <div className="h-px bg-gray-100 mx-4" />}
       <div className="flex items-center justify-around px-2 h-14">
         {TABS.map((tab) => {
           const isActive = pathname.startsWith(tab.href)
@@ -81,7 +83,7 @@ export default function Navbar() {
                 aria-label={tab.label}
                 className={cn(
                   "flex flex-col items-center justify-center -mt-5",
-                  "h-12 w-12 rounded-full bg-blue-600 shadow-lg shadow-blue-200",
+                  "h-12 w-12 rounded-full bg-blue-600 shadow-md shadow-blue-300",
                   "active:scale-95 transition-transform"
                 )}
               >
@@ -96,10 +98,13 @@ export default function Navbar() {
               href={tab.href}
               aria-label={tab.label}
               className={cn(
-                "flex flex-col items-center gap-0.5 py-1 px-3",
+                "relative flex flex-col items-center gap-0.5 py-1 px-3",
                 "transition-colors"
               )}
             >
+              {isActive && (
+                <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-[2px] bg-blue-500 rounded-full" />
+              )}
               {tab.icon(isActive)}
               <span
                 className={cn(

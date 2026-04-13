@@ -58,7 +58,7 @@ export default function AnalysisPage() {
   if (error) {
     const is429 = (error as { message?: string })?.message?.includes("Daily analysis limit reached")
     return (
-      <div className="max-w-md mx-auto px-4 py-16 text-center">
+      <div className="max-w-md mx-auto px-4 py-16 text-center pb-20">
         <p className="text-4xl mb-4">&#9888;&#65039;</p>
         <p className="text-lg font-medium text-gray-900 mb-2">
           {is429 ? "Daily limit reached" : `Could not load ${ticker}`}
@@ -81,7 +81,7 @@ export default function AnalysisPage() {
   const { company, valuation, quality, insights } = data
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5">
+    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-20">
       {/* Data confidence badge */}
       {data.data_confidence !== "high" && (
         <div className={`text-xs font-medium px-3 py-1 rounded-full inline-block ${data.data_confidence === "medium" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
@@ -101,24 +101,33 @@ export default function AnalysisPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-5">
-          <ConvictionRing score={quality.yieldiq_score} confidence={valuation.confidence_score} />
-          <div className="flex-1 space-y-2">
-            <VerdictChip verdict={valuation.verdict} size="lg" />
-            <LearnTip tipKey="mos" />
-            <BlurredValue value={valuation.fair_value} currency={company.currency} label="Fair value estimate" />
-            <p className="text-sm text-gray-500">
-              Margin of safety: {valuation.margin_of_safety > 80 ? "+80%+" : formatPct(valuation.margin_of_safety)}
-            </p>
-            {valuation.margin_of_safety > 80 && (
-              <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-1">
-                Model shows significant undervaluation. Verify assumptions before acting on this signal.
-              </div>
-            )}
+        {/* Conviction Ring Card */}
+        <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-4 border border-gray-100">
+          <div className="flex items-center gap-5">
+            <ConvictionRing score={quality.yieldiq_score} confidence={valuation.confidence_score} />
+            <div className="flex-1 space-y-2">
+              <VerdictChip verdict={valuation.verdict} size="lg" />
+              <LearnTip tipKey="mos" />
+              <BlurredValue value={valuation.fair_value} currency={company.currency} label="Fair value estimate" />
+              <p className={`text-sm font-medium ${valuation.margin_of_safety >= 0 ? "text-blue-600" : "text-amber-600"}`}>
+                Margin of safety: {valuation.margin_of_safety > 80 ? "+80%+" : formatPct(valuation.margin_of_safety)}
+              </p>
+              {valuation.margin_of_safety > 80 && (
+                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-1">
+                  Model shows significant undervaluation. Verify assumptions before acting on this signal.
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
+        {/* Divider */}
+        <div className="h-px bg-gray-100" />
+
         <AISummary summary={data.ai_summary} ticker={ticker} />
+
+        {/* Divider */}
+        <div className="h-px bg-gray-100" />
 
         <TransparencyStrip
           wacc={valuation.wacc} waccMin={valuation.wacc_industry_min} waccMax={valuation.wacc_industry_max}
@@ -143,6 +152,9 @@ export default function AnalysisPage() {
         />
       </div>
 
+      {/* Divider */}
+      <div className="h-px bg-gray-100 mx-2" />
+
       {/* Financial Bars */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5">
         <h2 className="text-sm font-semibold text-gray-900 mb-3">Financial Overview</h2>
@@ -156,25 +168,34 @@ export default function AnalysisPage() {
 
       {/* LAYER 3 -- Scenarios */}
       {data.scenarios && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">Scenario Analysis</h2>
-          <div className="grid grid-cols-3 gap-3">
-            {(["bear", "base", "bull"] as const).map((key) => {
-              const sc = data.scenarios[key]
-              const label = key === "bear" ? "Bear" : key === "base" ? "Base" : "Bull"
-              const color = key === "bear" ? "text-red-600" : key === "bull" ? "text-green-600" : "text-blue-700"
-              return (
-                <div key={key} className="text-center p-3 rounded-xl bg-gray-50">
-                  <p className="text-xs text-gray-400 mb-1">{label} case</p>
-                  <p className={`text-lg font-bold font-mono ${color}`}>
-                    {formatCurrency(sc.iv, company.currency)}
-                  </p>
-                  <p className="text-xs text-gray-400">MoS: {formatPct(sc.mos_pct)}</p>
-                </div>
-              )
-            })}
+        <>
+          {/* Divider */}
+          <div className="h-px bg-gray-100 mx-2" />
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">Scenario Analysis</h2>
+            <div className="grid grid-cols-3 gap-3">
+              {(["bear", "base", "bull"] as const).map((key) => {
+                const sc = data.scenarios[key]
+                const label = key === "bear" ? "Bear" : key === "base" ? "Base" : "Bull"
+                const color = key === "bear" ? "text-red-600" : key === "bull" ? "text-green-600" : "text-blue-700"
+                const bgGradient = key === "bear"
+                  ? "bg-gradient-to-b from-red-50 to-white"
+                  : key === "bull"
+                    ? "bg-gradient-to-b from-green-50 to-white"
+                    : "bg-gradient-to-b from-blue-50 to-white"
+                return (
+                  <div key={key} className={`text-center p-3 rounded-xl border border-gray-100 ${bgGradient}`}>
+                    <p className="text-xs text-gray-400 mb-1">{label} case</p>
+                    <p className={`text-lg font-bold font-mono ${color}`}>
+                      {formatCurrency(sc.iv, company.currency)}
+                    </p>
+                    <p className="text-xs text-gray-400">MoS: {formatPct(sc.mos_pct)}</p>
+                  </div>
+                )
+              })}
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Disclaimer */}

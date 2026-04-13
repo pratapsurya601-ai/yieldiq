@@ -81,18 +81,25 @@ export default function AccountPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 py-8 space-y-6">
+    <div className="max-w-md mx-auto px-4 py-8 space-y-6 pb-20">
       <h1 className="text-xl font-bold text-gray-900">Account</h1>
 
       {/* Profile */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-        <p className="text-sm text-gray-500">Email</p>
-        <p className="font-medium text-gray-900">{email || "Not signed in"}</p>
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 uppercase">{tier}</span>
-          <span className="text-xs text-gray-400">
-            {analysisLimit >= 999999 ? "Unlimited analyses" : `${analysesToday}/${analysisLimit} analyses today`}
-          </span>
+        <div className="flex items-center gap-4">
+          {/* Avatar placeholder with YieldIQ logo */}
+          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center flex-shrink-0 shadow-md">
+            <span className="text-white font-black text-lg">YQ</span>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-medium text-gray-900 truncate">{email || "Not signed in"}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 uppercase">{tier}</span>
+              <span className="text-xs text-gray-400">
+                {analysisLimit >= 999999 ? "Unlimited analyses" : `${analysesToday}/${analysisLimit} analyses today`}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -123,8 +130,12 @@ export default function AccountPage() {
           <h2 className="text-sm font-semibold text-gray-900">Upgrade your plan</h2>
 
           {/* Starter */}
-          <div className="bg-white rounded-2xl border-2 border-blue-200 p-5">
-            <div className="flex items-center justify-between mb-3">
+          <div className="relative bg-white rounded-2xl border-2 border-blue-200 p-5">
+            {/* Most Popular badge */}
+            <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full shadow-sm">
+              Most Popular
+            </span>
+            <div className="flex items-center justify-between mb-3 mt-1">
               <div>
                 <h3 className="font-bold text-gray-900">Starter</h3>
                 <p className="text-xs text-gray-500">For regular investors</p>
@@ -180,18 +191,19 @@ export default function AccountPage() {
           <p className="text-sm text-gray-500">Current plan</p>
           <p className="text-lg font-bold text-blue-700 uppercase">{tier}</p>
           <p className="text-xs text-gray-400 mt-1">
-            {tier === "starter" ? "₹499/month" : "₹1,999/month"}
+            {tier === "starter" ? "\u20b9499/month" : "\u20b91,999/month"}
           </p>
         </div>
       )}
 
-      <button onClick={handleLogout} className="w-full py-3 text-sm text-red-600 font-medium bg-red-50 rounded-xl hover:bg-red-100 transition">
-        Sign out
-      </button>
-
       <p className="text-[10px] text-gray-400 text-center">
         YieldIQ is not registered with SEBI as an investment adviser. All outputs are model estimates only.
       </p>
+
+      {/* Sign out — less prominent, at the very bottom */}
+      <button onClick={handleLogout} className="w-full py-2 text-sm text-gray-400 font-medium hover:text-red-500 transition text-center">
+        Sign out
+      </button>
     </div>
   )
 }
