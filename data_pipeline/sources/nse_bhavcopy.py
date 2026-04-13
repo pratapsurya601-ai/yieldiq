@@ -257,6 +257,7 @@ def download_corporate_actions(db: Session) -> int:
 
         data = response.json()
         stored = 0
+        errors = 0
 
         for item in data:
             try:
@@ -264,22 +265,42 @@ def download_corporate_actions(db: Session) -> int:
                 if not ex_date_str:
                     continue
 
+                action_type_raw = str(item.get("subject", "")).strip().upper()
+                # Truncate to fit column limits
+                action_type_val = action_type_raw[:500]
+                ratio_val = str(item.get("subject", ""))[:200]
+
                 action = CorporateAction(
                     ticker=str(item.get("symbol", "")).strip(),
-                    action_type=str(item.get("subject", "")).strip().upper(),
+                    action_type=action_type_val,
                     ex_date=pd.to_datetime(ex_date_str).date(),
+                    ratio=ratio_val,
                     remarks=str(item.get("subject", "")),
                     adjustment_factor=1.0,
                 )
                 db.merge(action)
                 stored += 1
-            except Exception:
+            except Exception as e:
+                errors += 1
+                logger.debug(f"Skipping corporate action row: {e}")
                 continue
 
-        db.commit()
+        try:
+            db.commit()
+        except Exception as e:
+            logger.error(f"Corporate actions commit failed, rolling back: {e}")
+            db.rollback()
+            return 0
+
+        if errors:
+            logger.warning(f"Corporate actions: {errors} rows skipped due to errors")
         logger.info(f"Corporate actions: stored {stored} records")
         return stored
 
     except Exception as e:
         logger.error(f"Corporate actions download failed: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
         return 0

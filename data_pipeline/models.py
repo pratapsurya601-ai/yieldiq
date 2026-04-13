@@ -58,9 +58,9 @@ class CorporateAction(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     ticker = Column(String(20), index=True)
-    action_type = Column(String(50))          # SPLIT / BONUS / DIVIDEND
+    action_type = Column(String(500))         # SPLIT / BONUS / DIVIDEND
     ex_date = Column(Date)
-    ratio = Column(String(50))                # e.g. "1:2" for split
+    ratio = Column(String(200))               # e.g. "1:2" for split
     remarks = Column(Text)
     adjustment_factor = Column(Float)
 
