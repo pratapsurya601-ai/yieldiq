@@ -32,8 +32,26 @@ export default function ActionBar({ ticker, currentPrice }: ActionBarProps) {
     // TODO: set price alert
   }
 
-  const handleExport = () => {
-    // TODO: export analysis as PDF
+  const handleExport = async () => {
+    try {
+      const token = document.cookie.split("yieldiq_token=")[1]?.split(";")[0]
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+      const response = await fetch(`${API_BASE}/api/v1/analysis/${ticker}/report`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+      if (!response.ok) throw new Error("Export failed")
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `YieldIQ_${ticker}.txt`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      alert("Could not generate report. Please try again.")
+    }
   }
 
   const [showCopied, setShowCopied] = useState(false)

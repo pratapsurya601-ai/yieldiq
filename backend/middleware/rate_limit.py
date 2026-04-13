@@ -10,8 +10,8 @@ class RateLimiter:
     """Daily rate limiter per user. Resets at midnight UTC."""
 
     TIER_LIMITS = {
-        "free": 5,
-        "starter": 50,
+        "free": 3,
+        "starter": 25,
         "pro": 999999,
     }
 

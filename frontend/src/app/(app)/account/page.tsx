@@ -133,7 +133,7 @@ export default function AccountPage() {
               </div>
             </div>
             <ul className="space-y-1.5 mb-4 text-sm text-gray-600">
-              <li>&#10003; 50 analyses per day</li>
+              <li>&#10003; 25 analyses per day</li>
               <li>&#10003; Bear/Base/Bull scenarios</li>
               <li>&#10003; Stock screener</li>
               <li>&#10003; PDF reports</li>

@@ -41,7 +41,7 @@ _init_auth_db()
 
 LIMITS = {
     "free": {
-        "analyses_per_day": 5,          "reports_per_month": 0,
+        "analyses_per_day": 3,          "reports_per_month": 0,
         "report_cost": 14.99,           "screener_per_week": 0,
         "watchlist_stocks": 10,         "india_access": True,
         "europe_access": False,         "action_plan": False,
@@ -54,7 +54,7 @@ LIMITS = {
         "excel_export": False,          "bulk_screener": False,
     },
     "starter": {
-        "analyses_per_day": 50,         "reports_per_month": 5,
+        "analyses_per_day": 25,         "reports_per_month": 5,
         "report_cost": 0,               "screener_per_week": 9999,
         "watchlist_stocks": 50,         "india_access": True,
         "europe_access": False,         "action_plan": True,
