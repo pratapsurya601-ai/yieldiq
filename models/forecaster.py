@@ -244,6 +244,31 @@ def _rule_based_growth(enriched: dict) -> float:
 
     blended_growth = rev_weight * rev_g + fcf_weight * fcf_g
 
+    # ── Growth fallback chain ─────────────────────────────────
+    # If both FCF and revenue growth are ~0 (data quality issue),
+    # use analyst consensus or industry average as proxy
+    if abs(blended_growth) < 0.005:  # effectively 0%
+        # Try analyst-implied growth from forward EPS
+        _fwd_eps = enriched.get("forward_eps", 0) or 0
+        _trail_eps = enriched.get("trailing_eps", 0) or 0
+        if _fwd_eps > 0 and _trail_eps > 0:
+            _analyst_growth = (_fwd_eps / _trail_eps) - 1
+            if 0 < _analyst_growth < 0.50:
+                blended_growth = _analyst_growth * 0.7  # discount by 30%
+                log.info(f"[{enriched.get('ticker','?')}] Growth fallback: analyst EPS growth {_analyst_growth:.1%} -> {blended_growth:.1%}")
+
+        # Still 0? Use revenue growth alone (even if FCF is messy)
+        if abs(blended_growth) < 0.005 and abs(rev_g) > 0.01:
+            blended_growth = rev_g * 0.8  # use 80% of revenue growth
+            log.info(f"[{enriched.get('ticker','?')}] Growth fallback: revenue growth {rev_g:.1%} -> {blended_growth:.1%}")
+
+        # Still 0? Use industry minimum (3% for India, 2% for US)
+        if abs(blended_growth) < 0.005:
+            _is_us = sector.startswith("us_")
+            _min_growth = 0.02 if _is_us else 0.03
+            blended_growth = _min_growth
+            log.info(f"[{enriched.get('ticker','?')}] Growth fallback: industry minimum {_min_growth:.1%}")
+
     # Mean-revert toward long-run nominal growth
     # US sectors: ~2.5% (US nominal GDP ~2.1% + small premium)
     # India sectors: ~10% (India nominal GDP ~12% minus some discount)
