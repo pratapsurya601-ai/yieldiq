@@ -201,6 +201,90 @@ async def run_initial_setup():
         raise HTTPException(500, f"Setup failed to start: {e}")
 
 
+@router.get("/debug")
+async def debug_pipeline():
+    """Show which stocks have data and which don't."""
+    try:
+        from sqlalchemy import func
+        from data_pipeline.db import Session
+        from data_pipeline.models import DailyPrice, Financials, DataFreshness
+        from data_pipeline.pipeline import NSE_UNIVERSE
+        if Session is None:
+            return {"error": "not configured"}
+
+        db = Session()
+        try:
+            # Which universe stocks have prices?
+            stocks_with_prices = db.query(
+                DailyPrice.ticker, func.count(DailyPrice.id)
+            ).filter(
+                DailyPrice.ticker.in_(NSE_UNIVERSE)
+            ).group_by(DailyPrice.ticker).all()
+
+            price_map = {t: c for t, c in stocks_with_prices}
+
+            # Which have financials?
+            stocks_with_fins = db.query(
+                Financials.ticker, func.count(Financials.id)
+            ).filter(
+                Financials.ticker.in_(NSE_UNIVERSE)
+            ).group_by(Financials.ticker).all()
+
+            fin_map = {t: c for t, c in stocks_with_fins}
+
+            # Freshness
+            freshness = db.query(DataFreshness).all()
+
+            loaded = [t for t in NSE_UNIVERSE if t in price_map]
+            missing = [t for t in NSE_UNIVERSE if t not in price_map]
+
+            return {
+                "universe_size": len(NSE_UNIVERSE),
+                "stocks_with_prices": len(loaded),
+                "stocks_missing_prices": len(missing),
+                "missing_tickers": missing[:20],
+                "stocks_with_financials": len(fin_map),
+                "freshness": [
+                    {"type": f.data_type, "status": f.status,
+                     "updated": f.last_updated.isoformat() if f.last_updated else None,
+                     "count": f.records_updated}
+                    for f in freshness
+                ],
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.get("/test/fetch-one/{ticker}")
+async def test_fetch_one(ticker: str):
+    """Test: fetch price + fundamentals for ONE stock. Runs synchronously."""
+    try:
+        from data_pipeline.db import Session
+        from data_pipeline.sources.yfinance_supplement import (
+            fetch_price_history, fetch_and_store_yfinance,
+        )
+        if Session is None:
+            return {"error": "not configured"}
+
+        db = Session()
+        try:
+            ticker_ns = f"{ticker}.NS"
+            prices = fetch_price_history(ticker_ns, ticker, db, period="3y")
+            fundamentals = fetch_and_store_yfinance(ticker_ns, ticker, db)
+            return {
+                "status": "ok",
+                "ticker": ticker,
+                "price_records_stored": prices,
+                "fundamentals_ok": fundamentals,
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        return {"status": "error", "error": str(e), "type": type(e).__name__}
+
+
 @router.get("/test/bhavcopy")
 async def test_bhavcopy():
     """Test: try downloading one day of NSE Bhavcopy. Diagnoses connectivity."""
