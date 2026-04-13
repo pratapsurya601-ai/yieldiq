@@ -84,7 +84,7 @@ function LandingContent() {
             </div>
             <div className="text-center">
               <div className="text-3xl font-black text-white">Free</div>
-              <div className="text-gray-500 text-xs mt-1">5 Analyses/Day</div>
+              <div className="text-gray-500 text-xs mt-1">3 Analyses/Day</div>
             </div>
           </div>
         </div>

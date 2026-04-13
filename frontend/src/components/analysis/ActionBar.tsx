@@ -1,7 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
+import api from "@/lib/api"
 
 interface ActionBarProps {
   ticker: string
@@ -24,6 +25,15 @@ function ActionButton({ icon, label, onClick }: { icon: React.ReactNode; label: 
 }
 
 export default function ActionBar({ ticker, currentPrice }: ActionBarProps) {
+  const [toast, setToast] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (toast) {
+      const t = setTimeout(() => setToast(null), 3000)
+      return () => clearTimeout(t)
+    }
+  }, [toast])
+
   const handleWatchlist = () => {
     // TODO: add to watchlist
   }
@@ -34,14 +44,10 @@ export default function ActionBar({ ticker, currentPrice }: ActionBarProps) {
 
   const handleExport = async () => {
     try {
-      const token = document.cookie.split("yieldiq_token=")[1]?.split(";")[0]
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
-      const response = await fetch(`${API_BASE}/api/v1/analysis/${ticker}/report`, {
-        headers: { Authorization: `Bearer ${token}` },
+      const response = await api.get(`/api/v1/analysis/${ticker}/report`, {
+        responseType: 'blob'
       })
-      if (!response.ok) throw new Error("Export failed")
-      const blob = await response.blob()
-      const url = window.URL.createObjectURL(blob)
+      const url = window.URL.createObjectURL(new Blob([response.data]))
       const a = document.createElement("a")
       a.href = url
       a.download = `YieldIQ_${ticker}.txt`
@@ -50,7 +56,7 @@ export default function ActionBar({ ticker, currentPrice }: ActionBarProps) {
       a.remove()
       window.URL.revokeObjectURL(url)
     } catch {
-      alert("Could not generate report. Please try again.")
+      setToast("Could not generate report. Please try again.")
     }
   }
 
@@ -80,6 +86,12 @@ export default function ActionBar({ ticker, currentPrice }: ActionBarProps) {
       {showCopied && (
         <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs font-medium px-3 py-1.5 rounded-lg shadow-lg animate-fade-in whitespace-nowrap z-10">
           Link copied!
+        </div>
+      )}
+      {/* General toast notification */}
+      {toast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs font-medium px-4 py-2 rounded-lg shadow-lg z-50 whitespace-nowrap">
+          {toast}
         </div>
       )}
       <ActionButton

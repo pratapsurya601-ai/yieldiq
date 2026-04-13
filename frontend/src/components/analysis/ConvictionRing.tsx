@@ -42,7 +42,8 @@ export default function ConvictionRing({ score, confidence, size = 120 }: Convic
 
   return (
     <div className={cn("relative inline-flex items-center justify-center")} style={{ width: size, height: size }}>
-      <svg width={size} height={size} className="-rotate-90">
+      <svg width={size} height={size} className="-rotate-90" role="img" aria-label={`YieldIQ Score: ${score} out of 100, confidence ${confidence}%`}>
+        <title>YieldIQ Score: {score}/100</title>
         {/* Outer track */}
         <circle
           cx={size / 2}

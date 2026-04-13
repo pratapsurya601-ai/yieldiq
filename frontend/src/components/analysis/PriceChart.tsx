@@ -90,9 +90,22 @@ export default function PriceChart({
     return generateMockData(currentPrice, PERIOD_DAYS[period] ?? 30)
   }, [chartResponse, currentPrice, period])
 
-  const prices = data.map((d) => d.price)
-  const minPrice = Math.min(...prices, fairValue) * 0.98
-  const maxPrice = Math.max(...prices, fairValue) * 1.02
+  if (!data || data.length === 0) {
+    return <div className="text-center py-8 text-gray-400 text-sm">Price data unavailable</div>
+  }
+
+  const prices = data.map((d) => d.price).filter((p) => typeof p === "number" && !isNaN(p))
+  if (prices.length === 0) {
+    return <div className="text-center py-8 text-gray-400 text-sm">Price data unavailable</div>
+  }
+
+  let minPrice = Math.min(...prices, fairValue) * 0.98
+  let maxPrice = Math.max(...prices, fairValue) * 1.02
+  const range = maxPrice - minPrice
+  if (range < 1) {
+    minPrice -= 10
+    maxPrice += 10
+  }
 
   return (
     <div className="rounded-xl bg-white border border-gray-100 p-4 shadow-sm">

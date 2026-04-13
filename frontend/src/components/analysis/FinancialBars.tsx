@@ -91,6 +91,12 @@ export default function FinancialBars({
 
   const yFormatter = currency === "INR" ? formatCrore : formatUSD
 
+  const hasData = data.length > 0 && data.some((d) => d.revenue !== 0 || d.fcf !== 0)
+
+  if (!hasData) {
+    return <div className="text-center py-8 text-gray-400 text-sm">Financial data unavailable</div>
+  }
+
   return (
     <div className="grid grid-cols-2 gap-3">
       {/* Revenue chart */}

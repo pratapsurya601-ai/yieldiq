@@ -55,14 +55,27 @@ export default function AnalysisPage() {
   }, [data])
 
   if (isLoading) return <LoadingSteps />
-  if (error) return (
-    <div className="max-w-md mx-auto px-4 py-16 text-center">
-      <p className="text-4xl mb-4">&#9888;&#65039;</p>
-      <p className="text-lg font-medium text-gray-900 mb-2">Could not load {ticker}</p>
-      <p className="text-sm text-gray-500 mb-4">Data provider may be temporarily unavailable. Try again in a moment.</p>
-      <button onClick={() => window.location.reload()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Retry</button>
-    </div>
-  )
+  if (error) {
+    const is429 = (error as { message?: string })?.message?.includes("Daily analysis limit reached")
+    return (
+      <div className="max-w-md mx-auto px-4 py-16 text-center">
+        <p className="text-4xl mb-4">&#9888;&#65039;</p>
+        <p className="text-lg font-medium text-gray-900 mb-2">
+          {is429 ? "Daily limit reached" : `Could not load ${ticker}`}
+        </p>
+        <p className="text-sm text-gray-500 mb-4">
+          {is429
+            ? "You've used all your free analyses for today. Upgrade to Pro for unlimited access."
+            : "Data provider may be temporarily unavailable. Try again in a moment."}
+        </p>
+        {is429 ? (
+          <a href="/pricing" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium inline-block">Upgrade</a>
+        ) : (
+          <button onClick={() => window.location.reload()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Retry</button>
+        )}
+      </div>
+    )
+  }
   if (!data) return null
 
   const { company, valuation, quality, insights } = data

@@ -23,10 +23,15 @@ interface SearchResult {
   name: string
 }
 
+function isValidTicker(t: string): boolean {
+  return /^[A-Z0-9&\-]{1,20}(\.NS|\.BO)?$/.test(t)
+}
+
 export default function SearchPage() {
   const [query, setQuery] = useState("")
   const [suggestions, setSuggestions] = useState<SearchResult[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
+  const [validationError, setValidationError] = useState<string | null>(null)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
   const router = useRouter()
 
@@ -59,6 +64,11 @@ export default function SearchPage() {
     if (!query.trim()) return
     let t = query.trim().toUpperCase()
     if (!t.includes(".")) t = t + ".NS"
+    if (!isValidTicker(t)) {
+      setValidationError("Invalid ticker format. Use letters, numbers, e.g. RELIANCE or TCS.NS")
+      return
+    }
+    setValidationError(null)
     setShowSuggestions(false)
     router.push(`/analysis/${t}`)
   }
@@ -88,6 +98,10 @@ export default function SearchPage() {
             Analyse
           </button>
         </div>
+
+        {validationError && (
+          <p className="text-xs text-red-600 mt-1 px-1">{validationError}</p>
+        )}
 
         {/* Autocomplete dropdown */}
         {showSuggestions && suggestions.length > 0 && (

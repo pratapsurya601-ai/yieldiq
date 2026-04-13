@@ -1,5 +1,6 @@
 "use client"
 
+import { useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/utils"
 import type { QualityOutput, InsightCards as InsightCardsType, ValuationOutput } from "@/types/api"
@@ -19,7 +20,7 @@ interface CardData {
 }
 
 export default function InsightCards({ quality, insights, valuation, currency = "INR" }: InsightCardsProps) {
-  const cards: CardData[] = [
+  const cards: CardData[] = useMemo(() => [
     {
       title: "Piotroski F-Score",
       value: `${quality.piotroski_score}/9`,
@@ -68,7 +69,7 @@ export default function InsightCards({ quality, insights, valuation, currency = 
           ? "text-red-700"
           : "text-gray-700",
     },
-  ]
+  ], [quality, insights, valuation, currency])
 
   return (
     <div className="grid grid-cols-2 gap-3">

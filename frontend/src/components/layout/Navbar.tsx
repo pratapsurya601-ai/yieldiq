@@ -67,7 +67,7 @@ export default function Navbar() {
   const tier = useAuthStore((s) => s.tier)
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 pb-safe">
+    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 pb-safe" aria-label="Main navigation">
       {tier === "free" && <AnalysisCounter />}
       <div className="flex items-center justify-around px-2 h-14">
         {TABS.map((tab) => {
@@ -78,6 +78,7 @@ export default function Navbar() {
               <Link
                 key={tab.href}
                 href={tab.href}
+                aria-label={tab.label}
                 className={cn(
                   "flex flex-col items-center justify-center -mt-5",
                   "h-12 w-12 rounded-full bg-blue-600 shadow-lg shadow-blue-200",
@@ -93,6 +94,7 @@ export default function Navbar() {
             <Link
               key={tab.href}
               href={tab.href}
+              aria-label={tab.label}
               className={cn(
                 "flex flex-col items-center gap-0.5 py-1 px-3",
                 "transition-colors"

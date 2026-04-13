@@ -19,6 +19,12 @@ api.interceptors.response.use(
       Cookies.remove("yieldiq_token")
       window.location.href = "/auth/login"
     }
+    if (err.response?.status === 429) {
+      err.message = "Daily analysis limit reached. Upgrade for more."
+    }
+    if (!err.response) {
+      err.message = "Network error — check your connection"
+    }
     return Promise.reject(err)
   }
 )
