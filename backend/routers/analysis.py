@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from backend.models.responses import AnalysisResponse, ScreenerResponse, ScreenerStock
 from backend.services.analysis_service import AnalysisService
 from backend.services.cache_service import cache
-from backend.middleware.auth import get_current_user, check_analysis_limit
+from backend.middleware.auth import get_current_user, get_current_user_optional, check_analysis_limit
+from backend.services.ticker_search import search_tickers
 from datetime import date
 
 router = APIRouter(prefix="/api/v1", tags=["analysis"])
@@ -106,3 +107,17 @@ async def get_top_pick(user: dict = Depends(get_current_user)):
                 "score": top.score, "mos": top.margin_of_safety}
     return {"ticker": "RELIANCE.NS", "company_name": "Reliance Industries",
             "score": 70, "mos": 15}
+
+
+@router.get("/search")
+async def search_stocks(
+    q: str = "",
+    user: dict | None = Depends(get_current_user_optional),
+):
+    """
+    Search Indian stocks by name, ticker, or keyword.
+    No auth required — works for everyone.
+    Examples: "reliance", "tcs", "hdfc", "airtel", "mankind"
+    """
+    results = search_tickers(q, limit=8)
+    return {"query": q, "results": results}
