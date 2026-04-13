@@ -51,6 +51,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routers import analysis, screener, portfolio, watchlist, alerts, market, auth
+from backend.routers import payments
 from backend.middleware.cors import ALLOWED_ORIGINS, ALLOWED_ORIGIN_REGEX
 
 app = FastAPI(
@@ -79,6 +80,7 @@ app.include_router(portfolio.router)
 app.include_router(watchlist.router)
 app.include_router(alerts.router)
 app.include_router(market.router)
+app.include_router(payments.router)
 
 
 @app.get("/health")
