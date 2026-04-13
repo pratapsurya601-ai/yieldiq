@@ -159,41 +159,57 @@ def batch_fetch_prices(tickers: list[str], db: Session,
                        period: str = "3y") -> tuple[int, int]:
     """
     Download price history for a batch of tickers.
-    Returns (success_count, total_records).
+    Resilient: retries on failure, skips already-loaded stocks,
+    saves progress every 10 stocks.
     """
     success = 0
     total_records = 0
 
-    for i, ticker in enumerate(tickers):
-        ticker_ns = f"{ticker}.NS"
-        records = fetch_price_history(ticker_ns, ticker, db, period)
-        if records > 0:
+    # Skip tickers that already have price data
+    tickers_to_fetch = []
+    for ticker in tickers:
+        existing = db.query(DailyPrice).filter_by(ticker=ticker).first()
+        if existing:
             success += 1
-            total_records += records
-            logger.info(f"[{i+1}/{len(tickers)}] {ticker}: {records} price records")
+            logger.info(f"Skipping {ticker} — already has price data")
         else:
-            logger.warning(f"[{i+1}/{len(tickers)}] {ticker}: no price data")
+            tickers_to_fetch.append(ticker)
 
-        # Rate limit — 0.5s between calls
-        time.sleep(0.5)
+    logger.info(f"Prices: {len(tickers_to_fetch)} to fetch, {success} already loaded")
 
-        # Commit every 10 stocks to avoid huge transactions
+    for i, ticker in enumerate(tickers_to_fetch):
+        ticker_ns = f"{ticker}.NS"
+        try:
+            records = fetch_price_history(ticker_ns, ticker, db, period)
+            if records > 0:
+                success += 1
+                total_records += records
+                logger.info(f"[{i+1}/{len(tickers_to_fetch)}] {ticker}: {records} price records")
+            else:
+                logger.warning(f"[{i+1}/{len(tickers_to_fetch)}] {ticker}: no price data")
+        except Exception as e:
+            logger.error(f"[{i+1}/{len(tickers_to_fetch)}] {ticker} FAILED: {e}")
+            # On rate limit, wait longer then retry once
+            if "Too Many Requests" in str(e) or "429" in str(e):
+                logger.info("Rate limited — waiting 30s before retry")
+                time.sleep(30)
+                try:
+                    records = fetch_price_history(ticker_ns, ticker, db, period)
+                    if records > 0:
+                        success += 1
+                        total_records += records
+                except Exception:
+                    pass
+
+        # Rate limit — 1s between calls (safer than 0.5s)
+        time.sleep(1)
+
+        # Save progress every 10 stocks
         if (i + 1) % 10 == 0:
-            db.commit()
-            logger.info(f"Progress: {i+1}/{len(tickers)} stocks, {total_records} total records")
+            _update_freshness(db, "prices_yfinance", total_records, "in_progress")
+            logger.info(f"Progress: {i+1}/{len(tickers_to_fetch)} stocks, {total_records} total records")
 
-    db.commit()
-
-    # Update freshness
-    freshness = db.query(DataFreshness).filter_by(data_type="prices_yfinance").first()
-    if not freshness:
-        freshness = DataFreshness(data_type="prices_yfinance")
-        db.add(freshness)
-    freshness.last_updated = datetime.utcnow()
-    freshness.records_updated = total_records
-    freshness.status = "success"
-    db.commit()
-
+    _update_freshness(db, "prices_yfinance", total_records, "success")
     logger.info(f"Batch prices: {success}/{len(tickers)} stocks, {total_records} records")
     return success, total_records
 
@@ -201,37 +217,51 @@ def batch_fetch_prices(tickers: list[str], db: Session,
 def batch_fetch_fundamentals(tickers: list[str], db: Session) -> tuple[int, int]:
     """
     Download fundamentals for a batch of tickers.
-    Returns (success_count, failed_count).
+    Resilient: retries on rate limit, saves progress.
     """
     success = 0
     failed = 0
 
     for i, ticker in enumerate(tickers):
         ticker_ns = f"{ticker}.NS"
-        ok = fetch_and_store_yfinance(ticker_ns, ticker, db)
-        if ok:
-            success += 1
-        else:
+        try:
+            ok = fetch_and_store_yfinance(ticker_ns, ticker, db)
+            if ok:
+                success += 1
+            else:
+                failed += 1
+        except Exception as e:
+            logger.error(f"Fundamentals failed for {ticker}: {e}")
             failed += 1
+            if "Too Many Requests" in str(e) or "429" in str(e):
+                logger.info("Rate limited — waiting 30s")
+                time.sleep(30)
 
-        # Rate limit
-        time.sleep(0.5)
+        # Rate limit — 1s between calls
+        time.sleep(1)
 
         if (i + 1) % 10 == 0:
+            _update_freshness(db, "fundamentals_yfinance", success, "in_progress")
             logger.info(f"Fundamentals progress: {i+1}/{len(tickers)} ({success} ok, {failed} failed)")
 
-    # Update freshness
-    freshness = db.query(DataFreshness).filter_by(data_type="fundamentals_yfinance").first()
-    if not freshness:
-        freshness = DataFreshness(data_type="fundamentals_yfinance")
-        db.add(freshness)
-    freshness.last_updated = datetime.utcnow()
-    freshness.records_updated = success
-    freshness.status = "success"
-    db.commit()
-
+    _update_freshness(db, "fundamentals_yfinance", success, "success")
     logger.info(f"Batch fundamentals: {success} ok, {failed} failed out of {len(tickers)}")
     return success, failed
+
+
+def _update_freshness(db: Session, data_type: str, count: int, status: str):
+    """Update DataFreshness tracker (called periodically during batch)."""
+    try:
+        freshness = db.query(DataFreshness).filter_by(data_type=data_type).first()
+        if not freshness:
+            freshness = DataFreshness(data_type=data_type)
+            db.add(freshness)
+        freshness.last_updated = datetime.utcnow()
+        freshness.records_updated = count
+        freshness.status = status
+        db.commit()
+    except Exception as e:
+        logger.warning(f"Freshness update failed: {e}")
 
 
 def _to_cr(value) -> float | None:
