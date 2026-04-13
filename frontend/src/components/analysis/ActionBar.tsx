@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { cn } from "@/lib/utils"
 
 interface ActionBarProps {
@@ -35,18 +36,34 @@ export default function ActionBar({ ticker, currentPrice }: ActionBarProps) {
     // TODO: export analysis as PDF
   }
 
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: `${ticker} Analysis — YieldIQ`,
-        text: `Check out the YieldIQ analysis for ${ticker} at ${currentPrice}`,
-        url: window.location.href,
-      }).catch(() => {})
+  const [showCopied, setShowCopied] = useState(false)
+
+  const handleShare = async () => {
+    const shareUrl = `https://yieldiq.in/analysis/${ticker}`
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setShowCopied(true)
+      setTimeout(() => setShowCopied(false), 2000)
+    } catch {
+      // Fallback for browsers that block clipboard API
+      if (navigator.share) {
+        navigator.share({
+          title: `${ticker} Analysis — YieldIQ`,
+          text: `Check out the YieldIQ analysis for ${ticker}`,
+          url: shareUrl,
+        }).catch(() => {})
+      }
     }
   }
 
   return (
-    <div className="flex flex-row gap-2">
+    <div className="relative flex flex-row gap-2">
+      {/* Copied toast */}
+      {showCopied && (
+        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs font-medium px-3 py-1.5 rounded-lg shadow-lg animate-fade-in whitespace-nowrap z-10">
+          Link copied!
+        </div>
+      )}
       <ActionButton
         label="Watchlist"
         onClick={handleWatchlist}

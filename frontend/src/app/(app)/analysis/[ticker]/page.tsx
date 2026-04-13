@@ -11,6 +11,8 @@ import ActionBar from "@/components/analysis/ActionBar"
 import TransparencyStrip from "@/components/analysis/TransparencyStrip"
 import InsightCards from "@/components/analysis/InsightCards"
 import LoadingSteps from "@/components/ui/LoadingSteps"
+import PriceChart from "@/components/analysis/PriceChart"
+import FinancialBars from "@/components/analysis/FinancialBars"
 import { formatCurrency, formatPct } from "@/lib/utils"
 
 export default function AnalysisPage() {
@@ -81,6 +83,23 @@ export default function AnalysisPage() {
 
       {/* LAYER 2 -- The Story (Insight Cards) */}
       <InsightCards quality={quality} insights={insights} valuation={valuation} currency={company.currency} />
+
+      {/* Price Chart */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <h2 className="text-sm font-semibold text-gray-900 mb-3">Price History</h2>
+        <PriceChart
+          ticker={ticker}
+          currentPrice={valuation.current_price}
+          fairValue={valuation.fair_value}
+          currency={company.currency}
+        />
+      </div>
+
+      {/* Financial Bars */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <h2 className="text-sm font-semibold text-gray-900 mb-3">Financial Overview</h2>
+        <FinancialBars ticker={ticker} currency={company.currency} />
+      </div>
 
       {/* LAYER 3 -- Scenarios */}
       {data.scenarios && (

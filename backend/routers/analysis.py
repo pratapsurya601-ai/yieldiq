@@ -41,6 +41,50 @@ async def get_analysis(
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 
+@router.get("/analysis/preview/{ticker}")
+async def get_analysis_preview(ticker: str):
+    """
+    Public preview of stock analysis — no auth required.
+    Returns limited data for share links.
+    Rate limited to prevent abuse.
+    """
+    ticker = ticker.upper().strip()
+
+    # Check cache first
+    _cache_key = f"preview:{ticker}"
+    cached = cache.get(_cache_key)
+    if cached:
+        return cached
+
+    try:
+        result = service.get_full_analysis(ticker)
+        # Strip sensitive/premium data for public preview
+        preview = {
+            "ticker": result.ticker,
+            "company": result.company,
+            "valuation": {
+                "fair_value": result.valuation.fair_value,
+                "current_price": result.valuation.current_price,
+                "margin_of_safety": result.valuation.margin_of_safety,
+                "verdict": result.valuation.verdict,
+                "wacc": result.valuation.wacc,
+                "confidence_score": result.valuation.confidence_score,
+            },
+            "quality": {
+                "yieldiq_score": result.quality.yieldiq_score,
+                "grade": result.quality.grade,
+                "piotroski_score": result.quality.piotroski_score,
+                "moat": result.quality.moat,
+            },
+            "preview": True,
+            "cta": "Sign up free to see full analysis with scenarios, insights, and more",
+        }
+        cache.set(_cache_key, preview, ttl=3600)  # 1 hour cache
+        return preview
+    except Exception as e:
+        return {"error": str(e), "ticker": ticker}
+
+
 @router.get("/analysis/{ticker}/summary")
 async def get_ai_summary(ticker: str, user: dict = Depends(get_current_user)):
     """AI plain-English summary for a ticker."""
