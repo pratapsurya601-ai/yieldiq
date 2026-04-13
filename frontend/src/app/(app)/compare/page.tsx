@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef, useCallback, Suspense } from "react"
 import { useSearchParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { compareStocks } from "@/lib/api"
@@ -180,7 +180,7 @@ function CompareRow({
   )
 }
 
-export default function ComparePage() {
+function CompareContent() {
   const searchParams = useSearchParams()
   const preselected = searchParams.get("stock1") || ""
 
@@ -422,5 +422,13 @@ export default function ComparePage() {
         All outputs are model estimates using publicly available data. Not investment advice.
       </p>
     </div>
+  )
+}
+
+export default function ComparePage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center py-20 text-gray-400">Loading comparison...</div>}>
+      <CompareContent />
+    </Suspense>
   )
 }
