@@ -8,6 +8,7 @@ ALLOWED_ORIGINS = [
     "https://yieldiq.in",
     "https://www.yieldiq.in",
     "https://app.yieldiq.in",
+    "https://yieldiq-gules.vercel.app",
 ]
 
 # Also allow any Vercel preview deployment
