@@ -34,6 +34,9 @@ async def get_analysis(
         cache.set(_cache_key, result, ttl=900)
         return result
     except Exception as e:
+        import traceback
+        tb = traceback.format_exc()
+        print(f"ANALYSIS ERROR:\n{tb}")
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 

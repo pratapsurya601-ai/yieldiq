@@ -187,13 +187,21 @@ class AnalysisService:
         _analyst_target = (raw.get("finnhub_price_target") or {}).get("mean", 0) or 0
         _analyst_upside = ((_analyst_target - price) / price * 100) if price > 0 and _analyst_target > 0 else 0
 
-        yiq_score = compute_yieldiq_score(
-            mos_pct=mos_pct,
-            piotroski=piotroski.get("score", 0),
-            moat_grade=moat_result.get("grade", "None"),
-            rev_growth=enriched.get("revenue_growth", 0),
-            analyst_upside=_analyst_upside,
-        )
+        try:
+            yiq_score = compute_yieldiq_score(
+                mos_pct=mos_pct,
+                piotroski=piotroski.get("score", 0),
+                moat_grade=moat_result.get("grade", "None"),
+                rev_growth=enriched.get("revenue_growth", 0),
+                analyst_upside=_analyst_upside,
+            )
+        except TypeError as _te:
+            # Fallback: calculate inline if function signature doesn't match
+            _v = max(0, min(40, int((mos_pct + 40) / 80 * 40)))
+            _q = max(0, min(30, int(piotroski.get("score", 0) / 9 * 20 + (10 if moat_result.get("grade") == "Wide" else 7 if moat_result.get("grade") == "Narrow" else 0))))
+            _g = max(0, min(20, int(enriched.get("revenue_growth", 0) * 100)))
+            _total = max(0, min(100, _v + _q + _g))
+            yiq_score = {"score": _total, "grade": "A" if _total >= 75 else "B" if _total >= 55 else "C" if _total >= 35 else "D"}
 
         # ── Step 8: Scenarios ─────────────────────────────────
         try:

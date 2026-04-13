@@ -51,7 +51,7 @@ class QualityOutput(BaseModel):
     piotroski_score: int = 0
     piotroski_grade: str = ""
     earnings_quality_grade: str = ""
-    earnings_quality_score: int = 0
+    earnings_quality_score: float = 0
     moat: Literal["Wide", "Narrow", "None"] = "None"
     moat_score: int = 0
     momentum_score: int = 0
