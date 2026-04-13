@@ -153,3 +153,49 @@ async def stock_count():
             db.close()
     except Exception as e:
         return {"configured": False, "error": str(e)}
+
+
+@router.post("/run/setup")
+async def run_initial_setup():
+    """
+    Run full initial setup: populate stocks + backfill prices + fundamentals.
+    WARNING: This takes 2-4 hours. Call once, then use daily/weekly updates.
+    Returns immediately and runs in background.
+    """
+    import threading
+
+    try:
+        from data_pipeline.db import Session
+        if Session is None:
+            raise HTTPException(503, "Pipeline not configured")
+
+        def _background_setup():
+            from data_pipeline.isin_loader import build_isin_map, populate_stocks_table
+            from data_pipeline.pipeline import ISIN_MAP, run_initial_setup as _setup
+
+            db = Session()
+            try:
+                logger.info("=== Background setup started ===")
+                populate_stocks_table(db)
+                isin_map = build_isin_map()
+                ISIN_MAP.update(isin_map)
+                _setup(db)
+                logger.info("=== Background setup complete ===")
+            except Exception as e:
+                logger.error(f"Background setup failed: {e}")
+            finally:
+                db.close()
+
+        thread = threading.Thread(target=_background_setup, daemon=True)
+        thread.start()
+
+        return {
+            "status": "started",
+            "message": "Initial setup running in background (2-4 hours). "
+                       "Check /api/pipeline/stocks/count to monitor progress.",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Setup failed to start: {e}")

@@ -127,9 +127,24 @@ def _run_weekly_fundamentals():
         db.close()
 
 
+def _ensure_pipeline_tables():
+    """Auto-create pipeline tables if DATABASE_URL is set."""
+    if not os.environ.get("DATABASE_URL"):
+        return
+    try:
+        from data_pipeline.db import engine
+        from data_pipeline.models import Base
+        if engine is not None:
+            Base.metadata.create_all(engine)
+            logger.info("Pipeline database tables created/verified")
+    except Exception as e:
+        logger.warning(f"Pipeline table creation skipped: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup/shutdown lifecycle — starts scheduler on boot."""
+    """Startup/shutdown lifecycle — creates tables + starts scheduler."""
+    _ensure_pipeline_tables()
     sched = _start_pipeline_scheduler()
     yield
     if sched:
