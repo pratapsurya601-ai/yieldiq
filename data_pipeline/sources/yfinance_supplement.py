@@ -109,21 +109,30 @@ def fetch_price_history(ticker_ns: str, ticker: str, db: Session,
                         period: str = "3y") -> int:
     """
     Download price history from yfinance and store in daily_prices.
-    period: "3y" for 3 years, "1y", "5y", "max"
-    Returns count of records stored.
+    Uses yf.download() which is more reliable than Ticker.history().
     """
     try:
-        stock = yf.Ticker(ticker_ns)
-        df = stock.history(period=period, auto_adjust=False)
+        # yf.download is more reliable than Ticker.history for Indian stocks
+        df = yf.download(ticker_ns, period=period, progress=False, auto_adjust=True)
 
         if df is None or df.empty:
             logger.warning(f"No price history for {ticker_ns}")
             return 0
 
+        # Flatten MultiIndex columns if present (yf.download quirk)
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
+
+        logger.info(f"{ticker}: got {len(df)} rows, columns={list(df.columns)}")
+
         stored = 0
         for idx, row in df.iterrows():
             try:
                 trade_date = idx.date() if hasattr(idx, "date") else idx
+
+                close = _safe_float(row.get("Close") or row.get("Adj Close"))
+                if close is None or close <= 0:
+                    continue
 
                 # Skip if already exists
                 existing = db.query(DailyPrice).filter_by(
@@ -138,13 +147,14 @@ def fetch_price_history(ticker_ns: str, ticker: str, db: Session,
                     open_price=_safe_float(row.get("Open")),
                     high_price=_safe_float(row.get("High")),
                     low_price=_safe_float(row.get("Low")),
-                    close_price=_safe_float(row.get("Close")),
+                    close_price=close,
                     volume=int(row.get("Volume", 0) or 0),
-                    adj_close=_safe_float(row.get("Adj Close") or row.get("Close")),
+                    adj_close=close,
                 )
                 db.add(price)
                 stored += 1
-            except Exception:
+            except Exception as e:
+                logger.debug(f"Row error for {ticker}/{idx}: {e}")
                 continue
 
         db.commit()

@@ -285,6 +285,31 @@ async def test_fetch_one(ticker: str):
         return {"status": "error", "error": str(e), "type": type(e).__name__}
 
 
+@router.get("/test/raw-price/{ticker}")
+async def test_raw_price(ticker: str):
+    """Test: show raw yfinance download result for a stock."""
+    try:
+        import yfinance as yf
+        import pandas as pd
+        df = yf.download(f"{ticker}.NS", period="5d", progress=False, auto_adjust=True)
+        if df is None or df.empty:
+            return {"status": "empty", "ticker": ticker}
+
+        # Flatten MultiIndex if present
+        if isinstance(df.columns, pd.MultiIndex):
+            df.columns = [col[0] if isinstance(col, tuple) else col for col in df.columns]
+
+        return {
+            "status": "ok",
+            "ticker": ticker,
+            "rows": len(df),
+            "columns": list(df.columns),
+            "sample": df.tail(3).reset_index().to_dict("records"),
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
 @router.get("/test/bhavcopy")
 async def test_bhavcopy():
     """Test: try downloading one day of NSE Bhavcopy. Diagnoses connectivity."""
