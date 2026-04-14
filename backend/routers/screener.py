@@ -23,6 +23,7 @@ def _query_stocks_from_db(min_score: int = 0, min_mos: float = -100,
         db = Session()
         try:
             # Get stocks with market metrics — rank by PE (lower = more undervalued)
+            # Only show quality stocks: market cap > 2000 Cr, PE between 3-50
             query = text("""
                 SELECT
                     s.ticker,
@@ -35,21 +36,20 @@ def _query_stocks_from_db(min_score: int = 0, min_mos: float = -100,
                 FROM stocks s
                 JOIN market_metrics mm ON mm.ticker = s.ticker
                 WHERE s.is_active = true
-                  AND mm.pe_ratio IS NOT NULL
-                  AND mm.pe_ratio > 0
-                  AND mm.pe_ratio < 100
+                  AND mm.pe_ratio BETWEEN 3 AND 50
+                  AND mm.market_cap_cr > 2000
                 ORDER BY mm.pe_ratio ASC
                 LIMIT :lim OFFSET :off
             """)
             offset = (page - 1) * page_size
             rows = db.execute(query, {"lim": page_size, "off": offset}).fetchall()
 
-            # Get total count
             count_q = text("""
                 SELECT COUNT(*) FROM stocks s
                 JOIN market_metrics mm ON mm.ticker = s.ticker
-                WHERE s.is_active = true AND mm.pe_ratio IS NOT NULL
-                  AND mm.pe_ratio > 0 AND mm.pe_ratio < 100
+                WHERE s.is_active = true
+                  AND mm.pe_ratio BETWEEN 3 AND 50
+                  AND mm.market_cap_cr > 2000
             """)
             total = db.execute(count_q).scalar() or 0
 
@@ -96,55 +96,63 @@ def _query_preset_from_db(preset: str, page: int = 1,
         db = Session()
         try:
             # Different queries for different presets
+            # All presets require minimum market cap to filter out penny stocks
+            # Market cap in Crore: >10,000 = large cap, >2,000 = mid cap
             if preset == "buffett":
-                # Wide moat: low PE, decent dividend, stable
+                # Warren Buffett style: quality large caps at fair price
+                # Low PE, decent PB, large market cap, dividend paying
                 query = text("""
                     SELECT s.ticker, s.company_name, mm.pe_ratio, mm.pb_ratio,
                            mm.dividend_yield, mm.market_cap_cr
                     FROM stocks s
                     JOIN market_metrics mm ON mm.ticker = s.ticker
                     WHERE s.is_active = true
-                      AND mm.pe_ratio BETWEEN 5 AND 25
-                      AND mm.pb_ratio BETWEEN 0.5 AND 5
-                      AND mm.market_cap_cr > 1000
+                      AND mm.pe_ratio BETWEEN 8 AND 25
+                      AND mm.pb_ratio BETWEEN 1 AND 8
+                      AND mm.market_cap_cr > 10000
+                      AND mm.dividend_yield > 0
                     ORDER BY mm.pe_ratio ASC
                     LIMIT :lim OFFSET :off
                 """)
             elif preset == "deep_value":
-                # Very low PE, low PB
+                # Deep value: significantly undervalued mid/large caps
+                # Very low PE relative to market, decent market cap
                 query = text("""
                     SELECT s.ticker, s.company_name, mm.pe_ratio, mm.pb_ratio,
                            mm.dividend_yield, mm.market_cap_cr
                     FROM stocks s
                     JOIN market_metrics mm ON mm.ticker = s.ticker
                     WHERE s.is_active = true
-                      AND mm.pe_ratio BETWEEN 1 AND 15
-                      AND mm.pb_ratio BETWEEN 0.1 AND 2
+                      AND mm.pe_ratio BETWEEN 3 AND 15
+                      AND mm.pb_ratio BETWEEN 0.3 AND 3
+                      AND mm.market_cap_cr > 2000
                     ORDER BY mm.pe_ratio ASC
                     LIMIT :lim OFFSET :off
                 """)
             elif preset == "growth_quality":
-                # Higher PE is ok, but need good PB and large cap
+                # Growth at reasonable price: large caps with growth
+                # Higher PE acceptable for quality, massive market cap
                 query = text("""
                     SELECT s.ticker, s.company_name, mm.pe_ratio, mm.pb_ratio,
                            mm.dividend_yield, mm.market_cap_cr
                     FROM stocks s
                     JOIN market_metrics mm ON mm.ticker = s.ticker
                     WHERE s.is_active = true
-                      AND mm.pe_ratio BETWEEN 15 AND 50
-                      AND mm.market_cap_cr > 5000
+                      AND mm.pe_ratio BETWEEN 15 AND 45
+                      AND mm.market_cap_cr > 20000
                     ORDER BY mm.market_cap_cr DESC
                     LIMIT :lim OFFSET :off
                 """)
             else:
-                # Custom / default — all stocks ranked by PE
+                # Custom / default — quality mid+large caps ranked by value
                 query = text("""
                     SELECT s.ticker, s.company_name, mm.pe_ratio, mm.pb_ratio,
                            mm.dividend_yield, mm.market_cap_cr
                     FROM stocks s
                     JOIN market_metrics mm ON mm.ticker = s.ticker
                     WHERE s.is_active = true
-                      AND mm.pe_ratio > 0
+                      AND mm.pe_ratio BETWEEN 3 AND 50
+                      AND mm.market_cap_cr > 2000
                     ORDER BY mm.pe_ratio ASC
                     LIMIT :lim OFFSET :off
                 """)
@@ -158,11 +166,15 @@ def _query_preset_from_db(preset: str, page: int = 1,
                 pe = row[2] or 0
                 pb = row[3] or 0
 
-                pe_score = max(0, min(40, int((30 - pe) / 30 * 40))) if pe > 0 else 0
-                pb_score = max(0, min(30, int((5 - pb) / 5 * 30))) if pb > 0 else 0
-                score = pe_score + pb_score + 20
+                # Score: PE component (0-35) + PB component (0-25) + mcap component (0-20) + base 10
+                mcap_val = row[5] or 0
+                pe_score = max(0, min(35, int((25 - pe) / 25 * 35))) if 0 < pe < 50 else 0
+                pb_score = max(0, min(25, int((4 - pb) / 4 * 25))) if 0 < pb < 10 else 0
+                mcap_score = 20 if mcap_val > 50000 else 15 if mcap_val > 10000 else 10 if mcap_val > 2000 else 5
+                score = pe_score + pb_score + mcap_score + 10
 
-                mos = round((20 - pe) / 20 * 100, 1) if pe > 0 else 0
+                # MoS capped at +50% to avoid absurd numbers
+                mos = round(max(-50, min(50, (20 - pe) / 20 * 30)), 1) if pe > 0 else 0
 
                 stocks.append(ScreenerStock(
                     ticker=f"{ticker}.NS" if "." not in ticker else ticker,
