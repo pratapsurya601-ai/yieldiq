@@ -485,29 +485,6 @@ function FAQItem({ q, a }: { q: string; a: string }) {
   )
 }
 
-/* ── "Why Not Just Use..." comparison ────────────────── */
-const comparisons = [
-  {
-    tool: "Screener.in",
-    limitation: "Shows ratios, not intrinsic value",
-    yieldiq: "Full DCF with fair value estimate",
-  },
-  {
-    tool: "Tickertape",
-    limitation: "Screening only, no DCF engine",
-    yieldiq: "15 valuation engines + scenarios",
-  },
-  {
-    tool: "Bloomberg",
-    limitation: "\u20B920L/year, institutional only",
-    yieldiq: "Free tier, built for retail",
-  },
-  {
-    tool: "Excel DCF",
-    limitation: "Hours of manual work per stock",
-    yieldiq: "Instant analysis, any stock",
-  },
-]
 
 /* ── Pricing data ────────────────────────────────────── */
 const pricingPlans = [
@@ -809,37 +786,7 @@ function LandingContent() {
         </div>
       </section>
 
-      {/* ── Why Not Just Use... ─────────────────────── */}
-      <section className="py-20 bg-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <FadeIn>
-            <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase text-center mb-3">Comparison</p>
-            <h2 className="text-3xl md:text-4xl font-black text-center mb-4">Why YieldIQ?</h2>
-            <p className="text-gray-500 text-center mb-12 max-w-2xl mx-auto">
-              Screeners show you ratios. YieldIQ tells you what a stock is <span className="font-semibold text-gray-900">actually worth</span>.
-            </p>
-          </FadeIn>
-          <div className="max-w-3xl mx-auto">
-            {/* Table header */}
-            <div className="grid grid-cols-3 gap-4 pb-4 border-b border-gray-200 text-xs font-bold uppercase tracking-wider text-gray-400">
-              <div>Tool</div>
-              <div>Limitation</div>
-              <div className="text-blue-600">YieldIQ</div>
-            </div>
-            {comparisons.map((c, i) => (
-              <FadeIn key={c.tool} delay={i * 80}>
-                <div className="grid grid-cols-3 gap-4 py-4 border-b border-gray-100 items-center text-sm">
-                  <div className="font-semibold text-gray-900">{c.tool}</div>
-                  <div className="text-gray-400">{c.limitation}</div>
-                  <div className="text-blue-600 font-medium flex items-center gap-1.5">
-                    <Zap className="w-3.5 h-3.5 flex-shrink-0" /> {c.yieldiq}
-                  </div>
-                </div>
-              </FadeIn>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* comparison section removed per user request */}
 
       {/* ── Pricing Preview ───────────────────────────── */}
       <section className="py-20 bg-gray-50">
