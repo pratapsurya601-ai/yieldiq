@@ -57,9 +57,6 @@ async def get_watchlist(user: dict = Depends(get_current_user)):
                     ticker=row.get("ticker", ""),
                     company_name=row.get("company_name", ""),
                     added_price=row.get("added_price", 0),
-                    target_price=row.get("target_price", 0),
-                    alert_mos_threshold=row.get("mos_threshold", 0),
-                    notes=row.get("note", ""),
                     added_at=str(row.get("added_at", "")),
                 )
                 for row in (result.data or [])
@@ -106,19 +103,16 @@ async def add_to_watchlist(req: AddWatchlistRequest, user: dict = Depends(get_cu
                 {
                     "user_email": email,
                     "ticker": ticker,
-                    "company_name": req.company_name,
-                    "added_price": req.added_price,
-                    "target_price": req.target_price,
-                    "mos_threshold": req.alert_mos_threshold,
-                    "note": req.notes,
+                    "company_name": getattr(req, "company_name", "") or "",
+                    "added_price": getattr(req, "added_price", 0) or 0,
                     "added_at": now,
                 },
                 on_conflict="user_email,ticker",
             ).execute()
             return SuccessResponse(message=f"{ticker} added to watchlist")
         except Exception as e:
-            logger.warning(f"Supabase watchlist write failed: {e}")
-            raise HTTPException(status_code=500, detail="Failed to add to watchlist")
+            logger.error(f"Supabase watchlist write failed: {type(e).__name__}: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to add to watchlist: {type(e).__name__}")
 
     # Fallback to dashboard SQLite
     try:
