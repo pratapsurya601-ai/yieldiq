@@ -10,6 +10,8 @@ on:
     - cron: "0 11 * * 1-5"
     # Weekly Sunday 5:30pm IST (12:00 UTC) — full fundamentals
     - cron: "0 12 * * 0"
+    # Wednesday 6pm IST (12:30 UTC) — earnings dates refresh
+    - cron: "30 12 * * 3"
   workflow_dispatch:
     inputs:
       mode:
@@ -24,6 +26,7 @@ on:
           - shareholding
           - corporate
           - rbi
+          - earnings
       days:
         description: "Days of price history (for prices-only/full)"
         required: false
@@ -47,17 +50,20 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --upgrade pip
-          pip install yfinance pandas requests sqlalchemy psycopg2-binary
+          pip install yfinance pandas requests sqlalchemy psycopg2-binary curl_cffi
 
       - name: Determine mode
         id: mode
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            # Weekday = daily prices, Sunday = full
+            # Sunday = full, Wednesday = earnings, other weekdays = daily prices
             DAY=$(date -u +%u)
             if [ "$DAY" = "7" ]; then
               echo "mode=full" >> $GITHUB_OUTPUT
               echo "days=7" >> $GITHUB_OUTPUT
+            elif [ "$DAY" = "3" ]; then
+              echo "mode=earnings" >> $GITHUB_OUTPUT
+              echo "days=3" >> $GITHUB_OUTPUT
             else
               echo "mode=prices-only" >> $GITHUB_OUTPUT
               echo "days=3" >> $GITHUB_OUTPUT
@@ -80,6 +86,7 @@ jobs:
             python data_pipeline/run_local.py --full --days "$DAYS"
           elif [ "$MODE" = "prices-only" ]; then
             python data_pipeline/run_local.py --prices-only --days "$DAYS"
+            python data_pipeline/run_local.py --earnings
           elif [ "$MODE" = "fundamentals" ]; then
             python data_pipeline/run_local.py --fundamentals
           elif [ "$MODE" = "shareholding" ]; then
@@ -88,6 +95,8 @@ jobs:
             python data_pipeline/run_local.py --corporate
           elif [ "$MODE" = "rbi" ]; then
             python data_pipeline/run_local.py --rbi
+          elif [ "$MODE" = "earnings" ]; then
+            python data_pipeline/run_local.py --earnings
           fi
 
       - name: Check pipeline results
@@ -99,7 +108,7 @@ jobs:
           import os
           engine = create_engine(os.environ['DATABASE_URL'])
           with engine.connect() as conn:
-              for table in ['stocks', 'daily_prices', 'financials', 'shareholding_pattern', 'market_metrics']:
+              for table in ['stocks', 'daily_prices', 'financials', 'shareholding_pattern', 'market_metrics', 'bulk_deals', 'upcoming_earnings']:
                   try:
                       result = conn.execute(text(f'SELECT COUNT(*) FROM {table}'))
                       print(f'{table}: {result.scalar()} records')

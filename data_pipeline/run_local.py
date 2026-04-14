@@ -54,6 +54,7 @@ def main():
     parser.add_argument("--shareholding", action="store_true", help="Only NSE shareholding")
     parser.add_argument("--corporate", action="store_true", help="Only NSE corporate actions")
     parser.add_argument("--rbi", action="store_true", help="Only RBI risk-free rate")
+    parser.add_argument("--earnings", action="store_true", help="Only NSE earnings dates")
     parser.add_argument("--full", action="store_true", help="Run everything (default)")
     parser.add_argument("--days", type=int, default=1095, help="Days of price history (default: 1095)")
     args = parser.parse_args()
@@ -73,7 +74,13 @@ def main():
     from sqlalchemy.orm import sessionmaker
     from data_pipeline.models import Base
 
-    engine = create_engine(db_url)
+    engine = create_engine(
+        db_url,
+        pool_recycle=300,        # Recycle connections every 5 min
+        pool_pre_ping=True,      # Test connection before using
+        pool_size=2,
+        max_overflow=3,
+    )
     Session = sessionmaker(bind=engine)
 
     # Test connection
@@ -95,7 +102,7 @@ def main():
     # Determine what to run
     run_all = args.full or not any([
         args.prices_only, args.fundamentals, args.shareholding,
-        args.corporate, args.rbi,
+        args.corporate, args.rbi, args.earnings,
     ])
 
     try:
@@ -174,6 +181,18 @@ def main():
                 fetch_rbi_gsec_yield(db)
             except ImportError:
                 logger.warning("RBI rate module not available yet")
+
+        # ── Step 8: NSE Earnings Dates ────────────────────────────
+        if run_all or args.earnings:
+            logger.info("=" * 60)
+            logger.info("Step 7: NSE Upcoming Earnings Dates")
+            logger.info("=" * 60)
+            try:
+                from data_pipeline.sources.nse_earnings import fetch_earnings_dates
+                count = fetch_earnings_dates(db)
+                logger.info(f"Earnings dates: {count} records")
+            except ImportError:
+                logger.warning("NSE earnings module not available yet")
 
         logger.info("=" * 60)
         logger.info("ALL DONE!")

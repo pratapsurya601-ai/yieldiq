@@ -306,6 +306,20 @@ def _query_promoter_pledge(ticker: str):
         db.close()
 
 
+def _query_earnings_date(ticker: str) -> dict | None:
+    """Query next earnings date from UpcomingEarnings table."""
+    db = _get_pipeline_session()
+    if db is None:
+        return None
+    try:
+        from data_pipeline.sources.nse_earnings import get_next_earnings
+        return get_next_earnings(ticker, db)
+    except Exception:
+        return None
+    finally:
+        db.close()
+
+
 def _query_bulk_deals(ticker: str, days: int = 90) -> list[dict]:
     """Query recent bulk/block deals from BulkDeal table."""
     db = _get_pipeline_session()
@@ -792,6 +806,14 @@ class AnalysisService:
         else:
             verdict = "avoid"
 
+        # ── Earnings date (NSE first, Finnhub fallback) ─────
+        _earnings = _query_earnings_date(ticker)
+        _earnings_date = (
+            _earnings.get("date") if _earnings
+            else (raw.get("finnhub_next_earnings") or {}).get("date")
+        )
+        earnings_days_until = _earnings.get("days_away") if _earnings else None
+
         # ── Bulk deals for insider activity ──────────────────
         _bulk_deals_raw = _query_bulk_deals(ticker, days=90)
         _bulk_deals = [
@@ -867,8 +889,9 @@ class AnalysisService:
                 patience_months=hp.get("min_months"),
                 red_flag_count=len(_red_flags),
                 red_flags=_red_flags[:5],
-                earnings_date=raw.get("finnhub_next_earnings", {}).get("date"),
+                earnings_date=_earnings_date,
                 earnings_est_eps=raw.get("finnhub_next_earnings", {}).get("eps_estimate"),
+                earnings_days_until=earnings_days_until,
                 wall_street_avg_target=(raw.get("finnhub_price_target") or {}).get("mean"),
                 wall_street_target_count=(raw.get("finnhub_price_target") or {}).get("count"),
                 insider_net_sentiment=(raw.get("finnhub_insider") or {}).get("sentiment"),

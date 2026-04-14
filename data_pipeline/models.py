@@ -190,6 +190,21 @@ class BulkDeal(Base):
     deal_category = Column(String(10))        # bulk / block
 
 
+class UpcomingEarnings(Base):
+    """Upcoming earnings / financial results dates from NSE event calendar."""
+    __tablename__ = "upcoming_earnings"
+    __table_args__ = (
+        UniqueConstraint("ticker", "event_date", name="uq_earnings_date"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticker = Column(String(20), index=True)
+    event_date = Column(Date, index=True)
+    event_type = Column(String(100))
+    purpose = Column(String(500))
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+
 class DataFreshness(Base):
     """Tracks when each data type was last updated."""
     __tablename__ = "data_freshness"

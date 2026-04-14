@@ -110,6 +110,14 @@ def run_daily_update(db: Session):
     except Exception as e:
         logger.warning(f"Bulk deals step failed: {e}")
 
+    # Upcoming earnings dates
+    try:
+        from data_pipeline.sources.nse_earnings import fetch_earnings_dates
+        earnings = fetch_earnings_dates(db)
+        logger.info(f"Earnings dates: {earnings} stored")
+    except Exception as e:
+        logger.warning(f"Earnings dates step failed: {e}")
+
     logger.info("Daily update complete")
 
 
