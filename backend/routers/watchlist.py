@@ -47,18 +47,12 @@ async def get_watchlist(user: dict = Depends(get_current_user)):
         try:
             result = (
                 client.table("watchlist")
-                .select("*")
+                .select("ticker")
                 .eq("user_email", email)
-                .order("added_at", desc=True)
                 .execute()
             )
             return [
-                WatchlistItemResponse(
-                    ticker=row.get("ticker", ""),
-                    company_name=row.get("company_name", ""),
-                    added_price=row.get("added_price", 0),
-                    added_at=str(row.get("added_at", "")),
-                )
+                WatchlistItemResponse(ticker=row.get("ticker", ""))
                 for row in (result.data or [])
             ]
         except Exception as e:
