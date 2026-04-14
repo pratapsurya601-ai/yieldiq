@@ -77,7 +77,13 @@ export default function AnalysisPage() {
       </div>
     )
   }
-  if (!data) return null
+  if (!data) return (
+    <div className="max-w-md mx-auto px-4 py-16 text-center">
+      <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
+        <p className="text-sm text-gray-400">No analysis data available</p>
+      </div>
+    </div>
+  )
 
   const { company, valuation, quality, insights } = data
 
@@ -179,35 +185,37 @@ export default function AnalysisPage() {
       </div>
 
       {/* LAYER 3 -- Scenarios */}
-      {data.scenarios && (
-        <>
-          {/* Divider */}
-          <div className="h-px bg-gray-100 mx-2" />
-          <div className="bg-white rounded-2xl border border-gray-100 p-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Scenario Analysis</h2>
-            <div className="grid grid-cols-3 gap-3">
-              {(["bear", "base", "bull"] as const).map((key) => {
-                const sc = data.scenarios[key]
-                const label = key === "bear" ? "Bear" : key === "base" ? "Base" : "Bull"
-                const color = key === "bear" ? "text-red-600" : key === "bull" ? "text-green-600" : "text-blue-700"
-                const bgGradient = key === "bear"
-                  ? "bg-gradient-to-b from-red-50 to-white"
-                  : key === "bull"
-                    ? "bg-gradient-to-b from-green-50 to-white"
-                    : "bg-gradient-to-b from-blue-50 to-white"
-                return (
-                  <div key={key} className={`text-center p-3 rounded-xl border border-gray-100 ${bgGradient}`}>
-                    <p className="text-xs text-gray-400 mb-1">{label} case</p>
-                    <p className={`text-lg font-bold font-mono ${color}`}>
-                      {formatCurrency(sc.iv, company.currency)}
-                    </p>
-                    <p className="text-xs text-gray-400">MoS: {formatPct(sc.mos_pct)}</p>
-                  </div>
-                )
-              })}
-            </div>
+      {/* Divider */}
+      <div className="h-px bg-gray-100 mx-2" />
+      {data.scenarios ? (
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <h2 className="text-sm font-semibold text-gray-900 mb-4">Scenario Analysis</h2>
+          <div className="grid grid-cols-3 gap-3">
+            {(["bear", "base", "bull"] as const).map((key) => {
+              const sc = data.scenarios[key]
+              const label = key === "bear" ? "Bear" : key === "base" ? "Base" : "Bull"
+              const color = key === "bear" ? "text-red-600" : key === "bull" ? "text-green-600" : "text-blue-700"
+              const bgGradient = key === "bear"
+                ? "bg-gradient-to-b from-red-50 to-white"
+                : key === "bull"
+                  ? "bg-gradient-to-b from-green-50 to-white"
+                  : "bg-gradient-to-b from-blue-50 to-white"
+              return (
+                <div key={key} className={`text-center p-3 rounded-xl border border-gray-100 ${bgGradient}`}>
+                  <p className="text-xs text-gray-400 mb-1">{label} case</p>
+                  <p className={`text-lg font-bold font-mono ${color}`}>
+                    {formatCurrency(sc.iv, company.currency)}
+                  </p>
+                  <p className="text-xs text-gray-400">MoS: {formatPct(sc.mos_pct)}</p>
+                </div>
+              )
+            })}
           </div>
-        </>
+        </div>
+      ) : (
+        <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
+          <p className="text-sm text-gray-400">Scenario analysis unavailable</p>
+        </div>
       )}
 
       {/* Disclaimer */}

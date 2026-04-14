@@ -94,7 +94,11 @@ export default function FinancialBars({
   const hasData = data.length > 0 && data.some((d) => d.revenue !== 0 || d.fcf !== 0)
 
   if (!hasData) {
-    return <div className="text-center py-8 text-gray-400 text-sm">Financial data unavailable</div>
+    return (
+      <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
+        <p className="text-sm text-gray-400">Financial data unavailable</p>
+      </div>
+    )
   }
 
   return (

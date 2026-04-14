@@ -91,12 +91,20 @@ export default function PriceChart({
   }, [chartResponse, currentPrice, period])
 
   if (!data || data.length === 0) {
-    return <div className="text-center py-8 text-gray-400 text-sm">Price data unavailable</div>
+    return (
+      <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
+        <p className="text-sm text-gray-400">Price data unavailable</p>
+      </div>
+    )
   }
 
   const prices = data.map((d) => d.price).filter((p) => typeof p === "number" && !isNaN(p))
   if (prices.length === 0) {
-    return <div className="text-center py-8 text-gray-400 text-sm">Price data unavailable</div>
+    return (
+      <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
+        <p className="text-sm text-gray-400">Price data unavailable</p>
+      </div>
+    )
   }
 
   let minPrice = Math.min(...prices, fairValue) * 0.98
