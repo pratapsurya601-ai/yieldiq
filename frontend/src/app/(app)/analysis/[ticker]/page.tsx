@@ -157,6 +157,27 @@ export default function AnalysisPage() {
     </div>
   )
 
+  if (data.valuation.verdict === "unavailable") {
+    const displayTicker = data.ticker.replace(".NS", "").replace(".BO", "")
+    return (
+      <div className="max-w-md mx-auto px-4 py-16 text-center pb-20">
+        <p className="text-4xl mb-4">&#9888;&#65039;</p>
+        <p className="text-lg font-medium text-gray-900 mb-2">
+          Price data unavailable for {displayTicker}
+        </p>
+        <p className="text-sm text-gray-500 mb-4">
+          {data.data_issues?.[0] || "Market data could not be fetched. This is usually temporary."}
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium"
+        >
+          Retry in 60 seconds
+        </button>
+      </div>
+    )
+  }
+
   const { company, valuation, quality, insights } = data
 
   return (

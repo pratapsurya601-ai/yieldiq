@@ -52,16 +52,32 @@ export default function InsightCards({ quality, insights, valuation, currency = 
       icon: "\u{1f6a9}",
       borderColor: businessFlags.length === 0 ? "border-l-blue-500" : "border-l-red-500",
     },
-    {
-      title: "Earnings",
-      value: insights.earnings_days_until !== null ? `${insights.earnings_days_until}d` : "N/A",
-      subtitle: insights.earnings_est_eps !== null
-        ? `Est. EPS: ${insights.earnings_est_eps.toFixed(2)}`
-        : "No upcoming earnings data",
-      color: "text-gray-700",
-      icon: "\u{1f4c5}",
-      borderColor: "border-l-gray-300",
-    },
+    (() => {
+      if (insights.earnings_date) {
+        const formatted = new Date(insights.earnings_date).toLocaleDateString("en-IN", {
+          day: "numeric", month: "short", year: "numeric",
+        })
+        const daysLabel = insights.earnings_days_until !== null ? ` (in ${insights.earnings_days_until}d)` : ""
+        return {
+          title: "Earnings",
+          value: formatted,
+          subtitle: insights.earnings_est_eps !== null
+            ? `Est. EPS: ${insights.earnings_est_eps.toFixed(2)}${daysLabel}`
+            : `Upcoming earnings${daysLabel}`,
+          color: "text-gray-700",
+          icon: "\u{1f4c5}",
+          borderColor: "border-l-gray-300",
+        }
+      }
+      return {
+        title: "Earnings",
+        value: "N/A",
+        subtitle: "No upcoming earnings data",
+        color: "text-gray-700",
+        icon: "\u{1f4c5}",
+        borderColor: "border-l-gray-300",
+      }
+    })(),
     {
       title: "Wall Street Target",
       value: insights.wall_street_avg_target !== null && insights.wall_street_avg_target > 0

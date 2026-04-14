@@ -6,6 +6,7 @@ export const VERDICT_COLORS = {
   overvalued: { bg: "bg-amber-50", text: "text-amber-800", border: "border-amber-200", hex: "#B45309" },
   avoid: { bg: "bg-red-50", text: "text-red-800", border: "border-red-200", hex: "#DC2626" },
   data_limited: { bg: "bg-gray-100", text: "text-gray-600", border: "border-gray-300", hex: "#6B7280" },
+  unavailable: { bg: "bg-gray-100", text: "text-gray-500", border: "border-gray-300", hex: "#9CA3AF" },
 } as const
 
 export const TIER_LIMITS = { free: 5, starter: 50, pro: Infinity } as const

@@ -1,4 +1,5 @@
 "use client"
+import { useState, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { getMarketPulse, getTopPick } from "@/lib/api"
 import TopPickCard from "@/components/discover/TopPickCard"
@@ -20,6 +21,10 @@ const POPULAR_QUICK = [
 ]
 
 export default function HomePage() {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const greeting = mounted ? getGreeting() : "Welcome back"
+
   const { data: pulse } = useQuery({ queryKey: ["market-pulse"], queryFn: getMarketPulse, staleTime: 300000 })
   const { data: topPick } = useQuery({ queryKey: ["top-pick"], queryFn: getTopPick, staleTime: 86400000 })
   const hasData = !!topPick
@@ -28,7 +33,7 @@ export default function HomePage() {
     <div className="max-w-2xl mx-auto pb-20">
       {/* Gradient header */}
       <div className="bg-gradient-to-b from-blue-50 to-white px-4 pt-6 pb-4">
-        <h1 className="text-lg font-bold text-gray-900">{getGreeting()}</h1>
+        <h1 className="text-lg font-bold text-gray-900">{greeting}</h1>
         <p className="text-xs text-gray-500 mt-0.5">Here is your market overview</p>
       </div>
 

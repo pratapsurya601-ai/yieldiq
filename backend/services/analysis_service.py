@@ -413,6 +413,25 @@ class AnalysisService:
         price = enriched.get("price", 0)
         is_indian = ticker.endswith(".NS") or ticker.endswith(".BO")
 
+        # ── Price sanity check ────────────────────────────────
+        if not price or price <= 0:
+            return AnalysisResponse(
+                ticker=ticker,
+                company=CompanyInfo(
+                    ticker=ticker,
+                    company_name=raw.get("company_name", ticker) if raw else ticker,
+                ),
+                valuation=ValuationOutput(
+                    fair_value=0, current_price=0, margin_of_safety=0,
+                    verdict="unavailable", confidence_score=0, dcf_reliable=False,
+                ),
+                quality=QualityOutput(),
+                insights=InsightCards(),
+                data_confidence="unusable",
+                data_issues=["Price data unavailable \u2014 try again in 60 seconds."],
+                timestamp=_ts,
+            )
+
         # Detect financial companies (NBFC/Bank/Insurance)
         clean_ticker = ticker.replace('.NS', '').replace('.BO', '')
         is_financial = clean_ticker in FINANCIAL_COMPANIES

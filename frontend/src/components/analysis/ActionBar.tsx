@@ -55,6 +55,7 @@ function verdictLabel(v: Verdict): string {
     case "overvalued":    return "Overvalued"
     case "avoid":         return "Avoid"
     case "data_limited":  return "Data Limited"
+    case "unavailable":   return "Unavailable"
     default:              return v
   }
 }
@@ -66,6 +67,7 @@ function verdictEmoji(v: Verdict): string {
     case "overvalued":    return "\ud83d\udfe0"
     case "avoid":         return "\ud83d\udd34"
     case "data_limited":  return "\u2753"
+    case "unavailable":   return "\u26a0\ufe0f"
     default:              return ""
   }
 }
@@ -77,6 +79,7 @@ function verdictColor(v: Verdict): { bg: string; text: string } {
     case "overvalued":    return { bg: "#fee2e2", text: "#991b1b" }
     case "avoid":         return { bg: "#fef2f2", text: "#7f1d1d" }
     case "data_limited":  return { bg: "#f5f5f5", text: "#525252" }
+    case "unavailable":   return { bg: "#f5f5f5", text: "#525252" }
     default:              return { bg: "#f5f5f5", text: "#525252" }
   }
 }
@@ -97,6 +100,7 @@ function getVerdictCardColors(v: Verdict): { bg: string; text: string; bgAlpha: 
     case "overvalued":    return { bg: "#EF4444", text: "#EF4444", bgAlpha: "rgba(239,68,68,0.15)" }
     case "avoid":         return { bg: "#EF4444", text: "#EF4444", bgAlpha: "rgba(239,68,68,0.15)" }
     case "data_limited":  return { bg: "#6B7280", text: "#6B7280", bgAlpha: "rgba(107,114,128,0.15)" }
+    case "unavailable":   return { bg: "#6B7280", text: "#6B7280", bgAlpha: "rgba(107,114,128,0.15)" }
     default:              return { bg: "#6B7280", text: "#6B7280", bgAlpha: "rgba(107,114,128,0.15)" }
   }
 }
@@ -897,7 +901,22 @@ export default function ActionBar(props: ActionBarProps) {
         )}
       </div>
 
-      {/* Share button removed — WhatsApp/Twitter/Copy all in Export dropdown */}
+      {/* Share — native share sheet on mobile, copy URL on desktop */}
+      <ActionButton
+        icon={
+          showCopied ? (
+            <svg className="h-5 w-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+            </svg>
+          ) : (
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+            </svg>
+          )
+        }
+        label={showCopied ? "Copied!" : "Share"}
+        onClick={handleShare}
+      />
     </div>
   )
 }

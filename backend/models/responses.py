@@ -25,7 +25,7 @@ class ValuationOutput(BaseModel):
     fair_value: float
     current_price: float
     margin_of_safety: float
-    verdict: Literal["undervalued", "fairly_valued", "overvalued", "avoid", "data_limited"]
+    verdict: Literal["undervalued", "fairly_valued", "overvalued", "avoid", "data_limited", "unavailable"]
     bear_case: float = 0
     base_case: float = 0
     bull_case: float = 0
