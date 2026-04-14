@@ -11,6 +11,7 @@ import AISummary from "@/components/analysis/AISummary"
 import ActionBar from "@/components/analysis/ActionBar"
 import TransparencyStrip from "@/components/analysis/TransparencyStrip"
 import InsightCards from "@/components/analysis/InsightCards"
+import LoadingSteps from "@/components/ui/LoadingSteps"
 import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
 import { formatCurrency, formatPct, formatCompanyName } from "@/lib/utils"
@@ -22,63 +23,7 @@ import Link from "next/link"
 /*  the API call is in flight. Matches card structure so there is      */
 /*  zero layout shift when real content replaces it.                   */
 /* ------------------------------------------------------------------ */
-function AnalysisSkeleton() {
-  return (
-    <div className="max-w-2xl md:max-w-3xl lg:max-w-5xl mx-auto px-4 py-6 space-y-5 pb-20 animate-pulse">
-      {/* Card 1 skeleton — verdict */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
-        <div className="flex items-start justify-between">
-          <div className="space-y-2">
-            <div className="h-5 w-40 bg-gray-200 rounded" />
-            <div className="h-3 w-24 bg-gray-100 rounded" />
-          </div>
-          <div className="h-6 w-20 bg-gray-200 rounded" />
-        </div>
-        <div className="flex items-center gap-5">
-          {/* Ring placeholder */}
-          <div className="w-[100px] h-[100px] rounded-full bg-gray-100 border-4 border-gray-200" />
-          <div className="flex-1 space-y-3">
-            <div className="h-6 w-28 bg-gray-200 rounded-full" />
-            <div className="h-4 w-36 bg-gray-100 rounded" />
-            <div className="h-4 w-24 bg-gray-100 rounded" />
-          </div>
-        </div>
-      </div>
-
-      {/* Card 2 skeleton — AI summary */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-        <div className="h-4 w-24 bg-gray-200 rounded" />
-        <div className="space-y-2">
-          <div className="h-3 w-full bg-gray-100 rounded" />
-          <div className="h-3 w-3/4 bg-gray-100 rounded" />
-        </div>
-        <div className="flex gap-2">
-          <div className="h-10 flex-1 bg-gray-100 rounded-xl" />
-          <div className="h-10 flex-1 bg-gray-100 rounded-xl" />
-          <div className="h-10 flex-1 bg-gray-100 rounded-xl" />
-          <div className="h-10 flex-1 bg-gray-100 rounded-xl" />
-        </div>
-      </div>
-
-      {/* Insight cards skeleton */}
-      <div className="grid grid-cols-2 gap-3">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 space-y-2">
-            <div className="h-3 w-20 bg-gray-100 rounded" />
-            <div className="h-5 w-16 bg-gray-200 rounded" />
-            <div className="h-3 w-24 bg-gray-100 rounded" />
-          </div>
-        ))}
-      </div>
-
-      {/* Chart skeleton */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5">
-        <div className="h-4 w-28 bg-gray-200 rounded mb-3" />
-        <div className="h-[200px] bg-gray-50 rounded-xl" />
-      </div>
-    </div>
-  )
-}
+// LoadingSteps is used as the loading state — shows skeleton + animated progress steps
 
 export default function AnalysisPage() {
   const params = useParams<{ ticker: string }>()
@@ -127,7 +72,7 @@ export default function AnalysisPage() {
     }
   }, [data])
 
-  if (isLoading) return <AnalysisSkeleton />
+  if (isLoading) return <LoadingSteps />
   if (error) {
     const is429 = (error as { message?: string })?.message?.includes("Daily analysis limit reached")
     return (
