@@ -98,28 +98,8 @@ export default function AnalysisPage() {
     staleTime: 5 * 60 * 1000,
   })
 
-  /* ---- staggered reveal state ---- */
-  const [showSummary, setShowSummary] = useState(false)
-  const [showInsights, setShowInsights] = useState(false)
-  const [showCharts, setShowCharts] = useState(false)
-  const [showScenarios, setShowScenarios] = useState(false)
-
-  useEffect(() => {
-    if (data) {
-      // Verdict card shows immediately (no state gate).
-      // Cascade the rest top-to-bottom for a "waterfall" feel.
-      const t1 = setTimeout(() => setShowSummary(true), 150)
-      const t2 = setTimeout(() => setShowInsights(true), 300)
-      const t3 = setTimeout(() => setShowCharts(true), 450)
-      const t4 = setTimeout(() => setShowScenarios(true), 600)
-      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4) }
-    }
-    // Reset when data is cleared (e.g. navigating to a new ticker)
-    setShowSummary(false)
-    setShowInsights(false)
-    setShowCharts(false)
-    setShowScenarios(false)
-  }, [data])
+  /* Staggered reveal removed — was causing white gaps (opacity-0 sections).
+     Content now renders immediately. Skeleton handles the loading state. */
 
   // Dynamic SEO meta tags — must be before any conditional returns (Rules of Hooks)
   useEffect(() => {
@@ -226,7 +206,7 @@ export default function AnalysisPage() {
       </div>
 
       {/* CARD 2 -- AI Summary + Transparency + Actions */}
-      <div className={`transition-all duration-300 ${showSummary ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}`}>
+      <div className="">
         <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
           <AISummary
             summary={data.ai_summary}
@@ -278,12 +258,12 @@ export default function AnalysisPage() {
       </div>
 
       {/* LAYER 2 -- The Story (Insight Cards) */}
-      <div className={`transition-all duration-300 ${showInsights ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}`}>
+      <div className="">
         <InsightCards quality={quality} insights={insights} valuation={valuation} currency={company.currency} />
       </div>
 
       {/* Price Chart + Financial Bars */}
-      <div className={`transition-all duration-300 space-y-5 ${showCharts ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}`}>
+      <div className="space-y-5">
         <div className="bg-white rounded-2xl border border-gray-100 p-5">
           <h2 className="text-sm font-semibold text-gray-900 mb-3">Price History</h2>
           <PriceChart
@@ -310,7 +290,7 @@ export default function AnalysisPage() {
       </div>
 
       {/* LAYER 3 -- Scenarios */}
-      <div className={`transition-all duration-300 space-y-5 ${showScenarios ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}`}>
+      <div className="space-y-5">
         {/* Divider */}
         <div className="h-px bg-gray-100 mx-2" />
         {data.scenarios ? (

@@ -500,7 +500,10 @@ export default function ActionBar(props: ActionBarProps) {
       queryClient.invalidateQueries({ queryKey: ["watchlist"] })
       setToast("Added to watchlist")
     },
-    onError: () => setToast("Failed to add to watchlist"),
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed to add"
+      setToast(msg)
+    },
   })
 
   const watchlistRemove = useMutation({
@@ -510,7 +513,10 @@ export default function ActionBar(props: ActionBarProps) {
       queryClient.invalidateQueries({ queryKey: ["watchlist"] })
       setToast("Removed from watchlist")
     },
-    onError: () => setToast("Failed to remove from watchlist"),
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Failed to remove"
+      setToast(msg)
+    },
   })
 
   const alertCreate = useMutation({
