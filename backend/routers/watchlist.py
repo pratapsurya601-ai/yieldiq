@@ -99,14 +99,13 @@ async def add_to_watchlist(req: AddWatchlistRequest, user: dict = Depends(get_cu
     client = _get_supabase()
     if client:
         try:
+            # Only send columns that exist in the table
+            row = {"user_email": email, "ticker": ticker}
+            # Try optional columns — skip if they don't exist
+            if getattr(req, "company_name", ""):
+                row["company_name"] = req.company_name
             client.table("watchlist").upsert(
-                {
-                    "user_email": email,
-                    "ticker": ticker,
-                    "company_name": getattr(req, "company_name", "") or "",
-                    "added_price": getattr(req, "added_price", 0) or 0,
-                    "added_at": now,
-                },
+                row,
                 on_conflict="user_email,ticker",
             ).execute()
             return SuccessResponse(message=f"{ticker} added to watchlist")
