@@ -47,6 +47,7 @@ class ValuationOutput(BaseModel):
     mos_is_extreme: bool = False
     mos_extreme_note: str | None = None
     fcf_data_source: str = ""  # "ttm", "annual", or "yfinance"
+    valuation_model: str = "dcf"  # "dcf" or "pb_ratio" for financials
 
 
 class QualityOutput(BaseModel):
@@ -56,7 +57,7 @@ class QualityOutput(BaseModel):
     piotroski_grade: str = ""
     earnings_quality_grade: str = ""
     earnings_quality_score: float = 0
-    moat: Literal["Wide", "Narrow", "None"] = "None"
+    moat: Literal["Wide", "Narrow", "None", "N/A (Financial)"] = "None"
     moat_score: float = 0
     momentum_score: float = 0
     momentum_grade: str = ""

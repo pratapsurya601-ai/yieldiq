@@ -135,7 +135,15 @@ export default function AnalysisPage() {
 
       {/* CARD 2 -- AI Summary + Transparency + Actions */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-        <AISummary summary={data.ai_summary} ticker={ticker} />
+        <AISummary
+          summary={data.ai_summary}
+          ticker={ticker}
+          marginOfSafety={valuation.margin_of_safety}
+          moat={quality.moat}
+          confidence={valuation.confidence_score}
+          fairValue={valuation.fair_value}
+          currentPrice={valuation.current_price}
+        />
 
         <div className="h-px bg-gray-100" />
 

@@ -59,6 +59,57 @@ except Exception:
         return {"score": max(0, min(100, _total)), "grade": "A" if _total >= 80 else "B" if _total >= 60 else "C" if _total >= 40 else "D"}
 
 
+# ── Financial company set (NBFCs, Banks, Insurance) ──────────
+# These companies have negative FCF by nature (loan disbursements = operating
+# outflows). FCF-based DCF does NOT apply; use P/B ratio valuation instead.
+FINANCIAL_COMPANIES = {
+    'HDFCBANK', 'ICICIBANK', 'SBIN', 'KOTAKBANK', 'AXISBANK',
+    'BANKBARODA', 'PNB', 'CANBK', 'FEDERALBNK', 'IDFCFIRSTB',
+    'INDUSINDBK', 'BANDHANBNK', 'RBLBANK', 'YESBANK',
+    'BAJFINANCE', 'BAJAJFINSV', 'CHOLAFIN', 'MUTHOOTFIN',
+    'MANAPPURAM', 'M&MFIN', 'SHRIRAMFIN', 'LICHOUSFIN',
+    'POONAWALLA', 'AAVAS', 'HOMEFIRST',
+    'HDFCLIFE', 'SBILIFE', 'ICICIGI', 'NIACL', 'STARHEALTH',
+}
+
+# P/B median multipliers by financial sub-sector
+_PB_MEDIANS = {
+    "Banking": 2.5,
+    "NBFC": 4.0,
+    "Insurance": 3.0,
+}
+
+_NBFC_TICKERS = {
+    'BAJFINANCE', 'BAJAJFINSV', 'CHOLAFIN', 'MUTHOOTFIN',
+    'MANAPPURAM', 'M&MFIN', 'SHRIRAMFIN', 'LICHOUSFIN',
+    'POONAWALLA', 'AAVAS', 'HOMEFIRST',
+}
+_INSURANCE_TICKERS = {
+    'HDFCLIFE', 'SBILIFE', 'ICICIGI', 'NIACL', 'STARHEALTH',
+}
+
+
+def _get_financial_sub_type(clean_ticker: str) -> str:
+    """Return 'NBFC', 'Insurance', or 'Banking' for a financial ticker."""
+    if clean_ticker in _NBFC_TICKERS:
+        return "NBFC"
+    if clean_ticker in _INSURANCE_TICKERS:
+        return "Insurance"
+    return "Banking"
+
+
+def _get_adjusted_fcf(fcf, pat, is_financial):
+    """Floor FCF to PAT proxy for capex-heavy companies."""
+    if is_financial:
+        return None  # Don't use FCF for financials
+    if fcf is None:
+        return pat * 0.55 if pat and pat > 0 else None
+    if pat and pat > 0 and fcf < pat * 0.3:
+        # FCF looks distorted by heavy capex — use PAT proxy
+        return pat * 0.55
+    return fcf
+
+
 # ── Sector name overrides for cleaner display ─────────────────
 SECTOR_OVERRIDES: dict[str, str] = {
     "Financial Services": "Financial Services",
@@ -98,8 +149,27 @@ SECTOR_OVERRIDES: dict[str, str] = {
 }
 
 
-def _resolve_sector(raw_sector: str) -> str:
-    """Map raw yfinance/screener sector names to cleaner display names."""
+# Ticker-based sector overrides — forces correct sector for known tickers
+# (yfinance often returns "Financial Services" for everything)
+TICKER_SECTOR_OVERRIDES: dict[str, str] = {}
+for _t in _NBFC_TICKERS:
+    TICKER_SECTOR_OVERRIDES[_t] = "NBFC"
+for _t in _INSURANCE_TICKERS:
+    TICKER_SECTOR_OVERRIDES[_t] = "Insurance"
+for _t in (FINANCIAL_COMPANIES - _NBFC_TICKERS - _INSURANCE_TICKERS):
+    TICKER_SECTOR_OVERRIDES[_t] = "Banking"
+
+
+def _resolve_sector(raw_sector: str, clean_ticker: str = "") -> str:
+    """Map raw yfinance/screener sector names to cleaner display names.
+
+    If a ticker-based override exists it takes precedence, ensuring NBFCs,
+    banks, and insurers are always labelled correctly regardless of what
+    yfinance reports.
+    """
+    # Ticker override has highest priority
+    if clean_ticker and clean_ticker in TICKER_SECTOR_OVERRIDES:
+        return TICKER_SECTOR_OVERRIDES[clean_ticker]
     if not raw_sector:
         return ""
     return SECTOR_OVERRIDES.get(raw_sector, raw_sector)
@@ -300,12 +370,16 @@ class AnalysisService:
         price = enriched.get("price", 0)
         is_indian = ticker.endswith(".NS") or ticker.endswith(".BO")
 
+        # Detect financial companies (NBFC/Bank/Insurance)
+        clean_ticker = ticker.replace('.NS', '').replace('.BO', '')
+        is_financial = clean_ticker in FINANCIAL_COMPANIES
+
         # ── Step 4: Build company info ────────────────────────
         _raw_sector = enriched.get("sector_name", raw.get("sector_name", ""))
         company = CompanyInfo(
             ticker=ticker,
             company_name=raw.get("company_name", ticker),
-            sector=_resolve_sector(_raw_sector),
+            sector=_resolve_sector(_raw_sector, clean_ticker),
             currency="INR",  # India-first launch
             market_cap=price * enriched.get("shares", 0),
         )
@@ -329,6 +403,13 @@ class AnalysisService:
                 if _annual_data.get("fcf") is not None and not enriched.get("latest_fcf"):
                     enriched["latest_fcf"] = _annual_data["fcf"]
 
+        # Apply FCF floor for capex-heavy companies (e.g. RELIANCE)
+        _pat = enriched.get("latest_pat") or enriched.get("net_income")
+        _raw_fcf = enriched.get("latest_fcf")
+        _adjusted_fcf = _get_adjusted_fcf(_raw_fcf, _pat, is_financial)
+        if _adjusted_fcf is not None and not is_financial:
+            enriched["latest_fcf"] = _adjusted_fcf
+
         forecaster = FCFForecaster()
         try:
             from models.forecaster import compute_wacc as _compute_wacc
@@ -344,43 +425,90 @@ class AnalysisService:
             terminal_g = wacc - 0.02
 
         forecast_yrs = 10
-        forecast_result = forecaster.predict(enriched, years=forecast_yrs)
-        projected = forecast_result.get("projections", [])
-        growth_schedule = forecast_result.get("growth_schedule", [])
-        base_growth = forecast_result.get("base_growth", 0)
 
-        if not projected or all(v <= 0 for v in projected):
-            projected = [enriched.get("latest_fcf", 1e6)] * forecast_yrs
+        # ── Step 6: Valuation (P/B for financials, DCF for others) ──
+        if is_financial:
+            # --- P/B RATIO VALUATION for banks/NBFCs/insurance ---
+            _sub_type = _get_financial_sub_type(clean_ticker)
+            _pb_median = _PB_MEDIANS.get(_sub_type, 2.5)
 
-        terminal_norm = float(sum(projected[-3:]) / 3) if len(projected) >= 3 else projected[-1] if projected else 0
+            # Derive book value per share
+            _bvps = raw.get("bookValue")
+            if not _bvps or _bvps <= 0:
+                _pb_ratio = raw.get("priceToBook")
+                if _pb_ratio and _pb_ratio > 0 and price > 0:
+                    _bvps = price / _pb_ratio
+                else:
+                    _bvps = 0
 
-        # ── Step 6: Run DCF ───────────────────────────────────
-        dcf_engine = DCFEngine(discount_rate=wacc, terminal_growth=terminal_g)
-        dcf_res = dcf_engine.intrinsic_value_per_share(
-            projected_fcfs=projected,
-            terminal_fcf_norm=terminal_norm,
-            total_debt=enriched.get("total_debt", 0),
-            total_cash=enriched.get("total_cash", 0),
-            shares_outstanding=enriched.get("shares", 1),
-            current_price=price,
-            ticker=ticker,
-        )
-        iv_raw = dcf_res.get("intrinsic_value_per_share", 0)
+            if _bvps and _bvps > 0:
+                iv = round(_bvps * _pb_median, 2)
+                bear_iv = round(_bvps * 1.5, 2)
+                bull_iv = round(_bvps * _pb_median * 1.4, 2)
+            else:
+                iv = 0
+                bear_iv = 0
+                bull_iv = 0
 
-        # PE crosscheck blend
-        try:
-            eps = get_eps(enriched)
-            sector = enriched.get("sector", "general")
-            pe_iv = compute_pe_based_iv(eps, sector, "base", enriched.get("revenue_growth", 0))
-            iv = blend_dcf_pe(iv_raw, pe_iv, sector)
-        except Exception:
-            iv = iv_raw
+            iv_raw = iv
+            dcf_res = {
+                "intrinsic_value_per_share": iv,
+                "warnings": [
+                    f"P/B valuation model ({_sub_type}): BVPS={_bvps:.1f}, "
+                    f"sector P/B median={_pb_median}"
+                ] if _bvps else ["Book value data unavailable"],
+                "reliability_score": 75 if _bvps else 30,
+                "tv_pct_of_ev": 0,
+                "sum_pv_fcfs": 0,
+                "pv_tv": 0,
+                "enterprise_value": 0,
+                "equity_value": 0,
+            }
+            # Dummy forecasts (not used for financials)
+            projected = []
+            growth_schedule = []
+            base_growth = 0
+        else:
+            # --- Standard DCF for non-financials ---
+            forecast_result = forecaster.predict(enriched, years=forecast_yrs)
+            projected = forecast_result.get("projections", [])
+            growth_schedule = forecast_result.get("growth_schedule", [])
+            base_growth = forecast_result.get("base_growth", 0)
+
+            if not projected or all(v <= 0 for v in projected):
+                projected = [enriched.get("latest_fcf", 1e6)] * forecast_yrs
+
+            terminal_norm = float(sum(projected[-3:]) / 3) if len(projected) >= 3 else projected[-1] if projected else 0
+
+            dcf_engine = DCFEngine(discount_rate=wacc, terminal_growth=terminal_g)
+            dcf_res = dcf_engine.intrinsic_value_per_share(
+                projected_fcfs=projected,
+                terminal_fcf_norm=terminal_norm,
+                total_debt=enriched.get("total_debt", 0),
+                total_cash=enriched.get("total_cash", 0),
+                shares_outstanding=enriched.get("shares", 1),
+                current_price=price,
+                ticker=ticker,
+            )
+            iv_raw = dcf_res.get("intrinsic_value_per_share", 0)
+
+            # PE crosscheck blend
+            try:
+                eps = get_eps(enriched)
+                sector = enriched.get("sector", "general")
+                pe_iv = compute_pe_based_iv(eps, sector, "base", enriched.get("revenue_growth", 0))
+                iv = blend_dcf_pe(iv_raw, pe_iv, sector)
+            except Exception:
+                iv = iv_raw
 
         mos_pct = margin_of_safety(iv, price) * 100 if price > 0 else 0
 
         # ── Step 7: Quality checks ────────────────────────────
         piotroski = compute_piotroski_fscore(enriched)
-        moat_result = compute_moat_score(enriched, wacc)
+        if is_financial:
+            moat_result = {"grade": "N/A (Financial)", "score": 0}
+        else:
+            moat_result = compute_moat_score(enriched, wacc)
         try:
             eq_result = compute_earnings_quality(enriched)
         except Exception:
@@ -417,19 +545,23 @@ class AnalysisService:
             yiq_score = {"score": _total, "grade": "A" if _total >= 75 else "B" if _total >= 55 else "C" if _total >= 35 else "D"}
 
         # ── Step 8: Scenarios ─────────────────────────────────
-        try:
-            fcf_base = projected[0] / (1 + growth_schedule[0]) if projected and growth_schedule and growth_schedule[0] > -1 else enriched.get("latest_fcf", 1e6)
-            scenarios_raw = run_scenarios(
-                enriched=enriched, fcf_base=fcf_base,
-                base_growth=base_growth, base_wacc=wacc,
-                base_terminal_g=terminal_g,
-                total_debt=enriched.get("total_debt", 0),
-                total_cash=enriched.get("total_cash", 0),
-                shares=enriched.get("shares", 1),
-                current_price=price, years=forecast_yrs,
-            )
-        except Exception:
+        if is_financial:
+            # P/B-based scenarios already computed above
             scenarios_raw = {}
+        else:
+            try:
+                fcf_base = projected[0] / (1 + growth_schedule[0]) if projected and growth_schedule and growth_schedule[0] > -1 else enriched.get("latest_fcf", 1e6)
+                scenarios_raw = run_scenarios(
+                    enriched=enriched, fcf_base=fcf_base,
+                    base_growth=base_growth, base_wacc=wacc,
+                    base_terminal_g=terminal_g,
+                    total_debt=enriched.get("total_debt", 0),
+                    total_cash=enriched.get("total_cash", 0),
+                    shares=enriched.get("shares", 1),
+                    current_price=price, years=forecast_yrs,
+                )
+            except Exception:
+                scenarios_raw = {}
 
         def _sc(key):
             d = scenarios_raw.get(key, {})
@@ -466,6 +598,22 @@ class AnalysisService:
 
         # Red flags from DCF edge cases
         _red_flags = dcf_res.get("warnings", [])
+
+        # Remove IPO-related flags — they indicate data completeness, not business risk
+        _red_flags = [
+            f for f in _red_flags
+            if not any(kw in f.lower() for kw in ('ipo', 'ipo_date', 'listing_date', 'unknown ipo'))
+        ]
+
+        # For financial companies, remove "Loss Company" / negative FCF flags
+        if is_financial:
+            _red_flags = [
+                f for f in _red_flags
+                if 'loss company' not in f.lower()
+                and 'negative fcf' not in f.lower()
+                and 'zero fcf' not in f.lower()
+            ]
+
         if enriched.get("unreliable_reason"):
             _red_flags.append(enriched["unreliable_reason"])
 
@@ -518,6 +666,15 @@ class AnalysisService:
         ]
 
         # ── Assemble response ─────────────────────────────────
+        if is_financial:
+            _bear_case = bear_iv
+            _base_case = round(iv, 2)
+            _bull_case = bull_iv
+        else:
+            _bear_case = _sc("Bear case").iv or _sc("Bear 🐻").iv
+            _base_case = round(iv, 2)
+            _bull_case = _sc("Bull case").iv or _sc("Bull 🐂").iv
+
         return AnalysisResponse(
             ticker=ticker,
             company=company,
@@ -533,9 +690,9 @@ class AnalysisService:
                     "Verify assumptions before acting."
                 ) if mos_pct > 80 else None,
                 verdict=verdict,
-                bear_case=_sc("Bear case").iv or _sc("Bear 🐻").iv,
-                base_case=round(iv, 2),
-                bull_case=_sc("Bull case").iv or _sc("Bull 🐂").iv,
+                bear_case=_bear_case,
+                base_case=_base_case,
+                bull_case=_bull_case,
                 wacc=round(wacc * 100, 1),
                 terminal_growth=round(terminal_g * 100, 1),
                 fcf_growth_rate=round(enriched.get("fcf_growth", 0) * 100, 1),
@@ -544,7 +701,8 @@ class AnalysisService:
                 wacc_industry_max=round(min(16, wacc * 100 + 2), 1),
                 fcf_growth_historical_avg=round(enriched.get("fcf_growth", 0) * 90, 1),
                 tv_pct_of_ev=round(dcf_res.get("tv_pct_of_ev", 0) * 100, 1),
-                dcf_reliable=enriched.get("dcf_reliable", True),
+                dcf_reliable=False if is_financial else enriched.get("dcf_reliable", True),
+                valuation_model="pb_ratio" if is_financial else "dcf",
                 reliability_score=dcf_res.get("reliability_score", 100),
                 pv_fcfs=round(dcf_res.get("sum_pv_fcfs", 0), 0),
                 pv_terminal=round(dcf_res.get("pv_tv", 0), 0),
@@ -603,14 +761,23 @@ class AnalysisService:
 
     def get_ai_summary(self, ticker: str, analysis: AnalysisResponse) -> str:
         """Generate AI summary using existing Gemini/Groq integration."""
+        import logging
+        _log = logging.getLogger("yieldiq.ai_summary")
         try:
+            _log.info(f"[{ticker}] Requesting AI summary...")
             from dashboard.utils.data_helpers import generate_ai_summary
-            return generate_ai_summary(
+            result = generate_ai_summary(
                 ticker, analysis.company.company_name,
                 analysis.valuation.margin_of_safety,
                 analysis.quality.moat,
                 analysis.valuation.fcf_growth_rate,
                 analysis.valuation.confidence_score,
-            ) or ""
-        except Exception:
+            )
+            if result:
+                _log.info(f"[{ticker}] AI summary received ({len(result)} chars)")
+                return result
+            _log.warning(f"[{ticker}] AI summary returned empty/None")
+            return ""
+        except Exception as exc:
+            _log.error(f"[{ticker}] AI summary failed: {type(exc).__name__}: {exc}")
             return ""

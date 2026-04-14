@@ -203,7 +203,8 @@ class DCFEngine:
         Recent IPOs (<2 years) have unreliable financials
         """
         if not ipo_date:
-            self.edge_flags.add_flag("⚠️ Unknown IPO date", penalty=5)
+            # Missing IPO date is a data-completeness issue, not a business risk.
+            # Skip flagging it — it was adding noise to red flags.
             return
             
         try:
