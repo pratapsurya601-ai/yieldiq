@@ -30,18 +30,29 @@ def fetch_and_store_yfinance(ticker_ns: str, ticker: str, db: Session) -> bool:
             logger.warning(f"No yfinance data for {ticker_ns}")
             return False
 
-        # Store market metrics
-        metrics = MarketMetrics(
-            ticker=ticker,
-            trade_date=date.today(),
-            market_cap_cr=_to_cr(info.get("marketCap")),
-            pe_ratio=info.get("trailingPE"),
-            pb_ratio=info.get("priceToBook"),
-            dividend_yield=(info.get("dividendYield") or 0) * 100,
-            beta_1yr=info.get("beta"),
-            ev_cr=_to_cr(info.get("enterpriseValue")),
-        )
-        db.merge(metrics)
+        # Store market metrics — upsert to avoid unique constraint violations
+        today = date.today()
+        existing_metric = db.query(MarketMetrics).filter_by(
+            ticker=ticker, trade_date=today
+        ).first()
+        if existing_metric:
+            existing_metric.market_cap_cr = _to_cr(info.get("marketCap"))
+            existing_metric.pe_ratio = info.get("trailingPE")
+            existing_metric.pb_ratio = info.get("priceToBook")
+            existing_metric.dividend_yield = (info.get("dividendYield") or 0) * 100
+            existing_metric.beta_1yr = info.get("beta")
+            existing_metric.ev_cr = _to_cr(info.get("enterpriseValue"))
+        else:
+            db.add(MarketMetrics(
+                ticker=ticker,
+                trade_date=today,
+                market_cap_cr=_to_cr(info.get("marketCap")),
+                pe_ratio=info.get("trailingPE"),
+                pb_ratio=info.get("priceToBook"),
+                dividend_yield=(info.get("dividendYield") or 0) * 100,
+                beta_1yr=info.get("beta"),
+                ev_cr=_to_cr(info.get("enterpriseValue")),
+            ))
 
         # Get financial statements
         try:
@@ -91,7 +102,19 @@ def fetch_and_store_yfinance(ticker_ns: str, ticker: str, db: Session) -> bool:
                         )
 
                         if revenue and revenue > 0:
-                            db.merge(fin)
+                            existing_fin = db.query(Financials).filter_by(
+                                ticker=ticker, period_end=period_date, period_type="annual"
+                            ).first()
+                            if existing_fin:
+                                for attr in ["revenue", "pat", "ebitda", "cfo", "capex",
+                                             "free_cash_flow", "total_debt", "cash_and_equivalents",
+                                             "total_equity", "total_assets", "shares_outstanding",
+                                             "roe", "roa", "net_margin"]:
+                                    val = getattr(fin, attr, None)
+                                    if val is not None:
+                                        setattr(existing_fin, attr, val)
+                            else:
+                                db.add(fin)
                     except Exception:
                         continue
         except Exception as e:
@@ -102,6 +125,10 @@ def fetch_and_store_yfinance(ticker_ns: str, ticker: str, db: Session) -> bool:
 
     except Exception as e:
         logger.error(f"yfinance fetch failed for {ticker_ns}: {e}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
         return False
 
 
