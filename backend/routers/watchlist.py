@@ -112,7 +112,7 @@ async def add_to_watchlist(req: AddWatchlistRequest, user: dict = Depends(get_cu
             return SuccessResponse(message=f"{ticker} added to watchlist")
         except Exception as e:
             logger.error(f"Supabase watchlist write failed: {type(e).__name__}: {e}")
-            raise HTTPException(status_code=500, detail=f"Failed to add to watchlist: {type(e).__name__}")
+            raise HTTPException(status_code=500, detail=f"Watchlist error: {str(e)[:200]}")
 
     # Fallback to dashboard SQLite
     try:
