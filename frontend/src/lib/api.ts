@@ -1,6 +1,6 @@
 import axios from "axios"
 import Cookies from "js-cookie"
-import type { AnalysisResponse, TokenResponse, MarketPulseResponse, ScreenerResponse, PortfolioHealthResponse, HoldingResponse, SectorOverviewItem } from "@/types/api"
+import type { AnalysisResponse, TokenResponse, MarketPulseResponse, ScreenerResponse, PortfolioHealthResponse, HoldingResponse, SectorOverviewItem, WatchlistItemResponse, AlertResponse, SuccessResponse } from "@/types/api"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -77,14 +77,27 @@ export const removeHolding = (ticker: string) =>
   api.delete(`/api/v1/portfolio/holdings/${ticker}`).then(r => r.data)
 
 // Watchlist
-export const getWatchlist = () =>
+export const getWatchlist = (): Promise<WatchlistItemResponse[]> =>
   api.get("/api/v1/watchlist/").then(r => r.data)
 
-export const addToWatchlist = (item: Record<string, unknown>) =>
+export const addToWatchlist = (item: Record<string, unknown>): Promise<SuccessResponse> =>
   api.post("/api/v1/watchlist/", item).then(r => r.data)
 
-export const removeFromWatchlist = (ticker: string) =>
+export const removeFromWatchlist = (ticker: string): Promise<SuccessResponse> =>
   api.delete(`/api/v1/watchlist/${ticker}`).then(r => r.data)
+
+export const checkInWatchlist = (ticker: string): Promise<{ in_watchlist: boolean }> =>
+  api.get(`/api/v1/watchlist/check/${ticker}`).then(r => r.data)
+
+// Alerts
+export const getAlerts = (): Promise<AlertResponse[]> =>
+  api.get("/api/v1/alerts/").then(r => r.data)
+
+export const createAlert = (data: { ticker: string; alert_type: string; target_price: number }): Promise<SuccessResponse> =>
+  api.post("/api/v1/alerts/create", data).then(r => r.data)
+
+export const deleteAlert = (alertId: number): Promise<SuccessResponse> =>
+  api.delete(`/api/v1/alerts/${alertId}`).then(r => r.data)
 
 // Auth
 export const login = (email: string, password: string): Promise<TokenResponse> =>

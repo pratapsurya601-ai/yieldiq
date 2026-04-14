@@ -94,8 +94,17 @@ def _start_pipeline_scheduler():
         replace_existing=True,
     )
 
+    # Price alerts — check every 3 hours during market hours (9am-5pm IST)
+    scheduler.add_job(
+        _run_alert_check,
+        CronTrigger(hour="9,12,15,17", minute=15, timezone="Asia/Kolkata"),
+        id="alert_check",
+        name="Price alert check",
+        replace_existing=True,
+    )
+
     scheduler.start()
-    logger.info("Pipeline scheduler started: daily 4:30pm IST, weekly Sun 11pm IST")
+    logger.info("Pipeline scheduler started: daily 4:30pm IST, weekly Sun 11pm IST, alerts every 3h")
     return scheduler
 
 
@@ -125,6 +134,15 @@ def _run_weekly_fundamentals():
         logger.error(f"Weekly pipeline failed: {e}")
     finally:
         db.close()
+
+
+def _run_alert_check():
+    """Check all active price alerts and send email notifications for triggered ones."""
+    try:
+        from backend.services.alert_service import run_alert_check
+        run_alert_check()
+    except Exception as e:
+        logger.error(f"Alert check failed: {e}")
 
 
 def _ensure_pipeline_tables():

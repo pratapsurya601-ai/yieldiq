@@ -1,21 +1,54 @@
 "use client"
-import { useQuery } from "@tanstack/react-query"
-import { getHoldings, getPortfolioHealth, getWatchlist } from "@/lib/api"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { getHoldings, getPortfolioHealth, getWatchlist, removeFromWatchlist, getAlerts, deleteAlert } from "@/lib/api"
 import HealthScore from "@/components/portfolio/HealthScore"
-import PortfolioEmpty from "@/components/empty-states/PortfolioEmpty"
-import WatchlistEmpty from "@/components/empty-states/WatchlistEmpty"
 import { formatCurrency, formatPct } from "@/lib/utils"
 import { useState } from "react"
 import Link from "next/link"
 
 export default function PortfolioPage() {
-  const [tab, setTab] = useState<"holdings" | "watchlist">("holdings")
+  const [tab, setTab] = useState<"holdings" | "watchlist" | "alerts">("holdings")
+  const [toast, setToast] = useState<string | null>(null)
+  const queryClient = useQueryClient()
+
   const { data: holdings } = useQuery({ queryKey: ["holdings"], queryFn: getHoldings })
   const { data: health } = useQuery({ queryKey: ["portfolio-health"], queryFn: getPortfolioHealth })
   const { data: watchlist } = useQuery({ queryKey: ["watchlist"], queryFn: getWatchlist })
+  const { data: alerts } = useQuery({ queryKey: ["alerts"], queryFn: getAlerts })
+
+  const removeWatchlistMut = useMutation({
+    mutationFn: (ticker: string) => removeFromWatchlist(ticker),
+    onSuccess: (_data, ticker) => {
+      queryClient.invalidateQueries({ queryKey: ["watchlist"] })
+      queryClient.invalidateQueries({ queryKey: ["watchlist-check", ticker] })
+      showToast("Removed from watchlist")
+    },
+    onError: () => showToast("Failed to remove"),
+  })
+
+  const removeAlertMut = useMutation({
+    mutationFn: (alertId: number) => deleteAlert(alertId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alerts"] })
+      showToast("Alert removed")
+    },
+    onError: () => showToast("Failed to remove alert"),
+  })
+
+  function showToast(msg: string) {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-20">
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs font-medium px-4 py-2 rounded-lg shadow-lg z-50 whitespace-nowrap">
+          {toast}
+        </div>
+      )}
+
       {/* Health Score */}
       {health && health.score > 0 && (
         <HealthScore score={health.score} grade={health.grade} summary={health.summary} issues={health.issues} strengths={health.strengths} />
@@ -29,10 +62,15 @@ export default function PortfolioPage() {
         </button>
         <button onClick={() => setTab("watchlist")}
           className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "watchlist" ? "bg-white text-gray-900 shadow-sm ring-1 ring-black/5" : "text-gray-500 hover:text-gray-700"}`}>
-          Watchlist
+          Watchlist{watchlist && watchlist.length > 0 ? ` (${watchlist.length})` : ""}
+        </button>
+        <button onClick={() => setTab("alerts")}
+          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "alerts" ? "bg-white text-gray-900 shadow-sm ring-1 ring-black/5" : "text-gray-500 hover:text-gray-700"}`}>
+          Alerts{alerts && alerts.length > 0 ? ` (${alerts.length})` : ""}
         </button>
       </div>
 
+      {/* Holdings tab */}
       {tab === "holdings" && (
         holdings && holdings.length > 0 ? (
           <div className="space-y-2">
@@ -66,23 +104,95 @@ export default function PortfolioPage() {
         )
       )}
 
+      {/* Watchlist tab */}
       {tab === "watchlist" && (
         watchlist && watchlist.length > 0 ? (
           <div className="space-y-2">
-            {watchlist.map((w: { ticker: string; company_name: string; target_price: number }) => (
-              <Link key={w.ticker} href={`/analysis/${w.ticker}`}
-                className="flex items-center justify-between bg-white rounded-xl border border-gray-100 p-4 hover:border-blue-200 transition">
-                <div>
-                  <p className="font-medium text-gray-900">{w.ticker.replace(".NS", "")}</p>
-                  <p className="text-xs text-gray-400">{w.company_name}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-mono text-gray-500">Target: {formatCurrency(w.target_price, "INR")}</p>
-                </div>
-              </Link>
+            {watchlist.map((w: { ticker: string; company_name: string; target_price: number; added_price: number }) => (
+              <div key={w.ticker} className="flex items-center bg-white rounded-xl border border-gray-100 hover:border-blue-200 transition">
+                <Link href={`/analysis/${w.ticker}`} className="flex-1 flex items-center justify-between p-4">
+                  <div>
+                    <p className="font-medium text-gray-900">{w.ticker.replace(".NS", "")}</p>
+                    <p className="text-xs text-gray-400">{w.company_name}</p>
+                  </div>
+                  <div className="text-right">
+                    {w.added_price > 0 && (
+                      <p className="text-sm font-mono text-gray-600">{formatCurrency(w.added_price, "INR")}</p>
+                    )}
+                    {w.target_price > 0 && (
+                      <p className="text-xs text-gray-400">Target: {formatCurrency(w.target_price, "INR")}</p>
+                    )}
+                  </div>
+                </Link>
+                <button
+                  onClick={() => removeWatchlistMut.mutate(w.ticker)}
+                  disabled={removeWatchlistMut.isPending}
+                  className="px-3 py-4 text-gray-300 hover:text-red-500 transition shrink-0"
+                  title="Remove from watchlist"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             ))}
           </div>
-        ) : <WatchlistEmpty />
+        ) : (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 mx-auto mb-4 text-gray-200">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+              </svg>
+            </div>
+            <p className="text-base font-semibold text-gray-700 mb-1">Watchlist empty</p>
+            <p className="text-sm text-gray-400 mb-4">Tap the star on any analysis page to save stocks here.</p>
+            <Link href="/search" className="text-sm text-blue-600 font-medium hover:underline">Search stocks</Link>
+          </div>
+        )
+      )}
+
+      {/* Alerts tab */}
+      {tab === "alerts" && (
+        alerts && alerts.length > 0 ? (
+          <div className="space-y-2">
+            {alerts.map((a: { id: number; ticker: string; alert_type: string; target_price: number; created_at: string }) => (
+              <div key={a.id} className="flex items-center bg-white rounded-xl border border-gray-100 p-4">
+                <Link href={`/analysis/${a.ticker}`} className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium text-gray-900">{a.ticker.replace(".NS", "")}</p>
+                    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${a.alert_type === "above" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+                      {a.alert_type === "above" ? "ABOVE" : "BELOW"}
+                    </span>
+                  </div>
+                  <p className="text-sm font-mono text-gray-600 mt-0.5">
+                    {"\u20b9"}{a.target_price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                  </p>
+                </Link>
+                <button
+                  onClick={() => removeAlertMut.mutate(a.id)}
+                  disabled={removeAlertMut.isPending}
+                  className="px-2 text-gray-300 hover:text-red-500 transition shrink-0"
+                  title="Delete alert"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 mx-auto mb-4 text-gray-200">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+              </svg>
+            </div>
+            <p className="text-base font-semibold text-gray-700 mb-1">No active alerts</p>
+            <p className="text-sm text-gray-400 mb-4">Set price alerts on any analysis page to get notified by email.</p>
+            <Link href="/search" className="text-sm text-blue-600 font-medium hover:underline">Search stocks</Link>
+          </div>
+        )
       )}
     </div>
   )

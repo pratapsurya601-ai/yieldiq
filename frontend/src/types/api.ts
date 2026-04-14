@@ -213,3 +213,27 @@ export interface SectorOverviewItem {
   pct_undervalued: number
   trend: string
 }
+
+export interface WatchlistItemResponse {
+  ticker: string
+  company_name: string
+  added_price: number
+  target_price: number
+  alert_mos_threshold: number
+  notes: string
+  added_at: string
+}
+
+export interface AlertResponse {
+  id: number
+  ticker: string
+  alert_type: string
+  target_price: number
+  created_at: string
+  is_active: boolean
+}
+
+export interface SuccessResponse {
+  ok: boolean
+  message: string
+}

@@ -51,13 +51,15 @@ CREATE TABLE IF NOT EXISTS portfolio (
 
 -- 4. Watchlist
 CREATE TABLE IF NOT EXISTS watchlist (
-    id         BIGSERIAL PRIMARY KEY,
-    user_email TEXT NOT NULL,
-    ticker     TEXT NOT NULL,
-    target_price REAL,
-    mos_threshold REAL DEFAULT 20,
-    note       TEXT DEFAULT '',
-    added_at   TEXT DEFAULT '',
+    id             BIGSERIAL PRIMARY KEY,
+    user_email     TEXT NOT NULL,
+    ticker         TEXT NOT NULL,
+    company_name   TEXT DEFAULT '',
+    added_price    REAL DEFAULT 0,
+    target_price   REAL DEFAULT 0,
+    mos_threshold  REAL DEFAULT 20,
+    note           TEXT DEFAULT '',
+    added_at       TEXT DEFAULT '',
     UNIQUE(user_email, ticker)
 );
 

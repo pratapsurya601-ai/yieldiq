@@ -1,8 +1,10 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
 import { trackExportUsed } from "@/lib/analytics"
+import { checkInWatchlist, addToWatchlist, removeFromWatchlist, createAlert } from "@/lib/api"
 import type { Verdict, MoatGrade } from "@/types/api"
 
 interface ActionBarProps {
@@ -476,7 +478,54 @@ export default function ActionBar(props: ActionBarProps) {
   const [toast, setToast] = useState<string | null>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showCopied, setShowCopied] = useState(false)
+  const [showAlertModal, setShowAlertModal] = useState(false)
+  const [alertTargetPrice, setAlertTargetPrice] = useState("")
+  const [alertDirection, setAlertDirection] = useState<"below" | "above">("below")
   const exportRef = useRef<HTMLDivElement>(null)
+  const alertRef = useRef<HTMLDivElement>(null)
+  const queryClient = useQueryClient()
+
+  // Watchlist state
+  const { data: watchlistStatus } = useQuery({
+    queryKey: ["watchlist-check", ticker],
+    queryFn: () => checkInWatchlist(ticker),
+    staleTime: 30_000,
+  })
+  const inWatchlist = watchlistStatus?.in_watchlist ?? false
+
+  const watchlistAdd = useMutation({
+    mutationFn: () => addToWatchlist({ ticker, company_name: props.companyName, added_price: currentPrice }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["watchlist-check", ticker] })
+      queryClient.invalidateQueries({ queryKey: ["watchlist"] })
+      setToast("Added to watchlist")
+    },
+    onError: () => setToast("Failed to add to watchlist"),
+  })
+
+  const watchlistRemove = useMutation({
+    mutationFn: () => removeFromWatchlist(ticker),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["watchlist-check", ticker] })
+      queryClient.invalidateQueries({ queryKey: ["watchlist"] })
+      setToast("Removed from watchlist")
+    },
+    onError: () => setToast("Failed to remove from watchlist"),
+  })
+
+  const alertCreate = useMutation({
+    mutationFn: (data: { ticker: string; alert_type: string; target_price: number }) => createAlert(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alerts"] })
+      setShowAlertModal(false)
+      setAlertTargetPrice("")
+      setToast("Alert set! We'll email you when triggered.")
+    },
+    onError: (err: Error & { response?: { data?: { detail?: string } } }) => {
+      const detail = err.response?.data?.detail || "Failed to create alert"
+      setToast(detail)
+    },
+  })
 
   useEffect(() => {
     if (toast) {
@@ -497,12 +546,38 @@ export default function ActionBar(props: ActionBarProps) {
     return () => document.removeEventListener("click", handler)
   }, [showExportMenu])
 
+  // Close alert modal on outside click
+  useEffect(() => {
+    if (!showAlertModal) return
+    const handler = (e: MouseEvent) => {
+      if (alertRef.current && !alertRef.current.contains(e.target as Node)) {
+        setShowAlertModal(false)
+      }
+    }
+    document.addEventListener("click", handler)
+    return () => document.removeEventListener("click", handler)
+  }, [showAlertModal])
+
   const handleWatchlist = () => {
-    setToast("Watchlist coming soon!")
+    if (inWatchlist) {
+      watchlistRemove.mutate()
+    } else {
+      watchlistAdd.mutate()
+    }
   }
 
-  const handleAlert = () => {
-    setToast("Price alerts coming soon!")
+  const handleAlert = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShowAlertModal((v) => !v)
+  }
+
+  const handleAlertSubmit = () => {
+    const price = parseFloat(alertTargetPrice)
+    if (!price || price <= 0) {
+      setToast("Enter a valid target price")
+      return
+    }
+    alertCreate.mutate({ ticker, alert_type: alertDirection, target_price: price })
   }
 
   const handleShareWhatsApp = async () => {
@@ -647,24 +722,104 @@ export default function ActionBar(props: ActionBarProps) {
           {toast}
         </div>
       )}
-      <ActionButton
-        label="Watchlist"
+
+      {/* Watchlist — filled star if in watchlist, outline if not */}
+      <button
         onClick={handleWatchlist}
-        icon={
+        disabled={watchlistAdd.isPending || watchlistRemove.isPending}
+        className={cn(
+          "flex flex-1 flex-col items-center gap-1 rounded-xl py-3 px-2 transition-colors",
+          inWatchlist
+            ? "bg-amber-50 text-amber-600 hover:bg-amber-100"
+            : "bg-gray-50 text-gray-600 hover:bg-gray-100 active:bg-gray-200"
+        )}
+      >
+        {inWatchlist ? (
+          <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+          </svg>
+        ) : (
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.562.562 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.562.562 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
           </svg>
-        }
-      />
-      <ActionButton
-        label="Alert"
-        onClick={handleAlert}
-        icon={
+        )}
+        <span className="text-xs font-medium">{inWatchlist ? "Saved" : "Watchlist"}</span>
+      </button>
+
+      {/* Alert — with popover modal */}
+      <div ref={alertRef} className="relative flex-1">
+        <button
+          onClick={handleAlert}
+          className={cn(
+            "flex w-full flex-col items-center gap-1 rounded-xl bg-gray-50 py-3 px-2",
+            "text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+          )}
+        >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
           </svg>
-        }
-      />
+          <span className="text-xs font-medium">Alert</span>
+        </button>
+
+        {/* Alert popover */}
+        {showAlertModal && (
+          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-64 bg-white rounded-xl border border-gray-200 shadow-lg z-50 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-gray-900">Set Price Alert</p>
+              <button onClick={() => setShowAlertModal(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <p className="text-xs text-gray-400">
+              Current: <span className="font-mono text-gray-600">{"\u20b9"}{currentPrice.toLocaleString("en-IN")}</span>
+            </p>
+
+            {/* Direction toggle */}
+            <div className="flex bg-gray-100 rounded-lg p-0.5">
+              <button
+                onClick={() => setAlertDirection("below")}
+                className={cn(
+                  "flex-1 py-1.5 text-xs font-medium rounded-md transition-all",
+                  alertDirection === "below" ? "bg-white text-blue-700 shadow-sm" : "text-gray-500"
+                )}
+              >
+                Below
+              </button>
+              <button
+                onClick={() => setAlertDirection("above")}
+                className={cn(
+                  "flex-1 py-1.5 text-xs font-medium rounded-md transition-all",
+                  alertDirection === "above" ? "bg-white text-blue-700 shadow-sm" : "text-gray-500"
+                )}
+              >
+                Above
+              </button>
+            </div>
+
+            {/* Target price input */}
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{"\u20b9"}</span>
+              <input
+                type="number"
+                value={alertTargetPrice}
+                onChange={(e) => setAlertTargetPrice(e.target.value)}
+                placeholder="Target price"
+                className="w-full pl-7 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+
+            <button
+              onClick={handleAlertSubmit}
+              disabled={alertCreate.isPending}
+              className="w-full py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+            >
+              {alertCreate.isPending ? "Setting..." : "Set Alert"}
+            </button>
+          </div>
+        )}
+      </div>
 
       {/* Export with dropdown */}
       <div ref={exportRef} className="relative flex-1">
