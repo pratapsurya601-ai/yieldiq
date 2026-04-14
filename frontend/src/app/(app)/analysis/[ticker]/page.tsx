@@ -1,5 +1,5 @@
 "use client"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { getAnalysis, getChartData } from "@/lib/api"
@@ -11,12 +11,74 @@ import AISummary from "@/components/analysis/AISummary"
 import ActionBar from "@/components/analysis/ActionBar"
 import TransparencyStrip from "@/components/analysis/TransparencyStrip"
 import InsightCards from "@/components/analysis/InsightCards"
-import LoadingSteps from "@/components/ui/LoadingSteps"
 import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
 import { formatCurrency, formatPct, formatCompanyName } from "@/lib/utils"
 import { trackStockAnalysed } from "@/lib/analytics"
 import Link from "next/link"
+
+/* ------------------------------------------------------------------ */
+/*  Skeleton that mirrors the real analysis layout — shown while       */
+/*  the API call is in flight. Matches card structure so there is      */
+/*  zero layout shift when real content replaces it.                   */
+/* ------------------------------------------------------------------ */
+function AnalysisSkeleton() {
+  return (
+    <div className="max-w-2xl md:max-w-3xl lg:max-w-5xl mx-auto px-4 py-6 space-y-5 pb-20 animate-pulse">
+      {/* Card 1 skeleton — verdict */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
+        <div className="flex items-start justify-between">
+          <div className="space-y-2">
+            <div className="h-5 w-40 bg-gray-200 rounded" />
+            <div className="h-3 w-24 bg-gray-100 rounded" />
+          </div>
+          <div className="h-6 w-20 bg-gray-200 rounded" />
+        </div>
+        <div className="flex items-center gap-5">
+          {/* Ring placeholder */}
+          <div className="w-[100px] h-[100px] rounded-full bg-gray-100 border-4 border-gray-200" />
+          <div className="flex-1 space-y-3">
+            <div className="h-6 w-28 bg-gray-200 rounded-full" />
+            <div className="h-4 w-36 bg-gray-100 rounded" />
+            <div className="h-4 w-24 bg-gray-100 rounded" />
+          </div>
+        </div>
+      </div>
+
+      {/* Card 2 skeleton — AI summary */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+        <div className="h-4 w-24 bg-gray-200 rounded" />
+        <div className="space-y-2">
+          <div className="h-3 w-full bg-gray-100 rounded" />
+          <div className="h-3 w-3/4 bg-gray-100 rounded" />
+        </div>
+        <div className="flex gap-2">
+          <div className="h-10 flex-1 bg-gray-100 rounded-xl" />
+          <div className="h-10 flex-1 bg-gray-100 rounded-xl" />
+          <div className="h-10 flex-1 bg-gray-100 rounded-xl" />
+          <div className="h-10 flex-1 bg-gray-100 rounded-xl" />
+        </div>
+      </div>
+
+      {/* Insight cards skeleton */}
+      <div className="grid grid-cols-2 gap-3">
+        {[1, 2, 3, 4, 5, 6].map((i) => (
+          <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 space-y-2">
+            <div className="h-3 w-20 bg-gray-100 rounded" />
+            <div className="h-5 w-16 bg-gray-200 rounded" />
+            <div className="h-3 w-24 bg-gray-100 rounded" />
+          </div>
+        ))}
+      </div>
+
+      {/* Chart skeleton */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="h-4 w-28 bg-gray-200 rounded mb-3" />
+        <div className="h-[200px] bg-gray-50 rounded-xl" />
+      </div>
+    </div>
+  )
+}
 
 export default function AnalysisPage() {
   const params = useParams<{ ticker: string }>()
@@ -35,6 +97,29 @@ export default function AnalysisPage() {
     enabled: !!ticker,
     staleTime: 5 * 60 * 1000,
   })
+
+  /* ---- staggered reveal state ---- */
+  const [showSummary, setShowSummary] = useState(false)
+  const [showInsights, setShowInsights] = useState(false)
+  const [showCharts, setShowCharts] = useState(false)
+  const [showScenarios, setShowScenarios] = useState(false)
+
+  useEffect(() => {
+    if (data) {
+      // Verdict card shows immediately (no state gate).
+      // Cascade the rest top-to-bottom for a "waterfall" feel.
+      const t1 = setTimeout(() => setShowSummary(true), 150)
+      const t2 = setTimeout(() => setShowInsights(true), 300)
+      const t3 = setTimeout(() => setShowCharts(true), 450)
+      const t4 = setTimeout(() => setShowScenarios(true), 600)
+      return () => { clearTimeout(t1); clearTimeout(t2); clearTimeout(t3); clearTimeout(t4) }
+    }
+    // Reset when data is cleared (e.g. navigating to a new ticker)
+    setShowSummary(false)
+    setShowInsights(false)
+    setShowCharts(false)
+    setShowScenarios(false)
+  }, [data])
 
   // Dynamic SEO meta tags — must be before any conditional returns (Rules of Hooks)
   useEffect(() => {
@@ -62,7 +147,7 @@ export default function AnalysisPage() {
     }
   }, [data])
 
-  if (isLoading) return <LoadingSteps />
+  if (isLoading) return <AnalysisSkeleton />
   if (error) {
     const is429 = (error as { message?: string })?.message?.includes("Daily analysis limit reached")
     return (
@@ -141,122 +226,130 @@ export default function AnalysisPage() {
       </div>
 
       {/* CARD 2 -- AI Summary + Transparency + Actions */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-        <AISummary
-          summary={data.ai_summary}
-          ticker={ticker}
-          marginOfSafety={valuation.margin_of_safety}
-          moat={quality.moat}
-          confidence={valuation.confidence_score}
-          fairValue={valuation.fair_value}
-          currentPrice={valuation.current_price}
-        />
+      <div className={`transition-all duration-300 ${showSummary ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}`}>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+          <AISummary
+            summary={data.ai_summary}
+            ticker={ticker}
+            marginOfSafety={valuation.margin_of_safety}
+            moat={quality.moat}
+            confidence={valuation.confidence_score}
+            fairValue={valuation.fair_value}
+            currentPrice={valuation.current_price}
+          />
 
-        <div className="h-px bg-gray-100" />
+          <div className="h-px bg-gray-100" />
 
-        <TransparencyStrip
-          wacc={valuation.wacc} waccMin={valuation.wacc_industry_min} waccMax={valuation.wacc_industry_max}
-          fcfGrowth={valuation.fcf_growth_rate} fcfGrowthHistAvg={valuation.fcf_growth_historical_avg}
-          confidence={data.data_confidence}
-          fcfDataSource={valuation.fcf_data_source}
-        />
+          <TransparencyStrip
+            wacc={valuation.wacc} waccMin={valuation.wacc_industry_min} waccMax={valuation.wacc_industry_max}
+            fcfGrowth={valuation.fcf_growth_rate} fcfGrowthHistAvg={valuation.fcf_growth_historical_avg}
+            confidence={data.data_confidence}
+            fcfDataSource={valuation.fcf_data_source}
+          />
 
-        <ActionBar
-          ticker={ticker}
-          currentPrice={valuation.current_price}
-          companyName={company.company_name}
-          sector={company.sector}
-          currency={company.currency}
-          fairValue={valuation.fair_value}
-          mos={valuation.margin_of_safety}
-          verdict={valuation.verdict}
-          score={quality.yieldiq_score}
-          grade={quality.grade}
-          piotroski={quality.piotroski_score}
-          moat={quality.moat}
-          moatScore={quality.moat_score}
-          wacc={valuation.wacc}
-          fcfGrowth={valuation.fcf_growth_rate}
-          confidence={valuation.confidence_score}
-          bearCase={data.scenarios?.bear?.iv ?? valuation.bear_case}
-          baseCase={data.scenarios?.base?.iv ?? valuation.base_case}
-          bullCase={data.scenarios?.bull?.iv ?? valuation.bull_case}
-          bearMos={data.scenarios?.bear?.mos_pct ?? 0}
-          bullMos={data.scenarios?.bull?.mos_pct ?? 0}
-        />
+          <ActionBar
+            ticker={ticker}
+            currentPrice={valuation.current_price}
+            companyName={company.company_name}
+            sector={company.sector}
+            currency={company.currency}
+            fairValue={valuation.fair_value}
+            mos={valuation.margin_of_safety}
+            verdict={valuation.verdict}
+            score={quality.yieldiq_score}
+            grade={quality.grade}
+            piotroski={quality.piotroski_score}
+            moat={quality.moat}
+            moatScore={quality.moat_score}
+            wacc={valuation.wacc}
+            fcfGrowth={valuation.fcf_growth_rate}
+            confidence={valuation.confidence_score}
+            bearCase={data.scenarios?.bear?.iv ?? valuation.bear_case}
+            baseCase={data.scenarios?.base?.iv ?? valuation.base_case}
+            bullCase={data.scenarios?.bull?.iv ?? valuation.bull_case}
+            bearMos={data.scenarios?.bear?.mos_pct ?? 0}
+            bullMos={data.scenarios?.bull?.mos_pct ?? 0}
+          />
 
-        <Link href={`/compare?stock1=${ticker}`} className="text-xs text-blue-600 hover:underline">
-          Compare with another stock &rarr;
-        </Link>
+          <Link href={`/compare?stock1=${ticker}`} className="text-xs text-blue-600 hover:underline">
+            Compare with another stock &rarr;
+          </Link>
+        </div>
       </div>
 
       {/* LAYER 2 -- The Story (Insight Cards) */}
-      <InsightCards quality={quality} insights={insights} valuation={valuation} currency={company.currency} />
-
-      {/* Price Chart */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Price History</h2>
-        <PriceChart
-          ticker={ticker}
-          currentPrice={valuation.current_price}
-          fairValue={valuation.fair_value}
-          currency={company.currency}
-        />
+      <div className={`transition-all duration-300 ${showInsights ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}`}>
+        <InsightCards quality={quality} insights={insights} valuation={valuation} currency={company.currency} />
       </div>
 
-      {/* Divider */}
-      <div className="h-px bg-gray-100 mx-2" />
+      {/* Price Chart + Financial Bars */}
+      <div className={`transition-all duration-300 space-y-5 ${showCharts ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}`}>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3">Price History</h2>
+          <PriceChart
+            ticker={ticker}
+            currentPrice={valuation.current_price}
+            fairValue={valuation.fair_value}
+            currency={company.currency}
+          />
+        </div>
 
-      {/* Financial Bars */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Financial Overview</h2>
-        <FinancialBars
-          ticker={ticker}
-          currency={company.currency}
-          revenue={chartData?.financials?.revenue}
-          fcf={chartData?.financials?.fcf}
-        />
+        {/* Divider */}
+        <div className="h-px bg-gray-100 mx-2" />
+
+        {/* Financial Bars */}
+        <div className="bg-white rounded-2xl border border-gray-100 p-5">
+          <h2 className="text-sm font-semibold text-gray-900 mb-3">Financial Overview</h2>
+          <FinancialBars
+            ticker={ticker}
+            currency={company.currency}
+            revenue={chartData?.financials?.revenue}
+            fcf={chartData?.financials?.fcf}
+          />
+        </div>
       </div>
 
       {/* LAYER 3 -- Scenarios */}
-      {/* Divider */}
-      <div className="h-px bg-gray-100 mx-2" />
-      {data.scenarios ? (
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-4">Scenario Analysis</h2>
-          <div className="grid grid-cols-3 gap-3">
-            {(["bear", "base", "bull"] as const).map((key) => {
-              const sc = data.scenarios[key]
-              const label = key === "bear" ? "Bear" : key === "base" ? "Base" : "Bull"
-              const color = key === "bear" ? "text-red-600" : key === "bull" ? "text-green-600" : "text-blue-700"
-              const bgGradient = key === "bear"
-                ? "bg-gradient-to-b from-red-50 to-white"
-                : key === "bull"
-                  ? "bg-gradient-to-b from-green-50 to-white"
-                  : "bg-gradient-to-b from-blue-50 to-white"
-              return (
-                <div key={key} className={`text-center p-3 rounded-xl border border-gray-100 ${bgGradient}`}>
-                  <p className="text-xs text-gray-400 mb-1">{label} case</p>
-                  <p className={`text-lg font-bold font-mono ${color}`}>
-                    {formatCurrency(sc.iv, company.currency)}
-                  </p>
-                  <p className="text-xs text-gray-400">MoS: {formatPct(sc.mos_pct)}</p>
-                </div>
-              )
-            })}
+      <div className={`transition-all duration-300 space-y-5 ${showScenarios ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}`}>
+        {/* Divider */}
+        <div className="h-px bg-gray-100 mx-2" />
+        {data.scenarios ? (
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <h2 className="text-sm font-semibold text-gray-900 mb-4">Scenario Analysis</h2>
+            <div className="grid grid-cols-3 gap-3">
+              {(["bear", "base", "bull"] as const).map((key) => {
+                const sc = data.scenarios[key]
+                const label = key === "bear" ? "Bear" : key === "base" ? "Base" : "Bull"
+                const color = key === "bear" ? "text-red-600" : key === "bull" ? "text-green-600" : "text-blue-700"
+                const bgGradient = key === "bear"
+                  ? "bg-gradient-to-b from-red-50 to-white"
+                  : key === "bull"
+                    ? "bg-gradient-to-b from-green-50 to-white"
+                    : "bg-gradient-to-b from-blue-50 to-white"
+                return (
+                  <div key={key} className={`text-center p-3 rounded-xl border border-gray-100 ${bgGradient}`}>
+                    <p className="text-xs text-gray-400 mb-1">{label} case</p>
+                    <p className={`text-lg font-bold font-mono ${color}`}>
+                      {formatCurrency(sc.iv, company.currency)}
+                    </p>
+                    <p className="text-xs text-gray-400">MoS: {formatPct(sc.mos_pct)}</p>
+                  </div>
+                )
+              })}
+            </div>
           </div>
-        </div>
-      ) : (
-        <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
-          <p className="text-sm text-gray-400">Scenario analysis unavailable</p>
-        </div>
-      )}
+        ) : (
+          <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
+            <p className="text-sm text-gray-400">Scenario analysis unavailable</p>
+          </div>
+        )}
 
-      {/* Disclaimer */}
-      <p className="text-[10px] text-gray-400 text-center leading-relaxed px-4">
-        All outputs are model estimates using publicly available data. Not investment advice.
-        YieldIQ is not registered with SEBI as an investment adviser.
-      </p>
+        {/* Disclaimer */}
+        <p className="text-[10px] text-gray-400 text-center leading-relaxed px-4">
+          All outputs are model estimates using publicly available data. Not investment advice.
+          YieldIQ is not registered with SEBI as an investment adviser.
+        </p>
+      </div>
     </div>
   )
 }
