@@ -1,59 +1,204 @@
 # backend/routers/screener.py
+# Stock screener — queries Aiven pipeline DB for real-time ranked stocks.
 from __future__ import annotations
+import logging
 from fastapi import APIRouter, Depends, Query
 from backend.models.responses import ScreenerResponse, ScreenerStock
-from backend.middleware.auth import get_current_user, require_tier
+from backend.middleware.auth import get_current_user
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/screener", tags=["screener"])
+
+
+def _query_stocks_from_db(min_score: int = 0, min_mos: float = -100,
+                          page: int = 1, page_size: int = 25) -> tuple[list[ScreenerStock], int]:
+    """Query stocks from Aiven pipeline database."""
+    try:
+        from data_pipeline.db import Session
+        if Session is None:
+            return [], 0
+
+        from sqlalchemy import text
+        db = Session()
+        try:
+            # Get stocks with market metrics — rank by PE (lower = more undervalued)
+            query = text("""
+                SELECT
+                    s.ticker,
+                    s.company_name,
+                    mm.pe_ratio,
+                    mm.pb_ratio,
+                    mm.beta_1yr,
+                    mm.market_cap_cr,
+                    mm.dividend_yield
+                FROM stocks s
+                JOIN market_metrics mm ON mm.ticker = s.ticker
+                WHERE s.is_active = true
+                  AND mm.pe_ratio IS NOT NULL
+                  AND mm.pe_ratio > 0
+                  AND mm.pe_ratio < 100
+                ORDER BY mm.pe_ratio ASC
+                LIMIT :lim OFFSET :off
+            """)
+            offset = (page - 1) * page_size
+            rows = db.execute(query, {"lim": page_size, "off": offset}).fetchall()
+
+            # Get total count
+            count_q = text("""
+                SELECT COUNT(*) FROM stocks s
+                JOIN market_metrics mm ON mm.ticker = s.ticker
+                WHERE s.is_active = true AND mm.pe_ratio IS NOT NULL
+                  AND mm.pe_ratio > 0 AND mm.pe_ratio < 100
+            """)
+            total = db.execute(count_q).scalar() or 0
+
+            stocks = []
+            for row in rows:
+                ticker = row[0]
+                name = row[1] or ticker
+                pe = row[2] or 0
+                pb = row[3] or 0
+                beta = row[4] or 1.0
+                mcap = row[5] or 0
+
+                # Simple score: lower PE + lower PB = higher score
+                pe_score = max(0, min(40, int((30 - pe) / 30 * 40))) if pe > 0 else 0
+                pb_score = max(0, min(30, int((5 - pb) / 5 * 30))) if pb > 0 else 0
+                simple_score = pe_score + pb_score + 20  # base 20
+
+                # Simple MoS estimate from PE (sector median ~20)
+                mos = round((20 - pe) / 20 * 100, 1) if pe > 0 else 0
+
+                stocks.append(ScreenerStock(
+                    ticker=f"{ticker}.NS" if "." not in ticker else ticker,
+                    score=max(0, min(100, simple_score)),
+                    margin_of_safety=mos,
+                ))
+
+            return stocks, total
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"Screener DB query failed: {e}")
+        return [], 0
+
+
+def _query_preset_from_db(preset: str, page: int = 1,
+                          page_size: int = 25) -> tuple[list[ScreenerStock], int]:
+    """Run preset screener queries against Aiven DB."""
+    try:
+        from data_pipeline.db import Session
+        if Session is None:
+            return [], 0
+
+        from sqlalchemy import text
+        db = Session()
+        try:
+            # Different queries for different presets
+            if preset == "buffett":
+                # Wide moat: low PE, decent dividend, stable
+                query = text("""
+                    SELECT s.ticker, s.company_name, mm.pe_ratio, mm.pb_ratio,
+                           mm.dividend_yield, mm.market_cap_cr
+                    FROM stocks s
+                    JOIN market_metrics mm ON mm.ticker = s.ticker
+                    WHERE s.is_active = true
+                      AND mm.pe_ratio BETWEEN 5 AND 25
+                      AND mm.pb_ratio BETWEEN 0.5 AND 5
+                      AND mm.market_cap_cr > 1000
+                    ORDER BY mm.pe_ratio ASC
+                    LIMIT :lim OFFSET :off
+                """)
+            elif preset == "deep_value":
+                # Very low PE, low PB
+                query = text("""
+                    SELECT s.ticker, s.company_name, mm.pe_ratio, mm.pb_ratio,
+                           mm.dividend_yield, mm.market_cap_cr
+                    FROM stocks s
+                    JOIN market_metrics mm ON mm.ticker = s.ticker
+                    WHERE s.is_active = true
+                      AND mm.pe_ratio BETWEEN 1 AND 15
+                      AND mm.pb_ratio BETWEEN 0.1 AND 2
+                    ORDER BY mm.pe_ratio ASC
+                    LIMIT :lim OFFSET :off
+                """)
+            elif preset == "growth_quality":
+                # Higher PE is ok, but need good PB and large cap
+                query = text("""
+                    SELECT s.ticker, s.company_name, mm.pe_ratio, mm.pb_ratio,
+                           mm.dividend_yield, mm.market_cap_cr
+                    FROM stocks s
+                    JOIN market_metrics mm ON mm.ticker = s.ticker
+                    WHERE s.is_active = true
+                      AND mm.pe_ratio BETWEEN 15 AND 50
+                      AND mm.market_cap_cr > 5000
+                    ORDER BY mm.market_cap_cr DESC
+                    LIMIT :lim OFFSET :off
+                """)
+            else:
+                # Custom / default — all stocks ranked by PE
+                query = text("""
+                    SELECT s.ticker, s.company_name, mm.pe_ratio, mm.pb_ratio,
+                           mm.dividend_yield, mm.market_cap_cr
+                    FROM stocks s
+                    JOIN market_metrics mm ON mm.ticker = s.ticker
+                    WHERE s.is_active = true
+                      AND mm.pe_ratio > 0
+                    ORDER BY mm.pe_ratio ASC
+                    LIMIT :lim OFFSET :off
+                """)
+
+            offset = (page - 1) * page_size
+            rows = db.execute(query, {"lim": page_size, "off": offset}).fetchall()
+
+            stocks = []
+            for row in rows:
+                ticker = row[0]
+                pe = row[2] or 0
+                pb = row[3] or 0
+
+                pe_score = max(0, min(40, int((30 - pe) / 30 * 40))) if pe > 0 else 0
+                pb_score = max(0, min(30, int((5 - pb) / 5 * 30))) if pb > 0 else 0
+                score = pe_score + pb_score + 20
+
+                mos = round((20 - pe) / 20 * 100, 1) if pe > 0 else 0
+
+                stocks.append(ScreenerStock(
+                    ticker=f"{ticker}.NS" if "." not in ticker else ticker,
+                    score=max(0, min(100, score)),
+                    margin_of_safety=mos,
+                ))
+
+            return stocks, len(stocks)
+        finally:
+            db.close()
+    except Exception as e:
+        logger.warning(f"Screener preset query failed: {e}")
+        return [], 0
 
 
 @router.get("/run", response_model=ScreenerResponse)
 async def run_screener(
     min_score: int = Query(0, ge=0, le=100),
     min_mos: float = Query(-100),
-    moat: str = Query(None),
-    sector: str = Query(None),
-    fcf_positive: bool = Query(None),
     page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    user: dict = Depends(require_tier("starter")),
+    page_size: int = Query(25, ge=1, le=100),
+    user: dict = Depends(get_current_user),
 ):
-    """Run custom screener with filters. Starter+ only."""
-    try:
-        import pandas as pd
-        from pathlib import Path
-        _path = Path(__file__).resolve().parent.parent.parent / "data" / "screener_results.csv"
-        if not _path.exists():
-            return ScreenerResponse(filter_applied={"min_score": min_score})
+    """Run custom screener. Available to all users."""
+    stocks, total = _query_stocks_from_db(min_score, min_mos, page, page_size)
 
-        df = pd.read_csv(_path)
-        _score_col = next((c for c in df.columns if c.lower() in ("score", "yieldiq_score")), None)
-        _mos_col = next((c for c in df.columns if c.lower() in ("mos", "mos_pct")), None)
-        _ticker_col = next((c for c in df.columns if c.lower() in ("ticker", "symbol")), df.columns[0])
+    # Filter by min_score and min_mos
+    if min_score > 0:
+        stocks = [s for s in stocks if s.score >= min_score]
+    if min_mos > -100:
+        stocks = [s for s in stocks if s.margin_of_safety >= min_mos]
 
-        if _score_col and min_score > 0:
-            df = df[df[_score_col] >= min_score]
-        if _mos_col and min_mos > -100:
-            df = df[df[_mos_col] >= min_mos]
-
-        total = len(df)
-        start = (page - 1) * page_size
-        df = df.iloc[start:start + page_size]
-
-        stocks = []
-        for _, row in df.iterrows():
-            stocks.append(ScreenerStock(
-                ticker=str(row.get(_ticker_col, "")),
-                score=int(row.get(_score_col, 0)) if _score_col else 0,
-                margin_of_safety=float(row.get(_mos_col, 0)) if _mos_col else 0,
-            ))
-
-        return ScreenerResponse(
-            results=stocks, total=total, page=page, page_size=page_size,
-            filter_applied={"min_score": min_score, "min_mos": min_mos},
-        )
-    except Exception:
-        return ScreenerResponse()
+    return ScreenerResponse(
+        results=stocks, total=total, page=page, page_size=page_size,
+        filter_applied={"min_score": min_score, "min_mos": min_mos},
+    )
 
 
 @router.get("/preset/{preset_name}", response_model=ScreenerResponse)
@@ -61,15 +206,10 @@ async def run_preset(
     preset_name: str,
     user: dict = Depends(get_current_user),
 ):
-    """Run a pre-built screener preset."""
-    presets = {
-        "buffett": {"min_score": 60, "min_mos": 20},
-        "deep_value": {"min_score": 60, "min_mos": 30},
-        "growth_quality": {"min_score": 80, "min_mos": 0},
-    }
-    filters = presets.get(preset_name, {"min_score": 50})
-    return await run_screener(
-        min_score=filters.get("min_score", 0),
-        min_mos=filters.get("min_mos", -100),
-        user=user,
+    """Run a pre-built screener preset. Available to all users."""
+    stocks, total = _query_preset_from_db(preset_name)
+
+    return ScreenerResponse(
+        results=stocks, total=total, page=1, page_size=25,
+        filter_applied={"preset": preset_name},
     )
