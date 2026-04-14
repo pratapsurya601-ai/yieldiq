@@ -93,18 +93,24 @@ function displayTicker(ticker: string): string {
 
 function buildWhatsAppText(p: ActionBarProps): string {
   const dt = displayTicker(p.ticker)
+  const mosSign = p.mos >= 0 ? "+" : ""
+  const verdictTag = verdictLabel(p.verdict).toUpperCase()
+
   return [
-    `\ud83d\udcca *${p.companyName}* (${dt})`,
-    `\ud83d\udcb0 Current price: \u20b9${p.currentPrice.toFixed(0)}`,
-    `\ud83c\udfaf Fair value: \u20b9${p.fairValue.toFixed(0)} (${verdictEmoji(p.verdict)} ${verdictLabel(p.verdict)})`,
-    `\ud83d\udcc8 Margin of Safety: ${p.mos >= 0 ? "+" : ""}${p.mos.toFixed(1)}%`,
+    `*${p.companyName}* (${dt})`,
     ``,
-    `${scoreEmoji(p.score)} YieldIQ Score: ${p.score}/100 (Grade ${p.grade})`,
-    `\ud83c\udff0 Moat: ${p.moat} | Piotroski: ${p.piotroski}/9`,
-    `\ud83d\udcc9 Bear: \u20b9${p.bearCase.toFixed(0)} | Base: \u20b9${p.baseCase.toFixed(0)} | \ud83d\udcc8 Bull: \u20b9${p.bullCase.toFixed(0)}`,
+    `\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500`,
+    `\u2502  Price      \u20b9${p.currentPrice.toLocaleString("en-IN")}`,
+    `\u2502  Fair Value  \u20b9${p.fairValue.toLocaleString("en-IN")}`,
+    `\u2502  MoS        ${mosSign}${p.mos.toFixed(1)}%`,
+    `\u2502  Verdict     *${verdictTag}*`,
+    `\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500`,
     ``,
-    `\u26a0\ufe0f Model estimate only. Not investment advice.`,
-    `\ud83d\udd0d Full analysis: yieldiq.in/analysis/${dt}`,
+    `Score *${p.score}*/100 (${p.grade}) \u2022 Moat: ${p.moat} \u2022 Piotroski: ${p.piotroski}/9`,
+    `Bear \u20b9${p.bearCase.toLocaleString("en-IN")} \u2022 Base \u20b9${p.baseCase.toLocaleString("en-IN")} \u2022 Bull \u20b9${p.bullCase.toLocaleString("en-IN")}`,
+    ``,
+    `_Model estimate, not investment advice_`,
+    `yieldiq.in/analysis/${dt}`,
   ].join("\n")
 }
 
