@@ -96,8 +96,8 @@ export default function AnalysisPage() {
         </div>
       )}
 
-      {/* LAYER 1 -- Instant Verdict */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
+      {/* CARD 1 -- Compact Verdict (conviction ring + fair value + MoS) */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-lg font-semibold text-gray-900">{formatCompanyName(company.company_name)}</h1>
@@ -108,39 +108,35 @@ export default function AnalysisPage() {
           </p>
         </div>
 
-        {/* Conviction Ring Card */}
-        <div className="bg-gradient-to-br from-gray-50 to-white rounded-xl p-4 border border-gray-100">
-          <div className="flex items-center gap-5">
-            <ConvictionRing score={quality.yieldiq_score} confidence={valuation.confidence_score} />
-            <div className="flex-1 space-y-2">
-              <VerdictChip verdict={valuation.verdict} size="lg" />
+        <div className="flex items-center gap-5">
+          <ConvictionRing score={quality.yieldiq_score} confidence={valuation.confidence_score} />
+          <div className="flex-1 space-y-1.5">
+            <VerdictChip verdict={valuation.verdict} size="lg" />
+            <BlurredValue value={valuation.fair_value} currency={company.currency} label="Fair value estimate" />
+            <p className={`text-sm font-medium ${valuation.margin_of_safety >= 0 ? "text-blue-600" : "text-amber-600"}`}>
+              MoS: {valuation.margin_of_safety > 80 ? "+80%+" : formatPct(valuation.margin_of_safety)}
               <LearnTip tipKey="mos" />
-              <BlurredValue value={valuation.fair_value} currency={company.currency} label="Fair value estimate" />
-              <p className={`text-sm font-medium ${valuation.margin_of_safety >= 0 ? "text-blue-600" : "text-amber-600"}`}>
-                Margin of safety: {valuation.margin_of_safety > 80 ? "+80%+" : formatPct(valuation.margin_of_safety)}
-              </p>
-              {valuation.margin_of_safety > 80 && (
-                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-1">
-                  Model shows significant undervaluation. Verify assumptions before acting on this signal.
-                </div>
-              )}
-            </div>
+            </p>
           </div>
         </div>
 
-        {/* Banking / Financial sector disclaimer */}
-        {company.sector && /banking|insurance|financial services|nbfc|finance/i.test(company.sector) && (
-          <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
-            <span className="font-semibold">Note:</span> DCF models are less reliable for banking and financial stocks because their cash flows depend heavily on credit cycles, provisioning, and regulatory capital. Consider book value and P/E based valuation alongside this estimate.
+        {valuation.margin_of_safety > 80 && (
+          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+            Model shows significant undervaluation. Verify assumptions before acting on this signal.
           </div>
         )}
 
-        {/* Divider */}
-        <div className="h-px bg-gray-100" />
+        {company.sector && /banking|insurance|financial services|nbfc|finance/i.test(company.sector) && (
+          <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+            <span className="font-semibold">Note:</span> DCF less reliable for banking stocks. Use book value and P/E alongside.
+          </div>
+        )}
+      </div>
 
+      {/* CARD 2 -- AI Summary + Transparency + Actions */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
         <AISummary summary={data.ai_summary} ticker={ticker} />
 
-        {/* Divider */}
         <div className="h-px bg-gray-100" />
 
         <TransparencyStrip
