@@ -86,6 +86,175 @@ function scoreEmoji(score: number): string {
   return "\ud83d\udd34"
 }
 
+/* ── Share card helpers ──────────────────────────────── */
+
+function getVerdictCardColors(v: Verdict): { bg: string; text: string; bgAlpha: string } {
+  switch (v) {
+    case "undervalued":   return { bg: "#10B981", text: "#10B981", bgAlpha: "rgba(16,185,129,0.15)" }
+    case "fairly_valued": return { bg: "#3B82F6", text: "#3B82F6", bgAlpha: "rgba(59,130,246,0.15)" }
+    case "overvalued":    return { bg: "#EF4444", text: "#EF4444", bgAlpha: "rgba(239,68,68,0.15)" }
+    case "avoid":         return { bg: "#EF4444", text: "#EF4444", bgAlpha: "rgba(239,68,68,0.15)" }
+    case "data_limited":  return { bg: "#6B7280", text: "#6B7280", bgAlpha: "rgba(107,114,128,0.15)" }
+    default:              return { bg: "#6B7280", text: "#6B7280", bgAlpha: "rgba(107,114,128,0.15)" }
+  }
+}
+
+async function generateShareCard(p: ActionBarProps): Promise<Blob> {
+  const W = 1080, H = 1080
+  const canvas = document.createElement("canvas")
+  canvas.width = W
+  canvas.height = H
+  const ctx = canvas.getContext("2d")!
+
+  // Background gradient
+  const bgGrad = ctx.createLinearGradient(0, 0, 0, H)
+  bgGrad.addColorStop(0, "#0F172A")
+  bgGrad.addColorStop(1, "#1E293B")
+  ctx.fillStyle = bgGrad
+  ctx.fillRect(0, 0, W, H)
+
+  // Helper: draw text
+  const text = (
+    str: string, x: number, y: number, size: number, color: string,
+    weight = "600", align: CanvasTextAlign = "left"
+  ) => {
+    ctx.font = `${weight} ${size}px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif`
+    ctx.fillStyle = color
+    ctx.textAlign = align
+    ctx.fillText(str, x, y)
+  }
+
+  // Helper: rounded rect path
+  const roundRect = (x: number, y: number, w: number, h: number, r: number) => {
+    ctx.beginPath()
+    ctx.moveTo(x + r, y)
+    ctx.lineTo(x + w - r, y)
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+    ctx.lineTo(x + w, y + h - r)
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+    ctx.lineTo(x + r, y + h)
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+    ctx.lineTo(x, y + r)
+    ctx.quadraticCurveTo(x, y, x + r, y)
+    ctx.closePath()
+  }
+
+  // Helper: horizontal line
+  const hLine = (y: number, marginX: number, color: string, width = 2) => {
+    ctx.strokeStyle = color
+    ctx.lineWidth = width
+    ctx.beginPath()
+    ctx.moveTo(marginX, y)
+    ctx.lineTo(W - marginX, y)
+    ctx.stroke()
+  }
+
+  const dt = displayTicker(p.ticker)
+  const today = new Date().toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
+  const vc = getVerdictCardColors(p.verdict)
+
+  // 1. Header
+  text("YIELDIQ", 60, 70, 28, "#3B82F6", "800", "left")
+  // letter-spacing workaround: draw char by char
+  ctx.save()
+  ctx.font = "800 28px -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif"
+  ctx.fillStyle = "#3B82F6"
+  ctx.textAlign = "left"
+  let headerX = 60
+  for (const ch of "YIELDIQ") {
+    ctx.fillText(ch, headerX, 70)
+    headerX += ctx.measureText(ch).width + 4
+  }
+  ctx.restore()
+  text(today, W - 60, 70, 22, "#64748B", "500", "right")
+
+  // 2. Divider
+  hLine(100, 60, "#1E293B")
+
+  // 3. Company name
+  text(p.companyName, 60, 160, 48, "#FFFFFF", "700", "left")
+  text(`${dt}  \u00B7  ${p.sector}`, 60, 195, 24, "#64748B", "400", "left")
+
+  // 4. Verdict badge
+  roundRect(60, 240, 960, 100, 16)
+  ctx.fillStyle = vc.bgAlpha
+  ctx.fill()
+  text(verdictLabel(p.verdict), 100, 305, 36, vc.text, "700", "left")
+  text(`Fair Value \u20B9${p.fairValue.toLocaleString("en-IN")}`, W - 100, 305, 36, "#FFFFFF", "700", "right")
+
+  // 5. Price + MoS row
+  text(`Current Price: \u20B9${p.currentPrice.toLocaleString("en-IN")}`, 60, 400, 28, "#94A3B8", "500", "left")
+  const mosColor = p.mos >= 0 ? "#10B981" : "#EF4444"
+  const mosSign = p.mos >= 0 ? "+" : ""
+  text(`Margin of Safety: ${mosSign}${p.mos.toFixed(1)}%`, W - 60, 400, 28, mosColor, "600", "right")
+
+  // 6. Score ring
+  const cx = W / 2, cy = 560, ringR = 90
+  ctx.lineWidth = 12
+  ctx.lineCap = "round"
+  // Background ring
+  ctx.strokeStyle = "#1E293B"
+  ctx.beginPath()
+  ctx.arc(cx, cy, ringR, 0, Math.PI * 2)
+  ctx.stroke()
+  // Score arc
+  const scoreAngle = (p.score / 100) * Math.PI * 2
+  const scoreColor = p.score >= 75 ? "#10B981" : p.score >= 55 ? "#3B82F6" : p.score >= 35 ? "#F59E0B" : "#EF4444"
+  ctx.strokeStyle = scoreColor
+  ctx.beginPath()
+  ctx.arc(cx, cy, ringR, -Math.PI / 2, -Math.PI / 2 + scoreAngle)
+  ctx.stroke()
+  ctx.lineCap = "butt"
+  // Score number
+  text(String(p.score), cx, cy + 18, 64, "#FFFFFF", "700", "center")
+  // Grade below ring
+  text(`Grade ${p.grade}`, cx, cy + ringR + 40, 28, "#94A3B8", "500", "center")
+
+  // 7. Metrics strip
+  const metricsY = 730
+  const col1X = W / 6, col2X = W / 2, col3X = (W * 5) / 6
+  // Labels
+  text("MOAT", col1X, metricsY, 18, "#64748B", "600", "center")
+  text("PIOTROSKI", col2X, metricsY, 18, "#64748B", "600", "center")
+  text("QUALITY", col3X, metricsY, 18, "#64748B", "600", "center")
+  // Values
+  text(p.moat, col1X, metricsY + 38, 28, "#FFFFFF", "700", "center")
+  text(`${p.piotroski}/9`, col2X, metricsY + 38, 28, "#FFFFFF", "700", "center")
+  text(`${p.confidence.toFixed(0)}/100`, col3X, metricsY + 38, 28, "#FFFFFF", "700", "center")
+  // Divider lines between columns
+  const divX1 = W / 3, divX2 = (W * 2) / 3
+  ctx.strokeStyle = "#1E293B"
+  ctx.lineWidth = 2
+  ctx.beginPath()
+  ctx.moveTo(divX1, metricsY - 15)
+  ctx.lineTo(divX1, metricsY + 50)
+  ctx.stroke()
+  ctx.beginPath()
+  ctx.moveTo(divX2, metricsY - 15)
+  ctx.lineTo(divX2, metricsY + 50)
+  ctx.stroke()
+
+  // 8. Scenarios row
+  const scenY = 845
+  text(`Bear \u20B9${p.bearCase.toLocaleString("en-IN")}`, col1X, scenY, 24, "#EF4444", "600", "center")
+  text(`Base \u20B9${p.baseCase.toLocaleString("en-IN")}`, col2X, scenY, 24, "#3B82F6", "600", "center")
+  text(`Bull \u20B9${p.bullCase.toLocaleString("en-IN")}`, col3X, scenY, 24, "#10B981", "600", "center")
+
+  // 9. Footer
+  hLine(920, 60, "#1E293B")
+  text("yieldiq.in", 60, 970, 24, "#3B82F6", "600", "left")
+  text("Model estimate only. Not investment advice.", W - 60, 970, 18, "#475569", "400", "right")
+  text("Scan any stock free \u2192", cx, 1020, 20, "#64748B", "500", "center")
+
+  // Convert to blob
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (blob) resolve(blob)
+      else reject(new Error("Canvas toBlob failed"))
+    }, "image/png")
+  })
+}
+
 /* ── Export functions ─────────────────────────────────── */
 
 function displayTicker(ticker: string): string {
@@ -338,23 +507,63 @@ export default function ActionBar(props: ActionBarProps) {
     setToast("Price alerts coming soon!")
   }
 
-  const handleShareWhatsApp = () => {
+  const handleShareWhatsApp = async () => {
     setShowExportMenu(false)
-    trackExportUsed("whatsapp", ticker)
-    const text = buildWhatsAppText(props)
-    const encoded = encodeURIComponent(text)
-    // Open WhatsApp directly — works on both mobile and desktop
-    window.open(`https://wa.me/?text=${encoded}`, "_blank")
+    trackExportUsed("whatsapp_card", ticker)
+
+    try {
+      const blob = await generateShareCard(props)
+      const file = new File([blob], `YieldIQ_${displayTicker(ticker)}.png`, { type: "image/png" })
+
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `${props.companyName} — ${verdictLabel(props.verdict)}`,
+          text: `Check out this stock analysis on YieldIQ`,
+        })
+      } else {
+        // Desktop fallback — download the card
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `YieldIQ_${displayTicker(ticker)}.png`
+        a.click()
+        URL.revokeObjectURL(url)
+        setToast("Card downloaded! Share it on WhatsApp")
+      }
+    } catch {
+      // Fallback to text share if canvas fails
+      const waText = buildWhatsAppText(props)
+      window.open(`https://wa.me/?text=${encodeURIComponent(waText)}`, "_blank")
+    }
   }
 
-  const handleShareTwitter = () => {
+  const handleShareTwitter = async () => {
     setShowExportMenu(false)
-    trackExportUsed("twitter", ticker)
+    trackExportUsed("twitter_card", ticker)
     const dt = displayTicker(ticker)
-    const ve = verdictEmoji(props.verdict)
-    const tweetText = `${ve} ${props.companyName} (${dt}) — ${verdictLabel(props.verdict)}\n\nFair Value: \u20b9${props.fairValue.toLocaleString("en-IN")} vs Price: \u20b9${props.currentPrice.toLocaleString("en-IN")} (${props.mos >= 0 ? "+" : ""}${props.mos.toFixed(0)}% MoS)\n\nScore: ${props.score}/100 | Moat: ${props.moat}\n\nFull analysis \u2193`
-    const url = `https://yieldiq.in/analysis/${dt}.NS`
-    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(url)}`, "_blank")
+
+    try {
+      const blob = await generateShareCard(props)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `YieldIQ_${dt}.png`
+      a.click()
+      URL.revokeObjectURL(url)
+
+      const tweetText = `${props.companyName} is ${verdictLabel(props.verdict)} — Score ${props.score}/100\n\nFull DCF analysis on @YieldIQ \ud83d\udc47`
+      window.open(
+        `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(`https://yieldiq.in/analysis/${dt}.NS`)}`,
+        "_blank"
+      )
+      setToast("Card downloaded! Attach it to your tweet")
+    } catch {
+      window.open(
+        `https://twitter.com/intent/tweet?text=${encodeURIComponent(`${props.companyName} analysis on YieldIQ`)}&url=${encodeURIComponent(`https://yieldiq.in/analysis/${dt}.NS`)}`,
+        "_blank"
+      )
+    }
   }
 
   const handleCopyLink = async () => {
@@ -365,6 +574,23 @@ export default function ActionBar(props: ActionBarProps) {
       setToast("Copied to clipboard!")
     } catch {
       setToast("Could not copy")
+    }
+  }
+
+  const handleDownloadCard = async () => {
+    setShowExportMenu(false)
+    trackExportUsed("download_card", ticker)
+    try {
+      const blob = await generateShareCard(props)
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `YieldIQ_${displayTicker(ticker)}.png`
+      a.click()
+      URL.revokeObjectURL(url)
+      setToast("Card downloaded!")
+    } catch {
+      setToast("Could not generate card")
     }
   }
 
@@ -467,14 +693,14 @@ export default function ActionBar(props: ActionBarProps) {
               className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors"
             >
               <svg className="w-4 h-4 text-green-600" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.611.611l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.344 0-4.507-.795-6.23-2.131l-.355-.282-3.281 1.1 1.1-3.281-.282-.355A9.935 9.935 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
-              <span>WhatsApp</span>
+              <span>Share on WhatsApp</span>
             </button>
             <button
               onClick={handleShareTwitter}
               className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
             >
               <svg className="w-4 h-4 text-gray-500" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-              <span>Twitter / X</span>
+              <span>Share on X</span>
             </button>
             <button
               onClick={handleCopyLink}
@@ -487,6 +713,13 @@ export default function ActionBar(props: ActionBarProps) {
             <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
               <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Download</span>
             </div>
+            <button
+              onClick={handleDownloadCard}
+              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" /></svg>
+              <span>Share card (PNG)</span>
+            </button>
             <button
               onClick={handleDownloadPdf}
               className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
