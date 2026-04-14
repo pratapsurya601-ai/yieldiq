@@ -22,12 +22,13 @@ export default function ConvictionRing({ score, confidence, size = 140 }: Convic
   const outerCircumference = 2 * Math.PI * outerRadius
   const innerCircumference = 2 * Math.PI * innerRadius
 
-  const scoreColor = SCORE_COLOR(safeScore)
+  // Score-based color gradient: red (0-35), amber (35-55), blue (55-75), green (75-100)
+  const scoreColor = safeScore >= 75 ? "#10B981" : safeScore >= 55 ? "#3B82F6" : safeScore >= 35 ? "#F59E0B" : "#EF4444"
   const confidenceColor = safeConfidence >= 70 ? "#185FA5" : safeConfidence >= 40 ? "#B45309" : "#DC2626"
   const grade = SCORE_GRADE(safeScore)
 
-  // Gradient end color: lighten the score color
-  const gradientEndColor = safeScore >= 70 ? "#3B82F6" : safeScore >= 50 ? "#F59E0B" : "#F87171"
+  // Gradient end color: complement the score color for visual depth
+  const gradientEndColor = safeScore >= 75 ? "#059669" : safeScore >= 55 ? "#2563EB" : safeScore >= 35 ? "#D97706" : "#DC2626"
 
   useEffect(() => {
     const outerEl = outerRef.current

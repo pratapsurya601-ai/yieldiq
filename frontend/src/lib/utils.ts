@@ -25,6 +25,29 @@ export function formatPct(value: number): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`
 }
 
+const COMPANY_NAME_OVERRIDES: Record<string, string> = {
+  "ITC.NS": "ITC Limited",
+  "TCS.NS": "Tata Consultancy Services",
+  "HDFCBANK.NS": "HDFC Bank",
+  "BAJFINANCE.NS": "Bajaj Finance",
+  "HINDUNILVR.NS": "Hindustan Unilever",
+  "MARUTI.NS": "Maruti Suzuki India",
+  "TITAN.NS": "Titan Company",
+  "INFY.NS": "Infosys",
+  "SBIN.NS": "State Bank of India",
+  "ICICIBANK.NS": "ICICI Bank",
+  "KOTAKBANK.NS": "Kotak Mahindra Bank",
+  "AXISBANK.NS": "Axis Bank",
+  "LT.NS": "Larsen & Toubro",
+  "SUNPHARMA.NS": "Sun Pharmaceutical Industries",
+  "NTPC.NS": "NTPC Limited",
+  "ONGC.NS": "ONGC Limited",
+  "RELIANCE.NS": "Reliance Industries",
+  "WIPRO.NS": "Wipro Limited",
+  "TATAMOTORS.NS": "Tata Motors",
+  "ITC LIMITED": "ITC Limited",
+}
+
 const COMPANY_ABBREVIATIONS: Record<string, string> = {
   LT: "Ltd",
   LTD: "Ltd",
@@ -50,8 +73,12 @@ const COMPANY_ABBREVIATIONS: Record<string, string> = {
   PETRO: "Petroleum",
 }
 
-export function formatCompanyName(name: string): string {
+export function formatCompanyName(name: string, ticker?: string): string {
   if (!name) return name
+  // Check overrides by ticker first
+  if (ticker && COMPANY_NAME_OVERRIDES[ticker]) return COMPANY_NAME_OVERRIDES[ticker]
+  // Check overrides by raw name
+  if (COMPANY_NAME_OVERRIDES[name]) return COMPANY_NAME_OVERRIDES[name]
   // Already looks properly formatted (has lowercase letters)
   if (/[a-z]/.test(name)) return name
   return name

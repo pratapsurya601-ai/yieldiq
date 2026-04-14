@@ -56,8 +56,31 @@ except Exception:
         _g = max(0, min(100, (rev_growth * 100 + 20) / 60 * 20))
         _s = max(0, min(100, analyst_upside * 10))
         _total = int(_v + _q + _g + _s)
-        return {"score": max(0, min(100, _total)), "grade": "A" if _total >= 80 else "B" if _total >= 60 else "C" if _total >= 40 else "D"}
+        return {"score": max(0, min(100, _total)), "grade": "A" if _total >= 75 else "B" if _total >= 55 else "C" if _total >= 35 else "D" if _total >= 20 else "F"}
 
+
+# ── Company name overrides for cleaner display ──────────────
+COMPANY_NAME_OVERRIDES = {
+    "RELIANCE.NS": "Reliance Industries",
+    "TCS.NS": "Tata Consultancy Services",
+    "HDFCBANK.NS": "HDFC Bank",
+    "BAJFINANCE.NS": "Bajaj Finance",
+    "HINDUNILVR.NS": "Hindustan Unilever",
+    "MARUTI.NS": "Maruti Suzuki India",
+    "TITAN.NS": "Titan Company",
+    "INFY.NS": "Infosys",
+    "SBIN.NS": "State Bank of India",
+    "ICICIBANK.NS": "ICICI Bank",
+    "KOTAKBANK.NS": "Kotak Mahindra Bank",
+    "AXISBANK.NS": "Axis Bank",
+    "LT.NS": "Larsen & Toubro",
+    "SUNPHARMA.NS": "Sun Pharmaceutical Industries",
+    "NTPC.NS": "NTPC Limited",
+    "ONGC.NS": "ONGC Limited",
+    "WIPRO.NS": "Wipro Limited",
+    "TATAMOTORS.NS": "Tata Motors",
+    "ITC.NS": "ITC Limited",
+}
 
 # ── Financial company set (NBFCs, Banks, Insurance) ──────────
 # These companies have negative FCF by nature (loan disbursements = operating
@@ -376,9 +399,10 @@ class AnalysisService:
 
         # ── Step 4: Build company info ────────────────────────
         _raw_sector = enriched.get("sector_name", raw.get("sector_name", ""))
+        _display_name = COMPANY_NAME_OVERRIDES.get(ticker, raw.get("company_name", ticker))
         company = CompanyInfo(
             ticker=ticker,
-            company_name=raw.get("company_name", ticker),
+            company_name=_display_name,
             sector=_resolve_sector(_raw_sector, clean_ticker),
             currency="INR",  # India-first launch
             market_cap=price * enriched.get("shares", 0),
@@ -430,6 +454,13 @@ class AnalysisService:
             _ebitda = raw.get("ebitda") or enriched.get("ebitda", 0) or 0
             if _ebitda and _ebitda > 0:
                 _pat = _ebitda * 0.6
+
+        # Fallback: EPS × shares (works for MARUTI, TITAN, HUL)
+        if not _pat or _pat <= 0:
+            _eps = enriched.get("trailing_eps", 0) or raw.get("trailingEps", 0) or 0
+            _shares = enriched.get("shares", 0) or 0
+            if _eps > 0 and _shares > 0:
+                _pat = _eps * _shares
 
         _raw_fcf = enriched.get("latest_fcf", 0) or 0
         _adjusted_fcf = _get_adjusted_fcf(_raw_fcf, _pat, is_financial)
@@ -517,6 +548,12 @@ class AnalysisService:
                 bear_iv = round(price * 0.75, 2)
                 bull_iv = round(price * 1.25, 2)
                 _val_method = "Insufficient data"
+
+            # Safety: ensure bear/bull always defined for financials
+            if bear_iv <= 0 and iv > 0:
+                bear_iv = round(iv * 0.75, 2)
+            if bull_iv <= 0 and iv > 0:
+                bull_iv = round(iv * 1.25, 2)
 
             iv_raw = iv
             dcf_res = {
@@ -621,7 +658,7 @@ class AnalysisService:
             _q = max(0, min(30, int(piotroski.get("score", 0) / 9 * 20 + (10 if moat_result.get("grade") == "Wide" else 7 if moat_result.get("grade") == "Narrow" else 0))))
             _g = max(0, min(20, int(enriched.get("revenue_growth", 0) * 100)))
             _total = max(0, min(100, _v + _q + _g))
-            yiq_score = {"score": _total, "grade": "A" if _total >= 75 else "B" if _total >= 55 else "C" if _total >= 35 else "D"}
+            yiq_score = {"score": _total, "grade": "A" if _total >= 75 else "B" if _total >= 55 else "C" if _total >= 35 else "D" if _total >= 20 else "F"}
 
         # ── Step 8: Scenarios ─────────────────────────────────
         if is_financial:

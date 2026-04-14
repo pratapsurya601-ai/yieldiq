@@ -342,10 +342,42 @@ def compute_wacc(ticker_obj, is_indian: bool = False) -> dict:
         "rf_rate_info": _rf_info,          # expose to dashboard
     }
 
+    SECTOR_DEFAULT_BETA = {
+        "it": 1.0, "it_services": 1.0, "IT": 1.0,
+        "pharma": 0.7, "Pharma": 0.7,
+        "fmcg": 0.6, "FMCG": 0.6,
+        "oil_gas": 0.9, "Oil & Gas": 0.9,
+        "metals": 1.3, "Metals & Mining": 1.3,
+        "auto": 1.1, "Automobiles": 1.1,
+        "banking": 1.0, "Banking": 1.0,
+        "financial_services": 1.1, "Financial Services": 1.1, "NBFC": 1.1,
+        "insurance": 0.8, "Insurance": 0.8,
+        "telecom": 0.8, "Telecom": 0.8,
+        "power": 0.7, "Power & Utilities": 0.7,
+        "chemicals": 1.0, "Chemicals": 1.0,
+        "construction": 1.2, "Engineering": 1.2,
+        "real_estate": 1.3, "Real Estate": 1.3,
+        "general": 1.0,
+    }
+
     try:
         info = ticker_obj.info
         rf   = DEFAULT_RF
-        beta = float(np.clip(info.get("beta", 1.2) or 1.2, 0.5, 3.0))
+        _raw_beta = info.get("beta", None)
+        if _raw_beta and _raw_beta > 0:
+            beta = float(np.clip(_raw_beta, 0.5, 3.0))
+        else:
+            # Sector-based fallback instead of hardcoded 1.0
+            _sector = info.get("sector", "") or ""
+            _industry = info.get("industry", "") or ""
+            beta = SECTOR_DEFAULT_BETA.get(
+                _sector,
+                SECTOR_DEFAULT_BETA.get(
+                    _industry,
+                    SECTOR_DEFAULT_BETA.get("general", 1.0)
+                )
+            )
+            log.info(f"Beta: using sector default {beta} for {_sector or _industry or 'unknown'}")
         mrp  = DEFAULT_MRP
 
         # Re floor: India 9% (country risk + inflation), US 6% (mature market)
