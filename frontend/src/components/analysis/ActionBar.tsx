@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
+import { trackExportUsed } from "@/lib/analytics"
 import type { Verdict, MoatGrade } from "@/types/api"
 
 interface ActionBarProps {
@@ -337,6 +338,7 @@ export default function ActionBar(props: ActionBarProps) {
 
   const handleCopyWhatsApp = async () => {
     setShowExportMenu(false)
+    trackExportUsed("whatsapp", ticker)
     try {
       await navigator.clipboard.writeText(buildWhatsAppText(props))
       setToast("Copied! Paste on WhatsApp / Twitter")
@@ -348,11 +350,13 @@ export default function ActionBar(props: ActionBarProps) {
 
   const handleDownloadPdf = () => {
     setShowExportMenu(false)
+    trackExportUsed("pdf", ticker)
     printPdf(buildPdfHtml(props))
   }
 
   const handleDownloadCsv = () => {
     setShowExportMenu(false)
+    trackExportUsed("csv", ticker)
     const dt = displayTicker(ticker)
     const today = new Date().toISOString().split("T")[0]
     downloadCsv(buildCsvContent(props), `YieldIQ_${dt}_${today}.csv`)

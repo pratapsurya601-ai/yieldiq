@@ -15,6 +15,7 @@ import LoadingSteps from "@/components/ui/LoadingSteps"
 import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
 import { formatCurrency, formatPct, formatCompanyName } from "@/lib/utils"
+import { trackStockAnalysed } from "@/lib/analytics"
 import Link from "next/link"
 
 export default function AnalysisPage() {
@@ -52,6 +53,12 @@ export default function AnalysisPage() {
         meta.content = desc
         document.head.appendChild(meta)
       }
+      // Track stock analysis in GA4
+      trackStockAnalysed(
+        data.ticker,
+        data.valuation.verdict,
+        data.quality.yieldiq_score
+      )
     }
   }, [data])
 
