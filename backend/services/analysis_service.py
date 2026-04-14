@@ -59,6 +59,52 @@ except Exception:
         return {"score": max(0, min(100, _total)), "grade": "A" if _total >= 80 else "B" if _total >= 60 else "C" if _total >= 40 else "D"}
 
 
+# ── Sector name overrides for cleaner display ─────────────────
+SECTOR_OVERRIDES: dict[str, str] = {
+    "Financial Services": "Financial Services",
+    "Financial": "Financial Services",
+    "Banks": "Banking",
+    "Banks - Regional": "Banking",
+    "Banks - Diversified": "Banking",
+    "Insurance - Life": "Insurance",
+    "Insurance - Diversified": "Insurance",
+    "Insurance": "Insurance",
+    "Drug Manufacturers": "Pharma",
+    "Drug Manufacturers - General": "Pharma",
+    "Biotechnology": "Pharma",
+    "Software - Application": "IT",
+    "Software - Infrastructure": "IT",
+    "Information Technology Services": "IT",
+    "Internet Content & Information": "IT",
+    "Oil & Gas Integrated": "Oil & Gas",
+    "Oil & Gas E&P": "Oil & Gas",
+    "Oil & Gas Refining & Marketing": "Oil & Gas",
+    "Tobacco": "FMCG",
+    "Packaged Foods": "FMCG",
+    "Household & Personal Products": "FMCG",
+    "Beverages - Non-Alcoholic": "FMCG",
+    "Auto Manufacturers": "Automobiles",
+    "Auto - Manufacturers": "Automobiles",
+    "Telecom Services": "Telecom",
+    "Utilities - Regulated Electric": "Power & Utilities",
+    "Utilities - Independent Power Producers": "Power & Utilities",
+    "Building Materials": "Construction",
+    "Engineering & Construction": "Engineering",
+    "Specialty Chemicals": "Chemicals",
+    "Metals & Mining": "Metals & Mining",
+    "Steel": "Metals & Mining",
+    "Real Estate - Development": "Real Estate",
+    "REIT": "Real Estate",
+}
+
+
+def _resolve_sector(raw_sector: str) -> str:
+    """Map raw yfinance/screener sector names to cleaner display names."""
+    if not raw_sector:
+        return ""
+    return SECTOR_OVERRIDES.get(raw_sector, raw_sector)
+
+
 class AnalysisService:
     """Orchestrates full stock analysis using existing engines."""
 
@@ -118,10 +164,11 @@ class AnalysisService:
         is_indian = ticker.endswith(".NS") or ticker.endswith(".BO")
 
         # ── Step 4: Build company info ────────────────────────
+        _raw_sector = enriched.get("sector_name", raw.get("sector_name", ""))
         company = CompanyInfo(
             ticker=ticker,
             company_name=raw.get("company_name", ticker),
-            sector=enriched.get("sector_name", raw.get("sector_name", "")),
+            sector=_resolve_sector(_raw_sector),
             currency="INR",  # India-first launch
             market_cap=price * enriched.get("shares", 0),
         )
@@ -268,7 +315,13 @@ class AnalysisService:
             _red_flags.append(enriched["unreliable_reason"])
 
         # ── Step 10: Verdict ──────────────────────────────────
-        if mos_pct > 10:
+        # Flag as data-limited when confidence is low AND MoS is extreme (>40% either way)
+        _conf_score = confidence.get("score", 50)
+        if _confidence in ("low", "unusable") and abs(mos_pct) > 40:
+            verdict = "data_limited"
+        elif _conf_score < 35 and abs(mos_pct) > 40:
+            verdict = "data_limited"
+        elif mos_pct > 10:
             verdict = "undervalued"
         elif mos_pct > -10:
             verdict = "fairly_valued"

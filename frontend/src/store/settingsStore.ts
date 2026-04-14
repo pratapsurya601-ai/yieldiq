@@ -15,7 +15,7 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      learnMode: true, proMode: false, investorType: null, onboardingComplete: false,
+      learnMode: false, proMode: false, investorType: null, onboardingComplete: false,
       toggleLearnMode: () => set((s) => ({ learnMode: !s.learnMode })),
       toggleProMode: () => set((s) => ({ proMode: !s.proMode })),
       setInvestorType: (type) => set({ investorType: type }),

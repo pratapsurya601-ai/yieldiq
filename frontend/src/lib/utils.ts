@@ -24,3 +24,43 @@ export function formatMoS(mos: number): string {
 export function formatPct(value: number): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`
 }
+
+const COMPANY_ABBREVIATIONS: Record<string, string> = {
+  LT: "Ltd",
+  LTD: "Ltd",
+  SERV: "Services",
+  IND: "Industries",
+  CORP: "Corporation",
+  TECH: "Technologies",
+  PHARMA: "Pharma",
+  FIN: "Finance",
+  INF: "Infrastructure",
+  CONS: "Consultancy",
+  ENT: "Enterprises",
+  INTL: "International",
+  MFG: "Manufacturing",
+  GRP: "Group",
+  HLD: "Holdings",
+  HLDG: "Holdings",
+  CHEM: "Chemicals",
+  ENGG: "Engineering",
+  ELEC: "Electricals",
+  AUTO: "Automobiles",
+  RLWY: "Railway",
+  PETRO: "Petroleum",
+}
+
+export function formatCompanyName(name: string): string {
+  if (!name) return name
+  // Already looks properly formatted (has lowercase letters)
+  if (/[a-z]/.test(name)) return name
+  return name
+    .split(/\s+/)
+    .map((word) => {
+      const upper = word.toUpperCase()
+      if (COMPANY_ABBREVIATIONS[upper]) return COMPANY_ABBREVIATIONS[upper]
+      if (upper.length <= 2 && /^[A-Z&]+$/.test(upper)) return upper // keep short abbrevs like "IT", "&"
+      return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+    })
+    .join(" ")
+}

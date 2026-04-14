@@ -7,3 +7,4 @@ __pycache__/
 cache/
 logs/ 
 .streamlit/secrets.toml 
+data_pipeline_log*.txt

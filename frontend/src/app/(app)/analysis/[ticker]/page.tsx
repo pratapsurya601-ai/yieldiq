@@ -14,7 +14,7 @@ import InsightCards from "@/components/analysis/InsightCards"
 import LoadingSteps from "@/components/ui/LoadingSteps"
 import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
-import { formatCurrency, formatPct } from "@/lib/utils"
+import { formatCurrency, formatPct, formatCompanyName } from "@/lib/utils"
 import Link from "next/link"
 
 export default function AnalysisPage() {
@@ -82,7 +82,7 @@ export default function AnalysisPage() {
   const { company, valuation, quality, insights } = data
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-20">
+    <div className="max-w-2xl md:max-w-3xl lg:max-w-5xl mx-auto px-4 py-6 space-y-5 pb-20">
       {/* Data confidence badge */}
       {data.data_confidence !== "high" && (
         <div className={`text-xs font-medium px-3 py-1 rounded-full inline-block ${data.data_confidence === "medium" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
@@ -94,7 +94,7 @@ export default function AnalysisPage() {
       <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
         <div className="flex items-start justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-gray-900">{company.company_name}</h1>
+            <h1 className="text-lg font-semibold text-gray-900">{formatCompanyName(company.company_name)}</h1>
             <p className="text-xs text-gray-400">{company.ticker} &middot; {company.sector}</p>
           </div>
           <p className="text-xl font-semibold text-gray-900 font-mono">
@@ -121,6 +121,13 @@ export default function AnalysisPage() {
             </div>
           </div>
         </div>
+
+        {/* Banking / Financial sector disclaimer */}
+        {company.sector && /banking|insurance|financial services|nbfc|finance/i.test(company.sector) && (
+          <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+            <span className="font-semibold">Note:</span> DCF models are less reliable for banking and financial stocks because their cash flows depend heavily on credit cycles, provisioning, and regulatory capital. Consider book value and P/E based valuation alongside this estimate.
+          </div>
+        )}
 
         {/* Divider */}
         <div className="h-px bg-gray-100" />

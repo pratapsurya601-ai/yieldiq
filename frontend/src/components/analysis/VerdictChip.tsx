@@ -9,6 +9,7 @@ const VERDICT_LABELS: Record<Verdict, string> = {
   fairly_valued: "Fairly valued",
   overvalued: "Overvalued",
   avoid: "Avoid",
+  data_limited: "Data Limited",
 }
 
 const SIZE_CLASSES = {

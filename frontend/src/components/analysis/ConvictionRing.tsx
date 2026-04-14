@@ -11,6 +11,9 @@ interface ConvictionRingProps {
 }
 
 export default function ConvictionRing({ score, confidence, size = 140 }: ConvictionRingProps) {
+  const safeScore = Math.max(0, Math.min(100, score || 0))
+  const safeConfidence = Math.max(0, Math.min(100, confidence || 0))
+
   const outerRef = useRef<SVGCircleElement>(null)
   const innerRef = useRef<SVGCircleElement>(null)
 
@@ -19,12 +22,12 @@ export default function ConvictionRing({ score, confidence, size = 140 }: Convic
   const outerCircumference = 2 * Math.PI * outerRadius
   const innerCircumference = 2 * Math.PI * innerRadius
 
-  const scoreColor = SCORE_COLOR(score)
-  const confidenceColor = confidence >= 70 ? "#185FA5" : confidence >= 40 ? "#B45309" : "#DC2626"
-  const grade = SCORE_GRADE(score)
+  const scoreColor = SCORE_COLOR(safeScore)
+  const confidenceColor = safeConfidence >= 70 ? "#185FA5" : safeConfidence >= 40 ? "#B45309" : "#DC2626"
+  const grade = SCORE_GRADE(safeScore)
 
   // Gradient end color: lighten the score color
-  const gradientEndColor = score >= 70 ? "#3B82F6" : score >= 50 ? "#F59E0B" : "#F87171"
+  const gradientEndColor = safeScore >= 70 ? "#3B82F6" : safeScore >= 50 ? "#F59E0B" : "#F87171"
 
   useEffect(() => {
     const outerEl = outerRef.current
@@ -36,13 +39,16 @@ export default function ConvictionRing({ score, confidence, size = 140 }: Convic
     innerEl.style.strokeDasharray = `${innerCircumference}`
     innerEl.style.strokeDashoffset = `${innerCircumference}`
 
+    const outerOffset = Math.max(0, outerCircumference - (safeScore / 100) * outerCircumference)
+    const innerOffset = Math.max(0, innerCircumference - (safeConfidence / 100) * innerCircumference)
+
     requestAnimationFrame(() => {
       outerEl.style.transition = "stroke-dashoffset 1s ease-out"
-      outerEl.style.strokeDashoffset = `${outerCircumference - (score / 100) * outerCircumference}`
+      outerEl.style.strokeDashoffset = `${outerOffset}`
       innerEl.style.transition = "stroke-dashoffset 1s ease-out 0.3s"
-      innerEl.style.strokeDashoffset = `${innerCircumference - (confidence / 100) * innerCircumference}`
+      innerEl.style.strokeDashoffset = `${innerOffset}`
     })
-  }, [score, confidence, outerCircumference, innerCircumference])
+  }, [safeScore, safeConfidence, outerCircumference, innerCircumference])
 
   return (
     <div
@@ -53,10 +59,10 @@ export default function ConvictionRing({ score, confidence, size = 140 }: Convic
         filter: `drop-shadow(0 0 8px ${scoreColor}33)`,
       }}
     >
-      <svg width={size} height={size} className="-rotate-90" role="img" aria-label={`YieldIQ Score: ${score} out of 100, confidence ${confidence}%`}>
-        <title>YieldIQ Score: {score}/100</title>
+      <svg width={size} height={size} className="-rotate-90" role="img" aria-label={`YieldIQ Score: ${safeScore} out of 100, confidence ${safeConfidence}%`}>
+        <title>YieldIQ Score: {safeScore}/100</title>
         <defs>
-          <linearGradient id={`scoreGrad-${score}`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <linearGradient id={`scoreGrad-${safeScore}`} x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor={scoreColor} />
             <stop offset="100%" stopColor={gradientEndColor} />
           </linearGradient>
@@ -77,7 +83,7 @@ export default function ConvictionRing({ score, confidence, size = 140 }: Convic
           cy={size / 2}
           r={outerRadius}
           fill="none"
-          stroke={`url(#scoreGrad-${score})`}
+          stroke={`url(#scoreGrad-${safeScore})`}
           strokeWidth={6}
           strokeLinecap="round"
         />
@@ -104,7 +110,7 @@ export default function ConvictionRing({ score, confidence, size = 140 }: Convic
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
         <span className="text-3xl font-black text-gray-900" style={{ fontSize: size * 0.24 }}>
-          {score}
+          {safeScore}
         </span>
         <span className="text-xs font-bold mt-0.5" style={{ fontSize: size * 0.11, color: scoreColor }}>
           {grade}

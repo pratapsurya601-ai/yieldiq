@@ -18,16 +18,16 @@ const POPULAR = [
   { ticker: "BAJFINANCE.NS", label: "BAJAJ FIN", sector: "Finance" },
 ]
 
-const SECTOR_ICONS: Record<string, string> = {
-  "Oil & Gas": "\u26fd",
-  IT: "\u{1f4bb}",
-  Banking: "\u{1f3e6}",
-  FMCG: "\u{1f6d2}",
-  Telecom: "\u{1f4f6}",
-  Engineering: "\u{1f3d7}\ufe0f",
-  Pharma: "\u{1f48a}",
-  Consumer: "\u{1f48e}",
-  Finance: "\u{1f4b0}",
+const SECTOR_LABELS: Record<string, string> = {
+  "Oil & Gas": "Oil & Gas",
+  IT: "IT",
+  Banking: "Banking",
+  FMCG: "FMCG",
+  Telecom: "Telecom",
+  Engineering: "Engg",
+  Pharma: "Pharma",
+  Consumer: "Consumer",
+  Finance: "Finance",
 }
 
 interface SearchResult {
@@ -202,7 +202,7 @@ export default function SearchPage() {
               onClick={() => handleSelect(s.ticker, s.label)}
               className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:border-blue-300 hover:text-blue-700 transition inline-flex items-center gap-1.5"
             >
-              <span className="text-xs">{SECTOR_ICONS[s.sector] || ""}</span>
+              <span className="text-[10px] text-gray-400 font-normal">{SECTOR_LABELS[s.sector] || ""}</span>
               {s.label}
             </button>
           ))}

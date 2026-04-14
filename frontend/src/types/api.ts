@@ -1,6 +1,6 @@
 // types/api.ts — mirrors backend/models/responses.py exactly
 
-export type Verdict = "undervalued" | "fairly_valued" | "overvalued" | "avoid"
+export type Verdict = "undervalued" | "fairly_valued" | "overvalued" | "avoid" | "data_limited"
 export type Grade = "A" | "B" | "C" | "D" | "F"
 export type Tier = "free" | "starter" | "pro"
 export type Confidence = "high" | "medium" | "low" | "unusable"

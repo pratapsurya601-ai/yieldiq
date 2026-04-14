@@ -1,5 +1,6 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { cn } from "@/lib/utils"
 
 interface AISummaryProps {
@@ -8,7 +9,34 @@ interface AISummaryProps {
 }
 
 export default function AISummary({ summary, ticker }: AISummaryProps) {
+  const [timedOut, setTimedOut] = useState(false)
+
+  useEffect(() => {
+    if (summary) {
+      setTimedOut(false)
+      return
+    }
+    const timer = setTimeout(() => setTimedOut(true), 8000)
+    return () => clearTimeout(timer)
+  }, [summary])
+
   if (!summary) {
+    if (timedOut) {
+      return (
+        <div className={cn("rounded-xl bg-gray-50 p-4")}>
+          <div className="flex items-center gap-2 mb-2">
+            <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+            <span className="text-sm font-medium text-gray-500">AI Summary</span>
+          </div>
+          <p className="text-sm text-gray-500">
+            AI summary is temporarily unavailable. Review the valuation data and quality scores above to form your own assessment of {ticker.replace(".NS", "").replace(".BO", "")}.
+          </p>
+        </div>
+      )
+    }
+
     return (
       <div className={cn("rounded-xl bg-gray-50 p-4")}>
         <div className="flex items-center gap-2 mb-2">

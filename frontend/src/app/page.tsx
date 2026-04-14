@@ -31,14 +31,12 @@ function useInView(threshold = 0.15) {
 function FadeIn({ children, delay = 0, className = "" }: {
   children: React.ReactNode; delay?: number; className?: string
 }) {
-  const { ref, inView } = useInView()
+  const { ref, inView } = useInView(0.05)
   return (
     <div
       ref={ref}
-      className={`transition-all duration-700 ease-out ${
-        inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-6"
-      } ${className}`}
-      style={{ transitionDelay: `${delay}ms` }}
+      className={`${inView ? "animate-[fade-up_0.6s_ease-out_forwards]" : ""} ${className}`}
+      style={{ transitionDelay: `${delay}ms`, animationDelay: `${delay}ms` }}
     >
       {children}
     </div>
@@ -543,7 +541,7 @@ function LandingContent() {
                 Know What a Stock
                 <br />Is Worth.{" "}
                 <span className="bg-gradient-to-r from-blue-400 via-cyan-300 to-blue-500 bg-clip-text text-transparent bg-[length:200%] animate-[gradient-shift_3s_ease_infinite]">
-                  Before You Invest.
+                  Before You Decide.
                 </span>
               </h1>
 
@@ -565,7 +563,7 @@ function LandingContent() {
 
               {/* Real stats instead of fake avatars */}
               <div className="flex items-center gap-6 justify-center lg:justify-start text-sm text-gray-400">
-                <span><span className="text-white font-semibold">$0</span> forever for core features</span>
+                <span><span className="text-white font-semibold">&#8377;0</span> forever for core features</span>
                 <span className="text-gray-600">&bull;</span>
                 <span>No credit card required</span>
               </div>

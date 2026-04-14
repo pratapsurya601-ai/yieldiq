@@ -22,6 +22,11 @@ interface CardData {
 }
 
 export default function InsightCards({ quality, insights, valuation, currency = "INR" }: InsightCardsProps) {
+  // Separate genuine business red flags from model/data warnings
+  const MODEL_WARNING_PATTERNS = /missing|using default|estimated|no data|unavailable|not available|insufficient/i
+  const businessFlags = (insights.red_flags || []).filter((f) => !MODEL_WARNING_PATTERNS.test(f))
+  const modelWarnings = (insights.red_flags || []).filter((f) => MODEL_WARNING_PATTERNS.test(f))
+
   const cards: CardData[] = useMemo(() => [
     {
       title: "Piotroski F-Score",
@@ -41,11 +46,11 @@ export default function InsightCards({ quality, insights, valuation, currency = 
     },
     {
       title: "Red Flags",
-      value: insights.red_flag_count === 0 ? "None" : `${insights.red_flag_count} found`,
-      subtitle: insights.red_flags.length > 0 ? insights.red_flags[0] : "No concerns detected",
-      color: insights.red_flag_count === 0 ? "text-blue-700" : "text-red-700",
+      value: businessFlags.length === 0 ? "None" : `${businessFlags.length} found`,
+      subtitle: businessFlags.length > 0 ? businessFlags[0] : "No concerns detected",
+      color: businessFlags.length === 0 ? "text-blue-700" : "text-red-700",
       icon: "\u{1f6a9}",
-      borderColor: insights.red_flag_count === 0 ? "border-l-blue-500" : "border-l-red-500",
+      borderColor: businessFlags.length === 0 ? "border-l-blue-500" : "border-l-red-500",
     },
     {
       title: "Earnings",
@@ -87,27 +92,45 @@ export default function InsightCards({ quality, insights, valuation, currency = 
           ? "border-l-red-500"
           : "border-l-gray-300",
     },
-  ], [quality, insights, valuation, currency])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [quality, insights, valuation, currency, businessFlags.length])
 
   return (
-    <div className="grid grid-cols-2 gap-3">
-      {cards.map((card) => (
-        <div
-          key={card.title}
-          className={cn(
-            "rounded-xl bg-white border border-gray-100 border-l-[3px] p-4",
-            "shadow-sm",
-            card.borderColor
-          )}
-        >
-          <div className="flex items-center gap-1.5 mb-1.5">
-            <span className="text-sm">{card.icon}</span>
-            <p className="text-xs text-gray-500">{card.title}</p>
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        {cards.map((card) => (
+          <div
+            key={card.title}
+            className={cn(
+              "rounded-xl bg-white border border-gray-100 border-l-[3px] p-4",
+              "shadow-sm",
+              card.borderColor
+            )}
+          >
+            <div className="flex items-center gap-1.5 mb-1.5">
+              <span className="text-sm">{card.icon}</span>
+              <p className="text-xs text-gray-500">{card.title}</p>
+            </div>
+            <p className={cn("text-lg font-semibold", card.color)}>{card.value}</p>
+            <p className="text-xs text-gray-400 mt-1 line-clamp-1">{card.subtitle}</p>
           </div>
-          <p className={cn("text-lg font-semibold", card.color)}>{card.value}</p>
-          <p className="text-xs text-gray-400 mt-1 line-clamp-1">{card.subtitle}</p>
+        ))}
+      </div>
+
+      {/* Model / Data Warnings — separated from business red flags */}
+      {modelWarnings.length > 0 && (
+        <div className="rounded-xl bg-amber-50 border border-amber-100 p-4">
+          <p className="text-xs font-semibold text-amber-700 mb-2">Data Notes</p>
+          <ul className="space-y-1">
+            {modelWarnings.map((w, i) => (
+              <li key={i} className="text-xs text-amber-600 flex items-start gap-1.5">
+                <span className="mt-0.5 flex-shrink-0">&#x26A0;</span>
+                <span>{w}</span>
+              </li>
+            ))}
+          </ul>
         </div>
-      ))}
+      )}
     </div>
   )
 }
