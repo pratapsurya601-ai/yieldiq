@@ -48,7 +48,7 @@ function FadeIn({ children, delay = 0, className = "" }: {
 /* ── Animated counter ────────────────────────────────── */
 function AnimatedCounter({ target, suffix = "" }: { target: number; suffix?: string }) {
   const [count, setCount] = useState(0)
-  const { ref, inView } = useInView()
+  const { ref, inView } = useInView(0.05)
   useEffect(() => {
     if (!inView) return
     const duration = 1500
@@ -61,7 +61,11 @@ function AnimatedCounter({ target, suffix = "" }: { target: number; suffix?: str
     }
     requestAnimationFrame(step)
   }, [inView, target])
-  return <span ref={ref}>{count.toLocaleString("en-IN")}{suffix}</span>
+  return (
+    <div ref={ref} className="inline-block min-w-[2ch]">
+      {count.toLocaleString("en-IN")}{suffix}
+    </div>
+  )
 }
 
 /* ── Nav ─────────────────────────────────────────────── */
@@ -299,8 +303,7 @@ const TICKER_DATA = [
 
 /* ── Animated line chart (draws on scroll) ───────────── */
 function AnimatedChart() {
-  const { ref, inView } = useInView(0.3)
-  // Generate a realistic stock price line
+  const { ref, inView } = useInView(0.1)
   const points = [
     40, 42, 38, 45, 50, 48, 55, 52, 58, 62, 56, 60, 65, 63, 70,
     68, 72, 75, 71, 78, 82, 80, 85, 88, 84, 90, 87, 92, 95, 93,
@@ -311,6 +314,13 @@ function AnimatedChart() {
   const scaleY = (v: number) => h - pad - ((v - minY) / (maxY - minY)) * (h - pad * 2)
   const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${scaleY(p)}`).join(" ")
   const areaD = pathD + ` L ${pad + (points.length - 1) * xStep} ${h - pad} L ${pad} ${h - pad} Z`
+  // Calculate approximate path length for stroke-dasharray
+  const pathLen = points.reduce((sum, p, i) => {
+    if (i === 0) return 0
+    const dx = xStep
+    const dy = scaleY(p) - scaleY(points[i - 1])
+    return sum + Math.sqrt(dx * dx + dy * dy)
+  }, 0)
 
   return (
     <div ref={ref} className="relative">
@@ -332,17 +342,17 @@ function AnimatedChart() {
             <line key={pct} x1={pad} y1={pad + pct * (h - pad * 2)} x2={w - pad} y2={pad + pct * (h - pad * 2)}
               stroke="#1E293B" strokeWidth="1" />
           ))}
-          {/* Area fill */}
-          <path d={areaD} fill="url(#chart-area-grad)" opacity={inView ? 0.3 : 0}
-            style={{ transition: "opacity 1s ease 0.5s" }} />
-          {/* Line */}
+          {/* Area fill — use className for reliable CSS transition */}
+          <path d={areaD} fill="url(#chart-area-grad)"
+            className={`transition-opacity duration-1000 delay-500 ${inView ? "opacity-30" : "opacity-0"}`} />
+          {/* Line — use calculated path length for accurate draw animation */}
           <path d={pathD} fill="none" stroke="url(#chart-line-grad)" strokeWidth="2.5" strokeLinecap="round"
-            strokeDasharray="1000" strokeDashoffset={inView ? 0 : 1000}
+            strokeDasharray={pathLen} strokeDashoffset={inView ? 0 : pathLen}
             style={{ transition: "stroke-dashoffset 2s ease" }} />
           {/* Current price dot */}
           <circle cx={pad + (points.length - 1) * xStep} cy={scaleY(points[points.length - 1])}
-            r="4" fill="#10B981" opacity={inView ? 1 : 0}
-            style={{ transition: "opacity 0.3s ease 2s" }} />
+            r="4" fill="#10B981"
+            className={`transition-opacity duration-300 delay-[2000ms] ${inView ? "opacity-100" : "opacity-0"}`} />
           <defs>
             <linearGradient id="chart-line-grad" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#3B82F6" />
@@ -365,7 +375,7 @@ function AnimatedChart() {
 
 /* ── Animated bar chart (revenue growth) ─────────────── */
 function AnimatedBars() {
-  const { ref, inView } = useInView(0.3)
+  const { ref, inView } = useInView(0.1)
   const bars = [
     { year: "FY21", val: 65, color: "from-blue-500 to-blue-400" },
     { year: "FY22", val: 78, color: "from-blue-500 to-cyan-400" },
@@ -478,7 +488,7 @@ function FAQItem({ q, a }: { q: string; a: string }) {
         <span className="font-semibold text-gray-900 pr-4">{q}</span>
         <ChevronDown className={`w-5 h-5 text-gray-400 flex-shrink-0 transition-transform duration-300 ${open ? "rotate-180" : ""}`} />
       </button>
-      <div className={`overflow-hidden transition-all duration-300 ${open ? "max-h-40 pb-5" : "max-h-0"}`}>
+      <div className={`overflow-hidden transition-all duration-300 ${open ? "max-h-60 pb-5" : "max-h-0"}`}>
         <p className="text-gray-500 text-sm leading-relaxed">{a}</p>
       </div>
     </div>
