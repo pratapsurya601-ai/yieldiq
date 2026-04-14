@@ -178,10 +178,18 @@ def download_symbol_shareholding(symbol: str, db: Session) -> int:
             )
             return 0
 
+        # Fetch promoter pledge percentage
+        pledge_pct = fetch_promoter_pledge(symbol)
+        if pledge_pct is not None:
+            logger.info(f"Promoter pledge for {symbol}: {pledge_pct}%")
+
         stored = 0
         for item in data:
             sh = _parse_master_item(item)
             if sh is not None:
+                # Attach pledge data to the shareholding record
+                if pledge_pct is not None:
+                    sh.promoter_pledge_pct = pledge_pct
                 try:
                     existing = db.query(ShareholdingPattern).filter_by(
                         ticker=sh.ticker, quarter_end=sh.quarter_end
@@ -189,6 +197,8 @@ def download_symbol_shareholding(symbol: str, db: Session) -> int:
                     if existing:
                         existing.promoter_pct = sh.promoter_pct
                         existing.public_pct = sh.public_pct
+                        if pledge_pct is not None:
+                            existing.promoter_pledge_pct = pledge_pct
                     else:
                         db.add(sh)
                     stored += 1
@@ -233,6 +243,106 @@ def run_daily(db: Session):
         db.commit()
     except Exception:
         db.rollback()
+
+
+# ── Promoter Pledge from NSE Corporate Shareholding API ───────────
+
+NSE_CORP_SHP_URL = (
+    "https://www.nseindia.com/api/corporate-share-holdings"
+    "?symbol={symbol}&isWhitelist=False"
+)
+
+
+def fetch_promoter_pledge(symbol: str) -> float | None:
+    """
+    Fetch promoter pledge percentage for a symbol from NSE.
+    Parses the shareholdingPatterns array, finds the promoter category,
+    and calculates: pledged shares / total promoter shares * 100.
+    Returns the pledge percentage, or None if unavailable.
+    """
+    try:
+        session = _get_nse_session()
+        url = NSE_CORP_SHP_URL.format(symbol=symbol)
+        response = session.get(url, timeout=30)
+
+        if response.status_code != 200:
+            logger.debug(
+                f"Promoter pledge API HTTP {response.status_code} for {symbol}"
+            )
+            return None
+
+        data = response.json()
+
+        # The response has a "shareholdingPatterns" key with category breakdowns
+        patterns = data.get("shareholdingPatterns", [])
+        if not patterns:
+            # Alternative key names
+            patterns = data.get("data", [])
+
+        for category in patterns:
+            cat_name = str(
+                category.get("category", "")
+                or category.get("shareholderCategory", "")
+            ).lower()
+
+            # Look for promoter category
+            if "promoter" not in cat_name:
+                continue
+
+            # Try to find pledged shares info
+            total_shares = _pct_float(
+                category.get("totalShares")
+                or category.get("totalNoOfShares")
+                or category.get("total")
+            )
+            pledged_shares = _pct_float(
+                category.get("pledgedShares")
+                or category.get("totalSharesPledged")
+                or category.get("pledged")
+                or category.get("sharesPledgedOrEncumbered")
+            )
+
+            # Sometimes pledge % is directly available
+            pledge_pct = _pct_float(
+                category.get("pledgedPct")
+                or category.get("pctSharesPledged")
+                or category.get("percentSharesPledged")
+            )
+
+            if pledge_pct is not None and pledge_pct >= 0:
+                return pledge_pct
+
+            if total_shares and total_shares > 0 and pledged_shares is not None:
+                return round((pledged_shares / total_shares) * 100, 2)
+
+            # Walk sub-categories if present
+            sub_cats = category.get("subCategories", []) or category.get("details", [])
+            total_prom = 0.0
+            total_pledged = 0.0
+            for sub in sub_cats:
+                shares = _pct_float(sub.get("totalShares") or sub.get("noOfShares") or 0)
+                pledged = _pct_float(sub.get("pledgedShares") or sub.get("sharesPledged") or 0)
+                total_prom += shares or 0
+                total_pledged += pledged or 0
+
+            if total_prom > 0:
+                return round((total_pledged / total_prom) * 100, 2)
+
+        return None
+
+    except Exception as e:
+        logger.warning(f"Promoter pledge fetch failed for {symbol}: {e}")
+        return None
+
+
+def _pct_float(value) -> float | None:
+    """Parse a numeric value that might be string, int, or float."""
+    try:
+        if value is None or str(value).strip() in ("", "-", "NA"):
+            return None
+        return float(str(value).replace(",", "").replace("%", ""))
+    except (ValueError, TypeError):
+        return None
 
 
 def _pct(value) -> float | None:

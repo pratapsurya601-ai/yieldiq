@@ -170,6 +170,26 @@ class RiskFreeRate(Base):
     source = Column(String(50))
 
 
+class BulkDeal(Base):
+    """Bulk and block deals from NSE."""
+    __tablename__ = "bulk_deals"
+    __table_args__ = (
+        UniqueConstraint(
+            "ticker", "trade_date", "client_name", "deal_type",
+            "deal_category", name="uq_bulk_deal"
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticker = Column(String(20), index=True)
+    trade_date = Column(Date)
+    client_name = Column(String(200))
+    deal_type = Column(String(10))            # BUY / SELL
+    quantity = Column(BigInteger)
+    price = Column(Float)
+    deal_category = Column(String(10))        # bulk / block
+
+
 class DataFreshness(Base):
     """Tracks when each data type was last updated."""
     __tablename__ = "data_freshness"

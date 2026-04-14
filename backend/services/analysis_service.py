@@ -314,6 +314,25 @@ class AnalysisService:
         if enriched.get("unreliable_reason"):
             _red_flags.append(enriched["unreliable_reason"])
 
+        # Promoter pledge red flags
+        _promoter_pledge = raw.get("promoter_pledge_pct")
+        if _promoter_pledge is None:
+            # Try fetching from enriched data or shareholding
+            _promoter_pledge = enriched.get("promoter_pledge_pct")
+        if _promoter_pledge is not None:
+            try:
+                _pledge_val = float(_promoter_pledge)
+                if _pledge_val > 25:
+                    _red_flags.append(
+                        f"CRITICAL: Promoter pledge {_pledge_val:.1f}% — very high risk"
+                    )
+                elif _pledge_val > 10:
+                    _red_flags.append(
+                        f"Promoter pledge {_pledge_val:.1f}% — elevated risk"
+                    )
+            except (ValueError, TypeError):
+                pass
+
         # ── Step 10: Verdict ──────────────────────────────────
         # Flag as data-limited when confidence is low AND MoS is extreme (>40% either way)
         _conf_score = confidence.get("score", 50)
