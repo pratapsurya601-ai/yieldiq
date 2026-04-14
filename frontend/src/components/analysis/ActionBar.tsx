@@ -95,23 +95,25 @@ function displayTicker(ticker: string): string {
 function buildWhatsAppText(p: ActionBarProps): string {
   const dt = displayTicker(p.ticker)
   const mosSign = p.mos >= 0 ? "+" : ""
-  const verdictTag = verdictLabel(p.verdict).toUpperCase()
+  const verdictTag = verdictLabel(p.verdict)
+  const ve = verdictEmoji(p.verdict)
+  const se = scoreEmoji(p.score)
 
+  // Attractive, clean format that makes people want to click the link
   return [
-    `*${p.companyName}* (${dt})`,
+    `${ve} *${p.companyName}* is *${verdictTag}*`,
     ``,
-    `\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500`,
-    `\u2502  Price      \u20b9${p.currentPrice.toLocaleString("en-IN")}`,
-    `\u2502  Fair Value  \u20b9${p.fairValue.toLocaleString("en-IN")}`,
-    `\u2502  MoS        ${mosSign}${p.mos.toFixed(1)}%`,
-    `\u2502  Verdict     *${verdictTag}*`,
-    `\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500`,
+    `\u20b9${p.currentPrice.toLocaleString("en-IN")} \u2192 Fair Value *\u20b9${p.fairValue.toLocaleString("en-IN")}* (${mosSign}${p.mos.toFixed(0)}% MoS)`,
     ``,
-    `Score *${p.score}*/100 (${p.grade}) \u2022 Moat: ${p.moat} \u2022 Piotroski: ${p.piotroski}/9`,
-    `Bear \u20b9${p.bearCase.toLocaleString("en-IN")} \u2022 Base \u20b9${p.baseCase.toLocaleString("en-IN")} \u2022 Bull \u20b9${p.bullCase.toLocaleString("en-IN")}`,
+    `${se} *Score ${p.score}/100* | Grade ${p.grade}`,
+    `\u{1f6e1}\ufe0f Moat: ${p.moat} | Piotroski: ${p.piotroski}/9`,
     ``,
-    `_Model estimate, not investment advice_`,
-    `yieldiq.in/analysis/${dt}`,
+    `\u{1f4c9} Bear \u20b9${p.bearCase.toLocaleString("en-IN")}`,
+    `\u{1f4ca} Base \u20b9${p.baseCase.toLocaleString("en-IN")}`,
+    `\u{1f4c8} Bull \u20b9${p.bullCase.toLocaleString("en-IN")}`,
+    ``,
+    `\u{1f50d} *See full DCF analysis:*`,
+    `https://yieldiq.in/analysis/${dt}.NS`,
   ].join("\n")
 }
 
@@ -336,15 +338,33 @@ export default function ActionBar(props: ActionBarProps) {
     setToast("Price alerts coming soon!")
   }
 
-  const handleCopyWhatsApp = async () => {
+  const handleShareWhatsApp = () => {
     setShowExportMenu(false)
     trackExportUsed("whatsapp", ticker)
+    const text = buildWhatsAppText(props)
+    const encoded = encodeURIComponent(text)
+    // Open WhatsApp directly — works on both mobile and desktop
+    window.open(`https://wa.me/?text=${encoded}`, "_blank")
+  }
+
+  const handleShareTwitter = () => {
+    setShowExportMenu(false)
+    trackExportUsed("twitter", ticker)
+    const dt = displayTicker(ticker)
+    const ve = verdictEmoji(props.verdict)
+    const tweetText = `${ve} ${props.companyName} (${dt}) — ${verdictLabel(props.verdict)}\n\nFair Value: \u20b9${props.fairValue.toLocaleString("en-IN")} vs Price: \u20b9${props.currentPrice.toLocaleString("en-IN")} (${props.mos >= 0 ? "+" : ""}${props.mos.toFixed(0)}% MoS)\n\nScore: ${props.score}/100 | Moat: ${props.moat}\n\nFull analysis \u2193`
+    const url = `https://yieldiq.in/analysis/${dt}.NS`
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(tweetText)}&url=${encodeURIComponent(url)}`, "_blank")
+  }
+
+  const handleCopyLink = async () => {
+    setShowExportMenu(false)
+    trackExportUsed("copy_link", ticker)
     try {
       await navigator.clipboard.writeText(buildWhatsAppText(props))
-      setToast("Copied! Paste on WhatsApp / Twitter")
-      setTimeout(() => setToast(null), 2000)
+      setToast("Copied to clipboard!")
     } catch {
-      setToast("Could not copy to clipboard")
+      setToast("Could not copy")
     }
   }
 
@@ -438,29 +458,48 @@ export default function ActionBar(props: ActionBarProps) {
         </button>
 
         {showExportMenu && (
-          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-52 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden animate-fade-in">
+          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-56 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden">
+            <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Share</span>
+            </div>
             <button
-              onClick={handleCopyWhatsApp}
+              onClick={handleShareWhatsApp}
+              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors"
+            >
+              <svg className="w-4 h-4 text-green-600" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.611.611l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.344 0-4.507-.795-6.23-2.131l-.355-.282-3.281 1.1 1.1-3.281-.282-.355A9.935 9.935 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+              <span>WhatsApp</span>
+            </button>
+            <button
+              onClick={handleShareTwitter}
+              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+            >
+              <svg className="w-4 h-4 text-gray-500" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              <span>Twitter / X</span>
+            </button>
+            <button
+              onClick={handleCopyLink}
               className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              <span className="text-base leading-none">{"\ud83d\udcac"}</span>
-              <span>Copy for WhatsApp</span>
+              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+              <span>Copy to clipboard</span>
             </button>
             <div className="h-px bg-gray-100" />
+            <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
+              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Download</span>
+            </div>
             <button
               onClick={handleDownloadPdf}
               className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              <span className="text-base leading-none">{"\ud83d\udcc4"}</span>
-              <span>Download PDF</span>
+              <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
+              <span>PDF report</span>
             </button>
-            <div className="h-px bg-gray-100" />
             <button
               onClick={handleDownloadCsv}
               className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
             >
-              <span className="text-base leading-none">{"\ud83d\udcca"}</span>
-              <span>Download CSV</span>
+              <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125" /></svg>
+              <span>CSV data</span>
             </button>
           </div>
         )}
