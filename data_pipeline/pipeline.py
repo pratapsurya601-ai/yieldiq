@@ -102,6 +102,14 @@ def run_daily_update(db: Session):
     for ticker in NSE_UNIVERSE:
         fetch_price_history(f"{ticker}.NS", ticker, db, period="5d")
 
+    # Bulk and block deals
+    try:
+        from data_pipeline.sources.nse_bulk_deals import fetch_daily_deals
+        deals = fetch_daily_deals(db)
+        logger.info(f"Bulk/block deals: {deals} stored")
+    except Exception as e:
+        logger.warning(f"Bulk deals step failed: {e}")
+
     logger.info("Daily update complete")
 
 

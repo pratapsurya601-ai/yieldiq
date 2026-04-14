@@ -19,7 +19,7 @@ logging.basicConfig(
 
 if __name__ == "__main__":
     from data_pipeline.db import Session, engine
-    from data_pipeline.models import Base
+    from data_pipeline.models import Base, BulkDeal  # noqa
     from data_pipeline.isin_loader import build_isin_map, populate_stocks_table
     from data_pipeline.pipeline import ISIN_MAP, run_initial_setup
 
