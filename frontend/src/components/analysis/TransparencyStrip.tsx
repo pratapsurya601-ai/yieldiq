@@ -36,7 +36,7 @@ export default function TransparencyStrip({
       <p className="text-xs text-gray-500 leading-relaxed">
         Model: WACC {wacc.toFixed(1)}% (industry {waccMin.toFixed(1)}&ndash;{waccMax.toFixed(1)}%)
         {" "}&middot;{" "}
-        FCF growth +{fcfGrowth.toFixed(1)}%/yr ({fcfLabel}{fcfDataSource !== "ttm" ? ` +${fcfGrowthHistAvg.toFixed(1)}%` : ""})
+        FCF growth {fcfGrowth >= 0 ? "+" : ""}{fcfGrowth.toFixed(1)}%/yr ({fcfLabel}{fcfDataSource !== "ttm" ? ` ${fcfGrowthHistAvg >= 0 ? "+" : ""}${fcfGrowthHistAvg.toFixed(1)}%` : ""})
         {" "}&middot;{" "}
         Confidence: {CONFIDENCE_LABEL[confidence]}
       </p>
