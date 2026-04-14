@@ -54,7 +54,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.routers import analysis, screener, portfolio, watchlist, alerts, market, auth
-from backend.routers import payments, pipeline
+from backend.routers import payments, pipeline, email
 from backend.middleware.cors import ALLOWED_ORIGINS, ALLOWED_ORIGIN_REGEX
 
 logger = logging.getLogger(__name__)
@@ -103,8 +103,17 @@ def _start_pipeline_scheduler():
         replace_existing=True,
     )
 
+    # Weekly digest email — Monday 9am IST
+    scheduler.add_job(
+        _send_weekly_digests,
+        CronTrigger(day_of_week="mon", hour=9, minute=0, timezone="Asia/Kolkata"),
+        id="weekly_digest",
+        name="Weekly digest email",
+        replace_existing=True,
+    )
+
     scheduler.start()
-    logger.info("Pipeline scheduler started: daily 4:30pm IST, weekly Sun 11pm IST, alerts every 3h")
+    logger.info("Pipeline scheduler started: daily 4:30pm IST, weekly Sun 11pm IST, alerts every 3h, digest Mon 9am IST")
     return scheduler
 
 
@@ -143,6 +152,16 @@ def _run_alert_check():
         run_alert_check()
     except Exception as e:
         logger.error(f"Alert check failed: {e}")
+
+
+def _send_weekly_digests():
+    """Send weekly digest emails to all subscribed users."""
+    try:
+        from backend.services.email_service import send_weekly_digests_to_all
+        count = send_weekly_digests_to_all()
+        logger.info(f"Weekly digest job complete: {count} emails sent")
+    except Exception as e:
+        logger.error(f"Weekly digest job failed: {e}")
 
 
 def _ensure_pipeline_tables():
@@ -229,6 +248,7 @@ app.include_router(alerts.router)
 app.include_router(market.router)
 app.include_router(payments.router)
 app.include_router(pipeline.router)
+app.include_router(email.router)
 
 
 @app.get("/health")

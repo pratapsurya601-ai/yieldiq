@@ -1,5 +1,6 @@
 # backend/routers/auth.py
 from __future__ import annotations
+import threading
 from fastapi import APIRouter, HTTPException, Depends
 from backend.models.requests import LoginRequest, RegisterRequest
 from backend.models.responses import TokenResponse, UserResponse
@@ -34,6 +35,18 @@ async def register(req: RegisterRequest):
     result = register_user_and_get_token(req.email, req.password)
     if not result.get("ok"):
         raise HTTPException(status_code=400, detail=result.get("error", "Registration failed"))
+
+    # Send welcome email in background (don't block signup response)
+    try:
+        from backend.services.email_service import send_welcome_email
+        threading.Thread(
+            target=send_welcome_email,
+            args=(req.email,),
+            daemon=True,
+        ).start()
+    except Exception:
+        pass  # Email failure should never block registration
+
     return TokenResponse(
         access_token=result["token"],
         user_id=result["user_id"],
