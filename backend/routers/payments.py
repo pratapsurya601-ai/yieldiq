@@ -16,6 +16,17 @@ router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
 RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "rzp_test_ScvhGo30dfN6Ec")
 RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
 
+
+@router.get("/debug")
+async def payment_debug():
+    """Check if Razorpay keys are configured (does NOT expose secrets)."""
+    return {
+        "key_id": RAZORPAY_KEY_ID[:12] + "..." if RAZORPAY_KEY_ID else "NOT SET",
+        "secret_configured": bool(RAZORPAY_KEY_SECRET and len(RAZORPAY_KEY_SECRET) > 5),
+        "secret_length": len(RAZORPAY_KEY_SECRET) if RAZORPAY_KEY_SECRET else 0,
+        "mode": "test" if "test" in RAZORPAY_KEY_ID else "live" if "live" in RAZORPAY_KEY_ID else "unknown",
+    }
+
 PLANS = {
     "starter": {
         "name": "Starter Plan",
@@ -78,7 +89,9 @@ async def create_order(
             "description": plan["description"],
         }
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Payment init failed: {str(e)}")
+        import logging
+        logging.getLogger("yieldiq.payments").error(f"create-order failed: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"Payment init failed: {type(e).__name__}: {e}")
 
 
 @router.post("/verify")
