@@ -15,8 +15,8 @@ export const metadata: Metadata = {
     "Free DCF valuation for NSE & BSE stocks. YieldIQ Score, margin of safety, Piotroski F-Score, and AI insights for Indian investors.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/logo_icon.jpeg",
-    apple: "/logo.jpeg",
+    icon: "/logo-new.svg",
+    apple: "/logo-new.svg",
   },
   appleWebApp: {
     capable: true,

@@ -73,7 +73,7 @@ function MarketingNav() {
     <nav className="sticky top-0 z-50 bg-[#080E1A]/80 backdrop-blur-xl border-b border-white/5">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
-          <img src="/logo.jpeg" alt="YieldIQ" className="w-8 h-8 rounded-full" />
+          <img src="/logo-new.svg" alt="YieldIQ" className="w-8 h-8 rounded-lg" />
           <span className="text-white font-bold text-lg tracking-tight">YieldIQ</span>
         </Link>
         <div className="hidden md:flex items-center gap-8 text-sm">
@@ -892,7 +892,7 @@ function LandingContent() {
           <div className="flex flex-col md:flex-row justify-between items-start gap-8">
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <img src="/logo.jpeg" alt="YieldIQ" className="w-8 h-8 rounded-full" />
+                <img src="/logo-new.svg" alt="YieldIQ" className="w-8 h-8 rounded-lg" />
                 <span className="text-white font-bold text-lg">YieldIQ</span>
               </div>
               <p className="text-gray-500 text-sm max-w-xs mb-4">

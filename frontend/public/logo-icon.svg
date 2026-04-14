@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Concept 3: Modern Y monogram with integrated chart pulse -->
+  <!-- The Y's right arm curves up like a stock chart — minimal, iconic -->
+  <defs>
+    <linearGradient id="g3a" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#1E293B"/>
+    </linearGradient>
+    <linearGradient id="g3b" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+  <!-- Rounded square background -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="url(#g3a)"/>
+  <!-- Subtle grid lines (represents data/analysis) -->
+  <line x1="80" y1="160" x2="432" y2="160" stroke="#1E293B" stroke-width="1"/>
+  <line x1="80" y1="256" x2="432" y2="256" stroke="#1E293B" stroke-width="1"/>
+  <line x1="80" y1="352" x2="432" y2="352" stroke="#1E293B" stroke-width="1"/>
+  <!-- The Y letterform — left arm goes down, right arm curves UP like a chart -->
+  <!-- Left arm of Y -->
+  <path d="M140 120 L256 280" stroke="white" stroke-width="14" stroke-linecap="round" fill="none"/>
+  <!-- Right arm of Y curves upward (stock going up) -->
+  <path d="M372 120 Q330 200 256 280" stroke="url(#g3b)" stroke-width="14" stroke-linecap="round" fill="none"/>
+  <!-- Stem of Y going down -->
+  <path d="M256 280 L256 400" stroke="white" stroke-width="14" stroke-linecap="round" fill="none"/>
+  <!-- Glowing dot at the peak of the right arm (like a data point) -->
+  <circle cx="372" cy="120" r="12" fill="#06B6D4"/>
+  <circle cx="372" cy="120" r="22" fill="#06B6D4" opacity="0.15"/>
+  <circle cx="372" cy="120" r="32" fill="#06B6D4" opacity="0.06"/>
+</svg>

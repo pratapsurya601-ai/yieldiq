@@ -9,7 +9,7 @@ function MarketingNav() {
     <nav className="sticky top-0 z-50 border-b border-white/5 bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B]">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
-          <img src="/logo.jpeg" alt="YieldIQ" className="w-8 h-8 rounded-full" />
+          <img src="/logo-new.svg" alt="YieldIQ" className="w-8 h-8 rounded-lg" />
           <span className="text-white font-bold text-lg">YieldIQ</span>
         </Link>
         <div className="hidden md:flex items-center gap-8 text-sm">
@@ -183,7 +183,7 @@ export default function FeaturesPage() {
       <footer className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] border-t border-white/5 py-8">
         <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
-            <img src="/logo.jpeg" alt="YieldIQ" className="w-6 h-6 rounded-full" />
+            <img src="/logo-new.svg" alt="YieldIQ" className="w-6 h-6 rounded-md" />
             <span className="text-gray-400 text-sm">&copy; 2026 YieldIQ. Made in India.</span>
           </div>
           <div className="flex gap-6 text-gray-500 text-xs">
