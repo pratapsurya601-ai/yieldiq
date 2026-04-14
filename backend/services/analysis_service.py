@@ -404,15 +404,12 @@ class AnalysisService:
                     enriched["latest_fcf"] = _annual_data["fcf"]
 
         # Apply FCF floor for capex-heavy companies (e.g. RELIANCE)
-        # Try multiple keys for PAT — yfinance uses "net_income", pipeline uses "pat"
-        _pat = (
-            enriched.get("latest_pat")
-            or enriched.get("net_income")
-            or enriched.get("pat")
-            or raw.get("netIncomeToCommon")
-            or raw.get("net_income")
-        )
-        # Also try to get it from income_df if available
+        # Derive PAT from net_margin × revenue (both guaranteed in enriched)
+        _latest_rev = enriched.get("latest_revenue", 0) or 0
+        _net_margin = enriched.get("net_margin", 0) or 0
+        _pat = (_latest_rev * _net_margin) if _latest_rev and _net_margin else None
+
+        # Fallback: try income_df directly
         if not _pat:
             _income_df = raw.get("income_df")
             if _income_df is not None and hasattr(_income_df, 'empty') and not _income_df.empty:
@@ -422,13 +419,15 @@ class AnalysisService:
                 except Exception:
                     pass
 
-        _raw_fcf = enriched.get("latest_fcf") or enriched.get("yahoo_fcf_ttm")
+        _raw_fcf = enriched.get("latest_fcf", 0) or 0
         _adjusted_fcf = _get_adjusted_fcf(_raw_fcf, _pat, is_financial)
+
         if _adjusted_fcf is not None and _adjusted_fcf != _raw_fcf and not is_financial:
             enriched["latest_fcf"] = _adjusted_fcf
             import logging
             logging.getLogger("yieldiq.fcf").info(
-                f"FCF floor for {ticker}: raw={_raw_fcf}, pat={_pat}, adjusted={_adjusted_fcf}"
+                f"[{ticker}] FCF floor: raw={_raw_fcf:.0f}, "
+                f"pat={_pat:.0f}, adjusted={_adjusted_fcf:.0f}"
             )
 
         forecaster = FCFForecaster()
@@ -454,16 +453,20 @@ class AnalysisService:
             _pb_median = _PB_MEDIANS.get(_sub_type, 2.5)
             _val_method = ""
 
-            # Method 1: P/B based — try multiple book value sources
-            _bvps = (
-                raw.get("bookValue")
-                or enriched.get("book_value")
-                or enriched.get("bvps")
-            )
+            # Method 1: Derive BVPS from priceToBook (most reliable)
+            # collector.py never puts "bookValue" into raw — derive it
+            _pb_live = raw.get("priceToBook") or enriched.get("pb_ratio")
+            _bvps = 0
+            if _pb_live and _pb_live > 0 and price > 0:
+                _bvps = price / _pb_live
+
+            # Method 2: total_equity / shares from balance sheet
             if not _bvps or _bvps <= 0:
-                _pb_ratio = raw.get("priceToBook") or enriched.get("pb_ratio")
-                if _pb_ratio and _pb_ratio > 0 and price > 0:
-                    _bvps = price / _pb_ratio
+                _equity = (enriched.get("total_equity")
+                           or raw.get("total_equity") or 0)
+                _shares = enriched.get("shares") or raw.get("shares", 0)
+                if _equity and _shares and _shares > 0:
+                    _bvps = _equity / _shares
 
             if _bvps and _bvps > 0:
                 iv = round(_bvps * _pb_median, 2)
@@ -473,9 +476,12 @@ class AnalysisService:
             else:
                 iv = 0
 
-            # Method 2: PE-based fallback if P/B gave 0
+            # Method 3: PE-based fallback if P/B gave 0
             if iv <= 0:
-                _eps = enriched.get("diluted_eps") or raw.get("trailingEps") or enriched.get("eps")
+                _eps = (enriched.get("diluted_eps")
+                        or raw.get("trailingEps")
+                        or enriched.get("eps")
+                        or raw.get("fh_eps_ttm") or 0)
                 _sector_pe = {"Banking": 15, "NBFC": 20, "Insurance": 18}.get(_sub_type, 15)
                 if _eps and _eps > 0:
                     iv = round(_eps * _sector_pe, 2)
@@ -483,20 +489,21 @@ class AnalysisService:
                     bull_iv = round(_eps * (_sector_pe * 1.3), 2)
                     _val_method = f"P/E × {_sector_pe} ({_sub_type})"
 
-            # Method 3: Analyst target as last resort
+            # Method 4: Analyst target
             if iv <= 0:
-                _analyst_tgt = (raw.get("finnhub_price_target") or {}).get("mean", 0) or raw.get("targetMeanPrice", 0)
+                _analyst_tgt = ((raw.get("finnhub_price_target") or {}).get("mean", 0)
+                                or raw.get("targetMeanPrice", 0))
                 if _analyst_tgt and _analyst_tgt > 0:
-                    iv = round(_analyst_tgt * 0.9, 2)
-                    bear_iv = round(_analyst_tgt * 0.7, 2)
-                    bull_iv = round(_analyst_tgt * 1.1, 2)
+                    iv = round(_analyst_tgt * 0.85, 2)
+                    bear_iv = round(_analyst_tgt * 0.60, 2)
+                    bull_iv = round(_analyst_tgt * 1.10, 2)
                     _val_method = "Analyst consensus (adjusted)"
 
-            # Method 4: Never show ₹0 — use current price as fair value
+            # Method 5: NEVER ₹0 — use current price = fairly valued
             if iv <= 0 and price > 0:
                 iv = round(price, 2)
-                bear_iv = round(price * 0.8, 2)
-                bull_iv = round(price * 1.2, 2)
+                bear_iv = round(price * 0.75, 2)
+                bull_iv = round(price * 1.25, 2)
                 _val_method = "Insufficient data"
 
             iv_raw = iv
@@ -685,10 +692,18 @@ class AnalysisService:
                 pass
 
         # ── Step 10: Verdict ──────────────────────────────────
-        # Flag as data-limited when confidence is low AND MoS is extreme (>40% either way)
         _conf_score = confidence.get("score", 50)
-        if is_financial and iv <= 0:
-            verdict = "data_limited"  # Financial with no valuation data
+
+        if is_financial:
+            # Financial companies: simple MoS verdict, NEVER "avoid"
+            if iv <= 0:
+                verdict = "data_limited"
+            elif mos_pct > 15:
+                verdict = "undervalued"
+            elif mos_pct > -15:
+                verdict = "fairly_valued"
+            else:
+                verdict = "overvalued"
         elif _confidence in ("low", "unusable") and abs(mos_pct) > 40:
             verdict = "data_limited"
         elif _conf_score < 35 and abs(mos_pct) > 40:
@@ -697,8 +712,6 @@ class AnalysisService:
             verdict = "undervalued"
         elif mos_pct > -15:
             verdict = "fairly_valued"
-        elif is_financial:
-            verdict = "overvalued"  # Never "avoid" for financial companies
         elif enriched.get("dcf_reliable", True):
             verdict = "overvalued"
         else:

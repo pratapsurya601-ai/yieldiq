@@ -24,17 +24,18 @@ function generateFallbackSummary(props: AISummaryProps): string {
   } = props
   const cleanTicker = ticker.replace(".NS", "").replace(".BO", "")
 
+  // marginOfSafety: positive = undervalued, negative = overvalued
   let direction = "near"
   let signal = "fairly valued"
-  let pct = 0
-  if (currentPrice > 0 && fairValue > 0) {
-    pct = Math.abs(((fairValue - currentPrice) / currentPrice) * 100)
-    // If fair value > price → price is BELOW fair value → undervalued
-    // If fair value < price → price is ABOVE fair value → overvalued
-    if (fairValue > currentPrice) {
+  let pct = Math.abs(marginOfSafety)
+
+  if (pct > 2) {
+    if (marginOfSafety >= 0) {
+      // Positive MoS = price is BELOW fair value = undervalued
       direction = "below"
       signal = "undervalued"
     } else {
+      // Negative MoS = price is ABOVE fair value = overvalued
       direction = "above"
       signal = "overvalued"
     }
