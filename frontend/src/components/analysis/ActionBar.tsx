@@ -329,11 +329,11 @@ export default function ActionBar(props: ActionBarProps) {
   }, [showExportMenu])
 
   const handleWatchlist = () => {
-    // TODO: add to watchlist
+    setToast("Watchlist coming soon!")
   }
 
   const handleAlert = () => {
-    // TODO: set price alert
+    setToast("Price alerts coming soon!")
   }
 
   const handleCopyWhatsApp = async () => {
