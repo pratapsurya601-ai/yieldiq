@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useAuthStore } from "@/store/authStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import { useRouter } from "next/navigation"
@@ -10,6 +10,63 @@ declare global {
   interface Window {
     Razorpay: new (options: Record<string, unknown>) => { open: () => void }
   }
+}
+
+function ReferralSection() {
+  const [referralCode, setReferralCode] = useState("")
+  const [referralLink, setReferralLink] = useState("")
+  const [stats, setStats] = useState({ referral_count: 0, bonus_analyses: 0 })
+  const [copied, setCopied] = useState(false)
+
+  useEffect(() => {
+    api.get("/api/v1/referral/code").then((r) => {
+      setReferralCode(r.data.referral_code)
+      setReferralLink(r.data.referral_link)
+    }).catch(() => {})
+    api.get("/api/v1/referral/stats").then((r) => {
+      setStats({ referral_count: r.data.referral_count, bonus_analyses: r.data.bonus_analyses })
+    }).catch(() => {})
+  }, [])
+
+  const handleCopy = () => {
+    if (referralLink) {
+      navigator.clipboard.writeText(referralLink)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  if (!referralCode) return null
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+      <h2 className="text-sm font-semibold text-gray-900">Invite friends, get rewards</h2>
+      <p className="text-xs text-gray-500">Share your link. When a friend signs up, you get +5 bonus analyses.</p>
+      <div className="flex items-center gap-2">
+        <input
+          readOnly
+          value={referralLink}
+          className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 truncate"
+        />
+        <button
+          onClick={handleCopy}
+          className="px-4 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition flex-shrink-0"
+        >
+          {copied ? "Copied!" : "Copy Link"}
+        </button>
+      </div>
+      <div className="flex gap-6 text-center pt-1">
+        <div>
+          <p className="text-lg font-bold text-gray-900">{stats.referral_count}</p>
+          <p className="text-xs text-gray-400">friends invited</p>
+        </div>
+        <div>
+          <p className="text-lg font-bold text-blue-600">{stats.bonus_analyses}</p>
+          <p className="text-xs text-gray-400">bonus analyses earned</p>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function AccountPage() {
@@ -193,6 +250,9 @@ export default function AccountPage() {
           </p>
         </div>
       )}
+
+      {/* Share & Earn — Referral Section */}
+      <ReferralSection />
 
       <p className="text-[10px] text-gray-400 text-center">
         YieldIQ is not registered with SEBI as an investment adviser. All outputs are model estimates only.

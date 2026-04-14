@@ -103,8 +103,8 @@ export const deleteAlert = (alertId: number): Promise<SuccessResponse> =>
 export const login = (email: string, password: string): Promise<TokenResponse> =>
   api.post("/api/v1/auth/login", { email, password }).then(r => r.data)
 
-export const signup = (email: string, password: string): Promise<TokenResponse> =>
-  api.post("/api/v1/auth/register", { email, password }).then(r => r.data)
+export const signup = (email: string, password: string, referralCode?: string | null): Promise<TokenResponse> =>
+  api.post("/api/v1/auth/register", { email, password, ...(referralCode ? { referral_code: referralCode } : {}) }).then(r => r.data)
 
 export const getMe = () =>
   api.get("/api/v1/auth/me").then(r => r.data)

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Main pages -->
+  <url><loc>https://yieldiq.in/</loc><changefreq>daily</changefreq><priority>1.0</priority></url>
+  <url><loc>https://yieldiq.in/features</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://yieldiq.in/pricing</loc><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://yieldiq.in/terms</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+  <url><loc>https://yieldiq.in/privacy</loc><changefreq>monthly</changefreq><priority>0.3</priority></url>
+
+  <!-- Top 20 stock analysis pages -->
+  <url><loc>https://yieldiq.in/analysis/ITC.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/TCS.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/RELIANCE.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/INFY.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/HDFCBANK.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/ICICIBANK.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/BHARTIARTL.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/SUNPHARMA.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/WIPRO.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/HCLTECH.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/TITAN.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/MARUTI.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/BAJFINANCE.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/DRREDDY.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/CIPLA.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/LT.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/NESTLEIND.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/BRITANNIA.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/PERSISTENT.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+  <url><loc>https://yieldiq.in/analysis/APOLLOHOSP.NS</loc><changefreq>daily</changefreq><priority>0.9</priority></url>
+</urlset>

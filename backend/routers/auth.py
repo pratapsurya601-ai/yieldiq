@@ -47,6 +47,21 @@ async def register(req: RegisterRequest):
     except Exception:
         pass  # Email failure should never block registration
 
+    # Apply referral code if provided
+    if req.referral_code:
+        try:
+            from backend.routers.referral import _ensure_user, _find_user_by_code
+            new_user_record = _ensure_user(result["user_id"])
+            code = req.referral_code.strip().lower()
+            referrer_id = _find_user_by_code(code)
+            if referrer_id and referrer_id != result["user_id"]:
+                new_user_record["referred_by"] = code
+                referrer = _ensure_user(referrer_id)
+                referrer["referral_count"] += 1
+                referrer["bonus_analyses"] += 5
+        except Exception:
+            pass  # Referral failure should never block registration
+
     return TokenResponse(
         access_token=result["token"],
         user_id=result["user_id"],

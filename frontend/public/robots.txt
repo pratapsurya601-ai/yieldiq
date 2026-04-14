@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+Allow: /analysis/
+Allow: /features
+Allow: /pricing
+Allow: /terms
+Allow: /privacy
+
+Disallow: /api/
+Disallow: /auth/
+Disallow: /onboarding
+Disallow: /account
+
+Sitemap: https://yieldiq.in/sitemap.xml

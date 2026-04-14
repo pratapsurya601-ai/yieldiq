@@ -1,5 +1,6 @@
 import Navbar from "@/components/layout/Navbar"
 import ErrorBoundary from "@/components/ErrorBoundary"
+import PWAInstallBanner from "@/components/PWAInstallBanner"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -8,6 +9,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <main className="flex-1">
         <ErrorBoundary>{children}</ErrorBoundary>
       </main>
+      <PWAInstallBanner />
     </div>
   )
 }

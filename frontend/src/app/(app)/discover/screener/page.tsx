@@ -2,9 +2,10 @@
 
 import { useSearchParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { Suspense } from "react"
+import { Suspense, useCallback } from "react"
 import api from "@/lib/api"
 import Link from "next/link"
+import { useAuthStore } from "@/store/authStore"
 
 interface ScreenerStock {
   ticker: string
@@ -46,10 +47,37 @@ const PRESET_CONFIG: Record<string, { title: string; description: string; color:
 function ScreenerContent() {
   const params = useSearchParams()
   const preset = params.get("preset") || "custom"
+  const { tier } = useAuthStore()
 
   // Map URL preset names to API preset names
   const apiPreset = preset.replace("-", "_")
   const config = PRESET_CONFIG[preset] || PRESET_CONFIG.custom
+
+  const handleExportCSV = useCallback(async () => {
+    try {
+      const res = await api.get(`/api/v1/screener/export?preset=${apiPreset}`)
+      const stocks = res.data.results as ScreenerStock[]
+      if (!stocks.length) return
+
+      const headers = ["Ticker", "Score", "Margin of Safety (%)"]
+      const rows = stocks.map((s: ScreenerStock) => [
+        s.ticker,
+        s.score,
+        s.margin_of_safety.toFixed(1),
+      ])
+      const csv = [headers.join(","), ...rows.map((r: (string | number)[]) => r.join(","))].join("\n")
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `yieldiq_screener_${preset}_${new Date().toISOString().split("T")[0]}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      alert("CSV export requires Starter plan or above.")
+    }
+  }, [apiPreset, preset])
 
   const { data, isLoading, error } = useQuery<ScreenerResponse>({
     queryKey: ["screener", preset],
@@ -99,7 +127,17 @@ function ScreenerContent() {
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
             <span className="text-sm font-semibold text-gray-900">{data.total} stocks found</span>
-            <span className="text-xs text-gray-400">Page {data.page}</span>
+            <div className="flex items-center gap-3">
+              {tier !== "free" && (
+                <button
+                  onClick={handleExportCSV}
+                  className="text-xs font-medium text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition"
+                >
+                  Download CSV
+                </button>
+              )}
+              <span className="text-xs text-gray-400">Page {data.page}</span>
+            </div>
           </div>
           <div className="divide-y divide-gray-50">
             {data.results.map((stock, i) => {

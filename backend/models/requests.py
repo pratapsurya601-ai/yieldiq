@@ -13,6 +13,7 @@ class LoginRequest(BaseModel):
 class RegisterRequest(BaseModel):
     email: str
     password: str
+    referral_code: Optional[str] = None
 
 
 class AddHoldingRequest(BaseModel):

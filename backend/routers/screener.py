@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from fastapi import APIRouter, Depends, Query
 from backend.models.responses import ScreenerResponse, ScreenerStock
-from backend.middleware.auth import get_current_user
+from backend.middleware.auth import get_current_user, require_tier
 
 logger = logging.getLogger(__name__)
 
@@ -224,4 +224,30 @@ async def run_preset(
     return ScreenerResponse(
         results=stocks, total=total, page=1, page_size=25,
         filter_applied={"preset": preset_name},
+    )
+
+
+@router.get("/export", response_model=ScreenerResponse)
+async def export_screener(
+    preset: str = Query("custom"),
+    min_score: int = Query(0, ge=0, le=100),
+    min_mos: float = Query(-100),
+    user: dict = Depends(require_tier("starter")),
+):
+    """Export screener results (up to 500 stocks). Starter+ only."""
+    if preset != "custom":
+        api_preset = preset.replace("-", "_")
+        stocks, total = _query_preset_from_db(api_preset, page=1, page_size=500)
+    else:
+        stocks, total = _query_stocks_from_db(min_score, min_mos, page=1, page_size=500)
+
+    # Apply filters
+    if min_score > 0:
+        stocks = [s for s in stocks if s.score >= min_score]
+    if min_mos > -100:
+        stocks = [s for s in stocks if s.margin_of_safety >= min_mos]
+
+    return ScreenerResponse(
+        results=stocks[:500], total=len(stocks), page=1, page_size=500,
+        filter_applied={"preset": preset, "min_score": min_score, "min_mos": min_mos, "export": True},
     )
