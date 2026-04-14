@@ -43,12 +43,12 @@ async def get_analysis(
 
     try:
         result = service.get_full_analysis(ticker)
-        cache.set(_cache_key, result, ttl=900)
+        # Cache for 30 minutes (was 15) — analysis data doesn't change that fast
+        cache.set(_cache_key, result, ttl=1800)
         return result
     except Exception as e:
-        import traceback
-        tb = traceback.format_exc()
-        print(f"ANALYSIS ERROR:\n{tb}")
+        import logging
+        logging.getLogger("yieldiq.analysis").error(f"Analysis failed for {ticker}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
 
 

@@ -141,11 +141,43 @@ def _ensure_pipeline_tables():
         logger.warning(f"Pipeline table creation skipped: {e}")
 
 
+def _prewarm_popular_stocks():
+    """Pre-warm cache for top 10 most searched stocks on startup."""
+    import threading
+
+    def _warm():
+        import time
+        time.sleep(5)  # Wait for app to fully start
+        try:
+            from backend.services.analysis_service import AnalysisService
+            from backend.services.cache_service import cache
+            svc = AnalysisService()
+            popular = [
+                "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ITC.NS",
+                "SBIN.NS", "ICICIBANK.NS", "BAJFINANCE.NS", "MARUTI.NS", "TITAN.NS",
+            ]
+            for ticker in popular:
+                _key = f"analysis:{ticker}"
+                if cache.get(_key) is None:
+                    try:
+                        result = svc.get_full_analysis(ticker)
+                        cache.set(_key, result, ttl=1800)
+                        logger.info(f"Pre-warmed cache: {ticker}")
+                    except Exception:
+                        pass
+                    time.sleep(2)  # Don't hammer yfinance
+        except Exception as e:
+            logger.warning(f"Cache pre-warm failed: {e}")
+
+    threading.Thread(target=_warm, daemon=True).start()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup/shutdown lifecycle — creates tables + starts scheduler."""
+    """Startup/shutdown lifecycle — creates tables + starts scheduler + pre-warms cache."""
     _ensure_pipeline_tables()
     sched = _start_pipeline_scheduler()
+    _prewarm_popular_stocks()
     yield
     if sched:
         sched.shutdown(wait=False)
