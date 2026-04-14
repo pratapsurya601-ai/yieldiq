@@ -11,15 +11,15 @@ export const VERDICT_COLORS = {
 export const TIER_LIMITS = { free: 5, starter: 50, pro: Infinity } as const
 
 export const SCORE_COLOR = (score: number): string => {
-  if (score >= 70) return "#185FA5"
-  if (score >= 50) return "#B45309"
+  if (score >= 75) return "#185FA5"
+  if (score >= 55) return "#B45309"
   return "#DC2626"
 }
 
 export const SCORE_GRADE = (score: number): string => {
-  if (score >= 85) return "A"
-  if (score >= 70) return "B"
-  if (score >= 55) return "C"
-  if (score >= 40) return "D"
+  if (score >= 75) return "A"
+  if (score >= 55) return "B"
+  if (score >= 35) return "C"
+  if (score >= 20) return "D"
   return "F"
 }

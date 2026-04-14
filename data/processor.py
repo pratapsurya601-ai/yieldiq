@@ -248,7 +248,7 @@ def compute_metrics(data_bundle: dict) -> dict:
             unreliable_reason = f"Negative margins (op={op_margin:.1%}, net={net_margin:.1%})"
 
     # Inventory-heavy retail stocks: negative FCF from working capital cycles, not weakness
-    INVENTORY_HEAVY = {'TITAN', 'TRENT', 'ABFRL', 'DMART', 'PAGEIND', 'RAYMOND'}
+    INVENTORY_HEAVY = {'TITAN', 'TRENT', 'ABFRL', 'DMART', 'PAGEIND', 'RAYMOND', 'VMART', 'MARUTI'}
     _clean = ticker.replace('.NS', '').replace('.BO', '').upper() if isinstance(ticker, str) else ''
 
     # ── Negative operating margin ──────────────────────────────

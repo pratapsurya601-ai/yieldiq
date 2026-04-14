@@ -44,7 +44,7 @@ function generateFallbackSummary(props: AISummaryProps): string {
   const moatLabel =
     moat === "Wide" ? "wide" : moat === "Narrow" ? "narrow" : moat === "N/A (Financial)" ? "N/A (financial sector)" : "no measurable"
 
-  return `${cleanTicker} is currently trading ${pct.toFixed(0)}% ${direction} our fair value estimate, suggesting the stock may be ${signal}. The business has a ${moatLabel} competitive moat. Model confidence: ${confidence}/100. This is a quantitative estimate — verify assumptions before acting.`
+  return `${cleanTicker} is currently trading ${pct.toFixed(0)}% ${direction} our fair value estimate, suggesting the stock may be ${signal}. The business has a ${moatLabel} competitive moat. Data quality: ${confidence}/100. This is a quantitative estimate — verify assumptions before acting.`
 }
 
 export default function AISummary(props: AISummaryProps) {

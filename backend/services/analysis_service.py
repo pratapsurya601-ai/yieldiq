@@ -428,42 +428,42 @@ class AnalysisService:
                     enriched["latest_fcf"] = _annual_data["fcf"]
 
         # Apply FCF floor for capex-heavy companies (e.g. RELIANCE, MARUTI, TITAN, HUL)
-        _raw_fcf = enriched.get("latest_fcf", 0) or 0
-        _latest_rev = enriched.get("latest_revenue", 0) or 0
-        _net_margin = enriched.get("net_margin", 0) or 0
-
-        # PAT derivation chain (most reliable -> least reliable)
         _pat = None
+        _raw_fcf = enriched.get("latest_fcf", 0) or 0
 
-        # 1. net_margin x revenue
-        if _latest_rev > 0 and _net_margin > 0:
-            _pat = _latest_rev * _net_margin
+        # 1. income_df net_income (MOST RELIABLE -- always populated by compute_metrics)
+        _income_df = enriched.get("income_df")
+        if _income_df is not None and hasattr(_income_df, 'empty') and not _income_df.empty:
+            if "net_income" in _income_df.columns:
+                try:
+                    _ni = float(_income_df["net_income"].iloc[-1] or 0)
+                    if _ni > 0:
+                        _pat = _ni
+                except Exception:
+                    pass
 
-        # 2. income_df net_income (most direct source)
+        # 2. net_margin x revenue
         if not _pat or _pat <= 0:
-            _income_df = enriched.get("income_df")
-            if _income_df is not None and hasattr(_income_df, 'empty') and not _income_df.empty:
-                if "net_income" in _income_df.columns:
-                    try:
-                        _pat = float(_income_df["net_income"].iloc[-1] or 0)
-                    except Exception:
-                        pass
+            _rev = enriched.get("latest_revenue", 0) or 0
+            _nm = enriched.get("net_margin", 0) or 0
+            if _rev > 0 and _nm > 0:
+                _pat = _rev * _nm
 
         # 3. yahoo_fcf_ttm
         if not _pat or _pat <= 0:
-            _yahoo_fcf = raw.get("yahoo_fcf_ttm", 0) or 0
-            if _yahoo_fcf > 0:
-                _pat = _yahoo_fcf
+            _yf = raw.get("yahoo_fcf_ttm", 0) or 0
+            if _yf > 0:
+                _pat = _yf
 
-        # 4. EBITDA x 0.6
+        # 4. EBITDA x 0.60
         if not _pat or _pat <= 0:
-            _ebitda = raw.get("ebitda") or enriched.get("ebitda", 0) or 0
-            if _ebitda > 0:
-                _pat = _ebitda * 0.60
+            _eb = raw.get("ebitda") or enriched.get("ebitda", 0) or 0
+            if _eb > 0:
+                _pat = _eb * 0.60
 
         # 5. EPS x shares
         if not _pat or _pat <= 0:
-            _eps = raw.get("trailingEps") or raw.get("trailing_eps") or enriched.get("trailing_eps") or 0
+            _eps = raw.get("trailingEps") or 0
             _shares = enriched.get("shares") or raw.get("shares", 0) or 0
             if _eps > 0 and _shares > 0:
                 _pat = _eps * _shares
@@ -478,7 +478,7 @@ class AnalysisService:
             wacc_data = _compute_wacc(raw, is_indian, enriched=enriched)
             wacc = wacc_data.get("wacc", 0.10)
         except Exception:
-            wacc_data = {}
+            wacc_data = {"beta": 1.0, "beta_source": "fallback"}
             wacc = 0.10
 
         country = get_active_country()
