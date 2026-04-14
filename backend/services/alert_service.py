@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 # ── SendGrid config ───────────────────────────────────────────
 
 SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")
-FROM_EMAIL = "alerts@yieldiq.in"
+FROM_EMAIL = os.environ.get("SENDGRID_FROM_EMAIL", "noreply@yieldiq.com")
 
 
 def send_alert_email(
