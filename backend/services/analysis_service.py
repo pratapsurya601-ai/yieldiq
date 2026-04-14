@@ -427,56 +427,55 @@ class AnalysisService:
                 if _annual_data.get("fcf") is not None and not enriched.get("latest_fcf"):
                     enriched["latest_fcf"] = _annual_data["fcf"]
 
-        # Apply FCF floor for capex-heavy companies (e.g. RELIANCE)
-        # Derive PAT from net_margin × revenue (both guaranteed in enriched)
+        # Apply FCF floor for capex-heavy companies (e.g. RELIANCE, MARUTI, TITAN, HUL)
+        _raw_fcf = enriched.get("latest_fcf", 0) or 0
         _latest_rev = enriched.get("latest_revenue", 0) or 0
         _net_margin = enriched.get("net_margin", 0) or 0
-        _pat = (_latest_rev * _net_margin) if _latest_rev and _net_margin else None
 
-        # Fallback: try income_df directly
+        # PAT derivation chain (most reliable -> least reliable)
+        _pat = None
+
+        # 1. net_margin x revenue
+        if _latest_rev > 0 and _net_margin > 0:
+            _pat = _latest_rev * _net_margin
+
+        # 2. income_df net_income (most direct source)
         if not _pat or _pat <= 0:
-            _income_df = raw.get("income_df")
+            _income_df = enriched.get("income_df")
             if _income_df is not None and hasattr(_income_df, 'empty') and not _income_df.empty:
-                try:
-                    if "net_income" in _income_df.columns:
-                        _pat = float(_income_df["net_income"].iloc[-1])
-                except Exception:
-                    pass
+                if "net_income" in _income_df.columns:
+                    try:
+                        _pat = float(_income_df["net_income"].iloc[-1] or 0)
+                    except Exception:
+                        pass
 
-        # Fallback: yahoo_fcf_ttm as PAT proxy (for conglomerates)
+        # 3. yahoo_fcf_ttm
         if not _pat or _pat <= 0:
             _yahoo_fcf = raw.get("yahoo_fcf_ttm", 0) or 0
-            if _yahoo_fcf and _yahoo_fcf > 0:
+            if _yahoo_fcf > 0:
                 _pat = _yahoo_fcf
 
-        # Last resort: EBITDA × 0.6 as conservative PAT proxy
+        # 4. EBITDA x 0.6
         if not _pat or _pat <= 0:
             _ebitda = raw.get("ebitda") or enriched.get("ebitda", 0) or 0
-            if _ebitda and _ebitda > 0:
-                _pat = _ebitda * 0.6
+            if _ebitda > 0:
+                _pat = _ebitda * 0.60
 
-        # Fallback: EPS × shares (works for MARUTI, TITAN, HUL)
+        # 5. EPS x shares
         if not _pat or _pat <= 0:
-            _eps = enriched.get("trailing_eps", 0) or raw.get("trailingEps", 0) or 0
-            _shares = enriched.get("shares", 0) or 0
+            _eps = raw.get("trailingEps") or raw.get("trailing_eps") or enriched.get("trailing_eps") or 0
+            _shares = enriched.get("shares") or raw.get("shares", 0) or 0
             if _eps > 0 and _shares > 0:
                 _pat = _eps * _shares
 
-        _raw_fcf = enriched.get("latest_fcf", 0) or 0
         _adjusted_fcf = _get_adjusted_fcf(_raw_fcf, _pat, is_financial)
-
         if _adjusted_fcf is not None and _adjusted_fcf != _raw_fcf and not is_financial:
             enriched["latest_fcf"] = _adjusted_fcf
-            import logging
-            logging.getLogger("yieldiq.fcf").info(
-                f"[{ticker}] FCF floor: raw={_raw_fcf:.0f}, "
-                f"pat={_pat:.0f}, adjusted={_adjusted_fcf:.0f}"
-            )
 
         forecaster = FCFForecaster()
         try:
             from models.forecaster import compute_wacc as _compute_wacc
-            wacc_data = _compute_wacc(raw, is_indian)
+            wacc_data = _compute_wacc(raw, is_indian, enriched=enriched)
             wacc = wacc_data.get("wacc", 0.10)
         except Exception:
             wacc_data = {}
@@ -491,6 +490,11 @@ class AnalysisService:
 
         # ── Step 6: Valuation (P/B for financials, DCF for others) ──
         if is_financial:
+            # Defaults — always defined regardless of which P/B path runs
+            bear_iv = round(price * 0.75, 2) if price > 0 else 0
+            bull_iv = round(price * 1.25, 2) if price > 0 else 0
+            iv = round(price, 2) if price > 0 else 0
+
             # --- P/B RATIO VALUATION for banks/NBFCs/insurance ---
             _sub_type = _get_financial_sub_type(clean_ticker)
             _pb_median = _PB_MEDIANS.get(_sub_type, 2.5)
@@ -590,6 +594,7 @@ class AnalysisService:
                 shares_outstanding=enriched.get("shares", 1),
                 current_price=price,
                 ticker=ticker,
+                beta=wacc_data.get("beta"),
             )
             iv_raw = dcf_res.get("intrinsic_value_per_share", 0)
 

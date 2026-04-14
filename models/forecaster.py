@@ -310,7 +310,7 @@ def _rule_based_growth(enriched: dict) -> float:
     return _clamp(mean_reverted)
 
 
-def compute_wacc(ticker_obj, is_indian: bool = False) -> dict:
+def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> dict:
     """
     Compute CAPM-based WACC for a stock.
 
@@ -364,11 +364,13 @@ def compute_wacc(ticker_obj, is_indian: bool = False) -> dict:
         info = ticker_obj.info
         rf   = DEFAULT_RF
         _raw_beta = info.get("beta", None)
-        if _raw_beta and _raw_beta > 0:
+        if _raw_beta and _raw_beta > 0 and _raw_beta <= 3.0:
             beta = float(np.clip(_raw_beta, 0.5, 3.0))
+            result["beta_source"] = "yfinance"
         else:
-            # Sector-based fallback instead of hardcoded 1.0
-            _sector = info.get("sector", "") or ""
+            # Sector-based fallback — check enriched dict first, then yfinance info
+            _sector = ((enriched or {}).get("sector_name", "") or
+                       info.get("sector", "") or "")
             _industry = info.get("industry", "") or ""
             beta = SECTOR_DEFAULT_BETA.get(
                 _sector,
@@ -377,6 +379,7 @@ def compute_wacc(ticker_obj, is_indian: bool = False) -> dict:
                     SECTOR_DEFAULT_BETA.get("general", 1.0)
                 )
             )
+            result["beta_source"] = "sector_default"
             log.info(f"Beta: using sector default {beta} for {_sector or _industry or 'unknown'}")
         mrp  = DEFAULT_MRP
 

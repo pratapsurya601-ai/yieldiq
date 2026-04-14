@@ -152,8 +152,11 @@ class DCFEngine:
         Adjust WACC for high volatility stocks (beta > 1.5)
         Typical high-volatility: tech growth, biotech, crypto-related
         """
-        if beta is None or beta <= 0:
+        if beta is None:
+            # Only warn if beta was not available at all (sector default ensures > 0)
             self.edge_flags.add_flag("⚠️ Missing Beta (using default WACC)", penalty=5)
+            return
+        if beta <= 0:
             return
             
         if beta > HIGH_VOLATILITY_BETA:
