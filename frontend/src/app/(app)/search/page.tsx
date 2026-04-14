@@ -156,13 +156,16 @@ export default function SearchPage() {
           <p className="text-xs text-red-600 mt-1 px-1">{validationError}</p>
         )}
 
-        {/* Autocomplete dropdown */}
+        {/* Autocomplete dropdown — uses onMouseDown to fire before input blur */}
         {showSuggestions && suggestions.length > 0 && (
           <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden">
             {suggestions.map((s) => (
               <button
                 key={s.ticker}
-                onClick={() => handleSelect(s.ticker, s.name)}
+                onMouseDown={(e) => {
+                  e.preventDefault()  // Prevent input blur from hiding dropdown
+                  handleSelect(s.ticker, s.name)
+                }}
                 className="w-full text-left px-4 py-3 hover:bg-blue-50 transition flex items-center justify-between border-b border-gray-50 last:border-0"
               >
                 <div>

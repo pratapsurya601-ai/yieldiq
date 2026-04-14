@@ -4,7 +4,7 @@ import type { AnalysisResponse, TokenResponse, MarketPulseResponse, ScreenerResp
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
-const api = axios.create({ baseURL: API_BASE, timeout: 60000 })
+const api = axios.create({ baseURL: API_BASE, timeout: 20000 })  // 20s timeout
 
 api.interceptors.request.use((config) => {
   const token = Cookies.get("yieldiq_token")
