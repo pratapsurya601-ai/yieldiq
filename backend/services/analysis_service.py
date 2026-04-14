@@ -410,7 +410,7 @@ class AnalysisService:
         _pat = (_latest_rev * _net_margin) if _latest_rev and _net_margin else None
 
         # Fallback: try income_df directly
-        if not _pat:
+        if not _pat or _pat <= 0:
             _income_df = raw.get("income_df")
             if _income_df is not None and hasattr(_income_df, 'empty') and not _income_df.empty:
                 try:
@@ -418,6 +418,18 @@ class AnalysisService:
                         _pat = float(_income_df["net_income"].iloc[-1])
                 except Exception:
                     pass
+
+        # Fallback: yahoo_fcf_ttm as PAT proxy (for conglomerates)
+        if not _pat or _pat <= 0:
+            _yahoo_fcf = raw.get("yahoo_fcf_ttm", 0) or 0
+            if _yahoo_fcf and _yahoo_fcf > 0:
+                _pat = _yahoo_fcf
+
+        # Last resort: EBITDA × 0.6 as conservative PAT proxy
+        if not _pat or _pat <= 0:
+            _ebitda = raw.get("ebitda") or enriched.get("ebitda", 0) or 0
+            if _ebitda and _ebitda > 0:
+                _pat = _ebitda * 0.6
 
         _raw_fcf = enriched.get("latest_fcf", 0) or 0
         _adjusted_fcf = _get_adjusted_fcf(_raw_fcf, _pat, is_financial)
