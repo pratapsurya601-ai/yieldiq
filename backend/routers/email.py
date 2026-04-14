@@ -9,41 +9,7 @@ from fastapi.responses import HTMLResponse
 router = APIRouter(prefix="/api/v1/email", tags=["email"])
 
 
-@router.get("/test")
-async def test_email():
-    """Test: send a welcome email to the configured from address."""
-    from backend.services.email_service import send_welcome_email, SENDGRID_API_KEY, FROM_EMAIL
-    result = {
-        "sendgrid_configured": bool(SENDGRID_API_KEY),
-        "api_key_length": len(SENDGRID_API_KEY),
-        "from_email": FROM_EMAIL,
-    }
-    if not SENDGRID_API_KEY:
-        result["error"] = "SENDGRID_API_KEY not set"
-        return result
-    # Test raw SendGrid API directly
-    try:
-        from sendgrid import SendGridAPIClient
-        from sendgrid.helpers.mail import Mail
-        message = Mail(
-            from_email=FROM_EMAIL,
-            to_emails=FROM_EMAIL,
-            subject="YieldIQ Test Email",
-            html_content="<h2>Test email from YieldIQ</h2><p>If you see this, SendGrid is working!</p>",
-        )
-        sg = SendGridAPIClient(SENDGRID_API_KEY)
-        response = sg.send(message)
-        result["status_code"] = response.status_code
-        result["email_sent"] = response.status_code in (200, 201, 202)
-        result["sent_to"] = FROM_EMAIL
-        if response.status_code not in (200, 201, 202):
-            result["body"] = response.body.decode() if response.body else ""
-    except ImportError:
-        result["error"] = "sendgrid package not installed on Railway"
-    except Exception as e:
-        result["error"] = f"{type(e).__name__}: {str(e)}"
-    return result
-
+    # Test endpoint removed — emails verified and working
 
 @router.get("/unsubscribe", response_class=HTMLResponse)
 async def unsubscribe(
