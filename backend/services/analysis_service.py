@@ -443,7 +443,7 @@ class AnalysisService:
             ticker=ticker,
             company_name=_display_name,
             sector=_resolve_sector(_raw_sector, clean_ticker),
-            currency="INR",  # India-first launch
+            currency="INR" if is_indian else "USD",
             market_cap=price * enriched.get("shares", 0),
         )
 
