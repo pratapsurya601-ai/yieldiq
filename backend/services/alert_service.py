@@ -38,17 +38,131 @@ def send_alert_email(
 
     display_ticker = ticker.replace(".NS", "").replace(".BO", "")
     subject = f"YieldIQ Alert: {display_ticker} hit \u20b9{current_price:.0f}"
+
+    # ── Brand constants (mirrored from email_service) ────────
+    _HEADER_DARK = "#0F172A"
+    _BRAND_PRIMARY = "#2563EB"
+    _SITE_URL = "https://yieldiq.in"
+
+    _SEBI_DISCLAIMER = (
+        "SEBI Disclaimer: YieldIQ is not a SEBI-registered investment advisor. "
+        "All data and analysis are for informational purposes only. "
+        "Always consult a qualified financial advisor before making investment decisions."
+    )
+
     html = f"""
-    <div style="font-family:sans-serif;max-width:500px;margin:0 auto;padding:20px;">
-      <h2 style="color:#1D4ED8;">YieldIQ Price Alert</h2>
-      <p><strong>{display_ticker}</strong> has crossed your target price.</p>
-      <table style="width:100%;border-collapse:collapse;margin:16px 0;">
-        <tr><td style="padding:8px;color:#6B7280;">Target:</td><td style="padding:8px;font-weight:bold;">\u20b9{target_price:.2f} ({direction})</td></tr>
-        <tr><td style="padding:8px;color:#6B7280;">Current:</td><td style="padding:8px;font-weight:bold;">\u20b9{current_price:.2f}</td></tr>
-      </table>
-      <a href="https://yieldiq.in/analysis/{ticker}" style="display:inline-block;background:#1D4ED8;color:white;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;">View Analysis</a>
-      <p style="margin-top:24px;font-size:12px;color:#9CA3AF;">Model estimate only. Not investment advice.</p>
-    </div>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;padding:0;background-color:#F1F5F9;">
+      <tr>
+        <td align="center" style="padding:24px 16px;">
+          <table width="600" cellpadding="0" cellspacing="0" border="0"
+                 style="max-width:600px;width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#FFFFFF;">
+
+            <!-- ═══ DARK HEADER ═══ -->
+            <tr>
+              <td style="background-color:{_HEADER_DARK};padding:28px 32px 22px;text-align:center;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="center">
+                      <span style="display:inline-block;width:40px;height:40px;background-color:{_BRAND_PRIMARY};
+                                    color:#FFFFFF;font-size:20px;font-weight:800;line-height:40px;
+                                    text-align:center;border-radius:8px;letter-spacing:-1px;">Y</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="padding-top:12px;">
+                      <span style="color:#FFFFFF;font-size:20px;font-weight:700;letter-spacing:4px;text-transform:uppercase;">YIELDIQ ALERT</span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- ═══ ALERT HEADLINE ═══ -->
+            <tr>
+              <td style="padding:32px 32px 0;text-align:center;">
+                <span style="font-size:28px;line-height:1;">&#9889;</span>
+                <h1 style="margin:8px 0 0;font-size:22px;font-weight:700;color:#0F172A;">{display_ticker} hit your target</h1>
+              </td>
+            </tr>
+
+            <!-- ═══ PRICE CARD ═══ -->
+            <tr>
+              <td style="padding:24px 32px 0;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                       style="background-color:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;">
+                  <tr>
+                    <td style="padding:18px 20px;border-bottom:1px solid #E2E8F0;">
+                      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                          <td style="font-size:13px;color:#64748B;">Target</td>
+                          <td style="text-align:right;font-size:16px;font-weight:700;color:#0F172A;">\u20b9{target_price:,.2f} <span style="font-size:12px;font-weight:500;color:#64748B;">({direction})</span></td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:18px 20px;border-bottom:1px solid #E2E8F0;">
+                      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                          <td style="font-size:13px;color:#64748B;">Current Price</td>
+                          <td style="text-align:right;font-size:16px;font-weight:700;color:#0F172A;">\u20b9{current_price:,.2f}</td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:14px 20px;text-align:center;">
+                      <span style="display:inline-block;background-color:#059669;color:#FFFFFF;font-size:13px;
+                                    font-weight:600;padding:4px 14px;border-radius:4px;">&#10003; Triggered</span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- ═══ CTA BUTTON ═══ -->
+            <tr>
+              <td align="center" style="padding:28px 32px 8px;">
+                <table cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="center" style="background-color:{_BRAND_PRIMARY};border-radius:8px;">
+                      <a href="{_SITE_URL}/analysis/{ticker}"
+                         style="display:inline-block;padding:14px 36px;color:#FFFFFF;
+                                font-size:15px;font-weight:600;text-decoration:none;">
+                        View Full Analysis &rarr;
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- ═══ FOOTER ═══ -->
+            <tr>
+              <td>
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #E5E7EB;margin-top:32px;">
+                  <tr>
+                    <td style="padding:24px 24px 12px;">
+                      <p style="font-size:11px;color:#9CA3AF;line-height:1.5;margin:0;">
+                        {_SEBI_DISCLAIMER}
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:0 24px 24px;">
+                      <p style="font-size:11px;color:#9CA3AF;margin:0;">
+                        &copy; {datetime.now(timezone.utc).year} YieldIQ &middot; yieldiq.in
+                      </p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
     """
 
     message = Mail(

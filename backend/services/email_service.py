@@ -17,8 +17,10 @@ logger = logging.getLogger(__name__)
 SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")
 FROM_EMAIL = os.environ.get("SENDGRID_FROM_EMAIL", "noreply@yieldiq.com")
 
-BRAND_COLOR = "#1D4ED8"
-BRAND_DARK = "#1E40AF"
+BRAND_PRIMARY = "#2563EB"
+BRAND_ACCENT = "#06B6D4"
+HEADER_DARK = "#0F172A"
+HEADER_LIGHT = "#1E293B"
 SITE_URL = "https://yieldiq.in"
 
 SEBI_DISCLAIMER = (
@@ -49,18 +51,30 @@ def _email_footer(email: str) -> str:
     """Common footer for all emails: unsubscribe + SEBI disclaimer."""
     unsub_url = _get_unsubscribe_url(email)
     return f"""
-    <div style="margin-top:40px;padding-top:20px;border-top:1px solid #E5E7EB;">
-      <p style="font-size:12px;color:#9CA3AF;line-height:1.6;">
-        You are receiving this email because you signed up on YieldIQ.
-        <a href="{unsub_url}" style="color:#6B7280;text-decoration:underline;">Unsubscribe</a>
-      </p>
-      <p style="font-size:11px;color:#D1D5DB;line-height:1.5;margin-top:12px;">
-        {SEBI_DISCLAIMER}
-      </p>
-      <p style="font-size:11px;color:#D1D5DB;margin-top:8px;">
-        &copy; {datetime.now().year} YieldIQ &middot; yieldiq.in
-      </p>
-    </div>
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #E5E7EB;margin-top:32px;">
+      <tr>
+        <td style="padding:24px 24px 12px;">
+          <p style="font-size:12px;color:#9CA3AF;line-height:1.6;margin:0;">
+            You are receiving this email because you signed up on YieldIQ.
+            <a href="{unsub_url}" style="color:#6B7280;text-decoration:underline;">Unsubscribe</a>
+          </p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:0 24px;">
+          <p style="font-size:11px;color:#9CA3AF;line-height:1.5;margin:0;">
+            {SEBI_DISCLAIMER}
+          </p>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding:12px 24px 24px;">
+          <p style="font-size:11px;color:#9CA3AF;margin:0;">
+            &copy; {datetime.now().year} YieldIQ &middot; yieldiq.in
+          </p>
+        </td>
+      </tr>
+    </table>
     """
 
 
@@ -140,98 +154,167 @@ def send_welcome_email(email: str, name: str = "") -> bool:
     subject = f"Welcome to YieldIQ, {display_name}!"
 
     html = f"""
-    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-                max-width:600px;margin:0 auto;padding:0;background:#FFFFFF;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;padding:0;background-color:#F1F5F9;">
+      <tr>
+        <td align="center" style="padding:24px 16px;">
+          <table width="600" cellpadding="0" cellspacing="0" border="0"
+                 style="max-width:600px;width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#FFFFFF;">
 
-      <!-- Header -->
-      <div style="background:linear-gradient(135deg,{BRAND_COLOR},{BRAND_DARK});
-                  padding:32px 24px;text-align:center;border-radius:8px 8px 0 0;">
-        <h1 style="color:#FFFFFF;font-size:28px;margin:0;font-weight:700;letter-spacing:-0.5px;">
-          YieldIQ
-        </h1>
-        <p style="color:#BFDBFE;font-size:14px;margin:4px 0 0;">
-          Institutional-grade stock valuation
-        </p>
-      </div>
+            <!-- ═══ DARK HEADER ═══ -->
+            <tr>
+              <td style="background-color:{HEADER_DARK};padding:36px 32px 28px;text-align:center;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="center">
+                      <span style="display:inline-block;width:44px;height:44px;background-color:{BRAND_PRIMARY};
+                                    color:#FFFFFF;font-size:22px;font-weight:800;line-height:44px;
+                                    text-align:center;border-radius:10px;letter-spacing:-1px;">Y</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="padding-top:14px;">
+                      <span style="color:#FFFFFF;font-size:22px;font-weight:700;letter-spacing:4px;text-transform:uppercase;">YIELDIQ</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="padding-top:6px;">
+                      <span style="color:#94A3B8;font-size:13px;letter-spacing:0.5px;">Institutional-grade DCF valuation</span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
 
-      <!-- Body -->
-      <div style="padding:32px 24px;">
-        <h2 style="color:#111827;font-size:22px;margin:0 0 8px;">
-          Welcome to YieldIQ, {display_name}!
-        </h2>
-        <p style="color:#4B5563;font-size:15px;line-height:1.6;margin:0 0 24px;">
-          You now have access to DCF-powered stock analysis trusted by serious investors.
-          Here is how to get started:
-        </p>
+            <!-- ═══ GREETING ═══ -->
+            <tr>
+              <td style="padding:36px 32px 0;">
+                <h1 style="margin:0 0 6px;font-size:24px;font-weight:700;color:#0F172A;">Welcome, {display_name}</h1>
+                <p style="margin:0;font-size:16px;color:#64748B;line-height:1.5;">You're in. Here's your edge.</p>
+              </td>
+            </tr>
 
-        <!-- 3 Steps -->
-        <div style="margin:0 0 28px;">
-          <div style="display:flex;align-items:flex-start;margin-bottom:16px;">
-            <div style="flex-shrink:0;width:32px;height:32px;background:{BRAND_COLOR};
-                        color:#FFF;border-radius:50%;text-align:center;line-height:32px;
-                        font-weight:700;font-size:14px;margin-right:12px;">1</div>
-            <div>
-              <p style="color:#111827;font-weight:600;margin:0 0 2px;font-size:15px;">
-                Search a stock
-              </p>
-              <p style="color:#6B7280;font-size:13px;margin:0;">
-                Type any NSE ticker or company name
-              </p>
-            </div>
-          </div>
-          <div style="display:flex;align-items:flex-start;margin-bottom:16px;">
-            <div style="flex-shrink:0;width:32px;height:32px;background:{BRAND_COLOR};
-                        color:#FFF;border-radius:50%;text-align:center;line-height:32px;
-                        font-weight:700;font-size:14px;margin-right:12px;">2</div>
-            <div>
-              <p style="color:#111827;font-weight:600;margin:0 0 2px;font-size:15px;">
-                See fair value
-              </p>
-              <p style="color:#6B7280;font-size:13px;margin:0;">
-                Our 10-year DCF model calculates intrinsic value instantly
-              </p>
-            </div>
-          </div>
-          <div style="display:flex;align-items:flex-start;margin-bottom:16px;">
-            <div style="flex-shrink:0;width:32px;height:32px;background:{BRAND_COLOR};
-                        color:#FFF;border-radius:50%;text-align:center;line-height:32px;
-                        font-weight:700;font-size:14px;margin-right:12px;">3</div>
-            <div>
-              <p style="color:#111827;font-weight:600;margin:0 0 2px;font-size:15px;">
-                Make smarter decisions
-              </p>
-              <p style="color:#6B7280;font-size:13px;margin:0;">
-                Invest with confidence using margin of safety scores
-              </p>
-            </div>
-          </div>
-        </div>
+            <!-- ═══ 3 STEPS ═══ -->
+            <tr>
+              <td style="padding:28px 32px 0;">
+                <!-- Step 1 -->
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:12px;">
+                  <tr>
+                    <td style="background-color:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:16px 18px;">
+                      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                          <td width="36" valign="top">
+                            <span style="font-size:18px;line-height:1;">&#128269;</span>
+                          </td>
+                          <td valign="top" style="padding-left:4px;">
+                            <span style="font-size:12px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:1px;">Step 1</span>
+                            <p style="margin:4px 0 0;font-size:15px;font-weight:600;color:#0F172A;">Search any NSE/BSE stock</p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
 
-        <!-- CTA -->
-        <div style="text-align:center;margin:28px 0;">
-          <a href="{SITE_URL}/search"
-             style="display:inline-block;background:{BRAND_COLOR};color:#FFFFFF;
-                    padding:14px 32px;border-radius:8px;text-decoration:none;
-                    font-weight:600;font-size:16px;">
-            Analyze Your First Stock &rarr;
-          </a>
-        </div>
+                <!-- Step 2 -->
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:12px;">
+                  <tr>
+                    <td style="background-color:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:16px 18px;">
+                      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                          <td width="36" valign="top">
+                            <span style="font-size:18px;line-height:1;">&#128202;</span>
+                          </td>
+                          <td valign="top" style="padding-left:4px;">
+                            <span style="font-size:12px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:1px;">Step 2</span>
+                            <p style="margin:4px 0 0;font-size:15px;font-weight:600;color:#0F172A;">Get instant DCF fair value</p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
 
-        <!-- Free tier note -->
-        <div style="background:#F0F9FF;border:1px solid #BFDBFE;border-radius:8px;
-                    padding:16px;text-align:center;margin:24px 0;">
-          <p style="color:#1E40AF;font-size:14px;margin:0;">
-            <strong>Free tier:</strong> 5 analyses per day.
-            <a href="{SITE_URL}/pricing" style="color:{BRAND_COLOR};text-decoration:underline;">
-              Upgrade for unlimited
-            </a>.
-          </p>
-        </div>
-      </div>
+                <!-- Step 3 -->
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:12px;">
+                  <tr>
+                    <td style="background-color:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:16px 18px;">
+                      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                          <td width="36" valign="top">
+                            <span style="font-size:18px;line-height:1;">&#127919;</span>
+                          </td>
+                          <td valign="top" style="padding-left:4px;">
+                            <span style="font-size:12px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:1px;">Step 3</span>
+                            <p style="margin:4px 0 0;font-size:15px;font-weight:600;color:#0F172A;">Know before you invest</p>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
 
-      <!-- Footer -->
-      {_email_footer(email)}
-    </div>
+            <!-- ═══ CTA BUTTON ═══ -->
+            <tr>
+              <td align="center" style="padding:28px 32px 8px;">
+                <table cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="center" style="background-color:{BRAND_PRIMARY};border-radius:8px;">
+                      <a href="{SITE_URL}/search"
+                         style="display:inline-block;padding:14px 36px;color:#FFFFFF;
+                                font-size:16px;font-weight:600;text-decoration:none;
+                                letter-spacing:0.3px;">
+                        Analyze Your First Stock &rarr;
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- ═══ WHAT YOU GET ═══ -->
+            <tr>
+              <td style="padding:28px 32px 0;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                       style="background-color:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;">
+                  <tr>
+                    <td style="padding:20px 22px 8px;">
+                      <span style="font-size:13px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:1px;">What you get</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:0 22px 6px;">
+                      <p style="margin:0;font-size:14px;color:#334155;line-height:2;">
+                        &#10003;&nbsp; 15 valuation engines<br>
+                        &#10003;&nbsp; 2,900+ NSE/BSE stocks covered<br>
+                        &#10003;&nbsp; Bear / Base / Bull scenarios<br>
+                        &#10003;&nbsp; Free &mdash; 5 analyses per day
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:4px 22px 18px;">
+                      <a href="{SITE_URL}/pricing" style="font-size:13px;color:{BRAND_PRIMARY};text-decoration:underline;">
+                        Upgrade for unlimited &rarr;
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- ═══ FOOTER ═══ -->
+            <tr>
+              <td>
+                {_email_footer(email)}
+              </td>
+            </tr>
+
+          </table>
+        </td>
+      </tr>
+    </table>
     """
 
     return _send_email(email, subject, html)
@@ -352,134 +435,170 @@ def send_weekly_digest(email: str) -> bool:
 
     top_stocks = _get_top_undervalued_stocks(limit=5)
 
-    # Build stock rows
+    # Build stock cards
     if top_stocks:
-        stock_rows = ""
+        stock_cards = ""
         for i, s in enumerate(top_stocks):
             display_ticker = s["ticker"].replace(".NS", "").replace(".BO", "")
-            bg = "#F9FAFB" if i % 2 == 0 else "#FFFFFF"
             mos_display = f"+{s['mos_pct']:.0f}%" if s["mos_pct"] > 0 else f"{s['mos_pct']:.0f}%"
             vc = _verdict_color(s["verdict"])
-            stock_rows += f"""
-            <tr style="background:{bg};">
-              <td style="padding:12px 8px;font-weight:600;color:#111827;font-size:14px;">
-                {display_ticker}
-                <br><span style="font-weight:400;color:#6B7280;font-size:12px;">{s['company_name']}</span>
-              </td>
-              <td style="padding:12px 8px;text-align:center;font-weight:600;color:{BRAND_COLOR};font-size:14px;">
-                {s['score']}
-              </td>
-              <td style="padding:12px 8px;text-align:center;font-weight:600;color:#059669;font-size:14px;">
-                {mos_display}
-              </td>
-              <td style="padding:12px 8px;text-align:center;">
-                <span style="display:inline-block;background:{vc};color:#FFF;padding:2px 8px;
-                             border-radius:4px;font-size:12px;font-weight:600;">{s['verdict']}</span>
+            border_bottom = "border-bottom:1px solid #E2E8F0;" if i < len(top_stocks) - 1 else ""
+            stock_cards += f"""
+            <tr>
+              <td style="padding:16px 18px;{border_bottom}">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td width="32" valign="top">
+                      <span style="display:inline-block;width:28px;height:28px;background-color:{HEADER_DARK};
+                                    color:#FFFFFF;font-size:13px;font-weight:700;line-height:28px;
+                                    text-align:center;border-radius:6px;">#{i+1}</span>
+                    </td>
+                    <td valign="top" style="padding-left:12px;">
+                      <span style="font-size:15px;font-weight:700;color:#0F172A;">{display_ticker}</span>
+                      <span style="display:inline-block;background-color:{vc};color:#FFFFFF;font-size:11px;
+                                    font-weight:600;padding:1px 8px;border-radius:4px;margin-left:8px;
+                                    vertical-align:middle;">{s['verdict'].upper()}</span>
+                      <br>
+                      <span style="font-size:13px;color:#64748B;">Score {s['score']}</span>
+                      <span style="color:#CBD5E1;">&nbsp;&middot;&nbsp;</span>
+                      <span style="font-size:13px;font-weight:600;color:#059669;">{mos_display} MoS</span>
+                    </td>
+                  </tr>
+                </table>
               </td>
             </tr>
             """
         stocks_section = f"""
-        <h3 style="color:#111827;font-size:18px;margin:28px 0 12px;">
-          Top Undervalued Stocks This Week
-        </h3>
-        <table style="width:100%;border-collapse:collapse;border:1px solid #E5E7EB;border-radius:8px;">
-          <thead>
-            <tr style="background:#F3F4F6;">
-              <th style="padding:10px 8px;text-align:left;font-size:12px;color:#6B7280;
-                         text-transform:uppercase;letter-spacing:0.5px;">Stock</th>
-              <th style="padding:10px 8px;text-align:center;font-size:12px;color:#6B7280;
-                         text-transform:uppercase;letter-spacing:0.5px;">Score</th>
-              <th style="padding:10px 8px;text-align:center;font-size:12px;color:#6B7280;
-                         text-transform:uppercase;letter-spacing:0.5px;">MoS</th>
-              <th style="padding:10px 8px;text-align:center;font-size:12px;color:#6B7280;
-                         text-transform:uppercase;letter-spacing:0.5px;">Verdict</th>
-            </tr>
-          </thead>
-          <tbody>
-            {stock_rows}
-          </tbody>
+        <table width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="background-color:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;">
+          <tr>
+            <td style="padding:16px 18px 8px;">
+              <span style="font-size:18px;font-weight:700;color:#0F172A;">Top Opportunities This Week</span>
+            </td>
+          </tr>
+          {stock_cards}
         </table>
         """
     else:
         stocks_section = """
-        <div style="background:#F9FAFB;border-radius:8px;padding:24px;text-align:center;margin:20px 0;">
-          <p style="color:#6B7280;font-size:14px;margin:0;">
-            No screener data available this week. Check back next Monday!
-          </p>
-        </div>
+        <table width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="background-color:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;">
+          <tr>
+            <td style="padding:24px;text-align:center;">
+              <p style="color:#64748B;font-size:14px;margin:0;">
+                No screener data available this week. Check back next Monday!
+              </p>
+            </td>
+          </tr>
+        </table>
         """
 
     subject = f"YieldIQ Weekly Digest -- {week_start} to {week_end}"
 
     html = f"""
-    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
-                max-width:600px;margin:0 auto;padding:0;background:#FFFFFF;">
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;padding:0;background-color:#F1F5F9;">
+      <tr>
+        <td align="center" style="padding:24px 16px;">
+          <table width="600" cellpadding="0" cellspacing="0" border="0"
+                 style="max-width:600px;width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#FFFFFF;">
 
-      <!-- Header -->
-      <div style="background:linear-gradient(135deg,{BRAND_COLOR},{BRAND_DARK});
-                  padding:28px 24px;text-align:center;border-radius:8px 8px 0 0;">
-        <h1 style="color:#FFFFFF;font-size:24px;margin:0;font-weight:700;">
-          YieldIQ
-        </h1>
-        <p style="color:#BFDBFE;font-size:16px;margin:6px 0 0;font-weight:500;">
-          Weekly Market Insights
-        </p>
-        <p style="color:#93C5FD;font-size:13px;margin:4px 0 0;">
-          {week_start} &ndash; {week_end}
-        </p>
-      </div>
-
-      <!-- Body -->
-      <div style="padding:24px;">
-
-        {stocks_section}
-
-        <!-- CTA -->
-        <div style="text-align:center;margin:28px 0;">
-          <a href="{SITE_URL}/discover"
-             style="display:inline-block;background:{BRAND_COLOR};color:#FFFFFF;
-                    padding:12px 28px;border-radius:8px;text-decoration:none;
-                    font-weight:600;font-size:15px;">
-            See All on YieldIQ &rarr;
-          </a>
-        </div>
-
-        <!-- Market Pulse -->
-        <div style="background:#F9FAFB;border:1px solid #E5E7EB;border-radius:8px;
-                    padding:20px;margin:24px 0;">
-          <h3 style="color:#111827;font-size:16px;margin:0 0 12px;">
-            Market Pulse
-          </h3>
-          <table style="width:100%;border-collapse:collapse;">
+            <!-- ═══ DARK HEADER ═══ -->
             <tr>
-              <td style="padding:6px 0;color:#6B7280;font-size:14px;">Nifty 50</td>
-              <td style="padding:6px 0;text-align:right;font-weight:600;color:#111827;font-size:14px;">
-                --
-              </td>
-              <td style="padding:6px 0;text-align:right;color:#6B7280;font-size:13px;">
-                --
+              <td style="background-color:{HEADER_DARK};padding:32px 32px 24px;text-align:center;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="center">
+                      <span style="display:inline-block;width:40px;height:40px;background-color:{BRAND_PRIMARY};
+                                    color:#FFFFFF;font-size:20px;font-weight:800;line-height:40px;
+                                    text-align:center;border-radius:8px;letter-spacing:-1px;">Y</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="padding-top:12px;">
+                      <span style="color:#FFFFFF;font-size:20px;font-weight:700;letter-spacing:4px;text-transform:uppercase;">YIELDIQ WEEKLY</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td align="center" style="padding-top:6px;">
+                      <span style="color:#94A3B8;font-size:13px;">{week_start} &ndash; {week_end}</span>
+                    </td>
+                  </tr>
+                </table>
               </td>
             </tr>
+
+            <!-- ═══ STOCK CARDS ═══ -->
             <tr>
-              <td style="padding:6px 0;color:#6B7280;font-size:14px;">Sensex</td>
-              <td style="padding:6px 0;text-align:right;font-weight:600;color:#111827;font-size:14px;">
-                --
-              </td>
-              <td style="padding:6px 0;text-align:right;color:#6B7280;font-size:13px;">
-                --
+              <td style="padding:28px 32px 0;">
+                {stocks_section}
               </td>
             </tr>
+
+            <!-- ═══ CTA BUTTON ═══ -->
+            <tr>
+              <td align="center" style="padding:28px 32px 8px;">
+                <table cellpadding="0" cellspacing="0" border="0">
+                  <tr>
+                    <td align="center" style="background-color:{BRAND_PRIMARY};border-radius:8px;">
+                      <a href="{SITE_URL}/discover"
+                         style="display:inline-block;padding:14px 36px;color:#FFFFFF;
+                                font-size:15px;font-weight:600;text-decoration:none;">
+                        Explore All Stocks &rarr;
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- ═══ QUICK STATS ═══ -->
+            <tr>
+              <td style="padding:24px 32px 0;">
+                <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                       style="background-color:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;">
+                  <tr>
+                    <td style="padding:16px 18px 8px;">
+                      <span style="font-size:13px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:1px;">Quick Stats</span>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:0 18px;">
+                      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                        <tr>
+                          <td style="padding:6px 0;font-size:14px;color:#64748B;">Nifty 50</td>
+                          <td style="padding:6px 0;text-align:right;font-weight:600;color:#0F172A;font-size:14px;">&mdash;</td>
+                        </tr>
+                        <tr>
+                          <td style="padding:6px 0;font-size:14px;color:#64748B;">Sensex</td>
+                          <td style="padding:6px 0;text-align:right;font-weight:600;color:#0F172A;font-size:14px;">&mdash;</td>
+                        </tr>
+                        <tr>
+                          <td style="padding:6px 0;font-size:14px;color:#64748B;">Stocks analyzed</td>
+                          <td style="padding:6px 0;text-align:right;font-weight:600;color:#0F172A;font-size:14px;">2,900+</td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:8px 18px 16px;">
+                      <span style="font-size:11px;color:#94A3B8;">Live data available at yieldiq.in/market</span>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+
+            <!-- ═══ FOOTER ═══ -->
+            <tr>
+              <td>
+                {_email_footer(email)}
+              </td>
+            </tr>
+
           </table>
-          <p style="color:#9CA3AF;font-size:11px;margin:8px 0 0;">
-            Live data available on yieldiq.in/market
-          </p>
-        </div>
-
-      </div>
-
-      <!-- Footer -->
-      {_email_footer(email)}
-    </div>
+        </td>
+      </tr>
+    </table>
     """
 
     return _send_email(email, subject, html)
