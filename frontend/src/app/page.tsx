@@ -278,6 +278,188 @@ function MockHeatmap() {
   )
 }
 
+/* ── Scrolling ticker data ───────────────────────────── */
+const TICKER_DATA = [
+  { name: "RELIANCE", price: "2,943", change: 1.2 },
+  { name: "TCS", price: "3,890", change: -0.8 },
+  { name: "HDFCBANK", price: "1,642", change: 0.5 },
+  { name: "INFY", price: "1,580", change: -1.3 },
+  { name: "ITC", price: "438", change: 2.1 },
+  { name: "SBIN", price: "782", change: 0.9 },
+  { name: "BAJFINANCE", price: "8,240", change: -0.4 },
+  { name: "TATAMOTORS", price: "648", change: 1.7 },
+  { name: "SUNPHARMA", price: "1,820", change: 0.3 },
+  { name: "MARUTI", price: "12,450", change: -0.6 },
+  { name: "TITAN", price: "3,210", change: 1.1 },
+  { name: "WIPRO", price: "452", change: -1.8 },
+  { name: "AXISBANK", price: "1,128", change: 0.7 },
+  { name: "KOTAKBANK", price: "1,892", change: -0.2 },
+  { name: "LT", price: "3,640", change: 0.4 },
+]
+
+/* ── Animated line chart (draws on scroll) ───────────── */
+function AnimatedChart() {
+  const { ref, inView } = useInView(0.3)
+  // Generate a realistic stock price line
+  const points = [
+    40, 42, 38, 45, 50, 48, 55, 52, 58, 62, 56, 60, 65, 63, 70,
+    68, 72, 75, 71, 78, 82, 80, 85, 88, 84, 90, 87, 92, 95, 93,
+  ]
+  const w = 320, h = 120, pad = 8
+  const xStep = (w - pad * 2) / (points.length - 1)
+  const minY = Math.min(...points), maxY = Math.max(...points)
+  const scaleY = (v: number) => h - pad - ((v - minY) / (maxY - minY)) * (h - pad * 2)
+  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${pad + i * xStep} ${scaleY(p)}`).join(" ")
+  const areaD = pathD + ` L ${pad + (points.length - 1) * xStep} ${h - pad} L ${pad} ${h - pad} Z`
+
+  return (
+    <div ref={ref} className="relative">
+      <div className="absolute -inset-4 bg-green-500/5 rounded-3xl blur-xl" />
+      <div className="relative bg-[#0F172A] border border-white/10 rounded-2xl p-5 shadow-2xl">
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="text-white font-bold text-sm">RELIANCE.NS</div>
+            <div className="text-gray-500 text-[10px]">5-Year Price History</div>
+          </div>
+          <div className="text-right">
+            <div className="text-green-400 font-mono font-bold text-sm">+142%</div>
+            <div className="text-gray-500 text-[10px]">5Y Return</div>
+          </div>
+        </div>
+        <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-auto">
+          {/* Grid lines */}
+          {[0.25, 0.5, 0.75].map(pct => (
+            <line key={pct} x1={pad} y1={pad + pct * (h - pad * 2)} x2={w - pad} y2={pad + pct * (h - pad * 2)}
+              stroke="#1E293B" strokeWidth="1" />
+          ))}
+          {/* Area fill */}
+          <path d={areaD} fill="url(#chart-area-grad)" opacity={inView ? 0.3 : 0}
+            style={{ transition: "opacity 1s ease 0.5s" }} />
+          {/* Line */}
+          <path d={pathD} fill="none" stroke="url(#chart-line-grad)" strokeWidth="2.5" strokeLinecap="round"
+            strokeDasharray="1000" strokeDashoffset={inView ? 0 : 1000}
+            style={{ transition: "stroke-dashoffset 2s ease" }} />
+          {/* Current price dot */}
+          <circle cx={pad + (points.length - 1) * xStep} cy={scaleY(points[points.length - 1])}
+            r="4" fill="#10B981" opacity={inView ? 1 : 0}
+            style={{ transition: "opacity 0.3s ease 2s" }} />
+          <defs>
+            <linearGradient id="chart-line-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#3B82F6" />
+              <stop offset="100%" stopColor="#10B981" />
+            </linearGradient>
+            <linearGradient id="chart-area-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#10B981" />
+              <stop offset="100%" stopColor="transparent" />
+            </linearGradient>
+          </defs>
+        </svg>
+        {/* Price axis */}
+        <div className="flex justify-between text-[9px] text-gray-600 font-mono mt-1 px-1">
+          <span>2021</span><span>2022</span><span>2023</span><span>2024</span><span>2025</span><span>2026</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Animated bar chart (revenue growth) ─────────────── */
+function AnimatedBars() {
+  const { ref, inView } = useInView(0.3)
+  const bars = [
+    { year: "FY21", val: 65, color: "from-blue-500 to-blue-400" },
+    { year: "FY22", val: 78, color: "from-blue-500 to-cyan-400" },
+    { year: "FY23", val: 85, color: "from-blue-500 to-cyan-400" },
+    { year: "FY24", val: 92, color: "from-cyan-500 to-green-400" },
+    { year: "FY25", val: 100, color: "from-green-500 to-emerald-400" },
+  ]
+  return (
+    <div ref={ref} className="relative">
+      <div className="absolute -inset-4 bg-blue-500/5 rounded-3xl blur-xl" />
+      <div className="relative bg-[#0F172A] border border-white/10 rounded-2xl p-5 shadow-2xl">
+        <div className="text-white font-bold text-sm mb-1">Revenue Growth</div>
+        <div className="text-gray-500 text-[10px] mb-4">RELIANCE — 5-year trend (&#8377; Cr)</div>
+        <div className="flex items-end gap-3 h-28">
+          {bars.map((b, i) => (
+            <div key={b.year} className="flex-1 flex flex-col items-center gap-1">
+              <div className="w-full relative" style={{ height: `${b.val}%` }}>
+                <div
+                  className={`absolute bottom-0 w-full rounded-t-md bg-gradient-to-t ${b.color}`}
+                  style={{
+                    height: inView ? "100%" : "0%",
+                    transition: `height 0.8s ease ${i * 0.15}s`,
+                  }}
+                />
+              </div>
+              <span className="text-[9px] text-gray-500 font-mono">{b.year}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Interactive WACC slider demo ────────────────────── */
+function InteractiveWACCDemo() {
+  const [wacc, setWacc] = useState(12)
+  const baseFV = 3480
+  // Simple inverse relationship: lower WACC = higher fair value
+  const fairValue = Math.round(baseFV * (12 / wacc))
+  const mos = Math.round((fairValue / 2943 - 1) * 100)
+
+  return (
+    <div className="relative">
+      <div className="absolute -inset-4 bg-purple-500/5 rounded-3xl blur-xl" />
+      <div className="relative bg-[#0F172A] border border-white/10 rounded-2xl p-5 shadow-2xl">
+        <div className="text-white font-bold text-sm mb-1">Interactive DCF</div>
+        <div className="text-gray-500 text-[10px] mb-4">Drag to see fair value change in real-time</div>
+
+        {/* WACC Slider */}
+        <div className="mb-4">
+          <div className="flex justify-between text-[10px] mb-1.5">
+            <span className="text-gray-400">WACC (Discount Rate)</span>
+            <span className="text-cyan-400 font-mono font-bold">{wacc.toFixed(1)}%</span>
+          </div>
+          <input type="range" min={8} max={18} step={0.5} value={wacc}
+            onChange={e => setWacc(parseFloat(e.target.value))}
+            className="w-full h-1.5 rounded-full appearance-none cursor-pointer
+              bg-gradient-to-r from-green-500 via-cyan-500 to-red-500
+              [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4
+              [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-lg
+              [&::-webkit-slider-thumb]:shadow-cyan-500/30" />
+          <div className="flex justify-between text-[9px] text-gray-600 mt-1">
+            <span>8%</span><span>13%</span><span>18%</span>
+          </div>
+        </div>
+
+        {/* Result */}
+        <div className="bg-white/5 rounded-xl p-3 flex items-center justify-between">
+          <div>
+            <div className="text-gray-500 text-[10px]">Fair Value</div>
+            <div className="text-white font-black text-xl font-mono">&#8377;{fairValue.toLocaleString("en-IN")}</div>
+          </div>
+          <div className="text-right">
+            <div className="text-gray-500 text-[10px]">Margin of Safety</div>
+            <div className={`font-bold text-lg font-mono ${mos >= 0 ? "text-green-400" : "text-red-400"}`}>
+              {mos >= 0 ? "+" : ""}{mos}%
+            </div>
+          </div>
+        </div>
+        <div className="text-center mt-2">
+          <span className={`text-[10px] font-bold px-3 py-1 rounded-full ${
+            mos >= 15 ? "bg-green-500/20 text-green-400" :
+            mos >= 0 ? "bg-blue-500/20 text-blue-400" :
+            "bg-red-500/20 text-red-400"
+          }`}>
+            {mos >= 15 ? "Undervalued" : mos >= 0 ? "Fair Value" : "Overvalued"}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── FAQ Accordion ───────────────────────────────────── */
 const faqs = [
   { q: "What is DCF valuation?", a: "Discounted Cash Flow (DCF) estimates a stock's intrinsic value by projecting future free cash flows and discounting them back to present value. It tells you what a stock is actually worth based on fundamentals, not market sentiment." },
@@ -426,8 +608,23 @@ function LandingContent() {
         </div>
       </section>
 
+      {/* ── Scrolling Stock Ticker ────────────────────── */}
+      <section className="bg-[#0B1120] border-y border-white/5 py-2.5 overflow-hidden">
+        <div className="flex whitespace-nowrap" style={{ animation: "ticker-scroll 40s linear infinite" }}>
+          {[...TICKER_DATA, ...TICKER_DATA].map((t, i) => (
+            <div key={`${t.name}-${i}`} className="inline-flex items-center gap-2 px-5 text-xs">
+              <span className="text-gray-400 font-semibold">{t.name}</span>
+              <span className="text-white font-mono font-bold">&#8377;{t.price}</span>
+              <span className={`font-mono font-bold ${t.change >= 0 ? "text-green-400" : "text-red-400"}`}>
+                {t.change >= 0 ? "+" : ""}{t.change}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ── Trust Bar ─────────────────────────────────── */}
-      <section className="bg-gray-50 border-y border-gray-100 py-4">
+      <section className="bg-gray-50 border-b border-gray-100 py-4">
         <div className="max-w-6xl mx-auto px-4 flex items-center justify-center gap-4 flex-wrap text-gray-400 text-sm">
           <span className="text-gray-500 font-medium">Data sourced from</span>
           {["NSE", "BSE", "RBI", "yfinance"].map((s, i) => (
@@ -531,54 +728,56 @@ function LandingContent() {
             </div>
           </FadeIn>
 
-          {/* Showcase 2: Quality Snowflake */}
+          {/* Showcase 2: Animated Charts + Data */}
           <FadeIn>
             <div className="flex flex-col lg:flex-row-reverse items-center gap-12 mb-20">
               <div className="flex-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-50 text-cyan-600 text-xs font-bold mb-4">
-                  <Shield className="w-3.5 h-3.5" /> Quality Analysis
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-green-50 text-green-600 text-xs font-bold mb-4">
+                  <TrendingUp className="w-3.5 h-3.5" /> Historical Data
                 </div>
-                <h3 className="text-2xl font-black mb-3">5-Axis Quality Snowflake</h3>
+                <h3 className="text-2xl font-black mb-3">5 Years of Financial Data</h3>
                 <p className="text-gray-500 leading-relaxed mb-4">
-                  Radar chart scoring Value, Quality, Growth, Health, and Moat. See a stock&apos;s strengths
-                  and weaknesses at a glance. Powered by Piotroski F-Score, Moat detection, and 12 financial metrics.
+                  Price history, revenue trends, cash flow growth — all visualized instantly.
+                  Powered by 1M+ data points from NSE Bhavcopy, BSE filings, and RBI benchmarks.
                 </p>
                 <ul className="space-y-2">
-                  {["Value: DCF margin of safety", "Quality: Piotroski F-Score (0-9)", "Moat: competitive advantage detection"].map(f => (
+                  {["Self-drawing price charts on scroll", "Revenue & FCF growth bars", "1M+ price records across 2,900+ stocks"].map(f => (
                     <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
-                      <div className="w-1.5 h-1.5 rounded-full bg-cyan-500" /> {f}
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-500" /> {f}
                     </li>
                   ))}
                 </ul>
               </div>
-              <div className="flex-shrink-0 hidden md:block">
-                <MockRadarChart />
+              <div className="flex-shrink-0 hidden md:flex flex-col gap-4">
+                <AnimatedChart />
+                <AnimatedBars />
               </div>
             </div>
           </FadeIn>
 
-          {/* Showcase 3: Sensitivity Heatmap */}
+          {/* Showcase 3: Interactive DCF */}
           <FadeIn>
             <div className="flex flex-col lg:flex-row items-center gap-12">
               <div className="flex-1">
-                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-50 text-amber-600 text-xs font-bold mb-4">
-                  <TrendingUp className="w-3.5 h-3.5" /> Scenario Analysis
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-50 text-purple-600 text-xs font-bold mb-4">
+                  <Target className="w-3.5 h-3.5" /> Try It Now
                 </div>
-                <h3 className="text-2xl font-black mb-3">Sensitivity Heatmap</h3>
+                <h3 className="text-2xl font-black mb-3">Interactive DCF Engine</h3>
                 <p className="text-gray-500 leading-relaxed mb-4">
-                  See how fair value changes across 25 combinations of WACC and growth rates.
-                  Instantly identify the range of possible valuations and your margin of safety.
+                  Drag the WACC slider and watch the fair value change in real-time.
+                  No black box — every assumption is visible and adjustable.
+                  <span className="font-semibold text-gray-700"> Try it right here.</span>
                 </p>
                 <ul className="space-y-2">
-                  {["25-cell WACC x Growth matrix", "Color-coded risk visualization", "Instantly adjust assumptions"].map(f => (
+                  {["Real-time fair value recalculation", "WACC, growth rate, terminal value sliders", "Instant Undervalued/Overvalued verdict"].map(f => (
                     <li key={f} className="flex items-center gap-2 text-sm text-gray-600">
-                      <div className="w-1.5 h-1.5 rounded-full bg-amber-500" /> {f}
+                      <div className="w-1.5 h-1.5 rounded-full bg-purple-500" /> {f}
                     </li>
                   ))}
                 </ul>
               </div>
               <div className="flex-shrink-0 hidden md:block">
-                <MockHeatmap />
+                <InteractiveWACCDemo />
               </div>
             </div>
           </FadeIn>
