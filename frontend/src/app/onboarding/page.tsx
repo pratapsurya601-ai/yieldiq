@@ -1,5 +1,5 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useSettingsStore } from "@/store/settingsStore"
 
@@ -26,8 +26,19 @@ const STOCKS = [
 
 export default function OnboardingPage() {
   const [step, setStep] = useState(0)
-  const { setInvestorType, completeOnboarding, toggleLearnMode } = useSettingsStore()
+  const [mounted, setMounted] = useState(false)
+  const { onboardingComplete, setInvestorType, completeOnboarding, toggleLearnMode } = useSettingsStore()
   const router = useRouter()
+
+  // Wait for Zustand to rehydrate before doing anything
+  useEffect(() => setMounted(true), [])
+
+  // If already completed onboarding, redirect to home
+  useEffect(() => {
+    if (mounted && onboardingComplete) {
+      router.replace("/home")
+    }
+  }, [mounted, onboardingComplete, router])
 
   const handleInvestorType = (type: "beginner" | "intermediate" | "advanced") => {
     setInvestorType(type)
