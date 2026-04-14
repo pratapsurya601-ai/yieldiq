@@ -154,7 +154,29 @@ export default function AnalysisPage() {
           fcfDataSource={valuation.fcf_data_source}
         />
 
-        <ActionBar ticker={ticker} currentPrice={valuation.current_price} />
+        <ActionBar
+          ticker={ticker}
+          currentPrice={valuation.current_price}
+          companyName={company.company_name}
+          sector={company.sector}
+          currency={company.currency}
+          fairValue={valuation.fair_value}
+          mos={valuation.margin_of_safety}
+          verdict={valuation.verdict}
+          score={quality.yieldiq_score}
+          grade={quality.grade}
+          piotroski={quality.piotroski_score}
+          moat={quality.moat}
+          moatScore={quality.moat_score}
+          wacc={valuation.wacc}
+          fcfGrowth={valuation.fcf_growth_rate}
+          confidence={valuation.confidence_score}
+          bearCase={data.scenarios?.bear?.iv ?? valuation.bear_case}
+          baseCase={data.scenarios?.base?.iv ?? valuation.base_case}
+          bullCase={data.scenarios?.bull?.iv ?? valuation.bull_case}
+          bearMos={data.scenarios?.bear?.mos_pct ?? 0}
+          bullMos={data.scenarios?.bull?.mos_pct ?? 0}
+        />
 
         <Link href={`/compare?stock1=${ticker}`} className="text-xs text-blue-600 hover:underline">
           Compare with another stock &rarr;
