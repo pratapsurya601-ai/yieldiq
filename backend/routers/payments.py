@@ -13,8 +13,11 @@ if _ROOT not in sys.path:
 
 router = APIRouter(prefix="/api/v1/payments", tags=["payments"])
 
-RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "rzp_test_ScvhGo30dfN6Ec")
+RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "")
 RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
+if not RAZORPAY_KEY_ID:
+    import logging as _rl
+    _rl.getLogger("yieldiq.payments").warning("RAZORPAY_KEY_ID not set — payments disabled")
 
 
     # Debug endpoint removed — live payments active

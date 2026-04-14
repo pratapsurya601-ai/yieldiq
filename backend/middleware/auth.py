@@ -23,7 +23,12 @@ except ImportError:
 from backend.middleware.rate_limit import rate_limiter
 
 # JWT config
-JWT_SECRET = os.environ.get("JWT_SECRET", os.environ.get("YIELDIQ_JWT_SECRET", "yieldiq-secret-change-me-in-production"))
+JWT_SECRET = os.environ.get("JWT_SECRET") or os.environ.get("YIELDIQ_JWT_SECRET") or ""
+if not JWT_SECRET:
+    import logging as _jl
+    _jl.getLogger("yieldiq.auth").critical("JWT_SECRET not set — using random secret (tokens won't persist across restarts)")
+    import secrets
+    JWT_SECRET = secrets.token_hex(32)
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRE_DAYS = 7
 
