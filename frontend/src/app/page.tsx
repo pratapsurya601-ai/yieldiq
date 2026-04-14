@@ -927,8 +927,8 @@ function LandingContent() {
               <div>
                 <h4 className="text-gray-300 font-semibold text-sm mb-3">Legal</h4>
                 <div className="space-y-2">
-                  <Link href="#" className="block text-gray-500 text-sm hover:text-gray-300 transition">Privacy</Link>
-                  <Link href="#" className="block text-gray-500 text-sm hover:text-gray-300 transition">Terms</Link>
+                  <Link href="/privacy" className="block text-gray-500 text-sm hover:text-gray-300 transition">Privacy</Link>
+                  <Link href="/terms" className="block text-gray-500 text-sm hover:text-gray-300 transition">Terms</Link>
                 </div>
               </div>
             </div>

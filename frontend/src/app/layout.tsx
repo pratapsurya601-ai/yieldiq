@@ -12,7 +12,7 @@ const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_ID || "";
 export const metadata: Metadata = {
   title: "YieldIQ — Know if a stock is undervalued",
   description:
-    "Free DCF valuation for NSE & BSE stocks. YieldIQ Score, margin of safety, Piotroski F-Score, and AI insights for Indian investors.",
+    "Free DCF valuation for 2,900+ NSE/BSE stocks. Instant fair value, margin of safety, and quality scores.",
   manifest: "/manifest.json",
   icons: {
     icon: "/logo-new.svg",
@@ -22,6 +22,19 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "YieldIQ",
+  },
+  openGraph: {
+    title: "YieldIQ — Know if a stock is undervalued",
+    description: "Free DCF valuation for 2,900+ NSE/BSE stocks. Instant fair value, margin of safety, and quality scores.",
+    url: "https://yieldiq.in",
+    siteName: "YieldIQ",
+    type: "website",
+    locale: "en_IN",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "YieldIQ — Stock Valuation for Indian Investors",
+    description: "Free DCF analysis for NSE/BSE stocks. Know the fair value before you invest.",
   },
 };
 

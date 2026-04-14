@@ -234,6 +234,10 @@ export default function PricingPage() {
             <img src="/logo-new.svg" alt="YieldIQ" className="w-6 h-6 rounded-md" />
             <span className="text-gray-400 text-sm">&copy; 2026 YieldIQ. Made in India.</span>
           </div>
+          <div className="flex items-center gap-4 text-xs">
+            <Link href="/terms" className="text-gray-500 hover:text-gray-300 transition">Terms</Link>
+            <Link href="/privacy" className="text-gray-500 hover:text-gray-300 transition">Privacy</Link>
+          </div>
           <p className="text-gray-600 text-xs">
             Model output only &mdash; not investment advice. YieldIQ is not registered with SEBI as an investment adviser.
           </p>

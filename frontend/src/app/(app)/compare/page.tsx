@@ -182,12 +182,13 @@ function CompareRow({
 
 function CompareContent() {
   const searchParams = useSearchParams()
-  const preselected = searchParams.get("stock1") || ""
+  const preselected1 = searchParams.get("stock1") || ""
+  const preselected2 = searchParams.get("stock2") || ""
 
-  const [ticker1, setTicker1] = useState(preselected)
-  const [name1, setName1] = useState(preselected ? preselected.replace(".NS", "").replace(".BO", "") : "")
-  const [ticker2, setTicker2] = useState("")
-  const [name2, setName2] = useState("")
+  const [ticker1, setTicker1] = useState(preselected1)
+  const [name1, setName1] = useState(preselected1 ? preselected1.replace(".NS", "").replace(".BO", "") : "")
+  const [ticker2, setTicker2] = useState(preselected2)
+  const [name2, setName2] = useState(preselected2 ? preselected2.replace(".NS", "").replace(".BO", "") : "")
 
   const bothSelected = !!ticker1 && !!ticker2
 
@@ -237,8 +238,8 @@ function CompareContent() {
       </div>
 
       {/* Stock pickers */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
+      <div className="flex items-end gap-2">
+        <div className="flex-1">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Stock 1</p>
           <StockSearchInput
             value={name1}
@@ -246,7 +247,20 @@ function CompareContent() {
             placeholder="Search... e.g. Reliance"
           />
         </div>
-        <div>
+        <button
+          onClick={() => {
+            const t1 = ticker1, n1 = name1
+            setTicker1(ticker2); setName1(name2)
+            setTicker2(t1); setName2(n1)
+          }}
+          className="mb-0.5 p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition text-gray-400 hover:text-gray-600 shrink-0"
+          title="Swap stocks"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7.5 21L3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+          </svg>
+        </button>
+        <div className="flex-1">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Stock 2</p>
           <StockSearchInput
             value={name2}
