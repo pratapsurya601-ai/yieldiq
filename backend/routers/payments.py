@@ -17,30 +17,7 @@ RAZORPAY_KEY_ID = os.environ.get("RAZORPAY_KEY_ID", "rzp_test_ScvhGo30dfN6Ec")
 RAZORPAY_KEY_SECRET = os.environ.get("RAZORPAY_KEY_SECRET", "")
 
 
-@router.get("/debug")
-async def payment_debug():
-    """Check if Razorpay keys are configured and test connection."""
-    result = {
-        "key_id": RAZORPAY_KEY_ID[:12] + "..." if RAZORPAY_KEY_ID else "NOT SET",
-        "secret_configured": bool(RAZORPAY_KEY_SECRET and len(RAZORPAY_KEY_SECRET) > 5),
-        "secret_length": len(RAZORPAY_KEY_SECRET) if RAZORPAY_KEY_SECRET else 0,
-        "mode": "test" if "test" in RAZORPAY_KEY_ID else "live" if "live" in RAZORPAY_KEY_ID else "unknown",
-    }
-    # Test actual Razorpay connection
-    try:
-        import razorpay
-        client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
-        order = client.order.create({
-            "amount": 100,  # ₹1 test
-            "currency": "INR",
-            "receipt": "debug_test",
-        })
-        result["connection"] = "OK"
-        result["test_order_id"] = order.get("id", "")[:20]
-    except Exception as e:
-        result["connection"] = "FAILED"
-        result["error"] = f"{type(e).__name__}: {str(e)}"
-    return result
+    # Debug endpoint removed — live payments active
 
 PLANS = {
     "starter": {
