@@ -558,9 +558,24 @@ class AnalysisService:
         # ── Step 7: Quality checks ────────────────────────────
         piotroski = compute_piotroski_fscore(enriched)
         if is_financial:
-            moat_result = {"grade": "N/A (Financial)", "score": 0}
+            moat_result = compute_moat_score(enriched, wacc)
         else:
             moat_result = compute_moat_score(enriched, wacc)
+
+        # Apply moat IV adjustment for non-financial stocks
+        if not is_financial and moat_result.get("grade") not in ("None", "N/A (Financial)"):
+            try:
+                moat_adj = apply_moat_adjustments(
+                    moat_result=moat_result, wacc=wacc, base_growth=base_growth,
+                    terminal_g=terminal_g, iv=iv_raw,
+                    sector=enriched.get("sector", "general"),
+                )
+                _iv_delta = moat_adj.get("iv_delta_pct", 0) / 100
+                iv = round(iv * (1 + _iv_delta), 2)
+                iv_raw = iv
+            except Exception:
+                pass
+
         try:
             eq_result = compute_earnings_quality(enriched)
         except Exception:

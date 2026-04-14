@@ -157,22 +157,22 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     median_val = candidates.get("median_recent_fcf", 0)
     p75_val    = candidates.get("hist_p75_margin", 0)
 
-    # Primary: best of latest_fcf, nopat_proxy, and max_recent_fcf
-    # Including max_recent_fcf avoids trough-year bias (e.g. TSLA FY2022 negative FCF
-    # drags CAGR negative even though FY2023/2024 FCF recovered to $4.4B)
-    primary = max(latest_val, nopat_val, max_val)
-
-    # Secondary check: don't let primary exceed 2× median if median exists
-    # (prevents outlier high year from inflating the base)
-    if median_val > 0 and primary > median_val * 2.5:
-        primary = median_val * 2.0
-        method  = "capped_at_2x_median"
+    # Primary: median of latest_fcf, nopat_proxy, and max_recent_fcf
+    # Using median instead of max prevents one outlier year from inflating the base
+    valid_candidates = [v for v in [latest_val, nopat_val, max_val] if v > 0]
+    if not valid_candidates:
+        primary = 0
+    elif len(valid_candidates) == 1:
+        primary = valid_candidates[0]
+    elif len(valid_candidates) == 2:
+        primary = min(valid_candidates)
     else:
-        method = "max(latest_fcf, nopat_proxy)"
+        primary = float(sorted(valid_candidates)[1])  # median
 
-    # Final floor: never go below 60% of NOPAT (true earning power)
     nopat_floor = nopat_val * 0.60
-    base = max(primary, nopat_floor)
+    base = max(primary, nopat_floor) if nopat_val > 0 else primary
+
+    method = "median(latest_fcf, nopat_proxy, max_recent_fcf)"
 
     log.debug(f"[{ticker}] FCF base: ₹{base/1e7:.0f}Cr ({method})")
     return base, method
@@ -302,10 +302,10 @@ def _rule_based_growth(enriched: dict) -> float:
     latest_fcf = enriched.get("latest_fcf", 0)
     _ticker_dbg = enriched.get('ticker', '?')
     _growth_floor = LONG_RUN_TARGET * 0.5
-    print(f"GROWTH_CHECK {_ticker_dbg}: blended={blended_growth:.4f} mean_rev={mean_reverted:.4f} fcf={latest_fcf} floor={_growth_floor:.4f}")
+    log.debug(f"GROWTH_CHECK {_ticker_dbg}: blended={blended_growth:.4f} mean_rev={mean_reverted:.4f} fcf={latest_fcf} floor={_growth_floor:.4f}")
     if latest_fcf > 0 and mean_reverted < _growth_floor:
         mean_reverted = _growth_floor
-        print(f"GROWTH_FLOORED {_ticker_dbg}: set to {mean_reverted:.4f}")
+        log.debug(f"GROWTH_FLOORED {_ticker_dbg}: set to {mean_reverted:.4f}")
 
     return _clamp(mean_reverted)
 

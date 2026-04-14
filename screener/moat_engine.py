@@ -126,8 +126,13 @@ def _signal_roic_quality(enriched: dict, wacc: float) -> tuple[int, str]:
         return 4, "Cannot compute ROIC — no revenue/margin"
 
     nopat = latest_rev * op_margin * (1 - tax_rate)
-    # Invested capital proxy: debt + 40% of revenue (tangible assets)
-    ic    = max(total_debt + latest_rev * 0.40, latest_rev * 0.10)
+    # Invested capital: equity + debt - cash (proper IC formula)
+    total_equity = enriched.get("total_equity", 0) or 0
+    total_cash_ic = enriched.get("total_cash", 0) or 0
+    if total_equity > 0:
+        ic = max(total_equity + total_debt - total_cash_ic, latest_rev * 0.10)
+    else:
+        ic = max(total_debt + latest_rev * 0.25, latest_rev * 0.10)
     roic  = nopat / ic if ic > 0 else 0
     spread = roic - wacc
 
@@ -368,12 +373,41 @@ def compute_moat_score(enriched: dict, wacc: float) -> dict:
     """
     ticker = enriched.get("ticker", "?")
 
-    # DCF unreliable companies (banks, fin services) → skip moat
+    # Financial companies (dcf_reliable=False): partial moat using 3 applicable signals
+    # Banks DO have moats (brand, network, scale) — don't skip them entirely
     if not enriched.get("dcf_reliable", True):
+        # Still skip truly unusable data (price=0, no revenue)
+        if enriched.get("price", 0) <= 0 or enriched.get("latest_revenue", 0) <= 0:
+            return {
+                "score": 0, "grade": "None",
+                "moat_types": [], "summary": "Insufficient data for moat assessment",
+                "signals": {}, "wacc_adj": 0, "growth_adj": 0, "iv_delta_pct": 0,
+            }
+        # Use 3 signals applicable to financials: pricing power, ROIC quality, revenue stability
+        s1, d1 = _signal_pricing_power(enriched)
+        s2, d2 = _signal_roic_quality(enriched, wacc)
+        s3, d3 = _signal_revenue_stability(enriched)
+        # 3 signals × 20 pts = 60 max → scale to 100
+        raw_total = s1 + s2 + s3
+        total = round(raw_total * 100 / 60)
+        signals = {
+            "Pricing Power":  (s1, d1),
+            "ROIC Quality":   (s2, d2),
+            "Rev Stability":  (s3, d3),
+        }
+        if total >= 70:
+            grade = "Wide"
+        elif total >= 40:
+            grade = "Narrow"
+        else:
+            grade = "None"
+        moat_types = _detect_moat_types(enriched, total)
+        summary = f"{grade} moat (financial). Score {total}/100 (scaled from {raw_total}/60)."
+        log.info(f"[{ticker}] Moat (financial): {grade} ({total}/100) — {', '.join(moat_types) if moat_types else summary}")
         return {
-            "score": 0, "grade": "None",
-            "moat_types": [], "summary": "DCF unreliable — moat not assessed",
-            "signals": {}, "wacc_adj": 0, "growth_adj": 0, "iv_delta_pct": 0,
+            "score": total, "grade": grade,
+            "moat_types": moat_types, "summary": summary,
+            "signals": signals,
         }
 
     # Op margin < 8% → commodity / no-moat business

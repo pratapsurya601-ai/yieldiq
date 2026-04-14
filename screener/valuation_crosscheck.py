@@ -44,9 +44,9 @@ log = get_logger(__name__)
 # Based on historical median PE for quality large-caps in each sector
 SECTOR_PE = {
     # ── Indian sectors ─────────────────────────────────────────────
-    "fmcg":           {"pe_median": 55, "pe_bear": 40, "pe_bull": 75},
-    "pharma":         {"pe_median": 45, "pe_bear": 32, "pe_bull": 65},
-    "hospital":       {"pe_median": 55, "pe_bear": 40, "pe_bull": 80},
+    "fmcg":           {"pe_median": 48, "pe_bear": 35, "pe_bull": 65},
+    "pharma":         {"pe_median": 32, "pe_bear": 22, "pe_bull": 48},
+    "hospital":       {"pe_median": 40, "pe_bear": 28, "pe_bull": 58},
     "it_services":    {"pe_median": 24, "pe_bear": 18, "pe_bull": 30},
     "tech_hardware":  {"pe_median": 30, "pe_bear": 22, "pe_bull": 40},
     "auto_oem":       {"pe_median": 25, "pe_bear": 18, "pe_bull": 35},
@@ -89,9 +89,9 @@ SECTOR_PE = {
 # Metals, oil → DCF is more reliable
 SECTOR_PE_WEIGHT = {
     # ── Indian sectors ─────────────────────────────────────────────
-    "fmcg":           0.65,
-    "pharma":         0.85,
-    "hospital":       0.80,
+    "fmcg":           0.45,
+    "pharma":         0.55,
+    "hospital":       0.55,
     "it_services":    0.35,
     "saas_software":  0.55,
     "tech_hardware":  0.40,
