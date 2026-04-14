@@ -87,10 +87,8 @@ export default function AccountPage() {
       {/* Profile */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
         <div className="flex items-center gap-4">
-          {/* Avatar placeholder with YieldIQ logo */}
-          <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center flex-shrink-0 shadow-md">
-            <span className="text-white font-black text-lg">YQ</span>
-          </div>
+          {/* YieldIQ logo */}
+          <img src="/logo-new.svg" alt="YieldIQ" className="w-14 h-14 rounded-xl flex-shrink-0 shadow-md" />
           <div className="flex-1 min-w-0">
             <p className="font-medium text-gray-900 truncate">{email || "Not signed in"}</p>
             <div className="flex items-center gap-2 mt-1">
