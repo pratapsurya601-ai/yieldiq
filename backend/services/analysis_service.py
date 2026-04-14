@@ -20,7 +20,7 @@ if _DASHBOARD_ROOT not in sys.path:
 
 from backend.models.responses import (
     AnalysisResponse, ValuationOutput, QualityOutput,
-    InsightCards, CompanyInfo, ScenariosOutput, ScenarioCase,
+    InsightCards, BulkDealItem, CompanyInfo, ScenariosOutput, ScenarioCase,
     PriceLevels, ScreenerStock,
 )
 
@@ -105,6 +105,143 @@ def _resolve_sector(raw_sector: str) -> str:
     return SECTOR_OVERRIDES.get(raw_sector, raw_sector)
 
 
+def _get_pipeline_session():
+    """Get a DB session from the data pipeline, or None if unavailable."""
+    try:
+        from data_pipeline.db import Session as PipelineSession
+        if PipelineSession is not None:
+            return PipelineSession()
+    except Exception:
+        pass
+    return None
+
+
+def _query_ttm_financials(ticker: str):
+    """
+    Query TTM financials from local DB.
+    Returns dict with fcf, revenue, pat or None if unavailable.
+    """
+    db = _get_pipeline_session()
+    if db is None:
+        return None
+    try:
+        from data_pipeline.models import Financials
+        from sqlalchemy import desc
+        # Strip .NS/.BO suffix for DB lookup
+        db_ticker = ticker.replace(".NS", "").replace(".BO", "")
+        row = (
+            db.query(Financials)
+            .filter(Financials.ticker == db_ticker, Financials.period_type == "ttm")
+            .order_by(desc(Financials.period_end))
+            .first()
+        )
+        if row and row.free_cash_flow is not None:
+            return {
+                "fcf": row.free_cash_flow,
+                "revenue": row.revenue,
+                "pat": row.pat,
+                "period_end": str(row.period_end) if row.period_end else None,
+                "source": "ttm",
+            }
+        return None
+    except Exception:
+        return None
+    finally:
+        db.close()
+
+
+def _query_latest_annual_financials(ticker: str):
+    """
+    Query latest annual financials from local DB.
+    Returns dict with fcf, revenue, pat or None if unavailable.
+    """
+    db = _get_pipeline_session()
+    if db is None:
+        return None
+    try:
+        from data_pipeline.models import Financials
+        from sqlalchemy import desc
+        db_ticker = ticker.replace(".NS", "").replace(".BO", "")
+        row = (
+            db.query(Financials)
+            .filter(Financials.ticker == db_ticker, Financials.period_type == "annual")
+            .order_by(desc(Financials.period_end))
+            .first()
+        )
+        if row and row.free_cash_flow is not None:
+            return {
+                "fcf": row.free_cash_flow,
+                "revenue": row.revenue,
+                "pat": row.pat,
+                "period_end": str(row.period_end) if row.period_end else None,
+                "source": "annual",
+            }
+        return None
+    except Exception:
+        return None
+    finally:
+        db.close()
+
+
+def _query_promoter_pledge(ticker: str):
+    """Query promoter pledge % from ShareholdingPattern table."""
+    db = _get_pipeline_session()
+    if db is None:
+        return None
+    try:
+        from data_pipeline.models import ShareholdingPattern
+        from sqlalchemy import desc
+        db_ticker = ticker.replace(".NS", "").replace(".BO", "")
+        row = (
+            db.query(ShareholdingPattern)
+            .filter(ShareholdingPattern.ticker == db_ticker)
+            .order_by(desc(ShareholdingPattern.quarter_end))
+            .first()
+        )
+        if row and row.promoter_pledge_pct is not None:
+            return float(row.promoter_pledge_pct)
+        return None
+    except Exception:
+        return None
+    finally:
+        db.close()
+
+
+def _query_bulk_deals(ticker: str, days: int = 90) -> list[dict]:
+    """Query recent bulk/block deals from BulkDeal table."""
+    db = _get_pipeline_session()
+    if db is None:
+        return []
+    try:
+        from data_pipeline.models import BulkDeal
+        from sqlalchemy import desc
+        from datetime import timedelta
+        db_ticker = ticker.replace(".NS", "").replace(".BO", "")
+        cutoff = datetime.now().date() - timedelta(days=days)
+        rows = (
+            db.query(BulkDeal)
+            .filter(BulkDeal.ticker == db_ticker, BulkDeal.trade_date >= cutoff)
+            .order_by(desc(BulkDeal.trade_date))
+            .limit(10)
+            .all()
+        )
+        deals = []
+        for r in rows:
+            deals.append({
+                "date": str(r.trade_date) if r.trade_date else "",
+                "client": r.client_name or "",
+                "deal_type": r.deal_type or "",
+                "qty_lakh": round(float(r.quantity or 0) / 1e5, 2),
+                "price": float(r.price or 0),
+                "category": r.deal_category or "",
+            })
+        return deals
+    except Exception:
+        return []
+    finally:
+        db.close()
+
+
 class AnalysisService:
     """Orchestrates full stock analysis using existing engines."""
 
@@ -174,6 +311,24 @@ class AnalysisService:
         )
 
         # ── Step 5: WACC + Forecast ───────────────────────────
+        # Try TTM data from local DB first, then annual, then yfinance
+        _fcf_data_source = "yfinance"
+        _ttm_data = _query_ttm_financials(ticker)
+        if _ttm_data:
+            _fcf_data_source = "ttm"
+            if _ttm_data.get("fcf") is not None:
+                enriched["latest_fcf"] = _ttm_data["fcf"]
+            if _ttm_data.get("revenue") is not None:
+                enriched["latest_revenue"] = _ttm_data["revenue"]
+            if _ttm_data.get("pat") is not None:
+                enriched["latest_pat"] = _ttm_data["pat"]
+        else:
+            _annual_data = _query_latest_annual_financials(ticker)
+            if _annual_data:
+                _fcf_data_source = "annual"
+                if _annual_data.get("fcf") is not None and not enriched.get("latest_fcf"):
+                    enriched["latest_fcf"] = _annual_data["fcf"]
+
         forecaster = FCFForecaster()
         try:
             from models.forecaster import compute_wacc as _compute_wacc
@@ -319,6 +474,9 @@ class AnalysisService:
         if _promoter_pledge is None:
             # Try fetching from enriched data or shareholding
             _promoter_pledge = enriched.get("promoter_pledge_pct")
+        if _promoter_pledge is None:
+            # Fall back to ShareholdingPattern DB table
+            _promoter_pledge = _query_promoter_pledge(ticker)
         if _promoter_pledge is not None:
             try:
                 _pledge_val = float(_promoter_pledge)
@@ -348,6 +506,16 @@ class AnalysisService:
             verdict = "overvalued"
         else:
             verdict = "avoid"
+
+        # ── Bulk deals for insider activity ──────────────────
+        _bulk_deals_raw = _query_bulk_deals(ticker, days=90)
+        _bulk_deals = [
+            BulkDealItem(
+                date=d["date"], client=d["client"], deal_type=d["deal_type"],
+                qty_lakh=d["qty_lakh"], price=d["price"], category=d["category"],
+            )
+            for d in _bulk_deals_raw
+        ]
 
         # ── Assemble response ─────────────────────────────────
         return AnalysisResponse(
@@ -382,6 +550,7 @@ class AnalysisService:
                 pv_terminal=round(dcf_res.get("pv_tv", 0), 0),
                 enterprise_value=round(dcf_res.get("enterprise_value", 0), 0),
                 equity_value=round(dcf_res.get("equity_value", 0), 0),
+                fcf_data_source=_fcf_data_source,
             ),
             quality=QualityOutput(
                 yieldiq_score=yiq_score.get("score", 0),
@@ -412,6 +581,7 @@ class AnalysisService:
                 fcf_yield=fcf_yield.get("fcf_yield"),
                 ev_ebitda=eveb.get("current_ev_ebitda") or enriched.get("ev_to_ebitda"),
                 reverse_dcf_implied_growth=rdcf.get("implied_growth"),
+                bulk_deals=_bulk_deals,
             ),
             scenarios=ScenariosOutput(
                 bear=_sc("Bear case") if scenarios_raw.get("Bear case") else _sc("Bear 🐻"),

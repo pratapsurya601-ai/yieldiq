@@ -25,7 +25,7 @@ class ValuationOutput(BaseModel):
     fair_value: float
     current_price: float
     margin_of_safety: float
-    verdict: Literal["undervalued", "fairly_valued", "overvalued", "avoid"]
+    verdict: Literal["undervalued", "fairly_valued", "overvalued", "avoid", "data_limited"]
     bear_case: float = 0
     base_case: float = 0
     bull_case: float = 0
@@ -46,6 +46,7 @@ class ValuationOutput(BaseModel):
     margin_of_safety_display: float = 0
     mos_is_extreme: bool = False
     mos_extreme_note: str | None = None
+    fcf_data_source: str = ""  # "ttm", "annual", or "yfinance"
 
 
 class QualityOutput(BaseModel):
@@ -65,6 +66,15 @@ class QualityOutput(BaseModel):
     de_ratio: Optional[float] = None
 
 
+class BulkDealItem(BaseModel):
+    date: str = ""
+    client: str = ""
+    deal_type: str = ""  # BUY / SELL
+    qty_lakh: float = 0
+    price: float = 0
+    category: str = ""  # bulk / block
+
+
 class InsightCards(BaseModel):
     patience_months: Optional[int] = None
     red_flag_count: int = 0
@@ -79,6 +89,7 @@ class InsightCards(BaseModel):
     fcf_yield: Optional[float] = None
     ev_ebitda: Optional[float] = None
     reverse_dcf_implied_growth: Optional[float] = None
+    bulk_deals: list[BulkDealItem] = []
 
 
 class ScenarioCase(BaseModel):

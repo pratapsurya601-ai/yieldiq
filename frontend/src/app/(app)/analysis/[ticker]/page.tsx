@@ -143,6 +143,7 @@ export default function AnalysisPage() {
           wacc={valuation.wacc} waccMin={valuation.wacc_industry_min} waccMax={valuation.wacc_industry_max}
           fcfGrowth={valuation.fcf_growth_rate} fcfGrowthHistAvg={valuation.fcf_growth_historical_avg}
           confidence={data.data_confidence}
+          fcfDataSource={valuation.fcf_data_source}
         />
 
         <ActionBar ticker={ticker} currentPrice={valuation.current_price} />

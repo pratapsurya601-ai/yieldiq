@@ -76,22 +76,30 @@ export default function InsightCards({ quality, insights, valuation, currency = 
       icon: "\u{1f3af}",
       borderColor: "border-l-gray-300",
     },
-    {
-      title: "Insider Activity",
-      value: insights.insider_net_sentiment ?? "N/A",
-      subtitle: "Recent insider transactions",
-      color: insights.insider_net_sentiment === "Positive"
-        ? "text-blue-700"
-        : insights.insider_net_sentiment === "Negative"
-          ? "text-red-700"
-          : "text-gray-700",
-      icon: "\u{1f465}",
-      borderColor: insights.insider_net_sentiment === "Positive"
-        ? "border-l-blue-500"
-        : insights.insider_net_sentiment === "Negative"
-          ? "border-l-red-500"
-          : "border-l-gray-300",
-    },
+    (() => {
+      const deals = insights.bulk_deals ?? []
+      const latestDeal = deals.length > 0 ? deals[0] : null
+      if (latestDeal) {
+        const clientShort = latestDeal.client.length > 20 ? latestDeal.client.slice(0, 18) + "..." : latestDeal.client
+        const qtyLabel = latestDeal.qty_lakh >= 1 ? `${latestDeal.qty_lakh.toFixed(1)}L` : `${Math.round(latestDeal.qty_lakh * 1e5).toLocaleString("en-IN")}`
+        return {
+          title: "Insider Activity",
+          value: `${latestDeal.deal_type === "BUY" ? "Buy" : "Sell"} (${latestDeal.category})`,
+          subtitle: `${clientShort} ${qtyLabel} @ \u20b9${Math.round(latestDeal.price).toLocaleString("en-IN")}`,
+          color: latestDeal.deal_type === "BUY" ? "text-blue-700" : "text-red-700",
+          icon: "\u{1f465}",
+          borderColor: latestDeal.deal_type === "BUY" ? "border-l-blue-500" : "border-l-red-500",
+        }
+      }
+      return {
+        title: "Insider Activity",
+        value: "None",
+        subtitle: "No bulk/block deals in 90 days",
+        color: "text-gray-700" as const,
+        icon: "\u{1f465}",
+        borderColor: "border-l-gray-300" as const,
+      }
+    })(),
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [quality, insights, valuation, currency, businessFlags.length])
 

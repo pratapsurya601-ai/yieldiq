@@ -45,6 +45,7 @@ export interface ValuationOutput {
   margin_of_safety_display: number
   mos_is_extreme: boolean
   mos_extreme_note: string | null
+  fcf_data_source: string  // "ttm", "annual", or "yfinance"
 }
 
 export interface QualityOutput {
@@ -64,6 +65,15 @@ export interface QualityOutput {
   de_ratio: number | null
 }
 
+export interface BulkDealItem {
+  date: string
+  client: string
+  deal_type: string
+  qty_lakh: number
+  price: number
+  category: string
+}
+
 export interface InsightCards {
   patience_months: number | null
   red_flag_count: number
@@ -78,6 +88,7 @@ export interface InsightCards {
   fcf_yield: number | null
   ev_ebitda: number | null
   reverse_dcf_implied_growth: number | null
+  bulk_deals: BulkDealItem[]
 }
 
 export interface ScenarioCase {

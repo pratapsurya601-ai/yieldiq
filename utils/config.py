@@ -26,7 +26,7 @@ HOLD_THRESHOLD       = 0.00   # MoS > 0%  → HOLD
 # ── Data Collection ────────────────────────────────────────────
 YFINANCE_TIMEOUT     = 10     # seconds before giving up on a ticker
 MAX_RETRIES          = 3      # retry attempts for failed downloads
-FCF_HISTORY_YEARS    = 5      # years of history used for ML training
+FCF_HISTORY_YEARS    = 10     # years of history for charts + ML training
 
 # ── File Paths ─────────────────────────────────────────────────
 TICKER_LIST_PATH     = "data/usa_tickers.csv" if LAUNCH_REGION == "US" else "data/tickers.csv"
