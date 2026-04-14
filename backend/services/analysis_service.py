@@ -111,6 +111,12 @@ _INSURANCE_TICKERS = {
     'HDFCLIFE', 'SBILIFE', 'ICICIGI', 'NIACL', 'STARHEALTH',
 }
 
+# Inventory-heavy retail: negative CFO from working capital, not weakness
+INVENTORY_HEAVY_TICKERS = {
+    'TITAN', 'TRENT', 'ABFRL', 'DMART', 'PAGEIND',
+    'RAYMOND', 'VMART', 'MARUTI', 'SHOPERSTOP',
+}
+
 
 def _get_financial_sub_type(clean_ticker: str) -> str:
     """Return 'NBFC', 'Insurance', or 'Banking' for a financial ticker."""
@@ -773,9 +779,9 @@ class AnalysisService:
                 verdict = "fairly_valued"
             else:
                 verdict = "overvalued"
-        elif _confidence in ("low", "unusable") and abs(mos_pct) > 40:
+        elif _confidence in ("low", "unusable") and abs(mos_pct) > 40 and clean_ticker not in INVENTORY_HEAVY_TICKERS:
             verdict = "data_limited"
-        elif _conf_score < 35 and abs(mos_pct) > 40:
+        elif _conf_score < 35 and abs(mos_pct) > 40 and clean_ticker not in INVENTORY_HEAVY_TICKERS:
             verdict = "data_limited"
         elif mos_pct > 15:
             verdict = "undervalued"
@@ -873,9 +879,9 @@ class AnalysisService:
                 bulk_deals=_bulk_deals,
             ),
             scenarios=ScenariosOutput(
-                bear=_sc("Bear case") if scenarios_raw.get("Bear case") else _sc("Bear 🐻"),
+                bear=ScenarioCase(iv=bear_iv, mos_pct=round((bear_iv - price) / price * 100, 1) if price > 0 else 0, growth=0, wacc=round(wacc, 4), term_g=round(terminal_g, 4)) if is_financial else (_sc("Bear case") if scenarios_raw.get("Bear case") else _sc("Bear 🐻")),
                 base=ScenarioCase(iv=round(iv, 2), mos_pct=round(mos_pct, 1), growth=round(base_growth, 4), wacc=round(wacc, 4), term_g=round(terminal_g, 4)),
-                bull=_sc("Bull case") if scenarios_raw.get("Bull case") else _sc("Bull 🐂"),
+                bull=ScenarioCase(iv=bull_iv, mos_pct=round((bull_iv - price) / price * 100, 1) if price > 0 else 0, growth=0, wacc=round(wacc, 4), term_g=round(terminal_g, 4)) if is_financial else (_sc("Bull case") if scenarios_raw.get("Bull case") else _sc("Bull 🐂")),
             ),
             price_levels=PriceLevels(
                 entry_signal=assign_signal(mos_pct / 100, reliability_score=dcf_res.get("reliability_score", 100)),
