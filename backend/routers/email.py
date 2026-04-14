@@ -9,6 +9,27 @@ from fastapi.responses import HTMLResponse
 router = APIRouter(prefix="/api/v1/email", tags=["email"])
 
 
+@router.get("/test")
+async def test_email():
+    """Test: send a welcome email to the configured from address."""
+    from backend.services.email_service import send_welcome_email, SENDGRID_API_KEY, FROM_EMAIL
+    result = {
+        "sendgrid_configured": bool(SENDGRID_API_KEY),
+        "api_key_length": len(SENDGRID_API_KEY),
+        "from_email": FROM_EMAIL,
+    }
+    if not SENDGRID_API_KEY:
+        result["error"] = "SENDGRID_API_KEY not set"
+        return result
+    try:
+        ok = send_welcome_email(FROM_EMAIL, "Test User")
+        result["email_sent"] = ok
+        result["sent_to"] = FROM_EMAIL
+    except Exception as e:
+        result["error"] = f"{type(e).__name__}: {e}"
+    return result
+
+
 @router.get("/unsubscribe", response_class=HTMLResponse)
 async def unsubscribe(
     email: str = Query(...),
