@@ -22,6 +22,11 @@ api.interceptors.response.use(
     if (err.response?.status === 429) {
       err.message = "Daily analysis limit reached. Upgrade for more."
     }
+    if (err.response?.status === 404) {
+      // Backend raises 404 specifically when the data provider has no
+      // record of the requested ticker (invalid / misspelled symbol).
+      err.message = "Ticker not found"
+    }
     if (!err.response) {
       err.message = "Network error — check your connection"
     }

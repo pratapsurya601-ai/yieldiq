@@ -13,7 +13,7 @@ if _DASHBOARD_ROOT not in sys.path:
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from backend.models.responses import AnalysisResponse, ScreenerResponse, ScreenerStock
-from backend.services.analysis_service import AnalysisService
+from backend.services.analysis_service import AnalysisService, TickerNotFoundError
 from backend.services.cache_service import cache
 from backend.middleware.auth import get_current_user, get_current_user_optional, check_analysis_limit
 from backend.services.ticker_search import search_tickers
@@ -46,6 +46,13 @@ async def get_analysis(
         # Cache for 30 minutes (was 15) — analysis data doesn't change that fast
         cache.set(_cache_key, result, ttl=1800)
         return result
+    except TickerNotFoundError:
+        # Data provider returned nothing for this symbol. 404 lets the
+        # frontend distinguish "bad ticker" from "our service broke".
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "Ticker not found", "ticker": ticker},
+        )
     except Exception as e:
         import logging
         logging.getLogger("yieldiq.analysis").error(f"Analysis failed for {ticker}: {e}", exc_info=True)

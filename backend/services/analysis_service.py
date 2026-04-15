@@ -680,6 +680,16 @@ def _add_flags(
             pass
 
 
+class TickerNotFoundError(Exception):
+    """Raised when the data provider returns no data for a ticker —
+    i.e. the ticker symbol is invalid, unlisted, or misspelled.
+    The router maps this to HTTP 404; anything else becomes 500."""
+
+    def __init__(self, ticker: str):
+        self.ticker = ticker
+        super().__init__(f"Ticker not found: {ticker}")
+
+
 def _get_pipeline_session():
     """Get a DB session from the data pipeline, or None if unavailable."""
     try:
@@ -869,7 +879,18 @@ class AnalysisService:
         _confidence = _raw_confidence if _raw_confidence in ("high", "medium", "low", "unusable") else "medium"
         _data_issues = (validation.issues + validation.warnings) if validation else []
 
-        if raw is None or (validation and not validation.show_dcf):
+        # No data at all after 3 retries → ticker doesn't exist on any
+        # data provider. Signal the router so it returns 404 instead of
+        # producing an all-zeros response that the frontend mistakes
+        # for a valid but-terrible stock.
+        if raw is None:
+            raise TickerNotFoundError(ticker)
+
+        # Raw data exists but validation vetoed running DCF (e.g. the
+        # company is a bank/NBFC that needs a different model, or data
+        # is too incomplete). Return a 200 with a low-confidence
+        # response so the frontend can render a degraded card.
+        if validation and not validation.show_dcf:
             return AnalysisResponse(
                 ticker=ticker,
                 company=CompanyInfo(ticker=ticker, company_name=ticker),

@@ -39,6 +39,13 @@ export default function AnalysisPage() {
     queryFn: () => getAnalysis(ticker),
     enabled: !!ticker,
     staleTime: 5 * 60 * 1000,
+    retry: (failureCount, err) => {
+      // Don't retry 404 (ticker not found) or 429 (rate limit) —
+      // neither will become a 200 on re-request.
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 404 || status === 429) return false
+      return failureCount < 1
+    },
   })
 
   const { data: chartData } = useQuery({
@@ -79,20 +86,29 @@ export default function AnalysisPage() {
 
   if (isLoading) return <LoadingSteps />
   if (error) {
-    const is429 = (error as { message?: string })?.message?.includes("Daily analysis limit reached")
+    const msg = (error as { message?: string })?.message ?? ""
+    const is429 = msg.includes("Daily analysis limit reached")
+    const is404 = msg.includes("Ticker not found")
+    const displayTicker = ticker.replace(".NS", "").replace(".BO", "")
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center pb-20">
         <p className="text-4xl mb-4">&#9888;&#65039;</p>
         <p className="text-lg font-medium text-gray-900 mb-2">
-          {is429 ? "Daily limit reached" : `Could not load ${ticker}`}
+          {is429 ? "Daily limit reached"
+            : is404 ? "Ticker not found"
+            : `Could not load ${ticker}`}
         </p>
         <p className="text-sm text-gray-500 mb-4">
           {is429
             ? "You've used all your free analyses for today. Upgrade to Pro for unlimited access."
-            : "Data provider may be temporarily unavailable. Try again in a moment."}
+            : is404
+              ? `We couldn\u2019t find \u201c${displayTicker}\u201d on any data provider. Please check the symbol and try again.`
+              : "Data provider may be temporarily unavailable. Try again in a moment."}
         </p>
         {is429 ? (
           <a href="/pricing" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium inline-block">Upgrade</a>
+        ) : is404 ? (
+          <a href="/search" className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium inline-block">Search again</a>
         ) : (
           <button onClick={() => window.location.reload()} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Retry</button>
         )}
