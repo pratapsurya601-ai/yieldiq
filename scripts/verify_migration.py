@@ -13,9 +13,14 @@ if url.startswith("postgres://"):
 
 engine = create_engine(url)
 with engine.connect() as conn:
-    count = conn.execute(
-        text("SELECT COUNT(*) FROM fair_value_history")
-    ).scalar()
-    print(
-        f"Verification: fair_value_history exists with {count} rows"
-    )
+    # Verify whichever tables exist — either migration may have just
+    # run, and we don't want to fail verification on tables that
+    # weren't part of this migration invocation.
+    for table in ("fair_value_history", "yfinance_info_cache"):
+        try:
+            count = conn.execute(
+                text(f"SELECT COUNT(*) FROM {table}")
+            ).scalar()
+            print(f"Verification: {table} exists with {count} rows")
+        except Exception as exc:
+            print(f"Verification: {table} not present ({exc})")

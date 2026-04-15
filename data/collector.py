@@ -1000,7 +1000,18 @@ class StockDataCollector:
         for attempt in range(1, len(_backoff) + 1):
             try:
                 self._ticker_obj = _yf_ticker(self.ticker)
-                self._yf_info    = self._ticker_obj.info or {}
+                # PERF: route .info through the 30-min DB cache to
+                # avoid the 15-30s Yahoo quoteSummary call on every
+                # analysis. Cache miss still calls yfinance live.
+                try:
+                    from data_pipeline.sources.yf_info_cache import get_info as _cached_info
+                    _info_dict, _from_cache = _cached_info(self.ticker, ttl_minutes=30)
+                    self._yf_info = _info_dict or {}
+                    if _from_cache and self._yf_info:
+                        log.info(f"[{self.ticker}] yfinance .info served from DB cache")
+                except Exception:
+                    # Cache layer unavailable — fall back to direct call
+                    self._yf_info = self._ticker_obj.info or {}
                 # Verify we got real data (not an empty/error response)
                 if not self._yf_info or self._yf_info.get("trailingPegRatio") is None and not self._yf_info.get("currentPrice"):
                     # Sometimes yfinance returns empty info without error
@@ -1333,7 +1344,15 @@ class StockDataCollector:
             _backoff_orig = [0]  # Single fast attempt for Indian stocks
             try:
                 self._ticker_obj = _yf_ticker(self.ticker)
-                self._yf_info = self._ticker_obj.info or {}
+                # PERF: route .info through the 30-min DB cache
+                try:
+                    from data_pipeline.sources.yf_info_cache import get_info as _cached_info
+                    _info_dict, _from_cache = _cached_info(self.ticker, ttl_minutes=30)
+                    self._yf_info = _info_dict or {}
+                    if _from_cache and self._yf_info:
+                        log.info(f"[{self.ticker}] yfinance .info served from DB cache (fast path)")
+                except Exception:
+                    self._yf_info = self._ticker_obj.info or {}
                 _yf_ok = bool(self._yf_info.get("regularMarketPrice") or self._yf_info.get("currentPrice"))
                 if _yf_ok:
                     log.info(f"[{self.ticker}] yfinance quick load OK")

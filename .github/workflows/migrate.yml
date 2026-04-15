@@ -9,7 +9,8 @@ on:
         type: choice
         options:
           - create_fair_value_history
-        default: create_fair_value_history
+          - create_yfinance_info_cache
+        default: create_yfinance_info_cache
 
 jobs:
   migrate:
