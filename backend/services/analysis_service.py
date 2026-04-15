@@ -21,7 +21,7 @@ if _DASHBOARD_ROOT not in sys.path:
 from backend.models.responses import (
     AnalysisResponse, ValuationOutput, QualityOutput,
     InsightCards, BulkDealItem, CompanyInfo, ScenariosOutput, ScenarioCase,
-    PriceLevels, ScreenerStock,
+    PriceLevels, ScreenerStock, RedFlag,
 )
 
 # ── Import existing engines (NO rewrites) ─────────────────────
@@ -202,6 +202,482 @@ def _resolve_sector(raw_sector: str, clean_ticker: str = "") -> str:
     if not raw_sector:
         return ""
     return SECTOR_OVERRIDES.get(raw_sector, raw_sector)
+
+
+# ═══════════════════════════════════════════════════════════════
+# RED FLAG DEEP DIVE — structured flag generator
+# ═══════════════════════════════════════════════════════════════
+
+def _fmt_cr(val) -> str:
+    """Format a Crore value for user-facing text."""
+    if val is None:
+        return "N/A"
+    try:
+        v = float(val)
+    except (TypeError, ValueError):
+        return "N/A"
+    if abs(v) >= 100_000:
+        return f"₹{v / 100_000:.1f}L Cr"
+    if abs(v) >= 1_000:
+        return f"₹{v:,.0f} Cr"
+    return f"₹{v:.0f} Cr"
+
+
+def _build_structured_flags(
+    enriched: dict,
+    piotroski: dict,
+    moat_result: dict,
+    is_financial: bool,
+    existing_flags: list,
+    price: float,
+) -> list:
+    """
+    Generate structured ``RedFlag`` objects from the already-built
+    enriched dict plus piotroski/moat results. Never raises —
+    every individual signal is wrapped in try/except so one bad
+    value cannot block the rest.
+
+    Returns a list sorted critical → warning → info.
+    """
+    flags: list = []
+    try:
+        _add_flags(flags, enriched, piotroski, moat_result, is_financial, price)
+    except Exception as exc:
+        import logging
+        logging.getLogger("yieldiq.red_flags").debug(
+            "structured flag generator failed: %s", exc
+        )
+    order = {"critical": 0, "warning": 1, "info": 2}
+    flags.sort(key=lambda f: order.get(f.severity, 3))
+    return flags
+
+
+def _add_flags(
+    flags: list,
+    enriched: dict,
+    piotroski: dict,
+    moat_result: dict,
+    is_financial: bool,
+    price: float,
+) -> None:
+    """All flag-specific logic. Appends RedFlag objects to ``flags``."""
+
+    def add(flag, severity, title, explanation, data_point, why_it_matters):
+        flags.append(RedFlag(
+            flag=flag,
+            severity=severity,
+            title=title,
+            explanation=explanation,
+            data_point=data_point,
+            why_it_matters=why_it_matters,
+        ))
+
+    # ── CRITICAL ───────────────────────────────────────────────
+
+    # C1 — Negative equity
+    try:
+        equity = enriched.get("total_equity")
+        if equity is not None and float(equity) < 0:
+            debt = enriched.get("total_debt", 0)
+            assets = enriched.get("total_assets")
+            parts = [f"Total equity: {_fmt_cr(equity)}"]
+            if assets is not None:
+                parts.append(f"Debt: {_fmt_cr(debt)}, Assets: {_fmt_cr(assets)}")
+            else:
+                parts.append(f"Debt: {_fmt_cr(debt)}")
+            add(
+                flag="negative_equity",
+                severity="critical",
+                title="Negative Equity",
+                explanation=(
+                    "Total liabilities exceed total assets — the company "
+                    "technically owes more than it owns."
+                ),
+                data_point=" · ".join(parts),
+                why_it_matters=(
+                    "Negative equity makes DCF valuation unreliable and "
+                    "signals elevated bankruptcy risk. Common in capital-"
+                    "heavy sectors (airlines, infra) — check the reason "
+                    "before acting."
+                ),
+            )
+    except Exception:
+        pass
+
+    # C2 — Loss-making for 2+ consecutive years (non-financial)
+    if not is_financial:
+        try:
+            income_df = enriched.get("income_df")
+            if income_df is not None and "net_income" in income_df.columns:
+                recent = income_df["net_income"].dropna().tail(2)
+                if len(recent) >= 2 and (recent < 0).all():
+                    vals = recent.tolist()
+                    add(
+                        flag="loss_making",
+                        severity="critical",
+                        title="Consecutive Losses",
+                        explanation=(
+                            "Company has reported net losses for 2+ "
+                            "consecutive years."
+                        ),
+                        data_point=(
+                            f"Net income last 2 years: "
+                            f"{_fmt_cr(vals[0])}, {_fmt_cr(vals[1])}"
+                        ),
+                        why_it_matters=(
+                            "Sustained losses erode equity, increase debt "
+                            "dependence, and make DCF valuation based on "
+                            "future cash flows unreliable."
+                        ),
+                    )
+        except Exception:
+            pass
+
+    # C3 — Very high debt (D/E > 3, non-financial)
+    if not is_financial:
+        try:
+            de = enriched.get("de_ratio")
+            if de is None:
+                de = enriched.get("debt_to_equity")
+            if de is not None and float(de) > 3:
+                add(
+                    flag="high_debt",
+                    severity="critical",
+                    title="Very High Debt",
+                    explanation=(
+                        "Debt is more than 3× equity — a level that "
+                        "strains interest payments and limits financial "
+                        "flexibility."
+                    ),
+                    data_point=f"Debt / Equity: {float(de):.1f}x",
+                    why_it_matters=(
+                        "High leverage amplifies losses in downturns and "
+                        "can trigger covenant breaches. WACC rises with "
+                        "debt risk."
+                    ),
+                )
+        except Exception:
+            pass
+
+    # C4 — Promoter pledge > 25%
+    try:
+        pledge = enriched.get("promoter_pledge_pct")
+        if pledge is not None:
+            p = float(pledge)
+            if p > 25:
+                add(
+                    flag="high_promoter_pledge",
+                    severity="critical",
+                    title="High Promoter Pledge",
+                    explanation=(
+                        "Promoters have pledged more than 25% of their "
+                        "shareholding as loan collateral."
+                    ),
+                    data_point=f"Promoter pledge: {p:.1f}% of promoter holding",
+                    why_it_matters=(
+                        "If the stock falls, lenders can force-sell "
+                        "pledged shares, triggering a spiral. One of the "
+                        "highest-risk signals for Indian retail investors."
+                    ),
+                )
+    except Exception:
+        pass
+
+    # ── WARNING ────────────────────────────────────────────────
+
+    # W1 — DCF unreliable
+    try:
+        if not enriched.get("dcf_reliable", True):
+            reason = enriched.get("unreliable_reason") or "Insufficient financial data"
+            add(
+                flag="dcf_unreliable",
+                severity="warning",
+                title="DCF Model Limited",
+                explanation=(
+                    "The discounted cash flow model has reduced "
+                    "reliability for this stock."
+                ),
+                data_point=f"Reason: {reason}",
+                why_it_matters=(
+                    "Treat the fair value estimate as directional only. "
+                    "Cross-check with P/E and P/B multiples before "
+                    "acting on the signal."
+                ),
+            )
+    except Exception:
+        pass
+
+    # W2 — Declining revenue 3 years running
+    try:
+        income_df = enriched.get("income_df")
+        if income_df is not None and "revenue" in income_df.columns:
+            rev = income_df["revenue"].dropna().tail(3)
+            if len(rev) >= 3 and (rev.diff().dropna() < 0).all():
+                vals = rev.tolist()
+                add(
+                    flag="declining_revenue",
+                    severity="warning",
+                    title="Declining Revenue",
+                    explanation="Revenue has fallen for 3 consecutive years.",
+                    data_point=(
+                        f"Revenue: {_fmt_cr(vals[0])} → "
+                        f"{_fmt_cr(vals[1])} → {_fmt_cr(vals[2])}"
+                    ),
+                    why_it_matters=(
+                        "Sustained revenue decline suggests structural "
+                        "demand loss or competitive pressure. FCF growth "
+                        "assumptions in DCF may be optimistic."
+                    ),
+                )
+    except Exception:
+        pass
+
+    # W3 — Negative FCF (non-financial, current year)
+    if not is_financial:
+        try:
+            fcf = enriched.get("latest_fcf", 0)
+            rev = enriched.get("latest_revenue", 0)
+            if fcf is not None and float(fcf) < 0 and rev and float(rev) > 0:
+                add(
+                    flag="negative_fcf",
+                    severity="warning",
+                    title="Negative Free Cash Flow",
+                    explanation=(
+                        "The company is consuming more cash than it "
+                        "generates from operations after capex."
+                    ),
+                    data_point=(
+                        f"FCF: {_fmt_cr(fcf)} "
+                        f"(FCF margin: {fcf / rev * 100:.1f}%)"
+                    ),
+                    why_it_matters=(
+                        "Negative FCF companies rely on debt or equity "
+                        "issuance to fund operations. Sustainable only "
+                        "for high-growth businesses with a clear path to "
+                        "profitability."
+                    ),
+                )
+        except Exception:
+            pass
+
+    # W4 — Very thin net margins (< 5%, non-financial, positive)
+    if not is_financial:
+        try:
+            nm = enriched.get("net_margin")
+            if nm is not None:
+                nm_pct = float(nm) * 100 if abs(float(nm)) <= 1 else float(nm)
+                if 0 < nm_pct < 5:
+                    add(
+                        flag="thin_margins",
+                        severity="warning",
+                        title="Very Thin Margins",
+                        explanation=(
+                            "Net profit margin is below 5%, leaving "
+                            "little buffer for cost shocks."
+                        ),
+                        data_point=f"Net margin: {nm_pct:.1f}%",
+                        why_it_matters=(
+                            "Thin margins amplify earnings sensitivity to "
+                            "input costs, wages, and rates. A 1pp margin "
+                            "shock on a 3% margin business eliminates "
+                            "~33% of profits."
+                        ),
+                    )
+        except Exception:
+            pass
+
+    # W5 — Very high P/E (> 60)
+    try:
+        pe = enriched.get("pe_ratio")
+        if pe is None:
+            pe = enriched.get("trailing_pe")
+        if pe is not None and isinstance(pe, (int, float)) and float(pe) > 60:
+            add(
+                flag="high_pe",
+                severity="warning",
+                title="Very High P/E Ratio",
+                explanation=(
+                    "Stock trades above 60× earnings — pricing in very "
+                    "high future growth."
+                ),
+                data_point=f"P/E ratio: {float(pe):.1f}x",
+                why_it_matters=(
+                    "High-P/E stocks are vulnerable to re-rating if "
+                    "growth disappoints. Earnings misses can cause sharp "
+                    "price declines."
+                ),
+            )
+    except Exception:
+        pass
+
+    # W6 — Weak Piotroski (≤ 3)
+    try:
+        p_score = int(piotroski.get("score", 0)) if piotroski else 0
+        if 0 < p_score <= 3:
+            add(
+                flag="weak_piotroski",
+                severity="warning",
+                title="Weak Financial Health",
+                explanation=(
+                    "Piotroski F-Score of 3 or below indicates poor "
+                    "financial quality across profitability, leverage, "
+                    "and efficiency."
+                ),
+                data_point=f"Piotroski F-Score: {p_score}/9",
+                why_it_matters=(
+                    "Low Piotroski scores historically predict "
+                    "underperformance — stocks scoring ≤ 3 are "
+                    "short-sell candidates in academic research."
+                ),
+            )
+    except Exception:
+        pass
+
+    # W7 — Elevated pledge (10% < p ≤ 25%)
+    try:
+        pledge = enriched.get("promoter_pledge_pct")
+        if pledge is not None:
+            p = float(pledge)
+            if 10 < p <= 25:
+                add(
+                    flag="elevated_pledge",
+                    severity="warning",
+                    title="Elevated Promoter Pledge",
+                    explanation=(
+                        "Promoters have pledged 10–25% of their "
+                        "shareholding."
+                    ),
+                    data_point=f"Promoter pledge: {p:.1f}%",
+                    why_it_matters=(
+                        "Moderate pledge risk. Monitor if the stock "
+                        "falls sharply — forced selling can accelerate "
+                        "the decline."
+                    ),
+                )
+    except Exception:
+        pass
+
+    # ── INFO / positive signals ────────────────────────────────
+
+    # I1 — Debt-free (< ₹50 Cr treated as effectively zero)
+    try:
+        debt = enriched.get("total_debt", 0)
+        if debt is not None and float(debt) < 50:
+            add(
+                flag="debt_free",
+                severity="info",
+                title="Virtually Debt-Free",
+                explanation="The company carries minimal or zero long-term debt.",
+                data_point=f"Total debt: {_fmt_cr(debt)}",
+                why_it_matters=(
+                    "Zero debt means all FCF goes to shareholders. Lower "
+                    "WACC and higher resilience during credit tightening."
+                ),
+            )
+    except Exception:
+        pass
+
+    # I2 — Strong Piotroski (≥ 7)
+    try:
+        p_score = int(piotroski.get("score", 0)) if piotroski else 0
+        if p_score >= 7:
+            add(
+                flag="strong_piotroski",
+                severity="info",
+                title="Strong Financial Health",
+                explanation=(
+                    "Piotroski F-Score of 7+ indicates excellent "
+                    "profitability, improving leverage, and operational "
+                    "efficiency."
+                ),
+                data_point=f"Piotroski F-Score: {p_score}/9",
+                why_it_matters=(
+                    "High Piotroski scores predict outperformance in "
+                    "academic research. Signals improving fundamental "
+                    "quality."
+                ),
+            )
+    except Exception:
+        pass
+
+    # I3 — Wide moat
+    try:
+        m_score = int(moat_result.get("score", 0)) if moat_result else 0
+        m_grade = (moat_result.get("grade") or "") if moat_result else ""
+        if m_score > 65 or m_grade == "Wide":
+            moat_types = moat_result.get("moat_types", []) if moat_result else []
+            type_str = ", ".join(moat_types) if moat_types else "competitive advantages"
+            add(
+                flag="wide_moat",
+                severity="info",
+                title="Wide Economic Moat",
+                explanation=(
+                    "The business has durable competitive advantages "
+                    "that protect long-term profitability."
+                ),
+                data_point=f"Moat score: {m_score}/100 ({type_str})",
+                why_it_matters=(
+                    "Wide-moat companies maintain returns above cost of "
+                    "capital for longer, supporting higher DCF terminal "
+                    "values."
+                ),
+            )
+    except Exception:
+        pass
+
+    # I4 — High ROE (> 20%)
+    try:
+        roe = enriched.get("roe")
+        if roe is not None:
+            roe_pct = float(roe) * 100 if abs(float(roe)) <= 1 else float(roe)
+            if roe_pct > 20:
+                add(
+                    flag="high_roe",
+                    severity="info",
+                    title="High Return on Equity",
+                    explanation=(
+                        "The company earns more than 20% return on "
+                        "shareholder equity — a hallmark of quality "
+                        "businesses."
+                    ),
+                    data_point=f"ROE: {roe_pct:.1f}%",
+                    why_it_matters=(
+                        "Sustained high ROE means capital can be "
+                        "reinvested at above-average rates, compounding "
+                        "value over time."
+                    ),
+                )
+    except Exception:
+        pass
+
+    # I5 — Strong FCF margin (> 10%, non-financial)
+    if not is_financial:
+        try:
+            fcf = enriched.get("latest_fcf", 0)
+            rev = enriched.get("latest_revenue", 0)
+            if fcf and rev and float(fcf) > 0:
+                margin_pct = float(fcf) / float(rev) * 100
+                if margin_pct > 10:
+                    add(
+                        flag="strong_fcf",
+                        severity="info",
+                        title="Strong Free Cash Flow",
+                        explanation=(
+                            "Business generates healthy free cash flow "
+                            "as a percentage of revenue."
+                        ),
+                        data_point=(
+                            f"FCF: {_fmt_cr(fcf)} "
+                            f"(FCF margin: {margin_pct:.1f}%)"
+                        ),
+                        why_it_matters=(
+                            "Strong FCF funds dividends, buybacks, debt "
+                            "reduction, and growth capex without "
+                            "external financing."
+                        ),
+                    )
+        except Exception:
+            pass
 
 
 def _get_pipeline_session():
@@ -853,6 +1329,19 @@ class AnalysisService:
             _base_case = round(iv, 2)
             _bull_case = _sc("Bull case").iv or _sc("Bull 🐂").iv
 
+        # ── Structured red flags for the deep-dive UI ────────
+        try:
+            _structured_flags = _build_structured_flags(
+                enriched=enriched,
+                piotroski=piotroski,
+                moat_result=moat_result,
+                is_financial=is_financial,
+                existing_flags=_red_flags,
+                price=price,
+            )
+        except Exception:
+            _structured_flags = []
+
         # ── Forward-fill fair value history ──────────────────
         # Writes one row per ticker per day to fair_value_history.
         # Never raises — wrapped in try/except so a DB hiccup
@@ -939,6 +1428,7 @@ class AnalysisService:
                 patience_months=hp.get("min_months"),
                 red_flag_count=len(_red_flags),
                 red_flags=_red_flags[:5],
+                red_flags_structured=_structured_flags,
                 earnings_date=_earnings_date,
                 earnings_est_eps=raw.get("finnhub_next_earnings", {}).get("eps_estimate"),
                 earnings_days_until=earnings_days_until,

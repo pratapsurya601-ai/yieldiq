@@ -76,10 +76,21 @@ class BulkDealItem(BaseModel):
     category: str = ""  # bulk / block
 
 
+class RedFlag(BaseModel):
+    """Structured risk/strength signal for the deep-dive UI."""
+    flag: str                    # short machine key, e.g. "negative_equity"
+    severity: str                # "critical" | "warning" | "info"
+    title: str                   # display title, e.g. "Negative Equity"
+    explanation: str             # 1-sentence plain English
+    data_point: str              # actual number / value behind the flag
+    why_it_matters: str          # impact on valuation / decision
+
+
 class InsightCards(BaseModel):
     patience_months: Optional[int] = None
     red_flag_count: int = 0
     red_flags: list[str] = []
+    red_flags_structured: list[RedFlag] = []
     earnings_date: Optional[str] = None
     earnings_est_eps: Optional[float] = None
     earnings_days_until: Optional[int] = None

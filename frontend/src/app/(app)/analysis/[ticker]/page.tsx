@@ -11,6 +11,7 @@ import AISummary from "@/components/analysis/AISummary"
 import ActionBar from "@/components/analysis/ActionBar"
 import TransparencyStrip from "@/components/analysis/TransparencyStrip"
 import InsightCards from "@/components/analysis/InsightCards"
+import RedFlagInsights from "@/components/analysis/RedFlagInsights"
 import LoadingSteps from "@/components/ui/LoadingSteps"
 import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
@@ -229,6 +230,7 @@ export default function AnalysisPage() {
       {/* LAYER 2 -- The Story (Insight Cards) */}
       <div className="">
         <InsightCards quality={quality} insights={insights} valuation={valuation} currency={company.currency} />
+        <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
       </div>
 
       {/* Historical Fair Value Chart — placed ABOVE price history per Phase 1 spec */}

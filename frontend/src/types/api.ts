@@ -74,10 +74,20 @@ export interface BulkDealItem {
   category: string
 }
 
+export interface RedFlag {
+  flag: string
+  severity: "critical" | "warning" | "info"
+  title: string
+  explanation: string
+  data_point: string
+  why_it_matters: string
+}
+
 export interface InsightCards {
   patience_months: number | null
   red_flag_count: number
   red_flags: string[]
+  red_flags_structured: RedFlag[]
   earnings_date: string | null
   earnings_est_eps: number | null
   earnings_days_until: number | null
