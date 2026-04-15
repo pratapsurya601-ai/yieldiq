@@ -7,6 +7,10 @@ if not url:
     print("ERROR: DATABASE_URL not set")
     sys.exit(1)
 
+# SQLAlchemy 2.x dropped the `postgres://` scheme — normalise.
+if url.startswith("postgres://"):
+    url = "postgresql://" + url[len("postgres://"):]
+
 engine = create_engine(url)
 with engine.connect() as conn:
     count = conn.execute(

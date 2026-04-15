@@ -9,6 +9,11 @@ if not url:
     print("ERROR: DATABASE_URL not set")
     sys.exit(1)
 
+# SQLAlchemy 2.x dropped the `postgres://` scheme — Aiven and others
+# still hand out URLs that start with it. Normalise to `postgresql://`.
+if url.startswith("postgres://"):
+    url = "postgresql://" + url[len("postgres://"):]
+
 engine = create_engine(url)
 
 if migration == "create_fair_value_history":
