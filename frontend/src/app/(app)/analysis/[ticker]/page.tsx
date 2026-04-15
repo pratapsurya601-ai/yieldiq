@@ -14,6 +14,7 @@ import InsightCards from "@/components/analysis/InsightCards"
 import LoadingSteps from "@/components/ui/LoadingSteps"
 import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
+import FairValueHistory from "@/components/analysis/FairValueHistory"
 import { formatCurrency, formatPct, formatCompanyName } from "@/lib/utils"
 import { trackStockAnalysed } from "@/lib/analytics"
 import Link from "next/link"
@@ -227,6 +228,13 @@ export default function AnalysisPage() {
       <div className="">
         <InsightCards quality={quality} insights={insights} valuation={valuation} currency={company.currency} />
       </div>
+
+      {/* Historical Fair Value Chart — placed ABOVE price history per Phase 1 spec */}
+      <FairValueHistory
+        ticker={ticker}
+        companyName={formatCompanyName(company.company_name)}
+        currency={company.currency}
+      />
 
       {/* Price Chart + Financial Bars */}
       <div className="space-y-5">

@@ -853,6 +853,37 @@ class AnalysisService:
             _base_case = round(iv, 2)
             _bull_case = _sc("Bull case").iv or _sc("Bull 🐂").iv
 
+        # ── Forward-fill fair value history ──────────────────
+        # Writes one row per ticker per day to fair_value_history.
+        # Never raises — wrapped in try/except so a DB hiccup
+        # cannot break the analysis response.
+        try:
+            if iv and iv > 0 and price and price > 0:
+                from data_pipeline.sources.fv_history import (
+                    store_today_fair_value,
+                )
+                _fv_db = _get_pipeline_session()
+                if _fv_db is not None:
+                    try:
+                        store_today_fair_value(
+                            ticker=ticker,
+                            fv=float(iv),
+                            price=float(price),
+                            mos=float(mos_pct),
+                            verdict=str(verdict),
+                            wacc=float(wacc),
+                            confidence=int(confidence.get("score", 50)),
+                            db=_fv_db,
+                        )
+                    finally:
+                        _fv_db.close()
+        except Exception as _fv_exc:
+            import logging as _fv_log
+            _fv_log.getLogger("yieldiq.fv_history").debug(
+                "FV history store skipped for %s: %s", ticker, _fv_exc
+            )
+        # ──────────────────────────────────────────────────────
+
         return AnalysisResponse(
             ticker=ticker,
             company=company,

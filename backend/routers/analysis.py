@@ -11,7 +11,7 @@ if _PROJECT_ROOT not in sys.path:
 if _DASHBOARD_ROOT not in sys.path:
     sys.path.insert(0, _DASHBOARD_ROOT)
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from backend.models.responses import AnalysisResponse, ScreenerResponse, ScreenerStock
 from backend.services.analysis_service import AnalysisService
 from backend.services.cache_service import cache
@@ -365,6 +365,77 @@ async def get_chart_data(
     result = {"prices": prices, "period": period, "financials": financials}
     cache.set(_cache_key, result, ttl=900)  # 15 min cache
     return result
+
+
+@router.get("/analysis/{ticker}/fv-history")
+async def get_fv_history_endpoint(
+    ticker: str,
+    years: int = Query(default=3, ge=1, le=5),
+    user: dict = Depends(get_current_user_optional),
+):
+    """
+    Historical YieldIQ fair value vs market price.
+
+    Tier limits:
+      - free      → 1 year max
+      - starter   → 3 years max
+      - pro       → 5 years max
+    """
+    ticker = ticker.upper().strip()
+
+    tier = (user or {}).get("tier", "free")
+    tier_order = {"free": 0, "starter": 1, "pro": 2}
+    tier_level = tier_order.get(tier, 0)
+    if tier_level == 0:
+        years = min(years, 1)
+    elif tier_level == 1:
+        years = min(years, 3)
+    # pro: no clamp beyond the Query's le=5
+
+    # Pipeline DB session — same pattern as analysis_service._get_pipeline_session
+    try:
+        from data_pipeline.db import Session as PipelineSession
+    except Exception:
+        PipelineSession = None
+
+    if PipelineSession is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    db = PipelineSession()
+    try:
+        from data_pipeline.sources.fv_history import (
+            get_fv_history,
+            get_fv_history_summary,
+        )
+        data = get_fv_history(ticker, db, years)
+        summary = get_fv_history_summary(ticker, db, years)
+
+        if not data:
+            return {
+                "ticker": ticker,
+                "has_data": False,
+                "tier": tier,
+                "tier_limited": tier_level == 0,
+                "years_returned": 0,
+                "data": [],
+                "summary": summary,
+                "message": (
+                    "Historical fair value data is building up. "
+                    "Analyse this stock regularly to grow the chart."
+                ),
+            }
+
+        return {
+            "ticker": ticker,
+            "has_data": True,
+            "tier": tier,
+            "tier_limited": tier_level == 0,
+            "years_returned": years,
+            "data": data,
+            "summary": summary,
+        }
+    finally:
+        db.close()
 
 
 @router.get("/compare")

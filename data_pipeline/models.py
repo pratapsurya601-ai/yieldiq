@@ -215,3 +215,30 @@ class DataFreshness(Base):
     records_updated = Column(Integer)
     status = Column(String(20))               # "success" / "failed"
     error_msg = Column(Text)
+
+
+class FairValueHistory(Base):
+    """
+    Forward-filled history of YieldIQ fair value estimates.
+    One row per ticker per day. Populated by
+    store_today_fair_value() after every analysis call.
+    """
+    __tablename__ = "fair_value_history"
+    __table_args__ = (
+        UniqueConstraint("ticker", "date", name="uq_fv_ticker_date"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticker = Column(String(20), index=True, nullable=False)
+    date = Column(Date, index=True, nullable=False)
+    fair_value = Column(Float, nullable=False)
+    price = Column(Float, nullable=False)
+    mos_pct = Column(Float, nullable=False)
+    verdict = Column(String(20))
+    wacc = Column(Float)
+    confidence = Column(Integer)
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow,
+    )

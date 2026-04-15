@@ -39,6 +39,36 @@ export const getAISummary = (ticker: string): Promise<{ summary: string }> =>
 export const getChartData = (ticker: string, period: string = "1m") =>
   api.get(`/api/v1/analysis/${ticker}/chart-data?period=${period}`).then(r => r.data)
 
+export interface FVHistoryPoint {
+  date: string
+  fair_value: number
+  price: number
+  mos_pct: number
+  verdict: string | null
+}
+
+export interface FVHistorySummary {
+  has_data: boolean
+  data_start_date: string | null
+  total_points: number
+  pct_undervalued: number | null
+  pct_overvalued: number | null
+}
+
+export interface FVHistoryResponse {
+  ticker: string
+  has_data: boolean
+  tier: string
+  tier_limited: boolean
+  years_returned: number
+  data: FVHistoryPoint[]
+  summary: FVHistorySummary
+  message?: string
+}
+
+export const getFVHistory = (ticker: string, years: number = 3): Promise<FVHistoryResponse> =>
+  api.get(`/api/v1/analysis/${ticker}/fv-history?years=${years}`).then(r => r.data)
+
 export const getYieldIQ50 = (): Promise<ScreenerResponse> =>
   api.get("/api/v1/yieldiq50").then(r => r.data)
 
