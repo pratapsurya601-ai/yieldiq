@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 
 interface Props {
   ticker: string
+  currency?: string
 }
 
 /* ------------------------------------------------------------------ */
@@ -51,16 +52,25 @@ function fmtMoS(v: number | null): string {
   return `${sign}${v.toFixed(1)}%`
 }
 
-function fmtMarketCap(cr: number | null): string {
+function fmtMarketCap(cr: number | null, currency: string): string {
   if (cr === null || cr === undefined) return "—"
-  if (cr >= 100_000) return `₹${(cr / 100_000).toFixed(1)}L Cr`
-  if (cr >= 1_000) return `₹${(cr / 1_000).toFixed(1)}K Cr`
-  return `₹${cr.toFixed(0)} Cr`
+  const sym = currency === "INR" ? "\u20b9" : "$"
+  if (currency === "INR") {
+    if (cr >= 100_000) return `${sym}${(cr / 100_000).toFixed(1)}L Cr`
+    if (cr >= 1_000) return `${sym}${(cr / 1_000).toFixed(1)}K Cr`
+    return `${sym}${cr.toFixed(0)} Cr`
+  }
+  // USD path — "market_cap_cr" is actually millions for US tickers
+  if (cr >= 1_000_000) return `${sym}${(cr / 1_000_000).toFixed(1)}T`
+  if (cr >= 1_000) return `${sym}${(cr / 1_000).toFixed(1)}B`
+  return `${sym}${cr.toFixed(0)}M`
 }
 
-function fmtFV(v: number | null): string {
+function fmtFV(v: number | null, currency: string): string {
   if (v === null || v === undefined) return "—"
-  return `₹${v.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`
+  const sym = currency === "INR" ? "\u20b9" : "$"
+  const locale = currency === "INR" ? "en-IN" : "en-US"
+  return `${sym}${v.toLocaleString(locale, { maximumFractionDigits: 0 })}`
 }
 
 function gradeColor(grade: string | null, score: number | null): string {
@@ -114,7 +124,7 @@ type Column = {
   className?: string
 }
 
-const COLUMNS: Column[] = [
+const buildColumns = (currency: string): Column[] => [
   {
     key: "company",
     label: "Company",
@@ -139,7 +149,7 @@ const COLUMNS: Column[] = [
   {
     key: "fair_value",
     label: "Fair Val",
-    render: row => <span className="tabular-nums">{fmtFV(row.fair_value)}</span>,
+    render: row => <span className="tabular-nums">{fmtFV(row.fair_value, currency)}</span>,
   },
   {
     key: "mos_pct",
@@ -179,17 +189,18 @@ const COLUMNS: Column[] = [
   {
     key: "market_cap_cr",
     label: "Mkt Cap",
-    render: row => <span className="tabular-nums">{fmtMarketCap(row.market_cap_cr)}</span>,
+    render: row => <span className="tabular-nums">{fmtMarketCap(row.market_cap_cr, currency)}</span>,
   },
 ]
 
 /* ------------------------------------------------------------------ */
 /* Main component                                                      */
 /* ------------------------------------------------------------------ */
-export default function PeerComparison({ ticker }: Props) {
+export default function PeerComparison({ ticker, currency = "INR" }: Props) {
   const router = useRouter()
   const [visible, setVisible] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
+  const columns = useMemo(() => buildColumns(currency), [currency])
 
   useEffect(() => {
     if (visible) return
@@ -290,7 +301,7 @@ export default function PeerComparison({ ticker }: Props) {
         <table className="w-full text-xs">
           <thead>
             <tr className="border-b border-gray-100">
-              {COLUMNS.map((col, i) => (
+              {columns.map((col, i) => (
                 <th
                   key={col.key}
                   className={cn(
@@ -321,7 +332,7 @@ export default function PeerComparison({ ticker }: Props) {
                       : "cursor-pointer hover:bg-gray-50",
                   )}
                 >
-                  {COLUMNS.map((col, i) => {
+                  {columns.map((col, i) => {
                     const isBest =
                       col.metric !== undefined &&
                       data.best_in_sector[col.metric as string] === row.ticker

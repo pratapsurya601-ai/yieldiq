@@ -6,6 +6,11 @@ import type { DividendData } from "@/types/api"
 
 interface Props {
   dividend?: DividendData | null
+  currency?: string
+}
+
+function currencySymbol(c: string): string {
+  return c === "INR" ? "\u20b9" : "$"
 }
 
 const SUST_CARD: Record<string, string> = {
@@ -27,8 +32,9 @@ function fmtCoverage(v: number | null): string {
   return `${v.toFixed(1)}× ✗`
 }
 
-export default function DividendTracker({ dividend }: Props) {
+export default function DividendTracker({ dividend, currency = "INR" }: Props) {
   const [expanded, setExpanded] = useState(false)
+  const sym = currencySymbol(currency)
 
   const maxBar = useMemo(() => {
     if (!dividend?.fy_history?.length) return 0
@@ -41,7 +47,7 @@ export default function DividendTracker({ dividend }: Props) {
   const summaryLine = (() => {
     const parts: string[] = []
     if (dividend.dividend_rate_per_share) {
-      parts.push(`₹${dividend.dividend_rate_per_share.toFixed(2)}/share`)
+      parts.push(`${sym}${dividend.dividend_rate_per_share.toFixed(2)}/share`)
     }
     if (dividend.current_yield_pct !== null && dividend.current_yield_pct !== undefined) {
       parts.push(`${dividend.current_yield_pct.toFixed(1)}% yield`)
@@ -132,7 +138,7 @@ export default function DividendTracker({ dividend }: Props) {
           {dividend.fy_history.length > 0 && (
             <div className="space-y-2">
               <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
-                ₹ per share by financial year
+                {sym} per share by financial year
               </p>
               <div className="space-y-1.5">
                 {dividend.fy_history.map(item => {
@@ -147,7 +153,7 @@ export default function DividendTracker({ dividend }: Props) {
                         />
                       </div>
                       <span className="w-16 text-right text-gray-900 font-medium tabular-nums">
-                        ₹{item.total_per_share.toFixed(2)}
+                        {sym}{item.total_per_share.toFixed(2)}
                       </span>
                     </div>
                   )

@@ -271,22 +271,26 @@ function buildWhatsAppText(p: ActionBarProps): string {
   const verdictTag = verdictLabel(p.verdict)
   const ve = verdictEmoji(p.verdict)
   const se = scoreEmoji(p.score)
+  const sym = p.currency === "INR" ? "\u20b9" : "$"
+  const loc = p.currency === "INR" ? "en-IN" : "en-US"
+  // Only append ".NS" in the share URL for Indian tickers
+  const suffix = p.currency === "INR" ? ".NS" : ""
 
   // Attractive, clean format that makes people want to click the link
   return [
     `${ve} *${p.companyName}* is *${verdictTag}*`,
     ``,
-    `\u20b9${p.currentPrice.toLocaleString("en-IN")} \u2192 Fair Value *\u20b9${p.fairValue.toLocaleString("en-IN")}* (${mosSign}${p.mos.toFixed(0)}% MoS)`,
+    `${sym}${p.currentPrice.toLocaleString(loc)} \u2192 Fair Value *${sym}${p.fairValue.toLocaleString(loc)}* (${mosSign}${p.mos.toFixed(0)}% MoS)`,
     ``,
     `${se} *Score ${p.score}/100* | Grade ${p.grade}`,
     `\u{1f6e1}\ufe0f Moat: ${p.moat} | Piotroski: ${p.piotroski}/9`,
     ``,
-    `\u{1f4c9} Bear \u20b9${p.bearCase.toLocaleString("en-IN")}`,
-    `\u{1f4ca} Base \u20b9${p.baseCase.toLocaleString("en-IN")}`,
-    `\u{1f4c8} Bull \u20b9${p.bullCase.toLocaleString("en-IN")}`,
+    `\u{1f4c9} Bear ${sym}${p.bearCase.toLocaleString(loc)}`,
+    `\u{1f4ca} Base ${sym}${p.baseCase.toLocaleString(loc)}`,
+    `\u{1f4c8} Bull ${sym}${p.bullCase.toLocaleString(loc)}`,
     ``,
     `\u{1f50d} *See full DCF analysis:*`,
-    `https://yieldiq.in/analysis/${dt}.NS`,
+    `https://yieldiq.in/analysis/${dt}${suffix}`,
   ].join("\n")
 }
 
@@ -478,7 +482,9 @@ function printPdf(htmlContent: string) {
 /* ── Component ────────────────────────────────────────── */
 
 export default function ActionBar(props: ActionBarProps) {
-  const { ticker, currentPrice } = props
+  const { ticker, currentPrice, currency } = props
+  const sym = currency === "INR" ? "\u20b9" : "$"
+  const loc = currency === "INR" ? "en-IN" : "en-US"
   const [toast, setToast] = useState<string | null>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showCopied, setShowCopied] = useState(false)
@@ -783,7 +789,7 @@ export default function ActionBar(props: ActionBarProps) {
               </button>
             </div>
             <p className="text-xs text-gray-400">
-              Current: <span className="font-mono text-gray-600">{"\u20b9"}{currentPrice.toLocaleString("en-IN")}</span>
+              Current: <span className="font-mono text-gray-600">{sym}{currentPrice.toLocaleString(loc)}</span>
             </p>
 
             {/* Direction toggle */}
@@ -810,7 +816,7 @@ export default function ActionBar(props: ActionBarProps) {
 
             {/* Target price input */}
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{"\u20b9"}</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{sym}</span>
               <input
                 type="number"
                 value={alertTargetPrice}

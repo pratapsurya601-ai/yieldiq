@@ -139,7 +139,7 @@ export default function InsightCards({ quality, insights, valuation, currency = 
         return {
           title: "Insider Activity",
           value: `${latestDeal.deal_type === "BUY" ? "Buy" : "Sell"} (${latestDeal.category})`,
-          subtitle: `${clientShort} ${qtyLabel} @ \u20b9${Math.round(latestDeal.price).toLocaleString("en-IN")}`,
+          subtitle: `${clientShort} ${qtyLabel} @ ${currency === "INR" ? "\u20b9" : "$"}${Math.round(latestDeal.price).toLocaleString(currency === "INR" ? "en-IN" : "en-US")}`,
           color: latestDeal.deal_type === "BUY" ? "text-blue-700" : "text-red-700",
           icon: "\u{1f465}",
           borderColor: latestDeal.deal_type === "BUY" ? "border-l-blue-500" : "border-l-red-500",

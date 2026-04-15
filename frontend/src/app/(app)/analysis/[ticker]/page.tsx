@@ -248,7 +248,7 @@ export default function AnalysisPage() {
       <div className="">
         <InsightCards quality={quality} insights={insights} valuation={valuation} currency={company.currency} />
         <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
-        <DividendTracker dividend={insights?.dividend ?? null} />
+        <DividendTracker dividend={insights?.dividend ?? null} currency={company.currency} />
       </div>
 
       {/* Historical Fair Value Chart — placed ABOVE price history per Phase 1 spec */}
@@ -285,7 +285,7 @@ export default function AnalysisPage() {
         </div>
 
         {/* Peer comparison table — sector-grouped */}
-        <PeerComparison ticker={ticker} />
+        <PeerComparison ticker={ticker} currency={company.currency} />
 
         {/* Full financial statements (Income / Balance Sheet / Cash Flow) */}
         <FinancialStatements ticker={ticker} currency={company.currency} />
