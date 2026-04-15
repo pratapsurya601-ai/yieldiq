@@ -122,28 +122,35 @@ export default function FairValueHistory({ ticker, companyName, currency = "INR"
     )
   }
 
-  if (isError) {
+  /* Empty / error / first-time state — unified placeholder.
+     Null-safe on data.data (API can return data: null, not just []),
+     and the two cases render the same UX so users never see a
+     blank gap in place of the chart. */
+  const hasRows = !!data?.has_data && !!data.data?.length
+  if (isError || !hasRows) {
     return (
       <div ref={containerRef} className="bg-white rounded-2xl border border-gray-100 p-5">
         <h2 className="text-sm font-semibold text-gray-900 mb-3">Historical Fair Value</h2>
-        <p className="text-sm text-gray-400 text-center py-6">
-          Fair value history unavailable
-        </p>
-      </div>
-    )
-  }
-
-  /* First-time / not-enough-data state */
-  if (!data?.has_data || !data.data.length) {
-    return (
-      <div ref={containerRef} className="bg-white rounded-2xl border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Historical Fair Value</h2>
-        <div className="py-6 text-center space-y-2">
-          <p className="text-2xl">📈</p>
-          <p className="text-sm text-gray-700 font-medium">History is building up</p>
-          <p className="text-xs text-gray-400 max-w-xs mx-auto">
-            {data?.message ??
-              "Analyse this stock regularly to grow your fair value chart."}
+        <div className="py-8 text-center flex flex-col items-center gap-2">
+          {/* Inline SVG — no emoji-font / hydration risk */}
+          <svg
+            className="h-8 w-8 text-gray-300"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            aria-hidden="true"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7 14l4-4 3 3 5-6" />
+          </svg>
+          <p className="text-sm text-gray-700 font-medium">
+            {isError ? "Fair value history unavailable" : "Building your history"}
+          </p>
+          <p className="text-xs text-gray-400 max-w-xs">
+            {isError
+              ? "Try again in a moment."
+              : "Historical data will appear here after your first analysis. Check back tomorrow."}
           </p>
         </div>
       </div>
