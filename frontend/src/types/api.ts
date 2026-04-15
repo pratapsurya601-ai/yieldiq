@@ -63,6 +63,16 @@ export interface QualityOutput {
   fundamental_grade: string
   roe: number | null
   de_ratio: number | null
+  roce?: number | null
+  debt_ebitda?: number | null
+  debt_ebitda_label?: string | null
+  interest_coverage?: number | null
+  enterprise_value?: number | null
+  promoter_pct?: number | null
+  promoter_pledge_pct?: number | null
+  fii_pct?: number | null
+  dii_pct?: number | null
+  public_pct?: number | null
 }
 
 export interface BulkDealItem {

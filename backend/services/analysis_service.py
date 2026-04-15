@@ -768,8 +768,12 @@ def _query_latest_annual_financials(ticker: str):
         db.close()
 
 
-def _query_promoter_pledge(ticker: str):
-    """Query promoter pledge % from ShareholdingPattern table."""
+def _query_shareholding(ticker: str) -> dict | None:
+    """
+    Fetch the latest shareholding pattern (promoter / FII / DII /
+    public + pledge) from the ShareholdingPattern table. Returns
+    ``None`` if the table/row is missing.
+    """
     db = _get_pipeline_session()
     if db is None:
         return None
@@ -783,13 +787,85 @@ def _query_promoter_pledge(ticker: str):
             .order_by(desc(ShareholdingPattern.quarter_end))
             .first()
         )
-        if row and row.promoter_pledge_pct is not None:
-            return float(row.promoter_pledge_pct)
-        return None
+        if row is None:
+            return None
+        return {
+            "promoter_pct":        float(row.promoter_pct) if row.promoter_pct is not None else None,
+            "promoter_pledge_pct": float(row.promoter_pledge_pct) if row.promoter_pledge_pct is not None else None,
+            "fii_pct":             float(row.fii_pct) if row.fii_pct is not None else None,
+            "dii_pct":             float(row.dii_pct) if row.dii_pct is not None else None,
+            "public_pct":          float(row.public_pct) if row.public_pct is not None else None,
+        }
     except Exception:
         return None
     finally:
         db.close()
+
+
+def _query_promoter_pledge(ticker: str):
+    """Legacy shim — red-flag generator calls this by name. Kept so
+    we don't break callers that only need the pledge number."""
+    data = _query_shareholding(ticker)
+    return data.get("promoter_pledge_pct") if data else None
+
+
+def _fetch_ebit_and_interest(ticker: str) -> tuple[float | None, float | None]:
+    """
+    Pull the most recent annual EBIT and interest_expense for a
+    ticker from the ``company_financials`` table (populated by the
+    XBRL pipeline). Returns (None, None) if the table is absent or
+    the ticker isn't covered.
+    """
+    db = _get_pipeline_session()
+    if db is None:
+        return None, None
+    try:
+        from sqlalchemy import text
+        db_ticker = ticker.replace(".NS", "").replace(".BO", "")
+        row = db.execute(text("""
+            SELECT ebit, interest_expense
+            FROM company_financials
+            WHERE ticker_nse = :t
+              AND statement_type = 'income'
+              AND period_type = 'annual'
+              AND period_end_date IS NOT NULL
+            ORDER BY period_end_date DESC
+            LIMIT 1
+        """), {"t": db_ticker}).mappings().first()
+        if not row:
+            return None, None
+
+        def _f(v):
+            try:
+                return float(v) if v is not None else None
+            except (TypeError, ValueError):
+                return None
+
+        return _f(row.get("ebit")), _f(row.get("interest_expense"))
+    except Exception as exc:
+        import logging
+        logging.getLogger("yieldiq.analysis").debug(
+            "ebit/interest fetch failed for %s: %s", ticker, exc
+        )
+        return None, None
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
+def _debt_ebitda_label(ratio: float | None) -> str | None:
+    """Map Debt/EBITDA to a text band. None in → None out."""
+    if ratio is None:
+        return None
+    if ratio < 1.0:
+        return "Excellent"
+    if ratio < 3.0:
+        return "Healthy"
+    if ratio < 5.0:
+        return "Leveraged"
+    return "High Risk"
 
 
 def _query_earnings_date(ticker: str) -> dict | None:
@@ -1445,6 +1521,48 @@ class AnalysisService:
             )
         # ──────────────────────────────────────────────────────
 
+        # ── Extended quality ratios ───────────────────────────
+        # ROCE, Debt/EBITDA (with band label), Interest Coverage,
+        # Enterprise Value. Every metric is Optional — None flows
+        # through to the frontend which renders "—".
+        _ebit_val, _interest_exp = _fetch_ebit_and_interest(ticker)
+
+        _total_assets = enriched.get("total_assets") or 0
+        _total_debt = enriched.get("total_debt") or 0
+        _total_cash = enriched.get("total_cash") or 0
+        _ebitda = enriched.get("ebitda") or 0
+        _shares = enriched.get("shares") or 0
+
+        _roce_val: float | None = None
+        if _ebit_val is not None and _total_assets > 0:
+            _roce_val = round(_ebit_val / _total_assets * 100, 1)
+
+        _debt_ebitda_val: float | None = None
+        if _ebitda > 0:
+            _debt_ebitda_val = round(_total_debt / _ebitda, 1)
+        _debt_ebitda_lbl = _debt_ebitda_label(_debt_ebitda_val)
+
+        _interest_cov_val: float | None = None
+        if (
+            _ebit_val is not None
+            and _interest_exp is not None
+            and _interest_exp > 0
+        ):
+            _interest_cov_val = round(_ebit_val / _interest_exp, 1)
+
+        # Enterprise Value in Crores: market_cap_cr + debt − cash.
+        # market_cap not in enriched — derive from price × shares.
+        _ent_val_cr: float | None = None
+        try:
+            _mcap_cr = (float(price) * float(_shares)) / 1e7 if _shares else None
+            if _mcap_cr is not None:
+                _ent_val_cr = round(_mcap_cr + _total_debt - _total_cash, 0)
+        except Exception:
+            _ent_val_cr = None
+
+        # ── Shareholding breakdown ────────────────────────────
+        _sh = _query_shareholding(ticker) or {}
+
         return AnalysisResponse(
             ticker=ticker,
             company=company,
@@ -1495,6 +1613,16 @@ class AnalysisService:
                 fundamental_grade=fund_result.get("grade", "N/A"),
                 roe=enriched.get("roe"),
                 de_ratio=enriched.get("de_ratio"),
+                roce=_roce_val,
+                debt_ebitda=_debt_ebitda_val,
+                debt_ebitda_label=_debt_ebitda_lbl,
+                interest_coverage=_interest_cov_val,
+                enterprise_value=_ent_val_cr,
+                promoter_pct=_sh.get("promoter_pct"),
+                promoter_pledge_pct=_sh.get("promoter_pledge_pct"),
+                fii_pct=_sh.get("fii_pct"),
+                dii_pct=_sh.get("dii_pct"),
+                public_pct=_sh.get("public_pct"),
             ),
             insights=InsightCards(
                 patience_months=hp.get("min_months"),

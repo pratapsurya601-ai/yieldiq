@@ -12,6 +12,7 @@ import ActionBar from "@/components/analysis/ActionBar"
 import TransparencyStrip from "@/components/analysis/TransparencyStrip"
 import InsightCards from "@/components/analysis/InsightCards"
 import RedFlagInsights from "@/components/analysis/RedFlagInsights"
+import QualityRatios from "@/components/analysis/QualityRatios"
 import DividendTracker from "@/components/analysis/DividendTracker"
 import LoadingSteps from "@/components/ui/LoadingSteps"
 import PriceChart from "@/components/analysis/PriceChart"
@@ -331,6 +332,7 @@ export default function AnalysisPage() {
       {/* LAYER 2 -- The Story (Insight Cards) */}
       <div className="">
         <InsightCards quality={quality} insights={insights} valuation={valuation} currency={company.currency} />
+        <QualityRatios quality={quality} insights={insights} />
         <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
         <DividendTracker dividend={insights?.dividend ?? null} currency={company.currency} />
       </div>

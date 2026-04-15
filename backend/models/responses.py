@@ -65,6 +65,18 @@ class QualityOutput(BaseModel):
     fundamental_grade: str = ""
     roe: Optional[float] = None
     de_ratio: Optional[float] = None
+    # Extended ratios — all Optional; None renders as "—" in frontend
+    roce: Optional[float] = None                    # ebit / total_assets × 100
+    debt_ebitda: Optional[float] = None             # total_debt / ebitda
+    debt_ebitda_label: Optional[str] = None         # Excellent / Healthy / Leveraged / High Risk
+    interest_coverage: Optional[float] = None       # ebit / interest_expense
+    enterprise_value: Optional[float] = None        # market_cap + debt − cash (in Cr)
+    # Shareholding breakdown from ShareholdingPattern table
+    promoter_pct: Optional[float] = None
+    promoter_pledge_pct: Optional[float] = None
+    fii_pct: Optional[float] = None
+    dii_pct: Optional[float] = None
+    public_pct: Optional[float] = None
 
 
 class BulkDealItem(BaseModel):
