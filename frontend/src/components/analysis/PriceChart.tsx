@@ -34,6 +34,10 @@ const TIME_PERIODS = [
 ] as const
 
 function generateMockData(currentPrice: number, days: number): PricePoint[] {
+  // Deterministic mock — never use Math.random() or locale-dependent
+  // date formatting here: both cause React hydration mismatches (SSR
+  // emits different output than client hydration). The variance is a
+  // pure function of index so server and client produce identical HTML.
   const now = new Date()
   const points: PricePoint[] = []
 
@@ -41,13 +45,15 @@ function generateMockData(currentPrice: number, days: number): PricePoint[] {
     const date = new Date(now)
     date.setDate(date.getDate() - i)
 
-    const variance = (Math.random() - 0.5) * 0.1 * currentPrice
+    // Sinusoidal variance ±5% of price — deterministic per index
+    const variance = Math.sin(i * 0.3) * 0.05 * currentPrice
     const price = Math.round((currentPrice + variance) * 100) / 100
 
-    points.push({
-      date: date.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      price,
-    })
+    // Use ISO substring instead of toLocaleDateString — locale-independent
+    const month = date.toLocaleString("en-US", { month: "short", timeZone: "UTC" })
+    const day = date.getUTCDate()
+
+    points.push({ date: `${month} ${day}`, price })
   }
 
   return points
@@ -78,15 +84,14 @@ export default function PriceChart({
   const data: PricePoint[] = useMemo(() => {
     // Use API data if available
     if (chartResponse?.prices?.length) {
-      return chartResponse.prices.map((p: { date: string; price: number }) => ({
-        date: new Date(p.date).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-        }),
-        price: p.price,
-      }))
+      return chartResponse.prices.map((p: { date: string; price: number }) => {
+        // Parse the ISO date and format without locale-dependent behaviour
+        const d = new Date(p.date)
+        const month = d.toLocaleString("en-US", { month: "short", timeZone: "UTC" })
+        return { date: `${month} ${d.getUTCDate()}`, price: p.price }
+      })
     }
-    // Fallback to mock data
+    // Fallback to deterministic mock data
     return generateMockData(currentPrice, PERIOD_DAYS[period] ?? 30)
   }, [chartResponse, currentPrice, period])
 
