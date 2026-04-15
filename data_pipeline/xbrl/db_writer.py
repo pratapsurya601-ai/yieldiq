@@ -1,0 +1,202 @@
+import psycopg2
+
+from config import DATABASE_URL
+
+
+def get_conn():
+    if not DATABASE_URL:
+        raise RuntimeError(
+            "DATABASE_URL is not set. Set it in .env or the environment."
+        )
+    return psycopg2.connect(DATABASE_URL)
+
+
+def create_tables():
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS company_financials (
+        id SERIAL PRIMARY KEY,
+        ticker_nse VARCHAR(20) NOT NULL,
+        period_type VARCHAR(10) NOT NULL,
+        period_end_date DATE,
+        statement_type VARCHAR(20) NOT NULL,
+        -- Income Statement
+        revenue NUMERIC,
+        gross_profit NUMERIC,
+        ebitda NUMERIC,
+        ebit NUMERIC,
+        depreciation NUMERIC,
+        interest_expense NUMERIC,
+        other_income NUMERIC,
+        pretax_income NUMERIC,
+        tax_provision NUMERIC,
+        net_income NUMERIC,
+        minority_interest NUMERIC,
+        total_expenses NUMERIC,
+        operating_expense NUMERIC,
+        eps_basic NUMERIC,
+        eps_diluted NUMERIC,
+        -- Balance Sheet
+        total_assets NUMERIC,
+        current_assets NUMERIC,
+        cash NUMERIC,
+        inventory NUMERIC,
+        receivables NUMERIC,
+        fixed_assets NUMERIC,
+        investments NUMERIC,
+        total_liabilities NUMERIC,
+        current_liabilities NUMERIC,
+        total_debt NUMERIC,
+        long_term_debt NUMERIC,
+        short_term_debt NUMERIC,
+        payables NUMERIC,
+        total_equity NUMERIC,
+        retained_earnings NUMERIC,
+        working_capital NUMERIC,
+        net_debt NUMERIC,
+        -- Cash Flow
+        operating_cf NUMERIC,
+        investing_cf NUMERIC,
+        financing_cf NUMERIC,
+        capex NUMERIC,
+        free_cash_flow NUMERIC,
+        dividends_paid NUMERIC,
+        net_cash_change NUMERIC,
+        -- NSE supplement
+        interest_earned NUMERIC,
+        interest_expended NUMERIC,
+        total_income NUMERIC,
+        interest NUMERIC,
+        is_bank BOOLEAN DEFAULT FALSE,
+        is_audited BOOLEAN DEFAULT TRUE,
+        -- Metadata
+        source VARCHAR(20),
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(ticker_nse, period_type, period_end_date, statement_type, source)
+    );
+    CREATE INDEX IF NOT EXISTS idx_fin_ticker
+        ON company_financials(ticker_nse);
+    CREATE INDEX IF NOT EXISTS idx_fin_period
+        ON company_financials(period_end_date);
+    CREATE INDEX IF NOT EXISTS idx_fin_type
+        ON company_financials(statement_type);
+    """)
+    conn.commit()
+    cur.close()
+    conn.close()
+    print("Tables created/verified")
+
+
+# Full list of numeric/metadata columns we write. Anything not supplied by a
+# given record is filled with None (NSE rows have no BS/CF; yfinance rows
+# have no NSE flags, etc).
+_ALL_FIELDS = [
+    'revenue', 'gross_profit', 'ebitda', 'ebit', 'depreciation',
+    'interest_expense', 'other_income', 'pretax_income', 'tax_provision',
+    'net_income', 'minority_interest', 'total_expenses', 'operating_expense',
+    'eps_basic', 'eps_diluted',
+    'total_assets', 'current_assets', 'cash', 'inventory', 'receivables',
+    'fixed_assets', 'investments', 'total_liabilities', 'current_liabilities',
+    'total_debt', 'long_term_debt', 'short_term_debt', 'payables',
+    'total_equity', 'retained_earnings', 'working_capital', 'net_debt',
+    'operating_cf', 'investing_cf', 'financing_cf', 'capex',
+    'free_cash_flow', 'dividends_paid', 'net_cash_change',
+    'interest_earned', 'interest_expended', 'total_income', 'interest',
+    'notes',
+]
+
+
+def _prepare(rec):
+    params = {
+        'ticker_nse': rec.get('ticker_nse'),
+        'period_type': rec.get('period_type'),
+        'period_end_date': rec.get('period_end_date'),
+        'statement_type': rec.get('statement_type'),
+        'source': rec.get('source'),
+        'is_bank': bool(rec.get('is_bank', False)),
+        'is_audited': bool(rec.get('is_audited', True)),
+    }
+    for f in _ALL_FIELDS:
+        params[f] = rec.get(f)
+    return params
+
+
+def upsert_records(records):
+    """Bulk upsert records into company_financials."""
+    if not records:
+        return 0, 0
+
+    conn = get_conn()
+    cur = conn.cursor()
+    inserted = 0
+    errors = 0
+
+    sql = """
+    INSERT INTO company_financials (
+        ticker_nse, period_type, period_end_date, statement_type,
+        revenue, gross_profit, ebitda, ebit, depreciation,
+        interest_expense, other_income, pretax_income, tax_provision,
+        net_income, minority_interest, total_expenses, operating_expense,
+        eps_basic, eps_diluted,
+        total_assets, current_assets, cash, inventory, receivables,
+        fixed_assets, investments, total_liabilities, current_liabilities,
+        total_debt, long_term_debt, short_term_debt, payables,
+        total_equity, retained_earnings, working_capital, net_debt,
+        operating_cf, investing_cf, financing_cf, capex,
+        free_cash_flow, dividends_paid, net_cash_change,
+        interest_earned, interest_expended, total_income, interest,
+        is_bank, is_audited, source, notes
+    ) VALUES (
+        %(ticker_nse)s, %(period_type)s, %(period_end_date)s, %(statement_type)s,
+        %(revenue)s, %(gross_profit)s, %(ebitda)s, %(ebit)s, %(depreciation)s,
+        %(interest_expense)s, %(other_income)s, %(pretax_income)s, %(tax_provision)s,
+        %(net_income)s, %(minority_interest)s, %(total_expenses)s, %(operating_expense)s,
+        %(eps_basic)s, %(eps_diluted)s,
+        %(total_assets)s, %(current_assets)s, %(cash)s, %(inventory)s, %(receivables)s,
+        %(fixed_assets)s, %(investments)s, %(total_liabilities)s, %(current_liabilities)s,
+        %(total_debt)s, %(long_term_debt)s, %(short_term_debt)s, %(payables)s,
+        %(total_equity)s, %(retained_earnings)s, %(working_capital)s, %(net_debt)s,
+        %(operating_cf)s, %(investing_cf)s, %(financing_cf)s, %(capex)s,
+        %(free_cash_flow)s, %(dividends_paid)s, %(net_cash_change)s,
+        %(interest_earned)s, %(interest_expended)s, %(total_income)s, %(interest)s,
+        %(is_bank)s, %(is_audited)s, %(source)s, %(notes)s
+    )
+    ON CONFLICT (ticker_nse, period_type, period_end_date, statement_type, source)
+    DO UPDATE SET
+        revenue = EXCLUDED.revenue,
+        gross_profit = EXCLUDED.gross_profit,
+        ebitda = EXCLUDED.ebitda,
+        ebit = EXCLUDED.ebit,
+        net_income = EXCLUDED.net_income,
+        total_assets = EXCLUDED.total_assets,
+        total_equity = EXCLUDED.total_equity,
+        total_debt = EXCLUDED.total_debt,
+        cash = EXCLUDED.cash,
+        operating_cf = EXCLUDED.operating_cf,
+        free_cash_flow = EXCLUDED.free_cash_flow,
+        capex = EXCLUDED.capex,
+        eps_diluted = EXCLUDED.eps_diluted,
+        updated_at = NOW()
+    """
+
+    for rec in records:
+        try:
+            if not rec.get('period_end_date') or not rec.get('ticker_nse'):
+                continue
+            cur.execute(sql, _prepare(rec))
+            inserted += 1
+        except Exception as e:
+            errors += 1
+            if errors <= 3:
+                print(f"  DB error {rec.get('ticker_nse')} "
+                      f"{rec.get('period_end_date')} "
+                      f"{rec.get('statement_type')}/{rec.get('source')}: {e}")
+            conn.rollback()
+
+    conn.commit()
+    cur.close()
+    conn.close()
+    return inserted, errors
