@@ -179,7 +179,12 @@ def _ensure_pipeline_tables():
 
 
 def _prewarm_popular_stocks():
-    """Pre-warm cache for top 10 most searched stocks on startup."""
+    """Pre-warm cache for top 30 popular stocks on startup.
+
+    Same list as the GitHub Actions cache_warmup cron so behaviour
+    is consistent. Runs in a daemon thread to avoid blocking app
+    startup; whole pass takes ~4-5 minutes in background.
+    """
     import threading
 
     def _warm():
@@ -192,6 +197,10 @@ def _prewarm_popular_stocks():
             popular = [
                 "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ITC.NS",
                 "SBIN.NS", "ICICIBANK.NS", "BAJFINANCE.NS", "MARUTI.NS", "TITAN.NS",
+                "WIPRO.NS", "AXISBANK.NS", "KOTAKBANK.NS", "LT.NS", "SUNPHARMA.NS",
+                "HCLTECH.NS", "NESTLEIND.NS", "ASIANPAINT.NS", "ULTRACEMCO.NS", "ADANIENT.NS",
+                "ADANIPORTS.NS", "POWERGRID.NS", "NTPC.NS", "ONGC.NS", "COALINDIA.NS",
+                "BHARTIARTL.NS", "DIVISLAB.NS", "DRREDDY.NS", "CIPLA.NS", "EICHERMOT.NS",
             ]
             for ticker in popular:
                 _key = f"analysis:{ticker}"
