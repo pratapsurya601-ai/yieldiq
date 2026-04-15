@@ -35,11 +35,18 @@ def fetch_and_store_yfinance(ticker_ns: str, ticker: str, db: Session) -> bool:
         existing_metric = db.query(MarketMetrics).filter_by(
             ticker=ticker, trade_date=today
         ).first()
+        # yfinance now returns dividendYield as a percentage (e.g. 4.8).
+        # Guard against an accidental double-multiplication (e.g. 480)
+        # by dividing values > 50 back down. Matches the defensive
+        # pattern used in backend/services/dividend_service.py.
+        _raw_yield = info.get("dividendYield") or 0
+        _dividend_yield = _raw_yield if _raw_yield <= 50 else _raw_yield / 100
+
         if existing_metric:
             existing_metric.market_cap_cr = _to_cr(info.get("marketCap"))
             existing_metric.pe_ratio = info.get("trailingPE")
             existing_metric.pb_ratio = info.get("priceToBook")
-            existing_metric.dividend_yield = (info.get("dividendYield") or 0) * 100
+            existing_metric.dividend_yield = _dividend_yield
             existing_metric.beta_1yr = info.get("beta")
             existing_metric.ev_cr = _to_cr(info.get("enterpriseValue"))
         else:
@@ -49,7 +56,7 @@ def fetch_and_store_yfinance(ticker_ns: str, ticker: str, db: Session) -> bool:
                 market_cap_cr=_to_cr(info.get("marketCap")),
                 pe_ratio=info.get("trailingPE"),
                 pb_ratio=info.get("priceToBook"),
-                dividend_yield=(info.get("dividendYield") or 0) * 100,
+                dividend_yield=_dividend_yield,
                 beta_1yr=info.get("beta"),
                 ev_cr=_to_cr(info.get("enterpriseValue")),
             ))
