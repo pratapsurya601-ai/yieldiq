@@ -907,11 +907,28 @@ class AnalysisService:
 
         # ── Step 3: Compute metrics ───────────────────────────
         enriched = compute_metrics(raw)
-        price = enriched.get("price", 0)
+        price = enriched.get("price", 0) or 0
         is_indian = ticker.endswith(".NS") or ticker.endswith(".BO")
 
-        # ── Price sanity check ────────────────────────────────
-        if not price or price <= 0:
+        # ── Data-quality sanity checks ────────────────────────
+        # Trip "unavailable" when yfinance returned partial/stale data
+        # that would render as ₹0 cards. Covers:
+        #   (a) Missing/zero/tiny price (classic)
+        #   (b) Price exists but no fundamentals at all (delisted /
+        #       renamed tickers — e.g. ZOMATO→ETERNAL, stale cache)
+        _shares = enriched.get("shares", 0) or 0
+        _latest_revenue = enriched.get("latest_revenue", 0) or 0
+        _latest_pat = enriched.get("latest_pat", 0) or 0
+        _has_any_fundamentals = (
+            _latest_revenue > 0 or _latest_pat != 0 or _shares > 0
+        )
+        if not price or price < 1 or not _has_any_fundamentals:
+            _issue = (
+                "Price data unavailable \u2014 try again in 60 seconds."
+                if not price or price < 1
+                else "Financial data unavailable for this ticker. "
+                "It may be delisted, renamed, or data may be stale."
+            )
             return AnalysisResponse(
                 ticker=ticker,
                 company=CompanyInfo(
@@ -925,7 +942,7 @@ class AnalysisService:
                 quality=QualityOutput(),
                 insights=InsightCards(),
                 data_confidence="unusable",
-                data_issues=["Price data unavailable \u2014 try again in 60 seconds."],
+                data_issues=[_issue],
                 timestamp=_ts,
             )
 

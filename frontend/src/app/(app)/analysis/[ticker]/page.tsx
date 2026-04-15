@@ -123,22 +123,34 @@ export default function AnalysisPage() {
     </div>
   )
 
-  if (data.valuation.verdict === "unavailable") {
+  // Defensive degenerate-response guard — catches the case where the
+  // backend returned a 200 with a valid-looking verdict but every
+  // monetary value is 0. Happens occasionally with stale/renamed
+  // tickers where yfinance serves a cached price but no fundamentals.
+  const isDegenerate =
+    (!data.valuation.current_price || data.valuation.current_price < 1) ||
+    (data.valuation.fair_value === 0 &&
+      data.valuation.bear_case === 0 &&
+      data.valuation.bull_case === 0 &&
+      data.quality.yieldiq_score === 0)
+
+  if (data.valuation.verdict === "unavailable" || isDegenerate) {
     const displayTicker = data.ticker.replace(".NS", "").replace(".BO", "")
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center pb-20">
         <p className="text-4xl mb-4">&#9888;&#65039;</p>
         <p className="text-lg font-medium text-gray-900 mb-2">
-          Price data unavailable for {displayTicker}
+          Data unavailable for {displayTicker}
         </p>
         <p className="text-sm text-gray-500 mb-4">
-          {data.data_issues?.[0] || "Market data could not be fetched. This is usually temporary."}
+          {data.data_issues?.[0] ||
+            "We couldn\u2019t fetch reliable financial data for this ticker. It may be delisted, renamed, or temporarily unavailable."}
         </p>
         <button
           onClick={() => window.location.reload()}
           className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium"
         >
-          Retry in 60 seconds
+          Try again in a moment
         </button>
       </div>
     )
