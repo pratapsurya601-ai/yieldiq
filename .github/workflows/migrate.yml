@@ -27,71 +27,15 @@ jobs:
           cache: "pip"
 
       - name: Install dependencies
-        run: |
-          pip install sqlalchemy psycopg2-binary
+        run: pip install sqlalchemy psycopg2-binary
 
       - name: Run migration
         env:
           DATABASE_URL: ${{ secrets.DATABASE_PUBLIC_URL }}
-        run: |
-          MIGRATION="${{ inputs.migration }}"
+          MIGRATION: ${{ inputs.migration }}
+        run: python scripts/migrate.py
 
-          if [ "$MIGRATION" = "create_fair_value_history" ]; then
-            python -c "
-from sqlalchemy import create_engine, text
-import os
-
-url = os.environ['DATABASE_URL']
-engine = create_engine(url)
-
-ddl = '''
-CREATE TABLE IF NOT EXISTS fair_value_history (
-    id         SERIAL PRIMARY KEY,
-    ticker     VARCHAR(20) NOT NULL,
-    date       DATE NOT NULL,
-    fair_value FLOAT NOT NULL,
-    price      FLOAT NOT NULL,
-    mos_pct    FLOAT NOT NULL,
-    verdict    VARCHAR(20),
-    wacc       FLOAT,
-    confidence INTEGER,
-    updated_at TIMESTAMP DEFAULT NOW(),
-    CONSTRAINT uq_fv_ticker_date
-        UNIQUE (ticker, date)
-);
-CREATE INDEX IF NOT EXISTS ix_fv_history_ticker
-    ON fair_value_history (ticker);
-CREATE INDEX IF NOT EXISTS ix_fv_history_date
-    ON fair_value_history (date);
-'''
-
-with engine.connect() as conn:
-    conn.execute(text(ddl))
-    conn.commit()
-    result = conn.execute(text(
-        'SELECT COUNT(*) FROM fair_value_history'
-    ))
-    count = result.scalar()
-    print(f'Migration complete.')
-    print(f'fair_value_history rows: {count}')
-"
-          else
-            echo "Unknown migration: $MIGRATION"
-            exit 1
-          fi
-
-      - name: Verify table exists
+      - name: Verify
         env:
           DATABASE_URL: ${{ secrets.DATABASE_PUBLIC_URL }}
-        run: |
-          python -c "
-from sqlalchemy import create_engine, text
-import os
-engine = create_engine(os.environ['DATABASE_URL'])
-with engine.connect() as conn:
-    r = conn.execute(text(
-        'SELECT COUNT(*) FROM fair_value_history'
-    ))
-    print(f'Verification: fair_value_history '
-          f'exists with {r.scalar()} rows')
-"
+        run: python scripts/verify_migration.py
