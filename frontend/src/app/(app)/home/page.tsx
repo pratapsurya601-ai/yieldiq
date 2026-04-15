@@ -1,9 +1,10 @@
 "use client"
 import { useState, useEffect } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { getMarketPulse, getTopPick } from "@/lib/api"
+import { getMarketPulse, getTopPick, getMacroSummary } from "@/lib/api"
 import TopPickCard from "@/components/discover/TopPickCard"
 import HomeEmpty from "@/components/empty-states/HomeEmpty"
+import MacroDashboard from "@/components/home/MacroDashboard"
 import { formatPct } from "@/lib/utils"
 import Link from "next/link"
 
@@ -25,7 +26,13 @@ export default function HomePage() {
   useEffect(() => setMounted(true), [])
   const greeting = mounted ? getGreeting() : "Welcome back"
 
-  const { data: pulse } = useQuery({ queryKey: ["market-pulse"], queryFn: getMarketPulse, staleTime: 300000 })
+  const { data: pulse } = useQuery({ queryKey: ["market-pulse"], queryFn: () => getMarketPulse(true), staleTime: 4 * 60 * 1000 })
+  const { data: macroSummary } = useQuery({
+    queryKey: ["macro-summary"],
+    queryFn: () => getMacroSummary(),
+    staleTime: 24 * 60 * 60 * 1000,
+    retry: 1,
+  })
   const { data: topPick } = useQuery({ queryKey: ["top-pick"], queryFn: getTopPick, staleTime: 86400000 })
   const hasData = !!topPick
 
@@ -38,6 +45,14 @@ export default function HomePage() {
       </div>
 
       <div className="px-4 space-y-6">
+        {/* Macro Dashboard — FII/DII, FX, commodities, risk-free rate */}
+        {pulse && (
+          <MacroDashboard
+            pulse={pulse}
+            ai_summary={macroSummary?.summary ?? null}
+          />
+        )}
+
         {/* Market Pulse */}
         {pulse && pulse.indices && pulse.indices.length > 0 && (
           <div className="flex gap-2 overflow-x-auto pb-2">

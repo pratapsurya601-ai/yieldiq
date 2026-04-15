@@ -196,6 +196,17 @@ export interface MarketPulseResponse {
   fear_greed_index: number | null
   fear_greed_label: string | null
   timestamp: string
+  // Macro extension — populated only with ?include_macro=true
+  fii_net_cr?: number | null
+  dii_net_cr?: number | null
+  fii_date?: string | null
+  usd_inr?: number | null
+  gold_usd?: number | null
+  crude_usd?: number | null
+  risk_free_pct?: number | null
+  nifty_midcap_price?: number | null
+  nifty_midcap_change_pct?: number | null
+  ai_summary?: string | null
 }
 
 export interface TokenResponse {

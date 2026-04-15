@@ -241,6 +241,19 @@ class MarketPulseResponse(BaseModel):
     fear_greed_label: Optional[str] = None
     timestamp: str = ""
 
+    # Macro extension — all optional, populated only when
+    # ?include_macro=true is passed.
+    fii_net_cr: Optional[float] = None
+    dii_net_cr: Optional[float] = None
+    fii_date: Optional[str] = None
+    usd_inr: Optional[float] = None
+    gold_usd: Optional[float] = None
+    crude_usd: Optional[float] = None
+    risk_free_pct: Optional[float] = None
+    nifty_midcap_price: Optional[float] = None
+    nifty_midcap_change_pct: Optional[float] = None
+    ai_summary: Optional[str] = None
+
 
 class SectorOverviewItem(BaseModel):
     name: str

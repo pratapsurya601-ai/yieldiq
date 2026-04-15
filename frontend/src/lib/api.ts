@@ -180,8 +180,17 @@ export const runPreset = (preset: string): Promise<ScreenerResponse> =>
   api.get(`/api/v1/screener/preset/${preset}`).then(r => r.data)
 
 // Market
-export const getMarketPulse = (): Promise<MarketPulseResponse> =>
-  api.get("/api/v1/market/pulse").then(r => r.data)
+export const getMarketPulse = (
+  includeMacro: boolean = false,
+): Promise<MarketPulseResponse> =>
+  api
+    .get("/api/v1/market/pulse", {
+      params: includeMacro ? { include_macro: true } : undefined,
+    })
+    .then(r => r.data)
+
+export const getMacroSummary = (): Promise<{ summary: string | null }> =>
+  api.get("/api/v1/market/macro-summary").then(r => r.data)
 
 export const getSectorOverview = (): Promise<SectorOverviewItem[]> =>
   api.get("/api/v1/market/sectors").then(r => r.data)
