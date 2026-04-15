@@ -200,6 +200,7 @@ export interface MarketPulseResponse {
   fii_net_cr?: number | null
   dii_net_cr?: number | null
   fii_date?: string | null
+  fii_stale?: boolean
   usd_inr?: number | null
   gold_usd?: number | null
   silver_usd?: number | null

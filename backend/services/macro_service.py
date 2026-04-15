@@ -34,7 +34,7 @@ class MacroService:
         if cached is not None:
             return cached
 
-        snap = self._build_snapshot(db_session)
+        snap = self._build_snapshot(db_session, cache=cache)
         if cache is not None:
             cache.set("macro:snapshot", snap, ttl=self.SNAPSHOT_TTL)
         return snap
@@ -51,7 +51,7 @@ class MacroService:
 
     # ── Snapshot composition ───────────────────────────────────
 
-    def _build_snapshot(self, db_session) -> dict:
+    def _build_snapshot(self, db_session, cache=None) -> dict:
         fetchers = {
             "fii_dii":     self._fetch_fii_dii,
             "fx":          self._fetch_fx,
@@ -76,7 +76,23 @@ class MacroService:
             except concurrent.futures.TimeoutError:
                 log.debug("macro overall fetch timed out")
 
+        # ── FII/DII with last-known-good fallback ────────────────
+        # If today's fetch succeeded, cache it (7-day TTL) so a
+        # future NSE outage still shows yesterday's data instead
+        # of "—". If today's fetch failed, pull from that cache.
         fii_dii = results.get("fii_dii") or {}
+        fii_stale = False
+        if cache is not None:
+            if fii_dii.get("fii_net") is not None or fii_dii.get("dii_net") is not None:
+                # Fresh data: refresh the last-known-good cache.
+                cache.set("macro:fii_dii_last", fii_dii, ttl=7 * 86400)
+            else:
+                # Live fetch empty — fall back to last-known-good.
+                last = cache.get("macro:fii_dii_last")
+                if last:
+                    fii_dii = last
+                    fii_stale = True
+
         fx = results.get("fx") or {}
         comms = results.get("commodities") or {}
         midcap = results.get("midcap") or {}
@@ -86,6 +102,7 @@ class MacroService:
             "fii_net_cr":              fii_dii.get("fii_net"),
             "dii_net_cr":              fii_dii.get("dii_net"),
             "fii_date":                fii_dii.get("date"),
+            "fii_stale":               fii_stale,
             "usd_inr":                 fx.get("usd_inr"),
             "gold_usd":                comms.get("gold_usd"),
             "silver_usd":              comms.get("silver_usd"),
@@ -118,15 +135,17 @@ class MacroService:
         data = resp.json()
         out: dict = {}
         for item in data or []:
-            cat = (item.get("category") or "").upper()
+            cat = (item.get("category") or "").upper().strip()
             try:
                 net = float(item.get("netValue", 0) or 0)
             except (TypeError, ValueError):
                 net = 0.0
-            if cat == "FII":
+            # NSE returns the category as "FII/FPI" (with slash),
+            # not plain "FII" — match on prefix so both forms work.
+            if cat.startswith("FII"):
                 out["fii_net"] = round(net, 1)
                 out["date"] = item.get("date")
-            elif cat == "DII":
+            elif cat.startswith("DII"):
                 out["dii_net"] = round(net, 1)
                 if "date" not in out:
                     out["date"] = item.get("date")

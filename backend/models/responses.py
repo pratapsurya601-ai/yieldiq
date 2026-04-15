@@ -246,6 +246,7 @@ class MarketPulseResponse(BaseModel):
     fii_net_cr: Optional[float] = None
     dii_net_cr: Optional[float] = None
     fii_date: Optional[str] = None
+    fii_stale: bool = False
     usd_inr: Optional[float] = None
     gold_usd: Optional[float] = None
     silver_usd: Optional[float] = None

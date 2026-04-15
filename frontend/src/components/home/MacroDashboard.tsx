@@ -24,6 +24,32 @@ function vixZone(v: number): { label: string; color: string } {
   return { label: "😰 Fear", color: "text-red-600" }
 }
 
+// NSE returns dates like "13-Apr-2026". Convert to a short
+// user-friendly label relative to today. Returns null if
+// we can't parse — caller renders nothing.
+function fmtRelativeDate(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  // "13-Apr-2026" → Date
+  const m = /^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/.exec(raw.trim())
+  if (!m) return raw // Unknown format — render as-is
+  const [, dStr, monStr, yStr] = m
+  const months: Record<string, number> = {
+    Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+    Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+  }
+  const monKey = monStr.charAt(0).toUpperCase() + monStr.slice(1, 3).toLowerCase()
+  const mon = months[monKey]
+  if (mon === undefined) return raw
+  const then = new Date(parseInt(yStr, 10), mon, parseInt(dStr, 10))
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const diffDays = Math.round((today.getTime() - then.getTime()) / 86400000)
+  if (diffDays === 0) return "Today"
+  if (diffDays === 1) return "Yesterday"
+  if (diffDays > 1 && diffDays <= 7) return `${diffDays}d ago`
+  return raw
+}
+
 // 1 troy ounce = 31.1035 grams. Convert spot USD/oz to INR/<unit>.
 const TROY_OZ_G = 31.1035
 function metalInrPer(grams: number, usdPerOz: number, usdInr: number): number {
@@ -96,6 +122,8 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
     : dii < 0 ? "border-l-red-500"
     : ""
   const vixInfo = vix !== null && vix !== undefined ? vixZone(vix) : null
+  const dateLabel = fmtRelativeDate(pulse.fii_date)
+  const isStale = pulse.fii_stale === true
 
   return (
     <div className="space-y-3">
@@ -125,8 +153,15 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
               </p>
             </>
           )}
-          {pulse.fii_date && (
-            <p className="text-[9px] text-gray-400 mt-0.5">{pulse.fii_date}</p>
+          {dateLabel && (
+            <p
+              className={cn(
+                "text-[9px] mt-0.5",
+                isStale ? "text-amber-600 font-medium" : "text-gray-400",
+              )}
+            >
+              {isStale ? `${dateLabel} · last known` : dateLabel}
+            </p>
           )}
         </Card>
 
