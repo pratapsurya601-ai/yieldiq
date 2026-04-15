@@ -248,7 +248,8 @@ class MarketPulseResponse(BaseModel):
     fii_date: Optional[str] = None
     usd_inr: Optional[float] = None
     gold_usd: Optional[float] = None
-    crude_usd: Optional[float] = None
+    silver_usd: Optional[float] = None
+    crude_usd: Optional[float] = None  # Deprecated — superseded by silver_usd
     risk_free_pct: Optional[float] = None
     nifty_midcap_price: Optional[float] = None
     nifty_midcap_change_pct: Optional[float] = None

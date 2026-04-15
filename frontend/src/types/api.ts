@@ -202,6 +202,7 @@ export interface MarketPulseResponse {
   fii_date?: string | null
   usd_inr?: number | null
   gold_usd?: number | null
+  silver_usd?: number | null
   crude_usd?: number | null
   risk_free_pct?: number | null
   nifty_midcap_price?: number | null

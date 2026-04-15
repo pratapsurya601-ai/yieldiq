@@ -145,12 +145,12 @@ export default function FairValueHistory({ ticker, companyName, currency = "INR"
             <path strokeLinecap="round" strokeLinejoin="round" d="M7 14l4-4 3 3 5-6" />
           </svg>
           <p className="text-sm text-gray-700 font-medium">
-            {isError ? "Fair value history unavailable" : "Building your history"}
+            {isError ? "Fair value history unavailable" : "No history yet"}
           </p>
           <p className="text-xs text-gray-400 max-w-xs">
             {isError
               ? "Try again in a moment."
-              : "Historical data will appear here after your first analysis. Check back tomorrow."}
+              : "Fair value history will appear here after your first analysis runs."}
           </p>
         </div>
       </div>

@@ -24,6 +24,16 @@ function vixZone(v: number): { label: string; color: string } {
   return { label: "😰 Fear", color: "text-red-600" }
 }
 
+// 1 troy ounce = 31.1035 grams. Convert spot USD/oz to INR/<unit>.
+const TROY_OZ_G = 31.1035
+function metalInrPer(grams: number, usdPerOz: number, usdInr: number): number {
+  return (usdPerOz / TROY_OZ_G) * grams * usdInr
+}
+function fmtInrLakh(v: number): string {
+  // Indian-style comma grouping, no decimals.
+  return `\u20b9${Math.round(v).toLocaleString("en-IN")}`
+}
+
 /* ------------------------------------------------------------------ */
 /* Small card primitive                                                */
 /* ------------------------------------------------------------------ */
@@ -71,7 +81,7 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
   // existing indices strip below us already shows Nifty/Sensex/Bank.
   const hasAnyMacro = [
     fii, dii, pulse.usd_inr, pulse.gold_usd,
-    pulse.crude_usd, pulse.risk_free_pct, vix,
+    pulse.silver_usd, pulse.risk_free_pct, vix,
   ].some(v => v !== null && v !== undefined)
   if (!hasAnyMacro) return null
 
@@ -178,28 +188,28 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
         </Card>
 
         <Card title="Gold">
-          {pulse.gold_usd === null || pulse.gold_usd === undefined ? (
-            <Dash />
-          ) : (
+          {pulse.gold_usd && pulse.usd_inr ? (
             <>
               <p className="text-lg font-bold text-gray-900 tabular-nums">
-                ${pulse.gold_usd.toLocaleString("en-US", { maximumFractionDigits: 0 })}
+                {fmtInrLakh(metalInrPer(10, pulse.gold_usd, pulse.usd_inr))}
               </p>
-              <p className="text-[10px] text-gray-400">per oz</p>
+              <p className="text-[10px] text-gray-400">per 10g</p>
             </>
+          ) : (
+            <Dash />
           )}
         </Card>
 
-        <Card title="Brent">
-          {pulse.crude_usd === null || pulse.crude_usd === undefined ? (
-            <Dash />
-          ) : (
+        <Card title="Silver">
+          {pulse.silver_usd && pulse.usd_inr ? (
             <>
               <p className="text-lg font-bold text-gray-900 tabular-nums">
-                ${pulse.crude_usd.toFixed(1)}
+                {fmtInrLakh(metalInrPer(1000, pulse.silver_usd, pulse.usd_inr))}
               </p>
-              <p className="text-[10px] text-gray-400">per bbl</p>
+              <p className="text-[10px] text-gray-400">per kg</p>
             </>
+          ) : (
+            <Dash />
           )}
         </Card>
 

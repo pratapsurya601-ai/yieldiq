@@ -88,7 +88,8 @@ class MacroService:
             "fii_date":                fii_dii.get("date"),
             "usd_inr":                 fx.get("usd_inr"),
             "gold_usd":                comms.get("gold_usd"),
-            "crude_usd":               comms.get("crude_usd"),
+            "silver_usd":              comms.get("silver_usd"),
+            "crude_usd":               None,  # Deprecated — replaced by silver
             "risk_free_pct":           rf,
             "nifty_midcap_price":      midcap.get("price"),
             "nifty_midcap_change_pct": midcap.get("change_pct"),
@@ -144,10 +145,10 @@ class MacroService:
         }
 
     def _fetch_commodities(self) -> dict:
-        """Gold + Brent Crude in USD."""
+        """Gold + Silver in USD (per oz)."""
         import yfinance as yf
         out: dict = {}
-        for sym, key in (("GC=F", "gold_usd"), ("BZ=F", "crude_usd")):
+        for sym, key in (("GC=F", "gold_usd"), ("SI=F", "silver_usd")):
             try:
                 fi = yf.Ticker(sym).fast_info
                 price = float(getattr(fi, "last_price", 0) or 0)
@@ -219,10 +220,10 @@ class MacroService:
             )
         if snapshot.get("usd_inr"):
             bullets.append(f"USD/INR ₹{snapshot['usd_inr']:.2f}.")
-        if snapshot.get("crude_usd"):
-            bullets.append(f"Brent ${snapshot['crude_usd']:.1f}/bbl.")
         if snapshot.get("gold_usd"):
             bullets.append(f"Gold ${snapshot['gold_usd']:,.0f}/oz.")
+        if snapshot.get("silver_usd"):
+            bullets.append(f"Silver ${snapshot['silver_usd']:.1f}/oz.")
         if snapshot.get("risk_free_pct"):
             bullets.append(
                 f"10Y G-Sec yield {snapshot['risk_free_pct']:.2f}%."

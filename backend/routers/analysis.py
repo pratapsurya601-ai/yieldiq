@@ -156,109 +156,156 @@ async def get_ai_summary(ticker: str, user: dict = Depends(get_current_user)):
     return {"ticker": ticker, "summary": summary}
 
 
+_STATIC_YIQ50: list[tuple] = [
+    ("ITC.NS",          "ITC Limited",              80,  38.0, "Wide",   "FMCG"),
+    ("SUNPHARMA.NS",    "Sun Pharma",               74,  28.0, "Wide",   "Pharma"),
+    ("PERSISTENT.NS",   "Persistent Systems",       62,  20.0, "Narrow", "IT Services"),
+    ("DRREDDY.NS",      "Dr Reddys Labs",           60,  18.0, "Wide",   "Pharma"),
+    ("HCLTECH.NS",      "HCL Technologies",         58,  15.0, "Wide",   "IT Services"),
+    ("CIPLA.NS",        "Cipla",                    56,  14.0, "Narrow", "Pharma"),
+    ("INFY.NS",         "Infosys",                  55,   8.0, "Wide",   "IT Services"),
+    ("COFORGE.NS",      "Coforge",                  55,  12.0, "Narrow", "IT Services"),
+    ("DIVISLAB.NS",     "Divis Laboratories",       54,  11.0, "Narrow", "Pharma"),
+    ("WIPRO.NS",        "Wipro",                    52,  12.0, "Narrow", "IT Services"),
+    ("BRITANNIA.NS",    "Britannia Industries",     52,   9.0, "Narrow", "FMCG"),
+    ("TATAELXSI.NS",    "Tata Elxsi",               50,   8.0, "Narrow", "IT Services"),
+    ("MARUTI.NS",       "Maruti Suzuki",            50,  10.0, "Narrow", "Auto"),
+    ("DABUR.NS",        "Dabur India",              50,   7.0, "Narrow", "FMCG"),
+    ("TCS.NS",          "Tata Consultancy",         49,   4.0, "Wide",   "IT Services"),
+    ("BHARTIARTL.NS",   "Bharti Airtel",            48,   5.0, "Wide",   "Telecom"),
+    ("APOLLOHOSP.NS",   "Apollo Hospitals",         48,   5.0, "Narrow", "Healthcare"),
+    ("PIDILITIND.NS",   "Pidilite Industries",      46,   3.0, "Wide",   "Chemicals"),
+    ("NESTLEIND.NS",    "Nestle India",             45,  -5.0, "Wide",   "FMCG"),
+    ("EICHERMOT.NS",    "Eicher Motors",            44,  -2.0, "Wide",   "Auto"),
+    ("ULTRACEMCO.NS",   "UltraTech Cement",         42,  -6.0, "Narrow", "Cement"),
+    ("TITAN.NS",        "Titan Company",            42,  -8.0, "Wide",   "Consumer"),
+    ("LT.NS",           "Larsen & Toubro",          40, -10.0, "Narrow", "Infra"),
+    ("BAJFINANCE.NS",   "Bajaj Finance",            38, -12.0, "Wide",   "NBFC"),
+    ("IRCTC.NS",        "IRCTC",                    36, -15.0, "Wide",   "Travel"),
+    # Additional 25 entries to ensure static fallback can fill 50 rows.
+    ("HINDUNILVR.NS",   "Hindustan Unilever",       60,  12.0, "Wide",   "FMCG"),
+    ("HDFCBANK.NS",     "HDFC Bank",                58,   6.0, "Wide",   "Banking"),
+    ("ICICIBANK.NS",    "ICICI Bank",               57,   8.0, "Wide",   "Banking"),
+    ("KOTAKBANK.NS",    "Kotak Mahindra Bank",      54,   3.0, "Wide",   "Banking"),
+    ("AXISBANK.NS",     "Axis Bank",                52,   4.0, "Narrow", "Banking"),
+    ("SBIN.NS",         "State Bank of India",      50,   7.0, "Narrow", "Banking"),
+    ("INDUSINDBK.NS",   "IndusInd Bank",            45,  -4.0, "Narrow", "Banking"),
+    ("BAJAJFINSV.NS",   "Bajaj Finserv",            48,  -6.0, "Wide",   "NBFC"),
+    ("CHOLAFIN.NS",     "Cholamandalam Finance",    52,   3.0, "Narrow", "NBFC"),
+    ("MUTHOOTFIN.NS",   "Muthoot Finance",          54,   9.0, "Narrow", "NBFC"),
+    ("RELIANCE.NS",     "Reliance Industries",      56,   5.0, "Wide",   "Oil & Gas"),
+    ("ONGC.NS",         "ONGC",                     42,  -8.0, "Narrow", "Oil & Gas"),
+    ("TATAMOTORS.NS",   "Tata Motors",              44,  -5.0, "Narrow", "Auto"),
+    ("MOTHERSON.NS",    "Samvardhana Motherson",    46,   2.0, "Narrow", "Auto"),
+    ("BOSCHLTD.NS",     "Bosch",                    50,   4.0, "Wide",   "Auto"),
+    ("JSWSTEEL.NS",     "JSW Steel",                41,  -9.0, "Narrow", "Metals"),
+    ("TATASTEEL.NS",    "Tata Steel",               39, -11.0, "Narrow", "Metals"),
+    ("HINDALCO.NS",     "Hindalco",                 43,  -4.0, "Narrow", "Metals"),
+    ("AMBUJACEM.NS",    "Ambuja Cements",           46,   1.0, "Narrow", "Cement"),
+    ("ACC.NS",          "ACC",                      44,  -3.0, "Narrow", "Cement"),
+    ("SIEMENS.NS",      "Siemens",                  49,  -2.0, "Wide",   "Capital Goods"),
+    ("ABB.NS",          "ABB India",                48,  -1.0, "Wide",   "Capital Goods"),
+    ("BEL.NS",          "Bharat Electronics",       55,   7.0, "Wide",   "Defence"),
+    ("DMART.NS",        "Avenue Supermarts",        52,   6.0, "Wide",   "Retail"),
+    ("TRENT.NS",        "Trent",                    56,  10.0, "Narrow", "Retail"),
+]
+
+
+def _load_screener_csv() -> list[ScreenerStock]:
+    """Read screener_results.csv if available. Returns [] on any error."""
+    try:
+        import pandas as pd
+        from pathlib import Path
+        _path = Path(__file__).resolve().parent.parent.parent / "data" / "screener_results.csv"
+        if not _path.exists():
+            return []
+        df = pd.read_csv(_path)
+        _score_col = next((c for c in df.columns if c.lower() in ("score", "yieldiq_score", "yiq_score")), None)
+        _ticker_col = next((c for c in df.columns if c.lower() in ("ticker", "symbol")), df.columns[0])
+        _mos_col = next((c for c in df.columns if c.lower() in ("mos", "mos_pct", "margin_of_safety")), None)
+        _company_col = next((c for c in df.columns if c.lower() in ("company", "company_name", "name")), None)
+        _moat_col = next((c for c in df.columns if "moat" in c.lower()), None)
+        _sector_col = next((c for c in df.columns if c.lower() in ("sector", "sector_name")), None)
+        if _score_col:
+            df = df.nlargest(50, _score_col)
+        out: list[ScreenerStock] = []
+        for _, row in df.iterrows():
+            _s = int(row.get(_score_col, 0)) if _score_col else 0
+            _m = float(row.get(_mos_col, 0)) if _mos_col else 0.0
+            if _s > 0:
+                out.append(ScreenerStock(
+                    ticker=str(row.get(_ticker_col, "")),
+                    company_name=str(row.get(_company_col, "")) if _company_col else "",
+                    score=_s,
+                    margin_of_safety=_m,
+                    moat=str(row.get(_moat_col, "")) if _moat_col else "",
+                    sector=str(row.get(_sector_col, "")) if _sector_col else "",
+                ))
+        return out
+    except Exception:
+        return []
+
+
+def _load_cached_analyses() -> list[ScreenerStock]:
+    """Read warm AnalysisResponse entries from the in-process cache."""
+    out: list[ScreenerStock] = []
+    try:
+        for key in list(cache._store.keys()):
+            if key.startswith("analysis:") and ".NS" in key:
+                val = cache.get(key)
+                if val and hasattr(val, "quality") and val.quality.yieldiq_score > 30:
+                    out.append(ScreenerStock(
+                        ticker=val.ticker,
+                        company_name=val.company.company_name,
+                        score=val.quality.yieldiq_score,
+                        margin_of_safety=round(val.valuation.margin_of_safety, 1),
+                        moat=val.quality.moat,
+                        sector=val.company.sector,
+                        verdict=val.valuation.verdict,
+                    ))
+    except Exception:
+        pass
+    return out
+
+
 @router.get("/yieldiq50", response_model=ScreenerResponse)
 async def get_yieldiq50(user: dict = Depends(get_current_user)):
-    """Top 50 undervalued high-quality stocks. Cached daily."""
+    """Top 50 undervalued high-quality stocks. Cached daily.
+
+    Sources are merged (not exclusive) and deduped by ticker so the
+    response reliably fills 50 rows:
+      1. Real screener CSV output (highest priority — real scores)
+      2. Warm AnalysisResponse cache (real scores from recent runs)
+      3. Static fallback (50 Nifty-100 tickers with placeholder scores)
+    """
     _cache_key = f"yieldiq50:{date.today().isoformat()}"
     cached = cache.get(_cache_key)
     if cached:
         return cached
 
-    stocks: list[ScreenerStock] = []
+    by_ticker: dict[str, ScreenerStock] = {}
+    # Merge in priority order; first-seen wins per ticker.
+    for source in (_load_screener_csv(), _load_cached_analyses()):
+        for s in source:
+            if s.ticker and s.ticker not in by_ticker:
+                by_ticker[s.ticker] = s
 
-    # Try loading from screener_results.csv
-    try:
-        import pandas as pd
-        from pathlib import Path
-        _path = Path(__file__).resolve().parent.parent.parent / "data" / "screener_results.csv"
-        if _path.exists():
-            df = pd.read_csv(_path)
-            _score_col = next((c for c in df.columns if c.lower() in ("score", "yieldiq_score", "yiq_score")), None)
-            _ticker_col = next((c for c in df.columns if c.lower() in ("ticker", "symbol")), df.columns[0])
-            _mos_col = next((c for c in df.columns if c.lower() in ("mos", "mos_pct", "margin_of_safety")), None)
-            _company_col = next((c for c in df.columns if c.lower() in ("company", "company_name", "name")), None)
-            _moat_col = next((c for c in df.columns if "moat" in c.lower()), None)
-            _sector_col = next((c for c in df.columns if c.lower() in ("sector", "sector_name")), None)
-
-            if _score_col:
-                df = df.nlargest(50, _score_col)
-
-            for _, row in df.iterrows():
-                _s = int(row.get(_score_col, 0)) if _score_col else 0
-                _m = float(row.get(_mos_col, 0)) if _mos_col else 0
-                if _s > 0:  # Only include stocks with valid scores
-                    stocks.append(ScreenerStock(
-                        ticker=str(row.get(_ticker_col, "")),
-                        company_name=str(row.get(_company_col, "")) if _company_col else "",
-                        score=_s,
-                        margin_of_safety=_m,
-                        moat=str(row.get(_moat_col, "")) if _moat_col else "",
-                        sector=str(row.get(_sector_col, "")) if _sector_col else "",
-                    ))
-    except Exception:
-        pass
-
-    # If no CSV data or all zeros, try analysis cache
-    if not stocks:
-        _cached_analyses = []
-        for key in list(cache._store.keys()):
-            if key.startswith("analysis:") and ".NS" in key:
-                val = cache.get(key)
-                if val and hasattr(val, "quality") and val.quality.yieldiq_score > 30:
-                    _cached_analyses.append(val)
-
-        for a in sorted(_cached_analyses, key=lambda x: x.quality.yieldiq_score, reverse=True)[:50]:
-            stocks.append(ScreenerStock(
-                ticker=a.ticker,
-                company_name=a.company.company_name,
-                score=a.quality.yieldiq_score,
-                margin_of_safety=round(a.valuation.margin_of_safety, 1),
-                moat=a.quality.moat,
-                sector=a.company.sector,
-                verdict=a.valuation.verdict,
-            ))
-
-    # Static fallback — always show data even when no cache/CSV exists
-    if not stocks:
-        _STATIC_YIQ50 = [
-            ("ITC.NS", "ITC Limited", 80, 38.0, "Wide", "FMCG"),
-            ("SUNPHARMA.NS", "Sun Pharma", 74, 28.0, "Wide", "Pharma"),
-            ("TCS.NS", "Tata Consultancy", 49, 4.0, "Wide", "IT Services"),
-            ("INFY.NS", "Infosys", 55, 8.0, "Wide", "IT Services"),
-            ("WIPRO.NS", "Wipro", 52, 12.0, "Narrow", "IT Services"),
-            ("HCLTECH.NS", "HCL Technologies", 58, 15.0, "Wide", "IT Services"),
-            ("BHARTIARTL.NS", "Bharti Airtel", 48, 5.0, "Wide", "Telecom"),
-            ("TITAN.NS", "Titan Company", 42, -8.0, "Wide", "Consumer"),
-            ("NESTLEIND.NS", "Nestle India", 45, -5.0, "Wide", "FMCG"),
-            ("MARUTI.NS", "Maruti Suzuki", 50, 10.0, "Narrow", "Auto"),
-            ("BAJFINANCE.NS", "Bajaj Finance", 38, -12.0, "Wide", "NBFC"),
-            ("DRREDDY.NS", "Dr Reddys Labs", 60, 18.0, "Wide", "Pharma"),
-            ("CIPLA.NS", "Cipla", 56, 14.0, "Narrow", "Pharma"),
-            ("DIVISLAB.NS", "Divis Laboratories", 54, 11.0, "Narrow", "Pharma"),
-            ("BRITANNIA.NS", "Britannia Industries", 52, 9.0, "Narrow", "FMCG"),
-            ("DABUR.NS", "Dabur India", 50, 7.0, "Narrow", "FMCG"),
-            ("PIDILITIND.NS", "Pidilite Industries", 46, 3.0, "Wide", "Chemicals"),
-            ("EICHERMOT.NS", "Eicher Motors", 44, -2.0, "Wide", "Auto"),
-            ("LT.NS", "Larsen & Toubro", 40, -10.0, "Narrow", "Infra"),
-            ("ULTRACEMCO.NS", "UltraTech Cement", 42, -6.0, "Narrow", "Cement"),
-            ("APOLLOHOSP.NS", "Apollo Hospitals", 48, 5.0, "Narrow", "Healthcare"),
-            ("PERSISTENT.NS", "Persistent Systems", 62, 20.0, "Narrow", "IT Services"),
-            ("COFORGE.NS", "Coforge", 55, 12.0, "Narrow", "IT Services"),
-            ("TATAELXSI.NS", "Tata Elxsi", 50, 8.0, "Narrow", "IT Services"),
-            ("IRCTC.NS", "IRCTC", 36, -15.0, "Wide", "Travel"),
-        ]
+    # Pad from static only if we still have < 50 real entries.
+    if len(by_ticker) < 50:
         for t, name, score, mos, moat, sector in _STATIC_YIQ50:
-            stocks.append(ScreenerStock(
+            if t in by_ticker:
+                continue
+            by_ticker[t] = ScreenerStock(
                 ticker=t, company_name=name, score=score,
                 margin_of_safety=mos, moat=moat, sector=sector,
                 verdict="undervalued" if mos > 10 else "fairly_valued" if mos > -10 else "overvalued",
-            ))
+            )
+            if len(by_ticker) >= 50:
+                break
 
-    # Sort by score descending
-    stocks.sort(key=lambda x: x.score, reverse=True)
-
-    result = ScreenerResponse(results=stocks[:50], total=len(stocks))
-    if stocks:  # Only cache if we have valid data
+    stocks = sorted(by_ticker.values(), key=lambda x: x.score, reverse=True)[:50]
+    result = ScreenerResponse(results=stocks, total=len(stocks))
+    if stocks:
         cache.set(_cache_key, result, ttl=86400)
     return result
 
