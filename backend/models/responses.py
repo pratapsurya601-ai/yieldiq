@@ -76,6 +76,30 @@ class BulkDealItem(BaseModel):
     category: str = ""  # bulk / block
 
 
+class DividendFYItem(BaseModel):
+    fy: str                          # e.g. "FY2025"
+    total_per_share: float
+    payment_count: int
+
+
+class DividendData(BaseModel):
+    has_dividends: bool = False
+    ticker: str = ""
+    message: str = ""
+    current_yield_pct: Optional[float] = None
+    payout_ratio_pct: Optional[float] = None
+    five_yr_avg_yield: Optional[float] = None
+    dividend_rate_per_share: Optional[float] = None
+    last_dividend_value: Optional[float] = None
+    next_ex_date: Optional[str] = None
+    next_ex_days: Optional[int] = None
+    consecutive_years: int = 0
+    fy_history: list[DividendFYItem] = []
+    coverage_ratio: Optional[float] = None
+    sustainability: str = "moderate"
+    sustainability_reason: str = ""
+
+
 class RedFlag(BaseModel):
     """Structured risk/strength signal for the deep-dive UI."""
     flag: str                    # short machine key, e.g. "negative_equity"
@@ -91,6 +115,7 @@ class InsightCards(BaseModel):
     red_flag_count: int = 0
     red_flags: list[str] = []
     red_flags_structured: list[RedFlag] = []
+    dividend: Optional[DividendData] = None
     earnings_date: Optional[str] = None
     earnings_est_eps: Optional[float] = None
     earnings_days_until: Optional[int] = None

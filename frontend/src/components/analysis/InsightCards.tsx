@@ -19,6 +19,7 @@ interface CardData {
   color: string
   icon: string
   borderColor: string
+  subtitleColor?: string
 }
 
 export default function InsightCards({ quality, insights, valuation, currency = "INR" }: InsightCardsProps) {
@@ -78,6 +79,43 @@ export default function InsightCards({ quality, insights, valuation, currency = 
         borderColor: "border-l-gray-300",
       }
     })(),
+    (() => {
+      const div = insights.dividend
+      if (div?.has_dividends && div.current_yield_pct !== null && div.current_yield_pct !== undefined) {
+        const s = div.sustainability
+        const sustLabel = s === "strong" ? "\u25cf Strong"
+          : s === "at_risk" ? "\u25cf At Risk"
+          : "\u25cf Moderate"
+        const sustColor = s === "strong" ? "text-green-600"
+          : s === "at_risk" ? "text-red-600"
+          : "text-yellow-600"
+        const borderColor = s === "strong" ? "border-l-green-500"
+          : s === "at_risk" ? "border-l-red-500"
+          : "border-l-yellow-500"
+        const payoutLabel = div.payout_ratio_pct !== null && div.payout_ratio_pct !== undefined
+          ? `${div.payout_ratio_pct.toFixed(0)}%`
+          : "\u2014"
+        const card: CardData = {
+          title: "Dividends",
+          value: `${div.current_yield_pct.toFixed(1)}%`,
+          subtitle: `${sustLabel} \u00b7 Payout ${payoutLabel}`,
+          subtitleColor: sustColor,
+          color: "text-gray-700",
+          icon: "\u{1f4b0}",
+          borderColor,
+        }
+        return card
+      }
+      const empty: CardData = {
+        title: "Dividends",
+        value: "None",
+        subtitle: "No dividends paid",
+        color: "text-gray-400",
+        icon: "\u{1f4b0}",
+        borderColor: "border-l-gray-200",
+      }
+      return empty
+    })(),
     {
       title: "Wall Street Target",
       value: insights.wall_street_avg_target !== null && insights.wall_street_avg_target > 0
@@ -136,7 +174,7 @@ export default function InsightCards({ quality, insights, valuation, currency = 
               <p className="text-xs text-gray-500">{card.title}</p>
             </div>
             <p className={cn("text-lg font-semibold", card.color)}>{card.value}</p>
-            <p className="text-xs text-gray-400 mt-1 line-clamp-1">{card.subtitle}</p>
+            <p className={cn("text-xs mt-1 line-clamp-1", card.subtitleColor ?? "text-gray-400")}>{card.subtitle}</p>
           </div>
         ))}
       </div>

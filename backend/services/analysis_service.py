@@ -1329,6 +1329,29 @@ class AnalysisService:
             _base_case = round(iv, 2)
             _bull_case = _sc("Bull case").iv or _sc("Bull 🐂").iv
 
+        # ── Dividend data (one yfinance .info call, ~1s) ─────
+        # Swallowed — never blocks the main response.
+        _dividend_data = None
+        try:
+            from backend.services.dividend_service import DividendService
+            from backend.models.responses import DividendData, DividendFYItem
+            _div_result = DividendService().get_dividends(
+                ticker=ticker, enriched=enriched
+            )
+            _fy_items = [
+                DividendFYItem(**item)
+                for item in _div_result.get("fy_history", [])
+            ]
+            _dividend_kwargs = {
+                k: v for k, v in _div_result.items() if k != "fy_history"
+            }
+            _dividend_data = DividendData(fy_history=_fy_items, **_dividend_kwargs)
+        except Exception as _div_exc:
+            import logging as _div_log
+            _div_log.getLogger("yieldiq.dividends").debug(
+                "Dividend embed failed for %s: %s", ticker, _div_exc
+            )
+
         # ── Structured red flags for the deep-dive UI ────────
         try:
             _structured_flags = _build_structured_flags(
@@ -1429,6 +1452,7 @@ class AnalysisService:
                 red_flag_count=len(_red_flags),
                 red_flags=_red_flags[:5],
                 red_flags_structured=_structured_flags,
+                dividend=_dividend_data,
                 earnings_date=_earnings_date,
                 earnings_est_eps=raw.get("finnhub_next_earnings", {}).get("eps_estimate"),
                 earnings_days_until=earnings_days_until,

@@ -12,6 +12,7 @@ import ActionBar from "@/components/analysis/ActionBar"
 import TransparencyStrip from "@/components/analysis/TransparencyStrip"
 import InsightCards from "@/components/analysis/InsightCards"
 import RedFlagInsights from "@/components/analysis/RedFlagInsights"
+import DividendTracker from "@/components/analysis/DividendTracker"
 import LoadingSteps from "@/components/ui/LoadingSteps"
 import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
@@ -231,6 +232,7 @@ export default function AnalysisPage() {
       <div className="">
         <InsightCards quality={quality} insights={insights} valuation={valuation} currency={company.currency} />
         <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
+        <DividendTracker dividend={insights?.dividend ?? null} />
       </div>
 
       {/* Historical Fair Value Chart — placed ABOVE price history per Phase 1 spec */}

@@ -83,11 +83,36 @@ export interface RedFlag {
   why_it_matters: string
 }
 
+export interface DividendFYItem {
+  fy: string
+  total_per_share: number
+  payment_count: number
+}
+
+export interface DividendData {
+  has_dividends: boolean
+  ticker: string
+  message: string
+  current_yield_pct: number | null
+  payout_ratio_pct: number | null
+  five_yr_avg_yield: number | null
+  dividend_rate_per_share: number | null
+  last_dividend_value: number | null
+  next_ex_date: string | null
+  next_ex_days: number | null
+  consecutive_years: number
+  fy_history: DividendFYItem[]
+  coverage_ratio: number | null
+  sustainability: "strong" | "moderate" | "at_risk"
+  sustainability_reason: string
+}
+
 export interface InsightCards {
   patience_months: number | null
   red_flag_count: number
   red_flags: string[]
   red_flags_structured: RedFlag[]
+  dividend?: DividendData | null
   earnings_date: string | null
   earnings_est_eps: number | null
   earnings_days_until: number | null

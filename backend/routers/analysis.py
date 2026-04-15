@@ -533,6 +533,40 @@ async def get_peers_endpoint(
     return result
 
 
+@router.get("/analysis/{ticker}/dividends")
+async def get_dividends_endpoint(
+    ticker: str,
+    user: dict = Depends(get_current_user_optional),
+):
+    """
+    Live dividend data from yfinance (history + yield + payout).
+
+    Coverage ratio is omitted here because the router has no
+    access to the ``enriched`` dict. The same data is embedded in
+    the main ``/analysis/{ticker}`` response under
+    ``insights.dividend`` — use that when available.
+    """
+    ticker = ticker.upper().strip()
+
+    _cache_key = f"dividends:{ticker}"
+    cached = cache.get(_cache_key)
+    if cached:
+        return cached
+
+    from backend.services.dividend_service import DividendService
+    try:
+        result = DividendService().get_dividends(ticker, enriched=None)
+    except Exception as exc:
+        import logging
+        logging.getLogger("yieldiq.dividends").error(
+            "Dividend endpoint failed for %s: %s", ticker, exc, exc_info=True
+        )
+        raise HTTPException(status_code=500, detail="Dividend data unavailable")
+
+    cache.set(_cache_key, result, ttl=1800)  # 30 min
+    return result
+
+
 @router.get("/compare")
 async def compare_stocks(
     ticker1: str,
