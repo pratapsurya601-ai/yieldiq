@@ -322,6 +322,9 @@ export default function PeerComparison({ ticker, currency = "INR" }: Props) {
               return (
                 <tr
                   key={row.ticker}
+                  onMouseEnter={() => {
+                    if (!isMain) router.prefetch(`/analysis/${row.ticker}`)
+                  }}
                   onClick={() => {
                     if (!isMain) router.push(`/analysis/${row.ticker}`)
                   }}

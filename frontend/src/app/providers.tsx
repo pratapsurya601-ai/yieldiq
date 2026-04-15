@@ -1,6 +1,6 @@
 "use client"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -11,6 +11,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       })
   )
+
+  // Fire-and-forget ping to the API root on app mount. Wakes Railway's
+  // backend container before the user navigates to /search or clicks
+  // Analyse. Silent — no error handling, no blocking.
+  useEffect(() => {
+    const base =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+    fetch(`${base}/health`, { cache: "no-store" }).catch(() => {
+      /* intentionally ignored — warmup is best-effort */
+    })
+  }, [])
 
   return (
     <QueryClientProvider client={queryClient}>

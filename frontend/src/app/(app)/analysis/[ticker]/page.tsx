@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { getAnalysis, getChartData } from "@/lib/api"
+import { getAnalysis, getChartData, getFVHistory, getPeers, getFinancials } from "@/lib/api"
 import ConvictionRing from "@/components/analysis/ConvictionRing"
 import VerdictChip from "@/components/analysis/VerdictChip"
 import BlurredValue from "@/components/ui/BlurredValue"
@@ -53,6 +53,36 @@ export default function AnalysisPage() {
     queryFn: () => getChartData(ticker, "1m"),
     enabled: !!ticker,
     staleTime: 5 * 60 * 1000,
+  })
+
+  // ── Parallel warmup of sub-queries ────────────────────────────
+  // Child components (FairValueHistory, PeerComparison,
+  // FinancialStatements) each run their own useQuery. Firing those
+  // same queryKeys here at page level makes them start in parallel
+  // with the main analysis call instead of waiting for it to resolve
+  // and the children to mount. Shared React Query cache means the
+  // children's queries become instant cache hits. Results ignored —
+  // this block is purely for side-effect warming.
+  useQuery({
+    queryKey: ["fv-history", ticker, 3],
+    queryFn: () => getFVHistory(ticker, 3),
+    enabled: !!ticker,
+    staleTime: 15 * 60 * 1000,
+    retry: 1,
+  })
+  useQuery({
+    queryKey: ["peers", ticker],
+    queryFn: () => getPeers(ticker),
+    enabled: !!ticker,
+    staleTime: 30 * 60 * 1000,
+    retry: 1,
+  })
+  useQuery({
+    queryKey: ["financials", ticker, "annual"],
+    queryFn: () => getFinancials(ticker, "annual", 5),
+    enabled: !!ticker,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
   })
 
   /* Staggered reveal removed — was causing white gaps (opacity-0 sections).

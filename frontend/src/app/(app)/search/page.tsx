@@ -162,6 +162,7 @@ export default function SearchPage() {
             {suggestions.map((s) => (
               <button
                 key={s.ticker}
+                onMouseEnter={() => router.prefetch(`/analysis/${s.ticker}`)}
                 onMouseDown={(e) => {
                   e.preventDefault()  // Prevent input blur from hiding dropdown
                   handleSelect(s.ticker, s.name)
@@ -186,6 +187,7 @@ export default function SearchPage() {
             {recent.map((r) => (
               <button
                 key={r.ticker}
+                onMouseEnter={() => router.prefetch(`/analysis/${r.ticker}`)}
                 onClick={() => handleSelect(r.ticker, r.label)}
                 className="px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-sm font-medium text-blue-700 hover:bg-blue-100 transition"
               >
@@ -202,6 +204,7 @@ export default function SearchPage() {
           {POPULAR.map((s) => (
             <button
               key={s.ticker}
+              onMouseEnter={() => router.prefetch(`/analysis/${s.ticker}`)}
               onClick={() => handleSelect(s.ticker, s.label)}
               className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:border-blue-300 hover:text-blue-700 transition inline-flex items-center gap-1.5"
             >
