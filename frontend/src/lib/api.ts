@@ -69,6 +69,66 @@ export interface FVHistoryResponse {
 export const getFVHistory = (ticker: string, years: number = 3): Promise<FVHistoryResponse> =>
   api.get(`/api/v1/analysis/${ticker}/fv-history?years=${years}`).then(r => r.data)
 
+export interface FinancialYear {
+  year: string
+  period_end: string | null
+  // Income
+  revenue: number | null
+  revenue_growth_pct: number | null
+  gross_profit: number | null
+  gross_margin_pct: number | null
+  ebitda: number | null
+  operating_income: number | null
+  operating_margin_pct: number | null
+  net_income: number | null
+  net_income_growth_pct: number | null
+  net_margin_pct: number | null
+  eps_diluted: number | null
+  // Balance Sheet
+  total_assets: number | null
+  total_equity: number | null
+  total_debt: number | null
+  cash: number | null
+  net_debt: number | null
+  debt_to_equity: number | null
+  book_value_per_share: number | null
+  // Cash Flow
+  operating_cash_flow: number | null
+  capex: number | null
+  free_cash_flow: number | null
+  fcf_margin_pct: number | null
+}
+
+export interface FinancialsResponse {
+  ticker: string
+  currency: string
+  currency_unit: string
+  period: "annual" | "quarterly"
+  years_available: number
+  has_quarterly: boolean
+  data_source: string
+  tier: string
+  tier_limited: boolean
+  income: FinancialYear[]
+  balance_sheet: FinancialYear[]
+  cash_flow: FinancialYear[]
+  summary: {
+    revenue_cagr_3y: number | null
+    avg_net_margin: number | null
+    avg_fcf_margin: number | null
+    latest_roe: number | null
+  }
+}
+
+export const getFinancials = (
+  ticker: string,
+  period: "annual" | "quarterly" = "annual",
+  years: number = 5,
+): Promise<FinancialsResponse> =>
+  api
+    .get(`/api/v1/analysis/${ticker}/financials`, { params: { period, years } })
+    .then(r => r.data)
+
 export const getYieldIQ50 = (): Promise<ScreenerResponse> =>
   api.get("/api/v1/yieldiq50").then(r => r.data)
 

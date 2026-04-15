@@ -15,6 +15,7 @@ import LoadingSteps from "@/components/ui/LoadingSteps"
 import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
 import FairValueHistory from "@/components/analysis/FairValueHistory"
+import FinancialStatements from "@/components/analysis/FinancialStatements"
 import { formatCurrency, formatPct, formatCompanyName } from "@/lib/utils"
 import { trackStockAnalysed } from "@/lib/analytics"
 import Link from "next/link"
@@ -261,6 +262,9 @@ export default function AnalysisPage() {
             fcf={chartData?.financials?.fcf}
           />
         </div>
+
+        {/* Full financial statements (Income / Balance Sheet / Cash Flow) */}
+        <FinancialStatements ticker={ticker} currency={company.currency} />
       </div>
 
       {/* LAYER 3 -- Scenarios */}

@@ -438,6 +438,53 @@ async def get_fv_history_endpoint(
         db.close()
 
 
+@router.get("/analysis/{ticker}/financials")
+async def get_financials_endpoint(
+    ticker: str,
+    period: str = Query(default="annual", pattern="^(annual|quarterly)$"),
+    years: int = Query(default=5, ge=1, le=10),
+    user: dict = Depends(get_current_user_optional),
+):
+    """
+    Full financial statements (5y annual / 8q quarterly).
+
+    Tier limits:
+      - free       → 3 years max (annual); quarterly unaffected
+      - starter+   → 5 years max
+    """
+    ticker = ticker.upper().strip()
+
+    tier = (user or {}).get("tier", "free")
+    tier_order = {"free": 0, "starter": 1, "pro": 2}
+    tier_level = tier_order.get(tier, 0)
+    tier_limited = tier_level == 0
+    if period == "annual" and tier_level == 0:
+        years = min(years, 3)
+    elif period == "annual":
+        years = min(years, 5)
+
+    _cache_key = f"financials:{ticker}:{period}:{years}"
+    cached = cache.get(_cache_key)
+    if cached:
+        return cached
+
+    from backend.services.financials_service import FinancialsService
+    svc = FinancialsService()
+    try:
+        result = svc.get_financials(ticker, period=period, years=years)
+    except Exception as exc:
+        import logging
+        logging.getLogger("yieldiq.financials").error(
+            "Financials failed for %s: %s", ticker, exc, exc_info=True
+        )
+        raise HTTPException(status_code=500, detail="Financials unavailable")
+
+    result["tier"] = tier
+    result["tier_limited"] = tier_limited
+    cache.set(_cache_key, result, ttl=1800)  # 30 min
+    return result
+
+
 @router.get("/compare")
 async def compare_stocks(
     ticker1: str,
