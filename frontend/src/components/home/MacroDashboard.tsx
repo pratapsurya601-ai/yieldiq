@@ -189,6 +189,16 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
               </p>
             </>
           )}
+          {dateLabel && (
+            <p
+              className={cn(
+                "text-[9px] mt-0.5",
+                isStale ? "text-amber-600 font-medium" : "text-gray-400",
+              )}
+            >
+              {isStale ? `${dateLabel} · last known` : dateLabel}
+            </p>
+          )}
         </Card>
 
         <Card title="India VIX" borderClass="border-l-amber-500">

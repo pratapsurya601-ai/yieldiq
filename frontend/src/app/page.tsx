@@ -46,23 +46,27 @@ function FadeIn({ children, delay = 0, className = "" }: {
 /* ── Animated counter ────────────────────────────────── */
 function AnimatedCounter({ target, suffix = "" }: { target: number; suffix?: string }) {
   const [count, setCount] = useState(0)
-  const { ref, inView } = useInView(0.05)
+  // Hero stats are above the fold on load, so we animate on mount
+  // rather than waiting for IntersectionObserver. Previous version
+  // occasionally stayed at 0 when the observer missed the initial
+  // intersection (small element width + threshold timing race).
   useEffect(() => {
-    if (!inView) return
     const duration = 1500
+    let raf = 0
     const start = performance.now()
     const step = (now: number) => {
       const t = Math.min((now - start) / duration, 1)
       const ease = 1 - Math.pow(1 - t, 3)
       setCount(Math.floor(ease * target))
-      if (t < 1) requestAnimationFrame(step)
+      if (t < 1) raf = requestAnimationFrame(step)
     }
-    requestAnimationFrame(step)
-  }, [inView, target])
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [target])
   return (
-    <div ref={ref} className="inline-block min-w-[2ch]">
+    <span className="inline-block tabular-nums">
       {count.toLocaleString("en-IN")}{suffix}
-    </div>
+    </span>
   )
 }
 
@@ -578,9 +582,9 @@ function LandingContent() {
           {/* Stats */}
           <div className="flex justify-center lg:justify-start gap-12 mt-16 flex-wrap">
             {[
-              { value: 2934, suffix: "+", label: "Stocks Analyzed" },
+              { value: 2900, suffix: "+", label: "Stocks Analyzed" },
               { value: 15, suffix: "", label: "Valuation Engines" },
-              { value: 10, suffix: "-Year", label: "DCF Projections" },
+              { value: 5, suffix: "-Year", label: "DCF Projections" },
             ].map(s => (
               <div key={s.label} className="text-center">
                 <div className="text-3xl font-black text-white">
@@ -594,7 +598,7 @@ function LandingContent() {
       </section>
 
       {/* ── Scrolling Stock Ticker ────────────────────── */}
-      <section className="bg-[#0B1120] border-y border-white/5 py-2.5 overflow-hidden">
+      <section className="bg-[#0B1120] border-y border-white/5 py-2.5 overflow-hidden relative">
         <div className="flex whitespace-nowrap" style={{ animation: "ticker-scroll 40s linear infinite" }}>
           {[...TICKER_DATA, ...TICKER_DATA].map((t, i) => (
             <div key={`${t.name}-${i}`} className="inline-flex items-center gap-2 px-5 text-xs">
@@ -605,6 +609,13 @@ function LandingContent() {
               </span>
             </div>
           ))}
+        </div>
+        {/* Indicative-prices badge — sample values, not live. Prevents
+            the marquee being read as real-time quotes. */}
+        <div className="absolute right-0 top-0 bottom-0 flex items-center bg-gradient-to-l from-[#0B1120] via-[#0B1120] to-transparent pl-6 pr-3 pointer-events-none">
+          <span className="text-[10px] font-semibold tracking-wider uppercase text-gray-500">
+            Indicative
+          </span>
         </div>
       </section>
 
