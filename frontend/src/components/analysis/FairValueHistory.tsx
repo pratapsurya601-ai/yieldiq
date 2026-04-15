@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import {
   ComposedChart,
@@ -24,19 +24,6 @@ interface Props {
 
 interface ChartPoint extends FVHistoryPoint {
   displayDate: string
-}
-
-/* ------------------------------------------------------------------ */
-/* Loading skeleton                                                    */
-/* ------------------------------------------------------------------ */
-function FVHistorySkeleton() {
-  return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-      <div className="h-5 w-48 bg-gray-200 rounded animate-pulse" />
-      <div className="h-[220px] bg-gray-100 rounded-xl animate-pulse" />
-      <div className="h-4 w-64 bg-gray-200 rounded animate-pulse" />
-    </div>
-  )
 }
 
 /* ------------------------------------------------------------------ */
@@ -82,57 +69,21 @@ function FVTooltip({
 /* ------------------------------------------------------------------ */
 /* Main component                                                      */
 /* ------------------------------------------------------------------ */
-export default function FairValueHistory({ ticker, companyName, currency = "INR" }: Props) {
-  const [years, setYears] = useState<number>(3)
-  const [visible, setVisible] = useState(false)
-  const containerRef = useRef<HTMLDivElement | null>(null)
-
-  /* Lazy-load on scroll */
-  useEffect(() => {
-    if (visible) return
-    const el = containerRef.current
-    if (!el) return
-    const obs = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true)
-          obs.disconnect()
-        }
-      },
-      { rootMargin: "300px" }
-    )
-    obs.observe(el)
-    return () => obs.disconnect()
-  }, [visible])
-
-  const { data, isLoading, isError } = useQuery<FVHistoryResponse>({
-    queryKey: ["fv-history", ticker, years],
-    queryFn: () => getFVHistory(ticker, years),
-    enabled: visible && !!ticker,
-    staleTime: 15 * 60 * 1000,
-    retry: 1,
-  })
-
-  /* ---------- Render states ---------- */
-  if (!visible || isLoading) {
-    return (
-      <div ref={containerRef}>
-        <FVHistorySkeleton />
-      </div>
-    )
-  }
-
-  /* Empty / error / first-time state — unified placeholder.
-     Null-safe on data.data (API can return data: null, not just []),
-     and the two cases render the same UX so users never see a
-     blank gap in place of the chart. */
-  const hasRows = !!data?.has_data && !!data.data?.length
-  if (isError || !hasRows) {
-    return (
-      <div ref={containerRef} className="bg-white rounded-2xl border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Historical Fair Value</h2>
+/* Shared placeholder — used for loading, error, AND empty-data states.
+   Keeping one component ensures the card occupies the right slot in
+   the layout no matter which async state the query is in. No more
+   blank gaps. */
+function FVPlaceholder({ variant }: { variant: "loading" | "empty" | "error" }) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      <h2 className="text-sm font-semibold text-gray-900 mb-3">Historical Fair Value</h2>
+      {variant === "loading" ? (
+        <div className="space-y-3">
+          <div className="h-[220px] bg-gray-100 rounded-xl animate-pulse" />
+          <div className="h-4 w-64 bg-gray-200 rounded animate-pulse" />
+        </div>
+      ) : (
         <div className="py-8 text-center flex flex-col items-center gap-2">
-          {/* Inline SVG — no emoji-font / hydration risk */}
           <svg
             className="h-8 w-8 text-gray-300"
             fill="none"
@@ -145,17 +96,39 @@ export default function FairValueHistory({ ticker, companyName, currency = "INR"
             <path strokeLinecap="round" strokeLinejoin="round" d="M7 14l4-4 3 3 5-6" />
           </svg>
           <p className="text-sm text-gray-700 font-medium">
-            {isError ? "Fair value history unavailable" : "No history yet"}
+            {variant === "error" ? "Fair value history unavailable" : "No history yet"}
           </p>
           <p className="text-xs text-gray-400 max-w-xs">
-            {isError
+            {variant === "error"
               ? "Try again in a moment."
               : "Fair value history will appear here after your first analysis runs."}
           </p>
         </div>
-      </div>
-    )
-  }
+      )}
+    </div>
+  )
+}
+
+export default function FairValueHistory({ ticker, companyName, currency = "INR" }: Props) {
+  const [years, setYears] = useState<number>(3)
+
+  // Eager fetch — the lazy-load-on-scroll pattern caused the component
+  // to render nothing when IntersectionObserver timing lost races with
+  // Next 16 hydration. Payload is tiny; just fetch immediately.
+  const { data, isLoading, isError } = useQuery<FVHistoryResponse>({
+    queryKey: ["fv-history", ticker, years],
+    queryFn: () => getFVHistory(ticker, years),
+    enabled: !!ticker,
+    staleTime: 15 * 60 * 1000,
+    retry: 1,
+  })
+
+  /* ---------- Render states (every branch returns SOMETHING) ---------- */
+  if (isLoading) return <FVPlaceholder variant="loading" />
+  if (isError) return <FVPlaceholder variant="error" />
+
+  const hasRows = !!data?.has_data && !!data.data?.length
+  if (!hasRows) return <FVPlaceholder variant="empty" />
 
   /* ---------- Shape chart data ---------- */
   const chartData: ChartPoint[] = data.data.map((d) => ({
@@ -176,7 +149,7 @@ export default function FairValueHistory({ ticker, companyName, currency = "INR"
   const maxY = Math.max(...allValues) * 1.05
 
   return (
-    <div ref={containerRef} className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+    <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
       {/* Header row */}
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-gray-900">Historical Fair Value</h2>
