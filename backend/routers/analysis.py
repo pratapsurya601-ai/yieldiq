@@ -485,6 +485,54 @@ async def get_financials_endpoint(
     return result
 
 
+@router.get("/analysis/{ticker}/peers")
+async def get_peers_endpoint(
+    ticker: str,
+    user: dict = Depends(get_current_user_optional),
+):
+    """
+    Peer comparison table for ``ticker``.
+
+    YieldIQ score/grade/FV/MoS are read off the in-process cache — a
+    peer's score is only populated if it has been analysed recently.
+    Valuation multiples and quality metrics come from the DB, with a
+    yfinance live fallback for tickers missing from the DB snapshot.
+    """
+    ticker = ticker.upper().strip()
+
+    _cache_key = f"peers:{ticker}"
+    cached = cache.get(_cache_key)
+    if cached:
+        return cached
+
+    try:
+        from data_pipeline.db import Session as PipelineSession
+    except Exception:
+        PipelineSession = None
+
+    db = PipelineSession() if PipelineSession is not None else None
+    try:
+        from backend.services.peers_service import PeersService
+        svc = PeersService()
+        result = svc.get_peer_comparison(ticker, db=db, cache=cache)
+    except Exception as exc:
+        import logging
+        logging.getLogger("yieldiq.peers").error(
+            "Peer comparison failed for %s: %s", ticker, exc, exc_info=True
+        )
+        raise HTTPException(status_code=500, detail="Peer comparison unavailable")
+    finally:
+        if db is not None:
+            try:
+                db.close()
+            except Exception:
+                pass
+
+    if result.get("has_peers"):
+        cache.set(_cache_key, result, ttl=1800)  # 30 min
+    return result
+
+
 @router.get("/compare")
 async def compare_stocks(
     ticker1: str,

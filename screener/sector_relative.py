@@ -69,6 +69,9 @@ PEER_GROUP_LABELS: dict[str, str] = {
     "oil_gas":                "Indian Oil & Gas",
     "metals":                 "Indian Metals & Mining",
     "telecom":                "Indian Telecom",
+    "banking":                "Indian Banking",
+    "nbfc":                   "Indian NBFC / Lending",
+    "cement":                 "Indian Cement",
 }
 
 DIRECT_PEERS: dict[str, list[str]] = {
@@ -90,14 +93,39 @@ DIRECT_PEERS: dict[str, list[str]] = {
     "us_reits":           ["PLD","AMT","EQIX","SPG","O"],
     # Indian sectors
     "it_services":        ["TCS.NS","INFY.NS","WIPRO.NS","HCLTECH.NS","TECHM.NS"],
-    "fmcg":               ["HINDUNILVR.NS","NESTLEIND.NS","BRITANNIA.NS","DABUR.NS"],
+    "fmcg":               ["ITC.NS","HINDUNILVR.NS","NESTLEIND.NS","BRITANNIA.NS","DABUR.NS"],
     "pharma":             ["SUNPHARMA.NS","DRREDDY.NS","CIPLA.NS","DIVISLAB.NS"],
     "capital_goods":      ["LT.NS","SIEMENS.NS","ABB.NS","BEL.NS"],
     "auto_oem":           ["MARUTI.NS","TATAMOTORS.NS","M&M.NS","BAJAJ-AUTO.NS"],
     "oil_gas":            ["RELIANCE.NS","ONGC.NS","IOC.NS","BPCL.NS"],
     "metals":             ["TATASTEEL.NS","JSWSTEEL.NS","HINDALCO.NS","VEDL.NS"],
     "telecom":            ["BHARTIARTL.NS","IDEA.NS","TATACOMM.NS"],
+    "banking":            ["HDFCBANK.NS","ICICIBANK.NS","AXISBANK.NS","KOTAKBANK.NS",
+                           "SBIN.NS","INDUSINDBK.NS","BANDHANBNK.NS","FEDERALBNK.NS"],
+    "nbfc":               ["BAJFINANCE.NS","BAJAJFINSV.NS","CHOLAFIN.NS","MUTHOOTFIN.NS",
+                           "SHRIRAMFIN.NS","LICHSGFIN.NS"],
+    "cement":             ["ULTRACEMCO.NS","AMBUJACEM.NS","ACC.NS","SHREECEM.NS",
+                           "JKCEMENT.NS","DALMIABHARAT.NS"],
 }
+
+
+# ── Public helpers for peer lookup ───────────────────────────────
+def get_peers_for_ticker(ticker: str) -> list[str]:
+    """Return peer list (excluding the ticker itself) or [] if not grouped."""
+    t = (ticker or "").upper()
+    for group_peers in DIRECT_PEERS.values():
+        if t in group_peers:
+            return [p for p in group_peers if p != t]
+    return []
+
+
+def get_sector_label_for_ticker(ticker: str) -> str | None:
+    """Return display label for the ticker's peer group, or None."""
+    t = (ticker or "").upper()
+    for key, peers in DIRECT_PEERS.items():
+        if t in peers:
+            return PEER_GROUP_LABELS.get(key)
+    return None
 
 # Cache live peer data (avoid repeated Yahoo calls)
 _PEER_CACHE: dict = {}

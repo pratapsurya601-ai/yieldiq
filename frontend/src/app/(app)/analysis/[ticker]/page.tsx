@@ -16,6 +16,7 @@ import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
 import FairValueHistory from "@/components/analysis/FairValueHistory"
 import FinancialStatements from "@/components/analysis/FinancialStatements"
+import PeerComparison from "@/components/analysis/PeerComparison"
 import { formatCurrency, formatPct, formatCompanyName } from "@/lib/utils"
 import { trackStockAnalysed } from "@/lib/analytics"
 import Link from "next/link"
@@ -262,6 +263,9 @@ export default function AnalysisPage() {
             fcf={chartData?.financials?.fcf}
           />
         </div>
+
+        {/* Peer comparison table — sector-grouped */}
+        <PeerComparison ticker={ticker} />
 
         {/* Full financial statements (Income / Balance Sheet / Cash Flow) */}
         <FinancialStatements ticker={ticker} currency={company.currency} />

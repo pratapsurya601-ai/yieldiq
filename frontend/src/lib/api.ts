@@ -129,6 +129,39 @@ export const getFinancials = (
     .get(`/api/v1/analysis/${ticker}/financials`, { params: { period, years } })
     .then(r => r.data)
 
+export interface PeerRow {
+  ticker: string
+  is_main: boolean
+  company_name: string
+  yieldiq_score: number | null
+  grade: string | null
+  fair_value: number | null
+  mos_pct: number | null
+  verdict: string | null
+  pe_ratio: number | null
+  pb_ratio: number | null
+  ev_ebitda: number | null
+  market_cap_cr: number | null
+  dividend_yield: number | null
+  roe_pct: number | null
+  net_margin_pct: number | null
+  debt_to_equity: number | null
+  fcf_yield_pct: number | null
+}
+
+export interface PeersResponse {
+  ticker: string
+  has_peers: boolean
+  sector_label: string | null
+  peers_count: number
+  best_in_sector: Record<string, string>
+  peers: PeerRow[]
+  message?: string
+}
+
+export const getPeers = (ticker: string): Promise<PeersResponse> =>
+  api.get(`/api/v1/analysis/${ticker}/peers`).then(r => r.data)
+
 export const getYieldIQ50 = (): Promise<ScreenerResponse> =>
   api.get("/api/v1/yieldiq50").then(r => r.data)
 
