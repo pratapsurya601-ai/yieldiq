@@ -1371,10 +1371,42 @@ class StockDataCollector:
                 return None
 
         # ── Step 3: Financial statements (yfinance) ────────────
+        # PERF: income / cashflow / balance-sheet each hit a different
+        # yfinance endpoint (~1–3s apiece). Running them in parallel
+        # cuts this block from ~6s to ~2s on cold requests. The 24-hour
+        # disk cache inside each method stays intact — on subsequent
+        # calls these all short-circuit to a dict lookup regardless.
+        # shares_outstanding is a pure _yf_info read (no network), so
+        # we don't bother parallelising it.
         if _yf_ok:
-            income_df = self.get_income_history(force_refresh=force_refresh)
-            cf_df     = self.get_cashflow_history(force_refresh=force_refresh)
-            bs        = self.get_balance_sheet_snapshot(force_refresh=force_refresh)
+            import concurrent.futures as _cf
+            with _cf.ThreadPoolExecutor(max_workers=3) as _ex:
+                _inc_fut = _ex.submit(self.get_income_history, force_refresh)
+                _cf_fut  = _ex.submit(self.get_cashflow_history, force_refresh)
+                _bs_fut  = _ex.submit(self.get_balance_sheet_snapshot, force_refresh)
+                try:
+                    income_df = _inc_fut.result(timeout=20)
+                except Exception as _e:
+                    log.warning(f"[{self.ticker}] parallel income fetch failed: {_e}")
+                    import pandas as _pd
+                    income_df = _pd.DataFrame()
+                try:
+                    cf_df = _cf_fut.result(timeout=20)
+                except Exception as _e:
+                    log.warning(f"[{self.ticker}] parallel cashflow fetch failed: {_e}")
+                    import pandas as _pd
+                    cf_df = _pd.DataFrame()
+                try:
+                    bs = _bs_fut.result(timeout=20)
+                except Exception as _e:
+                    log.warning(f"[{self.ticker}] parallel balance-sheet fetch failed: {_e}")
+                    bs = {
+                        "total_debt": 0.0, "total_cash": 0.0, "total_assets": 0.0,
+                        "total_assets_prev": 0.0, "current_assets": 0.0,
+                        "current_liabilities": 0.0, "current_ratio": 0.0,
+                        "current_ratio_prev": 0.0, "lt_debt": 0.0, "lt_debt_prev": 0.0,
+                        "shares_prev_year": 0.0,
+                    }
             shares    = self.get_shares_outstanding(force_refresh=force_refresh)
         else:
             # ── FMP fallback for financial statements ─────────────
@@ -1442,16 +1474,46 @@ class StockDataCollector:
 
         if self._fh_available and not _BATCH_MODE:
             log.debug(f"[{self.ticker}] Fetching Finnhub data...")
-            fh_profile      = _fh_profile(self.ticker)
-            fh_price_target = _fh_price_target(self.ticker)
-            fh_rec_trend    = _fh_rec_trend(self.ticker)
-            fh_earnings     = _fh_earnings(self.ticker)
-            fh_next_earn    = _fh_next_earnings(self.ticker)
-            fh_news         = _fh_news(self.ticker)
-            fh_financials   = _fh_basic_financials(self.ticker)
-            fh_quote_data   = _fh_quote(self.ticker)
-            fh_insider      = _fh_insider_transactions(self.ticker)
-            fh_inst         = _fh_institutional_ownership(self.ticker)
+            # PERF: 10 Finnhub endpoints, independent, ~0.3s each sequentially.
+            # Parallelising drops this block from ~3s to ~0.5s on cold
+            # requests. Finnhub free tier allows 60 req/min — 10 concurrent
+            # requests for one analysis is well inside that.
+            import concurrent.futures as _cf
+            _fh_jobs = {
+                "profile":       (_fh_profile,                  {}),
+                "price_target":  (_fh_price_target,             {}),
+                "rec_trend":     (_fh_rec_trend,                []),
+                "earnings":      (_fh_earnings,                 []),
+                "next_earn":     (_fh_next_earnings,            {}),
+                "news":          (_fh_news,                     []),
+                "financials":    (_fh_basic_financials,         {}),
+                "quote_data":    (_fh_quote,                    {}),
+                "insider":       (_fh_insider_transactions,     {}),
+                "inst":          (_fh_institutional_ownership,  {}),
+            }
+            _fh_results: dict = {}
+            with _cf.ThreadPoolExecutor(max_workers=6) as _ex:
+                _futs = {
+                    _ex.submit(fn, self.ticker): key
+                    for key, (fn, _default) in _fh_jobs.items()
+                }
+                for _fut in _cf.as_completed(_futs, timeout=15):
+                    _key = _futs[_fut]
+                    try:
+                        _fh_results[_key] = _fut.result()
+                    except Exception as _e:
+                        log.debug(f"[{self.ticker}] fh {_key} failed: {_e}")
+                        _fh_results[_key] = _fh_jobs[_key][1]
+            fh_profile      = _fh_results.get("profile",     {})
+            fh_price_target = _fh_results.get("price_target",{})
+            fh_rec_trend    = _fh_results.get("rec_trend",   [])
+            fh_earnings     = _fh_results.get("earnings",    [])
+            fh_next_earn    = _fh_results.get("next_earn",   {})
+            fh_news         = _fh_results.get("news",        [])
+            fh_financials   = _fh_results.get("financials",  {})
+            fh_quote_data   = _fh_results.get("quote_data",  {})
+            fh_insider      = _fh_results.get("insider",     {})
+            fh_inst         = _fh_results.get("inst",        {})
         elif _BATCH_MODE:
             log.debug(f"[{self.ticker}] BATCH_MODE — skipping all Finnhub calls")
 
