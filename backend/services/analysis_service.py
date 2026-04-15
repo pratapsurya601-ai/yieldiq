@@ -883,7 +883,18 @@ class AnalysisService:
         # data provider. Signal the router so it returns 404 instead of
         # producing an all-zeros response that the frontend mistakes
         # for a valid but-terrible stock.
-        if raw is None:
+        #
+        # yfinance sometimes returns a `raw` dict with every identifying
+        # field set to None (observed for TATAMOTORS.NS and ZOMATO.NS
+        # after Yahoo 404s) — not actually None. Treat that as "not
+        # found" too.
+        _has_any_useful = isinstance(raw, dict) and any(
+            raw.get(k) for k in (
+                "currentPrice", "regularMarketPrice", "current_price",
+                "shortName", "longName", "company_name", "symbol", "ticker",
+            )
+        )
+        if raw is None or not _has_any_useful:
             raise TickerNotFoundError(ticker)
 
         # Raw data exists but validation vetoed running DCF (e.g. the

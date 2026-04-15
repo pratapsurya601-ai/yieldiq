@@ -22,6 +22,30 @@ from datetime import date
 router = APIRouter(prefix="/api/v1", tags=["analysis"])
 service = AnalysisService()
 
+# ── Ticker renames ────────────────────────────────────────────
+# Map retired symbols → canonical symbol. Requests hit the new
+# ticker silently; frontend detects the mismatch between the URL
+# ticker and response.ticker to show a rename banner.
+TICKER_ALIASES: dict[str, str] = {
+    "ZOMATO.NS": "ETERNAL.NS",  # Zomato → Eternal Ltd (2024 rebrand)
+    "ZOMATO":    "ETERNAL.NS",
+}
+
+# ── Known-broken upstream tickers ─────────────────────────────
+# When yfinance can't fetch a genuinely-listed stock (data-provider
+# gap rather than delisted ticker), surface a specific note instead
+# of the generic "check the symbol" message.
+KNOWN_BROKEN_TICKERS: dict[str, str] = {
+    "TATAMOTORS.NS": (
+        "TATAMOTORS data is currently unavailable from our data "
+        "provider. Try TATAMTRDVR.NS or check back later."
+    ),
+    "TATAMOTORS": (
+        "TATAMOTORS data is currently unavailable from our data "
+        "provider. Try TATAMTRDVR.NS or check back later."
+    ),
+}
+
 
 @router.get("/analysis/{ticker}", response_model=AnalysisResponse)
 async def get_analysis(
@@ -32,9 +56,13 @@ async def get_analysis(
     Full stock analysis with DCF, quality scores, scenarios, and insights.
     Rate limited by tier: Free=5/day, Starter=50/day, Pro=unlimited.
     """
-    ticker = ticker.upper().strip()
+    original_ticker = ticker.upper().strip()
+    # Route renamed symbols to their canonical equivalent. Response
+    # will carry the canonical ticker — frontend compares URL param
+    # to response.ticker to show a "renamed to …" banner.
+    ticker = TICKER_ALIASES.get(original_ticker, original_ticker)
 
-    # Check cache (15 min TTL)
+    # Check cache (15 min TTL) — keyed by canonical ticker so aliases share cache
     _cache_key = f"analysis:{ticker}"
     cached = cache.get(_cache_key)
     if cached:
@@ -49,10 +77,11 @@ async def get_analysis(
     except TickerNotFoundError:
         # Data provider returned nothing for this symbol. 404 lets the
         # frontend distinguish "bad ticker" from "our service broke".
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "Ticker not found", "ticker": ticker},
-        )
+        _detail: dict = {"error": "Ticker not found", "ticker": original_ticker}
+        _note = KNOWN_BROKEN_TICKERS.get(original_ticker)
+        if _note:
+            _detail["note"] = _note
+        raise HTTPException(status_code=404, detail=_detail)
     except Exception as e:
         import logging
         logging.getLogger("yieldiq.analysis").error(f"Analysis failed for {ticker}: {e}", exc_info=True)

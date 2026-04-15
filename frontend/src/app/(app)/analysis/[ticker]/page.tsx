@@ -89,6 +89,16 @@ export default function AnalysisPage() {
     const msg = (error as { message?: string })?.message ?? ""
     const is429 = msg.includes("Daily analysis limit reached")
     const is404 = msg.includes("Ticker not found")
+    // Backend attaches a per-ticker note for known-broken upstream
+    // symbols (e.g. TATAMOTORS data-provider gap). Prefer that text
+    // over the generic 404 message when present.
+    const backendNote = (error as {
+      response?: { data?: { detail?: { note?: string } | string } }
+    })?.response?.data?.detail
+    const note =
+      typeof backendNote === "object" && backendNote !== null
+        ? backendNote.note
+        : undefined
     const displayTicker = ticker.replace(".NS", "").replace(".BO", "")
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center pb-20">
@@ -102,7 +112,7 @@ export default function AnalysisPage() {
           {is429
             ? "You've used all your free analyses for today. Upgrade to Pro for unlimited access."
             : is404
-              ? `We couldn\u2019t find \u201c${displayTicker}\u201d on any data provider. Please check the symbol and try again.`
+              ? (note ?? `We couldn\u2019t find \u201c${displayTicker}\u201d on any data provider. Please check the symbol and try again.`)
               : "Data provider may be temporarily unavailable. Try again in a moment."}
         </p>
         {is429 ? (
@@ -115,13 +125,29 @@ export default function AnalysisPage() {
       </div>
     )
   }
-  if (!data) return (
-    <div className="max-w-md mx-auto px-4 py-16 text-center">
-      <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
-        <p className="text-sm text-gray-400">No analysis data available</p>
+  if (!data) {
+    // Previously this path rendered a bare "No analysis data available"
+    // with no affordance. Replaced with a full retry UI that matches
+    // the error-branch pattern so users can recover.
+    return (
+      <div className="max-w-md mx-auto px-4 py-16 text-center pb-20">
+        <p className="text-4xl mb-4">&#9888;&#65039;</p>
+        <p className="text-lg font-medium text-gray-900 mb-2">
+          Could not load {ticker}
+        </p>
+        <p className="text-sm text-gray-500 mb-4">
+          Analysis data was empty. This is usually a transient
+          data-provider hiccup.
+        </p>
+        <button
+          onClick={() => window.location.reload()}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium"
+        >
+          Retry
+        </button>
       </div>
-    </div>
-  )
+    )
+  }
 
   // Defensive degenerate-response guard — catches the case where the
   // backend returned a 200 with a valid-looking verdict but every
@@ -158,8 +184,24 @@ export default function AnalysisPage() {
 
   const { company, valuation, quality, insights } = data
 
+  // Ticker-rename banner — triggers when backend silently aliased the
+  // requested symbol to its canonical name (e.g. ZOMATO.NS → ETERNAL.NS).
+  const requestedTicker = ticker.toUpperCase()
+  const canonicalTicker = data.ticker.toUpperCase()
+  const wasAliased = requestedTicker !== canonicalTicker
+  const requestedDisplay = requestedTicker.replace(".NS", "").replace(".BO", "")
+  const canonicalDisplay = canonicalTicker.replace(".NS", "").replace(".BO", "")
+
   return (
     <div className="max-w-2xl md:max-w-3xl lg:max-w-5xl mx-auto px-4 py-6 space-y-5 pb-20">
+      {/* Rename banner — shown when URL ticker was aliased server-side */}
+      {wasAliased && (
+        <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+          <span className="font-semibold">{requestedDisplay}</span> has been renamed to{" "}
+          <span className="font-semibold">{canonicalDisplay}</span>. Showing {canonicalDisplay} data.
+        </div>
+      )}
+
       {/* Data confidence badge */}
       {data.data_confidence !== "high" && (
         <div className={`text-xs font-medium px-3 py-1 rounded-full inline-block ${data.data_confidence === "medium" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
