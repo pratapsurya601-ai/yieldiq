@@ -174,32 +174,49 @@ def assemble_local(ticker: str, db_session) -> dict | None:
         log.debug("LOCAL_DATA: no financials for %s — falling back", ticker)
         return None  # Can't do DCF without financials
 
+    # Aiven stores monetary values in Crores. The analysis pipeline
+    # (compute_metrics, DCF engine, Piotroski) expects RAW INR.
+    # 1 Crore = 1e7 INR. Multiply all monetary values.
+    CR = 1e7
+
     income_df = pd.DataFrame({
-        "revenue": revenue_list,
-        "net_income": ni_list,
-        "operating_income": oi_list,
+        "revenue":          [v * CR for v in revenue_list],
+        "net_income":       [v * CR for v in ni_list],
+        "operating_income": [v * CR for v in oi_list],
     })
     cf_df = pd.DataFrame({
-        "fcf": fcf_list,
-        "ocf": ocf_list,
-        "capex": capex_list,
+        "fcf":   [v * CR for v in fcf_list],
+        "ocf":   [v * CR for v in ocf_list],
+        "capex": [v * CR for v in capex_list],
     })
 
+    # Convert balance sheet fields too
+    total_debt *= CR
+    total_cash *= CR
+    total_assets *= CR
+    total_assets_prev *= CR
+    total_equity *= CR
+
+    # Convert shares: Aiven stores in Lakhs, pipeline expects raw count
+    shares_raw = shares * 1e5 if shares else 0
+
     # ── 5. Derived fields ────────────────────────────────────────
-    enterprise_value = (market_cap_cr * 1e7) + (total_debt * 1e7) - (total_cash * 1e7) \
+    # total_debt/cash are now in raw INR (after CR multiplication above)
+    enterprise_value = (market_cap_cr * CR) + total_debt - total_cash \
         if market_cap_cr > 0 else 0.0
-    ev_to_ebitda_calc = (enterprise_value / (ebitda * 1e7)) if ebitda > 0 else ev_ebitda_mm
-    ev_to_revenue = (enterprise_value / (revenue_list[-1] * 1e7)) if revenue_list[-1] > 0 else 0.0
+    ev_to_ebitda_calc = (enterprise_value / (ebitda * CR)) if ebitda > 0 else ev_ebitda_mm
+    latest_rev_raw = income_df["revenue"].iloc[-1] if not income_df.empty else 0
+    ev_to_revenue = (enterprise_value / latest_rev_raw) if latest_rev_raw > 0 else 0.0
 
     # ── 6. Assemble output ───────────────────────────────────────
     log.info("LOCAL_DATA: assembled %s from DB+Parquet (price=%.2f, %d fin rows)",
              ticker, price, len(revenue_list))
 
     return {
-        # Core
+        # Core — all monetary values in RAW INR (not Crores)
         "ticker":           ticker,
         "price":            price,
-        "shares":           shares,
+        "shares":           shares_raw,
         "total_debt":       total_debt,
         "total_cash":       total_cash,
         "income_df":        income_df,
@@ -219,11 +236,11 @@ def assemble_local(ticker: str, db_session) -> dict | None:
         "gross_margin":     0.0,
         "sector_name":      sector_name,
         "norm_capex_pct":   None,
-        "ebitda":           ebitda * 1e7 if ebitda else 0,  # Cr → raw for compute_metrics
+        "ebitda":           ebitda * CR if ebitda else 0,  # Cr → raw for compute_metrics
         "enterprise_value": enterprise_value,
         "ev_to_ebitda":     ev_to_ebitda_calc,
         "ev_to_revenue":    ev_to_revenue,
-        "yahoo_fcf_ttm":    latest_fcf * 1e7 if latest_fcf else 0,
+        "yahoo_fcf_ttm":    latest_fcf * CR if latest_fcf else 0,
         "dividend_yield":   dividend_yield,
         "dividend_rate":    0.0,
         "payout_ratio":     0.0,
@@ -236,10 +253,10 @@ def assemble_local(ticker: str, db_session) -> dict | None:
         "priceToBook":      pb,
         "trailingPE":       pe,
         "beta":             beta,
-        "marketCap":        market_cap_cr * 1e7 if market_cap_cr else 0,
+        "marketCap":        market_cap_cr * CR if market_cap_cr else 0,
         "fiftyTwoWeekHigh": high_52w,
         "fiftyTwoWeekLow":  low_52w,
-        "sharesOutstanding": shares * 1e5 if shares else 0,  # Lakhs → raw
+        "sharesOutstanding": shares_raw,
         "total_equity":     total_equity,
         "total_assets":     total_assets,
         "total_assets_prev": total_assets_prev,
@@ -249,7 +266,7 @@ def assemble_local(ticker: str, db_session) -> dict | None:
         # Balance sheet extras for Piotroski
         "current_ratio":    0.0,
         "current_ratio_prev": 0.0,
-        "lt_debt":          total_debt,
+        "lt_debt":          total_debt,  # already in raw INR after CR multiplication
         "lt_debt_prev":     0.0,
         "shares_prev_year": 0.0,
         # Finnhub placeholders (not available from local, filled by Finnhub if online)
