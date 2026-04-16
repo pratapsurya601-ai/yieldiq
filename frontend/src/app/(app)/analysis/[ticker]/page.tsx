@@ -431,6 +431,20 @@ export default function AnalysisPage() {
           </div>
         )}
 
+        {/* Share Report Card CTA */}
+        <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Share this analysis</p>
+            <p className="text-xs text-gray-500">Beautiful report card for WhatsApp &amp; Twitter</p>
+          </div>
+          <a
+            href={`/report/${ticker}`}
+            className="bg-blue-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition whitespace-nowrap"
+          >
+            View Report Card →
+          </a>
+        </div>
+
         {/* Disclaimer */}
         <p className="text-[10px] text-gray-400 text-center leading-relaxed px-4">
           All outputs are model estimates using publicly available data. Not investment advice.

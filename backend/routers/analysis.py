@@ -366,6 +366,7 @@ async def get_top_pick(user: dict = Depends(get_current_user)):
     return None
 
 
+# Debug endpoints — keep for now, remove before public launch
 @router.get("/debug/parquet-status")
 async def debug_parquet_status():
     """Diagnostic: check if Parquet files exist on this Railway instance."""
