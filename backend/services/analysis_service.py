@@ -957,19 +957,50 @@ class AnalysisService:
         """
         _ts = datetime.now().isoformat()
 
-        # ── Step 1: Fetch data (with retry for rate-limited .NS stocks) ─
+        # ── Step 1: Fetch data ────────────────────────────────
+        # Try local DB + Parquet first (~100ms). Fall back to
+        # yfinance collector (~20-30s) only if local data is
+        # insufficient (ticker not in DB, no Parquet file, etc).
         import time as _time
         raw = None
-        for _attempt in range(3):
-            try:
-                collector = StockDataCollector(ticker)
-                raw = collector.get_all()
-                if raw is not None:
-                    break
-            except Exception:
-                pass
-            if raw is None and _attempt < 2:
-                _time.sleep(3 + _attempt * 3)  # 3s, 6s delays
+        _data_source = "unknown"
+
+        try:
+            from backend.services.local_data_service import assemble_local
+            _local_db = _get_pipeline_session()
+            if _local_db is not None:
+                try:
+                    raw = assemble_local(ticker, _local_db)
+                    if raw is not None:
+                        _data_source = "local_db_parquet"
+                        import logging as _lds_log
+                        _lds_log.getLogger("yieldiq.analysis").info(
+                            "[%s] served from local DB+Parquet (fast path)", ticker
+                        )
+                finally:
+                    try:
+                        _local_db.close()
+                    except Exception:
+                        pass
+        except Exception as _local_exc:
+            import logging as _lds_log
+            _lds_log.getLogger("yieldiq.analysis").debug(
+                "[%s] local assembler failed: %s", ticker, _local_exc
+            )
+
+        # Fallback: yfinance collector (slow but comprehensive)
+        if raw is None:
+            _data_source = "yfinance"
+            for _attempt in range(3):
+                try:
+                    collector = StockDataCollector(ticker)
+                    raw = collector.get_all()
+                    if raw is not None:
+                        break
+                except Exception:
+                    pass
+                if raw is None and _attempt < 2:
+                    _time.sleep(3 + _attempt * 3)  # 3s, 6s delays
 
         # ── Step 2: Validate ──────────────────────────────────
         validation = validate_stock_data(ticker, raw)
