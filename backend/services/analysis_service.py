@@ -833,10 +833,13 @@ def _query_promoter_pledge(ticker: str):
 
 def _fetch_ebit_and_interest(ticker: str) -> tuple[float | None, float | None]:
     """
-    Pull the most recent annual EBIT and interest_expense for a
-    ticker from the ``company_financials`` table (populated by the
-    XBRL pipeline). Returns (None, None) if the table is absent or
-    the ticker isn't covered.
+    Pull the most recent annual EBIT and interest_expense.
+
+    Priority:
+      1. ``company_financials`` table (new XBRL pipeline — has explicit EBIT)
+      2. ``financials`` table (old pipeline — has EBITDA, use as EBIT proxy)
+
+    Returns (None, None) if neither table has data for this ticker.
     """
     db = _get_pipeline_session()
     if db is None:
@@ -844,6 +847,8 @@ def _fetch_ebit_and_interest(ticker: str) -> tuple[float | None, float | None]:
     try:
         from sqlalchemy import text
         db_ticker = ticker.replace(".NS", "").replace(".BO", "")
+
+        # Try company_financials first (has real EBIT)
         row = db.execute(text("""
             SELECT ebit, interest_expense
             FROM company_financials
@@ -854,16 +859,37 @@ def _fetch_ebit_and_interest(ticker: str) -> tuple[float | None, float | None]:
             ORDER BY period_end_date DESC
             LIMIT 1
         """), {"t": db_ticker}).mappings().first()
-        if not row:
-            return None, None
-
         def _f(v):
             try:
                 return float(v) if v is not None else None
             except (TypeError, ValueError):
                 return None
 
-        return _f(row.get("ebit")), _f(row.get("interest_expense"))
+        if row:
+            ebit = _f(row.get("ebit"))
+            interest = _f(row.get("interest_expense"))
+            if ebit is not None:
+                return ebit, interest
+
+        # Fallback: old financials table has EBITDA (use as EBIT proxy)
+        # EBITDA ≈ EBIT + depreciation. Without depreciation data,
+        # EBITDA is a reasonable upper-bound proxy for ROCE calculation.
+        old_row = db.execute(text("""
+            SELECT ebitda, ebit
+            FROM financials
+            WHERE ticker = :t
+              AND period_type = 'annual'
+              AND period_end IS NOT NULL
+            ORDER BY period_end DESC
+            LIMIT 1
+        """), {"t": db_ticker}).mappings().first()
+
+        if old_row:
+            ebit_val = _f(old_row.get("ebit")) or _f(old_row.get("ebitda"))
+            if ebit_val is not None:
+                return ebit_val, None  # No interest_expense in old table
+
+        return None, None
     except Exception as exc:
         import logging
         logging.getLogger("yieldiq.analysis").debug(

@@ -72,6 +72,12 @@ PEER_GROUP_LABELS: dict[str, str] = {
     "banking":                "Indian Banking",
     "nbfc":                   "Indian NBFC / Lending",
     "cement":                 "Indian Cement",
+    "defence":                "Indian Defence",
+    "infra":                  "Indian Infrastructure",
+    "chemicals":              "Indian Chemicals",
+    "healthcare":             "Indian Healthcare",
+    "retail":                 "Indian Retail",
+    "power":                  "Indian Power & Utilities",
 }
 
 DIRECT_PEERS: dict[str, list[str]] = {
@@ -95,7 +101,7 @@ DIRECT_PEERS: dict[str, list[str]] = {
     "it_services":        ["TCS.NS","INFY.NS","WIPRO.NS","HCLTECH.NS","TECHM.NS"],
     "fmcg":               ["ITC.NS","HINDUNILVR.NS","NESTLEIND.NS","BRITANNIA.NS","DABUR.NS"],
     "pharma":             ["SUNPHARMA.NS","DRREDDY.NS","CIPLA.NS","DIVISLAB.NS"],
-    "capital_goods":      ["LT.NS","SIEMENS.NS","ABB.NS","BEL.NS"],
+    "capital_goods":      ["LT.NS","SIEMENS.NS","ABB.NS","CUMMINSIND.NS"],
     "auto_oem":           ["MARUTI.NS","TATAMOTORS.NS","M&M.NS","BAJAJ-AUTO.NS"],
     "oil_gas":            ["RELIANCE.NS","ONGC.NS","IOC.NS","BPCL.NS"],
     "metals":             ["TATASTEEL.NS","JSWSTEEL.NS","HINDALCO.NS","VEDL.NS"],
@@ -106,6 +112,17 @@ DIRECT_PEERS: dict[str, list[str]] = {
                            "SHRIRAMFIN.NS","LICHSGFIN.NS"],
     "cement":             ["ULTRACEMCO.NS","AMBUJACEM.NS","ACC.NS","SHREECEM.NS",
                            "JKCEMENT.NS","DALMIABHARAT.NS"],
+    "defence":            ["HAL.NS","BEL.NS","BHEL.NS","COCHINSHIP.NS",
+                           "MAZAGON.NS","BDL.NS","GRSE.NS"],
+    "infra":              ["LT.NS","ADANIPORTS.NS","GMRAIRPORT.NS",
+                           "IRB.NS","IRCON.NS"],
+    "chemicals":          ["PIDILITIND.NS","SRF.NS","ATUL.NS","DEEPAKNITRO.NS",
+                           "NAVINFLUOR.NS","CLEAN.NS"],
+    "healthcare":         ["APOLLOHOSP.NS","MAXHEALTH.NS","FORTIS.NS",
+                           "YATHARTH.NS","KIMS.NS"],
+    "retail":             ["DMART.NS","TRENT.NS","VMART.NS","SHOPERSTOP.NS"],
+    "power":              ["NTPC.NS","POWERGRID.NS","TATAPOWER.NS","ADANIGREEN.NS",
+                           "NHPC.NS","SJVN.NS"],
 }
 
 
