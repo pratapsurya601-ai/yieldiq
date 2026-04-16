@@ -23,17 +23,17 @@ if not RAZORPAY_KEY_ID:
     # Debug endpoint removed — live payments active
 
 PLANS = {
-    "starter": {
-        "name": "Starter Plan",
-        "amount": 49900,  # ₹499 in paise
-        "currency": "INR",
-        "description": "50 analyses/day, scenarios, screener, PDF reports",
-    },
     "pro": {
         "name": "Pro Plan",
-        "amount": 199900,  # ₹1,999 in paise
+        "amount": 29900,  # ₹299 in paise
         "currency": "INR",
-        "description": "Unlimited analyses, Monte Carlo, all features",
+        "description": "Unlimited analyses, Monte Carlo, sensitivity, PDF/Excel reports",
+    },
+    "analyst": {
+        "name": "Analyst Plan",
+        "amount": 79900,  # ₹799 in paise
+        "currency": "INR",
+        "description": "Everything in Pro + API access, bulk screener, Sheets sync",
     },
 }
 
@@ -43,8 +43,8 @@ async def get_plans():
     """Get available subscription plans."""
     return {
         "plans": [
-            {"id": "starter", **PLANS["starter"], "display_price": "₹499/mo"},
-            {"id": "pro", **PLANS["pro"], "display_price": "₹1,999/mo"},
+            {"id": "pro", **PLANS["pro"], "display_price": "₹299/mo"},
+            {"id": "analyst", **PLANS["analyst"], "display_price": "₹799/mo"},
         ],
         "key_id": RAZORPAY_KEY_ID,
     }
@@ -52,7 +52,7 @@ async def get_plans():
 
 @router.post("/create-order")
 async def create_order(
-    plan_id: str = "starter",
+    plan_id: str = "pro",
     user: dict = Depends(get_current_user),
 ):
     """Create a Razorpay order for the selected plan."""
@@ -94,7 +94,7 @@ async def verify_payment(
     razorpay_order_id: str,
     razorpay_payment_id: str,
     razorpay_signature: str,
-    plan_id: str = "starter",
+    plan_id: str = "pro",
     user: dict = Depends(get_current_user),
 ):
     """Verify Razorpay payment and upgrade user tier."""
@@ -110,7 +110,7 @@ async def verify_payment(
         })
 
         # Payment verified — upgrade user tier
-        new_tier = plan_id if plan_id in ("starter", "pro") else "starter"
+        new_tier = plan_id if plan_id in ("pro", "analyst") else "pro"
 
         # Update in Supabase
         try:

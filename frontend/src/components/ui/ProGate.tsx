@@ -7,13 +7,13 @@ import type { Tier } from "@/types/api"
 
 interface ProGateProps {
   children: React.ReactNode
-  requiredTier?: "starter" | "pro"
+  requiredTier?: "pro" | "analyst"
   feature?: string
 }
 
-const TIER_RANK: Record<Tier, number> = { free: 0, starter: 1, pro: 2 }
+const TIER_RANK: Record<Tier, number> = { free: 0, starter: 1, pro: 1, analyst: 2 }
 
-export default function ProGate({ children, requiredTier = "starter", feature }: ProGateProps) {
+export default function ProGate({ children, requiredTier = "pro", feature }: ProGateProps) {
   const tier = useAuthStore((s) => s.tier)
   const hasAccess = TIER_RANK[tier] >= TIER_RANK[requiredTier]
 
@@ -38,7 +38,7 @@ export default function ProGate({ children, requiredTier = "starter", feature }:
           </div>
           <p className="text-sm font-medium text-gray-900">
             {feature ? `${feature} requires` : "This feature requires"}{" "}
-            {requiredTier === "pro" ? "Pro" : "Starter"} plan
+            {requiredTier === "analyst" ? "Analyst" : "Pro"} plan
           </p>
           <Link
             href="/account?upgrade=true"

@@ -34,7 +34,7 @@ JWT_EXPIRE_DAYS = 7
 
 security = HTTPBearer(auto_error=False)
 
-TIER_LIMITS = {"free": 5, "starter": 50, "pro": 999999}
+TIER_LIMITS = {"free": 5, "starter": 999999, "pro": 999999, "analyst": 999999}
 
 
 def create_access_token(user_id: str, email: str, tier: str = "free") -> str:
@@ -104,7 +104,7 @@ def check_analysis_limit(user: dict = Depends(get_current_user)):
 
 def require_tier(min_tier: str):
     """Factory: returns dependency that requires minimum tier."""
-    _tier_order = {"free": 0, "starter": 1, "pro": 2}
+    _tier_order = {"free": 0, "starter": 1, "pro": 1, "analyst": 2}
 
     def _require(user: dict = Depends(get_current_user)):
         if _tier_order.get(user["tier"], 0) < _tier_order.get(min_tier, 0):

@@ -22,8 +22,10 @@ def get_client() -> razorpay.Client:
 def get_plan_map() -> dict:
     """Plan IDs from env vars. Keys are (tier, billing) tuples."""
     return {
-        ("starter", "monthly"): os.environ.get("RZP_PLAN_STARTER_MONTHLY", ""),
         ("pro", "monthly"):     os.environ.get("RZP_PLAN_PRO_MONTHLY", ""),
+        ("analyst", "monthly"): os.environ.get("RZP_PLAN_ANALYST_MONTHLY", ""),
+        # Legacy aliases
+        ("starter", "monthly"): os.environ.get("RZP_PLAN_PRO_MONTHLY", ""),
     }
 
 

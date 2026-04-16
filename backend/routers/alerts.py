@@ -24,9 +24,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 
 ALERT_LIMITS: dict[str, int] = {
-    "free": 3,
-    "starter": 50,
-    "pro": 9999,
+    "free": 0,
+    "starter": 10,    # legacy alias
+    "pro": 10,
+    "analyst": 9999,
 }
 
 

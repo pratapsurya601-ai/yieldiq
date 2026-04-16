@@ -41,32 +41,32 @@ _init_auth_db()
 
 LIMITS = {
     "free": {
-        "analyses_per_day": 3,          "reports_per_month": 0,
-        "report_cost": 14.99,           "screener_per_week": 0,
-        "watchlist_stocks": 10,         "india_access": True,
+        "analyses_per_day": 5,          "reports_per_month": 0,
+        "report_cost": 0,               "screener_per_week": 0,
+        "watchlist_stocks": 5,          "india_access": True,
         "europe_access": False,         "action_plan": False,
-        "quality_score": False,         "scenarios": False,
+        "quality_score": True,          "scenarios": True,
         "sensitivity": False,           "monte_carlo": False,
-        "portfolio": False,             "compare_stocks": False,
+        "portfolio": False,             "compare_stocks": True,
         "api_calls_per_day": 0,         "simple_mode_only": True,
-        "pdf_reports_per_month": 0,     "pdf_report_cost": 4.99,
+        "pdf_reports_per_month": 0,     "pdf_report_cost": 0,
         "sheets_sync": False,           "ai_questions_per_day": 5,
         "excel_export": False,          "bulk_screener": False,
     },
-    "starter": {
-        "analyses_per_day": 25,         "reports_per_month": 5,
+    "pro": {
+        "analyses_per_day": 9999,       "reports_per_month": 9999,
         "report_cost": 0,               "screener_per_week": 9999,
         "watchlist_stocks": 50,         "india_access": True,
         "europe_access": False,         "action_plan": True,
         "quality_score": True,          "scenarios": True,
-        "sensitivity": True,            "monte_carlo": False,
+        "sensitivity": True,            "monte_carlo": True,
         "portfolio": True,              "compare_stocks": True,
         "api_calls_per_day": 0,         "simple_mode_only": False,
-        "pdf_reports_per_month": 5,     "pdf_report_cost": 0,
-        "sheets_sync": True,            "ai_questions_per_day": 50,
+        "pdf_reports_per_month": 9999,  "pdf_report_cost": 0,
+        "sheets_sync": False,           "ai_questions_per_day": 50,
         "excel_export": True,           "bulk_screener": False,
     },
-    "pro": {
+    "analyst": {
         "analyses_per_day": 9999,       "reports_per_month": 9999,
         "report_cost": 0,               "screener_per_week": 9999,
         "watchlist_stocks": 9999,       "india_access": True,
@@ -81,8 +81,9 @@ LIMITS = {
     },
 }
 
-# Keep "premium" as a backwards-compat alias for "starter"
-LIMITS["premium"] = LIMITS["starter"]
+# Keep legacy aliases for backwards compatibility
+LIMITS["starter"] = LIMITS["pro"]
+LIMITS["premium"] = LIMITS["pro"]
 
 _ANALYTICS_DB = Path(os.environ.get("YIELDIQ_DATA_DIR", str(Path(__file__).parent))) / "analytics.db"
 _nudge_lock   = threading.Lock()
@@ -124,14 +125,14 @@ WEBSITE_URL = os.environ.get("YIELDIQ_WEBSITE_URL", "https://www.yieldiq.in")
 PRICING_URL = WEBSITE_URL + "/pricing.html"
 # In-app upgrade: navigate to the pricing tab via query param
 UPGRADE_URL = PRICING_URL
-TIER_NAMES  = {"free": "Free", "starter": "Starter", "premium": "Starter", "pro": "Pro"}
-TIER_COLORS = {"free": "#6B7280", "starter": "#1D4ED8", "premium": "#1D4ED8", "pro": "#059669"}
+TIER_NAMES  = {"free": "Free", "starter": "Pro", "premium": "Pro", "pro": "Pro", "analyst": "Analyst"}
+TIER_COLORS = {"free": "#6B7280", "starter": "#1D4ED8", "premium": "#1D4ED8", "pro": "#1D4ED8", "analyst": "#059669"}
 
 # Pricing constants — single source of truth
-_STARTER_MONTHLY  = "₹499/mo"
-_STARTER_ANNUAL   = "₹399/mo"   # ~20% off (₹4,788/yr)
-_PRO_MONTHLY      = "₹1,999/mo"
-_PRO_ANNUAL       = "₹1,599/mo"  # ~20% off (₹19,188/yr)
+_PRO_MONTHLY      = "₹299/mo"
+_PRO_ANNUAL       = "₹208/mo"    # ₹2,499/yr (~2 months free)
+_ANALYST_MONTHLY  = "₹799/mo"
+_ANALYST_ANNUAL   = "₹500/mo"    # ₹5,999/yr (~2 months free)
 _SESSION_KEY      = "yiq_session_token"
 
 

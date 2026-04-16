@@ -10,9 +10,10 @@ class RateLimiter:
     """Daily rate limiter per user. Resets at midnight UTC."""
 
     TIER_LIMITS = {
-        "free": 3,
-        "starter": 25,
+        "free": 5,
+        "starter": 999999,   # legacy alias
         "pro": 999999,
+        "analyst": 999999,
     }
 
     def __init__(self):

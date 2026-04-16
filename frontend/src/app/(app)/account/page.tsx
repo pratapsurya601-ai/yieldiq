@@ -81,7 +81,7 @@ export default function AccountPage() {
     router.push("/auth/login")
   }
 
-  const handleUpgrade = async (planId: "starter" | "pro") => {
+  const handleUpgrade = async (planId: "pro" | "analyst") => {
     setUpgrading(true)
     try {
       const { data } = await api.post(`/api/v1/payments/create-order?plan_id=${planId}`)
@@ -184,58 +184,58 @@ export default function AccountPage() {
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-gray-900">Upgrade your plan</h2>
 
-          {/* Starter */}
+          {/* Pro */}
           <div className="relative bg-white rounded-2xl border-2 border-blue-200 p-5">
-            {/* Most Popular badge */}
             <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full shadow-sm">
               Most Popular
             </span>
             <div className="flex items-center justify-between mb-3 mt-1">
               <div>
-                <h3 className="font-bold text-gray-900">Starter</h3>
+                <h3 className="font-bold text-gray-900">Pro</h3>
                 <p className="text-xs text-gray-500">For regular investors</p>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold text-gray-900">{"\u20b9"}499</p>
+                <p className="text-2xl font-bold text-gray-900">{"\u20b9"}299</p>
                 <p className="text-xs text-gray-400">/month</p>
               </div>
             </div>
             <ul className="space-y-1.5 mb-4 text-sm text-gray-600">
-              <li>&#10003; 25 analyses per day</li>
-              <li>&#10003; Bear/Base/Bull scenarios</li>
-              <li>&#10003; Stock screener</li>
-              <li>&#10003; PDF reports</li>
-              <li>&#10003; Portfolio tracking</li>
+              <li>&#10003; Unlimited analyses</li>
+              <li>&#10003; Interactive DCF sliders</li>
+              <li>&#10003; Sensitivity heatmap</li>
+              <li>&#10003; Monte Carlo (1,000 sims)</li>
+              <li>&#10003; PDF & Excel export</li>
+              <li>&#10003; 50-stock watchlist + 10 alerts</li>
             </ul>
-            <button onClick={() => handleUpgrade("starter")} disabled={upgrading}
+            <button onClick={() => handleUpgrade("pro")} disabled={upgrading}
               className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50">
-              {upgrading ? "Processing..." : "Upgrade to Starter"}
+              {upgrading ? "Processing..." : "Upgrade to Pro \u2014 \u20b9299/mo"}
             </button>
           </div>
 
-          {/* Pro */}
+          {/* Analyst */}
           <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-5 text-white">
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="font-bold">Pro</h3>
+                <h3 className="font-bold">Analyst</h3>
                 <p className="text-xs text-gray-400">For serious investors</p>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold">{"\u20b9"}1,999</p>
+                <p className="text-2xl font-bold">{"\u20b9"}799</p>
                 <p className="text-xs text-gray-400">/month</p>
               </div>
             </div>
             <ul className="space-y-1.5 mb-4 text-sm text-gray-300">
-              <li>&#10003; Everything in Starter</li>
-              <li>&#10003; Unlimited analyses</li>
-              <li>&#10003; Monte Carlo (1000 sims)</li>
-              <li>&#10003; Sensitivity analysis</li>
-              <li>&#10003; Excel DCF model</li>
-              <li>&#10003; AI analyst chat</li>
+              <li>&#10003; Everything in Pro</li>
+              <li>&#10003; API access (500 calls/day)</li>
+              <li>&#10003; Bulk screener</li>
+              <li>&#10003; Unlimited watchlist & alerts</li>
+              <li>&#10003; Google Sheets sync</li>
+              <li>&#10003; Priority support</li>
             </ul>
-            <button onClick={() => handleUpgrade("pro")} disabled={upgrading}
+            <button onClick={() => handleUpgrade("analyst")} disabled={upgrading}
               className="w-full py-3 bg-white text-gray-900 rounded-xl text-sm font-bold hover:bg-gray-100 transition disabled:opacity-50">
-              {upgrading ? "Processing..." : "Upgrade to Pro"}
+              {upgrading ? "Processing..." : "Upgrade to Analyst \u2014 \u20b9799/mo"}
             </button>
           </div>
         </div>
@@ -246,7 +246,7 @@ export default function AccountPage() {
           <p className="text-sm text-gray-500">Current plan</p>
           <p className="text-lg font-bold text-blue-700 uppercase">{tier}</p>
           <p className="text-xs text-gray-400 mt-1">
-            {tier === "starter" ? "\u20b9499/month" : "\u20b91,999/month"}
+            {tier === "pro" || tier === "starter" ? "\u20b9299/month" : tier === "analyst" ? "\u20b9799/month" : ""}
           </p>
         </div>
       )}

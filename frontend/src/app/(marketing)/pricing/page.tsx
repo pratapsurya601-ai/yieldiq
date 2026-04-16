@@ -42,58 +42,58 @@ const plans = [
   {
     name: "Free",
     price: "\u20B90",
-    period: "/month",
+    period: "/forever",
     subtitle: "No credit card required",
     highlighted: false,
     badge: null,
     features: [
       { text: "5 analyses per day", included: true },
-      { text: "NSE/BSE large caps", included: true },
-      { text: "Basic DCF valuation", included: true },
-      { text: "Quality Snowflake score", included: true },
-      { text: "PDF reports", included: false },
-      { text: "Sensitivity heatmap", included: false },
-      { text: "Interactive DCF sliders", included: false },
+      { text: "All 6,000+ NSE/BSE stocks", included: true },
+      { text: "DCF fair value + Margin of Safety", included: true },
+      { text: "Quality score + Piotroski", included: true },
+      { text: "Bear / Base / Bull scenarios", included: true },
+      { text: "AI summary (short)", included: true },
+      { text: "Shareable report card", included: true },
     ],
     cta: "Get Started Free",
     ctaStyle: "border-2 border-gray-200 text-gray-700 hover:bg-gray-50",
   },
   {
-    name: "Starter",
-    price: "\u20B9499",
+    name: "Pro",
+    price: "\u20B9299",
     period: "/month",
     subtitle: "7-day free trial. Cancel anytime.",
     highlighted: true,
     badge: "Most Popular",
     features: [
-      { text: "50 analyses per day", included: true },
-      { text: "All 6,000+ stocks (large, mid, small)", included: true },
-      { text: "Interactive DCF Engine (live sliders)", included: true },
+      { text: "Unlimited analyses", included: true },
+      { text: "Interactive DCF sliders", included: true },
       { text: "Sensitivity heatmap", included: true },
-      { text: "PDF & Excel reports", included: true },
-      { text: "Bear / Base / Bull scenarios", included: true },
-      { text: "Price alerts & watchlist", included: true },
+      { text: "Monte Carlo (1,000 sims)", included: true },
+      { text: "PDF & Excel export", included: true },
+      { text: "10-year financial statements", included: true },
+      { text: "50-stock watchlist + 10 alerts", included: true },
     ],
     cta: "Start 7-Day Free Trial \u2192",
     ctaStyle: "bg-white text-blue-700 font-bold hover:bg-blue-50",
   },
   {
-    name: "Pro",
-    price: "\u20B91,999",
+    name: "Analyst",
+    price: "\u20B9799",
     period: "/month",
     subtitle: "For serious investors and analysts.",
     highlighted: false,
     badge: null,
     features: [
-      { text: "Unlimited analyses", included: true },
-      { text: "Monte Carlo simulation", included: true },
-      { text: "API access", included: true },
+      { text: "Everything in Pro", included: true },
+      { text: "API access (500 calls/day)", included: true },
       { text: "Bulk screener", included: true },
-      { text: "Portfolio health dashboard", included: true },
-      { text: "AI-powered summary", included: true },
+      { text: "Unlimited watchlist & alerts", included: true },
+      { text: "Google Sheets sync", included: true },
       { text: "Priority support", included: true },
+      { text: "Early access to new features", included: true },
     ],
-    cta: "Get Pro Access \u2192",
+    cta: "Get Analyst Access \u2192",
     ctaStyle: "border-2 border-gray-200 text-gray-700 hover:bg-gray-50",
   },
 ]
@@ -102,7 +102,8 @@ const faqs = [
   { q: "Can I cancel anytime?", a: "Yes. No lock-in. Cancel from your account settings." },
   { q: "What payment methods do you accept?", a: "UPI, credit/debit cards, and net banking via Razorpay." },
   { q: "Is there a refund policy?", a: "Yes, full refund within 7 days if you\u2019re not satisfied." },
-  { q: "Do I need to sign up to use the free tier?", a: "You can continue as a guest with 5 free analyses/day. Sign up to save your watchlist and get more features." },
+  { q: "Do I need to sign up to use the free tier?", a: "You can run 5 free analyses/day without signing up. Create a free account to save your watchlist and get the full free experience." },
+  { q: "How does annual billing work?", a: "Annual plans save you ~2 months. Pro is \u20B92,499/year (\u20B9208/mo) and Analyst is \u20B95,999/year (\u20B9500/mo)." },
   { q: "Is this investment advice?", a: "No. YieldIQ is a quantitative research tool. All outputs are model-generated estimates for educational purposes only. YieldIQ is not registered with SEBI as an investment adviser or research analyst." },
 ]
 
@@ -179,31 +180,37 @@ export default function PricingPage() {
                 <tr className="border-b border-gray-200">
                   <th className="text-left py-3 pr-4 font-semibold text-gray-500">Feature</th>
                   <th className="text-center py-3 px-4 font-semibold">Free</th>
-                  <th className="text-center py-3 px-4 font-semibold text-blue-700">Starter</th>
-                  <th className="text-center py-3 px-4 font-semibold">Pro</th>
+                  <th className="text-center py-3 px-4 font-semibold text-blue-700">Pro</th>
+                  <th className="text-center py-3 px-4 font-semibold">Analyst</th>
                 </tr>
               </thead>
               <tbody>
                 {[
-                  { feature: "Analyses per day", free: "5", starter: "50", pro: "Unlimited" },
-                  { feature: "Stock coverage", free: "Large cap", starter: "All 6,000+", pro: "All 6,000+" },
-                  { feature: "DCF valuation", free: "\u2713", starter: "\u2713", pro: "\u2713" },
-                  { feature: "Quality Snowflake", free: "\u2713", starter: "\u2713", pro: "\u2713" },
-                  { feature: "Interactive sliders", free: "\u2717", starter: "\u2713", pro: "\u2713" },
-                  { feature: "Sensitivity heatmap", free: "\u2717", starter: "\u2713", pro: "\u2713" },
-                  { feature: "PDF & Excel reports", free: "\u2717", starter: "\u2713", pro: "\u2713" },
-                  { feature: "Scenarios (Bear/Base/Bull)", free: "\u2717", starter: "\u2713", pro: "\u2713" },
-                  { feature: "Monte Carlo simulation", free: "\u2717", starter: "\u2717", pro: "\u2713" },
-                  { feature: "API access", free: "\u2717", starter: "\u2717", pro: "\u2713" },
-                  { feature: "Bulk screener", free: "\u2717", starter: "\u2717", pro: "\u2713" },
-                  { feature: "AI summary", free: "\u2717", starter: "\u2717", pro: "\u2713" },
-                  { feature: "Priority support", free: "\u2717", starter: "\u2717", pro: "\u2713" },
+                  { feature: "Analyses per day", free: "5", pro: "Unlimited", analyst: "Unlimited" },
+                  { feature: "Stock coverage", free: "All 6,000+", pro: "All 6,000+", analyst: "All 6,000+" },
+                  { feature: "DCF fair value + MoS", free: "\u2713", pro: "\u2713", analyst: "\u2713" },
+                  { feature: "Quality score + Piotroski", free: "\u2713", pro: "\u2713", analyst: "\u2713" },
+                  { feature: "Bear/Base/Bull scenarios", free: "\u2713", pro: "\u2713", analyst: "\u2713" },
+                  { feature: "AI summary", free: "Short", pro: "Full deep-dive", analyst: "Full deep-dive" },
+                  { feature: "Peer comparison", free: "Basic", pro: "Full", analyst: "Full" },
+                  { feature: "Financial statements", free: "3 years", pro: "10 years", analyst: "10 years" },
+                  { feature: "Interactive DCF sliders", free: "\u2717", pro: "\u2713", analyst: "\u2713" },
+                  { feature: "Sensitivity heatmap", free: "\u2717", pro: "\u2713", analyst: "\u2713" },
+                  { feature: "Monte Carlo simulation", free: "\u2717", pro: "\u2713", analyst: "\u2713" },
+                  { feature: "PDF & Excel export", free: "\u2717", pro: "\u2713", analyst: "\u2713" },
+                  { feature: "Portfolio X-Ray", free: "\u2717", pro: "\u2713", analyst: "\u2713" },
+                  { feature: "Watchlist", free: "5 stocks", pro: "50 stocks", analyst: "Unlimited" },
+                  { feature: "Price alerts", free: "\u2717", pro: "10 alerts", analyst: "Unlimited" },
+                  { feature: "API access", free: "\u2717", pro: "\u2717", analyst: "500/day" },
+                  { feature: "Bulk screener", free: "\u2717", pro: "\u2717", analyst: "\u2713" },
+                  { feature: "Google Sheets sync", free: "\u2717", pro: "\u2717", analyst: "\u2713" },
+                  { feature: "Priority support", free: "\u2717", pro: "\u2717", analyst: "\u2713" },
                 ].map((row) => (
                   <tr key={row.feature} className="border-b border-gray-100">
                     <td className="py-3 pr-4 text-gray-700">{row.feature}</td>
                     <td className="text-center py-3 px-4">{row.free}</td>
-                    <td className="text-center py-3 px-4 font-medium">{row.starter}</td>
-                    <td className="text-center py-3 px-4">{row.pro}</td>
+                    <td className="text-center py-3 px-4 font-medium">{row.pro}</td>
+                    <td className="text-center py-3 px-4">{row.analyst}</td>
                   </tr>
                 ))}
               </tbody>

@@ -502,18 +502,18 @@ function FAQItem({ q, a }: { q: string; a: string }) {
 const pricingPlans = [
   {
     name: "Free", price: "\u20B90", period: "/forever",
-    features: ["5 analyses per day", "NSE/BSE large caps", "Basic DCF valuation"],
+    features: ["5 analyses per day", "All 6,000+ stocks", "DCF + scenarios + AI summary"],
     cta: "Get Started Free", highlighted: false,
   },
   {
-    name: "Starter", price: "\u20B9499", period: "/month",
-    features: ["50 analyses per day", "All 6,000+ stocks", "Interactive DCF + heatmap"],
+    name: "Pro", price: "\u20B9299", period: "/month",
+    features: ["Unlimited analyses", "Monte Carlo + heatmap", "PDF/Excel + 50 watchlist"],
     cta: "Start 7-Day Free Trial", highlighted: true,
   },
   {
-    name: "Pro", price: "\u20B91,999", period: "/month",
-    features: ["Unlimited analyses", "Monte Carlo + API", "AI summary + bulk screener"],
-    cta: "Get Pro Access", highlighted: false,
+    name: "Analyst", price: "\u20B9799", period: "/month",
+    features: ["Everything in Pro", "API + bulk screener", "Sheets sync + priority support"],
+    cta: "Get Analyst Access", highlighted: false,
   },
 ]
 

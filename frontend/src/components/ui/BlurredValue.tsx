@@ -9,12 +9,12 @@ interface BlurredValueProps {
   value: number
   currency?: string
   label?: string
-  requiredTier?: "starter" | "pro"
+  requiredTier?: "pro" | "analyst"
 }
 
-const TIER_RANK: Record<Tier, number> = { free: 0, starter: 1, pro: 2 }
+const TIER_RANK: Record<Tier, number> = { free: 0, starter: 1, pro: 1, analyst: 2 }
 
-export default function BlurredValue({ value, currency = "INR", label, requiredTier = "starter" }: BlurredValueProps) {
+export default function BlurredValue({ value, currency = "INR", label, requiredTier = "pro" }: BlurredValueProps) {
   const tier = useAuthStore((s) => s.tier)
   const hasAccess = TIER_RANK[tier] >= TIER_RANK[requiredTier]
 

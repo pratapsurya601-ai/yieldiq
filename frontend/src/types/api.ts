@@ -2,7 +2,7 @@
 
 export type Verdict = "undervalued" | "fairly_valued" | "overvalued" | "avoid" | "data_limited" | "unavailable"
 export type Grade = "A" | "B" | "C" | "D" | "F"
-export type Tier = "free" | "starter" | "pro"
+export type Tier = "free" | "starter" | "pro" | "analyst"
 export type Confidence = "high" | "medium" | "low" | "unusable"
 export type MoatGrade = "Wide" | "Narrow" | "None"
 
