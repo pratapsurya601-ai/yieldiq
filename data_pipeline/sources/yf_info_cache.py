@@ -78,11 +78,14 @@ def _fetch_live(ticker: str) -> dict:
 
 
 def _store(ticker: str, info: dict) -> None:
-    """Upsert into yfinance_info_cache. Silent on any failure."""
+    """Upsert into yfinance_info_cache. Logs at INFO level so failures
+    surface in Railway logs — silent failures here mean users stay slow."""
     if not _is_valid_info(info):
+        log.info("YF_INFO_CACHE: skip-store %s (invalid info)", ticker)
         return
     db = _db_session()
     if db is None:
+        log.warning("YF_INFO_CACHE: store failed for %s — DATABASE_URL not set", ticker)
         return
     try:
         from sqlalchemy import text
@@ -94,8 +97,9 @@ def _store(ticker: str, info: dict) -> None:
                     updated_at = NOW()
         """), {"t": ticker, "j": _serialize(info)})
         db.commit()
+        log.info("YF_INFO_CACHE: stored %s (%d bytes)", ticker, len(_serialize(info)))
     except Exception as exc:
-        log.debug("info cache write failed for %s: %s", ticker, exc)
+        log.warning("YF_INFO_CACHE: store failed for %s: %s", ticker, exc)
         try:
             db.rollback()
         except Exception:
@@ -134,7 +138,9 @@ def get_info(ticker: str, ttl_minutes: int = 30) -> tuple[dict, bool]:
 
     # ── DB lookup ────────────────────────────────────────────
     db = _db_session()
-    if db is not None:
+    if db is None:
+        log.warning("YF_INFO_CACHE: no DB session for %s — live-fetch path", ticker)
+    else:
         try:
             from sqlalchemy import text
             row = db.execute(text("""
@@ -149,20 +155,21 @@ def get_info(ticker: str, ttl_minutes: int = 30) -> tuple[dict, bool]:
                     info = None
                 if info:
                     updated = row["updated_at"]
-                    # updated_at stored as NOW() (UTC in Postgres when
-                    # TIMESTAMPTZ or naive UTC when TIMESTAMP); compare
-                    # with utcnow either way.
                     age = datetime.utcnow() - (
                         updated.replace(tzinfo=None) if hasattr(updated, "tzinfo") and updated.tzinfo else updated
                     )
                     if age < timedelta(minutes=ttl_minutes):
+                        log.info("YF_INFO_CACHE: HIT %s (age=%ds)", ticker, int(age.total_seconds()))
                         return info, True
-                    # Stale → return immediately, refresh in background.
+                    log.info("YF_INFO_CACHE: STALE %s (age=%ds) → bg refresh", ticker, int(age.total_seconds()))
                     _refresh_async(ticker)
                     return info, True
+                else:
+                    log.warning("YF_INFO_CACHE: row for %s had unparseable JSON", ticker)
+            else:
+                log.info("YF_INFO_CACHE: MISS %s (no row)", ticker)
         except Exception as exc:
-            # Table missing or query error — fall through to live-fetch
-            log.debug("info cache read failed for %s: %s", ticker, exc)
+            log.warning("YF_INFO_CACHE: read failed for %s: %s", ticker, exc)
         finally:
             try:
                 db.close()
@@ -173,4 +180,6 @@ def get_info(ticker: str, ttl_minutes: int = 30) -> tuple[dict, bool]:
     info = _fetch_live(ticker)
     if _is_valid_info(info):
         _store(ticker, info)
+    else:
+        log.info("YF_INFO_CACHE: live fetch for %s returned invalid data — not caching", ticker)
     return info, False
