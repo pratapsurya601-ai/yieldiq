@@ -366,6 +366,63 @@ async def get_top_pick(user: dict = Depends(get_current_user)):
     return None
 
 
+@router.get("/debug/parquet-status")
+async def debug_parquet_status():
+    """Diagnostic: check if Parquet files exist on this Railway instance."""
+    import os
+    from pathlib import Path
+
+    # Check db_integration's PARQUET_DIR
+    try:
+        from data_pipeline.nse_prices.db_integration import PARQUET_DIR, _parquet_path
+        pdir = str(PARQUET_DIR)
+        exists = PARQUET_DIR.exists()
+        files = sorted([f.name for f in PARQUET_DIR.glob("*.parquet")]) if exists else []
+        hal_path = _parquet_path("HAL.NS")
+    except Exception as exc:
+        return {"error": f"import failed: {exc}"}
+
+    # Check DB connectivity
+    db_status = "unknown"
+    try:
+        from backend.services.analysis_service import _get_pipeline_session, _db_dead_until
+        import time
+        if time.time() < _db_dead_until:
+            db_status = f"COOLDOWN (expires in {int(_db_dead_until - time.time())}s)"
+        else:
+            sess = _get_pipeline_session()
+            db_status = "CONNECTED" if sess else "None (no DATABASE_URL)"
+            if sess:
+                try:
+                    sess.close()
+                except Exception:
+                    pass
+    except Exception as exc:
+        db_status = f"error: {exc}"
+
+    # Check local assembler
+    local_status = "unknown"
+    try:
+        from backend.services.local_data_service import assemble_local
+        local_status = "importable"
+    except Exception as exc:
+        local_status = f"import failed: {exc}"
+
+    return {
+        "parquet_dir": pdir,
+        "parquet_dir_exists": exists,
+        "file_count": len(files),
+        "sample_files": files[:5],
+        "hal_exists": hal_path.exists(),
+        "hal_path": str(hal_path),
+        "cipla_exists": _parquet_path("CIPLA.NS").exists(),
+        "db_status": db_status,
+        "local_assembler": local_status,
+        "cwd": os.getcwd(),
+        "database_url_set": bool(os.environ.get("DATABASE_URL")),
+    }
+
+
 @router.get("/search")
 async def search_stocks(
     q: str = "",
