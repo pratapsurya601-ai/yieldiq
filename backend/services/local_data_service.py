@@ -241,6 +241,21 @@ def assemble_local(ticker: str, db_session) -> dict | None:
     # 1 Crore = 1e7 INR. Multiply all monetary values.
     CR = 1e7
 
+    # ── Currency sanity check ────────────────────────────────
+    # Some companies (INFY, MNCs) report in USD. The pipeline's
+    # _to_cr() divided by 1e7 treating them as INR → values are
+    # ~80× too small. Detect this: if revenue × CR is less than
+    # 1% of market_cap (in raw INR), the financials are likely
+    # in a foreign currency → fall back to yfinance.
+    if revenue_list and market_cap_cr > 0:
+        latest_rev_raw = revenue_list[-1] * CR
+        mcap_raw = market_cap_cr * CR
+        if mcap_raw > 0 and latest_rev_raw / mcap_raw < 0.01:
+            log.info("LOCAL_DATA: %s revenue/mcap ratio too low (%.4f) — "
+                      "likely USD-denominated financials, falling back",
+                      ticker, latest_rev_raw / mcap_raw)
+            return None  # Fall back to yfinance which handles currency
+
     income_df = pd.DataFrame({
         "revenue":          [v * CR for v in revenue_list],
         "net_income":       [v * CR for v in ni_list],
