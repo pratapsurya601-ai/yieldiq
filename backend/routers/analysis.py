@@ -72,7 +72,7 @@ async def get_analysis(
     try:
         result = service.get_full_analysis(ticker)
         # Cache for 30 minutes (was 15) — analysis data doesn't change that fast
-        cache.set(_cache_key, result, ttl=1800)
+        cache.set(_cache_key, result, ttl=14400)
         return result
     except TickerNotFoundError:
         # Data provider returned nothing for this symbol. 404 lets the
@@ -675,7 +675,7 @@ async def get_financials_endpoint(
 
     result["tier"] = tier
     result["tier_limited"] = tier_limited
-    cache.set(_cache_key, result, ttl=1800)  # 30 min
+    cache.set(_cache_key, result, ttl=14400)  # 30 min
     return result
 
 
@@ -723,7 +723,7 @@ async def get_peers_endpoint(
                 pass
 
     if result.get("has_peers"):
-        cache.set(_cache_key, result, ttl=1800)  # 30 min
+        cache.set(_cache_key, result, ttl=14400)  # 30 min
     return result
 
 
@@ -757,7 +757,7 @@ async def get_dividends_endpoint(
         )
         raise HTTPException(status_code=500, detail="Dividend data unavailable")
 
-    cache.set(_cache_key, result, ttl=1800)  # 30 min
+    cache.set(_cache_key, result, ttl=14400)  # 30 min
     return result
 
 

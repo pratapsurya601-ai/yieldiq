@@ -189,13 +189,10 @@ def _prewarm_popular_stocks():
 
     def _warm():
         import time
+        from pathlib import Path
         time.sleep(5)  # Wait for app to fully start
         try:
-            # Warm Aiven connection FIRST — the free tier needs 10-30s
-            # to wake up from cold start. If we don't do this, the first
-            # analysis call's _get_pipeline_session() times out and sets
-            # the cooldown flag, making ALL subsequent calls skip the DB
-            # → every ticker falls back to slow yfinance.
+            # ── Phase 1: Warm Aiven connection ───────────────────
             try:
                 from data_pipeline.db import Session as _PS
                 if _PS is not None:
@@ -205,30 +202,63 @@ def _prewarm_popular_stocks():
                     _sess.close()
                     logger.info("Prewarm: Aiven DB connection OK")
             except Exception as _db_exc:
-                logger.warning("Prewarm: Aiven DB connection failed (%s) — "
-                               "local assembler will be unavailable", _db_exc)
+                logger.warning("Prewarm: Aiven DB connection failed (%s)", _db_exc)
 
             from backend.services.analysis_service import AnalysisService
             from backend.services.cache_service import cache
             svc = AnalysisService()
-            popular = [
+
+            # ── Phase 2: Prewarm top 50 (highest priority) ───────
+            top50 = [
                 "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ITC.NS",
                 "SBIN.NS", "ICICIBANK.NS", "BAJFINANCE.NS", "MARUTI.NS", "TITAN.NS",
                 "WIPRO.NS", "AXISBANK.NS", "KOTAKBANK.NS", "LT.NS", "SUNPHARMA.NS",
                 "HCLTECH.NS", "NESTLEIND.NS", "ASIANPAINT.NS", "ULTRACEMCO.NS", "ADANIENT.NS",
                 "ADANIPORTS.NS", "POWERGRID.NS", "NTPC.NS", "ONGC.NS", "COALINDIA.NS",
                 "BHARTIARTL.NS", "DIVISLAB.NS", "DRREDDY.NS", "CIPLA.NS", "EICHERMOT.NS",
+                "HINDUNILVR.NS", "TATASTEEL.NS", "TECHM.NS", "APOLLOHOSP.NS", "BRITANNIA.NS",
+                "HEROMOTOCO.NS", "BAJAJ-AUTO.NS", "INDUSINDBK.NS", "GRASIM.NS", "JSWSTEEL.NS",
+                "BPCL.NS", "HINDALCO.NS", "M&M.NS", "TRENT.NS", "BEL.NS",
+                "SHRIRAMFIN.NS", "ETERNAL.NS", "HAL.NS", "DMART.NS", "TATACONSUM.NS",
             ]
-            for ticker in popular:
+            warmed = 0
+            for ticker in top50:
                 _key = f"analysis:{ticker}"
                 if cache.get(_key) is None:
                     try:
                         result = svc.get_full_analysis(ticker)
-                        cache.set(_key, result, ttl=1800)
-                        logger.info(f"Pre-warmed cache: {ticker}")
+                        cache.set(_key, result, ttl=14400)
+                        warmed += 1
                     except Exception:
                         pass
-                    time.sleep(2)  # Don't hammer yfinance
+                    time.sleep(1)
+            logger.info(f"Prewarm phase 2: {warmed} tickers cached")
+
+            # ── Phase 3: Background refresh ALL Parquet tickers ──
+            # Continuously cycle through all tickers so every user
+            # hits a warm cache. 4-hour TTL means each ticker needs
+            # refresh every 4 hours = ~500 tickers / 4 hrs = 2/min.
+            parquet_dir = Path(__file__).resolve().parent / "data_pipeline" / "nse_prices" / "parquet"
+            all_tickers = sorted([
+                f"{p.stem}.NS" for p in parquet_dir.glob("*.parquet")
+            ]) if parquet_dir.exists() else []
+            logger.info(f"Background refresh: {len(all_tickers)} tickers to cycle")
+
+            while True:
+                for ticker in all_tickers:
+                    _key = f"analysis:{ticker}"
+                    if cache.get(_key) is None:
+                        try:
+                            result = svc.get_full_analysis(ticker)
+                            cache.set(_key, result, ttl=14400)
+                        except Exception:
+                            pass
+                        time.sleep(1)
+                    else:
+                        time.sleep(0.1)  # Already cached, skip fast
+                logger.info("Background refresh: full cycle complete")
+                time.sleep(60)  # Brief pause between cycles
+
         except Exception as e:
             logger.warning(f"Cache pre-warm failed: {e}")
 
