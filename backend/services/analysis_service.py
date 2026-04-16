@@ -690,15 +690,35 @@ class TickerNotFoundError(Exception):
         super().__init__(f"Ticker not found: {ticker}")
 
 
+# Module-level flag: once we detect the DB is unreachable, stop
+# trying for the rest of this process's lifetime. Avoids 8 × 3s
+# = 24s of serial timeout on every analysis request when no DB.
+_db_confirmed_dead = False
+
+
 def _get_pipeline_session():
-    """Get a DB session from the data pipeline, or None if unavailable."""
+    """Get a DB session from the data pipeline, or None if unavailable.
+
+    After the first connection failure, sets ``_db_confirmed_dead``
+    so subsequent calls in the same process return None instantly
+    instead of burning 3s each on the dead connection.
+    """
+    global _db_confirmed_dead
+    if _db_confirmed_dead:
+        return None
     try:
         from data_pipeline.db import Session as PipelineSession
-        if PipelineSession is not None:
-            return PipelineSession()
+        if PipelineSession is None:
+            _db_confirmed_dead = True
+            return None
+        session = PipelineSession()
+        # Test the connection with a lightweight query
+        from sqlalchemy import text
+        session.execute(text("SELECT 1"))
+        return session
     except Exception:
-        pass
-    return None
+        _db_confirmed_dead = True
+        return None
 
 
 def _query_ttm_financials(ticker: str):
@@ -1460,8 +1480,10 @@ class AnalysisService:
         try:
             from backend.services.dividend_service import DividendService
             from backend.models.responses import DividendData, DividendFYItem
+            # Pass the collector's raw info dict to avoid a duplicate
+            # yfinance .info call (~20s saved per cold request).
             _div_result = DividendService().get_dividends(
-                ticker=ticker, enriched=enriched
+                ticker=ticker, enriched=enriched, yf_info=raw
             )
             _fy_items = [
                 DividendFYItem(**item)

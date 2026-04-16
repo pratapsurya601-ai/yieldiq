@@ -28,24 +28,35 @@ class DividendService:
         self,
         ticker: str,
         enriched: dict | None = None,
+        yf_info: dict | None = None,
     ) -> dict:
-        """Never raises — returns an empty response on any failure."""
+        """Never raises — returns an empty response on any failure.
+
+        ``yf_info``: if the caller already fetched yfinance ``.info``
+        (e.g. the collector in analysis_service), pass it here to avoid
+        a duplicate 15-30s yfinance call.
+        """
         try:
-            return self._fetch(ticker, enriched)
+            return self._fetch(ticker, enriched, yf_info)
         except Exception as exc:
             log.debug("DividendService failed for %s: %s", ticker, exc)
             return self._empty(ticker)
 
     # ── Core fetch ─────────────────────────────────────────────
 
-    def _fetch(self, ticker: str, enriched: dict | None) -> dict:
+    def _fetch(self, ticker: str, enriched: dict | None, yf_info: dict | None = None) -> dict:
         import yfinance as yf
 
-        t = yf.Ticker(ticker)
-        try:
-            info = t.info or {}
-        except Exception:
-            return self._empty(ticker)
+        # Reuse caller-provided .info if available — saves ~20s
+        # by avoiding a duplicate yfinance quoteSummary call.
+        if yf_info:
+            info = yf_info
+        else:
+            t = yf.Ticker(ticker)
+            try:
+                info = t.info or {}
+            except Exception:
+                return self._empty(ticker)
 
         last_div = info.get("lastDividendValue")
         div_yield_raw = info.get("dividendYield")
