@@ -701,17 +701,25 @@ _db_dead_until: float = 0
 def _get_pipeline_session():
     """Get a DB session from the data pipeline, or None if unavailable."""
     global _db_dead_until
+    import logging as _log
+    _logger = _log.getLogger("yieldiq.db")
+
     now = _time.time()
     if now < _db_dead_until:
         return None  # In cooldown — skip instantly
     try:
-        from data_pipeline.db import Session as PipelineSession
+        from data_pipeline.db import Session as PipelineSession, DATABASE_URL as _db_url
         if PipelineSession is None:
-            _db_dead_until = now + 300  # 5 min cooldown
+            _logger.warning("DB_SESSION: Session is None (DATABASE_URL=%s)",
+                            "set" if _db_url else "NOT SET")
+            _db_dead_until = now + 300
             return None
-        return PipelineSession()
-    except Exception:
-        _db_dead_until = now + 300  # 5 min cooldown
+        session = PipelineSession()
+        _logger.info("DB_SESSION: connected OK")
+        return session
+    except Exception as exc:
+        _logger.warning("DB_SESSION: connection FAILED: %s", exc)
+        _db_dead_until = now + 300
         return None
 
 

@@ -14,12 +14,21 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
 # Without this, every _get_pipeline_session() call blocks for 30s+
 # on a dead DB — and there are 8 sequential calls per analysis request
 # = 4 MINUTES of pure timeout waiting.
+import logging as _log
+_logger = _log.getLogger("yieldiq.db")
+if DATABASE_URL:
+    _host = DATABASE_URL.split("@")[-1].split("/")[0] if "@" in DATABASE_URL else "unknown"
+    _logger.info("DB_INIT: engine creating for host=%s", _host)
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"connect_timeout": 10},  # Aiven free tier needs ~5-8s on cold start
+    connect_args={"connect_timeout": 30},  # Aiven free tier can take 15-20s on cold start
     pool_pre_ping=True,        # detect stale connections before use
     pool_recycle=300,           # recycle connections every 5 min
 ) if DATABASE_URL else None
+if engine:
+    _logger.info("DB_INIT: engine created OK")
+else:
+    _logger.warning("DB_INIT: engine is None (DATABASE_URL not set)")
 Session = sessionmaker(bind=engine) if engine else None
 
 
