@@ -423,6 +423,44 @@ async def debug_parquet_status():
     }
 
 
+@router.get("/debug/test-local/{ticker}")
+async def debug_test_local(ticker: str):
+    """Test local assembler directly — returns result or error."""
+    ticker = ticker.upper().strip()
+    import time as _t
+    try:
+        from backend.services.analysis_service import _get_pipeline_session
+        t0 = _t.time()
+        sess = _get_pipeline_session()
+        db_time = _t.time() - t0
+        if sess is None:
+            return {"error": "session is None", "db_time_ms": round(db_time * 1000)}
+
+        from backend.services.local_data_service import assemble_local
+        t1 = _t.time()
+        result = assemble_local(ticker, sess)
+        asm_time = _t.time() - t1
+        try:
+            sess.close()
+        except Exception:
+            pass
+
+        if result is None:
+            return {"error": "assemble_local returned None", "db_time_ms": round(db_time * 1000), "asm_time_ms": round(asm_time * 1000)}
+
+        return {
+            "ok": True,
+            "ticker": ticker,
+            "price": result.get("price"),
+            "source": result.get("_source"),
+            "db_time_ms": round(db_time * 1000),
+            "asm_time_ms": round(asm_time * 1000),
+            "total_ms": round((db_time + asm_time) * 1000),
+        }
+    except Exception as exc:
+        return {"error": str(exc), "type": type(exc).__name__}
+
+
 @router.get("/search")
 async def search_stocks(
     q: str = "",

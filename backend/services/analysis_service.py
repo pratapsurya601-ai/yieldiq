@@ -1018,8 +1018,9 @@ class AnalysisService:
                         pass
         except Exception as _local_exc:
             import logging as _lds_log
-            _lds_log.getLogger("yieldiq.analysis").debug(
-                "[%s] local assembler failed: %s", ticker, _local_exc
+            _lds_log.getLogger("yieldiq.analysis").warning(
+                "[%s] local assembler EXCEPTION: %s: %s",
+                ticker, type(_local_exc).__name__, _local_exc
             )
 
         # Fallback: yfinance collector (slow but comprehensive)
