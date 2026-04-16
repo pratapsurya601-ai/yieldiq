@@ -690,17 +690,18 @@ class TickerNotFoundError(Exception):
         super().__init__(f"Ticker not found: {ticker}")
 
 
-# After a DB connection failure, skip retries for 5 minutes to avoid
-# burning 10s per call × 8 calls = 80s on a dead DB. After the cooldown,
-# retry once — if Aiven's free tier just needed a cold-start wake-up,
-# the retry succeeds and all subsequent calls are instant.
+# Track consecutive DB failures. After 3 failures, enter a 60-second
+# cooldown (not 5 minutes — that was too aggressive). This allows
+# Aiven to wake up from cold start (takes ~10-30s) without blocking
+# the entire analysis pipeline for 5 minutes.
 import time as _time
+_db_fail_count: int = 0
 _db_dead_until: float = 0
 
 
 def _get_pipeline_session():
     """Get a DB session from the data pipeline, or None if unavailable."""
-    global _db_dead_until
+    global _db_fail_count, _db_dead_until
     import logging as _log
     _logger = _log.getLogger("yieldiq.db")
 
@@ -710,16 +711,23 @@ def _get_pipeline_session():
     try:
         from data_pipeline.db import Session as PipelineSession, DATABASE_URL as _db_url
         if PipelineSession is None:
-            _logger.warning("DB_SESSION: Session is None (DATABASE_URL=%s)",
-                            "set" if _db_url else "NOT SET")
-            _db_dead_until = now + 300
+            if _db_url:
+                _logger.warning("DB_SESSION: Session is None despite DATABASE_URL being set")
+            _db_dead_until = now + 60
             return None
         session = PipelineSession()
-        _logger.info("DB_SESSION: connected OK")
+        # Success — reset failure counter
+        if _db_fail_count > 0:
+            _logger.info("DB_SESSION: reconnected after %d failures", _db_fail_count)
+        _db_fail_count = 0
         return session
     except Exception as exc:
-        _logger.warning("DB_SESSION: connection FAILED: %s", exc)
-        _db_dead_until = now + 300
+        _db_fail_count += 1
+        # Escalating cooldown: 10s → 30s → 60s
+        cooldown = min(60, 10 * _db_fail_count)
+        _db_dead_until = now + cooldown
+        _logger.warning("DB_SESSION: fail #%d (%s), cooldown %ds",
+                        _db_fail_count, str(exc)[:60], cooldown)
         return None
 
 

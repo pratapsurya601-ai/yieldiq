@@ -191,6 +191,23 @@ def _prewarm_popular_stocks():
         import time
         time.sleep(5)  # Wait for app to fully start
         try:
+            # Warm Aiven connection FIRST — the free tier needs 10-30s
+            # to wake up from cold start. If we don't do this, the first
+            # analysis call's _get_pipeline_session() times out and sets
+            # the cooldown flag, making ALL subsequent calls skip the DB
+            # → every ticker falls back to slow yfinance.
+            try:
+                from data_pipeline.db import Session as _PS
+                if _PS is not None:
+                    _sess = _PS()
+                    from sqlalchemy import text
+                    _sess.execute(text("SELECT 1"))
+                    _sess.close()
+                    logger.info("Prewarm: Aiven DB connection OK")
+            except Exception as _db_exc:
+                logger.warning("Prewarm: Aiven DB connection failed (%s) — "
+                               "local assembler will be unavailable", _db_exc)
+
             from backend.services.analysis_service import AnalysisService
             from backend.services.cache_service import cache
             svc = AnalysisService()
