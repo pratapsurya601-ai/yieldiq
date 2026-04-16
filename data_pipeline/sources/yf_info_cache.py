@@ -29,6 +29,7 @@ import json
 import logging
 import threading
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 log = logging.getLogger("yieldiq.yf_info_cache")
@@ -43,6 +44,38 @@ def _db_session():
     except Exception:
         pass
     return None
+
+
+# ── File-based fallback cache ────────────────────────────────────────
+# When no Postgres is available (Railway DB deleted, Aiven down, etc.),
+# cache info dicts as individual JSON files in a local directory.
+# This works everywhere — dev, Railway, CI — with zero dependencies.
+
+_FILE_CACHE_DIR = Path(__file__).parent.parent.parent / "data" / "yf_cache"
+
+
+def _file_read(ticker: str, ttl_minutes: int) -> dict | None:
+    """Read a cached info dict from a JSON file. Returns None if missing/stale."""
+    path = _FILE_CACHE_DIR / f"{ticker.replace('/', '_')}.json"
+    if not path.exists():
+        return None
+    try:
+        age = datetime.utcnow().timestamp() - path.stat().st_mtime
+        if age > ttl_minutes * 60:
+            return None  # stale
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _file_write(ticker: str, info: dict) -> None:
+    """Write an info dict to a JSON file."""
+    try:
+        _FILE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        path = _FILE_CACHE_DIR / f"{ticker.replace('/', '_')}.json"
+        path.write_text(_serialize(info), encoding="utf-8")
+    except Exception as exc:
+        log.debug("file cache write failed for %s: %s", ticker, exc)
 
 
 def _is_valid_info(info: dict | None) -> bool:
@@ -136,10 +169,16 @@ def get_info(ticker: str, ttl_minutes: int = 30) -> tuple[dict, bool]:
     if not ticker:
         return {}, False
 
-    # ── DB lookup ────────────────────────────────────────────
+    # ── File cache (works without any DB) ────────────────────
+    file_cached = _file_read(ticker, ttl_minutes)
+    if file_cached:
+        log.info("YF_INFO_CACHE: FILE HIT %s", ticker)
+        return file_cached, True
+
+    # ── DB lookup (if Postgres is available) ──────────────────
     db = _db_session()
     if db is None:
-        log.warning("YF_INFO_CACHE: no DB session for %s — live-fetch path", ticker)
+        log.debug("YF_INFO_CACHE: no DB session for %s", ticker)
     else:
         try:
             from sqlalchemy import text
@@ -179,7 +218,8 @@ def get_info(ticker: str, ttl_minutes: int = 30) -> tuple[dict, bool]:
     # ── Live fetch + write-through ───────────────────────────
     info = _fetch_live(ticker)
     if _is_valid_info(info):
-        _store(ticker, info)
+        _store(ticker, info)          # Postgres (if available)
+        _file_write(ticker, info)     # File cache (always works)
     else:
         log.info("YF_INFO_CACHE: live fetch for %s returned invalid data — not caching", ticker)
     return info, False

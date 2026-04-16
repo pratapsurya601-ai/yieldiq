@@ -10,3 +10,5 @@ logs/
 data_pipeline_log*.txt
 data_pipeline/xbrl/temp/
 data_pipeline/xbrl/raw_cache/
+data/yf_cache/
+data_pipeline/nse_prices/raw/
