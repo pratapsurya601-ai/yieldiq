@@ -275,6 +275,25 @@ export default function AnalysisPage() {
             <span className="font-semibold">Note:</span> DCF less reliable for banking stocks. Use book value and P/E alongside.
           </div>
         )}
+
+        {/* Extreme valuation explanation — shown when MoS > ±50% */}
+        {valuation.margin_of_safety < -50 && valuation.current_price > 0 && valuation.fair_value > 0 && (
+          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
+            <span className="font-semibold">Why the large gap?</span>{" "}
+            {formatCompanyName(company.company_name)} trades at a significant premium to our DCF model
+            (P/E {quality.roe && quality.roe > 0 ? `with ${quality.roe.toFixed(0)}% ROE` : ""}). The market values its
+            brand strength, growth potential, and management quality — factors our quantitative model
+            may not fully capture. Consider this estimate alongside qualitative analysis.
+          </div>
+        )}
+        {valuation.margin_of_safety > 80 && (
+          <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 leading-relaxed">
+            <span className="font-semibold">Large undervaluation detected.</span>{" "}
+            Our model shows significant upside, but verify: is the stock temporarily beaten down
+            (opportunity) or is there a fundamental issue the model doesn&apos;t see? Check red flags
+            and recent news before acting.
+          </div>
+        )}
       </div>
 
       {/* CARD 2 -- AI Summary + Transparency + Actions */}
