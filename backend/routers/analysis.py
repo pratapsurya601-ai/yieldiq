@@ -399,21 +399,37 @@ async def get_chart_data(
     if cached:
         return cached
 
-    # --- Price history via yfinance ---
+    # --- Price history: DuckDB Parquet first, yfinance fallback ---
+    _PERIOD_DAYS = {"1m": 30, "3m": 90, "6m": 180, "1y": 365}
+    _days = _PERIOD_DAYS.get(period, 30)
     prices: list[dict] = []
     try:
-        import yfinance as yf
-
-        hist = yf.Ticker(ticker).history(period=yf_period)
-        if hist is not None and not hist.empty:
-            hist = hist.reset_index()
-            for _, row in hist.iterrows():
+        from data_pipeline.nse_prices.db_integration import get_price_history
+        _clean = ticker.replace(".NS", "").replace(".BO", "")
+        df = get_price_history(_clean, _days)
+        if df is not None and not df.empty:
+            for _, row in df.iterrows():
                 prices.append({
-                    "date": row["Date"].strftime("%Y-%m-%d"),
-                    "price": round(float(row["Close"]), 2),
+                    "date": str(row["date"])[:10],
+                    "price": round(float(row["close"]), 2),
                 })
     except Exception:
-        pass  # prices stays empty → frontend falls back to mock
+        pass
+
+    # Fallback to yfinance if Parquet file doesn't exist
+    if not prices:
+        try:
+            import yfinance as yf
+            hist = yf.Ticker(ticker).history(period=yf_period)
+            if hist is not None and not hist.empty:
+                hist = hist.reset_index()
+                for _, row in hist.iterrows():
+                    prices.append({
+                        "date": row["Date"].strftime("%Y-%m-%d"),
+                        "price": round(float(row["Close"]), 2),
+                    })
+        except Exception:
+            pass  # prices stays empty → frontend falls back to mock
 
     # --- Financial data (revenue + FCF) from collector ---
     financials: dict = {}
