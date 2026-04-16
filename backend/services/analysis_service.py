@@ -690,34 +690,28 @@ class TickerNotFoundError(Exception):
         super().__init__(f"Ticker not found: {ticker}")
 
 
-# Module-level flag: once we detect the DB is unreachable, stop
-# trying for the rest of this process's lifetime. Avoids 8 × 3s
-# = 24s of serial timeout on every analysis request when no DB.
-_db_confirmed_dead = False
+# After a DB connection failure, skip retries for 5 minutes to avoid
+# burning 10s per call × 8 calls = 80s on a dead DB. After the cooldown,
+# retry once — if Aiven's free tier just needed a cold-start wake-up,
+# the retry succeeds and all subsequent calls are instant.
+import time as _time
+_db_dead_until: float = 0
 
 
 def _get_pipeline_session():
-    """Get a DB session from the data pipeline, or None if unavailable.
-
-    After the first connection failure, sets ``_db_confirmed_dead``
-    so subsequent calls in the same process return None instantly
-    instead of burning 3s each on the dead connection.
-    """
-    global _db_confirmed_dead
-    if _db_confirmed_dead:
-        return None
+    """Get a DB session from the data pipeline, or None if unavailable."""
+    global _db_dead_until
+    now = _time.time()
+    if now < _db_dead_until:
+        return None  # In cooldown — skip instantly
     try:
         from data_pipeline.db import Session as PipelineSession
         if PipelineSession is None:
-            _db_confirmed_dead = True
+            _db_dead_until = now + 300  # 5 min cooldown
             return None
-        session = PipelineSession()
-        # Test the connection with a lightweight query
-        from sqlalchemy import text
-        session.execute(text("SELECT 1"))
-        return session
+        return PipelineSession()
     except Exception:
-        _db_confirmed_dead = True
+        _db_dead_until = now + 300  # 5 min cooldown
         return None
 
 

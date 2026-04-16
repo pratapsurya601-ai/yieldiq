@@ -16,7 +16,7 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
 # = 4 MINUTES of pure timeout waiting.
 engine = create_engine(
     DATABASE_URL,
-    connect_args={"connect_timeout": 3},
+    connect_args={"connect_timeout": 10},  # Aiven free tier needs ~5-8s on cold start
     pool_pre_ping=True,        # detect stale connections before use
     pool_recycle=300,           # recycle connections every 5 min
 ) if DATABASE_URL else None
