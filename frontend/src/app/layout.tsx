@@ -30,11 +30,20 @@ export const metadata: Metadata = {
     siteName: "YieldIQ",
     type: "website",
     locale: "en_IN",
+    images: [
+      {
+        url: "https://yieldiq.in/logo_icon.jpeg",
+        width: 512,
+        height: 512,
+        alt: "YieldIQ — Stock Valuation Tool",
+      },
+    ],
   },
   twitter: {
-    card: "summary_large_image",
+    card: "summary",
     title: "YieldIQ — Stock Valuation for Indian Investors",
     description: "Free DCF analysis for NSE/BSE stocks. Know the fair value before you invest.",
+    images: ["https://yieldiq.in/logo_icon.jpeg"],
   },
 };
 
