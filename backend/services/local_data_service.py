@@ -167,6 +167,68 @@ def assemble_local(ticker: str, db_session) -> dict | None:
                 fcf_list.append(_safe(f.get("free_cash_flow")))
                 ocf_list.append(_safe(f.get("cfo")))
                 capex_list.append(_safe(f.get("capex")))
+
+        # ── TTM enrichment from quarterly data ───────────────
+        # If company_financials has quarterly rows, compute TTM
+        # (sum of last 4 quarters) and APPEND as the latest data
+        # point. This matches yfinance's TTM view and produces
+        # accurate DCF projections.
+        try:
+            qtrs = db_session.execute(text(
+                "SELECT period_end_date, revenue, net_income, ebitda "
+                "FROM company_financials "
+                "WHERE ticker_nse = :t "
+                "  AND statement_type = 'income' "
+                "  AND period_type = 'quarterly' "
+                "  AND revenue IS NOT NULL AND revenue > 0 "
+                "ORDER BY period_end_date DESC LIMIT 4"
+            ), {"t": clean}).mappings().all()
+
+            if len(qtrs) >= 4:
+                ttm_rev = sum(_safe(q.get("revenue")) for q in qtrs)
+                ttm_ni = sum(_safe(q.get("net_income")) for q in qtrs)
+                ttm_ebitda = sum(_safe(q.get("ebitda")) for q in qtrs)
+
+                # Only use TTM if it's meaningfully different from
+                # the latest annual (indicates fresher data)
+                latest_annual_rev = revenue_list[-1] if revenue_list else 0
+                if ttm_rev > 0 and abs(ttm_rev - latest_annual_rev) / max(latest_annual_rev, 1) > 0.03:
+                    revenue_list.append(ttm_rev)
+                    ni_list.append(ttm_ni)
+                    oi_list.append(0.0)
+                    fcf_list.append(ttm_ebitda * 0.6)  # proxy: FCF ≈ 60% of EBITDA
+                    ocf_list.append(ttm_ebitda * 0.8)  # proxy: OCF ≈ 80% of EBITDA
+                    capex_list.append(ttm_ebitda * 0.2)
+                    ebitda = ttm_ebitda  # Update for EV/EBITDA calc
+                    log.info("LOCAL_DATA: TTM appended for %s (rev %.0f Cr vs annual %.0f Cr)",
+                             ticker, ttm_rev, latest_annual_rev)
+
+            # Also get latest quarterly balance sheet for fresher
+            # debt/cash/assets numbers
+            bs_q = db_session.execute(text(
+                "SELECT total_assets, total_debt, cash, total_equity "
+                "FROM company_financials "
+                "WHERE ticker_nse = :t "
+                "  AND statement_type = 'balance_sheet' "
+                "  AND period_type = 'quarterly' "
+                "ORDER BY period_end_date DESC LIMIT 1"
+            ), {"t": clean}).mappings().first()
+
+            if bs_q:
+                qa = _safe(bs_q.get("total_assets"))
+                qd = _safe(bs_q.get("total_debt"))
+                qc = _safe(bs_q.get("cash"))
+                qe = _safe(bs_q.get("total_equity"))
+                if qa > 0:
+                    total_assets = qa
+                if qd > 0 or total_debt == 0:
+                    total_debt = qd
+                if qc > 0:
+                    total_cash = qc
+                if qe > 0:
+                    total_equity = qe
+        except Exception as exc:
+            log.debug("TTM enrichment failed for %s: %s", clean, exc)
     except Exception as exc:
         log.debug("Financials query failed for %s: %s", clean, exc)
 
