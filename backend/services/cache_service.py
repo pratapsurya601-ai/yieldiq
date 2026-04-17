@@ -8,7 +8,7 @@ from typing import Any, Optional
 # Bump this integer whenever you change any pricing/DCF/scoring logic.
 # All cache entries keyed with the old version become automatically stale
 # on next access — no manual invalidation needed.
-CACHE_VERSION = 11  # bumped: DCF_TRACE now captures fcf_candidates + source for HCLTECH root cause
+CACHE_VERSION = 12  # bumped: quality gate on index dashboards (hide iv_ratio > 3x, |MoS| > 150%)
 
 
 class CacheService:

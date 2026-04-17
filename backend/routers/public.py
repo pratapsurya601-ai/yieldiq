@@ -379,6 +379,29 @@ async def get_index_dashboard(index_id: str):
     config = INDICES[index_id]
     stocks = []
 
+    # ── Quality gate ────────────────────────────────────────────
+    # Hide any stock whose DCF trace shows an iv_ratio > 3.0 or
+    # |MoS| > 150%. These are almost always unit/conversion bugs
+    # (e.g. HCLTECH's +268% MoS). Better to omit than mislead.
+    try:
+        from screener.dcf_engine import DCF_TRACES
+        _TRACES = DCF_TRACES
+    except Exception:
+        _TRACES = {}
+
+    def _is_suspicious(ticker: str, mos: float) -> str | None:
+        tr = _TRACES.get(ticker) or {}
+        ratio = float(tr.get("iv_ratio") or 0)
+        if ratio > 3.0:
+            return f"iv_ratio={ratio:.1f}x"
+        if ratio > 0 and ratio < 0.33:
+            return f"iv_ratio={ratio:.2f}x"
+        if abs(mos) > 150:
+            return f"mos={mos:.0f}%"
+        return None
+
+    hidden: list[dict] = []
+
     for ticker in config["tickers"]:
         # Try analysis cache
         analysis = cache.get(f"analysis:{ticker}")
@@ -386,6 +409,16 @@ async def get_index_dashboard(index_id: str):
             v = analysis.valuation
             q = analysis.quality
             c = analysis.company
+
+            _reason = _is_suspicious(ticker, v.margin_of_safety)
+            if _reason:
+                hidden.append({
+                    "ticker": ticker,
+                    "display_ticker": ticker.replace(".NS", "").replace(".BO", ""),
+                    "reason": _reason,
+                })
+                continue
+
             stocks.append({
                 "ticker": ticker,
                 "display_ticker": ticker.replace(".NS", "").replace(".BO", ""),
@@ -410,6 +443,7 @@ async def get_index_dashboard(index_id: str):
         "description": config["description"],
         "total_stocks": len(config["tickers"]),
         "available_stocks": len(stocks),
+        "hidden_for_quality": hidden,
         "stocks": stocks,
         "summary": {
             "undervalued": sum(1 for s in stocks if s["verdict"] == "undervalued"),
