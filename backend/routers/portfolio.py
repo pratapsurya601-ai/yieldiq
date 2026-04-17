@@ -33,20 +33,23 @@ class ImportCSVRequest(BaseModel):
 
 @router.get("/holdings", response_model=list[HoldingResponse])
 async def get_holdings(user: dict = Depends(get_current_user)):
-    """Get all portfolio holdings."""
-    from portfolio import get_portfolio
-    holdings = get_portfolio()
+    """Get all portfolio holdings for the authenticated user."""
+    from backend.services.portfolio_service import get_holdings as _get
+    email = user.get("email", "")
+    if not email:
+        return []
+    holdings = _get(email)
     return [
         HoldingResponse(
             ticker=h.get("ticker", ""),
             company_name=h.get("company_name", ""),
-            entry_price=h.get("entry_price", 0),
-            iv=h.get("iv", 0),
-            mos_pct=h.get("mos_pct", 0),
-            signal=h.get("signal", ""),
-            sector=h.get("sector", ""),
-            notes=h.get("notes", ""),
-            saved_at=str(h.get("saved_at", "")),
+            entry_price=h.get("entry_price", 0) or 0,
+            iv=h.get("iv", 0) or 0,
+            mos_pct=h.get("mos_pct", 0) or 0,
+            signal=h.get("signal", "") or "",
+            sector=h.get("sector", "") or "",
+            notes=h.get("notes", "") or "",
+            saved_at=str(h.get("saved_at", "") or ""),
         )
         for h in holdings
     ]
@@ -54,34 +57,53 @@ async def get_holdings(user: dict = Depends(get_current_user)):
 
 @router.post("/holdings", response_model=SuccessResponse)
 async def add_holding(req: AddHoldingRequest, user: dict = Depends(get_current_user)):
-    """Add stock to portfolio."""
-    from portfolio import save_to_portfolio
-    ok = save_to_portfolio(
-        ticker=req.ticker, entry_price=req.entry_price,
-        iv=req.iv, mos_pct=req.mos_pct, signal=req.signal,
-        wacc=req.wacc, sector=req.sector, notes=req.notes,
-        sym="₹", to_code="INR",
+    """Add a single stock to user's portfolio."""
+    from backend.services.portfolio_service import save_holding
+    email = user.get("email", "")
+    if not email:
+        raise HTTPException(status_code=401, detail="Email required")
+
+    ok, err = save_holding(
+        user_email=email,
+        ticker=req.ticker,
+        entry_price=req.entry_price,
+        iv=req.iv,
+        mos_pct=req.mos_pct,
+        signal=req.signal,
+        wacc=req.wacc,
+        sector=req.sector,
+        notes=req.notes,
     )
     if not ok:
-        raise HTTPException(status_code=400, detail="Failed to add holding")
+        raise HTTPException(status_code=500, detail=f"Failed to save holding: {err}")
     return SuccessResponse(message=f"{req.ticker} added to portfolio")
 
 
 @router.delete("/holdings/{ticker}", response_model=SuccessResponse)
 async def remove_holding(ticker: str, user: dict = Depends(get_current_user)):
-    """Remove stock from portfolio."""
-    from portfolio import remove_from_portfolio
-    ok = remove_from_portfolio(ticker.upper())
+    """Remove a stock from user's portfolio."""
+    from backend.services.portfolio_service import remove_holding as _remove
+    email = user.get("email", "")
+    if not email:
+        raise HTTPException(status_code=401, detail="Email required")
+
+    ok = _remove(email, ticker)
     if not ok:
         raise HTTPException(status_code=404, detail=f"{ticker} not found in portfolio")
     return SuccessResponse(message=f"{ticker} removed from portfolio")
 
 
-def _do_import(parsed: list[dict], broker: str, tier: str) -> dict:
+def _do_import(parsed: list[dict], broker: str, user: dict) -> dict:
     """Shared import logic — accepts pre-parsed holdings list."""
-    from portfolio import save_to_portfolio
+    from backend.services.portfolio_service import save_holding
     from backend.services import analysis_service as svc
     from backend.services.cache_service import cache as _c
+
+    email = user.get("email", "")
+    tier = user.get("tier", "free")
+
+    if not email:
+        raise HTTPException(status_code=401, detail="Email required")
 
     if not parsed:
         raise HTTPException(status_code=400, detail="No valid holdings found")
@@ -133,15 +155,14 @@ def _do_import(parsed: list[dict], broker: str, tier: str) -> dict:
             mos = 0
 
         try:
-            ok = save_to_portfolio(
+            ok, err = save_holding(
+                user_email=email,
                 ticker=full_ticker,
                 entry_price=avg_cost,
                 iv=iv,
                 mos_pct=mos,
                 signal=verdict,
                 wacc=wacc_val,
-                sym="\u20B9",
-                to_code="INR",
                 company_name=company_name,
                 sector=sector,
                 notes=f"Imported from {broker} ({qty} shares)",
@@ -150,10 +171,10 @@ def _do_import(parsed: list[dict], broker: str, tier: str) -> dict:
                 imported += 1
             else:
                 skipped += 1
-                errors.append(f"{clean}: save failed")
+                errors.append(f"{clean}: {err}" if err else f"{clean}: save failed")
         except Exception as e:
             skipped += 1
-            errors.append(f"{clean}: {type(e).__name__}")
+            errors.append(f"{clean}: {type(e).__name__}: {e}")
 
     return {
         "imported": imported,
@@ -175,7 +196,7 @@ async def import_holdings(req: ImportCSVRequest, user: dict = Depends(get_curren
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Could not parse CSV: {e}")
 
-    return _do_import(parsed, req.broker, user.get("tier", "free"))
+    return _do_import(parsed, req.broker, user)
 
 
 @router.post("/import-file")
@@ -224,7 +245,7 @@ async def import_holdings_file(
         logger.warning(f"File import parse failed: {e}", exc_info=True)
         raise HTTPException(status_code=400, detail=f"Could not parse file: {type(e).__name__}: {e}")
 
-    return _do_import(parsed, broker, user.get("tier", "free"))
+    return _do_import(parsed, broker, user)
 
 
 # Broker-specific field maps (lowercase key → list of possible header names)
@@ -455,9 +476,10 @@ def _parse_broker_csv_legacy(csv_text: str, broker: str) -> list[dict]:
 
 @router.get("/health", response_model=PortfolioHealthResponse)
 async def get_portfolio_health(user: dict = Depends(get_current_user)):
-    """Portfolio health score (0-100)."""
-    from portfolio import get_portfolio
+    """Portfolio health score (0-100) for the authenticated user."""
+    from backend.services.portfolio_service import get_holdings as _get
     from dashboard.utils.portfolio_health import calculate_portfolio_health
-    holdings = get_portfolio()
+    email = user.get("email", "")
+    holdings = _get(email) if email else []
     health = calculate_portfolio_health(holdings)
     return PortfolioHealthResponse(**health)
