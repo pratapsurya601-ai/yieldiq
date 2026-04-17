@@ -189,3 +189,109 @@ async def get_demo_cards():
 
     cache.set(_cache_key, cards, ttl=120)
     return cards
+
+
+# ═══════════════════════════════════════════════════════════════
+# TASK 1 — Stock SEO page endpoints
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/stock-summary/{ticker}")
+async def get_stock_summary(ticker: str):
+    """
+    Public stock summary for SEO pages. No auth required.
+    1-hour cache. Checks analysis cache first, then runs analysis.
+    """
+    ticker = ticker.upper().strip()
+    if not ticker.endswith(".NS") and not ticker.endswith(".BO"):
+        ticker = f"{ticker}.NS"
+
+    # Resolve aliases
+    try:
+        from backend.routers.analysis import TICKER_ALIASES
+        ticker = TICKER_ALIASES.get(ticker, ticker)
+    except Exception:
+        pass
+
+    _cache_key = f"public:stock-summary:{ticker}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    # Try in-memory analysis cache first
+    analysis_cached = cache.get(f"analysis:{ticker}")
+    if analysis_cached and hasattr(analysis_cached, "valuation"):
+        summary = _extract_analysis_summary(analysis_cached)
+        cache.set(_cache_key, summary, ttl=3600)
+        return summary
+
+    # Run analysis if not cached
+    try:
+        from backend.services import analysis_service as service
+        result = service.get_full_analysis(ticker)
+        summary = _extract_analysis_summary(result)
+        cache.set(_cache_key, summary, ttl=3600)
+        return summary
+    except Exception as e:
+        err_str = str(e).lower()
+        if "not found" in err_str or "no data" in err_str:
+            raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found")
+        logger.warning(f"stock-summary failed for {ticker}: {e}")
+        raise HTTPException(status_code=500, detail="Analysis unavailable")
+
+
+@router.get("/all-tickers")
+async def get_all_tickers():
+    """
+    All tickers with last update date — for sitemap generation.
+    No auth required. 24-hour cache.
+    """
+    _cache_key = "public:all-tickers"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    tickers = []
+
+    # Source 1: fair_value_history table
+    db = _get_db_session()
+    if db:
+        try:
+            from sqlalchemy import func
+            from data_pipeline.models import FairValueHistory
+            rows = (
+                db.query(
+                    FairValueHistory.ticker,
+                    func.max(FairValueHistory.date).label("last_updated"),
+                )
+                .group_by(FairValueHistory.ticker)
+                .all()
+            )
+            for r in rows:
+                display = r.ticker.replace(".NS", "").replace(".BO", "")
+                tickers.append({
+                    "ticker": display,
+                    "full_ticker": r.ticker,
+                    "last_updated": r.last_updated.isoformat() if r.last_updated else None,
+                })
+        except Exception as e:
+            logger.warning(f"all-tickers DB query failed: {e}")
+        finally:
+            _safe_close(db)
+
+    # Source 2: analysis cache fallback
+    if not tickers:
+        seen = set()
+        for key in list(cache._store.keys()):
+            if key.startswith("analysis:") and ".NS" in key:
+                t = key.replace("analysis:", "")
+                if t not in seen:
+                    seen.add(t)
+                    display = t.replace(".NS", "").replace(".BO", "")
+                    tickers.append({
+                        "ticker": display,
+                        "full_ticker": t,
+                        "last_updated": None,
+                    })
+
+    cache.set(_cache_key, tickers, ttl=86400)
+    return tickers
