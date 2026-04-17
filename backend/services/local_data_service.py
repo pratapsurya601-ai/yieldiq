@@ -236,21 +236,35 @@ def assemble_local(ticker: str, db_session) -> dict | None:
         log.debug("LOCAL_DATA: no financials for %s — falling back", ticker)
         return None  # Can't do DCF without financials
 
+    # ── Known USD-reporting Indian stocks — always skip local DB ────
+    # These companies file CONSOLIDATED financials in USD because their
+    # revenue is predominantly export. Our Aiven XBRL pipeline doesn't
+    # handle currency conversion properly. Fall back to yfinance
+    # which applies the right multiplier.
+    _USD_REPORTERS = {
+        "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "MPHASIS.NS",
+        "HEXAWARE.NS", "LTIM.NS", "LTIMINDTR.NS", "PERSISTENT.NS",
+        "COFORGE.NS", "KPITTECH.NS", "TATAELXSI.NS", "CYIENT.NS",
+        "ZENSAR.NS", "MASTEK.NS", "NIIT.NS", "OFSS.NS",
+        # Pharma with majority US revenue
+        "DIVISLAB.NS", "LAURUSLABS.NS",
+    }
+    if ticker.upper() in _USD_REPORTERS:
+        log.info("LOCAL_DATA: %s is USD-reporting — using yfinance fallback", ticker)
+        return None
+
     # Aiven stores monetary values in Crores. The analysis pipeline
     # (compute_metrics, DCF engine, Piotroski) expects RAW INR.
     # 1 Crore = 1e7 INR. Multiply all monetary values.
     CR = 1e7
 
     # ── Currency sanity check ────────────────────────────────
-    # Some companies (INFY, MNCs) report in USD. The pipeline's
-    # _to_cr() divided by 1e7 treating them as INR → values are
-    # ~80× too small. Detect this: if revenue × CR is less than
-    # 1% of market_cap (in raw INR), the financials are likely
-    # in a foreign currency → fall back to yfinance.
+    # Tighter threshold (was 1%, now 2%) catches more USD-denominated
+    # stocks that slipped through the explicit list above.
     if revenue_list and market_cap_cr > 0:
         latest_rev_raw = revenue_list[-1] * CR
         mcap_raw = market_cap_cr * CR
-        if mcap_raw > 0 and latest_rev_raw / mcap_raw < 0.01:
+        if mcap_raw > 0 and latest_rev_raw / mcap_raw < 0.02:
             log.info("LOCAL_DATA: %s revenue/mcap ratio too low (%.4f) — "
                       "likely USD-denominated financials, falling back",
                       ticker, latest_rev_raw / mcap_raw)
