@@ -15,10 +15,10 @@ export default function DiscoverPage() {
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-8 pb-20">
-      {/* Top Pick */}
+      {/* Highest-scored stock today */}
       {topPick && (
         <section>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Top pick today</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Highest YieldIQ score today</p>
           <TopPickCard
             ticker={topPick.ticker}
             companyName={topPick.company_name || topPick.ticker}

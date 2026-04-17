@@ -53,7 +53,7 @@ function verdictLabel(v: Verdict): string {
     case "undervalued":   return "Undervalued"
     case "fairly_valued": return "Fairly Valued"
     case "overvalued":    return "Overvalued"
-    case "avoid":         return "Avoid"
+    case "avoid":         return "High Risk"
     case "data_limited":  return "Data Limited"
     case "unavailable":   return "Unavailable"
     default:              return v

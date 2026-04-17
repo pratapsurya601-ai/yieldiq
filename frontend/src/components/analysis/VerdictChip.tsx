@@ -8,7 +8,7 @@ const VERDICT_LABELS: Record<Verdict, string> = {
   undervalued: "Undervalued",
   fairly_valued: "Fairly valued",
   overvalued: "Overvalued",
-  avoid: "Avoid",
+  avoid: "High Risk",
   data_limited: "Data Limited",
   unavailable: "Unavailable",
 }

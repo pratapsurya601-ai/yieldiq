@@ -20,7 +20,7 @@ import FinancialBars from "@/components/analysis/FinancialBars"
 import FairValueHistory from "@/components/analysis/FairValueHistory"
 import FinancialStatements from "@/components/analysis/FinancialStatements"
 import PeerComparison from "@/components/analysis/PeerComparison"
-import { formatCurrency, formatPct, formatCompanyName } from "@/lib/utils"
+import { formatCurrency, formatPct, formatCompanyName, verdictDisplayLabel } from "@/lib/utils"
 import { trackStockAnalysed } from "@/lib/analytics"
 import Link from "next/link"
 
@@ -93,7 +93,7 @@ export default function AnalysisPage() {
   useEffect(() => {
     if (data) {
       const displayTicker = data.ticker.replace(".NS", "").replace(".BO", "")
-      const verdict = data.valuation.verdict.replace("_", " ")
+      const verdict = verdictDisplayLabel(data.valuation.verdict)
       document.title = `${displayTicker} — ${verdict} | YieldIQ`
 
       const desc = `${data.company.company_name} (${data.ticker}) fair value ₹${data.valuation.fair_value.toFixed(0)} vs price ₹${data.valuation.current_price.toFixed(0)}. YieldIQ Score: ${data.quality.yieldiq_score}/100. ${data.quality.moat} moat.`

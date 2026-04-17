@@ -48,7 +48,16 @@ export async function GET(
 
   const score = (ogData.score as number) || 0
   const verdict = (ogData.verdict as string) || ""
-  const verdictText = verdict.replace(/_/g, " ").toUpperCase() || "ANALYSIS"
+  // SEBI-safe: map 'avoid' to 'HIGH RISK' (descriptive, not advice)
+  const verdictMap: Record<string, string> = {
+    undervalued: "UNDERVALUED",
+    fairly_valued: "FAIRLY VALUED",
+    overvalued: "OVERVALUED",
+    avoid: "HIGH RISK",
+    data_limited: "DATA LIMITED",
+    unavailable: "UNAVAILABLE",
+  }
+  const verdictText = verdictMap[verdict] || verdict.replace(/_/g, " ").toUpperCase() || "ANALYSIS"
   const fairValue = fmtPrice(ogData.fair_value as number)
   const price = fmtPrice(ogData.price as number)
   const mos = (ogData.mos as number) || 0

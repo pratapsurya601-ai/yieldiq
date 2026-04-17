@@ -81,7 +81,7 @@ export default function HomePage() {
         {hasData && topPick && topPick.score > 0 ? (
           <>
             <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Top pick today</p>
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Highest YieldIQ score today</p>
               <TopPickCard
                 ticker={topPick.ticker}
                 companyName={topPick.company_name || topPick.ticker}

@@ -25,6 +25,27 @@ export function formatPct(value: number): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`
 }
 
+/**
+ * SEBI-safe verdict display label.
+ * Maps internal verdict keys to user-facing text that is purely
+ * descriptive (no imperative advice like "Avoid").
+ */
+export function verdictDisplayLabel(v: string): string {
+  if (!v) return ""
+  const key = v.toLowerCase().replace(/\s+/g, "_")
+  const map: Record<string, string> = {
+    undervalued: "Undervalued",
+    fairly_valued: "Fairly valued",
+    overvalued: "Overvalued",
+    avoid: "High Risk",
+    data_limited: "Data Limited",
+    unavailable: "Unavailable",
+  }
+  if (map[key]) return map[key]
+  // Fallback: title-case the key
+  return key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+}
+
 const COMPANY_NAME_OVERRIDES: Record<string, string> = {
   "ITC.NS": "ITC Limited",
   "TCS.NS": "Tata Consultancy Services",

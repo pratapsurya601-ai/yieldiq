@@ -42,7 +42,8 @@ function fmt(n: number): string {
 }
 
 function verdictBadge(v: string) {
-  const label = v.replace(/_/g, " ")
+  // SEBI-safe: "avoid" → "High Risk" (descriptive, not advice)
+  const label = v === "avoid" ? "High Risk" : v.replace(/_/g, " ")
   if (v === "undervalued") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 capitalize">{label}</span>
   if (v === "overvalued" || v === "avoid") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 capitalize">{label}</span>
   return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 capitalize">{label}</span>

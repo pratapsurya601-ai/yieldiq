@@ -58,7 +58,18 @@ function pct(n: number | null | undefined): string {
 }
 
 function verdictLabel(v: string): string {
-  return (v || "").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+  if (!v) return ""
+  // SEBI-safe: map 'avoid' to 'High Risk' (descriptive, not advice)
+  const map: Record<string, string> = {
+    undervalued: "Undervalued",
+    fairly_valued: "Fairly valued",
+    overvalued: "Overvalued",
+    avoid: "High Risk",
+    data_limited: "Data Limited",
+    unavailable: "Unavailable",
+  }
+  if (map[v]) return map[v]
+  return v.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
 }
 
 function verdictColor(v: string) {

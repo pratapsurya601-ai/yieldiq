@@ -4,7 +4,7 @@ import { useSearchParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { compareStocks } from "@/lib/api"
 import api from "@/lib/api"
-import { formatCurrency, formatPct, cn } from "@/lib/utils"
+import { formatCurrency, formatPct, cn, verdictDisplayLabel } from "@/lib/utils"
 import { SCORE_COLOR, VERDICT_COLORS } from "@/lib/constants"
 import type { Verdict } from "@/types/api"
 import Link from "next/link"
@@ -146,7 +146,7 @@ function StockSearchInput({
 
 function VerdictBadge({ verdict }: { verdict: Verdict }) {
   const colors = VERDICT_COLORS[verdict]
-  const label = verdict.replace("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())
+  const label = verdictDisplayLabel(verdict)
   return (
     <span className={cn("inline-flex items-center rounded-full font-medium border px-2 py-0.5 text-xs", colors.bg, colors.text, colors.border)}>
       {label}

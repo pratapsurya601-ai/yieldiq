@@ -2,7 +2,7 @@
 import { useParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { getAnalysis } from "@/lib/api"
-import { formatCurrency, formatCompanyName } from "@/lib/utils"
+import { formatCurrency, formatCompanyName, verdictDisplayLabel } from "@/lib/utils"
 import Link from "next/link"
 
 function gradeColor(grade: string) {
@@ -46,7 +46,7 @@ export default function ReportPage() {
 
   const { company, valuation, quality } = data
   const displayTicker = ticker.replace(".NS", "").replace(".BO", "")
-  const verdict = valuation.verdict.replace("_", " ")
+  const verdict = verdictDisplayLabel(valuation.verdict)
   const mosSign = valuation.margin_of_safety >= 0 ? "+" : ""
 
   return (

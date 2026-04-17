@@ -146,7 +146,7 @@ function DemoCard() {
   const score = c.score || 0
   const r = 58, circ = 2 * Math.PI * r
   const offset = circ * (1 - score / 100)
-  const verdictText = (c.verdict || "").replace("_", " ")
+  const verdictText = c.verdict === "avoid" ? "high risk" : (c.verdict || "").replace("_", " ")
   const verdictColor = c.verdict === "undervalued" ? "bg-green-500/10 text-green-400"
     : c.verdict === "overvalued" ? "bg-red-500/10 text-red-400"
     : "bg-blue-500/10 text-blue-400"
