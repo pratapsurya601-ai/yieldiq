@@ -33,7 +33,7 @@ class ImportCSVRequest(BaseModel):
 
 @router.get("/holdings", response_model=list[HoldingResponse])
 async def get_holdings(user: dict = Depends(get_current_user)):
-    """Get all portfolio holdings for the authenticated user."""
+    """Get all portfolio holdings for the authenticated user (raw, no live data)."""
     from backend.services.portfolio_service import get_holdings as _get
     email = user.get("email", "")
     if not email:
@@ -53,6 +53,19 @@ async def get_holdings(user: dict = Depends(get_current_user)):
         )
         for h in holdings
     ]
+
+
+@router.get("/holdings-live")
+async def get_holdings_live(user: dict = Depends(get_current_user)):
+    """
+    Get holdings enriched with live prices, P&L, fair value, and verdict.
+    Returns: { holdings: [...], summary: {...} }
+    """
+    from backend.services.portfolio_service import get_holdings_with_live_data
+    email = user.get("email", "")
+    if not email:
+        return {"holdings": [], "summary": {}}
+    return get_holdings_with_live_data(email)
 
 
 @router.post("/holdings", response_model=SuccessResponse)

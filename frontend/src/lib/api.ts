@@ -207,6 +207,42 @@ export const getPortfolioHealth = (): Promise<PortfolioHealthResponse> =>
 export const getHoldings = (): Promise<HoldingResponse[]> =>
   api.get("/api/v1/portfolio/holdings").then(r => r.data)
 
+export interface LiveHolding {
+  ticker: string
+  display_ticker: string
+  company_name: string
+  sector: string
+  entry_price: number
+  quantity: number
+  current_price: number
+  invested_value: number
+  current_value: number
+  pnl_abs: number
+  pnl_pct: number
+  fair_value: number | null
+  mos_pct: number | null
+  verdict: string
+  score: number | null
+  saved_at: string
+  notes: string
+}
+
+export interface HoldingsLiveResponse {
+  holdings: LiveHolding[]
+  summary: {
+    total_invested: number
+    total_current_value: number
+    total_pnl_abs: number
+    total_pnl_pct: number
+    winners: number
+    losers: number
+    count: number
+  }
+}
+
+export const getHoldingsLive = (): Promise<HoldingsLiveResponse> =>
+  api.get("/api/v1/portfolio/holdings-live").then(r => r.data)
+
 export const addHolding = (holding: Record<string, unknown>) =>
   api.post("/api/v1/portfolio/holdings", holding).then(r => r.data)
 

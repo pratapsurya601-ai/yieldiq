@@ -1,17 +1,34 @@
 "use client"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { getHoldings, getPortfolioHealth, getWatchlist, removeFromWatchlist, getAlerts, deleteAlert } from "@/lib/api"
+import { getHoldingsLive, getPortfolioHealth, getWatchlist, removeFromWatchlist, getAlerts, deleteAlert } from "@/lib/api"
 import HealthScore from "@/components/portfolio/HealthScore"
-import { formatCurrency, formatPct } from "@/lib/utils"
+import { formatCurrency } from "@/lib/utils"
 import { useState } from "react"
 import Link from "next/link"
+
+function fmtRsCompact(n: number): string {
+  const abs = Math.abs(n)
+  const sign = n < 0 ? "-" : ""
+  if (abs >= 10_000_000) return `${sign}\u20B9${(abs / 10_000_000).toFixed(2)}Cr`
+  if (abs >= 100_000) return `${sign}\u20B9${(abs / 100_000).toFixed(2)}L`
+  if (abs >= 1_000) return `${sign}\u20B9${(abs / 1_000).toFixed(1)}K`
+  return `${sign}\u20B9${abs.toFixed(0)}`
+}
+
+function pctColor(n: number): string {
+  if (n > 0) return "text-green-600"
+  if (n < 0) return "text-red-600"
+  return "text-gray-600"
+}
 
 export default function PortfolioPage() {
   const [tab, setTab] = useState<"holdings" | "watchlist" | "alerts">("holdings")
   const [toast, setToast] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
-  const { data: holdings, isError: holdingsError } = useQuery({ queryKey: ["holdings"], queryFn: getHoldings, retry: 1 })
+  const { data: holdingsLive, isError: holdingsError } = useQuery({ queryKey: ["holdings-live"], queryFn: getHoldingsLive, retry: 1 })
+  const holdings = holdingsLive?.holdings || []
+  const summary = holdingsLive?.summary
   const { data: health } = useQuery({ queryKey: ["portfolio-health"], queryFn: getPortfolioHealth, retry: 1 })
   const { data: watchlist } = useQuery({ queryKey: ["watchlist"], queryFn: getWatchlist })
   const { data: alerts } = useQuery({ queryKey: ["alerts"], queryFn: getAlerts })
@@ -85,20 +102,74 @@ export default function PortfolioPage() {
       )}
       {tab === "holdings" && !holdingsError && (
         holdings && holdings.length > 0 ? (
-          <div className="space-y-2">
-            {holdings.map((h: { ticker: string; entry_price: number; mos_pct: number; signal: string; sector: string }) => (
-              <Link key={h.ticker} href={`/analysis/${h.ticker}`}
-                className="flex items-center justify-between bg-white rounded-xl border border-gray-100 p-4 hover:border-blue-200 transition">
-                <div>
-                  <p className="font-medium text-gray-900">{h.ticker.replace(".NS", "")}</p>
-                  <p className="text-xs text-gray-400">{h.sector}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-mono">{formatCurrency(h.entry_price, "INR")}</p>
-                  <p className={`text-xs font-mono ${h.mos_pct > 0 ? "text-blue-700" : "text-amber-600"}`}>
-                    {formatPct(h.mos_pct)}
+          <div className="space-y-3">
+            {/* Portfolio Summary */}
+            {summary && summary.count > 0 && (
+              <div className="bg-gradient-to-br from-blue-600 to-cyan-500 rounded-2xl p-5 text-white">
+                <p className="text-xs font-bold uppercase tracking-wider opacity-80 mb-1">Total Value</p>
+                <p className="text-3xl font-black mb-1">{fmtRsCompact(summary.total_current_value)}</p>
+                <div className="flex items-baseline gap-2">
+                  <p className={`text-sm font-bold ${summary.total_pnl_abs >= 0 ? "text-green-200" : "text-red-200"}`}>
+                    {summary.total_pnl_abs >= 0 ? "+" : ""}{fmtRsCompact(summary.total_pnl_abs)}
+                  </p>
+                  <p className={`text-sm font-semibold ${summary.total_pnl_abs >= 0 ? "text-green-200" : "text-red-200"}`}>
+                    ({summary.total_pnl_pct >= 0 ? "+" : ""}{summary.total_pnl_pct.toFixed(2)}%)
                   </p>
                 </div>
+                <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-white/20 text-xs">
+                  <div>
+                    <p className="opacity-80">Invested</p>
+                    <p className="font-bold text-sm">{fmtRsCompact(summary.total_invested)}</p>
+                  </div>
+                  <div>
+                    <p className="opacity-80">Winners</p>
+                    <p className="font-bold text-sm">{summary.winners}/{summary.count}</p>
+                  </div>
+                  <div>
+                    <p className="opacity-80">Losers</p>
+                    <p className="font-bold text-sm">{summary.losers}/{summary.count}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Holdings List */}
+            {holdings.map((h) => (
+              <Link key={h.ticker} href={`/analysis/${h.ticker}`}
+                className="block bg-white rounded-xl border border-gray-100 p-4 hover:border-blue-200 transition">
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-gray-900">{h.display_ticker || h.ticker.replace(".NS", "")}</p>
+                    <p className="text-xs text-gray-400 truncate">{h.sector || h.company_name || "—"}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-mono font-semibold text-gray-900">{formatCurrency(h.current_price, "INR")}</p>
+                    <p className="text-[10px] text-gray-400">CMP</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <div className="text-gray-500">
+                    {h.quantity} × {formatCurrency(h.entry_price, "INR")}
+                    <span className="text-gray-300 mx-1">=</span>
+                    <span className="text-gray-700">{fmtRsCompact(h.invested_value)}</span>
+                  </div>
+                  <div className="text-right">
+                    <p className={`font-mono font-bold ${pctColor(h.pnl_pct)}`}>
+                      {h.pnl_pct >= 0 ? "+" : ""}{fmtRsCompact(h.pnl_abs)} ({h.pnl_pct >= 0 ? "+" : ""}{h.pnl_pct.toFixed(2)}%)
+                    </p>
+                  </div>
+                </div>
+                {/* Optional: show fair value & verdict if available */}
+                {h.fair_value != null && h.mos_pct != null && (
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50 text-[10px]">
+                    <span className="text-gray-400">
+                      Fair Value: <span className="font-mono text-gray-700">{formatCurrency(h.fair_value, "INR")}</span>
+                    </span>
+                    <span className={`font-semibold ${h.mos_pct >= 0 ? "text-green-600" : "text-amber-600"}`}>
+                      MoS {h.mos_pct >= 0 ? "+" : ""}{h.mos_pct.toFixed(1)}%
+                    </span>
+                  </div>
+                )}
               </Link>
             ))}
           </div>
