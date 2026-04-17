@@ -123,7 +123,10 @@ export default function PortfolioPage() {
         )
       )}
       {tab === "holdings" && !holdingsError && holdings && holdings.length > 0 && (
-        <div className="flex justify-end">
+        <div className="flex justify-end gap-4">
+          <Link href="/portfolio/tax-report" className="text-xs text-blue-600 font-semibold hover:underline">
+            Tax Report &rarr;
+          </Link>
           <Link href="/portfolio/import" className="text-xs text-blue-600 font-semibold hover:underline">
             + Import from broker CSV
           </Link>
