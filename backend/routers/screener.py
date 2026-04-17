@@ -86,107 +86,83 @@ def _query_stocks_from_db(min_score: int = 0, min_mos: float = -100,
 
 def _query_preset_from_db(preset: str, page: int = 1,
                           page_size: int = 25) -> tuple[list[ScreenerStock], int]:
-    """Run preset screener queries against Aiven DB."""
+    """
+    Run preset screener against the in-memory analysis cache.
+
+    Replaces the previous market_metrics DB query (which returned empty
+    because that table isn't populated yet). The analysis cache has
+    hundreds of stocks with real DCF data — much more useful.
+    """
     try:
-        from data_pipeline.db import Session
-        if Session is None:
-            return [], 0
+        from backend.services.cache_service import cache as _c
 
-        from sqlalchemy import text
-        db = Session()
-        try:
-            # Different queries for different presets
-            # All presets require minimum market cap to filter out penny stocks
-            # Market cap in Crore: >10,000 = large cap, >2,000 = mid cap
-            if preset == "buffett":
-                # Warren Buffett style: quality large caps at fair price
-                # Low PE, decent PB, large market cap, dividend paying
-                query = text("""
-                    SELECT s.ticker, s.company_name, mm.pe_ratio, mm.pb_ratio,
-                           mm.dividend_yield, mm.market_cap_cr
-                    FROM stocks s
-                    JOIN market_metrics mm ON mm.ticker = s.ticker
-                    WHERE s.is_active = true
-                      AND mm.pe_ratio BETWEEN 8 AND 25
-                      AND mm.pb_ratio BETWEEN 1 AND 8
-                      AND mm.market_cap_cr > 10000
-                      AND mm.dividend_yield > 0
-                    ORDER BY mm.pe_ratio ASC
-                    LIMIT :lim OFFSET :off
-                """)
-            elif preset == "deep_value":
-                # Deep value: significantly undervalued mid/large caps
-                # Very low PE relative to market, decent market cap
-                query = text("""
-                    SELECT s.ticker, s.company_name, mm.pe_ratio, mm.pb_ratio,
-                           mm.dividend_yield, mm.market_cap_cr
-                    FROM stocks s
-                    JOIN market_metrics mm ON mm.ticker = s.ticker
-                    WHERE s.is_active = true
-                      AND mm.pe_ratio BETWEEN 3 AND 15
-                      AND mm.pb_ratio BETWEEN 0.3 AND 3
-                      AND mm.market_cap_cr > 2000
-                    ORDER BY mm.pe_ratio ASC
-                    LIMIT :lim OFFSET :off
-                """)
-            elif preset == "growth_quality":
-                # Growth at reasonable price: large caps with growth
-                # Higher PE acceptable for quality, massive market cap
-                query = text("""
-                    SELECT s.ticker, s.company_name, mm.pe_ratio, mm.pb_ratio,
-                           mm.dividend_yield, mm.market_cap_cr
-                    FROM stocks s
-                    JOIN market_metrics mm ON mm.ticker = s.ticker
-                    WHERE s.is_active = true
-                      AND mm.pe_ratio BETWEEN 15 AND 45
-                      AND mm.market_cap_cr > 20000
-                    ORDER BY mm.market_cap_cr DESC
-                    LIMIT :lim OFFSET :off
-                """)
-            else:
-                # Custom / default — quality mid+large caps ranked by value
-                query = text("""
-                    SELECT s.ticker, s.company_name, mm.pe_ratio, mm.pb_ratio,
-                           mm.dividend_yield, mm.market_cap_cr
-                    FROM stocks s
-                    JOIN market_metrics mm ON mm.ticker = s.ticker
-                    WHERE s.is_active = true
-                      AND mm.pe_ratio BETWEEN 3 AND 50
-                      AND mm.market_cap_cr > 2000
-                    ORDER BY mm.pe_ratio ASC
-                    LIMIT :lim OFFSET :off
-                """)
+        # Filter functions per preset
+        def _is_buffett(score, mos, moat, pe):
+            # Quality + reasonable price + wide moat
+            return score >= 60 and mos >= 0 and moat == "Wide"
 
-            offset = (page - 1) * page_size
-            rows = db.execute(query, {"lim": page_size, "off": offset}).fetchall()
+        def _is_deep_value(score, mos, moat, pe):
+            # Big margin of safety + decent quality
+            return mos >= 30 and score >= 50
 
-            stocks = []
-            for row in rows:
-                ticker = row[0]
-                pe = row[2] or 0
-                pb = row[3] or 0
+        def _is_growth_quality(score, mos, moat, pe):
+            # High score (good fundamentals) + non-negative MoS
+            return score >= 75
 
-                # Score: PE component (0-35) + PB component (0-25) + mcap component (0-20) + base 10
-                mcap_val = row[5] or 0
-                pe_score = max(0, min(35, int((25 - pe) / 25 * 35))) if 0 < pe < 50 else 0
-                pb_score = max(0, min(25, int((4 - pb) / 4 * 25))) if 0 < pb < 10 else 0
-                mcap_score = 20 if mcap_val > 50000 else 15 if mcap_val > 10000 else 10 if mcap_val > 2000 else 5
-                score = pe_score + pb_score + mcap_score + 10
+        def _is_custom(score, mos, moat, pe):
+            return score >= 30  # almost everything
 
-                # MoS capped at +50% to avoid absurd numbers
-                mos = round(max(-50, min(50, (20 - pe) / 20 * 30)), 1) if pe > 0 else 0
+        filter_fn = {
+            "buffett": _is_buffett,
+            "deep_value": _is_deep_value,
+            "growth_quality": _is_growth_quality,
+            "custom": _is_custom,
+        }.get(preset, _is_custom)
 
-                stocks.append(ScreenerStock(
-                    ticker=f"{ticker}.NS" if "." not in ticker else ticker,
-                    score=max(0, min(100, score)),
-                    margin_of_safety=mos,
-                ))
+        candidates = []
+        for key in list(_c._store.keys()):
+            if not key.startswith("analysis:") or ".NS" not in key:
+                continue
+            val = _c.get(key)
+            if not val or not hasattr(val, "valuation"):
+                continue
+            v = val.valuation
+            q = val.quality
+            score = q.yieldiq_score or 0
+            mos = v.margin_of_safety or 0
+            moat = q.moat or "None"
+            # Approximate PE from current_price / eps_ttm if available
+            pe = None
+            try:
+                eps = getattr(v, "eps_ttm", None)
+                if eps and eps > 0 and v.current_price > 0:
+                    pe = v.current_price / eps
+            except Exception:
+                pe = None
 
-            return stocks, len(stocks)
-        finally:
-            db.close()
+            if filter_fn(score, mos, moat, pe):
+                candidates.append((val.ticker, score, mos))
+
+        # Sort by score (descending) then MoS
+        candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
+
+        # Pagination
+        total = len(candidates)
+        start = (page - 1) * page_size
+        end = start + page_size
+        page_items = candidates[start:end]
+
+        stocks = [
+            ScreenerStock(
+                ticker=ticker,
+                score=int(round(score)),
+                margin_of_safety=round(mos, 1),
+            )
+            for ticker, score, mos in page_items
+        ]
+        return stocks, total
     except Exception as e:
-        logger.warning(f"Screener preset query failed: {e}")
+        logger.warning(f"Screener preset query failed: {e}", exc_info=True)
         return [], 0
 
 
