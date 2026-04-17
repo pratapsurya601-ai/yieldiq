@@ -1769,30 +1769,43 @@ class AnalysisService:
         except Exception:
             _structured_flags = []
 
-        # ── Forward-fill fair value history ──────────────────
-        # Writes one row per ticker per day to fair_value_history.
-        # Never raises — wrapped in try/except so a DB hiccup
-        # cannot break the analysis response.
+        # ── Forward-fill fair value history (async) ─────────
+        # Writes one row per ticker per day. Runs in a daemon thread so
+        # the Aiven DB round-trips (3 queries + 1 write after the DCF
+        # smoothing commit) don't block the analysis response. If the
+        # thread dies mid-write the response has already been returned;
+        # worst case is a missing history row for that tick.
         try:
             if iv and iv > 0 and price and price > 0:
-                from data_pipeline.sources.fv_history import (
-                    store_today_fair_value,
+                import threading as _fv_threading
+                _fv_args = dict(
+                    ticker=ticker,
+                    fv=float(iv),
+                    price=float(price),
+                    mos=float(mos_pct),
+                    verdict=str(verdict),
+                    wacc=float(wacc),
+                    confidence=int(confidence.get("score", 50)),
                 )
-                _fv_db = _get_pipeline_session()
-                if _fv_db is not None:
+
+                def _bg_store_fv():
                     try:
-                        store_today_fair_value(
-                            ticker=ticker,
-                            fv=float(iv),
-                            price=float(price),
-                            mos=float(mos_pct),
-                            verdict=str(verdict),
-                            wacc=float(wacc),
-                            confidence=int(confidence.get("score", 50)),
-                            db=_fv_db,
+                        from data_pipeline.sources.fv_history import (
+                            store_today_fair_value,
                         )
-                    finally:
-                        _fv_db.close()
+                        _db = _get_pipeline_session()
+                        if _db is None:
+                            return
+                        try:
+                            store_today_fair_value(db=_db, **_fv_args)
+                        finally:
+                            _db.close()
+                    except Exception:
+                        pass  # already logged by store_today_fair_value
+
+                _fv_threading.Thread(
+                    target=_bg_store_fv, daemon=True, name=f"fv-store-{ticker}"
+                ).start()
         except Exception as _fv_exc:
             import logging as _fv_log
             _fv_log.getLogger("yieldiq.fv_history").debug(

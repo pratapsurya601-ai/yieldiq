@@ -5,9 +5,22 @@ import threading
 import time
 from typing import Any, Optional
 
-# Bump this integer whenever you change any pricing/DCF/scoring logic.
-# All cache entries keyed with the old version become automatically stale
-# on next access — no manual invalidation needed.
+# Bump this integer ONLY when the DCF output (fair_value / MoS / verdict /
+# score) for an EXISTING ticker would change vs the prior version. That is
+# the single trigger. Every other change -- observability, new endpoints,
+# error sanitization, logging, metadata, frontend wiring, schema additions
+# that don't touch analysis output -- must NOT bump this.
+#
+# Why the discipline matters: a bump invalidates every cached analysis in
+# Railway memory. Users hitting the site during that window see 10-30s
+# response times (yfinance fallback on uncached tickers) instead of the
+# normal ~200ms. Today we bumped this 21 times in 12 hours and caused
+# real latency problems. Don't do that again.
+#
+# Decision checklist before bumping:
+#   - Would TCS / INFY / any existing top-100 ticker's fair_value change?
+#     YES  -> bump required
+#     NO   -> do not bump, even if you changed analysis_service.py
 CACHE_VERSION = 31  # bumped: DCF volatility mitigation — hysteresis on fcf_base_source + 3-day EMA smooth persisted + WARN on suspicious drift
 
 
