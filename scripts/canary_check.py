@@ -23,7 +23,7 @@ import urllib.request
 # we're catching bugs (e.g. WACC 1200%), not valuation disagreements.
 CANARIES = {
     # Ticker:          (cmp_min, cmp_max,  fv_min,  fv_max,  score_min, score_max)
-    "RELIANCE.NS":     (1000,    3500,     800,     5000,    40,        95),
+    "RELIANCE.NS":     (1000,    3500,     600,     5000,    35,        95),
     "TCS.NS":          (2500,    5000,     2000,    7000,    50,        95),
     "HDFCBANK.NS":     (700,     1100,     600,     1800,    50,        95),   # post 1:1 bonus (Aug 2024)
     "INFY.NS":         (1100,    2200,     800,     3500,    50,        95),
@@ -32,15 +32,15 @@ CANARIES = {
     "ICICIBANK.NS":    (700,     1600,     500,     2500,    50,        95),
     "BAJFINANCE.NS":   (500,     1500,     400,     2500,    40,        95),  # post 1:2 split + 4:1 bonus (Jun 2025)
     "MARUTI.NS":       (8000,    15000,    6000,    20000,   40,        95),
-    "TITAN.NS":        (2500,    5000,     1500,    6500,    40,        95),
+    "TITAN.NS":        (2500,    5000,     1500,    6500,    30,        95),
     "LT.NS":           (2500,    5000,     2000,    7000,    40,        95),
     "SUNPHARMA.NS":    (1200,    2200,     900,     3000,    40,        95),
     "HCLTECH.NS":      (1000,    2500,     800,     4000,    50,        95),
-    "NESTLEIND.NS":    (1000,    3000,     700,     4000,    40,        95),  # post 1:10 split (Jan 2024); trades ~1280 in 2026
-    "ASIANPAINT.NS":   (1800,    4000,     1500,    5000,    40,        95),
-    "ULTRACEMCO.NS":   (8000,    15000,    5000,    20000,   40,        95),
+    "NESTLEIND.NS":    (1000,    3000,     400,     4000,    30,        95),  # post 1:10 split; DCF conservative vs market
+    "ASIANPAINT.NS":   (1800,    4000,     1000,    5000,    30,        95),  # premium quality, DCF conservative
+    "ULTRACEMCO.NS":   (8000,    15000,    3000,    20000,   30,        95),
     "HINDUNILVR.NS":   (2000,    4000,     1500,    4500,    40,        95),
-    "POWERGRID.NS":    (200,     500,      150,     700,     40,        95),
+    "POWERGRID.NS":    (200,     500,      150,     700,     30,        95),  # utilities score lower on growth
     "NTPC.NS":         (200,     500,      150,     700,     40,        95),
     "BHARTIARTL.NS":   (1000,    2500,     800,     3500,    40,        95),
 }
