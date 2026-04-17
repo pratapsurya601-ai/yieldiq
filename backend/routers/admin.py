@@ -98,3 +98,64 @@ async def trigger_newsletter(user: dict = Depends(require_admin)):
     from backend.services.newsletter_service import send_newsletter_to_all
     threading.Thread(target=send_newsletter_to_all, daemon=True).start()
     return {"status": "newsletter queued", "triggered_by": user.get("email")}
+
+
+@router.post("/cache/clear")
+async def clear_cache_admin(
+    prefix: str = "",
+    user: dict = Depends(require_admin),
+):
+    """
+    Clear cache entries. Admin only.
+    - prefix='' clears EVERYTHING
+    - prefix='analysis:' clears all analysis
+    - prefix='analysis:HCLTECH.NS' clears one ticker
+    - prefix='og:' clears all OG data
+    """
+    from backend.services.cache_service import cache
+    if prefix:
+        count = cache.clear_pattern(prefix)
+        return {"cleared": count, "prefix": prefix}
+    # Clear all
+    size_before = len(cache._store)
+    cache.clear()
+    return {"cleared": size_before, "prefix": "(all)"}
+
+
+@router.post("/cache/refresh-ticker")
+async def refresh_ticker_cache(
+    ticker: str,
+    user: dict = Depends(require_admin),
+):
+    """Clear cached entries for a ticker and re-run analysis."""
+    from backend.services.cache_service import cache
+    from backend.services import analysis_service as svc
+
+    ticker = ticker.upper().strip()
+    if not ticker.endswith(".NS") and not ticker.endswith(".BO"):
+        ticker = f"{ticker}.NS"
+
+    # Clear all cache entries for this ticker
+    cleared = 0
+    for prefix in ["analysis:", "og:", "preview:", "peers:", "dividends:",
+                   "financials:", "public:stock-summary:", "chart_data:",
+                   "fv-history:"]:
+        cleared += cache.clear_pattern(f"{prefix}{ticker}")
+
+    # Re-run analysis
+    try:
+        result = svc.AnalysisService().get_full_analysis(ticker)
+        return {
+            "ticker": ticker,
+            "cleared": cleared,
+            "new_fair_value": result.valuation.fair_value,
+            "new_price": result.valuation.current_price,
+            "new_mos": result.valuation.margin_of_safety,
+            "new_score": result.quality.yieldiq_score,
+        }
+    except Exception as e:
+        return {
+            "ticker": ticker,
+            "cleared": cleared,
+            "error": f"{type(e).__name__}: {e}",
+        }
