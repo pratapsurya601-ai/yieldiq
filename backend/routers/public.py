@@ -380,24 +380,22 @@ async def get_index_dashboard(index_id: str):
     stocks = []
 
     # ── Quality gate ────────────────────────────────────────────
-    # Hide any stock whose DCF trace shows an iv_ratio > 3.0 or
-    # |MoS| > 150%. These are almost always unit/conversion bugs
-    # (e.g. HCLTECH's +268% MoS). Better to omit than mislead.
-    try:
-        from screener.dcf_engine import DCF_TRACES
-        _TRACES = DCF_TRACES
-    except Exception:
-        _TRACES = {}
-
-    def _is_suspicious(ticker: str, mos: float) -> str | None:
-        tr = _TRACES.get(ticker) or {}
-        ratio = float(tr.get("iv_ratio") or 0)
-        if ratio > 3.0:
-            return f"iv_ratio={ratio:.1f}x"
-        if ratio > 0 and ratio < 0.33:
-            return f"iv_ratio={ratio:.2f}x"
-        if abs(mos) > 150:
-            return f"mos={mos:.0f}%"
+    # Hide any stock whose USER-FACING fair_value / price ratio is
+    # suspicious. This is the number on screen — if it's > 3x or
+    # > 150% MoS, it's almost certainly a unit/conversion bug.
+    # (e.g. HCLTECH showing FV ₹6,075 vs price ₹1,434, +268% MoS).
+    # We deliberately do NOT check the raw DCF IV because that's
+    # pre-blend/pre-cap and legitimately diverges for overvalued
+    # quality names after the PE blend.
+    def _is_suspicious(fv: float, price: float, mos: float) -> str | None:
+        if price > 0 and fv > 0:
+            ratio = fv / price
+            if ratio > 3.0:
+                return f"FV={ratio:.1f}x price"
+            if ratio < 0.15:
+                return f"FV={ratio:.2f}x price"
+        if abs(mos) > 200:
+            return f"MoS={mos:.0f}%"
         return None
 
     hidden: list[dict] = []
@@ -410,7 +408,11 @@ async def get_index_dashboard(index_id: str):
             q = analysis.quality
             c = analysis.company
 
-            _reason = _is_suspicious(ticker, v.margin_of_safety)
+            _reason = _is_suspicious(
+                float(v.fair_value or 0),
+                float(v.current_price or 0),
+                float(v.margin_of_safety or 0),
+            )
             if _reason:
                 hidden.append({
                     "ticker": ticker,
