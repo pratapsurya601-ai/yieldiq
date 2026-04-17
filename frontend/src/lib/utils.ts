@@ -26,6 +26,29 @@ export function formatPct(value: number): string {
 }
 
 /**
+ * Format a rate expressed as a DECIMAL (0.12) for display as percentage (12.0%).
+ * Canonical helper — use this everywhere that takes wacc/terminal_growth/
+ * fcf_growth_rate from the backend.
+ *
+ * Convention (documented in CLAUDE.md):
+ *   Backend returns WACC, terminal_growth, fcf_growth_rate as DECIMALS.
+ *   Frontend multiplies by 100 ONLY at render time via this helper.
+ */
+export function formatRateDecimal(value: number | null | undefined, decimals = 1): string {
+  if (value == null || isNaN(value)) return "\u2014"
+  return `${(value * 100).toFixed(decimals)}%`
+}
+
+/**
+ * Format a value that's already in PERCENTAGE form (23.5 → "23.5%").
+ * Use for ROE, ROCE which backend normalizes to percentage via _normalize_pct.
+ */
+export function formatPercentage(value: number | null | undefined, decimals = 1): string {
+  if (value == null || isNaN(value)) return "\u2014"
+  return `${value.toFixed(decimals)}%`
+}
+
+/**
  * SEBI-safe verdict display label.
  * Maps internal verdict keys to user-facing text that is purely
  * descriptive (no imperative advice like "Avoid").

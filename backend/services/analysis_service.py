@@ -1019,6 +1019,27 @@ class AnalysisService:
     """Orchestrates full stock analysis using existing engines."""
 
     def get_full_analysis(self, ticker: str) -> AnalysisResponse:
+        """Public entry — validates output before returning."""
+        result = self._get_full_analysis_inner(ticker)
+        try:
+            from backend.services.validators import validate_analysis, log_validation
+            vr = validate_analysis(result)
+            log_validation(ticker, vr)
+            # Attach validation metadata for frontend (optional, non-breaking)
+            if vr.issues:
+                # Stuff into data_issues field which is already on the response
+                try:
+                    existing = list(getattr(result, "data_issues", []) or [])
+                    existing.extend([f"[{vr.severity}] {iss}" for iss in vr.issues])
+                    result.data_issues = existing
+                except Exception:
+                    pass
+        except Exception as _ve:
+            import logging as _vl
+            _vl.getLogger("yieldiq.validators").warning(f"Validator crashed for {ticker}: {_ve}")
+        return result
+
+    def _get_full_analysis_inner(self, ticker: str) -> AnalysisResponse:
         """
         Main analysis pipeline:
         1. Fetch data (collector)

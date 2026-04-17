@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import BetaBanner from "@/components/marketing/BetaBanner";
 
 // ── Analytics IDs (set in Vercel env vars for production) ──
 const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID || "";
@@ -107,6 +108,7 @@ export default function RootLayout({
         )}
       </head>
       <body className="min-h-full flex flex-col bg-gray-50 text-gray-900">
+        <BetaBanner />
         <Providers>{children}</Providers>
         <Analytics />
         <SpeedInsights />

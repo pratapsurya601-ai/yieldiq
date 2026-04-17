@@ -1,0 +1,37 @@
+name: Data Quality Canary
+
+on:
+  schedule:
+    # Every 6 hours
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "backend/services/analysis_service.py"
+      - "backend/services/local_data_service.py"
+      - "data_pipeline/**"
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run canary check
+        run: |
+          python scripts/canary_check.py --api-base "${API_BASE}"
+        env:
+          API_BASE: https://api.yieldiq.in
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "::error::Canary check failed — data quality issue on production!"
+          echo "Review: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"

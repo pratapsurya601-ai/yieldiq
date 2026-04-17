@@ -1,6 +1,8 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
+import { validateAnalysisData } from "@/lib/validators"
+import DataQualityBanner from "@/components/analysis/DataQualityBanner"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -167,6 +169,27 @@ export default async function StockFairValuePage(
           <span>/</span>
           <span className="text-gray-600 font-medium">{display}</span>
         </nav>
+
+        {/* Data quality gate — runs server-side */}
+        {(() => {
+          const valResult = validateAnalysisData({
+            valuation: {
+              fair_value: data.fair_value,
+              current_price: data.current_price,
+              margin_of_safety: data.mos,
+              wacc: data.wacc,
+              confidence_score: data.confidence,
+            },
+            quality: {
+              yieldiq_score: data.score,
+              roe: data.roe,
+              de_ratio: data.de_ratio,
+              piotroski_score: data.piotroski,
+              moat: data.moat,
+            },
+          })
+          return valResult.ok ? null : <DataQualityBanner result={valResult} ticker={display} />
+        })()}
 
         {/* Hero Section */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-8">
