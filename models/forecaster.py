@@ -175,6 +175,21 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     method = "median(latest_fcf, nopat_proxy, max_recent_fcf)"
 
     log.debug(f"[{ticker}] FCF base: ₹{base/1e7:.0f}Cr ({method})")
+
+    # Stash candidate breakdown in enriched so dcf_engine can surface
+    # it in the DCF_TRACE ring buffer for production debugging.
+    try:
+        enriched["_fcf_candidates"] = {k: float(v) for k, v in candidates.items()}
+        enriched["_fcf_base_source"] = (
+            "nopat_floor" if nopat_val > 0 and nopat_floor > primary else
+            "median" if len(valid_candidates) >= 3 else
+            "min" if len(valid_candidates) == 2 else
+            "only" if len(valid_candidates) == 1 else
+            "none"
+        )
+    except Exception:
+        pass
+
     return base, method
 
 

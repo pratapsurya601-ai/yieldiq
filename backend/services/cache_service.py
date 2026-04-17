@@ -8,7 +8,7 @@ from typing import Any, Optional
 # Bump this integer whenever you change any pricing/DCF/scoring logic.
 # All cache entries keyed with the old version become automatically stale
 # on next access — no manual invalidation needed.
-CACHE_VERSION = 10  # bumped: /all-tickers merges NSE_UNIVERSE (29 → ~100 tickers)
+CACHE_VERSION = 11  # bumped: DCF_TRACE now captures fcf_candidates + source for HCLTECH root cause
 
 
 class CacheService:

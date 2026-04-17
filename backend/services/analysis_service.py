@@ -1472,6 +1472,25 @@ class AnalysisService:
             )
             iv_raw = dcf_res.get("intrinsic_value_per_share", 0)
 
+            # Enrich the DCF_TRACE with upstream context so production
+            # blow-ups (HCLTECH FV ₹6,075) can be diagnosed without
+            # reproducing locally.
+            try:
+                from screener.dcf_engine import DCF_TRACES
+                if ticker in DCF_TRACES:
+                    DCF_TRACES[ticker]["fcf_source"] = _fcf_data_source
+                    DCF_TRACES[ticker]["enriched_latest_fcf"] = float(enriched.get("latest_fcf") or 0)
+                    DCF_TRACES[ticker]["enriched_latest_revenue"] = float(enriched.get("latest_revenue") or 0)
+                    DCF_TRACES[ticker]["enriched_latest_pat"] = float(enriched.get("latest_pat") or 0)
+                    DCF_TRACES[ticker]["enriched_op_margin"] = float(enriched.get("op_margin") or 0)
+                    DCF_TRACES[ticker]["yahoo_fcf_ttm"] = float(raw.get("yahoo_fcf_ttm") or 0)
+                    DCF_TRACES[ticker]["fin_multiplier"] = float(raw.get("fin_multiplier") or 1.0)
+                    cands = enriched.get("_fcf_candidates") or {}
+                    DCF_TRACES[ticker]["fcf_candidates"] = {k: float(v) for k, v in cands.items()}
+                    DCF_TRACES[ticker]["fcf_base_source"] = enriched.get("_fcf_base_source", "unknown")
+            except Exception:
+                pass
+
             # PE crosscheck blend
             try:
                 eps = get_eps(enriched)
