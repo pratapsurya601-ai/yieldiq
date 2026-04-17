@@ -246,37 +246,44 @@ def _prewarm_popular_stocks():
                 if cache.get(_key) is None:
                     try:
                         result = svc.get_full_analysis(ticker)
-                        cache.set(_key, result, ttl=14400)
+                        cache.set(_key, result, ttl=86400)
                         warmed += 1
                     except Exception:
                         pass
                     time.sleep(1)
             logger.info(f"Prewarm phase 2: {warmed} tickers cached")
 
-            # ── Phase 3: Background refresh ALL Parquet tickers ──
-            # Continuously cycle through all tickers so every user
-            # hits a warm cache. 4-hour TTL means each ticker needs
-            # refresh every 4 hours = ~500 tickers / 4 hrs = 2/min.
-            parquet_dir = Path(__file__).resolve().parent / "data_pipeline" / "nse_prices" / "parquet"
-            all_tickers = sorted([
-                f"{p.stem}.NS" for p in parquet_dir.glob("*.parquet")
-            ]) if parquet_dir.exists() else []
-            logger.info(f"Background refresh: {len(all_tickers)} tickers to cycle")
+            # ── Phase 3: Background refresh NSE_UNIVERSE (~100) ──
+            # Cycle only the curated NSE universe (not every parquet).
+            # Previous version cycled ~500 tickers with 1s sleep, which
+            # saturated the single Railway worker and caused user
+            # requests to queue (8-11s latency while the cycle was
+            # active). New version: smaller list + 10s sleep between
+            # computes so user requests get ~90% worker availability.
+            try:
+                from data_pipeline.pipeline import NSE_UNIVERSE
+                cycle_tickers = [f"{t}.NS" for t in NSE_UNIVERSE]
+            except Exception:
+                parquet_dir = Path(__file__).resolve().parent / "data_pipeline" / "nse_prices" / "parquet"
+                cycle_tickers = sorted([
+                    f"{p.stem}.NS" for p in parquet_dir.glob("*.parquet")
+                ]) if parquet_dir.exists() else []
+            logger.info(f"Background refresh: cycling {len(cycle_tickers)} NSE_UNIVERSE tickers")
 
             while True:
-                for ticker in all_tickers:
+                for ticker in cycle_tickers:
                     _key = f"analysis:{ticker}"
                     if cache.get(_key) is None:
                         try:
                             result = svc.get_full_analysis(ticker)
-                            cache.set(_key, result, ttl=14400)
+                            cache.set(_key, result, ttl=86400)
                         except Exception:
                             pass
-                        time.sleep(1)
+                        time.sleep(10)  # heavy throttle to stay off user path
                     else:
-                        time.sleep(0.1)  # Already cached, skip fast
+                        time.sleep(0.5)  # cached -> cheap skip
                 logger.info("Background refresh: full cycle complete")
-                time.sleep(60)  # Brief pause between cycles
+                time.sleep(300)  # 5 min rest between cycles
 
         except Exception as e:
             logger.warning(f"Cache pre-warm failed: {e}")

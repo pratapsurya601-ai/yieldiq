@@ -81,16 +81,28 @@ async def get_analysis(
         result = service.get_full_analysis(ticker)
 
         # ── Output sanity gate ──────────────────────────────────
-        # If the computed fair value is absurd relative to price (>3x,
-        # <0.1x, or |MoS| > 200%), suppress the misleading numbers
-        # and flip verdict to 'data_limited' so the frontend renders
-        # "Under Review" instead of a wrong FV. Keeps quality score,
-        # moat, etc. intact since those are computed independently.
+        # Two-layer defense:
+        #   1. validate_analysis() — bounds + cross-field (WACC, MoS, FV/CMP,
+        #      piotroski, moat-ROE consistency, DCF trace). Fires on any
+        #      critical-severity failure anywhere in the response.
+        #   2. FV/MoS ratio gate — defensive second layer tuned for the
+        #      specific 'fair value is absurd' class of bug.
+        # Either triggering flips verdict to 'data_limited' and zeroes the
+        # numbers, keeping quality/moat/piotroski intact since those are
+        # computed independently.
+        _suspicious = False
+        try:
+            from backend.services.validators import validate_analysis, log_validation
+            _vr = validate_analysis(result)
+            if not _vr.ok and _vr.severity == "critical":
+                _suspicious = True
+                log_validation(ticker, _vr)
+        except Exception:
+            pass
         try:
             _fv = float(result.valuation.fair_value or 0)
             _px = float(result.valuation.current_price or 0)
             _mos = float(result.valuation.margin_of_safety or 0)
-            _suspicious = False
             if _px > 0 and _fv > 0:
                 _r = _fv / _px
                 if _r > 3.0 or _r < 0.1:
@@ -114,7 +126,7 @@ async def get_analysis(
             pass
 
         # Cache for 30 minutes (was 15) — analysis data doesn't change that fast
-        cache.set(_cache_key, result, ttl=14400)
+        cache.set(_cache_key, result, ttl=86400)
         return result
     except TickerNotFoundError:
         # Data provider returned nothing for this symbol. 404 lets the
@@ -779,7 +791,7 @@ async def get_financials_endpoint(
 
     result["tier"] = tier
     result["tier_limited"] = tier_limited
-    cache.set(_cache_key, result, ttl=14400)  # 30 min
+    cache.set(_cache_key, result, ttl=86400)  # 30 min
     return result
 
 
@@ -827,7 +839,7 @@ async def get_peers_endpoint(
                 pass
 
     if result.get("has_peers"):
-        cache.set(_cache_key, result, ttl=14400)  # 30 min
+        cache.set(_cache_key, result, ttl=86400)  # 30 min
     return result
 
 
@@ -861,7 +873,7 @@ async def get_dividends_endpoint(
         )
         raise HTTPException(status_code=500, detail="Dividend data unavailable")
 
-    cache.set(_cache_key, result, ttl=14400)  # 30 min
+    cache.set(_cache_key, result, ttl=86400)  # 30 min
     return result
 
 
