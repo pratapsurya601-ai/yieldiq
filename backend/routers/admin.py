@@ -314,6 +314,81 @@ async def clear_cache_admin(
     return {"cleared": size_before, "prefix": "(all)"}
 
 
+# Module-level state for long-running pipeline jobs. Simple in-memory
+# status tracker -- resets on Railway boot but that's fine for a
+# one-off admin operation.
+_PIPELINE_JOBS: dict[str, dict] = {}
+
+
+@router.post("/pipeline/refresh-fundamentals")
+async def run_refresh_fundamentals(user: dict = Depends(require_admin)):
+    """
+    Kick off a full batch_fetch_fundamentals against NSE_UNIVERSE in a
+    background daemon thread. Populates the `financials` table with
+    revenue / FCF / margins / etc. for every tracked ticker, so local
+    DB path works for all of them (speeds cold analyses from 10-25s
+    down to ~200ms).
+
+    Returns immediately with a job_id. Check progress via
+    GET /api/v1/admin/pipeline/status.
+
+    Expected runtime: 60-120 min (1-2 req/s to yfinance for ~100 tickers
+    across multiple statements each).
+    """
+    import threading, uuid
+    from datetime import datetime
+
+    job_id = f"refresh-fundamentals-{uuid.uuid4().hex[:8]}"
+    _PIPELINE_JOBS[job_id] = {
+        "job_id": job_id,
+        "status": "starting",
+        "started_at": datetime.utcnow().isoformat(),
+        "finished_at": None,
+        "ok": 0,
+        "failed": 0,
+        "total": 0,
+        "triggered_by": user.get("email"),
+        "error": None,
+    }
+
+    def _run():
+        try:
+            from data_pipeline.db import Session as _Sess
+            from data_pipeline.pipeline import NSE_UNIVERSE
+            from data_pipeline.sources.yfinance_supplement import (
+                batch_fetch_fundamentals,
+            )
+            _PIPELINE_JOBS[job_id]["total"] = len(NSE_UNIVERSE)
+            _PIPELINE_JOBS[job_id]["status"] = "running"
+
+            _db = _Sess()
+            try:
+                ok, failed = batch_fetch_fundamentals(NSE_UNIVERSE, _db)
+                _PIPELINE_JOBS[job_id]["ok"] = ok
+                _PIPELINE_JOBS[job_id]["failed"] = failed
+                _PIPELINE_JOBS[job_id]["status"] = "done"
+            finally:
+                _db.close()
+        except Exception as e:
+            _PIPELINE_JOBS[job_id]["status"] = "error"
+            _PIPELINE_JOBS[job_id]["error"] = _sanitize_error(e, "refresh-fundamentals")
+        finally:
+            from datetime import datetime as _dt
+            _PIPELINE_JOBS[job_id]["finished_at"] = _dt.utcnow().isoformat()
+
+    threading.Thread(target=_run, daemon=True, name=job_id).start()
+    return _PIPELINE_JOBS[job_id]
+
+
+@router.get("/pipeline/status")
+async def pipeline_status(user: dict = Depends(require_admin)):
+    """
+    Return status of all pipeline jobs kicked off in this Railway
+    container. Useful for monitoring the refresh-fundamentals job.
+    """
+    return {"jobs": list(_PIPELINE_JOBS.values())}
+
+
 @router.post("/db/run-currency-migration")
 async def run_currency_migration(user: dict = Depends(require_admin)):
     """
