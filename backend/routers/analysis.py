@@ -42,6 +42,8 @@ TICKER_ALIASES: dict[str, str] = {
     "DALMIA":          "DALBHARAT.NS",
     "DOMINOS.NS":      "JUBLFOOD.NS",   # Domino's franchisee = Jubilant FoodWorks
     "DOMINOS":         "JUBLFOOD.NS",
+    "BLUESTAR.NS":     "BLUESTARCO.NS", # Blue Star Ltd (NSE canonical)
+    "BLUESTAR":        "BLUESTARCO.NS",
 }
 
 # ── Known-broken upstream tickers ─────────────────────────────

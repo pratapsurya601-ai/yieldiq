@@ -8,7 +8,7 @@ from typing import Any, Optional
 # Bump this integer whenever you change any pricing/DCF/scoring logic.
 # All cache entries keyed with the old version become automatically stale
 # on next access — no manual invalidation needed.
-CACHE_VERSION = 23  # bumped: NSE_UNIVERSE cleanup + ticker aliases (ZOMATO→ETERNAL, KPIT→KPITTECH, TATAMOTORS→TMPV, etc.)
+CACHE_VERSION = 24  # bumped: BLUESTAR → BLUESTARCO (last ticker cleanup from universe scan)
 
 
 class CacheService:
