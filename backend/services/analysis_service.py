@@ -189,6 +189,34 @@ for _t in (FINANCIAL_COMPANIES - _NBFC_TICKERS - _INSURANCE_TICKERS):
     TICKER_SECTOR_OVERRIDES[_t] = "Banking"
 
 
+def _normalize_pct(val) -> float | None:
+    """
+    Normalize a percentage-ish value to always be in PERCENTAGE form (23.5 for 23.5%).
+
+    Handles mixed conventions in our data pipeline:
+    - yfinance returns ROE as decimal (0.235 for 23.5%)
+    - Aiven XBRL sometimes stores as percentage (23.5)
+    - Some computed fields use decimals
+
+    Rule: if |val| < 5 we treat it as decimal (since real ROE/ROCE > 5%
+    wouldn't be expressed as a tiny decimal), else already percentage.
+    """
+    if val is None:
+        return None
+    try:
+        v = float(val)
+    except (TypeError, ValueError):
+        return None
+    if v == 0:
+        return 0.0
+    # If absolute value is less than 5, assume decimal (0.23 → 23.0)
+    # Real-world ROE/ROCE of < 5% are rare; treating 0.05 as 5% is safer
+    # than treating 0.05 as 0.05%
+    if -5.0 < v < 5.0:
+        return round(v * 100, 2)
+    return round(v, 2)
+
+
 def _compute_roe_fallback(enriched: dict):
     """Compute ROE from net_income / total_equity when yfinance doesn't provide it."""
     try:
@@ -1726,9 +1754,11 @@ class AnalysisService:
                 momentum_grade=momentum_result.get("grade", "N/A"),
                 fundamental_score=fund_result.get("score", 0),
                 fundamental_grade=fund_result.get("grade", "N/A"),
-                roe=enriched.get("roe") or _compute_roe_fallback(enriched),
+                # ROE/ROCE: return as PERCENTAGE (frontend displays directly with %)
+                # yfinance returns decimals (0.23), Aiven sometimes percentages — normalize.
+                roe=_normalize_pct(enriched.get("roe") or _compute_roe_fallback(enriched)),
                 de_ratio=enriched.get("de_ratio"),
-                roce=_roce_val,
+                roce=_normalize_pct(_roce_val),
                 debt_ebitda=_debt_ebitda_val,
                 debt_ebitda_label=_debt_ebitda_lbl,
                 interest_coverage=_interest_cov_val,
