@@ -260,15 +260,19 @@ def _prewarm_popular_stocks():
             # requests to queue (8-11s latency while the cycle was
             # active). New version: smaller list + 10s sleep between
             # computes so user requests get ~90% worker availability.
+            # Keep prewarm SMALL (NSE_UNIVERSE ~98 only) because the
+            # Railway worker is single-threaded. Cycling 550 tickers
+            # saturates it for ~2.5 hours per cycle and blocks user
+            # requests (observed 17-Apr: /health timing out at 15s).
+            # The full-universe backfill runs on GitHub Actions where
+            # it can't impact users — that's where "all 550" work
+            # belongs. Prewarm stays small + hot.
             try:
-                from data_pipeline.pipeline import get_full_universe
-                cycle_tickers = [f"{t}.NS" for t in get_full_universe()]
+                from data_pipeline.pipeline import NSE_UNIVERSE
+                cycle_tickers = [f"{t}.NS" for t in NSE_UNIVERSE]
             except Exception:
-                parquet_dir = Path(__file__).resolve().parent / "data_pipeline" / "nse_prices" / "parquet"
-                cycle_tickers = sorted([
-                    f"{p.stem}.NS" for p in parquet_dir.glob("*.parquet")
-                ]) if parquet_dir.exists() else []
-            logger.info(f"Background refresh: cycling {len(cycle_tickers)} full-universe tickers")
+                cycle_tickers = []
+            logger.info(f"Background refresh: cycling {len(cycle_tickers)} NSE_UNIVERSE tickers (worker-safe)")
 
             while True:
                 for ticker in cycle_tickers:
