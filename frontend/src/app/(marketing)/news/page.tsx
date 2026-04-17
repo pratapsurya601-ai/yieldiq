@@ -1,5 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
+import MarketingTopNav from "@/components/marketing/MarketingTopNav"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -66,18 +67,7 @@ export default async function NewsFeedPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Nav */}
-      <nav className="sticky top-0 z-50 bg-white border-b border-gray-100">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <img src="/logo-new.svg" alt="YieldIQ" className="w-7 h-7 rounded-lg" />
-            <span className="font-bold text-gray-900">YieldIQ</span>
-          </Link>
-          <Link href="/auth/signup" className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-            Start Free &rarr;
-          </Link>
-        </div>
-      </nav>
+      <MarketingTopNav />
 
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-12">
         <div className="max-w-4xl mx-auto px-4 text-center">

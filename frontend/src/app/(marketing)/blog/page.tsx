@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { getAllBlogPosts, type BlogPost } from "@/lib/blog"
+import MarketingTopNav from "@/components/marketing/MarketingTopNav"
 
 export const metadata: Metadata = {
   title: "YieldIQ Blog \u2014 Investing Guides for Indian Stock Market | YieldIQ",
@@ -36,23 +37,7 @@ export default function BlogIndexPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Nav */}
-      <nav className="sticky top-0 z-50 bg-white border-b border-gray-100">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <img src="/logo-new.svg" alt="YieldIQ" className="w-7 h-7 rounded-lg" />
-            <span className="font-bold text-gray-900">YieldIQ</span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <Link href="/nifty50" className="text-sm text-gray-500 hover:text-gray-900 transition hidden sm:block">
-              Nifty 50
-            </Link>
-            <Link href="/auth/signup" className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition">
-              Start Free &rarr;
-            </Link>
-          </div>
-        </div>
-      </nav>
+      <MarketingTopNav />
 
       {/* Header */}
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-16">
@@ -130,12 +115,6 @@ export default function BlogIndexPage() {
         </div>
       </section>
 
-      <footer className="py-6 border-t border-gray-100">
-        <p className="text-[10px] text-gray-400 text-center max-w-2xl mx-auto px-4">
-          All articles are educational content, not investment advice.
-          YieldIQ is not registered with SEBI as an investment adviser.
-        </p>
-      </footer>
     </div>
   )
 }
