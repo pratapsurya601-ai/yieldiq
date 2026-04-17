@@ -12,7 +12,8 @@ interface HealthScoreProps {
 }
 
 export default function HealthScore({ score, grade, summary, issues, strengths }: HealthScoreProps) {
-  const [expanded, setExpanded] = useState(false)
+  // Auto-expand if there are actionable issues — users shouldn't have to click to see them
+  const [expanded, setExpanded] = useState(issues.length > 0)
 
   const scoreColor =
     score >= 70 ? "bg-blue-600" : score >= 50 ? "bg-amber-500" : "bg-red-500"

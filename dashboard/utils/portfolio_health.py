@@ -147,33 +147,65 @@ def calculate_portfolio_health(holdings: list[dict]) -> dict:
     else:
         _grade = "F"
 
-    # Issues and strengths
+    # Issues and strengths — be specific so users know what to do
     _issues = []
     _strengths = []
 
+    # Critical issues
     if _overvalued_count > 0:
-        _issues.append(f"{_overvalued_count} position{'s' if _overvalued_count > 1 else ''} now overvalued")
+        _ov_tickers = [h.get("ticker", "?") for h in holdings if float(h.get("mos", 0) or 0) < -5][:3]
+        _issues.append(f"{_overvalued_count} position{'s' if _overvalued_count > 1 else ''} overvalued ({', '.join(_ov_tickers)})")
     if _total_flags > 0:
-        _issues.append(f"{_total_flags} red flag{'s' if _total_flags > 1 else ''} detected")
+        _issues.append(f"{_total_flags} red flag{'s' if _total_flags > 1 else ''} detected in {', '.join(_danger_tickers[:3])}")
     if _conc_warning:
         _issues.append(_conc_warning)
     if len(_sectors) < 3:
-        _issues.append(f"Low diversification — only {len(_sectors)} sector{'s' if len(_sectors) > 1 else ''}")
+        _issues.append(f"Low diversification — only {len(_sectors)} sector{'s' if len(_sectors) > 1 else ''} (aim for 4+)")
 
+    # Improvement suggestions (even when score is good — actionable, not vague)
+    if _weighted_score < 60:
+        _issues.append(f"Average quality score is {_weighted_score:.0f}/100 — consider replacing weaker holdings")
+    elif _weighted_score < 70:
+        _issues.append(f"Quality score {_weighted_score:.0f}/100 is decent but could improve — review lowest-scored holdings")
+
+    # Identify lowest-quality holdings as improvement targets
+    if len(holdings) >= 3:
+        _ranked = sorted(
+            [(h, float(h.get("yieldiq_score", 50) or 50)) for h in holdings],
+            key=lambda x: x[1],
+        )
+        _bottom = _ranked[:2]
+        _bottom_tickers = [h.get("ticker", "?") for h, s in _bottom if s < 60]
+        if _bottom_tickers and not any("quality score" in i.lower() for i in _issues):
+            _issues.append(f"Lowest quality holdings: {', '.join(_bottom_tickers)} — review whether to hold")
+
+    # Identify high concentration risks even if not over threshold
+    if _max_weight > 25 and not _conc_warning:
+        _issues.append(f"{_max_ticker} is {_max_weight:.0f}% of portfolio — consider trimming if conviction is moderate")
+
+    # Strengths
     if _undervalued_count > 0:
-        _strengths.append(f"{_undervalued_count} position{'s' if _undervalued_count > 1 else ''} undervalued by our model")
-    if _weighted_score > 65:
-        _strengths.append(f"Strong average quality score ({_weighted_score:.0f})")
+        _uv_tickers = [h.get("ticker", "?") for h in holdings if float(h.get("mos", 0) or 0) > 5][:3]
+        _strengths.append(f"{_undervalued_count} position{'s' if _undervalued_count > 1 else ''} undervalued ({', '.join(_uv_tickers)})")
+    if _weighted_score > 70:
+        _strengths.append(f"Strong average quality score ({_weighted_score:.0f}/100)")
+    elif _weighted_score > 60:
+        _strengths.append(f"Decent average quality score ({_weighted_score:.0f}/100)")
     if _total_flags == 0:
         _strengths.append("No red flags across any holding")
     if len(_sectors) >= 4:
         _strengths.append(f"Well diversified across {len(_sectors)} sectors")
+    if _max_weight <= 20:
+        _strengths.append(f"Well balanced — largest position only {_max_weight:.0f}%")
 
-    # Summary
+    # Summary — actionable even when score is good
     if _total >= 85:
         _summary = "Excellent portfolio health — well diversified with strong fundamentals."
     elif _total >= 70:
-        _summary = f"Good overall. {_issues[0] if _issues else 'Minor improvements possible.'}"
+        if _issues:
+            _summary = f"Good overall. Top suggestion: {_issues[0]}"
+        else:
+            _summary = "Good overall — no immediate action needed."
     elif _total >= 55:
         _summary = f"Mixed signals. {_issues[0] if _issues else 'Review recommended.'}"
     elif _total >= 40:

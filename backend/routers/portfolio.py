@@ -489,10 +489,50 @@ def _parse_broker_csv_legacy(csv_text: str, broker: str) -> list[dict]:
 
 @router.get("/health", response_model=PortfolioHealthResponse)
 async def get_portfolio_health(user: dict = Depends(get_current_user)):
-    """Portfolio health score (0-100) for the authenticated user."""
-    from backend.services.portfolio_service import get_holdings as _get
+    """Portfolio health score (0-100) for the authenticated user.
+
+    Uses live-enriched holdings (current price, fair value, score from
+    cache) so the score reflects the real portfolio state.
+    """
+    from backend.services.portfolio_service import get_holdings_with_live_data
+    from backend.services.cache_service import cache as _c
     from dashboard.utils.portfolio_health import calculate_portfolio_health
+
     email = user.get("email", "")
-    holdings = _get(email) if email else []
-    health = calculate_portfolio_health(holdings)
+    if not email:
+        return PortfolioHealthResponse(score=0, grade="F", summary="No holdings", issues=[], strengths=[], overvalued_count=0, undervalued_count=0, danger_positions=[], concentration_warning=None)
+
+    enriched = get_holdings_with_live_data(email)
+    live_holdings = enriched.get("holdings", [])
+
+    # Map to the field names that calculate_portfolio_health expects
+    mapped = []
+    for h in live_holdings:
+        ticker = h.get("ticker", "")
+        # Pull additional context from analysis cache (red flags, moat)
+        red_flag_count = 0
+        moat = "None"
+        try:
+            cached = _c.get(f"analysis:{ticker}")
+            if cached and hasattr(cached, "insights"):
+                rf = getattr(cached.insights, "red_flags", []) or []
+                red_flag_count = len(rf) if isinstance(rf, list) else 0
+            if cached and hasattr(cached, "quality"):
+                moat = cached.quality.moat or "None"
+        except Exception:
+            pass
+
+        mapped.append({
+            "ticker": h.get("ticker", ""),
+            "shares": h.get("quantity", 1),
+            "avg_buy_price": h.get("entry_price", 0),
+            "current_price": h.get("current_price", 0),
+            "yieldiq_score": h.get("score") if h.get("score") is not None else 50,
+            "mos": h.get("mos_pct", 0),  # field rename: mos_pct -> mos
+            "moat": moat,
+            "red_flags": red_flag_count,
+            "sector": h.get("sector", "Unknown") or "Unknown",
+        })
+
+    health = calculate_portfolio_health(mapped)
     return PortfolioHealthResponse(**health)
