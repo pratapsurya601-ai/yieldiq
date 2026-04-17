@@ -72,7 +72,7 @@ export default function HealthScore({ score, grade, summary, issues, strengths }
 
           {issues.length > 0 && (
             <div>
-              <p className="text-xs font-semibold text-gray-700 mb-1">Issues</p>
+              <p className="text-xs font-semibold text-gray-700 mb-1">Observations</p>
               <ul className="space-y-1">
                 {issues.map((issue, i) => (
                   <li key={i} className="flex items-start gap-1.5 text-xs text-gray-600">

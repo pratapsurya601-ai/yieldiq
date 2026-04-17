@@ -110,13 +110,13 @@ def calculate_portfolio_health(holdings: list[dict]) -> dict:
         _conc_warning = None
     elif _max_weight <= 40:
         _conc_pts = 10
-        _conc_warning = f"{_max_ticker} is {_max_weight:.0f}% of your portfolio — consider rebalancing"
+        _conc_warning = f"{_max_ticker} represents {_max_weight:.0f}% of portfolio value"
     elif _max_weight <= 60:
         _conc_pts = 5
-        _conc_warning = f"{_max_ticker} at {_max_weight:.0f}% is a significant concentration risk"
+        _conc_warning = f"{_max_ticker} represents {_max_weight:.0f}% of portfolio value (high concentration)"
     else:
         _conc_pts = 1
-        _conc_warning = f"{_max_ticker} at {_max_weight:.0f}% — very high concentration risk"
+        _conc_warning = f"{_max_ticker} represents {_max_weight:.0f}% of portfolio value (very high concentration)"
 
     # ── 5. Diversification (10pts max) ─────────────────────────
     _sectors = set()
@@ -147,71 +147,75 @@ def calculate_portfolio_health(holdings: list[dict]) -> dict:
     else:
         _grade = "F"
 
-    # Issues and strengths — be specific so users know what to do
+    # Observations and strengths — SEBI-safe factual statements only.
+    # We describe what the data shows; we never tell the user to buy/sell/hold.
+    # Words like "consider", "should", "recommend", "replace", "trim" are avoided.
     _issues = []
     _strengths = []
 
-    # Critical issues
+    # Observations (factual, not advice)
     if _overvalued_count > 0:
         _ov_tickers = [h.get("ticker", "?") for h in holdings if float(h.get("mos", 0) or 0) < -5][:3]
-        _issues.append(f"{_overvalued_count} position{'s' if _overvalued_count > 1 else ''} overvalued ({', '.join(_ov_tickers)})")
+        _issues.append(f"{_overvalued_count} holding{'s' if _overvalued_count > 1 else ''} with CMP above our DCF fair value: {', '.join(_ov_tickers)}")
     if _total_flags > 0:
-        _issues.append(f"{_total_flags} red flag{'s' if _total_flags > 1 else ''} detected in {', '.join(_danger_tickers[:3])}")
+        _issues.append(f"{_total_flags} red flag{'s' if _total_flags > 1 else ''} flagged by our model in: {', '.join(_danger_tickers[:3])}")
     if _conc_warning:
-        _issues.append(_conc_warning)
+        # _conc_warning is already SEBI-safe factual — just strip "consider rebalancing"
+        _issues.append(_conc_warning.replace(" — consider rebalancing", "").replace(" is a significant concentration risk", " — concentrated position").replace(" — very high concentration risk", " — highly concentrated"))
     if len(_sectors) < 3:
-        _issues.append(f"Low diversification — only {len(_sectors)} sector{'s' if len(_sectors) > 1 else ''} (aim for 4+)")
+        _issues.append(f"{len(_sectors)} sector{'s' if len(_sectors) > 1 else ''} represented in portfolio")
 
-    # Improvement suggestions (even when score is good — actionable, not vague)
+    # Quality score observations (no 'consider replacing' etc.)
     if _weighted_score < 60:
-        _issues.append(f"Average quality score is {_weighted_score:.0f}/100 — consider replacing weaker holdings")
+        _issues.append(f"Weighted average YieldIQ score: {_weighted_score:.0f}/100")
     elif _weighted_score < 70:
-        _issues.append(f"Quality score {_weighted_score:.0f}/100 is decent but could improve — review lowest-scored holdings")
+        _issues.append(f"Weighted average YieldIQ score: {_weighted_score:.0f}/100")
 
-    # Identify lowest-quality holdings as improvement targets
+    # Identify lowest-quality holdings as factual observation
     if len(holdings) >= 3:
         _ranked = sorted(
             [(h, float(h.get("yieldiq_score", 50) or 50)) for h in holdings],
             key=lambda x: x[1],
         )
         _bottom = _ranked[:2]
-        _bottom_tickers = [h.get("ticker", "?") for h, s in _bottom if s < 60]
-        if _bottom_tickers and not any("quality score" in i.lower() for i in _issues):
-            _issues.append(f"Lowest quality holdings: {', '.join(_bottom_tickers)} — review whether to hold")
+        _bottom_pairs = [(h.get("ticker", "?"), s) for h, s in _bottom if s < 60]
+        if _bottom_pairs and not any("YieldIQ score" in i for i in _issues):
+            parts = [f"{t} ({s:.0f})" for t, s in _bottom_pairs]
+            _issues.append(f"Lowest YieldIQ scores in portfolio: {', '.join(parts)}")
 
-    # Identify high concentration risks even if not over threshold
+    # Concentration as factual observation (no "consider trimming")
     if _max_weight > 25 and not _conc_warning:
-        _issues.append(f"{_max_ticker} is {_max_weight:.0f}% of portfolio — consider trimming if conviction is moderate")
+        _issues.append(f"{_max_ticker} represents {_max_weight:.0f}% of portfolio value")
 
-    # Strengths
+    # Strengths (observations)
     if _undervalued_count > 0:
         _uv_tickers = [h.get("ticker", "?") for h in holdings if float(h.get("mos", 0) or 0) > 5][:3]
-        _strengths.append(f"{_undervalued_count} position{'s' if _undervalued_count > 1 else ''} undervalued ({', '.join(_uv_tickers)})")
+        _strengths.append(f"{_undervalued_count} holding{'s' if _undervalued_count > 1 else ''} with CMP below our DCF fair value: {', '.join(_uv_tickers)}")
     if _weighted_score > 70:
-        _strengths.append(f"Strong average quality score ({_weighted_score:.0f}/100)")
+        _strengths.append(f"Weighted average YieldIQ score: {_weighted_score:.0f}/100")
     elif _weighted_score > 60:
-        _strengths.append(f"Decent average quality score ({_weighted_score:.0f}/100)")
+        _strengths.append(f"Weighted average YieldIQ score: {_weighted_score:.0f}/100")
     if _total_flags == 0:
         _strengths.append("No red flags across any holding")
     if len(_sectors) >= 4:
-        _strengths.append(f"Well diversified across {len(_sectors)} sectors")
+        _strengths.append(f"Diversified across {len(_sectors)} sectors")
     if _max_weight <= 20:
-        _strengths.append(f"Well balanced — largest position only {_max_weight:.0f}%")
+        _strengths.append(f"Largest position is {_max_weight:.0f}% of portfolio")
 
-    # Summary — actionable even when score is good
+    # Summary — SEBI-safe descriptive language (no "needs action", "review", etc.)
     if _total >= 85:
-        _summary = "Excellent portfolio health — well diversified with strong fundamentals."
+        _summary = "Strong scores across diversification, quality, and valuation metrics."
     elif _total >= 70:
         if _issues:
-            _summary = f"Good overall. Top suggestion: {_issues[0]}"
+            _summary = f"Observations: {_issues[0]}"
         else:
-            _summary = "Good overall — no immediate action needed."
+            _summary = "All portfolio metrics in the normal range."
     elif _total >= 55:
-        _summary = f"Mixed signals. {_issues[0] if _issues else 'Review recommended.'}"
+        _summary = f"Observations: {_issues[0] if _issues else 'Mixed metrics across diversification and quality.'}"
     elif _total >= 40:
-        _summary = f"Below average. {_issues[0] if _issues else 'Several areas need attention.'}"
+        _summary = f"Observations: {_issues[0] if _issues else 'Several metrics below typical thresholds.'}"
     else:
-        _summary = f"Needs attention. {_issues[0] if _issues else 'Significant risk exposure.'}"
+        _summary = f"Observations: {_issues[0] if _issues else 'Multiple metrics below typical thresholds.'}"
 
     return {
         "score": _total,
