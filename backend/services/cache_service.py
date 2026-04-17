@@ -8,7 +8,7 @@ from typing import Any, Optional
 # Bump this integer whenever you change any pricing/DCF/scoring logic.
 # All cache entries keyed with the old version become automatically stale
 # on next access — no manual invalidation needed.
-CACHE_VERSION = 24  # bumped: BLUESTAR → BLUESTARCO (last ticker cleanup from universe scan)
+CACHE_VERSION = 26  # bumped: reverted broken Step 2 — back to stable state before investigating what failed
 
 
 class CacheService:
