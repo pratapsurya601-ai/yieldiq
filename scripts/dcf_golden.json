@@ -1,11 +1,11 @@
 {
-  "captured_at": "2026-04-17T11:03:37.976872+00:00",
+  "captured_at": "2026-04-17T11:17:09.505582+00:00",
   "api_base": "https://api.yieldiq.in",
   "ticker_count": 51,
   "tickers": {
     "RELIANCE.NS": {
       "ticker": "RELIANCE.NS",
-      "fair_value": 783.94,
+      "fair_value": 836.21,
       "price": 1365.0,
       "mos": -45.3,
       "verdict": "overvalued",
@@ -17,7 +17,7 @@
     },
     "TCS.NS": {
       "ticker": "TCS.NS",
-      "fair_value": 2965.42,
+      "fair_value": 3223.29,
       "price": 2581.5,
       "mos": -0.1,
       "verdict": "fairly_valued",
@@ -41,7 +41,7 @@
     },
     "INFY.NS": {
       "ticker": "INFY.NS",
-      "fair_value": 1657.18,
+      "fair_value": 1801.28,
       "price": 1318.7,
       "mos": 9.3,
       "verdict": "fairly_valued",
@@ -53,7 +53,7 @@
     },
     "ITC.NS": {
       "ticker": "ITC.NS",
-      "fair_value": 527.35,
+      "fair_value": 573.21,
       "price": 306.8,
       "mos": 49.5,
       "verdict": "undervalued",
@@ -101,7 +101,7 @@
     },
     "MARUTI.NS": {
       "ticker": "MARUTI.NS",
-      "fair_value": 8271.39,
+      "fair_value": 8822.81,
       "price": 13453.0,
       "mos": -41.4,
       "verdict": "overvalued",
@@ -113,7 +113,7 @@
     },
     "TITAN.NS": {
       "ticker": "TITAN.NS",
-      "fair_value": 1532.57,
+      "fair_value": 1634.74,
       "price": 4525.9,
       "mos": -67.8,
       "verdict": "overvalued",
@@ -125,7 +125,7 @@
     },
     "LT.NS": {
       "ticker": "LT.NS",
-      "fair_value": 2634.89,
+      "fair_value": 2810.55,
       "price": 4096.1,
       "mos": -38.7,
       "verdict": "overvalued",
@@ -137,7 +137,7 @@
     },
     "SUNPHARMA.NS": {
       "ticker": "SUNPHARMA.NS",
-      "fair_value": 1552.5,
+      "fair_value": 1687.5,
       "price": 1675.5,
       "mos": -19.4,
       "verdict": "overvalued",
@@ -149,7 +149,7 @@
     },
     "HCLTECH.NS": {
       "ticker": "HCLTECH.NS",
-      "fair_value": 1585.24,
+      "fair_value": 1723.08,
       "price": 1442.3,
       "mos": -4.4,
       "verdict": "fairly_valued",
@@ -161,7 +161,7 @@
     },
     "NESTLEIND.NS": {
       "ticker": "NESTLEIND.NS",
-      "fair_value": 530.39,
+      "fair_value": 565.75,
       "price": 1285.6,
       "mos": -60.7,
       "verdict": "overvalued",
@@ -173,7 +173,7 @@
     },
     "ASIANPAINT.NS": {
       "ticker": "ASIANPAINT.NS",
-      "fair_value": 1248.4,
+      "fair_value": 1331.63,
       "price": 2464.0,
       "mos": -51.7,
       "verdict": "overvalued",
@@ -185,7 +185,7 @@
     },
     "ULTRACEMCO.NS": {
       "ticker": "ULTRACEMCO.NS",
-      "fair_value": 3810.42,
+      "fair_value": 4064.44,
       "price": 11886.0,
       "mos": -69.5,
       "verdict": "overvalued",
@@ -197,7 +197,7 @@
     },
     "HINDUNILVR.NS": {
       "ticker": "HINDUNILVR.NS",
-      "fair_value": 1631.64,
+      "fair_value": 1773.52,
       "price": 2240.8,
       "mos": -36.7,
       "verdict": "overvalued",
@@ -209,7 +209,7 @@
     },
     "POWERGRID.NS": {
       "ticker": "POWERGRID.NS",
-      "fair_value": 165.45,
+      "fair_value": 176.48,
       "price": 318.1,
       "mos": -50.5,
       "verdict": "overvalued",
@@ -221,7 +221,7 @@
     },
     "NTPC.NS": {
       "ticker": "NTPC.NS",
-      "fair_value": 208.71,
+      "fair_value": 222.62,
       "price": 393.6,
       "mos": -49.5,
       "verdict": "overvalued",
@@ -233,7 +233,7 @@
     },
     "BHARTIARTL.NS": {
       "ticker": "BHARTIARTL.NS",
-      "fair_value": 1583.87,
+      "fair_value": 1721.6,
       "price": 1846.9,
       "mos": -25.4,
       "verdict": "avoid",
@@ -269,7 +269,7 @@
     },
     "WIPRO.NS": {
       "ticker": "WIPRO.NS",
-      "fair_value": 265.42,
+      "fair_value": 283.12,
       "price": 204.32,
       "mos": 23.7,
       "verdict": "undervalued",
@@ -281,7 +281,7 @@
     },
     "TECHM.NS": {
       "ticker": "TECHM.NS",
-      "fair_value": 1240.29,
+      "fair_value": 1322.97,
       "price": 1511.4,
       "mos": -21.8,
       "verdict": "overvalued",
@@ -293,7 +293,7 @@
     },
     "ONGC.NS": {
       "ticker": "ONGC.NS",
-      "fair_value": 422.04,
+      "fair_value": 450.17,
       "price": 284.05,
       "mos": 41.5,
       "verdict": "undervalued",
@@ -305,7 +305,7 @@
     },
     "COALINDIA.NS": {
       "ticker": "COALINDIA.NS",
-      "fair_value": 731.27,
+      "fair_value": 780.02,
       "price": 438.75,
       "mos": 58.7,
       "verdict": "undervalued",
@@ -317,7 +317,7 @@
     },
     "JSWSTEEL.NS": {
       "ticker": "JSWSTEEL.NS",
-      "fair_value": 429.46,
+      "fair_value": 458.09,
       "price": 1240.3,
       "mos": -67.0,
       "verdict": "data_limited",
@@ -329,7 +329,7 @@
     },
     "TATASTEEL.NS": {
       "ticker": "TATASTEEL.NS",
-      "fair_value": 43.01,
+      "fair_value": 45.88,
       "price": 212.12,
       "mos": -80.7,
       "verdict": "overvalued",
@@ -341,7 +341,7 @@
     },
     "DRREDDY.NS": {
       "ticker": "DRREDDY.NS",
-      "fair_value": 1492.2,
+      "fair_value": 1621.96,
       "price": 1235.7,
       "mos": 5.0,
       "verdict": "fairly_valued",
@@ -353,7 +353,7 @@
     },
     "DIVISLAB.NS": {
       "ticker": "DIVISLAB.NS",
-      "fair_value": 2600.81,
+      "fair_value": 2774.2,
       "price": 6229.0,
       "mos": -60.2,
       "verdict": "overvalued",
@@ -365,7 +365,7 @@
     },
     "CIPLA.NS": {
       "ticker": "CIPLA.NS",
-      "fair_value": 1441.14,
+      "fair_value": 1566.46,
       "price": 1240.8,
       "mos": 1.0,
       "verdict": "fairly_valued",
@@ -377,7 +377,7 @@
     },
     "HEROMOTOCO.NS": {
       "ticker": "HEROMOTOCO.NS",
-      "fair_value": 5181.91,
+      "fair_value": 5632.51,
       "price": 5230.5,
       "mos": -13.9,
       "verdict": "fairly_valued",
@@ -389,7 +389,7 @@
     },
     "EICHERMOT.NS": {
       "ticker": "EICHERMOT.NS",
-      "fair_value": 3873.95,
+      "fair_value": 4210.82,
       "price": 7189.5,
       "mos": -53.1,
       "verdict": "overvalued",
@@ -401,7 +401,7 @@
     },
     "BRITANNIA.NS": {
       "ticker": "BRITANNIA.NS",
-      "fair_value": 3752.22,
+      "fair_value": 4078.5,
       "price": 5735.5,
       "mos": -43.1,
       "verdict": "overvalued",
@@ -413,7 +413,7 @@
     },
     "DABUR.NS": {
       "ticker": "DABUR.NS",
-      "fair_value": 360.82,
+      "fair_value": 392.19,
       "price": 442.85,
       "mos": -29.2,
       "verdict": "overvalued",
@@ -449,7 +449,7 @@
     },
     "LTIM.NS": {
       "ticker": "LTIM.NS",
-      "fair_value": 3122.76,
+      "fair_value": 3330.94,
       "price": 4504.0,
       "mos": -34.0,
       "verdict": "overvalued",
@@ -461,7 +461,7 @@
     },
     "MPHASIS.NS": {
       "ticker": "MPHASIS.NS",
-      "fair_value": 1899.85,
+      "fair_value": 2026.51,
       "price": 2462.2,
       "mos": -26.5,
       "verdict": "overvalued",
@@ -473,7 +473,7 @@
     },
     "COFORGE.NS": {
       "ticker": "COFORGE.NS",
-      "fair_value": 701.54,
+      "fair_value": 748.31,
       "price": 1316.8,
       "mos": -49.3,
       "verdict": "overvalued",
@@ -485,7 +485,7 @@
     },
     "PERSISTENT.NS": {
       "ticker": "PERSISTENT.NS",
-      "fair_value": 2021.41,
+      "fair_value": 2156.17,
       "price": 5446.5,
       "mos": -64.7,
       "verdict": "overvalued",
@@ -497,7 +497,7 @@
     },
     "KPITTECH.NS": {
       "ticker": "KPITTECH.NS",
-      "fair_value": 918.58,
+      "fair_value": 998.45,
       "price": 747.8,
       "mos": 6.8,
       "verdict": "fairly_valued",
@@ -509,7 +509,7 @@
     },
     "TATAELXSI.NS": {
       "ticker": "TATAELXSI.NS",
-      "fair_value": 2747.37,
+      "fair_value": 2986.28,
       "price": 4592.5,
       "mos": -48.0,
       "verdict": "overvalued",
@@ -557,7 +557,7 @@
     },
     "BLUESTARCO.NS": {
       "ticker": "BLUESTARCO.NS",
-      "fair_value": 851.63,
+      "fair_value": 908.41,
       "price": 1866.1,
       "mos": -56.5,
       "verdict": "data_limited",
@@ -569,7 +569,7 @@
     },
     "BERGEPAINT.NS": {
       "ticker": "BERGEPAINT.NS",
-      "fair_value": 184.01,
+      "fair_value": 200.01,
       "price": 468.6,
       "mos": -65.9,
       "verdict": "overvalued",
@@ -593,7 +593,7 @@
     },
     "JKCEMENT.NS": {
       "ticker": "JKCEMENT.NS",
-      "fair_value": 1697.11,
+      "fair_value": 1810.25,
       "price": 5543.0,
       "mos": -70.8,
       "verdict": "data_limited",
@@ -605,7 +605,7 @@
     },
     "AMBUJACEM.NS": {
       "ticker": "AMBUJACEM.NS",
-      "fair_value": 230.01,
+      "fair_value": 245.34,
       "price": 459.0,
       "mos": -52.3,
       "verdict": "overvalued",
