@@ -35,6 +35,68 @@ async def get_dcf_trace(ticker: str):
         raise HTTPException(status_code=404, detail=f"No DCF trace for {t} yet — trigger an analysis first")
     return trace
 
+
+@debug_router.get("/price-diag/{ticker}")
+async def price_diagnostic(ticker: str):
+    """
+    Returns what every layer of the price pipeline sees for a given
+    ticker — so we can tell whether bad prices are coming from yfinance,
+    the parquet, or the cache.
+    """
+    import os
+    from pathlib import Path
+    t = ticker.upper().replace(".NS", "").replace(".BO", "").strip()
+    out: dict = {"ticker": t}
+
+    # 1. yfinance live quote
+    try:
+        import yfinance as yf
+        fi = yf.Ticker(f"{t}.NS").fast_info
+        out["yfinance_live"] = {
+            "last_price": getattr(fi, "last_price", None),
+            "regular_market_price": getattr(fi, "regular_market_price", None),
+            "previous_close": getattr(fi, "previous_close", None),
+        }
+    except Exception as e:
+        out["yfinance_live"] = {"error": f"{type(e).__name__}: {e}"}
+
+    # 2. Parquet file
+    try:
+        from data_pipeline.nse_prices.db_integration import _parquet_path
+        import duckdb
+        p = _parquet_path(t)
+        out["parquet_path"] = str(p)
+        out["parquet_exists"] = p.exists()
+        if p.exists():
+            out["parquet_mtime"] = p.stat().st_mtime
+            out["parquet_size_kb"] = p.stat().st_size // 1024
+            rows = duckdb.connect().execute(
+                f"SELECT date, close FROM read_parquet('{p}') ORDER BY date DESC LIMIT 3"
+            ).fetchall()
+            out["parquet_last_rows"] = [
+                {"date": str(r[0]), "close": float(r[1])} for r in rows
+            ]
+    except Exception as e:
+        out["parquet_error"] = f"{type(e).__name__}: {e}"
+
+    # 3. get_latest_price (what the app actually reads)
+    try:
+        from data_pipeline.nse_prices.db_integration import get_latest_price
+        out["app_reads"] = get_latest_price(t)
+    except Exception as e:
+        out["app_reads_error"] = f"{type(e).__name__}: {e}"
+
+    # 4. Auto-refresh status
+    try:
+        from backend.main import _auto_refresh_parquets_if_needed
+        out["auto_refresh_done"] = getattr(_auto_refresh_parquets_if_needed, "_done", False)
+    except Exception:
+        out["auto_refresh_done"] = "unknown"
+
+    # 5. Env / working dir
+    out["cwd"] = os.getcwd()
+    return out
+
 ADMIN_EMAILS = {"pratapsurya601@gmail.com", "suryasbss601@gmail.com"}
 
 
