@@ -904,6 +904,63 @@ def _dupont_commentary(periods: list[dict]) -> str:
     return " ".join(parts)
 
 
+@router.get("/news/{ticker}")
+async def get_ticker_news(ticker: str, days: int = Query(default=14, ge=1, le=60)):
+    """
+    Combined news + BSE filings for a single ticker.
+    No auth, 1-hour cache.
+    Returns up to 30 items sorted by recency.
+    """
+    ticker = ticker.upper().strip()
+    clean = ticker.replace(".NS", "").replace(".BO", "")
+    _cache_key = f"public:news:{clean}:{days}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        from backend.services.news_service import fetch_all_news_for_ticker, summarize_filings
+        items = fetch_all_news_for_ticker(clean, days=days)
+        ai_summary = summarize_filings(items, max_items=5) if items else None
+        result = {
+            "ticker": ticker,
+            "display_ticker": clean,
+            "count": len(items),
+            "items": items[:30],
+            "ai_summary": ai_summary,
+        }
+        cache.set(_cache_key, result, ttl=3600)
+        return result
+    except Exception as e:
+        logger.warning(f"news fetch failed for {clean}: {e}")
+        raise HTTPException(status_code=500, detail="News unavailable")
+
+
+@router.get("/news")
+async def get_news_feed(days: int = Query(default=7, ge=1, le=30), limit: int = Query(default=50, le=100)):
+    """
+    Aggregated BSE corporate filings feed (latest across all stocks).
+    No auth, 30-min cache.
+    """
+    _cache_key = f"public:news-feed:{days}:{limit}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        from backend.services.news_service import fetch_bse_filings
+        items = fetch_bse_filings(ticker=None, days=days, limit=limit)
+        result = {
+            "count": len(items),
+            "items": items,
+        }
+        cache.set(_cache_key, result, ttl=1800)
+        return result
+    except Exception as e:
+        logger.warning(f"news feed failed: {e}")
+        raise HTTPException(status_code=500, detail="News feed unavailable")
+
+
 @router.get("/backtest/screen/{slug}")
 async def backtest_screen_endpoint(
     slug: str,

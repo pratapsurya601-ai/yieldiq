@@ -283,13 +283,22 @@ export default async function StockFairValuePage(
             <p className="text-xs text-gray-500">Reference indicators &rarr;</p>
           </Link>
         </div>
-        <div className="mb-8">
+        <div className="grid sm:grid-cols-2 gap-4 mb-8">
+          <Link
+            href={`/stocks/${display}/news`}
+            className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+          >
+            <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">News & Filings</p>
+            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-700 transition">Recent activity</h3>
+            <p className="text-xs text-gray-500">BSE filings + news for {display} &rarr;</p>
+          </Link>
           <Link
             href={`/compare/${display}-vs-RELIANCE`}
-            className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group text-center"
+            className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
           >
             <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Compare</p>
             <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-700 transition">Head-to-head with peers</h3>
+            <p className="text-xs text-gray-500">Compare {display} side by side &rarr;</p>
           </Link>
         </div>
 
