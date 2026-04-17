@@ -109,36 +109,73 @@ function MarketingNav() {
   )
 }
 
-/* ── Mock Analysis Card (Hero) ───────────────────────── */
-function MockAnalysisCard() {
-  const score = 78
+/* ── Demo Card (Hero) — rotates through real cached analyses ── */
+const FALLBACK_CARDS = [
+  { display_ticker: "RELIANCE", company_name: "Reliance Industries", sector: "Oil & Gas", current_price: 2943, fair_value: 3480, mos: 18.2, verdict: "undervalued", score: 78, grade: "B", moat: "Wide", bear_case: 2810, base_case: 3480, bull_case: 4120 },
+  { display_ticker: "ITC", company_name: "ITC Limited", sector: "FMCG", current_price: 302, fair_value: 458, mos: 51.8, verdict: "undervalued", score: 80, grade: "A", moat: "Wide", bear_case: 380, base_case: 458, bull_case: 540 },
+  { display_ticker: "HDFCBANK", company_name: "HDFC Bank", sector: "Banking", current_price: 1642, fair_value: 1890, mos: 15.1, verdict: "undervalued", score: 74, grade: "B", moat: "Wide", bear_case: 1590, base_case: 1890, bull_case: 2180 },
+  { display_ticker: "TCS", company_name: "Tata Consultancy", sector: "IT Services", current_price: 3650, fair_value: 3580, mos: -2.0, verdict: "fairly_valued", score: 72, grade: "B", moat: "Wide", bear_case: 2980, base_case: 3580, bull_case: 4200 },
+]
+
+function DemoCard() {
+  const [cards, setCards] = useState(FALLBACK_CARDS)
+  const [idx, setIdx] = useState(0)
+  const [fading, setFading] = useState(false)
+
+  useEffect(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/public/demo-cards`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (data && data.length >= 2) setCards(data) })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (cards.length <= 1) return
+    const timer = setInterval(() => {
+      setFading(true)
+      setTimeout(() => {
+        setIdx(prev => (prev + 1) % cards.length)
+        setFading(false)
+      }, 300)
+    }, 5000)
+    return () => clearInterval(timer)
+  }, [cards.length])
+
+  const c = cards[idx]
+  if (!c) return null
+  const score = c.score || 0
   const r = 58, circ = 2 * Math.PI * r
   const offset = circ * (1 - score / 100)
+  const verdictText = (c.verdict || "").replace("_", " ")
+  const verdictColor = c.verdict === "undervalued" ? "bg-green-500/10 text-green-400"
+    : c.verdict === "overvalued" ? "bg-red-500/10 text-red-400"
+    : "bg-blue-500/10 text-blue-400"
+  const fmt = (n: number) => n ? n.toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "—"
+  const mosSign = (c.mos || 0) >= 0 ? "+" : ""
+
   return (
     <div className="relative" style={{ animation: "float 6s ease-in-out infinite" }}>
       <div className="absolute -inset-6 bg-blue-500/5 rounded-3xl blur-2xl" />
-      <div className="relative bg-[#0F172A] border border-white/10 rounded-2xl p-6 shadow-2xl w-[320px]">
-        {/* Header */}
+      <div className={`relative bg-[#0F172A] border border-white/10 rounded-2xl p-6 shadow-2xl w-[320px] transition-opacity duration-300 ${fading ? "opacity-0" : "opacity-100"}`}>
         <div className="flex items-center justify-between mb-4">
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-white font-bold text-lg">RELIANCE</span>
+              <span className="text-white font-bold text-lg">{c.display_ticker}</span>
               <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-medium">NSE</span>
             </div>
-            <div className="text-gray-500 text-xs mt-0.5">Reliance Industries Ltd</div>
+            <div className="text-gray-500 text-xs mt-0.5">{c.company_name}</div>
           </div>
           <div className="text-right">
-            <div className="text-white font-bold text-lg font-mono">&#8377;2,943</div>
-            <div className="text-green-400 text-xs">+1.2%</div>
+            <div className="text-white font-bold text-lg font-mono">&#8377;{fmt(c.current_price)}</div>
           </div>
         </div>
-        {/* Conviction Ring */}
         <div className="flex items-center gap-5 mb-4">
           <div className="relative w-[130px] h-[130px] flex-shrink-0">
             <svg viewBox="0 0 140 140" className="w-full h-full -rotate-90">
               <circle cx="70" cy="70" r={r} fill="none" stroke="#1E293B" strokeWidth="8" />
               <circle cx="70" cy="70" r={r} fill="none" stroke="url(#ring-grad)" strokeWidth="8"
-                strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset} />
+                strokeLinecap="round" strokeDasharray={circ} strokeDashoffset={offset}
+                style={{ transition: "stroke-dashoffset 0.8s ease-out" }} />
               <defs>
                 <linearGradient id="ring-grad" x1="0%" y1="0%" x2="100%" y2="0%">
                   <stop offset="0%" stopColor="#3B82F6" />
@@ -148,37 +185,114 @@ function MockAnalysisCard() {
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-3xl font-black text-white">{score}</span>
-              <span className="text-[10px] text-gray-400 font-semibold tracking-wider uppercase">Good</span>
+              <span className="text-[10px] text-gray-400 font-semibold tracking-wider uppercase">{c.grade || "—"}</span>
             </div>
           </div>
           <div className="space-y-2.5 flex-1">
-            <div className="bg-green-500/10 text-green-400 text-xs font-bold px-3 py-1.5 rounded-full text-center">
-              Undervalued
+            <div className={`text-xs font-bold px-3 py-1.5 rounded-full text-center capitalize ${verdictColor}`}>
+              {verdictText}
             </div>
             <div>
               <div className="text-gray-500 text-[10px] uppercase tracking-wider">Fair Value</div>
-              <div className="text-white font-bold font-mono">&#8377;3,480</div>
+              <div className="text-white font-bold font-mono">&#8377;{fmt(c.fair_value)}</div>
             </div>
             <div>
               <div className="text-gray-500 text-[10px] uppercase tracking-wider">Margin of Safety</div>
-              <div className="text-blue-400 font-bold font-mono">+18.2%</div>
+              <div className={`font-bold font-mono ${(c.mos || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>{mosSign}{(c.mos || 0).toFixed(1)}%</div>
             </div>
           </div>
         </div>
-        {/* Scenarios */}
         <div className="flex gap-2">
           {[
-            { label: "Bear", val: "2,810", color: "bg-red-500/20 text-red-400" },
-            { label: "Base", val: "3,480", color: "bg-blue-500/20 text-blue-400" },
-            { label: "Bull", val: "4,120", color: "bg-green-500/20 text-green-400" },
+            { label: "Bear", val: c.bear_case, color: "bg-red-500/20 text-red-400" },
+            { label: "Base", val: c.base_case || c.fair_value, color: "bg-blue-500/20 text-blue-400" },
+            { label: "Bull", val: c.bull_case, color: "bg-green-500/20 text-green-400" },
           ].map(s => (
             <div key={s.label} className={`flex-1 rounded-lg px-2 py-1.5 text-center text-[10px] ${s.color}`}>
               <div className="font-medium">{s.label}</div>
-              <div className="font-bold font-mono">&#8377;{s.val}</div>
+              <div className="font-bold font-mono">&#8377;{fmt(s.val)}</div>
             </div>
           ))}
         </div>
+        {/* Live indicator */}
+        <div className="flex items-center gap-1.5 mt-3 justify-center">
+          <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+          <span className="text-[10px] text-gray-500">Live data</span>
+        </div>
       </div>
+    </div>
+  )
+}
+
+/* ── Live Activity Feed ─────────────────────────────────── */
+const PLACEHOLDER_ACTIVITY = [
+  { display_ticker: "ITC", company_name: "ITC Limited", verdict: "undervalued", mos_pct: 51.8, date: "just now" },
+  { display_ticker: "HDFCBANK", company_name: "HDFC Bank", verdict: "undervalued", mos_pct: 15.1, date: "2m ago" },
+  { display_ticker: "TCS", company_name: "TCS", verdict: "fairly valued", mos_pct: -2.0, date: "5m ago" },
+  { display_ticker: "RELIANCE", company_name: "Reliance Industries", verdict: "undervalued", mos_pct: 18.2, date: "8m ago" },
+  { display_ticker: "INFY", company_name: "Infosys", verdict: "fairly valued", mos_pct: 5.3, date: "12m ago" },
+]
+
+function timeAgo(dateStr: string | null): string {
+  if (!dateStr) return "just now"
+  const diff = Date.now() - new Date(dateStr).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return "just now"
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  return `${days}d ago`
+}
+
+function LiveActivityFeed() {
+  const [items, setItems] = useState(PLACEHOLDER_ACTIVITY)
+  const [isReal, setIsReal] = useState(false)
+
+  const fetchActivity = useCallback(() => {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/public/recent-activity?limit=8`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (data && data.length > 0) {
+          setItems(data.map((d: Record<string, unknown>) => ({
+            ...d,
+            date: timeAgo(d.date as string),
+          })))
+          setIsReal(true)
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    fetchActivity()
+    const interval = setInterval(fetchActivity, 60000)
+    return () => clearInterval(interval)
+  }, [fetchActivity])
+
+  const verdictStyle = (v: string) => {
+    if (v.includes("undervalued")) return "text-green-600 bg-green-50"
+    if (v.includes("overvalued")) return "text-red-600 bg-red-50"
+    return "text-blue-600 bg-blue-50"
+  }
+
+  return (
+    <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+      {items.slice(0, 8).map((item, i) => (
+        <div key={`${item.display_ticker}-${i}`}
+          className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-100 rounded-xl hover:shadow-sm transition"
+          style={{ animationDelay: `${i * 100}ms` }}>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-gray-900 truncate">{item.company_name}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${verdictStyle(item.verdict)}`}>
+                {item.verdict}
+              </span>
+              <span className="text-[10px] text-gray-400">{item.date}</span>
+            </div>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -571,11 +685,15 @@ function LandingContent() {
                 <span className="text-gray-600">&bull;</span>
                 <span>No credit card required</span>
               </div>
+              <p className="text-amber-400/80 text-sm font-medium mt-4 flex items-center gap-2 justify-center lg:justify-start">
+                <span className="w-2 h-2 bg-amber-400 rounded-full animate-pulse" />
+                Limited to first 10,000 users during beta
+              </p>
             </div>
 
-            {/* Right — floating analysis card */}
+            {/* Right — rotating live analysis card */}
             <div className="hidden lg:block flex-shrink-0">
-              <MockAnalysisCard />
+              <DemoCard />
             </div>
           </div>
 
@@ -629,6 +747,25 @@ function LandingContent() {
               <span className="font-mono tracking-wider text-gray-400 font-medium">{s}</span>
             </span>
           ))}
+        </div>
+      </section>
+
+      {/* ── Live Activity Feed ─────────────────────────── */}
+      <section className="py-12 bg-white border-b border-gray-100">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <FadeIn>
+            <div className="flex items-center justify-center gap-2 mb-2">
+              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+              <p className="text-green-600 text-xs font-bold tracking-[0.2em] uppercase">Live</p>
+            </div>
+            <h2 className="text-2xl font-black text-center mb-8">Valuations Happening Right Now</h2>
+          </FadeIn>
+          <LiveActivityFeed />
+          <div className="text-center mt-6">
+            <Link href="/auth/signup" className="text-blue-600 text-sm font-semibold hover:underline">
+              Be the first to analyse a stock today &rarr;
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -719,7 +856,7 @@ function LandingContent() {
                 </ul>
               </div>
               <div className="flex-shrink-0 hidden md:block">
-                <MockAnalysisCard />
+                <DemoCard />
               </div>
             </div>
           </FadeIn>
