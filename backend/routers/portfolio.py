@@ -142,6 +142,12 @@ def _do_import(parsed: list[dict], broker: str, user: dict) -> dict:
         clean = raw_ticker.replace(".NS", "").replace(".BO", "").upper()
         full_ticker = f"{clean}.NS"
 
+        # PERF: don't run DCF synchronously during import -- a user with
+        # 20 holdings would wait 20 x ~8s = ~3 min, breaking the
+        # frontend's 30s timeout with "Network error". Instead:
+        #   - Use cache if already warm (common case)
+        #   - Otherwise save with placeholders; portfolio page triggers
+        #     analysis on first view, cache warms, subsequent views fast
         try:
             cached = _c.get(f"analysis:{full_ticker}")
             if cached and hasattr(cached, "valuation"):
@@ -150,16 +156,18 @@ def _do_import(parsed: list[dict], broker: str, user: dict) -> dict:
                 sector = cached.company.sector
                 verdict = cached.valuation.verdict
                 company_name = cached.company.company_name
+                mos = (iv - avg_cost) / avg_cost * 100 if avg_cost > 0 else 0.0
             else:
-                result = svc.AnalysisService().get_full_analysis(full_ticker)
-                iv = result.valuation.fair_value
-                wacc_val = result.valuation.wacc
-                sector = result.company.sector
-                verdict = result.valuation.verdict
-                company_name = result.company.company_name
-            mos = (iv - avg_cost) / avg_cost * 100 if avg_cost > 0 else 0.0
+                # Not cached -> save placeholders, defer analysis to
+                # next portfolio-page view. import stays fast.
+                iv = 0
+                wacc_val = 0.12
+                sector = ""
+                verdict = ""
+                company_name = clean
+                mos = 0
         except Exception as e:
-            logger.warning(f"Import: analysis failed for {full_ticker}: {e}")
+            logger.warning(f"Import: enrichment failed for {full_ticker}: {e}")
             iv = 0
             wacc_val = 0.12
             sector = ""
