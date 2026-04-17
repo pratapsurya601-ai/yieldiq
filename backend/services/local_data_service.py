@@ -21,6 +21,25 @@ import pandas as pd
 log = logging.getLogger("yieldiq.local_data")
 
 
+# ── Known USD-reporting Indian stocks ─────────────────────────────
+# These companies file CONSOLIDATED financials in USD because their
+# revenue is predominantly export. Our Aiven XBRL pipeline doesn't
+# handle currency conversion properly, so any read from the local
+# Financials table for these tickers will corrupt downstream DCF
+# (e.g. HCLTECH produced FV ₹6,069 vs price ₹1,433).
+#
+# Imported by analysis_service to skip the local DB on TTM/annual
+# overrides as well as the assemble_local_fundamentals path.
+USD_REPORTERS: set[str] = {
+    "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "MPHASIS.NS",
+    "HEXAWARE.NS", "LTIM.NS", "LTIMINDTR.NS", "PERSISTENT.NS",
+    "COFORGE.NS", "KPITTECH.NS", "TATAELXSI.NS", "CYIENT.NS",
+    "ZENSAR.NS", "MASTEK.NS", "NIIT.NS", "OFSS.NS",
+    # Pharma with majority US revenue
+    "DIVISLAB.NS", "LAURUSLABS.NS",
+}
+
+
 def _safe(v: Any, default: float = 0.0) -> float:
     """Convert to float safely. None/NaN → default."""
     if v is None:
@@ -237,19 +256,8 @@ def assemble_local(ticker: str, db_session) -> dict | None:
         return None  # Can't do DCF without financials
 
     # ── Known USD-reporting Indian stocks — always skip local DB ────
-    # These companies file CONSOLIDATED financials in USD because their
-    # revenue is predominantly export. Our Aiven XBRL pipeline doesn't
-    # handle currency conversion properly. Fall back to yfinance
-    # which applies the right multiplier.
-    _USD_REPORTERS = {
-        "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "MPHASIS.NS",
-        "HEXAWARE.NS", "LTIM.NS", "LTIMINDTR.NS", "PERSISTENT.NS",
-        "COFORGE.NS", "KPITTECH.NS", "TATAELXSI.NS", "CYIENT.NS",
-        "ZENSAR.NS", "MASTEK.NS", "NIIT.NS", "OFSS.NS",
-        # Pharma with majority US revenue
-        "DIVISLAB.NS", "LAURUSLABS.NS",
-    }
-    if ticker.upper() in _USD_REPORTERS:
+    # See module-level USD_REPORTERS for full list and rationale.
+    if ticker.upper() in USD_REPORTERS:
         log.info("LOCAL_DATA: %s is USD-reporting — using yfinance fallback", ticker)
         return None
 

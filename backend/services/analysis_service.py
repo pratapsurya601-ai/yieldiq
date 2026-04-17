@@ -1210,9 +1210,14 @@ class AnalysisService:
         )
 
         # ── Step 5: WACC + Forecast ───────────────────────────
-        # Try TTM data from local DB first, then annual, then yfinance
+        # Try TTM data from local DB first, then annual, then yfinance.
+        # USD-reporting tickers (HCLTECH, INFY, WIPRO etc.) MUST skip the
+        # Aiven Financials table — those rows are USD-magnitude and would
+        # corrupt enriched.latest_fcf/revenue/pat, breaking the DCF.
+        from backend.services.local_data_service import USD_REPORTERS as _USD
+        _skip_local_ttm = ticker.upper() in _USD
         _fcf_data_source = "yfinance"
-        _ttm_data = _query_ttm_financials(ticker)
+        _ttm_data = None if _skip_local_ttm else _query_ttm_financials(ticker)
         if _ttm_data:
             _fcf_data_source = "ttm"
             if _ttm_data.get("fcf") is not None:
@@ -1222,7 +1227,7 @@ class AnalysisService:
             if _ttm_data.get("pat") is not None:
                 enriched["latest_pat"] = _ttm_data["pat"]
         else:
-            _annual_data = _query_latest_annual_financials(ticker)
+            _annual_data = None if _skip_local_ttm else _query_latest_annual_financials(ticker)
             if _annual_data:
                 _fcf_data_source = "annual"
                 if _annual_data.get("fcf") is not None and not enriched.get("latest_fcf"):
