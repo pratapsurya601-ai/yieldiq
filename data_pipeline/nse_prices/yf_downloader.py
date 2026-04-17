@@ -71,48 +71,6 @@ def download_ticker(ticker: str, period: str = "5y") -> Path | None:
         # Sort chronologically
         df = df.sort_values("date").reset_index(drop=True)
 
-        # ── Override last close with live quote ───────────────────
-        # yfinance's history endpoint returns SPLIT-ADJUSTED closes even
-        # with auto_adjust=False — the flag only governs dividend adjust.
-        # For tickers with bogus splits in Yahoo's feed (e.g. HDFCBANK's
-        # 2023 merger encoded as a 2.12× split), every historical close
-        # is wrong. We trust the LIVE quote far more than the adjusted
-        # history because it comes from the real-time feed, not the
-        # corporate-actions-adjusted archive. Overriding just the last
-        # row fixes the "current price" field without claiming to fix
-        # historical charts (which remain best-effort).
-        try:
-            info_obj = yf.Ticker(symbol).fast_info
-            live = (
-                getattr(info_obj, "last_price", None)
-                or getattr(info_obj, "regular_market_price", None)
-                or getattr(info_obj, "previous_close", None)
-            )
-            if live and float(live) > 0 and len(df) > 0:
-                last_close = float(df.iloc[-1]["close"])
-                live = float(live)
-                # Only override when they disagree by >5% — avoids
-                # accidentally corrupting good data due to intraday noise.
-                if last_close > 0 and abs(live - last_close) / last_close > 0.05:
-                    log.info(
-                        "%s: live quote ₹%.2f vs parquet last close ₹%.2f "
-                        "(%.1f%% diff) — overriding last row with live",
-                        ticker, live, last_close,
-                        (live - last_close) / last_close * 100.0,
-                    )
-                    df.loc[df.index[-1], "close"] = live
-                    # Also update open/high/low floor so charts don't
-                    # render a weird spike at the final bar.
-                    df.loc[df.index[-1], "open"] = live
-                    df.loc[df.index[-1], "high"] = max(
-                        float(df.iloc[-1].get("high") or 0), live
-                    )
-                    df.loc[df.index[-1], "low"] = min(
-                        float(df.iloc[-1].get("low") or live), live
-                    ) if float(df.iloc[-1].get("low") or 0) > 0 else live
-        except Exception as _exc:
-            log.debug("%s: live-quote override skipped: %s", ticker, _exc)
-
         out = PARQUET_DIR / f"{ticker}.parquet"
         df.to_parquet(out, index=False, compression="snappy")
         log.info("%s: %d rows → %s (%d KB)",

@@ -25,7 +25,7 @@ CANARIES = {
     # Ticker:          (cmp_min, cmp_max,  fv_min,  fv_max,  score_min, score_max)
     "RELIANCE.NS":     (1000,    3500,     800,     5000,    40,        95),
     "TCS.NS":          (2500,    5000,     2000,    7000,    50,        95),
-    "HDFCBANK.NS":     (1200,    2200,     1000,    3500,    50,        95),
+    "HDFCBANK.NS":     (700,     1100,     600,     1800,    50,        95),   # post 1:1 bonus (Aug 2024)
     "INFY.NS":         (1100,    2200,     800,     3500,    50,        95),
     "ITC.NS":          (200,     600,      200,     900,     50,        95),
     "SBIN.NS":         (400,     1100,     300,     1800,    40,        95),
