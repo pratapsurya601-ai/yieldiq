@@ -822,6 +822,53 @@ async def compare_stocks(
     }
 
 
+@router.get("/analysis/{ticker}/reverse-dcf")
+async def get_reverse_dcf_endpoint(
+    ticker: str,
+    wacc: float | None = Query(default=None, ge=0.05, le=0.25, description="Override WACC (5%-25%)"),
+    terminal_g: float | None = Query(default=None, ge=0.0, le=0.06, description="Override terminal growth (0%-6%)"),
+    years: int = Query(default=10, ge=5, le=15),
+    user: dict = Depends(get_current_user_optional),
+):
+    """
+    Reverse DCF — what FCF growth rate is the market implying?
+    Optional WACC and terminal growth overrides for sensitivity analysis.
+    Returns implied growth, verdict, scenarios, and plain-English summary.
+    """
+    ticker = ticker.upper().strip()
+    if not ticker.endswith(".NS") and not ticker.endswith(".BO"):
+        ticker = f"{ticker}.NS"
+
+    # Resolve aliases
+    ticker = TICKER_ALIASES.get(ticker, ticker)
+
+    # Cache key includes overrides
+    _cache_key = f"reverse_dcf:{ticker}:{wacc}:{terminal_g}:{years}"
+    cached = cache.get(_cache_key)
+    if cached:
+        return cached
+
+    try:
+        result = service.get_reverse_dcf(
+            ticker=ticker,
+            wacc_override=wacc,
+            terminal_g_override=terminal_g,
+            years=years,
+        )
+        if result.get("error"):
+            raise HTTPException(status_code=400, detail=result["error"])
+        cache.set(_cache_key, result, ttl=3600)
+        return result
+    except TickerNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.getLogger("yieldiq.reverse_dcf").error(f"Reverse DCF failed for {ticker}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Reverse DCF computation failed")
+
+
 @router.get("/analysis/{ticker}/report")
 async def get_report(ticker: str, user: dict = Depends(get_current_user)):
     """Generate downloadable DCF report as text."""

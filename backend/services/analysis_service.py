@@ -1796,3 +1796,65 @@ class AnalysisService:
         except Exception as exc:
             _log.error(f"[{ticker}] AI summary failed: {type(exc).__name__}: {exc}")
             return ""
+
+    def get_reverse_dcf(
+        self,
+        ticker: str,
+        wacc_override: float | None = None,
+        terminal_g_override: float | None = None,
+        years: int = 10,
+    ) -> dict:
+        """
+        Compute reverse DCF analysis for a ticker.
+        Optionally allows user-adjustable WACC and terminal growth.
+        Runs full analysis pipeline to get enriched data, then
+        runs reverse DCF with specified (or default) assumptions.
+        """
+        # Run full analysis to populate enriched dict (uses cache)
+        analysis = self.get_full_analysis(ticker)
+
+        # Get raw enriched data — we need to re-fetch to get the dict
+        # since AnalysisResponse doesn't expose it. Use cache.
+        import logging as _log
+        logger = _log.getLogger("yieldiq.reverse_dcf")
+
+        # Re-run the enrichment step (fast, uses local assembler + cache)
+        try:
+            from backend.services.local_data_service import assemble_local
+            _db = _get_pipeline_session()
+            raw = None
+            if _db is not None:
+                try:
+                    raw = assemble_local(ticker, _db)
+                except Exception:
+                    raw = None
+                finally:
+                    try:
+                        _db.close()
+                    except Exception:
+                        pass
+            if raw is None:
+                from data.collector import StockDataCollector
+                raw = StockDataCollector(ticker).get_all()
+        except Exception as exc:
+            logger.warning(f"[{ticker}] Failed to assemble raw data: {exc}")
+            return {"ticker": ticker, "error": "Unable to fetch company data"}
+
+        try:
+            # compute_metrics is imported at top of this module
+            enriched = compute_metrics(raw)
+        except Exception as exc:
+            logger.warning(f"[{ticker}] compute_metrics failed: {exc}")
+            enriched = raw
+
+        # Use override values or pull from analysis
+        wacc = wacc_override if wacc_override is not None else analysis.valuation.wacc
+        terminal_g = terminal_g_override if terminal_g_override is not None else analysis.valuation.terminal_growth
+        current_price = analysis.valuation.current_price
+
+        try:
+            result = run_reverse_dcf(enriched, current_price, wacc, terminal_g, years=years)
+            return result
+        except Exception as exc:
+            logger.warning(f"[{ticker}] reverse DCF failed: {exc}")
+            return {"ticker": ticker, "error": str(exc)}

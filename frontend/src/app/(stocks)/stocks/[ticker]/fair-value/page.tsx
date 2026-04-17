@@ -248,6 +248,26 @@ export default async function StockFairValuePage(
           </div>
         )}
 
+        {/* Related tools */}
+        <div className="grid sm:grid-cols-2 gap-4 mb-8">
+          <Link
+            href={`/stocks/${display}/reverse-dcf`}
+            className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+          >
+            <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Reverse DCF</p>
+            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-700 transition">What growth does the market imply?</h3>
+            <p className="text-xs text-gray-500">See the FCF growth rate baked into the current price &rarr;</p>
+          </Link>
+          <Link
+            href={`/compare/${display}-vs-RELIANCE`}
+            className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+          >
+            <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Compare</p>
+            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-700 transition">Head-to-head comparison</h3>
+            <p className="text-xs text-gray-500">Compare {display} with peers side by side &rarr;</p>
+          </Link>
+        </div>
+
         {/* CTA */}
         <div className="bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl p-8 text-center text-white mb-8">
           <h2 className="text-xl font-bold mb-2">Run Full Interactive Analysis</h2>

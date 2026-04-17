@@ -141,6 +141,37 @@ class InsightCards(BaseModel):
     bulk_deals: list[BulkDealItem] = []
 
 
+# ── Reverse DCF detailed response ─────────────────────────────
+
+class ReverseDCFScenario(BaseModel):
+    growth_rate: float
+    implied_iv: float
+    mos: float
+
+
+class ReverseDCFResponse(BaseModel):
+    ticker: str
+    current_price: float
+    implied_growth: Optional[float] = None
+    converged: bool = False
+    iv_at_implied: float = 0.0
+    historical_growth: Optional[float] = None
+    long_run_gdp: float = 0.025
+    wacc: float = 0.12
+    terminal_g: float = 0.03
+    verdict_level: str = ""  # conservative, reasonable, aggressive, very aggressive, unrealistic
+    verdict_text: str = ""
+    verdict_colour: str = ""  # green, amber, red
+    summary: str = ""
+    scenarios: dict = {}  # {label: ReverseDCFScenario}
+    years_to_justify: Optional[int] = None
+    payback_at_implied: Optional[int] = None
+    fcf_yield: Optional[float] = None
+    price_to_fcf: Optional[float] = None
+    excess_growth: Optional[float] = None
+    growth_premium: Optional[float] = None
+
+
 class ScenarioCase(BaseModel):
     iv: float = 0
     mos_pct: float = 0
