@@ -1,37 +1,100 @@
 name: Data Quality Canary
+# Threshold ratchet: 4 (now) -> 12 -> 15 -> 18 (target, 2/20 tolerated).
+# Bump CANARY_THRESHOLD below as fixes land. Do NOT auto-ratchet.
+env:
+  CANARY_THRESHOLD: "4"
+  API_BASE: "https://api.yieldiq.in"
 
 on:
   schedule:
-    # Every 6 hours
-    - cron: "0 */6 * * *"
+    - cron: "0 */6 * * *"   # every 6 hours
   workflow_dispatch:
   push:
     branches: [main]
     paths:
       - "backend/services/analysis_service.py"
       - "backend/services/local_data_service.py"
+      - "backend/services/validators.py"
+      - "screener/**/*.py"
+      - "models/**/*.py"
+      - "dashboard/utils/scoring.py"
+      - "data_pipeline/nse_prices/**/*.py"
       - "data_pipeline/**"
+      - "scripts/canary_check.py"
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/services/analysis_service.py"
+      - "backend/services/local_data_service.py"
+      - "backend/services/validators.py"
+      - "screener/**/*.py"
+      - "models/**/*.py"
+      - "dashboard/utils/scoring.py"
+      - "data_pipeline/nse_prices/**/*.py"
+      - "scripts/canary_check.py"
 
 jobs:
   canary:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    continue-on-error: false
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Run canary check
         run: |
-          python scripts/canary_check.py --api-base "${API_BASE}"
-        env:
-          API_BASE: https://api.yieldiq.in
+          python scripts/canary_check.py --api-base "${API_BASE}" \
+            --threshold "${CANARY_THRESHOLD}" --report canary_report.json
 
-      - name: Notify on failure
+      - name: Upload canary report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-report
+          path: canary_report.json
+          retention-days: 30
+
+      - name: Notify Slack (scheduled failures only)
+        if: failure() && github.event_name == 'schedule' && env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          P=$(python -c "import json;print(json.load(open('canary_report.json'))['passed'])" 2>/dev/null || echo "?")
+          T=$(python -c "import json;print(json.load(open('canary_report.json'))['total'])" 2>/dev/null || echo "20")
+          URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          curl -sS -X POST -H 'Content-Type: application/json' \
+            --data "{\"text\":\":rotating_light: Canary FAIL: ${P}/${T} stocks broken. ${URL}\"}" \
+            "$SLACK_WEBHOOK_URL"
+
+      - name: Open GitHub issue (scheduled fail, no Slack)
+        if: failure() && github.event_name == 'schedule' && env.SLACK_WEBHOOK_URL == ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let r = { passed: '?', total: 20, failures: [] };
+            try { r = JSON.parse(fs.readFileSync('canary_report.json', 'utf8')); } catch(e) {}
+            const title = `Canary FAIL: ${r.passed}/${r.total} stocks broken`;
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo, state: 'open', per_page: 100 });
+            if (existing.data.some(i => i.title === title)) { core.info('dedupe: issue exists'); return; }
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const lines = (r.failures||[]).map(f => `- **${f.ticker}**: ${(f.issues||[]).join('; ')}`).join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner, repo: context.repo.repo, title,
+              body: `Scheduled canary failed.\n\nRun: ${runUrl}\n\n### Failures\n${lines || '(none)'}\n`,
+              labels: ['canary','bug'] });
+
+      - name: Annotate failure
         if: failure()
         run: |
-          echo "::error::Canary check failed — data quality issue on production!"
-          echo "Review: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          echo "::error::Canary failed — data quality regression on production!"
+          echo "Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"

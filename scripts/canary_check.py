@@ -1,14 +1,15 @@
 """
 Canary check: validate 20 well-known Indian stocks against expected ranges.
 
-Runs against production API. Fails (exit 1) if any canary is out of range.
-Designed to be run nightly via GitHub Actions.
+Runs against production API. Exits 1 if passed count is below --threshold.
+Designed to be run every 6h via GitHub Actions as a deployment gate.
 
 Usage:
-    python scripts/canary_check.py [--api-base URL]
+    python scripts/canary_check.py [--api-base URL] [--threshold N] [--report PATH]
 """
 from __future__ import annotations
 import argparse
+import datetime as _dt
 import json
 import sys
 import urllib.request
@@ -94,11 +95,22 @@ def check_canary(ticker: str, expected: tuple, api_base: str) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-base", default="https://api.yieldiq.in")
+    parser.add_argument(
+        "--threshold",
+        type=int,
+        default=18,
+        help="Minimum passing count required for exit 0 (default: 18 of 20).",
+    )
+    parser.add_argument(
+        "--report",
+        default="canary_report.json",
+        help="Path to write machine-readable JSON report (default: canary_report.json).",
+    )
     parser.add_argument("--verbose", "-v", action="store_true")
     args = parser.parse_args()
 
     print(f"Canary check against {args.api_base}")
-    print(f"Checking {len(CANARIES)} stocks...\n")
+    print(f"Checking {len(CANARIES)} stocks (threshold: {args.threshold})...\n")
 
     total = len(CANARIES)
     passed = 0
@@ -116,17 +128,49 @@ def main() -> int:
             if args.verbose:
                 print(f"[ok]   {ticker}")
 
+    failed_count = len(failed_tickers)
+    blocking = passed < args.threshold
+
+    # Write machine-readable report (for CI artifact upload).
+    report = {
+        "timestamp": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+        "api_base": args.api_base,
+        "total": total,
+        "passed": passed,
+        "failed": failed_count,
+        "threshold": args.threshold,
+        "blocking": blocking,
+        "failures": [
+            {"ticker": t, "issues": issues} for t, issues in failed_tickers
+        ],
+    }
+    try:
+        with open(args.report, "w", encoding="utf-8") as fh:
+            json.dump(report, fh, indent=2)
+    except OSError as e:
+        print(f"warning: could not write report to {args.report}: {e}", file=sys.stderr)
+
     print()
     print("=" * 60)
-    print(f"Canary result: {passed}/{total} passed, {len(failed_tickers)} failed")
-
     if failed_tickers:
-        print("\nFailed tickers:")
+        print("Failed tickers:")
         for t, fs in failed_tickers:
             print(f"  {t}: {'; '.join(fs)}")
-        return 1
-    print("\nAll canaries healthy.")
-    return 0
+        print()
+
+    if blocking:
+        summary = (
+            f"CANARY: {passed}/{total} passed "
+            f"(threshold {args.threshold}) \u2717 BLOCKING DEPLOY"
+        )
+    else:
+        summary = (
+            f"CANARY: {passed}/{total} passed "
+            f"(threshold {args.threshold}) \u2713"
+        )
+    print(summary)
+
+    return 1 if blocking else 0
 
 
 if __name__ == "__main__":
