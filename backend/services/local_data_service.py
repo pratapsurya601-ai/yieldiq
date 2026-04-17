@@ -41,12 +41,21 @@ USD_REPORTERS: set[str] = {
 USD_INR_RATE = 83.5
 
 
-def _fx_multiplier(currency: str | None) -> float:
-    """Return the multiplier to convert a Financials row into INR."""
+def _fx_multiplier(currency: str | None, revenue_magnitude: float = 0.0) -> float:
+    """
+    Return the multiplier to convert a Financials row into INR.
+
+    IDEMPOTENCY GUARD: if revenue > ₹1,000 crore (1e10), the ingestion
+    layer already converted USD → INR and tagging it USD would produce
+    a 83× double-conversion. See analysis_service._convert_row_to_inr
+    for the full rationale.
+    """
     if not currency:
         return 1.0
     code = str(currency).strip().upper()
     if code == "USD":
+        if revenue_magnitude > 1e10:
+            return 1.0  # already INR despite tag
         return USD_INR_RATE
     return 1.0
 
@@ -175,7 +184,10 @@ def assemble_local(ticker: str, db_session) -> dict | None:
         if fins:
             latest = fins[0]
             # ── FX: convert USD-reported rows back to INR on read ──
-            fx_latest = _fx_multiplier(latest.get("currency"))
+            # Pass revenue magnitude so the idempotency guard can detect
+            # already-INR values tagged USD (double-convert prevention).
+            _latest_rev = _safe(latest.get("revenue"))
+            fx_latest = _fx_multiplier(latest.get("currency"), _latest_rev)
             if fx_latest != 1.0:
                 log.info(
                     "LOCAL_DATA: %s latest annual tagged %s — "
@@ -197,12 +209,18 @@ def assemble_local(ticker: str, db_session) -> dict | None:
             net_margin = _safe(latest.get("net_margin"))
 
             if len(fins) >= 2:
-                fx_prev = _fx_multiplier(fins[1].get("currency"))
+                fx_prev = _fx_multiplier(
+                    fins[1].get("currency"),
+                    _safe(fins[1].get("revenue")),
+                )
                 total_assets_prev = _safe(fins[1].get("total_assets")) * fx_prev
 
             # Build DataFrames (oldest → newest for compute_metrics)
             for f in reversed(fins):
-                fx = _fx_multiplier(f.get("currency"))
+                fx = _fx_multiplier(
+                    f.get("currency"),
+                    _safe(f.get("revenue")),
+                )
                 revenue_list.append(_safe(f.get("revenue")) * fx)
                 ni_list.append(_safe(f.get("pat")) * fx)
                 oi_list.append(0.0)  # operating_income not in this table

@@ -792,17 +792,48 @@ def _convert_row_to_inr(ticker: str, row) -> tuple[float | None, float | None, f
     """
     Read fcf / revenue / pat off a Financials row and convert to INR
     based on the row's `currency` column.
+
+    IDEMPOTENCY GUARD: our ingestion layers have historically converted
+    USD → INR *before* writing to the Financials table (data/collector.py
+    ::_detect_financial_currency multiplies by APPROX_USD_TO_INR for
+    HCLTECH, INFY etc). If the migration backfill then tagged the same
+    rows as currency='USD', a read-side _fx_multiplier would double-
+    convert, producing fcf_base ≈ 83× real (HCLTECH bug, commit b31a7e9
+    canary showed FV ₹6,073 vs real ~₹1,500).
+
+    Heuristic: for any large-cap Indian stock, TTM revenue should be
+    at least ₹100 crore (₹1 billion = 1e9). If the raw row value already
+    exceeds that threshold, treat it as already-INR regardless of the
+    currency tag. A genuine USD row would have revenue in the $100M-$10B
+    range (1e8–1e10), whereas an INR-already row for the same company
+    is 83× larger (1e10–1e12). The boundary is clean.
     """
     ccy = getattr(row, "currency", None) or "INR"
     mult = _fx_multiplier(ccy)
-    fcf = row.free_cash_flow * mult if row.free_cash_flow is not None else None
-    rev = row.revenue * mult if row.revenue is not None else None
-    pat = row.pat * mult if row.pat is not None else None
+
+    raw_fcf = row.free_cash_flow
+    raw_rev = row.revenue
+    raw_pat = row.pat
+
+    if mult != 1.0:
+        # Idempotency: if revenue is already in ₹-crore magnitude
+        # (> ₹100 crore = 1e9), the ingestion layer already converted.
+        # Do NOT multiply again.
+        _rev_magnitude = float(raw_rev or 0)
+        if _rev_magnitude > 1e10:  # ₹1,000 crore — unmistakably INR-already
+            _logger.info(
+                "FX_SKIP: %s tagged %s but revenue=%.2e suggests INR-"
+                "already (double-convert guard)", ticker, ccy, _rev_magnitude,
+            )
+            mult = 1.0
+
+    fcf = raw_fcf * mult if raw_fcf is not None else None
+    rev = raw_rev * mult if raw_rev is not None else None
+    pat = raw_pat * mult if raw_pat is not None else None
     if mult != 1.0:
         _logger.info(
             "FX_CONVERT: %s %s → INR at %.2f (fcf %.2f → %.2f)",
-            ticker, ccy, mult,
-            row.free_cash_flow or 0.0, fcf or 0.0,
+            ticker, ccy, mult, raw_fcf or 0.0, fcf or 0.0,
         )
     return fcf, rev, pat
 
