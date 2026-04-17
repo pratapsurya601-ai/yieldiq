@@ -73,12 +73,13 @@ export default function PortfolioImportPage() {
       let res
       if (uploadedFile) {
         // Multipart upload for xlsx/binary files
+        // DON'T set Content-Type manually — axios needs to add the
+        // boundary parameter automatically. Setting it explicitly
+        // strips the boundary and the server rejects the request.
         const formData = new FormData()
         formData.append("file", uploadedFile)
         formData.append("broker", broker)
-        res = await api.post("/api/v1/portfolio/import-file", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        })
+        res = await api.post("/api/v1/portfolio/import-file", formData)
       } else {
         // Plain CSV text
         res = await api.post("/api/v1/portfolio/import", {

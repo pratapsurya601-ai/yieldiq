@@ -189,23 +189,40 @@ async def import_holdings_file(
     Auto-detects header row (handles Zerodha's metadata-prefixed xlsx).
     """
     filename = (file.filename or "").lower()
+    content_type = (file.content_type or "").lower()
     contents = await file.read()
+    logger.info(f"import-file: filename={filename!r}, ct={content_type}, size={len(contents)}, broker={broker}")
+
+    # Detect xlsx by filename OR by magic bytes (PK header for ZIP-based formats)
+    is_xlsx = (
+        filename.endswith(".xlsx")
+        or filename.endswith(".xlsm")
+        or filename.endswith(".xls")
+        or "sheet" in content_type
+        or "excel" in content_type
+        or "officedocument" in content_type
+        or (len(contents) >= 4 and contents[:4] == b"PK\x03\x04")  # ZIP/OOXML magic
+    )
 
     try:
-        if filename.endswith(".xlsx") or filename.endswith(".xlsm") or filename.endswith(".xls"):
+        if is_xlsx:
+            logger.info(f"import-file: parsing as XLSX")
             parsed = _parse_xlsx_bytes(contents, broker)
         else:
             # Treat as CSV/text
+            logger.info(f"import-file: parsing as CSV/text")
             try:
                 csv_text = contents.decode("utf-8")
             except UnicodeDecodeError:
                 csv_text = contents.decode("latin-1", errors="ignore")
             parsed = _parse_broker_csv(csv_text, broker)
+        logger.info(f"import-file: parsed {len(parsed)} holdings")
     except ValueError as e:
+        logger.warning(f"import-file ValueError for {filename}: {e}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.warning(f"File import parse failed: {e}", exc_info=True)
-        raise HTTPException(status_code=400, detail=f"Could not parse file: {type(e).__name__}")
+        raise HTTPException(status_code=400, detail=f"Could not parse file: {type(e).__name__}: {e}")
 
     return _do_import(parsed, broker, user.get("tier", "free"))
 
