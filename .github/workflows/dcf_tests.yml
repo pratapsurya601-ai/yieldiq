@@ -1,0 +1,58 @@
+name: DCF Regression Tests
+
+# Validates every PR and main-branch push against the golden DCF
+# snapshot. Catches unintentional changes to fair value, verdict,
+# score, etc. in seconds — so we never ship another HCL-style regression
+# without noticing.
+#
+# To rebaseline after an intentional change:
+#   python scripts/test_dcf.py --update
+#   git add scripts/dcf_golden.json && git commit
+
+on:
+  pull_request:
+    paths:
+      - "backend/services/analysis_service.py"
+      - "backend/services/validators.py"
+      - "backend/services/local_data_service.py"
+      - "data/collector.py"
+      - "models/**/*.py"
+      - "screener/**/*.py"
+      - "dashboard/utils/scoring.py"
+      - "scripts/test_dcf.py"
+      - "scripts/dcf_golden.json"
+  push:
+    branches: [main]
+    paths:
+      - "backend/services/analysis_service.py"
+      - "backend/services/validators.py"
+      - "backend/services/local_data_service.py"
+      - "data/collector.py"
+      - "models/**/*.py"
+      - "screener/**/*.py"
+      - "dashboard/utils/scoring.py"
+  workflow_dispatch:
+    inputs:
+      max_regressions:
+        description: "Max allowed regressions before fail"
+        required: false
+        default: "3"
+
+jobs:
+  dcf-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run DCF regression tests
+        run: |
+          MAX="${{ github.event.inputs.max_regressions || '3' }}"
+          python scripts/test_dcf.py \
+            --api-base https://api.yieldiq.in \
+            --rate 2.0 \
+            --max-regressions "$MAX"
