@@ -11,6 +11,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: "https://yieldiq.in/nifty50", priority: 0.9, changeFrequency: "daily" },
     { url: "https://yieldiq.in/nifty-bank", priority: 0.8, changeFrequency: "daily" },
     { url: "https://yieldiq.in/nifty-it", priority: 0.8, changeFrequency: "daily" },
+    { url: "https://yieldiq.in/earnings-calendar", priority: 0.8, changeFrequency: "daily" },
     { url: "https://yieldiq.in/terms", priority: 0.3, changeFrequency: "monthly" },
     { url: "https://yieldiq.in/privacy", priority: 0.3, changeFrequency: "monthly" },
   ]

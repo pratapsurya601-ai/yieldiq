@@ -526,3 +526,78 @@ async def public_compare(
 
     cache.set(_cache_key, result, ttl=3600)
     return result
+
+# ---------------------------------------------------------------
+# Earnings Calendar — public endpoint
+# ---------------------------------------------------------------
+
+@router.get("/earnings-calendar")
+async def get_earnings_calendar(
+    days: int = Query(default=14, le=60),
+    limit: int = Query(default=100, le=500),
+):
+    """
+    Upcoming earnings announcements from NSE event calendar.
+    No auth required. 1-hour cache.
+    """
+    _cache_key = f"public:earnings:{days}:{limit}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    events = []
+    db = _get_db_session()
+    if db:
+        try:
+            from data_pipeline.models import UpcomingEarnings, Stock
+            cutoff = date.today() + timedelta(days=days)
+            today = date.today()
+
+            rows = (
+                db.query(UpcomingEarnings, Stock)
+                .outerjoin(Stock, UpcomingEarnings.ticker == Stock.ticker)
+                .filter(UpcomingEarnings.event_date >= today)
+                .filter(UpcomingEarnings.event_date <= cutoff)
+                .order_by(UpcomingEarnings.event_date.asc())
+                .limit(limit)
+                .all()
+            )
+
+            for ue, stock in rows:
+                display = ue.ticker.replace(".NS", "").replace(".BO", "")
+                days_away = (ue.event_date - today).days
+                events.append({
+                    "ticker": ue.ticker,
+                    "display_ticker": display,
+                    "company_name": (stock.company_name if stock else display),
+                    "sector": (stock.sector if stock else None),
+                    "event_date": ue.event_date.isoformat(),
+                    "event_type": ue.event_type or "Financial Results",
+                    "purpose": ue.purpose or "",
+                    "days_away": days_away,
+                })
+        except Exception as e:
+            logger.warning(f"earnings-calendar query failed: {e}")
+        finally:
+            _safe_close(db)
+
+    result = {
+        "total": len(events),
+        "window_days": days,
+        "by_date": _group_earnings_by_date(events),
+        "events": events,
+    }
+    cache.set(_cache_key, result, ttl=3600)
+    return result
+
+
+def _group_earnings_by_date(events: list) -> list:
+    """Group events by date for calendar view."""
+    from collections import defaultdict
+    grouped = defaultdict(list)
+    for e in events:
+        grouped[e["event_date"]].append(e)
+    return [
+        {"date": d, "count": len(items), "tickers": [e["display_ticker"] for e in items[:10]]}
+        for d, items in sorted(grouped.items())
+    ]
