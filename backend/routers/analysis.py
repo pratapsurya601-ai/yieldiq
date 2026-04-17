@@ -100,22 +100,54 @@ async def get_og_data(ticker: str):
     try:
         result = service.get_full_analysis(ticker)
         display_ticker = ticker.replace(".NS", "").replace(".BO", "")
-        verdict_text = result.valuation.verdict.replace("_", " ").title()
+
+        # ── Output sanity gate (router-level defense in depth) ──
+        # If FV/price ratio > 3x or |MoS| > 200%, suppress the numbers
+        # here at the edge so users never see them even if some upstream
+        # path forgot to gate. Defensive — the analysis_service also
+        # has this check, but duplicating at the router is cheap.
+        _fv = float(result.valuation.fair_value or 0)
+        _px = float(result.valuation.current_price or 0)
+        _mos = float(result.valuation.margin_of_safety or 0)
+        _verdict = result.valuation.verdict
+        _suspicious = False
+        try:
+            if _px > 0 and _fv > 0:
+                _r = _fv / _px
+                if _r > 3.0 or _r < 0.1:
+                    _suspicious = True
+            if abs(_mos) > 200:
+                _suspicious = True
+        except Exception:
+            pass
+        if _suspicious:
+            _verdict = "data_limited"
+            _fv = 0.0
+            _mos = 0.0
+
+        verdict_text = _verdict.replace("_", " ").title()
+        if _suspicious:
+            desc = (
+                f"{result.company.company_name} — valuation under review. "
+                f"Current price ₹{_px:,.0f}. Fair value temporarily unavailable."
+            )
+        else:
+            desc = (
+                f"{result.company.company_name} fair value ₹{_fv:,.0f} "
+                f"vs price ₹{_px:,.0f}. "
+                f"Score: {result.quality.yieldiq_score}/100. "
+                f"Moat: {result.quality.moat}."
+            )
 
         og = {
             "title": f"{display_ticker} — {verdict_text} | YieldIQ",
-            "description": (
-                f"{result.company.company_name} fair value ₹{result.valuation.fair_value:,.0f} "
-                f"vs price ₹{result.valuation.current_price:,.0f}. "
-                f"Score: {result.quality.yieldiq_score}/100. "
-                f"Moat: {result.quality.moat}."
-            ),
+            "description": desc,
             "ticker": ticker,
             "score": result.quality.yieldiq_score,
-            "verdict": result.valuation.verdict,
-            "fair_value": result.valuation.fair_value,
-            "price": result.valuation.current_price,
-            "mos": result.valuation.margin_of_safety,
+            "verdict": _verdict,
+            "fair_value": _fv,
+            "price": _px,
+            "mos": _mos,
         }
         cache.set(_cache_key, og, ttl=3600)
         return og

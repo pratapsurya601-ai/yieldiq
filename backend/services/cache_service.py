@@ -8,7 +8,7 @@ from typing import Any, Optional
 # Bump this integer whenever you change any pricing/DCF/scoring logic.
 # All cache entries keyed with the old version become automatically stale
 # on next access — no manual invalidation needed.
-CACHE_VERSION = 17  # bumped: output sanity gate — suppress FV/MoS for tickers where DCF produces absurd ratios
+CACHE_VERSION = 18  # bumped: router-level output sanity gate (defense in depth) + trigger fresh deploy
 
 
 class CacheService:
