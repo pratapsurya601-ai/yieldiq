@@ -348,14 +348,54 @@ class DCFEngine:
             return self._build_result(0.0, ticker, equity_value=equity_value,
                                      ev_dict=ev_dict, shares=shares_outstanding)
 
-        iv_per_share = equity_value / shares_outstanding
+        iv_per_share_raw = equity_value / shares_outstanding
+        iv_per_share = iv_per_share_raw
+
+        # ── Structured DCF trace ──────────────────────────────────
+        # Emit a single-line JSON trace on EVERY DCF so that when a
+        # blow-up is later reported (HCLTECH ₹6,067 style), we can
+        # grep production logs by ticker and see exactly which input
+        # drove the raw IV past the 5× cap. Fields chosen so the
+        # culprit (fcf_base vs growth vs TV dominance vs debt/cash
+        # adjustment) is immediately visible.
+        try:
+            _fcf0 = float(projected_fcfs[0]) if len(projected_fcfs) else 0.0
+            _fcfN = float(projected_fcfs[-1]) if len(projected_fcfs) else 0.0
+            # Implied compound growth across the forecast horizon
+            if _fcf0 > 0 and _fcfN > 0 and len(projected_fcfs) > 1:
+                _impl_g = (_fcfN / _fcf0) ** (1.0 / (len(projected_fcfs) - 1)) - 1.0
+            else:
+                _impl_g = 0.0
+            _ratio = (iv_per_share_raw / current_price) if current_price > 0 else 0.0
+            log.info(
+                "DCF_TRACE ticker=%s fcf_base=%.2f fcfN=%.2f impl_g=%.4f "
+                "terminal_fcf_norm=%.2f terminal_value=%.2f pv_tv=%.2f "
+                "tv_pct_ev=%.4f enterprise_value=%.2f total_debt=%.2f "
+                "total_cash=%.2f equity_value=%.2f shares=%.0f "
+                "raw_iv=%.4f price=%.4f iv_ratio=%.2fx wacc=%.4f g=%.4f "
+                "capped=%s",
+                ticker, _fcf0, _fcfN, _impl_g,
+                float(terminal_fcf_norm or 0.0),
+                float(ev_dict.get("terminal_value") or 0.0),
+                float(ev_dict.get("pv_tv") or 0.0),
+                float(ev_dict.get("tv_pct_of_ev") or 0.0),
+                float(ev_dict.get("enterprise_value") or 0.0),
+                float(total_debt or 0.0), float(total_cash or 0.0),
+                float(equity_value or 0.0), float(shares_outstanding or 0),
+                iv_per_share_raw, float(current_price or 0.0), _ratio,
+                float(self.r), float(self.g),
+                iv_per_share_raw > IV_HARD_CAP_MULT * current_price if current_price > 0 else False,
+            )
+        except Exception:
+            # Never let instrumentation break the DCF
+            pass
 
         # HARD CAP: IV cannot exceed 5× current price
         suspicious = False
-        if current_price > 0 and iv_per_share > IV_HARD_CAP_MULT * current_price:
+        if current_price > 0 and iv_per_share_raw > IV_HARD_CAP_MULT * current_price:
             suspicious = True
             self.edge_flags.add_flag(
-                f"⚠️ IV ${iv_per_share:.2f} > {IV_HARD_CAP_MULT}× price ${current_price:.2f} (capped)", 
+                f"⚠️ IV ${iv_per_share_raw:.2f} > {IV_HARD_CAP_MULT}× price ${current_price:.2f} (capped)",
                 penalty=25
             )
             iv_per_share = IV_HARD_CAP_MULT * current_price
