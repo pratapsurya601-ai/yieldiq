@@ -95,39 +95,41 @@ jobs:
               .sort((a, b) => b.critical - a.critical)
               .slice(0, 20);
 
-            const body = `
-Automated universe-scan detected quality issues.
-
-**Summary**
-- Scanned: ${report.total} tickers
-- Passed: ${report.passed} (${(report.pass_rate * 100).toFixed(1)}%)
-- Failed: ${report.failed}
-- Duration: ${report.duration_seconds}s
-- Timestamp: ${report.timestamp}
-
-**Severity breakdown**
-\`\`\`
-${Object.entries(report.severity_breakdown || {}).map(([k, v]) => `${k.padEnd(10)} ${v}`).join('\n')}
-\`\`\`
-
-**Top issue types**
-\`\`\`
-${Object.entries(report.rule_breakdown || {}).slice(0, 10).map(([k, v]) => `${String(v).padStart(4)}  ${k}`).join('\n')}
-\`\`\`
-
-**Worst offenders**
-\`\`\`
-${worst.map(w => `${w.ticker.padEnd(18)} ${w.messages}`).join('\n')}
-\`\`\`
-
-Full report available as the \`universe-scan-report\` artifact on the failing run.
-
-Triage checklist:
-- [ ] Is this a new regression (new commit broke something) or drift (market moved)?
-- [ ] Check DCF_TRACE for one worst offender via \`/api/v1/debug/dcf-trace/{TICKER}\`
-- [ ] If pattern matches a known class of bug (USD double-convert, bogus split), fix systematically
-- [ ] Close this issue when failure count returns to baseline
-            `.trim();
+            const fence = '```';
+            const sev = Object.entries(report.severity_breakdown || {})
+              .map(([k, v]) => `${k.padEnd(10)} ${v}`).join('\n');
+            const rules = Object.entries(report.rule_breakdown || {})
+              .slice(0, 10).map(([k, v]) => `${String(v).padStart(4)}  ${k}`).join('\n');
+            const offenders = worst
+              .map(w => `${w.ticker.padEnd(18)} ${w.messages}`).join('\n');
+            const lines = [
+              'Automated universe-scan detected quality issues.',
+              '',
+              '**Summary**',
+              `- Scanned: ${report.total} tickers`,
+              `- Passed: ${report.passed} (${(report.pass_rate * 100).toFixed(1)}%)`,
+              `- Failed: ${report.failed}`,
+              `- Duration: ${report.duration_seconds}s`,
+              `- Timestamp: ${report.timestamp}`,
+              '',
+              '**Severity breakdown**',
+              fence, sev, fence,
+              '',
+              '**Top issue types**',
+              fence, rules, fence,
+              '',
+              '**Worst offenders**',
+              fence, offenders, fence,
+              '',
+              'Full report available as the `universe-scan-report` artifact on the failing run.',
+              '',
+              'Triage checklist:',
+              '- [ ] Is this a new regression or drift (market moved)?',
+              '- [ ] Check DCF_TRACE for one worst offender via `/api/v1/debug/dcf-trace/{TICKER}`',
+              '- [ ] If pattern matches a known class of bug, fix systematically',
+              '- [ ] Close this issue when failure count returns to baseline',
+            ];
+            const body = lines.join('\n');
 
             await github.rest.issues.create({
               owner: context.repo.owner,
