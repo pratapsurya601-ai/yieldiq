@@ -275,12 +275,21 @@ export default async function StockFairValuePage(
             <p className="text-xs text-gray-500">Why ROE is what it is &rarr;</p>
           </Link>
           <Link
-            href={`/compare/${display}-vs-RELIANCE`}
+            href={`/stocks/${display}/technicals`}
             className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
           >
+            <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Technicals</p>
+            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-700 transition">RSI, MACD, MAs</h3>
+            <p className="text-xs text-gray-500">Reference indicators &rarr;</p>
+          </Link>
+        </div>
+        <div className="mb-8">
+          <Link
+            href={`/compare/${display}-vs-RELIANCE`}
+            className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group text-center"
+          >
             <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Compare</p>
-            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-700 transition">Head-to-head</h3>
-            <p className="text-xs text-gray-500">Compare with peers &rarr;</p>
+            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-700 transition">Head-to-head with peers</h3>
           </Link>
         </div>
 

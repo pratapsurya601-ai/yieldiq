@@ -133,6 +133,211 @@ def get_latest_price(ticker: str) -> float | None:
         conn.close()
 
 
+def get_technical_indicators(
+    ticker: str,
+    days: int = 365,
+) -> dict | None:
+    """
+    Compute technical indicators from Parquet price history.
+
+    Returns daily series (date, close) plus indicator series:
+        sma_20, sma_50, sma_200
+        rsi_14
+        macd_line, macd_signal, macd_histogram
+        bollinger_upper, bollinger_lower (20-day, 2 std)
+
+    Plus latest snapshot values + simple regime labels.
+    All None if insufficient history.
+    """
+    import duckdb
+    import numpy as np
+
+    path = _parquet_path(ticker)
+    if not path.exists():
+        return None
+
+    conn = duckdb.connect()
+    try:
+        df = conn.execute(f"""
+            SELECT date, close, volume
+            FROM read_parquet('{path}')
+            WHERE date >= CURRENT_TIMESTAMP - INTERVAL '{days} days'
+            ORDER BY date ASC
+        """).df()
+
+        if df is None or len(df) < 30:
+            return None
+
+        closes = df["close"].astype(float).values
+        n = len(closes)
+
+        # SMAs
+        def _sma(arr, period):
+            if len(arr) < period:
+                return [None] * len(arr)
+            out = [None] * (period - 1)
+            for i in range(period - 1, len(arr)):
+                out.append(float(np.mean(arr[i - period + 1: i + 1])))
+            return out
+
+        sma_20 = _sma(closes, 20)
+        sma_50 = _sma(closes, 50)
+        sma_200 = _sma(closes, 200)
+
+        # RSI(14)
+        def _rsi(arr, period=14):
+            if len(arr) < period + 1:
+                return [None] * len(arr)
+            deltas = np.diff(arr)
+            gains = np.where(deltas > 0, deltas, 0)
+            losses = np.where(deltas < 0, -deltas, 0)
+            out = [None] * period
+            avg_gain = np.mean(gains[:period])
+            avg_loss = np.mean(losses[:period])
+            for i in range(period, len(arr) - 1):
+                rs = avg_gain / avg_loss if avg_loss > 0 else 100
+                rsi = 100 - (100 / (1 + rs))
+                out.append(float(rsi))
+                # Wilder smoothing
+                avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+                avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+            # Final value
+            rs = avg_gain / avg_loss if avg_loss > 0 else 100
+            out.append(float(100 - (100 / (1 + rs))))
+            return out
+
+        rsi_14 = _rsi(closes, 14)
+
+        # MACD (12, 26, 9)
+        def _ema(arr, period):
+            if len(arr) < period:
+                return [None] * len(arr)
+            out = [None] * (period - 1)
+            ema = float(np.mean(arr[:period]))
+            out.append(ema)
+            k = 2 / (period + 1)
+            for i in range(period, len(arr)):
+                ema = float(arr[i]) * k + ema * (1 - k)
+                out.append(ema)
+            return out
+
+        ema12 = _ema(closes, 12)
+        ema26 = _ema(closes, 26)
+        macd_line = [
+            (e12 - e26) if e12 is not None and e26 is not None else None
+            for e12, e26 in zip(ema12, ema26)
+        ]
+        # Signal line: 9-EMA of MACD line (only over valid values)
+        valid_macd = [v for v in macd_line if v is not None]
+        signal_part = _ema(valid_macd, 9) if len(valid_macd) >= 9 else []
+        # Pad signal back to full length
+        signal_pad_count = len(macd_line) - len(signal_part)
+        macd_signal = [None] * signal_pad_count + signal_part
+        macd_histogram = [
+            (m - s) if m is not None and s is not None else None
+            for m, s in zip(macd_line, macd_signal)
+        ]
+
+        # Bollinger Bands (20, 2)
+        def _bollinger(arr, period=20, num_std=2):
+            upper = [None] * (period - 1)
+            lower = [None] * (period - 1)
+            for i in range(period - 1, len(arr)):
+                window = arr[i - period + 1: i + 1]
+                mean = float(np.mean(window))
+                std = float(np.std(window, ddof=1))
+                upper.append(mean + num_std * std)
+                lower.append(mean - num_std * std)
+            return upper, lower
+
+        boll_upper, boll_lower = _bollinger(closes, 20, 2)
+
+        # Latest snapshot
+        latest_close = float(closes[-1])
+        latest_rsi = rsi_14[-1] if rsi_14[-1] is not None else None
+        latest_sma20 = sma_20[-1]
+        latest_sma50 = sma_50[-1]
+        latest_sma200 = sma_200[-1]
+        latest_macd = macd_line[-1]
+        latest_macd_signal = macd_signal[-1]
+
+        # Regime labels (factual, not buy/sell signals)
+        rsi_zone = None
+        if latest_rsi is not None:
+            if latest_rsi >= 70:
+                rsi_zone = "overbought_zone"
+            elif latest_rsi <= 30:
+                rsi_zone = "oversold_zone"
+            else:
+                rsi_zone = "neutral_zone"
+
+        sma_position = None
+        if latest_sma200 is not None:
+            sma_position = "above_200dma" if latest_close > latest_sma200 else "below_200dma"
+
+        # MACD crossover state
+        macd_state = None
+        if latest_macd is not None and latest_macd_signal is not None:
+            macd_state = "macd_above_signal" if latest_macd > latest_macd_signal else "macd_below_signal"
+
+        # Build daily series (downsample to ~150 points for chart performance)
+        sample_step = max(1, n // 150)
+        dates = df["date"].astype(str).values
+
+        series = []
+        for i in range(0, n, sample_step):
+            series.append({
+                "date": str(dates[i]),
+                "close": round(float(closes[i]), 2),
+                "sma_20": round(sma_20[i], 2) if sma_20[i] is not None else None,
+                "sma_50": round(sma_50[i], 2) if sma_50[i] is not None else None,
+                "sma_200": round(sma_200[i], 2) if sma_200[i] is not None else None,
+                "rsi_14": round(rsi_14[i], 1) if rsi_14[i] is not None else None,
+                "macd": round(macd_line[i], 2) if macd_line[i] is not None else None,
+                "macd_signal": round(macd_signal[i], 2) if macd_signal[i] is not None else None,
+                "macd_histogram": round(macd_histogram[i], 2) if macd_histogram[i] is not None else None,
+                "boll_upper": round(boll_upper[i], 2) if boll_upper[i] is not None else None,
+                "boll_lower": round(boll_lower[i], 2) if boll_lower[i] is not None else None,
+            })
+        # Always include the very last point
+        if n > 0 and (n - 1) % sample_step != 0:
+            i = n - 1
+            series.append({
+                "date": str(dates[i]),
+                "close": round(float(closes[i]), 2),
+                "sma_20": round(sma_20[i], 2) if sma_20[i] is not None else None,
+                "sma_50": round(sma_50[i], 2) if sma_50[i] is not None else None,
+                "sma_200": round(sma_200[i], 2) if sma_200[i] is not None else None,
+                "rsi_14": round(rsi_14[i], 1) if rsi_14[i] is not None else None,
+                "macd": round(macd_line[i], 2) if macd_line[i] is not None else None,
+                "macd_signal": round(macd_signal[i], 2) if macd_signal[i] is not None else None,
+                "macd_histogram": round(macd_histogram[i], 2) if macd_histogram[i] is not None else None,
+                "boll_upper": round(boll_upper[i], 2) if boll_upper[i] is not None else None,
+                "boll_lower": round(boll_lower[i], 2) if boll_lower[i] is not None else None,
+            })
+
+        return {
+            "series": series,
+            "latest": {
+                "close": round(latest_close, 2),
+                "sma_20": round(latest_sma20, 2) if latest_sma20 else None,
+                "sma_50": round(latest_sma50, 2) if latest_sma50 else None,
+                "sma_200": round(latest_sma200, 2) if latest_sma200 else None,
+                "rsi_14": round(latest_rsi, 1) if latest_rsi is not None else None,
+                "macd": round(latest_macd, 2) if latest_macd is not None else None,
+                "macd_signal": round(latest_macd_signal, 2) if latest_macd_signal is not None else None,
+                "rsi_zone": rsi_zone,
+                "sma_position": sma_position,
+                "macd_state": macd_state,
+            },
+            "days_in_sample": n,
+        }
+    except Exception:
+        return None
+    finally:
+        conn.close()
+
+
 def get_risk_stats(
     ticker: str,
     benchmark_ticker: str = "NIFTYBEES",

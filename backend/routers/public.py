@@ -904,6 +904,36 @@ def _dupont_commentary(periods: list[dict]) -> str:
     return " ".join(parts)
 
 
+@router.get("/technicals/{ticker}")
+async def get_technicals_endpoint(ticker: str, days: int = Query(default=365, ge=60, le=730)):
+    """
+    Technical indicators (SMA, RSI, MACD, Bollinger) from Parquet history.
+
+    Factual reference data, not buy/sell signals.
+    No auth, 1-hour cache.
+    """
+    ticker = ticker.upper().strip()
+    clean = ticker.replace(".NS", "").replace(".BO", "")
+    _cache_key = f"public:technicals:{clean}:{days}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        from data_pipeline.nse_prices.db_integration import get_technical_indicators
+        result = get_technical_indicators(clean, days=days)
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"No price history for {clean}")
+        result["ticker"] = ticker
+        cache.set(_cache_key, result, ttl=3600)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"technicals failed for {clean}: {e}")
+        raise HTTPException(status_code=500, detail="Technical indicators unavailable")
+
+
 @router.get("/risk-stats/{ticker}")
 async def get_risk_stats_endpoint(ticker: str, years: int = Query(default=3, ge=1, le=10)):
     """
