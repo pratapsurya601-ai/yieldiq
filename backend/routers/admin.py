@@ -8,6 +8,30 @@ from backend.middleware.auth import get_current_user
 
 logger = logging.getLogger("yieldiq.admin")
 
+
+def _sanitize_error(exc: Exception, context: str = "") -> str:
+    """
+    Return a user-safe error string that never exposes exception messages.
+
+    Context: a Postgres error once echoed JWT_SECRET back to an unauth'd
+    caller because the secret had been concatenated into DATABASE_URL and
+    appeared in the resulting exception message. We must never send the
+    raw `str(exc)` to clients — it can contain DB URLs with passwords,
+    JWT secrets, API keys, or other env-var values.
+
+    Full exception (incl. traceback) is logged server-side so we keep
+    debuggability without leaking to users.
+    """
+    try:
+        logger.error(
+            "sanitized error (%s) in %s", type(exc).__name__, context or "debug",
+            exc_info=True,
+        )
+    except Exception:
+        pass
+    return f"{type(exc).__name__} (details suppressed; see server logs)"
+
+
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
 # Public debug router (no auth) — exposes read-only DCF traces so
@@ -85,7 +109,7 @@ async def fv_history_stats():
         finally:
             db.close()
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"fv-history-stats failed: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"fv-history-stats failed: {_sanitize_error(e, 'fv-history-stats')}")
 
 
 @debug_router.get("/universe-report")
@@ -110,7 +134,7 @@ async def get_universe_report():
                 import json as _json
                 return _json.loads(p.read_text(encoding="utf-8"))
             except Exception as e:
-                raise HTTPException(status_code=500, detail=f"Report unreadable: {e}")
+                raise HTTPException(status_code=500, detail=f"Report unreadable: {_sanitize_error(e, 'universe-report')}")
     raise HTTPException(
         status_code=404,
         detail="No universe scan report found. Run scripts/full_universe_scan.py or trigger the weekly workflow.",
@@ -139,7 +163,7 @@ async def price_diagnostic(ticker: str):
             "previous_close": getattr(fi, "previous_close", None),
         }
     except Exception as e:
-        out["yfinance_live"] = {"error": f"{type(e).__name__}: {e}"}
+        out["yfinance_live"] = {"error": _sanitize_error(e, 'price-diag.yfinance')}
 
     # 2. Parquet file
     try:
@@ -158,14 +182,14 @@ async def price_diagnostic(ticker: str):
                 {"date": str(r[0]), "close": float(r[1])} for r in rows
             ]
     except Exception as e:
-        out["parquet_error"] = f"{type(e).__name__}: {e}"
+        out["parquet_error"] = _sanitize_error(e, 'price-diag.parquet')
 
     # 3. get_latest_price (what the app actually reads)
     try:
         from data_pipeline.nse_prices.db_integration import get_latest_price
         out["app_reads"] = get_latest_price(t)
     except Exception as e:
-        out["app_reads_error"] = f"{type(e).__name__}: {e}"
+        out["app_reads_error"] = _sanitize_error(e, 'price-diag.app_reads')
 
     # 4. Auto-refresh status
     try:

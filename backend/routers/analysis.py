@@ -127,7 +127,9 @@ async def get_analysis(
     except Exception as e:
         import logging
         logging.getLogger("yieldiq.analysis").error(f"Analysis failed for {ticker}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Analysis failed: {str(e)}")
+        # str(e) can include env-var values (e.g. DATABASE_URL with password,
+        # JWT_SECRET) when they get concatenated into upstream error messages.
+        raise HTTPException(status_code=500, detail=f"Analysis failed: {type(e).__name__}")
 
 
 @router.get("/analysis/{ticker}/og-data")
@@ -262,7 +264,13 @@ async def get_analysis_preview(ticker: str):
         cache.set(_cache_key, preview, ttl=3600)  # 1 hour cache
         return preview
     except Exception as e:
-        return {"error": str(e), "ticker": ticker}
+        import logging
+        logging.getLogger("yieldiq.analysis").error(
+            f"og-data failed for {ticker}: {type(e).__name__}", exc_info=True
+        )
+        # Never return raw str(e) — can leak env-var values (DATABASE_URL,
+        # JWT_SECRET, etc.) embedded in upstream exception messages.
+        return {"error": f"{type(e).__name__} (details suppressed)", "ticker": ticker}
 
 
 @router.get("/analysis/{ticker}/summary")
@@ -1017,4 +1025,8 @@ async def get_report(ticker: str, user: dict = Depends(get_current_user)):
             headers={"Content-Disposition": f"attachment; filename=YieldIQ_{ticker}.txt"},
         )
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import logging
+        logging.getLogger("yieldiq.analysis").error(
+            f"Report generation failed for {ticker}: {e}", exc_info=True
+        )
+        raise HTTPException(status_code=500, detail=f"Report generation failed: {type(e).__name__}")
