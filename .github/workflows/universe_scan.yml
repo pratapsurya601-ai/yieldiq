@@ -1,0 +1,139 @@
+name: Full Universe Quality Scan
+
+# Runs deterministic DCF sanity rules across every ticker in the
+# production universe (2,900+). Unlike the 20-stock canary which uses
+# hardcoded per-ticker bounds, this scan uses universal rules that
+# flag any DCF producing unrealistic fcf_base, iv_ratio, impl_g, etc.
+#
+# Scheduled weekly (Sunday 02:00 UTC = 07:30 IST) because:
+#   - Low-traffic window for rate-limiting the API
+#   - Scan takes ~25-30 minutes end-to-end
+#   - Weekly cadence catches drift from market movement + data updates
+
+on:
+  schedule:
+    - cron: "0 2 * * 0"   # Sunday 02:00 UTC
+  workflow_dispatch:       # manual trigger button in GitHub UI
+    inputs:
+      limit:
+        description: "Max tickers to scan (blank = all)"
+        required: false
+        default: ""
+      rate:
+        description: "Requests per second"
+        required: false
+        default: "2.0"
+
+jobs:
+  universe-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run universe scan
+        id: scan
+        continue-on-error: true   # don't kill workflow — we want the report artifact
+        run: |
+          ARGS="--api-base https://api.yieldiq.in --report universe_scan_report.json"
+          if [ -n "${{ github.event.inputs.limit }}" ]; then
+            ARGS="$ARGS --limit ${{ github.event.inputs.limit }}"
+          fi
+          if [ -n "${{ github.event.inputs.rate }}" ]; then
+            ARGS="$ARGS --rate ${{ github.event.inputs.rate }}"
+          fi
+          python scripts/full_universe_scan.py $ARGS
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: universe-scan-report
+          path: universe_scan_report.json
+          retention-days: 90
+
+      - name: Open GitHub issue on failure
+        if: steps.scan.outputs.exit_code != '0' && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let report;
+            try {
+              report = JSON.parse(fs.readFileSync('universe_scan_report.json', 'utf8'));
+            } catch (e) {
+              console.log('Report missing, skipping issue creation');
+              return;
+            }
+
+            const title = `Universe Scan FAIL: ${report.failed} tickers with quality issues`;
+
+            // Dedupe — don't open if an open issue with same title already exists
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'open',
+              labels: 'universe-scan'
+            });
+            if (existing.data.some(i => i.title === title)) {
+              console.log('Open issue with same title already exists, skipping');
+              return;
+            }
+
+            // Top 20 worst offenders by critical-issue count
+            const worst = (report.failures || [])
+              .map(f => ({
+                ticker: f.ticker,
+                critical: f.issues.filter(i => i.severity === 'critical').length,
+                messages: f.issues.slice(0, 2).map(i => i.message).join('; '),
+              }))
+              .sort((a, b) => b.critical - a.critical)
+              .slice(0, 20);
+
+            const body = `
+Automated universe-scan detected quality issues.
+
+**Summary**
+- Scanned: ${report.total} tickers
+- Passed: ${report.passed} (${(report.pass_rate * 100).toFixed(1)}%)
+- Failed: ${report.failed}
+- Duration: ${report.duration_seconds}s
+- Timestamp: ${report.timestamp}
+
+**Severity breakdown**
+\`\`\`
+${Object.entries(report.severity_breakdown || {}).map(([k, v]) => `${k.padEnd(10)} ${v}`).join('\n')}
+\`\`\`
+
+**Top issue types**
+\`\`\`
+${Object.entries(report.rule_breakdown || {}).slice(0, 10).map(([k, v]) => `${String(v).padStart(4)}  ${k}`).join('\n')}
+\`\`\`
+
+**Worst offenders**
+\`\`\`
+${worst.map(w => `${w.ticker.padEnd(18)} ${w.messages}`).join('\n')}
+\`\`\`
+
+Full report available as the \`universe-scan-report\` artifact on the failing run.
+
+Triage checklist:
+- [ ] Is this a new regression (new commit broke something) or drift (market moved)?
+- [ ] Check DCF_TRACE for one worst offender via \`/api/v1/debug/dcf-trace/{TICKER}\`
+- [ ] If pattern matches a known class of bug (USD double-convert, bogus split), fix systematically
+- [ ] Close this issue when failure count returns to baseline
+            `.trim();
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['universe-scan', 'data-quality']
+            });
+            console.log(`Opened issue: ${title}`);

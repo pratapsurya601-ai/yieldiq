@@ -36,6 +36,35 @@ async def get_dcf_trace(ticker: str):
     return trace
 
 
+@debug_router.get("/universe-report")
+async def get_universe_report():
+    """
+    Returns the latest universe-scan report if present.
+
+    The weekly GitHub Actions workflow produces this file and uploads
+    it as an artifact. To make the report queryable via API, commit
+    the latest good report to the repo at `reports/universe_scan_latest.json`
+    or fetch via GitHub's artifact API. For now: returns whatever is
+    at that path in the deployed bundle.
+    """
+    from pathlib import Path
+    candidates = [
+        Path(__file__).resolve().parents[2] / "reports" / "universe_scan_latest.json",
+        Path(__file__).resolve().parents[2] / "universe_scan_report.json",
+    ]
+    for p in candidates:
+        if p.exists():
+            try:
+                import json as _json
+                return _json.loads(p.read_text(encoding="utf-8"))
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"Report unreadable: {e}")
+    raise HTTPException(
+        status_code=404,
+        detail="No universe scan report found. Run scripts/full_universe_scan.py or trigger the weekly workflow.",
+    )
+
+
 @debug_router.get("/price-diag/{ticker}")
 async def price_diagnostic(ticker: str):
     """
