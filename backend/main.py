@@ -284,6 +284,66 @@ def _prewarm_popular_stocks():
     threading.Thread(target=_warm, daemon=True).start()
 
 
+def _auto_refresh_parquets_if_needed():
+    """
+    One-shot post-deploy price refresh. Runs once per container boot.
+    Re-downloads parquets for the Nifty-50 core so bug fixes in
+    yf_downloader (auto_adjust flip, live-quote override, etc.) take
+    effect without requiring an admin to curl the refresh endpoint.
+
+    Idempotent: a second call within the same container does nothing
+    (sentinel var on the function itself).
+
+    Gated by env var AUTO_REFRESH_PARQUETS (default "1"); set to "0"
+    to disable on a specific deploy.
+    """
+    if getattr(_auto_refresh_parquets_if_needed, "_done", False):
+        return
+    _auto_refresh_parquets_if_needed._done = True
+    if os.getenv("AUTO_REFRESH_PARQUETS", "1") != "1":
+        logger.info("AUTO_REFRESH_PARQUETS disabled by env var")
+        return
+
+    def _refresh():
+        try:
+            from data_pipeline.nse_prices.yf_downloader import download_ticker
+            from backend.services.cache_service import cache, CACHE_VERSION
+            tickers = [
+                "HDFCBANK", "RELIANCE", "TCS", "INFY", "ITC", "ICICIBANK",
+                "SBIN", "KOTAKBANK", "AXISBANK", "LT", "BAJFINANCE", "MARUTI",
+                "TITAN", "NESTLEIND", "WIPRO", "HCLTECH", "SUNPHARMA",
+                "ASIANPAINT", "ULTRACEMCO", "BHARTIARTL", "POWERGRID", "NTPC",
+                "HINDUNILVR",
+            ]
+            logger.info(
+                "AUTO_REFRESH: starting parquet refresh for %d tickers "
+                "(CACHE_VERSION=%d)", len(tickers), CACHE_VERSION,
+            )
+            ok, fail = 0, 0
+            for t in tickers:
+                try:
+                    p = download_ticker(t, period="5y")
+                    if p:
+                        ok += 1
+                        # Clear dependent caches so next read recomputes
+                        for prefix in ["analysis:", "og:", "preview:",
+                                       "chart_data:", "public:stock-summary:"]:
+                            cache.clear_pattern(f"{prefix}{t}.NS")
+                    else:
+                        fail += 1
+                except Exception as _exc:
+                    fail += 1
+                    logger.warning("AUTO_REFRESH: %s failed: %s", t, _exc)
+            logger.info(
+                "AUTO_REFRESH: done — %d ok, %d failed", ok, fail,
+            )
+        except Exception as e:
+            logger.warning("AUTO_REFRESH: aborted: %s", e)
+
+    import threading
+    threading.Thread(target=_refresh, daemon=True).start()
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup/shutdown lifecycle — starts scheduler + pre-warms cache.
@@ -293,6 +353,7 @@ async def lifespan(app: FastAPI):
     threading.Thread(target=_ensure_pipeline_tables, daemon=True).start()
     sched = _start_pipeline_scheduler()
     _prewarm_popular_stocks()
+    _auto_refresh_parquets_if_needed()
     yield
     if sched:
         sched.shutdown(wait=False)
