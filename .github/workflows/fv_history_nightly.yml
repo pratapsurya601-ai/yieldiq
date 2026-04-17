@@ -37,48 +37,65 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Trigger analysis for each NSE_UNIVERSE ticker
+      - name: Trigger analysis for each ticker
         id: collect
         run: |
           python - <<'PYEOF'
           import json, sys, time, urllib.request
 
-          # Import the same NSE_UNIVERSE list the pipeline uses
-          sys.path.insert(0, ".")
-          from data_pipeline.pipeline import NSE_UNIVERSE
+          # Stdlib-only: pull the ticker list from our own public endpoint
+          # (avoids importing data_pipeline which needs SQLAlchemy / yfinance
+          # deps that aren't available in the bare runner).
+          api = "https://api.yieldiq.in"
+
+          def fetch_json(url, timeout=45):
+              req = urllib.request.Request(url, headers={"User-Agent": "YIQFVCollector/1.0"})
+              with urllib.request.urlopen(req, timeout=timeout) as r:
+                  return json.loads(r.read().decode())
+
+          try:
+              raw = fetch_json(f"{api}/api/v1/public/all-tickers")
+          except Exception as e:
+              print(f"FATAL: could not fetch ticker list: {e}", file=sys.stderr)
+              sys.exit(1)
+
+          # Normalize: /all-tickers returns either [{ticker, full_ticker, ...}] or a dict
+          if isinstance(raw, dict) and "tickers" in raw:
+              raw = raw["tickers"]
+          tickers = []
+          for entry in raw:
+              t = entry.get("full_ticker") if isinstance(entry, dict) else entry
+              if t:
+                  if not t.endswith(".NS") and not t.endswith(".BO"):
+                      t = f"{t}.NS"
+                  tickers.append(t)
 
           limit_input = "${{ github.event.inputs.limit }}"
-          tickers = NSE_UNIVERSE[:int(limit_input)] if limit_input else NSE_UNIVERSE
-          api = "https://api.yieldiq.in"
+          if limit_input:
+              tickers = tickers[:int(limit_input)]
+
           ok, fail = 0, 0
           start = time.time()
-
           print(f"Collecting fair-value history for {len(tickers)} tickers...")
           for i, t in enumerate(tickers, 1):
-              symbol = f"{t}.NS"
               try:
-                  req = urllib.request.Request(
-                      f"{api}/api/v1/analysis/{symbol}/og-data",
-                      headers={"User-Agent": "YIQFVCollector/1.0"},
-                  )
-                  with urllib.request.urlopen(req, timeout=45) as r:
-                      data = json.loads(r.read().decode())
-                      if data.get("fair_value") is not None:
-                          ok += 1
-                      else:
-                          fail += 1
+                  data = fetch_json(f"{api}/api/v1/analysis/{t}/og-data")
+                  if data.get("fair_value") is not None:
+                      ok += 1
+                  else:
+                      fail += 1
               except Exception as e:
                   fail += 1
-                  print(f"  ! {symbol}: {type(e).__name__}: {e}", file=sys.stderr)
+                  print(f"  ! {t}: {type(e).__name__}: {e}", file=sys.stderr)
               if i % 20 == 0 or i == len(tickers):
                   print(f"  [{i}/{len(tickers)}] ok={ok} fail={fail}")
-              time.sleep(1.0)  # 1 req/s -- gentle on Railway
+              time.sleep(1.0)  # gentle on Railway
 
+          total = max(len(tickers), 1)
+          rate = ok / total
           print(f"\nDone in {time.time()-start:.0f}s. ok={ok} fail={fail} "
-                f"(success_rate={ok/max(len(tickers),1)*100:.1f}%)")
-
-          # Exit 1 if < 80% success so the workflow badges red and we notice
-          if ok / max(len(tickers), 1) < 0.80:
+                f"(success={rate*100:.1f}%)")
+          if rate < 0.80:
               print("FAIL: success rate below 80%", file=sys.stderr)
               sys.exit(1)
           PYEOF
