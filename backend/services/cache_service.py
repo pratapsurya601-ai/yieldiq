@@ -8,7 +8,7 @@ from typing import Any, Optional
 # Bump this integer whenever you change any pricing/DCF/scoring logic.
 # All cache entries keyed with the old version become automatically stale
 # on next access — no manual invalidation needed.
-CACHE_VERSION = 7  # bumped: DCF_TRACE ring-buffer wired into data_issues validator
+CACHE_VERSION = 8  # bumped: live-quote override for split-adjusted history (HDFCBANK merger)
 
 
 class CacheService:
