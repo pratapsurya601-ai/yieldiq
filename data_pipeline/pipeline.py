@@ -61,6 +61,34 @@ NSE_UNIVERSE = [
 ISIN_MAP: dict[str, str] = {}
 
 
+def get_full_universe() -> list[str]:
+    """
+    Return the FULL ticker universe: merges the curated NSE_UNIVERSE
+    (~100 large-caps we always want covered) with every parquet file
+    in data_pipeline/nse_prices/parquet (~550 tickers we have price
+    history for).
+
+    Use this anywhere we want to process "all tickers the system
+    knows about" — fundamentals backfill, cache prewarm, etc. Returns
+    a deduplicated list with NSE_UNIVERSE first (priority order).
+    """
+    from pathlib import Path
+    parquet_dir = Path(__file__).parent / "nse_prices" / "parquet"
+    parquet_tickers: list[str] = []
+    if parquet_dir.exists():
+        parquet_tickers = sorted(
+            p.stem for p in parquet_dir.glob("*.parquet")
+            if p.stem and not p.stem.startswith(".")
+        )
+    seen: set[str] = set()
+    merged: list[str] = []
+    for t in list(NSE_UNIVERSE) + parquet_tickers:
+        if t not in seen:
+            seen.add(t)
+            merged.append(t)
+    return merged
+
+
 def run_initial_setup(db: Session):
     """
     Run once when setting up the database for the first time.

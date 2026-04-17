@@ -97,14 +97,15 @@ jobs:
           os.environ.setdefault("AIVEN_DSN", _db_url)
 
           from data_pipeline.db import Session
-          from data_pipeline.pipeline import NSE_UNIVERSE
+          from data_pipeline.pipeline import get_full_universe
           from data_pipeline.sources.yfinance_supplement import (
               batch_fetch_fundamentals,
           )
 
+          universe = get_full_universe()
           limit_input = "${{ github.event.inputs.limit }}".strip()
-          tickers = NSE_UNIVERSE[:int(limit_input)] if limit_input else NSE_UNIVERSE
-          log.info("Starting backfill for %d tickers", len(tickers))
+          tickers = universe[:int(limit_input)] if limit_input else universe
+          log.info("Starting backfill for %d tickers (full universe)", len(tickers))
 
           start = time.time()
           db = Session()

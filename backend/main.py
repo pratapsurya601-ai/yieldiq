@@ -261,14 +261,14 @@ def _prewarm_popular_stocks():
             # active). New version: smaller list + 10s sleep between
             # computes so user requests get ~90% worker availability.
             try:
-                from data_pipeline.pipeline import NSE_UNIVERSE
-                cycle_tickers = [f"{t}.NS" for t in NSE_UNIVERSE]
+                from data_pipeline.pipeline import get_full_universe
+                cycle_tickers = [f"{t}.NS" for t in get_full_universe()]
             except Exception:
                 parquet_dir = Path(__file__).resolve().parent / "data_pipeline" / "nse_prices" / "parquet"
                 cycle_tickers = sorted([
                     f"{p.stem}.NS" for p in parquet_dir.glob("*.parquet")
                 ]) if parquet_dir.exists() else []
-            logger.info(f"Background refresh: cycling {len(cycle_tickers)} NSE_UNIVERSE tickers")
+            logger.info(f"Background refresh: cycling {len(cycle_tickers)} full-universe tickers")
 
             while True:
                 for ticker in cycle_tickers:
