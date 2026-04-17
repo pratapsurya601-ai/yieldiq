@@ -154,6 +154,28 @@ def get_holdings_with_live_data(user_email: str) -> dict:
     if not holdings:
         return {"holdings": [], "summary": _empty_summary()}
 
+    # First pass: try fast sources (cache + Parquet) for all tickers
+    # Identify which ones need yfinance fallback
+    missing_tickers: list[str] = []
+    fast_prices: dict[str, float] = {}
+    for h in holdings:
+        ticker = h.get("ticker", "")
+        if not ticker:
+            continue
+        price = _get_current_price(ticker, allow_yfinance=False)
+        if price is not None and price > 0:
+            fast_prices[ticker] = price
+        else:
+            missing_tickers.append(ticker)
+
+    # Parallel yfinance fetch for missing ones (ETFs, small caps not in Parquet)
+    yf_prices: dict[str, float] = {}
+    if missing_tickers:
+        try:
+            yf_prices = fetch_live_prices_parallel(missing_tickers, max_workers=8)
+        except Exception as e:
+            logger.warning(f"Parallel yfinance fetch failed: {e}")
+
     enriched = []
     total_invested = 0.0
     total_current = 0.0
@@ -167,10 +189,10 @@ def get_holdings_with_live_data(user_email: str) -> dict:
         quantity = _extract_quantity(h.get("notes", "")) or 1
         invested = entry_price * quantity
 
-        # Get current price (from analysis cache, then Parquet fallback)
-        current_price = _get_current_price(ticker)
+        # Get current price from the fastest available source
+        current_price = fast_prices.get(ticker) or yf_prices.get(ticker)
         if current_price is None or current_price <= 0:
-            current_price = entry_price  # fallback
+            current_price = entry_price  # final fallback
 
         current_value = current_price * quantity
         pnl_abs = current_value - invested
@@ -260,14 +282,27 @@ def _extract_quantity(notes: str) -> int | None:
     return None
 
 
-def _get_current_price(ticker: str) -> float | None:
-    """Get the most recent price — from analysis cache first, then Parquet."""
+def _get_current_price(ticker: str, allow_yfinance: bool = False) -> float | None:
+    """Get the most recent price — analysis cache → Parquet → (optional) yfinance live.
+
+    yfinance is slow (1-3s), so only called when explicitly requested.
+    Use fetch_live_prices_parallel() for bulk fetches.
+    """
     # Try analysis cache (fastest, has live price)
     try:
         from backend.services.cache_service import cache as _c
         cached = _c.get(f"analysis:{ticker}")
         if cached and hasattr(cached, "valuation"):
             return float(cached.valuation.current_price)
+    except Exception:
+        pass
+
+    # Try short-lived price cache (15 min)
+    try:
+        from backend.services.cache_service import cache as _c
+        cached_price = _c.get(f"live_price:{ticker}")
+        if cached_price is not None:
+            return float(cached_price)
     except Exception:
         pass
 
@@ -281,7 +316,119 @@ def _get_current_price(ticker: str) -> float | None:
     except Exception:
         pass
 
+    # Last resort: yfinance fast_info (only when explicitly allowed)
+    if allow_yfinance:
+        price = _fetch_yfinance_price(ticker)
+        if price is not None:
+            try:
+                from backend.services.cache_service import cache as _c
+                _c.set(f"live_price:{ticker}", price, ttl=900)
+            except Exception:
+                pass
+            return price
+
     return None
+
+
+def _fetch_yfinance_price(ticker: str) -> float | None:
+    """Fetch live price from yfinance fast_info.
+
+    Tries .NS first (NSE), then .BO (BSE) as fallback for BSE-only
+    stocks (e.g. PREMCO-X which is BSE-listed).
+    """
+    import yfinance as yf
+    # Silence yfinance errors for failed fetches
+    import logging as _yf_log
+    _yf_log.getLogger("yfinance").setLevel(_yf_log.CRITICAL)
+
+    # Build candidate ticker list based on current suffix
+    candidates: list[str] = []
+    base = ticker.replace(".NS", "").replace(".BO", "")
+
+    # Strip Zerodha hyphen suffixes (e.g. "PREMCO-X" -> "PREMCO")
+    # Common suffixes: -X (BSE), -EQ, -BE, -BL, -BT, -BZ
+    base_no_suffix = base
+    for suffix in ("-X", "-EQ", "-BE", "-BL", "-BT", "-BZ"):
+        if base.upper().endswith(suffix):
+            base_no_suffix = base[: -len(suffix)]
+            break
+
+    # Build candidates in priority order
+    if ticker.endswith(".BO"):
+        candidates = [f"{base}.BO", f"{base}.NS"]
+        if base_no_suffix != base:
+            candidates += [f"{base_no_suffix}.BO", f"{base_no_suffix}.NS"]
+    elif ticker.endswith(".NS"):
+        candidates = [f"{base}.NS", f"{base}.BO"]
+        if base_no_suffix != base:
+            candidates += [f"{base_no_suffix}.NS", f"{base_no_suffix}.BO"]
+    else:
+        candidates = [f"{base}.NS", f"{base}.BO"]
+        if base_no_suffix != base:
+            candidates += [f"{base_no_suffix}.NS", f"{base_no_suffix}.BO"]
+
+    for t in candidates:
+        try:
+            tk = yf.Ticker(t)
+            # fast_info (no network if already cached by yf)
+            try:
+                lp = tk.fast_info.last_price
+                if lp and 0 < float(lp) < 1e7:
+                    return float(lp)
+            except Exception:
+                pass
+            # Fallback: short history query
+            try:
+                hist = tk.history(period="5d", auto_adjust=False, progress=False)
+                if not hist.empty:
+                    last = float(hist["Close"].dropna().iloc[-1])
+                    if 0 < last < 1e7:
+                        return last
+            except Exception:
+                pass
+        except Exception:
+            continue
+    return None
+
+
+def fetch_live_prices_parallel(tickers: list[str], max_workers: int = 8) -> dict[str, float]:
+    """
+    Fetch live prices for multiple tickers in parallel via yfinance.
+    Only used for tickers not in analysis cache or Parquet.
+    Returns a dict {ticker: price}. Missing tickers omitted.
+    """
+    if not tickers:
+        return {}
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from backend.services.cache_service import cache as _c
+
+    # Skip tickers already in cache
+    to_fetch = []
+    results: dict[str, float] = {}
+    for t in tickers:
+        cached = _c.get(f"live_price:{t}")
+        if cached is not None:
+            results[t] = float(cached)
+        else:
+            to_fetch.append(t)
+
+    if not to_fetch:
+        return results
+
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futures = {ex.submit(_fetch_yfinance_price, t): t for t in to_fetch}
+        for fut in as_completed(futures, timeout=15):
+            t = futures[fut]
+            try:
+                price = fut.result()
+                if price is not None:
+                    results[t] = price
+                    _c.set(f"live_price:{t}", price, ttl=900)
+            except Exception:
+                pass
+
+    return results
 
 
 def count_holdings(user_email: str) -> int:
