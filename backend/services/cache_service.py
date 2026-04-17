@@ -8,7 +8,7 @@ from typing import Any, Optional
 # Bump this integer whenever you change any pricing/DCF/scoring logic.
 # All cache entries keyed with the old version become automatically stale
 # on next access — no manual invalidation needed.
-CACHE_VERSION = 20  # bumped: output sanity gate extended to main /analysis/{ticker} endpoint
+CACHE_VERSION = 21  # bumped: sanity gate now covers preview endpoint too (complete coverage)
 
 
 class CacheService:

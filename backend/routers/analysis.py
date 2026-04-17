@@ -209,15 +209,36 @@ async def get_analysis_preview(ticker: str):
 
     try:
         result = service.get_full_analysis(ticker)
+
+        # Output sanity gate — same as og-data and main /analysis
+        _fv = float(result.valuation.fair_value or 0)
+        _px = float(result.valuation.current_price or 0)
+        _mos = float(result.valuation.margin_of_safety or 0)
+        _verdict = result.valuation.verdict
+        try:
+            _suspicious = False
+            if _px > 0 and _fv > 0:
+                _r = _fv / _px
+                if _r > 3.0 or _r < 0.1:
+                    _suspicious = True
+            if abs(_mos) > 200:
+                _suspicious = True
+            if _suspicious:
+                _verdict = "data_limited"
+                _fv = 0.0
+                _mos = 0.0
+        except Exception:
+            pass
+
         # Strip sensitive/premium data for public preview
         preview = {
             "ticker": result.ticker,
             "company": result.company,
             "valuation": {
-                "fair_value": result.valuation.fair_value,
-                "current_price": result.valuation.current_price,
-                "margin_of_safety": result.valuation.margin_of_safety,
-                "verdict": result.valuation.verdict,
+                "fair_value": _fv,
+                "current_price": _px,
+                "margin_of_safety": _mos,
+                "verdict": _verdict,
                 "wacc": result.valuation.wacc,
                 "confidence_score": result.valuation.confidence_score,
             },
