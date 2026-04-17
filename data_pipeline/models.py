@@ -122,6 +122,13 @@ class Financials(Base):
     data_source = Column(String(50))          # "BSE_XBRL" or "yfinance"
     raw_data = Column(Text)                   # JSON of original filing
 
+    # Reporting currency of this filing. Most Indian issuers file in INR
+    # but a handful (IT services, some pharma) file their consolidated
+    # XBRL in USD. Tagging the column here lets the read path convert
+    # USD → INR on demand instead of silently mixing magnitudes.
+    currency = Column(String(3), nullable=False, default="INR",
+                      server_default="INR")
+
 
 class ShareholdingPattern(Base):
     """Quarterly shareholding from NSE."""

@@ -22,14 +22,11 @@ log = logging.getLogger("yieldiq.local_data")
 
 
 # ── Known USD-reporting Indian stocks ─────────────────────────────
-# These companies file CONSOLIDATED financials in USD because their
-# revenue is predominantly export. Our Aiven XBRL pipeline doesn't
-# handle currency conversion properly, so any read from the local
-# Financials table for these tickers will corrupt downstream DCF
-# (e.g. HCLTECH produced FV ₹6,069 vs price ₹1,433).
-#
-# Imported by analysis_service to skip the local DB on TTM/annual
-# overrides as well as the assemble_local_fundamentals path.
+# Historical bypass list — retained only as reference data for the
+# ingestion-side allow-list and the 001_add_currency_column migration
+# back-fill. Reads no longer short-circuit on this set; the
+# `financials.currency` column now drives USD → INR conversion in the
+# query helpers (see USD_INR_RATE in analysis_service.py).
 USD_REPORTERS: set[str] = {
     "INFY.NS", "WIPRO.NS", "HCLTECH.NS", "TECHM.NS", "MPHASIS.NS",
     "HEXAWARE.NS", "LTIM.NS", "LTIMINDTR.NS", "PERSISTENT.NS",
@@ -38,6 +35,20 @@ USD_REPORTERS: set[str] = {
     # Pharma with majority US revenue
     "DIVISLAB.NS", "LAURUSLABS.NS",
 }
+
+# USD → INR conversion rate applied when a Financials row is tagged
+# `currency = 'USD'`. TODO: source from a live forex feed.
+USD_INR_RATE = 83.5
+
+
+def _fx_multiplier(currency: str | None) -> float:
+    """Return the multiplier to convert a Financials row into INR."""
+    if not currency:
+        return 1.0
+    code = str(currency).strip().upper()
+    if code == "USD":
+        return USD_INR_RATE
+    return 1.0
 
 
 def _safe(v: Any, default: float = 0.0) -> float:
@@ -156,36 +167,48 @@ def assemble_local(ticker: str, db_session) -> dict | None:
             "SELECT revenue, pat, ebitda, eps_diluted, cfo, capex, "
             "free_cash_flow, total_assets, total_equity, total_debt, "
             "cash_and_equivalents, shares_outstanding, roe, "
-            "debt_to_equity, net_margin, period_end "
+            "debt_to_equity, net_margin, period_end, currency "
             "FROM financials WHERE ticker = :t AND period_type = 'annual' "
             "ORDER BY period_end DESC LIMIT 5"
         ), {"t": clean}).mappings().all()
 
         if fins:
             latest = fins[0]
+            # ── FX: convert USD-reported rows back to INR on read ──
+            fx_latest = _fx_multiplier(latest.get("currency"))
+            if fx_latest != 1.0:
+                log.info(
+                    "LOCAL_DATA: %s latest annual tagged %s — "
+                    "multiplying monetary fields by %.2f",
+                    ticker, latest.get("currency"), fx_latest,
+                )
+            # shares/roe/de/net_margin/eps are currency-neutral ratios
+            # or unit-counts; monetary fields get the multiplier.
             shares = _safe(latest.get("shares_outstanding"))
-            total_debt = _safe(latest.get("total_debt"))
-            total_cash = _safe(latest.get("cash_and_equivalents"))
-            total_assets = _safe(latest.get("total_assets"))
-            total_equity = _safe(latest.get("total_equity"))
+            total_debt = _safe(latest.get("total_debt")) * fx_latest
+            total_cash = _safe(latest.get("cash_and_equivalents")) * fx_latest
+            total_assets = _safe(latest.get("total_assets")) * fx_latest
+            total_equity = _safe(latest.get("total_equity")) * fx_latest
             roe = _safe(latest.get("roe"))
             de_ratio = _safe(latest.get("debt_to_equity"))
-            ebitda = _safe(latest.get("ebitda"))
-            latest_fcf = _safe(latest.get("free_cash_flow"))
-            eps_diluted = _safe(latest.get("eps_diluted"))
+            ebitda = _safe(latest.get("ebitda")) * fx_latest
+            latest_fcf = _safe(latest.get("free_cash_flow")) * fx_latest
+            eps_diluted = _safe(latest.get("eps_diluted")) * fx_latest
             net_margin = _safe(latest.get("net_margin"))
 
             if len(fins) >= 2:
-                total_assets_prev = _safe(fins[1].get("total_assets"))
+                fx_prev = _fx_multiplier(fins[1].get("currency"))
+                total_assets_prev = _safe(fins[1].get("total_assets")) * fx_prev
 
             # Build DataFrames (oldest → newest for compute_metrics)
             for f in reversed(fins):
-                revenue_list.append(_safe(f.get("revenue")))
-                ni_list.append(_safe(f.get("pat")))
+                fx = _fx_multiplier(f.get("currency"))
+                revenue_list.append(_safe(f.get("revenue")) * fx)
+                ni_list.append(_safe(f.get("pat")) * fx)
                 oi_list.append(0.0)  # operating_income not in this table
-                fcf_list.append(_safe(f.get("free_cash_flow")))
-                ocf_list.append(_safe(f.get("cfo")))
-                capex_list.append(_safe(f.get("capex")))
+                fcf_list.append(_safe(f.get("free_cash_flow")) * fx)
+                ocf_list.append(_safe(f.get("cfo")) * fx)
+                capex_list.append(_safe(f.get("capex")) * fx)
 
         # ── TTM enrichment from quarterly data ───────────────
         # If company_financials has quarterly rows, compute TTM
@@ -255,11 +278,9 @@ def assemble_local(ticker: str, db_session) -> dict | None:
         log.debug("LOCAL_DATA: no financials for %s — falling back", ticker)
         return None  # Can't do DCF without financials
 
-    # ── Known USD-reporting Indian stocks — always skip local DB ────
-    # See module-level USD_REPORTERS for full list and rationale.
-    if ticker.upper() in USD_REPORTERS:
-        log.info("LOCAL_DATA: %s is USD-reporting — using yfinance fallback", ticker)
-        return None
+    # USD-reporter short-circuit removed: the `currency` column on
+    # `financials` plus `_fx_multiplier` now normalise USD rows into
+    # INR above, so the DB path is safe for HCLTECH / INFY / etc.
 
     # Aiven stores monetary values in Crores. The analysis pipeline
     # (compute_metrics, DCF engine, Piotroski) expects RAW INR.

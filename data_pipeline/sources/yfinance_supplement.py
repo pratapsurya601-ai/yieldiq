@@ -106,6 +106,10 @@ def fetch_and_store_yfinance(ticker_ns: str, ticker: str, db: Session) -> bool:
                             roa=(_safe_pct(pat, total_assets)) if pat and total_assets else None,
                             net_margin=(_safe_pct(pat, revenue)) if pat and revenue else None,
                             data_source="yfinance",
+                            # yfinance normalises all `.NS` / `.BO` financials
+                            # to INR regardless of how the issuer files, so
+                            # we always tag INR here.
+                            currency="INR",
                         )
 
                         if revenue and revenue > 0:

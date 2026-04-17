@@ -15,6 +15,43 @@ from data_pipeline.models import Financials
 
 logger = logging.getLogger(__name__)
 
+
+# ── Currency detection ────────────────────────────────────────────
+# A small set of NSE tickers that file their consolidated XBRL in USD.
+# Kept in sync with backend/services/local_data_service.USD_REPORTERS.
+# The BSE XBRL payload does expose a currency/unit tag, but it is not
+# reliably populated, so we fall back to this explicit allow-list.
+USD_REPORTER_TICKERS: set[str] = {
+    "INFY", "WIPRO", "HCLTECH", "TECHM", "MPHASIS",
+    "HEXAWARE", "LTIM", "LTIMINDTR", "PERSISTENT",
+    "COFORGE", "KPITTECH", "TATAELXSI", "CYIENT",
+    "ZENSAR", "MASTEK", "NIIT", "OFSS",
+    "DIVISLAB", "LAURUSLABS",
+}
+
+
+def _detect_currency(ticker: str, financial_data: dict | None = None) -> str:
+    """
+    Pick the reporting currency for a BSE XBRL filing.
+
+    1. If the filing payload carries a `currency` / `unit_currency` tag,
+       respect it (upper-cased, first 3 chars).
+    2. Otherwise fall back to the explicit USD-reporter allow-list.
+    3. Otherwise default to INR.
+    """
+    if financial_data:
+        raw = (
+            financial_data.get("currency")
+            or financial_data.get("unit_currency")
+            or financial_data.get("reporting_currency")
+        )
+        if raw:
+            code = str(raw).strip().upper()[:3]
+            if code in {"INR", "USD", "EUR", "GBP"}:
+                return code
+    clean = (ticker or "").replace(".NS", "").replace(".BO", "").upper()
+    return "USD" if clean in USD_REPORTER_TICKERS else "INR"
+
 BSE_FINANCIAL_DATA_URL = (
     "https://api.bseindia.com/BseIndiaAPI/api/Stockquote/w?scripcode={scrip_code}"
 )
@@ -414,6 +451,7 @@ def store_financials(financial_data: dict, db: Session,
             roe=(_safe_div(pat, equity) * 100) if pat and equity else None,
             data_source=financial_data.get("source", "BSE_API"),
             raw_data=financial_data.get("raw"),
+            currency=_detect_currency(ticker, financial_data),
         )
 
         db.merge(record)
@@ -552,6 +590,7 @@ def store_ttm(ticker: str, db: Session) -> bool:
             total_equity=equity,
             roe=(_safe_div(pat, equity) * 100) if pat and equity else None,
             data_source="BSE_TTM",
+            currency=_detect_currency(ticker),
         )
 
         db.merge(record)

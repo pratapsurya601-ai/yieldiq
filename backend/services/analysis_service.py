@@ -773,10 +773,44 @@ def _get_pipeline_session():
         return None
 
 
+# USD → INR conversion rate for Financials rows tagged `currency = 'USD'`.
+# TODO: source from a forex feed (RBI reference rate) rather than a constant.
+USD_INR_RATE = 83.5
+
+
+def _fx_multiplier(currency: str | None) -> float:
+    """Return the multiplier to convert a Financials row into INR."""
+    if not currency:
+        return 1.0
+    code = str(currency).strip().upper()
+    if code == "USD":
+        return USD_INR_RATE
+    return 1.0
+
+
+def _convert_row_to_inr(ticker: str, row) -> tuple[float | None, float | None, float | None]:
+    """
+    Read fcf / revenue / pat off a Financials row and convert to INR
+    based on the row's `currency` column.
+    """
+    ccy = getattr(row, "currency", None) or "INR"
+    mult = _fx_multiplier(ccy)
+    fcf = row.free_cash_flow * mult if row.free_cash_flow is not None else None
+    rev = row.revenue * mult if row.revenue is not None else None
+    pat = row.pat * mult if row.pat is not None else None
+    if mult != 1.0:
+        _logger.info(
+            "FX_CONVERT: %s %s → INR at %.2f (fcf %.2f → %.2f)",
+            ticker, ccy, mult,
+            row.free_cash_flow or 0.0, fcf or 0.0,
+        )
+    return fcf, rev, pat
+
+
 def _query_ttm_financials(ticker: str):
     """
     Query TTM financials from local DB.
-    Returns dict with fcf, revenue, pat or None if unavailable.
+    Returns dict with fcf, revenue, pat (INR-normalised) or None if unavailable.
     """
     db = _get_pipeline_session()
     if db is None:
@@ -793,11 +827,13 @@ def _query_ttm_financials(ticker: str):
             .first()
         )
         if row and row.free_cash_flow is not None:
+            fcf, rev, pat = _convert_row_to_inr(ticker, row)
             return {
-                "fcf": row.free_cash_flow,
-                "revenue": row.revenue,
-                "pat": row.pat,
+                "fcf": fcf,
+                "revenue": rev,
+                "pat": pat,
                 "period_end": str(row.period_end) if row.period_end else None,
+                "currency": getattr(row, "currency", None) or "INR",
                 "source": "ttm",
             }
         return None
@@ -810,7 +846,7 @@ def _query_ttm_financials(ticker: str):
 def _query_latest_annual_financials(ticker: str):
     """
     Query latest annual financials from local DB.
-    Returns dict with fcf, revenue, pat or None if unavailable.
+    Returns dict with fcf, revenue, pat (INR-normalised) or None if unavailable.
     """
     db = _get_pipeline_session()
     if db is None:
@@ -826,11 +862,13 @@ def _query_latest_annual_financials(ticker: str):
             .first()
         )
         if row and row.free_cash_flow is not None:
+            fcf, rev, pat = _convert_row_to_inr(ticker, row)
             return {
-                "fcf": row.free_cash_flow,
-                "revenue": row.revenue,
-                "pat": row.pat,
+                "fcf": fcf,
+                "revenue": rev,
+                "pat": pat,
                 "period_end": str(row.period_end) if row.period_end else None,
+                "currency": getattr(row, "currency", None) or "INR",
                 "source": "annual",
             }
         return None
@@ -1211,13 +1249,12 @@ class AnalysisService:
 
         # ── Step 5: WACC + Forecast ───────────────────────────
         # Try TTM data from local DB first, then annual, then yfinance.
-        # USD-reporting tickers (HCLTECH, INFY, WIPRO etc.) MUST skip the
-        # Aiven Financials table — those rows are USD-magnitude and would
-        # corrupt enriched.latest_fcf/revenue/pat, breaking the DCF.
-        from backend.services.local_data_service import USD_REPORTERS as _USD
-        _skip_local_ttm = ticker.upper() in _USD
+        # USD-reporting tickers (HCLTECH, INFY, WIPRO etc.) used to bypass
+        # this path entirely — now the Financials.currency column lets
+        # _query_ttm_financials / _query_latest_annual_financials convert
+        # USD rows to INR before returning.
         _fcf_data_source = "yfinance"
-        _ttm_data = None if _skip_local_ttm else _query_ttm_financials(ticker)
+        _ttm_data = _query_ttm_financials(ticker)
         if _ttm_data:
             _fcf_data_source = "ttm"
             if _ttm_data.get("fcf") is not None:
@@ -1227,7 +1264,7 @@ class AnalysisService:
             if _ttm_data.get("pat") is not None:
                 enriched["latest_pat"] = _ttm_data["pat"]
         else:
-            _annual_data = None if _skip_local_ttm else _query_latest_annual_financials(ticker)
+            _annual_data = _query_latest_annual_financials(ticker)
             if _annual_data:
                 _fcf_data_source = "annual"
                 if _annual_data.get("fcf") is not None and not enriched.get("latest_fcf"):
