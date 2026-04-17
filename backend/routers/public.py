@@ -242,7 +242,10 @@ async def get_stock_summary(ticker: str):
 @router.get("/all-tickers")
 async def get_all_tickers():
     """
-    All tickers with last update date — for sitemap generation.
+    All tickers with last update date — for sitemap generation + universe
+    quality scans. Merges FairValueHistory (stocks users have analyzed)
+    with NSE_UNIVERSE (the curated pipeline coverage list) so that new
+    tickers appear in scans even before any user has analyzed them.
     No auth required. 24-hour cache.
     """
     _cache_key = "public:all-tickers"
@@ -251,6 +254,7 @@ async def get_all_tickers():
         return cached
 
     tickers = []
+    seen_symbols: set[str] = set()
 
     # Source 1: fair_value_history table
     db = _get_db_session()
@@ -268,6 +272,9 @@ async def get_all_tickers():
             )
             for r in rows:
                 display = r.ticker.replace(".NS", "").replace(".BO", "")
+                if display in seen_symbols:
+                    continue
+                seen_symbols.add(display)
                 tickers.append({
                     "ticker": display,
                     "full_ticker": r.ticker,
@@ -278,20 +285,37 @@ async def get_all_tickers():
         finally:
             _safe_close(db)
 
-    # Source 2: analysis cache fallback
-    if not tickers:
-        seen = set()
-        for key in list(cache._store.keys()):
-            if key.startswith("analysis:") and ".NS" in key:
-                t = key.replace("analysis:", "")
-                if t not in seen:
-                    seen.add(t)
-                    display = t.replace(".NS", "").replace(".BO", "")
-                    tickers.append({
-                        "ticker": display,
-                        "full_ticker": t,
-                        "last_updated": None,
-                    })
+    # Source 2: analysis cache (additional coverage)
+    for key in list(cache._store.keys()):
+        if key.startswith("analysis:") and ".NS" in key:
+            t = key.replace("analysis:", "")
+            display = t.replace(".NS", "").replace(".BO", "")
+            if display in seen_symbols:
+                continue
+            seen_symbols.add(display)
+            tickers.append({
+                "ticker": display,
+                "full_ticker": t,
+                "last_updated": None,
+            })
+
+    # Source 3: NSE_UNIVERSE (curated pipeline coverage — ~100 large-caps)
+    # Ensures every tracked ticker appears in scans even if no user has
+    # analyzed it yet. This is what the universe-scan workflow iterates.
+    try:
+        from data_pipeline.pipeline import NSE_UNIVERSE
+        for t in NSE_UNIVERSE:
+            display = t.replace(".NS", "").replace(".BO", "")
+            if display in seen_symbols:
+                continue
+            seen_symbols.add(display)
+            tickers.append({
+                "ticker": display,
+                "full_ticker": f"{display}.NS",
+                "last_updated": None,
+            })
+    except Exception as e:
+        logger.warning(f"all-tickers NSE_UNIVERSE merge failed: {e}")
 
     cache.set(_cache_key, tickers, ttl=86400)
     return tickers
