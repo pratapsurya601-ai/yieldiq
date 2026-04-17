@@ -1301,6 +1301,43 @@ class AnalysisService:
                 if _annual_data.get("fcf") is not None and not enriched.get("latest_fcf"):
                     enriched["latest_fcf"] = _annual_data["fcf"]
 
+        # ── Defensive double-conversion guard ─────────────────────
+        # For USD-reporting Indian stocks (HCL, INFY, WIPRO etc.) the
+        # collector applies fin_multiplier=83.5 to convert USD → INR.
+        # If yfinance's income statement for a specific ticker returns
+        # values in a different scale/unit than expected, the multiplier
+        # stacks and we get ~83× inflation. Observed live for HCLTECH:
+        # revenue=₹97.7T (real ₹1.1T), FCF=₹17.6T (real ₹240B).
+        #
+        # Sanity check: the largest Indian company by revenue (Reliance)
+        # is ~₹10T. Anything >₹15T is structurally impossible and
+        # indicates the double-conversion. Divide by fin_multiplier to
+        # undo.
+        _fin_mult = float(raw.get("fin_multiplier", 1.0) or 1.0)
+        if is_indian and _fin_mult > 1.0:
+            _rev_check = float(enriched.get("latest_revenue") or 0)
+            if _rev_check > 15e12:  # > ₹15 trillion = ₹1,50,000 crore
+                _logger.warning(
+                    "DOUBLE_FX_FIX: %s revenue=₹%.2fT exceeds sanity cap — "
+                    "dividing monetary fields by fin_multiplier=%.1f",
+                    ticker, _rev_check / 1e12, _fin_mult,
+                )
+                for _k in ("latest_revenue", "latest_fcf", "latest_pat"):
+                    _v = enriched.get(_k)
+                    if _v is not None and _v != 0:
+                        enriched[_k] = _v / _fin_mult
+                # Income DataFrame too — forecaster reads cf_df/income_df
+                for _dfkey in ("income_df", "cf_df"):
+                    _df = enriched.get(_dfkey)
+                    if _df is not None and hasattr(_df, "columns"):
+                        for _col in ("revenue", "net_income", "operating_income",
+                                      "fcf", "cfo", "capex", "ebitda"):
+                            if _col in _df.columns:
+                                try:
+                                    _df[_col] = _df[_col] / _fin_mult
+                                except Exception:
+                                    pass
+
         # Apply FCF floor for capex-heavy companies (e.g. RELIANCE, MARUTI, TITAN, HUL)
         _pat = None
         _raw_fcf = enriched.get("latest_fcf", 0) or 0

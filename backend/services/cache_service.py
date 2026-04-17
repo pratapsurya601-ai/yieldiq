@@ -8,7 +8,7 @@ from typing import Any, Optional
 # Bump this integer whenever you change any pricing/DCF/scoring logic.
 # All cache entries keyed with the old version become automatically stale
 # on next access — no manual invalidation needed.
-CACHE_VERSION = 13  # bumped: quality gate checks final FV/price ratio, not raw IV (fewer false positives)
+CACHE_VERSION = 14  # bumped: HCLTECH double-fx sanity guard (revenue > ₹15T triggers division)
 
 
 class CacheService:
