@@ -1500,6 +1500,30 @@ class AnalysisService:
             except Exception:
                 iv = iv_raw
 
+        # ── Growth-stock override ─────────────────────────────
+        # For pre-profit companies (FCF<=0 or PAT<=0) with real revenue,
+        # the standard DCF produces ~0 fair value. Route to a reverse
+        # P/S multiple so users see a principled number, not 'data_limited'.
+        # All logging inside the growth module. No external logger refs
+        # (previous attempt broke every ticker with NameError).
+        try:
+            from models.growth_valuation import (
+                should_use_growth_path,
+                compute_growth_valuation,
+            )
+            _mcap_for_growth = price * (enriched.get("shares", 0) or 0)
+            if should_use_growth_path(enriched, _mcap_for_growth):
+                _gv = compute_growth_valuation(
+                    enriched=enriched,
+                    market_cap=_mcap_for_growth,
+                    sector=enriched.get("sector", "general"),
+                    ticker=ticker,
+                )
+                if _gv and (_gv.get("fair_value") or 0) > 0:
+                    iv = float(_gv["fair_value"])
+        except Exception:
+            pass
+
         mos_pct = margin_of_safety(iv, price) * 100 if price > 0 else 0
 
         # ── Step 7: Quality checks ────────────────────────────
