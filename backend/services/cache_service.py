@@ -8,7 +8,7 @@ from typing import Any, Optional
 # Bump this integer whenever you change any pricing/DCF/scoring logic.
 # All cache entries keyed with the old version become automatically stale
 # on next access — no manual invalidation needed.
-CACHE_VERSION = 24  # bumped: BLUESTAR → BLUESTARCO (last ticker cleanup from universe scan)
+CACHE_VERSION = 25  # bumped: Step 2 — growth-stock reverse P/S valuation for pre-profit companies
 
 
 class CacheService:

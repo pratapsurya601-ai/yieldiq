@@ -1500,6 +1500,39 @@ class AnalysisService:
             except Exception:
                 iv = iv_raw
 
+        # ── Growth-stock override ─────────────────────────────
+        # For pre-profit companies (FCF<=0 or PAT<=0) with real revenue,
+        # the standard DCF produces ~0 fair value because of negative
+        # fcf_base. Route these to a reverse P/S multiple instead so
+        # users see a principled number, not "data_limited".
+        _growth_valuation_used = False
+        try:
+            from models.growth_valuation import (
+                should_use_growth_path,
+                compute_growth_valuation,
+            )
+            _mcap_for_growth = price * enriched.get("shares", 0)
+            if should_use_growth_path(enriched, _mcap_for_growth):
+                _gv = compute_growth_valuation(
+                    enriched=enriched,
+                    market_cap=_mcap_for_growth,
+                    sector=enriched.get("sector", "general"),
+                    ticker=ticker,
+                )
+                if _gv and _gv.get("fair_value", 0) > 0:
+                    _logger.info(
+                        "[%s] growth-stock path: implied_g=%.1f%% hist_g=%.1f%% -> "
+                        "FV=%.2f (%s)",
+                        ticker,
+                        (_gv.get("implied_growth_rate") or 0) * 100,
+                        (_gv.get("historical_growth_rate") or 0) * 100,
+                        _gv["fair_value"], _gv["verdict"],
+                    )
+                    iv = float(_gv["fair_value"])
+                    _growth_valuation_used = True
+        except Exception as _gv_exc:
+            _logger.warning("[%s] growth path skipped: %s", ticker, _gv_exc)
+
         mos_pct = margin_of_safety(iv, price) * 100 if price > 0 else 0
 
         # ── Step 7: Quality checks ────────────────────────────
