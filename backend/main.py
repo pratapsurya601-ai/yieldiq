@@ -198,15 +198,34 @@ def _ensure_pipeline_tables():
 
 
 def _prewarm_popular_stocks():
-    """Pre-warm cache for top 30 popular stocks on startup.
-
-    Same list as the GitHub Actions cache_warmup cron so behaviour
-    is consistent. Runs in a daemon thread to avoid blocking app
-    startup; whole pass takes ~4-5 minutes in background.
     """
+    DISABLED — user-driven cache-on-read is sufficient.
+
+    History: this function was repeatedly saturating Railway's single
+    web worker. Every time it ran a Phase 2 + Phase 3 prewarm, users
+    experienced 8-15 second response times (including /health) because
+    the synchronous DCF compute blocked the worker for 7+ minutes per
+    boot cycle. Killed via redeploy 3+ times on 17-Apr.
+
+    Correct architecture:
+      - Cache TTL is 24h (bumped earlier today) so a single user hit
+        warms a ticker for the whole day.
+      - OG scrapers + organic traffic populate cache naturally.
+      - Full-universe data freshness is handled by the GitHub Actions
+        fundamentals_backfill workflow which runs off-Railway.
+      - If we later get a multi-worker Railway plan, this can be
+        re-enabled selectively for the top-5-10 most-trafficked tickers.
+
+    Leaving the function as a no-op so the call site at lifespan()
+    doesn't need to change.
+    """
+    logger.info("Prewarm disabled (see docstring): relying on user-driven + GH backfill")
+    return
+
+    # Old implementation below — never executed but preserved for reference
     import threading
 
-    def _warm():
+    def _warm():  # pragma: no cover
         import time
         from pathlib import Path
         time.sleep(5)  # Wait for app to fully start
