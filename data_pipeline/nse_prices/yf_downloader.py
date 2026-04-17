@@ -41,7 +41,11 @@ def download_ticker(ticker: str, period: str = "5y") -> Path | None:
 
     symbol = f"{ticker}.NS"
     try:
-        hist = yf.Ticker(symbol).history(period=period, auto_adjust=True)
+        # auto_adjust=False: yfinance's split-adjustment feed misclassified the
+        # July-2023 HDFC Ltd → HDFCBANK merger share issuance as a ~2.12× split,
+        # halving every HDFCBANK close in our pipeline (₹1,700 → ₹800). The DCF
+        # uses point-in-time market price, so un-adjusted raw Close is correct.
+        hist = yf.Ticker(symbol).history(period=period, auto_adjust=False)
         if hist is None or hist.empty:
             log.warning("%s: no data from yfinance", ticker)
             return None

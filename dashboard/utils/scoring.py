@@ -13,37 +13,44 @@ def compute_yieldiq_score(
     """
     Compute YieldIQ Composite Score (0-100).
     
-    Scoring breakdown:
-    - Valuation: 40 points (based on margin of safety)
-    - Business Quality: 30 points (Piotroski F-Score + Economic Moat)
+    Scoring breakdown (quality-focused, ~70% quality / ~30% value):
+    - Business Quality: 50 points (Piotroski F-Score 25 + Economic Moat 25)
     - Growth: 20 points (Revenue growth trajectory)
+    - Valuation: 20 points (Margin of safety)
     - Sentiment: 10 points (Analyst consensus upside)
-    
+
+    Rationale: MoS reflects *price*, not business quality. Over-weighting it
+    penalizes premium-priced compounders (e.g. Nestle, Asian Paints, Titan)
+    whose fundamentals are excellent but whose market price leaves little
+    margin of safety. Quality (ROE/ROCE proxied by Piotroski + durable moat)
+    should dominate the composite.
+
     Model output for informational purposes only. Not investment advice.
-    
+
     Args:
         mos_pct: Margin of safety percentage
         piotroski: Piotroski F-Score (0-9)
         moat_grade: Economic moat grade ("Wide", "Narrow", "None", or A-D)
         rev_growth: Revenue growth rate (%)
         analyst_upside: Analyst target upside (%)
-    
+
     Returns:
         Dict with 'score' (0-100), 'grade' (A+ to D), and 'components' breakdown
     """
-    # Valuation (40 pts)
-    if mos_pct >= 40:    val_score = 40
-    elif mos_pct >= 25:  val_score = 32
-    elif mos_pct >= 10:  val_score = 22
-    elif mos_pct >= 0:   val_score = 14
-    elif mos_pct >= -15: val_score = 7
+    # Valuation (20 pts) — reduced weight; MoS is a price signal, not quality
+    if mos_pct >= 40:    val_score = 20
+    elif mos_pct >= 25:  val_score = 16
+    elif mos_pct >= 10:  val_score = 12
+    elif mos_pct >= 0:   val_score = 8
+    elif mos_pct >= -15: val_score = 5
+    elif mos_pct >= -30: val_score = 3
     else:                val_score = 0
 
-    # Business Quality (30 pts) — Piotroski + Moat
-    pio_score = min(piotroski / 9 * 20, 20)
+    # Business Quality (50 pts) — Piotroski (25) + Moat (25)
+    pio_score = min(piotroski / 9 * 25, 25)
     _moat_map = {
-        "A": 10, "B": 7, "C": 4, "D": 1,
-        "Wide": 10, "Narrow": 7,
+        "A": 25, "B": 18, "C": 10, "D": 3,
+        "Wide": 25, "Narrow": 18,
         "None": 0, "none": 0, "N/A": 0, "": 0,
     }
     moat_pts   = _moat_map.get(str(moat_grade).strip(), 0)
@@ -77,9 +84,9 @@ def compute_yieldiq_score(
         "score": total,
         "grade": grade,
         "components": {
-            "Valuation (40pts)":        int(val_score),
-            "Business Quality (30pts)": int(qual_score),
+            "Business Quality (50pts)": int(qual_score),
             "Growth (20pts)":           int(grw_score),
+            "Valuation (20pts)":        int(val_score),
             "Sentiment (10pts)":        int(sent_score),
         },
     }
