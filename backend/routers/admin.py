@@ -10,6 +10,31 @@ logger = logging.getLogger("yieldiq.admin")
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
+# Public debug router (no auth) — exposes read-only DCF traces so
+# production blow-ups can be diagnosed without scraping Railway logs.
+debug_router = APIRouter(prefix="/api/v1/debug", tags=["debug"])
+
+
+@debug_router.get("/dcf-trace")
+async def list_dcf_traces(limit: int = 50):
+    """Return most recent DCF traces keyed by ticker (read-only)."""
+    from screener.dcf_engine import DCF_TRACES
+    items = list(DCF_TRACES.items())[-limit:]
+    return {"count": len(items), "traces": dict(items)}
+
+
+@debug_router.get("/dcf-trace/{ticker}")
+async def get_dcf_trace(ticker: str):
+    """Return the most recent DCF trace for a single ticker."""
+    from screener.dcf_engine import DCF_TRACES
+    t = ticker.upper().strip()
+    if not t.endswith(".NS") and not t.endswith(".BO"):
+        t = f"{t}.NS"
+    trace = DCF_TRACES.get(t)
+    if not trace:
+        raise HTTPException(status_code=404, detail=f"No DCF trace for {t} yet — trigger an analysis first")
+    return trace
+
 ADMIN_EMAILS = {"pratapsurya601@gmail.com", "suryasbss601@gmail.com"}
 
 

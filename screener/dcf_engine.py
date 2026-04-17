@@ -23,10 +23,15 @@ from utils.config import DISCOUNT_RATE, TERMINAL_GROWTH_RATE, FORECAST_YEARS
 
 log = get_logger(__name__)
 
-MIN_DISCOUNT_RATE   = 0.07    
+MIN_DISCOUNT_RATE   = 0.07
 MAX_TERMINAL_GROWTH = 0.04
-IV_HARD_CAP_MULT    = 5.0     
-TV_WARNING_PCT      = 0.75    
+IV_HARD_CAP_MULT    = 5.0
+TV_WARNING_PCT      = 0.75
+
+# In-memory ring buffer of recent DCF traces — one entry per ticker,
+# overwritten on each new DCF call. Exposed via /api/v1/debug/dcf-trace
+# so the last blow-up can be inspected without scraping Railway logs.
+DCF_TRACES: dict[str, dict] = {}
 
 # NEW: Edge case thresholds
 HIGH_VOLATILITY_BETA = 1.5      # Beta > 1.5 = high volatility
@@ -367,25 +372,31 @@ class DCFEngine:
             else:
                 _impl_g = 0.0
             _ratio = (iv_per_share_raw / current_price) if current_price > 0 else 0.0
-            log.info(
-                "DCF_TRACE ticker=%s fcf_base=%.2f fcfN=%.2f impl_g=%.4f "
-                "terminal_fcf_norm=%.2f terminal_value=%.2f pv_tv=%.2f "
-                "tv_pct_ev=%.4f enterprise_value=%.2f total_debt=%.2f "
-                "total_cash=%.2f equity_value=%.2f shares=%.0f "
-                "raw_iv=%.4f price=%.4f iv_ratio=%.2fx wacc=%.4f g=%.4f "
-                "capped=%s",
-                ticker, _fcf0, _fcfN, _impl_g,
-                float(terminal_fcf_norm or 0.0),
-                float(ev_dict.get("terminal_value") or 0.0),
-                float(ev_dict.get("pv_tv") or 0.0),
-                float(ev_dict.get("tv_pct_of_ev") or 0.0),
-                float(ev_dict.get("enterprise_value") or 0.0),
-                float(total_debt or 0.0), float(total_cash or 0.0),
-                float(equity_value or 0.0), float(shares_outstanding or 0),
-                iv_per_share_raw, float(current_price or 0.0), _ratio,
-                float(self.r), float(self.g),
-                iv_per_share_raw > IV_HARD_CAP_MULT * current_price if current_price > 0 else False,
-            )
+            _trace = {
+                "ticker": ticker,
+                "fcf_base": _fcf0,
+                "fcfN": _fcfN,
+                "impl_g": round(_impl_g, 4),
+                "terminal_fcf_norm": float(terminal_fcf_norm or 0.0),
+                "terminal_value": float(ev_dict.get("terminal_value") or 0.0),
+                "pv_tv": float(ev_dict.get("pv_tv") or 0.0),
+                "tv_pct_ev": round(float(ev_dict.get("tv_pct_of_ev") or 0.0), 4),
+                "enterprise_value": float(ev_dict.get("enterprise_value") or 0.0),
+                "total_debt": float(total_debt or 0.0),
+                "total_cash": float(total_cash or 0.0),
+                "equity_value": float(equity_value or 0.0),
+                "shares": float(shares_outstanding or 0),
+                "raw_iv": round(iv_per_share_raw, 4),
+                "price": float(current_price or 0.0),
+                "iv_ratio": round(_ratio, 4),
+                "wacc": round(float(self.r), 4),
+                "g": round(float(self.g), 4),
+                "capped": iv_per_share_raw > IV_HARD_CAP_MULT * current_price if current_price > 0 else False,
+                "projected_fcfs": [round(float(x), 2) for x in projected_fcfs[:10]],
+            }
+            # Ring buffer — keep most recent per ticker
+            DCF_TRACES[ticker] = _trace
+            log.info("DCF_TRACE %s", _trace)
         except Exception:
             # Never let instrumentation break the DCF
             pass
