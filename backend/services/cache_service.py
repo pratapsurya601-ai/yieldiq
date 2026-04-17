@@ -10,6 +10,8 @@ from typing import Any, Optional
 # the single trigger. Every other change -- observability, new endpoints,
 # error sanitization, logging, metadata, frontend wiring, schema additions
 # that don't touch analysis output -- must NOT bump this.
+# (This edit is a no-op trigger to force a Railway redeploy that kills a
+# runaway background job. Not a semantic change.)
 #
 # Why the discipline matters: a bump invalidates every cached analysis in
 # Railway memory. Users hitting the site during that window see 10-30s
