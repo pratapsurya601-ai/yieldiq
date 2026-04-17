@@ -15,8 +15,17 @@ export const metadata: Metadata = {
     "Free DCF valuation for 2,900+ NSE/BSE stocks. Instant fair value, margin of safety, and quality scores.",
   manifest: "/manifest.json",
   icons: {
-    icon: "/logo-new.svg",
-    apple: "/logo-new.svg",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-16.png", type: "image/png", sizes: "16x16" },
+      { url: "/favicon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
   },
   appleWebApp: {
     capable: true,
@@ -32,7 +41,7 @@ export const metadata: Metadata = {
     locale: "en_IN",
     images: [
       {
-        url: "https://yieldiq.in/logo_icon.jpeg",
+        url: "https://yieldiq.in/icon-512.png",
         width: 512,
         height: 512,
         alt: "YieldIQ — Stock Valuation Tool",
@@ -43,7 +52,7 @@ export const metadata: Metadata = {
     card: "summary",
     title: "YieldIQ — Stock Valuation for Indian Investors",
     description: "Free DCF analysis for NSE/BSE stocks. Know the fair value before you invest.",
-    images: ["https://yieldiq.in/logo_icon.jpeg"],
+    images: ["https://yieldiq.in/icon-512.png"],
   },
 };
 

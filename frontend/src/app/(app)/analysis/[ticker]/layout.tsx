@@ -26,6 +26,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     (ogData?.description as string) ||
     `Free DCF valuation for ${displayTicker}. Know if it's undervalued.`
 
+  // Use the dynamic OG image route — generates a 1200x630 PNG
+  // with the stock's verdict, fair value, score, etc. baked in
+  const ogImageUrl = `https://yieldiq.in/api/og/${ticker}`
+
   return {
     title,
     description,
@@ -35,11 +39,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       url: `https://yieldiq.in/analysis/${ticker}`,
       siteName: "YieldIQ",
       type: "website",
+      images: [
+        {
+          url: ogImageUrl,
+          width: 1200,
+          height: 630,
+          alt: `${displayTicker} stock analysis on YieldIQ`,
+        },
+      ],
     },
     twitter: {
       card: "summary_large_image",
       title,
       description,
+      images: [ogImageUrl],
     },
   }
 }
