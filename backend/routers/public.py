@@ -755,6 +755,155 @@ async def get_screen(slug: str, limit: int = Query(default=50, le=200)):
 # Risk stats — drawdown, volatility, beta, returns
 # ═══════════════════════════════════════════════════════════════
 
+@router.get("/dupont/{ticker}")
+async def get_dupont_analysis(ticker: str, years: int = Query(default=5, ge=3, le=10)):
+    """
+    DuPont decomposition of ROE over the last N years.
+
+    ROE = Net Margin x Asset Turnover x Equity Multiplier
+        = (PAT / Revenue) x (Revenue / Assets) x (Assets / Equity)
+
+    Returns historical decomposition so user can see which lever
+    (profitability, efficiency, or leverage) drives the return.
+
+    No auth. 24-hour cache.
+    """
+    ticker = ticker.upper().strip()
+    clean = ticker.replace(".NS", "").replace(".BO", "")
+    _cache_key = f"public:dupont:{clean}:{years}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    db = _get_db_session()
+    if db is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    try:
+        from data_pipeline.models import Financials, Stock
+        from datetime import date as _date
+
+        cutoff = _date.today().replace(year=_date.today().year - years)
+        rows = (
+            db.query(Financials)
+            .filter(Financials.ticker == clean)
+            .filter(Financials.period_type == "annual")
+            .filter(Financials.period_end >= cutoff)
+            .order_by(Financials.period_end.desc())
+            .limit(years)
+            .all()
+        )
+
+        if not rows:
+            raise HTTPException(status_code=404, detail=f"No financial history for {clean}")
+
+        # Company info
+        stock = db.query(Stock).filter(Stock.ticker == clean).first()
+        company_name = stock.company_name if stock else clean
+
+        decomposition = []
+        for r in rows:
+            revenue = r.revenue or 0
+            pat = r.pat or 0
+            total_assets = r.total_assets or 0
+            total_equity = r.total_equity or 0
+
+            if revenue > 0 and total_assets > 0 and total_equity > 0:
+                net_margin = pat / revenue
+                asset_turnover = revenue / total_assets
+                equity_multiplier = total_assets / total_equity
+                roe = net_margin * asset_turnover * equity_multiplier
+
+                # Also compute ROA as a sanity check
+                roa = pat / total_assets if total_assets > 0 else 0
+
+                decomposition.append({
+                    "period_end": r.period_end.isoformat(),
+                    "fy": f"FY{r.period_end.year}" if r.period_end.month <= 3 else f"FY{r.period_end.year + 1}",
+                    "revenue_cr": round(revenue / 1e7, 1),
+                    "pat_cr": round(pat / 1e7, 1),
+                    "total_assets_cr": round(total_assets / 1e7, 1),
+                    "total_equity_cr": round(total_equity / 1e7, 1),
+                    "net_margin_pct": round(net_margin * 100, 2),
+                    "asset_turnover": round(asset_turnover, 2),
+                    "equity_multiplier": round(equity_multiplier, 2),
+                    "roe_pct": round(roe * 100, 2),
+                    "roa_pct": round(roa * 100, 2),
+                })
+
+        if not decomposition:
+            raise HTTPException(status_code=404, detail=f"Insufficient financial data for {clean}")
+
+        # Sort chronologically for display (oldest first)
+        decomposition.sort(key=lambda x: x["period_end"])
+
+        # Compute trend commentary
+        commentary = _dupont_commentary(decomposition)
+
+        result = {
+            "ticker": ticker,
+            "display_ticker": clean,
+            "company_name": company_name,
+            "years": len(decomposition),
+            "periods": decomposition,
+            "latest": decomposition[-1] if decomposition else None,
+            "commentary": commentary,
+        }
+        cache.set(_cache_key, result, ttl=86400)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"dupont failed for {clean}: {e}")
+        raise HTTPException(status_code=500, detail="DuPont analysis failed")
+    finally:
+        _safe_close(db)
+
+
+def _dupont_commentary(periods: list[dict]) -> str:
+    """Generate plain-English commentary on DuPont trends."""
+    if len(periods) < 2:
+        return ""
+
+    latest = periods[-1]
+    oldest = periods[0]
+
+    margin_delta = latest["net_margin_pct"] - oldest["net_margin_pct"]
+    turnover_delta = latest["asset_turnover"] - oldest["asset_turnover"]
+    leverage_delta = latest["equity_multiplier"] - oldest["equity_multiplier"]
+    roe_delta = latest["roe_pct"] - oldest["roe_pct"]
+
+    parts: list[str] = []
+
+    if roe_delta > 1:
+        parts.append(f"ROE improved by {roe_delta:.1f} pp over {len(periods)} years.")
+    elif roe_delta < -1:
+        parts.append(f"ROE declined by {abs(roe_delta):.1f} pp over {len(periods)} years.")
+    else:
+        parts.append(f"ROE stable at ~{latest['roe_pct']:.0f}%.")
+
+    # Dominant driver
+    drivers = []
+    if abs(margin_delta) > 1:
+        dir_ = "improving" if margin_delta > 0 else "declining"
+        drivers.append(f"net margin {dir_} ({oldest['net_margin_pct']:.1f}% \u2192 {latest['net_margin_pct']:.1f}%)")
+    if abs(turnover_delta) > 0.1:
+        dir_ = "improving" if turnover_delta > 0 else "declining"
+        drivers.append(f"asset turnover {dir_} ({oldest['asset_turnover']:.2f}x \u2192 {latest['asset_turnover']:.2f}x)")
+    if abs(leverage_delta) > 0.2:
+        dir_ = "rising" if leverage_delta > 0 else "falling"
+        drivers.append(f"leverage {dir_} ({oldest['equity_multiplier']:.2f}x \u2192 {latest['equity_multiplier']:.2f}x)")
+
+    if drivers:
+        parts.append("Driven by " + ", ".join(drivers) + ".")
+
+    # High leverage warning
+    if latest["equity_multiplier"] > 4:
+        parts.append("High financial leverage (equity multiplier > 4x) amplifies returns but also risk.")
+
+    return " ".join(parts)
+
+
 @router.get("/risk-stats/{ticker}")
 async def get_risk_stats_endpoint(ticker: str, years: int = Query(default=3, ge=1, le=10)):
     """
