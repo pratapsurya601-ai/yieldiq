@@ -528,7 +528,7 @@ async def public_compare(
     return result
 
 # ---------------------------------------------------------------
-# Earnings Calendar — public endpoint
+# Earnings Calendar ï¿½ public endpoint
 # ---------------------------------------------------------------
 
 @router.get("/earnings-calendar")
@@ -601,3 +601,151 @@ def _group_earnings_by_date(events: list) -> list:
         {"date": d, "count": len(items), "tickers": [e["display_ticker"] for e in items[:10]]}
         for d, items in sorted(grouped.items())
     ]
+
+# ---------------------------------------------------------------
+# Pre-built Screens ï¿½ public landing pages (SEO)
+# ---------------------------------------------------------------
+
+SCREENS: dict[str, dict] = {
+    "high-roce": {
+        "name": "High ROCE Stocks",
+        "description": "Indian stocks with ROCE > 20% ï¿½ capital-efficient businesses",
+        "h1": "High ROCE Stocks (ROCE > 20%)",
+        "intro": "Companies generating 20%+ return on capital employed. High ROCE indicates efficient capital allocation and pricing power.",
+        "filter": lambda s: (s.get("roce") or 0) >= 20,
+        "sort_key": "roce",
+        "sort_desc": True,
+    },
+    "low-pe-quality": {
+        "name": "Low P/E Quality Stocks",
+        "description": "P/E < 20 + Piotroski F-Score >= 7 ï¿½ value with quality",
+        "h1": "Low P/E Quality Stocks (P/E < 20, F-Score \u2265 7)",
+        "intro": "Combines value (low P/E) with quality (high Piotroski F-Score). Filters out value traps by requiring strong fundamentals.",
+        "filter": lambda s: ((s.get("pe_ratio") or 999) < 20) and ((s.get("piotroski") or 0) >= 7),
+        "sort_key": "score",
+        "sort_desc": True,
+    },
+    "debt-free": {
+        "name": "Debt-Free Stocks",
+        "description": "Indian stocks with Debt-to-Equity < 0.2 ï¿½ minimal leverage risk",
+        "h1": "Debt-Free Indian Stocks (D/E < 0.2)",
+        "intro": "Companies with virtually no debt on the balance sheet. Lower financial risk during downturns and rising rate environments.",
+        "filter": lambda s: (s.get("de_ratio") is not None) and (s.get("de_ratio") < 0.2),
+        "sort_key": "score",
+        "sort_desc": True,
+    },
+    "undervalued-quality": {
+        "name": "Undervalued Quality Stocks",
+        "description": "YieldIQ Score >= 70 + Margin of Safety >= 20% ï¿½ high-quality undervalued",
+        "h1": "Undervalued Quality Stocks (Score \u2265 70, MoS \u2265 20%)",
+        "intro": "Stocks with strong YieldIQ quality scores trading at meaningful discounts to fair value.",
+        "filter": lambda s: ((s.get("score") or 0) >= 70) and ((s.get("mos") or 0) >= 20),
+        "sort_key": "mos",
+        "sort_desc": True,
+    },
+    "wide-moat": {
+        "name": "Wide Moat Stocks",
+        "description": "Indian companies with sustainable competitive advantages",
+        "h1": "Wide Moat Stocks (Indian Equities)",
+        "intro": "Companies with durable competitive advantages \u2014 brand pricing power, network effects, switching costs, or scale economies.",
+        "filter": lambda s: s.get("moat") == "Wide",
+        "sort_key": "score",
+        "sort_desc": True,
+    },
+    "high-piotroski": {
+        "name": "High Piotroski F-Score Stocks",
+        "description": "Indian stocks with Piotroski F-Score 8 or 9 ï¿½ top financial strength",
+        "h1": "High Piotroski F-Score Stocks (F-Score 8-9)",
+        "intro": "Joseph Piotroski\'s 9-point fundamental quality score. Companies scoring 8-9 show consistent profitability, efficiency, and balance sheet strength.",
+        "filter": lambda s: (s.get("piotroski") or 0) >= 8,
+        "sort_key": "piotroski",
+        "sort_desc": True,
+    },
+}
+
+
+@router.get("/screens")
+async def list_screens():
+    """List all available pre-built screens."""
+    return [
+        {
+            "slug": slug,
+            "name": cfg["name"],
+            "description": cfg["description"],
+        }
+        for slug, cfg in SCREENS.items()
+    ]
+
+
+@router.get("/screens/{slug}")
+async def get_screen(slug: str, limit: int = Query(default=50, le=200)):
+    """
+    Run a pre-built screen against the analysis cache.
+    No auth required. 30-min cache.
+    """
+    if slug not in SCREENS:
+        raise HTTPException(status_code=404, detail=f"Screen \'{slug}\' not found")
+
+    _cache_key = f"public:screen:{slug}:{limit}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    cfg = SCREENS[slug]
+    candidates = []
+
+    # Scan analysis cache for matching tickers
+    for key in list(cache._store.keys()):
+        if not key.startswith("analysis:") or ".NS" not in key:
+            continue
+        val = cache.get(key)
+        if not val or not hasattr(val, "valuation"):
+            continue
+        v = val.valuation
+        q = val.quality
+        c = val.company
+        # Compute pe_ratio if possible
+        pe_ratio = None
+        try:
+            if v.current_price and getattr(v, "eps_ttm", None):
+                pe_ratio = v.current_price / v.eps_ttm
+        except Exception:
+            pass
+
+        stock_data = {
+            "ticker": val.ticker,
+            "display_ticker": val.ticker.replace(".NS", "").replace(".BO", ""),
+            "company_name": c.company_name,
+            "sector": c.sector,
+            "current_price": round(v.current_price, 2),
+            "fair_value": round(v.fair_value, 2),
+            "mos": round(v.margin_of_safety, 1),
+            "verdict": v.verdict,
+            "score": q.yieldiq_score,
+            "grade": q.grade,
+            "moat": q.moat,
+            "piotroski": q.piotroski_score,
+            "roe": round(q.roe, 2) if q.roe else None,
+            "roce": round(q.roce, 2) if getattr(q, "roce", None) else None,
+            "de_ratio": round(q.de_ratio, 2) if q.de_ratio else None,
+            "pe_ratio": round(pe_ratio, 2) if pe_ratio else None,
+            "market_cap": c.market_cap,
+        }
+        if cfg["filter"](stock_data):
+            candidates.append(stock_data)
+
+    # Sort
+    candidates.sort(key=lambda x: x.get(cfg["sort_key"]) or 0, reverse=cfg["sort_desc"])
+    candidates = candidates[:limit]
+
+    result = {
+        "slug": slug,
+        "name": cfg["name"],
+        "description": cfg["description"],
+        "h1": cfg["h1"],
+        "intro": cfg["intro"],
+        "total": len(candidates),
+        "stocks": candidates,
+    }
+    cache.set(_cache_key, result, ttl=1800)
+    return result
