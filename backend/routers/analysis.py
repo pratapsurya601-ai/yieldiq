@@ -71,6 +71,40 @@ async def get_analysis(
 
     try:
         result = service.get_full_analysis(ticker)
+
+        # ── Output sanity gate ──────────────────────────────────
+        # If the computed fair value is absurd relative to price (>3x,
+        # <0.1x, or |MoS| > 200%), suppress the misleading numbers
+        # and flip verdict to 'data_limited' so the frontend renders
+        # "Under Review" instead of a wrong FV. Keeps quality score,
+        # moat, etc. intact since those are computed independently.
+        try:
+            _fv = float(result.valuation.fair_value or 0)
+            _px = float(result.valuation.current_price or 0)
+            _mos = float(result.valuation.margin_of_safety or 0)
+            _suspicious = False
+            if _px > 0 and _fv > 0:
+                _r = _fv / _px
+                if _r > 3.0 or _r < 0.1:
+                    _suspicious = True
+            if abs(_mos) > 200:
+                _suspicious = True
+            if _suspicious:
+                result.valuation.verdict = "data_limited"
+                result.valuation.fair_value = 0.0
+                result.valuation.margin_of_safety = 0.0
+                result.valuation.margin_of_safety_display = 0.0
+                result.valuation.mos_is_extreme = False
+                result.valuation.mos_extreme_note = None
+                _issues = list(getattr(result, "data_issues", []) or [])
+                _issues.append(
+                    "[critical] Fair value computation produced an "
+                    "unrealistic result — under review."
+                )
+                result.data_issues = _issues
+        except Exception:
+            pass
+
         # Cache for 30 minutes (was 15) — analysis data doesn't change that fast
         cache.set(_cache_key, result, ttl=14400)
         return result
