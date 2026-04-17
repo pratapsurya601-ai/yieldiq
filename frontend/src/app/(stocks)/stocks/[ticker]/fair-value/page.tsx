@@ -3,6 +3,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { validateAnalysisData } from "@/lib/validators"
 import DataQualityBanner from "@/components/analysis/DataQualityBanner"
+import DataUnderReview from "@/components/DataUnderReview"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -28,12 +29,49 @@ interface StockSummary {
   confidence: number
   roe: number | null
   de_ratio: number | null
+  // Phase 2.1 ratios — all nullable, render "—" when missing
+  roce: number | null
+  debt_ebitda: number | null
+  interest_coverage: number | null
+  current_ratio: number | null
+  asset_turnover: number | null
+  revenue_cagr_3y: number | null
+  revenue_cagr_5y: number | null
+  ev_ebitda: number | null
   market_cap: number
   ai_summary_snippet: string | null
   last_updated: string | null
 }
 
-async function getStockData(ticker: string): Promise<StockSummary | null> {
+interface UnderReviewPayload {
+  status: "under_review"
+  ticker: string
+  message: string
+  last_validated_at: string
+  reason: string
+  issue_count: number
+}
+
+type StockResponse = StockSummary | UnderReviewPayload
+
+function isUnderReview(d: StockResponse): d is UnderReviewPayload {
+  return (d as UnderReviewPayload).status === "under_review"
+}
+
+// Last-line-of-defense sanity check — even if the backend gate missed
+// something, we won't render impossible numbers. Mirrors the server
+// bounds: WACC 0.02–0.30, |ROE| ≤ 200, FV/CMP 0.2–5x.
+function clientSanityFail(d: StockSummary): boolean {
+  if (d.wacc != null && (d.wacc > 0.30 || d.wacc < 0.02)) return true
+  if (d.roe != null && Math.abs(d.roe) > 200) return true
+  if (d.fair_value && d.current_price) {
+    const r = d.fair_value / d.current_price
+    if (r > 5 || r < 0.2) return true
+  }
+  return false
+}
+
+async function getStockData(ticker: string): Promise<StockResponse | null> {
   try {
     const res = await fetch(`${API_BASE}/api/v1/public/stock-summary/${ticker}`, {
       next: { revalidate: 3600 },
@@ -99,6 +137,15 @@ export async function generateMetadata(
   }
 
   const display = ticker.toUpperCase()
+
+  if (isUnderReview(data)) {
+    return {
+      title: `${display} — Data Under Review | YieldIQ`,
+      description: `Analysis for ${display} is being recalibrated. Check back shortly.`,
+      robots: { index: false, follow: true },
+    }
+  }
+
   const vText = verdictLabel(data.verdict)
 
   return {
@@ -137,6 +184,23 @@ export default async function StockFairValuePage(
   if (!data) notFound()
 
   const display = ticker.toUpperCase()
+
+  // Server said "under review" — never render numbers from this payload.
+  if (isUnderReview(data)) {
+    return (
+      <DataUnderReview
+        symbol={display}
+        lastValidatedAt={data.last_validated_at}
+        reason={data.reason}
+      />
+    )
+  }
+
+  // Last-line-of-defense: if the server missed something, still don't ship.
+  if (clientSanityFail(data)) {
+    return <DataUnderReview symbol={display} reason="client_sanity_fail" />
+  }
+
   const vc = verdictColor(data.verdict)
   const mosSign = data.mos >= 0 ? "+" : ""
 
@@ -250,6 +314,36 @@ export default async function StockFairValuePage(
             </div>
           ))}
         </div>
+
+        {/* Quality & Valuation ratios — Phase 2.1
+            Neutral monochrome; factual descriptors; "—" when data missing.
+            NO buy/sell color coding. */}
+        {(data.roce != null || data.ev_ebitda != null || data.debt_ebitda != null ||
+          data.interest_coverage != null || data.current_ratio != null ||
+          data.asset_turnover != null || data.revenue_cagr_3y != null) && (
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
+            <h2 className="text-lg font-bold text-gray-900 mb-1">Quality &amp; Valuation</h2>
+            <p className="text-xs text-gray-400 mb-4">Neutral model outputs &mdash; no recommendations.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+              {[
+                { label: "ROCE", value: data.roce != null ? `${data.roce.toFixed(1)}%` : "\u2014", note: "Return on capital employed" },
+                { label: "EV / EBITDA", value: data.ev_ebitda != null ? `${data.ev_ebitda.toFixed(1)}\u00D7` : "\u2014", note: "Enterprise multiple" },
+                { label: "Debt / EBITDA", value: data.debt_ebitda != null ? `${data.debt_ebitda.toFixed(1)}\u00D7` : "\u2014", note: "Leverage vs earnings" },
+                { label: "Interest Coverage", value: data.interest_coverage != null ? `${data.interest_coverage.toFixed(1)}\u00D7` : "\u2014", note: "EBIT covers interest" },
+                { label: "Current Ratio", value: data.current_ratio != null ? `${data.current_ratio.toFixed(2)}\u00D7` : "\u2014", note: "Short-term liquidity" },
+                { label: "Asset Turnover", value: data.asset_turnover != null ? `${data.asset_turnover.toFixed(2)}\u00D7` : "\u2014", note: "Revenue per \u20B9 of assets" },
+                { label: "Revenue CAGR (3Y)", value: data.revenue_cagr_3y != null ? `${(data.revenue_cagr_3y * 100).toFixed(1)}%` : "\u2014", note: "3-year revenue growth" },
+                { label: "Revenue CAGR (5Y)", value: data.revenue_cagr_5y != null ? `${(data.revenue_cagr_5y * 100).toFixed(1)}%` : "\u2014", note: "5-year revenue growth" },
+              ].map(r => (
+                <div key={r.label} className="border-l-2 border-gray-200 pl-3 py-1">
+                  <p className="text-[10px] text-gray-500 uppercase tracking-wider">{r.label}</p>
+                  <p className="text-lg font-bold text-gray-900 font-mono">{r.value}</p>
+                  <p className="text-[10px] text-gray-400">{r.note}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* DCF Scenarios */}
         <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">

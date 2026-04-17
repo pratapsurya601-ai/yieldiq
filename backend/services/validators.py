@@ -276,3 +276,54 @@ def log_validation(ticker: str, result: ValidationResult) -> None:
             "VALIDATION WARNING [%s]: %d issues | %s",
             ticker, len(result.issues), "; ".join(result.issues)
         )
+
+
+# ═══════════════════════════════════════════════════════════════
+# Fail-closed gate for public API responses.
+#
+# Critical validation failures must not ship broken numbers to
+# the frontend. Callers do:
+#
+#     quarantine = check_and_quarantine(ticker, response)
+#     if quarantine is not None:
+#         return quarantine          # under_review payload
+#     return _normal_summary(...)    # clean payload
+# ═══════════════════════════════════════════════════════════════
+
+def under_review_payload(ticker: str, reason: str, issues: list[str] | None = None) -> dict:
+    """Shape returned to the frontend when data is quarantined."""
+    import datetime as _dt
+    return {
+        "status": "under_review",
+        "ticker": ticker,
+        "message": (
+            "Data for this stock is being recalibrated. "
+            "Analysis will return shortly."
+        ),
+        "last_validated_at": _dt.datetime.utcnow().isoformat() + "Z",
+        "reason": reason,
+        # issues is diagnostic, not user-facing — keep it short and generic.
+        "issue_count": len(issues or []),
+    }
+
+
+def check_and_quarantine(ticker: str, response) -> dict | None:
+    """
+    Run validate_analysis on a response. Return under_review payload if
+    the response must not ship, else None (meaning: response is safe).
+
+    Warning-severity issues do NOT quarantine — only critical.
+    """
+    try:
+        vr = validate_analysis(response)
+    except Exception as e:  # never let the gate itself break a request
+        logger.warning("Gate crashed for %s: %s", ticker, e)
+        return None
+    if vr.ok or vr.severity != "critical":
+        return None
+    log_validation(ticker, vr)
+    return under_review_payload(
+        ticker=ticker,
+        reason="validation_critical",
+        issues=vr.issues,
+    )

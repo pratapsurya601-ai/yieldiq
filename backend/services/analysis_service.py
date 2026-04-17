@@ -1842,6 +1842,35 @@ class AnalysisService:
         ):
             _interest_cov_val = round(_ebit_val / _interest_exp, 1)
 
+        # ── Phase 2.1 ratios ─────────────────────────────────
+        # All new fields are Optional in QualityOutput; when data is
+        # missing they stay None and render as "—" in the frontend.
+        from backend.services.ratios_service import (
+            compute_current_ratio as _cr,
+            compute_asset_turnover as _at,
+            compute_revenue_cagr as _rcagr,
+        )
+
+        _current_ratio = _cr(
+            enriched.get("current_assets"),
+            enriched.get("current_liabilities"),
+        )
+        _asset_turnover = _at(
+            enriched.get("latest_revenue") or enriched.get("revenue"),
+            _total_assets,
+        )
+        _rev_cagr_3y = None
+        _rev_cagr_5y = None
+        try:
+            _inc = enriched.get("income_df")
+            if _inc is not None and hasattr(_inc, "empty") and not _inc.empty \
+                    and "revenue" in _inc.columns:
+                _rev_series = _inc["revenue"].dropna().tolist()
+                _rev_cagr_3y = _rcagr(_rev_series, 3)
+                _rev_cagr_5y = _rcagr(_rev_series, 5)
+        except Exception:
+            pass
+
         # Enterprise Value in Crores: market_cap_cr + debt − cash.
         # market_cap not in enriched — derive from price × shares.
         _ent_val_cr: float | None = None
@@ -1913,6 +1942,10 @@ class AnalysisService:
                 debt_ebitda_label=_debt_ebitda_lbl,
                 interest_coverage=_interest_cov_val,
                 enterprise_value=_ent_val_cr,
+                current_ratio=_current_ratio,
+                asset_turnover=_asset_turnover,
+                revenue_cagr_3y=_rev_cagr_3y,
+                revenue_cagr_5y=_rev_cagr_5y,
                 promoter_pct=_sh.get("promoter_pct"),
                 promoter_pledge_pct=_sh.get("promoter_pledge_pct"),
                 fii_pct=_sh.get("fii_pct"),

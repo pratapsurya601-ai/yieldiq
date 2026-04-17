@@ -125,7 +125,8 @@ async def get_analysis(
         except Exception:
             pass
 
-        # Cache for 30 minutes (was 15) — analysis data doesn't change that fast
+        # Cache for 24h — analysis data doesn't change fast, and cold-recomputes
+        # hit yfinance which is the slowest link.
         cache.set(_cache_key, result, ttl=86400)
         return result
     except TickerNotFoundError:

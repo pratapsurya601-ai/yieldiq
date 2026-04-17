@@ -71,6 +71,11 @@ class QualityOutput(BaseModel):
     debt_ebitda_label: Optional[str] = None         # Excellent / Healthy / Leveraged / High Risk
     interest_coverage: Optional[float] = None       # ebit / interest_expense
     enterprise_value: Optional[float] = None        # market_cap + debt − cash (in Cr)
+    # Phase 2.1 additions — backfill when data available, None otherwise
+    current_ratio: Optional[float] = None           # current_assets / current_liabilities
+    asset_turnover: Optional[float] = None          # revenue / total_assets
+    revenue_cagr_3y: Optional[float] = None         # DECIMAL (0.124 = 12.4%)
+    revenue_cagr_5y: Optional[float] = None         # DECIMAL
     # Shareholding breakdown from ShareholdingPattern table
     promoter_pct: Optional[float] = None
     promoter_pledge_pct: Optional[float] = None

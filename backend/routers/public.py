@@ -65,6 +65,15 @@ def _extract_analysis_summary(result) -> dict:
         "confidence": v.confidence_score,
         "roe": round(q.roe, 2) if q.roe else None,
         "de_ratio": round(q.de_ratio, 2) if q.de_ratio else None,
+        # Phase 2.1 ratios — Optional; None renders as "—" on frontend.
+        "roce": getattr(q, "roce", None),
+        "debt_ebitda": getattr(q, "debt_ebitda", None),
+        "interest_coverage": getattr(q, "interest_coverage", None),
+        "current_ratio": getattr(q, "current_ratio", None),
+        "asset_turnover": getattr(q, "asset_turnover", None),
+        "revenue_cagr_3y": getattr(q, "revenue_cagr_3y", None),
+        "revenue_cagr_5y": getattr(q, "revenue_cagr_5y", None),
+        "ev_ebitda": (getattr(result, "insights", None) and getattr(result.insights, "ev_ebitda", None)),
         "market_cap": c.market_cap,
         "ai_summary_snippet": (
             result.ai_summary[:200] + "..." if result.ai_summary and len(result.ai_summary) > 200
@@ -220,6 +229,13 @@ async def get_stock_summary(ticker: str):
     # Try in-memory analysis cache first
     analysis_cached = cache.get(f"analysis:{ticker}")
     if analysis_cached and hasattr(analysis_cached, "valuation"):
+        from backend.services.validators import check_and_quarantine
+        quarantine = check_and_quarantine(ticker, analysis_cached)
+        if quarantine is not None:
+            # Do NOT cache the under_review payload against the clean
+            # cache key — the moment the next analysis run produces clean
+            # data, we want the wrapper to recompute, not serve stale.
+            return quarantine
         summary = _extract_analysis_summary(analysis_cached)
         cache.set(_cache_key, summary, ttl=3600)
         return summary
@@ -227,7 +243,11 @@ async def get_stock_summary(ticker: str):
     # Run analysis if not cached
     try:
         from backend.services import analysis_service as service
+        from backend.services.validators import check_and_quarantine
         result = service.get_full_analysis(ticker)
+        quarantine = check_and_quarantine(ticker, result)
+        if quarantine is not None:
+            return quarantine
         summary = _extract_analysis_summary(result)
         cache.set(_cache_key, summary, ttl=3600)
         return summary

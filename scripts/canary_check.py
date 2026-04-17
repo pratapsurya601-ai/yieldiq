@@ -14,6 +14,14 @@ import json
 import sys
 import urllib.request
 
+# Force UTF-8 on stdout so the ✓/✗ summary markers don't crash under
+# Windows cp1252. No-op on Linux / macOS (already UTF-8).
+try:
+    sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    sys.stderr.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+except Exception:
+    pass
+
 
 # Hardcoded expected ranges for 20 canary stocks.
 # These are well-known Indian stocks with relatively stable fundamentals.

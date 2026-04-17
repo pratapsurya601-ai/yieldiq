@@ -390,14 +390,15 @@ def _get_top_undervalued_stocks(limit: int = 5) -> list[dict]:
             for _, row in df.head(limit).iterrows():
                 _mos = float(row.get(mos_col, 0)) if mos_col else 0
                 _score = int(row.get(score_col, 0)) if score_col else 0
+                # SEBI-safe verdicts: descriptive, model-relative, never imperative.
                 if _mos > 30:
-                    verdict = "Strong Buy"
+                    verdict = "Deeply Undervalued (vs model)"
                 elif _mos > 15:
-                    verdict = "Undervalued"
+                    verdict = "Undervalued (vs model)"
                 elif _mos > 0:
-                    verdict = "Slightly Undervalued"
+                    verdict = "Slightly Undervalued (vs model)"
                 else:
-                    verdict = "Fair Value"
+                    verdict = "Fair Value (vs model)"
                 results.append({
                     "ticker": str(row.get(ticker_col, "")),
                     "company_name": str(row.get(name_col, row.get(ticker_col, ""))) if name_col else str(row.get(ticker_col, "")),

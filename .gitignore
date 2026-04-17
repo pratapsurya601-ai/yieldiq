@@ -12,3 +12,5 @@ data_pipeline/xbrl/temp/
 data_pipeline/xbrl/raw_cache/
 data/yf_cache/
 data_pipeline/nse_prices/raw/
+# Local canary run artifact — CI uploads it separately
+canary_report.json

@@ -72,6 +72,31 @@ jobs:
             --data "{\"text\":\":rotating_light: Canary FAIL: ${P}/${T} stocks broken. ${URL}\"}" \
             "$SLACK_WEBHOOK_URL"
 
+      - name: Notify by email (scheduled failures only)
+        # Fires only on scheduled runs AND only when BOTH ALERT_EMAIL and
+        # ALERT_APP_PW are set. Coexists with Slack — both fire if configured.
+        if: failure() && github.event_name == 'schedule' && env.ALERT_EMAIL != '' && env.ALERT_APP_PW != ''
+        env:
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+          ALERT_APP_PW: ${{ secrets.ALERT_APP_PW }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          secure: true
+          username: ${{ secrets.ALERT_EMAIL }}
+          password: ${{ secrets.ALERT_APP_PW }}
+          subject: "YieldIQ canary FAIL"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: "YieldIQ Canary <${{ secrets.ALERT_EMAIL }}>"
+          body: |
+            Canary violations detected on ${{ env.API_BASE }}.
+
+            Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+            The canary report JSON is attached.
+          attachments: canary_report.json
+
       - name: Open GitHub issue (scheduled fail, no Slack)
         if: failure() && github.event_name == 'schedule' && env.SLACK_WEBHOOK_URL == ''
         env:
