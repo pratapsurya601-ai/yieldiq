@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import * as XLSX from "xlsx"
 import api from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
 
@@ -38,31 +39,67 @@ export default function PortfolioImportPage() {
   const router = useRouter()
   const tier = useAuthStore(s => s.tier)
 
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+  const [fileName, setFileName] = useState<string | null>(null)
 
   const handleLoadExample = () => {
     setCsvText(ZERODHA_EXAMPLE)
-    setUploadedFile(null)
+    setFileName(null)
+  }
+
+  /**
+   * Convert xlsx/xls file to CSV using SheetJS (client-side).
+   * Handles Zerodha's format where the data table starts at row 22
+   * (rows 1-21 are metadata) by picking the largest sheet or the
+   * "Equity" sheet if available.
+   */
+  const xlsxToCSV = async (file: File): Promise<string> => {
+    const buffer = await file.arrayBuffer()
+    const workbook = XLSX.read(buffer, { type: "array" })
+
+    // Prefer "Equity" sheet (for Zerodha holdings), else "Combined", else first non-empty
+    const preferred = ["Equity", "equity", "Combined", "combined", "Holdings", "holdings"]
+    let sheetName: string | null = null
+    for (const p of preferred) {
+      if (workbook.SheetNames.includes(p)) {
+        sheetName = p
+        break
+      }
+    }
+    if (!sheetName) sheetName = workbook.SheetNames[0]
+    if (!sheetName) throw new Error("Excel file has no sheets")
+
+    const worksheet = workbook.Sheets[sheetName]
+    // Convert to CSV — empty cells become empty strings
+    const csv = XLSX.utils.sheet_to_csv(worksheet, { blankrows: false })
+    return csv
   }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const isXlsx = file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls")
-    if (isXlsx) {
-      // Excel files: send the file directly to backend (no client-side parse)
-      setUploadedFile(file)
-      setCsvText(`[Uploaded: ${file.name}]\nWill be parsed on the server.`)
-    } else {
-      // CSV/text: read into textarea
-      setUploadedFile(null)
-      const text = await file.text()
-      setCsvText(text)
+    setError(null)
+
+    const isXlsx = /\.(xlsx|xls|xlsm)$/i.test(file.name)
+    try {
+      if (isXlsx) {
+        // Parse xlsx → csv in the browser
+        const csv = await xlsxToCSV(file)
+        setCsvText(csv)
+        setFileName(file.name)
+      } else {
+        // Plain CSV/text
+        const text = await file.text()
+        setCsvText(text)
+        setFileName(file.name)
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not read file"
+      setError(`Failed to read ${file.name}: ${msg}`)
     }
   }
 
   const handleImport = async () => {
-    if (!csvText.trim() && !uploadedFile) {
+    if (!csvText.trim()) {
       setError("Paste your CSV or upload a file first")
       return
     }
@@ -70,23 +107,11 @@ export default function PortfolioImportPage() {
     setError(null)
     setResult(null)
     try {
-      let res
-      if (uploadedFile) {
-        // Multipart upload for xlsx/binary files
-        // DON'T set Content-Type manually — axios needs to add the
-        // boundary parameter automatically. Setting it explicitly
-        // strips the boundary and the server rejects the request.
-        const formData = new FormData()
-        formData.append("file", uploadedFile)
-        formData.append("broker", broker)
-        res = await api.post("/api/v1/portfolio/import-file", formData)
-      } else {
-        // Plain CSV text
-        res = await api.post("/api/v1/portfolio/import", {
-          csv_text: csvText,
-          broker,
-        })
-      }
+      // Always send as CSV text — xlsx is converted client-side
+      const res = await api.post("/api/v1/portfolio/import", {
+        csv_text: csvText,
+        broker,
+      })
       setResult(res.data)
     } catch (e) {
       const err = e as { response?: { data?: { detail?: string }; status?: number }; message?: string }
@@ -158,40 +183,37 @@ export default function PortfolioImportPage() {
             </label>
           </div>
         </div>
-        {uploadedFile ? (
-          <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {fileName && (
+          <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-3 mb-2 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <div>
-                <p className="text-sm font-semibold text-blue-900">{uploadedFile.name}</p>
-                <p className="text-xs text-blue-700">{(uploadedFile.size / 1024).toFixed(1)} KB &middot; will be parsed on the server</p>
-              </div>
+              <p className="text-sm font-semibold text-blue-900 truncate">{fileName}</p>
+              <span className="text-xs text-blue-700">&middot; Parsed to CSV ({csvText.split("\n").length} rows)</span>
             </div>
             <button
-              onClick={() => { setUploadedFile(null); setCsvText("") }}
-              className="text-xs text-red-600 hover:underline font-semibold"
+              onClick={() => { setFileName(null); setCsvText("") }}
+              className="text-xs text-red-600 hover:underline font-semibold flex-shrink-0"
             >
               Remove
             </button>
           </div>
-        ) : (
-          <textarea
-            value={csvText}
-            onChange={e => setCsvText(e.target.value)}
-            placeholder="Paste CSV here, or click &ldquo;Upload file&rdquo; above (supports .csv, .xlsx)..."
-            rows={10}
-            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono bg-white resize-y"
-          />
         )}
-        <p className="text-[10px] text-gray-400 mt-1">Accepts: .csv, .xlsx, .xls (Zerodha holdings exports work directly)</p>
+        <textarea
+          value={csvText}
+          onChange={e => { setCsvText(e.target.value); if (fileName) setFileName(null) }}
+          placeholder="Paste CSV here, or click &ldquo;Upload file&rdquo; above (supports .csv, .xlsx)..."
+          rows={10}
+          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono bg-white resize-y"
+        />
+        <p className="text-[10px] text-gray-400 mt-1">Accepts: .csv, .xlsx, .xls (Excel files are auto-converted in the browser)</p>
       </div>
 
       {/* Import button */}
       <button
         onClick={handleImport}
-        disabled={loading || (!csvText.trim() && !uploadedFile)}
+        disabled={loading || !csvText.trim()}
         className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed mb-4"
       >
         {loading ? "Importing..." : "Import Holdings"}
