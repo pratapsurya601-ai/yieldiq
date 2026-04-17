@@ -27,8 +27,21 @@ service = AnalysisService()
 # ticker silently; frontend detects the mismatch between the URL
 # ticker and response.ticker to show a rename banner.
 TICKER_ALIASES: dict[str, str] = {
-    "ZOMATO.NS": "ETERNAL.NS",  # Zomato → Eternal Ltd (2024 rebrand)
-    "ZOMATO":    "ETERNAL.NS",
+    # Renames / rebrands
+    "ZOMATO.NS":       "ETERNAL.NS",    # Zomato → Eternal Ltd (Nov 2024 rebrand)
+    "ZOMATO":          "ETERNAL.NS",
+    # Demerger successors (redirect to primary business post-split)
+    "TATAMOTORS.NS":   "TMPV.NS",       # Tata Motors → TMPV (passenger vehicles, post-demerger)
+    "TATAMOTORS":      "TMPV.NS",
+    # Common short/wrong forms → canonical NSE symbol
+    "KPIT.NS":         "KPITTECH.NS",   # KPIT → KPITTECH
+    "KPIT":            "KPITTECH.NS",
+    "BERGERPAINTS.NS": "BERGEPAINT.NS", # typo in our universe list
+    "BERGERPAINTS":    "BERGEPAINT.NS",
+    "DALMIA.NS":       "DALBHARAT.NS",  # Dalmia Bharat
+    "DALMIA":          "DALBHARAT.NS",
+    "DOMINOS.NS":      "JUBLFOOD.NS",   # Domino's franchisee = Jubilant FoodWorks
+    "DOMINOS":         "JUBLFOOD.NS",
 }
 
 # ── Known-broken upstream tickers ─────────────────────────────
@@ -36,14 +49,7 @@ TICKER_ALIASES: dict[str, str] = {
 # gap rather than delisted ticker), surface a specific note instead
 # of the generic "check the symbol" message.
 KNOWN_BROKEN_TICKERS: dict[str, str] = {
-    "TATAMOTORS.NS": (
-        "TATAMOTORS data is currently unavailable from our data "
-        "provider. Try TATAMTRDVR.NS or check back later."
-    ),
-    "TATAMOTORS": (
-        "TATAMOTORS data is currently unavailable from our data "
-        "provider. Try TATAMTRDVR.NS or check back later."
-    ),
+    # TATAMOTORS is now handled via TICKER_ALIASES → TMPV.NS (post-demerger)
 }
 
 
