@@ -147,6 +147,43 @@ async def clear_cache_admin(
     return {"cleared": size_before, "prefix": "(all)"}
 
 
+@router.post("/prices/refresh")
+async def refresh_prices(
+    tickers: str = "HDFCBANK",
+    user: dict = Depends(require_admin),
+):
+    """
+    Re-download price parquets for the given comma-separated tickers
+    (without .NS). Fixes post-auto_adjust-flip: HDFCBANK halved by
+    yfinance's bogus merger-split adjustment. Also clears analysis/price
+    caches for those tickers.
+    """
+    from data_pipeline.nse_prices.yf_downloader import download_ticker
+    from backend.services.cache_service import cache
+
+    results: list[dict] = []
+    for t in [x.strip().upper() for x in tickers.split(",") if x.strip()]:
+        try:
+            path = download_ticker(t, period="5y")
+            cleared = 0
+            for prefix in ["analysis:", "og:", "preview:", "chart_data:",
+                           "public:stock-summary:"]:
+                cleared += cache.clear_pattern(f"{prefix}{t}.NS")
+            results.append({
+                "ticker": t,
+                "parquet": str(path) if path else None,
+                "cache_cleared": cleared,
+                "status": "ok" if path else "failed",
+            })
+        except Exception as e:
+            results.append({
+                "ticker": t,
+                "status": "error",
+                "error": f"{type(e).__name__}: {e}",
+            })
+    return {"refreshed": results, "triggered_by": user.get("email")}
+
+
 @router.post("/cache/refresh-ticker")
 async def refresh_ticker_cache(
     ticker: str,

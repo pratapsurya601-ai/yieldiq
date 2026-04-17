@@ -8,7 +8,7 @@ from typing import Any, Optional
 # Bump this integer whenever you change any pricing/DCF/scoring logic.
 # All cache entries keyed with the old version become automatically stale
 # on next access — no manual invalidation needed.
-CACHE_VERSION = 4  # bumped: skip Aiven Financials TTM/annual override for USD-reporting tickers (HCLTECH FV ₹6069 → real)
+CACHE_VERSION = 5  # bumped: score re-calibrated (quality 50 / growth 20 / value 20 / sentiment 10)
 
 
 class CacheService:
