@@ -155,7 +155,111 @@ def validate_analysis(response) -> ValidationResult:
                 f"FCF growth assumption {fcf_growth*100:.1f}% sustained 10y — historically rare"
             )
 
+    # ── DCF TRACE (ring-buffer) CHECKS ────────────────────────
+    try:
+        from screener.dcf_engine import DCF_TRACES  # lazy import to avoid cycles
+        tkr = getattr(response, "ticker", None)
+        if tkr and tkr in DCF_TRACES:
+            trace_issues, trace_sev = validate_dcf_trace(tkr, DCF_TRACES[tkr])
+            if trace_issues:
+                result.issues.extend(trace_issues)
+                # Bump severity to worst-of
+                order = {"ok": 0, "info": 0, "warning": 1, "critical": 2}
+                if order.get(trace_sev, 0) > order.get(result.severity, 0):
+                    result.severity = trace_sev
+                if trace_sev == "critical":
+                    result.ok = False
+    except Exception as _te:
+        logger.debug("DCF trace validation skipped: %s", _te)
+
     return result
+
+
+def validate_dcf_trace(ticker: str, trace: dict) -> tuple[list[str], str]:
+    """
+    Deterministic red-flag checks against the DCF_TRACES ring-buffer entry.
+    Returns (issues, severity) where severity ∈ {"ok","info","warning","critical"}.
+    """
+    issues: list[str] = []
+    sev = "ok"
+    order = {"ok": 0, "info": 0, "warning": 1, "critical": 2}
+
+    def _bump(new_sev: str):
+        nonlocal sev
+        if order.get(new_sev, 0) > order.get(sev, 0):
+            sev = new_sev
+
+    if not isinstance(trace, dict):
+        return issues, sev
+
+    iv_ratio = trace.get("iv_ratio")
+    tv_pct = trace.get("tv_pct_ev")
+    impl_g = trace.get("impl_g")
+    fcf_base = trace.get("fcf_base")
+    capped = trace.get("capped")
+    wacc = trace.get("wacc")
+    g = trace.get("g")
+
+    try:
+        if iv_ratio is not None:
+            r = float(iv_ratio)
+            if r > 5.0:
+                issues.append(f"DCF IV exceeded 5x cap — clamped")
+                _bump("critical")
+            elif r > 3.0:
+                issues.append(f"DCF IV is {r:.1f}x price — suspiciously high")
+                _bump("warning")
+            elif r < 0.25:
+                issues.append(f"DCF IV is {r:.2f}x price — suspiciously low")
+                _bump("warning")
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        if tv_pct is not None:
+            t = float(tv_pct)
+            if t > 0.95:
+                issues.append(f"Terminal value is {t*100:.0f}% of EV (fragile)")
+                _bump("critical")
+            elif t > 0.90:
+                issues.append(f"Terminal value is {t*100:.0f}% of EV (fragile)")
+                _bump("warning")
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        if impl_g is not None:
+            ig = float(impl_g)
+            if ig > 0.50:
+                issues.append(f"Implied FCF growth {ig:.1%} is unrealistic")
+                _bump("critical")
+            elif ig > 0.25:
+                issues.append(f"Implied FCF growth {ig:.1%} is unrealistic")
+                _bump("warning")
+    except (TypeError, ValueError):
+        pass
+
+    try:
+        if fcf_base is not None and float(fcf_base) <= 0:
+            issues.append("FCF base is non-positive, DCF unreliable")
+            _bump("critical")
+    except (TypeError, ValueError):
+        pass
+
+    if capped is True:
+        issues.append("DCF raw IV was capped (see iv_ratio)")
+        _bump("info")
+
+    try:
+        if wacc is not None and g is not None:
+            spread = float(wacc) - float(g)
+            if spread < 0.03:
+                issues.append(f"WACC-g spread is only {spread:.2%}, terminal value explodes")
+                _bump("critical")
+    except (TypeError, ValueError):
+        pass
+
+    return issues, sev
 
 
 def log_validation(ticker: str, result: ValidationResult) -> None:

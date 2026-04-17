@@ -8,7 +8,7 @@ from typing import Any, Optional
 # Bump this integer whenever you change any pricing/DCF/scoring logic.
 # All cache entries keyed with the old version become automatically stale
 # on next access — no manual invalidation needed.
-CACHE_VERSION = 5  # bumped: score re-calibrated (quality 50 / growth 20 / value 20 / sentiment 10)
+CACHE_VERSION = 7  # bumped: DCF_TRACE ring-buffer wired into data_issues validator
 
 
 class CacheService:
