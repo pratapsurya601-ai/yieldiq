@@ -147,26 +147,38 @@ def should_use_growth_path(enriched: dict, market_cap: float) -> bool:
     """
     Narrow eligibility for the reverse-P/S growth path.
 
-    Signal of "DCF doesn't work here": operating margin is near zero.
-    We use op_margin instead of latest_pat because latest_pat is
-    unreliably populated (often 0 even for profitable companies),
-    while op_margin is always computed from income_df.
+    A "growth stock" for this purpose has TWO signals:
+      1. Low op margin (<5%)  -- DCF produces garbage
+      2. High revenue growth (>20%) -- investing for scale, not cyclical
 
-    Threshold: 5% op margin cleanly separates:
-      - Growth stocks (ETERNAL ~0.05%, PAYTM negative, NYKAA ~1%)
-      - Profitable blue chips (TCS 24%, INFY 21%, HCLTECH 18%+, ITC 34%)
+    The second check avoids false positives on CYCLICALS that
+    temporarily have low margins (oil refiners like IOC during low
+    crack spreads; cement during demand lulls; SHREECEM). Those are
+    mature businesses with mean-reverting margins — DCF still applies
+    once margins normalize.
+
+    Calibration (observed):
+      Growth stocks:  ETERNAL (0.05% margin, 30%+ rev growth) -> eligible
+      Cyclicals:      IOC (3% margin, 5% rev growth) -> skip
+                      SHREECEM (4% margin, 10% rev growth) -> skip
+      Blue chips:     TCS (24% margin) -> skip (first gate)
 
     Returns False (safe default) on any error -> standard DCF runs.
     """
     try:
         revenue = float(enriched.get("latest_revenue") or 0)
         op_margin = float(enriched.get("op_margin") or 0)
+        rev_growth = float(enriched.get("revenue_growth") or 0)
         if revenue < 1e9:
             return False
         if market_cap < 1e10:
             return False
-        # Op margin above 5% -> trust standard DCF path
+        # Gate 1: reliably profitable -> standard DCF
         if op_margin > 0.05:
+            return False
+        # Gate 2: low-margin cyclical -> standard DCF (wait for mean-reversion)
+        # Only actually-growing companies qualify for P/S-based valuation
+        if rev_growth < 0.20:
             return False
         return True
     except Exception:
