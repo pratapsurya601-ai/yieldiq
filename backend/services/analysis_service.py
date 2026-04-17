@@ -1818,53 +1818,20 @@ class AnalysisService:
         # ── Shareholding breakdown ────────────────────────────
         _sh = _query_shareholding(ticker) or {}
 
-        # ── Final output sanity gate ──────────────────────────────
-        # If the computed fair value is absurd relative to market price
-        # (>3x or <0.1x), something upstream is broken. Rather than show
-        # users a nonsense "+268% MoS" (HCLTECH live example), override
-        # the verdict to 'data_limited' and suppress the misleading
-        # numbers. The DataQualityBanner on the frontend renders this
-        # as "Under Review — valuation temporarily unavailable".
-        _fv_ratio_suspicious = False
-        try:
-            if price > 0 and iv > 0:
-                _r = iv / price
-                if _r > 3.0 or _r < 0.1 or abs(mos_pct) > 200:
-                    _fv_ratio_suspicious = True
-                    _logger.warning(
-                        "OUTPUT_SANITY: %s iv=%.2f price=%.2f ratio=%.2fx "
-                        "mos=%.1f%% — suppressing as data_limited",
-                        ticker, iv, price, _r, mos_pct,
-                    )
-                    verdict = "data_limited"
-                    _data_issues = list(_data_issues or [])
-                    _data_issues.append(
-                        "[critical] Fair value computation produced an "
-                        "unrealistic result — under review."
-                    )
-        except Exception:
-            pass
-
-        # For data_limited tickers, suppress the bad numbers entirely —
-        # show the market price but no FV/MoS (better than a wrong one).
-        _display_iv = 0.0 if _fv_ratio_suspicious else round(iv, 2)
-        _display_mos = 0.0 if _fv_ratio_suspicious else round(mos_pct, 1)
-        _display_mos_x = 0.0 if _fv_ratio_suspicious else round(min(mos_pct, 80), 1)
-
         return AnalysisResponse(
             ticker=ticker,
             company=company,
             valuation=ValuationOutput(
-                fair_value=_display_iv,
+                fair_value=round(iv, 2),
                 current_price=round(price, 2),
-                margin_of_safety=_display_mos,
-                margin_of_safety_display=_display_mos_x,
-                mos_is_extreme=(not _fv_ratio_suspicious) and mos_pct > 80,
+                margin_of_safety=round(mos_pct, 1),
+                margin_of_safety_display=round(min(mos_pct, 80), 1),
+                mos_is_extreme=mos_pct > 80,
                 mos_extreme_note=(
                     "Model shows significant undervaluation. "
                     "This may reflect sector-specific factors. "
                     "Verify assumptions before acting."
-                ) if (not _fv_ratio_suspicious) and mos_pct > 80 else None,
+                ) if mos_pct > 80 else None,
                 verdict=verdict,
                 bear_case=_bear_case,
                 base_case=_base_case,
