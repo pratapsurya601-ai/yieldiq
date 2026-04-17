@@ -314,6 +314,70 @@ async def clear_cache_admin(
     return {"cleared": size_before, "prefix": "(all)"}
 
 
+@router.post("/db/run-currency-migration")
+async def run_currency_migration(user: dict = Depends(require_admin)):
+    """
+    ONE-SHOT migration: adds `currency` column to financials + tags
+    USD-reporting tickers. Idempotent (IF NOT EXISTS guards). This
+    exists because PG Studio is read-only and the Aiven CLI redacts
+    passwords — admin triggers this via POST instead.
+
+    Safe to run multiple times. Safe to call after the migration has
+    already been applied (UPDATE will just re-mark the same rows).
+
+    Returns before/after counts so we can see it worked.
+    """
+    try:
+        from data_pipeline.db import Session as _Sess
+        from sqlalchemy import text
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"import failed: {_sanitize_error(e, 'run-currency-migration')}")
+
+    db = _Sess()
+    result: dict = {"steps": [], "triggered_by": user.get("email")}
+    try:
+        # 1. Add column (idempotent)
+        db.execute(text(
+            "ALTER TABLE financials "
+            "ADD COLUMN IF NOT EXISTS currency VARCHAR(3) NOT NULL DEFAULT 'INR'"
+        ))
+        result["steps"].append("ALTER TABLE: ok")
+
+        # 2. Tag USD reporters
+        tickers = (
+            "'INFY','WIPRO','HCLTECH','TECHM','MPHASIS','HEXAWARE','LTIM',"
+            "'LTIMINDTR','PERSISTENT','COFORGE','KPITTECH','TATAELXSI','CYIENT',"
+            "'ZENSAR','MASTEK','NIIT','OFSS','DIVISLAB','LAURUSLABS'"
+        )
+        res = db.execute(text(
+            f"UPDATE financials SET currency='USD' WHERE ticker IN ({tickers})"
+        ))
+        result["steps"].append(f"UPDATE: {res.rowcount} rows tagged USD")
+
+        # 3. Index
+        db.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_financials_currency "
+            "ON financials(currency)"
+        ))
+        result["steps"].append("CREATE INDEX: ok")
+
+        db.commit()
+
+        # Verify
+        verify = db.execute(text(
+            "SELECT currency, COUNT(*) AS n FROM financials "
+            "GROUP BY currency ORDER BY n DESC"
+        )).fetchall()
+        result["verify"] = [{"currency": r[0], "rows": r[1]} for r in verify]
+        result["status"] = "ok"
+        return result
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"migration failed: {_sanitize_error(e, 'run-currency-migration')}")
+    finally:
+        db.close()
+
+
 @router.post("/prices/refresh")
 async def refresh_prices(
     tickers: str = "HDFCBANK",
