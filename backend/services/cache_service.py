@@ -8,7 +8,7 @@ from typing import Any, Optional
 # Bump this integer whenever you change any pricing/DCF/scoring logic.
 # All cache entries keyed with the old version become automatically stale
 # on next access — no manual invalidation needed.
-CACHE_VERSION = 30  # bumped: Step 3 — premium-adjusted moat IV uplift (Wide +15→+25%, Narrow +5→+12%)
+CACHE_VERSION = 31  # bumped: DCF volatility mitigation — hysteresis on fcf_base_source + 3-day EMA smooth persisted + WARN on suspicious drift
 
 
 class CacheService:

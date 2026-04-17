@@ -174,6 +174,42 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
 
     method = "median(latest_fcf, nopat_proxy, max_recent_fcf)"
 
+    # ── Hysteresis: resist flip-flopping between close candidates ──
+    # When candidates are within ~10% of each other, small yfinance
+    # revisions cause the median to oscillate day-to-day. The agent
+    # investigation found this as the root cause of a 26% same-day
+    # FV swing for RELIANCE (Apr 15-17, 2026). Anchor to yesterday's
+    # source via in-memory DCF_TRACES; only switch if the new top
+    # candidate beats the incumbent by >10%.
+    try:
+        from screener.dcf_engine import DCF_TRACES as _DT
+        _prev = _DT.get(ticker) if ticker else None
+        if _prev:
+            _prev_src = _prev.get("fcf_base_source")
+            _prev_cands = _prev.get("fcf_candidates") or {}
+            # Only apply if yesterday used a known candidate slot
+            _slot_map = {
+                "latest_fcf": latest_val,
+                "nopat_proxy": nopat_val,
+                "max_recent_fcf": max_val,
+                "median_recent_fcf": median_val,
+                "hist_p75_margin": p75_val,
+            }
+            if _prev_src in _slot_map and _slot_map[_prev_src] > 0:
+                incumbent = _slot_map[_prev_src]
+                # Switch only if current `base` is >10% larger than incumbent
+                # (otherwise stick with incumbent to preserve day-over-day stability)
+                if base > 0 and incumbent > 0:
+                    if abs(base - incumbent) / max(incumbent, 1e-6) <= 0.10:
+                        base = incumbent
+                        method = f"hysteresis({_prev_src})"
+                        log.debug(
+                            f"[{ticker}] hysteresis held: kept {_prev_src}=₹{incumbent/1e7:.0f}Cr "
+                            f"instead of switching (delta<10%)"
+                        )
+    except Exception:
+        pass  # DCF_TRACES import failure or missing keys -> no hysteresis
+
     log.debug(f"[{ticker}] FCF base: ₹{base/1e7:.0f}Cr ({method})")
 
     # Stash candidate breakdown in enriched so dcf_engine can surface
