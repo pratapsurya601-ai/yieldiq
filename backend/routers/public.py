@@ -749,3 +749,37 @@ async def get_screen(slug: str, limit: int = Query(default=50, le=200)):
     }
     cache.set(_cache_key, result, ttl=1800)
     return result
+
+
+# ═══════════════════════════════════════════════════════════════
+# Risk stats — drawdown, volatility, beta, returns
+# ═══════════════════════════════════════════════════════════════
+
+@router.get("/risk-stats/{ticker}")
+async def get_risk_stats_endpoint(ticker: str, years: int = Query(default=3, ge=1, le=10)):
+    """
+    Risk statistics from Parquet price history.
+    No auth required. 24-hour cache.
+
+    Returns volatility, max drawdown, beta vs Nifty, returns, etc.
+    """
+    ticker = ticker.upper().strip()
+    clean = ticker.replace(".NS", "").replace(".BO", "")
+    _cache_key = f"public:risk-stats:{clean}:{years}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        from data_pipeline.nse_prices.db_integration import get_risk_stats
+        result = get_risk_stats(clean, benchmark_ticker="NIFTYBEES", years=years)
+        if result is None:
+            raise HTTPException(status_code=404, detail=f"No price history for {clean}")
+        result["ticker"] = ticker
+        cache.set(_cache_key, result, ttl=86400)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"risk-stats failed for {clean}: {e}")
+        raise HTTPException(status_code=500, detail="Risk stats unavailable")
