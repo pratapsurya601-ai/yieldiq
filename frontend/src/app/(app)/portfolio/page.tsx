@@ -194,7 +194,10 @@ export default function PortfolioPage() {
         )
       )}
       {tab === "holdings" && !holdingsError && holdings && holdings.length > 0 && (
-        <div className="flex justify-end gap-4">
+        <div className="flex flex-wrap justify-end gap-4">
+          <Link href="/concall" className="text-xs text-blue-600 font-semibold hover:underline">
+            Concall AI &rarr;
+          </Link>
           <Link href="/portfolio/tax-report" className="text-xs text-blue-600 font-semibold hover:underline">
             Tax Report &rarr;
           </Link>
