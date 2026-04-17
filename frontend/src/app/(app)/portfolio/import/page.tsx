@@ -38,17 +38,31 @@ export default function PortfolioImportPage() {
   const router = useRouter()
   const tier = useAuthStore(s => s.tier)
 
-  const handleLoadExample = () => setCsvText(ZERODHA_EXAMPLE)
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null)
+
+  const handleLoadExample = () => {
+    setCsvText(ZERODHA_EXAMPLE)
+    setUploadedFile(null)
+  }
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const text = await file.text()
-    setCsvText(text)
+    const isXlsx = file.name.toLowerCase().endsWith(".xlsx") || file.name.toLowerCase().endsWith(".xls")
+    if (isXlsx) {
+      // Excel files: send the file directly to backend (no client-side parse)
+      setUploadedFile(file)
+      setCsvText(`[Uploaded: ${file.name}]\nWill be parsed on the server.`)
+    } else {
+      // CSV/text: read into textarea
+      setUploadedFile(null)
+      const text = await file.text()
+      setCsvText(text)
+    }
   }
 
   const handleImport = async () => {
-    if (!csvText.trim()) {
+    if (!csvText.trim() && !uploadedFile) {
       setError("Paste your CSV or upload a file first")
       return
     }
@@ -56,10 +70,22 @@ export default function PortfolioImportPage() {
     setError(null)
     setResult(null)
     try {
-      const res = await api.post("/api/v1/portfolio/import", {
-        csv_text: csvText,
-        broker,
-      })
+      let res
+      if (uploadedFile) {
+        // Multipart upload for xlsx/binary files
+        const formData = new FormData()
+        formData.append("file", uploadedFile)
+        formData.append("broker", broker)
+        res = await api.post("/api/v1/portfolio/import-file", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        })
+      } else {
+        // Plain CSV text
+        res = await api.post("/api/v1/portfolio/import", {
+          csv_text: csvText,
+          broker,
+        })
+      }
       setResult(res.data)
     } catch (e) {
       const err = e as { response?: { data?: { detail?: string }; status?: number }; message?: string }
@@ -120,30 +146,51 @@ export default function PortfolioImportPage() {
       {/* Input */}
       <div className="mb-5">
         <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">2. Paste CSV or Upload File</label>
+          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">2. Upload File or Paste CSV</label>
           <div className="flex gap-3 text-xs">
             <button onClick={handleLoadExample} className="text-blue-600 hover:underline font-semibold">
               Load example
             </button>
             <label className="text-blue-600 hover:underline font-semibold cursor-pointer">
               Upload file
-              <input type="file" accept=".csv,.txt" onChange={handleFileUpload} className="hidden" />
+              <input type="file" accept=".csv,.txt,.xlsx,.xls,.xlsm" onChange={handleFileUpload} className="hidden" />
             </label>
           </div>
         </div>
-        <textarea
-          value={csvText}
-          onChange={e => setCsvText(e.target.value)}
-          placeholder="Paste CSV here, or click &ldquo;Upload file&rdquo; above..."
-          rows={10}
-          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono bg-white resize-y"
-        />
+        {uploadedFile ? (
+          <div className="border-2 border-blue-200 bg-blue-50 rounded-lg p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <div>
+                <p className="text-sm font-semibold text-blue-900">{uploadedFile.name}</p>
+                <p className="text-xs text-blue-700">{(uploadedFile.size / 1024).toFixed(1)} KB &middot; will be parsed on the server</p>
+              </div>
+            </div>
+            <button
+              onClick={() => { setUploadedFile(null); setCsvText("") }}
+              className="text-xs text-red-600 hover:underline font-semibold"
+            >
+              Remove
+            </button>
+          </div>
+        ) : (
+          <textarea
+            value={csvText}
+            onChange={e => setCsvText(e.target.value)}
+            placeholder="Paste CSV here, or click &ldquo;Upload file&rdquo; above (supports .csv, .xlsx)..."
+            rows={10}
+            className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono bg-white resize-y"
+          />
+        )}
+        <p className="text-[10px] text-gray-400 mt-1">Accepts: .csv, .xlsx, .xls (Zerodha holdings exports work directly)</p>
       </div>
 
       {/* Import button */}
       <button
         onClick={handleImport}
-        disabled={loading || !csvText.trim()}
+        disabled={loading || (!csvText.trim() && !uploadedFile)}
         className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed mb-4"
       >
         {loading ? "Importing..." : "Import Holdings"}

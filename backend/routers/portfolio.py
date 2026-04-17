@@ -5,7 +5,7 @@ import csv
 import io
 import logging
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
@@ -77,27 +77,15 @@ async def remove_holding(ticker: str, user: dict = Depends(get_current_user)):
     return SuccessResponse(message=f"{ticker} removed from portfolio")
 
 
-@router.post("/import")
-async def import_holdings(req: ImportCSVRequest, user: dict = Depends(get_current_user)):
-    """
-    Bulk import holdings from a broker CSV.
-    Supports: Zerodha Console, Groww, Upstox, ICICI Direct.
-
-    Returns: { imported: int, skipped: int, errors: [] }
-    """
+def _do_import(parsed: list[dict], broker: str, tier: str) -> dict:
+    """Shared import logic — accepts pre-parsed holdings list."""
     from portfolio import save_to_portfolio
     from backend.services import analysis_service as svc
-
-    try:
-        parsed = _parse_broker_csv(req.csv_text, req.broker)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Could not parse CSV: {e}")
+    from backend.services.cache_service import cache as _c
 
     if not parsed:
-        raise HTTPException(status_code=400, detail="No valid holdings found in CSV")
+        raise HTTPException(status_code=400, detail="No valid holdings found")
 
-    # Free tier: 5 holdings limit; Pro/Analyst: unlimited
-    tier = user.get("tier", "free")
     if tier == "free" and len(parsed) > 5:
         raise HTTPException(
             status_code=402,
@@ -116,13 +104,10 @@ async def import_holdings(req: ImportCSVRequest, user: dict = Depends(get_curren
             skipped += 1
             continue
 
-        # Normalize: add .NS suffix for NSE tickers
         clean = raw_ticker.replace(".NS", "").replace(".BO", "").upper()
         full_ticker = f"{clean}.NS"
 
-        # Try to get IV from cache (fast path — no analysis re-run)
         try:
-            from backend.services.cache_service import cache as _c
             cached = _c.get(f"analysis:{full_ticker}")
             if cached and hasattr(cached, "valuation"):
                 iv = cached.valuation.fair_value
@@ -131,7 +116,6 @@ async def import_holdings(req: ImportCSVRequest, user: dict = Depends(get_curren
                 verdict = cached.valuation.verdict
                 company_name = cached.company.company_name
             else:
-                # Run analysis (will be cached for next time)
                 result = svc.AnalysisService().get_full_analysis(full_ticker)
                 iv = result.valuation.fair_value
                 wacc_val = result.valuation.wacc
@@ -160,7 +144,7 @@ async def import_holdings(req: ImportCSVRequest, user: dict = Depends(get_curren
                 to_code="INR",
                 company_name=company_name,
                 sector=sector,
-                notes=f"Imported from {req.broker} ({qty} shares)",
+                notes=f"Imported from {broker} ({qty} shares)",
             )
             if ok:
                 imported += 1
@@ -180,65 +164,136 @@ async def import_holdings(req: ImportCSVRequest, user: dict = Depends(get_curren
     }
 
 
-def _parse_broker_csv(csv_text: str, broker: str) -> list[dict]:
+@router.post("/import")
+async def import_holdings(req: ImportCSVRequest, user: dict = Depends(get_current_user)):
     """
-    Parse broker-specific CSV format. Returns list of dicts with:
-        ticker (str), quantity (float), avg_cost (float)
-
-    Supported brokers:
-    - zerodha: Symbol,ISIN,Instrument,Qty,Avg.cost,LTP,...
-    - groww:   Stock Name,ISIN,Quantity,Average buy price,...
-    - upstox:  Company Name,Exchange,ISIN,Quantity,Avg Price,...
-    - icici:   Stock,Qty,Avg Price,Current Price,...
-    - custom:  ticker,quantity,avg_price (any header)
+    Bulk import holdings from a broker CSV (text).
+    Supports: Zerodha Console, Groww, Upstox, ICICI Direct, Custom.
     """
-    csv_text = csv_text.strip()
-    if not csv_text:
-        return []
+    try:
+        parsed = _parse_broker_csv(req.csv_text, req.broker)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not parse CSV: {e}")
 
-    # Auto-detect delimiter
-    first_line = csv_text.split("\n")[0]
-    delim = "\t" if "\t" in first_line else ","
+    return _do_import(parsed, req.broker, user.get("tier", "free"))
 
-    reader = csv.DictReader(io.StringIO(csv_text), delimiter=delim)
-    if not reader.fieldnames:
-        return []
 
-    # Normalize headers to lowercase for matching
-    headers_lower = {h.lower().strip(): h for h in reader.fieldnames}
+@router.post("/import-file")
+async def import_holdings_file(
+    file: UploadFile = File(...),
+    broker: str = Form(default="zerodha"),
+    user: dict = Depends(get_current_user),
+):
+    """
+    Bulk import holdings from an uploaded file (.csv or .xlsx).
+    Auto-detects header row (handles Zerodha's metadata-prefixed xlsx).
+    """
+    filename = (file.filename or "").lower()
+    contents = await file.read()
 
-    # Broker-specific field maps (lowercase key → list of possible header names)
-    broker_maps = {
-        "zerodha": {
-            "ticker": ["symbol", "tradingsymbol", "stock"],
-            "quantity": ["qty", "quantity", "qty."],
-            "avg_cost": ["avg.cost", "avg cost", "avgcost", "avg. cost", "avg price", "average price"],
-        },
-        "groww": {
-            "ticker": ["stock name", "symbol", "ticker"],
-            "quantity": ["quantity", "qty"],
-            "avg_cost": ["average buy price", "avg buy price", "avg price", "avg. cost"],
-        },
-        "upstox": {
-            "ticker": ["company name", "tradingsymbol", "symbol"],
-            "quantity": ["quantity", "qty"],
-            "avg_cost": ["avg price", "average price", "avg. cost"],
-        },
-        "icici": {
-            "ticker": ["stock", "symbol", "company"],
-            "quantity": ["qty", "quantity"],
-            "avg_cost": ["avg price", "average price", "avg. cost"],
-        },
-        "custom": {
-            "ticker": ["ticker", "symbol", "stock", "company"],
-            "quantity": ["quantity", "qty", "shares", "units"],
-            "avg_cost": ["avg_price", "avg_cost", "price", "average price", "avg price", "buy price"],
-        },
-    }
+    try:
+        if filename.endswith(".xlsx") or filename.endswith(".xlsm") or filename.endswith(".xls"):
+            parsed = _parse_xlsx_bytes(contents, broker)
+        else:
+            # Treat as CSV/text
+            try:
+                csv_text = contents.decode("utf-8")
+            except UnicodeDecodeError:
+                csv_text = contents.decode("latin-1", errors="ignore")
+            parsed = _parse_broker_csv(csv_text, broker)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.warning(f"File import parse failed: {e}", exc_info=True)
+        raise HTTPException(status_code=400, detail=f"Could not parse file: {type(e).__name__}")
 
-    field_map = broker_maps.get(broker, broker_maps["custom"])
+    return _do_import(parsed, broker, user.get("tier", "free"))
 
-    # Resolve to actual header names
+
+# Broker-specific field maps (lowercase key → list of possible header names)
+BROKER_FIELD_MAPS = {
+    "zerodha": {
+        "ticker": ["symbol", "tradingsymbol", "stock"],
+        "quantity": ["qty", "quantity", "qty.", "quantity available"],
+        "avg_cost": ["avg.cost", "avg cost", "avgcost", "avg. cost", "avg price", "average price"],
+    },
+    "groww": {
+        "ticker": ["stock name", "symbol", "ticker"],
+        "quantity": ["quantity", "qty"],
+        "avg_cost": ["average buy price", "avg buy price", "avg price", "avg. cost"],
+    },
+    "upstox": {
+        "ticker": ["company name", "tradingsymbol", "symbol"],
+        "quantity": ["quantity", "qty"],
+        "avg_cost": ["avg price", "average price", "avg. cost"],
+    },
+    "icici": {
+        "ticker": ["stock", "symbol", "company"],
+        "quantity": ["qty", "quantity"],
+        "avg_cost": ["avg price", "average price", "avg. cost"],
+    },
+    "custom": {
+        "ticker": ["ticker", "symbol", "stock", "company"],
+        "quantity": ["quantity", "qty", "shares", "units"],
+        "avg_cost": ["avg_price", "avg_cost", "price", "average price", "avg price", "buy price"],
+    },
+}
+
+
+def _find_header_row(rows: list[list], field_map: dict) -> int:
+    """
+    Find the row index containing the header. Zerodha's xlsx has
+    metadata rows at the top, so we scan for the first row that
+    has all 3 required field names.
+    """
+    required_tokens = []
+    for key in ("ticker", "quantity", "avg_cost"):
+        required_tokens.append([t.lower() for t in field_map[key]])
+
+    for idx, row in enumerate(rows):
+        cells_lower = [str(c or "").lower().strip() for c in row]
+        found_all = True
+        for token_list in required_tokens:
+            if not any(t in cells_lower for t in token_list):
+                found_all = False
+                break
+        if found_all:
+            return idx
+    return -1
+
+
+def _rows_to_dicts(rows: list[list], header_row_idx: int) -> tuple[list[dict], list[str]]:
+    """Convert rows[header_row_idx+1:] to dicts using header row as keys."""
+    headers = [str(c or "").strip() for c in rows[header_row_idx]]
+    dicts = []
+    for row in rows[header_row_idx + 1:]:
+        if not any(c for c in row if c is not None and str(c).strip()):
+            continue
+        row_dict = {}
+        for i, h in enumerate(headers):
+            row_dict[h] = row[i] if i < len(row) else None
+        dicts.append(row_dict)
+    return dicts, headers
+
+
+def _parse_rows_to_holdings(rows: list[list], broker: str) -> list[dict]:
+    """
+    Given a 2D list of rows (from CSV or XLSX), find the header row and
+    extract holdings.
+    """
+    field_map = BROKER_FIELD_MAPS.get(broker, BROKER_FIELD_MAPS["custom"])
+
+    # Find header row (might not be row 0 for Zerodha xlsx)
+    header_idx = _find_header_row(rows, field_map)
+    if header_idx < 0:
+        raise ValueError(
+            f"Required columns not found for {broker}. "
+            f"Need ticker, quantity, and average cost columns."
+        )
+
+    dicts, headers = _rows_to_dicts(rows, header_idx)
+    headers_lower = {h.lower().strip(): h for h in headers}
+
     def _find_header(candidates: list[str]) -> str | None:
         for c in candidates:
             if c.lower() in headers_lower:
@@ -249,6 +304,102 @@ def _parse_broker_csv(csv_text: str, broker: str) -> list[dict]:
     qty_h = _find_header(field_map["quantity"])
     cost_h = _find_header(field_map["avg_cost"])
 
+    if not ticker_h or not qty_h or not cost_h:
+        raise ValueError(
+            f"Required columns not found for {broker}. "
+            f"Need ticker, quantity, and average cost columns."
+        )
+
+    parsed: list[dict] = []
+    for row_dict in dicts:
+        try:
+            raw_ticker = str(row_dict.get(ticker_h) or "").strip().upper()
+            if not raw_ticker or raw_ticker in ("SYMBOL", "TICKER", "-"):
+                continue
+            if ":" in raw_ticker:
+                raw_ticker = raw_ticker.split(":")[-1]
+            raw_ticker = raw_ticker.strip()
+
+            qty_str = str(row_dict.get(qty_h, "") or "").replace(",", "").strip()
+            cost_str = str(row_dict.get(cost_h, "") or "").replace(",", "").replace("\u20B9", "").strip()
+
+            qty = float(qty_str) if qty_str and qty_str not in ("-", "None") else 0
+            cost = float(cost_str) if cost_str and cost_str not in ("-", "None") else 0
+
+            if qty > 0 and cost > 0:
+                parsed.append({
+                    "ticker": raw_ticker,
+                    "quantity": qty,
+                    "avg_cost": cost,
+                })
+        except (ValueError, KeyError, TypeError):
+            continue
+
+    return parsed
+
+
+def _parse_xlsx_bytes(xlsx_bytes: bytes, broker: str) -> list[dict]:
+    """Parse an uploaded .xlsx file to holdings."""
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(xlsx_bytes), data_only=True, read_only=True)
+
+    # For Zerodha holdings file, prefer "Equity" sheet if available
+    preferred_order = ["Equity", "Combined", "Holdings", "equity", "Sheet1"]
+    sheet_name = None
+    for pref in preferred_order:
+        if pref in wb.sheetnames:
+            sheet_name = pref
+            break
+    if sheet_name is None:
+        sheet_name = wb.sheetnames[0]
+
+    ws = wb[sheet_name]
+    rows = [list(row) for row in ws.iter_rows(values_only=True)]
+    return _parse_rows_to_holdings(rows, broker)
+
+
+def _parse_broker_csv(csv_text: str, broker: str) -> list[dict]:
+    """
+    Parse broker-specific CSV text. Returns list of dicts with:
+        ticker (str), quantity (float), avg_cost (float)
+    """
+    csv_text = csv_text.strip()
+    if not csv_text:
+        return []
+
+    # Auto-detect delimiter
+    first_line = csv_text.split("\n")[0]
+    delim = "\t" if "\t" in first_line else ","
+
+    # Parse as 2D list so we can find header row in Zerodha files
+    reader = csv.reader(io.StringIO(csv_text), delimiter=delim)
+    rows = [list(row) for row in reader]
+    if not rows:
+        return []
+
+    return _parse_rows_to_holdings(rows, broker)
+
+
+def _parse_broker_csv_legacy(csv_text: str, broker: str) -> list[dict]:
+    """Deprecated — kept as reference, not used."""
+    csv_text = csv_text.strip()
+    if not csv_text:
+        return []
+    first_line = csv_text.split("\n")[0]
+    delim = "\t" if "\t" in first_line else ","
+    reader = csv.DictReader(io.StringIO(csv_text), delimiter=delim)
+    if not reader.fieldnames:
+        return []
+    headers_lower = {h.lower().strip(): h for h in reader.fieldnames}
+    field_map = BROKER_FIELD_MAPS.get(broker, BROKER_FIELD_MAPS["custom"])
+    def _find_header(candidates: list[str]) -> str | None:
+        for c in candidates:
+            if c.lower() in headers_lower:
+                return headers_lower[c.lower()]
+        return None
+    ticker_h = _find_header(field_map["ticker"])
+    qty_h = _find_header(field_map["quantity"])
+    cost_h = _find_header(field_map["avg_cost"])
     if not ticker_h or not qty_h or not cost_h:
         raise ValueError(
             f"Required columns not found for {broker}. "
