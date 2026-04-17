@@ -491,18 +491,32 @@ def apply_moat_adjustments(
     grade = moat_result.get("grade", "None")
     score = moat_result.get("score", 0)
 
+    # Premium-adjusted DCF for moat-protected businesses.
+    # Rationale: market pays a premium for durable competitive advantage
+    # because the moat reduces terminal-value risk + supports pricing
+    # power. Our standard DCF assumes generic WACC/growth for everyone,
+    # under-pricing the true expected value of wide-moat names.
+    #
+    # Observed pre-Step-3 calibration: TITAN/NESTLE/ASIANPAINT (all Wide
+    # moat, high-ROE quality leaders) showed -50% to -70% MoS which is
+    # inconsistent with the market's persistent premium. Step 3 tunes
+    # the IV uplift to more realistic levels.
+    #
+    # IV-delta is the primary knob (applied downstream); wacc/growth/
+    # terminal_g deltas are returned for transparency but not currently
+    # consumed by analysis_service. Keep them as reference.
     if grade == "Wide":
-        wacc_delta    = -0.005        # -0.5% WACC (lower risk)
-        growth_delta  = +0.015        # +1.5% FCF growth
-        term_g_delta  = +0.005        # +0.5% terminal growth
-        iv_delta_pct  = +15.0         # +15% IV premium
+        wacc_delta    = -0.010        # -1.0% WACC  (was -0.5%)
+        growth_delta  = +0.020        # +2.0% FCF growth (was +1.5%)
+        term_g_delta  = +0.010        # +1.0% terminal growth (was +0.5%)
+        iv_delta_pct  = +25.0         # +25% IV premium (was +15%)
     elif grade == "Narrow":
-        wacc_delta    = 0.0
-        growth_delta  = +0.005
-        term_g_delta  = 0.0
-        iv_delta_pct  = +5.0
+        wacc_delta    = -0.005        # -0.5% WACC (was 0)
+        growth_delta  = +0.010        # +1.0% (was +0.5%)
+        term_g_delta  = +0.005        # +0.5% (was 0)
+        iv_delta_pct  = +12.0         # +12% (was +5%)
     else:
-        wacc_delta    = +0.005        # +0.5% WACC (higher risk)
+        wacc_delta    = +0.005        # +0.5% WACC (higher risk) -- unchanged
         growth_delta  = -0.005
         term_g_delta  = -0.005
         iv_delta_pct  = -5.0
