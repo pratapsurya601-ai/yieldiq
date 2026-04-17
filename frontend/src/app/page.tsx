@@ -83,6 +83,7 @@ function MarketingNav() {
         <div className="hidden md:flex items-center gap-8 text-sm">
           <Link href="/features" className="text-gray-400 hover:text-white transition">Features</Link>
           <Link href="/pricing" className="text-gray-400 hover:text-white transition">Pricing</Link>
+          <Link href="/blog" className="text-gray-400 hover:text-white transition">Blog</Link>
           <Link href="/auth/login" className="text-gray-400 hover:text-white transition">Sign in</Link>
           <Link href="/auth/signup" className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold px-5 py-2 rounded-lg hover:opacity-90 transition shadow-lg shadow-blue-500/20">
             Start Free &rarr;
@@ -98,6 +99,7 @@ function MarketingNav() {
         <div className="md:hidden px-4 pb-4 space-y-3 bg-[#080E1A]/95 backdrop-blur-xl">
           <Link href="/features" className="block text-gray-400 text-sm py-1">Features</Link>
           <Link href="/pricing" className="block text-gray-400 text-sm py-1">Pricing</Link>
+          <Link href="/blog" className="block text-gray-400 text-sm py-1">Blog</Link>
           <Link href="/auth/login" className="block text-gray-400 text-sm py-1">Sign in</Link>
           <Link href="/auth/signup" className="block bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold px-5 py-2 rounded-lg text-center text-sm">
             Start Free &rarr;
