@@ -286,8 +286,11 @@ def _prewarm_popular_stocks():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup/shutdown lifecycle — creates tables + starts scheduler + pre-warms cache."""
-    _ensure_pipeline_tables()
+    """Startup/shutdown lifecycle — starts scheduler + pre-warms cache.
+    Table creation and prewarm run in background threads so the
+    /health endpoint responds immediately for Railway healthcheck."""
+    import threading
+    threading.Thread(target=_ensure_pipeline_tables, daemon=True).start()
     sched = _start_pipeline_scheduler()
     _prewarm_popular_stocks()
     yield
