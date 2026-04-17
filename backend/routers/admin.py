@@ -36,6 +36,58 @@ async def get_dcf_trace(ticker: str):
     return trace
 
 
+@debug_router.get("/fv-history-stats")
+async def fv_history_stats():
+    """
+    Row counts per ticker in fair_value_history — monitors nightly
+    collection accumulation. When min_days_covered crosses ~365, we
+    have enough data for a real out-of-sample backtest.
+    """
+    try:
+        from data_pipeline.db import Session as _Sess
+        from data_pipeline.models import FairValueHistory
+        from sqlalchemy import func
+        db = _Sess()
+        try:
+            q = (
+                db.query(
+                    FairValueHistory.ticker,
+                    func.count(FairValueHistory.id).label("count"),
+                    func.min(FairValueHistory.date).label("first"),
+                    func.max(FairValueHistory.date).label("last"),
+                )
+                .group_by(FairValueHistory.ticker)
+                .order_by(func.count(FairValueHistory.id).desc())
+                .all()
+            )
+            per_ticker = [
+                {
+                    "ticker": r.ticker,
+                    "days": r.count,
+                    "first": r.first.isoformat() if r.first else None,
+                    "last": r.last.isoformat() if r.last else None,
+                }
+                for r in q
+            ]
+            # Overall rollup
+            total_rows = sum(x["days"] for x in per_ticker)
+            tickers_tracked = len(per_ticker)
+            days_covered = [x["days"] for x in per_ticker]
+            return {
+                "total_rows": total_rows,
+                "tickers_tracked": tickers_tracked,
+                "max_days_any_ticker": max(days_covered) if days_covered else 0,
+                "min_days_any_ticker": min(days_covered) if days_covered else 0,
+                "median_days": sorted(days_covered)[len(days_covered)//2] if days_covered else 0,
+                "backtest_ready_tickers": sum(1 for d in days_covered if d >= 365),
+                "per_ticker": per_ticker[:100],  # cap to avoid huge payload
+            }
+        finally:
+            db.close()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"fv-history-stats failed: {type(e).__name__}: {e}")
+
+
 @debug_router.get("/universe-report")
 async def get_universe_report():
     """

@@ -1,0 +1,84 @@
+name: Nightly Fair-Value History Collection
+
+# Hits /api/v1/analysis/{ticker}/og-data for every NSE_UNIVERSE ticker
+# once a night. Each successful call runs the full DCF pipeline, which
+# calls store_today_fair_value() and persists a row to the Aiven
+# fair_value_history table.
+#
+# Purpose: accumulate ~365 daily observations per ticker so that in 12
+# months we have a real out-of-sample backtest dataset -- "did our
+# undervalued verdicts outperform the index?"
+#
+# Without this, fv_history only grows when users happen to analyze a
+# stock, leaving most tickers with sparse or no data.
+#
+# Schedule: 17:00 UTC = 22:30 IST -- well after Indian market close
+# (15:30 IST) so prices are settled. Each run takes ~10 min at 1 req/s
+# across ~100 tickers.
+
+on:
+  schedule:
+    - cron: "0 17 * * 1-5"   # weekdays only (no weekend market data)
+  workflow_dispatch:          # manual trigger button
+    inputs:
+      limit:
+        description: "Max tickers (blank = all)"
+        required: false
+        default: ""
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Trigger analysis for each NSE_UNIVERSE ticker
+        id: collect
+        run: |
+          python - <<'PYEOF'
+          import json, sys, time, urllib.request
+
+          # Import the same NSE_UNIVERSE list the pipeline uses
+          sys.path.insert(0, ".")
+          from data_pipeline.pipeline import NSE_UNIVERSE
+
+          limit_input = "${{ github.event.inputs.limit }}"
+          tickers = NSE_UNIVERSE[:int(limit_input)] if limit_input else NSE_UNIVERSE
+          api = "https://api.yieldiq.in"
+          ok, fail = 0, 0
+          start = time.time()
+
+          print(f"Collecting fair-value history for {len(tickers)} tickers...")
+          for i, t in enumerate(tickers, 1):
+              symbol = f"{t}.NS"
+              try:
+                  req = urllib.request.Request(
+                      f"{api}/api/v1/analysis/{symbol}/og-data",
+                      headers={"User-Agent": "YIQFVCollector/1.0"},
+                  )
+                  with urllib.request.urlopen(req, timeout=45) as r:
+                      data = json.loads(r.read().decode())
+                      if data.get("fair_value") is not None:
+                          ok += 1
+                      else:
+                          fail += 1
+              except Exception as e:
+                  fail += 1
+                  print(f"  ! {symbol}: {type(e).__name__}: {e}", file=sys.stderr)
+              if i % 20 == 0 or i == len(tickers):
+                  print(f"  [{i}/{len(tickers)}] ok={ok} fail={fail}")
+              time.sleep(1.0)  # 1 req/s -- gentle on Railway
+
+          print(f"\nDone in {time.time()-start:.0f}s. ok={ok} fail={fail} "
+                f"(success_rate={ok/max(len(tickers),1)*100:.1f}%)")
+
+          # Exit 1 if < 80% success so the workflow badges red and we notice
+          if ok / max(len(tickers), 1) < 0.80:
+              print("FAIL: success rate below 80%", file=sys.stderr)
+              sys.exit(1)
+          PYEOF
