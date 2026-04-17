@@ -1,5 +1,5 @@
 {
-  "captured_at": "2026-04-17T10:27:35.821178+00:00",
+  "captured_at": "2026-04-17T11:03:37.976872+00:00",
   "api_base": "https://api.yieldiq.in",
   "ticker_count": 51,
   "tickers": {
@@ -533,11 +533,11 @@
     },
     "ETERNAL.NS": {
       "ticker": "ETERNAL.NS",
-      "fair_value": 0.0,
+      "fair_value": 227.35,
       "price": 252.61,
-      "mos": 0.0,
-      "verdict": "data_limited",
-      "score": 28,
+      "mos": -10.0,
+      "verdict": "fairly_valued",
+      "score": 33,
       "fcf_base": 3176969493.020737,
       "iv_ratio": 0.013,
       "capped": false,
