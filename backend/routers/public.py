@@ -904,6 +904,66 @@ def _dupont_commentary(periods: list[dict]) -> str:
     return " ".join(parts)
 
 
+@router.get("/backtest/screen/{slug}")
+async def backtest_screen_endpoint(
+    slug: str,
+    years: int = Query(default=3, ge=1, le=5),
+    rebalance: str = Query(default="quarterly", pattern="^(monthly|quarterly|yearly)$"),
+):
+    """
+    Backtest the CURRENT constituents of a pre-built screen.
+    No auth, 24-hour cache.
+
+    Answers: "The kinds of stocks this filter picks — how have
+    they done over the last N years vs Nifty?"
+
+    Note: NOT a true rolling backtest (which would re-run the filter
+    at each historical date). Survivorship bias present — disclosed to user.
+    """
+    if slug not in SCREENS:
+        raise HTTPException(status_code=404, detail=f"Screen '{slug}' not found")
+
+    rebalance_days = {"monthly": 21, "quarterly": 63, "yearly": 252}[rebalance]
+
+    _cache_key = f"public:backtest:{slug}:{years}:{rebalance}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    # Get current screen constituents
+    screen_data = await get_screen(slug, limit=50)
+    stocks = screen_data.get("stocks", [])
+    if not stocks:
+        raise HTTPException(status_code=503, detail="Screen has no current constituents (cache warming)")
+
+    tickers = [s["ticker"] for s in stocks]
+
+    try:
+        from backend.services.backtest_service import backtest_tickers
+        result = backtest_tickers(
+            tickers=tickers,
+            years=years,
+            rebalance_days=rebalance_days,
+            include_benchmark=True,
+        )
+        if result.get("error"):
+            raise HTTPException(status_code=503, detail=result["error"])
+
+        result["screen_slug"] = slug
+        result["screen_name"] = SCREENS[slug]["name"]
+        result["constituents"] = [
+            {"ticker": s["ticker"], "display_ticker": s["display_ticker"], "company_name": s["company_name"]}
+            for s in stocks[:20]
+        ]
+        cache.set(_cache_key, result, ttl=86400)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"backtest failed for {slug}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Backtest computation failed")
+
+
 @router.get("/technicals/{ticker}")
 async def get_technicals_endpoint(ticker: str, days: int = Query(default=365, ge=60, le=730)):
     """

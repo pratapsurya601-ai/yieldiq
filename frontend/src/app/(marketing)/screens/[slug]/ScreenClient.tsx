@@ -1,7 +1,41 @@
 "use client"
 
 import Link from "next/link"
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import {
+  ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
+} from "recharts"
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || ""
+
+interface BacktestMetrics {
+  cagr_pct: number
+  volatility_pct: number
+  sharpe_proxy: number
+  max_drawdown_pct: number
+  total_return_pct: number
+  n_years: number
+  beta?: number
+  benchmark_cagr_pct?: number
+  alpha_pct?: number
+  outperformance_pct?: number
+}
+
+interface BacktestCurvePoint {
+  date: string
+  portfolio: number
+  benchmark?: number
+}
+
+interface BacktestData {
+  tickers_backtested: number
+  tickers_requested: number
+  benchmark: string
+  rebalance_days: number
+  years: number
+  curve: BacktestCurvePoint[]
+  metrics: BacktestMetrics
+}
 
 interface Stock {
   ticker: string
@@ -195,6 +229,9 @@ export default function ScreenClient({ data, slug }: { data: ScreenData; slug: s
         </div>
       </section>
 
+      {/* Backtest Section */}
+      <BacktestSection slug={data.slug} />
+
       {/* CTA */}
       <section className="bg-gray-50 border-t border-gray-100 py-12">
         <div className="max-w-3xl mx-auto px-4 text-center">
@@ -213,5 +250,166 @@ export default function ScreenClient({ data, slug }: { data: ScreenData; slug: s
         </p>
       </footer>
     </div>
+  )
+}
+
+function BacktestSection({ slug }: { slug: string }) {
+  const [data, setData] = useState<BacktestData | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [years, setYears] = useState(3)
+  const [rebalance, setRebalance] = useState<"monthly" | "quarterly" | "yearly">("quarterly")
+  const [hasRun, setHasRun] = useState(false)
+
+  const runBacktest = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const res = await fetch(`${API_BASE}/api/v1/public/backtest/screen/${slug}?years=${years}&rebalance=${rebalance}`)
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.detail || `HTTP ${res.status}`)
+      }
+      const d = await res.json()
+      setData(d)
+      setHasRun(true)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Backtest failed")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const m = data?.metrics
+  const outperformed = m?.outperformance_pct != null && m.outperformance_pct > 0
+
+  return (
+    <section className="max-w-6xl mx-auto px-4 py-10 border-t border-gray-100">
+      <div className="max-w-4xl mx-auto">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div>
+            <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase mb-1">Backtest</p>
+            <h2 className="text-2xl font-black text-gray-900">How have these stocks performed?</h2>
+            <p className="text-xs text-gray-500 mt-1">Equal-weighted portfolio of current constituents vs Nifty (NIFTYBEES)</p>
+          </div>
+        </div>
+
+        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
+          <div className="flex-1">
+            <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1 block">Period</label>
+            <select value={years} onChange={e => setYears(parseInt(e.target.value))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
+              <option value={1}>1 year</option>
+              <option value={2}>2 years</option>
+              <option value={3}>3 years</option>
+              <option value={5}>5 years</option>
+            </select>
+          </div>
+          <div className="flex-1">
+            <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1 block">Rebalance</label>
+            <select value={rebalance} onChange={e => setRebalance(e.target.value as "monthly" | "quarterly" | "yearly")} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+          <button
+            onClick={runBacktest}
+            disabled={loading}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition disabled:opacity-50"
+          >
+            {loading ? "Running..." : hasRun ? "Re-run" : "Run Backtest"}
+          </button>
+        </div>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-4">
+            <p className="text-sm text-red-800">{error}</p>
+          </div>
+        )}
+
+        {m && data && (
+          <>
+            {/* Summary cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+              <div className="bg-white border border-gray-200 rounded-xl p-4">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">CAGR</p>
+                <p className={`text-xl font-bold ${m.cagr_pct >= 0 ? "text-green-600" : "text-red-600"}`}>
+                  {m.cagr_pct >= 0 ? "+" : ""}{m.cagr_pct.toFixed(1)}%
+                </p>
+                {m.benchmark_cagr_pct != null && (
+                  <p className="text-[10px] text-gray-400 mt-0.5">Nifty: {m.benchmark_cagr_pct >= 0 ? "+" : ""}{m.benchmark_cagr_pct.toFixed(1)}%</p>
+                )}
+              </div>
+              <div className="bg-white border border-gray-200 rounded-xl p-4">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">vs Nifty</p>
+                <p className={`text-xl font-bold ${outperformed ? "text-green-600" : "text-red-600"}`}>
+                  {m.outperformance_pct != null ? `${m.outperformance_pct >= 0 ? "+" : ""}${m.outperformance_pct.toFixed(1)}%` : "—"}
+                </p>
+                <p className="text-[10px] text-gray-400 mt-0.5">Annualized delta</p>
+              </div>
+              <div className="bg-white border border-gray-200 rounded-xl p-4">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Max Drawdown</p>
+                <p className="text-xl font-bold text-red-600">{m.max_drawdown_pct.toFixed(1)}%</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">Peak-to-trough</p>
+              </div>
+              <div className="bg-white border border-gray-200 rounded-xl p-4">
+                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Return/Vol</p>
+                <p className={`text-xl font-bold ${m.sharpe_proxy >= 0 ? "text-gray-900" : "text-red-600"}`}>{m.sharpe_proxy.toFixed(2)}</p>
+                <p className="text-[10px] text-gray-400 mt-0.5">Sharpe proxy</p>
+              </div>
+            </div>
+
+            {/* Equity curve chart */}
+            <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
+              <div className="flex items-baseline justify-between mb-2">
+                <h3 className="text-sm font-bold text-gray-900">Growth of ₹100</h3>
+                <p className="text-[10px] text-gray-400">{data.tickers_backtested} of {data.tickers_requested} stocks have price history</p>
+              </div>
+              <ResponsiveContainer width="100%" height={280}>
+                <LineChart data={data.curve}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} interval="preserveStartEnd" tickFormatter={(d) => String(d).slice(0, 7)} />
+                  <YAxis tick={{ fontSize: 10 }} />
+                  <Tooltip labelStyle={{ fontSize: 11 }} contentStyle={{ fontSize: 11, borderRadius: 8 }} formatter={(v: unknown) => typeof v === "number" ? `₹${v.toFixed(0)}` : "—"} />
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  <Line type="monotone" dataKey="portfolio" stroke="#1D4ED8" strokeWidth={2} dot={false} name="Filter stocks" />
+                  <Line type="monotone" dataKey="benchmark" stroke="#94A3B8" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Nifty (NIFTYBEES)" />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Verdict */}
+            <div className={`rounded-xl border p-4 mb-4 ${outperformed ? "bg-green-50 border-green-200" : "bg-amber-50 border-amber-200"}`}>
+              <p className={`text-sm font-semibold ${outperformed ? "text-green-900" : "text-amber-900"}`}>
+                {outperformed
+                  ? `Over ${m.n_years} year${m.n_years !== 1 ? "s" : ""}, this filter's current constituents would have beaten Nifty by ${m.outperformance_pct?.toFixed(1)}% CAGR.`
+                  : `Over ${m.n_years} year${m.n_years !== 1 ? "s" : ""}, this filter's current constituents would have underperformed Nifty by ${Math.abs(m.outperformance_pct || 0).toFixed(1)}% CAGR.`
+                }
+              </p>
+            </div>
+
+            {/* Disclaimer */}
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+              <p className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Important caveats</p>
+              <ul className="text-xs text-gray-600 space-y-1 leading-relaxed">
+                <li>&bull; <b>Survivorship bias:</b> This backtest uses TODAY&apos;s filter constituents. Stocks that failed the filter in the past are not included.</li>
+                <li>&bull; <b>Not a rolling backtest:</b> A true backtest would re-run the filter at each historical date.</li>
+                <li>&bull; <b>Past performance:</b> Historical returns do not guarantee future results.</li>
+                <li>&bull; <b>Transaction costs:</b> Not included. Real returns would be lower.</li>
+              </ul>
+            </div>
+          </>
+        )}
+
+        {!hasRun && !loading && !error && (
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-5 text-center">
+            <p className="text-sm text-blue-900 mb-2">
+              Click <b>Run Backtest</b> to see how these {SCREENS_LIST.length} stocks would have performed vs Nifty.
+            </p>
+            <p className="text-[10px] text-blue-600">~5-10 seconds to compute</p>
+          </div>
+        )}
+      </div>
+    </section>
   )
 }
