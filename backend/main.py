@@ -112,8 +112,17 @@ def _start_pipeline_scheduler():
         replace_existing=True,
     )
 
+    # Weekly newsletter — Sunday 8am IST
+    scheduler.add_job(
+        _send_newsletter,
+        CronTrigger(day_of_week="sun", hour=8, minute=0, timezone="Asia/Kolkata"),
+        id="weekly_newsletter",
+        name="Weekly newsletter email",
+        replace_existing=True,
+    )
+
     scheduler.start()
-    logger.info("Pipeline scheduler started: daily 4:30pm IST, weekly Sun 11pm IST, alerts every 3h, digest Mon 9am IST")
+    logger.info("Pipeline scheduler started: daily 4:30pm IST, weekly Sun 11pm IST, alerts every 3h, digest Mon 9am, newsletter Sun 8am IST")
     return scheduler
 
 
@@ -162,6 +171,16 @@ def _send_weekly_digests():
         logger.info(f"Weekly digest job complete: {count} emails sent")
     except Exception as e:
         logger.error(f"Weekly digest job failed: {e}")
+
+
+def _send_newsletter():
+    """Send weekly newsletter to all subscribed users."""
+    try:
+        from backend.services.newsletter_service import send_newsletter_to_all
+        count = send_newsletter_to_all()
+        logger.info(f"Newsletter job complete: {count} emails sent")
+    except Exception as e:
+        logger.error(f"Newsletter job failed: {e}")
 
 
 def _ensure_pipeline_tables():

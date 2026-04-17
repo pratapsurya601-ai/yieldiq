@@ -89,3 +89,12 @@ async def get_admin_stats(user: dict = Depends(require_admin)):
         pass
 
     return stats
+
+
+@router.post("/trigger-newsletter")
+async def trigger_newsletter(user: dict = Depends(require_admin)):
+    """Manually trigger newsletter send. Admin only."""
+    import threading
+    from backend.services.newsletter_service import send_newsletter_to_all
+    threading.Thread(target=send_newsletter_to_all, daemon=True).start()
+    return {"status": "newsletter queued", "triggered_by": user.get("email")}
