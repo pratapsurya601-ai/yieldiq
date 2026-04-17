@@ -189,6 +189,20 @@ for _t in (FINANCIAL_COMPANIES - _NBFC_TICKERS - _INSURANCE_TICKERS):
     TICKER_SECTOR_OVERRIDES[_t] = "Banking"
 
 
+def _compute_roe_fallback(enriched: dict):
+    """Compute ROE from net_income / total_equity when yfinance doesn't provide it."""
+    try:
+        net_income = enriched.get("net_income") or enriched.get("netIncome", 0)
+        equity = enriched.get("total_equity") or enriched.get("totalStockholderEquity", 0)
+        if net_income and equity and equity > 0:
+            roe = net_income / equity
+            if -2.0 <= roe <= 2.0:  # sanity: -200% to +200%
+                return round(roe, 4)
+    except Exception:
+        pass
+    return None
+
+
 def _resolve_sector(raw_sector: str, clean_ticker: str = "") -> str:
     """Map raw yfinance/screener sector names to cleaner display names.
 
@@ -1128,10 +1142,20 @@ class AnalysisService:
         # ── Step 4: Build company info ────────────────────────
         _raw_sector = enriched.get("sector_name", raw.get("sector_name", ""))
         _display_name = COMPANY_NAME_OVERRIDES.get(ticker, raw.get("company_name", ticker))
+        # Exchange detection: .NS → NSE, .BO → BSE
+        _exchange = raw.get("exchange", "")
+        if not _exchange:
+            _exchange = "NSE" if ticker.endswith(".NS") else "BSE" if ticker.endswith(".BO") else ""
+        _industry = raw.get("industry", enriched.get("industry", ""))
+        _country = "India" if is_indian else raw.get("country", "")
+
         company = CompanyInfo(
             ticker=ticker,
             company_name=_display_name,
+            exchange=_exchange,
             sector=_resolve_sector(_raw_sector, clean_ticker),
+            industry=_industry,
+            country=_country,
             currency="INR" if is_indian else "USD",
             market_cap=price * enriched.get("shares", 0),
         )
@@ -1701,7 +1725,7 @@ class AnalysisService:
                 momentum_grade=momentum_result.get("grade", "N/A"),
                 fundamental_score=fund_result.get("score", 0),
                 fundamental_grade=fund_result.get("grade", "N/A"),
-                roe=enriched.get("roe"),
+                roe=enriched.get("roe") or _compute_roe_fallback(enriched),
                 de_ratio=enriched.get("de_ratio"),
                 roce=_roce_val,
                 debt_ebitda=_debt_ebitda_val,

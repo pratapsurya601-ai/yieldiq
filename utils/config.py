@@ -53,9 +53,9 @@ MODEL_SAVE_PATH      = "models/fcf_model.pkl"
 import threading
 import time as _time_mod
 
-# Fallback rates (used when yfinance is unavailable)
-RF_US_FALLBACK    = 0.043   # 4.3%  US 10-Year Treasury  (2024-2025 level)
-RF_INDIA_FALLBACK = 0.072   # 7.2%  India 10-Year G-Sec  (RBI target zone)
+# Fallback rates (used when live fetch fails)
+RF_US_FALLBACK    = 0.043   # 4.3%  US 10-Year Treasury (2025-2026 level)
+RF_INDIA_FALLBACK = 0.0680  # 6.80% India 10-Year G-Sec (Apr 2026, RBI repo 5.50%)
 
 # WACC adjustment thresholds
 _RF_HIGH_THRESHOLD  = 0.050   # > 5.0%  → +50 bps to WACC
@@ -94,6 +94,10 @@ def _try_fetch_yield(ticker_sym: str) -> float | None:
     """
     try:
         import yfinance as yf
+        import logging as _yf_log
+        # Suppress yfinance errors for delisted tickers (^INBMK spam)
+        _yf_log.getLogger("yfinance").setLevel(_yf_log.CRITICAL)
+
         t = yf.Ticker(ticker_sym)
 
         # Method 1 — fast_info (no network round-trip if already cached by yf)
@@ -114,6 +118,40 @@ def _try_fetch_yield(ticker_sym: str) -> float | None:
         except Exception:
             pass
 
+    except Exception:
+        pass
+
+    return None
+
+
+def _try_fetch_india_10y() -> float | None:
+    """
+    Fetch India 10Y G-Sec yield from multiple sources.
+    ^INBMK was delisted by Yahoo Finance in 2024-2025, so we try
+    alternative tickers and finally fall back to the FRED API.
+    """
+    # Try Yahoo Finance alternatives in order of reliability
+    # ^NSEI10Y doesn't exist; IN10YT=X is Reuters India 10Y; IRGB10Y is
+    # another alias. None of these are super reliable, so we try them all.
+    for ticker in ("IN10YT=X", "^INBMK", "INDIABOND10Y=RR"):
+        rate = _try_fetch_yield(ticker)
+        if rate is not None:
+            return rate
+
+    # Fallback: FRED API (free, reliable, no API key needed for this series)
+    # Series: INDIRLTLT01STM — India Long-Term Government Bond Yield
+    try:
+        import urllib.request as _ur
+        import json as _json
+        url = "https://api.stlouisfed.org/fred/series/observations?series_id=INDIRLTLT01STM&sort_order=desc&limit=1&api_key=demo&file_type=json"
+        with _ur.urlopen(url, timeout=5) as _r:
+            data = _json.loads(_r.read())
+            if data.get("observations"):
+                val = data["observations"][0].get("value")
+                if val and val != ".":
+                    rate = float(val) / 100.0
+                    if 0.04 < rate < 0.12:  # sanity check: 4%-12%
+                        return rate
     except Exception:
         pass
 
@@ -161,10 +199,15 @@ def fetch_risk_free_rate(market: str = "us") -> dict:
             return dict(cached)   # defensive copy
 
     # ── Fetch live rate ─────────────────────────────────────────
-    ticker  = "^TNX" if market == "us" else "^INBMK"
-    default = RF_US_FALLBACK if market == "us" else RF_INDIA_FALLBACK
-
-    live_rate = _try_fetch_yield(ticker)
+    if market == "us":
+        ticker  = "^TNX"
+        default = RF_US_FALLBACK
+        live_rate = _try_fetch_yield(ticker)
+    else:
+        # India: ^INBMK was delisted by Yahoo Finance. Use multi-source fetcher.
+        ticker  = "IN10Y (multi-source)"
+        default = RF_INDIA_FALLBACK
+        live_rate = _try_fetch_india_10y()
 
     if live_rate is not None:
         rate   = live_rate
