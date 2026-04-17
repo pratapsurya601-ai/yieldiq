@@ -243,10 +243,6 @@ class MacroService:
             bullets.append(f"Gold ${snapshot['gold_usd']:,.0f}/oz.")
         if snapshot.get("silver_usd"):
             bullets.append(f"Silver ${snapshot['silver_usd']:.1f}/oz.")
-        if snapshot.get("risk_free_pct"):
-            bullets.append(
-                f"10Y G-Sec yield {snapshot['risk_free_pct']:.2f}%."
-            )
 
         context = " ".join(bullets)
         if not context:

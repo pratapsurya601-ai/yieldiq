@@ -257,19 +257,6 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
             <Dash />
           )}
         </Card>
-
-        <Card title="10Y G-Sec">
-          {pulse.risk_free_pct === null || pulse.risk_free_pct === undefined ? (
-            <Dash />
-          ) : (
-            <>
-              <p className="text-lg font-bold text-gray-900 tabular-nums">
-                {pulse.risk_free_pct.toFixed(2)}%
-              </p>
-              <p className="text-[10px] text-gray-400">Risk-free</p>
-            </>
-          )}
-        </Card>
       </div>
 
       {/* AI summary — only when populated */}
