@@ -992,6 +992,51 @@ class StockDataCollector:
                 "falling back to yfinance for price data"
             )
 
+    def _statement_multiplier(self, sample_value: float) -> float:
+        """
+        Per-statement currency scale detector.
+
+        `self._fin_multiplier` is set module-wide by _detect_financial_currency
+        based on `info.totalRevenue` vs price. But yfinance is inconsistent —
+        for HCLTECH.NS, `info.totalRevenue` comes back in USD (triggers
+        multiplier=83.5) while `ticker_obj.financials` returns the income
+        statement in INR already. Blindly multiplying by 83.5 produces 83×
+        inflation (HCLTECH revenue ₹97.7T observed vs real ₹1.1T).
+
+        This helper checks the actual sample_value from the statement
+        against the market cap. For a real stock, market_cap / revenue
+        (P/S ratio) is 0.5-30. If raw revenue is in USD but market cap
+        is in INR, the ratio blows up to 50-500 — a clean separation.
+
+        Returns APPROX_USD_TO_INR if the statement values are USD-magnitude
+        and need conversion; 1.0 if they are already INR.
+        """
+        # Not a USD reporter — always 1.0
+        if self._fin_multiplier == 1.0:
+            return 1.0
+        if sample_value <= 0:
+            # No sample to compare — fall back to module-wide decision
+            return self._fin_multiplier
+        try:
+            mktcap_inr = _safe_float(self._yf_info.get("marketCap", 0))
+        except Exception:
+            mktcap_inr = 0.0
+        if mktcap_inr <= 0:
+            return self._fin_multiplier
+
+        # For INR-INR stocks: mktcap / revenue (P/S) typically 0.5-30
+        # For INR-mktcap + USD-statement: ratio would be 83× higher (42-2500)
+        # Threshold of 50 cleanly separates the two.
+        ratio = mktcap_inr / sample_value
+        if ratio > 50:
+            return APPROX_USD_TO_INR  # raw statement is USD, convert
+        log.info(
+            "[%s] _statement_multiplier: mktcap/sample=%.1f — statement "
+            "appears INR-already, skipping %.1fx multiplier",
+            self.ticker, ratio, self._fin_multiplier,
+        )
+        return 1.0
+
     # ── yfinance load ─────────────────────────────────────────
     def _load_yf(self) -> bool:
         import random
@@ -1109,7 +1154,15 @@ class StockDataCollector:
             bs = self._ticker_obj.balance_sheet
             if bs is None or bs.empty:
                 return result
-            m = self._fin_multiplier
+            # Per-statement currency detection: sample newest-year
+            # total_assets (biggest, most reliable number on the sheet).
+            _sample_ta = 0.0
+            try:
+                if "Total Assets" in bs.index and len(bs.columns) > 0:
+                    _sample_ta = _safe_float(bs.loc["Total Assets", bs.columns[0]])
+            except Exception:
+                pass
+            m = self._statement_multiplier(_sample_ta)
             cols = list(bs.columns)  # newest first
 
             def _bs(label_list, col_idx=0):
@@ -1215,26 +1268,38 @@ class StockDataCollector:
             inc = self._ticker_obj.financials
             if inc is None or inc.empty:
                 return pd.DataFrame()
+            # Per-statement currency detection: pick the newest-year revenue
+            # as a sample, compare to market cap. Decides whether to apply
+            # USD→INR conversion or skip (values already INR).
+            _sample_rev = 0.0
+            try:
+                for _lbl in ["Total Revenue", "Revenue"]:
+                    if _lbl in inc.index and len(inc.columns) > 0:
+                        _sample_rev = _safe_float(inc.loc[_lbl, inc.columns[0]])
+                        break
+            except Exception:
+                pass
+            m = self._statement_multiplier(_sample_rev)
             rows = []
             for col in inc.columns:
                 year     = col.year if hasattr(col, "year") else int(str(col)[:4])
                 revenue  = op_income = net_income = 0.0
                 for label in ["Total Revenue", "Revenue"]:
                     if label in inc.index:
-                        revenue = _safe_float(inc.loc[label, col]) * self._fin_multiplier
+                        revenue = _safe_float(inc.loc[label, col]) * m
                         break
                 for label in ["Operating Income", "Ebit"]:
                     if label in inc.index:
-                        op_income = _safe_float(inc.loc[label, col]) * self._fin_multiplier
+                        op_income = _safe_float(inc.loc[label, col]) * m
                         break
                 for label in ["Net Income", "Net Income Common Stockholders"]:
                     if label in inc.index:
-                        net_income = _safe_float(inc.loc[label, col]) * self._fin_multiplier
+                        net_income = _safe_float(inc.loc[label, col]) * m
                         break
                 gross_profit = 0.0
                 for label in ["Gross Profit"]:
                     if label in inc.index:
-                        gross_profit = _safe_float(inc.loc[label, col]) * self._fin_multiplier
+                        gross_profit = _safe_float(inc.loc[label, col]) * m
                         break
                 rows.append({
                     "year": year, "revenue": revenue,
@@ -1265,6 +1330,17 @@ class StockDataCollector:
             cf = self._ticker_obj.cashflow
             if cf is None or cf.empty:
                 return pd.DataFrame()
+            # Per-statement currency detection: sample newest-year OCF.
+            _sample_ocf = 0.0
+            try:
+                for _lbl in ["Operating Cash Flow",
+                              "Total Cash From Operating Activities"]:
+                    if _lbl in cf.index and len(cf.columns) > 0:
+                        _sample_ocf = abs(_safe_float(cf.loc[_lbl, cf.columns[0]]))
+                        break
+            except Exception:
+                pass
+            m = self._statement_multiplier(_sample_ocf)
             rows = []
             for col in cf.columns:
                 year = col.year if hasattr(col, "year") else int(str(col)[:4])
@@ -1272,11 +1348,11 @@ class StockDataCollector:
                 for label in ["Operating Cash Flow",
                                "Total Cash From Operating Activities"]:
                     if label in cf.index:
-                        ocf = _safe_float(cf.loc[label, col]) * self._fin_multiplier
+                        ocf = _safe_float(cf.loc[label, col]) * m
                         break
                 for label in ["Capital Expenditure", "Capital Expenditures"]:
                     if label in cf.index:
-                        capex = abs(_safe_float(cf.loc[label, col])) * self._fin_multiplier
+                        capex = abs(_safe_float(cf.loc[label, col])) * m
                         break
                 rows.append({
                     "year": year, "ocf": ocf,

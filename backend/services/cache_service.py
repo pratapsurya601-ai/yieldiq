@@ -8,7 +8,7 @@ from typing import Any, Optional
 # Bump this integer whenever you change any pricing/DCF/scoring logic.
 # All cache entries keyed with the old version become automatically stale
 # on next access — no manual invalidation needed.
-CACHE_VERSION = 21  # bumped: sanity gate now covers preview endpoint too (complete coverage)
+CACHE_VERSION = 22  # bumped: real HCL root-cause fix — per-statement currency detection in collector.py
 
 
 class CacheService:
