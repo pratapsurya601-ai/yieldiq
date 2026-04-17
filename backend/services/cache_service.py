@@ -8,7 +8,7 @@ from typing import Any, Optional
 # Bump this integer whenever you change any pricing/DCF/scoring logic.
 # All cache entries keyed with the old version become automatically stale
 # on next access — no manual invalidation needed.
-CACHE_VERSION = 27  # bumped: Step 2 retry — growth valuation with no external logger refs (NameError fix)
+CACHE_VERSION = 28  # bumped: Step 2 fix — eligibility now uses op_margin not latest_pat (unreliably populated)
 
 
 class CacheService:

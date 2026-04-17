@@ -144,16 +144,29 @@ def compute_growth_valuation(
 
 
 def should_use_growth_path(enriched: dict, market_cap: float) -> bool:
-    """Narrow eligibility. Returns False (safe default) on any error."""
+    """
+    Narrow eligibility for the reverse-P/S growth path.
+
+    Signal of "DCF doesn't work here": operating margin is near zero.
+    We use op_margin instead of latest_pat because latest_pat is
+    unreliably populated (often 0 even for profitable companies),
+    while op_margin is always computed from income_df.
+
+    Threshold: 5% op margin cleanly separates:
+      - Growth stocks (ETERNAL ~0.05%, PAYTM negative, NYKAA ~1%)
+      - Profitable blue chips (TCS 24%, INFY 21%, HCLTECH 18%+, ITC 34%)
+
+    Returns False (safe default) on any error -> standard DCF runs.
+    """
     try:
         revenue = float(enriched.get("latest_revenue") or 0)
-        fcf = float(enriched.get("latest_fcf") or 0)
-        pat = float(enriched.get("latest_pat") or 0)
+        op_margin = float(enriched.get("op_margin") or 0)
         if revenue < 1e9:
             return False
         if market_cap < 1e10:
             return False
-        if fcf > 0 and pat > 0:
+        # Op margin above 5% -> trust standard DCF path
+        if op_margin > 0.05:
             return False
         return True
     except Exception:
