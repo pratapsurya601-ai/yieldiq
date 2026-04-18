@@ -121,7 +121,17 @@ async def get_analysis(
         _db_cached = None
     if _db_cached:
         try:
-            _obj = AnalysisResponse(**_db_cached)
+            # Schema-tolerant rehydrate. When we add fields to
+            # QualityOutput/ValuationOutput without bumping CACHE_VERSION
+            # (e.g. today's ROCE, Debt/EBITDA, Interest Coverage,
+            # Promoter % additions), old cached payloads lack those
+            # keys. model_validate fills Optional/defaulted fields
+            # cleanly; strict __init__ on Pydantic v2 raises on unknown
+            # extras, so we also strip any keys the current model
+            # doesn't know about.
+            _cls_fields = set(AnalysisResponse.model_fields.keys())
+            _clean = {k: v for k, v in _db_cached.items() if k in _cls_fields}
+            _obj = AnalysisResponse.model_validate(_clean)
             _obj.cached = True
             # Populate tier-1 so subsequent hits on this worker skip the DB.
             cache.set(_cache_key, _obj, ttl=86400)
@@ -135,8 +145,15 @@ async def get_analysis(
         except Exception as _exc:
             import logging as _logging
             _logging.getLogger("yieldiq.analysis").warning(
-                "analysis_cache: failed to rehydrate payload for %s: %s", ticker, _exc
+                "analysis_cache: failed to rehydrate payload for %s (%s: %s) — recomputing + invalidating",
+                ticker, type(_exc).__name__, _exc,
             )
+            # Invalidate the bad row so we don't keep retrying to rehydrate
+            # it on every request (each retry costs a DB round-trip).
+            try:
+                analysis_cache_service.invalidate(ticker)
+            except Exception:
+                pass
             # fall through to compute
 
     _compute_start = _time.monotonic()
