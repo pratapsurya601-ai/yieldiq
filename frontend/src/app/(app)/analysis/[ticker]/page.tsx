@@ -5,7 +5,6 @@ import { useQuery } from "@tanstack/react-query"
 import { getAnalysis, getChartData, getFVHistory, getPeers, getFinancials } from "@/lib/api"
 import ConvictionRing from "@/components/analysis/ConvictionRing"
 import VerdictChip from "@/components/analysis/VerdictChip"
-import BlurredValue from "@/components/ui/BlurredValue"
 import LearnTip from "@/components/ui/LearnTip"
 import AISummary from "@/components/analysis/AISummary"
 import ActionBar from "@/components/analysis/ActionBar"
@@ -256,7 +255,10 @@ export default function AnalysisPage() {
           <ConvictionRing score={quality.yieldiq_score} confidence={valuation.confidence_score} />
           <div className="flex-1 space-y-1.5">
             <VerdictChip verdict={valuation.verdict} size="lg" />
-            <BlurredValue value={valuation.fair_value} currency={company.currency} label="Fair value estimate" />
+            <span className="font-semibold text-gray-900">
+              <span className="text-xs text-gray-500 mr-1">Fair value estimate</span>
+              {formatCurrency(valuation.fair_value, company.currency)}
+            </span>
             <p className={`text-sm font-medium ${valuation.margin_of_safety >= 0 ? "text-blue-600" : "text-amber-600"}`}>
               MoS: {valuation.margin_of_safety > 80 ? "+80%+" : formatPct(valuation.margin_of_safety)}
               <LearnTip tipKey="mos" />

@@ -41,24 +41,6 @@ function formatUSD(value: number): string {
   return `$${value.toLocaleString("en-US")}`
 }
 
-function generateMockData(currency: string): YearlyData[] {
-  // Deterministic mock — no Math.random (causes SSR/client hydration
-  // mismatch). Fixed FCF multipliers per index instead.
-  const currentYear = new Date().getFullYear()
-  const baseRevenue = currency === "INR" ? 5000_00_00_000 : 8_000_000_000
-  const baseFcf = currency === "INR" ? 800_00_00_000 : 1_200_000_000
-  const fcfMultipliers = [0.95, 1.05, 0.98, 1.08, 1.02]
-
-  return Array.from({ length: 5 }, (_, i) => {
-    const growthFactor = 1 + i * 0.12
-    return {
-      year: `FY${(currentYear - 4 + i).toString().slice(-2)}`,
-      revenue: Math.round(baseRevenue * growthFactor),
-      fcf: Math.round(baseFcf * growthFactor * fcfMultipliers[i]),
-    }
-  })
-}
-
 export default function FinancialBars({
   ticker,
   currency = "INR",
@@ -66,31 +48,27 @@ export default function FinancialBars({
   fcf: fcfProp,
 }: FinancialBarsProps) {
   const data: YearlyData[] = useMemo(() => {
-    // If real data is provided, merge revenue and FCF by year
-    if (revenueProp?.length || fcfProp?.length) {
-      const yearMap = new Map<string, YearlyData>()
+    // Merge revenue + FCF by year. No synthetic fallback — if the
+    // backend returned nothing, we show an empty state below, never
+    // fictional numbers (regulatory + trust concern).
+    if (!revenueProp?.length && !fcfProp?.length) return []
 
-      for (const r of revenueProp ?? []) {
-        yearMap.set(r.year, { year: r.year, revenue: r.value, fcf: 0 })
-      }
-      for (const f of fcfProp ?? []) {
-        const existing = yearMap.get(f.year)
-        if (existing) {
-          existing.fcf = f.value
-        } else {
-          yearMap.set(f.year, { year: f.year, revenue: 0, fcf: f.value })
-        }
-      }
-
-      // Sort by year and return
-      return Array.from(yearMap.values()).sort((a, b) =>
-        a.year.localeCompare(b.year)
-      )
+    const yearMap = new Map<string, YearlyData>()
+    for (const r of revenueProp ?? []) {
+      yearMap.set(r.year, { year: r.year, revenue: r.value, fcf: 0 })
     }
-
-    // Fallback to mock data
-    return generateMockData(currency)
-  }, [currency, revenueProp, fcfProp])
+    for (const f of fcfProp ?? []) {
+      const existing = yearMap.get(f.year)
+      if (existing) {
+        existing.fcf = f.value
+      } else {
+        yearMap.set(f.year, { year: f.year, revenue: 0, fcf: f.value })
+      }
+    }
+    return Array.from(yearMap.values()).sort((a, b) =>
+      a.year.localeCompare(b.year)
+    )
+  }, [revenueProp, fcfProp])
 
   const yFormatter = currency === "INR" ? formatCrore : formatUSD
 

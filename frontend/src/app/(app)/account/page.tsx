@@ -73,7 +73,13 @@ export default function AccountPage() {
   const { email, tier, analysesToday, analysisLimit, logout, setAuth, token, userId } = useAuthStore()
   const { learnMode, proMode, toggleLearnMode, toggleProMode } = useSettingsStore()
   const [upgrading, setUpgrading] = useState(false)
+  const [toast, setToast] = useState<{ msg: string; tone: "ok" | "err" } | null>(null)
   const router = useRouter()
+
+  const showToast = (msg: string, tone: "ok" | "err" = "ok") => {
+    setToast({ msg, tone })
+    setTimeout(() => setToast(null), 4000)
+  }
 
   const handleLogout = () => {
     Cookies.remove("yieldiq_token")
@@ -117,13 +123,12 @@ export default function AccountPage() {
               },
             })
             if (verifyRes.data.ok) {
-              // Update local auth state
+              // Update local auth state — no reload needed, Zustand subscribers re-render.
               setAuth(token || "", userId || "", email || "", verifyRes.data.tier, analysesToday, analysisLimit)
-              alert(`Upgraded to ${verifyRes.data.tier.toUpperCase()}!`)
-              window.location.reload()
+              showToast(`Upgraded to ${verifyRes.data.tier.toUpperCase()} \u2014 enjoy!`, "ok")
             }
           } catch {
-            alert("Payment received but verification failed. Contact support.")
+            showToast("Payment received but verification failed. Email support@yieldiq.in", "err")
           }
         },
       }
@@ -131,14 +136,24 @@ export default function AccountPage() {
       const rzp = new window.Razorpay(options)
       rzp.open()
     } catch {
-      alert("Could not initiate payment. Please try again.")
+      showToast("Could not initiate payment. Please try again.", "err")
     } finally {
       setUpgrading(false)
     }
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 py-8 space-y-6 pb-20">
+    <div className="max-w-md md:max-w-2xl mx-auto px-4 py-8 space-y-6 pb-20">
+      {toast && (
+        <div
+          className={`fixed bottom-20 md:top-20 md:bottom-auto left-1/2 -translate-x-1/2 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-sm text-center ${
+            toast.tone === "err" ? "bg-red-600" : "bg-gray-900"
+          }`}
+          role="status"
+        >
+          {toast.msg}
+        </div>
+      )}
       <h1 className="text-xl font-bold text-gray-900">Account</h1>
 
       {/* Profile */}
