@@ -262,9 +262,9 @@ async def get_stock_summary(ticker: str):
 
     # Run analysis if not cached
     try:
-        from backend.services import analysis_service as service
+        from backend.services.analysis_service import AnalysisService
         from backend.services.validators import check_and_quarantine
-        result = service.get_full_analysis(ticker)
+        result = AnalysisService().get_full_analysis(ticker)
         quarantine = check_and_quarantine(ticker, result)
         if quarantine is not None:
             return quarantine
@@ -579,8 +579,8 @@ async def public_compare(
             return _flatten(analysis)
         # Try running analysis
         try:
-            from backend.services import analysis_service as service
-            result = service.get_full_analysis(ticker)
+            from backend.services.analysis_service import AnalysisService
+            result = AnalysisService().get_full_analysis(ticker)
             if check_and_quarantine(ticker, result) is not None:
                 return None
             return _flatten(result)
