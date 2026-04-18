@@ -120,6 +120,57 @@ def _query_preset_from_db(preset: str, page: int = 1,
         }.get(preset, _is_custom)
 
         candidates = []
+        seen_tickers: set[str] = set()
+
+        # Tier 1 — persistent analysis_cache DB table. This survives
+        # Railway redeploys, which wipe the in-memory cache below.
+        # Before this was wired, the screener always returned "No stocks
+        # match" for a few minutes after every deploy because the
+        # in-memory cache hadn't rehydrated yet.
+        try:
+            from data_pipeline.db import Session as _Session
+            from sqlalchemy import text as _sql_text
+            _sess = _Session()
+            try:
+                _rows = _sess.execute(_sql_text(
+                    "SELECT ticker, payload FROM analysis_cache "
+                    "WHERE computed_at > now() - interval '48 hours'"
+                )).fetchall()
+            finally:
+                _sess.close()
+            for _r in _rows:
+                _ticker = _r[0]
+                _payload = _r[1]
+                if _payload is None:
+                    continue
+                if isinstance(_payload, str):
+                    import json as _json
+                    try:
+                        _payload = _json.loads(_payload)
+                    except Exception:
+                        continue
+                _val = _payload.get("valuation") or {}
+                _qual = _payload.get("quality") or {}
+                score = _qual.get("yieldiq_score") or 0
+                mos = _val.get("margin_of_safety") or 0
+                moat = _qual.get("moat") or "None"
+                pe = None
+                try:
+                    eps = _val.get("eps_ttm") or 0
+                    cp = _val.get("current_price") or 0
+                    if eps > 0 and cp > 0:
+                        pe = cp / eps
+                except Exception:
+                    pass
+                full_ticker = _ticker if "." in _ticker else f"{_ticker}.NS"
+                if filter_fn(score, mos, moat, pe) and full_ticker not in seen_tickers:
+                    candidates.append((full_ticker, score, mos))
+                    seen_tickers.add(full_ticker)
+        except Exception as _exc:
+            logger.info("analysis_cache scan skipped: %s", _exc)
+
+        # Tier 2 — in-memory cache. Catches anything freshly computed
+        # on this worker but not yet in the persistent table.
         for key in list(_c._store.keys()):
             if not key.startswith("analysis:") or ".NS" not in key:
                 continue
@@ -131,7 +182,6 @@ def _query_preset_from_db(preset: str, page: int = 1,
             score = q.yieldiq_score or 0
             mos = v.margin_of_safety or 0
             moat = q.moat or "None"
-            # Approximate PE from current_price / eps_ttm if available
             pe = None
             try:
                 eps = getattr(v, "eps_ttm", None)
@@ -140,8 +190,9 @@ def _query_preset_from_db(preset: str, page: int = 1,
             except Exception:
                 pe = None
 
-            if filter_fn(score, mos, moat, pe):
+            if filter_fn(score, mos, moat, pe) and val.ticker not in seen_tickers:
                 candidates.append((val.ticker, score, mos))
+                seen_tickers.add(val.ticker)
 
         # Sort by score (descending) then MoS
         candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
