@@ -1180,3 +1180,42 @@ async def get_risk_stats_endpoint(ticker: str, years: int = Query(default=3, ge=
     except Exception as e:
         logger.warning(f"risk-stats failed for {clean}: {e}")
         raise HTTPException(status_code=500, detail="Risk stats unavailable")
+
+
+@router.get("/top-tickers")
+async def get_public_top_tickers(limit: int = 500):
+    """Public list of active NSE tickers sorted by market_cap_cr DESC.
+
+    Used by the cache-warmup workflow (which runs under a service
+    token that isn't in the admin allow-list) so it doesn't need
+    admin privileges to fetch the warm-set.
+
+    Read-only, non-sensitive: just a ticker list.
+    """
+    limit = max(1, min(int(limit), 2000))
+    _key = f"public:top-tickers:{limit}"
+    cached = cache.get(_key)
+    if cached is not None:
+        return cached
+    try:
+        from data_pipeline.db import Session
+        from sqlalchemy import text as _t
+        sess = Session()
+        try:
+            rows = sess.execute(_t(
+                "SELECT s.ticker "
+                "FROM stocks s "
+                "LEFT JOIN market_metrics mm ON mm.ticker = s.ticker "
+                "WHERE s.is_active = TRUE "
+                "ORDER BY COALESCE(mm.market_cap_cr, 0) DESC "
+                "LIMIT :lim"
+            ), {"lim": limit}).fetchall()
+            tickers = [r[0] for r in rows if r and r[0]]
+            out = {"count": len(tickers), "tickers": tickers}
+            cache.set(_key, out, ttl=3600)
+            return out
+        finally:
+            sess.close()
+    except Exception as exc:
+        logger.warning(f"public top-tickers failed: {exc}")
+        return {"count": 0, "tickers": []}

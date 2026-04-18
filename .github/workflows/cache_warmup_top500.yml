@@ -60,10 +60,10 @@ jobs:
           API_BASE: "https://api.yieldiq.in"
           LIMIT: ${{ github.event.inputs.limit || '500' }}
         run: |
-          # Pull the live top-N by market cap from the admin API.
+          # Pull the live top-N by market cap from the public API
+          # (no admin auth needed — just a ticker list, not sensitive).
           RESP=$(curl -s --max-time 30 \
-            -H "Authorization: Bearer $TOKEN" \
-            "${API_BASE}/api/v1/admin/top-tickers?limit=${LIMIT}")
+            "${API_BASE}/api/v1/public/top-tickers?limit=${LIMIT}")
           COUNT=$(echo "$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("count",0))')
           echo "$RESP" | python3 -c 'import sys,json; print("\n".join(json.load(sys.stdin).get("tickers",[])))' > tickers.txt
           echo "Fetched $COUNT tickers"
