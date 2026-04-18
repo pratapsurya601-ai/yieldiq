@@ -86,35 +86,6 @@ async def register(req: RegisterRequest):
     )
 
 
-@router.get("/debug")
-async def debug_auth(user: dict = Depends(get_current_user)):
-    """Temporary diagnostic — shows what the server sees for superuser
-    bypass. Remove once the tier flip is confirmed working."""
-    from backend.middleware.auth import SUPERUSER_EMAILS, is_superuser
-    return {
-        "user_email_from_jwt": user.get("email"),
-        "user_tier_from_jwt": user.get("tier"),
-        "superuser_emails_loaded": sorted(SUPERUSER_EMAILS),
-        "is_superuser_result": is_superuser(user),
-    }
-
-
-@router.get("/sentry-test")
-async def sentry_test(user: dict = Depends(get_current_user)):
-    """Deliberate uncaught exception for Sentry verification.
-
-    Superuser-only. Raises ZeroDivisionError; if Sentry is wired, the
-    event lands in the dashboard within ~10s. Safe to remove once
-    verified — this endpoint exists solely as a smoke test.
-    """
-    from backend.middleware.auth import is_superuser
-    if not is_superuser(user):
-        raise HTTPException(status_code=403, detail="Superuser only")
-    # Uncaught on purpose — Sentry captures it, the user sees a 500.
-    _ = 1 / 0
-    return {"never": "reached"}
-
-
 @router.get("/me", response_model=UserResponse)
 async def get_me(user: dict = Depends(get_current_user)):
     """Get current user info."""

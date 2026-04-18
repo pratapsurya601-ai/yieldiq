@@ -606,6 +606,55 @@ app.add_middleware(
     expose_headers=["X-Cache"],
 )
 
+
+# ── CORS on 500 responses ─────────────────────────────────────
+# FastAPI's default 500 handler emits a plain response without CORS
+# headers, because the built-in ServerErrorMiddleware runs inside the
+# CORS middleware boundary. The result: users hitting a genuine 500
+# from the frontend see a CORS error in their browser console
+# ("No 'Access-Control-Allow-Origin' header") instead of a clean
+# "something went wrong" from our API — making real bugs look like
+# connectivity issues. The Sentry event still lands, but the UX is
+# broken.
+#
+# Fix: register an explicit exception handler that always returns a
+# JSONResponse with the CORS headers reconstructed from the request's
+# Origin header. The exception has already been captured by Sentry
+# (its integration hooks earlier in the ASGI stack) so we don't
+# lose observability.
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
+
+def _cors_headers_for(request: Request) -> dict:
+    origin = request.headers.get("origin", "")
+    from backend.middleware.cors import ALLOWED_ORIGIN_REGEX as _re
+    import re as _re_mod
+    allowed = origin and (origin in ALLOWED_ORIGINS
+                          or (_re and _re_mod.match(_re, origin)))
+    if not allowed:
+        return {}
+    return {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
+        "Vary": "Origin",
+    }
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    """Last-resort 500 handler that preserves CORS headers."""
+    import logging as _el
+    _el.getLogger("yieldiq.api").exception(
+        "Unhandled exception on %s %s", request.method, request.url.path
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+        headers=_cors_headers_for(request),
+    )
+
+
 # Register routers
 app.include_router(auth.router)
 app.include_router(analysis.router)
