@@ -149,7 +149,23 @@ def build_isin_map(df: pd.DataFrame | None = None) -> dict[str, str]:
 def populate_stocks_table(db: Session, df: pd.DataFrame | None = None) -> int:
     """
     Populate the stocks master table from NSE equity list.
-    Also builds and returns ISIN map.
+
+    Handles the tricky corporate-action edge case where a company
+    renames and the SAME ISIN migrates to a new ticker. Naive
+    db.merge() fails in that case because the `stocks.isin` UNIQUE
+    constraint forbids two rows sharing an ISIN — so we can't just
+    UPDATE the new ticker to point at the ISIN; the old ticker row
+    is still holding it.
+
+    Resolution strategy:
+      1. Pre-query every (isin, ticker) pair currently in the table.
+      2. For each NSE row, if its ISIN is already held by a different
+         ticker, null-out the old holder's ISIN and mark it inactive
+         (the company effectively moved to the new ticker).
+      3. Then upsert the new row normally.
+
+    Also: per-row try/except + flush so a single bad row can't
+    poison the whole transaction.
     """
     if df is None:
         df = download_nse_equity_list()
@@ -160,17 +176,39 @@ def populate_stocks_table(db: Session, df: pd.DataFrame | None = None) -> int:
     name_col = next((c for c in df.columns if "NAME" in c.upper()), None)
     isin_col = next((c for c in df.columns if "ISIN" in c.upper()), None)
     series_col = next((c for c in df.columns if "SERIES" in c.upper()), None)
-    date_col = next((c for c in df.columns if "DATE" in c.upper() and "LIST" in c.upper()), None)
+    date_col = next(
+        (c for c in df.columns if "DATE" in c.upper() and "LIST" in c.upper()),
+        None,
+    )
+
+    # Snapshot current (isin → ticker) state so we can detect
+    # renames / re-listings and clean them up first.
+    existing_by_isin: dict[str, str] = {
+        isin: tkr
+        for (tkr, isin) in db.query(Stock.ticker, Stock.isin).filter(
+            Stock.isin.isnot(None)
+        ).all()
+    }
 
     stored = 0
+    renamed = 0
+    failed = 0
     for _, row in df.iterrows():
         try:
             sym = str(row.get(sym_col, "")).strip()
             if not sym:
                 continue
 
-            isin = str(row.get(isin_col, "")).strip() if isin_col else None
-            company = str(row.get(name_col, "")).strip() if name_col else sym
+            isin_raw = (
+                str(row.get(isin_col, "")).strip()
+                if isin_col and pd.notna(row.get(isin_col))
+                else ""
+            )
+            isin = isin_raw if isin_raw and len(isin_raw) == 12 else None
+
+            company = (
+                str(row.get(name_col, "")).strip() if name_col else sym
+            )
 
             listed_date = None
             if date_col and pd.notna(row.get(date_col)):
@@ -179,20 +217,42 @@ def populate_stocks_table(db: Session, df: pd.DataFrame | None = None) -> int:
                 except Exception:
                     pass
 
+            # Rename handling: if ISIN is held by a different ticker,
+            # release it from the old row first.
+            if isin and existing_by_isin.get(isin) and existing_by_isin[isin] != sym:
+                old_tkr = existing_by_isin[isin]
+                old_row = db.query(Stock).filter(Stock.ticker == old_tkr).first()
+                if old_row is not None:
+                    old_row.isin = None
+                    old_row.is_active = False
+                    db.flush()
+                existing_by_isin.pop(isin, None)
+                renamed += 1
+
             stock = Stock(
                 ticker=sym,
                 ticker_ns=f"{sym}.NS",
                 company_name=company,
-                isin=isin if isin and len(isin) == 12 else None,
-                series=str(row.get(series_col, "EQ")).strip() if series_col else "EQ",
+                isin=isin,
+                series=(
+                    str(row.get(series_col, "EQ")).strip() if series_col else "EQ"
+                ),
                 is_active=True,
                 listed_date=listed_date,
             )
             db.merge(stock)
+            db.flush()
+            if isin:
+                existing_by_isin[isin] = sym
             stored += 1
-        except Exception:
-            continue
+        except Exception as exc:
+            db.rollback()
+            failed += 1
+            logger.warning("populate_stocks: skipped %r — %s", sym, exc)
 
     db.commit()
-    logger.info(f"Populated stocks table: {stored} entries")
+    logger.info(
+        "Populated stocks table: stored=%d renamed=%d failed=%d",
+        stored, renamed, failed,
+    )
     return stored
