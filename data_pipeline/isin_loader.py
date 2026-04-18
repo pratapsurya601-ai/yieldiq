@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import io
 import logging
+from pathlib import Path
 
 import pandas as pd
 import requests
@@ -14,27 +15,106 @@ from data_pipeline.models import Stock
 
 logger = logging.getLogger(__name__)
 
-# Official NSE equity list — CSV download (no scraping)
-NSE_EQUITY_LIST_URL = "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv"
+# NSE equity list sources, tried in order. NSE's own server aggressively
+# blocks cloud datacenter IPs (GH Actions, Railway, etc.), so we have
+# multiple fallbacks:
+#   1. Official NSE archives URL — works from India / unblocked IPs
+#   2. A committed copy of the CSV at data_pipeline/nse_equity_list.csv —
+#      populated manually by running this module from a laptop, then
+#      `git commit`. Refreshed whenever the monthly populate_stocks
+#      workflow notices a >5% row-count drop.
+NSE_EQUITY_LIST_URLS = [
+    "https://nsearchives.nseindia.com/content/equities/EQUITY_L.csv",
+    "https://www1.nseindia.com/content/equities/EQUITY_L.csv",
+]
+
+REPO_FALLBACK_CSV = (
+    Path(__file__).resolve().parent / "nse_equity_list.csv"
+)
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0",
-    "Referer": "https://www.nseindia.com",
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    ),
+    "Referer": "https://www.nseindia.com/",
+    "Accept": "text/csv,application/csv,text/plain,*/*",
+    "Accept-Language": "en-US,en;q=0.9",
 }
 
 
-def download_nse_equity_list() -> pd.DataFrame | None:
-    """Download the official NSE equity list CSV."""
+def _parse_nse_csv(text: str) -> pd.DataFrame | None:
+    """Parse the NSE equity CSV string, tolerant of BOM/whitespace."""
     try:
-        r = requests.get(NSE_EQUITY_LIST_URL, headers=HEADERS, timeout=30)
-        r.raise_for_status()
-        df = pd.read_csv(io.StringIO(r.text))
+        df = pd.read_csv(io.StringIO(text))
         df.columns = df.columns.str.strip()
-        logger.info(f"Downloaded NSE equity list: {len(df)} stocks")
+        if len(df) < 100:
+            logger.warning(
+                "NSE equity CSV parsed but only %d rows — likely partial/error response",
+                len(df),
+            )
+            return None
         return df
-    except Exception as e:
-        logger.error(f"Failed to download NSE equity list: {e}")
+    except Exception as exc:
+        logger.warning("NSE equity CSV parse failed: %s", exc)
         return None
+
+
+def download_nse_equity_list() -> pd.DataFrame | None:
+    """Fetch the official NSE equity list.
+
+    Tries the live NSE URLs first (requires unblocked IP), then falls
+    back to the checked-in CSV at data_pipeline/nse_equity_list.csv so
+    the pipeline still works when deployed on cloud infra that NSE
+    refuses to serve.
+    """
+    # Use a session so any cookies set by visiting www.nseindia.com
+    # carry through to the archives subdomain.
+    sess = requests.Session()
+    sess.headers.update(HEADERS)
+    try:
+        sess.get("https://www.nseindia.com/", timeout=10)
+    except Exception:
+        pass  # cookie priming best-effort
+
+    for url in NSE_EQUITY_LIST_URLS:
+        try:
+            r = sess.get(url, timeout=30)
+            if r.status_code != 200:
+                logger.info("NSE list %s → HTTP %s", url, r.status_code)
+                continue
+            # NSE sometimes returns a JSON error page masquerading as 200
+            if not r.text.lstrip().upper().startswith("SYMBOL"):
+                logger.info("NSE list %s → non-CSV response", url)
+                continue
+            df = _parse_nse_csv(r.text)
+            if df is not None:
+                logger.info("Downloaded NSE equity list from %s: %d rows", url, len(df))
+                return df
+        except Exception as exc:
+            logger.info("NSE list %s errored: %s", url, exc)
+
+    # Fallback: checked-in CSV
+    if REPO_FALLBACK_CSV.exists():
+        try:
+            df = pd.read_csv(REPO_FALLBACK_CSV)
+            df.columns = df.columns.str.strip()
+            logger.warning(
+                "Using checked-in NSE equity list fallback (%s): %d rows",
+                REPO_FALLBACK_CSV.name, len(df),
+            )
+            return df
+        except Exception as exc:
+            logger.error("Checked-in fallback CSV unreadable: %s", exc)
+
+    logger.error(
+        "Failed to obtain NSE equity list from any source. "
+        "Run `python -c \"from data_pipeline.isin_loader import download_nse_equity_list as f; "
+        "f().to_csv('data_pipeline/nse_equity_list.csv', index=False)\"` "
+        "from a machine with working NSE access, then commit the CSV."
+    )
+    return None
 
 
 def build_isin_map(df: pd.DataFrame | None = None) -> dict[str, str]:
