@@ -1,8 +1,8 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef, Suspense } from "react"
 import { useAuthStore } from "@/store/authStore"
 import { useSettingsStore } from "@/store/settingsStore"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Cookies from "js-cookie"
 import api from "@/lib/api"
 
@@ -70,11 +70,30 @@ function ReferralSection() {
 }
 
 export default function AccountPage() {
+  return (
+    <Suspense fallback={<div className="max-w-md md:max-w-2xl mx-auto px-4 py-8" />}>
+      <AccountInner />
+    </Suspense>
+  )
+}
+
+function AccountInner() {
   const { email, tier, analysesToday, analysisLimit, logout, setAuth, token, userId } = useAuthStore()
   const { learnMode, proMode, toggleLearnMode, toggleProMode } = useSettingsStore()
   const [upgrading, setUpgrading] = useState(false)
   const [toast, setToast] = useState<{ msg: string; tone: "ok" | "err" } | null>(null)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const upgradeHint = searchParams.get("upgrade") as "pro" | "analyst" | null
+  const upgradeSectionRef = useRef<HTMLDivElement>(null)
+
+  // If the user came from the pricing page with ?upgrade=pro|analyst,
+  // jump them to the upgrade cards so they don't have to hunt.
+  useEffect(() => {
+    if (upgradeHint && upgradeSectionRef.current) {
+      upgradeSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+  }, [upgradeHint])
 
   const showToast = (msg: string, tone: "ok" | "err" = "ok") => {
     setToast({ msg, tone })
@@ -196,11 +215,11 @@ export default function AccountPage() {
 
       {/* Pricing Cards */}
       {tier === "free" && (
-        <div className="space-y-3">
+        <div ref={upgradeSectionRef} className="space-y-3 scroll-mt-20">
           <h2 className="text-sm font-semibold text-gray-900">Upgrade your plan</h2>
 
           {/* Pro */}
-          <div className="relative bg-white rounded-2xl border-2 border-blue-200 p-5">
+          <div className={`relative bg-white rounded-2xl border-2 p-5 transition ${upgradeHint === "pro" ? "border-blue-500 ring-4 ring-blue-100" : "border-blue-200"}`}>
             <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full shadow-sm">
               Most Popular
             </span>
@@ -229,7 +248,7 @@ export default function AccountPage() {
           </div>
 
           {/* Analyst */}
-          <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-5 text-white">
+          <div className={`bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-5 text-white transition ${upgradeHint === "analyst" ? "ring-4 ring-blue-400" : ""}`}>
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="font-bold">Analyst</h3>

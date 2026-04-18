@@ -6,6 +6,8 @@ import TopPickCard from "@/components/discover/TopPickCard"
 import HomeEmpty from "@/components/empty-states/HomeEmpty"
 import MacroDashboard from "@/components/home/MacroDashboard"
 import { formatPct } from "@/lib/utils"
+import { useAuthStore } from "@/store/authStore"
+import { TIER_LIMITS } from "@/lib/constants"
 import Link from "next/link"
 
 function getGreeting(): string {
@@ -19,6 +21,13 @@ export default function HomePage() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
   const greeting = mounted ? getGreeting() : "Welcome back"
+
+  const tier = useAuthStore((s) => s.tier)
+  const analysesToday = useAuthStore((s) => s.analysesToday)
+  const rawLimit = TIER_LIMITS[tier]
+  const dailyLimit = typeof rawLimit === "number" ? rawLimit : null
+  const remaining = dailyLimit !== null ? Math.max(0, dailyLimit - analysesToday) : null
+  const showQuotaWarning = tier === "free" && remaining !== null && remaining <= 1
 
   const { data: pulse } = useQuery({ queryKey: ["market-pulse"], queryFn: () => getMarketPulse(true), staleTime: 4 * 60 * 1000 })
   const { data: macroSummary } = useQuery({
@@ -39,6 +48,34 @@ export default function HomePage() {
       </div>
 
       <div className="px-4 space-y-6">
+        {/* Proactive quota warning — avoids the 429-surprise on the
+            analysis page when a free user is about to burn their last one. */}
+        {showQuotaWarning && mounted && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
+              <svg className="w-4 h-4 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-amber-900">
+                {remaining === 0 ? "You\u2019ve used all 5 analyses today" : "1 analysis left today"}
+              </p>
+              <p className="text-xs text-amber-800 mt-0.5">
+                {remaining === 0
+                  ? "Daily quota resets at midnight IST. Upgrade to Pro for unlimited analyses."
+                  : "Make it count \u2014 or upgrade to Pro for unlimited analyses (\u20B9299/mo)."}
+              </p>
+            </div>
+            <Link
+              href="/pricing"
+              className="flex-shrink-0 bg-amber-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-amber-700 transition"
+            >
+              Upgrade
+            </Link>
+          </div>
+        )}
+
         {/* Macro Dashboard — FII/DII, FX, commodities, risk-free rate */}
         {pulse && (
           <MacroDashboard

@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
+import { useAuthStore } from "@/store/authStore"
 
 function MarketingNav() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -38,11 +39,27 @@ function MarketingNav() {
   )
 }
 
-const plans = [
+type Tier = "free" | "pro" | "analyst"
+type Billing = "monthly" | "annual"
+
+interface Plan {
+  id: Tier
+  name: string
+  monthly: number
+  annual: number // per-year price; display as /year
+  subtitle: string
+  highlighted: boolean
+  badge: string | null
+  features: { text: string; included: boolean }[]
+  ctaStyle: string
+}
+
+const plans: Plan[] = [
   {
+    id: "free",
     name: "Free",
-    price: "\u20B90",
-    period: "/forever",
+    monthly: 0,
+    annual: 0,
     subtitle: "No credit card required",
     highlighted: false,
     badge: null,
@@ -55,13 +72,13 @@ const plans = [
       { text: "AI summary (short)", included: true },
       { text: "Shareable report card", included: true },
     ],
-    cta: "Get Started Free",
     ctaStyle: "border-2 border-gray-200 text-gray-700 hover:bg-gray-50",
   },
   {
+    id: "pro",
     name: "Pro",
-    price: "\u20B9299",
-    period: "/month",
+    monthly: 299,
+    annual: 2499,
     subtitle: "7-day free trial. Cancel anytime.",
     highlighted: true,
     badge: "Most Popular",
@@ -74,13 +91,13 @@ const plans = [
       { text: "10-year financial statements", included: true },
       { text: "50-stock watchlist + 10 alerts", included: true },
     ],
-    cta: "Start 7-Day Free Trial \u2192",
     ctaStyle: "bg-white text-blue-700 font-bold hover:bg-blue-50",
   },
   {
+    id: "analyst",
     name: "Analyst",
-    price: "\u20B9799",
-    period: "/month",
+    monthly: 799,
+    annual: 5999,
     subtitle: "For serious investors and analysts.",
     highlighted: false,
     badge: null,
@@ -93,7 +110,6 @@ const plans = [
       { text: "Priority support", included: true },
       { text: "Early access to new features", included: true },
     ],
-    cta: "Get Analyst Access \u2192",
     ctaStyle: "border-2 border-gray-200 text-gray-700 hover:bg-gray-50",
   },
 ]
@@ -107,7 +123,40 @@ const faqs = [
   { q: "Is this investment advice?", a: "No. YieldIQ is a quantitative research tool. All outputs are model-generated estimates for educational purposes only. YieldIQ is not registered with SEBI as an investment adviser or research analyst." },
 ]
 
+function ctaFor(plan: Plan, billing: Billing, userTier: Tier | null, loggedIn: boolean): { href: string; label: string; disabled: boolean } {
+  // Already on this plan → show "Current plan" disabled state
+  if (loggedIn && userTier === plan.id) {
+    return { href: "/account", label: "Current plan", disabled: true }
+  }
+  // Free tier button — send to signup if logged out, otherwise hide (show manage link)
+  if (plan.id === "free") {
+    return loggedIn
+      ? { href: "/account", label: "Manage account", disabled: false }
+      : { href: "/auth/signup", label: "Get Started Free", disabled: false }
+  }
+  // Paid plans
+  if (loggedIn) {
+    // Logged-in users go straight to the in-app upgrade flow
+    return {
+      href: `/account?upgrade=${plan.id}&billing=${billing}`,
+      label: plan.id === "pro" ? "Upgrade to Pro \u2192" : "Upgrade to Analyst \u2192",
+      disabled: false,
+    }
+  }
+  // Logged-out — go to signup with a redirect hint
+  return {
+    href: `/auth/signup?next=${encodeURIComponent(`/account?upgrade=${plan.id}&billing=${billing}`)}`,
+    label: plan.id === "pro" ? "Start 7-Day Free Trial \u2192" : "Get Analyst Access \u2192",
+    disabled: false,
+  }
+}
+
 export default function PricingPage() {
+  const tier = useAuthStore((s) => s.tier)
+  const token = useAuthStore((s) => s.token)
+  const loggedIn = !!token
+  const [billing, setBilling] = useState<Billing>("monthly")
+
   return (
     <div className="bg-white text-gray-900">
       <MarketingNav />
@@ -123,8 +172,39 @@ export default function PricingPage() {
       {/* Pricing Cards */}
       <section className="py-20 bg-gray-50">
         <div className="max-w-6xl mx-auto px-4">
+          {/* Billing toggle */}
+          <div className="flex justify-center mb-10">
+            <div className="inline-flex bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+              <button
+                onClick={() => setBilling("monthly")}
+                className={`px-5 py-2 rounded-lg text-sm font-semibold transition ${billing === "monthly" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setBilling("annual")}
+                className={`px-5 py-2 rounded-lg text-sm font-semibold transition inline-flex items-center gap-2 ${billing === "annual" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
+              >
+                Annual
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${billing === "annual" ? "bg-white text-blue-700" : "bg-green-100 text-green-700"}`}>
+                  Save ~30%
+                </span>
+              </button>
+            </div>
+          </div>
+
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {plans.map((plan) => (
+            {plans.map((plan) => {
+              const price = billing === "annual" ? plan.annual : plan.monthly
+              const period = plan.id === "free"
+                ? "/forever"
+                : billing === "annual" ? "/year" : "/month"
+              const priceStr = price === 0 ? "\u20B90" : `\u20B9${price.toLocaleString("en-IN")}`
+              const subtitle = plan.id !== "free" && billing === "annual"
+                ? `That\u2019s \u20B9${Math.round(price / 12).toLocaleString("en-IN")}/mo. Cancel anytime.`
+                : plan.subtitle
+              const cta = ctaFor(plan, billing, (tier as Tier | null) ?? null, loggedIn)
+              return (
               <div
                 key={plan.name}
                 className={
@@ -142,10 +222,10 @@ export default function PricingPage() {
                   {plan.name}
                 </div>
                 <div className="flex items-baseline gap-1 mb-2">
-                  <span className="text-5xl font-black">{plan.price}</span>
-                  <span className={plan.highlighted ? "text-blue-200" : "text-gray-400"}>{plan.period}</span>
+                  <span className="text-5xl font-black">{priceStr}</span>
+                  <span className={plan.highlighted ? "text-blue-200" : "text-gray-400"}>{period}</span>
                 </div>
-                <p className={`text-sm mb-8 ${plan.highlighted ? "text-blue-200" : "text-gray-400"}`}>{plan.subtitle}</p>
+                <p className={`text-sm mb-8 ${plan.highlighted ? "text-blue-200" : "text-gray-400"}`}>{subtitle}</p>
 
                 <ul className="space-y-3 mb-8">
                   {plan.features.map((f) => (
@@ -158,14 +238,21 @@ export default function PricingPage() {
                   ))}
                 </ul>
 
-                <Link
-                  href="/auth/signup"
-                  className={`block w-full text-center py-3 rounded-xl font-semibold transition ${plan.ctaStyle}`}
-                >
-                  {plan.cta}
-                </Link>
+                {cta.disabled ? (
+                  <div className={`block w-full text-center py-3 rounded-xl font-semibold ${plan.highlighted ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"}`}>
+                    {cta.label}
+                  </div>
+                ) : (
+                  <Link
+                    href={cta.href}
+                    className={`block w-full text-center py-3 rounded-xl font-semibold transition ${plan.ctaStyle}`}
+                  >
+                    {cta.label}
+                  </Link>
+                )}
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </section>

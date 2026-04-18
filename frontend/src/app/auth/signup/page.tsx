@@ -36,7 +36,9 @@ function SignupContent() {
         settingsStore.state.onboardingComplete = false
         localStorage.setItem("yieldiq-settings", JSON.stringify(settingsStore))
       }
-      router.push("/onboarding")
+      // Honor ?next= redirect (from pricing page tier-aware CTAs, etc.)
+      const next = searchParams.get("next")
+      router.push(next && next.startsWith("/") ? next : "/onboarding")
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Signup failed"
       setError(msg)
@@ -75,6 +77,15 @@ function SignupContent() {
           </p>
         </div>
         <p className="text-[10px] text-gray-400 text-center">5 free analyses per day. No credit card required.</p>
+        <div className="text-center pt-2 border-t border-gray-100">
+          <p className="text-xs text-gray-500 mb-1">Not ready to sign up?</p>
+          <Link
+            href="/stocks/RELIANCE/fair-value"
+            className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+          >
+            Try a sample analysis first (Reliance) &rarr;
+          </Link>
+        </div>
       </div>
     </div>
   )
