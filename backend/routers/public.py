@@ -226,8 +226,28 @@ async def get_stock_summary(ticker: str):
     if cached is not None:
         return cached
 
-    # Try in-memory analysis cache first
+    # Tier 1: in-memory analysis cache
     analysis_cached = cache.get(f"analysis:{ticker}")
+
+    # Tier 2: persistent analysis_cache DB table. This survives Railway
+    # redeploys (the in-memory cache does not). Before wiring this in,
+    # every deploy wiped the warmed 199-ticker set from memory, so the
+    # SEO stock-summary endpoint would fall through to the expensive
+    # full-compute path — which sometimes throws transiently and returns
+    # "Analysis unavailable" even for healthy tickers like TATAPOWER.
+    if analysis_cached is None or not hasattr(analysis_cached, "valuation"):
+        try:
+            from backend.services import analysis_cache_service
+            from backend.models.responses import AnalysisResponse
+            _db_payload = analysis_cache_service.get_cached(ticker)
+            if _db_payload:
+                analysis_cached = AnalysisResponse(**_db_payload)
+                # Populate tier-1 so subsequent requests on this worker
+                # skip the DB round-trip.
+                cache.set(f"analysis:{ticker}", analysis_cached, ttl=86400)
+        except Exception as _exc:
+            logger.info("stock-summary: analysis_cache tier-2 lookup failed for %s: %s", ticker, _exc)
+
     if analysis_cached and hasattr(analysis_cached, "valuation"):
         from backend.services.validators import check_and_quarantine
         quarantine = check_and_quarantine(ticker, analysis_cached)
@@ -255,7 +275,9 @@ async def get_stock_summary(ticker: str):
         err_str = str(e).lower()
         if "not found" in err_str or "no data" in err_str:
             raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found")
-        logger.warning(f"stock-summary failed for {ticker}: {e}")
+        # exc_info=True makes the full stack trace flow into Sentry via
+        # LoggingIntegration, so we stop flying blind on generic 500s.
+        logger.error("stock-summary failed for %s", ticker, exc_info=True)
         raise HTTPException(status_code=500, detail="Analysis unavailable")
 
 
