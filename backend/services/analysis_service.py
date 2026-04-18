@@ -1824,23 +1824,46 @@ class AnalysisService:
         _total_cash = enriched.get("total_cash") or 0
         _ebitda = enriched.get("ebitda") or 0
         _shares = enriched.get("shares") or 0
+        _current_liab = enriched.get("current_liabilities") or 0
 
-        _roce_val: float | None = None
-        if _ebit_val is not None and _total_assets > 0:
+        # Sector-based "bank / NBFC / Financial" detection — leverage
+        # and interest-coverage ratios are not meaningful for these.
+        _sector_str = (company.sector or "").lower()
+        _is_bank_like = bool(
+            is_financial
+            or "bank" in _sector_str
+            or "financial" in _sector_str
+            or ticker.upper().endswith(("BANK.NS", "BANK.BO"))
+        )
+
+        # ROCE uses the textbook capital-employed denominator:
+        #   EBIT / (Total Assets − Current Liabilities)  [returns %]
+        # Falls back to ebit / total_assets when current_liabilities
+        # is missing so we don't regress coverage for tickers lacking
+        # that field.
+        from backend.services.ratios_service import (
+            compute_roce as _compute_roce,
+            compute_debt_to_ebitda as _compute_debt_ebitda,
+            compute_interest_coverage as _compute_int_cov,
+        )
+        _roce_val: float | None = _compute_roce(
+            _ebit_val, _total_assets, _current_liab
+        )
+        if _roce_val is None and _ebit_val is not None and _total_assets > 0:
+            # Fallback: no current_liabilities on file.
             _roce_val = round(_ebit_val / _total_assets * 100, 1)
 
-        _debt_ebitda_val: float | None = None
-        if _ebitda > 0:
-            _debt_ebitda_val = round(_total_debt / _ebitda, 1)
-        _debt_ebitda_lbl = _debt_ebitda_label(_debt_ebitda_val)
-
-        _interest_cov_val: float | None = None
-        if (
-            _ebit_val is not None
-            and _interest_exp is not None
-            and _interest_exp > 0
-        ):
-            _interest_cov_val = round(_ebit_val / _interest_exp, 1)
+        # Banks / NBFCs: Debt/EBITDA and Interest Coverage are not
+        # meaningful (deposits ≠ debt, interest expense is revenue).
+        # Return None so the frontend renders "—" with a banker note.
+        if _is_bank_like:
+            _debt_ebitda_val = None
+            _debt_ebitda_lbl = None
+            _interest_cov_val = None
+        else:
+            _debt_ebitda_val = _compute_debt_ebitda(_total_debt, _ebitda)
+            _debt_ebitda_lbl = _debt_ebitda_label(_debt_ebitda_val)
+            _interest_cov_val = _compute_int_cov(_ebit_val, _interest_exp)
 
         # ── Phase 2.1 ratios ─────────────────────────────────
         # All new fields are Optional in QualityOutput; when data is
@@ -1882,7 +1905,36 @@ class AnalysisService:
             _ent_val_cr = None
 
         # ── Shareholding breakdown ────────────────────────────
+        # Aiven shareholding_pattern table is the primary source.
+        # If promoter_pct is missing, fall back to yfinance
+        # `heldPercentInsiders` which maps closely to promoter holding
+        # for Indian listings (not a perfect match — US-registered
+        # names may report SEC-defined insiders, so only use when the
+        # primary source is empty).
         _sh = _query_shareholding(ticker) or {}
+        if _sh.get("promoter_pct") is None:
+            try:
+                _yf_insiders = None
+                # 1) already-fetched yfinance info in `raw`
+                for _k in ("heldPercentInsiders", "held_percent_insiders"):
+                    if raw.get(_k) is not None:
+                        _yf_insiders = float(raw.get(_k))
+                        break
+                # 2) last-resort live yfinance lookup (cheap, cached by yf)
+                if _yf_insiders is None:
+                    try:
+                        import yfinance as _yf
+                        _info = _yf.Ticker(ticker).info or {}
+                        _v = _info.get("heldPercentInsiders")
+                        if _v is not None:
+                            _yf_insiders = float(_v)
+                    except Exception:
+                        _yf_insiders = None
+                if _yf_insiders is not None:
+                    # yfinance returns decimal (0.623 → 62.3%)
+                    _sh["promoter_pct"] = round(_yf_insiders * 100.0, 1)
+            except Exception:
+                pass
 
         return AnalysisResponse(
             ticker=ticker,

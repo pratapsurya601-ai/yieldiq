@@ -352,7 +352,7 @@ export default function AnalysisPage() {
 
       {/* LAYER 2 -- The Story (Insight Cards) */}
       <div className="">
-        <InsightCards quality={quality} insights={insights} valuation={valuation} currency={company.currency} />
+        <InsightCards quality={quality} insights={insights} valuation={valuation} currency={company.currency} sector={company.sector} ticker={company.ticker} />
         <QualityRatios quality={quality} insights={insights} />
         <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
         <DividendTracker dividend={insights?.dividend ?? null} currency={company.currency} />

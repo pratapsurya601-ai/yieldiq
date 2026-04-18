@@ -10,6 +10,8 @@ interface InsightCardsProps {
   insights: InsightCardsType
   valuation: ValuationOutput
   currency?: string
+  sector?: string
+  ticker?: string
 }
 
 interface CardData {
@@ -20,13 +22,187 @@ interface CardData {
   icon: string
   borderColor: string
   subtitleColor?: string
+  disabled?: boolean
+  tooltip?: string
 }
 
-export default function InsightCards({ quality, insights, valuation, currency = "INR" }: InsightCardsProps) {
+// ── Helpers for the four financial-ratio cards ───────────────
+// Centralised so the JSX stays readable and the thresholds match
+// the product spec (ROCE / Debt-EBITDA / Interest Coverage bands).
+function _roceCard(roce: number | null | undefined): CardData {
+  if (roce === null || roce === undefined) {
+    return {
+      title: "ROCE",
+      value: "\u2014",
+      subtitle: "Insufficient data",
+      color: "text-gray-400",
+      icon: "\u{1f4c8}",
+      borderColor: "border-l-gray-200",
+      tooltip: "Return on Capital Employed \u2014 how efficiently the business turns capital into earnings.",
+    }
+  }
+  const band =
+    roce > 20 ? { c: "text-green-700", b: "border-l-green-500", label: "Excellent" }
+    : roce >= 15 ? { c: "text-blue-700", b: "border-l-blue-500", label: "Healthy" }
+    : roce >= 10 ? { c: "text-amber-700", b: "border-l-amber-500", label: "Moderate" }
+    : { c: "text-red-700", b: "border-l-red-500", label: "Weak" }
+  return {
+    title: "ROCE",
+    value: `${roce.toFixed(1)}%`,
+    subtitle: band.label,
+    color: band.c,
+    icon: "\u{1f4c8}",
+    borderColor: band.b,
+    tooltip: "Return on Capital Employed \u2014 how efficiently the business turns capital into earnings.",
+  }
+}
+
+function _debtEbitdaCard(
+  debtEbitda: number | null | undefined,
+  label: string | null | undefined,
+  isBankLike: boolean,
+): CardData {
+  if (isBankLike) {
+    return {
+      title: "Debt / EBITDA",
+      value: "\u2014",
+      subtitle: "Not applicable for banks",
+      color: "text-gray-400",
+      icon: "\u2696\ufe0f",
+      borderColor: "border-l-gray-200",
+      disabled: true,
+      tooltip: "Leverage ratio \u2014 how many years of EBITDA would repay all debt. Banks excluded.",
+    }
+  }
+  if (debtEbitda === null || debtEbitda === undefined) {
+    return {
+      title: "Debt / EBITDA",
+      value: "\u2014",
+      subtitle: "Insufficient data",
+      color: "text-gray-400",
+      icon: "\u2696\ufe0f",
+      borderColor: "border-l-gray-200",
+      tooltip: "Leverage ratio \u2014 how many years of EBITDA would repay all debt. Banks excluded.",
+    }
+  }
+  const band =
+    debtEbitda < 1.0 ? { c: "text-green-700", b: "border-l-green-500", label: "Excellent" }
+    : debtEbitda < 2.5 ? { c: "text-blue-700", b: "border-l-blue-500", label: "Healthy" }
+    : debtEbitda < 4.0 ? { c: "text-amber-700", b: "border-l-amber-500", label: "Leveraged" }
+    : { c: "text-red-700", b: "border-l-red-500", label: "High Risk" }
+  return {
+    title: "Debt / EBITDA",
+    value: `${debtEbitda.toFixed(1)}x`,
+    subtitle: label ?? band.label,
+    color: band.c,
+    icon: "\u2696\ufe0f",
+    borderColor: band.b,
+    tooltip: "Leverage ratio \u2014 how many years of EBITDA would repay all debt. Banks excluded.",
+  }
+}
+
+function _interestCoverageCard(
+  ic: number | null | undefined,
+  isBankLike: boolean,
+): CardData {
+  if (isBankLike) {
+    return {
+      title: "Interest Coverage",
+      value: "\u2014",
+      subtitle: "Not applicable for banks",
+      color: "text-gray-400",
+      icon: "\u{1f6e1}\ufe0f",
+      borderColor: "border-l-gray-200",
+      disabled: true,
+      tooltip: "How many times operating profit covers interest expense. Banks excluded.",
+    }
+  }
+  if (ic === null || ic === undefined) {
+    return {
+      title: "Interest Coverage",
+      value: "\u2014",
+      subtitle: "Insufficient data",
+      color: "text-gray-400",
+      icon: "\u{1f6e1}\ufe0f",
+      borderColor: "border-l-gray-200",
+      tooltip: "How many times operating profit covers interest expense. Banks excluded.",
+    }
+  }
+  const band =
+    ic > 5 ? { c: "text-green-700", b: "border-l-green-500", label: "Strong" }
+    : ic >= 2 ? { c: "text-blue-700", b: "border-l-blue-500", label: "Adequate" }
+    : ic >= 1 ? { c: "text-amber-700", b: "border-l-amber-500", label: "Weak" }
+    : { c: "text-red-700", b: "border-l-red-500", label: "Distressed" }
+  return {
+    title: "Interest Coverage",
+    value: `${ic.toFixed(1)}x`,
+    subtitle: band.label,
+    color: band.c,
+    icon: "\u{1f6e1}\ufe0f",
+    borderColor: band.b,
+    tooltip: "How many times operating profit covers interest expense. Banks excluded.",
+  }
+}
+
+function _promoterCard(
+  promoterPct: number | null | undefined,
+  pledgePct: number | null | undefined,
+): CardData {
+  if (promoterPct === null || promoterPct === undefined) {
+    return {
+      title: "Promoter Holding",
+      value: "\u2014",
+      subtitle: "Not disclosed",
+      color: "text-gray-400",
+      icon: "\u{1f465}",
+      borderColor: "border-l-gray-200",
+      tooltip: "Percent of shares held by promoters. Higher generally means aligned interests, but watch for pledge.",
+    }
+  }
+  const pledged = pledgePct !== null && pledgePct !== undefined && pledgePct > 0
+  const band =
+    promoterPct >= 50 ? { c: "text-blue-700", b: "border-l-blue-500", label: "Strong alignment" }
+    : promoterPct >= 25 ? { c: "text-gray-700", b: "border-l-gray-300", label: "Moderate" }
+    : { c: "text-amber-700", b: "border-l-amber-500", label: "Low stake" }
+  const subtitle = pledged
+    ? `${band.label} \u00b7 ${pledgePct!.toFixed(1)}% pledged`
+    : band.label
+  return {
+    title: "Promoter Holding",
+    value: `${promoterPct.toFixed(1)}%`,
+    subtitle,
+    subtitleColor: pledged ? "text-red-600" : undefined,
+    color: band.c,
+    icon: "\u{1f465}",
+    borderColor: pledged ? "border-l-red-500" : band.b,
+    tooltip: "Percent of shares held by promoters. Higher generally means aligned interests, but watch for pledge.",
+  }
+}
+
+export default function InsightCards({ quality, insights, valuation, currency = "INR", sector = "", ticker = "" }: InsightCardsProps) {
   // Separate genuine business red flags from model/data warnings
   const MODEL_WARNING_PATTERNS = /missing|using default|estimated|no data|unavailable|not available|insufficient/i
   const businessFlags = (insights.red_flags || []).filter((f) => !MODEL_WARNING_PATTERNS.test(f))
   const modelWarnings = (insights.red_flags || []).filter((f) => MODEL_WARNING_PATTERNS.test(f))
+
+  // Banks / NBFCs — mirror the backend rule so the frontend never
+  // promises a computation for tickers the backend deliberately
+  // returned None for.
+  const _sectorLC = (sector || "").toLowerCase()
+  const _tkrUpper = (ticker || "").toUpperCase()
+  const isBankLike =
+    _sectorLC.includes("bank") ||
+    _sectorLC.includes("financial") ||
+    _tkrUpper.endsWith("BANK.NS") ||
+    _tkrUpper.endsWith("BANK.BO")
+
+  const ratioCards: CardData[] = useMemo(() => [
+    _roceCard(quality.roce),
+    _debtEbitdaCard(quality.debt_ebitda, quality.debt_ebitda_label, isBankLike),
+    _interestCoverageCard(quality.interest_coverage, isBankLike),
+    _promoterCard(quality.promoter_pct, quality.promoter_pledge_pct),
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [quality.roce, quality.debt_ebitda, quality.debt_ebitda_label, quality.interest_coverage, quality.promoter_pct, quality.promoter_pledge_pct, isBankLike])
 
   const cards: CardData[] = useMemo(() => [
     {
@@ -177,6 +353,33 @@ export default function InsightCards({ quality, insights, valuation, currency = 
             <p className={cn("text-xs mt-1 line-clamp-1", card.subtitleColor ?? "text-gray-400")}>{card.subtitle}</p>
           </div>
         ))}
+      </div>
+
+      {/* Financial ratios — kept in a labelled secondary section so
+          the primary 7-card grid stays readable on mobile (2 cols)
+          rather than spilling into an 11-card tile wall. */}
+      <div className="pt-2">
+        <p className="text-xs font-semibold text-gray-500 mb-2 px-1">Financial Ratios</p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {ratioCards.map((card) => (
+            <div
+              key={card.title}
+              title={card.tooltip}
+              className={cn(
+                "rounded-xl bg-white border border-gray-100 border-l-[3px] p-4 shadow-sm",
+                card.borderColor,
+                card.disabled && "opacity-60",
+              )}
+            >
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <span className="text-sm">{card.icon}</span>
+                <p className="text-xs text-gray-500">{card.title}</p>
+              </div>
+              <p className={cn("text-lg font-semibold", card.color)}>{card.value}</p>
+              <p className={cn("text-xs mt-1 line-clamp-1", card.subtitleColor ?? "text-gray-400")}>{card.subtitle}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Model / Data Warnings — separated from business red flags */}
