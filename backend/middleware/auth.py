@@ -22,6 +22,22 @@ except ImportError:
 
 from backend.middleware.rate_limit import rate_limiter
 
+# Superuser emails — bypass the rate limiter and get effective tier="pro".
+# Comma-separated env var, case-insensitive comparison.
+#   Set in Railway → Variables → SUPERUSER_EMAILS="you@example.com,other@example.com"
+# Empty / unset = no superusers (default).
+_RAW_SUPERUSERS = (os.environ.get("SUPERUSER_EMAILS") or "").strip()
+SUPERUSER_EMAILS: set[str] = {
+    e.strip().lower() for e in _RAW_SUPERUSERS.split(",") if e.strip()
+}
+
+
+def is_superuser(user: dict) -> bool:
+    """True if the user's email is in SUPERUSER_EMAILS."""
+    email = (user.get("email") or "").strip().lower()
+    return bool(email) and email in SUPERUSER_EMAILS
+
+
 # JWT config
 JWT_SECRET = os.environ.get("JWT_SECRET") or os.environ.get("YIELDIQ_JWT_SECRET") or ""
 if not JWT_SECRET:
@@ -89,6 +105,22 @@ async def get_current_user_optional(
 
 def check_analysis_limit(user: dict = Depends(get_current_user)):
     """Check daily analysis limit by tier. Raises 429 if exceeded."""
+    # Superuser bypass: still track usage (so admin sees correct numbers
+    # in the UI) but never block.
+    if is_superuser(user):
+        used, limit = rate_limiter.get_usage(user["user_id"], "pro")
+        # Best-effort bump so /auth/me and the counter stay in sync.
+        try:
+            rate_limiter.check_and_increment(user["user_id"], "pro")
+            used += 1
+        except Exception:
+            pass
+        user["tier"] = "pro"  # effective tier for downstream handlers
+        user["analyses_today"] = used
+        user["analysis_limit"] = limit
+        user["is_superuser"] = True
+        return user
+
     allowed, used, limit = rate_limiter.check_and_increment(
         user["user_id"], user["tier"]
     )
@@ -107,6 +139,11 @@ def require_tier(min_tier: str):
     _tier_order = {"free": 0, "starter": 1, "pro": 1, "analyst": 2}
 
     def _require(user: dict = Depends(get_current_user)):
+        # Superusers pass every tier gate.
+        if is_superuser(user):
+            user["tier"] = "analyst"
+            user["is_superuser"] = True
+            return user
         if _tier_order.get(user["tier"], 0) < _tier_order.get(min_tier, 0):
             raise HTTPException(
                 status_code=403,

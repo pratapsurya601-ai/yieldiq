@@ -6,6 +6,7 @@ from backend.models.requests import LoginRequest, RegisterRequest
 from backend.models.responses import TokenResponse, UserResponse
 from backend.middleware.auth import (
     get_current_user, login_user_and_get_token, register_user_and_get_token,
+    is_superuser,
 )
 from backend.middleware.rate_limit import rate_limiter
 
@@ -18,12 +19,25 @@ async def login(req: LoginRequest):
     result = login_user_and_get_token(req.email, req.password)
     if not result.get("ok"):
         raise HTTPException(status_code=401, detail=result.get("error", "Invalid credentials"))
-    used, limit = rate_limiter.get_usage(result["user_id"], result["tier"])
+
+    # Superuser promotion — if email is in SUPERUSER_EMAILS env, present
+    # them as tier="analyst" with unlimited quota. (The DB row can stay
+    # as free; the bypass is purely response-side so it's easy to revoke
+    # by just editing the env var.)
+    _effective_tier = result["tier"]
+    _effective_limit = None
+    if is_superuser({"email": result["email"]}):
+        _effective_tier = "analyst"
+        _effective_limit = 999999
+
+    used, limit = rate_limiter.get_usage(result["user_id"], _effective_tier)
+    if _effective_limit is not None:
+        limit = _effective_limit
     return TokenResponse(
         access_token=result["token"],
         user_id=result["user_id"],
         email=result["email"],
-        tier=result["tier"],
+        tier=_effective_tier,
         analyses_today=used,
         analysis_limit=limit,
     )
@@ -75,11 +89,18 @@ async def register(req: RegisterRequest):
 @router.get("/me", response_model=UserResponse)
 async def get_me(user: dict = Depends(get_current_user)):
     """Get current user info."""
-    used, limit = rate_limiter.get_usage(user["user_id"], user["tier"])
+    _effective_tier = user["tier"]
+    _limit_override = None
+    if is_superuser(user):
+        _effective_tier = "analyst"
+        _limit_override = 999999
+    used, limit = rate_limiter.get_usage(user["user_id"], _effective_tier)
+    if _limit_override is not None:
+        limit = _limit_override
     return UserResponse(
         user_id=user["user_id"],
         email=user["email"],
-        tier=user["tier"],
+        tier=_effective_tier,
         analyses_today=used,
         analysis_limit=limit,
     )
