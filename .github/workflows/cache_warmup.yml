@@ -28,7 +28,11 @@ concurrency:
 jobs:
   warmup:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # First-ever run computes each ticker cold (~10s), so 200 tickers
+    # ≈ 33 min. Subsequent runs are DB cache hits (<100ms each) so
+    # finish in ~2 min. 60 min gives comfortable headroom for the
+    # cold-start day and for yfinance hiccups.
+    timeout-minutes: 60
 
     steps:
       - name: Check for SERVICE_WARMUP_TOKEN
