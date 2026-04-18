@@ -3,12 +3,8 @@ import { useEffect, useState } from "react"
 import { useParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { getAnalysis, getChartData, getFVHistory, getPeers, getFinancials } from "@/lib/api"
-import ConvictionRing from "@/components/analysis/ConvictionRing"
-import VerdictChip from "@/components/analysis/VerdictChip"
-import LearnTip from "@/components/ui/LearnTip"
-import AISummary from "@/components/analysis/AISummary"
-import ActionBar from "@/components/analysis/ActionBar"
-import TransparencyStrip from "@/components/analysis/TransparencyStrip"
+import AnalysisHero from "@/components/analysis/AnalysisHero"
+import AnalysisTabs, { type AnalysisTabDef } from "@/components/analysis/AnalysisTabs"
 import InsightCards from "@/components/analysis/InsightCards"
 import RedFlagInsights from "@/components/analysis/RedFlagInsights"
 import QualityRatios from "@/components/analysis/QualityRatios"
@@ -23,12 +19,91 @@ import { formatCurrency, formatPct, formatCompanyName, verdictDisplayLabel } fro
 import { trackStockAnalysed } from "@/lib/analytics"
 import Link from "next/link"
 
+// TODO: swap to design tokens (bg-bg / bg-surface / text-ink / etc.) once Agent 1 lands
+
 /* ------------------------------------------------------------------ */
-/*  Skeleton that mirrors the real analysis layout — shown while       */
-/*  the API call is in flight. Matches card structure so there is      */
-/*  zero layout shift when real content replaces it.                   */
+/*  Redesigned analysis page — summary-first, tabbed layout.           */
+/*  Replaces the 7-screen scroll with a sticky header + hero + tabs.   */
+/*  Child components are untouched — this page only re-composes them.  */
 /* ------------------------------------------------------------------ */
-// LoadingSteps is used as the loading state — shows skeleton + animated progress steps
+
+interface StickyHeaderProps {
+  ticker: string
+  price: number
+  currency: string
+  onSave?: () => void
+  onAlert?: () => void
+  onShare?: () => void
+}
+
+function StickyHeader({ ticker, price, currency, onSave, onAlert, onShare }: StickyHeaderProps) {
+  const display = ticker.replace(".NS", "").replace(".BO", "")
+  return (
+    <div className="sticky top-0 z-20 -mx-4 px-4 h-12 flex items-center justify-between bg-white/95 backdrop-blur border-b border-gray-100">
+      <div className="flex items-baseline gap-3 min-w-0">
+        <span className="font-display text-base font-semibold text-gray-900 tracking-tight">
+          {display}
+        </span>
+        <span className="font-mono tabular-nums text-sm text-gray-700 truncate">
+          {price > 0 ? formatCurrency(price, currency) : "—"}
+        </span>
+      </div>
+      <div className="flex items-center gap-1">
+        <IconButton label="Save" onClick={onSave}>
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.322.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.322-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+          </svg>
+        </IconButton>
+        <IconButton label="Alert" onClick={onAlert}>
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
+          </svg>
+        </IconButton>
+        <IconButton label="Share" onClick={onShare}>
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 100 2.186m0-2.186c.18.324.283.696.283 1.093s-.103.77-.283 1.093m0-2.186l9.566-5.314m-9.566 7.5l9.566 5.314m0 0a2.25 2.25 0 103.935 2.186 2.25 2.25 0 00-3.935-2.186zm0-12.814a2.25 2.25 0 103.933-2.185 2.25 2.25 0 00-3.933 2.185z" />
+          </svg>
+        </IconButton>
+      </div>
+    </div>
+  )
+}
+
+function IconButton({ label, onClick, children }: { label: string; onClick?: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={onClick}
+      className="inline-flex items-center justify-center w-10 h-10 rounded-lg text-gray-500 hover:text-gray-900 hover:bg-gray-50 active:scale-95 transition"
+    >
+      {children}
+    </button>
+  )
+}
+
+function EmptyFinancials({ onRefresh }: { onRefresh?: () => void }) {
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-10 text-center">
+      <div className="mx-auto w-12 h-12 rounded-full bg-gray-50 flex items-center justify-center mb-3">
+        <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 006 16.5h12M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" />
+        </svg>
+      </div>
+      <p className="text-sm font-medium text-gray-800">Financials not yet available</p>
+      <p className="text-xs text-gray-500 max-w-xs mx-auto mt-1">
+        We&rsquo;re still gathering statement data for this ticker.
+      </p>
+      <button
+        type="button"
+        onClick={onRefresh}
+        className="mt-4 inline-flex items-center px-3 py-2 min-h-[40px] text-xs font-semibold text-blue-700 bg-blue-50 rounded-lg hover:bg-blue-100 transition"
+      >
+        Request refresh
+      </button>
+    </div>
+  )
+}
 
 export default function AnalysisPage() {
   const params = useParams<{ ticker: string }>()
@@ -40,8 +115,6 @@ export default function AnalysisPage() {
     enabled: !!ticker,
     staleTime: 5 * 60 * 1000,
     retry: (failureCount, err) => {
-      // Don't retry 404 (ticker not found) or 429 (rate limit) —
-      // neither will become a 200 on re-request.
       const status = (err as { response?: { status?: number } })?.response?.status
       if (status === 404 || status === 429) return false
       return failureCount < 1
@@ -55,14 +128,8 @@ export default function AnalysisPage() {
     staleTime: 5 * 60 * 1000,
   })
 
-  // ── Parallel warmup of sub-queries ────────────────────────────
-  // Child components (FairValueHistory, PeerComparison,
-  // FinancialStatements) each run their own useQuery. Firing those
-  // same queryKeys here at page level makes them start in parallel
-  // with the main analysis call instead of waiting for it to resolve
-  // and the children to mount. Shared React Query cache means the
-  // children's queries become instant cache hits. Results ignored —
-  // this block is purely for side-effect warming.
+  // Parallel warm-up of sub-queries so child components (FairValueHistory,
+  // PeerComparison, FinancialStatements) get instant cache hits on mount.
   useQuery({
     queryKey: ["fv-history", ticker, 3],
     queryFn: () => getFVHistory(ticker, 3),
@@ -77,7 +144,7 @@ export default function AnalysisPage() {
     staleTime: 30 * 60 * 1000,
     retry: 1,
   })
-  useQuery({
+  const financialsQuery = useQuery({
     queryKey: ["financials", ticker, "annual"],
     queryFn: () => getFinancials(ticker, "annual", 5),
     enabled: !!ticker,
@@ -85,10 +152,7 @@ export default function AnalysisPage() {
     retry: 1,
   })
 
-  /* Staggered reveal removed — was causing white gaps (opacity-0 sections).
-     Content now renders immediately. Skeleton handles the loading state. */
-
-  // Dynamic SEO meta tags — must be before any conditional returns (Rules of Hooks)
+  // Dynamic SEO meta tags — must be before any conditional returns.
   useEffect(() => {
     if (data) {
       const displayTicker = data.ticker.replace(".NS", "").replace(".BO", "")
@@ -105,7 +169,6 @@ export default function AnalysisPage() {
         meta.content = desc
         document.head.appendChild(meta)
       }
-      // Track stock analysis in GA4
       trackStockAnalysed(
         data.ticker,
         data.valuation.verdict,
@@ -114,14 +177,30 @@ export default function AnalysisPage() {
     }
   }, [data])
 
+  // Share handler — native web share if available, else copy link.
+  const [copiedShare, setCopiedShare] = useState(false)
+  const onShare = async () => {
+    if (typeof window === "undefined" || !data) return
+    const url = window.location.href
+    const title = `${data.ticker.replace(".NS", "").replace(".BO", "")} on YieldIQ`
+    try {
+      if (navigator.share) {
+        await navigator.share({ title, url })
+      } else {
+        await navigator.clipboard.writeText(url)
+        setCopiedShare(true)
+        setTimeout(() => setCopiedShare(false), 2000)
+      }
+    } catch {
+      /* user dismissed */
+    }
+  }
+
   if (isLoading) return <LoadingSteps />
   if (error) {
     const msg = (error as { message?: string })?.message ?? ""
     const is429 = msg.includes("Daily analysis limit reached")
     const is404 = msg.includes("Ticker not found")
-    // Backend attaches a per-ticker note for known-broken upstream
-    // symbols (e.g. TATAMOTORS data-provider gap). Prefer that text
-    // over the generic 404 message when present.
     const backendNote = (error as {
       response?: { data?: { detail?: { note?: string } | string } }
     })?.response?.data?.detail
@@ -160,9 +239,6 @@ export default function AnalysisPage() {
     )
   }
   if (!data) {
-    // Previously this path rendered a bare "No analysis data available"
-    // with no affordance. Replaced with a full retry UI that matches
-    // the error-branch pattern so users can recover.
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center pb-20">
         <p className="text-4xl mb-4">&#9888;&#65039;</p>
@@ -183,10 +259,6 @@ export default function AnalysisPage() {
     )
   }
 
-  // Defensive degenerate-response guard — catches the case where the
-  // backend returned a 200 with a valid-looking verdict but every
-  // monetary value is 0. Happens occasionally with stale/renamed
-  // tickers where yfinance serves a cached price but no fundamentals.
   const isDegenerate =
     (!data.valuation.current_price || data.valuation.current_price < 1) ||
     (data.valuation.fair_value === 0 &&
@@ -218,226 +290,240 @@ export default function AnalysisPage() {
 
   const { company, valuation, quality, insights } = data
 
-  // Ticker-rename banner — triggers when backend silently aliased the
-  // requested symbol to its canonical name (e.g. ZOMATO.NS → ETERNAL.NS).
+  // Data-integrity guard for the hero — a low or missing score, or a zero
+  // fair value, means the verdict/MoS lines would mislead. Surface a
+  // Data Limited chip + soft banner instead of an authoritative verdict.
+  const dataLimited =
+    (quality.yieldiq_score ?? 0) <= 0 || valuation.fair_value === 0
+
+  // Ticker-rename banner
   const requestedTicker = ticker.toUpperCase()
   const canonicalTicker = data.ticker.toUpperCase()
   const wasAliased = requestedTicker !== canonicalTicker
   const requestedDisplay = requestedTicker.replace(".NS", "").replace(".BO", "")
   const canonicalDisplay = canonicalTicker.replace(".NS", "").replace(".BO", "")
 
-  return (
-    <div className="max-w-2xl md:max-w-3xl lg:max-w-5xl mx-auto px-4 py-6 space-y-5 pb-20">
-      {/* Rename banner — shown when URL ticker was aliased server-side */}
-      {wasAliased && (
-        <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-          <span className="font-semibold">{requestedDisplay}</span> has been renamed to{" "}
-          <span className="font-semibold">{canonicalDisplay}</span>. Showing {canonicalDisplay} data.
-        </div>
-      )}
+  // Detect whether the financials payload is materially empty so we can
+  // short-circuit the FinancialStatements tab to an empty state instead
+  // of letting the component render "Financial data unavailable" mid-page.
+  const financialsPayload = financialsQuery.data as
+    | { statements?: { income_statement?: unknown[]; balance_sheet?: unknown[]; cash_flow?: unknown[] } }
+    | undefined
+  const hasAnyStatement =
+    !!financialsPayload?.statements &&
+    (((financialsPayload.statements.income_statement?.length ?? 0) > 0) ||
+      ((financialsPayload.statements.balance_sheet?.length ?? 0) > 0) ||
+      ((financialsPayload.statements.cash_flow?.length ?? 0) > 0))
+  const financialsEmpty = financialsQuery.isFetched && !hasAnyStatement
 
-      {/* Data confidence badge */}
-      {data.data_confidence !== "high" && (
-        <div className={`text-xs font-medium px-3 py-1 rounded-full inline-block ${data.data_confidence === "medium" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
-          Data: {data.data_confidence} confidence
-        </div>
-      )}
-
-      {/* CARD 1 -- Compact Verdict (conviction ring + fair value + MoS) */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-lg font-semibold text-gray-900">{formatCompanyName(company.company_name)}</h1>
-            <p className="text-xs text-gray-400">{company.ticker} &middot; {company.sector}</p>
-          </div>
-          <p className="text-xl font-semibold text-gray-900 font-mono">
-            {formatCurrency(valuation.current_price, company.currency)}
-          </p>
-        </div>
-
-        <div className="flex items-center gap-5">
-          <ConvictionRing score={quality.yieldiq_score} confidence={valuation.confidence_score} />
-          <div className="flex-1 space-y-1.5">
-            <VerdictChip verdict={valuation.verdict} size="lg" />
-            <span className="font-semibold text-gray-900">
-              <span className="text-xs text-gray-500 mr-1">Fair value estimate</span>
-              {formatCurrency(valuation.fair_value, company.currency)}
-            </span>
-            <p className={`text-sm font-medium ${valuation.margin_of_safety >= 0 ? "text-blue-600" : "text-amber-600"}`}>
-              MoS: {valuation.margin_of_safety > 80 ? "+80%+" : formatPct(valuation.margin_of_safety)}
-              <LearnTip tipKey="mos" />
-            </p>
-          </div>
-        </div>
-
-        {valuation.margin_of_safety > 80 && (
-          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-            Model shows significant undervaluation. Verify assumptions before acting on this signal.
-          </div>
-        )}
-
-        {company.sector && /banking|insurance|financial services|nbfc|finance/i.test(company.sector) && (
-          <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-            <span className="font-semibold">Note:</span> DCF less reliable for banking stocks. Use book value and P/E alongside.
-          </div>
-        )}
-
-        {/* Extreme valuation explanation — shown when MoS > ±50% */}
-        {valuation.margin_of_safety < -50 && valuation.current_price > 0 && valuation.fair_value > 0 && (
-          <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
-            <span className="font-semibold">Why the large gap?</span>{" "}
-            {formatCompanyName(company.company_name)} trades at a significant premium to our DCF model
-            (P/E {quality.roe && quality.roe > 0 ? `with ${quality.roe.toFixed(0)}% ROE` : ""}). The market values its
-            brand strength, growth potential, and management quality — factors our quantitative model
-            may not fully capture. Consider this estimate alongside qualitative analysis.
-          </div>
-        )}
-        {valuation.margin_of_safety > 80 && (
-          <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-2 leading-relaxed">
-            <span className="font-semibold">Large undervaluation detected.</span>{" "}
-            Our model shows significant upside, but verify: is the stock temporarily beaten down
-            (opportunity) or is there a fundamental issue the model doesn&apos;t see? Check red flags
-            and recent news before acting.
-          </div>
-        )}
+  const scenarioBlock = data.scenarios ? (
+    <div className="bg-white rounded-2xl border border-gray-100 p-5">
+      <h2 className="text-sm font-semibold text-gray-900 mb-4">Scenario Analysis</h2>
+      <div className="grid grid-cols-3 gap-3">
+        {(["bear", "base", "bull"] as const).map((key) => {
+          const sc = data.scenarios[key]
+          const label = key === "bear" ? "Bear" : key === "base" ? "Base" : "Bull"
+          const color = key === "bear" ? "text-red-600" : key === "bull" ? "text-green-600" : "text-blue-700"
+          const bgGradient = key === "bear"
+            ? "bg-gradient-to-b from-red-50 to-white"
+            : key === "bull"
+              ? "bg-gradient-to-b from-green-50 to-white"
+              : "bg-gradient-to-b from-blue-50 to-white"
+          return (
+            <div key={key} className={`text-center p-3 rounded-xl border border-gray-100 ${bgGradient}`}>
+              <p className="text-xs text-gray-400 mb-1">{label} case</p>
+              <p className={`text-lg font-bold font-mono tabular-nums ${color}`}>
+                {formatCurrency(sc.iv, company.currency)}
+              </p>
+              <p className="text-xs text-gray-400">MoS: {formatPct(sc.mos_pct)}</p>
+            </div>
+          )
+        })}
       </div>
+    </div>
+  ) : null
 
-      {/* CARD 2 -- AI Summary + Transparency + Actions */}
-      <div className="">
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-          <AISummary
-            summary={data.ai_summary}
-            ticker={ticker}
-            marginOfSafety={valuation.margin_of_safety}
-            moat={quality.moat}
-            confidence={valuation.confidence_score}
-            fairValue={valuation.fair_value}
-            currentPrice={valuation.current_price}
-          />
-
-          <div className="h-px bg-gray-100" />
-
-          <TransparencyStrip
-            wacc={valuation.wacc} waccMin={valuation.wacc_industry_min} waccMax={valuation.wacc_industry_max}
-            fcfGrowth={valuation.fcf_growth_rate} fcfGrowthHistAvg={valuation.fcf_growth_historical_avg}
-            confidence={data.data_confidence}
-            fcfDataSource={valuation.fcf_data_source}
-          />
-
-          <ActionBar
-            ticker={ticker}
-            currentPrice={valuation.current_price}
-            companyName={company.company_name}
-            sector={company.sector}
+  const tabs: AnalysisTabDef[] = [
+    {
+      key: "summary",
+      label: "Summary",
+      content: (
+        <div className="space-y-5">
+          <InsightCards
+            quality={quality}
+            insights={insights}
+            valuation={valuation}
             currency={company.currency}
-            fairValue={valuation.fair_value}
-            mos={valuation.margin_of_safety}
-            verdict={valuation.verdict}
-            score={quality.yieldiq_score}
-            grade={quality.grade}
-            piotroski={quality.piotroski_score}
-            moat={quality.moat}
-            moatScore={quality.moat_score}
-            wacc={valuation.wacc}
-            fcfGrowth={valuation.fcf_growth_rate}
-            confidence={valuation.confidence_score}
-            bearCase={data.scenarios?.bear?.iv ?? valuation.bear_case}
-            baseCase={data.scenarios?.base?.iv ?? valuation.base_case}
-            bullCase={data.scenarios?.bull?.iv ?? valuation.bull_case}
-            bearMos={data.scenarios?.bear?.mos_pct ?? 0}
-            bullMos={data.scenarios?.bull?.mos_pct ?? 0}
+            sector={company.sector}
+            ticker={company.ticker}
           />
-
-          <Link href={`/compare?stock1=${ticker}`} className="text-xs text-blue-600 hover:underline">
-            Compare with another stock &rarr;
-          </Link>
+          <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
+          {scenarioBlock}
+          <DividendTracker dividend={insights?.dividend ?? null} currency={company.currency} />
         </div>
-      </div>
+      ),
+    },
+    {
+      key: "valuation",
+      label: "Valuation",
+      content: (
+        <div className="space-y-5">
+          {scenarioBlock}
+          {/* The 4 Financial Ratios cards live inside InsightCards today;
+              we reuse it here so ROCE/Debt-EBITDA/Interest Coverage/Promoter
+              remain reachable from the Valuation tab. */}
+          <InsightCards
+            quality={quality}
+            insights={insights}
+            valuation={valuation}
+            currency={company.currency}
+            sector={company.sector}
+            ticker={company.ticker}
+          />
+          <QualityRatios quality={quality} insights={insights} />
+        </div>
+      ),
+    },
+    {
+      key: "quality",
+      label: "Quality",
+      content: (
+        <div className="space-y-5">
+          <InsightCards
+            quality={quality}
+            insights={insights}
+            valuation={valuation}
+            currency={company.currency}
+            sector={company.sector}
+            ticker={company.ticker}
+          />
+          <QualityRatios quality={quality} insights={insights} />
+          <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
+        </div>
+      ),
+    },
+    {
+      key: "financials",
+      label: "Financials",
+      content: financialsEmpty ? (
+        <EmptyFinancials onRefresh={() => financialsQuery.refetch()} />
+      ) : (
+        <div className="space-y-5">
+          <FinancialStatements ticker={ticker} currency={company.currency} />
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <h2 className="text-sm font-semibold text-gray-900 mb-3">Financial Overview</h2>
+            <FinancialBars
+              ticker={ticker}
+              currency={company.currency}
+              revenue={chartData?.financials?.revenue}
+              fcf={chartData?.financials?.fcf}
+            />
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "history",
+      label: "History",
+      content: (
+        <div className="space-y-5">
+          <FairValueHistory
+            ticker={ticker}
+            companyName={formatCompanyName(company.company_name)}
+            currency={company.currency}
+          />
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <h2 className="text-sm font-semibold text-gray-900 mb-3">Price History</h2>
+            <PriceChart
+              ticker={ticker}
+              currentPrice={valuation.current_price}
+              fairValue={valuation.fair_value}
+              currency={company.currency}
+            />
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: "peers",
+      label: "Peers",
+      content: <PeerComparison ticker={ticker} currency={company.currency} />,
+    },
+  ]
 
-      {/* LAYER 2 -- The Story (Insight Cards) */}
-      <div className="">
-        <InsightCards quality={quality} insights={insights} valuation={valuation} currency={company.currency} sector={company.sector} ticker={company.ticker} />
-        <QualityRatios quality={quality} insights={insights} />
-        <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
-        <DividendTracker dividend={insights?.dividend ?? null} currency={company.currency} />
-      </div>
-
-      {/* Historical Fair Value Chart — placed ABOVE price history per Phase 1 spec */}
-      <FairValueHistory
-        ticker={ticker}
-        companyName={formatCompanyName(company.company_name)}
+  return (
+    <div className="max-w-2xl md:max-w-3xl lg:max-w-5xl mx-auto px-4 pb-20">
+      {/* Sticky top strip */}
+      <StickyHeader
+        ticker={data.ticker}
+        price={valuation.current_price}
         currency={company.currency}
+        onShare={onShare}
       />
 
-      {/* Price Chart + Financial Bars */}
-      <div className="space-y-5">
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Price History</h2>
-          <PriceChart
-            ticker={ticker}
-            currentPrice={valuation.current_price}
-            fairValue={valuation.fair_value}
-            currency={company.currency}
-          />
+      {copiedShare && (
+        <div className="mt-2 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+          Link copied to clipboard.
         </div>
+      )}
 
-        {/* Divider */}
-        <div className="h-px bg-gray-100 mx-2" />
-
-        {/* Financial Bars */}
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Financial Overview</h2>
-          <FinancialBars
-            ticker={ticker}
-            currency={company.currency}
-            revenue={chartData?.financials?.revenue}
-            fcf={chartData?.financials?.fcf}
-          />
-        </div>
-
-        {/* Peer comparison table — sector-grouped */}
-        <PeerComparison ticker={ticker} currency={company.currency} />
-
-        {/* Full financial statements (Income / Balance Sheet / Cash Flow) */}
-        <FinancialStatements ticker={ticker} currency={company.currency} />
-      </div>
-
-      {/* LAYER 3 -- Scenarios */}
-      <div className="space-y-5">
-        {/* Divider */}
-        <div className="h-px bg-gray-100 mx-2" />
-        {data.scenarios ? (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-4">Scenario Analysis</h2>
-            <div className="grid grid-cols-3 gap-3">
-              {(["bear", "base", "bull"] as const).map((key) => {
-                const sc = data.scenarios[key]
-                const label = key === "bear" ? "Bear" : key === "base" ? "Base" : "Bull"
-                const color = key === "bear" ? "text-red-600" : key === "bull" ? "text-green-600" : "text-blue-700"
-                const bgGradient = key === "bear"
-                  ? "bg-gradient-to-b from-red-50 to-white"
-                  : key === "bull"
-                    ? "bg-gradient-to-b from-green-50 to-white"
-                    : "bg-gradient-to-b from-blue-50 to-white"
-                return (
-                  <div key={key} className={`text-center p-3 rounded-xl border border-gray-100 ${bgGradient}`}>
-                    <p className="text-xs text-gray-400 mb-1">{label} case</p>
-                    <p className={`text-lg font-bold font-mono ${color}`}>
-                      {formatCurrency(sc.iv, company.currency)}
-                    </p>
-                    <p className="text-xs text-gray-400">MoS: {formatPct(sc.mos_pct)}</p>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-        ) : (
-          <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
-            <p className="text-sm text-gray-400">Scenario analysis unavailable</p>
+      <div className="py-4 space-y-5">
+        {/* Rename banner */}
+        {wasAliased && (
+          <div className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+            <span className="font-semibold">{requestedDisplay}</span> has been renamed to{" "}
+            <span className="font-semibold">{canonicalDisplay}</span>. Showing {canonicalDisplay} data.
           </div>
         )}
 
-        {/* Share Report Card CTA */}
+        {/* Data-limited soft banner */}
+        {dataLimited && (
+          <div className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            We&rsquo;re refreshing data for this ticker. Check back in 24 hours.
+          </div>
+        )}
+
+        {/* Data confidence badge */}
+        {!dataLimited && data.data_confidence !== "high" && (
+          <div className={`text-xs font-medium px-3 py-1 rounded-full inline-block ${data.data_confidence === "medium" ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
+            Data: {data.data_confidence} confidence
+          </div>
+        )}
+
+        {/* Company name header (small — sticky strip has ticker) */}
+        <div className="flex items-baseline justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="font-display text-lg font-semibold text-gray-900 truncate">
+              {formatCompanyName(company.company_name)}
+            </h1>
+            <p className="text-xs text-gray-400 truncate">
+              {company.ticker} · {company.sector}
+            </p>
+          </div>
+          <Link href={`/compare?stock1=${ticker}`} className="shrink-0 text-xs text-blue-600 hover:underline whitespace-nowrap">
+            Compare →
+          </Link>
+        </div>
+
+        {/* Hero */}
+        <AnalysisHero
+          score={quality.yieldiq_score}
+          grade={quality.grade}
+          confidence={valuation.confidence_score}
+          verdict={valuation.verdict}
+          fairValue={valuation.fair_value}
+          currentPrice={valuation.current_price}
+          marginOfSafety={valuation.margin_of_safety}
+          moat={quality.moat}
+          currency={company.currency}
+          thesis={data.ai_summary}
+          dataLimited={dataLimited}
+        />
+
+        {/* Tabs */}
+        <AnalysisTabs tabs={tabs} initial="summary" />
+
+        {/* Share report card CTA */}
         <div className="bg-gradient-to-r from-blue-50 to-cyan-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between gap-3">
           <div>
             <p className="text-sm font-semibold text-gray-900">Share this analysis</p>
@@ -451,9 +537,9 @@ export default function AnalysisPage() {
           </a>
         </div>
 
-        {/* Disclaimer */}
+        {/* SEBI disclaimer — preserved verbatim */}
         <p className="text-xs text-gray-600 text-center leading-relaxed px-4">
-          All outputs are model estimates using publicly available data. Not investment advice.
+          Model estimates using publicly available data. Not investment advice.
           YieldIQ is not registered with SEBI as an investment adviser.
         </p>
       </div>

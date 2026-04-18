@@ -1,0 +1,151 @@
+"use client"
+
+import ConvictionRing from "@/components/analysis/ConvictionRing"
+import VerdictChip from "@/components/analysis/VerdictChip"
+import { formatCurrency, formatPct } from "@/lib/utils"
+import type { Verdict } from "@/types/api"
+
+// TODO: swap to design tokens (bg-bg / bg-surface / text-ink / etc.) once Agent 1 lands
+
+interface AnalysisHeroProps {
+  score: number
+  grade: string
+  confidence: number
+  verdict: Verdict
+  fairValue: number
+  currentPrice: number
+  marginOfSafety: number
+  moat: string
+  currency: string
+  thesis: string | null
+  dataLimited: boolean
+}
+
+/**
+ * Extract the first sentence of the AI thesis to act as a one-line
+ * headline under the verdict. Falls back to a descriptive, SEBI-safe
+ * phrasing when the summary is null / too short. Never returns "buy"
+ * or "sell" language.
+ */
+function firstSentence(text: string | null): string | null {
+  if (!text) return null
+  const trimmed = text.trim()
+  if (!trimmed) return null
+  // Split on first ". " or newline. Keep it compact.
+  const match = trimmed.match(/^(.{20,200}?[.!?])(\s|$)/)
+  const candidate = match ? match[1] : trimmed.slice(0, 160)
+  // Strip any accidental buy/sell language defensively.
+  return candidate.replace(/\b(buy|sell)\b/gi, "hold")
+}
+
+function fallbackThesis(verdict: Verdict, moat: string, mos: number): string {
+  const moatPhrase =
+    moat === "Wide"
+      ? "Wide-moat business"
+      : moat === "Narrow"
+      ? "Narrow-moat business"
+      : "Business with limited moat"
+  if (verdict === "undervalued") {
+    return `${moatPhrase} trading below fair value (MoS ${formatPct(mos)}).`
+  }
+  if (verdict === "overvalued") {
+    return `${moatPhrase} trading above fair value. Wait for a larger margin of safety.`
+  }
+  if (verdict === "fairly_valued") {
+    return `${moatPhrase} at a fair price. Wait for MoS > 20% to accumulate.`
+  }
+  return `${moatPhrase}. Review model inputs before drawing conclusions.`
+}
+
+export default function AnalysisHero({
+  score,
+  grade,
+  confidence,
+  verdict,
+  fairValue,
+  currentPrice,
+  marginOfSafety,
+  moat,
+  currency,
+  thesis,
+  dataLimited,
+}: AnalysisHeroProps) {
+  const effectiveVerdict: Verdict = dataLimited ? "data_limited" : verdict
+  const thesisLine =
+    firstSentence(thesis) ?? fallbackThesis(effectiveVerdict, moat, marginOfSafety)
+
+  return (
+    <section
+      className="bg-white rounded-2xl border border-gray-100 p-5 md:p-6"
+      aria-label="Valuation summary"
+    >
+      <div className="flex flex-col md:flex-row md:items-center md:gap-8 gap-5">
+        {/* Left — ring + score */}
+        <div className="flex items-center justify-center md:flex-col md:items-center gap-4 md:gap-2 shrink-0">
+          <ConvictionRing score={score} confidence={confidence} size={160} />
+          <div className="md:text-center">
+            <p className="text-xs text-gray-400 uppercase tracking-wide">
+              YieldIQ Score
+            </p>
+            <p className="font-mono tabular-nums text-lg font-semibold text-gray-900">
+              {score}
+              <span className="text-gray-400 text-sm ml-1">/100</span>
+              <span className="ml-2 text-sm font-bold text-blue-700">
+                {grade}
+              </span>
+            </p>
+          </div>
+        </div>
+
+        {/* Right — verdict, metrics, thesis */}
+        <div className="flex-1 min-w-0 space-y-3">
+          <VerdictChip verdict={effectiveVerdict} size="lg" />
+
+          {/* Metric block — 2x2 on md+, 2 rows of 2 on mobile */}
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
+            <div>
+              <dt className="text-xs text-gray-400">Fair Value</dt>
+              <dd className="font-mono tabular-nums text-lg font-semibold text-gray-900">
+                {fairValue > 0 ? formatCurrency(fairValue, currency) : "—"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-xs text-gray-400">Current</dt>
+              <dd className="font-mono tabular-nums text-lg font-semibold text-gray-900">
+                {currentPrice > 0 ? formatCurrency(currentPrice, currency) : "—"}
+              </dd>
+            </div>
+
+            {!dataLimited && (
+              <div>
+                <dt className="text-xs text-gray-400">Margin of Safety</dt>
+                <dd
+                  className={`font-mono tabular-nums text-lg font-semibold ${
+                    marginOfSafety >= 0 ? "text-blue-700" : "text-amber-600"
+                  }`}
+                >
+                  {marginOfSafety > 80
+                    ? "+80%+"
+                    : formatPct(marginOfSafety)}
+                </dd>
+              </div>
+            )}
+
+            <div>
+              <dt className="text-xs text-gray-400">Moat</dt>
+              <dd className="text-lg font-semibold text-gray-900">
+                {moat || "—"}
+              </dd>
+            </div>
+          </dl>
+
+          {thesisLine && (
+            <p className="text-sm leading-relaxed text-gray-700 border-l-2 border-blue-100 pl-3">
+              {thesisLine}
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
