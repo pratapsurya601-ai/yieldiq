@@ -1,5 +1,8 @@
+import os
+import sys
 import time
 from datetime import datetime
+from pathlib import Path
 
 from config import YFINANCE_DELAY
 from tickers import TOP_200
@@ -13,19 +16,56 @@ from nse_fetcher import get_nse_session, fetch_nse_quarterly
 from db_writer import create_tables, upsert_records
 
 
+def _get_full_nse_universe():
+    """Pull the full active NSE ticker list from the `stocks` DB table
+    (populated by populate_stocks.yml). Falls back to TOP_200 if the
+    DB tier isn't reachable."""
+    # Repo root is two levels up from this file
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    try:
+        from data_pipeline.pipeline import get_full_universe
+        tickers = get_full_universe()
+        if tickers:
+            print(f"Loaded {len(tickers)} tickers from stocks DB table")
+            return tickers
+    except Exception as exc:
+        print(f"[WARN] couldn't load full universe ({exc}), using TOP_200")
+    return list(TOP_200)
+
+
 def run(tickers=None, mode='test', skip_nse=False):
     """
-    mode='test'  : 5 tickers, verbose
-    mode='top50' : first 50 tickers
-    mode='full'  : all 200 tickers
+    mode='test'     : 5 tickers, verbose
+    mode='top50'    : first 50 tickers
+    mode='full'     : TOP_200 curated list (~205 tickers)
+    mode='full_nse' : every active NSE ticker in the stocks DB
+                      (~2,258 after populate_stocks runs)
+
+    Honors SHARD_INDEX / SHARD_COUNT env vars for parallel runs —
+    each shard processes tickers[SHARD_INDEX::SHARD_COUNT] so 4 shards
+    split the universe evenly with no overlap.
     """
     if tickers is None:
         if mode == 'test':
             tickers = ['RELIANCE', 'TCS', 'HDFCBANK', 'ITC', 'INFY']
         elif mode == 'top50':
             tickers = TOP_200[:50]
+        elif mode == 'full_nse':
+            tickers = _get_full_nse_universe()
         else:
             tickers = TOP_200
+
+    # Sharding — allows the new full_nse mode to run 4× in parallel
+    # on independent GH Actions runners for ~25 min wall-clock instead
+    # of ~100 min.
+    shard_idx = int(os.environ.get('SHARD_INDEX', '0'))
+    shard_count = max(1, int(os.environ.get('SHARD_COUNT', '1')))
+    if shard_count > 1:
+        total = len(tickers)
+        tickers = tickers[shard_idx::shard_count]
+        print(f"Sharding: {shard_idx}/{shard_count} — {len(tickers)} of {total} tickers")
 
     print(f"\nYieldIQ Financial Data Pipeline")
     print(f"Mode: {mode} | Tickers: {len(tickers)}")

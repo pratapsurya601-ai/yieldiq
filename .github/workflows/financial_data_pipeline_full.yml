@@ -1,0 +1,112 @@
+name: Weekly Financial Data Pipeline (Full NSE)
+
+# Chunked version of financial_data_pipeline.yml.
+#
+# The base workflow runs the TOP_200 list (~205 tickers) weekly —
+# this one covers the full ~2,258-ticker NSE universe (whatever is
+# currently active in the `stocks` DB table, populated by
+# populate_stocks.yml) across 4 parallel GH Actions runners.
+#
+# Why a separate workflow:
+#   - The base TOP_200 run is tight (60 min budget) and we want to
+#     keep it fast and reliable.
+#   - The full run is best on Sunday night (6am IST Monday) so the
+#     refreshed company_financials table is warm for Monday open.
+#   - If the full run hiccups (yfinance rate-limit, NSE flakiness on
+#     obscure tickers), the TOP_200 job is unaffected.
+#
+# All shards UPSERT into company_financials — the DB handles write
+# concurrency at the row level so 4 parallel shards is safe.
+
+on:
+  schedule:
+    # Sunday 21:00 UTC  ==  Monday 02:30 IST
+    - cron: '0 21 * * 0'
+  workflow_dispatch:
+    inputs:
+      shard_count:
+        description: 'Number of parallel shards (default 4)'
+        required: false
+        default: '4'
+      skip_nse:
+        description: 'Skip the NSE results-comparison supplement'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+concurrency:
+  group: financial-data-pipeline-full
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    strategy:
+      matrix:
+        shard: [0, 1, 2, 3]
+      fail-fast: false
+    runs-on: ubuntu-latest
+    # Full NSE = ~2,258 tickers / 4 shards = ~565 per shard.
+    # Each ticker ≈ 2-3s (yfinance + optional NSE + DB writes).
+    # Budget 180 min with generous headroom for stragglers.
+    timeout-minutes: 180
+    name: shard ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install yfinance psycopg2-binary python-dotenv requests sqlalchemy
+
+      - name: Verify DATABASE_URL secret is present
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is not configured."
+            exit 1
+          fi
+
+      - name: Run pipeline (shard ${{ matrix.shard }})
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_COUNT: ${{ github.event.inputs.shard_count || '4' }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          cd data_pipeline/xbrl
+          if [ "${{ github.event.inputs.skip_nse || 'false' }}" = "true" ]; then
+            python run.py full_nse --skip-nse
+          else
+            python run.py full_nse
+          fi
+
+      - name: Verify (shard ${{ matrix.shard }})
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          cd data_pipeline/xbrl
+          python verify.py
+
+  summary:
+    needs: backfill
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Roll-up
+        run: |
+          echo "## Financial Data Pipeline (Full NSE) — Summary"
+          echo ""
+          echo "All 4 shards have completed. Check individual shard logs"
+          echo "for per-shard inserted/failed counts."
+          echo ""
+          echo "company_financials table now reflects the latest run."
