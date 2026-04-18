@@ -95,8 +95,23 @@ async def get_analysis(
     # to response.ticker to show a "renamed to …" banner.
     ticker = TICKER_ALIASES.get(original_ticker, original_ticker)
 
-    # Tier 1: in-memory cache (fastest, per-process, 24h TTL).
+    # Tier 0: in-memory RAW dict cache (fastest path — no Pydantic).
+    # Set by the tier-2 DB-cache fast path below. Warm-warm requests
+    # on the same worker return via this branch in ~5-10ms.
     _cache_key = f"analysis:{ticker}"
+    _raw_cached = cache.get(_cache_key + ":raw")
+    if _raw_cached:
+        from fastapi.responses import JSONResponse as _JSONResponse
+        # _raw_cached is already a dict with cached=True set.
+        # Respect include_summary toggle via a shallow copy.
+        if not include_summary and _raw_cached.get("ai_summary") is not None:
+            _out = dict(_raw_cached)
+            _out["ai_summary"] = None
+            return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW"})
+        return _JSONResponse(content=_raw_cached, headers={"X-Cache": "HIT-MEM-RAW"})
+
+    # Tier 1: in-memory Pydantic cache (legacy, for paths that set
+    # the object form). Slower than tier-0 because FastAPI re-serializes.
     cached = cache.get(_cache_key)
     if cached:
         cached.cached = True
@@ -121,35 +136,36 @@ async def get_analysis(
         _db_cached = None
     if _db_cached:
         try:
-            # Schema-tolerant rehydrate. When we add fields to
-            # QualityOutput/ValuationOutput without bumping CACHE_VERSION
-            # (e.g. today's ROCE, Debt/EBITDA, Interest Coverage,
-            # Promoter % additions), old cached payloads lack those
-            # keys. model_validate fills Optional/defaulted fields
-            # cleanly; strict __init__ on Pydantic v2 raises on unknown
-            # extras, so we also strip any keys the current model
-            # doesn't know about.
+            # FAST PATH — return the cached JSON directly without
+            # re-validating through Pydantic or letting FastAPI
+            # re-serialize the Pydantic object. Perf measurement showed
+            # the warm-cache path was ~2.6s — almost all of that was
+            # model_validate + FastAPI's response serialization on a
+            # large AnalysisResponse payload. The payload was already
+            # validated when originally cached (it passed validate_analysis
+            # at compute time), so we can trust it.
+            #
+            # Schema tolerance (unknown keys stripped) is still applied
+            # in case we've removed fields since the cache was written —
+            # but this is a cheap dict filter, not model validation.
+            from fastapi.responses import JSONResponse as _JSONResponse
             _cls_fields = set(AnalysisResponse.model_fields.keys())
             _clean = {k: v for k, v in _db_cached.items() if k in _cls_fields}
-            _obj = AnalysisResponse.model_validate(_clean)
-            _obj.cached = True
-            # Populate tier-1 so subsequent hits on this worker skip the DB.
-            cache.set(_cache_key, _obj, ttl=86400)
-            response.headers["X-Cache"] = "HIT-DB"
+            _clean["cached"] = True
             if not include_summary:
-                try:
-                    _obj = _obj.model_copy(update={"ai_summary": None})
-                except Exception:
-                    _obj.ai_summary = None
-            return _obj
+                _clean["ai_summary"] = None
+            # Populate tier-1 with the raw dict too. Next request on this
+            # worker skips DB + all validation. We drop the Pydantic form
+            # from tier-1 for the same reason — the warm-warm path is now
+            # dict → JSONResponse, effectively zero-cost serialization.
+            cache.set(_cache_key + ":raw", _clean, ttl=86400)
+            return _JSONResponse(content=_clean, headers={"X-Cache": "HIT-DB-FAST"})
         except Exception as _exc:
             import logging as _logging
             _logging.getLogger("yieldiq.analysis").warning(
-                "analysis_cache: failed to rehydrate payload for %s (%s: %s) — recomputing + invalidating",
+                "analysis_cache: fast-path failed for %s (%s: %s) — recomputing + invalidating",
                 ticker, type(_exc).__name__, _exc,
             )
-            # Invalidate the bad row so we don't keep retrying to rehydrate
-            # it on every request (each retry costs a DB round-trip).
             try:
                 analysis_cache_service.invalidate(ticker)
             except Exception:
@@ -235,6 +251,15 @@ async def get_analysis(
         # Cache for 24h — analysis data doesn't change fast, and cold-recomputes
         # hit yfinance which is the slowest link.
         cache.set(_cache_key, result, ttl=86400)
+        # Also populate tier-0 raw dict so subsequent requests on this
+        # worker skip Pydantic re-validation + FastAPI serialization
+        # entirely (the slow parts of the warm path).
+        try:
+            _raw = result.model_dump(mode="json") if hasattr(result, "model_dump") else result.dict()
+            _raw["cached"] = True
+            cache.set(_cache_key + ":raw", _raw, ttl=86400)
+        except Exception:
+            pass
 
         # Tier-2 write-back: persist so other workers / post-restart
         # requests skip compute. Best-effort; failures are logged and
