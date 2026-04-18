@@ -4,6 +4,13 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  /* Override any UA dark-mode preference — the app isn't themed for
+     dark mode yet (all cards, buttons, and text assume white bg).
+     Before this, users with system-level dark mode (default on
+     mobile) would see a black background behind white cards, which
+     looked broken. Re-enable a proper dark theme when every component
+     has been styled for both. */
+  color-scheme: light;
 }
 
 @theme inline {
@@ -13,15 +20,11 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
-body {
-  background: var(--background);
+/* Explicit light bg for html + body so mobile browsers never fall
+   back to a UA-default dark background (e.g. iOS Safari paints a
+   dark bg during page transitions when color-scheme is ambiguous). */
+html, body {
+  background: #ffffff;
   color: var(--foreground);
 }
 

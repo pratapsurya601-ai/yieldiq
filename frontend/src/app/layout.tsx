@@ -30,7 +30,11 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    // "default" = white status bar text on light background. Was
+    // "black-translucent" which made the iOS status bar area look
+    // black when the app was installed as a PWA — didn't match the
+    // light-theme rest of the app.
+    statusBarStyle: "default",
     title: "YieldIQ",
   },
   openGraph: {

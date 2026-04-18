@@ -4,7 +4,7 @@
   "description": "Know if a stock is undervalued. Free DCF valuation for Indian stocks.",
   "start_url": "/home",
   "display": "standalone",
-  "background_color": "#0F172A",
+  "background_color": "#ffffff",
   "theme_color": "#1D4ED8",
   "orientation": "portrait",
   "icons": [
