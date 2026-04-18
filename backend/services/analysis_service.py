@@ -1433,6 +1433,60 @@ class AnalysisService:
             if bull_iv <= 0 and iv > 0:
                 bull_iv = round(iv * 1.25, 2)
 
+            # ── Sector-appropriate peer-median override ─────────
+            # For tickers that belong to a known peer group (psu_banks,
+            # private_banks, growth_nbfc, govt_nbfc, life_insurance, etc.)
+            # the peer-median P/BV or P/E approach gives a much more
+            # realistic fair value than the single hardcoded multiplier
+            # used above — and crucially, one that survives the sanity
+            # gate in routers/analysis.py for PFC/REC/IRFC/LICI.
+            _financial_val_result = None
+            try:
+                from backend.services.financial_valuation_service import (
+                    compute_financial_fair_value,
+                )
+                _fv_company = {
+                    "current_price": price,
+                    "shares": enriched.get("shares") or raw.get("shares", 0),
+                    "market_cap": price * (enriched.get("shares", 0) or 0),
+                }
+                _fv_fin = {
+                    "priceToBook": raw.get("priceToBook") or enriched.get("pb_ratio"),
+                    "total_equity": enriched.get("total_equity") or raw.get("total_equity"),
+                    "pat": enriched.get("latest_pat") or _pat,
+                    "latest_pat": enriched.get("latest_pat") or _pat,
+                    "diluted_eps": enriched.get("diluted_eps"),
+                    "eps_diluted": enriched.get("diluted_eps"),
+                    "trailingEps": raw.get("trailingEps"),
+                    "eps": enriched.get("eps"),
+                    "fh_eps_ttm": raw.get("fh_eps_ttm"),
+                    "roe": enriched.get("roe") or raw.get("returnOnEquity"),
+                    "returnOnEquity": raw.get("returnOnEquity"),
+                    "shares": enriched.get("shares") or raw.get("shares", 0),
+                }
+                _financial_val_result = compute_financial_fair_value(
+                    ticker=ticker,
+                    company_info=_fv_company,
+                    financials=_fv_fin,
+                    shareholding=None,
+                )
+            except Exception as _fv_exc:
+                import logging as _fv_log
+                _fv_log.getLogger("yieldiq.analysis").warning(
+                    "[%s] financial_valuation failed: %s: %s",
+                    ticker, type(_fv_exc).__name__, _fv_exc,
+                )
+                _financial_val_result = None
+
+            if _financial_val_result and _financial_val_result.get("fair_value", 0) > 0:
+                iv = float(_financial_val_result["fair_value"])
+                bear_iv = float(_financial_val_result.get("bear_case", bear_iv))
+                bull_iv = float(_financial_val_result.get("bull_case", bull_iv))
+                _val_method = (
+                    f"{_financial_val_result.get('method', 'p_bv_peer')} "
+                    f"(peer median)"
+                )
+
             iv_raw = iv
             dcf_res = {
                 "intrinsic_value_per_share": iv,
@@ -1946,6 +2000,15 @@ class AnalysisService:
             except Exception:
                 pass
 
+        # Inform downstream consumers that a financial was valued via
+        # the peer-band path — helps users interpret the fair value
+        # (and disables some FCF-based red flags in the UI).
+        if is_financial and locals().get("_financial_val_result"):
+            _method = _financial_val_result.get("method", "p_bv_peer")
+            _data_issues.append(
+                f"[info] Valued via {_method} peer band — DCF not "
+                f"meaningful for financials."
+            )
         return AnalysisResponse(
             ticker=ticker,
             company=company,
@@ -1968,7 +2031,11 @@ class AnalysisService:
                 wacc=round(wacc, 4),
                 terminal_growth=round(terminal_g, 4),
                 fcf_growth_rate=round(enriched.get("fcf_growth", 0), 4),
-                confidence_score=confidence.get("score", 50),
+                confidence_score=(
+                    _financial_val_result["confidence_score"]
+                    if is_financial and locals().get("_financial_val_result")
+                    else confidence.get("score", 50)
+                ),
                 wacc_industry_min=round(max(0.06, wacc - 0.02), 4),
                 wacc_industry_max=round(min(0.16, wacc + 0.02), 4),
                 fcf_growth_historical_avg=round(enriched.get("fcf_growth", 0) * 0.9, 4),

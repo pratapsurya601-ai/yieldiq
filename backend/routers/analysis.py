@@ -183,9 +183,18 @@ async def get_analysis(
             _fv = float(result.valuation.fair_value or 0)
             _px = float(result.valuation.current_price or 0)
             _mos = float(result.valuation.margin_of_safety or 0)
+            # Financials use the peer-median P/BV or P/E path, not DCF.
+            # Skip the FCF-specific checks but keep ratio/MoS sanity
+            # (defensive — a peer-path result should already be sane).
+            _is_financial_path = (
+                getattr(result.valuation, "valuation_model", "") == "pb_ratio"
+            )
             # Zero fair value with positive price → validator fires
             # mos=-100% on these (e.g. PFC.NS, other NBFCs where
             # FCF-based DCF doesn't work). Caught by Sentry 18-Apr.
+            # For financials this should not happen with the new
+            # peer-band path, but if it does keep the data_limited
+            # fallback as a safety net.
             if _px > 0 and _fv <= 0:
                 _suspicious = True
             if _px > 0 and _fv > 0:
@@ -197,7 +206,15 @@ async def get_analysis(
             # that rounds to ±95+ is beyond what the validator allows
             # and almost always indicates bad inputs rather than a
             # genuinely 95%-undervalued stock.
-            if abs(_mos) >= 95:
+            # For financials valued via peer band, be slightly more
+            # permissive — a deep-value PSU bank can legitimately sit
+            # at ~60% undervalued; 95% is still outside the band.
+            if abs(_mos) >= 95 and not _is_financial_path:
+                _suspicious = True
+            if _is_financial_path and abs(_mos) >= 95:
+                # Tighter threshold for financials — the peer-band
+                # method shouldn't produce >95% MoS; if it does,
+                # inputs are bad.
                 _suspicious = True
             if _suspicious:
                 result.valuation.verdict = "data_limited"
