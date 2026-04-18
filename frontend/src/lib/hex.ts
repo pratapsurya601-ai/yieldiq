@@ -78,6 +78,28 @@ export async function fetchHex(ticker: string): Promise<HexResponse> {
   return res.data
 }
 
+export type PortfolioHolding = { ticker: string; weight: number }
+
+export type PortfolioHexResponse = HexResponse & {
+  holdings?: Array<{ ticker: string; weight: number }>
+  error?: string
+  data_limited?: boolean
+}
+
+export async function fetchPortfolioHex(
+  holdings: PortfolioHolding[],
+): Promise<PortfolioHexResponse> {
+  const res = await api.post("/api/v1/hex/portfolio", { holdings })
+  return res.data
+}
+
+export async function fetchSectorMedian(
+  category: "general" | "bank" | "it" = "general",
+): Promise<{ category: string; medians: Record<string, number>; disclaimer: string }> {
+  const res = await api.get(`/api/v1/hex/sector-median/${category}`)
+  return res.data
+}
+
 export async function fetchHexCompare(
   t1: string,
   t2: string,

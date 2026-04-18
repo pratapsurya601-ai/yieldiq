@@ -385,14 +385,24 @@ def fetch_nse_deals(tickers: List[str]) -> Dict[str, Dict[str, Any]]:
 # future wiring is trivial.
 
 def fetch_bse_shareholding(tickers: List[str]) -> Dict[str, Dict[str, Any]]:
-    """Returns {ticker: {"promoter_delta_qoq": float, "pledged_pct_delta": float}}.
+    """Returns {ticker: {"promoter_delta_qoq": float, "pledged_pct_delta": float, ...}}.
 
-    v1 STUB: stocks table lacks a bse_code mapping. When bse_code is added,
-    fetch https://api.bseindia.com/BseIndiaAPI/api/ShareholdingPattern/w?scripcode={code}
-    and diff the two most-recent quarters for promoter % and pledged %.
+    Thin wrapper around bse_shareholding_service.fetch_bse_shareholding_batch.
+    Never raises — any source failure returns {} + logs a warning.
     """
-    logger.info("PULSE: bse_shareholding — not implemented (no bse_code mapping); skipping")
-    return {}
+    try:
+        try:
+            from backend.services.bse_shareholding_service import (
+                fetch_bse_shareholding_batch,
+            )
+        except ImportError:  # when launched from inside backend/
+            from services.bse_shareholding_service import (  # type: ignore
+                fetch_bse_shareholding_batch,
+            )
+        return fetch_bse_shareholding_batch(tickers) or {}
+    except Exception as exc:
+        logger.warning("PULSE: bse_shareholding source failed: %s", exc)
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -402,12 +412,26 @@ def fetch_bse_shareholding(tickers: List[str]) -> Dict[str, Dict[str, Any]]:
 def fetch_sebi_insider(tickers: List[str]) -> Dict[str, Dict[str, Any]]:
     """Returns {ticker: {"insider_net_cr": float}}.
 
-    v1 STUB: SEBI search is too brittle for a cron. Disclosures (Reg 7(2))
-    live at https://www.sebi.gov.in/ — on next iteration, ingest via the
-    official XBRL filings rather than scraping the search UI.
+    Thin wrapper around sebi_sast_service.fetch_sebi_sast_batch. The
+    underlying service uses the NSE PIT feed (same disclosures SEBI Reg 7
+    requires). Result is re-keyed from `insider_net_30d` to `insider_net_cr`
+    for the orchestrator below. Never raises.
     """
-    logger.info("PULSE: sebi_insider — not implemented; skipping")
-    return {}
+    try:
+        try:
+            from backend.services.sebi_sast_service import fetch_sebi_sast_batch
+        except ImportError:  # when launched from inside backend/
+            from services.sebi_sast_service import fetch_sebi_sast_batch  # type: ignore
+        raw = fetch_sebi_sast_batch(tickers) or {}
+        out: Dict[str, Dict[str, Any]] = {}
+        for ticker, payload in raw.items():
+            val = payload.get("insider_net_30d") if isinstance(payload, dict) else None
+            if val is not None:
+                out[ticker] = {"insider_net_cr": val, "raw": payload.get("raw")}
+        return out
+    except Exception as exc:
+        logger.warning("PULSE: sebi_sast source failed: %s", exc)
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -578,7 +602,7 @@ def run_pulse_refresh(limit: int = 500) -> Dict[str, Any]:
             sebi_hit = source_results.get("sebi_insider", {}).get(t)
             if sebi_hit and sebi_hit.get("insider_net_cr") is not None:
                 inputs["insider_net_30d"] = sebi_hit["insider_net_cr"]
-                used["sebi_insider"] = True
+                used["sebi_sast"] = True
 
             # Skip rows with nothing to write — no source matched.
             if not used:

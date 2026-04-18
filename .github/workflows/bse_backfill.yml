@@ -1,0 +1,59 @@
+name: BSE Code Backfill
+
+# Populates stocks.bse_code for every active NSE ticker by joining the
+# BSE equity master against our stocks table (ISIN first, then
+# normalised company name with a small Levenshtein tolerance).
+#
+# Runs on-demand (workflow_dispatch) for the initial one-shot backfill,
+# then monthly to pick up new listings and corporate-action renames.
+#
+# Secrets required:
+#   - DATABASE_URL : Aiven Postgres URL used by all YieldIQ data jobs.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 5 1 * *"  # 1st of month, 05:00 UTC = 10:30 IST
+
+concurrency:
+  group: bse-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            "requests>=2.31" \
+            "psycopg2-binary>=2.9" \
+            "SQLAlchemy>=2.0" \
+            "python-dotenv>=1.0" \
+            "rapidfuzz>=3.0"
+
+      - name: Check DATABASE_URL
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is missing."
+            exit 1
+          fi
+          echo "DATABASE_URL is set."
+
+      - name: Run BSE code backfill
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONUNBUFFERED: "1"
+        run: python backend/scripts/backfill_bse_codes.py
