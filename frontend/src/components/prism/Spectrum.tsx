@@ -13,6 +13,8 @@ interface Props {
   sectorOverlay?: boolean
   sectorMedians?: Partial<Record<PillarKey, number>>
   onPillarTap?: (key: PillarKey) => void
+  /** Phase 2: dim every non-matching lens to ~30% when set. */
+  highlightedPillar?: PillarKey | null
   uid: string
 }
 
@@ -49,6 +51,7 @@ export default function Spectrum({
   verdictBand,
   verdictLabel,
   onPillarTap,
+  highlightedPillar,
   uid,
 }: Props) {
   const cx = size / 2
@@ -127,6 +130,9 @@ export default function Spectrum({
             ? "var(--color-caption)"
             : pillarColor(p.key)
           const isPulse = p.key === "pulse"
+          const spotlightOn = highlightedPillar != null
+          const isSpotlit = spotlightOn && highlightedPillar === p.key
+          const lensOpacity = !spotlightOn || isSpotlit ? 1 : 0.3
           // Trapezoid: wider at top, narrower at bottom — light refracting.
           const path = `M ${cx - halfW} ${y - 8} L ${cx + halfW} ${y - 8} L ${cx + halfW * 0.75} ${y + 8} L ${cx - halfW * 0.75} ${y + 8} Z`
           return (
@@ -144,7 +150,11 @@ export default function Spectrum({
                   onPillarTap(p.key)
                 }
               }}
-              style={{ cursor: onPillarTap ? "pointer" : "default" }}
+              style={{
+                cursor: onPillarTap ? "pointer" : "default",
+                opacity: lensOpacity,
+                transition: "opacity 240ms ease",
+              }}
               className={isPulse ? "prism-pulse-breathe" : undefined}
             >
               <path

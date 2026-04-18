@@ -13,6 +13,8 @@ interface Props {
   sectorOverlay?: boolean
   sectorMedians?: Partial<Record<PillarKey, number>>
   onPillarTap?: (key: PillarKey) => void
+  /** Phase 2: dim every non-matching vertex to ~30% when set. */
+  highlightedPillar?: PillarKey | null
   uid: string
 }
 
@@ -49,6 +51,7 @@ export default function Signature({
   sectorOverlay,
   sectorMedians,
   onPillarTap,
+  highlightedPillar,
   uid,
 }: Props) {
   const cx = size / 2
@@ -204,6 +207,9 @@ export default function Signature({
           const [x, y] = signatureVertex(cx, cy, r, i)
           const color = p.data_limited ? "var(--color-caption)" : pillarColor(p.key)
           const isPulse = p.key === "pulse"
+          const spotlightOn = highlightedPillar != null
+          const isSpotlit = spotlightOn && highlightedPillar === p.key
+          const vertexOpacity = !spotlightOn || isSpotlit ? 1 : 0.3
           return (
             <g
               key={p.key}
@@ -219,7 +225,11 @@ export default function Signature({
                   onPillarTap(p.key)
                 }
               }}
-              style={{ cursor: onPillarTap ? "pointer" : "default" }}
+              style={{
+                cursor: onPillarTap ? "pointer" : "default",
+                opacity: vertexOpacity,
+                transition: "opacity 240ms ease",
+              }}
               className={isPulse ? "prism-pulse-breathe" : undefined}
             >
               <rect

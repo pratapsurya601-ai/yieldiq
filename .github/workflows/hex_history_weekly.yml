@@ -1,0 +1,107 @@
+name: Hex History — Weekly Backfill
+
+# Refreshes the hex_history table (12 quarters × top-N tickers) so the
+# Prism Time Machine scrubber always has fresh snapshots.
+#
+# Runs Sunday 18:00 UTC (Monday 23:30 IST — well after market close) and
+# on manual dispatch. The backfill is idempotent (ON CONFLICT UPDATE) so
+# re-runs are safe.
+#
+# CRITICAL: this workflow does NOT hit the live Railway API. It connects
+# directly to Aiven Postgres via DATABASE_URL so the Railway worker isn't
+# blocked by 500 × 12 ≈ 6k snapshot computations.
+#
+# Secrets required:
+#   - DATABASE_URL : Aiven Postgres URL (same as Railway uses)
+# If missing, the workflow skips cleanly instead of failing loud.
+
+on:
+  schedule:
+    # Sunday 18:00 UTC = Monday 23:30 IST
+    - cron: "0 18 * * 0"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "How many top tickers to backfill (default 500)"
+        required: false
+        default: "500"
+      quarters:
+        description: "Quarters per ticker (default 12)"
+        required: false
+        default: "12"
+
+concurrency:
+  group: hex-history-weekly
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    # Budget: 500 tickers × 12 quarters × ~50ms ≈ 5 min; pad to 60 min.
+    timeout-minutes: 60
+
+    steps:
+      - name: Check for DATABASE_URL
+        id: env_check
+        env:
+          DB: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DB" ]; then
+            echo "::warning::DATABASE_URL missing — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.env_check.outputs.skip == 'false'
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        if: steps.env_check.outputs.skip == 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install minimal deps
+        if: steps.env_check.outputs.skip == 'false'
+        run: |
+          python -m pip install --upgrade pip
+          # Minimal: SQLAlchemy + psycopg for Aiven PG. yfinance/pandas
+          # not required for historical backfill (only point-in-time
+          # financials + stored fair_value).
+          pip install "sqlalchemy>=2.0" "psycopg[binary]>=3.1" python-dateutil
+
+      - name: Ensure hex_history table exists
+        if: steps.env_check.outputs.skip == 'false'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          url = os.environ["DATABASE_URL"]
+          # SQLAlchemy 2 psycopg v3 driver name
+          if url.startswith("postgres://"):
+              url = url.replace("postgres://", "postgresql+psycopg://", 1)
+          elif url.startswith("postgresql://"):
+              url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+          eng = create_engine(url)
+          with open("backend/migrations/create_hex_history.sql") as f:
+              ddl = f.read()
+          with eng.begin() as cx:
+              for stmt in [s for s in ddl.split(";") if s.strip()]:
+                  cx.execute(text(stmt))
+          print("hex_history table ensured")
+          PY
+
+      - name: Run backfill
+        if: steps.env_check.outputs.skip == 'false'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LIMIT: ${{ github.event.inputs.limit || '500' }}
+          QUARTERS: ${{ github.event.inputs.quarters || '12' }}
+        run: |
+          python backend/scripts/backfill_hex_history.py \
+            --limit "$LIMIT" \
+            --quarters "$QUARTERS"

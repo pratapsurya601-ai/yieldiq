@@ -18,6 +18,12 @@ interface PrismProps {
   /** If false, skip entry animation. Used for warm sessions. */
   firstView?: boolean
   sectorOverlay?: boolean
+  /**
+   * Phase 2 (narration): when set, this pillar's vertex (Signature) or lens
+   * (Spectrum) renders at full opacity while the others dim to ~30%. Null
+   * or undefined means "no spotlight" — the default display.
+   */
+  highlightedPillar?: PillarKey | null
   className?: string
 }
 
@@ -49,6 +55,7 @@ export default function Prism({
   onPillarTap,
   firstView = true,
   sectorOverlay,
+  highlightedPillar,
   className,
 }: PrismProps) {
   const isControlled = mode !== undefined
@@ -159,6 +166,7 @@ export default function Prism({
           sectorOverlay={sectorOverlay}
           sectorMedians={data.sector_medians}
           onPillarTap={onPillarTap}
+          highlightedPillar={highlightedPillar ?? null}
           uid={uid}
         />
         <Spectrum
@@ -172,6 +180,7 @@ export default function Prism({
           sectorOverlay={sectorOverlay}
           sectorMedians={data.sector_medians}
           onPillarTap={onPillarTap}
+          highlightedPillar={highlightedPillar ?? null}
           uid={uid}
         />
       </svg>

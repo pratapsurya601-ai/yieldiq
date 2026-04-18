@@ -30,7 +30,15 @@ import {
 } from "@/lib/utils"
 import { trackStockAnalysed } from "@/lib/analytics"
 import Link from "next/link"
+import dynamic from "next/dynamic"
 import type { PrismData } from "@/components/prism/types"
+
+// Code-split the Time Machine modal — ~12kb of scrubber + capture code that
+// only loads when the user actually clicks the ⏱ button.
+const PrismTimeMachine = dynamic(
+  () => import("@/components/prism/PrismTimeMachine"),
+  { ssr: false },
+)
 
 /* ------------------------------------------------------------------ */
 /*  Client body for /analysis/[ticker]. The parent (page.tsx, server   */
@@ -46,9 +54,10 @@ interface StickyHeaderProps {
   onSave?: () => void
   onAlert?: () => void
   onShare?: () => void
+  onTimeMachine?: () => void
 }
 
-function StickyHeader({ ticker, price, currency, onSave, onAlert, onShare }: StickyHeaderProps) {
+function StickyHeader({ ticker, price, currency, onSave, onAlert, onShare, onTimeMachine }: StickyHeaderProps) {
   const display = ticker.replace(".NS", "").replace(".BO", "")
   return (
     <div className="sticky top-0 z-20 -mx-4 px-4 h-12 flex items-center justify-between bg-bg/95 backdrop-blur border-b border-border">
@@ -61,6 +70,12 @@ function StickyHeader({ ticker, price, currency, onSave, onAlert, onShare }: Sti
         </span>
       </div>
       <div className="flex items-center gap-1">
+        <IconButton label="Time Machine" onClick={onTimeMachine}>
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" />
+          </svg>
+        </IconButton>
         <IconButton label="Save" onClick={onSave}>
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.322.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.322-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
@@ -191,6 +206,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
   }, [data])
 
   const [copiedShare, setCopiedShare] = useState(false)
+  const [timeMachineOpen, setTimeMachineOpen] = useState(false)
   const onShare = async () => {
     if (typeof window === "undefined" || !data) return
     const url = window.location.href
@@ -464,6 +480,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         price={valuation.current_price}
         currency={company.currency}
         onShare={onShare}
+        onTimeMachine={() => setTimeMachineOpen(true)}
       />
 
       {copiedShare && (
@@ -566,6 +583,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           YieldIQ is not registered with SEBI as an investment adviser.
         </p>
       </div>
+
+      {timeMachineOpen && (
+        <PrismTimeMachine
+          ticker={data.ticker}
+          isOpen={timeMachineOpen}
+          onClose={() => setTimeMachineOpen(false)}
+        />
+      )}
     </div>
   )
 }

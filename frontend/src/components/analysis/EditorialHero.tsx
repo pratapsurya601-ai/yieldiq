@@ -17,11 +17,26 @@
  * component is in flight.
  */
 
+import dynamic from "next/dynamic"
+import { useState } from "react"
+
 import Prism from "@/components/prism/Prism"
 import ScoreCard from "@/components/analysis/ScoreCard"
 import { verdictColor } from "@/lib/prism"
-import type { PrismData, PrismMode, VerdictBand } from "@/components/prism/types"
+import type {
+  PillarKey,
+  PrismData,
+  PrismMode,
+  VerdictBand,
+} from "@/components/prism/types"
 import { formatCurrency, formatPct } from "@/lib/utils"
+
+// Lazy-load so visitors who never click "Tell me the story" don't pay
+// the narrator's bundle cost.
+const PrismNarrator = dynamic(
+  () => import("@/components/prism/PrismNarrator"),
+  { ssr: false },
+)
 
 export interface EditorialHeroProps {
   /** Prism payload — contains verdict, pillars, refraction. */
@@ -95,6 +110,8 @@ export default function EditorialHero({
 }: EditorialHeroProps) {
   const defaultMode: PrismMode = "spectrum"
   const color = verdictColor(data.verdict_band)
+  const [highlightedPillar, setHighlightedPillar] =
+    useState<PillarKey | null>(null)
 
   return (
     <section
@@ -168,12 +185,23 @@ export default function EditorialHero({
             ══════════════════════════════════════════════════════════ */}
         <div className="lg:col-span-5 order-2 lg:order-2 flex flex-col items-center">
           <div className="relative">
-            <Prism data={data} size={340} defaultMode={defaultMode} />
+            <Prism
+              data={data}
+              size={340}
+              defaultMode={defaultMode}
+              highlightedPillar={highlightedPillar}
+            />
           </div>
           <p className="mt-3 text-[11px] text-caption leading-snug text-center max-w-[30ch]">
             Every stock has a Signature. Unfold it into a Spectrum to see how it
             refracts.
           </p>
+          <div className="mt-4 w-full max-w-[34ch]">
+            <PrismNarrator
+              data={data}
+              onHighlight={setHighlightedPillar}
+            />
+          </div>
         </div>
 
         {/* ══════════════════════════════════════════════════════════

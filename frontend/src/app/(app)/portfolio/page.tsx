@@ -2,7 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { getHoldingsLive, getPortfolioHealth, getWatchlist, removeFromWatchlist, getAlerts, deleteAlert } from "@/lib/api"
 import HealthScore from "@/components/portfolio/HealthScore"
-import PortfolioHex from "@/components/portfolio/PortfolioHex"
+import PortfolioPrism from "@/components/portfolio/PortfolioPrism"
 import { PnLSparklinePlaceholder, BelowFairValueBanner } from "@/components/portfolio/HealthDashboard"
 import { formatCurrency } from "@/lib/utils"
 import { Suspense, useEffect, useState } from "react"
@@ -102,8 +102,8 @@ function PortfolioInner() {
         </div>
       )}
 
-      {/* Portfolio Hex — weighted 6-axis radar across all holdings */}
-      {holdings && holdings.length >= 3 && <PortfolioHex holdings={holdings} />}
+      {/* Portfolio Prism — weighted 6-pillar signature across all holdings */}
+      {holdings && holdings.length >= 3 && <PortfolioPrism holdings={holdings} />}
 
       {/* Top-of-page health dashboard — ring + 30d P&L trend */}
       {health && health.score > 0 && (

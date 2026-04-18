@@ -11,14 +11,49 @@
 from __future__ import annotations
 
 import logging
+import threading
+import time
+from collections import deque
+from typing import Deque
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 
-from backend.services import prism_service
+from backend.services import prism_service, prism_narration_service
+from backend.services import hex_history_service
+from backend.services.cache_service import cache
 
 logger = logging.getLogger("yieldiq.prism.router")
 
 router = APIRouter(prefix="/api/v1/prism", tags=["prism"])
+
+# Prism history (Time Machine) cache TTL — snapshots update weekly at most.
+_HISTORY_TTL = 6 * 3600
+
+
+# ── Simple in-memory IP rate limiter for the narrate endpoint ──
+# 30 requests / minute / IP. Exists purely to stop a single client
+# from spamming Groq via repeated button clicks (cache also helps,
+# but the first request per ticker is the expensive one).
+_NARRATE_LIMIT = 30
+_NARRATE_WINDOW = 60.0
+_narrate_lock = threading.Lock()
+_narrate_hits: dict[str, Deque[float]] = {}
+
+
+def _narrate_rate_ok(ip: str) -> bool:
+    now = time.time()
+    with _narrate_lock:
+        dq = _narrate_hits.get(ip)
+        if dq is None:
+            dq = deque()
+            _narrate_hits[ip] = dq
+        # Drop entries outside the window.
+        while dq and (now - dq[0]) > _NARRATE_WINDOW:
+            dq.popleft()
+        if len(dq) >= _NARRATE_LIMIT:
+            return False
+        dq.append(now)
+        return True
 
 
 @router.get("/compare")
@@ -51,6 +86,56 @@ async def compare_prism(
         }
 
 
+@router.get("/{ticker}/history")
+async def get_ticker_history(
+    ticker: str,
+    quarters: int = Query(12, ge=2, le=20),
+):
+    """Return the last N quarters of Prism snapshots for the Time Machine
+    scrubber. Public, cached 6hr. Always HTTP 200 — on failure returns
+    `{quarters: [], data_limited: true}`.
+
+    Snapshots are reconstructed from point-in-time quarterly financials
+    (company_financials). Value axis scales today's fair value by revenue
+    ratio; Pulse is only populated for the current quarter (past quarters
+    are honestly None since we lack historical insider/promoter data)."""
+    if not ticker or not ticker.strip():
+        raise HTTPException(status_code=400, detail="ticker is required")
+
+    norm_ticker = (ticker or "").strip().upper()
+    cache_key = f"prism-history:{norm_ticker}:{quarters}"
+    try:
+        cached = cache.get(cache_key)
+    except Exception:
+        cached = None
+    if cached is not None:
+        return cached
+
+    try:
+        rows = hex_history_service.get_hex_history(ticker, quarters=quarters)
+    except Exception as exc:
+        logger.warning("prism history failed for %s: %s", ticker, exc)
+        return {
+            "ticker": norm_ticker,
+            "quarters": [],
+            "data_limited": True,
+            "error": "history_error",
+            "disclaimer": hex_history_service.DISCLAIMER,
+        }
+
+    response = {
+        "ticker": norm_ticker,
+        "quarters": rows,
+        "data_limited": len(rows) == 0,
+        "disclaimer": hex_history_service.DISCLAIMER,
+    }
+    try:
+        cache.set(cache_key, response, ttl=_HISTORY_TTL)
+    except Exception:
+        pass
+    return response
+
+
 @router.get("/{ticker}")
 async def get_prism(ticker: str):
     """Return the consolidated Prism payload for a ticker. Public, no auth,
@@ -59,3 +144,40 @@ async def get_prism(ticker: str):
     if not ticker or not ticker.strip():
         raise HTTPException(status_code=400, detail="ticker is required")
     return prism_service.get_prism(ticker)
+
+
+@router.post("/{ticker}/narrate")
+async def narrate_ticker(ticker: str, request: Request):
+    """Generate or fetch cached 45-second Prism narration.
+
+    Public (no auth). Cached 24 hours per ticker. Rate-limited to 30
+    requests/minute per IP to stop accidental Groq spam. Returns HTTP 200
+    even on upstream failure — the service layer falls back to a
+    deterministic templated narration."""
+    if not ticker or not ticker.strip():
+        raise HTTPException(status_code=400, detail="ticker is required")
+
+    # Rate limit (best-effort client IP)
+    client_ip = (
+        request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+        or (request.client.host if request.client else "unknown")
+    )
+    if not _narrate_rate_ok(client_ip):
+        raise HTTPException(
+            status_code=429,
+            detail="Too many narration requests. Try again in a minute.",
+        )
+
+    try:
+        return prism_narration_service.get_or_generate_narration(ticker)
+    except Exception as exc:  # pragma: no cover — service is designed not to raise
+        logger.warning("prism narrate failed for %s: %s", ticker, exc)
+        return {
+            "ticker": ticker,
+            "intro": "Narration is temporarily unavailable.",
+            "pillars": [],
+            "outro": "",
+            "total_duration_ms": 0,
+            "error": "narrate_error",
+            "disclaimer": prism_service.DISCLAIMER,
+        }
