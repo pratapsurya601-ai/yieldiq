@@ -47,8 +47,8 @@ function Cell({
 }) {
   return (
     <span className="inline-flex items-baseline gap-1.5 whitespace-nowrap">
-      <span className="font-semibold text-ink">{label}</span>
-      {value && <span className="tabular-nums">{value}</span>}
+      <span className="font-semibold text-bg">{label}</span>
+      {value && <span className="tabular-nums text-body">{value}</span>}
       {change !== null && change !== undefined && (
         <span className={`tabular-nums ${deltaClass(change)}`}>{signedPct(change)}</span>
       )}
@@ -113,7 +113,7 @@ export default function TickerStrip() {
                 // TODO wire to /api/v1/indices — for now we honestly render
                 // em-dashes rather than inventing numbers when the backend
                 // hasn't populated this index.
-                <Cell label={name} value="\u2014" change={null} />
+                <Cell label={name} value={"\u2014"} change={null} />
               )}
             </span>
           )
