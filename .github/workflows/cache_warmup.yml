@@ -116,6 +116,11 @@ jobs:
           # Dedupe — safety net in case the same ticker is listed twice above.
           UNIQUE=$(printf "%s\n" "${TICKERS[@]}" | sort -u)
 
+          # GH Actions enables `set -eo pipefail` by default. curl returns
+          # non-zero on network errors / timeouts, and under errexit the
+          # whole script would die mid-loop. The `|| echo "000"` turns
+          # any curl failure into a soft "000" status we can count as
+          # a fail but keep marching.
           OK=0
           FAIL=0
           TOTAL=0
@@ -123,16 +128,17 @@ jobs:
             [ -z "$T" ] && continue
             TOTAL=$((TOTAL + 1))
             STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-              --max-time 45 \
+              --max-time 60 \
               -H "Authorization: Bearer $TOKEN" \
-              "${API_BASE}/api/v1/analysis/${T}?include_summary=false")
+              "${API_BASE}/api/v1/analysis/${T}?include_summary=false" \
+              || echo "000")
             if [ "$STATUS" = "200" ]; then
               OK=$((OK + 1))
             else
               echo "✗ $T → $STATUS"
               FAIL=$((FAIL + 1))
             fi
-            # Throttle — 200 tickers × 0.5s ≈ 100s load, inside 30-min budget,
+            # Throttle — 200 tickers × 0.5s ≈ 100s load, inside budget,
             # and keeps the single Railway worker from saturating.
             sleep 0.5
           done <<< "$UNIQUE"
