@@ -73,8 +73,12 @@ function clientSanityFail(d: StockSummary): boolean {
 
 async function getStockData(ticker: string): Promise<StockResponse | null> {
   try {
+    // Shorter revalidate (300s / 5 min) so quality-gate corrections propagate
+    // quickly. Was 3600s which meant HCL's post-fix ₹1,723 took up to an hour
+    // to replace the stale ₹6,075 in the CDN. Keep this aggressive until we
+    // wire on-demand revalidation.
     const res = await fetch(`${API_BASE}/api/v1/public/stock-summary/${ticker}`, {
-      next: { revalidate: 3600 },
+      next: { revalidate: 300 },
     })
     if (!res.ok) return null
     return res.json()
