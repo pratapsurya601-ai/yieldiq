@@ -392,7 +392,9 @@ def _axis_value_general(data: dict) -> dict:
             pass
 
     why = ", ".join(reasons) if reasons else "Partial valuation data"
-    return _axis(score, why, data_limited=(mos_pct is None or pe is None))
+    # data_limited only when we had NO signal at all. If either mos_pct or pe
+    # produced a valid score contribution, the axis has a real signal.
+    return _axis(score, why, data_limited=(mos_pct is None and pe is None))
 
 
 def _axis_value_bank(data: dict) -> dict:
@@ -423,7 +425,8 @@ def _axis_value_bank(data: dict) -> dict:
     return _axis(
         score,
         ", ".join(reasons) if reasons else "Bank valuation partial",
-        data_limited=(pb is None),
+        # Only data-limited when neither P/BV nor MoS contributed.
+        data_limited=(pb is None and mos_pct is None),
     )
 
 
@@ -506,7 +509,8 @@ def _axis_quality(data: dict, sector: str) -> dict:
     return _axis(
         score,
         ", ".join(reasons) if reasons else "Partial quality data",
-        data_limited=(piotroski is None or primary is None),
+        # data_limited only when no quality signal could be read at all.
+        data_limited=(piotroski is None and primary is None),
     )
 
 
@@ -555,7 +559,9 @@ def _axis_growth(data: dict) -> dict:
     return _axis(
         score,
         ", ".join(reasons) if reasons else "Partial growth data",
-        data_limited=(rev_cagr is None or eps_cagr is None),
+        # data_limited only when neither revenue nor EPS growth could be read.
+        # One of the two is enough of a signal to render a lit axis.
+        data_limited=(rev_cagr is None and eps_cagr is None),
     )
 
 
@@ -617,6 +623,45 @@ def _axis_safety(data: dict, sector: str) -> dict:
         except Exception:
             return _neutral_axis("Bank safety proxy failed")
 
+    if sector == "it":
+        # IT firms are usually net-cash; D/E ~0 and interest_coverage is
+        # meaningless (no debt to cover). Altman Z for asset-light services
+        # tends to be unstable. Use a simpler proxy: low D/E is good,
+        # and margin stability is a capital-preservation signal.
+        fins_it = data.get("financials") or []
+        op_margins_it = [
+            f.get("op_margin") for f in fins_it if f.get("op_margin") is not None
+        ]
+        reasons_it: list[str] = []
+        score_it = 5.0
+        signal_it = False
+        if de is not None:
+            try:
+                de_f = float(de)
+                # Net-cash / low-debt IT firms earn a strong safety uplift.
+                score_it += max(-1.0, min(2.5, (0.3 - de_f) * 4.0))
+                reasons_it.append(f"D/E {de_f:.2f}")
+                signal_it = True
+            except Exception:
+                pass
+        else:
+            # Absent D/E usually means debt is immaterial; assume safe-ish.
+            score_it += 1.5
+            reasons_it.append("Low/no reported debt")
+            signal_it = True
+        if len(op_margins_it) >= 2:
+            try:
+                stdev = statistics.pstdev([float(x) for x in op_margins_it])
+                score_it += max(-1.0, min(1.5, (4.0 - stdev) * 0.25))
+                if stdev < 3.0:
+                    reasons_it.append("Stable margins")
+                signal_it = True
+            except Exception:
+                pass
+        if not signal_it:
+            return _neutral_axis("No IT-safety signal")
+        return _axis(score_it, ", ".join(reasons_it) if reasons_it else "IT safety proxy")
+
     if de is None and int_cov is None and altman is None:
         return _neutral_axis("No leverage / coverage data")
 
@@ -650,7 +695,8 @@ def _axis_safety(data: dict, sector: str) -> dict:
     return _axis(
         score,
         ", ".join(reasons) if reasons else "Partial safety data",
-        data_limited=(de is None or int_cov is None),
+        # data_limited only when all three leverage/coverage metrics are absent.
+        data_limited=(de is None and int_cov is None and altman is None),
     )
 
 
