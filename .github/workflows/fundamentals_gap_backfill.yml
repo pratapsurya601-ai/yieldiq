@@ -1,0 +1,86 @@
+name: Fundamentals Gap Backfill
+
+# Targeted XBRL/yfinance backfill for tickers that are in the `stocks`
+# master table but missing from `company_financials`. Today that's
+# ~580 tickers out of 2,970 active NSE stocks.
+#
+# Runs much faster than financial_data_pipeline_full.yml because it
+# only hits the holes, not the 2,394 tickers we already have.
+#
+# Triggers:
+#   - Manual (workflow_dispatch) — primary use
+#   - Weekly cron (Tuesday 22:00 UTC = Wednesday 03:30 IST) — gives
+#     the Sunday-night full pipeline a chance to land first, then
+#     retries whatever it missed.
+#
+# Needs DATABASE_URL secret.
+
+on:
+  workflow_dispatch:
+    inputs:
+      shard_count:
+        description: "Number of parallel shards (default 2)"
+        required: false
+        default: "2"
+      skip_nse:
+        description: "Skip NSE results-comparison supplement"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+  schedule:
+    # Tue 22:00 UTC = Wed 03:30 IST
+    - cron: '0 22 * * 2'
+
+concurrency:
+  group: fundamentals-gap-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    strategy:
+      matrix:
+        shard: [0, 1]
+      fail-fast: false
+    runs-on: ubuntu-latest
+    # ~580 tickers / 2 shards = ~290 per shard × ~3s ≈ 15 min,
+    # with slack for yfinance retries.
+    timeout-minutes: 90
+    name: gap shard ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install yfinance psycopg2-binary python-dotenv requests sqlalchemy
+
+      - name: Verify DATABASE_URL
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL is not configured."
+            exit 1
+          fi
+
+      - name: Run gap backfill (shard ${{ matrix.shard }})
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_COUNT: ${{ github.event.inputs.shard_count || '2' }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          cd data_pipeline/xbrl
+          if [ "${{ github.event.inputs.skip_nse || 'false' }}" = "true" ]; then
+            python run.py gap --skip-nse
+          else
+            python run.py gap
+          fi

@@ -35,6 +35,37 @@ def _get_full_nse_universe():
     return list(TOP_200)
 
 
+def _get_gap_universe():
+    """Tickers in `stocks` (active) but missing from `company_financials`.
+    Targets the ~580 coverage gap so we don't replay the full 2,970 run
+    just to fill holes. Ordered by market_cap_cr DESC so the biggest
+    names land first."""
+    repo_root = Path(__file__).resolve().parent.parent.parent
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
+    try:
+        from data_pipeline.db import Session
+        from sqlalchemy import text as _t
+        sess = Session()
+        try:
+            rows = sess.execute(_t(
+                "SELECT s.ticker "
+                "FROM stocks s "
+                "LEFT JOIN company_financials cf ON cf.ticker_nse = s.ticker "
+                "LEFT JOIN market_metrics mm ON mm.ticker = s.ticker "
+                "WHERE s.is_active = TRUE AND cf.ticker_nse IS NULL "
+                "ORDER BY COALESCE(mm.market_cap_cr, 0) DESC"
+            )).fetchall()
+            tickers = [r[0] for r in rows if r and r[0]]
+            print(f"Gap mode: {len(tickers)} tickers missing from company_financials")
+            return tickers
+        finally:
+            sess.close()
+    except Exception as exc:
+        print(f"[WARN] gap query failed ({exc}), falling back to full_nse")
+        return _get_full_nse_universe()
+
+
 def run(tickers=None, mode='test', skip_nse=False):
     """
     mode='test'     : 5 tickers, verbose
@@ -42,6 +73,8 @@ def run(tickers=None, mode='test', skip_nse=False):
     mode='full'     : TOP_200 curated list (~205 tickers)
     mode='full_nse' : every active NSE ticker in the stocks DB
                       (~2,258 after populate_stocks runs)
+    mode='gap'      : only tickers missing from company_financials
+                      (targeted backfill of the coverage gap)
 
     Honors SHARD_INDEX / SHARD_COUNT env vars for parallel runs —
     each shard processes tickers[SHARD_INDEX::SHARD_COUNT] so 4 shards
@@ -54,6 +87,8 @@ def run(tickers=None, mode='test', skip_nse=False):
             tickers = TOP_200[:50]
         elif mode == 'full_nse':
             tickers = _get_full_nse_universe()
+        elif mode == 'gap':
+            tickers = _get_gap_universe()
         else:
             tickers = TOP_200
 

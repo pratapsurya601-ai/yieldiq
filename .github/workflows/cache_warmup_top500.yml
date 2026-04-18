@@ -1,0 +1,107 @@
+name: Cache Warmup — Top 500 by Market Cap
+
+# Keeps the 500 largest NSE stocks (by market_cap_cr) warm in
+# analysis_cache so users get <1s response on click.
+#
+# Unlike cache_warmup.yml which ships a hardcoded ~190-ticker list,
+# this workflow fetches the ticker list dynamically from the admin
+# API (sorted by live market cap) so the warm set stays aligned with
+# what real users actually look up.
+#
+# Runs 3× per weekday + manual:
+#   - 02:45 UTC (08:15 IST) — before Indian market open
+#   - 07:30 UTC (13:00 IST) — mid-session
+#   - 11:15 UTC (16:45 IST) — just after close
+#
+# Secrets required:
+#   - SERVICE_WARMUP_TOKEN : admin-email JWT (see scripts/generate_service_token.py)
+# If missing, workflow skips cleanly.
+
+on:
+  schedule:
+    - cron: "45 2 * * 1-5"
+    - cron: "30 7 * * 1-5"
+    - cron: "15 11 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "How many top tickers to warm (default 500)"
+        required: false
+        default: "500"
+
+concurrency:
+  group: cache-warmup-top500
+  cancel-in-progress: false
+
+jobs:
+  warmup:
+    runs-on: ubuntu-latest
+    # 500 tickers × 0.4s throttle + cold first-run slack.
+    timeout-minutes: 90
+
+    steps:
+      - name: Check for SERVICE_WARMUP_TOKEN
+        id: token_check
+        env:
+          TOKEN: ${{ secrets.SERVICE_WARMUP_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::SERVICE_WARMUP_TOKEN missing — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Fetch top tickers
+        if: steps.token_check.outputs.skip == 'false'
+        id: fetch
+        env:
+          TOKEN: ${{ secrets.SERVICE_WARMUP_TOKEN }}
+          API_BASE: "https://api.yieldiq.in"
+          LIMIT: ${{ github.event.inputs.limit || '500' }}
+        run: |
+          # Pull the live top-N by market cap from the admin API.
+          RESP=$(curl -s --max-time 30 \
+            -H "Authorization: Bearer $TOKEN" \
+            "${API_BASE}/api/v1/admin/top-tickers?limit=${LIMIT}")
+          COUNT=$(echo "$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("count",0))')
+          echo "$RESP" | python3 -c 'import sys,json; print("\n".join(json.load(sys.stdin).get("tickers",[])))' > tickers.txt
+          echo "Fetched $COUNT tickers"
+          if [ "$COUNT" -lt 50 ]; then
+            echo "::error::Got only $COUNT tickers — API/admin-token issue?"
+            exit 1
+          fi
+
+      - name: Warm caches
+        if: steps.token_check.outputs.skip == 'false'
+        env:
+          TOKEN: ${{ secrets.SERVICE_WARMUP_TOKEN }}
+          API_BASE: "https://api.yieldiq.in"
+        run: |
+          OK=0; FAIL=0; TOTAL=0
+          while IFS= read -r T; do
+            [ -z "$T" ] && continue
+            TOTAL=$((TOTAL + 1))
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              --max-time 60 \
+              -H "Authorization: Bearer $TOKEN" \
+              "${API_BASE}/api/v1/analysis/${T}?include_summary=false" \
+              || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              OK=$((OK + 1))
+            else
+              echo "✗ $T → $STATUS"
+              FAIL=$((FAIL + 1))
+            fi
+            sleep 0.4
+          done < tickers.txt
+
+          echo ""
+          echo "Summary: $OK OK / $FAIL failed / $TOTAL total"
+
+          # Tolerate failures (delisted, data_limited). Fail workflow
+          # only if majority failed — signals real API health issue.
+          if [ "$OK" -lt $((TOTAL / 2)) ]; then
+            echo "::error::Majority of warmup requests failed."
+            exit 1
+          fi

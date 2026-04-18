@@ -356,6 +356,56 @@ async def get_admin_stats(user: dict = Depends(require_admin)):
     return stats
 
 
+@router.get("/top-tickers")
+async def get_top_tickers(
+    limit: int = 500,
+    only_gap: bool = False,
+    user: dict = Depends(require_admin),
+):
+    """Return top-N NSE tickers sorted by market_cap_cr DESC.
+
+    Used by the cache_warmup_top500 cron to keep the warmest 500
+    stocks hot in analysis_cache so users get <1s response.
+
+    - limit: how many to return (clamped to 1..2000)
+    - only_gap: if True, return only tickers NOT yet in company_financials
+      (useful for targeted XBRL backfill of the coverage gap)
+    """
+    limit = max(1, min(int(limit), 2000))
+    try:
+        from data_pipeline.db import Session
+        from sqlalchemy import text as _t
+        sess = Session()
+        try:
+            if only_gap:
+                # Tickers in stocks master but missing from company_financials.
+                sql = _t(
+                    "SELECT s.ticker "
+                    "FROM stocks s "
+                    "LEFT JOIN company_financials cf ON cf.ticker_nse = s.ticker "
+                    "LEFT JOIN market_metrics mm ON mm.ticker = s.ticker "
+                    "WHERE s.is_active = TRUE AND cf.ticker_nse IS NULL "
+                    "ORDER BY COALESCE(mm.market_cap_cr, 0) DESC "
+                    "LIMIT :lim"
+                )
+            else:
+                sql = _t(
+                    "SELECT s.ticker "
+                    "FROM stocks s "
+                    "LEFT JOIN market_metrics mm ON mm.ticker = s.ticker "
+                    "WHERE s.is_active = TRUE "
+                    "ORDER BY COALESCE(mm.market_cap_cr, 0) DESC "
+                    "LIMIT :lim"
+                )
+            rows = sess.execute(sql, {"lim": limit}).fetchall()
+            tickers = [r[0] for r in rows if r and r[0]]
+            return {"count": len(tickers), "tickers": tickers, "only_gap": only_gap}
+        finally:
+            sess.close()
+    except Exception as exc:
+        return {"count": 0, "tickers": [], "error": _sanitize_error(exc, "top-tickers")}
+
+
 @router.post("/trigger-newsletter")
 async def trigger_newsletter(user: dict = Depends(require_admin)):
     """Manually trigger newsletter send. Admin only."""
