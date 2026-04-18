@@ -5,6 +5,7 @@ import { useSettingsStore } from "@/store/settingsStore"
 import { useRouter, useSearchParams } from "next/navigation"
 import Cookies from "js-cookie"
 import api from "@/lib/api"
+import ThemeToggle from "@/components/layout/ThemeToggle"
 import {
   trackUpgradeClicked,
   trackCheckoutOpened,
@@ -231,6 +232,10 @@ function AccountInner() {
       {/* Settings */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
         <h2 className="text-sm font-semibold text-gray-900">Settings</h2>
+        <div className="flex items-center justify-between">
+          <span className="text-sm text-gray-700">Theme</span>
+          <ThemeToggle />
+        </div>
         <label className="flex items-center justify-between">
           <span className="text-sm text-gray-700">Learn Mode</span>
           <button onClick={toggleLearnMode}
