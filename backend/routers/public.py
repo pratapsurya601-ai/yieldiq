@@ -11,12 +11,29 @@ from datetime import date, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import JSONResponse
 
 from backend.services.cache_service import cache
 
 logger = logging.getLogger("yieldiq.public")
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
+
+
+def _cached_json(content, s_maxage: int, swr: int = 3600):
+    """Wrap content in a JSONResponse with Vercel-edge Cache-Control.
+
+    `s-maxage` applies to shared caches only (Vercel edge, CDNs) so
+    browsers still revalidate; `stale-while-revalidate` lets the
+    edge serve stale for `swr` seconds while refreshing in the
+    background. Both values are in seconds.
+    """
+    return JSONResponse(
+        content=content,
+        headers={
+            "Cache-Control": f"public, s-maxage={s_maxage}, stale-while-revalidate={swr}",
+        },
+    )
 
 
 # ── Helpers ───────────────────────────────────────────────────
@@ -96,7 +113,7 @@ async def get_recent_activity(limit: int = Query(default=10, le=20)):
     _cache_key = f"public:recent-activity:{limit}"
     cached = cache.get(_cache_key)
     if cached is not None:
-        return cached
+        return _cached_json(cached, s_maxage=60, swr=300)
 
     results = []
     db = _get_db_session()
@@ -154,7 +171,9 @@ async def get_recent_activity(limit: int = Query(default=10, le=20)):
                 break
 
     cache.set(_cache_key, results, ttl=300)
-    return results
+    # 1 min fresh at edge, 5 min stale-while-revalidate — list updates
+    # every few minutes as new analyses stream in.
+    return _cached_json(results, s_maxage=60, swr=300)
 
 
 @router.get("/demo-cards")
@@ -166,7 +185,7 @@ async def get_demo_cards():
     _cache_key = "public:demo-cards"
     cached = cache.get(_cache_key)
     if cached is not None:
-        return cached
+        return _cached_json(cached, s_maxage=120, swr=600)
 
     # Preferred tickers for the demo card rotation
     preferred = ["ITC.NS", "RELIANCE.NS", "HDFCBANK.NS", "TCS.NS", "INFY.NS", "SBIN.NS"]
@@ -197,7 +216,7 @@ async def get_demo_cards():
             break
 
     cache.set(_cache_key, cards, ttl=120)
-    return cards
+    return _cached_json(cards, s_maxage=120, swr=600)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -224,7 +243,7 @@ async def get_stock_summary(ticker: str):
     _cache_key = f"public:stock-summary:{ticker}"
     cached = cache.get(_cache_key)
     if cached is not None:
-        return cached
+        return _cached_json(cached, s_maxage=600, swr=3600)
 
     # Tier 1: in-memory analysis cache
     analysis_cached = cache.get(f"analysis:{ticker}")
@@ -258,7 +277,7 @@ async def get_stock_summary(ticker: str):
             return quarantine
         summary = _extract_analysis_summary(analysis_cached)
         cache.set(_cache_key, summary, ttl=3600)
-        return summary
+        return _cached_json(summary, s_maxage=600, swr=3600)
 
     # Run analysis if not cached
     try:
@@ -270,7 +289,7 @@ async def get_stock_summary(ticker: str):
             return quarantine
         summary = _extract_analysis_summary(result)
         cache.set(_cache_key, summary, ttl=3600)
-        return summary
+        return _cached_json(summary, s_maxage=600, swr=3600)
     except Exception as e:
         err_str = str(e).lower()
         if "not found" in err_str or "no data" in err_str:
@@ -293,7 +312,7 @@ async def get_all_tickers():
     _cache_key = "public:all-tickers"
     cached = cache.get(_cache_key)
     if cached is not None:
-        return cached
+        return _cached_json(cached, s_maxage=86400, swr=172800)
 
     tickers = []
     seen_symbols: set[str] = set()
@@ -360,7 +379,7 @@ async def get_all_tickers():
         logger.warning(f"all-tickers NSE_UNIVERSE merge failed: {e}")
 
     cache.set(_cache_key, tickers, ttl=86400)
-    return tickers
+    return _cached_json(tickers, s_maxage=86400, swr=172800)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -416,7 +435,7 @@ async def get_index_dashboard(index_id: str):
     _cache_key = f"public:index:{index_id}"
     cached = cache.get(_cache_key)
     if cached is not None:
-        return cached
+        return _cached_json(cached, s_maxage=300, swr=3600)
 
     config = INDICES[index_id]
     stocks = []
@@ -499,7 +518,7 @@ async def get_index_dashboard(index_id: str):
     }
 
     cache.set(_cache_key, result, ttl=900)
-    return result
+    return _cached_json(result, s_maxage=300, swr=3600)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1196,7 +1215,7 @@ async def get_public_top_tickers(limit: int = 500):
     _key = f"public:top-tickers:{limit}"
     cached = cache.get(_key)
     if cached is not None:
-        return cached
+        return _cached_json(cached, s_maxage=3600, swr=14400)
     try:
         from data_pipeline.db import Session
         from sqlalchemy import text as _t
@@ -1213,7 +1232,7 @@ async def get_public_top_tickers(limit: int = 500):
             tickers = [r[0] for r in rows if r and r[0]]
             out = {"count": len(tickers), "tickers": tickers}
             cache.set(_key, out, ttl=3600)
-            return out
+            return _cached_json(out, s_maxage=3600, swr=14400)
         finally:
             sess.close()
     except Exception as exc:
@@ -1240,7 +1259,7 @@ async def get_near_52w_lows(limit: int = 6, max_distance_pct: float = 15.0, min_
     _key = f"public:near-52w-lows:{limit}:{int(max_distance_pct)}:{min_score}"
     cached = cache.get(_key)
     if cached is not None:
-        return cached
+        return _cached_json(cached, s_maxage=300, swr=3600)
 
     out = {"count": 0, "stocks": [], "disclaimer": "Model estimate. Not investment advice."}
     try:
@@ -1310,7 +1329,7 @@ async def get_near_52w_lows(limit: int = 6, max_distance_pct: float = 15.0, min_
         cache.set(_key, out, ttl=3600)
     except Exception as exc:
         logger.warning(f"near-52w-lows failed: {exc}")
-    return out
+    return _cached_json(out, s_maxage=300, swr=3600)
 
 
 @router.get("/lowest-pe")
@@ -1326,7 +1345,7 @@ async def get_lowest_pe(limit: int = 6, min_score: int = 55, max_pe: float = 40.
     _key = f"public:lowest-pe:{limit}:{min_score}:{int(max_pe)}"
     cached = cache.get(_key)
     if cached is not None:
-        return cached
+        return _cached_json(cached, s_maxage=300, swr=3600)
 
     out = {"count": 0, "stocks": [], "disclaimer": "Model estimate. Not investment advice."}
     try:
@@ -1371,4 +1390,4 @@ async def get_lowest_pe(limit: int = 6, min_score: int = 55, max_pe: float = 40.
         cache.set(_key, out, ttl=3600)
     except Exception as exc:
         logger.warning(f"lowest-pe failed: {exc}")
-    return out
+    return _cached_json(out, s_maxage=300, swr=3600)

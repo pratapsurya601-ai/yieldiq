@@ -125,6 +125,7 @@ def _scrub_event(event):
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 
 from backend.routers import analysis, screener, portfolio, watchlist, alerts, market, auth
 from backend.routers import payments, pipeline, email, referral, admin, public, tax, concall
@@ -605,6 +606,13 @@ app.add_middleware(
     # observability when tailing prod traffic.
     expose_headers=["X-Cache"],
 )
+
+# ── GZip compression ─────────────────────────────────────────
+# Compress responses larger than 1KB. Big wins on the Prism /
+# analysis / index-dashboard payloads (20-200 KB JSON) which
+# typically compress 4-8x. Must be added AFTER CORSMiddleware
+# so ASGI composes them in the right order (CORS outermost).
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 
 # ── CORS on 500 responses ─────────────────────────────────────

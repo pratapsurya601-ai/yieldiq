@@ -24,6 +24,18 @@ engine = create_engine(
     connect_args={"connect_timeout": 30},  # Aiven free tier can take 15-20s on cold start
     pool_pre_ping=True,        # detect stale connections before use
     pool_recycle=300,           # recycle connections every 5 min
+    # Sized for 4 uvicorn workers on Railway against Aiven Postgres
+    # (free tier ceiling ~20 concurrent connections). Per-worker:
+    # pool_size 3 + max_overflow 2 = 5 max → 4 workers × 5 = 20 total.
+    # With parallel ThreadPoolExecutor inside a worker (10 parallel
+    # sub-computes), 3 baseline + 2 overflow is enough since most
+    # sub-computes don't touch DB; those that do (TTM financials,
+    # promoter pledge, earnings date, bulk deals, shareholding,
+    # EBIT/interest) are staggered across the request lifecycle.
+    pool_size=3,
+    max_overflow=2,
+    # If the pool is exhausted, fail in 10s instead of hanging 30+s.
+    pool_timeout=10,
 ) if DATABASE_URL else None
 if engine:
     _logger.info("DB_INIT: engine created OK")

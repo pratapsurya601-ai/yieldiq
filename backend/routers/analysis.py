@@ -664,8 +664,31 @@ async def get_yieldiq50(user: dict = Depends(get_current_user)):
       3. Static fallback (50 Nifty-100 tickers with placeholder scores)
     """
     _cache_key = f"yieldiq50:{date.today().isoformat()}"
+
+    # Tier-0 RAW dict cache — skips Pydantic re-serialization of the
+    # 50-stock ScreenerResponse. Data is identical for all users
+    # (same top-50 list), auth is still enforced via Depends above.
+    _raw = cache.get(_cache_key + ":raw")
+    if _raw is not None:
+        from fastapi.responses import JSONResponse as _JSONResponse
+        return _JSONResponse(
+            content=_raw,
+            headers={
+                "X-Cache": "HIT-MEM-RAW",
+                # Auth-gated — private so Vercel edge does not share
+                # across users. 1h max-age is fine since the list is
+                # recomputed daily.
+                "Cache-Control": "private, max-age=3600",
+            },
+        )
+
     cached = cache.get(_cache_key)
     if cached:
+        try:
+            _dump = cached.model_dump(mode="json") if hasattr(cached, "model_dump") else cached
+            cache.set(_cache_key + ":raw", _dump, ttl=86400)
+        except Exception:
+            pass
         return cached
 
     by_ticker: dict[str, ScreenerStock] = {}
@@ -692,6 +715,10 @@ async def get_yieldiq50(user: dict = Depends(get_current_user)):
     result = ScreenerResponse(results=stocks, total=len(stocks))
     if stocks:
         cache.set(_cache_key, result, ttl=86400)
+        try:
+            cache.set(_cache_key + ":raw", result.model_dump(mode="json"), ttl=86400)
+        except Exception:
+            pass
     return result
 
 

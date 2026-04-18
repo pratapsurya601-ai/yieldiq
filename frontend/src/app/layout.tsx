@@ -6,6 +6,7 @@ import { Providers } from "./providers";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import BetaBanner from "@/components/marketing/BetaBanner";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 // ── Typography (next/font, self-hosted, no FOUT) ──
 // Inter Tight serves as our "display" face (used for headings via
@@ -161,6 +162,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col bg-bg text-body font-sans">
         <BetaBanner />
         <Providers>{children}</Providers>
+        <ServiceWorkerRegister />
         <Analytics />
         <SpeedInsights />
       </body>

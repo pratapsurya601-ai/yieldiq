@@ -17,10 +17,18 @@ from collections import deque
 from typing import Deque
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 
 from backend.services import prism_service, prism_narration_service
 from backend.services import hex_history_service
 from backend.services.cache_service import cache
+
+# Shared Cache-Control for public prism responses. s-maxage caches at
+# Vercel edge for 5 min; browsers don't honour s-maxage so private
+# callers still get a fresh payload on refresh. stale-while-revalidate
+# lets the edge serve stale for an hour while revalidating in the
+# background, which smooths the post-TTL cliff.
+_PRISM_CACHE_CONTROL = "public, s-maxage=300, stale-while-revalidate=3600"
 
 logger = logging.getLogger("yieldiq.prism.router")
 
@@ -56,6 +64,23 @@ def _narrate_rate_ok(ip: str) -> bool:
         return True
 
 
+def _raw_dump(obj):
+    """Best-effort convert a possibly-Pydantic response to a plain dict."""
+    if obj is None or isinstance(obj, (dict, list)):
+        return obj
+    if hasattr(obj, "model_dump"):
+        try:
+            return obj.model_dump(mode="json")
+        except Exception:
+            pass
+    if hasattr(obj, "dict"):
+        try:
+            return obj.dict()
+        except Exception:
+            pass
+    return obj
+
+
 @router.get("/compare")
 async def compare_prism(
     t1: str = Query(..., min_length=1, max_length=32),
@@ -63,8 +88,32 @@ async def compare_prism(
 ):
     """Return Prism payloads for two tickers plus per-axis delta overlay.
     Public, cached 1h per side via the underlying service."""
+    # Tier-0 RAW cache: pair key is order-normalised so ?t1=A&t2=B
+    # and ?t1=B&t2=A share a cache slot. Skips Pydantic + the
+    # compare_prisms recomputation.
     try:
-        return prism_service.compare_prisms(t1, t2)
+        _pair = tuple(sorted([(t1 or "").upper().strip(), (t2 or "").upper().strip()]))
+        _raw_key = f"prism-compare:{_pair[0]}:{_pair[1]}:raw"
+        _raw = cache.get(_raw_key)
+        if _raw is not None:
+            return JSONResponse(
+                content=_raw,
+                headers={
+                    "X-Cache": "HIT-MEM-RAW",
+                    "Cache-Control": _PRISM_CACHE_CONTROL,
+                },
+            )
+    except Exception:
+        _raw_key = None
+
+    try:
+        result = prism_service.compare_prisms(t1, t2)
+        try:
+            if _raw_key:
+                cache.set(_raw_key, _raw_dump(result), ttl=3600)
+        except Exception:
+            pass
+        return result
     except Exception as exc:
         logger.warning("prism compare failed: %s", exc)
         # Return a shape-stable object instead of 500ing.
@@ -109,7 +158,13 @@ async def get_ticker_history(
     except Exception:
         cached = None
     if cached is not None:
-        return cached
+        return JSONResponse(
+            content=cached if isinstance(cached, (dict, list)) else _raw_dump(cached),
+            headers={
+                "X-Cache": "HIT-MEM-RAW",
+                "Cache-Control": _PRISM_CACHE_CONTROL,
+            },
+        )
 
     try:
         rows = hex_history_service.get_hex_history(ticker, quarters=quarters)
@@ -143,7 +198,32 @@ async def get_prism(ticker: str):
     `data_limited: true` in the payload."""
     if not ticker or not ticker.strip():
         raise HTTPException(status_code=400, detail="ticker is required")
-    return prism_service.get_prism(ticker)
+
+    # Tier-0 RAW dict cache. Skips Pydantic + re-compute of the
+    # ~30-50 KB Prism payload. Warm-warm path returns in ~3-5ms
+    # vs ~60-120ms for the legacy path that re-serializes the
+    # Pydantic object inside prism_service.
+    _norm = ticker.upper().strip()
+    _raw_key = f"prism:{_norm}:raw"
+    try:
+        _raw = cache.get(_raw_key)
+    except Exception:
+        _raw = None
+    if _raw is not None:
+        return JSONResponse(
+            content=_raw,
+            headers={
+                "X-Cache": "HIT-MEM-RAW",
+                "Cache-Control": _PRISM_CACHE_CONTROL,
+            },
+        )
+
+    result = prism_service.get_prism(ticker)
+    try:
+        cache.set(_raw_key, _raw_dump(result), ttl=3600)
+    except Exception:
+        pass
+    return result
 
 
 @router.post("/{ticker}/narrate")

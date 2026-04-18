@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import JSONResponse
 
 from backend.models.responses import MarketPulseResponse, SectorOverviewItem
 from backend.services.data_service import DataService
@@ -38,9 +39,37 @@ async def get_market_pulse(
     are optional and default to ``null`` — clients unaware of
     them continue to work.
     """
+    # Tier-0 RAW dict cache. Data is identical for all users
+    # (market indices, not user-specific) so a single shared cache
+    # entry is safe. Auth is still enforced — the cache check
+    # runs AFTER get_current_user via Depends.
+    _raw_key = f"market:pulse:raw:{int(bool(include_macro))}"
+    try:
+        _raw = cache.get(_raw_key)
+    except Exception:
+        _raw = None
+    if _raw is not None:
+        return JSONResponse(
+            content=_raw,
+            headers={
+                "X-Cache": "HIT-MEM-RAW",
+                # Auth-gated endpoint — use private so Vercel's
+                # shared edge cache does not cache responses
+                # across authenticated users. 60s max-age still
+                # lets the browser avoid repeat calls during
+                # page navigation.
+                "Cache-Control": "private, max-age=60",
+            },
+        )
+
     base = data_service.get_market_pulse()
 
     if not include_macro:
+        try:
+            _dump = base.model_dump(mode="json") if hasattr(base, "model_dump") else base
+            cache.set(_raw_key, _dump, ttl=60)
+        except Exception:
+            pass
         return base
 
     try:
@@ -66,7 +95,12 @@ async def get_market_pulse(
         cached_summary = cache.get("macro:ai_summary")
         if cached_summary:
             base_dict["ai_summary"] = cached_summary
-        return MarketPulseResponse(**base_dict)
+        out = MarketPulseResponse(**base_dict)
+        try:
+            cache.set(_raw_key, out.model_dump(mode="json"), ttl=60)
+        except Exception:
+            pass
+        return out
     except Exception as exc:
         log.debug("Macro merge failed: %s", exc)
         return base

@@ -1580,14 +1580,182 @@ class AnalysisService:
 
         mos_pct = margin_of_safety(iv, price) * 100 if price > 0 else 0
 
-        # ── Step 7: Quality checks ────────────────────────────
-        piotroski = compute_piotroski_fscore(enriched)
-        if is_financial:
-            moat_result = compute_moat_score(enriched, wacc)
-        else:
-            moat_result = compute_moat_score(enriched, wacc)
+        # ── Step 7: Quality checks & insight sub-computes (PARALLEL) ──
+        # All of these are pure reads over `enriched` / `raw` / scalar
+        # inputs already computed above. They don't mutate self or share
+        # state, so we run them concurrently on a ThreadPool to cut
+        # cold-path wall-time.
+        #
+        # Intentional ordering note:
+        #   * Scenarios, reverse_dcf, fcf_yield, ev_ebitda are all
+        #     independent of quality results → safe to parallelize.
+        #   * Moat's IV delta is applied AFTER gather (serially), so
+        #     the final displayed `iv` reflects the moat delta.
+        #   * mos_pct is computed from the pre-adjustment iv to match
+        #     the original sequential behavior exactly.
+        #
+        # Fallback: if the executor path raises, we fall back to
+        # sequential execution (same logic, same order) so production
+        # stays correct even if threads misbehave.
+        import time as _pt_time
+        import logging as _pt_log
+        _pt_logger = _pt_log.getLogger("yieldiq.analysis")
 
-        # Apply moat IV adjustment for non-financial stocks
+        # Prepare inputs for momentum (needs collector price history if
+        # yfinance path was used; local path doesn't have a collector).
+        try:
+            _price_history_for_momentum = (
+                collector.get_price_history()
+                if "collector" in locals() and hasattr(collector, "get_price_history")
+                else None
+            )
+        except Exception:
+            _price_history_for_momentum = None
+
+        # fcf_base for scenarios (non-financial only)
+        _fcf_base_for_scen = None
+        if not is_financial:
+            try:
+                _fcf_base_for_scen = (
+                    projected[0] / (1 + growth_schedule[0])
+                    if projected and growth_schedule and growth_schedule[0] > -1
+                    else enriched.get("latest_fcf", 1e6)
+                )
+            except Exception:
+                _fcf_base_for_scen = enriched.get("latest_fcf", 1e6)
+
+        # --- Sequential fallback helpers (pure functions) ---
+        def _run_piotroski():
+            try:
+                return compute_piotroski_fscore(enriched)
+            except Exception:
+                return {"score": 0, "grade": ""}
+
+        def _run_moat():
+            try:
+                return compute_moat_score(enriched, wacc)
+            except Exception:
+                return {"score": 0, "grade": "None"}
+
+        def _run_eq():
+            try:
+                return compute_earnings_quality(enriched)
+            except Exception:
+                return {"score": 0, "grade": "N/A"}
+
+        def _run_momentum():
+            try:
+                return calculate_momentum(_price_history_for_momentum)
+            except Exception:
+                return {"momentum_score": 0, "grade": "N/A"}
+
+        def _run_fund():
+            try:
+                return score_fundamentals(enriched)
+            except Exception:
+                return {"score": 0, "grade": "N/A"}
+
+        def _run_confidence():
+            try:
+                return compute_confidence_score(enriched)
+            except Exception:
+                return {"score": 50}
+
+        def _run_scenarios():
+            if is_financial:
+                return {}
+            try:
+                return run_scenarios(
+                    enriched=enriched, fcf_base=_fcf_base_for_scen,
+                    base_growth=base_growth, base_wacc=wacc,
+                    base_terminal_g=terminal_g,
+                    total_debt=enriched.get("total_debt", 0),
+                    total_cash=enriched.get("total_cash", 0),
+                    shares=enriched.get("shares", 1),
+                    current_price=price, years=forecast_yrs,
+                )
+            except Exception:
+                return {}
+
+        def _run_rdcf():
+            try:
+                return run_reverse_dcf(enriched, price, wacc, terminal_g)
+            except Exception:
+                return {}
+
+        def _run_fcf_yield():
+            try:
+                return compute_fcf_yield_analysis(enriched, price)
+            except Exception:
+                return {}
+
+        def _run_eveb():
+            try:
+                return run_ev_ebitda_analysis(enriched, price, fetch_peers=False)
+            except Exception:
+                return {}
+
+        _sub_jobs = {
+            "piotroski": _run_piotroski,
+            "moat": _run_moat,
+            "eq": _run_eq,
+            "momentum": _run_momentum,
+            "fund": _run_fund,
+            "confidence": _run_confidence,
+            "scenarios": _run_scenarios,
+            "rdcf": _run_rdcf,
+            "fcf_yield": _run_fcf_yield,
+            "eveb": _run_eveb,
+        }
+
+        _results: dict = {}
+        _parallel_ok = False
+        _t_par_start = _pt_time.monotonic()
+        try:
+            from concurrent.futures import ThreadPoolExecutor
+            with ThreadPoolExecutor(
+                max_workers=min(10, len(_sub_jobs)),
+                thread_name_prefix=f"yiq-{ticker}",
+            ) as _ex:
+                _futs = {k: _ex.submit(fn) for k, fn in _sub_jobs.items()}
+                for _k, _f in _futs.items():
+                    _results[_k] = _f.result()
+            _parallel_ok = True
+        except Exception as _par_exc:
+            _pt_logger.warning(
+                "[%s] parallel sub-compute failed (%s: %s) — falling back sequential",
+                ticker, type(_par_exc).__name__, _par_exc,
+            )
+            _results = {}
+
+        if not _parallel_ok:
+            # Sequential fallback — same logic, same order
+            _t_seq_start = _pt_time.monotonic()
+            for _k, _fn in _sub_jobs.items():
+                _results[_k] = _fn()
+            _pt_logger.info(
+                "[%s] compute_ms_sequential=%d",
+                ticker, int((_pt_time.monotonic() - _t_seq_start) * 1000),
+            )
+        else:
+            _pt_logger.info(
+                "[%s] compute_ms_parallel=%d",
+                ticker, int((_pt_time.monotonic() - _t_par_start) * 1000),
+            )
+
+        piotroski = _results["piotroski"]
+        moat_result = _results["moat"]
+        eq_result = _results["eq"]
+        momentum_result = _results["momentum"]
+        fund_result = _results["fund"]
+        confidence = _results["confidence"]
+        scenarios_raw = _results["scenarios"]
+        rdcf = _results["rdcf"]
+        fcf_yield = _results["fcf_yield"]
+        eveb = _results["eveb"]
+
+        # Apply moat IV adjustment for non-financial stocks (serial —
+        # mutates iv which feeds yiq_score / inv_plan / mos_pct below).
         if not is_financial and moat_result.get("grade") not in ("None", "N/A (Financial)"):
             try:
                 moat_adj = apply_moat_adjustments(
@@ -1601,20 +1769,11 @@ class AnalysisService:
             except Exception:
                 pass
 
-        try:
-            eq_result = compute_earnings_quality(enriched)
-        except Exception:
-            eq_result = {"score": 0, "grade": "N/A"}
-
-        try:
-            momentum_result = calculate_momentum(
-                collector.get_price_history() if hasattr(collector, "get_price_history") else None
-            )
-        except Exception:
-            momentum_result = {"momentum_score": 0, "grade": "N/A"}
-
-        fund_result = score_fundamentals(enriched)
-        confidence = compute_confidence_score(enriched)
+        # NOTE: mos_pct is intentionally NOT recomputed after the moat
+        # IV adjustment — matches pre-parallelization behavior where
+        # yiq_score / inv_plan / verdict all used the pre-adjustment
+        # MoS. Only the displayed fair_value / base_case reflect the
+        # moat delta.
 
         # Analyst upside: (target - price) / price * 100
         _analyst_target = (raw.get("finnhub_price_target") or {}).get("mean", 0) or 0
@@ -1637,23 +1796,8 @@ class AnalysisService:
             yiq_score = {"score": _total, "grade": "A" if _total >= 75 else "B" if _total >= 55 else "C" if _total >= 35 else "D" if _total >= 20 else "F"}
 
         # ── Step 8: Scenarios ─────────────────────────────────
-        if is_financial:
-            # P/B-based scenarios already computed above
-            scenarios_raw = {}
-        else:
-            try:
-                fcf_base = projected[0] / (1 + growth_schedule[0]) if projected and growth_schedule and growth_schedule[0] > -1 else enriched.get("latest_fcf", 1e6)
-                scenarios_raw = run_scenarios(
-                    enriched=enriched, fcf_base=fcf_base,
-                    base_growth=base_growth, base_wacc=wacc,
-                    base_terminal_g=terminal_g,
-                    total_debt=enriched.get("total_debt", 0),
-                    total_cash=enriched.get("total_cash", 0),
-                    shares=enriched.get("shares", 1),
-                    current_price=price, years=forecast_yrs,
-                )
-            except Exception:
-                scenarios_raw = {}
+        # `scenarios_raw` was computed in the parallel wave above
+        # (empty dict for financials by design).
 
         def _sc(key):
             d = scenarios_raw.get(key, {})
@@ -1673,20 +1817,9 @@ class AnalysisService:
             pt = {}
             hp = {}
 
-        try:
-            rdcf = run_reverse_dcf(enriched, price, wacc, terminal_g)
-        except Exception:
-            rdcf = {}
-
-        try:
-            fcf_yield = compute_fcf_yield_analysis(enriched, price)
-        except Exception:
-            fcf_yield = {}
-
-        try:
-            eveb = run_ev_ebitda_analysis(enriched, price, fetch_peers=False)
-        except Exception:
-            eveb = {}
+        # rdcf / fcf_yield / eveb already computed in the parallel wave
+        # above — they only need (enriched, price, wacc, terminal_g),
+        # none of which change between there and here.
 
         # Red flags from DCF edge cases
         _red_flags = dcf_res.get("warnings", [])
