@@ -48,7 +48,80 @@ if _utils_spec:
         pass
 
 import logging
+import os
 from contextlib import asynccontextmanager
+
+# ── Sentry error monitoring ─────────────────────────────────
+# Init as early as possible so unhandled exceptions raised during
+# module import (e.g. a broken env var parse) are captured.
+# Skips cleanly when SENTRY_DSN is unset — no-op in local dev.
+_SENTRY_DSN = os.environ.get("SENTRY_DSN", "").strip()
+if _SENTRY_DSN:
+    try:
+        import sentry_sdk
+        from sentry_sdk.integrations.fastapi import FastApiIntegration
+        from sentry_sdk.integrations.starlette import StarletteIntegration
+        from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
+        from sentry_sdk.integrations.logging import LoggingIntegration
+
+        sentry_sdk.init(
+            dsn=_SENTRY_DSN,
+            environment=os.environ.get("SENTRY_ENVIRONMENT", "production"),
+            release=os.environ.get("RAILWAY_GIT_COMMIT_SHA", "unknown")[:12],
+            # Sample rate is conservative — 10% traces + 100% errors.
+            # Free tier caps at ~5k events/month; bumping traces to 1.0
+            # would burn through that in days.
+            traces_sample_rate=0.10,
+            send_default_pii=False,
+            integrations=[
+                FastApiIntegration(transaction_style="endpoint"),
+                StarletteIntegration(transaction_style="endpoint"),
+                SqlalchemyIntegration(),
+                # Capture WARNING+ as breadcrumbs, ERROR+ as events.
+                LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
+            ],
+            # Scrub common secret patterns from any captured strings.
+            # Sentry's default PII stripping handles headers; this adds
+            # JWT_SECRET-style leaks in stringified payloads.
+            before_send=lambda event, hint: _scrub_event(event),
+        )
+    except ImportError:
+        # sentry-sdk not installed — log and continue silently.
+        import logging as _boot_log
+        _boot_log.getLogger("yieldiq.sentry").warning(
+            "SENTRY_DSN set but sentry-sdk not installed — run `pip install sentry-sdk[fastapi]`"
+        )
+    except Exception as exc:
+        import logging as _boot_log
+        _boot_log.getLogger("yieldiq.sentry").warning("Sentry init failed: %s", exc)
+
+
+def _scrub_event(event):
+    """Strip obvious secrets from Sentry events. Cheap defence-in-depth;
+    Sentry's default PII filters are stricter, this just catches our
+    specific leak shapes (JWT_SECRET, API keys) if they appear in
+    exception messages or log breadcrumbs."""
+    try:
+        import re as _re
+        SECRET_NAMES = ("JWT_SECRET", "DATABASE_URL", "SUPABASE_SERVICE_KEY",
+                        "SENDGRID_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY",
+                        "FINNHUB_API_KEY", "FMP_API_KEY",
+                        "RAZORPAY_KEY_SECRET", "SERVICE_WARMUP_TOKEN")
+        pat = _re.compile(r"(" + "|".join(SECRET_NAMES) + r")=\S+")
+        def _clean(s):
+            if not isinstance(s, str):
+                return s
+            return pat.sub(lambda m: f"{m.group(1)}=***", s)
+        for ex in (event.get("exception", {}).get("values") or []):
+            if "value" in ex:
+                ex["value"] = _clean(ex["value"])
+        for bc in (event.get("breadcrumbs", {}).get("values") or []):
+            if "message" in bc:
+                bc["message"] = _clean(bc["message"])
+    except Exception:
+        pass
+    return event
+
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
