@@ -9,8 +9,11 @@ name: Cache Warmup
 # Settings → Secrets and variables → Actions).
 
 on:
-  schedule:
-    - cron: "*/15 * * * *"
+  # DISABLED (18-Apr-2026): was failing ~every 15 min because
+  # SERVICE_WARMUP_TOKEN was never configured (see scripts/generate_service_token.py).
+  # With the 24h analysis cache TTL + nightly fv_history collection
+  # (which warms caches as a side effect), 15-min warmup is redundant.
+  # Re-enable if cache warming becomes necessary again (needs the secret first).
   workflow_dispatch:
 
 jobs:
