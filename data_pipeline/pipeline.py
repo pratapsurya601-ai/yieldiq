@@ -61,16 +61,24 @@ NSE_UNIVERSE = [
 ISIN_MAP: dict[str, str] = {}
 
 
-def get_full_universe() -> list[str]:
+def get_full_universe(include_all_nse: bool = True) -> list[str]:
     """
-    Return the FULL ticker universe: merges the curated NSE_UNIVERSE
-    (~100 large-caps we always want covered) with every parquet file
-    in data_pipeline/nse_prices/parquet (~550 tickers we have price
-    history for).
+    Return the FULL ticker universe, in priority order (most important
+    first — matters for backfill / warmup jobs that may get partially
+    truncated by timeouts):
 
-    Use this anywhere we want to process "all tickers the system
-    knows about" — fundamentals backfill, cache prewarm, etc. Returns
-    a deduplicated list with NSE_UNIVERSE first (priority order).
+      1. Curated NSE_UNIVERSE (~100 large-caps we always want fresh)
+      2. Tickers with parquet price history (~550)
+      3. Every active ticker in the `stocks` DB table (~2900 full NSE)
+
+    Tier 3 only merges in if ``include_all_nse`` is True AND the DB is
+    reachable — otherwise we fall back to the 650-ticker set above so
+    local runs without DATABASE_URL still work.
+
+    To populate tier 3, run the one-off `populate_stocks.yml` workflow
+    (or call ``populate_stocks_table()`` from isin_loader) — it pulls
+    the official NSE equity list (EQUITY_L.csv) and upserts every
+    active equity.
     """
     from pathlib import Path
     parquet_dir = Path(__file__).parent / "nse_prices" / "parquet"
@@ -80,10 +88,30 @@ def get_full_universe() -> list[str]:
             p.stem for p in parquet_dir.glob("*.parquet")
             if p.stem and not p.stem.startswith(".")
         )
+
+    db_tickers: list[str] = []
+    if include_all_nse:
+        try:
+            from data_pipeline.db import Session as _Session
+            from data_pipeline.models import Stock as _Stock
+            _db = _Session()
+            try:
+                db_tickers = [
+                    t for (t,) in _db.query(_Stock.ticker)
+                    .filter(_Stock.is_active == True)  # noqa: E712
+                    .order_by(_Stock.ticker)
+                    .all()
+                    if t
+                ]
+            finally:
+                _db.close()
+        except Exception as _exc:
+            logger.info("get_full_universe: DB tier skipped (%s)", _exc)
+
     seen: set[str] = set()
     merged: list[str] = []
-    for t in list(NSE_UNIVERSE) + parquet_tickers:
-        if t not in seen:
+    for t in list(NSE_UNIVERSE) + parquet_tickers + db_tickers:
+        if t and t not in seen:
             seen.add(t)
             merged.append(t)
     return merged

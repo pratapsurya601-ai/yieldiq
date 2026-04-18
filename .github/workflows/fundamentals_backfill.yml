@@ -43,7 +43,10 @@ on:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 150
+    # Universe may be up to ~2,900 tickers (full NSE) after populate_stocks
+    # has run. At ~2s/ticker batched that's ~100 min; 350 min gives headroom
+    # for retries + yfinance hiccups.
+    timeout-minutes: 350
     steps:
       - uses: actions/checkout@v4
 
@@ -105,7 +108,11 @@ jobs:
           universe = get_full_universe()
           limit_input = "${{ github.event.inputs.limit }}".strip()
           tickers = universe[:int(limit_input)] if limit_input else universe
-          log.info("Starting backfill for %d tickers (full universe)", len(tickers))
+          log.info(
+              "Starting backfill for %d tickers "
+              "(first 5: %s ... last 5: %s)",
+              len(tickers), tickers[:5], tickers[-5:],
+          )
 
           start = time.time()
           db = Session()
@@ -120,10 +127,13 @@ jobs:
               ok, failed, len(tickers), duration,
           )
 
-          # Fail the job if <80% success — something's wrong with yfinance
-          # or DB, and a noisy cron failure is the right signal.
+          # Fail the job if <50% success — the full NSE universe includes
+          # illiquid / delisted tickers that yfinance routinely 404s on,
+          # so 80% was too strict once we scaled past 550. A <50% rate
+          # still indicates something systemic (yfinance down, auth,
+          # DB outage) and warrants a noisy failure.
           rate = ok / max(len(tickers), 1)
-          if rate < 0.80:
-              log.error("Success rate %.1f%% below 80%% threshold", rate * 100)
+          if rate < 0.50:
+              log.error("Success rate %.1f%% below 50%% threshold", rate * 100)
               sys.exit(1)
           PYEOF

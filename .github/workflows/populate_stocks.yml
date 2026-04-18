@@ -1,0 +1,95 @@
+name: Populate Stocks Table
+
+# Downloads the official NSE equity list (EQUITY_L.csv, ~2,000–2,900
+# active equities depending on the day) and upserts every row into the
+# Aiven `stocks` table. After this runs, get_full_universe() sees the
+# full NSE universe and the weekly fundamentals_backfill can cover
+# every listed stock.
+#
+# One-off job — trigger manually after a major NSE listing event, or
+# let the monthly cron keep it fresh.
+#
+# Needs DATABASE_URL secret (same as fundamentals_backfill).
+
+on:
+  workflow_dispatch:
+  schedule:
+    # First Sunday of every month, 02:00 UTC (07:30 IST)
+    - cron: "0 2 1-7 * 0"
+
+jobs:
+  populate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify DATABASE_URL secret is present
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is not configured."
+            exit 1
+          fi
+
+      - name: Download NSE equity list and upsert stocks
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python - <<'PYEOF'
+          import logging, os, sys
+
+          logging.basicConfig(
+              level="INFO",
+              format="%(asctime)s %(levelname)s %(name)s %(message)s",
+          )
+          log = logging.getLogger("populate_stocks")
+
+          sys.path.insert(0, ".")
+
+          _db_url = os.environ.get("DATABASE_URL") or os.environ.get("AIVEN_DSN")
+          if not _db_url:
+              log.error("DATABASE_URL not set")
+              sys.exit(2)
+          os.environ.setdefault("DATABASE_URL", _db_url)
+          os.environ.setdefault("AIVEN_DSN", _db_url)
+
+          from data_pipeline.db import Session
+          from data_pipeline.isin_loader import (
+              download_nse_equity_list,
+              populate_stocks_table,
+          )
+
+          df = download_nse_equity_list()
+          if df is None:
+              log.error("NSE equity list download failed")
+              sys.exit(1)
+          log.info("Downloaded NSE equity list: %d rows", len(df))
+
+          db = Session()
+          try:
+              count = populate_stocks_table(db, df)
+          finally:
+              db.close()
+
+          log.info("Upserted %d stocks into the stocks table", count)
+
+          # Fail if we got far fewer than expected — NSE sometimes returns
+          # a partial file on transient errors, and a silent tiny backfill
+          # would be worse than a noisy failure.
+          if count < 1500:
+              log.error("Only %d stocks populated — NSE may have returned a partial file", count)
+              sys.exit(1)
+          PYEOF
