@@ -901,6 +901,29 @@ async def get_fv_history_endpoint(
         years = min(years, 3)
     # pro: no clamp beyond the Query's le=5
 
+    # Two-tier cache: tier 1 in-memory (per-worker, fast), tier 2
+    # endpoint_cache DB table (shared, survives redeploys). Both keyed
+    # by ticker + years since the response shape depends on years.
+    # fv-history is safe to cache long (history only grows forward, and
+    # the chart smooths over any 1-day staleness).
+    _fvh_cache_key = f"fv-history:{ticker}:{years}"
+    _mem_hit = cache.get(_fvh_cache_key)
+    if _mem_hit is not None:
+        _mem_hit_out = dict(_mem_hit)
+        _mem_hit_out["tier"] = tier
+        _mem_hit_out["tier_limited"] = tier_level == 0
+        return _mem_hit_out
+
+    from backend.services import endpoint_cache_service as _ecs
+    _db_hit = _ecs.get(_fvh_cache_key)
+    if _db_hit is not None:
+        # Populate tier-1 so subsequent hits on this worker skip the DB
+        cache.set(_fvh_cache_key, _db_hit, ttl=3600)
+        _db_hit_out = dict(_db_hit)
+        _db_hit_out["tier"] = tier
+        _db_hit_out["tier_limited"] = tier_level == 0
+        return _db_hit_out
+
     # Pipeline DB session — same pattern as analysis_service._get_pipeline_session
     try:
         from data_pipeline.db import Session as PipelineSession
@@ -920,11 +943,9 @@ async def get_fv_history_endpoint(
         summary = get_fv_history_summary(ticker, db, years)
 
         if not data:
-            return {
+            _empty = {
                 "ticker": ticker,
                 "has_data": False,
-                "tier": tier,
-                "tier_limited": tier_level == 0,
                 "years_returned": 0,
                 "data": [],
                 "summary": summary,
@@ -933,16 +954,29 @@ async def get_fv_history_endpoint(
                     "Analyse this stock regularly to grow the chart."
                 ),
             }
+            # Cache the empty-state too — cheaper than re-running the query
+            # every request. Shorter TTL (1h) so we recheck soon after a
+            # seed.
+            cache.set(_fvh_cache_key, _empty, ttl=3600)
+            try:
+                _ecs.set(_fvh_cache_key, _empty, ttl_hours=1)
+            except Exception:
+                pass
+            return {**_empty, "tier": tier, "tier_limited": tier_level == 0}
 
-        return {
+        _full = {
             "ticker": ticker,
             "has_data": True,
-            "tier": tier,
-            "tier_limited": tier_level == 0,
             "years_returned": years,
             "data": data,
             "summary": summary,
         }
+        cache.set(_fvh_cache_key, _full, ttl=3600)
+        try:
+            _ecs.set(_fvh_cache_key, _full, ttl_hours=6)
+        except Exception:
+            pass
+        return {**_full, "tier": tier, "tier_limited": tier_level == 0}
     finally:
         db.close()
 
@@ -973,9 +1007,23 @@ async def get_financials_endpoint(
         years = min(years, 5)
 
     _cache_key = f"financials:{ticker}:{period}:{years}"
+
+    # Tier 1: in-memory
     cached = cache.get(_cache_key)
     if cached:
         return cached
+
+    # Tier 2: persistent endpoint_cache. Survives Railway redeploys.
+    # Tier info varies by user so we re-stamp it per response; the
+    # underlying statement rows are shared across tiers.
+    from backend.services import endpoint_cache_service as _ecs
+    _db_hit = _ecs.get(_cache_key)
+    if _db_hit is not None:
+        cache.set(_cache_key, _db_hit, ttl=86400)
+        _out = dict(_db_hit)
+        _out["tier"] = tier
+        _out["tier_limited"] = tier_limited
+        return _out
 
     from backend.services.financials_service import FinancialsService
     svc = FinancialsService()
@@ -988,9 +1036,16 @@ async def get_financials_endpoint(
         )
         raise HTTPException(status_code=500, detail="Financials unavailable")
 
+    # Persist WITHOUT tier stamping so other users of the same ticker
+    # can reuse the row. The tier annotation below is response-only.
+    cache.set(_cache_key, result, ttl=86400)
+    try:
+        _ecs.set(_cache_key, result, ttl_hours=24)
+    except Exception:
+        pass
+
     result["tier"] = tier
     result["tier_limited"] = tier_limited
-    cache.set(_cache_key, result, ttl=86400)  # 30 min
     return result
 
 
