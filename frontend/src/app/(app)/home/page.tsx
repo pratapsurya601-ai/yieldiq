@@ -15,12 +15,6 @@ function getGreeting(): string {
   return "Good evening"
 }
 
-const POPULAR_QUICK = [
-  { ticker: "RELIANCE.NS", label: "Reliance" },
-  { ticker: "TCS.NS", label: "TCS" },
-  { ticker: "INFY.NS", label: "Infosys" },
-]
-
 export default function HomePage() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
@@ -102,24 +96,7 @@ export default function HomePage() {
             </div>
           </>
         ) : (
-          <>
-            <HomeEmpty />
-            {/* Popular stock quick links when no top pick */}
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Popular stocks</p>
-              <div className="flex gap-2">
-                {POPULAR_QUICK.map((s) => (
-                  <Link
-                    key={s.ticker}
-                    href={`/analysis/${s.ticker}`}
-                    className="flex-1 text-center bg-white border border-gray-200 rounded-xl py-3 text-sm font-medium text-gray-700 hover:border-blue-300 hover:text-blue-700 transition"
-                  >
-                    {s.label}
-                  </Link>
-                ))}
-              </div>
-            </div>
-          </>
+          <HomeEmpty />
         )}
       </div>
     </div>

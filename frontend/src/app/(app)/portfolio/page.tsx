@@ -3,8 +3,15 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { getHoldingsLive, getPortfolioHealth, getWatchlist, removeFromWatchlist, getAlerts, deleteAlert } from "@/lib/api"
 import HealthScore from "@/components/portfolio/HealthScore"
 import { formatCurrency } from "@/lib/utils"
-import { useState } from "react"
+import { Suspense, useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
+
+type PortfolioTab = "holdings" | "watchlist" | "alerts"
+
+function isTab(v: string | null): v is PortfolioTab {
+  return v === "holdings" || v === "watchlist" || v === "alerts"
+}
 
 function fmtRsCompact(n: number): string {
   const abs = Math.abs(n)
@@ -22,7 +29,34 @@ function pctColor(n: number): string {
 }
 
 export default function PortfolioPage() {
-  const [tab, setTab] = useState<"holdings" | "watchlist" | "alerts">("holdings")
+  return (
+    <Suspense fallback={<div className="max-w-2xl mx-auto px-4 py-6" />}>
+      <PortfolioInner />
+    </Suspense>
+  )
+}
+
+function PortfolioInner() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const urlTab = searchParams.get("tab")
+  const initialTab: PortfolioTab = isTab(urlTab) ? urlTab : "holdings"
+  const [tab, setTabState] = useState<PortfolioTab>(initialTab)
+
+  // Keep URL + state in sync when URL changes (e.g. back/forward, redirect arrival)
+  useEffect(() => {
+    if (isTab(urlTab) && urlTab !== tab) setTabState(urlTab)
+  }, [urlTab, tab])
+
+  const setTab = (next: PortfolioTab) => {
+    setTabState(next)
+    const params = new URLSearchParams(searchParams.toString())
+    if (next === "holdings") params.delete("tab")
+    else params.set("tab", next)
+    const qs = params.toString()
+    router.replace(qs ? `/portfolio?${qs}` : "/portfolio", { scroll: false })
+  }
+
   const [toast, setToast] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
