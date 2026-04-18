@@ -330,7 +330,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     user_id: str = ""
     email: str = ""
-    tier: Literal["free", "starter", "pro"] = "free"
+    tier: Literal["free", "starter", "pro", "analyst"] = "free"
     analyses_today: int = 0
     analysis_limit: int = 5
 
@@ -338,7 +338,7 @@ class TokenResponse(BaseModel):
 class UserResponse(BaseModel):
     user_id: str = ""
     email: str = ""
-    tier: Literal["free", "starter", "pro"] = "free"
+    tier: Literal["free", "starter", "pro", "analyst"] = "free"
     analyses_today: int = 0
     analysis_limit: int = 5
     created_at: str = ""

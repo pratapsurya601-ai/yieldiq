@@ -86,6 +86,19 @@ async def register(req: RegisterRequest):
     )
 
 
+@router.get("/debug")
+async def debug_auth(user: dict = Depends(get_current_user)):
+    """Temporary diagnostic — shows what the server sees for superuser
+    bypass. Remove once the tier flip is confirmed working."""
+    from backend.middleware.auth import SUPERUSER_EMAILS, is_superuser
+    return {
+        "user_email_from_jwt": user.get("email"),
+        "user_tier_from_jwt": user.get("tier"),
+        "superuser_emails_loaded": sorted(SUPERUSER_EMAILS),
+        "is_superuser_result": is_superuser(user),
+    }
+
+
 @router.get("/me", response_model=UserResponse)
 async def get_me(user: dict = Depends(get_current_user)):
     """Get current user info."""
