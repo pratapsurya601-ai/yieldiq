@@ -46,5 +46,56 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8,
   }))
 
-  return [...staticPages, ...blogPages, ...stockPages]
+  // Hand-picked head-to-head comparison pairs — high-intent SEO queries
+  // for sector rivalries within Nifty 50 / Nifty Next 50.
+  // Keep small and curated; do NOT explode O(n^2).
+  const COMPARE_PAIRS: [string, string][] = [
+    // Banks (private vs private, private vs PSU)
+    ["HDFCBANK", "ICICIBANK"],
+    ["HDFCBANK", "KOTAKBANK"],
+    ["ICICIBANK", "AXISBANK"],
+    ["SBIN", "HDFCBANK"],
+    ["KOTAKBANK", "AXISBANK"],
+    // IT services
+    ["TCS", "INFY"],
+    ["INFY", "WIPRO"],
+    ["TCS", "HCLTECH"],
+    ["WIPRO", "HCLTECH"],
+    ["INFY", "TECHM"],
+    // Energy / oil & gas
+    ["RELIANCE", "ONGC"],
+    ["BPCL", "IOC"],
+    ["NTPC", "POWERGRID"],
+    // Autos
+    ["MARUTI", "M%26M"],
+    ["BAJAJ-AUTO", "HEROMOTOCO"],
+    ["TATAMOTORS", "M%26M"],
+    // FMCG / consumer
+    ["ITC", "HINDUNILVR"],
+    ["ITC", "BRITANNIA"],
+    ["NESTLEIND", "BRITANNIA"],
+    ["DABUR", "MARICO"],
+    // Paints
+    ["ASIANPAINT", "BERGEPAINT"],
+    // Pharma
+    ["SUNPHARMA", "DRREDDY"],
+    ["CIPLA", "DRREDDY"],
+    ["DIVISLAB", "SUNPHARMA"],
+    // Metals
+    ["TATASTEEL", "JSWSTEEL"],
+    ["HINDALCO", "VEDL"],
+    // Cement
+    ["ULTRACEMCO", "GRASIM"],
+    // Telecom
+    ["BHARTIARTL", "IDEA"],
+  ]
+
+  const comparePages: MetadataRoute.Sitemap = COMPARE_PAIRS.map(([a, b]) => ({
+    url: `https://yieldiq.in/compare/${a}-vs-${b}`,
+    lastModified: new Date(),
+    changeFrequency: "weekly" as const,
+    priority: 0.6,
+  }))
+
+  return [...staticPages, ...blogPages, ...stockPages, ...comparePages]
 }

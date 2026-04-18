@@ -514,58 +514,54 @@ async def public_compare(
     if cached is not None:
         return cached
 
+    def _flatten(analysis) -> dict:
+        v = analysis.valuation
+        q = analysis.quality
+        c = analysis.company
+        ev_ebitda = None
+        try:
+            ev_ebitda = getattr(analysis, "insights", None) and getattr(analysis.insights, "ev_ebitda", None)
+        except Exception:
+            ev_ebitda = None
+        return {
+            "ticker": analysis.ticker,
+            "display_ticker": analysis.ticker.replace(".NS", "").replace(".BO", ""),
+            "company_name": c.company_name,
+            "sector": c.sector,
+            "price": round(v.current_price, 2),
+            "current_price": round(v.current_price, 2),
+            "fair_value": round(v.fair_value, 2),
+            "mos": round(v.margin_of_safety, 1),
+            "verdict": v.verdict,
+            "score": q.yieldiq_score,
+            "grade": q.grade,
+            "piotroski": q.piotroski_score,
+            "moat": q.moat,
+            "moat_score": q.moat_score,
+            "wacc": round(v.wacc, 4),
+            "fcf_growth": round(v.fcf_growth_rate, 4) if v.fcf_growth_rate else None,
+            "confidence": v.confidence_score,
+            "roe": round(q.roe, 2) if q.roe else None,
+            "de_ratio": round(q.de_ratio, 2) if q.de_ratio else None,
+            "ev_ebitda": round(ev_ebitda, 2) if ev_ebitda else None,
+            "market_cap": c.market_cap,
+        }
+
     def _get_stock_data(ticker: str) -> dict | None:
+        from backend.services.validators import check_and_quarantine
         # Try cache first
         analysis = cache.get(f"analysis:{ticker}")
         if analysis and hasattr(analysis, "valuation"):
-            v = analysis.valuation
-            q = analysis.quality
-            c = analysis.company
-            return {
-                "ticker": ticker,
-                "display_ticker": ticker.replace(".NS", "").replace(".BO", ""),
-                "company_name": c.company_name,
-                "sector": c.sector,
-                "price": round(v.current_price, 2),
-                "fair_value": round(v.fair_value, 2),
-                "mos": round(v.margin_of_safety, 1),
-                "verdict": v.verdict,
-                "score": q.yieldiq_score,
-                "piotroski": q.piotroski_score,
-                "moat": q.moat,
-                "moat_score": q.moat_score,
-                "wacc": round(v.wacc, 4),
-                "fcf_growth": round(v.fcf_growth_rate, 4) if v.fcf_growth_rate else None,
-                "confidence": v.confidence_score,
-                "roe": round(q.roe, 2) if q.roe else None,
-                "de_ratio": round(q.de_ratio, 2) if q.de_ratio else None,
-            }
+            if check_and_quarantine(ticker, analysis) is not None:
+                return None
+            return _flatten(analysis)
         # Try running analysis
         try:
             from backend.services import analysis_service as service
             result = service.get_full_analysis(ticker)
-            v = result.valuation
-            q = result.quality
-            c = result.company
-            return {
-                "ticker": ticker,
-                "display_ticker": ticker.replace(".NS", "").replace(".BO", ""),
-                "company_name": c.company_name,
-                "sector": c.sector,
-                "price": round(v.current_price, 2),
-                "fair_value": round(v.fair_value, 2),
-                "mos": round(v.margin_of_safety, 1),
-                "verdict": v.verdict,
-                "score": q.yieldiq_score,
-                "piotroski": q.piotroski_score,
-                "moat": q.moat,
-                "moat_score": q.moat_score,
-                "wacc": round(v.wacc, 4),
-                "fcf_growth": round(v.fcf_growth_rate, 4) if v.fcf_growth_rate else None,
-                "confidence": v.confidence_score,
-                "roe": round(q.roe, 2) if q.roe else None,
-                "de_ratio": round(q.de_ratio, 2) if q.de_ratio else None,
-            }
+            if check_and_quarantine(ticker, result) is not None:
+                return None
+            return _flatten(result)
         except Exception:
             return None
 
@@ -602,6 +598,9 @@ async def public_compare(
         "stock2": s2,
         "winner": winner,
         "overall_winner": overall,
+        "stock1_wins": w1,
+        "stock2_wins": w2,
+        "total_metrics": len(winner),
     }
 
     cache.set(_cache_key, result, ttl=3600)

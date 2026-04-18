@@ -1,16 +1,42 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
-import CompareClient from "./CompareClient"
+import CompareClient, { type CompareData } from "./CompareClient"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
+// Parse a slug like "ITC-vs-BRITANNIA", "itc-vs-britannia", or
+// "ITC.BO-vs-BRITANNIA". Defaults to .NS suffix when none specified.
+// Splits case-insensitively on "-vs-" so frontend can be slug-agnostic.
 function parseSlug(slug: string): { ticker1: string; ticker2: string } | null {
-  const parts = slug.split("-vs-")
-  if (parts.length !== 2) return null
-  const t1 = parts[0].trim().toUpperCase()
-  const t2 = parts[1].trim().toUpperCase()
-  if (!t1 || !t2) return null
-  return { ticker1: `${t1}.NS`, ticker2: `${t2}.NS` }
+  if (!slug) return null
+  // Case-insensitive split on "-vs-"
+  const m = slug.match(/^(.+?)-vs-(.+)$/i)
+  if (!m) return null
+  const raw1 = m[1].trim().toUpperCase()
+  const raw2 = m[2].trim().toUpperCase()
+  if (!raw1 || !raw2) return null
+  const withSuffix = (t: string): string => {
+    if (t.endsWith(".NS") || t.endsWith(".BO")) return t
+    return `${t}.NS`
+  }
+  return { ticker1: withSuffix(raw1), ticker2: withSuffix(raw2) }
+}
+
+function display(t: string): string {
+  return t.replace(/\.(NS|BO)$/i, "")
+}
+
+async function getCompareData(ticker1: string, ticker2: string): Promise<CompareData | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/v1/public/compare?ticker1=${encodeURIComponent(ticker1)}&ticker2=${encodeURIComponent(ticker2)}`,
+      { next: { revalidate: 3600 } }
+    )
+    if (!res.ok) return null
+    return (await res.json()) as CompareData
+  } catch {
+    return null
+  }
 }
 
 export async function generateMetadata(
@@ -19,19 +45,28 @@ export async function generateMetadata(
   const { slug } = await params
   const parsed = parseSlug(slug)
   if (!parsed) return { title: "Compare Stocks | YieldIQ" }
-  const t1 = parsed.ticker1.replace(".NS", "")
-  const t2 = parsed.ticker2.replace(".NS", "")
+  const t1 = display(parsed.ticker1)
+  const t2 = display(parsed.ticker2)
+  const canonical = `https://yieldiq.in/compare/${t1}-vs-${t2}`
+  const title = `${t1} vs ${t2} \u2014 Which is More Undervalued? | YieldIQ`
+  const description = `Side-by-side DCF fair value, margin of safety, moat, and quality comparison between ${t1} and ${t2}. Updated daily.`
   return {
-    title: `${t1} vs ${t2} \u2014 Which is More Undervalued? DCF Comparison | YieldIQ`,
-    description: `Compare ${t1} and ${t2} head-to-head. DCF fair value, YieldIQ score, moat, Piotroski, and margin of safety. Free comparison.`,
+    title,
+    description,
+    robots: { index: true, follow: true },
     openGraph: {
-      title: `${t1} vs ${t2} \u2014 Stock Comparison | YieldIQ`,
-      description: `Which is more undervalued? Compare ${t1} and ${t2} by DCF fair value, quality score, and moat.`,
-      url: `https://yieldiq.in/compare/${slug}`,
+      title,
+      description,
+      url: canonical,
       siteName: "YieldIQ",
       type: "article",
     },
-    alternates: { canonical: `https://yieldiq.in/compare/${slug}` },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+    },
+    alternates: { canonical },
   }
 }
 
@@ -41,16 +76,47 @@ export default async function ComparePage(
   const { slug } = await params
   const parsed = parseSlug(slug)
   if (!parsed) notFound()
+  const data = await getCompareData(parsed.ticker1, parsed.ticker2)
+  if (!data) notFound()
 
-  try {
-    const res = await fetch(
-      `${API_BASE}/api/v1/public/compare?ticker1=${parsed.ticker1}&ticker2=${parsed.ticker2}`,
-      { next: { revalidate: 3600 } }
-    )
-    if (!res.ok) notFound()
-    const data = await res.json()
-    return <CompareClient data={data} slug={slug} />
-  } catch {
-    notFound()
+  const t1 = data.stock1.display_ticker
+  const t2 = data.stock2.display_ticker
+  const canonical = `https://yieldiq.in/compare/${t1}-vs-${t2}`
+
+  // JSON-LD: Article with two Product subjects
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: `${t1} vs ${t2} \u2014 DCF Comparison`,
+    description: `Side-by-side comparison of ${data.stock1.company_name} and ${data.stock2.company_name}.`,
+    url: canonical,
+    author: { "@type": "Organization", name: "YieldIQ" },
+    publisher: {
+      "@type": "Organization",
+      name: "YieldIQ",
+      url: "https://yieldiq.in",
+    },
+    about: [
+      {
+        "@type": "Product",
+        name: `${data.stock1.company_name} (${t1})`,
+        category: data.stock1.sector,
+      },
+      {
+        "@type": "Product",
+        name: `${data.stock2.company_name} (${t2})`,
+        category: data.stock2.sector,
+      },
+    ],
   }
+
+  return (
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <CompareClient data={data} />
+    </>
+  )
 }
