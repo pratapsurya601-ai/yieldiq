@@ -1,8 +1,13 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useAuthStore } from "@/store/authStore"
+import {
+  trackPricingViewed,
+  trackBillingToggled,
+  trackUpgradeClicked,
+} from "@/lib/analytics"
 
 function MarketingNav() {
   const [mobileOpen, setMobileOpen] = useState(false)
@@ -157,6 +162,18 @@ export default function PricingPage() {
   const loggedIn = !!token
   const [billing, setBilling] = useState<Billing>("monthly")
 
+  // GA4: fire pricing_viewed once on mount. Captures tier so we can
+  // segment upgrade-funnel metrics by audience (cold traffic vs.
+  // existing free users vs. upsell attempts on paid users).
+  useEffect(() => {
+    trackPricingViewed(loggedIn, tier || "anonymous")
+  }, [loggedIn, tier])
+
+  const handleBillingToggle = (next: Billing) => {
+    if (next !== billing) trackBillingToggled(next)
+    setBilling(next)
+  }
+
   return (
     <div className="bg-white text-gray-900">
       <MarketingNav />
@@ -176,13 +193,13 @@ export default function PricingPage() {
           <div className="flex justify-center mb-10">
             <div className="inline-flex bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
               <button
-                onClick={() => setBilling("monthly")}
+                onClick={() => handleBillingToggle("monthly")}
                 className={`px-5 py-2 rounded-lg text-sm font-semibold transition ${billing === "monthly" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
               >
                 Monthly
               </button>
               <button
-                onClick={() => setBilling("annual")}
+                onClick={() => handleBillingToggle("annual")}
                 className={`px-5 py-2 rounded-lg text-sm font-semibold transition inline-flex items-center gap-2 ${billing === "annual" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
               >
                 Annual
@@ -245,6 +262,12 @@ export default function PricingPage() {
                 ) : (
                   <Link
                     href={cta.href}
+                    onClick={() => {
+                      // GA4: upgrade_clicked (or equivalent for Free tier).
+                      // Source = "pricing" so we can compare vs. account-page
+                      // clicks (which already fire their own event below).
+                      trackUpgradeClicked(plan.id, `pricing:${billing}`)
+                    }}
                     className={`block w-full text-center py-3 rounded-xl font-semibold transition ${plan.ctaStyle}`}
                   >
                     {cta.label}

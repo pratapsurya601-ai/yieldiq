@@ -38,3 +38,41 @@ export function trackUpgradeClicked(plan: string, source: string) {
 export function trackSignupCompleted(source: string) {
   trackEvent("signup_completed", { source })
 }
+
+/** Fired when the user lands on the marketing /pricing page. Also captures
+ *  billing cadence (monthly/annual) + whether they're logged in so we can
+ *  split the funnel between cold traffic and existing users. */
+export function trackPricingViewed(
+  loggedIn: boolean,
+  tier: string,
+) {
+  trackEvent("pricing_viewed", { logged_in: loggedIn, tier })
+}
+
+/** Fired when the user toggles billing between monthly and annual. Useful
+ *  for seeing whether the savings badge actually drives annual clicks. */
+export function trackBillingToggled(billing: "monthly" | "annual") {
+  trackEvent("billing_toggled", { billing })
+}
+
+/** Fired when the Razorpay checkout modal opens (user committed to attempt
+ *  payment). Between upgrade_clicked and this, we lose some share to
+ *  script-load failures. */
+export function trackCheckoutOpened(plan: string, billing: string) {
+  trackEvent("checkout_opened", { plan, billing })
+}
+
+/** Fired when the backend verifies a successful Razorpay payment. This is
+ *  the money event — Google Ads + Meta can optimise on it. */
+export function trackSubscriptionStarted(plan: string, billing: string) {
+  trackEvent("subscription_started", { plan, billing })
+}
+
+/** Fired when the payment flow errors (user-cancel vs. script failure vs.
+ *  backend verify failure). Tag the reason so we can triage. */
+export function trackCheckoutFailed(
+  plan: string,
+  reason: "script_load" | "init" | "verify" | "cancelled",
+) {
+  trackEvent("checkout_failed", { plan, reason })
+}

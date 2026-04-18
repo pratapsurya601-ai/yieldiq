@@ -3,6 +3,7 @@ import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { signup } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
+import { trackSignupCompleted } from "@/lib/analytics"
 import Cookies from "js-cookie"
 import Link from "next/link"
 
@@ -38,6 +39,14 @@ function SignupContent() {
       }
       // Honor ?next= redirect (from pricing page tier-aware CTAs, etc.)
       const next = searchParams.get("next")
+      // GA4: signup_completed with source so we can split the funnel
+      // (direct signups vs. pricing-driven vs. referral).
+      const source = next?.startsWith("/account?upgrade=")
+        ? "pricing_upgrade"
+        : referralCode
+          ? "referral"
+          : "direct"
+      trackSignupCompleted(source)
       router.push(next && next.startsWith("/") ? next : "/onboarding")
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Signup failed"

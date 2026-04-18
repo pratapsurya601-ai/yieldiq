@@ -5,6 +5,12 @@ import { useSettingsStore } from "@/store/settingsStore"
 import { useRouter, useSearchParams } from "next/navigation"
 import Cookies from "js-cookie"
 import api from "@/lib/api"
+import {
+  trackUpgradeClicked,
+  trackCheckoutOpened,
+  trackSubscriptionStarted,
+  trackCheckoutFailed,
+} from "@/lib/analytics"
 
 declare global {
   interface Window {
@@ -107,19 +113,33 @@ function AccountInner() {
   }
 
   const handleUpgrade = async (planId: "pro" | "analyst") => {
+    // GA4: upgrade_clicked — entry point of the paid funnel. Source
+    // differentiates pricing-driven vs. account-page clicks so we can
+    // see which surface converts better.
+    const hintedBilling = searchParams.get("billing") || "monthly"
+    trackUpgradeClicked(planId, `account:${hintedBilling}`)
     setUpgrading(true)
     try {
       const { data } = await api.post(`/api/v1/payments/create-order?plan_id=${planId}`)
 
       // Load Razorpay script if not loaded
       if (!window.Razorpay) {
-        await new Promise<void>((resolve) => {
-          const script = document.createElement("script")
-          script.src = "https://checkout.razorpay.com/v1/checkout.js"
-          script.onload = () => resolve()
-          document.body.appendChild(script)
-        })
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const script = document.createElement("script")
+            script.src = "https://checkout.razorpay.com/v1/checkout.js"
+            script.onload = () => resolve()
+            script.onerror = () => reject(new Error("script_load_failed"))
+            document.body.appendChild(script)
+          })
+        } catch {
+          trackCheckoutFailed(planId, "script_load")
+          throw new Error("Razorpay script failed to load")
+        }
       }
+
+      // GA4: checkout_opened — user committed to attempt payment.
+      trackCheckoutOpened(planId, hintedBilling)
 
       const options = {
         key: data.key_id,
@@ -130,6 +150,10 @@ function AccountInner() {
         order_id: data.order_id,
         prefill: { email: email || "" },
         theme: { color: "#1D4ED8" },
+        modal: {
+          // GA4: user dismissed the checkout modal without paying
+          ondismiss: () => trackCheckoutFailed(planId, "cancelled"),
+        },
         handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
           // Verify payment on backend
           try {
@@ -142,11 +166,17 @@ function AccountInner() {
               },
             })
             if (verifyRes.data.ok) {
+              // GA4: the money event. Fired after backend verification so
+              // we never count a charge that failed signature validation.
+              trackSubscriptionStarted(planId, hintedBilling)
               // Update local auth state — no reload needed, Zustand subscribers re-render.
               setAuth(token || "", userId || "", email || "", verifyRes.data.tier, analysesToday, analysisLimit)
               showToast(`Upgraded to ${verifyRes.data.tier.toUpperCase()} \u2014 enjoy!`, "ok")
+            } else {
+              trackCheckoutFailed(planId, "verify")
             }
           } catch {
+            trackCheckoutFailed(planId, "verify")
             showToast("Payment received but verification failed. Email support@yieldiq.in", "err")
           }
         },
@@ -154,7 +184,13 @@ function AccountInner() {
 
       const rzp = new window.Razorpay(options)
       rzp.open()
-    } catch {
+    } catch (err) {
+      // Distinguishes init failure (create-order 4xx/5xx, SDK init) from
+      // the script-load case we already tagged above.
+      const msg = (err as Error)?.message || ""
+      if (!msg.includes("Razorpay script failed")) {
+        trackCheckoutFailed(planId, "init")
+      }
       showToast("Could not initiate payment. Please try again.", "err")
     } finally {
       setUpgrading(false)
