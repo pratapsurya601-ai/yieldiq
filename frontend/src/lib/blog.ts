@@ -1033,6 +1033,916 @@ This is general information based on Income Tax Act 1961 (as amended). Your actu
 YieldIQ is not registered with SEBI as an investment adviser, and is not a tax advisor. This article is educational, not tax advice.
 `,
   },
+  {
+    slug: "dcf-valuation-indian-stocks-guide",
+    title: "How DCF Valuation Works for Indian Stocks (Without the Jargon)",
+    description: "A plain-English guide to Discounted Cash Flow for Indian investors. Learn FCF, WACC, terminal value and why the India risk-free rate changes everything — with a worked Reliance example.",
+    date: "2026-04-20",
+    author: "YieldIQ Team",
+    category: "valuation",
+    readTime: 10,
+    content: `## Why this guide exists
+
+Most explainers of DCF were written for US stocks. They assume a 4% risk-free rate, a stable currency, and a GDP that grows at 2%. None of those apply in India.
+
+This guide walks through DCF the way it actually works when you're valuing a stock on the NSE. No finance degree needed. By the end, you will know what Free Cash Flow is, how to think about WACC without memorising a formula, why terminal value is usually 60-70% of your answer, and how all of this fits together.
+
+We will use **Reliance** and **ITC** as recurring examples because most Indian investors already have a feel for these businesses.
+
+---
+
+## The one-sentence version
+
+A company is worth all the cash it will produce in the future, discounted back to today.
+
+That is it. Everything else is plumbing.
+
+---
+
+## Step 1: Understand Free Cash Flow (FCF)
+
+A company's "profit" is not the same as its cash. Profit can include non-cash items (depreciation), it can be massaged through accounting choices, and it ignores the money the company spends to keep growing.
+
+Free Cash Flow is what is left after the business has paid for everything it needs to pay for:
+
+**FCF = Cash from Operations - Capital Expenditure**
+
+Cash from Operations is cash the business actually collected from customers, minus cash actually paid to suppliers and employees. It sits at the bottom of the cash flow statement.
+
+Capex is what the company spent on factories, machinery, software, stores — anything it had to buy to keep running.
+
+Whatever is left is yours (in theory) as a shareholder. That is why FCF matters more than Net Profit.
+
+### Quick ITC example
+
+In a typical recent year, ITC reported roughly these orders of magnitude:
+
+- Cash from operations: around fifteen to eighteen thousand crore
+- Capex: around three to four thousand crore
+- FCF: roughly twelve to fourteen thousand crore
+
+That FCF — the cash left over — is what gets discounted in the DCF.
+
+---
+
+## Step 2: Why future cash matters more than past earnings
+
+A retailer that earned two hundred crore last year but is shutting down is worth less than a retailer that earned one hundred crore last year but is doubling every two years.
+
+Markets are forward-looking. So is DCF.
+
+Past earnings tell you what the business has done. Future cash tells you what it will do. Stock prices follow the second, not the first. This is also why a stock can have a great earnings report and fall 5% — the market was already pricing in better.
+
+---
+
+## Step 3: WACC in three paragraphs
+
+WACC stands for Weighted Average Cost of Capital. It is the return you expect from the investment. If you could earn 11% in a safer alternative, you should not discount this company's cash flows at less than 11%.
+
+For a pure-equity company, WACC is basically Cost of Equity. Cost of Equity has three ingredients: the risk-free rate (what you could earn in Indian government bonds), the equity risk premium (the extra you demand for taking stock market risk), and beta (how volatile this stock is vs the market).
+
+For Indian stocks today, Cost of Equity typically lands somewhere between 11% and 14%. Boring large caps (HUL, Nestle) sit near the bottom of that band. Cyclicals and small caps sit near the top. If a company has meaningful debt, WACC is slightly lower than Cost of Equity because debt is cheaper after tax — but do not over-engineer this.
+
+Rule of thumb: if you cannot decide, start with 12%. Then stress-test by trying 11% and 13%. If the stock only looks cheap at 10%, it is not really cheap.
+
+---
+
+## Step 4: The India risk-free rate is higher — and it matters
+
+In the US, the 10-year Treasury yield is the risk-free rate. It sits around 4% in most years.
+
+In India, the equivalent is the 10-year G-Sec yield, which typically sits between 6.5% and 7.5%. That is roughly **three percentage points higher** than the US.
+
+This matters because every component of WACC stacks on top of the risk-free rate. If American bloggers tell you 8% is a reasonable discount rate for a quality stock, they are wrong for India by about 300 basis points. Use 11-13%.
+
+A second consequence: Indian terminal growth should be higher too. US analysts use 2-3% terminal growth. For India, 4-5% is defensible because long-run nominal GDP growth is higher.
+
+---
+
+## Step 5: Terminal value — the elephant in the room
+
+When you forecast 10 years of cash flows, you hit a wall: what happens in year 11 onwards?
+
+The standard answer is the Gordon Growth formula:
+
+**Terminal Value = FCF(year 10) x (1 + g) / (r - g)**
+
+Where g is terminal growth (we suggest 4% for India) and r is the discount rate (we suggest 11-13%).
+
+Terminal value is usually 60-70% of total DCF value. That is a lot. Small changes here swing fair value a lot. This is why being honest about terminal growth matters more than being precise about year 7 forecasts.
+
+Two sanity checks:
+- Never let terminal growth exceed long-run GDP growth (for India, cap at 5%)
+- Never let terminal growth equal or exceed the discount rate (the math breaks)
+
+---
+
+## Step 6: Put it together — a Reliance-style worked example
+
+We are not going to claim a specific fair value for Reliance — that depends on assumptions that shift every quarter. But the mechanics look like this.
+
+Start with last year's FCF, say somewhere around thirty to forty thousand crore for a Reliance-scale business. Grow it forward for 10 years. In early years you might assume 10-12% growth (retail + Jio + petrochem mix), tapering to 5-6% by year 10.
+
+Each year's cash flow gets divided by (1 + WACC) raised to the year number. Year 1 cash is divided by 1.12. Year 5 cash is divided by 1.12 to the fifth. By year 10 you are dividing by roughly 3.1 — meaning a rupee of cash ten years from now is worth about 32 paise today.
+
+Add up all ten discounted cash flows. Then add the discounted terminal value. That gives you Enterprise Value. Subtract net debt. Divide by shares outstanding. That is the fair value per share.
+
+On YieldIQ, you can see exactly this computation for any stock. For Reliance, check [reliance fair value](/stocks/RELIANCE/fair-value). For a cleaner FMCG example, try [ITC fair value](/stocks/ITC/fair-value).
+
+---
+
+## Step 7: What DCF is bad at
+
+DCF is not magic. It has real blind spots.
+
+**Banks and NBFCs.** Their "cash flow" includes deposits and loans, which is not the same as FCF for a normal business. Use dividend discount models or P/B-ROE frameworks instead.
+
+**Early-stage companies with negative FCF.** If there is nothing positive to discount, DCF gives nonsense. Wait until the business is profitable or use a multiple-based approach.
+
+**Cyclicals at the top of the cycle.** Using peak-year FCF as the starting point bakes in rosy assumptions. For cyclicals like steel, cement, chemicals, use a mid-cycle or normalised FCF.
+
+**Companies with opaque accounting.** Garbage in, garbage out. If you do not trust the financials, no valuation model saves you.
+
+---
+
+## Step 8: Common DCF mistakes Indian retail investors make
+
+**Using US discount rates.** 8% WACC is too low for India. You will get fair values that are always 50% above market and you will be permanently "buying undervalued stocks" that go nowhere.
+
+**Ignoring dilution.** A company that issues 5% more shares each year quietly eats into per-share value. Count diluted shares, not just current shares.
+
+**Forgetting net debt.** A stock with thirty thousand crore of debt is not worth the same as an identical stock with zero debt. Subtract net debt from enterprise value before dividing by shares.
+
+**Over-forecasting.** You cannot predict year 8 FCF with precision. You can only predict a range. Build bear, base, and bull scenarios instead of a single point estimate.
+
+---
+
+## Step 9: How to use DCF on YieldIQ
+
+Every stock page on YieldIQ runs a DCF in the background. You see:
+
+- The base-case fair value
+- Bear and bull scenarios
+- The underlying WACC and terminal growth assumptions
+- [Reverse DCF](/stocks/RELIANCE/reverse-dcf) — what growth the market is pricing in
+
+For comparison across peers, the [compare tool](/compare) lines up two stocks side by side — so you can see, for instance, whether HDFC Bank is priced richer than ICICI Bank on a DCF-adjusted basis. You can also filter the [discover page](/discover) for stocks trading below their DCF fair value.
+
+---
+
+## Bottom line
+
+DCF is not a crystal ball. It is a disciplined way of writing down your assumptions and letting the math push back when those assumptions are unrealistic.
+
+Use the Indian risk-free rate (6.5-7.5%). Use an Indian equity risk premium (5-6%). End up at a WACC of 11-13% for most stocks. Cap terminal growth at 4-5%. Forecast a decade, then add terminal value. Subtract net debt. Divide by shares.
+
+That is DCF. The rest is practice.
+
+---
+
+*Disclaimer: YieldIQ is not a SEBI-registered investment adviser. This article is educational only and does not constitute investment advice. Consult a qualified advisor before investing.*
+`,
+  },
+  {
+    slug: "margin-of-safety-20-percent-not-enough",
+    title: "What is Margin of Safety — and Why 20% Isn't Enough for Indian Stocks",
+    description: "Buffett's concept adapted for the Indian market. Why NSE stocks demand more cushion than US equities, and how to size margin of safety by business quality.",
+    date: "2026-04-21",
+    author: "YieldIQ Team",
+    category: "framework",
+    readTime: 8,
+    content: `## The idea, in one line
+
+Margin of Safety is the gap between what a stock is worth and what you pay for it. The bigger the gap, the more room you have to be wrong.
+
+Benjamin Graham introduced the concept in the 1930s. Warren Buffett calls it "the three most important words in investing." It is simple arithmetic. It is also the single most under-applied idea in Indian retail investing.
+
+---
+
+## A thirty-second refresher
+
+If a stock's fair value is ₹500 and the market price is ₹400, your Margin of Safety (MoS) is 20%.
+
+If the price drops to ₹350, your MoS expands to 30%.
+
+If the price rises to ₹525, you have negative MoS of 5% — you are paying more than the stock is worth, assuming your estimate of fair value is correct.
+
+That last phrase is doing a lot of work. It is the reason 20% MoS is often not enough.
+
+---
+
+## Why 20% sounds reasonable in US textbooks
+
+American value investing textbooks usually recommend 20-30% MoS. That works in a market where:
+
+- Earnings visibility is high (strong analyst coverage, mandatory quarterly guidance in practice)
+- The dollar is the world's reserve currency
+- Accounting standards are strict and SEC enforcement is real
+- Interest rates do not swing 200 basis points in a year
+- A large company rarely has promoter-pledge risk
+
+Indian investors face a different world. The 20% number does not transfer cleanly.
+
+---
+
+## Reason 1: Earnings volatility is higher in India
+
+Indian corporate earnings whip around more than their US counterparts. Reasons include:
+
+- A larger share of commodity and cyclical businesses
+- Monsoon-dependent rural consumption
+- Currency pass-through from a volatile rupee
+- Regulatory shifts (GST changes, telecom spectrum rules, PLI schemes)
+
+A company that grew earnings 18% a year for a decade can post a flat year out of nowhere. Your DCF was probably based on stable growth. When that assumption breaks, MoS becomes your only cushion.
+
+---
+
+## Reason 2: The rupee depreciates
+
+The rupee has depreciated against the dollar at roughly 3-4% per year over the long run. That creates two quiet problems for Indian equity valuations:
+
+**Imported inflation.** Companies that import raw materials (chemicals, electronics, crude derivatives) see input costs rise every few years even when global prices are flat.
+
+**FII flows.** When the rupee is weak, foreign investors sell first and ask questions later. Your stock can fall 15-20% in a quarter on no company-specific news.
+
+Neither factor shows up in a "clean" DCF. A bigger margin of safety absorbs both.
+
+---
+
+## Reason 3: Promoter-related risk
+
+In India, most listed companies have a dominant promoter family. That is usually fine — skin in the game is good. But it creates risks that barely exist in the US:
+
+- **Promoter pledging**: shares pledged to raise loans. If the stock falls, lenders sell, which makes the stock fall more.
+- **Related-party transactions**: the company pays above-market rates to suppliers owned by the promoter.
+- **Governance mis-steps**: disclosed only when SEBI or auditors force the issue.
+
+When one of these shows up, the stock often falls 30-50% in weeks. If you bought with 15% MoS, you are now sitting on a 25-35% loss.
+
+---
+
+## Reason 4: Analyst coverage is thin outside Nifty 100
+
+For the top 100 Indian stocks, you can find 15-20 sell-side analyst models. Your DCF is one data point among many, and errors get corrected.
+
+For smaller stocks, you might be the only person running a rigorous model. That is an opportunity. It is also a risk — you do not get the error correction from other analysts.
+
+Thin coverage means a wider range of "correct" answers, which means a bigger margin of safety.
+
+---
+
+## Reason 5: Valuation bands swing more
+
+The same Indian FMCG stock can trade at 40x earnings in one year and 70x in the next with barely any change in earnings. The Nifty's trailing PE has ranged from 15x to 28x in the last decade.
+
+Multiple expansion and contraction in India is bigger than in the US. That is not a bug — it is a function of domestic liquidity, FII flows, and narrative cycles. But it means the gap between "fair value" and "market price" is inherently wider. You need more cushion to survive the down swings.
+
+---
+
+## Sizing MoS by business quality
+
+Here is a defensible scaling based on quality and predictability. Use it as a starting point, adjust for your own conviction.
+
+| Business Type | Examples | Minimum MoS |
+|---|---|---|
+| **Wide moat, defensive** | HUL, Nestle, Asian Paints, Pidilite | 20-25% |
+| **Wide moat, cyclical exposure** | TCS, HDFC Bank, ITC | 25-30% |
+| **Narrow moat, decent quality** | Maruti, ICICI Bank, Wipro | 30-35% |
+| **Capital-intensive cyclical** | Tata Steel, UltraTech, Hindalco | 40-50% |
+| **Turnarounds, small caps** | Anything below the top 200 | 50%+ |
+| **Distressed / governance flags** | Promoter pledge >20%, qualified auditor | Pass |
+
+Notice that even the best quality business deserves more than 20% MoS in India. "Best quality" does not mean zero risk.
+
+---
+
+## The hidden cost of too little MoS
+
+Say you buy at a 10% MoS. You feel clever. Then the market drops 15% on rupee weakness. The company misses a quarter on input costs. An analyst downgrades. Before anything changes about the long-term thesis, you are down 25-30% on paper.
+
+Retail investors rarely hold through that. They sell. They lock in the loss. They blame the market.
+
+With a 35% MoS, the same sequence of events puts you at break-even or slight loss. You hold. You let the thesis play out.
+
+Bigger MoS is not about buying at the exact bottom. It is about giving yourself room to not panic.
+
+---
+
+## Real patterns you can see on YieldIQ
+
+Two patterns come up repeatedly on the platform:
+
+**Pattern A: "Looked 10% undervalued, fell 40%."**
+Stock X shows MoS of +10% based on the base case DCF. Over 18 months, the stock falls to -35% from entry. What happened: input costs rose, promoter pledged shares to fund an acquisition, and a competitor launched a cheaper product. Each event alone would have been survivable with a bigger cushion. Stacked, they were not.
+
+**Pattern B: "Looked 40% undervalued, went nowhere."**
+Stock Y shows MoS of +40% but trades sideways for three years before re-rating. That is the other side — a big MoS does not deliver returns quickly. It just limits downside.
+
+You can find current MoS for any stock by going to its fair value page — for example, [ITC fair value](/stocks/ITC/fair-value) or [Reliance fair value](/stocks/RELIANCE/fair-value). To compare two stocks' MoS side by side, use [compare](/compare/ITC-vs-HINDUNILVR). To find stocks with the largest MoS across Nifty 50, start with the [discover page](/discover).
+
+---
+
+## How to actually use MoS
+
+Three habits separate disciplined investors from the rest:
+
+**Write it down.** Before buying, write: "I believe fair value is ₹X. Today's price is ₹Y. My MoS is Z%." If you cannot write it, you do not know it.
+
+**Size position by MoS.** A stock with 40% MoS can get a 5% portfolio weight. A stock with 15% MoS deserves 1-2% at most. Let MoS scale your conviction.
+
+**Re-check MoS quarterly.** Fair value moves with new earnings and new guidance. A stock that had 35% MoS at purchase can slip to 5% MoS after a strong rally — at which point you consider trimming.
+
+---
+
+## Common objections
+
+*"But a great business deserves a premium."*
+Yes. That is already in the fair value. MoS is on top of fair value, not a substitute for it.
+
+*"I'm a long-term investor. MoS does not matter."*
+Long-term returns depend on entry price. Buffett's compounding is only possible because he buys at big discounts. He does not pay fair value.
+
+*"The market never lets me buy at 35% MoS on quality."*
+Not true. COVID 2020, Sept 2018, demonetisation 2016, taper tantrum 2013 — each gave multi-week windows to buy wide-moat stocks at 40%+ MoS. Patience is the premium.
+
+---
+
+## Bottom line
+
+Twenty percent margin of safety is a US textbook number. Indian markets — with their earnings volatility, rupee risk, promoter concentration, and wider multiple bands — demand more.
+
+Use 25% as the floor for quality defensives. Use 35-40% for anything cyclical or mid-cap. Use 50%+ for anything small-cap or turnaround. And walk away when MoS is not there, even if the business is great.
+
+The stocks you do not buy are as important as the ones you do.
+
+---
+
+*Disclaimer: YieldIQ is not a SEBI-registered investment adviser. This article is educational only and does not constitute investment advice. Consult a qualified advisor before investing.*
+`,
+  },
+  {
+    slug: "piotroski-f-score-nifty-50-examples",
+    title: "Understanding the Piotroski F-Score (With Nifty 50 Examples)",
+    description: "All 9 Piotroski criteria explained with Indian stock examples. How to use the F-Score to separate quality compounders from value traps on the NSE.",
+    date: "2026-04-22",
+    author: "YieldIQ Team",
+    category: "fundamentals",
+    readTime: 9,
+    content: `## Why this score still works after 23 years
+
+In 2000, accounting professor Joseph Piotroski asked a simple question: within the cheapest 20% of stocks (bottom quintile on book-to-market), could a mechanical 9-point test separate the winners from the losers?
+
+The answer was yes. His 9-point system, now called the **Piotroski F-Score**, beat the market by about 7.5% a year over the 1976-1996 backtest.
+
+What makes it still useful in India today is that it focuses on **trends**, not levels. A company with declining margins and rising debt is dangerous even at low P/B. A company with improving margins and falling debt is interesting even at higher P/B. The F-Score captures this without needing judgment calls.
+
+---
+
+## The 9 criteria (one point each)
+
+For each test, the company gets 1 point if the answer is yes, 0 otherwise. Score range: 0 to 9. Higher is better.
+
+### 1. Positive Net Income
+
+Is the company profitable this year?
+
+**What it catches.** Companies burning cash. In Indian small caps this alone filters out a lot of perpetually loss-making firms.
+
+**Example pattern.** A Nifty 50 constituent like TCS scores easily here — consistently profitable for two decades. A turnaround story like a formerly distressed airline might fail this test until operations stabilise.
+
+### 2. Positive Operating Cash Flow
+
+Is the company generating cash from core operations (not just accounting profit)?
+
+**What it catches.** Companies whose reported profit is not backed by real cash collection. A classic red flag is growing receivables faster than revenue — the "sales" are happening on paper but customers are not paying.
+
+**Example pattern.** Asian Paints typically passes this test easily — FMCG and paints both have fast cash collection cycles. A capital goods company with long project cycles may fail this in a year when receivables balloon.
+
+### 3. ROA improving year-over-year
+
+Is Return on Assets this year higher than last year?
+
+**What it catches.** Businesses that are becoming more efficient vs businesses that are flat or deteriorating.
+
+**Example pattern.** HDFC Bank in its high-growth years routinely passed this test — ROA rose consistently. In a year where asset growth outpaces profit growth, even a quality bank can temporarily fail.
+
+### 4. Operating Cash Flow greater than Net Income
+
+Is the cash coming in bigger than the profit reported?
+
+**What it catches.** Quality of earnings. When OCF > NI, the "profit" is backed by real cash. When NI > OCF, some of the profit is accounting — depreciation adjustments, working capital games, revenue recognition timing.
+
+**Example pattern.** Nestle India and HUL typically pass this test every year — FMCG has depreciation higher than capex in cash terms. An IT services firm with rising unbilled revenue may fail this test one quarter.
+
+### 5. Lower long-term debt vs last year
+
+Did the company reduce long-term debt (or at least hold it flat on a proportional basis)?
+
+**What it catches.** Balance sheet getting safer. Rising debt with flat profits is a classic deterioration signal.
+
+**Example pattern.** A debt-free Nifty 50 name like TCS or Infosys passes trivially. A conglomerate that just did a large acquisition will likely fail this test the year of the deal.
+
+### 6. Improving Current Ratio
+
+Is short-term liquidity (current assets / current liabilities) stronger than last year?
+
+**What it catches.** Working capital stress. A falling current ratio means bills are piling up faster than the money to pay them.
+
+**Example pattern.** A well-run FMCG passes most years. A real estate firm with a launch-heavy year may fail as customer advances and supplier liabilities churn.
+
+### 7. No new shares issued
+
+Did the share count stay flat or decrease vs last year?
+
+**What it catches.** Dilution. Every new share issued is a slice of your ownership given away.
+
+**Example pattern.** Companies with active buybacks (select IT majors, a few FMCG names) do well here. Companies that issued fresh equity, or used ESOPs aggressively, fail this test.
+
+### 8. Improving gross margin
+
+Is gross margin (revenue minus cost of goods) higher this year vs last?
+
+**What it catches.** Pricing power. A company that can raise prices, or cut input costs, sees gross margin expand. A company that cannot is squeezed.
+
+**Example pattern.** Asian Paints and Pidilite have historically passed this test in most normal years — strong brands, ability to pass through input cost increases. A cement company in a year of rising coal costs is likely to fail.
+
+### 9. Improving asset turnover
+
+Is revenue per rupee of assets higher than last year?
+
+**What it catches.** Productivity. A company growing revenue faster than assets is squeezing more out of each rupee of capex. A company growing assets faster than revenue is over-investing.
+
+**Example pattern.** A mature FMCG or IT services firm usually does well here. A company in a heavy capex phase (setting up new plants, acquiring) may fail this test for 2-3 years even if the strategy is sound.
+
+---
+
+## Putting it together: how to read the score
+
+| F-Score | Signal | What to do |
+|---|---|---|
+| **8-9** | Strong across the board, improving fundamentals | Candidate for deeper research |
+| **6-7** | Healthy, mostly improving | Reasonable quality filter |
+| **4-5** | Mixed signals, no clear direction | Usually skip |
+| **2-3** | Multiple deteriorating metrics | Red flags, dig into why |
+| **0-1** | Almost everything going wrong | Likely distress or in decline |
+
+An F-Score in isolation is not a buy or sell signal. It is a quality filter. Combine it with valuation (is the stock trading at a sensible price?) and moat (is the advantage durable?).
+
+---
+
+## Illustrative Nifty 50 snapshot
+
+Below is an illustrative table showing the kind of F-Score profile you might see across different Nifty 50 businesses. These are realistic ranges, not specific quoted data points — actual scores change year to year. Use YieldIQ's per-stock pages for live numbers.
+
+| Company | Typical F-Score Range | Why |
+|---|---|---|
+| Asian Paints | 6-8 | Consistent profitability, strong cash flow, steady margin trend |
+| TCS | 7-9 | Debt-free, strong FCF, buybacks help share count criterion |
+| HDFC Bank | 6-8 | High ROA, improving operational metrics in most years |
+| Tata Steel | 3-6 | Cyclical — score swings with the steel cycle |
+
+The steel company example is telling: it is not a "bad" business, but the F-Score whips around because cyclicals deteriorate and improve on a 3-4 year rhythm. An F-Score of 4 for Tata Steel at the bottom of the cycle can precede a strong rally.
+
+---
+
+## Where the F-Score falls short
+
+**Banks and NBFCs need a separate lens.** Piotroski designed this test for non-financial companies. For banks, metrics like asset turnover and gross margin do not map cleanly. Use NPL ratios, NIM trends, and credit cost trends instead.
+
+**It is backward-looking.** The score is based on the last two years of annual filings. By the time a company's F-Score drops from 8 to 4, the market has often already re-rated the stock.
+
+**No valuation input.** A company with F-Score 9 at a 60x PE is still risky. The score tells you about quality, not price.
+
+**Cyclicals confuse it.** As above, commodity and capital-intensive cyclicals will fail multiple criteria at the bottom of their cycle — sometimes exactly when they are the most interesting.
+
+---
+
+## How to use the F-Score on YieldIQ
+
+Every stock page on YieldIQ shows the current Piotroski F-Score along with the underlying components. For example, look up [HDFC Bank fair value](/stocks/HDFCBANK/fair-value) or [Asian Paints fair value](/stocks/ASIANPAINT/fair-value) and the F-Score is on the quality tab.
+
+To filter for high-score stocks across the market, start with the [discover page](/discover) and sort by F-Score. Cross-reference with the [Nifty 50 page](/nifty50) to focus on large-cap quality.
+
+A practical workflow:
+
+1. Filter for F-Score 7 or higher
+2. Within that set, filter for wide or narrow moat
+3. Within that set, rank by margin of safety
+4. Research the top 10 by hand
+
+That funnel typically turns up a few genuine candidates per month.
+
+---
+
+## Common misuses
+
+**Buying just because F-Score is 9.** Quality is one ingredient. Price matters too.
+
+**Selling just because F-Score dropped from 8 to 6.** One criterion can flip temporarily — a capex-heavy year, for instance. Look at which specific criterion changed and why.
+
+**Applying to banks without adjustment.** The framework needs modification for financials. Use sector-appropriate metrics.
+
+**Treating it as predictive.** F-Score is a snapshot of recent quality trends. It is not a forecast of stock returns.
+
+---
+
+## Bottom line
+
+The Piotroski F-Score is 23 years old and still one of the cleanest, most honest quality filters in fundamental investing. It works in India for the same reason it worked in 1990s US: most retail investors focus on price and ignore the quiet deterioration in the underlying business.
+
+A high F-Score combined with reasonable valuation and a durable moat is as close to a textbook compounder setup as you will find. A low F-Score on a cheap stock is a value trap in the making.
+
+Use it as a filter, not an oracle.
+
+---
+
+*Disclaimer: YieldIQ is not a SEBI-registered investment adviser. This article is educational only and does not constitute investment advice. Consult a qualified advisor before investing.*
+`,
+  },
+  {
+    slug: "moat-investing-india-competitive-advantage",
+    title: "Moat Investing in India: How to Spot a Durable Competitive Advantage",
+    description: "The 5 sources of economic moat adapted for Indian markets — brand, switching costs, network effects, cost advantage and efficient scale — with NSE examples.",
+    date: "2026-04-23",
+    author: "YieldIQ Team",
+    category: "framework",
+    readTime: 8,
+    content: `## Why moats matter more than growth
+
+Growth is everywhere. Every annual report claims a growth story. Most of them fade within three years because competition shows up, prices get undercut, and margins compress.
+
+A moat is what prevents that. Morningstar's research team formalised the idea in the early 2000s into five moat sources. The framework was built on US data, but it adapts cleanly to the Indian market once you adjust for a few local factors.
+
+This guide walks through all five, with recognisable NSE examples for each.
+
+---
+
+## Moat source 1: Intangible assets (brand)
+
+A brand is a moat only if customers pay more **because of the brand** — not just because the brand is well known.
+
+Test: if the company raised prices 5% tomorrow, would customers walk away?
+
+### Indian examples
+
+**Asian Paints.** A homeowner repainting a house every 7-10 years wants a brand they trust. The product is undifferentiated in chemistry. The trust is the moat. Asian Paints has held market leadership for decades, passed through input cost inflation, and earned ROCE consistently above 25%.
+
+**HUL.** The Dove, Surf Excel, and Lux brands command a premium over nearly identical private-label products. HUL's distribution network (millions of kirana stores reached consistently) reinforces the brand moat — small retailers stock HUL because consumers demand it, and consumers demand it because it is everywhere.
+
+**Titan (Tanishq).** In jewellery, trust is everything. Customers pay Tanishq a premium because they trust the purity certification and the after-sales service. A smaller jeweller selling identical gold at the same purity cannot match the price.
+
+### When brand is not a moat
+
+Many "branded" Indian companies do not actually have pricing power. Cars, two-wheelers, and appliances have strong brands but thin moats — customers switch on 5-10% price differences. Brand recognition is not the same as brand moat.
+
+---
+
+## Moat source 2: Switching costs
+
+Once a customer commits, leaving is painful or expensive. The switching cost can be financial (contract terms), operational (training, integration), or psychological (sunk cost, familiarity).
+
+### Indian examples
+
+**TCS and Infosys.** Large enterprise IT contracts last years. Once a client's core systems are running on a specific vendor's platform, switching means re-training hundreds of staff, re-integrating dozens of systems, and accepting 12-24 months of productivity loss. That is why Indian IT majors have historically held 95%+ client retention rates even when competition undercuts them on price.
+
+**HDFC Bank and Kotak Mahindra Bank.** Switching a primary bank account sounds easy. In practice, it means updating salary accounts, auto-debit mandates, EMIs, UPI handles, investment linkages. Most customers never do it. This inertia is why banks can earn high ROAs on checking balances they pay almost no interest on.
+
+**Polycab.** In electrical cables, once a distributor network commits to a brand, switching creates chaos for electricians, builders, and end customers. Polycab has used this to build a 20%+ share in a highly fragmented market.
+
+### How to spot switching cost moats
+
+- High customer retention rates (>90% in B2B)
+- Long average contract length
+- Low churn despite competitor pricing pressure
+- Customers admit in surveys that switching would be "a hassle"
+
+---
+
+## Moat source 3: Network effects
+
+The product or service gets more valuable as more people use it. This is the moat that scales the fastest and is the hardest for competitors to replicate.
+
+### Indian examples
+
+**Zomato and Swiggy.** More restaurants on the platform attract more diners. More diners attract more restaurants. The dynamic compounds. A new entrant would need to solve both sides simultaneously — which is why Indian food delivery is now effectively a duopoly.
+
+**Naukri (Info Edge).** More job seekers attract more employers. More employers attract more job seekers. Naukri.com has held leadership in Indian online recruitment for two decades against well-funded attempts by Monster, Times Jobs, LinkedIn, and others.
+
+**NSE and BSE.** Stock exchanges are classic two-sided networks. Liquidity attracts buyers and sellers. Buyers and sellers create more liquidity. NSE took market share from BSE in the 1990s by being marginally faster and more electronic — once the network tipped, BSE never caught up in cash equities.
+
+**UPI.** At the system level, UPI is a network effect. Every merchant that accepts UPI makes the system more useful. Every user that has UPI makes it more important for merchants to accept it.
+
+### When network effects are weak
+
+Local network effects often do not survive nationally. A city-level classified platform does not automatically win at the national level. A regional language social app does not translate across states. Always test whether the network effect is truly compounding or just reflects large incumbent size.
+
+---
+
+## Moat source 4: Cost advantage
+
+The company can produce the same product cheaper than anyone else. This moat comes from scale, location, process excellence, or access to a cheap input.
+
+### Indian examples
+
+**UltraTech Cement.** Cement is heavy and expensive to transport (roughly 8-10% of cost is logistics). UltraTech has plants strategically located across India, which means for most customers it has the shortest haul. That translates into a structural cost advantage vs smaller regional players.
+
+**JSW Steel.** Integrated operations, captive power, and captive iron ore via the parent group mean JSW's cost per tonne of steel is among the lowest in the industry. In commodity businesses, being the low-cost producer is often the only durable moat.
+
+**DMart (Avenue Supermarts).** Cluster store strategy (many stores in each city) lowers logistics and marketing cost per store. Ownership of store real estate (vs renting) lowers long-term occupancy cost. These operational choices mean DMart can offer lower prices than organised competition and still earn respectable margins.
+
+**Hindustan Zinc.** Owns one of the world's largest integrated zinc operations. Grade, scale, and integration mean cost per tonne is consistently among the global bottom quartile. In a commodity, that is everything.
+
+### When cost advantage fades
+
+Cost moats erode when the underlying advantage changes. A company that won on cheap power loses its edge when renewable costs fall. A company that won on cheap labour loses its edge when automation takes over. Cost moats need constant reinvestment.
+
+---
+
+## Moat source 5: Efficient scale
+
+Some markets are only profitable for one or two operators. A third entrant cannot earn a reasonable return because the market is not big enough to support them. This is "efficient scale" — natural monopoly or duopoly.
+
+### Indian examples
+
+**GAIL.** Gas pipelines have huge upfront capex and a fixed route. Once GAIL has laid the main pipeline between two cities, nobody builds a parallel one — the economics do not support it. That gives GAIL a near-monopoly on gas transportation in its geographies.
+
+**ONGC's pipeline infrastructure.** Similar logic for crude oil transportation. Once the grid is laid, duplication is uneconomic.
+
+**Power Grid Corporation.** Inter-state electricity transmission in India is effectively a regulated monopoly. Nobody builds a parallel 765-kV line.
+
+**Indian airports (GMR, Adani).** Metro airports are natural monopolies in their catchment. A second major airport in the same city is extremely rare and politically difficult.
+
+### The trade-off
+
+Efficient scale moats are almost always regulated, which caps the upside. Power Grid cannot charge whatever it wants — tariffs are set by the regulator. GAIL's transportation charges are likewise regulated. So efficient scale gives stability but not spectacular returns.
+
+---
+
+## How to actually test for a moat (5 questions)
+
+For any company you are researching, ask:
+
+1. **Has ROCE been above 15% for at least 5 years?** Sustained high ROCE is the single best moat indicator.
+2. **Are gross margins stable or rising?** Commodity businesses see gross margins collapse when input prices spike. Moat businesses hold or expand margins.
+3. **Is the company raising prices without losing volume?** Annual price hikes that do not dent demand are direct evidence of pricing power.
+4. **Can a new competitor show up with ₹1000 crore of capital and compete?** If yes, no moat. If the answer is "even ₹10000 crore would not be enough," you have a wide moat.
+5. **What would happen if the promoter retired?** A moat that depends on one person is a narrow moat. A moat embedded in the business is wide.
+
+---
+
+## Moat grading on YieldIQ
+
+Every stock page on YieldIQ shows a moat grade: Wide, Narrow, or None. The classification is based on the criteria above plus sustained ROCE patterns.
+
+To see the moat grade for specific names, check pages like [HUL fair value](/stocks/HINDUNILVR/fair-value) or [TCS fair value](/stocks/TCS/fair-value). To compare moat profiles across peers, use the [compare tool](/compare/ASIANPAINT-vs-BERGEPAINT). To filter for wide moat names across the market, the [discover page](/discover) has a moat filter.
+
+---
+
+## Common moat mistakes
+
+**Confusing size with moat.** Maruti has 40% car market share — but its moat is narrowing as Hyundai, Tata, and Mahindra catch up. Size is a result of past moat, not current moat.
+
+**Assuming moats last forever.** Nokia had a moat in mobile phones. Kodak had a moat in photo film. Hindustan Motors had a moat with the Ambassador. All are gone. Watch ROCE trends and competitive disruptions.
+
+**Paying any price for a wide moat.** A wide moat at 80x earnings can still deliver flat returns for a decade. The moat protects the business. Margin of safety protects the investor.
+
+**Mistaking brand recognition for brand moat.** Being well known is not the same as having pricing power. Test the moat with the "raise prices 5% tomorrow" question.
+
+---
+
+## Bottom line
+
+Five moat sources: brand, switching costs, network effects, cost advantage, efficient scale.
+
+In India, brand-based moats tend to be strongest in FMCG and retail. Switching cost moats dominate enterprise IT and banking. Network effects are the fastest-growing moat category, visible in platform businesses. Cost advantage matters most in commodities and manufacturing. Efficient scale applies mostly to regulated infrastructure.
+
+A business without any of these five is not investable at a premium. A business with two or three of them, bought at a reasonable price, is a textbook compounder.
+
+---
+
+*Disclaimer: YieldIQ is not a SEBI-registered investment adviser. This article is educational only and does not constitute investment advice. Consult a qualified advisor before investing.*
+`,
+  },
+  {
+    slug: "reading-indian-financial-statements-guide",
+    title: "Quick Guide: How to Read Indian Company Financial Statements",
+    description: "Annual report, quarterly results, P&L, balance sheet, cash flow — what each section means for Indian retail investors, with 2-3 key line items per section.",
+    date: "2026-04-24",
+    author: "YieldIQ Team",
+    category: "guide",
+    readTime: 9,
+    content: `## What you will learn
+
+Indian companies publish a lot of financial information. The annual report can run 300 pages. Quarterly results add more. Most of it is boilerplate. A small fraction is where the real signal lives.
+
+This guide walks you through the four key documents — annual report, quarterly results, balance sheet, and cash flow statement — and for each, highlights the 2-3 line items retail investors should actually look at first.
+
+---
+
+## Annual Report vs Quarterly Results
+
+Indian listed companies publish:
+
+**Annual Report.** Released once a year, roughly 3-4 months after the fiscal year ends (most Indian companies close on 31 March, so annual reports drop in July-August). Contains: audited financials, Director's Report, MD&A (Management Discussion & Analysis), corporate governance section, related-party transactions.
+
+**Quarterly Results.** Released within 45 days of quarter-end. Contains: unaudited (or limited-review audited) financials, segment data, a press release with highlights. No full MD&A, no related-party detail.
+
+### What to read when
+
+If you are researching a stock for the first time, read the **last 2 annual reports**. The MD&A tells you how management thinks. The related-party section tells you what is going on behind the scenes. The segment data tells you where the money actually comes from.
+
+Quarterly results are useful for tracking a thesis. If your view was "FMCG growth will accelerate in H2," the quarterly result is your scorecard.
+
+---
+
+## The P&L statement
+
+Also called the Profit and Loss statement or Income Statement. Flow: Revenue → EBITDA → PAT.
+
+### Structure (simplified)
+
+\`\`\`
+Revenue from Operations       (top line)
+  Less: Cost of Goods Sold
+  Less: Employee Costs
+  Less: Other Operating Expenses
+= EBITDA
+  Less: Depreciation & Amortisation
+= EBIT (Operating Profit)
+  Less: Finance Costs (interest)
+  Plus: Other Income
+= Profit Before Tax (PBT)
+  Less: Tax
+= Profit After Tax (PAT)   (bottom line)
+\`\`\`
+
+### 3 key line items to check
+
+**1. Revenue growth year-over-year.** Compare this year's revenue to last year's same period. Growth below inflation (5-6% in India) means the company is shrinking in real terms.
+
+**2. EBITDA margin.** EBITDA / Revenue. Compare to last year. Expanding margin signals pricing power or cost discipline. Contracting margin is a red flag, especially in a growing-revenue environment — it means either competition is intensifying or costs are running away.
+
+**3. Other Income as a percent of PBT.** "Other Income" is usually interest on cash balances, dividends, and one-off sales. If Other Income is 30%+ of PBT, the company's core operations are weaker than the headline profit suggests.
+
+### What to ignore (on first read)
+
+Exceptional items. These are one-offs that companies split out. Occasionally meaningful (large asset sale, litigation settlement) but usually noise. Look at the base earnings first, then add back exceptionals only if you understand them.
+
+---
+
+## The Balance Sheet
+
+A snapshot at a specific date. Three sections: Assets, Liabilities, Equity.
+
+### Structure (simplified)
+
+\`\`\`
+ASSETS
+  Non-current Assets
+    Fixed Assets (plant, property, equipment)
+    Intangibles (goodwill, software)
+    Investments
+  Current Assets
+    Inventory
+    Trade Receivables
+    Cash & Cash Equivalents
+
+LIABILITIES
+  Non-current Liabilities
+    Long-term Borrowings
+    Deferred Tax
+  Current Liabilities
+    Trade Payables
+    Short-term Borrowings
+    Other Current Liabilities
+
+EQUITY
+  Share Capital
+  Reserves & Surplus
+\`\`\`
+
+The accounting identity: Assets = Liabilities + Equity.
+
+### 3 key line items to check
+
+**1. Net Debt.** Total Borrowings (short-term + long-term) minus Cash & Equivalents. A company with ₹5,000 crore of debt and ₹4,500 crore of cash is nearly debt-free. A company with ₹5,000 crore of debt and ₹200 crore of cash is leveraged. Headline debt numbers lie — always calculate net debt.
+
+**2. Trade Receivables vs Revenue.** If receivables are growing faster than revenue, customers are paying slower. This is a classic early warning of stress — either the customer base is weakening or the company is stuffing the channel with inventory.
+
+**3. Reserves & Surplus growth.** Reserves should grow by roughly (PAT - Dividends) each year. If reserves are flat or shrinking despite reported profits, something is being written off that deserves investigation.
+
+### The share capital trap
+
+Share capital ("equity" in the narrow sense) is the face value of shares issued. It does not tell you market cap. A company with ₹100 crore share capital at ₹10 face value has 10 crore shares outstanding — whose market value might be anywhere. Do not confuse share capital with market value or book value.
+
+---
+
+## The Cash Flow Statement
+
+The most honest statement. Profit can be engineered. Cash cannot easily be. Three sections:
+
+**Cash Flow from Operating Activities (CFO).** Cash generated by core business — customer collections minus supplier and employee payments.
+
+**Cash Flow from Investing Activities (CFI).** Money spent on or received from long-term assets — buying plants, acquiring companies, selling investments.
+
+**Cash Flow from Financing Activities (CFF).** Money from or to capital providers — new equity, new debt, debt repayment, dividends.
+
+### 3 key line items to check
+
+**1. CFO vs Net Income.** For a healthy, stable business, CFO should be at least as large as Net Income, usually bigger (because of depreciation add-back). If CFO is chronically smaller than Net Income, the earnings quality is suspect — profits are not converting to cash.
+
+**2. Capex (inside CFI).** Called "Purchase of Property, Plant & Equipment" or similar. Compare capex to depreciation. If capex > depreciation consistently, the company is investing for growth. If capex < depreciation, the company is slowly shrinking its asset base.
+
+**3. Free Cash Flow.** FCF = CFO - Capex. This is what is left for shareholders after the business pays for everything. A company with positive, growing FCF is creating value. A company with negative FCF for years is either a startup or in trouble.
+
+### Where dividends and buybacks appear
+
+Both show up in Cash Flow from Financing Activities as outflows. Consistent dividends or buybacks funded from CFO (rather than from new debt) are healthy. Dividends funded by fresh borrowings are a red flag.
+
+---
+
+## Segment reporting (the hidden gem)
+
+Indian accounting standards require companies with diversified operations to disclose segment-wise revenue, EBIT, and assets. This information is usually buried in the notes to accounts.
+
+For conglomerates like Reliance, ITC, or L&T, segment data is where the real analysis happens. You can see which business is actually driving the numbers.
+
+Example: for a hypothetical diversified company, the headline might read "revenue up 12%." The segment breakdown might reveal that the legacy business shrunk 5% while a new business grew 80%. Same headline, completely different story.
+
+---
+
+## Related-party transactions
+
+Every annual report has a section listing transactions with entities controlled by the promoter family. In India, this is arguably the single most important governance disclosure.
+
+What to look for:
+
+- **Loans given to related parties.** These are often never repaid. Investor money funding promoter ventures.
+- **Purchases from promoter-owned suppliers.** If the company pays above market rates, value is being transferred out.
+- **Rentals paid to promoter-owned property.** Again, a channel for value transfer.
+
+Small related-party transactions (under 1% of revenue) are normal. Large ones (5%+ of revenue, or growing year over year) deserve scrutiny.
+
+---
+
+## A practical 15-minute first read
+
+When you open a company's financial statements for the first time:
+
+1. **Revenue growth** over the last 3 years (P&L, top line)
+2. **EBITDA margin trend** over the last 3 years (is it expanding, flat, or contracting?)
+3. **Net debt trajectory** over the last 3 years (rising, flat, falling?)
+4. **CFO vs Net Income** over the last 3 years (is profit converting to cash?)
+5. **Capex vs Depreciation** (growing, maintaining, or shrinking asset base?)
+6. **Segment split** if diversified (which businesses are driving growth?)
+7. **Related-party transactions** (anything large or unusual?)
+
+That is typically 15-20 minutes of work. It is enough to decide whether the company is worth deeper research.
+
+---
+
+## How YieldIQ helps
+
+YieldIQ computes all these ratios automatically for every Indian stock. On any stock page — for example [ITC fair value](/stocks/ITC/fair-value) or [HDFC Bank fair value](/stocks/HDFCBANK/fair-value) — you see:
+
+- 5-year revenue and EBITDA margin trends
+- Net debt trajectory
+- CFO to Net Income ratio
+- FCF history
+- Auto-flagged anomalies (receivables growing faster than revenue, CFO lagging profit, etc.)
+
+For comparing two companies side by side on these metrics, use the [compare tool](/compare/ITC-vs-HINDUNILVR). To screen across the market for financial quality, the [discover page](/discover) lets you filter on many of these ratios at once.
+
+The auto-audit on each stock page highlights the specific line items that look unusual, so you can go straight to the right section of the annual report instead of reading all 300 pages.
+
+---
+
+## Common beginner mistakes
+
+**Reading only the press release.** Management will always frame the quarter positively. The numbers in the filing are the truth.
+
+**Ignoring the notes to accounts.** Contingent liabilities, related-party transactions, pledged shares — all in the notes. Skip these and you miss the most important information.
+
+**Focusing on PAT and ignoring cash flow.** PAT can be manipulated. Cash flow is harder to fake. Always check that profits are backed by cash.
+
+**Comparing Indian companies to US companies line by line.** Accounting conventions, tax structures, and disclosure norms differ. Stick to Indian peers for comparisons.
+
+---
+
+## Bottom line
+
+You do not need to read 300 pages to understand an Indian company. You need to read the right 20 pages, and for each section, look at the handful of line items that matter.
+
+Start with revenue growth and EBITDA margin. Check net debt. Look at CFO vs profit. Scan related-party transactions. That is 80% of the signal in 15 minutes.
+
+YieldIQ computes all these ratios automatically — check any stock's page for the auto-audit.
+
+---
+
+*Disclaimer: YieldIQ is not a SEBI-registered investment adviser. This article is educational only and does not constitute investment advice. Consult a qualified advisor before investing.*
+`,
+  },
 ]
 
 // Helper to look up a post by slug
