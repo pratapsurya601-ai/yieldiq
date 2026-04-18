@@ -11,10 +11,11 @@ if _PROJECT_ROOT not in sys.path:
 if _DASHBOARD_ROOT not in sys.path:
     sys.path.insert(0, _DASHBOARD_ROOT)
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from backend.models.responses import AnalysisResponse, ScreenerResponse, ScreenerStock
 from backend.services.analysis_service import AnalysisService, TickerNotFoundError
 from backend.services.cache_service import cache
+from backend.services import analysis_cache_service
 from backend.middleware.auth import get_current_user, get_current_user_optional, check_analysis_limit
 from backend.services.ticker_search import search_tickers
 from datetime import date
@@ -58,25 +59,87 @@ KNOWN_BROKEN_TICKERS: dict[str, str] = {
 @router.get("/analysis/{ticker}", response_model=AnalysisResponse)
 async def get_analysis(
     ticker: str,
+    response: Response,
+    include_summary: bool = Query(
+        True,
+        description=(
+            "If false, skip AI summary generation so the response returns "
+            "instantly. Callers should then hit "
+            "GET /api/v1/analysis/{ticker}/summary separately. Default is "
+            "true for backward compatibility."
+        ),
+    ),
     user: dict = Depends(check_analysis_limit),
 ):
     """
     Full stock analysis with DCF, quality scores, scenarios, and insights.
     Rate limited by tier: Free=5/day, Starter=50/day, Pro=unlimited.
+
+    Cache tiers (in order): in-memory cache_service -> analysis_cache
+    (Postgres) -> compute. The persistent tier survives worker restarts
+    and is shared across Railway workers; it is invalidated implicitly
+    whenever CACHE_VERSION is bumped.
+
+    Frontend contract (2026-04): the AI summary (Gemini/Groq) can add
+    5-15s on a cold request. Callers rendering the summary asynchronously
+    should pass ``?include_summary=false`` and hit
+    ``/analysis/{ticker}/summary`` separately. When ``include_summary``
+    is false, the ``ai_summary`` field in the returned payload is always
+    ``None``. Default stays ``true`` so pre-existing callers keep the
+    synchronous behaviour they had before this split.
     """
+    import time as _time
     original_ticker = ticker.upper().strip()
     # Route renamed symbols to their canonical equivalent. Response
     # will carry the canonical ticker — frontend compares URL param
     # to response.ticker to show a "renamed to …" banner.
     ticker = TICKER_ALIASES.get(original_ticker, original_ticker)
 
-    # Check cache (15 min TTL) — keyed by canonical ticker so aliases share cache
+    # Tier 1: in-memory cache (fastest, per-process, 24h TTL).
     _cache_key = f"analysis:{ticker}"
     cached = cache.get(_cache_key)
     if cached:
         cached.cached = True
+        response.headers["X-Cache"] = "HIT-MEM"
+        if not include_summary:
+            # Caller asked to defer summary generation — strip it from the
+            # cached payload so the client always gets a consistent contract.
+            # The cached object is shared; mutate a shallow copy rather than
+            # the original or subsequent ?include_summary=true reads would
+            # see null too.
+            try:
+                cached = cached.model_copy(update={"ai_summary": None})
+            except Exception:
+                cached.ai_summary = None
         return cached
 
+    # Tier 2: persistent DB cache (shared across workers, survives restart).
+    # Never raises — failures degrade to compute.
+    try:
+        _db_cached = analysis_cache_service.get_cached(ticker)
+    except Exception:
+        _db_cached = None
+    if _db_cached:
+        try:
+            _obj = AnalysisResponse(**_db_cached)
+            _obj.cached = True
+            # Populate tier-1 so subsequent hits on this worker skip the DB.
+            cache.set(_cache_key, _obj, ttl=86400)
+            response.headers["X-Cache"] = "HIT-DB"
+            if not include_summary:
+                try:
+                    _obj = _obj.model_copy(update={"ai_summary": None})
+                except Exception:
+                    _obj.ai_summary = None
+            return _obj
+        except Exception as _exc:
+            import logging as _logging
+            _logging.getLogger("yieldiq.analysis").warning(
+                "analysis_cache: failed to rehydrate payload for %s: %s", ticker, _exc
+            )
+            # fall through to compute
+
+    _compute_start = _time.monotonic()
     try:
         result = service.get_full_analysis(ticker)
 
@@ -128,6 +191,28 @@ async def get_analysis(
         # Cache for 24h — analysis data doesn't change fast, and cold-recomputes
         # hit yfinance which is the slowest link.
         cache.set(_cache_key, result, ttl=86400)
+
+        # Tier-2 write-back: persist so other workers / post-restart
+        # requests skip compute. Best-effort; failures are logged and
+        # swallowed inside the service (must never fail the response).
+        try:
+            _compute_ms = int((_time.monotonic() - _compute_start) * 1000)
+            _payload = result.model_dump(mode="json") if hasattr(result, "model_dump") else result.dict()
+            analysis_cache_service.save_cached(ticker, _payload, _compute_ms)
+        except Exception as _write_exc:
+            import logging as _logging
+            _logging.getLogger("yieldiq.analysis").warning(
+                "analysis_cache: write-back failed for %s: %s", ticker, _write_exc
+            )
+
+        response.headers["X-Cache"] = "MISS"
+        if not include_summary:
+            # Cache retains the full object (including any ai_summary the
+            # service populated); only the response to this caller is trimmed.
+            try:
+                result = result.model_copy(update={"ai_summary": None})
+            except Exception:
+                result.ai_summary = None
         return result
     except TickerNotFoundError:
         # Data provider returned nothing for this symbol. 404 lets the
@@ -286,19 +371,99 @@ async def get_analysis_preview(ticker: str):
         return {"error": f"{type(e).__name__} (details suppressed)", "ticker": ticker}
 
 
+# Timeout for the underlying LLM call (Gemini → Groq fallback). If the
+# provider hangs beyond this, we return 503 rather than let the HTTP
+# request block indefinitely. 10s matches what the frontend is willing
+# to wait before showing a retry affordance.
+_AI_SUMMARY_TIMEOUT_S = 10.0
+
+# 24h TTL for the summary cache. Summary is derived from analysis which
+# itself caches 24h, so there's no point re-asking the LLM more often.
+_AI_SUMMARY_CACHE_TTL_S = 86400
+
+
 @router.get("/analysis/{ticker}/summary")
 async def get_ai_summary(ticker: str, user: dict = Depends(get_current_user)):
-    """AI plain-English summary for a ticker."""
-    ticker = ticker.upper().strip()
-    _cache_key = f"analysis:{ticker}"
-    cached = cache.get(_cache_key)
-    if cached:
-        analysis = cached
-    else:
-        analysis = service.get_full_analysis(ticker)
+    """AI plain-English summary for a ticker.
 
-    summary = service.get_ai_summary(ticker, analysis)
-    return {"ticker": ticker, "summary": summary}
+    Returns ``{ticker, summary, model, generated_at, cached}``.
+
+    Separate endpoint so the main ``/analysis/{ticker}`` payload can
+    return instantly without waiting 5-15s for Gemini/Groq. Cache is
+    the in-memory ``cache_service`` keyed by ``ai_summary:{ticker}`` for
+    24h. On upstream LLM timeout or failure, returns 503 with
+    ``{error: "summary_unavailable", retry_after: 30}`` so the frontend
+    can degrade gracefully rather than render a fake summary.
+    """
+    import asyncio
+    import logging
+    from datetime import datetime, timezone
+
+    ticker = ticker.upper().strip()
+    _log = logging.getLogger("yieldiq.ai_summary")
+
+    # ── Tier 1: in-memory cache ─────────────────────────────────
+    _summary_cache_key = f"ai_summary:{ticker}"
+    cached_summary = cache.get(_summary_cache_key)
+    if cached_summary:
+        return {**cached_summary, "cached": True}
+
+    # ── Need the underlying analysis to build the summary prompt ─
+    _analysis_cache_key = f"analysis:{ticker}"
+    analysis = cache.get(_analysis_cache_key)
+    if analysis is None:
+        try:
+            analysis = service.get_full_analysis(ticker)
+        except TickerNotFoundError:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "Ticker not found", "ticker": ticker},
+            )
+
+    # ── Call the LLM with a hard timeout ────────────────────────
+    # generate_ai_summary is sync (HTTP-bound), so offload to a thread
+    # and wrap with asyncio.wait_for for a clean cancellation boundary.
+    try:
+        summary = await asyncio.wait_for(
+            asyncio.to_thread(service.get_ai_summary, ticker, analysis),
+            timeout=_AI_SUMMARY_TIMEOUT_S,
+        )
+    except asyncio.TimeoutError:
+        _log.warning(f"[{ticker}] AI summary timed out after {_AI_SUMMARY_TIMEOUT_S}s")
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "summary_unavailable", "retry_after": 30},
+        )
+    except Exception as exc:  # noqa: BLE001 — surface any LLM failure as 503
+        _log.error(f"[{ticker}] AI summary failed: {type(exc).__name__}: {exc}")
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "summary_unavailable", "retry_after": 30},
+        )
+
+    # service.get_ai_summary swallows LLM errors and returns "" — treat
+    # that as an upstream failure for this endpoint (the contract says
+    # no fake/empty summaries). The main /analysis endpoint keeps the
+    # swallow-and-return-empty behaviour separately so legacy callers
+    # that embed summary inline don't regress.
+    if not summary:
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "summary_unavailable", "retry_after": 30},
+        )
+
+    payload = {
+        "ticker": ticker,
+        "summary": summary,
+        # Model identity isn't plumbed back from data_helpers.generate_ai_summary
+        # today (it tries Gemini first, then Groq). Report the family name so
+        # the frontend can display something useful without us lying about it.
+        "model": "gemini-2.0-flash|groq-llama-3.3-70b",
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "cached": False,
+    }
+    cache.set(_summary_cache_key, payload, ttl=_AI_SUMMARY_CACHE_TTL_S)
+    return payload
 
 
 _STATIC_YIQ50: list[tuple] = [

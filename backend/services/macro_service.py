@@ -152,7 +152,17 @@ class MacroService:
         return out
 
     def _fetch_fx(self) -> dict:
-        """USD/INR via yfinance fast_info."""
+        """USD/INR — DB first (fx_rates.USDINR), yfinance as fallback."""
+        from backend.services import market_data_service as _mds
+        row = _mds.get_fx_rate_row("USDINR")
+        price = float(row["rate"]) if (row and row.get("rate")) else 0.0
+        if price:
+            # change_pct is not persisted — best effort via previous row skipped.
+            return {
+                "usd_inr": round(price, 2),
+                "usd_inr_change_pct": None,
+            }
+        log.warning("_fetch_fx: DB miss on USDINR, falling back to yfinance")
         import yfinance as yf
         fi = yf.Ticker("USDINR=X").fast_info
         price = float(getattr(fi, "last_price", 0) or 0)
@@ -164,11 +174,17 @@ class MacroService:
         }
 
     def _fetch_commodities(self) -> dict:
-        """Gold + Silver in USD (per oz)."""
-        import yfinance as yf
+        """Gold + Silver (DB-first, yfinance fallback)."""
+        from backend.services import market_data_service as _mds
         out: dict = {}
         for sym, key in (("GC=F", "gold_usd"), ("SI=F", "silver_usd")):
+            snap = _mds.get_index_snapshot(sym)
+            if snap and snap.get("price"):
+                out[key] = round(float(snap["price"]), 2)
+                continue
+            log.warning("_fetch_commodities: DB miss on %s, falling back to yfinance", sym)
             try:
+                import yfinance as yf
                 fi = yf.Ticker(sym).fast_info
                 price = float(getattr(fi, "last_price", 0) or 0)
                 out[key] = round(price, 2) if price else None
@@ -177,7 +193,16 @@ class MacroService:
         return out
 
     def _fetch_midcap(self) -> dict:
-        """Nifty Midcap 150 index."""
+        """Nifty Midcap (DB-first, yfinance fallback)."""
+        from backend.services import market_data_service as _mds
+        snap = _mds.get_index_snapshot("^NSEMDCP50")
+        if snap and snap.get("price"):
+            return {
+                "price": round(float(snap["price"]), 2),
+                "change_pct": round(float(snap.get("change_pct") or 0), 2)
+                               if snap.get("change_pct") is not None else None,
+            }
+        log.warning("_fetch_midcap: DB miss on ^NSEMDCP50, falling back to yfinance")
         import yfinance as yf
         try:
             fi = yf.Ticker("^NSEMDCP50").fast_info
@@ -185,7 +210,6 @@ class MacroService:
             prev = float(getattr(fi, "previous_close", 0) or 0)
             chg = round((price - prev) / prev * 100, 2) if prev else None
             if not price:
-                # Fallback symbol
                 fi = yf.Ticker("^NSMIDCP150").fast_info
                 price = float(getattr(fi, "last_price", 0) or 0)
                 prev = float(getattr(fi, "previous_close", 0) or 0)

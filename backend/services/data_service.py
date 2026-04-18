@@ -44,8 +44,20 @@ class DataService:
             ("NIFTY Bank", "^NSEBANK"),
         ]
 
+        from backend.services import market_data_service as _mds
+
         indices = []
         for name, symbol in indices_config:
+            snap = _mds.get_index_snapshot(symbol)
+            if snap and snap.get("price"):
+                indices.append(MarketIndex(
+                    name=name,
+                    price=round(float(snap["price"]), 2),
+                    change_pct=round(float(snap.get("change_pct") or 0), 2),
+                ))
+                continue
+            # Fallback: DB row missing — hit yfinance directly.
+            logger.warning("market_pulse: DB miss for %s, falling back to yfinance", symbol)
             try:
                 tk = yf.Ticker(symbol)
                 fi = tk.fast_info
@@ -58,15 +70,21 @@ class DataService:
 
         # Fear & greed from VIX
         fg_idx, fg_label = None, None
-        try:
-            _vix_sym = "^INDIAVIX"  # India-first launch
-            _vix = yf.Ticker(_vix_sym).fast_info
-            _val = getattr(_vix, "last_price", 20) or 20
+        _vix_sym = "^INDIAVIX"
+        _vix_snap = _mds.get_index_snapshot(_vix_sym)
+        _val = None
+        if _vix_snap and _vix_snap.get("price"):
+            _val = float(_vix_snap["price"])
+        else:
+            logger.warning("market_pulse: DB miss for VIX, falling back to yfinance")
+            try:
+                _vix = yf.Ticker(_vix_sym).fast_info
+                _val = getattr(_vix, "last_price", 20) or 20
+            except Exception:
+                _val = None
+        if _val is not None:
             fg_idx = int(_val)
-            # India VIX thresholds
             fg_label = "Greed" if _val < 12 else "Neutral" if _val < 18 else "Fear" if _val < 25 else "Extreme Fear"
-        except Exception:
-            pass
 
         result = MarketPulseResponse(
             indices=indices,

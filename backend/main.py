@@ -121,9 +121,99 @@ def _start_pipeline_scheduler():
         replace_existing=True,
     )
 
+    # ── Market data refreshers ─────────────────────────────────
+    # Live quotes: every 5 min during market hours (Mon-Fri, 09:15-15:30 IST).
+    # Cron fires */5 from 9..15 IST; the wrapper gates the exact 09:15-15:30 window.
+    scheduler.add_job(
+        _run_refresh_live_quotes,
+        CronTrigger(
+            day_of_week="mon-fri",
+            hour="9-15",
+            minute="*/5",
+            timezone="Asia/Kolkata",
+        ),
+        id="market_live_quotes",
+        name="Refresh live_quotes (portfolio + top-200 FV)",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # FX rates: every 15 min, 24x7.
+    scheduler.add_job(
+        _run_refresh_fx_rates,
+        CronTrigger(minute="*/15", timezone="Asia/Kolkata"),
+        id="market_fx_rates",
+        name="Refresh fx_rates",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
+    # Index + commodity snapshots: every 15 min, 24x7.
+    scheduler.add_job(
+        _run_refresh_index_snapshots,
+        CronTrigger(minute="*/15", timezone="Asia/Kolkata"),
+        id="market_index_snapshots",
+        name="Refresh index_snapshots",
+        replace_existing=True,
+        max_instances=1,
+        coalesce=True,
+    )
+
     scheduler.start()
-    logger.info("Pipeline scheduler started: daily 4:30pm IST, weekly Sun 11pm IST, alerts every 3h, digest Mon 9am, newsletter Sun 8am IST")
+    logger.info(
+        "Pipeline scheduler started: daily 4:30pm IST, weekly Sun 11pm IST, "
+        "alerts every 3h, digest Mon 9am, newsletter Sun 8am IST, "
+        "live_quotes every 5m (mkt hrs), fx+indices every 15m"
+    )
     return scheduler
+
+
+def _within_market_hours() -> bool:
+    """True iff now() is Mon-Fri 09:15-15:30 IST."""
+    try:
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+        now = datetime.now(ZoneInfo("Asia/Kolkata"))
+    except Exception:
+        return True  # fail-open
+    if now.weekday() > 4:
+        return False
+    minute_of_day = now.hour * 60 + now.minute
+    return (9 * 60 + 15) <= minute_of_day <= (15 * 60 + 30)
+
+
+def _run_refresh_live_quotes():
+    """Refresh live_quotes for portfolio + top-200 FV tickers."""
+    if not _within_market_hours():
+        return
+    try:
+        from backend.workers.market_data_refresher import (
+            collect_refresh_tickers, refresh_live_quotes,
+        )
+        tickers = collect_refresh_tickers(limit_fv=200)
+        if not tickers:
+            return
+        refresh_live_quotes(tickers)
+    except Exception as e:
+        logger.error(f"live_quotes refresh failed: {e}")
+
+
+def _run_refresh_fx_rates():
+    try:
+        from backend.workers.market_data_refresher import refresh_fx_rates
+        refresh_fx_rates()
+    except Exception as e:
+        logger.error(f"fx_rates refresh failed: {e}")
+
+
+def _run_refresh_index_snapshots():
+    try:
+        from backend.workers.market_data_refresher import refresh_index_snapshots
+        refresh_index_snapshots()
+    except Exception as e:
+        logger.error(f"index_snapshots refresh failed: {e}")
 
 
 def _run_daily_prices():
@@ -195,6 +285,36 @@ def _ensure_pipeline_tables():
             logger.info("Pipeline database tables created/verified")
     except Exception as e:
         logger.warning(f"Pipeline table creation skipped: {e}")
+
+    # Apply SQL migrations that live outside the declarative Base
+    # (e.g. analysis_cache, which is managed by raw SQL so the JSONB
+    # column maps cleanly and doesn't get accidentally dropped by a
+    # future SQLAlchemy model rename).
+    try:
+        from pathlib import Path as _Path
+        from sqlalchemy import text as _text
+        from data_pipeline.db import engine as _eng
+        if _eng is None:
+            return
+        _mig_dir = _Path(__file__).resolve().parent.parent / "data_pipeline" / "migrations"
+        if not _mig_dir.exists():
+            return
+        for _f in sorted(_mig_dir.glob("*.sql")):
+            try:
+                _sql = _f.read_text(encoding="utf-8")
+                with _eng.begin() as _conn:
+                    # Migrations wrap their own BEGIN/COMMIT, so strip
+                    # those and let SQLAlchemy's transaction own it.
+                    _cleaned = "\n".join(
+                        line for line in _sql.splitlines()
+                        if line.strip().upper() not in ("BEGIN;", "COMMIT;")
+                    )
+                    _conn.exec_driver_sql(_cleaned)
+                logger.info("Migration applied/verified: %s", _f.name)
+            except Exception as _me:
+                logger.warning("Migration %s skipped: %s", _f.name, _me)
+    except Exception as e:
+        logger.warning(f"Migration runner skipped: {e}")
 
 
 def _prewarm_popular_stocks():

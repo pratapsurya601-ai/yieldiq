@@ -306,6 +306,15 @@ def _get_current_price(ticker: str, allow_yfinance: bool = False) -> float | Non
     except Exception:
         pass
 
+    # Try DB-backed live_quotes (populated every 5m during market hrs)
+    try:
+        from backend.services import market_data_service as _mds
+        row = _mds.get_live_quote(ticker)
+        if row and row.get("price"):
+            return float(row["price"])
+    except Exception:
+        pass
+
     # Fallback to Parquet (latest close)
     try:
         from data_pipeline.nse_prices.db_integration import get_latest_price
@@ -318,6 +327,7 @@ def _get_current_price(ticker: str, allow_yfinance: bool = False) -> float | Non
 
     # Last resort: yfinance fast_info (only when explicitly allowed)
     if allow_yfinance:
+        logger.warning("live_quote fallback to yfinance for %s", ticker)
         price = _fetch_yfinance_price(ticker)
         if price is not None:
             try:
@@ -393,20 +403,39 @@ def _fetch_yfinance_price(ticker: str) -> float | None:
 
 def fetch_live_prices_parallel(tickers: list[str], max_workers: int = 8) -> dict[str, float]:
     """
-    Fetch live prices for multiple tickers in parallel via yfinance.
-    Only used for tickers not in analysis cache or Parquet.
-    Returns a dict {ticker: price}. Missing tickers omitted.
+    Fetch live prices for multiple tickers.
+
+    Tier 1: bulk-read live_quotes (DB, populated every 5m by the
+            market_data_refresher APScheduler job). One SQL call.
+    Tier 2: short-lived in-memory cache (15 min, for anything already
+            fetched from yfinance in the current container).
+    Tier 3: parallel yfinance fallback — only for tickers missing from
+            both DB and cache. Logs a warning per miss.
     """
     if not tickers:
         return {}
 
     from concurrent.futures import ThreadPoolExecutor, as_completed
     from backend.services.cache_service import cache as _c
+    from backend.services import market_data_service as _mds
 
-    # Skip tickers already in cache
-    to_fetch = []
     results: dict[str, float] = {}
+
+    # Tier 1 — DB bulk
+    try:
+        db_rows = _mds.get_live_quotes_bulk(tickers)
+        for t, row in db_rows.items():
+            price = row.get("price")
+            if price is not None and price > 0:
+                results[t] = float(price)
+    except Exception as exc:
+        logger.warning("live_quotes bulk read failed: %s", exc)
+
+    # Tier 2 — local cache (fills any remaining)
+    to_fetch: list[str] = []
     for t in tickers:
+        if t in results:
+            continue
         cached = _c.get(f"live_price:{t}")
         if cached is not None:
             results[t] = float(cached)
@@ -416,6 +445,11 @@ def fetch_live_prices_parallel(tickers: list[str], max_workers: int = 8) -> dict
     if not to_fetch:
         return results
 
+    # Tier 3 — yfinance fallback (warn: production gap)
+    logger.warning(
+        "live_quotes fallback to yfinance for %d ticker(s): %s",
+        len(to_fetch), to_fetch[:10],
+    )
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futures = {ex.submit(_fetch_yfinance_price, t): t for t in to_fetch}
         for fut in as_completed(futures, timeout=15):
