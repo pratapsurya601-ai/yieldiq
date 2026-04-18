@@ -35,8 +35,12 @@ api.interceptors.response.use(
 )
 
 // Analysis
+// Backend default is include_summary=true which adds 5-15s of Groq
+// AI-summary latency on EVERY cache miss. We always defer the summary
+// to a separate lazy fetch via getAISummary so the hero renders fast.
+// Measured impact: analysis-page TTI drops from ~11s to ~2-3s cold.
 export const getAnalysis = (ticker: string): Promise<AnalysisResponse> =>
-  api.get(`/api/v1/analysis/${ticker}`).then(r => r.data)
+  api.get(`/api/v1/analysis/${ticker}?include_summary=false`).then(r => r.data)
 
 export const getAISummary = (ticker: string): Promise<{ summary: string }> =>
   api.get(`/api/v1/analysis/${ticker}/summary`).then(r => r.data)
