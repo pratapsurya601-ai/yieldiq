@@ -361,9 +361,49 @@ def _rule_based_growth(enriched: dict) -> float:
     return _clamp(mean_reverted)
 
 
+def _as_info_dict(obj) -> dict:
+    """Accept either a yfinance Ticker (has .info) or a plain dict and
+    return an ``info``-shaped dict.
+
+    The DB-first refactor changed what gets passed to compute_wacc:
+    the Streamlit dashboard still calls it with ``collector._ticker_obj``
+    (a yfinance.Ticker) but backend/services/analysis_service.py calls
+    it with ``raw`` (a dict assembled from Aiven + parquet). Both must
+    keep working. Anything that isn't a dict or Ticker falls through
+    as an empty dict so the caller gets default market assumptions
+    instead of an exception.
+    """
+    if obj is None:
+        return {}
+    # Plain dict already → assume it's info-shaped
+    if isinstance(obj, dict):
+        return obj
+    # yfinance.Ticker (duck-typed, don't import to avoid circular deps)
+    info_attr = getattr(obj, "info", None)
+    if isinstance(info_attr, dict):
+        return info_attr
+    return {}
+
+
+def _get_financials_frame(obj):
+    """Return the .financials DataFrame from a yfinance Ticker, or None.
+    For dicts there's no equivalent, so we return None and let the caller
+    fall back to its default Rd (cost of debt) assumption."""
+    if obj is None or isinstance(obj, dict):
+        return None
+    return getattr(obj, "financials", None)
+
+
 def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> dict:
     """
     Compute CAPM-based WACC for a stock.
+
+    Accepts EITHER a yfinance Ticker object (legacy Streamlit path) OR
+    a dict assembled from the Aiven DB / parquet store (the new
+    backend/services/analysis_service.py hot path). The DB dict keys
+    follow the same shape as yfinance info — marketCap, totalDebt,
+    beta, sector, industry, effectiveTaxRate — so internally we just
+    normalise both into an ``info`` dict and operate on that.
 
     Uses live 10-year government bond yields (^TNX for US, ^INBMK for India)
     fetched via utils.config.fetch_risk_free_rate() with a 6-hour module-level
@@ -412,7 +452,7 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
     }
 
     try:
-        info = ticker_obj.info
+        info = _as_info_dict(ticker_obj)
         rf   = DEFAULT_RF
         _raw_beta = info.get("beta", None)
         if _raw_beta and _raw_beta > 0 and _raw_beta <= 3.0:
@@ -441,7 +481,7 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
 
         rd = 0.06
         try:
-            inc = ticker_obj.financials
+            inc = _get_financials_frame(ticker_obj)
             if inc is not None and not inc.empty:
                 for label in ["Interest Expense", "Interest Expense Non Operating"]:
                     if label in inc.index:
@@ -452,6 +492,17 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
                             break
         except Exception:
             pass
+        # DB-dict path: if the dict carries interest_expense + totalDebt
+        # (assembled from company_financials in the new pipeline), use
+        # those directly — same formula, no DataFrame required.
+        if isinstance(ticker_obj, dict):
+            try:
+                _ie = float(ticker_obj.get("interest_expense") or 0)
+                _debt = float(info.get("totalDebt", 0) or 0)
+                if _ie > 0 and _debt > 0:
+                    rd = float(np.clip(_ie / _debt, 0.04, 0.20))
+            except Exception:
+                pass
 
         mkt_cap    = float(info.get("marketCap", 0) or 0)
         total_debt = float(info.get("totalDebt",  0) or 0)
@@ -484,7 +535,10 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
             f"Rf={rf:.2%} ({_rf_info['source']})"
         )
     except Exception as exc:
-        log.warning(f"WACC failed: {exc}")
+        log.warning(
+            "WACC fell back to defaults (ticker_obj=%s): %s",
+            type(ticker_obj).__name__, exc,
+        )
 
     return result
 
