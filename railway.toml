@@ -2,7 +2,13 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "uvicorn backend.main:app --host 0.0.0.0 --port $PORT --workers 1"
+# 4 workers on the 8 vCPU / 8 GB plan → 4× concurrent request capacity.
+# Rule of thumb for Python+FastAPI handling mixed I/O (DB + yfinance) and
+# CPU (DCF math) work is (2 × cores + 1), but 4 is a safer starting point
+# that leaves headroom for GC, asyncio tasks, and per-worker cache memory.
+# Each worker runs its own in-memory tier-0 cache so warm-warm requests on
+# any worker stay sub-10ms.
+startCommand = "uvicorn backend.main:app --host 0.0.0.0 --port $PORT --workers 4"
 healthcheckPath = "/health"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
