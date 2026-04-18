@@ -17,14 +17,17 @@ if _DASHBOARD_ROOT not in sys.path:
 
 from backend.models.requests import CreateAlertRequest
 from backend.models.responses import AlertResponse, SuccessResponse
-from backend.middleware.auth import get_current_user
+from backend.middleware.auth import get_current_user, is_superuser
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 
+# Free gets 3 alerts — matches the "feel free to try" promise elsewhere
+# in the app. Used to be 0 which made the Alert button feel broken to
+# every new user. Pro/Analyst stay unchanged.
 ALERT_LIMITS: dict[str, int] = {
-    "free": 0,
+    "free": 3,
     "starter": 10,    # legacy alias
     "pro": 10,
     "analyst": 9999,
@@ -118,6 +121,10 @@ async def create_alert(req: CreateAlertRequest, user: dict = Depends(get_current
 
     if req.target_price <= 0:
         raise HTTPException(status_code=400, detail="Target price must be greater than zero")
+
+    # Superuser bypass — same pattern as /analysis rate-limit in auth.py
+    if is_superuser(user):
+        tier = "analyst"
 
     client = _get_supabase()
     if client:
