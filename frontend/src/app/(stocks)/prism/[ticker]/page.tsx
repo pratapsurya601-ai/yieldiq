@@ -3,7 +3,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import Prism from "@/components/prism/Prism"
 import type { PrismData, PillarKey } from "@/components/prism/types"
-import { PRISM_PILLAR_ORDER } from "@/lib/prism"
+import { PRISM_PILLAR_ORDER, adaptPrismResponse } from "@/lib/prism"
 import ShareBar from "./ShareBar"
 import PrismCompareInput from "./PrismCompareInput"
 
@@ -52,7 +52,7 @@ async function getPrism(ticker: string): Promise<PrismData | null> {
       { next: { revalidate: 3600 } }
     )
     if (!res.ok) return null
-    return (await res.json()) as PrismData
+    return adaptPrismResponse(await res.json(), ticker)
   } catch {
     return null
   }

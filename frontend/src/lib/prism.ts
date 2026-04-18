@@ -19,6 +19,73 @@ export const PRISM_PILLAR_ORDER: PillarKey[] = [
   "value",
 ]
 
+// Default weights used by the backend hex_service. If the backend response
+// omits per-pillar weights (current shape), reuse these so the composite
+// math on the client matches the server.
+const PILLAR_WEIGHTS: Record<PillarKey, number> = {
+  pulse: 0.10, quality: 0.22, moat: 0.18, safety: 0.15, growth: 0.15, value: 0.20,
+}
+
+/**
+ * Adapt the backend /api/v1/prism/{ticker} response (which nests the 6
+ * axes under `hex.axes` keyed by pillar name, with `hex.overall` and
+ * `hex.sector_medians`) into the flat PrismData shape the UI expects.
+ *
+ * Safe to call on any shape — always returns a valid PrismData. If the
+ * response is completely empty, returns a data_limited Prism so the UI
+ * renders greyed-out rather than crashing.
+ */
+export function adaptPrismResponse(raw: unknown, fallbackTicker = ""): PrismData {
+  const r = (raw ?? {}) as Record<string, unknown>
+  const hex = (r.hex as Record<string, unknown> | undefined) ?? {}
+  const axes = (hex.axes as Record<string, Record<string, unknown>> | undefined) ?? {}
+
+  const pillars: Pillar[] = PRISM_PILLAR_ORDER.map((key) => {
+    const a = axes[key] ?? {}
+    const rawScore = a.score
+    const score = typeof rawScore === "number" && !Number.isNaN(rawScore) ? rawScore : null
+    const limitedFlag = a.data_limited === true
+    const isLimited = limitedFlag || score == null
+    return {
+      key,
+      score: isLimited ? null : score,
+      label: typeof a.label === "string" ? a.label : "Neutral",
+      why: typeof a.why === "string" ? a.why : "Data not available.",
+      data_limited: isLimited,
+      weight: PILLAR_WEIGHTS[key],
+    }
+  })
+
+  const overallRaw = typeof hex.overall === "number"
+    ? hex.overall
+    : typeof r.yieldiq_score_100 === "number"
+      ? (r.yieldiq_score_100 as number) / 10
+      : NaN
+  const overall = Number.isFinite(overallRaw) ? (overallRaw as number) : 5
+
+  const sectorMediansRaw = hex.sector_medians as Record<string, unknown> | undefined
+  const sector_medians: Partial<Record<PillarKey, number>> = {}
+  if (sectorMediansRaw) {
+    for (const k of PRISM_PILLAR_ORDER) {
+      const v = sectorMediansRaw[k]
+      if (typeof v === "number") sector_medians[k] = v
+    }
+  }
+
+  return {
+    ticker: String(r.ticker ?? fallbackTicker),
+    company_name: String(r.company_name ?? fallbackTicker),
+    verdict_band: (r.verdict_band as VerdictBand) ?? "fair",
+    verdict_label: String(r.verdict_label ?? "Fair value region"),
+    pillars,
+    overall,
+    refraction_index: typeof r.refraction_index === "number" ? r.refraction_index : computeRefraction(pillars),
+    pulse_velocity_hz: typeof r.pulse_velocity_hz === "number" && r.pulse_velocity_hz > 0 ? r.pulse_velocity_hz : 0.33,
+    sector_medians,
+    disclaimer: typeof r.disclaimer === "string" ? r.disclaimer : "Model estimate. Not investment advice.",
+  }
+}
+
 /**
  * Fetch Prism data from backend. The server may return additional fields
  * (audit trail, model versions, etc.) — we extract only the subset the UI
@@ -26,48 +93,7 @@ export const PRISM_PILLAR_ORDER: PillarKey[] = [
  */
 export async function fetchPrism(ticker: string): Promise<PrismData> {
   const res = await api.get(`/api/v1/prism/${encodeURIComponent(ticker)}`)
-  const d = res.data as Partial<PrismData> & Record<string, unknown>
-
-  // Normalize to exactly-6 pillars in canonical order; tolerate missing
-  // entries (data_limited fallback) so the UI never crashes on partial data.
-  const byKey = new Map<PillarKey, Pillar>()
-  const incoming = Array.isArray(d.pillars) ? (d.pillars as Pillar[]) : []
-  for (const p of incoming) byKey.set(p.key, p)
-
-  const pillars: Pillar[] = PRISM_PILLAR_ORDER.map((key) => {
-    const p = byKey.get(key)
-    if (p) return p
-    return {
-      key,
-      score: null,
-      label: "Neutral",
-      why: "Data not available.",
-      data_limited: true,
-      weight: 1 / 6,
-    }
-  })
-
-  return {
-    ticker: String(d.ticker ?? ticker),
-    company_name: String(d.company_name ?? ticker),
-    verdict_band: (d.verdict_band as VerdictBand) ?? "fair",
-    verdict_label: String(d.verdict_label ?? "Fair"),
-    pillars,
-    overall: typeof d.overall === "number" ? d.overall : 0,
-    refraction_index:
-      typeof d.refraction_index === "number"
-        ? d.refraction_index
-        : computeRefraction(pillars),
-    pulse_velocity_hz:
-      typeof d.pulse_velocity_hz === "number" && d.pulse_velocity_hz > 0
-        ? d.pulse_velocity_hz
-        : 0.5,
-    sector_medians: d.sector_medians as PrismData["sector_medians"],
-    disclaimer: String(
-      d.disclaimer ??
-        "Prism output is educational and not investment advice.",
-    ),
-  }
+  return adaptPrismResponse(res.data, ticker)
 }
 
 /**

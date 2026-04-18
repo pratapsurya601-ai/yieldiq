@@ -12,14 +12,11 @@
 import AnalysisBody from "./AnalysisBody"
 import TickerStrip from "@/components/analysis/TickerStrip"
 import type { PrismData } from "@/components/prism/types"
+import { adaptPrismResponse } from "@/lib/prism"
 
 async function getPrismData(ticker: string): Promise<PrismData | null> {
   const base = process.env.NEXT_PUBLIC_API_URL || process.env.API_URL || ""
   if (!base) return null
-  // Hard timeout: if Prism is cold (~15s compute) we fall back to the
-  // legacy hero so Vercel's SSR doesn't hang and throw a 500. 4s is
-  // generous for warm requests (typical <1s) and short enough to keep
-  // LCP in budget when cold. The client-side body still renders fully.
   const ctl = new AbortController()
   const timer = setTimeout(() => ctl.abort(), 4000)
   try {
@@ -28,10 +25,9 @@ async function getPrismData(ticker: string): Promise<PrismData | null> {
       { next: { revalidate: 300 }, signal: ctl.signal },
     )
     if (!res.ok) return null
-    const d = (await res.json()) as PrismData
-    return d
+    const raw = await res.json()
+    return adaptPrismResponse(raw, ticker)
   } catch {
-    // Abort / network error / DNS — fall back silently, body still renders.
     return null
   } finally {
     clearTimeout(timer)

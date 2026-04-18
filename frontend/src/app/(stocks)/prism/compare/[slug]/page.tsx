@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import type { PrismData } from "@/components/prism/types"
+import { adaptPrismResponse } from "@/lib/prism"
 import CompareClient from "./CompareClient"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
@@ -30,7 +31,7 @@ async function getPrism(ticker: string): Promise<PrismData | null> {
       { next: { revalidate: 3600 } }
     )
     if (!res.ok) return null
-    return (await res.json()) as PrismData
+    return adaptPrismResponse(await res.json(), ticker)
   } catch {
     return null
   }
