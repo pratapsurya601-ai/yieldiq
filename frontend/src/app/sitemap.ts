@@ -34,14 +34,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         priority: 0.7,
       }))
       // Hex SEO pages — one per active ticker. Display ticker (no .NS suffix)
-      // since the route accepts bare symbols.
+      // since the route accepts bare symbols. Kept alongside /prism so any
+      // previously indexed bookmarks / external links still resolve (they now
+      // 301 to /prism/* via next.config redirects, but we still list them for
+      // sitemap completeness during the transition window).
       const hexPages: MetadataRoute.Sitemap = tickers.map(t => ({
         url: `https://yieldiq.in/hex/${t.ticker.replace(/\.(NS|BO)$/i, "")}`,
         lastModified: t.last_updated ? new Date(t.last_updated) : new Date(),
         changeFrequency: "daily" as const,
         priority: 0.7,
       }))
-      stockPages = [...fairValuePages, ...hexPages]
+      // Prism SEO pages — the new canonical viral surface. One per ticker.
+      const prismPages: MetadataRoute.Sitemap = tickers.map(t => ({
+        url: `https://yieldiq.in/prism/${t.ticker.replace(/\.(NS|BO)$/i, "")}`,
+        lastModified: t.last_updated ? new Date(t.last_updated) : new Date(),
+        changeFrequency: "daily" as const,
+        priority: 0.8,
+      }))
+      stockPages = [...fairValuePages, ...hexPages, ...prismPages]
     }
   } catch {
     // Sitemap generation should never fail — return static pages only
@@ -106,5 +116,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }))
 
-  return [...staticPages, ...blogPages, ...stockPages, ...comparePages]
+  // Prism compare pages — same curated rivalries, new surface.
+  const prismComparePages: MetadataRoute.Sitemap = COMPARE_PAIRS.map(([a, b]) => ({
+    url: `https://yieldiq.in/prism/compare/${a}-vs-${b}`,
+    lastModified: new Date(),
+    changeFrequency: "weekly" as const,
+    priority: 0.6,
+  }))
+
+  return [...staticPages, ...blogPages, ...stockPages, ...comparePages, ...prismComparePages]
 }

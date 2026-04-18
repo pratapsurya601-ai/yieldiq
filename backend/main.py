@@ -687,6 +687,8 @@ app.include_router(tax.router)
 app.include_router(concall.router)
 from backend.routers import hex as hex_router
 app.include_router(hex_router.router)
+from backend.routers import prism as prism_router
+app.include_router(prism_router.router)
 
 
 @app.get("/health")

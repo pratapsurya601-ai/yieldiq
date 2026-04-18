@@ -28,6 +28,13 @@
   --color-warning:  #D97706;
   --color-danger:   #DC2626;
 
+  /* Prism pillar tokens — learned-association colors for the 6 axes.
+     Pulse reuses --color-brand; Quality reuses --color-success. */
+  --prism-moat:     #0D9488;
+  --prism-safety:   #3B82F6;
+  --prism-growth:   #EAB308;
+  --prism-value:    #F97316;
+
   color-scheme: light;
 }
 
@@ -44,6 +51,12 @@ html.dark {
   --color-success:  #34D399;
   --color-warning:  #FBBF24;
   --color-danger:   #F87171;
+
+  /* Prism pillar tokens — brighter in dark mode for pop on dark backgrounds. */
+  --prism-moat:     #2DD4BF;
+  --prism-safety:   #60A5FA;
+  --prism-growth:   #FACC15;
+  --prism-value:    #FB923C;
 
   color-scheme: dark;
 }
@@ -70,9 +83,18 @@ html.dark {
   --color-warning:  var(--color-warning);
   --color-danger:   var(--color-danger);
 
-  --font-sans:    var(--font-sans),    ui-sans-serif, system-ui, sans-serif;
-  --font-display: var(--font-display), ui-sans-serif, system-ui, sans-serif;
-  --font-mono:    var(--font-mono),    ui-monospace, SFMono-Regular, monospace;
+  --font-sans:      var(--font-sans),      ui-sans-serif, system-ui, sans-serif;
+  --font-display:   var(--font-display),   ui-sans-serif, system-ui, sans-serif;
+  --font-mono:      var(--font-mono),      ui-monospace, SFMono-Regular, monospace;
+  --font-editorial: var(--font-editorial), "Fraunces", Georgia, serif;
+}
+
+/* Editorial serif utility — used for the Morningstar-grade hero headings
+   and the big score display. Opts into Fraunces' optical-size axis so
+   large sizes get the display-cut glyph shapes. */
+.font-editorial {
+  font-family: var(--font-editorial), "Fraunces", Georgia, serif;
+  font-optical-sizing: auto;
 }
 
 /* Explicit bg/fg on html + body so the browser never flashes its
@@ -128,6 +150,28 @@ html, body {
 @keyframes bar-grow {
   from { transform: scaleY(0); }
   to   { transform: scaleY(1); }
+}
+
+/* ── Prism: Pulse breathing ───────────────────────────────
+   The Pulse axis lens "breathes" at a company-specific rate
+   (--pulse-hz injected inline by <Prism>). Kept subtle so it
+   reads as liveliness, not distraction. */
+@keyframes pulse-breathe {
+  0%, 100% { opacity: 0.85; filter: none; }
+  50%      {
+    opacity: 1;
+    filter: drop-shadow(0 0 6px var(--color-brand));
+  }
+}
+
+.prism-pulse-breathe {
+  animation: pulse-breathe var(--pulse-hz, 2s) ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .prism-pulse-breathe { animation: none; }
 }
 
 /* Respect reduced motion */

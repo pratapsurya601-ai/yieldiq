@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
-import { Inter, Inter_Tight, JetBrains_Mono } from "next/font/google";
+import { Inter, Inter_Tight, JetBrains_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Analytics } from "@vercel/analytics/next";
@@ -28,6 +28,21 @@ const fontMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
   display: "swap",
+});
+
+// Editorial serif — Fraunces with the optical-size axis enabled so large
+// hero headlines render with the display-optimized glyph shapes while
+// smaller usages stay readable. Used via `font-editorial` utility.
+// NOTE: Fraunces is a variable font; we request the `opsz` optical-size axis
+// in addition to the default `wght`. next/font requires `weight` to be unset
+// (or "variable") when `axes` is provided, so we omit weight here — the
+// browser can still access the full 100–900 range via font-weight CSS.
+const fontEditorial = Fraunces({
+  subsets: ["latin"],
+  variable: "--font-editorial",
+  display: "swap",
+  axes: ["opsz"],
+  adjustFontFallback: true,
 });
 
 // ── Analytics IDs (set in Vercel env vars for production) ──
@@ -102,7 +117,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`h-full antialiased ${fontSans.variable} ${fontDisplay.variable} ${fontMono.variable}`}
+      className={`h-full antialiased ${fontSans.variable} ${fontDisplay.variable} ${fontMono.variable} ${fontEditorial.variable}`}
       suppressHydrationWarning
     >
       <head>
