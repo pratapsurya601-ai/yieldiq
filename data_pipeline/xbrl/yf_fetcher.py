@@ -7,6 +7,33 @@ from config import RUPEES_TO_CRORES
 from tickers import get_yf_symbol
 
 
+# Tickers known to have US ADRs that yfinance may serve USD data for,
+# even when queried with the .NS suffix. Used as a hardcoded fallback
+# when financialCurrency cannot be read from ticker.info.
+KNOWN_ADR_AFFECTED = {
+    'INFY', 'WIPRO', 'HCLTECH', 'DRREDDY', 'ICICIBANK',
+    'HDFCBANK', 'TATAMOTORS', 'SIFY', 'MMYT', 'VSB',
+}
+
+
+def _detect_financial_currency(yf_ticker, ticker):
+    """Return the financialCurrency string from yfinance info, or None.
+
+    yfinance sometimes raises or returns an empty dict for .info on bad
+    symbols; treat any failure as 'unknown'.
+    """
+    try:
+        info = yf_ticker.info or {}
+    except Exception:
+        return None
+    # Prefer financialCurrency (currency of the statements); fall back to
+    # currency (trading currency) if missing.
+    cur = info.get('financialCurrency') or info.get('currency')
+    if cur:
+        return str(cur).upper()
+    return None
+
+
 def safe_val(val):
     """Convert raw rupee value to Crores. Returns None for NaN/None."""
     try:
@@ -40,6 +67,7 @@ def _fetch_once(symbol):
         'quarterly_balance': yf_ticker.quarterly_balance_sheet,
         'annual_balance': yf_ticker.balance_sheet,
         'annual_cashflow': yf_ticker.cashflow,
+        '_yf_ticker': yf_ticker,
     }
 
 
@@ -83,10 +111,37 @@ def fetch_yfinance_data(ticker):
         print(f"  {ticker}: No income statement data from yfinance")
         return None
 
+    # ADR-denomination guard: if yfinance returned USD statements for what
+    # should be an INR-reporting Indian listing, the Crores conversion in
+    # safe_val() would produce numbers ~83x too small. Skip yfinance for
+    # this ticker and let the NSE supplement pipeline fill it in.
+    yf_ticker_obj = last.get('_yf_ticker')
+    detected_currency = None
+    if yf_ticker_obj is not None:
+        detected_currency = _detect_financial_currency(yf_ticker_obj, ticker)
+
+    if detected_currency and detected_currency != 'INR':
+        print(
+            f"  WARNING {ticker}: yfinance returned financialCurrency={detected_currency} "
+            f"(expected INR). Skipping yfinance — likely ADR data. "
+            f"Relying on NSE supplement."
+        )
+        return None
+
+    # Fallback: if currency could not be detected AND this is a known
+    # ADR-affected ticker, skip yfinance defensively.
+    if detected_currency is None and ticker in KNOWN_ADR_AFFECTED:
+        print(
+            f"  WARNING {ticker}: financialCurrency unknown and ticker is in "
+            f"KNOWN_ADR_AFFECTED list. Skipping yfinance to avoid USD/INR mix-up."
+        )
+        return None
+
     return {
         'ticker': ticker,
         'symbol': symbol,
-        **last,
+        'financial_currency': detected_currency,
+        **{k: v for k, v in last.items() if k != '_yf_ticker'},
     }
 
 
