@@ -37,8 +37,12 @@ on:
           - DEBUG
           - INFO
           - WARNING
-  schedule:
-    - cron: "30 0 * * 0"   # Sunday 00:30 UTC = 06:00 IST
+  # Weekly cron moved to fundamentals_backfill_chunked.yml (runs ~4×
+  # faster via parallel shards). Kept this serial workflow for
+  # workflow_dispatch only — useful for debugging or when you
+  # specifically want single-shard behaviour.
+  # schedule:
+  #   - cron: "30 0 * * 0"   # Sunday 00:30 UTC = 06:00 IST
 
 jobs:
   backfill:

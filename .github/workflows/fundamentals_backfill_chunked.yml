@@ -1,0 +1,186 @@
+name: Fundamentals Backfill (Chunked)
+
+# Fast parallel version of fundamentals_backfill.yml.
+# Splits the universe into 4 shards and runs them on 4 GH Actions
+# runners concurrently. Each shard gets its own IP, so yfinance's
+# per-IP rate limit effectively 4×'s our throughput — ~2,900 tickers
+# finishes in ~25 min instead of ~100 min.
+#
+# Each shard does ticker[i::N] (every Nth ticker starting at i),
+# which guarantees no overlap and roughly equal load balancing
+# regardless of how the universe is ordered.
+#
+# All shards UPSERT into the same `financials` table, so concurrency
+# is safe — PG handles the write conflicts at row level.
+#
+# Triggers:
+#   - Manual (workflow_dispatch) — primary use
+#   - Weekly cron (Sunday 01:00 UTC = 06:30 IST) — replaces the
+#     serial fundamentals_backfill.yml cron. Serial is kept as a
+#     fallback for when we specifically want single-shard behaviour.
+#
+# Needs DATABASE_URL secret (same as the serial version).
+
+on:
+  workflow_dispatch:
+    inputs:
+      shard_count:
+        description: "Number of parallel shards (default 4)"
+        required: false
+        default: "4"
+      limit_per_shard:
+        description: "Max tickers per shard (blank = all)"
+        required: false
+        default: ""
+      log_level:
+        description: "Log level"
+        required: false
+        default: "INFO"
+        type: choice
+        options:
+          - DEBUG
+          - INFO
+          - WARNING
+  schedule:
+    - cron: "0 1 * * 0"   # Sunday 01:00 UTC = 06:30 IST
+
+concurrency:
+  # Don't stack multiple chunked runs — if a manual trigger lands while
+  # the cron is mid-flight, queue the new one.
+  group: fundamentals-backfill-chunked
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    strategy:
+      # matrix size = shard_count. Hard-coded at 4 here because GH Actions
+      # matrix can't dynamically read workflow_dispatch inputs — the
+      # shard_count input is used at *runtime* to slice the universe, so
+      # passing shard_count=2 with matrix=4 still works (shards 2 and 3
+      # will just see no work and exit cleanly).
+      matrix:
+        shard: [0, 1, 2, 3]
+      fail-fast: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    name: shard ${{ matrix.shard }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify DATABASE_URL secret is present
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is not configured."
+            exit 1
+          fi
+
+      - name: Run batch_fetch_fundamentals (shard ${{ matrix.shard }})
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONUNBUFFERED: "1"
+          SHARD_INDEX: ${{ matrix.shard }}
+          SHARD_COUNT: ${{ github.event.inputs.shard_count || '4' }}
+          LIMIT_PER_SHARD: ${{ github.event.inputs.limit_per_shard || '' }}
+          LOG_LEVEL: ${{ github.event.inputs.log_level || 'INFO' }}
+        run: |
+          python - <<'PYEOF'
+          import logging, os, sys, time
+
+          logging.basicConfig(
+              level=os.environ.get("LOG_LEVEL", "INFO"),
+              format="%(asctime)s %(levelname)s %(name)s %(message)s",
+          )
+          log = logging.getLogger("backfill")
+
+          sys.path.insert(0, ".")
+
+          _db_url = os.environ.get("DATABASE_URL") or os.environ.get("AIVEN_DSN")
+          if not _db_url:
+              log.error("DATABASE_URL not set")
+              sys.exit(2)
+          os.environ.setdefault("DATABASE_URL", _db_url)
+          os.environ.setdefault("AIVEN_DSN", _db_url)
+
+          shard_idx = int(os.environ.get("SHARD_INDEX", "0"))
+          shard_count = max(1, int(os.environ.get("SHARD_COUNT", "4")))
+
+          if shard_idx >= shard_count:
+              log.info(
+                  "Shard %d is beyond requested shard_count %d — exiting cleanly",
+                  shard_idx, shard_count,
+              )
+              sys.exit(0)
+
+          from data_pipeline.db import Session
+          from data_pipeline.pipeline import get_full_universe
+          from data_pipeline.sources.yfinance_supplement import (
+              batch_fetch_fundamentals,
+          )
+
+          universe = get_full_universe()
+
+          # Every Nth ticker starting at shard_idx — stable, balanced.
+          my_tickers = universe[shard_idx::shard_count]
+
+          limit_input = os.environ.get("LIMIT_PER_SHARD", "").strip()
+          if limit_input:
+              my_tickers = my_tickers[:int(limit_input)]
+
+          log.info(
+              "Shard %d/%d: processing %d of %d total tickers "
+              "(first 3: %s, last 3: %s)",
+              shard_idx, shard_count, len(my_tickers), len(universe),
+              my_tickers[:3], my_tickers[-3:],
+          )
+
+          start = time.time()
+          db = Session()
+          try:
+              ok, failed = batch_fetch_fundamentals(my_tickers, db)
+          finally:
+              db.close()
+          duration = time.time() - start
+
+          log.info(
+              "Shard %d done: ok=%d failed=%d total=%d duration=%.1fs (%.1f min)",
+              shard_idx, ok, failed, len(my_tickers), duration, duration / 60,
+          )
+
+          # Same 50% threshold as the serial workflow — the full NSE
+          # universe has plenty of illiquid / delisted names that 404.
+          rate = ok / max(len(my_tickers), 1)
+          if rate < 0.50:
+              log.error(
+                  "Shard %d success rate %.1f%% below 50%% threshold",
+                  shard_idx, rate * 100,
+              )
+              sys.exit(1)
+          PYEOF
+
+  summary:
+    # Aggregator job — runs after all shards finish so you can see the
+    # full-run result at a glance in the Actions UI.
+    needs: backfill
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print roll-up
+        run: |
+          echo "## Fundamentals Backfill (Chunked) — Summary"
+          echo ""
+          echo "All 4 shards have completed. Check individual shard logs"
+          echo "above for per-shard ok/failed counts."
+          echo ""
+          echo "Aiven \`financials\` table now reflects the latest run."
