@@ -1,0 +1,101 @@
+name: Retention Emails
+
+# Sends D+1 activation nudge and D+7 retention picks to users whose
+# signup date matches each cohort.
+#
+# Runs daily at 02:30 UTC (08:00 IST) — early enough that users see
+# it in their morning inbox, late enough that overnight signups from
+# the previous day are definitely visible in Supabase.
+#
+# Runs on GitHub Actions (not Railway APScheduler) so it never piles
+# onto the single Hobby-tier worker serving live users.
+#
+# Requires two secrets (already configured for other workflows):
+#   DATABASE_URL         — Aiven Postgres (for analysis_cache top-picks)
+#   SENDGRID_API_KEY     — set in Railway, mirror into GH secrets
+#   SUPABASE_URL         — already in use elsewhere
+#   SUPABASE_SERVICE_KEY — already in use elsewhere
+
+on:
+  schedule:
+    - cron: "30 2 * * *"   # daily 08:00 IST
+  workflow_dispatch:
+    inputs:
+      day_offset:
+        description: "Cohort day offset (1 or 7, or blank for both)"
+        required: false
+        default: ""
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          missing=""
+          [ -z "$DATABASE_URL" ] && missing="$missing DATABASE_URL"
+          [ -z "$SENDGRID_API_KEY" ] && missing="$missing SENDGRID_API_KEY"
+          [ -z "$SUPABASE_URL" ] && missing="$missing SUPABASE_URL"
+          [ -z "$SUPABASE_SERVICE_KEY" ] && missing="$missing SUPABASE_SERVICE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::warning::Missing secrets:$missing — retention emails will skip"
+            echo "skip=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Send retention emails
+        if: env.skip != 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          DAY_OFFSET: ${{ github.event.inputs.day_offset || '' }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python - <<'PYEOF'
+          import json, logging, os, sys
+
+          logging.basicConfig(
+              level="INFO",
+              format="%(asctime)s %(levelname)s %(name)s %(message)s",
+          )
+          log = logging.getLogger("retention_runner")
+
+          sys.path.insert(0, ".")
+          from backend.services.retention_service import (
+              run_retention_batch, run_all_retention,
+          )
+
+          day_offset = os.environ.get("DAY_OFFSET", "").strip()
+          if day_offset in ("1", "7"):
+              summary = [run_retention_batch(int(day_offset))]
+          else:
+              summary = run_all_retention()
+
+          log.info("Retention batch summary:\n%s", json.dumps(summary, indent=2))
+
+          total_failed = sum(s.get("failed", 0) for s in summary)
+          total_sent = sum(s.get("sent", 0) for s in summary)
+          if total_sent == 0 and total_failed > 0:
+              log.error("All retention sends failed — check SendGrid")
+              sys.exit(1)
+          PYEOF
