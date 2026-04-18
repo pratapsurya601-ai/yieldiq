@@ -739,6 +739,101 @@ function LandingContent() {
         </div>
       </section>
 
+      {/* ── Here's What You'll See ─────────────────────
+          Big "show, don't tell" block just below the hero.
+          Mirrors the DemoCard but pairs it with annotated
+          callouts explaining what each piece means. No
+          sign-up required to look. */}
+      <section className="bg-white py-20 border-b border-gray-100">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <FadeIn>
+            <div className="text-center mb-12">
+              <div className="inline-flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-3 py-1 mb-4">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                <span className="text-[10px] font-bold text-green-700 tracking-[0.2em] uppercase">
+                  No sign-up needed
+                </span>
+              </div>
+              <h2 className="text-3xl sm:text-4xl font-black text-gray-900 mb-3">
+                Here&rsquo;s what you&rsquo;ll see
+              </h2>
+              <p className="text-gray-600 text-base max-w-2xl mx-auto">
+                Every Indian stock on YieldIQ is analysed through this same lens &mdash;
+                live prices, 3-scenario DCF, quality scores, and plain-English AI
+                commentary. This is a real card, rotating through real tickers.
+              </p>
+            </div>
+          </FadeIn>
+
+          <div className="grid lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+            {/* Left — the actual live card */}
+            <FadeIn>
+              <div className="flex justify-center">
+                <DemoCard />
+              </div>
+            </FadeIn>
+
+            {/* Right — annotated callouts */}
+            <FadeIn>
+              <div className="space-y-5">
+                {[
+                  {
+                    num: "01",
+                    title: "Fair value from a 3-scenario DCF",
+                    body: "Bear / base / bull cases with an explicit weighted average \u2014 no single-point estimate hiding the uncertainty.",
+                  },
+                  {
+                    num: "02",
+                    title: "Margin of safety vs. today\u2019s price",
+                    body: "Color-coded, percent-based. You see immediately whether the stock is cheap, fair, or rich at the current quote.",
+                  },
+                  {
+                    num: "03",
+                    title: "YieldIQ score (0\u2013100) + letter grade",
+                    body: "Blends valuation, quality, moat, and safety into one number you can compare across sectors.",
+                  },
+                  {
+                    num: "04",
+                    title: "Moat & Piotroski on every stock",
+                    body: "Wide / Narrow / None moat classification plus the 9-point Piotroski F-Score \u2014 no manual digging.",
+                  },
+                  {
+                    num: "05",
+                    title: "AI summary in plain English",
+                    body: "A 2-sentence take on what actually matters for this business, generated fresh from the latest financials.",
+                  },
+                ].map(item => (
+                  <div key={item.num} className="flex gap-4">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center text-white font-black text-xs tracking-wider">
+                      {item.num}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-gray-900 text-base mb-1">{item.title}</h3>
+                      <p className="text-gray-600 text-sm leading-relaxed">{item.body}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </FadeIn>
+          </div>
+
+          {/* Bottom CTA */}
+          <FadeIn>
+            <div className="text-center mt-14">
+              <Link
+                href="/search"
+                className="inline-flex items-center gap-2 bg-gray-900 text-white font-bold text-sm px-6 py-3 rounded-xl hover:bg-gray-800 transition shadow-lg"
+              >
+                Analyse any of 500+ stocks &rarr;
+              </Link>
+              <p className="text-gray-500 text-xs mt-3">
+                Free forever for the first 5 analyses a day. No credit card.
+              </p>
+            </div>
+          </FadeIn>
+        </div>
+      </section>
+
       {/* ── Trust Bar ─────────────────────────────────── */}
       <section className="bg-gray-50 border-b border-gray-100 py-4">
         <div className="max-w-6xl mx-auto px-4 flex items-center justify-center gap-4 flex-wrap text-gray-400 text-sm">
