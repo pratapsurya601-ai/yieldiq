@@ -43,4 +43,11 @@ export interface PrismData {
   pulse_velocity_hz: number
   sector_medians?: Partial<Record<PillarKey, number>>
   disclaimer: string
+  /**
+   * ISO timestamp of when this Prism payload was computed on the
+   * backend. Optional — some code paths (legacy snapshots, fixtures)
+   * don't emit it. EditorialHero hides the "last refresh" badge when
+   * this is missing rather than rendering a dash.
+   */
+  computed_at?: string
 }

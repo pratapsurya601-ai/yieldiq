@@ -23,6 +23,7 @@ import { useState } from "react"
 import Prism from "@/components/prism/Prism"
 import ScoreCard from "@/components/analysis/ScoreCard"
 import { verdictColor } from "@/lib/prism"
+import { timeAgo } from "@/lib/dataFreshness"
 import type {
   PillarKey,
   PrismData,
@@ -196,6 +197,19 @@ export default function EditorialHero({
             Every stock has a Signature. Unfold it into a Spectrum to see how it
             refracts.
           </p>
+          {/* Trust-Surface "last refresh" badge — only renders when the
+              backend stamps the payload with computed_at. We deliberately
+              omit the line rather than render a dash when missing so it
+              never looks broken. */}
+          {(() => {
+            const ago = timeAgo(data.computed_at)
+            if (!ago) return null
+            return (
+              <p className="mt-1.5 text-[10px] text-caption leading-snug text-center">
+                Last refresh: {ago} &middot; Sources: NSE &middot; BSE &middot; SEBI
+              </p>
+            )
+          })()}
           <div className="mt-4 w-full max-w-[34ch]">
             <PrismNarrator
               data={data}
