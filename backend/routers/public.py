@@ -1219,3 +1219,156 @@ async def get_public_top_tickers(limit: int = 500):
     except Exception as exc:
         logger.warning(f"public top-tickers failed: {exc}")
         return {"count": 0, "tickers": []}
+
+
+@router.get("/near-52w-lows")
+async def get_near_52w_lows(limit: int = 6, max_distance_pct: float = 15.0, min_score: int = 55):
+    """Stocks trading close to their 52-week low with strong fundamentals.
+
+    Factual filter — NOT a recommendation.
+    - Loads the top 400 by market cap from market_metrics
+    - Joins live_quotes for current price
+    - Computes 52w low via Parquet (data_pipeline.nse_prices.db_integration)
+    - Filters: within `max_distance_pct` of 52w low AND yieldiq_score >= min_score
+    - Returns sorted by proximity to low, ascending
+
+    Cached 1hr. Response capped at `limit`.
+    """
+    limit = max(1, min(int(limit), 20))
+    max_distance_pct = max(0.0, min(float(max_distance_pct), 50.0))
+    min_score = max(0, min(int(min_score), 100))
+    _key = f"public:near-52w-lows:{limit}:{int(max_distance_pct)}:{min_score}"
+    cached = cache.get(_key)
+    if cached is not None:
+        return cached
+
+    out = {"count": 0, "stocks": [], "disclaimer": "Model estimate. Not investment advice."}
+    try:
+        from data_pipeline.db import Session
+        from sqlalchemy import text as _t
+        from data_pipeline.nse_prices.db_integration import get_52w_high_low
+
+        sess = Session()
+        try:
+            # Top 400 by market cap that have an analysis_cache entry
+            # (strong-fundamentals proxy — scored stocks only). Left-join
+            # live_quotes for current price in one pass.
+            rows = sess.execute(_t(
+                "SELECT s.ticker, s.company_name, "
+                "       lq.last_price AS price, "
+                "       (ac.payload->>'yieldiq_score')::int AS score "
+                "FROM stocks s "
+                "LEFT JOIN market_metrics mm ON mm.ticker = s.ticker "
+                "LEFT JOIN live_quotes lq ON lq.ticker = s.ticker "
+                "LEFT JOIN analysis_cache ac ON ac.ticker = s.ticker "
+                "WHERE s.is_active = TRUE "
+                "  AND ac.ticker IS NOT NULL "
+                "  AND lq.last_price IS NOT NULL "
+                "ORDER BY COALESCE(mm.market_cap_cr, 0) DESC "
+                "LIMIT 400"
+            )).fetchall()
+        finally:
+            sess.close()
+
+        candidates: list[dict] = []
+        for r in rows:
+            try:
+                ticker = r[0]
+                company = r[1] or ticker
+                price = float(r[2]) if r[2] else None
+                score = int(r[3]) if r[3] is not None else 0
+                if price is None or price <= 0 or score < min_score:
+                    continue
+                clean = ticker.replace(".NS", "").replace(".BO", "")
+                high_low = get_52w_high_low(clean)
+                if not high_low:
+                    continue
+                w52_high, w52_low = high_low
+                if not w52_low or w52_low <= 0:
+                    continue
+                distance_pct = (price - w52_low) / w52_low * 100.0
+                if distance_pct > max_distance_pct:
+                    continue
+                candidates.append({
+                    "ticker": ticker,
+                    "company_name": company,
+                    "price": round(price, 2),
+                    "w52_low": round(float(w52_low), 2),
+                    "w52_high": round(float(w52_high), 2) if w52_high else None,
+                    "distance_pct": round(distance_pct, 2),
+                    "yieldiq_score": score,
+                })
+            except Exception:
+                continue
+
+        candidates.sort(key=lambda c: c["distance_pct"])
+        out = {
+            "count": min(len(candidates), limit),
+            "stocks": candidates[:limit],
+            "disclaimer": "Factual filter based on 52-week price history + model fundamental scores. Model estimate. Not investment advice.",
+        }
+        cache.set(_key, out, ttl=3600)
+    except Exception as exc:
+        logger.warning(f"near-52w-lows failed: {exc}")
+    return out
+
+
+@router.get("/lowest-pe")
+async def get_lowest_pe(limit: int = 6, min_score: int = 55, max_pe: float = 40.0):
+    """Stocks with the lowest P/E ratio that still pass fundamental quality.
+
+    Factual composition — NOT a recommendation. Reads market_metrics.pe_ratio
+    and joins analysis_cache.yieldiq_score for the quality filter.
+    """
+    limit = max(1, min(int(limit), 20))
+    min_score = max(0, min(int(min_score), 100))
+    max_pe = max(1.0, min(float(max_pe), 200.0))
+    _key = f"public:lowest-pe:{limit}:{min_score}:{int(max_pe)}"
+    cached = cache.get(_key)
+    if cached is not None:
+        return cached
+
+    out = {"count": 0, "stocks": [], "disclaimer": "Model estimate. Not investment advice."}
+    try:
+        from data_pipeline.db import Session
+        from sqlalchemy import text as _t
+        sess = Session()
+        try:
+            rows = sess.execute(_t(
+                "SELECT s.ticker, s.company_name, "
+                "       mm.pe_ratio, "
+                "       (ac.payload->>'yieldiq_score')::int AS score "
+                "FROM stocks s "
+                "JOIN market_metrics mm ON mm.ticker = s.ticker "
+                "JOIN analysis_cache ac ON ac.ticker = s.ticker "
+                "WHERE s.is_active = TRUE "
+                "  AND mm.pe_ratio IS NOT NULL "
+                "  AND mm.pe_ratio > 0 "
+                "  AND mm.pe_ratio <= :max_pe "
+                "  AND (ac.payload->>'yieldiq_score')::int >= :min_score "
+                "ORDER BY mm.pe_ratio ASC "
+                "LIMIT :lim"
+            ), {"max_pe": max_pe, "min_score": min_score, "lim": limit}).fetchall()
+        finally:
+            sess.close()
+
+        stocks = []
+        for r in rows:
+            try:
+                stocks.append({
+                    "ticker": r[0],
+                    "company_name": r[1] or r[0],
+                    "pe_ratio": round(float(r[2]), 2),
+                    "yieldiq_score": int(r[3]),
+                })
+            except Exception:
+                continue
+        out = {
+            "count": len(stocks),
+            "stocks": stocks,
+            "disclaimer": "Factual filter: lowest P/E stocks with YieldIQ score >= {0}. Model estimate. Not investment advice.".format(min_score),
+        }
+        cache.set(_key, out, ttl=3600)
+    except Exception as exc:
+        logger.warning(f"lowest-pe failed: {exc}")
+    return out

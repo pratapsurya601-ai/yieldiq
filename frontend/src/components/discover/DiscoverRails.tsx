@@ -1,17 +1,16 @@
 "use client"
 
 import Link from "next/link"
+import { useEffect, useState } from "react"
 import type { ScreenerStock } from "@/types/api"
 
-// The three rails added in the /discover polish pass. Each rail composes
-// existing YieldIQ 50 data so no new backend work is required. Sections
-// that can't be powered from existing fields render a "Coming soon" stub
-// rather than fabricating data — SEBI rules forbid fake "recommendations".
+// The three rails on /discover. SectorLeaders composes existing YieldIQ 50
+// data (no backend work). NearLowsRail + LowestPERail fetch from new public
+// endpoints that pull from live_quotes + market_metrics + analysis_cache.
 
 const TRACKED_SECTORS = ["Banking", "IT", "Pharma", "FMCG", "Auto", "Energy"] as const
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
-// Normalise the free-text sector field from the backend into our canonical
-// chip labels. Anything we can't classify is dropped from the rail.
 function classifySector(raw: string | undefined | null): string | null {
   if (!raw) return null
   const s = raw.toLowerCase()
@@ -28,9 +27,6 @@ interface SectorLeadersProps {
   stocks: ScreenerStock[]
 }
 
-// Top ticker per tracked sector from YieldIQ 50 (already sorted by score
-// descending by the backend). We walk the list once and claim the first
-// hit for each bucket — O(n) and preserves the model's own ranking.
 export function SectorLeaders({ stocks }: SectorLeadersProps) {
   const leaders = new Map<string, ScreenerStock>()
   for (const stock of stocks) {
@@ -48,70 +44,183 @@ export function SectorLeaders({ stocks }: SectorLeadersProps) {
 
   return (
     <section>
-      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Sector leaders</p>
+      <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-2">Sector leaders</p>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
         {items.map(({ sector, stock }) => (
           <Link
             key={sector}
             href={`/analysis/${stock.ticker}`}
-            className="bg-white rounded-xl border border-gray-100 p-3 hover:border-blue-300 hover:shadow-sm active:scale-[0.98] transition"
+            className="bg-surface rounded-xl border border-border p-3 hover:border-brand hover:shadow-sm active:scale-[0.98] transition"
           >
             <div className="flex items-center justify-between mb-1">
-              <p className="text-sm font-bold text-gray-900 truncate">{stock.ticker.replace(".NS", "")}</p>
-              <span className="text-[9px] font-semibold text-gray-500 bg-gray-100 rounded px-1.5 py-0.5 uppercase tracking-wider">{sector}</span>
+              <p className="text-sm font-bold text-ink truncate">{stock.ticker.replace(".NS", "")}</p>
+              <span className="text-[9px] font-semibold text-caption bg-bg rounded px-1.5 py-0.5 uppercase tracking-wider">{sector}</span>
             </div>
-            <p className="text-base font-bold text-blue-700 font-mono">
+            <p className="text-base font-bold text-brand font-mono">
               {stock.margin_of_safety > 0 ? "+" : ""}
               {stock.margin_of_safety.toFixed(0)}%
             </p>
-            <p className="text-[10px] text-gray-400">MoS &middot; Model estimate</p>
+            <p className="text-[10px] text-caption">MoS &middot; Model estimate</p>
           </Link>
         ))}
       </div>
-      <p className="text-[10px] text-gray-500 mt-1">Highest-scoring stock in each sector from YieldIQ 50. Not investment advice.</p>
+      <p className="text-[10px] text-caption mt-1">Highest-scoring stock in each sector from YieldIQ 50. Not investment advice.</p>
     </section>
   )
 }
 
-// 52-week lows rail. The public ScreenerStock shape doesn't include a
-// 52W high/low marker yet, so we can't identify "near lows" without
-// fabricating data. Render a factual placeholder until the endpoint
-// ships — never invent MoS or low distance values here.
+// ─────────────────────────────────────────────────────────────────────
+// 52-week lows with strong fundamentals
+// ─────────────────────────────────────────────────────────────────────
+
+interface NearLowStock {
+  ticker: string
+  company_name: string
+  price: number
+  w52_low: number
+  w52_high: number | null
+  distance_pct: number
+  yieldiq_score: number
+}
+
 export function NearLowsRail() {
+  const [stocks, setStocks] = useState<NearLowStock[] | null>(null)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`${API_BASE}/api/v1/public/near-52w-lows?limit=6&max_distance_pct=15&min_score=55`)
+      .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+      .then((d) => { if (!cancelled) setStocks(d.stocks || []) })
+      .catch(() => { if (!cancelled) setError(true) })
+    return () => { cancelled = true }
+  }, [])
+
   return (
     <section>
-      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">52-week lows with strong fundamentals</p>
-      <div className="grid grid-cols-3 gap-2">
-        {[0, 1, 2].map((i) => (
-          <div key={i} className="bg-white rounded-xl border border-dashed border-gray-200 p-4 min-h-[96px] text-center flex flex-col items-center justify-center">
-            <div className="skeleton h-3 w-16 rounded mb-2" />
-            <div className="skeleton h-4 w-12 rounded" />
-          </div>
-        ))}
-      </div>
-      <p className="text-[10px] text-gray-500 mt-1">Coming soon &mdash; 52-week low data not yet exposed. Model estimate.</p>
+      <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-2">52-week lows with strong fundamentals</p>
+      {stocks === null && !error && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="bg-surface rounded-xl border border-border p-4 min-h-[96px]">
+              <div className="skeleton h-3 w-16 rounded mb-2" />
+              <div className="skeleton h-4 w-12 rounded mb-2" />
+              <div className="skeleton h-3 w-20 rounded" />
+            </div>
+          ))}
+        </div>
+      )}
+      {error && (
+        <div className="bg-surface rounded-xl border border-border p-4 text-center">
+          <p className="text-xs text-caption">Couldn&rsquo;t load right now. Try again shortly.</p>
+        </div>
+      )}
+      {stocks !== null && stocks.length === 0 && !error && (
+        <div className="bg-surface rounded-xl border border-border p-4 text-center">
+          <p className="text-xs text-caption">No stocks currently within 15% of their 52-week low with a quality score &ge; 55. Markets rallied or our cache is warming.</p>
+        </div>
+      )}
+      {stocks !== null && stocks.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {stocks.map((s) => (
+            <Link
+              key={s.ticker}
+              href={`/analysis/${s.ticker}`}
+              className="bg-surface rounded-xl border border-border p-3 hover:border-brand hover:shadow-sm active:scale-[0.98] transition"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-sm font-bold text-ink truncate">{s.ticker.replace(".NS", "")}</p>
+                <span className="text-[9px] font-semibold text-success bg-bg rounded px-1.5 py-0.5 uppercase tracking-wider">Score {s.yieldiq_score}</span>
+              </div>
+              <p className="text-base font-bold text-ink font-mono tabular-nums">
+                ₹{s.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+              </p>
+              <p className="text-[10px] text-caption">
+                {s.distance_pct <= 1 ? "At 52w low" : `+${s.distance_pct.toFixed(1)}% above 52w low`}
+              </p>
+            </Link>
+          ))}
+        </div>
+      )}
+      <p className="text-[10px] text-caption mt-1">Top-400 by market cap, within 15% of 52w low, YieldIQ score &ge; 55. Model estimate.</p>
     </section>
   )
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Lowest P/E in YieldIQ universe
+// ─────────────────────────────────────────────────────────────────────
+
+interface LowPEStock {
+  ticker: string
+  company_name: string
+  pe_ratio: number
+  yieldiq_score: number
 }
 
 interface LowestPERailProps {
   stocks: ScreenerStock[]
 }
 
-// Lowest P/E in YieldIQ 50. The ScreenerStock type has no `pe_ratio` /
-// `ev_ebitda` field (see types/api.ts — it's on PeerRow, not on the
-// screener response), so we can't sort without fabrication. Stub it.
-export function LowestPERail({ stocks }: LowestPERailProps) {
-  // Intentionally unused — keeping the prop so a future backend patch that
-  // adds pe_ratio to ScreenerResponse only needs to flip this component on.
-  void stocks
+export function LowestPERail({ stocks: _unused }: LowestPERailProps) {
+  void _unused
+  const [items, setItems] = useState<LowPEStock[] | null>(null)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`${API_BASE}/api/v1/public/lowest-pe?limit=6&min_score=55&max_pe=40`)
+      .then((r) => r.ok ? r.json() : Promise.reject(r.status))
+      .then((d) => { if (!cancelled) setItems(d.stocks || []) })
+      .catch(() => { if (!cancelled) setError(true) })
+    return () => { cancelled = true }
+  }, [])
+
   return (
     <section>
-      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Lowest P/E in YieldIQ 50</p>
-      <div className="bg-white rounded-xl border border-dashed border-gray-200 p-6 text-center">
-        <p className="text-sm font-semibold text-gray-700 mb-1">Coming soon</p>
-        <p className="text-xs text-gray-500 max-w-xs mx-auto">P/E multiples aren&rsquo;t in the YieldIQ 50 response yet. We&rsquo;ll light this rail up once the field ships. Model estimate.</p>
-      </div>
+      <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-2">Lowest P/E with strong fundamentals</p>
+      {items === null && !error && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="bg-surface rounded-xl border border-border p-4 min-h-[96px]">
+              <div className="skeleton h-3 w-16 rounded mb-2" />
+              <div className="skeleton h-4 w-12 rounded mb-2" />
+              <div className="skeleton h-3 w-20 rounded" />
+            </div>
+          ))}
+        </div>
+      )}
+      {error && (
+        <div className="bg-surface rounded-xl border border-border p-4 text-center">
+          <p className="text-xs text-caption">Couldn&rsquo;t load right now. Try again shortly.</p>
+        </div>
+      )}
+      {items !== null && items.length === 0 && !error && (
+        <div className="bg-surface rounded-xl border border-border p-4 text-center">
+          <p className="text-xs text-caption">No stocks currently under P/E 40 with a quality score &ge; 55.</p>
+        </div>
+      )}
+      {items !== null && items.length > 0 && (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          {items.map((s) => (
+            <Link
+              key={s.ticker}
+              href={`/analysis/${s.ticker}`}
+              className="bg-surface rounded-xl border border-border p-3 hover:border-brand hover:shadow-sm active:scale-[0.98] transition"
+            >
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-sm font-bold text-ink truncate">{s.ticker.replace(".NS", "")}</p>
+                <span className="text-[9px] font-semibold text-success bg-bg rounded px-1.5 py-0.5 uppercase tracking-wider">Score {s.yieldiq_score}</span>
+              </div>
+              <p className="text-base font-bold text-ink font-mono tabular-nums">
+                {s.pe_ratio.toFixed(1)}×
+              </p>
+              <p className="text-[10px] text-caption">P/E ratio</p>
+            </Link>
+          ))}
+        </div>
+      )}
+      <p className="text-[10px] text-caption mt-1">Lowest P/E stocks with YieldIQ score &ge; 55 and P/E &le; 40. Model estimate.</p>
     </section>
   )
 }
