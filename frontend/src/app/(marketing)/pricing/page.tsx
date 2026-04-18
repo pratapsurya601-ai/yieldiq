@@ -123,8 +123,6 @@ const faqs = [
   { q: "Can I cancel anytime?", a: "Yes. No lock-in. Cancel from your account settings." },
   { q: "What payment methods do you accept?", a: "UPI, credit/debit cards, and net banking via Razorpay." },
   { q: "Is there a refund policy?", a: "Yes, full refund within 7 days if you\u2019re not satisfied." },
-  { q: "Do I need to sign up to use the free tier?", a: "You can run 5 free analyses/day without signing up. Create a free account to save your watchlist and get the full free experience." },
-  { q: "How does annual billing work?", a: "Annual plans save you ~2 months. Pro is \u20B92,499/year (\u20B9208/mo) and Analyst is \u20B95,999/year (\u20B9500/mo)." },
   { q: "Is this investment advice?", a: "No. YieldIQ is a quantitative research tool. All outputs are model-generated estimates for educational purposes only. YieldIQ is not registered with SEBI as an investment adviser or research analyst." },
 ]
 
@@ -179,15 +177,15 @@ export default function PricingPage() {
       <MarketingNav />
 
       {/* Hero */}
-      <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-20">
+      <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-10 md:py-14">
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <h1 className="text-4xl md:text-5xl font-black text-white mb-4">Simple Pricing. No Surprises.</h1>
-          <p className="text-gray-400 text-lg">Start free. Upgrade when you need more power. Cancel anytime.</p>
+          <h1 className="text-3xl md:text-5xl font-black text-white mb-3">Simple Pricing. No Surprises.</h1>
+          <p className="text-gray-400 text-base md:text-lg">Start free. Upgrade when you need more power. Cancel anytime.</p>
         </div>
       </section>
 
       {/* Pricing Cards */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-10 md:py-16 bg-gray-50">
         <div className="max-w-6xl mx-auto px-4">
           {/* Billing toggle */}
           <div className="flex justify-center mb-10">
@@ -280,63 +278,14 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* Feature Comparison */}
-      <section className="py-20 bg-white">
-        <div className="max-w-4xl mx-auto px-4">
-          <h2 className="text-2xl font-black text-center mb-12">Compare Plans</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 pr-4 font-semibold text-gray-500">Feature</th>
-                  <th className="text-center py-3 px-4 font-semibold">Free</th>
-                  <th className="text-center py-3 px-4 font-semibold text-blue-700">Pro</th>
-                  <th className="text-center py-3 px-4 font-semibold">Analyst</th>
-                </tr>
-              </thead>
-              <tbody>
-                {[
-                  { feature: "Analyses per day", free: "5", pro: "Unlimited", analyst: "Unlimited" },
-                  { feature: "Stock coverage", free: "All 6,000+", pro: "All 6,000+", analyst: "All 6,000+" },
-                  { feature: "DCF fair value + MoS", free: "\u2713", pro: "\u2713", analyst: "\u2713" },
-                  { feature: "Quality score + Piotroski", free: "\u2713", pro: "\u2713", analyst: "\u2713" },
-                  { feature: "Bear/Base/Bull scenarios", free: "\u2713", pro: "\u2713", analyst: "\u2713" },
-                  { feature: "AI summary", free: "Short", pro: "Full deep-dive", analyst: "Full deep-dive" },
-                  { feature: "Peer comparison", free: "Basic", pro: "Full", analyst: "Full" },
-                  { feature: "Financial statements", free: "3 years", pro: "10 years", analyst: "10 years" },
-                  { feature: "Interactive DCF sliders", free: "\u2717", pro: "\u2713", analyst: "\u2713" },
-                  { feature: "Sensitivity heatmap", free: "\u2717", pro: "\u2713", analyst: "\u2713" },
-                  { feature: "Monte Carlo simulation", free: "\u2717", pro: "\u2713", analyst: "\u2713" },
-                  { feature: "PDF & Excel export", free: "\u2717", pro: "\u2713", analyst: "\u2713" },
-                  { feature: "Portfolio X-Ray", free: "\u2717", pro: "\u2713", analyst: "\u2713" },
-                  { feature: "Watchlist", free: "5 stocks", pro: "50 stocks", analyst: "Unlimited" },
-                  { feature: "Price alerts", free: "\u2717", pro: "10 alerts", analyst: "Unlimited" },
-                  { feature: "API access", free: "\u2717", pro: "\u2717", analyst: "500/day" },
-                  { feature: "Bulk screener", free: "\u2717", pro: "\u2717", analyst: "\u2713" },
-                  { feature: "Google Sheets sync", free: "\u2717", pro: "\u2717", analyst: "\u2713" },
-                  { feature: "Priority support", free: "\u2717", pro: "\u2717", analyst: "\u2713" },
-                ].map((row) => (
-                  <tr key={row.feature} className="border-b border-gray-100">
-                    <td className="py-3 pr-4 text-gray-700">{row.feature}</td>
-                    <td className="text-center py-3 px-4">{row.free}</td>
-                    <td className="text-center py-3 px-4 font-medium">{row.pro}</td>
-                    <td className="text-center py-3 px-4">{row.analyst}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
       {/* FAQ */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-12 md:py-16 bg-white">
         <div className="max-w-3xl mx-auto px-4">
-          <h2 className="text-2xl font-black text-center mb-12">Frequently Asked Questions</h2>
-          <div className="space-y-6">
+          <h2 className="text-2xl font-black text-center mb-8">Frequently Asked Questions</h2>
+          <div className="space-y-5">
             {faqs.map((faq) => (
-              <div key={faq.q} className="border-b border-gray-200 pb-6">
-                <h3 className="font-bold mb-2">{faq.q}</h3>
+              <div key={faq.q} className="border-b border-gray-200 pb-4">
+                <h3 className="font-bold mb-1.5 text-sm">{faq.q}</h3>
                 <p className="text-gray-500 text-sm">{faq.a}</p>
               </div>
             ))}

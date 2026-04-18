@@ -2,6 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { getHoldingsLive, getPortfolioHealth, getWatchlist, removeFromWatchlist, getAlerts, deleteAlert } from "@/lib/api"
 import HealthScore from "@/components/portfolio/HealthScore"
+import { PnLSparklinePlaceholder, BelowFairValueBanner } from "@/components/portfolio/HealthDashboard"
 import { formatCurrency } from "@/lib/utils"
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -100,10 +101,13 @@ function PortfolioInner() {
         </div>
       )}
 
-      {/* Health Score */}
+      {/* Top-of-page health dashboard — ring + 30d P&L trend */}
       {health && health.score > 0 && (
         <HealthScore score={health.score} grade={health.grade} summary={health.summary} issues={health.issues} strengths={health.strengths} />
       )}
+      {/* P&L sparkline placeholder — only render once the user has holdings,
+          otherwise it looks confusing on a fresh empty portfolio */}
+      {holdings && holdings.length > 0 && <PnLSparklinePlaceholder />}
 
       {/* Tabs — iOS segmented control style */}
       <div className="flex bg-gray-100 rounded-xl p-1">
@@ -162,6 +166,8 @@ function PortfolioInner() {
       {tab === "holdings" && !holdingsError && !holdingsLoading && (
         holdings && holdings.length > 0 ? (
           <div className="space-y-3">
+            {/* Warn when any holding is trading >15% below our model fair value */}
+            <BelowFairValueBanner holdings={holdings} />
             {/* Portfolio Summary */}
             {summary && summary.count > 0 && (
               <div className="bg-gradient-to-br from-blue-600 to-cyan-500 rounded-2xl p-5 text-white">

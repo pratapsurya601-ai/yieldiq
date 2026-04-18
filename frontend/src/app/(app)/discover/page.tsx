@@ -2,7 +2,8 @@
 import { useQuery } from "@tanstack/react-query"
 import { getYieldIQ50, getTopPick } from "@/lib/api"
 import TopPickCard from "@/components/discover/TopPickCard"
-import ScreenerPresets from "@/components/discover/ScreenerPresets"
+import ScreenerPresetsWithCounts from "@/components/discover/ScreenerPresetsWithCounts"
+import { SectorLeaders, NearLowsRail, LowestPERail } from "@/components/discover/DiscoverRails"
 import { useAuthStore } from "@/store/authStore"
 import Link from "next/link"
 
@@ -105,10 +106,21 @@ export default function DiscoverPage() {
         )}
       </section>
 
+      {/* Sector leaders — top ticker per sector from YieldIQ 50 */}
+      {yiq50 && yiq50.results.length > 0 && (
+        <SectorLeaders stocks={yiq50.results} />
+      )}
+
+      {/* 52-week lows with strong fundamentals — placeholder until data ships */}
+      <NearLowsRail />
+
+      {/* Lowest P/E in YieldIQ 50 — placeholder until multiple fields land */}
+      {yiq50 && <LowestPERail stocks={yiq50.results} />}
+
       {/* Screener Presets */}
       <section>
         <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">Screener</p>
-        <ScreenerPresets />
+        <ScreenerPresetsWithCounts />
       </section>
     </div>
   )

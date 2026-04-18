@@ -5,7 +5,7 @@ import api from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 const POPULAR = [
-  { ticker: "RELIANCE.NS", label: "RELIANCE", sector: "Oil & Gas" },
+  { ticker: "RELIANCE.NS", label: "RELIANCE", sector: "Energy" },
   { ticker: "TCS.NS", label: "TCS", sector: "IT" },
   { ticker: "INFY.NS", label: "INFOSYS", sector: "IT" },
   { ticker: "HDFCBANK.NS", label: "HDFC BANK", sector: "Banking" },
@@ -17,10 +17,18 @@ const POPULAR = [
   { ticker: "SUNPHARMA.NS", label: "SUN PHARMA", sector: "Pharma" },
   { ticker: "TITAN.NS", label: "TITAN", sector: "Consumer" },
   { ticker: "BAJFINANCE.NS", label: "BAJAJ FIN", sector: "Finance" },
+  { ticker: "MARUTI.NS", label: "MARUTI", sector: "Auto" },
+  { ticker: "ONGC.NS", label: "ONGC", sector: "Energy" },
+  { ticker: "HINDUNILVR.NS", label: "HUL", sector: "FMCG" },
+  { ticker: "M&M.NS", label: "M&M", sector: "Auto" },
+  { ticker: "CIPLA.NS", label: "CIPLA", sector: "Pharma" },
 ]
 
+const SECTOR_FILTERS = ["All", "Banking", "IT", "Pharma", "FMCG", "Auto", "Energy"] as const
+type SectorFilter = (typeof SECTOR_FILTERS)[number]
+
 const SECTOR_LABELS: Record<string, string> = {
-  "Oil & Gas": "Oil & Gas",
+  Energy: "Energy",
   IT: "IT",
   Banking: "Banking",
   FMCG: "FMCG",
@@ -29,6 +37,7 @@ const SECTOR_LABELS: Record<string, string> = {
   Pharma: "Pharma",
   Consumer: "Consumer",
   Finance: "Finance",
+  Auto: "Auto",
 }
 
 interface SearchResult {
@@ -77,11 +86,15 @@ export default function SearchPage() {
   const [isSearching, setIsSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const [highlightIdx, setHighlightIdx] = useState(-1)
+  const [sectorFilter, setSectorFilter] = useState<SectorFilter>("All")
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
   useEffect(() => {
     setRecent(getRecentlyAnalysed())
+    // Type-first: focus the input on mount so users can start typing immediately
+    inputRef.current?.focus()
   }, [])
 
   // Debounced search
@@ -139,7 +152,9 @@ export default function SearchPage() {
         <p className="text-sm text-gray-500">Search by company name or NSE ticker</p>
       </div>
 
-      <div className="relative">
+      {/* Sticky search container — stays visible while scrolling popular picks */}
+      {/* TODO: swap to design tokens (bg-bg) once tokens land */}
+      <div className="relative sticky top-0 z-10 bg-white -mx-4 px-4 pb-3">
         <div className="flex gap-2">
           <div className="relative flex-1">
             {/* Search icon inside input */}
@@ -147,6 +162,7 @@ export default function SearchPage() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
             <input
+              ref={inputRef}
               type="text"
               value={query}
               onChange={(e) => {
@@ -233,8 +249,8 @@ export default function SearchPage() {
         )}
       </div>
 
-      {/* Recently analysed */}
-      {recent.length > 0 && (
+      {/* Recently analysed — hidden below 3 entries to avoid a weird 1-2 chip row */}
+      {recent.length >= 3 && (
         <div>
           <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">Recently analysed</p>
           <div className="flex flex-wrap gap-2">
@@ -254,8 +270,25 @@ export default function SearchPage() {
 
       <div>
         <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">Popular stocks</p>
+        {/* Sector filter chips — filter the POPULAR list in-place */}
+        <div className="flex flex-wrap gap-2 mb-3">
+          {SECTOR_FILTERS.map((s) => (
+            <button
+              key={s}
+              onClick={() => setSectorFilter(s)}
+              className={cn(
+                "px-3 py-1.5 min-h-[32px] rounded-full border text-xs font-medium transition active:scale-[0.97]",
+                sectorFilter === s
+                  ? "bg-blue-600 border-blue-600 text-white"
+                  : "bg-white border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-700"
+              )}
+            >
+              {s}
+            </button>
+          ))}
+        </div>
         <div className="flex flex-wrap gap-2">
-          {POPULAR.map((s) => (
+          {POPULAR.filter((s) => sectorFilter === "All" || s.sector === sectorFilter).map((s) => (
             <button
               key={s.ticker}
               onMouseEnter={() => router.prefetch(`/analysis/${s.ticker}`)}
