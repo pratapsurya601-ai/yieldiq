@@ -67,11 +67,15 @@ export default function TickerStrip() {
     queryKey: ["market-pulse"],
     // No macro — we only need indices here. Keep the payload small.
     queryFn: () => getMarketPulse(false),
-    staleTime: 60 * 1000,
-    // Avoid SSR — this is a client strip that hydrates after paint so the
-    // hero LCP isn't blocked by market-pulse fetch.
+    // /market/pulse is currently 10s+ cold on Railway. Keep the result
+    // stable for 5 min so sibling pages don't re-trigger compute. The
+    // strip renders em-dashes while the fetch is in flight — cosmetic,
+    // not blocking.
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
-    retry: 1,
+    refetchOnMount: false,
+    retry: 0,
   })
 
   const { data: watchlist } = useQuery<WatchlistItemResponse[]>({

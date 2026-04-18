@@ -22,6 +22,8 @@ export interface AnalysisTabDef {
 interface AnalysisTabsProps {
   tabs: AnalysisTabDef[]
   initial?: AnalysisTabKey
+  /** Fires on tab change — parent can defer expensive queries until their tab is opened. */
+  onTabChange?: (key: AnalysisTabKey) => void
 }
 
 /**
@@ -33,11 +35,16 @@ interface AnalysisTabsProps {
  * - Only renders the active tab's content — inactive tabs are unmounted.
  * - No external dependency.
  */
-export default function AnalysisTabs({ tabs, initial }: AnalysisTabsProps) {
+export default function AnalysisTabs({ tabs, initial, onTabChange }: AnalysisTabsProps) {
   const [active, setActive] = useState<AnalysisTabKey>(
     initial ?? tabs[0]?.key ?? "summary"
   )
   const activeTab = tabs.find((t) => t.key === active) ?? tabs[0]
+
+  const handleChange = (key: AnalysisTabKey) => {
+    setActive(key)
+    onTabChange?.(key)
+  }
 
   return (
     <div>
@@ -58,7 +65,7 @@ export default function AnalysisTabs({ tabs, initial }: AnalysisTabsProps) {
                 aria-selected={selected}
                 aria-controls={`tabpanel-${t.key}`}
                 id={`tab-${t.key}`}
-                onClick={() => setActive(t.key)}
+                onClick={() => handleChange(t.key)}
                 className={cn(
                   "shrink-0 whitespace-nowrap px-3 py-2.5 text-sm font-medium min-h-[44px] border-b-2 -mb-px transition",
                   selected

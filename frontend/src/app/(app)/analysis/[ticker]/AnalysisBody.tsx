@@ -139,6 +139,14 @@ interface Props {
 }
 
 export default function AnalysisBody({ ticker, prism }: Props) {
+  // Lazy-load pattern: only fetch data for tabs the user actually opens.
+  // Previously all 5 queries fired in parallel on mount — peers alone was
+  // 12s on cold cache, blocking perceived loading. Now only the critical
+  // hero queries (analysis + chart) fire immediately. Tab-specific data
+  // fires when the tab is opened, at which point the user expects a
+  // fraction-of-a-second wait.
+  const [openedTabs, setOpenedTabs] = useState<Set<string>>(() => new Set(["summary"]))
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["analysis", ticker],
     queryFn: () => getAnalysis(ticker),
@@ -158,25 +166,25 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     staleTime: 5 * 60 * 1000,
   })
 
-  // Parallel warm-up of sub-queries.
+  // ─── Deferred queries — fire only when their tab opens ────────────
   useQuery({
     queryKey: ["fv-history", ticker, 3],
     queryFn: () => getFVHistory(ticker, 3),
-    enabled: !!ticker,
+    enabled: !!ticker && openedTabs.has("history"),
     staleTime: 15 * 60 * 1000,
     retry: 1,
   })
   useQuery({
     queryKey: ["peers", ticker],
     queryFn: () => getPeers(ticker),
-    enabled: !!ticker,
+    enabled: !!ticker && openedTabs.has("peers"),
     staleTime: 30 * 60 * 1000,
     retry: 1,
   })
   const financialsQuery = useQuery({
     queryKey: ["financials", ticker, "annual"],
     queryFn: () => getFinancials(ticker, "annual", 5),
-    enabled: !!ticker,
+    enabled: !!ticker && openedTabs.has("financials"),
     staleTime: 5 * 60 * 1000,
     retry: 1,
   })
@@ -563,7 +571,11 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           />
         )}
 
-        <AnalysisTabs tabs={tabs} initial="summary" />
+        <AnalysisTabs
+          tabs={tabs}
+          initial="summary"
+          onTabChange={(key) => setOpenedTabs((prev) => new Set(prev).add(key))}
+        />
 
         <div className="bg-gradient-to-r from-[color:var(--color-brand-50)] to-surface border border-border rounded-xl p-4 flex items-center justify-between gap-3">
           <div>
