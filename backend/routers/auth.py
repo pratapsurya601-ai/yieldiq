@@ -99,6 +99,22 @@ async def debug_auth(user: dict = Depends(get_current_user)):
     }
 
 
+@router.get("/sentry-test")
+async def sentry_test(user: dict = Depends(get_current_user)):
+    """Deliberate uncaught exception for Sentry verification.
+
+    Superuser-only. Raises ZeroDivisionError; if Sentry is wired, the
+    event lands in the dashboard within ~10s. Safe to remove once
+    verified — this endpoint exists solely as a smoke test.
+    """
+    from backend.middleware.auth import is_superuser
+    if not is_superuser(user):
+        raise HTTPException(status_code=403, detail="Superuser only")
+    # Uncaught on purpose — Sentry captures it, the user sees a 500.
+    _ = 1 / 0
+    return {"never": "reached"}
+
+
 @router.get("/me", response_model=UserResponse)
 async def get_me(user: dict = Depends(get_current_user)):
     """Get current user info."""
