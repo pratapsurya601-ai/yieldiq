@@ -1849,8 +1849,18 @@ class AnalysisService:
         _roce_val: float | None = _compute_roce(
             _ebit_val, _total_assets, _current_liab
         )
-        if _roce_val is None and _ebit_val is not None and _total_assets > 0:
-            # Fallback: no current_liabilities on file.
+        # Fallback path: primary returned None (often because
+        # current_liabilities isn't on file for older `financials`
+        # rows). Use the looser EBIT/Total Assets definition so we
+        # keep coverage. Must guard against EBIT<=0 though — otherwise
+        # tickers with missing/zero EBIT render as misleading "0.0% Weak"
+        # (e.g. RELIANCE appeared as 0% on the analysis page).
+        if (
+            _roce_val is None
+            and _ebit_val is not None
+            and _ebit_val > 0
+            and _total_assets > 0
+        ):
             _roce_val = round(_ebit_val / _total_assets * 100, 1)
 
         # Banks / NBFCs: Debt/EBITDA and Interest Coverage are not

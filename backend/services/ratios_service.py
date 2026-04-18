@@ -37,11 +37,19 @@ def _num(v):
 
 
 def compute_roce(ebit, total_assets, current_liabilities) -> float | None:
-    """ROCE = EBIT / (Total Assets − Current Liabilities). Returns PERCENT."""
+    """ROCE = EBIT / (Total Assets − Current Liabilities). Returns PERCENT.
+
+    Non-positive EBIT → None. A genuine loss-making company's negative
+    ROCE is technically computable, but it's more useful to show "—"
+    in the UI than a precise-looking red "-12.3% Weak" — users
+    consistently misread the latter as 'healthy company losing money'
+    rather than 'data unavailable / deep distress'. Callers that want
+    the signed value can compute it themselves.
+    """
     _ebit = _num(ebit)
     _ta = _num(total_assets)
     _cl = _num(current_liabilities)
-    if _ebit is None or _ta is None or _cl is None:
+    if _ebit is None or _ebit <= 0 or _ta is None or _cl is None:
         return None
     cap_employed = _ta - _cl
     if cap_employed <= 0:
