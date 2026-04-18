@@ -1,14 +1,43 @@
 import type { Metadata, Viewport } from "next";
 import Script from "next/script";
+import { Inter, Inter_Tight, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import BetaBanner from "@/components/marketing/BetaBanner";
 
+// ── Typography (next/font, self-hosted, no FOUT) ──
+// Inter Tight serves as our "display" face (used for headings via
+// the `font-display` utility). Inter is the body/sans face. JetBrains
+// Mono renders numeric displays (prices, scores, percentages) — pairs
+// perfectly with tabular-nums since it already has distinctive digits.
+const fontSans = Inter({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const fontDisplay = Inter_Tight({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+});
+
+const fontMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-mono",
+  display: "swap",
+});
+
 // ── Analytics IDs (set in Vercel env vars for production) ──
 const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID || "";
 const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_ID || "";
+
+// Inline script string: reads the user's saved theme preference from
+// localStorage BEFORE React hydrates so we avoid a light-to-dark
+// flash on first paint. Standard anti-FOUC pattern.
+const themeInitScript = `(function(){try{var s=localStorage.getItem('yieldiq_theme');var m=window.matchMedia('(prefers-color-scheme: dark)').matches;var d=s==='dark'||((s==='system'||!s)&&m);var e=document.documentElement;if(d){e.classList.add('dark');}else{e.classList.remove('dark');}}catch(e){}})();`;
 
 export const metadata: Metadata = {
   title: "YieldIQ — Know if a stock is undervalued",
@@ -30,10 +59,6 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    // "default" = white status bar text on light background. Was
-    // "black-translucent" which made the iOS status bar area look
-    // black when the app was installed as a PWA — didn't match the
-    // light-theme rest of the app.
     statusBarStyle: "default",
     title: "YieldIQ",
   },
@@ -66,7 +91,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
-  themeColor: "#1D4ED8",
+  themeColor: "#2563EB",
 };
 
 export default function RootLayout({
@@ -75,8 +100,15 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full antialiased">
+    <html
+      lang="en"
+      className={`h-full antialiased ${fontSans.variable} ${fontDisplay.variable} ${fontMono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
+        {/* Anti-FOUC theme init — must run before body paint. */}
+        <script dangerouslySetInnerHTML={{ __html: themeInitScript }} />
+
         {/* Google Analytics 4 */}
         {GA4_ID && (
           <>
@@ -111,7 +143,7 @@ export default function RootLayout({
           </Script>
         )}
       </head>
-      <body className="min-h-full flex flex-col bg-gray-50 text-gray-900">
+      <body className="min-h-full flex flex-col bg-bg text-body font-sans">
         <BetaBanner />
         <Providers>{children}</Providers>
         <Analytics />

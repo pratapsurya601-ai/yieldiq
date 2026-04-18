@@ -1,31 +1,86 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* ──────────────────────────────────────────────────────────
+   Dark mode strategy
+   We use Tailwind v4's `@custom-variant` to make `dark:` utilities
+   respond to an explicit `.dark` class on <html> instead of the
+   default `prefers-color-scheme` media query. The class is set by
+   a tiny inline script in layout.tsx before hydration.
+   ────────────────────────────────────────────────────────── */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ──────────────────────────────────────────────────────────
+   Design tokens — light mode (default)
+   Single source of truth for the entire app's palette. Replaces
+   the earlier scattered blue-600/blue-700/gray-50/gray-100 usage.
+   ────────────────────────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  /* Override any UA dark-mode preference — the app isn't themed for
-     dark mode yet (all cards, buttons, and text assume white bg).
-     Before this, users with system-level dark mode (default on
-     mobile) would see a black background behind white cards, which
-     looked broken. Re-enable a proper dark theme when every component
-     has been styled for both. */
+  --color-bg:       #FFFFFF;
+  --color-surface:  #F8FAFC;
+  --color-border:   #E2E8F0;
+  --color-ink:      #0F172A;
+  --color-body:     #334155;
+  --color-caption:  #64748B;
+  --color-brand:    #2563EB;
+  --color-brand-50: #EFF6FF;
+  --color-success:  #059669;
+  --color-warning:  #D97706;
+  --color-danger:   #DC2626;
+
   color-scheme: light;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* Dark mode overrides — applied when <html class="dark"> */
+html.dark {
+  --color-bg:       #0B1220;
+  --color-surface:  #131B2C;
+  --color-border:   #1F2A3F;
+  --color-ink:      #F8FAFC;
+  --color-body:     #CBD5E1;
+  --color-caption:  #94A3B8;
+  --color-brand:    #60A5FA;
+  --color-brand-50: #1E3A8A;
+  --color-success:  #34D399;
+  --color-warning:  #FBBF24;
+  --color-danger:   #F87171;
+
+  color-scheme: dark;
 }
 
-/* Explicit light bg for html + body so mobile browsers never fall
-   back to a UA-default dark background (e.g. iOS Safari paints a
-   dark bg during page transitions when color-scheme is ambiguous). */
+/* ──────────────────────────────────────────────────────────
+   Tailwind v4 theme wiring
+   Expose design tokens + font variables as Tailwind utilities:
+     bg-bg, bg-surface, bg-brand, bg-brand-50
+     text-ink, text-body, text-caption, text-brand
+     border-border
+     text-success / text-warning / text-danger
+     font-sans, font-display, font-mono
+   ────────────────────────────────────────────────────────── */
+@theme inline {
+  --color-bg:       var(--color-bg);
+  --color-surface:  var(--color-surface);
+  --color-border:   var(--color-border);
+  --color-ink:      var(--color-ink);
+  --color-body:     var(--color-body);
+  --color-caption:  var(--color-caption);
+  --color-brand:    var(--color-brand);
+  --color-brand-50: var(--color-brand-50);
+  --color-success:  var(--color-success);
+  --color-warning:  var(--color-warning);
+  --color-danger:   var(--color-danger);
+
+  --font-sans:    var(--font-sans),    ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    var(--font-mono),    ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Explicit bg/fg on html + body so the browser never flashes its
+   default UA background during transitions. Uses tokens so it
+   automatically follows dark mode. */
 html, body {
-  background: #ffffff;
-  color: var(--foreground);
+  background: var(--color-bg);
+  color: var(--color-body);
 }
 
 /* ── Landing page animations ─────────────────────────── */
@@ -117,9 +172,9 @@ html, body {
 .skeleton {
   background: linear-gradient(
     90deg,
-    rgb(243 244 246) 0%,
-    rgb(229 231 235) 50%,
-    rgb(243 244 246) 100%
+    var(--color-surface) 0%,
+    var(--color-border)  50%,
+    var(--color-surface) 100%
   );
   background-size: 200% 100%;
   animation: skeleton-shimmer 1.8s ease-in-out infinite;
@@ -128,6 +183,6 @@ html, body {
 @media (prefers-reduced-motion: reduce) {
   .skeleton {
     animation: none;
-    background: rgb(229 231 235);
+    background: var(--color-border);
   }
 }

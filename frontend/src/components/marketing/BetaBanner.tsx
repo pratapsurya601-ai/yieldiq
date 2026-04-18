@@ -3,14 +3,19 @@
 import { useState, useEffect } from "react"
 
 /**
- * Site-wide beta banner. Dismissible, state stored in localStorage.
- * Shown across all pages while data pipeline is being calibrated.
+ * Fixed bottom-left "Beta" chip. Replaces the previous full-width
+ * banner that stole ~40px of vertical space on every page. The chip
+ * is dismissible; state is persisted in localStorage. Keep the key
+ * `yiq_beta_banner_v2_dismissed` so users who already dismissed the
+ * old banner don't see the new chip either.
  */
 export default function BetaBanner() {
   const [show, setShow] = useState(false)
 
   useEffect(() => {
-    const dismissed = typeof window !== "undefined" && localStorage.getItem("yiq_beta_banner_v2_dismissed")
+    const dismissed =
+      typeof window !== "undefined" &&
+      localStorage.getItem("yiq_beta_banner_v2_dismissed")
     if (!dismissed) setShow(true)
   }, [])
 
@@ -24,20 +29,24 @@ export default function BetaBanner() {
   if (!show) return null
 
   return (
-    <div className="bg-amber-50 border-b border-amber-200">
-      <div className="max-w-6xl mx-auto px-4 py-2 flex items-center justify-between gap-3">
-        <p className="text-xs text-amber-900 leading-snug">
-          <span className="font-bold">Beta</span> &middot; Some valuation figures are being recalibrated.
-          Fields with data quality issues are hidden automatically. Feedback welcome.
-        </p>
-        <button
-          onClick={dismiss}
-          className="text-amber-700 hover:text-amber-900 transition text-sm font-bold flex-shrink-0"
-          aria-label="Dismiss"
-        >
-          &times;
-        </button>
-      </div>
+    <div
+      className="fixed bottom-3 left-3 z-40 flex items-center gap-1 rounded-full border border-border bg-surface/95 backdrop-blur px-2.5 py-1 shadow-sm"
+      role="status"
+      aria-label="Beta notice"
+    >
+      <span className="text-[10px] font-bold uppercase tracking-wider text-brand">
+        Beta
+      </span>
+      <span className="text-caption text-[10px] hidden sm:inline">
+        · calibrating
+      </span>
+      <button
+        onClick={dismiss}
+        className="ml-1 text-caption hover:text-ink transition text-xs leading-none"
+        aria-label="Dismiss beta notice"
+      >
+        &times;
+      </button>
     </div>
   )
 }
