@@ -28,16 +28,16 @@ export default function HomeEmpty() {
         Start by analysing a stock to see personalised insights and your daily briefing.
       </p>
 
-      <p className="text-xs text-gray-400 mb-3">Popular picks</p>
+      <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">Popular picks</p>
       <div className="flex flex-wrap justify-center gap-2">
         {POPULAR_TICKERS.map((item) => (
           <Link
             key={item.ticker}
             href={`/analysis/${item.ticker}`}
             className={cn(
-              "inline-flex items-center rounded-full px-4 py-2",
+              "inline-flex items-center rounded-full px-5 py-2.5 min-h-[40px]",
               "bg-white border border-gray-200 text-sm font-medium text-gray-700",
-              "hover:border-blue-300 hover:text-blue-700 active:bg-blue-50",
+              "hover:border-blue-300 hover:text-blue-700 active:bg-blue-50 active:scale-[0.97]",
               "transition-colors shadow-sm"
             )}
           >

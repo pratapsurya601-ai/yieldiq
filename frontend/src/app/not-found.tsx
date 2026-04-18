@@ -18,13 +18,13 @@ export default function NotFound() {
         <div className="flex items-center justify-center gap-3">
           <Link
             href="/home"
-            className="px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition"
+            className="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 active:scale-[0.98] transition"
           >
             Go Home
           </Link>
           <Link
             href="/search"
-            className="px-5 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition"
+            className="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] bg-white text-gray-700 text-sm font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 active:scale-[0.98] transition"
           >
             Search Stocks
           </Link>

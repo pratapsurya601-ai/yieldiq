@@ -22,9 +22,9 @@ export default function WatchlistEmpty() {
       <Link
         href="/search"
         className={cn(
-          "inline-flex items-center rounded-full px-6 py-2.5",
-          "bg-gray-100 text-gray-700 text-sm font-medium",
-          "hover:bg-gray-200 active:bg-gray-300 transition-colors"
+          "inline-flex items-center justify-center rounded-full px-6 py-2.5 min-h-[44px]",
+          "bg-gray-100 text-gray-700 text-sm font-semibold",
+          "hover:bg-gray-200 active:bg-gray-300 active:scale-[0.97] transition"
         )}
       >
         Search for stocks
