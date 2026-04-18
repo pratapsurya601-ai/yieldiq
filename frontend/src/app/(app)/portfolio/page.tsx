@@ -30,7 +30,7 @@ function pctColor(n: number): string {
 
 export default function PortfolioPage() {
   return (
-    <Suspense fallback={<div className="max-w-2xl mx-auto px-4 py-6" />}>
+    <Suspense fallback={<div className="max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-4 py-6" />}>
       <PortfolioInner />
     </Suspense>
   )
@@ -92,7 +92,7 @@ function PortfolioInner() {
   }
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-20">
+    <div className="max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-4 py-6 space-y-5 pb-20">
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs font-medium px-4 py-2 rounded-lg shadow-lg z-50 whitespace-nowrap">
@@ -216,12 +216,21 @@ function PortfolioInner() {
             </div>
             <p className="text-base font-semibold text-gray-700 mb-1">No holdings yet</p>
             <p className="text-sm text-gray-400 mb-4">Your portfolio is empty. Import your Zerodha/Groww holdings in seconds, or analyse stocks one by one.</p>
-            <div className="flex gap-2 justify-center">
+            <div className="flex gap-2 justify-center flex-wrap">
               <Link href="/portfolio/import" className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition">
                 Import CSV &rarr;
               </Link>
               <Link href="/search" className="bg-white border border-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-gray-50 transition">
                 Analyse a stock
+              </Link>
+            </div>
+            <div className="mt-6 pt-5 border-t border-gray-100 max-w-sm mx-auto">
+              <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-2 font-semibold">Want to see it first?</p>
+              <Link
+                href="/analysis/RELIANCE.NS"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700"
+              >
+                Explore a sample analysis (Reliance) &rarr;
               </Link>
             </div>
           </div>

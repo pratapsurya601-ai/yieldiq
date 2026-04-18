@@ -14,7 +14,7 @@ export default function DiscoverPage() {
   const { data: yiq50 } = useQuery({ queryKey: ["yieldiq50"], queryFn: getYieldIQ50, staleTime: 86400000 })
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-8 pb-20">
+    <div className="max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-4 py-6 space-y-8 pb-20">
       {/* Highest-scored stock today */}
       {topPick && (
         <section>

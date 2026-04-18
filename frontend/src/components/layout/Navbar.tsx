@@ -67,7 +67,7 @@ export default function Navbar() {
   const tier = useAuthStore((s) => s.tier)
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-gray-200 pb-[env(safe-area-inset-bottom)]" aria-label="Main navigation">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-gray-200 pb-[env(safe-area-inset-bottom)]" aria-label="Main navigation">
       {tier === "free" && <AnalysisCounter />}
       {/* Thin separator between counter and nav items */}
       {tier === "free" && <div className="h-px bg-gray-100 mx-4" />}

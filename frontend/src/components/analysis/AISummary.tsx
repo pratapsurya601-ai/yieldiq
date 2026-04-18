@@ -56,7 +56,7 @@ export default function AISummary(props: AISummaryProps) {
       setTimedOut(false)
       return
     }
-    const timer = setTimeout(() => setTimedOut(true), 8000)
+    const timer = setTimeout(() => setTimedOut(true), 4000)
     return () => clearTimeout(timer)
   }, [summary])
 

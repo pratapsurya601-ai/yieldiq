@@ -231,7 +231,7 @@ function CompareContent() {
   const overallWinner = wins1 > wins2 ? ticker1 : wins2 > wins1 ? ticker2 : null
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-6 space-y-5 pb-20">
+    <div className="max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-4 py-6 space-y-5 pb-20">
       <div className="text-center">
         <h1 className="text-lg font-bold text-gray-900 mb-1">Compare Stocks</h1>
         <p className="text-xs text-gray-500">Pick two stocks to compare side by side</p>

@@ -31,7 +31,7 @@ export default function HomePage() {
   const hasData = !!topPick
 
   return (
-    <div className="max-w-2xl mx-auto pb-20">
+    <div className="max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto pb-20">
       {/* Gradient header */}
       <div className="bg-gradient-to-b from-blue-50 to-white px-4 pt-6 pb-4">
         <h1 className="text-lg font-bold text-gray-900">{greeting}</h1>

@@ -446,7 +446,7 @@ export default function AnalysisPage() {
         </div>
 
         {/* Disclaimer */}
-        <p className="text-[10px] text-gray-400 text-center leading-relaxed px-4">
+        <p className="text-xs text-gray-600 text-center leading-relaxed px-4">
           All outputs are model estimates using publicly available data. Not investment advice.
           YieldIQ is not registered with SEBI as an investment adviser.
         </p>
