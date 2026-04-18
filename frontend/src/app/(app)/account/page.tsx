@@ -56,7 +56,7 @@ function ReferralSection() {
         />
         <button
           onClick={handleCopy}
-          className="px-4 py-2 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition flex-shrink-0"
+          className="px-4 py-2 min-h-[40px] bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 active:scale-[0.97] transition flex-shrink-0"
         >
           {copied ? "Copied!" : "Copy Link"}
         </button>
@@ -64,11 +64,11 @@ function ReferralSection() {
       <div className="flex gap-6 text-center pt-1">
         <div>
           <p className="text-lg font-bold text-gray-900">{stats.referral_count}</p>
-          <p className="text-xs text-gray-400">friends invited</p>
+          <p className="text-xs text-gray-500">friends invited</p>
         </div>
         <div>
           <p className="text-lg font-bold text-blue-600">{stats.bonus_analyses}</p>
-          <p className="text-xs text-gray-400">bonus analyses earned</p>
+          <p className="text-xs text-gray-500">bonus analyses earned</p>
         </div>
       </div>
     </div>
@@ -278,7 +278,7 @@ function AccountInner() {
               <li>&#10003; 50-stock watchlist + 10 alerts</li>
             </ul>
             <button onClick={() => handleUpgrade("pro")} disabled={upgrading}
-              className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50">
+              className="w-full py-3 min-h-[44px] bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:scale-[0.98] transition disabled:opacity-50 disabled:active:scale-100">
               {upgrading ? "Processing..." : "Upgrade to Pro \u2014 \u20b9299/mo"}
             </button>
           </div>
@@ -304,7 +304,7 @@ function AccountInner() {
               <li>&#10003; Priority support</li>
             </ul>
             <button onClick={() => handleUpgrade("analyst")} disabled={upgrading}
-              className="w-full py-3 bg-white text-gray-900 rounded-xl text-sm font-bold hover:bg-gray-100 transition disabled:opacity-50">
+              className="w-full py-3 min-h-[44px] bg-white text-gray-900 rounded-xl text-sm font-bold hover:bg-gray-100 active:scale-[0.98] transition disabled:opacity-50 disabled:active:scale-100">
               {upgrading ? "Processing..." : "Upgrade to Analyst \u2014 \u20b9799/mo"}
             </button>
           </div>

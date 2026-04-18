@@ -194,13 +194,13 @@ export default function PricingPage() {
             <div className="inline-flex bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
               <button
                 onClick={() => handleBillingToggle("monthly")}
-                className={`px-5 py-2 rounded-lg text-sm font-semibold transition ${billing === "monthly" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
+                className={`px-5 py-2 min-h-[40px] rounded-lg text-sm font-semibold transition ${billing === "monthly" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
               >
                 Monthly
               </button>
               <button
                 onClick={() => handleBillingToggle("annual")}
-                className={`px-5 py-2 rounded-lg text-sm font-semibold transition inline-flex items-center gap-2 ${billing === "annual" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
+                className={`px-5 py-2 min-h-[40px] rounded-lg text-sm font-semibold transition inline-flex items-center gap-2 ${billing === "annual" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
               >
                 Annual
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${billing === "annual" ? "bg-white text-blue-700" : "bg-green-100 text-green-700"}`}>
@@ -268,7 +268,7 @@ export default function PricingPage() {
                       // clicks (which already fire their own event below).
                       trackUpgradeClicked(plan.id, `pricing:${billing}`)
                     }}
-                    className={`block w-full text-center py-3 rounded-xl font-semibold transition ${plan.ctaStyle}`}
+                    className={`block w-full text-center py-3 min-h-[44px] rounded-xl font-semibold transition active:scale-[0.98] ${plan.ctaStyle}`}
                   >
                     {cta.label}
                   </Link>

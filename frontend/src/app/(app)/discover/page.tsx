@@ -18,7 +18,7 @@ export default function DiscoverPage() {
       {/* Highest-scored stock today */}
       {topPick && (
         <section>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Highest YieldIQ score today</p>
+          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Highest YieldIQ score today</p>
           <TopPickCard
             ticker={topPick.ticker}
             companyName={topPick.company_name || topPick.ticker}
@@ -27,29 +27,29 @@ export default function DiscoverPage() {
             moat={topPick.moat || "Narrow"}
             summary={topPick.summary || ""}
           />
-          <p className="text-[10px] text-gray-400 mt-1">Updated daily. Based on YieldIQ 50 model. Not investment advice.</p>
+          <p className="text-[10px] text-gray-500 mt-1">Updated daily. Based on YieldIQ 50 model. Not investment advice.</p>
         </section>
       )}
 
       {/* YieldIQ 50 */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">YieldIQ 50</p>
-          <p className="text-[10px] text-gray-400">Updated daily</p>
+          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">YieldIQ 50</p>
+          <p className="text-[10px] text-gray-500">Updated daily</p>
         </div>
         {yiq50 && yiq50.results.length > 0 ? (
           <>
             <div className="grid grid-cols-3 gap-2 mb-3">
               {yiq50.results.slice(0, 3).map((s, i) => (
                 <Link key={s.ticker} href={`/analysis/${s.ticker}`}
-                  className="relative bg-white rounded-xl border border-gray-100 p-3 text-center hover:border-blue-200 transition">
+                  className="relative bg-white rounded-xl border border-gray-100 p-4 min-h-[96px] text-center hover:border-blue-300 hover:shadow-sm active:scale-[0.98] transition">
                   {/* Rank badge */}
                   <span className={`absolute -top-2 -left-2 w-6 h-6 rounded-full ${RANK_COLORS[i]} text-white text-[10px] font-bold flex items-center justify-center shadow-sm`}>
                     #{i + 1}
                   </span>
-                  <p className="text-sm font-bold text-gray-900">{s.ticker.replace(".NS", "")}</p>
+                  <p className="text-sm font-bold text-gray-900 truncate">{s.ticker.replace(".NS", "")}</p>
                   <p className="text-lg font-bold text-blue-700 font-mono">{s.margin_of_safety > 0 ? "+" : ""}{s.margin_of_safety.toFixed(0)}%</p>
-                  <p className="text-[10px] text-gray-400">Score: {s.score}</p>
+                  <p className="text-[10px] text-gray-500">Score: {s.score}</p>
                 </Link>
               ))}
             </div>
@@ -90,15 +90,24 @@ export default function DiscoverPage() {
             )}
           </>
         ) : (
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-center text-sm text-blue-700">
-            Index building in progress. Analyse stocks to populate the YieldIQ 50.
+          <div className="bg-white border border-gray-100 rounded-xl p-6 text-center">
+            <div className="mx-auto h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center mb-3">
+              <svg className="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+              </svg>
+            </div>
+            <p className="text-sm font-semibold text-gray-900 mb-1">YieldIQ 50 is warming up</p>
+            <p className="text-xs text-gray-500 mb-4 max-w-xs mx-auto">The daily ranking rebuilds as stocks are analysed. Run an analysis to seed the index.</p>
+            <Link href="/search" className="inline-flex items-center justify-center min-h-[40px] px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:scale-[0.98] transition">
+              Analyse a stock
+            </Link>
           </div>
         )}
       </section>
 
       {/* Screener Presets */}
       <section>
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Screener</p>
+        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">Screener</p>
         <ScreenerPresets />
       </section>
     </div>

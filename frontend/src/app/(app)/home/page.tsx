@@ -69,7 +69,7 @@ export default function HomePage() {
             </div>
             <Link
               href="/pricing"
-              className="flex-shrink-0 bg-amber-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-amber-700 transition"
+              className="flex-shrink-0 bg-amber-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-amber-700 active:scale-[0.97] transition min-h-[36px] inline-flex items-center"
             >
               Upgrade
             </Link>
@@ -86,23 +86,23 @@ export default function HomePage() {
 
         {/* Market Pulse */}
         {pulse && pulse.indices && pulse.indices.length > 0 && (
-          <div className="flex gap-2 overflow-x-auto pb-2">
+          <div className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory -mx-4 px-4 scroll-px-4">
             {pulse.indices.map((idx) => (
               <div
                 key={idx.name}
-                className={`flex-shrink-0 bg-white rounded-xl border border-gray-100 px-4 py-3 text-center min-w-[140px] border-l-[3px] ${idx.change_pct >= 0 ? "border-l-green-500" : "border-l-red-500"}`}
+                className={`flex-shrink-0 snap-start bg-white rounded-xl border border-gray-100 px-4 py-3 text-center min-w-[140px] border-l-[3px] ${idx.change_pct >= 0 ? "border-l-green-500" : "border-l-red-500"}`}
               >
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">{idx.name}</p>
-                <p className="text-lg font-bold text-gray-900">{idx.price.toLocaleString()}</p>
-                <p className={`text-xs font-bold ${idx.change_pct >= 0 ? "text-green-600" : "text-red-600"}`}>
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">{idx.name}</p>
+                <p className="text-lg font-bold text-gray-900 font-mono">{idx.price.toLocaleString()}</p>
+                <p className={`text-xs font-bold font-mono ${idx.change_pct >= 0 ? "text-green-600" : "text-red-600"}`}>
                   {idx.change_pct >= 0 ? "\u25b2" : "\u25bc"} {formatPct(idx.change_pct)}
                 </p>
               </div>
             ))}
             {pulse.fear_greed_label && (
-              <div className="flex-shrink-0 bg-white rounded-xl border border-gray-100 border-l-[3px] border-l-amber-500 px-4 py-3 text-center min-w-[140px]">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Sentiment</p>
-                <p className="text-lg font-bold text-gray-900">{pulse.fear_greed_index}</p>
+              <div className="flex-shrink-0 snap-start bg-white rounded-xl border border-gray-100 border-l-[3px] border-l-amber-500 px-4 py-3 text-center min-w-[140px]">
+                <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">Sentiment</p>
+                <p className="text-lg font-bold text-gray-900 font-mono">{pulse.fear_greed_index}</p>
                 <p className="text-xs font-bold text-amber-600">{pulse.fear_greed_label}</p>
               </div>
             )}
@@ -124,10 +124,10 @@ export default function HomePage() {
             </div>
 
             <div className="grid grid-cols-2 gap-3">
-              <Link href="/search" className="flex items-center justify-center bg-blue-600 text-white rounded-xl py-3 font-medium text-sm hover:bg-blue-700 transition">
+              <Link href="/search" className="flex items-center justify-center min-h-[44px] bg-blue-600 text-white rounded-xl py-3 font-medium text-sm hover:bg-blue-700 active:scale-[0.98] transition">
                 Analyse a stock
               </Link>
-              <Link href="/discover" className="flex items-center justify-center bg-white border border-gray-200 rounded-xl py-3 font-medium text-sm text-gray-700 hover:bg-gray-50 transition">
+              <Link href="/discover" className="flex items-center justify-center min-h-[44px] bg-white border border-gray-200 rounded-xl py-3 font-medium text-sm text-gray-700 hover:bg-gray-50 active:scale-[0.98] transition">
                 View YieldIQ 50
               </Link>
             </div>

@@ -186,7 +186,7 @@ export default function SearchPage() {
           </div>
           <button
             onClick={handleAnalyse}
-            className="px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition"
+            className="px-6 py-3 min-h-[44px] bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 active:scale-[0.98] transition"
           >
             Analyse
           </button>
@@ -236,14 +236,14 @@ export default function SearchPage() {
       {/* Recently analysed */}
       {recent.length > 0 && (
         <div>
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Recently analysed</p>
+          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">Recently analysed</p>
           <div className="flex flex-wrap gap-2">
             {recent.map((r) => (
               <button
                 key={r.ticker}
                 onMouseEnter={() => router.prefetch(`/analysis/${r.ticker}`)}
                 onClick={() => handleSelect(r.ticker, r.label)}
-                className="px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-lg text-sm font-medium text-blue-700 hover:bg-blue-100 transition"
+                className="px-4 py-2.5 min-h-[40px] bg-blue-50 border border-blue-100 rounded-lg text-sm font-medium text-blue-700 hover:bg-blue-100 active:scale-[0.97] transition-colors"
               >
                 {r.label}
               </button>
@@ -253,14 +253,14 @@ export default function SearchPage() {
       )}
 
       <div>
-        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Popular stocks</p>
+        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">Popular stocks</p>
         <div className="flex flex-wrap gap-2">
           {POPULAR.map((s) => (
             <button
               key={s.ticker}
               onMouseEnter={() => router.prefetch(`/analysis/${s.ticker}`)}
               onClick={() => handleSelect(s.ticker, s.label)}
-              className="px-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:border-blue-300 hover:text-blue-700 transition inline-flex items-center gap-1.5"
+              className="px-4 py-2.5 min-h-[40px] bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:border-blue-300 hover:text-blue-700 active:scale-[0.97] transition-colors inline-flex items-center gap-1.5"
             >
               <span className="text-[10px] text-gray-400 font-normal">{SECTOR_LABELS[s.sector] || ""}</span>
               {s.label}

@@ -83,3 +83,51 @@ html, body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── Number rendering ─────────────────────────────────────
+   Prices, percentages, scores should all use tabular figures
+   so columns of numbers line up vertically and values don't
+   "jiggle" by a pixel when they update every few seconds.
+   Applied globally to any element with font-mono (all of
+   our monetary/score displays) plus a utility class. */
+.font-mono,
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ── Tap targets ──────────────────────────────────────────
+   iOS HIG minimum tap target is 44×44 px. Use this on any
+   interactive element in tight grids (score tiles, icon
+   buttons, chip rows) where padding alone is too small. */
+.tap-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* ── Skeleton shimmer ─────────────────────────────────────
+   Upgraded loading state: instead of a flat animate-pulse,
+   show a diagonal shimmer so skeletons feel "alive" and
+   users can tell content is on its way. */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgb(243 244 246) 0%,
+    rgb(229 231 235) 50%,
+    rgb(243 244 246) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    background: rgb(229 231 235);
+  }
+}

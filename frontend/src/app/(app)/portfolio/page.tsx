@@ -60,7 +60,7 @@ function PortfolioInner() {
   const [toast, setToast] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
-  const { data: holdingsLive, isError: holdingsError } = useQuery({ queryKey: ["holdings-live"], queryFn: getHoldingsLive, retry: 1 })
+  const { data: holdingsLive, isError: holdingsError, isLoading: holdingsLoading } = useQuery({ queryKey: ["holdings-live"], queryFn: getHoldingsLive, retry: 1 })
   const holdings = holdingsLive?.holdings || []
   const summary = holdingsLive?.summary
   const { data: health } = useQuery({ queryKey: ["portfolio-health"], queryFn: getPortfolioHealth, retry: 1 })
@@ -134,7 +134,32 @@ function PortfolioInner() {
           <Link href="/search" className="text-sm text-blue-600 font-medium hover:underline">Analyse a stock</Link>
         </div>
       )}
-      {tab === "holdings" && !holdingsError && (
+      {tab === "holdings" && !holdingsError && holdingsLoading && (
+        <div className="space-y-3" aria-busy="true" aria-label="Loading holdings">
+          {/* Summary skeleton — matches the gradient header card */}
+          <div className="skeleton rounded-2xl h-[148px]" />
+          {/* Three holding-row skeletons — matches the real card layout */}
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+              <div className="flex items-start justify-between">
+                <div className="space-y-2">
+                  <div className="skeleton h-4 w-24 rounded" />
+                  <div className="skeleton h-3 w-32 rounded" />
+                </div>
+                <div className="space-y-2 text-right">
+                  <div className="skeleton h-4 w-20 rounded ml-auto" />
+                  <div className="skeleton h-3 w-8 rounded ml-auto" />
+                </div>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="skeleton h-3 w-40 rounded" />
+                <div className="skeleton h-3 w-24 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "holdings" && !holdingsError && !holdingsLoading && (
         holdings && holdings.length > 0 ? (
           <div className="space-y-3">
             {/* Portfolio Summary */}
@@ -174,11 +199,11 @@ function PortfolioInner() {
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-gray-900">{h.display_ticker || h.ticker.replace(".NS", "")}</p>
-                    <p className="text-xs text-gray-400 truncate">{h.sector || h.company_name || "—"}</p>
+                    <p className="text-xs text-gray-500 truncate">{h.sector || h.company_name || "—"}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-mono font-semibold text-gray-900">{formatCurrency(h.current_price, "INR")}</p>
-                    <p className="text-[10px] text-gray-400">CMP</p>
+                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">CMP</p>
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-xs">
@@ -209,18 +234,18 @@ function PortfolioInner() {
           </div>
         ) : (
           <div className="text-center py-12">
-            <div className="w-20 h-20 mx-auto mb-4 text-gray-200 animate-pulse">
-              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
+              <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75a23.978 23.978 0 01-7.577-1.22 2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0" />
               </svg>
             </div>
-            <p className="text-base font-semibold text-gray-700 mb-1">No holdings yet</p>
-            <p className="text-sm text-gray-400 mb-4">Your portfolio is empty. Import your Zerodha/Groww holdings in seconds, or analyse stocks one by one.</p>
+            <p className="text-base font-semibold text-gray-900 mb-1">No holdings yet</p>
+            <p className="text-sm text-gray-500 mb-4 max-w-sm mx-auto">Your portfolio is empty. Import your Zerodha/Groww holdings in seconds, or analyse stocks one by one.</p>
             <div className="flex gap-2 justify-center flex-wrap">
-              <Link href="/portfolio/import" className="bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+              <Link href="/portfolio/import" className="inline-flex items-center justify-center min-h-[40px] bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 active:scale-[0.98] transition">
                 Import CSV &rarr;
               </Link>
-              <Link href="/search" className="bg-white border border-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-gray-50 transition">
+              <Link href="/search" className="inline-flex items-center justify-center min-h-[40px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-gray-50 active:scale-[0.98] transition">
                 Analyse a stock
               </Link>
             </div>
@@ -273,7 +298,8 @@ function PortfolioInner() {
                 <button
                   onClick={() => removeWatchlistMut.mutate(w.ticker)}
                   disabled={removeWatchlistMut.isPending}
-                  className="px-3 py-4 text-gray-300 hover:text-red-500 transition shrink-0"
+                  aria-label={`Remove ${w.ticker.replace(".NS", "")} from watchlist`}
+                  className="flex items-center justify-center min-w-[44px] min-h-[44px] text-gray-400 hover:text-red-500 active:scale-90 transition shrink-0"
                   title="Remove from watchlist"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -317,7 +343,8 @@ function PortfolioInner() {
                 <button
                   onClick={() => removeAlertMut.mutate(a.id)}
                   disabled={removeAlertMut.isPending}
-                  className="px-2 text-gray-300 hover:text-red-500 transition shrink-0"
+                  aria-label={`Delete ${a.ticker.replace(".NS", "")} price alert`}
+                  className="flex items-center justify-center min-w-[44px] min-h-[44px] text-gray-400 hover:text-red-500 active:scale-90 transition shrink-0"
                   title="Delete alert"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
