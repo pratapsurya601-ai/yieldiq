@@ -212,6 +212,79 @@ def require_admin(user: dict = Depends(get_current_user)):
     return user
 
 
+@router.get("/coverage")
+async def get_data_coverage(user: dict = Depends(require_admin)):
+    """Data coverage snapshot across all YieldIQ tables.
+
+    Answers questions like:
+      - How many tickers in the stocks master?
+      - How many have fundamentals in `company_financials` (new) vs
+        `financials` (legacy)?
+      - How many have analysis_cache entries (warmed)?
+      - How many have fair_value_history (user-triggered analyses)?
+    """
+    out = {
+        "stocks_active": None,
+        "financials_distinct": None,
+        "company_financials_distinct": None,
+        "analysis_cache": None,
+        "fair_value_history_distinct": None,
+        "live_quotes": None,
+        "endpoint_cache": None,
+        "fresh_company_financials_7d": None,
+        "errors": [],
+    }
+
+    def _scalar(session, sql: str):
+        try:
+            from sqlalchemy import text as _t
+            row = session.execute(_t(sql)).fetchone()
+            return int(row[0]) if row and row[0] is not None else 0
+        except Exception as exc:
+            out["errors"].append(f"{sql[:50]}… {type(exc).__name__}: {str(exc)[:80]}")
+            return None
+
+    try:
+        from data_pipeline.db import Session
+        sess = Session()
+        try:
+            out["stocks_active"] = _scalar(
+                sess,
+                "SELECT COUNT(*) FROM stocks WHERE is_active = TRUE",
+            )
+            out["financials_distinct"] = _scalar(
+                sess,
+                "SELECT COUNT(DISTINCT ticker) FROM financials",
+            )
+            out["company_financials_distinct"] = _scalar(
+                sess,
+                "SELECT COUNT(DISTINCT ticker_nse) FROM company_financials",
+            )
+            out["fresh_company_financials_7d"] = _scalar(
+                sess,
+                "SELECT COUNT(DISTINCT ticker_nse) FROM company_financials "
+                "WHERE period_end_date >= current_date - interval '400 days'",
+            )
+            out["analysis_cache"] = _scalar(
+                sess,
+                "SELECT COUNT(*) FROM analysis_cache",
+            )
+            out["fair_value_history_distinct"] = _scalar(
+                sess,
+                "SELECT COUNT(DISTINCT ticker) FROM fair_value_history",
+            )
+            out["live_quotes"] = _scalar(sess, "SELECT COUNT(*) FROM live_quotes")
+            out["endpoint_cache"] = _scalar(
+                sess, "SELECT COUNT(*) FROM endpoint_cache WHERE expires_at > now()"
+            )
+        finally:
+            sess.close()
+    except Exception as exc:
+        out["errors"].append(_sanitize_error(exc, "coverage db"))
+
+    return out
+
+
 @router.get("/stats")
 async def get_admin_stats(user: dict = Depends(require_admin)):
     """Return key platform metrics. Admin only."""
