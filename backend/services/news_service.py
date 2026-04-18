@@ -290,24 +290,10 @@ def summarize_filings(items: list[dict], max_items: int = 5) -> Optional[str]:
         f"Recent news:\n{bullet_list}\n\nSummary:"
     )
 
-    # Try Gemini first, then Groq
+    # Gemini removed 18-Apr-2026 (key-expiry issues). Groq is now sole
+    # summariser across the app.
     import os
-    gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
     groq_key = os.environ.get("GROQ_API_KEY", "").strip()
-
-    if gemini_key:
-        try:
-            from google import genai
-            client = genai.Client(api_key=gemini_key)
-            r = client.models.generate_content(
-                model="gemini-2.0-flash-exp",
-                contents=prompt,
-            )
-            text = (r.text or "").strip()
-            if text:
-                return text[:600]
-        except Exception as e:
-            logger.warning(f"Gemini summary failed: {e}")
 
     if groq_key:
         try:

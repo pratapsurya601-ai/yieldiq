@@ -93,32 +93,13 @@ Rules:
 """
 
 
-def _call_gemini(prompt: str) -> Optional[str]:
-    """Call Gemini 2.0 Flash for JSON output. Returns text or None."""
-    api_key = os.environ.get("GEMINI_API_KEY", "").strip()
-    if not api_key:
-        return None
-    try:
-        from google import genai
-        from google.genai import types
-        client = genai.Client(api_key=api_key)
-        r = client.models.generate_content(
-            model="gemini-2.0-flash-exp",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.2,
-                max_output_tokens=4096,
-            ),
-        )
-        return (r.text or "").strip()
-    except Exception as e:
-        logger.warning(f"Gemini concall analysis failed: {e}")
-        return None
+# Gemini removed 18-Apr-2026 — Groq is the sole LLM for concall
+# analysis now. The _call_gemini function was removed along with
+# google-genai dependency.
 
 
 def _call_groq(prompt: str) -> Optional[str]:
-    """Fallback to Groq Llama 3.3 if Gemini unavailable."""
+    """Primary LLM path for concall analysis (Llama 3.3 70B via Groq)."""
     api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not api_key:
         return None
@@ -178,12 +159,10 @@ def analyze_transcript(transcript: str, ticker: str = "", quarter: str = "") -> 
 
     prompt = _build_prompt(ticker.upper(), quarter, transcript)
 
-    # Try Gemini, then Groq
-    raw = _call_gemini(prompt)
+    # Groq is the sole LLM path now (Gemini removed).
+    raw = _call_groq(prompt)
     if not raw:
-        raw = _call_groq(prompt)
-    if not raw:
-        return {"error": "AI analysis unavailable. Set GEMINI_API_KEY or GROQ_API_KEY."}
+        return {"error": "AI analysis unavailable. Set GROQ_API_KEY."}
 
     raw_clean = _strip_markdown_fences(raw)
 

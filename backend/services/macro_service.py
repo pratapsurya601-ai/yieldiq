@@ -281,24 +281,12 @@ class MacroService:
             "Output: 2 sentences, under 60 words total, no headers, no bullets."
         )
 
-        gemini_key = os.environ.get("GEMINI_API_KEY", "").strip()
+        # Gemini removed 18-Apr-2026 after repeated "API key expired"
+        # errors from the google-genai SDK. Groq (llama-3.3-70b) handled
+        # the fallback cleanly throughout, so we're making it primary.
+        # Keeping GEMINI_API_KEY env var readable so rollback is a one-
+        # commit revert rather than also needing env changes.
         groq_key = os.environ.get("GROQ_API_KEY", "").strip()
-
-        if gemini_key:
-            try:
-                from google import genai as _genai
-                client = _genai.Client(api_key=gemini_key)
-                resp = client.models.generate_content(
-                    model="gemini-2.0-flash", contents=prompt,
-                )
-                text = (resp.text or "").strip()
-                if text:
-                    return text
-            except Exception as exc:
-                err = str(exc).lower()
-                if not any(k in err for k in ("quota", "429", "resource_exhausted", "limit")):
-                    log.debug("Gemini macro summary failed: %s", exc)
-                # fall through to Groq
 
         if groq_key:
             try:

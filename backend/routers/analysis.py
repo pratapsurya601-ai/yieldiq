@@ -491,7 +491,7 @@ async def get_ai_summary(ticker: str, user: dict = Depends(get_current_user)):
         # Model identity isn't plumbed back from data_helpers.generate_ai_summary
         # today (it tries Gemini first, then Groq). Report the family name so
         # the frontend can display something useful without us lying about it.
-        "model": "gemini-2.0-flash|groq-llama-3.3-70b",
+        "model": "groq-llama-3.3-70b-versatile",
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "cached": False,
     }
