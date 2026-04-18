@@ -643,7 +643,20 @@ def _cors_headers_for(request: Request) -> dict:
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
-    """Last-resort 500 handler that preserves CORS headers."""
+    """Last-resort 500 handler that preserves CORS headers.
+
+    CRITICAL: must NOT swallow HTTPException — FastAPI raises those
+    for legitimate 401/404/429/etc. and has its own handler that
+    converts them to the right status code. If we catch them here,
+    every 404 becomes a misleading 500 and the frontend shows
+    "Analysis unavailable" instead of "Ticker not found". Re-raise
+    so FastAPI's built-in handler takes over.
+    """
+    from fastapi import HTTPException
+    from starlette.exceptions import HTTPException as StarletteHTTPException
+    if isinstance(exc, (HTTPException, StarletteHTTPException)):
+        raise exc
+
     import logging as _el
     _el.getLogger("yieldiq.api").exception(
         "Unhandled exception on %s %s", request.method, request.url.path
