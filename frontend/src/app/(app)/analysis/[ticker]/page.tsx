@@ -518,6 +518,7 @@ export default function AnalysisPage() {
           currency={company.currency}
           thesis={data.ai_summary}
           dataLimited={dataLimited}
+          ticker={ticker}
         />
 
         {/* Tabs */}

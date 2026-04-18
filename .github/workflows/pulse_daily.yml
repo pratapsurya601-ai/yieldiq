@@ -1,0 +1,67 @@
+name: Pulse Daily Data Refresh
+
+# Refreshes the Pulse axis (6th dimension of the YieldIQ Hex) for the
+# top-N tickers by market cap. Runs after Indian market close so any
+# bulk/block deals from the day are included in archives.nseindia.com.
+#
+# 12:00 UTC = 17:30 IST — ~30 min after NSE close (15:30 IST).
+#
+# Secrets required:
+#   - DATABASE_URL : Aiven Postgres URL used by all YieldIQ data jobs.
+
+on:
+  schedule:
+    - cron: "0 12 * * 1-5"  # Mon-Fri, 12:00 UTC (17:30 IST)
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Number of tickers to refresh (default 500)"
+        required: false
+        default: "500"
+
+concurrency:
+  group: pulse-daily
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            "yfinance>=0.2.40" \
+            "psycopg2-binary>=2.9" \
+            "SQLAlchemy>=2.0" \
+            "requests>=2.31" \
+            "python-dotenv>=1.0" \
+            "pandas>=2.0"
+
+      - name: Check DATABASE_URL
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is missing."
+            exit 1
+          fi
+          echo "DATABASE_URL is set."
+
+      - name: Run Pulse refresh
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONUNBUFFERED: "1"
+          PULSE_LOG_LEVEL: "INFO"
+        run: |
+          python backend/scripts/pulse_daily.py \
+            --limit "${{ github.event.inputs.limit || '500' }}"

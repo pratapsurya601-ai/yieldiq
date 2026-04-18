@@ -1,7 +1,11 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import ConvictionRing from "@/components/analysis/ConvictionRing"
 import VerdictChip from "@/components/analysis/VerdictChip"
+import Hex from "@/components/hex/Hex"
+import HexExplainer from "@/components/hex/HexExplainer"
+import { fetchHex, type HexAxisKey, type HexResponse } from "@/lib/hex"
 import { formatCurrency, formatPct } from "@/lib/utils"
 import type { Verdict } from "@/types/api"
 
@@ -19,6 +23,7 @@ interface AnalysisHeroProps {
   currency: string
   thesis: string | null
   dataLimited: boolean
+  ticker?: string
 }
 
 /**
@@ -57,6 +62,43 @@ function fallbackThesis(verdict: Verdict, moat: string, mos: number): string {
   return `${moatPhrase}. Review model inputs before drawing conclusions.`
 }
 
+/**
+ * Skeleton hex shown while the /api/v1/hex endpoint is loading. A static,
+ * non-animated grey hex at the given size — roughly the same footprint as
+ * the real Hex so the layout doesn't jump when it lands.
+ */
+function HexSkeleton({ size }: { size: number }) {
+  const cx = size / 2
+  const cy = size / 2
+  const r = size / 2 - 28
+  const pts = Array.from({ length: 6 }, (_, i) => {
+    const a = -Math.PI / 2 + (i * 2 * Math.PI) / 6
+    return `${cx + r * Math.cos(a)},${cy + r * Math.sin(a)}`
+  }).join(" ")
+  return (
+    <div
+      className="skeleton rounded-2xl"
+      style={{ width: size, height: size }}
+      aria-label="Loading hex"
+      role="status"
+    >
+      <svg
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        style={{ opacity: 0.4 }}
+      >
+        <polygon
+          points={pts}
+          fill="none"
+          stroke="var(--color-border)"
+          strokeWidth={1}
+        />
+      </svg>
+    </div>
+  )
+}
+
 export default function AnalysisHero({
   score,
   grade,
@@ -69,10 +111,40 @@ export default function AnalysisHero({
   currency,
   thesis,
   dataLimited,
+  ticker,
 }: AnalysisHeroProps) {
   const effectiveVerdict: Verdict = dataLimited ? "data_limited" : verdict
   const thesisLine =
     firstSentence(thesis) ?? fallbackThesis(effectiveVerdict, moat, marginOfSafety)
+
+  // --- Hex integration ---
+  const [hex, setHex] = useState<HexResponse | null>(null)
+  const [hexStatus, setHexStatus] = useState<"loading" | "ok" | "error">(
+    "loading",
+  )
+  const [explainerAxis, setExplainerAxis] = useState<HexAxisKey | null>(null)
+
+  useEffect(() => {
+    if (!ticker) {
+      setHexStatus("error")
+      return
+    }
+    let cancelled = false
+    setHexStatus("loading")
+    fetchHex(ticker)
+      .then((data) => {
+        if (cancelled) return
+        setHex(data)
+        setHexStatus("ok")
+      })
+      .catch(() => {
+        if (cancelled) return
+        setHexStatus("error")
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [ticker])
 
   return (
     <section
@@ -80,12 +152,37 @@ export default function AnalysisHero({
       aria-label="Valuation summary"
     >
       <div className="flex flex-col md:flex-row md:items-center md:gap-8 gap-5">
-        {/* Left — ring + score */}
+        {/* Left — hex (fallback: legacy conviction ring) */}
         <div className="flex items-center justify-center md:flex-col md:items-center gap-4 md:gap-2 shrink-0">
-          <ConvictionRing score={score} confidence={confidence} size={160} />
+          <div className="block md:hidden">
+            {hexStatus === "ok" && hex ? (
+              <Hex
+                data={hex}
+                size={200}
+                onAxisTap={(k) => setExplainerAxis(k)}
+              />
+            ) : hexStatus === "loading" ? (
+              <HexSkeleton size={200} />
+            ) : (
+              <ConvictionRing score={score} confidence={confidence} size={160} />
+            )}
+          </div>
+          <div className="hidden md:block">
+            {hexStatus === "ok" && hex ? (
+              <Hex
+                data={hex}
+                size={240}
+                onAxisTap={(k) => setExplainerAxis(k)}
+              />
+            ) : hexStatus === "loading" ? (
+              <HexSkeleton size={240} />
+            ) : (
+              <ConvictionRing score={score} confidence={confidence} size={160} />
+            )}
+          </div>
           <div className="md:text-center">
             <p className="text-xs text-gray-400 uppercase tracking-wide">
-              YieldIQ Score
+              YieldIQ Score · Model estimate
             </p>
             <p className="font-mono tabular-nums text-lg font-semibold text-gray-900">
               {score}
@@ -146,6 +243,16 @@ export default function AnalysisHero({
           )}
         </div>
       </div>
+
+      {/* Explainer sheet — rendered once, driven by tapped axis */}
+      {hex && (
+        <HexExplainer
+          open={explainerAxis !== null}
+          axis={explainerAxis}
+          data={hex}
+          onClose={() => setExplainerAxis(null)}
+        />
+      )}
     </section>
   )
 }

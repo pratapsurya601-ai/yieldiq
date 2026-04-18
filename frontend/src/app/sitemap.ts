@@ -27,12 +27,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })
     if (res.ok) {
       const tickers: { ticker: string; last_updated: string | null }[] = await res.json()
-      stockPages = tickers.map(t => ({
+      const fairValuePages: MetadataRoute.Sitemap = tickers.map(t => ({
         url: `https://yieldiq.in/stocks/${t.ticker}/fair-value`,
         lastModified: t.last_updated ? new Date(t.last_updated) : new Date(),
         changeFrequency: "daily" as const,
         priority: 0.7,
       }))
+      // Hex SEO pages — one per active ticker. Display ticker (no .NS suffix)
+      // since the route accepts bare symbols.
+      const hexPages: MetadataRoute.Sitemap = tickers.map(t => ({
+        url: `https://yieldiq.in/hex/${t.ticker.replace(/\.(NS|BO)$/i, "")}`,
+        lastModified: t.last_updated ? new Date(t.last_updated) : new Date(),
+        changeFrequency: "daily" as const,
+        priority: 0.7,
+      }))
+      stockPages = [...fairValuePages, ...hexPages]
     }
   } catch {
     // Sitemap generation should never fail — return static pages only
