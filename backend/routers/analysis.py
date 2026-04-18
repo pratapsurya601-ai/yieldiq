@@ -166,11 +166,21 @@ async def get_analysis(
             _fv = float(result.valuation.fair_value or 0)
             _px = float(result.valuation.current_price or 0)
             _mos = float(result.valuation.margin_of_safety or 0)
+            # Zero fair value with positive price → validator fires
+            # mos=-100% on these (e.g. PFC.NS, other NBFCs where
+            # FCF-based DCF doesn't work). Caught by Sentry 18-Apr.
+            if _px > 0 and _fv <= 0:
+                _suspicious = True
             if _px > 0 and _fv > 0:
                 _r = _fv / _px
                 if _r > 3.0 or _r < 0.1:
                     _suspicious = True
-            if abs(_mos) > 200:
+            # Tightened from |mos|>200 to catch PFC-style -100%
+            # (previously slipped through since 100 < 200). Any mos
+            # that rounds to ±95+ is beyond what the validator allows
+            # and almost always indicates bad inputs rather than a
+            # genuinely 95%-undervalued stock.
+            if abs(_mos) >= 95:
                 _suspicious = True
             if _suspicious:
                 result.valuation.verdict = "data_limited"
@@ -254,11 +264,17 @@ async def get_og_data(ticker: str):
         _verdict = result.valuation.verdict
         _suspicious = False
         try:
+            # Positive price with zero/negative FV → NBFC-style DCF
+            # failure (e.g. PFC.NS). The validator was firing
+            # mos=-100% on these; gate it here too.
+            if _px > 0 and _fv <= 0:
+                _suspicious = True
             if _px > 0 and _fv > 0:
                 _r = _fv / _px
                 if _r > 3.0 or _r < 0.1:
                     _suspicious = True
-            if abs(_mos) > 200:
+            # Tightened from |mos|>200 → ≥95 to catch the -100% case.
+            if abs(_mos) >= 95:
                 _suspicious = True
         except Exception:
             pass
