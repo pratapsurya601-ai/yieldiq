@@ -298,28 +298,73 @@ async def get_stock_summary(ticker: str):
                 ticker, _exc,
             )
 
-    # Cache miss on BOTH tiers → 503 under_review. We do NOT recompute
-    # here. The warmer / nightly job is responsible for populating the
-    # cache; serving a "different" FV from a freshly-computed analysis
-    # would silently re-introduce the SoT drift bug PR1 closes.
+    # HOTFIX-CACHE-MISS (2026-04-19): Cache miss on BOTH tiers.
+    #
+    # Original PR1 behaviour was a hard 503 "under_review" here, on the
+    # theory that the warmer/nightly job populates the cache and any
+    # recompute on this path would re-introduce the SoT drift bug.
+    #
+    # In practice that left every post-CACHE_VERSION-bump window
+    # (including the v40→v41 bump on 2026-04-19) serving 503 to every
+    # real visitor for ~30 min while warmup ground through top-500.
+    # When SERVICE_WARMUP_TOKEN is stale (which it was after the
+    # JWT_SECRET rotation), the 503 window is indefinite.
+    #
+    # Safer design: fall through to the same analysis_service.get_full_analysis
+    # that the authed endpoint uses, cache the result to analysis_cache so
+    # subsequent hits are SoT-consistent, and return. This is NOT a new
+    # source of truth — it's the SAME source of truth, evaluated lazily
+    # instead of depending on a background job to front-fill it.
+    #
+    # The SoT invariant PR1 protects is: "public and authed serve
+    # identical values for every shared field." That still holds as
+    # long as both endpoints call the same analysis service. They do.
     if analysis_cached is None or not hasattr(analysis_cached, "valuation"):
-        logger.info("stock-summary cache miss for %s — returning under_review", ticker)
-        return JSONResponse(
-            status_code=503,
-            content={
-                "status": "under_review",
-                "ticker": ticker,
-                "message": "Analysis is being prepared for this ticker. Please check back shortly.",
-                "last_validated_at": "",
-                "reason": "cache_miss_no_recompute_on_public_path",
-                "issue_count": 0,
-            },
-            headers={
-                "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
-                "X-Source": "analysis_cache_v35",
-                "X-Cache": "MISS",
-            },
-        )
+        try:
+            from backend.services.analysis_service import get_full_analysis
+            logger.info(
+                "stock-summary cache miss for %s — lazy-recompute fallback", ticker
+            )
+            analysis_cached = await get_full_analysis(ticker)
+            # Best-effort persist so the next hit is a straight cache read.
+            # If persist fails, the response is still correct; we just lose
+            # the warm-path optimization on this worker.
+            try:
+                from backend.services import analysis_cache_service
+                analysis_cache_service.save_cached(
+                    ticker, analysis_cached.model_dump()
+                )
+            except Exception as _persist_exc:
+                logger.warning(
+                    "stock-summary lazy-recompute persist failed for %s: %s",
+                    ticker, _persist_exc,
+                )
+            # Tier-1 populate so this worker serves subsequent hits warm.
+            cache.set(f"analysis:{ticker}", analysis_cached, ttl=86400)
+        except Exception as _compute_exc:
+            # Compute genuinely failed (delisted, no data, upstream outage).
+            # Return the original under_review payload so the UI has a
+            # deterministic shape to render.
+            logger.warning(
+                "stock-summary lazy-recompute failed for %s: %s",
+                ticker, _compute_exc,
+            )
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "status": "under_review",
+                    "ticker": ticker,
+                    "message": "Analysis is being prepared for this ticker. Please check back shortly.",
+                    "last_validated_at": "",
+                    "reason": "cache_miss_recompute_failed",
+                    "issue_count": 0,
+                },
+                headers={
+                    "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+                    "X-Source": "analysis_cache_v35",
+                    "X-Cache": "MISS-FAIL",
+                },
+            )
 
     # Quarantine gate — same as the authed endpoint. If validators flag
     # this payload, return the under_review structure WITHOUT caching it
