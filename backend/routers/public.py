@@ -1491,3 +1491,353 @@ async def get_lowest_pe(limit: int = 6, min_score: int = 55, max_pe: float = 40.
     except Exception as exc:
         logger.warning(f"lowest-pe failed: {exc}")
     return _cached_json(out, s_maxage=300, swr=3600)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Historical financials / ratios / peers — migration-005 tables
+# ═══════════════════════════════════════════════════════════════
+
+def _normalize_ticker(ticker: str) -> str:
+    """Apply same normalization as stock-summary: upper, .NS suffix,
+    alias resolution. Returns the resolved full ticker (e.g. ETERNAL.NS).
+    """
+    t = (ticker or "").upper().strip()
+    if not t.endswith(".NS") and not t.endswith(".BO"):
+        t = f"{t}.NS"
+    try:
+        from backend.routers.analysis import TICKER_ALIASES
+        t = TICKER_ALIASES.get(t, t)
+    except Exception:
+        pass
+    return t
+
+
+def _data_unavailable_payload(ticker: str, reason: str) -> JSONResponse:
+    """Consistent 503 payload when the underlying table is missing or
+    the DB session can't be obtained. Used by the historical endpoints
+    so the frontend gets a deterministic shape instead of a 500."""
+    return JSONResponse(
+        status_code=503,
+        content={
+            "status": "data_not_populated",
+            "ticker": ticker,
+            "message": "Historical data is not yet populated for this endpoint.",
+            "reason": reason,
+        },
+        headers={
+            "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+        },
+    )
+
+
+@router.get("/financials/{ticker}")
+async def get_historical_financials(
+    ticker: str,
+    period: str = Query(default="annual", pattern="^(annual|quarterly)$"),
+    years: int = Query(default=10, ge=1, le=15),
+):
+    """
+    Historical raw financials (P&L / BS / CF) from the `financials` table.
+    No auth. 1-hour cache.
+    """
+    full_ticker = _normalize_ticker(ticker)
+    clean = full_ticker.replace(".NS", "").replace(".BO", "")
+
+    _cache_key = f"public:financials:{full_ticker}:{period}:{years}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=3600, swr=7200)
+
+    db = _get_db_session()
+    if db is None:
+        return _data_unavailable_payload(full_ticker, "db_session_unavailable")
+
+    try:
+        from data_pipeline.models import Financials
+        limit_rows = years if period == "annual" else years * 4
+        rows = (
+            db.query(Financials)
+            .filter(Financials.ticker == clean)
+            .filter(Financials.period_type == period)
+            .order_by(Financials.period_end.desc())
+            .limit(limit_rows)
+            .all()
+        )
+
+        if not rows:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": "not_found",
+                    "ticker": full_ticker,
+                    "message": f"No {period} financial history for {clean}",
+                },
+                headers={"Cache-Control": "public, s-maxage=300, stale-while-revalidate=600"},
+            )
+
+        currency = rows[0].currency or "INR"
+        periods = []
+        for r in rows:
+            periods.append({
+                "period_end": r.period_end.isoformat() if r.period_end else "",
+                "period_type": r.period_type or period,
+                "revenue": r.revenue,
+                "ebitda": r.ebitda,
+                "ebit": r.ebit,
+                "pat": r.pat,
+                "eps_diluted": r.eps_diluted,
+                "cfo": r.cfo,
+                "capex": r.capex,
+                "free_cash_flow": r.free_cash_flow,
+                "total_assets": r.total_assets,
+                "total_equity": r.total_equity,
+                "total_debt": r.total_debt,
+                "cash_and_equivalents": r.cash_and_equivalents,
+                "shares_outstanding": r.shares_outstanding,
+                "roe": r.roe,
+                "roa": r.roa,
+                "debt_to_equity": r.debt_to_equity,
+                "gross_margin": r.gross_margin,
+                "operating_margin": r.operating_margin,
+                "net_margin": r.net_margin,
+                "fcf_margin": r.fcf_margin,
+                "revenue_growth_yoy": r.revenue_growth_yoy,
+                "pat_growth_yoy": r.pat_growth_yoy,
+            })
+
+        result = {
+            "ticker": full_ticker,
+            "currency": currency,
+            "periods": periods,
+        }
+        cache.set(_cache_key, result, ttl=3600)
+        return _cached_json(result, s_maxage=3600, swr=7200)
+    except Exception as exc:
+        logger.warning(f"financials history failed for {clean}: {exc}", exc_info=True)
+        return _data_unavailable_payload(full_ticker, "query_failed")
+    finally:
+        _safe_close(db)
+
+
+@router.get("/ratios-history/{ticker}")
+async def get_ratios_history(
+    ticker: str,
+    years: int = Query(default=10, ge=1, le=15),
+    period: str = Query(default="annual", pattern="^(annual|quarterly)$"),
+):
+    """
+    Time-series derived ratios from the `ratio_history` table.
+    No auth. 1-hour cache.
+    """
+    full_ticker = _normalize_ticker(ticker)
+    clean = full_ticker.replace(".NS", "").replace(".BO", "")
+
+    _cache_key = f"public:ratios-history:{full_ticker}:{period}:{years}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=3600, swr=7200)
+
+    db = _get_db_session()
+    if db is None:
+        return _data_unavailable_payload(full_ticker, "db_session_unavailable")
+
+    try:
+        from data_pipeline.models import RatioHistory
+        limit_rows = years if period == "annual" else years * 4
+        rows = (
+            db.query(RatioHistory)
+            .filter(RatioHistory.ticker == clean)
+            .filter(RatioHistory.period_type == period)
+            .order_by(RatioHistory.period_end.desc())
+            .limit(limit_rows)
+            .all()
+        )
+
+        if not rows:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": "not_found",
+                    "ticker": full_ticker,
+                    "message": f"No {period} ratio history for {clean}",
+                },
+                headers={"Cache-Control": "public, s-maxage=300, stale-while-revalidate=600"},
+            )
+
+        periods = []
+        for r in rows:
+            periods.append({
+                "period_end": r.period_end.isoformat() if r.period_end else "",
+                "period_type": r.period_type or period,
+                "roe": r.roe,
+                "roce": r.roce,
+                "roa": r.roa,
+                "de_ratio": r.de_ratio,
+                "debt_ebitda": r.debt_ebitda,
+                "interest_cov": r.interest_cov,
+                "gross_margin": r.gross_margin,
+                "operating_margin": r.operating_margin,
+                "net_margin": r.net_margin,
+                "fcf_margin": r.fcf_margin,
+                "revenue_yoy": r.revenue_yoy,
+                "ebitda_yoy": r.ebitda_yoy,
+                "pat_yoy": r.pat_yoy,
+                "fcf_yoy": r.fcf_yoy,
+                "pe_ratio": r.pe_ratio,
+                "pb_ratio": r.pb_ratio,
+                "ev_ebitda": r.ev_ebitda,
+                "dividend_yield": r.dividend_yield,
+                "market_cap_cr": r.market_cap_cr,
+                "current_ratio": r.current_ratio,
+                "asset_turnover": r.asset_turnover,
+            })
+
+        result = {"ticker": full_ticker, "periods": periods}
+        cache.set(_cache_key, result, ttl=3600)
+        return _cached_json(result, s_maxage=3600, swr=7200)
+    except Exception as exc:
+        logger.warning(f"ratios-history failed for {clean}: {exc}", exc_info=True)
+        return _data_unavailable_payload(full_ticker, "query_failed")
+    finally:
+        _safe_close(db)
+
+
+@router.get("/peers/{ticker}")
+async def get_peers(
+    ticker: str,
+    limit: int = Query(default=5, ge=1, le=10),
+):
+    """
+    Peer group from the `peer_groups` table, enriched with each peer's
+    latest analysis cache snapshot (company_name, fair_value, score, etc.)
+    and a ratio_history fallback for pe_ratio / roe when analysis_cache
+    is absent.
+
+    No auth. 30-min in-memory cache; edge s-maxage=900, swr=3600.
+    """
+    full_ticker = _normalize_ticker(ticker)
+    clean = full_ticker.replace(".NS", "").replace(".BO", "")
+
+    _cache_key = f"public:peers:{full_ticker}:{limit}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=900, swr=3600)
+
+    db = _get_db_session()
+    if db is None:
+        return _data_unavailable_payload(full_ticker, "db_session_unavailable")
+
+    try:
+        from data_pipeline.models import PeerGroup, RatioHistory
+        rows = (
+            db.query(PeerGroup)
+            .filter(PeerGroup.ticker == clean)
+            .order_by(PeerGroup.rank.asc())
+            .limit(limit)
+            .all()
+        )
+
+        if not rows:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "status": "not_found",
+                    "ticker": full_ticker,
+                    "message": f"No peers computed for {clean}",
+                },
+                headers={"Cache-Control": "public, s-maxage=300, stale-while-revalidate=600"},
+            )
+
+        peers_out: list[dict] = []
+        for peer in rows:
+            peer_clean = (peer.peer_ticker or "").replace(".NS", "").replace(".BO", "")
+            peer_full = peer.peer_ticker if peer.peer_ticker and (
+                peer.peer_ticker.endswith(".NS") or peer.peer_ticker.endswith(".BO")
+            ) else f"{peer_clean}.NS"
+
+            # Primary enrichment: in-memory analysis cache
+            company_name = None
+            fair_value = None
+            current_price = None
+            mos = None
+            verdict = None
+            score = None
+            moat = None
+            roe = None
+            pe_ratio = None
+
+            analysis = cache.get(f"analysis:{peer_full}")
+            if analysis is None:
+                # Tier-2: persistent analysis_cache
+                try:
+                    from backend.services import analysis_cache_service
+                    from backend.models.responses import AnalysisResponse
+                    payload = analysis_cache_service.get_cached(peer_full)
+                    if payload:
+                        analysis = AnalysisResponse(**payload)
+                except Exception:
+                    analysis = None
+
+            if analysis is not None and hasattr(analysis, "valuation"):
+                v = analysis.valuation
+                q = analysis.quality
+                c = analysis.company
+                company_name = c.company_name
+                fair_value = round(v.fair_value, 2) if v.fair_value is not None else None
+                current_price = round(v.current_price, 2) if v.current_price is not None else None
+                mos = round(v.margin_of_safety, 1) if v.margin_of_safety is not None else None
+                verdict = v.verdict
+                score = q.yieldiq_score
+                moat = q.moat
+                roe = round(q.roe, 2) if q.roe is not None else None
+                # pe_ratio not directly on QualityOutput — derive from price/EPS if available
+                try:
+                    eps_ttm = getattr(v, "eps_ttm", None)
+                    if current_price and eps_ttm:
+                        pe_ratio = round(current_price / eps_ttm, 2)
+                except Exception:
+                    pe_ratio = None
+
+            # Fallback: pull pe_ratio / roe from latest ratio_history row
+            if pe_ratio is None or roe is None:
+                try:
+                    rh = (
+                        db.query(RatioHistory)
+                        .filter(RatioHistory.ticker == peer_clean)
+                        .filter(RatioHistory.period_type == "annual")
+                        .order_by(RatioHistory.period_end.desc())
+                        .first()
+                    )
+                    if rh is not None:
+                        if pe_ratio is None:
+                            pe_ratio = rh.pe_ratio
+                        if roe is None:
+                            roe = rh.roe
+                except Exception:
+                    pass
+
+            peers_out.append({
+                "peer_ticker": peer.peer_ticker,
+                "rank": peer.rank,
+                "sector": peer.sector,
+                "sub_sector": peer.sub_sector,
+                "mcap_ratio": peer.mcap_ratio,
+                "company_name": company_name or peer_clean,
+                "fair_value": fair_value,
+                "current_price": current_price,
+                "margin_of_safety": mos,
+                "verdict": verdict,
+                "score": score,
+                "moat": moat,
+                "roe": roe,
+                "pe_ratio": pe_ratio,
+            })
+
+        result = {"ticker": full_ticker, "peers": peers_out}
+        cache.set(_cache_key, result, ttl=1800)
+        return _cached_json(result, s_maxage=900, swr=3600)
+    except Exception as exc:
+        logger.warning(f"peers failed for {clean}: {exc}", exc_info=True)
+        return _data_unavailable_payload(full_ticker, "query_failed")
+    finally:
+        _safe_close(db)
