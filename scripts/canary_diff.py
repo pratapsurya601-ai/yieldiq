@@ -34,6 +34,24 @@ import argparse
 import datetime as _dt
 import json
 import os
+import subprocess
+
+
+def _git_sha() -> str:
+    """Stamp every report with the commit it ran against. Without this, a
+    "baseline canary" report dated next week is impossible to anchor —
+    you can't tell if 40 violations are from the original baseline or
+    from PR-5. Falls back to env (CI) then 'unknown' if git unavailable."""
+    sha = os.environ.get("GITHUB_SHA") or os.environ.get("CI_COMMIT_SHA") or ""
+    if sha:
+        return sha[:12]
+    try:
+        out = subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL, timeout=2
+        )
+        return out.decode().strip()[:12]
+    except Exception:
+        return "unknown"
 import sys
 import time
 from pathlib import Path
@@ -362,6 +380,7 @@ def evaluate(state: dict[str, dict], stocks: list[dict]) -> dict:
 
     total_violations = sum(gate_totals.values())
     return {
+        "commit_sha": _git_sha(),
         "timestamp": _dt.datetime.now(_dt.timezone.utc).isoformat(),
         "stocks_checked": len(stocks),
         "fetch_failures": fetch_failures,
@@ -380,16 +399,26 @@ def evaluate(state: dict[str, dict], stocks: list[dict]) -> dict:
 def write_snapshot(state: dict[str, dict]) -> Path:
     SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
     ts = _dt.datetime.now().strftime("%Y%m%d_%H%M%S")
-    out = SNAPSHOT_DIR / f"snapshot_{ts}.json"
-    out.write_text(json.dumps(state, indent=2, default=str), encoding="utf-8")
+    sha = _git_sha()
+    out = SNAPSHOT_DIR / f"snapshot_{ts}_{sha}.json"
+    payload = {
+        "commit_sha": sha,
+        "snapshot_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
+        "state": state,
+    }
+    out.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
     return out
 
 
 def diff_snapshot(
     current: dict[str, dict], snapshot_path: Path
 ) -> list[str]:
-    prev = json.loads(snapshot_path.read_text(encoding="utf-8"))
-    notes: list[str] = []
+    raw = json.loads(snapshot_path.read_text(encoding="utf-8"))
+    # New schema wraps state in {commit_sha, snapshot_at, state}; old
+    # schema is the bare state dict. Support both.
+    prev = raw.get("state") if isinstance(raw, dict) and "state" in raw else raw
+    sha = raw.get("commit_sha", "unknown") if isinstance(raw, dict) else "unknown"
+    notes: list[str] = [f"diff_against: snapshot_commit={sha}"]
     for sym, cur in current.items():
         prev_st = prev.get(sym, {})
         c_au = (cur or {}).get("authed") or {}
@@ -417,7 +446,13 @@ def diff_snapshot(
 
 
 def render_markdown(report: dict, drift_notes: list[str] | None = None) -> str:
-    lines = [f"# Canary Diff Report", "", f"Timestamp: {report['timestamp']}", ""]
+    lines = [
+        f"# Canary Diff Report",
+        "",
+        f"Commit: `{report.get('commit_sha', 'unknown')}`",
+        f"Timestamp: {report['timestamp']}",
+        "",
+    ]
     lines.append(f"Stocks checked: **{report['stocks_checked']}**")
     lines.append(f"Fetch failures: **{report['fetch_failures']}**")
     lines.append(f"Total violations: **{report['total_violations']}**")
