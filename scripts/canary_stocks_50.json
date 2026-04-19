@@ -1,0 +1,616 @@
+{
+  "_meta": {
+    "version": 1,
+    "description": "50-stock canary universe for the merge-gate diff harness. Bounds are deliberately conservative — wide enough to absorb normal year-on-year drift, tight enough to catch unit bugs and broken formulas.",
+    "fields": {
+      "roe": "Return on equity (decimal, e.g. 0.20 = 20%)",
+      "debt_to_equity": "Total debt / equity (decimal)",
+      "wacc": "Weighted avg cost of capital (decimal)",
+      "market_cap_cr": "Market cap in INR crore",
+      "revenue_cagr_3y": "3y revenue CAGR (decimal)"
+    },
+    "rule": "null bound = harness skips that assertion for that stock"
+  },
+  "stocks": [
+    {
+      "symbol": "RELIANCE",
+      "sector": "Conglomerate",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.07, 0.14],
+        "debt_to_equity": [0.30, 0.80],
+        "wacc": [0.09, 0.13],
+        "market_cap_cr": [1500000, 2500000],
+        "revenue_cagr_3y": [0.05, 0.25]
+      }
+    },
+    {
+      "symbol": "TCS",
+      "sector": "IT Services",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.35, 0.55],
+        "debt_to_equity": [0.00, 0.15],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [1000000, 1700000],
+        "revenue_cagr_3y": [0.05, 0.20]
+      }
+    },
+    {
+      "symbol": "HDFCBANK",
+      "sector": "Banks",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.13, 0.20],
+        "debt_to_equity": null,
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [1000000, 1700000],
+        "revenue_cagr_3y": null
+      }
+    },
+    {
+      "symbol": "INFY",
+      "sector": "IT Services",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.25, 0.40],
+        "debt_to_equity": [0.00, 0.15],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [550000, 900000],
+        "revenue_cagr_3y": [0.05, 0.20]
+      }
+    },
+    {
+      "symbol": "ITC",
+      "sector": "FMCG",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.20, 0.35],
+        "debt_to_equity": [0.00, 0.10],
+        "wacc": [0.09, 0.13],
+        "market_cap_cr": [400000, 700000],
+        "revenue_cagr_3y": [0.03, 0.20]
+      }
+    },
+    {
+      "symbol": "HCLTECH",
+      "sector": "IT Services",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.18, 0.30],
+        "debt_to_equity": [0.00, 0.20],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [350000, 550000],
+        "revenue_cagr_3y": [0.05, 0.18]
+      }
+    },
+    {
+      "symbol": "ICICIBANK",
+      "sector": "Banks",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.13, 0.20],
+        "debt_to_equity": null,
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [600000, 1000000],
+        "revenue_cagr_3y": null
+      }
+    },
+    {
+      "symbol": "BHARTIARTL",
+      "sector": "Telecom",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.05, 0.25],
+        "debt_to_equity": [0.50, 2.00],
+        "wacc": [0.09, 0.13],
+        "market_cap_cr": [700000, 1200000],
+        "revenue_cagr_3y": [0.05, 0.25]
+      }
+    },
+    {
+      "symbol": "SBIN",
+      "sector": "Banks",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.12, 0.20],
+        "debt_to_equity": null,
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [500000, 900000],
+        "revenue_cagr_3y": null
+      }
+    },
+    {
+      "symbol": "LT",
+      "sector": "Capital Goods",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.10, 0.18],
+        "debt_to_equity": [0.40, 1.20],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [400000, 700000],
+        "revenue_cagr_3y": [0.05, 0.25]
+      }
+    },
+    {
+      "symbol": "BAJFINANCE",
+      "sector": "NBFC",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.18, 0.28],
+        "debt_to_equity": [3.00, 6.00],
+        "wacc": [0.11, 0.15],
+        "market_cap_cr": [350000, 700000],
+        "revenue_cagr_3y": [0.10, 0.35]
+      }
+    },
+    {
+      "symbol": "KOTAKBANK",
+      "sector": "Banks",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.12, 0.18],
+        "debt_to_equity": null,
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [300000, 500000],
+        "revenue_cagr_3y": null
+      }
+    },
+    {
+      "symbol": "AXISBANK",
+      "sector": "Banks",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.12, 0.20],
+        "debt_to_equity": null,
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [300000, 500000],
+        "revenue_cagr_3y": null
+      }
+    },
+    {
+      "symbol": "MARUTI",
+      "sector": "Auto",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.10, 0.20],
+        "debt_to_equity": [0.00, 0.20],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [300000, 500000],
+        "revenue_cagr_3y": [0.05, 0.30]
+      }
+    },
+    {
+      "symbol": "WIPRO",
+      "sector": "IT Services",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.12, 0.22],
+        "debt_to_equity": [0.00, 0.30],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [200000, 400000],
+        "revenue_cagr_3y": [0.00, 0.15]
+      }
+    },
+    {
+      "symbol": "SUNPHARMA",
+      "sector": "Pharma",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.10, 0.22],
+        "debt_to_equity": [0.00, 0.30],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [300000, 550000],
+        "revenue_cagr_3y": [0.05, 0.20]
+      }
+    },
+    {
+      "symbol": "TITAN",
+      "sector": "Consumer Discretionary",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.20, 0.40],
+        "debt_to_equity": [0.10, 0.80],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [250000, 450000],
+        "revenue_cagr_3y": [0.10, 0.30]
+      }
+    },
+    {
+      "symbol": "ULTRACEMCO",
+      "sector": "Cement",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.08, 0.18],
+        "debt_to_equity": [0.10, 0.50],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [250000, 450000],
+        "revenue_cagr_3y": [0.05, 0.25]
+      }
+    },
+    {
+      "symbol": "POWERGRID",
+      "sector": "Utilities",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.15, 0.22],
+        "debt_to_equity": [1.00, 2.50],
+        "wacc": [0.08, 0.12],
+        "market_cap_cr": [200000, 400000],
+        "revenue_cagr_3y": [0.00, 0.15]
+      }
+    },
+    {
+      "symbol": "HINDUNILVR",
+      "sector": "FMCG",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.18, 0.90],
+        "debt_to_equity": [0.00, 0.20],
+        "wacc": [0.09, 0.13],
+        "market_cap_cr": [450000, 750000],
+        "revenue_cagr_3y": [0.03, 0.18]
+      }
+    },
+    {
+      "symbol": "DRREDDY",
+      "sector": "Pharma",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.12, 0.25],
+        "debt_to_equity": [0.00, 0.30],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [80000, 200000],
+        "revenue_cagr_3y": [0.05, 0.20]
+      }
+    },
+    {
+      "symbol": "ONGC",
+      "sector": "Oil & Gas",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.08, 0.20],
+        "debt_to_equity": [0.10, 0.60],
+        "wacc": [0.09, 0.13],
+        "market_cap_cr": [200000, 450000],
+        "revenue_cagr_3y": null
+      }
+    },
+    {
+      "symbol": "NTPC",
+      "sector": "Utilities",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.10, 0.18],
+        "debt_to_equity": [1.00, 2.50],
+        "wacc": [0.08, 0.12],
+        "market_cap_cr": [250000, 450000],
+        "revenue_cagr_3y": [0.00, 0.20]
+      }
+    },
+    {
+      "symbol": "TATAMOTORS",
+      "sector": "Auto",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.05, 0.30],
+        "debt_to_equity": [0.30, 1.50],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [200000, 400000],
+        "revenue_cagr_3y": [0.05, 0.30]
+      }
+    },
+    {
+      "symbol": "M&M",
+      "sector": "Auto",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.10, 0.22],
+        "debt_to_equity": [0.20, 1.00],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [250000, 450000],
+        "revenue_cagr_3y": [0.05, 0.30]
+      }
+    },
+    {
+      "symbol": "HEROMOTOCO",
+      "sector": "Auto",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.18, 0.35],
+        "debt_to_equity": [0.00, 0.10],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [50000, 150000],
+        "revenue_cagr_3y": [0.00, 0.20]
+      }
+    },
+    {
+      "symbol": "DIVISLAB",
+      "sector": "Pharma",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.12, 0.30],
+        "debt_to_equity": [0.00, 0.10],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [100000, 200000],
+        "revenue_cagr_3y": [0.00, 0.25]
+      }
+    },
+    {
+      "symbol": "COALINDIA",
+      "sector": "Mining",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.30, 0.70],
+        "debt_to_equity": [0.00, 0.40],
+        "wacc": [0.09, 0.13],
+        "market_cap_cr": [200000, 400000],
+        "revenue_cagr_3y": [0.00, 0.20]
+      }
+    },
+    {
+      "symbol": "TATASTEEL",
+      "sector": "Metals",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.00, 0.30],
+        "debt_to_equity": [0.50, 2.00],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [150000, 300000],
+        "revenue_cagr_3y": [0.00, 0.30]
+      }
+    },
+    {
+      "symbol": "JSWSTEEL",
+      "sector": "Metals",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.05, 0.25],
+        "debt_to_equity": [0.80, 2.00],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [150000, 300000],
+        "revenue_cagr_3y": [0.05, 0.30]
+      }
+    },
+    {
+      "symbol": "ADANIPORTS",
+      "sector": "Infrastructure",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.10, 0.25],
+        "debt_to_equity": [0.80, 2.00],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [200000, 400000],
+        "revenue_cagr_3y": [0.05, 0.30]
+      }
+    },
+    {
+      "symbol": "BAJAJ-AUTO",
+      "sector": "Auto",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.15, 0.30],
+        "debt_to_equity": [0.00, 0.10],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [150000, 350000],
+        "revenue_cagr_3y": [0.00, 0.25]
+      }
+    },
+    {
+      "symbol": "ASIANPAINT",
+      "sector": "Paints",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.18, 0.35],
+        "debt_to_equity": [0.00, 0.30],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [200000, 400000],
+        "revenue_cagr_3y": [0.00, 0.20]
+      }
+    },
+    {
+      "symbol": "NESTLEIND",
+      "sector": "FMCG",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.30, 1.20],
+        "debt_to_equity": [0.00, 0.30],
+        "wacc": [0.09, 0.13],
+        "market_cap_cr": [180000, 320000],
+        "revenue_cagr_3y": [0.05, 0.20]
+      }
+    },
+    {
+      "symbol": "BRITANNIA",
+      "sector": "FMCG",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.30, 0.80],
+        "debt_to_equity": [0.10, 0.80],
+        "wacc": [0.09, 0.13],
+        "market_cap_cr": [80000, 180000],
+        "revenue_cagr_3y": [0.05, 0.18]
+      }
+    },
+    {
+      "symbol": "DABUR",
+      "sector": "FMCG",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.15, 0.30],
+        "debt_to_equity": [0.00, 0.30],
+        "wacc": [0.09, 0.13],
+        "market_cap_cr": [70000, 150000],
+        "revenue_cagr_3y": [0.00, 0.18]
+      }
+    },
+    {
+      "symbol": "GODREJCP",
+      "sector": "FMCG",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.10, 0.25],
+        "debt_to_equity": [0.10, 0.80],
+        "wacc": [0.09, 0.13],
+        "market_cap_cr": [80000, 180000],
+        "revenue_cagr_3y": [0.00, 0.20]
+      }
+    },
+    {
+      "symbol": "PIDILITIND",
+      "sector": "Chemicals",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.18, 0.30],
+        "debt_to_equity": [0.00, 0.20],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [120000, 250000],
+        "revenue_cagr_3y": [0.05, 0.25]
+      }
+    },
+    {
+      "symbol": "TECHM",
+      "sector": "IT Services",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.08, 0.22],
+        "debt_to_equity": [0.00, 0.20],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [120000, 250000],
+        "revenue_cagr_3y": [0.00, 0.15]
+      }
+    },
+    {
+      "symbol": "GRASIM",
+      "sector": "Cement",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.05, 0.20],
+        "debt_to_equity": [0.20, 1.20],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [120000, 250000],
+        "revenue_cagr_3y": [0.05, 0.25]
+      }
+    },
+    {
+      "symbol": "CIPLA",
+      "sector": "Pharma",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.10, 0.20],
+        "debt_to_equity": [0.00, 0.20],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [100000, 220000],
+        "revenue_cagr_3y": [0.05, 0.20]
+      }
+    },
+    {
+      "symbol": "EICHERMOT",
+      "sector": "Auto",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.18, 0.30],
+        "debt_to_equity": [0.00, 0.10],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [80000, 180000],
+        "revenue_cagr_3y": [0.05, 0.25]
+      }
+    },
+    {
+      "symbol": "TATACONSUM",
+      "sector": "FMCG",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.05, 0.15],
+        "debt_to_equity": [0.00, 0.30],
+        "wacc": [0.09, 0.13],
+        "market_cap_cr": [80000, 160000],
+        "revenue_cagr_3y": [0.05, 0.20]
+      }
+    },
+    {
+      "symbol": "BPCL",
+      "sector": "Oil & Gas",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.05, 0.30],
+        "debt_to_equity": [0.40, 1.50],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [60000, 160000],
+        "revenue_cagr_3y": null
+      }
+    },
+    {
+      "symbol": "IOC",
+      "sector": "Oil & Gas",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.05, 0.25],
+        "debt_to_equity": [0.40, 1.50],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [120000, 250000],
+        "revenue_cagr_3y": null
+      }
+    },
+    {
+      "symbol": "HINDALCO",
+      "sector": "Metals",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.05, 0.20],
+        "debt_to_equity": [0.40, 1.50],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [100000, 250000],
+        "revenue_cagr_3y": [0.00, 0.30]
+      }
+    },
+    {
+      "symbol": "SHREECEM",
+      "sector": "Cement",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.05, 0.20],
+        "debt_to_equity": [0.00, 0.40],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [70000, 150000],
+        "revenue_cagr_3y": [0.00, 0.20]
+      }
+    },
+    {
+      "symbol": "HDFCLIFE",
+      "sector": "Insurance",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.10, 0.20],
+        "debt_to_equity": null,
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [100000, 200000],
+        "revenue_cagr_3y": null
+      }
+    },
+    {
+      "symbol": "SBILIFE",
+      "sector": "Insurance",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.10, 0.20],
+        "debt_to_equity": null,
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [120000, 220000],
+        "revenue_cagr_3y": null
+      }
+    },
+    {
+      "symbol": "ICICIPRULI",
+      "sector": "Insurance",
+      "mcap_tier": "large",
+      "canary_bounds": {
+        "roe": [0.05, 0.18],
+        "debt_to_equity": null,
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [60000, 150000],
+        "revenue_cagr_3y": null
+      }
+    }
+  ]
+}

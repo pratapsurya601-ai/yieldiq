@@ -1,0 +1,65 @@
+name: Canary Diff (merge gate)
+
+# The merge gate. Runs the 50-stock canary-diff harness against
+# production. Required status check on every PR that touches the
+# computation surface, plus a daily 08:00 IST cron baseline.
+#
+# Required secret: CANARY_AUTH_TOKEN  (admin-account JWT for /analysis)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/services/**'
+      - 'backend/routers/**'
+      - 'backend/validators/**'
+      - 'backend/models/**'
+      - 'scripts/canary_stocks_50.json'
+      - 'scripts/canary_diff.py'
+      - '.github/workflows/canary_diff.yml'
+  schedule:
+    - cron: '30 2 * * *'   # 02:30 UTC == 08:00 IST daily
+  workflow_dispatch:
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests pytest
+
+      - name: Unit tests for the gates
+        run: pytest tests/test_canary_diff.py -v
+
+      - name: Run canary-diff against production
+        env:
+          CANARY_API_BASE: https://api.yieldiq.in
+          CANARY_AUTH_TOKEN: ${{ secrets.CANARY_AUTH_TOKEN }}
+        run: python scripts/canary_diff.py --quiet
+
+      - name: Upload canary report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-report
+          path: |
+            canary_report.json
+            canary_report.md
+          retention-days: 30
+
+      - name: Post report to PR on failure
+        if: failure() && github.event_name == 'pull_request'
+        uses: mshick/add-pr-comment@v2
+        with:
+          message-path: canary_report.md
+          message-id: canary-diff
