@@ -1296,6 +1296,13 @@ class AnalysisService:
 
         # ── Step 3: Compute metrics ───────────────────────────
         enriched = compute_metrics(raw)
+        # PR-DET-1: pinned price snapshot — do not recompute MoS on read.
+        # `price` captured here is the SAME value used as both the response
+        # `current_price` field (see ValuationOutput below) and the MoS
+        # denominator (see `mos_pct = ((iv - price) / price * 100)` further
+        # down). Any downstream code that needs "the price" must read this
+        # local — never re-fetch from market_data, otherwise displayed
+        # current_price and MoS will silently drift apart.
         price = enriched.get("price", 0) or 0
         is_indian = ticker.endswith(".NS") or ticker.endswith(".BO")
 
@@ -1600,7 +1607,16 @@ class AnalysisService:
 
             terminal_norm = float(sum(projected[-3:]) / 3) if len(projected) >= 3 else projected[-1] if projected else 0
 
-            dcf_engine = DCFEngine(discount_rate=wacc, terminal_growth=terminal_g)
+            # PR-D2: pass sector/sub_sector so DCFEngine can apply the
+            # NBFC funding-cost premium (+50bps) to the discount rate.
+            # Without these kwargs the adjustment is dead code.
+            dcf_engine = DCFEngine(
+                discount_rate=wacc,
+                terminal_growth=terminal_g,
+                sector=enriched.get("sector"),
+                sub_sector=enriched.get("sub_sector"),
+                ticker=ticker,
+            )
             dcf_res = dcf_engine.intrinsic_value_per_share(
                 projected_fcfs=projected,
                 terminal_fcf_norm=terminal_norm,
@@ -1867,6 +1883,10 @@ class AnalysisService:
         # financial-stock P/BV paths (financials skip the moat
         # adjustment block above, so this is a no-op for them but
         # remains safe).
+        # PR-DET-1: pinned price snapshot — do not recompute MoS on read.
+        # `price` here is the snapshot taken at write-time (Step 3 above);
+        # never substitute a freshly-fetched market price in this expression
+        # or the cached current_price will not reconcile with cached MoS.
         mos_pct = ((iv - price) / price * 100) if price > 0 else 0
 
         # Analyst upside: (target - price) / price * 100
