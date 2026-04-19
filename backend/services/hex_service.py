@@ -362,7 +362,9 @@ def _axis_value_general(data: dict) -> dict:
 
     if mos_pct is None and fv and price:
         try:
-            mos_pct = (float(fv) - float(price)) / float(fv) * 100.0
+            # Canonical MoS = (FV - CMP) / CMP — matches analysis_service
+            # mos_pct (single source of truth post-FIX1).
+            mos_pct = (float(fv) - float(price)) / float(price) * 100.0
         except Exception:
             mos_pct = None
 

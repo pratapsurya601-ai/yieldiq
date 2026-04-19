@@ -23,7 +23,7 @@ from typing import Any, Optional
 #   - Would TCS / INFY / any existing top-100 ticker's fair_value change?
 #     YES  -> bump required
 #     NO   -> do not bump, even if you changed analysis_service.py
-CACHE_VERSION = 33  # bumped: FIX3 — scenario adjustments widened (Bull/Bear growth_adj +/-0.06, wacc_adj +/-0.015, terminal_adj +/-0.010). Old payloads carry collapsed Bull case (within 1% of Base) and must be invalidated. Also: Monte Carlo seeded via local Generator instead of global np.random.seed.
+CACHE_VERSION = 34  # bumped: prism/hex/hex_history MoS formula was (FV-CMP)/FV → corrected to (FV-CMP)/CMP. Old prism payloads have wrong verdict_band (e.g. HCLTECH +27% MoS shown as Expensive). FIX3(33)=scenarios. FIX1(32)=MoS source-of-truth in analysis_service.
 
 
 class CacheService:

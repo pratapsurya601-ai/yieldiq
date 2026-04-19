@@ -458,7 +458,11 @@ def _compute_value_axis(quarter_revenue: Optional[float],
         fv_q = current_fair_value * (quarter_revenue / current_revenue)
         if fv_q <= 0:
             return None, None
-        mos_pct = (fv_q - price_at_quarter) / fv_q * 100.0
+        # Canonical MoS = (FV - CMP) / CMP — matches analysis_service
+        # post-FIX1 (single source of truth).
+        if price_at_quarter <= 0:
+            return None, None
+        mos_pct = (fv_q - price_at_quarter) / price_at_quarter * 100.0
         # Same anchor as hex_service general value
         score = 5.0 + 0.15 * mos_pct
         return round(_clamp(score), 2), round(mos_pct, 2)

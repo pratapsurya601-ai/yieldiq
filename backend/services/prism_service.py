@@ -544,13 +544,16 @@ def _build_prism(ticker: str, t0: float) -> dict:
     fair_value = _dig(analysis, "valuation", "fair_value")
     mos_pct = _dig(analysis, "valuation", "margin_of_safety")
 
-    # Derive mos if missing
+    # Derive mos if missing — use the CANONICAL formula (FV-CMP)/CMP that
+    # matches analysis_service's mos_pct (post-FIX1, single source of truth).
+    # Was previously (FV-CMP)/FV — caused verdict band to mis-classify
+    # stocks (e.g. HCLTECH +27% MoS shown as "Expensive Region").
     if mos_pct is None and fair_value and price:
         try:
             fv_f = float(fair_value)
             px_f = float(price)
-            if fv_f > 0:
-                mos_pct = (fv_f - px_f) / fv_f * 100.0
+            if px_f > 0:
+                mos_pct = (fv_f - px_f) / px_f * 100.0
         except Exception:
             mos_pct = None
 
