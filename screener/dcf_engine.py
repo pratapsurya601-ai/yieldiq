@@ -70,12 +70,49 @@ class EdgeCaseFlags:
 
 
 class DCFEngine:
-    def __init__(self, discount_rate=DISCOUNT_RATE, terminal_growth=TERMINAL_GROWTH_RATE):
+    def __init__(
+        self,
+        discount_rate=DISCOUNT_RATE,
+        terminal_growth=TERMINAL_GROWTH_RATE,
+        sector: Optional[str] = None,
+        sub_sector: Optional[str] = None,
+        ticker: Optional[str] = None,
+    ):
         self.r = max(discount_rate, MIN_DISCOUNT_RATE)
         self.g = min(terminal_growth, MAX_TERMINAL_GROWTH)
+
+        # PR-D2: NBFC funding-cost premium.
+        # NBFCs (Bajaj Finance, Cholamandalam, Shriram, etc.) borrow from
+        # banks/markets and lend further — they carry a structural
+        # funding-cost spread that banks (which fund via deposits at lower
+        # rates) do not. Bump WACC by 50bps when the sector/sub_sector
+        # indicates NBFC / non-bank Finance. Defensive fallback: if neither
+        # sector nor sub_sector is supplied, no adjustment is made and
+        # behaviour is identical to the pre-PR-D2 engine.
+        try:
+            _sec = (sector or "").lower()
+            _sub = (sub_sector or "").lower()
+            _is_bank = ("bank" in _sec) or ("bank" in _sub)
+            _is_nbfc = (
+                ("nbfc" in _sec) or ("nbfc" in _sub)
+                or ("finance" in _sub and not _is_bank)
+                or ("finance" in _sec and not _is_bank and "services" not in _sec)
+            )
+            if _is_nbfc and not _is_bank:
+                _r_pre = self.r
+                self.r = min(self.r + 0.005, 0.25)
+                log.info(
+                    "PR-D2 NBFC WACC bump: %s sector=%r sub_sector=%r "
+                    "wacc %.4f -> %.4f",
+                    ticker or "?", sector, sub_sector, _r_pre, self.r,
+                )
+        except Exception:
+            # Never let sector adjustment break engine construction
+            pass
+
         if self.g >= self.r:
             self.g = self.r - 0.02
-            
+
         self.edge_flags = EdgeCaseFlags()
 
     def _pv(self, amount, year):

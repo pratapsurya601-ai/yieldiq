@@ -23,7 +23,7 @@ from typing import Any, Optional
 #   - Would TCS / INFY / any existing top-100 ticker's fair_value change?
 #     YES  -> bump required
 #     NO   -> do not bump, even if you changed analysis_service.py
-CACHE_VERSION = 40  # Day-3 sanity clamps: ROCE rounds-to-0.0% → None ("—"), Revenue CAGR 3y/5y outside ±50% → None, EV/EBITDA outside (0.5, 200) → None at response layer (defense-in-depth on top of local_data_service guard). Old payloads carry "0.0%" ROCE / "-75.5%" CAGR / "1217×" EV-EBITDA that fail audit; bump invalidates so v40 fresh computes apply the new clamps. v39=Discover TTL. v38=PR-NTPC scenario order. v37=PR-BANKSC-2. v36=PR-BANKSC. v35=FV stability. v34=MoS formula. v33=scenarios. v32=MoS SoT.
+CACHE_VERSION = 41  # PR-DET-2 + PR-D2: terminal_g clamped to [0.005, wacc-0.005] (utilities/FMCG edge cases shift by ≤50bps in terminal growth) AND NBFC WACC +50bps funding-cost premium (Bajaj Finance, Bajaj Finserv, Shriram Finance, Cholamandalam, NBFCs in general — fair_value drops by the typical NBFC-DCF WACC sensitivity). PR-D1 bank Safety branch ships dead-code-safe (bank inputs not plumbed yet). Bump invalidates so NBFC + terminal-clamp edge tickers recompute. v40=Day-3 sanity clamps (ROCE/CAGR/EV-EBITDA). v39=Discover TTL. v38=PR-NTPC scenario order. v37=PR-BANKSC-2. v36=PR-BANKSC. v35=FV stability. v34=MoS formula. v33=scenarios. v32=MoS SoT.
 
 
 class CacheService:
