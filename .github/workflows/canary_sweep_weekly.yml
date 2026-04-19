@@ -1,0 +1,87 @@
+name: Canary Sweep — Top 500 (weekly)
+
+# Wider canary that runs the same gate logic against the top 500 stocks
+# instead of the curated 50. Catches formula-class bugs that might affect
+# long-tail tickers we never put in the daily canary.
+#
+# Schedule: Sunday 03:00 UTC = 08:30 IST. Runs once a week so we don't
+# hammer the API. Manual dispatch supported.
+#
+# Gate 4 (per-stock canary_bounds) is effectively disabled for the
+# sweep — bounds=null on every auto-generated entry. Gates 1, 2, 3, 5
+# all run normally.
+#
+# Failure here is a SOFT signal: posts the report as an artifact and
+# sends an email but does NOT block any PR (unlike the daily canary).
+# That's deliberate — we don't want long-tail microcap quirks to gate
+# every code change. Use the report to file investigation tickets.
+
+on:
+  schedule:
+    # Sunday 03:00 UTC = 08:30 IST
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Number of top-tickers to sweep (default 500, max 2000)'
+        required: false
+        default: '500'
+
+concurrency:
+  group: canary-sweep-weekly
+  cancel-in-progress: false
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    # 500 stocks × 2 endpoints × ~1s = ~1000s = ~17 min. Plus gate
+    # evaluation. 60 min budget is comfortable.
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+
+      - run: pip install requests
+
+      - name: Generate top-N stocks list
+        env:
+          CANARY_API_BASE: https://api.yieldiq.in
+          SWEEP_LIMIT: ${{ github.event.inputs.limit || '500' }}
+        run: python scripts/build_canary_top500.py
+
+      - name: Run canary sweep
+        env:
+          CANARY_API_BASE: https://api.yieldiq.in
+          CANARY_AUTH_TOKEN: ${{ secrets.CANARY_AUTH_TOKEN }}
+        run: |
+          python scripts/canary_diff.py \
+            --stocks scripts/canary_stocks_top500.json \
+            --report-json canary_sweep_report.json \
+            --report-md canary_sweep_report.md \
+            --quiet || true   # NEVER fail the workflow — sweep is advisory
+
+      - name: Upload sweep report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-sweep-top500
+          path: |
+            canary_sweep_report.json
+            canary_sweep_report.md
+            scripts/canary_stocks_top500.json
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Canary Sweep — Top 500" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f canary_sweep_report.md ]; then
+            head -20 canary_sweep_report.md >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "Full report: see workflow artifacts." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Report not generated. Check 'Run canary sweep' step." >> $GITHUB_STEP_SUMMARY
+          fi

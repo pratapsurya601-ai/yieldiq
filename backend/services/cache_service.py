@@ -23,7 +23,7 @@ from typing import Any, Optional
 #   - Would TCS / INFY / any existing top-100 ticker's fair_value change?
 #     YES  -> bump required
 #     NO   -> do not bump, even if you changed analysis_service.py
-CACHE_VERSION = 37  # PR-BANKSC-2: financial_valuation_service P/BV bear/bull used UNADJUSTED median_pb while base used fair_pb (with ROE clamp at 0.7/1.4). When adj hit 0.7, base coincidentally equaled bear (HDFCBANK ₹542=₹542). Now bear/bull both scale off fair_pb. v36 cached scenarios are still wrong; bump invalidates. v36=PR-BANKSC analysis_service P/B path. v35=FV stability. v34=MoS formula. v33=scenarios. v32=MoS SoT.
+CACHE_VERSION = 38  # PR-NTPC: defense-in-depth scenario ordering. _enforce_scenario_order wraps the final ScenariosOutput so bull >= base >= bear is GUARANTEED at serialization, regardless of upstream DCF instability (NTPC + utilities had bull < base from terminal_g near WACC). Old v37 cached payloads have unsorted scenarios; bump invalidates. v37=PR-BANKSC-2. v36=PR-BANKSC. v35=FV stability. v34=MoS formula. v33=scenarios. v32=MoS SoT.
 
 
 class CacheService:

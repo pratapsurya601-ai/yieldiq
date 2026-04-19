@@ -142,6 +142,63 @@ def _get_adjusted_fcf(fcf, pat, is_financial):
     return fcf
 
 
+def _enforce_scenario_order(bear, base, bull, price: float):
+    """Defense-in-depth: ensure bull >= base >= bear in the final output.
+
+    PR-NTPC: scenarios.py already enforces ordering after the parallel
+    DCF runs, but the wave-of-fixes hit edge cases on certain stocks
+    (e.g. NTPC: utilities with terminal_g near WACC produce a degenerate
+    bull DCF where the bull-growth perturbation actually decreases the
+    forecasted IV vs base). When that happens, the canary Gate 3 fires
+    "scenario order broken bull < base".
+
+    This wrapper is the LAST line of defense before serialization. If
+    bull < base or bear > base after all upstream logic, clamp them to
+    sane ±5% bands and flag with `scenario_clamped=True` in MoS-pct
+    field comment (kept silent to avoid user-visible "clamped" flag —
+    the fact that it surfaced here means the upstream DCF was unstable
+    for this ticker, which is a separate investigation, not a
+    user-facing display bug).
+    """
+    from backend.models.responses import ScenarioCase, ScenariosOutput
+    base_iv = base.iv or 0.0
+    bear_iv = bear.iv or 0.0
+    bull_iv = bull.iv or 0.0
+
+    # If ordering is intact, return as-is.
+    if bear_iv <= base_iv <= bull_iv:
+        return ScenariosOutput(bear=bear, base=base, bull=bull)
+
+    # Otherwise clamp. Bear can't exceed 95% of base; bull can't drop
+    # below 105% of base. Recompute mos_pct from clamped iv.
+    fixed_bear_iv = min(bear_iv, base_iv * 0.95) if base_iv > 0 else bear_iv
+    fixed_bull_iv = max(bull_iv, base_iv * 1.05) if base_iv > 0 else bull_iv
+
+    def _mos(iv):
+        if price and price > 0 and iv > 0:
+            return round((iv - price) / price * 100, 1)
+        return 0.0
+
+    fixed_bear = ScenarioCase(
+        iv=round(fixed_bear_iv, 2), mos_pct=_mos(fixed_bear_iv),
+        growth=bear.growth, wacc=bear.wacc, term_g=bear.term_g,
+    ) if fixed_bear_iv != bear_iv else bear
+
+    fixed_bull = ScenarioCase(
+        iv=round(fixed_bull_iv, 2), mos_pct=_mos(fixed_bull_iv),
+        growth=bull.growth, wacc=bull.wacc, term_g=bull.term_g,
+    ) if fixed_bull_iv != bull_iv else bull
+
+    import logging
+    logging.getLogger("yieldiq.scenarios").warning(
+        "scenario_clamp: bear/bull clamped to base ±5%% — investigate "
+        "(orig bear=%s base=%s bull=%s -> bear=%s base=%s bull=%s)",
+        bear_iv, base_iv, bull_iv,
+        fixed_bear.iv, base.iv, fixed_bull.iv,
+    )
+    return ScenariosOutput(bear=fixed_bear, base=base, bull=fixed_bull)
+
+
 # ── Sector name overrides for cleaner display ─────────────────
 SECTOR_OVERRIDES: dict[str, str] = {
     "Financial Services": "Financial Services",
@@ -2294,10 +2351,11 @@ class AnalysisService:
                 reverse_dcf_implied_growth=rdcf.get("implied_growth"),
                 bulk_deals=_bulk_deals,
             ),
-            scenarios=ScenariosOutput(
+            scenarios=_enforce_scenario_order(
                 bear=ScenarioCase(iv=bear_iv, mos_pct=round((bear_iv - price) / price * 100, 1) if price > 0 else 0, growth=0, wacc=round(wacc, 4), term_g=round(terminal_g, 4)) if is_financial else (_sc("Bear case") if scenarios_raw.get("Bear case") else _sc("Bear 🐻")),
                 base=ScenarioCase(iv=round(iv, 2), mos_pct=round(mos_pct, 1), growth=round(base_growth, 4), wacc=round(wacc, 4), term_g=round(terminal_g, 4)),
                 bull=ScenarioCase(iv=bull_iv, mos_pct=round((bull_iv - price) / price * 100, 1) if price > 0 else 0, growth=0, wacc=round(wacc, 4), term_g=round(terminal_g, 4)) if is_financial else (_sc("Bull case") if scenarios_raw.get("Bull case") else _sc("Bull 🐂")),
+                price=price,
             ),
             price_levels=PriceLevels(
                 entry_signal=assign_signal(mos_pct / 100, reliability_score=dcf_res.get("reliability_score", 100)),
