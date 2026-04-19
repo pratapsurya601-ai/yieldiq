@@ -1394,7 +1394,12 @@ class AnalysisService:
 
             if _bvps and _bvps > 0:
                 iv = round(_bvps * _pb_median, 2)
-                bear_iv = round(_bvps * 1.5, 2)
+                # PR-BANKSC: bear was hard-coded `_bvps * 1.5` which
+                # coincidentally equals base when peer P/B median ≈ 1.5
+                # (e.g. HDFCBANK), producing bear=base=₹542 — flat
+                # scenario display. Match the bull's structure: discount
+                # 30% off base (mirror of bull's +40%).
+                bear_iv = round(_bvps * _pb_median * 0.7, 2)
                 bull_iv = round(_bvps * _pb_median * 1.4, 2)
                 _val_method = f"P/B × {_pb_median} ({_sub_type})"
             else:

@@ -23,7 +23,7 @@ from typing import Any, Optional
 #   - Would TCS / INFY / any existing top-100 ticker's fair_value change?
 #     YES  -> bump required
 #     NO   -> do not bump, even if you changed analysis_service.py
-CACHE_VERSION = 35  # FV stability fix: snapshot computation_inputs into payload so warm-cache reads return byte-identical FV. Old payloads (v34) had transient FV that shifted across cold recomputes (ITC ₹573→₹301, HCLTECH ₹1,173→₹1,837, INFY ₹1,801→₹1,917). v35 invalidates them so the new fix can populate fresh. v34=MoS formula. FIX3(33)=scenarios. FIX1(32)=MoS source-of-truth.
+CACHE_VERSION = 36  # PR-BANKSC: P/B financial scenarios — bear was hard-coded `_bvps × 1.5` which equals base when peer P/B median ≈ 1.5 (HDFCBANK bear=base=₹542). Now matches bull structure (`_bvps × _pb_median × 0.7`). Affects all banks/NBFCs/insurance using P/B method. Old v35 cached bear scenarios are wrong; bump invalidates. v35=FV stability snapshot. v34=MoS formula. v33=scenarios. v32=MoS source-of-truth.
 
 
 class CacheService:

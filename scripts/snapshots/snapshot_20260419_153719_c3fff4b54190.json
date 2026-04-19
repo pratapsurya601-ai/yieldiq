@@ -1,0 +1,2656 @@
+{
+  "commit_sha": "c3fff4b54190",
+  "snapshot_at": "2026-04-19T10:07:19.769091+00:00",
+  "state": {
+    "RELIANCE": {
+      "public": {
+        "cmp": 1365.0,
+        "fair_value": 1234.47,
+        "margin_of_safety": -9.6,
+        "bear_case": 619.98,
+        "base_case": 1234.47,
+        "bull_case": 1780.65,
+        "roe": 6.9,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 14.257211682682046,
+        "revenue_cagr_3y": 0.0478,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "authed": {
+        "cmp": 1365.0,
+        "fair_value": 1234.47,
+        "margin_of_safety": -9.6,
+        "bear_case": {
+          "iv": 619.9779534244428,
+          "wacc": 0.113,
+          "growth": 0.02192292724076811,
+          "term_g": 0.03,
+          "mos_pct": -54.580369712495035
+        },
+        "base_case": {
+          "iv": 1234.47,
+          "wacc": 0.098,
+          "growth": 0.0819,
+          "term_g": 0.04,
+          "mos_pct": -9.6
+        },
+        "bull_case": {
+          "iv": 1780.6532214327171,
+          "wacc": 0.083,
+          "growth": 0.1419229272407681,
+          "term_g": 0.05,
+          "mos_pct": 30.45078545294631
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "error": null
+    },
+    "TCS": {
+      "public": {
+        "cmp": 2581.5,
+        "fair_value": 3479.4,
+        "margin_of_safety": 34.8,
+        "bear_case": 1899.93,
+        "base_case": 3479.4,
+        "bull_case": 4031.9,
+        "roe": 45.36,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 12.990498937974928,
+        "revenue_cagr_3y": 0.058,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "authed": {
+        "cmp": 2581.5,
+        "fair_value": 3479.4,
+        "margin_of_safety": 34.8,
+        "bear_case": {
+          "iv": 1899.9250825231452,
+          "wacc": 0.113,
+          "growth": 0.013644261772478766,
+          "term_g": 0.03,
+          "mos_pct": -26.4022822962175
+        },
+        "base_case": {
+          "iv": 3479.4,
+          "wacc": 0.098,
+          "growth": 0.0736,
+          "term_g": 0.04,
+          "mos_pct": 34.8
+        },
+        "bull_case": {
+          "iv": 4031.8970035787297,
+          "wacc": 0.083,
+          "growth": 0.13364426177247876,
+          "term_g": 0.05,
+          "mos_pct": 56.18427284829478
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "error": null
+    },
+    "HDFCBANK": {
+      "public": {
+        "cmp": 799.9,
+        "fair_value": 541.99,
+        "margin_of_safety": -32.2,
+        "bear_case": 541.99,
+        "base_case": 541.99,
+        "bull_case": 1006.55,
+        "roe": 7.81,
+        "roce": null,
+        "wacc": 0.128,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": 0.3011,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 799.9,
+        "fair_value": 541.99,
+        "margin_of_safety": -32.2,
+        "bear_case": {
+          "iv": 541.99,
+          "wacc": 0.128,
+          "growth": 0.0,
+          "term_g": 0.04,
+          "mos_pct": -32.2
+        },
+        "base_case": {
+          "iv": 541.99,
+          "wacc": 0.128,
+          "growth": 0.0,
+          "term_g": 0.04,
+          "mos_pct": -32.2
+        },
+        "bull_case": {
+          "iv": 1006.55,
+          "wacc": 0.128,
+          "growth": 0.0,
+          "term_g": 0.04,
+          "mos_pct": 25.8
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.128,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "INFY": {
+      "public": {
+        "cmp": 1318.7,
+        "fair_value": 1916.74,
+        "margin_of_safety": 45.4,
+        "bear_case": 1092.66,
+        "base_case": 1916.74,
+        "bull_case": 2108.5,
+        "roe": 32.68,
+        "roce": null,
+        "wacc": 0.1114,
+        "ev_ebitda": 1217.461,
+        "revenue_cagr_3y": 0.0573,
+        "debt_to_equity": 0.11,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "authed": {
+        "cmp": 1318.7,
+        "fair_value": 1916.74,
+        "margin_of_safety": 45.4,
+        "bear_case": {
+          "iv": 1092.6592474624294,
+          "wacc": 0.1264,
+          "growth": 0.016003322213889865,
+          "term_g": 0.03,
+          "mos_pct": -17.14118090070301
+        },
+        "base_case": {
+          "iv": 1916.74,
+          "wacc": 0.1114,
+          "growth": 0.076,
+          "term_g": 0.04,
+          "mos_pct": 45.4
+        },
+        "bull_case": {
+          "iv": 2108.497060302775,
+          "wacc": 0.0964,
+          "growth": 0.13600332221388986,
+          "term_g": 0.05,
+          "mos_pct": 59.892095268277465
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.1114,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "error": null
+    },
+    "ITC": {
+      "public": {
+        "cmp": 306.8,
+        "fair_value": 301.49,
+        "margin_of_safety": -1.7,
+        "bear_case": 158.35,
+        "base_case": 301.49,
+        "bull_case": 369.05,
+        "roe": 49.36,
+        "roce": null,
+        "wacc": 0.104,
+        "ev_ebitda": 13.247533757688831,
+        "revenue_cagr_3y": 0.0375,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "authed": {
+        "cmp": 306.8,
+        "fair_value": 301.49,
+        "margin_of_safety": -1.7,
+        "bear_case": {
+          "iv": 158.34690527714852,
+          "mos_pct": -48.38757771268154,
+          "growth": 0.013183213502314092,
+          "wacc": 0.11900000000000001,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 301.49,
+          "mos_pct": -1.7,
+          "growth": 0.0732,
+          "wacc": 0.104,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 369.0491745324004,
+          "mos_pct": 20.28982699355188,
+          "growth": 0.1331832135023141,
+          "wacc": 0.08900000000000001,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.104,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "error": null
+    },
+    "HCLTECH": {
+      "public": {
+        "cmp": 1442.3,
+        "fair_value": 1392.36,
+        "margin_of_safety": -3.5,
+        "bear_case": 853.62,
+        "base_case": 1392.36,
+        "bull_case": 1791.12,
+        "roe": 24.96,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 14.068451506550725,
+        "revenue_cagr_3y": -0.7551,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "authed": {
+        "cmp": 1442.3,
+        "fair_value": 1392.36,
+        "margin_of_safety": -3.5,
+        "bear_case": {
+          "iv": 853.6241100806766,
+          "wacc": 0.113,
+          "growth": -0.009999999999999995,
+          "term_g": 0.03,
+          "mos_pct": -40.815081385163246
+        },
+        "base_case": {
+          "iv": 1392.36,
+          "wacc": 0.098,
+          "growth": 0.05,
+          "term_g": 0.04,
+          "mos_pct": -3.5
+        },
+        "bull_case": {
+          "iv": 1791.1197739077156,
+          "wacc": 0.083,
+          "growth": 0.11,
+          "term_g": 0.05,
+          "mos_pct": 24.184962439889546
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "error": null
+    },
+    "ICICIBANK": {
+      "public": {
+        "cmp": 1346.8,
+        "fair_value": 1238.08,
+        "margin_of_safety": -8.1,
+        "bear_case": 719.67,
+        "base_case": 1238.08,
+        "bull_case": 1336.53,
+        "roe": 15.52,
+        "roce": null,
+        "wacc": 0.128,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": 0.1686,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "authed": {
+        "cmp": 1346.8,
+        "fair_value": 1238.08,
+        "margin_of_safety": -8.1,
+        "bear_case": {
+          "iv": 719.67,
+          "mos_pct": -46.6,
+          "growth": 0.0,
+          "wacc": 0.128,
+          "term_g": 0.04
+        },
+        "base_case": {
+          "iv": 1238.08,
+          "mos_pct": -8.1,
+          "growth": 0.0,
+          "wacc": 0.128,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 1336.53,
+          "mos_pct": -0.8,
+          "growth": 0.0,
+          "wacc": 0.128,
+          "term_g": 0.04
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.128,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "error": null
+    },
+    "BHARTIARTL": {
+      "public": {
+        "cmp": 1846.9,
+        "fair_value": 1853.81,
+        "margin_of_safety": 0.4,
+        "bear_case": 840.83,
+        "base_case": 1853.81,
+        "bull_case": 2552.55,
+        "roe": 21.87,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 11.2775108496244,
+        "revenue_cagr_3y": 0.1218,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "authed": {
+        "cmp": 1846.9,
+        "fair_value": 1853.81,
+        "margin_of_safety": 0.4,
+        "bear_case": {
+          "iv": 840.8303729422295,
+          "mos_pct": -54.473422392801865,
+          "growth": -0.06,
+          "wacc": 0.113,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 1853.81,
+          "mos_pct": 0.4,
+          "growth": 0.0,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 2552.54587250016,
+          "mos_pct": 38.20704092036421,
+          "growth": 0.06,
+          "wacc": 0.083,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "error": null
+    },
+    "SBIN": {
+      "public": {
+        "cmp": 1080.25,
+        "fair_value": 697.16,
+        "margin_of_safety": -35.5,
+        "bear_case": 494.11,
+        "base_case": 697.16,
+        "bull_case": 917.63,
+        "roe": 15.36,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": 0.1148,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 1080.25,
+        "fair_value": 697.16,
+        "margin_of_safety": -35.5,
+        "bear_case": {
+          "iv": 494.11,
+          "mos_pct": -54.3,
+          "growth": 0.0,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "base_case": {
+          "iv": 697.16,
+          "mos_pct": -35.5,
+          "growth": 0.0,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 917.63,
+          "mos_pct": -15.1,
+          "growth": 0.0,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "LT": {
+      "public": {
+        "cmp": 4096.1,
+        "fair_value": 3210.93,
+        "margin_of_safety": -21.6,
+        "bear_case": 1758.65,
+        "base_case": 3210.93,
+        "bull_case": 4600.08,
+        "roe": 13.03,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 20.383902178062556,
+        "revenue_cagr_3y": 0.145,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 4096.1,
+        "fair_value": 3210.93,
+        "margin_of_safety": -21.6,
+        "bear_case": {
+          "iv": 1758.64551575748,
+          "mos_pct": -57.065367695390044,
+          "growth": 0.0382428863807007,
+          "wacc": 0.113,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 3210.93,
+          "mos_pct": -21.6,
+          "growth": 0.0982,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 4600.075197047841,
+          "mos_pct": 12.303778896418113,
+          "growth": 0.1582428863807007,
+          "wacc": 0.083,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "BAJFINANCE": {
+      "public": {
+        "cmp": 908.25,
+        "fair_value": 899.62,
+        "margin_of_safety": -1.0,
+        "bear_case": 629.73,
+        "base_case": 899.62,
+        "bull_case": 1169.5,
+        "roe": 16.82,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": 0.2138,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "authed": {
+        "cmp": 908.25,
+        "fair_value": 899.62,
+        "margin_of_safety": -1.0,
+        "bear_case": {
+          "iv": 629.73,
+          "wacc": 0.098,
+          "growth": 0.0,
+          "term_g": 0.04,
+          "mos_pct": -30.7
+        },
+        "base_case": {
+          "iv": 899.62,
+          "wacc": 0.098,
+          "growth": 0.0,
+          "term_g": 0.04,
+          "mos_pct": -1.0
+        },
+        "bull_case": {
+          "iv": 1169.5,
+          "wacc": 0.098,
+          "growth": 0.0,
+          "term_g": 0.04,
+          "mos_pct": 28.8
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "error": null
+    },
+    "KOTAKBANK": {
+      "public": {
+        "cmp": 383.6,
+        "fair_value": 388.36,
+        "margin_of_safety": 1.2,
+        "bear_case": 249.42,
+        "base_case": 388.36,
+        "bull_case": 463.21,
+        "roe": 14.05,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": 0.1839,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "authed": {
+        "cmp": 383.6,
+        "fair_value": 388.36,
+        "margin_of_safety": 1.2,
+        "bear_case": {
+          "iv": 249.42,
+          "wacc": 0.098,
+          "growth": 0.0,
+          "term_g": 0.04,
+          "mos_pct": -35.0
+        },
+        "base_case": {
+          "iv": 388.36,
+          "wacc": 0.098,
+          "growth": 0.0,
+          "term_g": 0.04,
+          "mos_pct": 1.2
+        },
+        "bull_case": {
+          "iv": 463.21,
+          "wacc": 0.098,
+          "growth": 0.0,
+          "term_g": 0.04,
+          "mos_pct": 20.8
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "error": null
+    },
+    "AXISBANK": {
+      "public": {
+        "cmp": 1359.1,
+        "fair_value": 1628.46,
+        "margin_of_safety": 19.8,
+        "bear_case": 983.94,
+        "base_case": 1628.46,
+        "bull_case": 1827.32,
+        "roe": 14.93,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": 0.1836,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "authed": {
+        "cmp": 1359.1,
+        "fair_value": 1628.46,
+        "margin_of_safety": 19.8,
+        "bear_case": {
+          "iv": 983.94,
+          "wacc": 0.098,
+          "growth": 0.0,
+          "term_g": 0.04,
+          "mos_pct": -27.6
+        },
+        "base_case": {
+          "iv": 1628.46,
+          "wacc": 0.098,
+          "growth": 0.0,
+          "term_g": 0.04,
+          "mos_pct": 19.8
+        },
+        "bull_case": {
+          "iv": 1827.32,
+          "wacc": 0.098,
+          "growth": 0.0,
+          "term_g": 0.04,
+          "mos_pct": 34.5
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "error": null
+    },
+    "MARUTI": {
+      "public": {
+        "cmp": 13453.0,
+        "fair_value": 12801.28,
+        "margin_of_safety": -4.8,
+        "bear_case": 7676.37,
+        "base_case": 12801.28,
+        "bull_case": 17217.47,
+        "roe": 15.07,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 16.334338393297358,
+        "revenue_cagr_3y": 0.1254,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "authed": {
+        "cmp": 13453.0,
+        "fair_value": 12801.28,
+        "margin_of_safety": -4.8,
+        "bear_case": {
+          "iv": 7676.370941137478,
+          "wacc": 0.113,
+          "growth": 0.06861454443941845,
+          "term_g": 0.03,
+          "mos_pct": -42.93933738840795
+        },
+        "base_case": {
+          "iv": 12801.28,
+          "wacc": 0.098,
+          "growth": 0.1286,
+          "term_g": 0.04,
+          "mos_pct": -4.8
+        },
+        "bull_case": {
+          "iv": 17217.471138505265,
+          "wacc": 0.083,
+          "growth": 0.18861454443941844,
+          "term_g": 0.05,
+          "mos_pct": 27.982391574409167
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "error": null
+    },
+    "WIPRO": {
+      "public": {
+        "cmp": 204.32,
+        "fair_value": 269.43,
+        "margin_of_safety": 31.9,
+        "bear_case": 163.67,
+        "base_case": 269.43,
+        "bull_case": 348.21,
+        "roe": 15.82,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 10.696174284381566,
+        "revenue_cagr_3y": -0.7709,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "authed": {
+        "cmp": 204.32,
+        "fair_value": 269.43,
+        "margin_of_safety": 31.9,
+        "bear_case": {
+          "iv": 163.67260511303638,
+          "mos_pct": -19.893990188969756,
+          "growth": -0.009999999999999995,
+          "wacc": 0.113,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 269.43,
+          "mos_pct": 31.9,
+          "growth": 0.05,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 348.20565913625353,
+          "mos_pct": 70.42171429825488,
+          "growth": 0.11,
+          "wacc": 0.083,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "error": null
+    },
+    "SUNPHARMA": {
+      "public": {
+        "cmp": 1675.5,
+        "fair_value": 1479.13,
+        "margin_of_safety": -11.7,
+        "bear_case": 798.79,
+        "base_case": 1479.13,
+        "bull_case": 1799.8,
+        "roe": 15.08,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 23.031115043023146,
+        "revenue_cagr_3y": 0.0865,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "authed": {
+        "cmp": 1675.5,
+        "fair_value": 1479.13,
+        "margin_of_safety": -11.7,
+        "bear_case": {
+          "iv": 798.7901867189048,
+          "mos_pct": -52.32526489293316,
+          "growth": 0.028244668891083097,
+          "wacc": 0.113,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 1479.13,
+          "mos_pct": -11.7,
+          "growth": 0.0882,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 1799.79886678527,
+          "mos_pct": 7.418613356327669,
+          "growth": 0.1482446688910831,
+          "wacc": 0.083,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "error": null
+    },
+    "TITAN": {
+      "public": {
+        "cmp": 4525.9,
+        "fair_value": 1763.72,
+        "margin_of_safety": -61.0,
+        "bear_case": 1026.88,
+        "base_case": 1763.72,
+        "bull_case": 2341.58,
+        "roe": 28.71,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 52.065884355270306,
+        "revenue_cagr_3y": 0.2249,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 4525.9,
+        "fair_value": 1763.72,
+        "margin_of_safety": -61.0,
+        "bear_case": {
+          "iv": 1026.8761273362022,
+          "wacc": 0.113,
+          "growth": 0.08440000000000003,
+          "term_g": 0.03,
+          "mos_pct": -77.31111713707077
+        },
+        "base_case": {
+          "iv": 1763.72,
+          "wacc": 0.098,
+          "growth": 0.1444,
+          "term_g": 0.04,
+          "mos_pct": -61.0
+        },
+        "bull_case": {
+          "iv": 2341.5757259768925,
+          "wacc": 0.083,
+          "growth": 0.20440000000000003,
+          "term_g": 0.05,
+          "mos_pct": -48.26275930750698
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "ULTRACEMCO": {
+      "public": {
+        "cmp": 11886.0,
+        "fair_value": 6568.93,
+        "margin_of_safety": -44.7,
+        "bear_case": 3739.57,
+        "base_case": 6568.93,
+        "bull_case": 9278.37,
+        "roe": 8.17,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 23.033027382772467,
+        "revenue_cagr_3y": 0.1086,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 11886.0,
+        "fair_value": 6568.93,
+        "margin_of_safety": -44.7,
+        "bear_case": {
+          "iv": 3739.571166117734,
+          "wacc": 0.113,
+          "growth": 0.05879776458690014,
+          "term_g": 0.03,
+          "mos_pct": -68.53801812117
+        },
+        "base_case": {
+          "iv": 6568.93,
+          "wacc": 0.098,
+          "growth": 0.1188,
+          "term_g": 0.04,
+          "mos_pct": -44.7
+        },
+        "bull_case": {
+          "iv": 9278.373050618338,
+          "wacc": 0.083,
+          "growth": 0.17879776458690014,
+          "term_g": 0.05,
+          "mos_pct": -21.938641674084312
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "POWERGRID": {
+      "public": {
+        "cmp": 318.1,
+        "fair_value": 232.0,
+        "margin_of_safety": -27.1,
+        "bear_case": 124.42,
+        "base_case": 232.0,
+        "bull_case": 513.42,
+        "roe": 16.75,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 10.47740083348971,
+        "revenue_cagr_3y": 0.0229,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "avoid"
+      },
+      "authed": {
+        "cmp": 318.1,
+        "fair_value": 232.0,
+        "margin_of_safety": -27.1,
+        "bear_case": {
+          "iv": 124.42472245522735,
+          "mos_pct": -60.88502984349605,
+          "growth": -0.06,
+          "wacc": 0.113,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 232.0,
+          "mos_pct": -27.1,
+          "growth": 0.0,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 513.423334963111,
+          "mos_pct": 61.40312012318338,
+          "growth": 0.06,
+          "wacc": 0.083,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "avoid"
+      },
+      "error": null
+    },
+    "HINDUNILVR": {
+      "public": {
+        "cmp": 2240.8,
+        "fair_value": 1838.81,
+        "margin_of_safety": -17.9,
+        "bear_case": 1031.23,
+        "base_case": 1838.81,
+        "bull_case": 2098.96,
+        "roe": 21.47,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 32.285284086613494,
+        "revenue_cagr_3y": 0.0651,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 2240.8,
+        "fair_value": 1838.81,
+        "margin_of_safety": -17.9,
+        "bear_case": {
+          "iv": 1031.2252852824563,
+          "mos_pct": -53.979593769566456,
+          "growth": 0.018089038767233778,
+          "wacc": 0.113,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 1838.81,
+          "mos_pct": -17.9,
+          "growth": 0.0781,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 2098.9610972055702,
+          "mos_pct": -6.329835261148468,
+          "growth": 0.13808903876723377,
+          "wacc": 0.083,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "DRREDDY": {
+      "public": {
+        "cmp": 1223.0,
+        "fair_value": 2275.72,
+        "margin_of_safety": 86.1,
+        "bear_case": 1210.04,
+        "base_case": 2275.72,
+        "bull_case": 2799.32,
+        "roe": 16.77,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 11.251694605762005,
+        "revenue_cagr_3y": 0.1204,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "authed": {
+        "cmp": 1223.0,
+        "fair_value": 2275.72,
+        "margin_of_safety": 86.1,
+        "bear_case": {
+          "iv": 1210.0431867939856,
+          "wacc": 0.113,
+          "growth": 0.04764435482965358,
+          "term_g": 0.03,
+          "mos_pct": -1.0594287167632406
+        },
+        "base_case": {
+          "iv": 2275.72,
+          "wacc": 0.098,
+          "growth": 0.1076,
+          "term_g": 0.04,
+          "mos_pct": 86.1
+        },
+        "bull_case": {
+          "iv": 2799.3243295981238,
+          "wacc": 0.083,
+          "growth": 0.16764435482965356,
+          "term_g": 0.05,
+          "mos_pct": 128.88996971366507
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "error": null
+    },
+    "ONGC": {
+      "public": {
+        "cmp": 283.3,
+        "fair_value": 512.35,
+        "margin_of_safety": 80.9,
+        "bear_case": 246.41,
+        "base_case": 512.35,
+        "bull_case": 751.69,
+        "roe": 9.68,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 5.325785858309939,
+        "revenue_cagr_3y": 0.0756,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "authed": {
+        "cmp": 283.3,
+        "fair_value": 512.35,
+        "margin_of_safety": 80.9,
+        "bear_case": {
+          "iv": 246.40598598799934,
+          "mos_pct": -13.022945074014961,
+          "growth": 0.000413515865290523,
+          "wacc": 0.113,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 512.35,
+          "mos_pct": 80.9,
+          "growth": 0.0604,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 751.6947880241337,
+          "mos_pct": 165.3352701777949,
+          "growth": 0.12041351586529052,
+          "wacc": 0.083,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "error": null
+    },
+    "NTPC": {
+      "public": {
+        "cmp": 393.6,
+        "fair_value": 248.81,
+        "margin_of_safety": -36.8,
+        "bear_case": 222.15,
+        "base_case": 248.81,
+        "bull_case": 393.28,
+        "roe": null,
+        "roce": null,
+        "wacc": 0.1114,
+        "ev_ebitda": 9.022,
+        "revenue_cagr_3y": 0.1235,
+        "debt_to_equity": 1.18,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 393.6,
+        "fair_value": 248.81,
+        "margin_of_safety": -36.8,
+        "bear_case": {
+          "iv": 222.14743762125437,
+          "mos_pct": -43.560102230372365,
+          "growth": -0.009999999999999995,
+          "wacc": 0.1264,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 248.81,
+          "mos_pct": -36.8,
+          "growth": 0.05,
+          "wacc": 0.1114,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 393.2776080007556,
+          "mos_pct": -0.08190853639339853,
+          "growth": 0.11,
+          "wacc": 0.0964,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.1114,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "TATAMOTORS": {
+      "public": {
+        "cmp": 356.05,
+        "fair_value": null,
+        "margin_of_safety": null,
+        "bear_case": 1206.64,
+        "base_case": 1993.88,
+        "bull_case": 2765.44,
+        "roe": 22.67,
+        "roce": null,
+        "wacc": 0.112,
+        "ev_ebitda": 6.735242394991602,
+        "revenue_cagr_3y": 0.0176,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "data_limited"
+      },
+      "authed": {
+        "cmp": 356.05,
+        "fair_value": 0.0,
+        "margin_of_safety": 0.0,
+        "bear_case": {
+          "iv": 1206.6444085433816,
+          "mos_pct": 238.89747224061279,
+          "growth": -0.009999999999999995,
+          "wacc": 0.12704,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 1993.88,
+          "mos_pct": 460.0,
+          "growth": 0.05,
+          "wacc": 0.112,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 2765.43572180336,
+          "mos_pct": 676.6987267561344,
+          "growth": 0.11,
+          "wacc": 0.09704,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.112,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "data_limited"
+      },
+      "error": null
+    },
+    "M&M": {
+      "public": {
+        "cmp": 3208.6,
+        "fair_value": 3651.09,
+        "margin_of_safety": 13.8,
+        "bear_case": 1959.6,
+        "base_case": 3651.09,
+        "bull_case": 5285.27,
+        "roe": 14.51,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 13.265306052384314,
+        "revenue_cagr_3y": 0.1434,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "authed": {
+        "cmp": 3208.6,
+        "fair_value": 3651.09,
+        "margin_of_safety": 13.8,
+        "bear_case": {
+          "iv": 1959.6004507196685,
+          "wacc": 0.113,
+          "growth": 0.07911053231895532,
+          "term_g": 0.03,
+          "mos_pct": -38.9266224809045
+        },
+        "base_case": {
+          "iv": 3651.09,
+          "wacc": 0.098,
+          "growth": 0.1391,
+          "term_g": 0.04,
+          "mos_pct": 13.8
+        },
+        "bull_case": {
+          "iv": 5285.273266197251,
+          "wacc": 0.083,
+          "growth": 0.1991105323189553,
+          "term_g": 0.05,
+          "mos_pct": 64.72209391434993
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "error": null
+    },
+    "HEROMOTOCO": {
+      "public": {
+        "cmp": 5162.5,
+        "fair_value": 6793.17,
+        "margin_of_safety": 31.6,
+        "bear_case": 3748.49,
+        "base_case": 6793.17,
+        "bull_case": 7927.72,
+        "roe": 22.56,
+        "roce": null,
+        "wacc": 0.1063,
+        "ev_ebitda": 13.012607303258916,
+        "revenue_cagr_3y": 0.0941,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "authed": {
+        "cmp": 5162.5,
+        "fair_value": 6793.17,
+        "margin_of_safety": 31.6,
+        "bear_case": {
+          "iv": 3748.4897792117645,
+          "wacc": 0.12128000000000001,
+          "growth": 0.0572269176018103,
+          "term_g": 0.03,
+          "mos_pct": -27.390028489844752
+        },
+        "base_case": {
+          "iv": 6793.17,
+          "wacc": 0.1063,
+          "growth": 0.1172,
+          "term_g": 0.04,
+          "mos_pct": 31.6
+        },
+        "bull_case": {
+          "iv": 7927.7193446037,
+          "wacc": 0.09128000000000001,
+          "growth": 0.1772269176018103,
+          "term_g": 0.05,
+          "mos_pct": 53.563570839781114
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.1063,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "error": null
+    },
+    "DIVISLAB": {
+      "public": {
+        "cmp": 6268.0,
+        "fair_value": 2520.25,
+        "margin_of_safety": -59.8,
+        "bear_case": 1516.29,
+        "base_case": 2520.25,
+        "bull_case": 3427.14,
+        "roe": 14.64,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 46.47770348379825,
+        "revenue_cagr_3y": -0.751,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 6268.0,
+        "fair_value": 2520.25,
+        "margin_of_safety": -59.8,
+        "bear_case": {
+          "iv": 1516.290326597528,
+          "mos_pct": -75.80902478306433,
+          "growth": -0.0007999999999999952,
+          "wacc": 0.113,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 2520.25,
+          "mos_pct": -59.8,
+          "growth": 0.0592,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 3427.1433665148943,
+          "mos_pct": -45.323175390636656,
+          "growth": 0.1192,
+          "wacc": 0.083,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "COALINDIA": {
+      "public": {
+        "cmp": 431.6,
+        "fair_value": 527.1,
+        "margin_of_safety": 22.1,
+        "bear_case": 330.57,
+        "base_case": 527.1,
+        "bull_case": 669.86,
+        "roe": 35.38,
+        "roce": null,
+        "wacc": 0.122,
+        "ev_ebitda": 4.7261242824403045,
+        "revenue_cagr_3y": 0.0731,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "authed": {
+        "cmp": 431.6,
+        "fair_value": 527.1,
+        "margin_of_safety": 22.1,
+        "bear_case": {
+          "iv": 330.5693915303825,
+          "wacc": 0.137,
+          "growth": -0.009999999999999995,
+          "term_g": 0.03,
+          "mos_pct": -23.408390441241504
+        },
+        "base_case": {
+          "iv": 527.1,
+          "wacc": 0.122,
+          "growth": 0.05,
+          "term_g": 0.04,
+          "mos_pct": 22.1
+        },
+        "bull_case": {
+          "iv": 669.862218430756,
+          "wacc": 0.107,
+          "growth": 0.11,
+          "term_g": 0.05,
+          "mos_pct": 55.20440429977547
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.122,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "error": null
+    },
+    "TATASTEEL": {
+      "public": {
+        "cmp": 210.01,
+        "fair_value": null,
+        "margin_of_safety": null,
+        "bear_case": 11.52,
+        "base_case": 13.69,
+        "bull_case": 43.94,
+        "roe": 374.43,
+        "roce": null,
+        "wacc": 0.1192,
+        "ev_ebitda": 13.502610224134946,
+        "revenue_cagr_3y": -0.0364,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "data_limited"
+      },
+      "authed": {
+        "cmp": 210.01,
+        "fair_value": 0.0,
+        "margin_of_safety": 0.0,
+        "bear_case": {
+          "iv": 11.518856265794376,
+          "wacc": 0.13418000000000002,
+          "growth": -0.009999999999999995,
+          "term_g": 0.03,
+          "mos_pct": -94.51509139227208
+        },
+        "base_case": {
+          "iv": 13.69,
+          "wacc": 0.1192,
+          "growth": 0.05,
+          "term_g": 0.04,
+          "mos_pct": -93.5
+        },
+        "bull_case": {
+          "iv": 43.94219674230203,
+          "wacc": 0.10418000000000001,
+          "growth": 0.11,
+          "term_g": 0.05,
+          "mos_pct": -79.07614023537738
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.1192,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "data_limited"
+      },
+      "error": null
+    },
+    "JSWSTEEL": {
+      "public": {
+        "cmp": 1223.4,
+        "fair_value": 472.96,
+        "margin_of_safety": -61.3,
+        "bear_case": 198.73,
+        "base_case": 472.96,
+        "bull_case": 888.86,
+        "roe": 429.06,
+        "roce": null,
+        "wacc": 0.1069,
+        "ev_ebitda": 16.21953288230375,
+        "revenue_cagr_3y": 0.0183,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 1223.4,
+        "fair_value": 472.96,
+        "margin_of_safety": -61.3,
+        "bear_case": {
+          "iv": 198.7326979901915,
+          "wacc": 0.12188,
+          "growth": -0.006080265743119151,
+          "term_g": 0.03,
+          "mos_pct": -83.75570589959952
+        },
+        "base_case": {
+          "iv": 472.96,
+          "wacc": 0.1069,
+          "growth": 0.0539,
+          "term_g": 0.04,
+          "mos_pct": -61.3
+        },
+        "bull_case": {
+          "iv": 888.8632916871247,
+          "wacc": 0.09188,
+          "growth": 0.11391973425688084,
+          "term_g": 0.05,
+          "mos_pct": -27.344836198377664
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.1069,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "ADANIPORTS": {
+      "public": {
+        "cmp": 1527.7,
+        "fair_value": 939.86,
+        "margin_of_safety": -38.5,
+        "bear_case": 402.37,
+        "base_case": 939.86,
+        "bull_case": 1313.61,
+        "roe": 17.07,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 24.18244471028152,
+        "revenue_cagr_3y": 0.1916,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 1527.7,
+        "fair_value": 939.86,
+        "margin_of_safety": -38.5,
+        "bear_case": {
+          "iv": 402.3749046620715,
+          "wacc": 0.113,
+          "growth": 0.06141444969637401,
+          "term_g": 0.03,
+          "mos_pct": -73.66139179664071
+        },
+        "base_case": {
+          "iv": 939.86,
+          "wacc": 0.098,
+          "growth": 0.1214,
+          "term_g": 0.04,
+          "mos_pct": -38.5
+        },
+        "bull_case": {
+          "iv": 1313.611101773477,
+          "wacc": 0.083,
+          "growth": 0.181414449696374,
+          "term_g": 0.05,
+          "mos_pct": -14.01380220207337
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "BAJAJ-AUTO": {
+      "public": {
+        "cmp": 9799.5,
+        "fair_value": 6800.71,
+        "margin_of_safety": -30.6,
+        "bear_case": 4096.33,
+        "base_case": 6800.71,
+        "bull_case": 8966.27,
+        "roe": 20.82,
+        "roce": null,
+        "wacc": 0.1093,
+        "ev_ebitda": 21.46012476077207,
+        "revenue_cagr_3y": 0.1617,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 9799.5,
+        "fair_value": 6800.71,
+        "margin_of_safety": -30.6,
+        "bear_case": {
+          "iv": 4096.330585999908,
+          "wacc": 0.12428,
+          "growth": 0.0742665698715877,
+          "term_g": 0.03,
+          "mos_pct": -58.19857558038769
+        },
+        "base_case": {
+          "iv": 6800.71,
+          "wacc": 0.1093,
+          "growth": 0.1343,
+          "term_g": 0.04,
+          "mos_pct": -30.6
+        },
+        "bull_case": {
+          "iv": 8966.273092784606,
+          "wacc": 0.09428,
+          "growth": 0.1942665698715877,
+          "term_g": 0.05,
+          "mos_pct": -8.50274919348328
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.1093,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "ASIANPAINT": {
+      "public": {
+        "cmp": 2464.0,
+        "fair_value": 1136.11,
+        "margin_of_safety": -53.9,
+        "bear_case": 688.83,
+        "base_case": 1136.11,
+        "bull_case": 1455.85,
+        "roe": 18.28,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 37.624215517200696,
+        "revenue_cagr_3y": 0.0532,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 2464.0,
+        "fair_value": 1136.11,
+        "margin_of_safety": -53.9,
+        "bear_case": {
+          "iv": 688.8333555792227,
+          "mos_pct": -72.04410082876531,
+          "growth": 0.021400000000000002,
+          "wacc": 0.113,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 1136.11,
+          "mos_pct": -53.9,
+          "growth": 0.0814,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 1455.8461757678133,
+          "mos_pct": -40.915333775656926,
+          "growth": 0.1414,
+          "wacc": 0.083,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "NESTLEIND": {
+      "public": {
+        "cmp": 1285.6,
+        "fair_value": 660.7,
+        "margin_of_safety": -48.6,
+        "bear_case": 368.58,
+        "base_case": 660.7,
+        "bull_case": 756.63,
+        "roe": 79.99,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 50.58218845654161,
+        "revenue_cagr_3y": 0.1258,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 1285.6,
+        "fair_value": 660.7,
+        "margin_of_safety": -48.6,
+        "bear_case": {
+          "iv": 368.57555643271746,
+          "wacc": 0.113,
+          "growth": 0.038935146975239115,
+          "term_g": 0.03,
+          "mos_pct": -71.33046332979806
+        },
+        "base_case": {
+          "iv": 660.7,
+          "wacc": 0.098,
+          "growth": 0.0989,
+          "term_g": 0.04,
+          "mos_pct": -48.6
+        },
+        "bull_case": {
+          "iv": 756.6322193964182,
+          "wacc": 0.083,
+          "growth": 0.1589351469752391,
+          "term_g": 0.05,
+          "mos_pct": -41.145594760021034
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "BRITANNIA": {
+      "public": {
+        "cmp": 5565.0,
+        "fair_value": 3751.4,
+        "margin_of_safety": -32.6,
+        "bear_case": 2107.05,
+        "base_case": 3751.4,
+        "bull_case": 4253.95,
+        "roe": 49.73,
+        "roce": null,
+        "wacc": 0.1018,
+        "ev_ebitda": 38.55785031705825,
+        "revenue_cagr_3y": 0.0453,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 5565.0,
+        "fair_value": 3751.4,
+        "margin_of_safety": -32.6,
+        "bear_case": {
+          "iv": 2107.047339049773,
+          "mos_pct": -62.13751412309482,
+          "growth": 0.028746685117587586,
+          "wacc": 0.11678000000000001,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 3751.4,
+          "mos_pct": -32.6,
+          "growth": 0.0887,
+          "wacc": 0.1018,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 4253.945979318242,
+          "mos_pct": -23.55892220452395,
+          "growth": 0.1487466851175876,
+          "wacc": 0.08678000000000001,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.1018,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "DABUR": {
+      "public": {
+        "cmp": 428.25,
+        "fair_value": 379.04,
+        "margin_of_safety": -11.5,
+        "bear_case": 236.29,
+        "base_case": 379.04,
+        "bull_case": 483.76,
+        "roe": 15.77,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 26.15328995459417,
+        "revenue_cagr_3y": 0.0436,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "authed": {
+        "cmp": 428.25,
+        "fair_value": 379.04,
+        "margin_of_safety": -11.5,
+        "bear_case": {
+          "iv": 236.29430708849512,
+          "wacc": 0.113,
+          "growth": 0.011069441471031796,
+          "term_g": 0.03,
+          "mos_pct": -44.82327913870517
+        },
+        "base_case": {
+          "iv": 379.04,
+          "wacc": 0.098,
+          "growth": 0.0711,
+          "term_g": 0.04,
+          "mos_pct": -11.5
+        },
+        "bull_case": {
+          "iv": 483.7613709051293,
+          "wacc": 0.083,
+          "growth": 0.13106944147103178,
+          "term_g": 0.05,
+          "mos_pct": 12.962374992441166
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "fairly_valued"
+      },
+      "error": null
+    },
+    "GODREJCP": {
+      "public": {
+        "cmp": 1078.05,
+        "fair_value": 648.31,
+        "margin_of_safety": -39.9,
+        "bear_case": 398.01,
+        "base_case": 648.31,
+        "bull_case": 837.78,
+        "roe": 15.43,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 36.57493770793369,
+        "revenue_cagr_3y": 0.0447,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 1078.05,
+        "fair_value": 648.31,
+        "margin_of_safety": -39.9,
+        "bear_case": {
+          "iv": 398.0084218018525,
+          "mos_pct": -63.08071019202676,
+          "growth": 0.02740549090456751,
+          "wacc": 0.113,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 648.31,
+          "mos_pct": -39.9,
+          "growth": 0.0874,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 837.7788603477769,
+          "mos_pct": -22.287572709776377,
+          "growth": 0.1474054909045675,
+          "wacc": 0.083,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "PIDILITIND": {
+      "public": {
+        "cmp": 1326.3,
+        "fair_value": 819.84,
+        "margin_of_safety": -38.2,
+        "bear_case": 445.53,
+        "base_case": 819.84,
+        "bull_case": 946.34,
+        "roe": 20.85,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 40.39643804032613,
+        "revenue_cagr_3y": 0.0582,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 1326.3,
+        "fair_value": 819.84,
+        "margin_of_safety": -38.2,
+        "bear_case": {
+          "iv": 445.53493612118064,
+          "wacc": 0.113,
+          "growth": 0.03756722943562074,
+          "term_g": 0.03,
+          "mos_pct": -66.40768154122888
+        },
+        "base_case": {
+          "iv": 819.84,
+          "wacc": 0.098,
+          "growth": 0.0976,
+          "term_g": 0.04,
+          "mos_pct": -38.2
+        },
+        "bull_case": {
+          "iv": 946.3429569437806,
+          "wacc": 0.083,
+          "growth": 0.15756722943562074,
+          "term_g": 0.05,
+          "mos_pct": -28.647898506831993
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "TECHM": {
+      "public": {
+        "cmp": 1484.1,
+        "fair_value": 1204.37,
+        "margin_of_safety": -18.8,
+        "bear_case": 739.3,
+        "base_case": 1204.37,
+        "bull_case": 1552.84,
+        "roe": 15.3,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 16.31044969653412,
+        "revenue_cagr_3y": -0.7696,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 1484.1,
+        "fair_value": 1204.37,
+        "margin_of_safety": -18.8,
+        "bear_case": {
+          "iv": 739.2996137338289,
+          "wacc": 0.113,
+          "growth": -0.009999999999999995,
+          "term_g": 0.03,
+          "mos_pct": -50.185322694183995
+        },
+        "base_case": {
+          "iv": 1204.37,
+          "wacc": 0.098,
+          "growth": 0.05,
+          "term_g": 0.04,
+          "mos_pct": -18.8
+        },
+        "bull_case": {
+          "iv": 1552.8367341738344,
+          "wacc": 0.083,
+          "growth": 0.11,
+          "term_g": 0.05,
+          "mos_pct": 4.631545025176553
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "GRASIM": {
+      "public": {
+        "cmp": 2700.0,
+        "fair_value": 1458.6,
+        "margin_of_safety": -46.0,
+        "bear_case": 991.93,
+        "base_case": 1458.6,
+        "bull_case": 3119.76,
+        "roe": 234.81,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 15.49827846164467,
+        "revenue_cagr_3y": 0.1226,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "data_limited"
+      },
+      "authed": {
+        "cmp": 2700.0,
+        "fair_value": 1458.6,
+        "margin_of_safety": -46.0,
+        "bear_case": {
+          "iv": 991.9274633525996,
+          "mos_pct": -63.26194580175557,
+          "growth": 0.026000202421742738,
+          "wacc": 0.113,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 1458.6,
+          "mos_pct": -46.0,
+          "growth": 0.086,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 3119.7611512034287,
+          "mos_pct": 15.546709303830692,
+          "growth": 0.14600020242174272,
+          "wacc": 0.083,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "data_limited"
+      },
+      "error": null
+    },
+    "CIPLA": {
+      "public": {
+        "cmp": 1231.1,
+        "fair_value": 1714.51,
+        "margin_of_safety": 39.3,
+        "bear_case": 1033.48,
+        "base_case": 1714.51,
+        "bull_case": 2327.82,
+        "roe": 16.85,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 12.73226616049301,
+        "revenue_cagr_3y": 0.0788,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "authed": {
+        "cmp": 1231.1,
+        "fair_value": 1714.51,
+        "margin_of_safety": 39.3,
+        "bear_case": {
+          "iv": 1033.479916074685,
+          "wacc": 0.113,
+          "growth": 0.025883397488132356,
+          "term_g": 0.03,
+          "mos_pct": -16.052316093759647
+        },
+        "base_case": {
+          "iv": 1714.51,
+          "wacc": 0.098,
+          "growth": 0.0859,
+          "term_g": 0.04,
+          "mos_pct": 39.3
+        },
+        "bull_case": {
+          "iv": 2327.8240552911775,
+          "wacc": 0.083,
+          "growth": 0.14588339748813234,
+          "term_g": 0.05,
+          "mos_pct": 89.08489167853799
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "error": null
+    },
+    "EICHERMOT": {
+      "public": {
+        "cmp": 7078.0,
+        "fair_value": 5406.56,
+        "margin_of_safety": -23.6,
+        "bear_case": 2910.56,
+        "base_case": 5406.56,
+        "bull_case": 6499.68,
+        "roe": 22.23,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 25.60065017351115,
+        "revenue_cagr_3y": 0.1607,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 7078.0,
+        "fair_value": 5406.56,
+        "margin_of_safety": -23.6,
+        "bear_case": {
+          "iv": 2910.56123647158,
+          "mos_pct": -58.87876184696835,
+          "growth": 0.09173721790607248,
+          "wacc": 0.113,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 5406.56,
+          "mos_pct": -23.6,
+          "growth": 0.1517,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 6499.677202919398,
+          "mos_pct": -8.170709198652188,
+          "growth": 0.21173721790607247,
+          "wacc": 0.083,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "TATACONSUM": {
+      "public": {
+        "cmp": 1095.9,
+        "fair_value": 534.02,
+        "margin_of_safety": -51.3,
+        "bear_case": 331.38,
+        "base_case": 534.02,
+        "bull_case": 686.87,
+        "roe": 5.98,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": 40.50177887801532,
+        "revenue_cagr_3y": 0.113,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 1095.9,
+        "fair_value": 534.02,
+        "margin_of_safety": -51.3,
+        "bear_case": {
+          "iv": 331.3821220507499,
+          "wacc": 0.113,
+          "growth": 0.031998749180010916,
+          "term_g": 0.03,
+          "mos_pct": -69.76164662210608
+        },
+        "base_case": {
+          "iv": 534.02,
+          "wacc": 0.098,
+          "growth": 0.092,
+          "term_g": 0.04,
+          "mos_pct": -51.3
+        },
+        "bull_case": {
+          "iv": 686.8707770389358,
+          "wacc": 0.083,
+          "growth": 0.1519987491800109,
+          "term_g": 0.05,
+          "mos_pct": -37.323591410066776
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "BPCL": {
+      "public": {
+        "cmp": 309.5,
+        "fair_value": null,
+        "margin_of_safety": null,
+        "bear_case": 398.76,
+        "base_case": 696.16,
+        "bull_case": 1077.95,
+        "roe": 16.39,
+        "roce": null,
+        "wacc": 0.1297,
+        "ev_ebitda": 5.938363501168444,
+        "revenue_cagr_3y": -0.0085,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "data_limited"
+      },
+      "authed": {
+        "cmp": 309.5,
+        "fair_value": 0.0,
+        "margin_of_safety": 0.0,
+        "bear_case": {
+          "iv": 398.7628585587372,
+          "wacc": 0.14468000000000003,
+          "growth": 0.009068997534944556,
+          "term_g": 0.03,
+          "mos_pct": 28.84098822576323
+        },
+        "base_case": {
+          "iv": 696.16,
+          "wacc": 0.1297,
+          "growth": 0.0691,
+          "term_g": 0.04,
+          "mos_pct": 124.9
+        },
+        "bull_case": {
+          "iv": 1077.9514671303486,
+          "wacc": 0.11468000000000002,
+          "growth": 0.12906899753494455,
+          "term_g": 0.05,
+          "mos_pct": 248.28803461400605
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.1297,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "data_limited"
+      },
+      "error": null
+    },
+    "IOC": {
+      "public": {
+        "cmp": 144.57,
+        "fair_value": 280.17,
+        "margin_of_safety": 93.8,
+        "bear_case": 151.74,
+        "base_case": 280.17,
+        "bull_case": 446.26,
+        "roe": 7.12,
+        "roce": null,
+        "wacc": 0.1246,
+        "ev_ebitda": 7.54235239559926,
+        "revenue_cagr_3y": -0.0182,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "authed": {
+        "cmp": 144.57,
+        "fair_value": 280.17,
+        "margin_of_safety": 93.8,
+        "bear_case": {
+          "iv": 151.74395822027628,
+          "mos_pct": 4.962267782119517,
+          "growth": 0.00870383888015376,
+          "wacc": 0.13957999999999998,
+          "term_g": 0.03
+        },
+        "base_case": {
+          "iv": 280.17,
+          "mos_pct": 93.8,
+          "growth": 0.0687,
+          "wacc": 0.1246,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 446.26453945514515,
+          "mos_pct": 208.68404015110383,
+          "growth": 0.12870383888015374,
+          "wacc": 0.10958,
+          "term_g": 0.05
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.1246,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "undervalued"
+      },
+      "error": null
+    },
+    "HINDALCO": {
+      "public": {
+        "cmp": 1042.3,
+        "fair_value": 810.1,
+        "margin_of_safety": -22.3,
+        "bear_case": 413.09,
+        "base_case": 810.1,
+        "bull_case": 1177.7,
+        "roe": 12.93,
+        "roce": null,
+        "wacc": 0.1157,
+        "ev_ebitda": 11.937037171874119,
+        "revenue_cagr_3y": 0.0545,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 1042.3,
+        "fair_value": 810.1,
+        "margin_of_safety": -22.3,
+        "bear_case": {
+          "iv": 413.08927013039073,
+          "wacc": 0.13069999999999998,
+          "growth": 0.026406493405689915,
+          "term_g": 0.03,
+          "mos_pct": -60.36752846794607
+        },
+        "base_case": {
+          "iv": 810.1,
+          "wacc": 0.1157,
+          "growth": 0.0864,
+          "term_g": 0.04,
+          "mos_pct": -22.3
+        },
+        "bull_case": {
+          "iv": 1177.6982940090595,
+          "wacc": 0.1007,
+          "growth": 0.1464064934056899,
+          "term_g": 0.05,
+          "mos_pct": 12.990332806101753
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.1157,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "SHREECEM": {
+      "public": {
+        "cmp": 24970.0,
+        "fair_value": 12008.62,
+        "margin_of_safety": -51.9,
+        "bear_case": 7697.48,
+        "base_case": 12008.62,
+        "bull_case": 15106.99,
+        "roe": 5.2,
+        "roce": null,
+        "wacc": 0.128,
+        "ev_ebitda": 17.32544783071847,
+        "revenue_cagr_3y": 0.0446,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 24970.0,
+        "fair_value": 12008.62,
+        "margin_of_safety": -51.9,
+        "bear_case": {
+          "iv": 7697.480144540186,
+          "wacc": 0.14300000000000002,
+          "growth": 0.03337148392698369,
+          "term_g": 0.03,
+          "mos_pct": -69.17308712639093
+        },
+        "base_case": {
+          "iv": 12008.62,
+          "wacc": 0.128,
+          "growth": 0.0934,
+          "term_g": 0.04,
+          "mos_pct": -51.9
+        },
+        "bull_case": {
+          "iv": 15106.988442761605,
+          "wacc": 0.113,
+          "growth": 0.1533714839269837,
+          "term_g": 0.05,
+          "mos_pct": -39.49944556362993
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.128,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "HDFCLIFE": {
+      "public": {
+        "cmp": 632.55,
+        "fair_value": 479.66,
+        "margin_of_safety": -24.2,
+        "bear_case": 442.78,
+        "base_case": 479.66,
+        "bull_case": 822.31,
+        "roe": 10.77,
+        "roce": null,
+        "wacc": 0.1031,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": 0.0239,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 632.55,
+        "fair_value": 479.66,
+        "margin_of_safety": -24.2,
+        "bear_case": {
+          "iv": 442.78,
+          "mos_pct": -30.0,
+          "growth": 0.0,
+          "wacc": 0.1031,
+          "term_g": 0.04
+        },
+        "base_case": {
+          "iv": 479.66,
+          "mos_pct": -24.2,
+          "growth": 0.0,
+          "wacc": 0.1031,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 822.31,
+          "mos_pct": 30.0,
+          "growth": 0.0,
+          "wacc": 0.1031,
+          "term_g": 0.04
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.1031,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "SBILIFE": {
+      "public": {
+        "cmp": 1974.9,
+        "fair_value": 1434.53,
+        "margin_of_safety": -27.4,
+        "bear_case": 1004.17,
+        "base_case": 1434.53,
+        "bull_case": 1864.89,
+        "roe": 14.21,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": 0.159,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "authed": {
+        "cmp": 1974.9,
+        "fair_value": 1434.53,
+        "margin_of_safety": -27.4,
+        "bear_case": {
+          "iv": 1004.17,
+          "mos_pct": -49.2,
+          "growth": 0.0,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "base_case": {
+          "iv": 1434.53,
+          "mos_pct": -27.4,
+          "growth": 0.0,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "bull_case": {
+          "iv": 1864.89,
+          "mos_pct": -5.6,
+          "growth": 0.0,
+          "wacc": 0.098,
+          "term_g": 0.04
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.098,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "overvalued"
+      },
+      "error": null
+    },
+    "ICICIPRULI": {
+      "public": {
+        "cmp": 559.35,
+        "fair_value": 136.57,
+        "margin_of_safety": -75.6,
+        "bear_case": 89.17,
+        "base_case": 136.57,
+        "bull_case": 200.21,
+        "roe": 11.8,
+        "roce": null,
+        "wacc": 0.1029,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": -0.0906,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "data_limited"
+      },
+      "authed": {
+        "cmp": 559.35,
+        "fair_value": 136.57,
+        "margin_of_safety": -75.6,
+        "bear_case": {
+          "iv": 89.17412532815536,
+          "wacc": 0.11792000000000001,
+          "growth": -0.009999999999999995,
+          "term_g": 0.03,
+          "mos_pct": -84.0575437167504
+        },
+        "base_case": {
+          "iv": 136.57,
+          "wacc": 0.1029,
+          "growth": 0.05,
+          "term_g": 0.04,
+          "mos_pct": -75.6
+        },
+        "bull_case": {
+          "iv": 200.21072572319667,
+          "wacc": 0.08792000000000001,
+          "growth": 0.11,
+          "term_g": 0.05,
+          "mos_pct": -64.20653714814783
+        },
+        "roe": null,
+        "roce": null,
+        "wacc": 0.1029,
+        "ev_ebitda": null,
+        "revenue_cagr_3y": null,
+        "debt_to_equity": null,
+        "market_cap_cr": null,
+        "verdict": "data_limited"
+      },
+      "error": null
+    }
+  }
+}
