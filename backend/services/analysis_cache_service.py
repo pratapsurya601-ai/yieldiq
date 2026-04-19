@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import threading
 from typing import Any, Optional
 
 from sqlalchemy import text
@@ -34,6 +36,48 @@ from sqlalchemy import text
 from backend.services.cache_service import CACHE_VERSION
 
 logger = logging.getLogger("yieldiq.analysis_cache")
+
+
+def _fire_revalidate(ticker: str) -> None:
+    """
+    Fire-and-forget POST to the Next.js on-demand revalidation endpoint
+    so the SEO page (/stocks/{ticker}/fair-value) refreshes its cached
+    HTML immediately after we write a new analysis row. Without this
+    the page can serve stale numbers for up to its time-based ISR
+    window (currently 300s).
+
+    Runs in a daemon thread — must never block or break save_cached.
+    Skips silently if either env var is missing (local dev / preview
+    deploys without the secret configured). Any HTTP / network error
+    is logged at WARNING and swallowed.
+    """
+    url = os.environ.get("FRONTEND_REVALIDATE_URL")
+    secret = os.environ.get("REVALIDATE_SECRET")
+    if not url or not secret:
+        return
+
+    def _post() -> None:
+        try:
+            import requests  # local import — keeps module import cheap
+            requests.post(
+                url,
+                json={"path": f"/stocks/{ticker}/fair-value"},
+                headers={"x-revalidate-secret": secret},
+                timeout=3,
+            )
+        except Exception as exc:
+            logger.warning(
+                "analysis_cache: revalidate POST failed for %s: %s",
+                ticker, exc,
+            )
+
+    try:
+        threading.Thread(target=_post, daemon=True).start()
+    except Exception as exc:
+        logger.warning(
+            "analysis_cache: revalidate thread spawn failed for %s: %s",
+            ticker, exc,
+        )
 
 
 def _get_session():
@@ -142,6 +186,16 @@ def save_cached(ticker: str, payload: dict, compute_ms: int) -> None:
             },
         )
         sess.commit()
+        # Fresh row written — kick the SEO page so the CDN-cached HTML
+        # picks up the new numbers without waiting for the time-based
+        # ISR window. Best-effort; runs in a daemon thread.
+        try:
+            _fire_revalidate(ticker)
+        except Exception as exc:
+            logger.warning(
+                "analysis_cache: post-write revalidate hook failed for %s: %s",
+                ticker, exc,
+            )
     except Exception as exc:
         logger.warning("analysis_cache.save_cached failed for %s: %s", ticker, exc)
         try:
