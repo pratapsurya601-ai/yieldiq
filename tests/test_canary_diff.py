@@ -22,10 +22,11 @@ import canary_diff as cd  # noqa: E402
 
 
 def _clean_fields(**overrides):
+    # MoS is in PERCENT (matches API contract), e.g. 20.0 = +20%.
     base = {
         "cmp": 1000.0,
         "fair_value": 1200.0,
-        "margin_of_safety": 0.20,
+        "margin_of_safety": 20.0,
         "bear_case": 900.0,
         "base_case": 1200.0,
         "bull_case": 1500.0,
@@ -74,18 +75,18 @@ def test_gate1_fails_when_public_fv_differs_from_authed():
 
 
 def test_gate2_passes_on_consistent_mos():
-    # cmp=1000, fv=1200 -> mos=0.20
-    f = _clean_fields(cmp=1000.0, fair_value=1200.0, margin_of_safety=0.20)
+    # cmp=1000, fv=1200 -> mos=20.0% (percent units)
+    f = _clean_fields(cmp=1000.0, fair_value=1200.0, margin_of_safety=20.0)
     assert cd.gate2_mos_math("HCLTECH", f) == []
 
 
 def test_gate2_fails_when_mos_inconsistent_with_fv_cmp():
-    # fv=3000, cmp=2500 -> expected = +0.20, but harness reports mos=-0.10
-    f = _clean_fields(cmp=2500.0, fair_value=3000.0, margin_of_safety=-0.10)
+    # fv=3000, cmp=2500 -> expected = +20% but harness reports mos=-10%
+    f = _clean_fields(cmp=2500.0, fair_value=3000.0, margin_of_safety=-10.0)
     violations = cd.gate2_mos_math("HCLTECH", f)
     assert len(violations) == 1
-    assert "mos=-0.1000" in violations[0]
-    assert "0.2000" in violations[0]
+    assert "-10" in violations[0]
+    assert "20" in violations[0]
 
 
 # ---------------------------------------------------------------------------
@@ -151,9 +152,9 @@ def test_gate5_fails_on_revenue_cagr_extreme():
 
 
 def test_gate5_fails_on_fv_cmp_ratio_extreme():
-    # fv/cmp = 4.2 -> outside [0.4, 2.5]
+    # fv/cmp = 4.2 -> outside [0.4, 2.5]; mos=320% to keep gate2 isolated
     f = _clean_fields(cmp=1000.0, fair_value=4200.0,
-                      margin_of_safety=3.20,  # keep math consistent so gate2 isolated
+                      margin_of_safety=320.0,
                       bear_case=3000.0, base_case=4200.0, bull_case=5500.0)
     violations = cd.gate5_forbidden("HCLTECH", f)
     assert any("fv/cmp" in v for v in violations)

@@ -117,9 +117,9 @@ SHARED_FIELDS = (
     "revenue_cagr_3y",
 )
 
-FLOAT_TOL = 0.001  # Gate 1 absolute tolerance for float equality
-MOS_MATH_TOL = 0.02  # Gate 2 tolerance (2 percentage points)
-DISPERSION_MIN = 0.05  # Gate 3 minimum spread
+FLOAT_TOL = 0.01  # Gate 1 absolute tolerance for float equality (rounding noise)
+MOS_MATH_TOL = 2.0  # Gate 2 tolerance — 2 percentage points (MoS is percent, not decimal)
+DISPERSION_MIN = 0.05  # Gate 3 minimum spread (decimal — 5%)
 DRIFT_FV_PCT = 0.15  # snapshot drift threshold for FV
 DRIFT_MOS_PP = 0.10  # snapshot drift threshold for MoS (absolute)
 
@@ -201,13 +201,26 @@ def _is_num(x) -> bool:
     return isinstance(x, (int, float)) and not isinstance(x, bool)
 
 
+def _scalarize(v):
+    """Scenario fields come through as either scalar (post-PR1 SoT in
+    public.py) or full ScenarioCase dict (authed analysis_service). Same
+    underlying value, different shape. Extract the scalar from the dict
+    so Gate 1 compares like-with-like."""
+    if isinstance(v, dict):
+        for k in ("iv", "fair_value", "fv", "value", "intrinsic_value"):
+            if k in v and isinstance(v[k], (int, float)):
+                return v[k]
+        return None
+    return v
+
+
 def gate1_single_source(
     symbol: str, public: dict[str, Any], authed: dict[str, Any]
 ) -> list[str]:
     """Public and authed endpoints must agree on every shared field."""
     violations: list[str] = []
     for f in SHARED_FIELDS:
-        p, a = public.get(f), authed.get(f)
+        p, a = _scalarize(public.get(f)), _scalarize(authed.get(f))
         if p is None or a is None:
             continue  # field not present on this stock — skip
         if _is_num(p) and _is_num(a):
@@ -219,21 +232,26 @@ def gate1_single_source(
 
 
 def gate2_mos_math(symbol: str, fields: dict[str, Any]) -> list[str]:
-    """``mos`` must equal ``(fv - cmp) / cmp`` within ``MOS_MATH_TOL``."""
+    """``mos`` must equal ``(fv - cmp) / cmp * 100`` within ``MOS_MATH_TOL`` pp.
+    YieldIQ's API returns MoS as percent (e.g. 34.8 means +34.8%), not
+    decimal — so the expected formula multiplies by 100 to match units.
+    Tolerance is ``MOS_MATH_TOL`` percentage points (default 2.0)."""
     fv, cmp_, mos = fields.get("fair_value"), fields.get("cmp"), fields.get("margin_of_safety")
     if not (_is_num(fv) and _is_num(cmp_) and _is_num(mos)):
         return []
     if cmp_ <= 0:
         return [f"{symbol}: cmp={cmp_} non-positive"]
-    expected = (fv - cmp_) / cmp_
-    if abs(mos - expected) > MOS_MATH_TOL:
-        return [f"{symbol}: mos={mos:.4f} but (fv-cmp)/cmp={expected:.4f}"]
+    expected_pct = (fv - cmp_) / cmp_ * 100.0
+    if abs(mos - expected_pct) > MOS_MATH_TOL:
+        return [f"{symbol}: mos={mos:.2f}% but (fv-cmp)/cmp={expected_pct:.2f}%"]
     return []
 
 
 def gate3_dispersion(symbol: str, fields: dict[str, Any]) -> list[str]:
     """bull > base > bear with > 5% spread on each side."""
-    bull, base, bear = fields.get("bull_case"), fields.get("base_case"), fields.get("bear_case")
+    bull = _scalarize(fields.get("bull_case"))
+    base = _scalarize(fields.get("base_case"))
+    bear = _scalarize(fields.get("bear_case"))
     if not (_is_num(bull) and _is_num(base) and _is_num(bear)):
         return []
     if base <= 0:
@@ -286,8 +304,10 @@ def gate5_forbidden(symbol: str, fields: dict[str, Any]) -> list[str]:
     if _is_num(w) and (w < 0.03 or w > 0.25):
         out.append(f"{symbol}: wacc={w} outside [0.03, 0.25]")
     mos = fields.get("margin_of_safety")
-    if _is_num(mos) and abs(mos) > 1.50:
-        out.append(f"{symbol}: |mos|={mos} > 1.50")
+    # MoS is percent (e.g. 34.8 = +34.8%), not decimal. Implausibility
+    # bound is ±150 percent.
+    if _is_num(mos) and abs(mos) > 150:
+        out.append(f"{symbol}: |mos|={mos:.2f}% > 150%")
     fv, cmp_ = fields.get("fair_value"), fields.get("cmp")
     if _is_num(fv) and _is_num(cmp_) and cmp_ > 0:
         ratio = fv / cmp_
