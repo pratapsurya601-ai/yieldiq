@@ -36,8 +36,8 @@ function ActionButton({ icon, label, onClick }: { icon: React.ReactNode; label: 
     <button
       onClick={onClick}
       className={cn(
-        "flex flex-1 flex-col items-center gap-1 rounded-xl bg-gray-50 py-3 px-2",
-        "text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+        "flex flex-1 flex-col items-center gap-1 rounded-xl bg-surface py-3 px-2",
+        "text-body hover:bg-bg active:bg-border transition-colors"
       )}
     >
       {icon}
@@ -747,7 +747,7 @@ export default function ActionBar(props: ActionBarProps) {
           "flex flex-1 flex-col items-center gap-1 rounded-xl py-3 px-2 transition-colors",
           inWatchlist
             ? "bg-amber-50 text-amber-600 hover:bg-amber-100"
-            : "bg-gray-50 text-gray-600 hover:bg-gray-100 active:bg-gray-200"
+            : "bg-surface text-body hover:bg-bg active:bg-border"
         )}
       >
         {inWatchlist ? (
@@ -767,8 +767,8 @@ export default function ActionBar(props: ActionBarProps) {
         <button
           onClick={handleAlert}
           className={cn(
-            "flex w-full flex-col items-center gap-1 rounded-xl bg-gray-50 py-3 px-2",
-            "text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+            "flex w-full flex-col items-center gap-1 rounded-xl bg-surface py-3 px-2",
+            "text-body hover:bg-bg active:bg-border transition-colors"
           )}
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -779,26 +779,26 @@ export default function ActionBar(props: ActionBarProps) {
 
         {/* Alert popover */}
         {showAlertModal && (
-          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-64 bg-white rounded-xl border border-gray-200 shadow-lg z-50 p-4 space-y-3">
+          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-64 bg-surface rounded-xl border border-border shadow-lg z-50 p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-gray-900">Set Price Alert</p>
-              <button onClick={() => setShowAlertModal(false)} className="text-gray-400 hover:text-gray-600">
+              <p className="text-sm font-semibold text-ink">Set Price Alert</p>
+              <button onClick={() => setShowAlertModal(false)} className="text-caption hover:text-body">
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <p className="text-xs text-gray-400">
-              Current: <span className="font-mono text-gray-600">{sym}{currentPrice.toLocaleString(loc)}</span>
+            <p className="text-xs text-caption">
+              Current: <span className="font-mono text-body">{sym}{currentPrice.toLocaleString(loc)}</span>
             </p>
 
             {/* Direction toggle */}
-            <div className="flex bg-gray-100 rounded-lg p-0.5">
+            <div className="flex bg-bg rounded-lg p-0.5">
               <button
                 onClick={() => setAlertDirection("below")}
                 className={cn(
                   "flex-1 py-1.5 text-xs font-medium rounded-md transition-all",
-                  alertDirection === "below" ? "bg-white text-blue-700 shadow-sm" : "text-gray-500"
+                  alertDirection === "below" ? "bg-surface text-brand shadow-sm" : "text-caption"
                 )}
               >
                 Below
@@ -807,7 +807,7 @@ export default function ActionBar(props: ActionBarProps) {
                 onClick={() => setAlertDirection("above")}
                 className={cn(
                   "flex-1 py-1.5 text-xs font-medium rounded-md transition-all",
-                  alertDirection === "above" ? "bg-white text-blue-700 shadow-sm" : "text-gray-500"
+                  alertDirection === "above" ? "bg-surface text-brand shadow-sm" : "text-caption"
                 )}
               >
                 Above
@@ -816,20 +816,20 @@ export default function ActionBar(props: ActionBarProps) {
 
             {/* Target price input */}
             <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">{sym}</span>
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-caption text-sm">{sym}</span>
               <input
                 type="number"
                 value={alertTargetPrice}
                 onChange={(e) => setAlertTargetPrice(e.target.value)}
                 placeholder="Target price"
-                className="w-full pl-7 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full pl-7 pr-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-brand focus:border-transparent"
               />
             </div>
 
             <button
               onClick={handleAlertSubmit}
               disabled={alertCreate.isPending}
-              className="w-full py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+              className="w-full py-2 bg-brand text-white text-sm font-medium rounded-lg hover:opacity-90 transition disabled:opacity-50"
             >
               {alertCreate.isPending ? "Setting..." : "Set Alert"}
             </button>
@@ -842,8 +842,8 @@ export default function ActionBar(props: ActionBarProps) {
         <button
           onClick={(e) => { e.stopPropagation(); setShowExportMenu((v) => !v) }}
           className={cn(
-            "flex w-full flex-col items-center gap-1 rounded-xl bg-gray-50 py-3 px-2",
-            "text-gray-600 hover:bg-gray-100 active:bg-gray-200 transition-colors"
+            "flex w-full flex-col items-center gap-1 rounded-xl bg-surface py-3 px-2",
+            "text-body hover:bg-bg active:bg-border transition-colors"
           )}
         >
           <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -853,52 +853,52 @@ export default function ActionBar(props: ActionBarProps) {
         </button>
 
         {showExportMenu && (
-          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-56 bg-white rounded-xl border border-gray-200 shadow-lg z-50 overflow-hidden">
-            <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Share</span>
+          <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-56 bg-surface rounded-xl border border-border shadow-lg z-50 overflow-hidden">
+            <div className="px-3 py-2 bg-bg border-b border-border">
+              <span className="text-[10px] font-semibold text-caption uppercase tracking-wider">Share</span>
             </div>
             <button
               onClick={handleShareWhatsApp}
-              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-green-50 hover:text-green-700 transition-colors"
+              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-body hover:bg-green-50 hover:text-green-700 transition-colors"
             >
               <svg className="w-4 h-4 text-green-600" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.611.611l4.458-1.495A11.952 11.952 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.344 0-4.507-.795-6.23-2.131l-.355-.282-3.281 1.1 1.1-3.281-.282-.355A9.935 9.935 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
               <span>Share on WhatsApp</span>
             </button>
             <button
               onClick={handleShareTwitter}
-              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-body hover:bg-brand-50 hover:text-brand transition-colors"
             >
-              <svg className="w-4 h-4 text-gray-500" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              <svg className="w-4 h-4 text-caption" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
               <span>Share on X</span>
             </button>
             <button
               onClick={handleCopyLink}
-              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-body hover:bg-bg transition-colors"
             >
-              <svg className="w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+              <svg className="w-4 h-4 text-caption" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
               <span>Copy to clipboard</span>
             </button>
-            <div className="h-px bg-gray-100" />
-            <div className="px-3 py-2 bg-gray-50 border-b border-gray-100">
-              <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Download</span>
+            <div className="h-px bg-border" />
+            <div className="px-3 py-2 bg-bg border-b border-border">
+              <span className="text-[10px] font-semibold text-caption uppercase tracking-wider">Download</span>
             </div>
             <button
               onClick={handleDownloadCard}
-              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-body hover:bg-bg transition-colors"
             >
               <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z" /></svg>
               <span>Share card (PNG)</span>
             </button>
             <button
               onClick={handleDownloadPdf}
-              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-body hover:bg-bg transition-colors"
             >
               <svg className="w-4 h-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" /></svg>
               <span>PDF report</span>
             </button>
             <button
               onClick={handleDownloadCsv}
-              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+              className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left text-sm text-body hover:bg-bg transition-colors"
             >
               <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125" /></svg>
               <span>CSV data</span>

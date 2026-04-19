@@ -76,8 +76,8 @@ export default function FinancialBars({
 
   if (!hasData) {
     return (
-      <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
-        <p className="text-sm text-gray-400">Financial data unavailable</p>
+      <div className="bg-surface border border-border rounded-xl p-4 text-center">
+        <p className="text-sm text-caption">Financial data unavailable</p>
       </div>
     )
   }
@@ -85,8 +85,8 @@ export default function FinancialBars({
   return (
     <div className="grid grid-cols-2 gap-3">
       {/* Revenue chart */}
-      <div className="rounded-xl bg-white border border-gray-100 p-3 shadow-sm">
-        <p className="text-xs font-medium text-gray-500 mb-2">Revenue</p>
+      <div className="rounded-xl bg-surface border border-border p-3 shadow-sm">
+        <p className="text-xs font-medium text-caption mb-2">Revenue</p>
         <div className="h-[180px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
@@ -122,8 +122,8 @@ export default function FinancialBars({
       </div>
 
       {/* FCF chart */}
-      <div className="rounded-xl bg-white border border-gray-100 p-3 shadow-sm">
-        <p className="text-xs font-medium text-gray-500 mb-2">Free Cash Flow</p>
+      <div className="rounded-xl bg-surface border border-border p-3 shadow-sm">
+        <p className="text-xs font-medium text-caption mb-2">Free Cash Flow</p>
         <div className="h-[180px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>

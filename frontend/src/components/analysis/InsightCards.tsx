@@ -35,9 +35,9 @@ function _roceCard(roce: number | null | undefined): CardData {
       title: "ROCE",
       value: "\u2014",
       subtitle: "Insufficient data",
-      color: "text-gray-400",
+      color: "text-caption",
       icon: "\u{1f4c8}",
-      borderColor: "border-l-gray-200",
+      borderColor: "border-l-border",
       tooltip: "Return on Capital Employed \u2014 how efficiently the business turns capital into earnings.",
     }
   }
@@ -67,9 +67,9 @@ function _debtEbitdaCard(
       title: "Debt / EBITDA",
       value: "\u2014",
       subtitle: "Not applicable for banks",
-      color: "text-gray-400",
+      color: "text-caption",
       icon: "\u2696\ufe0f",
-      borderColor: "border-l-gray-200",
+      borderColor: "border-l-border",
       disabled: true,
       tooltip: "Leverage ratio \u2014 how many years of EBITDA would repay all debt. Banks excluded.",
     }
@@ -79,9 +79,9 @@ function _debtEbitdaCard(
       title: "Debt / EBITDA",
       value: "\u2014",
       subtitle: "Insufficient data",
-      color: "text-gray-400",
+      color: "text-caption",
       icon: "\u2696\ufe0f",
-      borderColor: "border-l-gray-200",
+      borderColor: "border-l-border",
       tooltip: "Leverage ratio \u2014 how many years of EBITDA would repay all debt. Banks excluded.",
     }
   }
@@ -110,9 +110,9 @@ function _interestCoverageCard(
       title: "Interest Coverage",
       value: "\u2014",
       subtitle: "Not applicable for banks",
-      color: "text-gray-400",
+      color: "text-caption",
       icon: "\u{1f6e1}\ufe0f",
-      borderColor: "border-l-gray-200",
+      borderColor: "border-l-border",
       disabled: true,
       tooltip: "How many times operating profit covers interest expense. Banks excluded.",
     }
@@ -122,9 +122,9 @@ function _interestCoverageCard(
       title: "Interest Coverage",
       value: "\u2014",
       subtitle: "Insufficient data",
-      color: "text-gray-400",
+      color: "text-caption",
       icon: "\u{1f6e1}\ufe0f",
-      borderColor: "border-l-gray-200",
+      borderColor: "border-l-border",
       tooltip: "How many times operating profit covers interest expense. Banks excluded.",
     }
   }
@@ -153,16 +153,16 @@ function _promoterCard(
       title: "Promoter Holding",
       value: "\u2014",
       subtitle: "Not disclosed",
-      color: "text-gray-400",
+      color: "text-caption",
       icon: "\u{1f465}",
-      borderColor: "border-l-gray-200",
+      borderColor: "border-l-border",
       tooltip: "Percent of shares held by promoters. Higher generally means aligned interests, but watch for pledge.",
     }
   }
   const pledged = pledgePct !== null && pledgePct !== undefined && pledgePct > 0
   const band =
     promoterPct >= 50 ? { c: "text-blue-700", b: "border-l-blue-500", label: "Strong alignment" }
-    : promoterPct >= 25 ? { c: "text-gray-700", b: "border-l-gray-300", label: "Moderate" }
+    : promoterPct >= 25 ? { c: "text-body", b: "border-l-border", label: "Moderate" }
     : { c: "text-amber-700", b: "border-l-amber-500", label: "Low stake" }
   const subtitle = pledged
     ? `${band.label} \u00b7 ${pledgePct!.toFixed(1)}% pledged`
@@ -241,18 +241,18 @@ export default function InsightCards({ quality, insights, valuation, currency = 
           subtitle: insights.earnings_est_eps !== null
             ? `Est. EPS: ${insights.earnings_est_eps.toFixed(2)}${daysLabel}`
             : `Upcoming earnings${daysLabel}`,
-          color: "text-gray-700",
+          color: "text-body",
           icon: "\u{1f4c5}",
-          borderColor: "border-l-gray-300",
+          borderColor: "border-l-border",
         }
       }
       return {
         title: "Earnings",
         value: "N/A",
         subtitle: "No upcoming earnings data",
-        color: "text-gray-700",
+        color: "text-body",
         icon: "\u{1f4c5}",
-        borderColor: "border-l-gray-300",
+        borderColor: "border-l-border",
       }
     })(),
     (() => {
@@ -276,7 +276,7 @@ export default function InsightCards({ quality, insights, valuation, currency = 
           value: `${div.current_yield_pct.toFixed(1)}%`,
           subtitle: `${sustLabel} \u00b7 Payout ${payoutLabel}`,
           subtitleColor: sustColor,
-          color: "text-gray-700",
+          color: "text-body",
           icon: "\u{1f4b0}",
           borderColor,
         }
@@ -286,9 +286,9 @@ export default function InsightCards({ quality, insights, valuation, currency = 
         title: "Dividends",
         value: "None",
         subtitle: "No dividends paid",
-        color: "text-gray-400",
+        color: "text-caption",
         icon: "\u{1f4b0}",
-        borderColor: "border-l-gray-200",
+        borderColor: "border-l-border",
       }
       return empty
     })(),
@@ -302,9 +302,9 @@ export default function InsightCards({ quality, insights, valuation, currency = 
         : insights.wall_street_avg_target !== null && insights.wall_street_avg_target > 0
           ? "Analyst consensus"
           : "No analyst coverage",
-      color: "text-gray-700",
+      color: "text-body",
       icon: "\u{1f3af}",
-      borderColor: "border-l-gray-300",
+      borderColor: "border-l-border",
     },
     (() => {
       const deals = insights.bulk_deals ?? []
@@ -325,9 +325,9 @@ export default function InsightCards({ quality, insights, valuation, currency = 
         title: "Insider Activity",
         value: "None",
         subtitle: "No bulk/block deals in 90 days",
-        color: "text-gray-700" as const,
+        color: "text-body" as const,
         icon: "\u{1f465}",
-        borderColor: "border-l-gray-300" as const,
+        borderColor: "border-l-border" as const,
       }
     })(),
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -340,17 +340,17 @@ export default function InsightCards({ quality, insights, valuation, currency = 
           <div
             key={card.title}
             className={cn(
-              "rounded-xl bg-white border border-gray-100 border-l-[3px] p-4",
+              "rounded-xl bg-surface border border-border border-l-[3px] p-4",
               "shadow-sm",
               card.borderColor
             )}
           >
             <div className="flex items-center gap-1.5 mb-1.5">
               <span className="text-sm">{card.icon}</span>
-              <p className="text-xs text-gray-500">{card.title}</p>
+              <p className="text-xs text-caption">{card.title}</p>
             </div>
             <p className={cn("text-lg font-semibold", card.color)}>{card.value}</p>
-            <p className={cn("text-xs mt-1 line-clamp-1", card.subtitleColor ?? "text-gray-400")}>{card.subtitle}</p>
+            <p className={cn("text-xs mt-1 line-clamp-1", card.subtitleColor ?? "text-caption")}>{card.subtitle}</p>
           </div>
         ))}
       </div>
@@ -359,24 +359,24 @@ export default function InsightCards({ quality, insights, valuation, currency = 
           the primary 7-card grid stays readable on mobile (2 cols)
           rather than spilling into an 11-card tile wall. */}
       <div className="pt-2">
-        <p className="text-xs font-semibold text-gray-500 mb-2 px-1">Financial Ratios</p>
+        <p className="text-xs font-semibold text-caption mb-2 px-1">Financial Ratios</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {ratioCards.map((card) => (
             <div
               key={card.title}
               title={card.tooltip}
               className={cn(
-                "rounded-xl bg-white border border-gray-100 border-l-[3px] p-4 shadow-sm",
+                "rounded-xl bg-surface border border-border border-l-[3px] p-4 shadow-sm",
                 card.borderColor,
                 card.disabled && "opacity-60",
               )}
             >
               <div className="flex items-center gap-1.5 mb-1.5">
                 <span className="text-sm">{card.icon}</span>
-                <p className="text-xs text-gray-500">{card.title}</p>
+                <p className="text-xs text-caption">{card.title}</p>
               </div>
               <p className={cn("text-lg font-semibold", card.color)}>{card.value}</p>
-              <p className={cn("text-xs mt-1 line-clamp-1", card.subtitleColor ?? "text-gray-400")}>{card.subtitle}</p>
+              <p className={cn("text-xs mt-1 line-clamp-1", card.subtitleColor ?? "text-caption")}>{card.subtitle}</p>
             </div>
           ))}
         </div>

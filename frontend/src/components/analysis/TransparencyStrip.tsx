@@ -32,8 +32,8 @@ export default function TransparencyStrip({
   const fcfLabel = fcfDataSource === "ttm" ? "TTM" : "hist avg"
 
   return (
-    <div className={cn("rounded-lg bg-gray-50 px-3 py-2")}>
-      <p className="text-xs text-gray-500 leading-relaxed">
+    <div className={cn("rounded-lg bg-surface px-3 py-2")}>
+      <p className="text-xs text-caption leading-relaxed">
         Model: WACC {(wacc * 100).toFixed(1)}% (industry {(waccMin * 100).toFixed(1)}&ndash;{(waccMax * 100).toFixed(1)}%)
         {" "}&middot;{" "}
         FCF growth {fcfGrowth >= 0 ? "+" : ""}{(fcfGrowth * 100).toFixed(1)}%/yr ({fcfLabel}{fcfDataSource !== "ttm" ? ` ${fcfGrowthHistAvg >= 0 ? "+" : ""}${(fcfGrowthHistAvg * 100).toFixed(1)}%` : ""})

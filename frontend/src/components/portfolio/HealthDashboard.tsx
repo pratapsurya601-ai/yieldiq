@@ -14,12 +14,12 @@ import type { LiveHolding } from "@/lib/api"
 // body for a real <svg> path.
 export function PnLSparklinePlaceholder() {
   return (
-    <div className="bg-white rounded-xl border border-dashed border-gray-200 p-4">
+    <div className="bg-surface rounded-xl border border-dashed border-border p-4">
       <div className="flex items-center justify-between mb-1">
-        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">P&amp;L trend (30d)</p>
-        <span className="text-[9px] text-gray-400 uppercase tracking-wider">Model estimate</span>
+        <p className="text-[10px] font-bold text-caption uppercase tracking-widest">P&amp;L trend (30d)</p>
+        <span className="text-[9px] text-caption uppercase tracking-wider">Model estimate</span>
       </div>
-      <p className="text-sm text-gray-500">Performance history coming soon.</p>
+      <p className="text-sm text-caption">Performance history coming soon.</p>
     </div>
   )
 }

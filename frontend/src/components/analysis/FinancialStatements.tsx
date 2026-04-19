@@ -51,7 +51,7 @@ function fmtRatio(v: number | null): string {
 
 function GrowthArrow({ value }: { value: number | null }) {
   if (value === null || value === undefined) {
-    return <span className="text-gray-300">—</span>
+    return <span className="text-caption">—</span>
   }
   if (value > 0) {
     return (
@@ -67,7 +67,7 @@ function GrowthArrow({ value }: { value: number | null }) {
       </span>
     )
   }
-  return <span className="text-gray-400">0.0%</span>
+  return <span className="text-caption">0.0%</span>
 }
 
 /* ------------------------------------------------------------------ */
@@ -122,15 +122,15 @@ function cashflowRows(currency: string): RowDef[] {
 /* ------------------------------------------------------------------ */
 function Skeleton() {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-      <div className="h-5 w-48 bg-gray-200 rounded animate-pulse" />
+    <div className="bg-surface rounded-2xl border border-border p-5 space-y-3">
+      <div className="h-5 w-48 bg-border rounded animate-pulse" />
       <div className="flex gap-2">
-        <div className="h-6 w-20 bg-gray-100 rounded-full animate-pulse" />
-        <div className="h-6 w-24 bg-gray-100 rounded-full animate-pulse" />
+        <div className="h-6 w-20 bg-bg rounded-full animate-pulse" />
+        <div className="h-6 w-24 bg-bg rounded-full animate-pulse" />
       </div>
       <div className="space-y-2">
         {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-6 bg-gray-100 rounded animate-pulse" />
+          <div key={i} className="h-6 bg-bg rounded animate-pulse" />
         ))}
       </div>
     </div>
@@ -189,13 +189,13 @@ export default function FinancialStatements({ ticker, currency = "INR" }: Props)
 
   if (isError) {
     return (
-      <div ref={containerRef} className="bg-white rounded-2xl border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-2">Financial Statements</h2>
-        <p className="text-sm text-gray-400 text-center py-6">Financial data unavailable</p>
+      <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-5">
+        <h2 className="text-sm font-semibold text-ink mb-2">Financial Statements</h2>
+        <p className="text-sm text-caption text-center py-6">Financial data unavailable</p>
         <div className="text-center">
           <button
             onClick={() => refetch()}
-            className="text-xs font-medium text-blue-600 hover:underline"
+            className="text-xs font-medium text-brand hover:underline"
           >
             Retry
           </button>
@@ -211,10 +211,10 @@ export default function FinancialStatements({ ticker, currency = "INR" }: Props)
   const currencySym = currency === "INR" ? "₹" : "$"
 
   return (
-    <div ref={containerRef} className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+    <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-5 space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-gray-900">Financial Statements</h2>
+        <h2 className="text-sm font-semibold text-ink">Financial Statements</h2>
         <div className="flex gap-1.5">
           {(["annual", "quarterly"] as const).map(p => (
             <button
@@ -223,8 +223,8 @@ export default function FinancialStatements({ ticker, currency = "INR" }: Props)
               className={cn(
                 "text-xs px-2.5 py-1 rounded-lg font-medium transition-colors",
                 period === p
-                  ? "bg-blue-600 text-white"
-                  : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  ? "bg-brand text-white"
+                  : "bg-bg text-caption hover:bg-border"
               )}
             >
               {p === "annual" ? "Annual" : "Quarterly"}
@@ -234,7 +234,7 @@ export default function FinancialStatements({ ticker, currency = "INR" }: Props)
       </div>
 
       {/* Tab bar */}
-      <div className="flex gap-4 border-b border-gray-100 -mx-1 px-1">
+      <div className="flex gap-4 border-b border-border -mx-1 px-1">
         {([
           ["income", "Income"],
           ["balance", "Balance Sheet"],
@@ -246,8 +246,8 @@ export default function FinancialStatements({ ticker, currency = "INR" }: Props)
             className={cn(
               "py-2 text-xs font-medium whitespace-nowrap transition-colors border-b-2",
               tab === key
-                ? "border-blue-600 text-blue-600"
-                : "border-transparent text-gray-500 hover:text-gray-700"
+                ? "border-brand text-brand"
+                : "border-transparent text-caption hover:text-body"
             )}
           >
             {label}
@@ -259,23 +259,23 @@ export default function FinancialStatements({ ticker, currency = "INR" }: Props)
       {data?.summary && (
         <div className="flex flex-wrap gap-1.5">
           {data.summary.revenue_cagr_3y !== null && (
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-bg text-body">
               Rev CAGR 3Y: {data.summary.revenue_cagr_3y >= 0 ? "+" : ""}
               {data.summary.revenue_cagr_3y}%
             </span>
           )}
           {data.summary.avg_net_margin !== null && (
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-bg text-body">
               Net Margin: {data.summary.avg_net_margin}%
             </span>
           )}
           {data.summary.avg_fcf_margin !== null && (
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-bg text-body">
               FCF Margin: {data.summary.avg_fcf_margin}%
             </span>
           )}
           {data.summary.latest_roe !== null && (
-            <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-bg text-body">
               ROE: {data.summary.latest_roe}%
             </span>
           )}
@@ -284,12 +284,12 @@ export default function FinancialStatements({ ticker, currency = "INR" }: Props)
 
       {/* Empty states */}
       {emptyQuarterly && (
-        <p className="text-sm text-gray-400 text-center py-8">
+        <p className="text-sm text-caption text-center py-8">
           Quarterly financial data is not available for this stock yet.
         </p>
       )}
       {emptyAnnual && (
-        <p className="text-sm text-gray-400 text-center py-8">
+        <p className="text-sm text-caption text-center py-8">
           No financial data available for this stock.
         </p>
       )}
@@ -297,7 +297,7 @@ export default function FinancialStatements({ ticker, currency = "INR" }: Props)
       {/* Table */}
       {years.length > 0 && (
         <>
-          <div className="text-[11px] text-gray-400">
+          <div className="text-[11px] text-caption">
             Values in {currencySym} {unitLabel}
             {data?.data_source === "yfinance_fallback" && " · source: yfinance"}
           </div>
@@ -305,14 +305,14 @@ export default function FinancialStatements({ ticker, currency = "INR" }: Props)
           <div className="overflow-x-auto -mx-1">
             <table className="w-full text-xs">
               <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="sticky left-0 bg-white z-10 text-left font-medium text-gray-500 py-2 pl-1 pr-3 min-w-[140px]">
+                <tr className="border-b border-border">
+                  <th className="sticky left-0 bg-surface z-10 text-left font-medium text-caption py-2 pl-1 pr-3 min-w-[140px]">
                     Metric
                   </th>
                   {years.map(y => (
                     <th
                       key={y.year + (y.period_end ?? "")}
-                      className="text-right font-medium text-gray-500 py-2 px-2 min-w-[80px]"
+                      className="text-right font-medium text-caption py-2 px-2 min-w-[80px]"
                     >
                       {y.year}
                     </th>
@@ -323,11 +323,11 @@ export default function FinancialStatements({ ticker, currency = "INR" }: Props)
                 {rows.map((row, i) => {
                   const isSubRow = row.label.startsWith("  ")
                   return (
-                    <tr key={i} className="border-b border-gray-50 last:border-0">
+                    <tr key={i} className="border-b border-border last:border-0">
                       <td
                         className={cn(
-                          "sticky left-0 bg-white z-10 py-2 pl-1 pr-3",
-                          isSubRow ? "text-gray-500 pl-4" : "text-gray-900",
+                          "sticky left-0 bg-surface z-10 py-2 pl-1 pr-3",
+                          isSubRow ? "text-caption pl-4" : "text-ink",
                           row.emphasis && "font-semibold"
                         )}
                       >
@@ -355,7 +355,7 @@ export default function FinancialStatements({ ticker, currency = "INR" }: Props)
 
       {/* Footnote */}
       {data?.data_source && data.data_source !== "none" && (
-        <p className="text-[10px] text-gray-400">
+        <p className="text-[10px] text-caption">
           Data source: {data.data_source === "db" ? "NSE/BSE filings" : "yfinance"}
           {data.years_available > 0 && ` · ${data.years_available} period${data.years_available === 1 ? "" : "s"}`}
         </p>

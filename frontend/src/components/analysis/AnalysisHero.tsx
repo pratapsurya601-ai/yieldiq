@@ -9,8 +9,6 @@ import { fetchHex, type HexAxisKey, type HexResponse } from "@/lib/hex"
 import { formatCurrency, formatPct } from "@/lib/utils"
 import type { Verdict } from "@/types/api"
 
-// TODO: swap to design tokens (bg-bg / bg-surface / text-ink / etc.) once Agent 1 lands
-
 interface AnalysisHeroProps {
   score: number
   grade: string
@@ -148,7 +146,7 @@ export default function AnalysisHero({
 
   return (
     <section
-      className="bg-white rounded-2xl border border-gray-100 p-5 md:p-6"
+      className="bg-surface rounded-2xl border border-border p-5 md:p-6"
       aria-label="Valuation summary"
     >
       <div className="flex flex-col md:flex-row md:items-center md:gap-8 gap-5">
@@ -181,13 +179,13 @@ export default function AnalysisHero({
             )}
           </div>
           <div className="md:text-center">
-            <p className="text-xs text-gray-400 uppercase tracking-wide">
+            <p className="text-xs text-caption uppercase tracking-wide">
               YieldIQ Score · Model estimate
             </p>
-            <p className="font-mono tabular-nums text-lg font-semibold text-gray-900">
+            <p className="font-mono tabular-nums text-lg font-semibold text-ink">
               {score}
-              <span className="text-gray-400 text-sm ml-1">/100</span>
-              <span className="ml-2 text-sm font-bold text-blue-700">
+              <span className="text-caption text-sm ml-1">/100</span>
+              <span className="ml-2 text-sm font-bold text-brand">
                 {grade}
               </span>
             </p>
@@ -201,24 +199,24 @@ export default function AnalysisHero({
           {/* Metric block — 2x2 on md+, 2 rows of 2 on mobile */}
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
             <div>
-              <dt className="text-xs text-gray-400">Fair Value</dt>
-              <dd className="font-mono tabular-nums text-lg font-semibold text-gray-900">
+              <dt className="text-xs text-caption">Fair Value</dt>
+              <dd className="font-mono tabular-nums text-lg font-semibold text-ink">
                 {fairValue > 0 ? formatCurrency(fairValue, currency) : "—"}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-gray-400">Current</dt>
-              <dd className="font-mono tabular-nums text-lg font-semibold text-gray-900">
+              <dt className="text-xs text-caption">Current</dt>
+              <dd className="font-mono tabular-nums text-lg font-semibold text-ink">
                 {currentPrice > 0 ? formatCurrency(currentPrice, currency) : "—"}
               </dd>
             </div>
 
             {!dataLimited && (
               <div>
-                <dt className="text-xs text-gray-400">Margin of Safety</dt>
+                <dt className="text-xs text-caption">Margin of Safety</dt>
                 <dd
                   className={`font-mono tabular-nums text-lg font-semibold ${
-                    marginOfSafety >= 0 ? "text-blue-700" : "text-amber-600"
+                    marginOfSafety >= 0 ? "text-brand" : "text-warning"
                   }`}
                 >
                   {marginOfSafety > 80
@@ -229,15 +227,15 @@ export default function AnalysisHero({
             )}
 
             <div>
-              <dt className="text-xs text-gray-400">Moat</dt>
-              <dd className="text-lg font-semibold text-gray-900">
+              <dt className="text-xs text-caption">Moat</dt>
+              <dd className="text-lg font-semibold text-ink">
                 {moat || "—"}
               </dd>
             </div>
           </dl>
 
           {thesisLine && (
-            <p className="text-sm leading-relaxed text-gray-700 border-l-2 border-blue-100 pl-3">
+            <p className="text-sm leading-relaxed text-body border-l-2 border-brand-50 pl-3">
               {thesisLine}
             </p>
           )}

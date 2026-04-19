@@ -61,20 +61,20 @@ export default function DividendTracker({ dividend, currency = "INR" }: Props) {
   })()
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+    <div className="bg-surface rounded-2xl border border-border overflow-hidden">
       {/* Header / collapsed state */}
       <button
         onClick={() => setExpanded(e => !e)}
-        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
+        className="w-full flex items-center justify-between p-4 hover:bg-bg transition-colors text-left"
         aria-expanded={expanded}
       >
         <div>
-          <p className="text-sm font-semibold text-gray-900">💰 Dividend History</p>
-          <p className="text-xs text-gray-500 mt-0.5">{summaryLine}</p>
+          <p className="text-sm font-semibold text-ink">💰 Dividend History</p>
+          <p className="text-xs text-caption mt-0.5">{summaryLine}</p>
         </div>
         <span
           className={cn(
-            "text-gray-400 text-sm transition-transform duration-200",
+            "text-caption text-sm transition-transform duration-200",
             expanded && "rotate-180"
           )}
           aria-hidden="true"
@@ -84,36 +84,36 @@ export default function DividendTracker({ dividend, currency = "INR" }: Props) {
       </button>
 
       {expanded && (
-        <div className="px-4 pb-4 pt-1 border-t border-gray-100 space-y-4">
+        <div className="px-4 pb-4 pt-1 border-t border-border space-y-4">
           {/* Key metrics grid */}
           <div className="grid grid-cols-2 gap-2 pt-2">
-            <div className="rounded-xl bg-gray-50 p-3">
-              <p className="text-[11px] text-gray-500 uppercase tracking-wide">Current Yield</p>
-              <p className="text-lg font-semibold text-gray-900 mt-0.5">
+            <div className="rounded-xl bg-bg p-3">
+              <p className="text-[11px] text-caption uppercase tracking-wide">Current Yield</p>
+              <p className="text-lg font-semibold text-ink mt-0.5">
                 {dividend.current_yield_pct !== null && dividend.current_yield_pct !== undefined
                   ? `${dividend.current_yield_pct.toFixed(1)}%`
                   : "—"}
               </p>
             </div>
-            <div className="rounded-xl bg-gray-50 p-3">
-              <p className="text-[11px] text-gray-500 uppercase tracking-wide">5Y Avg Yield</p>
-              <p className="text-lg font-semibold text-gray-900 mt-0.5">
+            <div className="rounded-xl bg-bg p-3">
+              <p className="text-[11px] text-caption uppercase tracking-wide">5Y Avg Yield</p>
+              <p className="text-lg font-semibold text-ink mt-0.5">
                 {dividend.five_yr_avg_yield !== null && dividend.five_yr_avg_yield !== undefined
                   ? `${dividend.five_yr_avg_yield.toFixed(1)}%`
                   : "—"}
               </p>
             </div>
-            <div className="rounded-xl bg-gray-50 p-3">
-              <p className="text-[11px] text-gray-500 uppercase tracking-wide">Payout Ratio</p>
-              <p className="text-lg font-semibold text-gray-900 mt-0.5">
+            <div className="rounded-xl bg-bg p-3">
+              <p className="text-[11px] text-caption uppercase tracking-wide">Payout Ratio</p>
+              <p className="text-lg font-semibold text-ink mt-0.5">
                 {dividend.payout_ratio_pct !== null && dividend.payout_ratio_pct !== undefined
                   ? `${dividend.payout_ratio_pct.toFixed(0)}%`
                   : "—"}
               </p>
             </div>
-            <div className="rounded-xl bg-gray-50 p-3">
-              <p className="text-[11px] text-gray-500 uppercase tracking-wide">FCF Coverage</p>
-              <p className="text-lg font-semibold text-gray-900 mt-0.5">
+            <div className="rounded-xl bg-bg p-3">
+              <p className="text-[11px] text-caption uppercase tracking-wide">FCF Coverage</p>
+              <p className="text-lg font-semibold text-ink mt-0.5">
                 {fmtCoverage(dividend.coverage_ratio)}
               </p>
             </div>
@@ -137,7 +137,7 @@ export default function DividendTracker({ dividend, currency = "INR" }: Props) {
           {/* FY history bars */}
           {dividend.fy_history.length > 0 && (
             <div className="space-y-2">
-              <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+              <p className="text-[11px] font-semibold text-caption uppercase tracking-wide">
                 {sym} per share by financial year
               </p>
               <div className="space-y-1.5">
@@ -145,14 +145,14 @@ export default function DividendTracker({ dividend, currency = "INR" }: Props) {
                   const pct = maxBar > 0 ? (item.total_per_share / maxBar) * 100 : 0
                   return (
                     <div key={item.fy} className="flex items-center gap-2 text-xs">
-                      <span className="w-14 text-gray-500 tabular-nums">{item.fy}</span>
-                      <div className="flex-1 h-5 bg-gray-50 rounded relative overflow-hidden">
+                      <span className="w-14 text-caption tabular-nums">{item.fy}</span>
+                      <div className="flex-1 h-5 bg-bg rounded relative overflow-hidden">
                         <div
                           className="h-full bg-blue-400 rounded"
                           style={{ width: `${Math.max(4, pct * 0.6)}%` }}
                         />
                       </div>
-                      <span className="w-16 text-right text-gray-900 font-medium tabular-nums">
+                      <span className="w-16 text-right text-ink font-medium tabular-nums">
                         {sym}{item.total_per_share.toFixed(2)}
                       </span>
                     </div>

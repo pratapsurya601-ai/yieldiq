@@ -110,13 +110,13 @@ export default function ConvictionRing({ score, confidence, size = 140 }: Convic
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-3xl font-black text-gray-900" style={{ fontSize: size * 0.24 }}>
+        <span className="text-3xl font-black text-ink" style={{ fontSize: size * 0.24 }}>
           {safeScore}
         </span>
         <span className="text-xs font-bold mt-0.5" style={{ fontSize: size * 0.11, color: scoreColor }}>
           {grade}
         </span>
-        <span className="text-xs text-gray-400" style={{ fontSize: size * 0.08 }}>
+        <span className="text-xs text-caption" style={{ fontSize: size * 0.08 }}>
           Score
         </span>
       </div>

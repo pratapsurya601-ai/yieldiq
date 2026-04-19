@@ -97,8 +97,8 @@ export default function PriceChart({
 
   if (!data || data.length === 0) {
     return (
-      <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
-        <p className="text-sm text-gray-400">Price data unavailable</p>
+      <div className="bg-surface border border-border rounded-xl p-4 text-center">
+        <p className="text-sm text-caption">Price data unavailable</p>
       </div>
     )
   }
@@ -106,8 +106,8 @@ export default function PriceChart({
   const prices = data.map((d) => d.price).filter((p) => typeof p === "number" && !isNaN(p))
   if (prices.length === 0) {
     return (
-      <div className="bg-gray-50 border border-gray-100 rounded-xl p-4 text-center">
-        <p className="text-sm text-gray-400">Price data unavailable</p>
+      <div className="bg-surface border border-border rounded-xl p-4 text-center">
+        <p className="text-sm text-caption">Price data unavailable</p>
       </div>
     )
   }
@@ -121,11 +121,11 @@ export default function PriceChart({
   }
 
   return (
-    <div className="rounded-xl bg-white border border-gray-100 p-4 shadow-sm">
+    <div className="rounded-xl bg-surface border border-border p-4 shadow-sm">
       <div className="h-[200px] relative">
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white/70 z-10">
-            <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+          <div className="absolute inset-0 flex items-center justify-center bg-surface/70 z-10">
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-brand border-t-transparent" />
           </div>
         )}
         <ResponsiveContainer width="100%" height="100%">
@@ -188,8 +188,8 @@ export default function PriceChart({
             className={cn(
               "rounded-lg px-3 py-1 text-xs font-medium transition-colors",
               period === tp.value
-                ? "bg-blue-50 text-blue-700"
-                : "text-gray-500 hover:text-gray-700"
+                ? "bg-brand-50 text-brand"
+                : "text-caption hover:text-body"
             )}
           >
             {tp.label}

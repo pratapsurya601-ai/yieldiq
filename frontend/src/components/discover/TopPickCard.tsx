@@ -18,7 +18,7 @@ export default function TopPickCard({ ticker, companyName, score, mos, moat, sum
   return (
     <div
       className={cn(
-        "relative rounded-xl bg-gradient-to-br from-blue-50/60 to-white border border-gray-100 shadow-sm overflow-hidden",
+        "relative rounded-xl bg-gradient-to-br from-brand-50/60 to-surface border border-border shadow-sm overflow-hidden",
         "p-4"
       )}
     >
@@ -28,8 +28,8 @@ export default function TopPickCard({ ticker, companyName, score, mos, moat, sum
       <div className="pl-3">
         <div className="flex items-start justify-between mb-2">
           <div>
-            <h3 className="text-base font-bold text-gray-900">{ticker}</h3>
-            <p className="text-xs text-gray-500">{companyName}</p>
+            <h3 className="text-base font-bold text-ink">{ticker}</h3>
+            <p className="text-xs text-caption">{companyName}</p>
           </div>
           <div
             className="flex items-center justify-center h-12 w-12 rounded-full font-bold text-base text-white shadow-md"
@@ -40,28 +40,28 @@ export default function TopPickCard({ ticker, companyName, score, mos, moat, sum
         </div>
 
         <div className="flex gap-3 mb-3">
-          <span className="text-xs text-gray-500">
-            MoS: <span className="font-medium text-gray-700">{formatMoS(mos)}</span>
+          <span className="text-xs text-caption">
+            MoS: <span className="font-medium text-body">{formatMoS(mos)}</span>
           </span>
-          <span className="text-xs text-gray-500">
-            Moat: <span className="font-medium text-gray-700">{moat}</span>
+          <span className="text-xs text-caption">
+            Moat: <span className="font-medium text-body">{moat}</span>
           </span>
         </div>
 
-        <p className="text-sm text-gray-600 line-clamp-2 mb-3">{summary}</p>
+        <p className="text-sm text-body line-clamp-2 mb-3">{summary}</p>
 
         <div className="flex items-center justify-between">
           <Link
             href={`/analysis/${ticker}`}
             className={cn(
               "inline-flex items-center rounded-lg px-4 py-2 text-sm font-medium",
-              "bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800",
+              "bg-brand text-white hover:opacity-90 active:opacity-80",
               "transition-colors"
             )}
           >
             Analyse
           </Link>
-          <span className="text-[10px] text-gray-400">Updated today</span>
+          <span className="text-[10px] text-caption">Updated today</span>
         </div>
       </div>
     </div>

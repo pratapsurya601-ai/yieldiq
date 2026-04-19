@@ -28,29 +28,29 @@ function RatioCard({
     green:   "border-l-green-500",
     amber:   "border-l-amber-500",
     red:     "border-l-red-500",
-    neutral: "border-l-gray-200",
+    neutral: "border-l-border",
   }[tone]
   const valueClass = {
     green:   "text-green-700",
     amber:   "text-amber-700",
     red:     "text-red-700",
-    neutral: "text-gray-400",
+    neutral: "text-caption",
   }[tone]
 
   return (
     <div
       className={cn(
-        "rounded-xl bg-white border border-gray-100 border-l-[3px] p-3",
+        "rounded-xl bg-surface border border-border border-l-[3px] p-3",
         toneClass,
       )}
       title={tooltip}
     >
-      <p className="text-[10px] text-gray-500 uppercase tracking-wide">{label}</p>
+      <p className="text-[10px] text-caption uppercase tracking-wide">{label}</p>
       <p className={cn("text-lg font-bold font-mono tabular-nums mt-0.5", valueClass)}>
         {value}
       </p>
       {subtitle && (
-        <p className="text-[10px] text-gray-400 mt-0.5">{subtitle}</p>
+        <p className="text-[10px] text-caption mt-0.5">{subtitle}</p>
       )}
     </div>
   )
@@ -126,7 +126,7 @@ function ShareholdingBar({
   // Not enough data to draw anything useful
   if (p === null) {
     return (
-      <p className="text-xs text-gray-400 text-center py-4">
+      <p className="text-xs text-caption text-center py-4">
         Shareholding data not available
       </p>
     )
@@ -136,14 +136,14 @@ function ShareholdingBar({
     { label: "Promoter", pct: p,             color: "bg-blue-500" },
     { label: "FII",      pct: f ?? 0,        color: "bg-purple-500" },
     { label: "DII",      pct: d ?? 0,        color: "bg-cyan-500" },
-    { label: "Public",   pct: pub ?? 0,      color: "bg-gray-300" },
+    { label: "Public",   pct: pub ?? 0,      color: "bg-border" },
   ]
   const total = segments.reduce((s, x) => s + x.pct, 0)
 
   return (
     <div className="space-y-2">
       {/* Stacked bar */}
-      <div className="flex h-2.5 rounded-full overflow-hidden bg-gray-100">
+      <div className="flex h-2.5 rounded-full overflow-hidden bg-bg">
         {segments.map(seg => seg.pct > 0 && (
           <div
             key={seg.label}
@@ -159,8 +159,8 @@ function ShareholdingBar({
         {segments.map(seg => (
           <div key={seg.label} className="flex items-center gap-1">
             <span className={cn("h-2 w-2 rounded-full", seg.color)} aria-hidden />
-            <span className="text-gray-500">{seg.label}</span>
-            <span className="ml-auto font-medium text-gray-900 tabular-nums">
+            <span className="text-caption">{seg.label}</span>
+            <span className="ml-auto font-medium text-ink tabular-nums">
               {seg.pct.toFixed(1)}%
             </span>
           </div>
@@ -174,7 +174,7 @@ function ShareholdingBar({
             "text-[11px] font-medium",
             pledgePct > 25 ? "text-red-600"
             : pledgePct > 10 ? "text-amber-700"
-            : "text-gray-500",
+            : "text-caption",
           )}
         >
           Promoter pledge: {pledgePct.toFixed(1)}% of holding
@@ -200,8 +200,8 @@ export default function QualityRatios({ quality, insights }: Props) {
   if (!anyRatio && !anyShareholding) return null
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
-      <h2 className="text-sm font-semibold text-gray-900">Quality Ratios</h2>
+    <div className="bg-surface rounded-2xl border border-border p-5 space-y-4">
+      <h2 className="text-sm font-semibold text-ink">Quality Ratios</h2>
 
       {/* 2x2 grid of ratio cards */}
       <div className="grid grid-cols-2 gap-2">
@@ -234,8 +234,8 @@ export default function QualityRatios({ quality, insights }: Props) {
 
       {/* Shareholding breakdown */}
       {anyShareholding && (
-        <div className="pt-3 border-t border-gray-100 space-y-2">
-          <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">
+        <div className="pt-3 border-t border-border space-y-2">
+          <p className="text-[11px] font-semibold text-caption uppercase tracking-wide">
             Shareholding
           </p>
           <ShareholdingBar

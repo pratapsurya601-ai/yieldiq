@@ -3,8 +3,6 @@
 import { useState, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 
-// TODO: swap to design tokens (bg-bg / bg-surface / text-ink / etc.) once Agent 1 lands
-
 export type AnalysisTabKey =
   | "summary"
   | "valuation"
@@ -50,7 +48,7 @@ export default function AnalysisTabs({ tabs, initial, onTabChange }: AnalysisTab
     <div>
       {/* Sticky tab bar */}
       <div
-        className="sticky top-0 z-10 -mx-4 px-4 bg-white/95 backdrop-blur border-b border-gray-100"
+        className="sticky top-0 z-10 -mx-4 px-4 bg-bg/95 backdrop-blur border-b border-border"
         role="tablist"
         aria-label="Analysis sections"
       >
@@ -69,8 +67,8 @@ export default function AnalysisTabs({ tabs, initial, onTabChange }: AnalysisTab
                 className={cn(
                   "shrink-0 whitespace-nowrap px-3 py-2.5 text-sm font-medium min-h-[44px] border-b-2 -mb-px transition",
                   selected
-                    ? "border-blue-600 text-blue-700"
-                    : "border-transparent text-gray-500 hover:text-gray-800"
+                    ? "border-brand text-brand"
+                    : "border-transparent text-caption hover:text-ink"
                 )}
               >
                 {t.label}

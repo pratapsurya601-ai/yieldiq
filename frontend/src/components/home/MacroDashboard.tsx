@@ -75,11 +75,11 @@ function Card({
   return (
     <div
       className={cn(
-        "flex-shrink-0 bg-white rounded-xl border border-gray-100 px-4 py-3 min-w-[120px] text-center",
+        "flex-shrink-0 bg-surface rounded-xl border border-border px-4 py-3 min-w-[120px] text-center",
         borderClass && `border-l-[3px] ${borderClass}`,
       )}
     >
-      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+      <p className="text-[10px] font-bold text-caption uppercase tracking-wider">
         {title}
       </p>
       {children}
@@ -88,7 +88,7 @@ function Card({
 }
 
 function Dash() {
-  return <p className="text-lg font-bold text-gray-300">—</p>
+  return <p className="text-lg font-bold text-caption">—</p>
 }
 
 /* ------------------------------------------------------------------ */
@@ -137,7 +137,7 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
               <p
                 className={cn(
                   "text-lg font-bold tabular-nums",
-                  fii > 0 ? "text-green-700" : fii < 0 ? "text-red-700" : "text-gray-700",
+                  fii > 0 ? "text-green-700" : fii < 0 ? "text-red-700" : "text-body",
                 )}
               >
                 {fii > 0 ? "+" : fii < 0 ? "-" : ""}
@@ -146,7 +146,7 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
               <p
                 className={cn(
                   "text-[10px] font-bold",
-                  fii > 0 ? "text-green-500" : fii < 0 ? "text-red-500" : "text-gray-400",
+                  fii > 0 ? "text-green-500" : fii < 0 ? "text-red-500" : "text-caption",
                 )}
               >
                 {fii > 0 ? "▲ BUYING" : fii < 0 ? "▼ SELLING" : "— FLAT"}
@@ -157,7 +157,7 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
             <p
               className={cn(
                 "text-[9px] mt-0.5",
-                isStale ? "text-amber-600 font-medium" : "text-gray-400",
+                isStale ? "text-warning font-medium" : "text-caption",
               )}
             >
               {isStale ? `${dateLabel} · last known` : dateLabel}
@@ -173,7 +173,7 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
               <p
                 className={cn(
                   "text-lg font-bold tabular-nums",
-                  dii > 0 ? "text-green-700" : dii < 0 ? "text-red-700" : "text-gray-700",
+                  dii > 0 ? "text-green-700" : dii < 0 ? "text-red-700" : "text-body",
                 )}
               >
                 {dii > 0 ? "+" : dii < 0 ? "-" : ""}
@@ -182,7 +182,7 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
               <p
                 className={cn(
                   "text-[10px] font-bold",
-                  dii > 0 ? "text-green-500" : dii < 0 ? "text-red-500" : "text-gray-400",
+                  dii > 0 ? "text-green-500" : dii < 0 ? "text-red-500" : "text-caption",
                 )}
               >
                 {dii > 0 ? "▲ BUYING" : dii < 0 ? "▼ SELLING" : "— FLAT"}
@@ -193,7 +193,7 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
             <p
               className={cn(
                 "text-[9px] mt-0.5",
-                isStale ? "text-amber-600 font-medium" : "text-gray-400",
+                isStale ? "text-warning font-medium" : "text-caption",
               )}
             >
               {isStale ? `${dateLabel} · last known` : dateLabel}
@@ -206,7 +206,7 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
             <Dash />
           ) : (
             <>
-              <p className="text-lg font-bold text-gray-900 tabular-nums">
+              <p className="text-lg font-bold text-ink tabular-nums">
                 {vix.toFixed(1)}
               </p>
               <p className={cn("text-[10px] font-bold", vixInfo?.color)}>
@@ -224,10 +224,10 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
             <Dash />
           ) : (
             <>
-              <p className="text-lg font-bold text-gray-900 tabular-nums">
+              <p className="text-lg font-bold text-ink tabular-nums">
                 ₹{pulse.usd_inr.toFixed(2)}
               </p>
-              <p className="text-[10px] text-gray-400">1 USD</p>
+              <p className="text-[10px] text-caption">1 USD</p>
             </>
           )}
         </Card>
@@ -235,10 +235,10 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
         <Card title="Gold">
           {pulse.gold_usd && pulse.usd_inr ? (
             <>
-              <p className="text-lg font-bold text-gray-900 tabular-nums">
+              <p className="text-lg font-bold text-ink tabular-nums">
                 {fmtInrLakh(metalInrPer(10, pulse.gold_usd, pulse.usd_inr))}
               </p>
-              <p className="text-[10px] text-gray-400">per 10g</p>
+              <p className="text-[10px] text-caption">per 10g</p>
             </>
           ) : (
             <Dash />
@@ -248,10 +248,10 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
         <Card title="Silver">
           {pulse.silver_usd && pulse.usd_inr ? (
             <>
-              <p className="text-lg font-bold text-gray-900 tabular-nums">
+              <p className="text-lg font-bold text-ink tabular-nums">
                 {fmtInrLakh(metalInrPer(1000, pulse.silver_usd, pulse.usd_inr))}
               </p>
-              <p className="text-[10px] text-gray-400">per kg</p>
+              <p className="text-[10px] text-caption">per kg</p>
             </>
           ) : (
             <Dash />
@@ -261,8 +261,8 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
 
       {/* AI summary — only when populated */}
       {summary && (
-        <div className="bg-gray-50 rounded-xl p-3">
-          <p className="text-xs text-gray-600 leading-relaxed">{summary}</p>
+        <div className="bg-surface rounded-xl p-3">
+          <p className="text-xs text-body leading-relaxed">{summary}</p>
         </div>
       )}
     </div>

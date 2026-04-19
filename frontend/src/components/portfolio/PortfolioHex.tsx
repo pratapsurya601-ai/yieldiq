@@ -107,20 +107,20 @@ export default function PortfolioHex({ holdings }: Props) {
     return (
       <section
         aria-labelledby="portfolio-hex-heading"
-        className="bg-white rounded-2xl border border-gray-100 p-5"
+        className="bg-surface rounded-2xl border border-border p-5"
       >
         <h2
           id="portfolio-hex-heading"
-          className="text-base font-bold text-gray-900 mb-1"
+          className="text-base font-bold text-ink mb-1"
         >
           Your Portfolio Hex
         </h2>
-        <p className="text-xs text-gray-500 mb-4">
+        <p className="text-xs text-caption mb-4">
           Add at least 3 holdings to see your Portfolio Hex. Model estimate. Not investment advice.
         </p>
         <Link
           href="/portfolio/import"
-          className="inline-flex items-center justify-center min-h-[44px] bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 active:scale-[0.98] transition"
+          className="inline-flex items-center justify-center min-h-[44px] bg-brand text-white text-sm font-semibold px-4 py-2 rounded-lg hover:opacity-90 active:scale-[0.98] transition"
         >
           Import holdings &rarr;
         </Link>
@@ -133,11 +133,11 @@ export default function PortfolioHex({ holdings }: Props) {
     return (
       <section
         aria-labelledby="portfolio-hex-heading"
-        className="bg-white rounded-2xl border border-gray-100 p-5"
+        className="bg-surface rounded-2xl border border-border p-5"
       >
         <h2
           id="portfolio-hex-heading"
-          className="text-base font-bold text-gray-900 mb-1"
+          className="text-base font-bold text-ink mb-1"
         >
           Your Portfolio Hex
         </h2>
@@ -163,25 +163,25 @@ export default function PortfolioHex({ holdings }: Props) {
   return (
     <section
       aria-labelledby="portfolio-hex-heading"
-      className="bg-white rounded-2xl border border-gray-100 p-5"
+      className="bg-surface rounded-2xl border border-border p-5"
     >
       <div className="flex items-start justify-between gap-3 mb-1">
         <h2
           id="portfolio-hex-heading"
-          className="text-base font-bold text-gray-900"
+          className="text-base font-bold text-ink"
         >
           Your Portfolio Hex
         </h2>
         <button
           type="button"
           onClick={() => setShareOpen(true)}
-          className="inline-flex items-center justify-center min-h-[36px] text-xs font-semibold text-blue-600 hover:text-blue-700 px-2"
+          className="inline-flex items-center justify-center min-h-[36px] text-xs font-semibold text-brand hover:opacity-80 px-2"
           aria-label="Share my Portfolio Hex"
         >
           Share &rarr;
         </button>
       </div>
-      <p className="text-xs text-gray-500 mb-4">
+      <p className="text-xs text-caption mb-4">
         Weighted average of your {payload.length} holding{payload.length === 1 ? "" : "s"}. Model estimate. Not investment advice.
       </p>
 
@@ -189,7 +189,7 @@ export default function PortfolioHex({ holdings }: Props) {
         {isLoading || !displayData ? (
           <>
             <HexSkeleton size={size} />
-            <p className="mt-3 text-xs text-gray-500">Computing your Portfolio Hex...</p>
+            <p className="mt-3 text-xs text-caption">Computing your Portfolio Hex...</p>
           </>
         ) : (
           <>
@@ -200,9 +200,9 @@ export default function PortfolioHex({ holdings }: Props) {
               onAxisTap={(k) => setExplainAxis(k)}
             />
             {strongest && weakest && (
-              <p className="mt-3 text-xs text-gray-600 text-center">
+              <p className="mt-3 text-xs text-body text-center">
                 Overall:{" "}
-                <span className="font-bold text-gray-900">
+                <span className="font-bold text-ink">
                   {displayData.overall.toFixed(1)}/10
                 </span>
                 {" · "}Strongest axis:{" "}
@@ -225,7 +225,7 @@ export default function PortfolioHex({ holdings }: Props) {
             className="w-4 h-4 accent-blue-600"
             aria-label="Compare with Nifty 50 sector median"
           />
-          <span className="text-xs font-medium text-gray-700">
+          <span className="text-xs font-medium text-body">
             Compare with Nifty 50 median
           </span>
         </label>
@@ -255,21 +255,21 @@ export default function PortfolioHex({ holdings }: Props) {
             onClick={() => setShareOpen(false)}
             className="absolute inset-0 bg-black/40"
           />
-          <div className="relative bg-white rounded-t-2xl md:rounded-2xl border border-gray-100 p-5 w-full md:max-w-md mx-auto max-h-[90vh] overflow-y-auto">
+          <div className="relative bg-surface rounded-t-2xl md:rounded-2xl border border-border p-5 w-full md:max-w-md mx-auto max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between">
-              <h3 id="share-hex-title" className="text-base font-bold text-gray-900">
+              <h3 id="share-hex-title" className="text-base font-bold text-ink">
                 Share your Portfolio Hex
               </h3>
               <button
                 type="button"
                 onClick={() => setShareOpen(false)}
                 aria-label="Close"
-                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] text-gray-500 hover:text-gray-700"
+                className="inline-flex items-center justify-center min-w-[44px] min-h-[44px] text-caption hover:text-body"
               >
                 &times;
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
+            <p className="text-xs text-caption mt-1">
               Model estimate. Not investment advice.
             </p>
             <div className="mt-4 flex justify-center">
@@ -277,13 +277,13 @@ export default function PortfolioHex({ holdings }: Props) {
                 <Hex data={displayData} size={size} sectorOverlay={overlayNifty} />
               )}
             </div>
-            <p className="mt-4 text-sm text-gray-700">
+            <p className="mt-4 text-sm text-body">
               Take a screenshot of this Hex to share on social or with friends. Full share tooling is coming soon.
             </p>
             <button
               type="button"
               onClick={() => setShareOpen(false)}
-              className="mt-4 w-full inline-flex items-center justify-center min-h-[44px] bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 active:scale-[0.98] transition"
+              className="mt-4 w-full inline-flex items-center justify-center min-h-[44px] bg-brand text-white text-sm font-semibold px-4 py-2 rounded-lg hover:opacity-90 active:scale-[0.98] transition"
             >
               Got it
             </button>

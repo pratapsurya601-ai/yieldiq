@@ -64,25 +64,25 @@ export default function AISummary(props: AISummaryProps) {
     if (timedOut) {
       const fallback = generateFallbackSummary(props)
       return (
-        <div className={cn("rounded-xl bg-gray-50 p-4")}>
+        <div className={cn("rounded-xl bg-surface p-4")}>
           <div className="flex items-center gap-2 mb-2">
             <svg className="h-4 w-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-2.47 2.47a2.25 2.25 0 01-1.591.659H9.061a2.25 2.25 0 01-1.591-.659L5 14.5m14 0V17a2 2 0 01-2 2H7a2 2 0 01-2-2v-2.5" />
             </svg>
-            <span className="text-sm font-medium text-gray-700">AI Summary</span>
+            <span className="text-sm font-medium text-body">AI Summary</span>
           </div>
-          <p className="text-sm leading-relaxed text-gray-700">{fallback}</p>
+          <p className="text-sm leading-relaxed text-body">{fallback}</p>
         </div>
       )
     }
 
     return (
-      <div className={cn("rounded-xl bg-gray-50 p-4")}>
+      <div className={cn("rounded-xl bg-surface p-4")}>
         <div className="flex items-center gap-2 mb-2">
           <div className="h-2 w-2 rounded-full bg-blue-400 animate-pulse" />
-          <span className="text-sm font-medium text-gray-500">AI Analysis</span>
+          <span className="text-sm font-medium text-caption">AI Analysis</span>
         </div>
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-caption">
           Generating analysis for {ticker}...
         </p>
       </div>
@@ -90,14 +90,14 @@ export default function AISummary(props: AISummaryProps) {
   }
 
   return (
-    <div className={cn("rounded-xl bg-gray-50 p-4")}>
+    <div className={cn("rounded-xl bg-surface p-4")}>
       <div className="flex items-center gap-2 mb-2">
         <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-2.47 2.47a2.25 2.25 0 01-1.591.659H9.061a2.25 2.25 0 01-1.591-.659L5 14.5m14 0V17a2 2 0 01-2 2H7a2 2 0 01-2-2v-2.5" />
         </svg>
-        <span className="text-sm font-medium text-gray-700">AI Summary</span>
+        <span className="text-sm font-medium text-body">AI Summary</span>
       </div>
-      <p className="text-sm leading-relaxed text-gray-700">{summary}</p>
+      <p className="text-sm leading-relaxed text-body">{summary}</p>
     </div>
   )
 }

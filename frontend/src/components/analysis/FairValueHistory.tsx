@@ -75,17 +75,17 @@ function FVTooltip({
    blank gaps. */
 function FVPlaceholder({ variant }: { variant: "loading" | "empty" | "error" }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5">
-      <h2 className="text-sm font-semibold text-gray-900 mb-3">Historical Fair Value</h2>
+    <div className="bg-surface rounded-2xl border border-border p-5">
+      <h2 className="text-sm font-semibold text-ink mb-3">Historical Fair Value</h2>
       {variant === "loading" ? (
         <div className="space-y-3">
-          <div className="h-[220px] bg-gray-100 rounded-xl animate-pulse" />
-          <div className="h-4 w-64 bg-gray-200 rounded animate-pulse" />
+          <div className="h-[220px] bg-bg rounded-xl animate-pulse" />
+          <div className="h-4 w-64 bg-border rounded animate-pulse" />
         </div>
       ) : (
         <div className="py-8 text-center flex flex-col items-center gap-2">
           <svg
-            className="h-8 w-8 text-gray-300"
+            className="h-8 w-8 text-caption"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -95,10 +95,10 @@ function FVPlaceholder({ variant }: { variant: "loading" | "empty" | "error" }) 
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v18h18" />
             <path strokeLinecap="round" strokeLinejoin="round" d="M7 14l4-4 3 3 5-6" />
           </svg>
-          <p className="text-sm text-gray-700 font-medium">
+          <p className="text-sm text-body font-medium">
             {variant === "error" ? "Fair value history unavailable" : "No history yet"}
           </p>
-          <p className="text-xs text-gray-400 max-w-xs">
+          <p className="text-xs text-caption max-w-xs">
             {variant === "error"
               ? "Try again in a moment."
               : "Fair value history will appear here after your first analysis runs."}
@@ -149,10 +149,10 @@ export default function FairValueHistory({ ticker, companyName, currency = "INR"
   const maxY = Math.max(...allValues) * 1.05
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+    <div className="bg-surface rounded-2xl border border-border p-5 space-y-3">
       {/* Header row */}
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-gray-900">Historical Fair Value</h2>
+        <h2 className="text-sm font-semibold text-ink">Historical Fair Value</h2>
         <div className="flex gap-1.5">
           {[1, 2, 3].map((y) => {
             const locked = data.tier === "free" && y > 1
@@ -165,9 +165,9 @@ export default function FairValueHistory({ ticker, companyName, currency = "INR"
                 className={cn(
                   "text-xs px-2.5 py-1 rounded-lg font-medium transition-colors",
                   active
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 text-gray-500 hover:bg-gray-200",
-                  locked && "opacity-40 cursor-not-allowed hover:bg-gray-100"
+                    ? "bg-brand text-white"
+                    : "bg-bg text-caption hover:bg-border",
+                  locked && "opacity-40 cursor-not-allowed hover:bg-bg"
                 )}
                 aria-label={locked ? `${y} year (upgrade required)` : `${y} year`}
               >
@@ -238,8 +238,8 @@ export default function FairValueHistory({ ticker, companyName, currency = "INR"
 
       {/* Summary caption */}
       {summary.has_data && summary.pct_undervalued !== null && (
-        <div className="bg-gray-50 rounded-xl p-3 space-y-1">
-          <p className="text-xs text-gray-600 leading-relaxed">
+        <div className="bg-bg rounded-xl p-3 space-y-1">
+          <p className="text-xs text-body leading-relaxed">
             In the tracked period,{" "}
             <span className="font-semibold text-green-700">
               {companyName} traded below our fair value estimate {summary.pct_undervalued}% of the
@@ -247,7 +247,7 @@ export default function FairValueHistory({ ticker, companyName, currency = "INR"
             </span>
           </p>
           {summary.data_start_date && (
-            <p className="text-[11px] text-gray-400">
+            <p className="text-[11px] text-caption">
               History begins{" "}
               {new Date(summary.data_start_date).toLocaleDateString("en-IN", {
                 day: "numeric",

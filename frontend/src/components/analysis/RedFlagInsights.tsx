@@ -71,22 +71,22 @@ export default function RedFlagInsights({ flags }: Props) {
   const hasBoth = firstInfoIdx > 0 && counts.risks > 0
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+    <div className="bg-surface rounded-2xl border border-border overflow-hidden">
       {/* Collapsed header — always shown */}
       <button
         onClick={() => setExpanded(e => !e)}
-        className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors text-left"
+        className="w-full flex items-center justify-between p-4 hover:bg-bg transition-colors text-left"
         aria-expanded={expanded}
       >
         <div>
-          <p className="text-sm font-semibold text-gray-900">
+          <p className="text-sm font-semibold text-ink">
             🔍 Risk &amp; Quality Deep Dive
           </p>
-          <p className="text-xs text-gray-500 mt-0.5">{summaryLine}</p>
+          <p className="text-xs text-caption mt-0.5">{summaryLine}</p>
         </div>
         <span
           className={cn(
-            "text-gray-400 text-sm transition-transform duration-200",
+            "text-caption text-sm transition-transform duration-200",
             expanded && "rotate-180"
           )}
           aria-hidden="true"
@@ -97,17 +97,17 @@ export default function RedFlagInsights({ flags }: Props) {
 
       {/* Expanded panel */}
       {expanded && (
-        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-gray-100">
+        <div className="px-4 pb-4 pt-1 space-y-3 border-t border-border">
           {sorted.map((f, i) => (
             <div key={`${f.flag}-${i}`}>
               {/* Divider before first positive card */}
               {hasBoth && i === firstInfoIdx && (
                 <div className="flex items-center gap-2 py-2">
-                  <div className="flex-1 h-px bg-gray-200" />
-                  <span className="text-[11px] text-gray-400 uppercase tracking-wider">
+                  <div className="flex-1 h-px bg-border" />
+                  <span className="text-[11px] text-caption uppercase tracking-wider">
                     Positive signals
                   </span>
-                  <div className="flex-1 h-px bg-gray-200" />
+                  <div className="flex-1 h-px bg-border" />
                 </div>
               )}
 
@@ -122,18 +122,18 @@ export default function RedFlagInsights({ flags }: Props) {
                     {SEVERITY_LABEL[f.severity]}
                   </span>
                 </div>
-                <h3 className="text-sm font-semibold text-gray-900">{f.title}</h3>
-                <p className="text-xs text-gray-700 font-mono tabular-nums">
+                <h3 className="text-sm font-semibold text-ink">{f.title}</h3>
+                <p className="text-xs text-body font-mono tabular-nums">
                   {f.data_point}
                 </p>
-                <p className="text-xs text-gray-600 leading-relaxed">
+                <p className="text-xs text-body leading-relaxed">
                   {f.explanation}
                 </p>
                 <div className="pt-1">
-                  <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-0.5">
+                  <p className="text-[11px] font-semibold text-caption uppercase tracking-wide mb-0.5">
                     Why it matters
                   </p>
-                  <p className="text-xs text-gray-600 leading-relaxed">
+                  <p className="text-xs text-body leading-relaxed">
                     {f.why_it_matters}
                   </p>
                 </div>

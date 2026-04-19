@@ -49,22 +49,22 @@ export default function ScreenerPresets() {
         <div
           key={preset.name}
           className={cn(
-            "rounded-xl border border-gray-100 shadow-sm",
+            "rounded-xl border border-border shadow-sm",
             "border-l-4 p-3 flex flex-col justify-between",
             preset.borderColor,
             preset.bgGradient
           )}
         >
           <div className="mb-3">
-            <h3 className="text-sm font-semibold text-gray-900">{preset.name}</h3>
-            <p className="text-xs text-gray-500 mt-1 line-clamp-2">{preset.description}</p>
+            <h3 className="text-sm font-semibold text-ink">{preset.name}</h3>
+            <p className="text-xs text-caption mt-1 line-clamp-2">{preset.description}</p>
           </div>
           <Link
             href={`/discover/screener?preset=${preset.query}`}
             className={cn(
               "inline-flex items-center justify-center rounded-lg px-3 py-1.5",
-              "text-xs font-medium bg-gray-100 text-gray-700",
-              "hover:bg-gray-200 active:bg-gray-300 transition-colors"
+              "text-xs font-medium bg-bg text-body",
+              "hover:bg-border active:bg-border transition-colors"
             )}
           >
             Run

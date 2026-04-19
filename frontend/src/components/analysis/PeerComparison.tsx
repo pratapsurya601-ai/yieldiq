@@ -16,12 +16,12 @@ interface Props {
 /* ------------------------------------------------------------------ */
 function Skeleton() {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-      <div className="h-5 w-40 bg-gray-200 rounded animate-pulse" />
-      <div className="h-3 w-24 bg-gray-100 rounded animate-pulse" />
+    <div className="bg-surface rounded-2xl border border-border p-5 space-y-3">
+      <div className="h-5 w-40 bg-border rounded animate-pulse" />
+      <div className="h-3 w-24 bg-bg rounded animate-pulse" />
       <div className="space-y-2 pt-2">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-8 bg-gray-100 rounded animate-pulse" />
+          <div key={i} className="h-8 bg-bg rounded animate-pulse" />
         ))}
       </div>
     </div>
@@ -74,7 +74,7 @@ function fmtFV(v: number | null, currency: string): string {
 }
 
 function gradeColor(grade: string | null, score: number | null): string {
-  if (score === null || score === undefined) return "bg-gray-200 text-gray-400"
+  if (score === null || score === undefined) return "bg-border text-caption"
   if (score >= 75) return "bg-green-500 text-white"
   if (score >= 55) return "bg-blue-500 text-white"
   if (score >= 35) return "bg-yellow-500 text-white"
@@ -84,7 +84,7 @@ function gradeColor(grade: string | null, score: number | null): string {
 
 function ScoreBadge({ score, grade }: { score: number | null; grade: string | null }) {
   if (score === null || score === undefined) {
-    return <span className="text-gray-300">—</span>
+    return <span className="text-caption">—</span>
   }
   return (
     <div className="inline-flex flex-col items-center gap-0.5">
@@ -97,7 +97,7 @@ function ScoreBadge({ score, grade }: { score: number | null; grade: string | nu
       >
         {grade ?? ""}
       </span>
-      <span className="text-[10px] text-gray-500 font-medium">{score}</span>
+      <span className="text-[10px] text-caption font-medium">{score}</span>
     </div>
   )
 }
@@ -130,11 +130,11 @@ const buildColumns = (currency: string): Column[] => [
     label: "Company",
     render: row => (
       <div className="flex flex-col">
-        <span className="text-xs font-medium text-gray-900">
+        <span className="text-xs font-medium text-ink">
           {row.is_main && "★ "}
           {truncate(row.company_name, 14)}
         </span>
-        <span className="text-[10px] text-gray-400">
+        <span className="text-[10px] text-caption">
           {row.ticker.replace(".NS", "").replace(".BO", "")}
         </span>
       </div>
@@ -157,8 +157,8 @@ const buildColumns = (currency: string): Column[] => [
     metric: "mos_pct",
     render: row => {
       const v = row.mos_pct
-      if (v === null || v === undefined) return <span className="text-gray-300">—</span>
-      const cls = v > 0 ? "text-green-600" : v < 0 ? "text-red-500" : "text-gray-500"
+      if (v === null || v === undefined) return <span className="text-caption">—</span>
+      const cls = v > 0 ? "text-green-600" : v < 0 ? "text-red-500" : "text-caption"
       return <span className={cn("tabular-nums font-medium", cls)}>{fmtMoS(v)}</span>
     },
   },
@@ -258,13 +258,13 @@ export default function PeerComparison({ ticker, currency = "INR" }: Props) {
 
   if (isError) {
     return (
-      <div ref={containerRef} className="bg-white rounded-2xl border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-2">Compare with Peers</h2>
-        <p className="text-sm text-gray-400 text-center py-6">Peer data unavailable</p>
+      <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-5">
+        <h2 className="text-sm font-semibold text-ink mb-2">Compare with Peers</h2>
+        <p className="text-sm text-caption text-center py-6">Peer data unavailable</p>
         <div className="text-center">
           <button
             onClick={() => refetch()}
-            className="text-xs font-medium text-blue-600 hover:underline"
+            className="text-xs font-medium text-brand hover:underline"
           >
             Retry
           </button>
@@ -275,9 +275,9 @@ export default function PeerComparison({ ticker, currency = "INR" }: Props) {
 
   if (!data?.has_peers || !data.peers?.length) {
     return (
-      <div ref={containerRef} className="bg-white rounded-2xl border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-2">Compare with Peers</h2>
-        <p className="text-xs text-gray-400 text-center py-6">
+      <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-5">
+        <h2 className="text-sm font-semibold text-ink mb-2">Compare with Peers</h2>
+        <p className="text-xs text-caption text-center py-6">
           {data?.message ?? "Peer comparison coming soon for this sector."}
         </p>
       </div>
@@ -287,12 +287,12 @@ export default function PeerComparison({ ticker, currency = "INR" }: Props) {
   const rows = data.peers
 
   return (
-    <div ref={containerRef} className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+    <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-5 space-y-3">
       {/* Header */}
       <div>
-        <h2 className="text-sm font-semibold text-gray-900">Compare with Peers</h2>
+        <h2 className="text-sm font-semibold text-ink">Compare with Peers</h2>
         {data.sector_label && (
-          <p className="text-[11px] text-gray-400 mt-0.5">{data.sector_label}</p>
+          <p className="text-[11px] text-caption mt-0.5">{data.sector_label}</p>
         )}
       </div>
 
@@ -300,14 +300,14 @@ export default function PeerComparison({ ticker, currency = "INR" }: Props) {
       <div className="overflow-x-auto -mx-1">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-gray-100">
+            <tr className="border-b border-border">
               {columns.map((col, i) => (
                 <th
                   key={col.key}
                   className={cn(
-                    "py-2 text-[10px] font-medium text-gray-400 uppercase tracking-wide",
+                    "py-2 text-[10px] font-medium text-caption uppercase tracking-wide",
                     i === 0
-                      ? "sticky left-0 bg-white z-10 text-left pl-1 pr-3 min-w-[140px]"
+                      ? "sticky left-0 bg-surface z-10 text-left pl-1 pr-3 min-w-[140px]"
                       : "text-right px-2 min-w-[70px]",
                   )}
                 >
@@ -329,10 +329,10 @@ export default function PeerComparison({ ticker, currency = "INR" }: Props) {
                     if (!isMain) router.push(`/analysis/${row.ticker}`)
                   }}
                   className={cn(
-                    "border-b border-gray-50 last:border-0 transition-colors",
+                    "border-b border-border last:border-0 transition-colors",
                     isMain
-                      ? "bg-blue-50/60 border-l-4 border-l-blue-500"
-                      : "cursor-pointer hover:bg-gray-50",
+                      ? "bg-brand-50/60 border-l-4 border-l-brand"
+                      : "cursor-pointer hover:bg-bg",
                   )}
                 >
                   {columns.map((col, i) => {
@@ -347,7 +347,7 @@ export default function PeerComparison({ ticker, currency = "INR" }: Props) {
                           i === 0
                             ? cn(
                                 "sticky left-0 z-10 pl-1 pr-3",
-                                isMain ? "bg-blue-50/60" : "bg-white",
+                                isMain ? "bg-brand-50/60" : "bg-surface",
                               )
                             : "text-right px-2",
                           isBest && !isMain && "bg-green-50/70",
@@ -375,14 +375,14 @@ export default function PeerComparison({ ticker, currency = "INR" }: Props) {
 
       {/* Auto-generated insight line */}
       {insight && (
-        <p className="text-xs text-gray-700 bg-gray-50 rounded-xl p-3 leading-relaxed">
+        <p className="text-xs text-body bg-bg rounded-xl p-3 leading-relaxed">
           {insight}
         </p>
       )}
 
       {/* Missing scores note */}
       {anyMissingScore && (
-        <p className="text-[11px] text-gray-400">
+        <p className="text-[11px] text-caption">
           — YieldIQ Score not yet computed for some peers. Analyse them to see scores.
         </p>
       )}
