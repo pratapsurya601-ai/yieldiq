@@ -321,11 +321,16 @@ async def get_stock_summary(ticker: str):
     # long as both endpoints call the same analysis service. They do.
     if analysis_cached is None or not hasattr(analysis_cached, "valuation"):
         try:
-            from backend.services.analysis_service import get_full_analysis
+            # HOTFIX-2: get_full_analysis is a SYNC method on AnalysisService,
+            # not a module-level async function. Mirror how the authed
+            # router invokes it (see backend/routers/analysis.py:24 for
+            # the singleton instance pattern).
+            from backend.services.analysis_service import AnalysisService
+            _svc = AnalysisService()
             logger.info(
                 "stock-summary cache miss for %s — lazy-recompute fallback", ticker
             )
-            analysis_cached = await get_full_analysis(ticker)
+            analysis_cached = _svc.get_full_analysis(ticker)
             # Best-effort persist so the next hit is a straight cache read.
             # If persist fails, the response is still correct; we just lose
             # the warm-path optimization on this worker.
