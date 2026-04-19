@@ -284,10 +284,41 @@ def _compute_row(
             if current_liab < 0:
                 current_liab = None
 
+    # EBIT fallback chain — the financials table often doesn't populate
+    # the `ebit` column, so without fallbacks ROCE = 0% coverage across
+    # the board (confirmed empirically in first rebuild run).
+    # Order of preference (highest precision first):
+    #   1. f.ebit                             (canonical column)
+    #   2. raw["ebit"] / raw["operating_income"] / raw["operating_profit"]
+    #   3. pbt + interest_expense             (algebraic identity)
+    #   4. ebitda                             (lossy — adds D&A back in)
+    ebit_effective: float | None = None
+    if _is_finite(f.ebit):
+        ebit_effective = float(f.ebit)
+    else:
+        r_ebit = _get_numeric(raw, "ebit", "operating_income", "operating_profit")
+        if r_ebit is not None:
+            ebit_effective = r_ebit
+        else:
+            interest_exp_for_ebit = _get_numeric(
+                raw, "interest_expense", "finance_cost", "finance_costs",
+            )
+            if _is_finite(f.pbt) and interest_exp_for_ebit is not None:
+                ebit_effective = float(f.pbt) + float(interest_exp_for_ebit)
+            elif _is_finite(f.ebitda):
+                # Lossy: EBIT ≈ EBITDA - D&A. We don't reliably have D&A,
+                # so use EBITDA as an UPPER bound. Flag by clamping ROCE
+                # after compute if it's implausibly high.
+                ebit_effective = float(f.ebitda)
+
     roce = None
-    if _is_finite(f.ebit) and _is_finite(f.total_assets) and current_liab is not None:
+    if (
+        ebit_effective is not None
+        and _is_finite(f.total_assets)
+        and current_liab is not None
+    ):
         capital_employed = float(f.total_assets) - float(current_liab)
-        roce = _safe_div(f.ebit, capital_employed)
+        roce = _safe_div(ebit_effective, capital_employed)
         if roce is not None:
             roce *= 100.0
 
