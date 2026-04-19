@@ -5,6 +5,10 @@ import { validateAnalysisData } from "@/lib/validators"
 import DataQualityBanner from "@/components/analysis/DataQualityBanner"
 import DataUnderReview from "@/components/DataUnderReview"
 import ValuationGrid from "@/components/analysis/ValuationGrid"
+import HistoricFinancialsTable from "@/components/analysis/HistoricFinancialsTable"
+import RatioSparklines from "@/components/analysis/RatioSparklines"
+import PeerComparisonCard from "@/components/analysis/PeerComparisonCard"
+import { getHistoricalFinancials, getRatiosHistory, getPublicPeers } from "@/lib/api"
 import { timeAgo } from "@/lib/dataFreshness"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
@@ -188,7 +192,16 @@ export default async function StockFairValuePage(
   { params }: { params: Promise<{ ticker: string }> }
 ) {
   const { ticker } = await params
-  const data = await getStockData(ticker)
+  // Fetch the hero summary and the three SEO-block payloads in parallel.
+  // Each of the three auxiliary fetchers returns `null` on 503/network error
+  // and the child components render a graceful placeholder in that case —
+  // they never block the rest of the page from rendering.
+  const [data, financials, ratios, peers] = await Promise.all([
+    getStockData(ticker),
+    getHistoricalFinancials(ticker, 10, "annual"),
+    getRatiosHistory(ticker, 10, "annual"),
+    getPublicPeers(ticker, 5),
+  ])
   if (!data) notFound()
 
   const display = ticker.toUpperCase()
@@ -399,6 +412,14 @@ export default async function StockFairValuePage(
             currency={data.currency}
           />
         </div>
+
+        {/* SEO blocks — each renders a graceful placeholder on null payload
+            (503 under_review / network error). Order is ratio-trends first
+            as a visual "quality story", then the full financials table,
+            then peers for competitive context. */}
+        <RatioSparklines ticker={display} data={ratios} />
+        <HistoricFinancialsTable ticker={display} data={financials} />
+        <PeerComparisonCard ticker={display} data={peers} />
 
         {/* AI Summary */}
         {data.ai_summary_snippet && (

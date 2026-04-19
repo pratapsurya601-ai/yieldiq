@@ -276,6 +276,144 @@ export const createAlert = (data: { ticker: string; alert_type: string; target_p
 export const deleteAlert = (alertId: number): Promise<SuccessResponse> =>
   api.delete(`/api/v1/alerts/${alertId}`).then(r => r.data)
 
+// ---------------------------------------------------------------------------
+// Public SEO-page fetch helpers
+// ---------------------------------------------------------------------------
+// These hit the unauthenticated /api/v1/public/* endpoints used by the
+// server-rendered fair-value page. They return null on 503 (under_review)
+// and on network errors so the SEO page can render placeholder cards
+// without blocking the rest of the layout.
+
+export interface HistoricalFinancialsPeriod {
+  period_end: string
+  period_type: string
+  revenue: number | null
+  ebitda: number | null
+  ebit: number | null
+  pat: number | null
+  eps_diluted: number | null
+  cfo: number | null
+  capex: number | null
+  free_cash_flow: number | null
+  total_assets: number | null
+  total_equity: number | null
+  total_debt: number | null
+  cash_and_equivalents: number | null
+  shares_outstanding: number | null
+  roe: number | null
+  roa: number | null
+  debt_to_equity: number | null
+  gross_margin: number | null
+  operating_margin: number | null
+  net_margin: number | null
+  fcf_margin: number | null
+  revenue_growth_yoy: number | null
+  pat_growth_yoy: number | null
+}
+
+export interface HistoricalFinancialsResponse {
+  ticker: string
+  currency: string
+  periods: HistoricalFinancialsPeriod[]
+}
+
+export interface RatioHistoryPeriod {
+  period_end: string
+  period_type: string
+  roe: number | null
+  roce: number | null
+  roa: number | null
+  de_ratio: number | null
+  debt_ebitda: number | null
+  interest_cov: number | null
+  gross_margin: number | null
+  operating_margin: number | null
+  net_margin: number | null
+  fcf_margin: number | null
+  revenue_yoy: number | null
+  ebitda_yoy: number | null
+  pat_yoy: number | null
+  fcf_yoy: number | null
+  pe_ratio: number | null
+  pb_ratio: number | null
+  ev_ebitda: number | null
+  dividend_yield: number | null
+  market_cap_cr: number | null
+  current_ratio: number | null
+  asset_turnover: number | null
+}
+
+export interface RatioHistoryResponse {
+  ticker: string
+  periods: RatioHistoryPeriod[]
+}
+
+export interface PublicPeerRow {
+  peer_ticker: string
+  rank: number
+  sector: string | null
+  sub_sector: string | null
+  mcap_ratio: number | null
+  company_name: string | null
+  fair_value: number | null
+  current_price: number | null
+  margin_of_safety: number | null
+  verdict: string | null
+  score: number | null
+  moat: string | null
+  roe: number | null
+  pe_ratio: number | null
+}
+
+export interface PublicPeersResponse {
+  ticker: string
+  peers: PublicPeerRow[]
+}
+
+// Server-side fetch — uses bare fetch() (not axios) because these helpers
+// are called from React Server Components and rely on Next.js's fetch
+// caching / `next: { revalidate }` extension.
+async function publicGet<T>(path: string, revalidateSec: number): Promise<T | null> {
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+  try {
+    const res = await fetch(`${base}${path}`, { next: { revalidate: revalidateSec } })
+    if (res.status === 503) return null  // under_review sentinel
+    if (!res.ok) return null
+    return (await res.json()) as T
+  } catch {
+    return null
+  }
+}
+
+export const getHistoricalFinancials = (
+  ticker: string,
+  years: number = 10,
+  period: "annual" | "quarterly" = "annual",
+): Promise<HistoricalFinancialsResponse | null> =>
+  publicGet<HistoricalFinancialsResponse>(
+    `/api/v1/public/financials/${ticker}?period=${period}&years=${years}`,
+    3600,
+  )
+
+export const getRatiosHistory = (
+  ticker: string,
+  years: number = 10,
+  period: "annual" | "quarterly" = "annual",
+): Promise<RatioHistoryResponse | null> =>
+  publicGet<RatioHistoryResponse>(
+    `/api/v1/public/ratios-history/${ticker}?years=${years}&period=${period}`,
+    3600,
+  )
+
+export const getPublicPeers = (
+  ticker: string,
+  limit: number = 5,
+): Promise<PublicPeersResponse | null> =>
+  publicGet<PublicPeersResponse>(
+    `/api/v1/public/peers/${ticker}?limit=${limit}`,
+    3600,
+  )
+
 // Auth
 export const login = (email: string, password: string): Promise<TokenResponse> =>
   api.post("/api/v1/auth/login", { email, password }).then(r => r.data)
