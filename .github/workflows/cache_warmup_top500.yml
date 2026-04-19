@@ -105,3 +105,35 @@ jobs:
             echo "::error::Majority of warmup requests failed."
             exit 1
           fi
+
+      - name: Warm Prism caches
+        # Second pass: pre-warm the tier-0 raw-dict cache for
+        # /api/v1/prism/{ticker} so the first user click on any
+        # top-500 stock's Prism page hits the warm-warm path
+        # (~3-5ms) instead of paying the ~2.3s cold tax.
+        # Public endpoint — no Authorization header required.
+        # Runs sequentially after the analysis loop to avoid
+        # saturating the Railway worker. Failures are logged
+        # but do not fail the workflow (delisted/data_limited
+        # tickers are expected).
+        if: steps.token_check.outputs.skip == 'false'
+        env:
+          API_BASE: "https://api.yieldiq.in"
+        run: |
+          OK=0; FAIL=0; TOTAL=0
+          while IFS= read -r T; do
+            [ -z "$T" ] && continue
+            TOTAL=$((TOTAL + 1))
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              --max-time 30 \
+              "${API_BASE}/api/v1/prism/${T}" \
+              || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              OK=$((OK + 1))
+            else
+              echo "✗ prism $T → $STATUS"
+              FAIL=$((FAIL + 1))
+            fi
+            sleep 0.3
+          done < tickers.txt
+          echo "Prism warmup: $OK OK / $FAIL failed / $TOTAL total"

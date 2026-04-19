@@ -368,6 +368,8 @@ def _axis_value_general(data: dict) -> dict:
 
     pe = metrics.get("pe_ratio")
 
+    # data_limited triggers ONLY when both MoS (DCF-derived) and P/E
+    # are absent. A microcap with a P/E but no DCF still lights up.
     if mos_pct is None and pe is None:
         return _neutral_axis("No valuation data available")
 
@@ -473,6 +475,9 @@ def _axis_quality(data: dict, sector: str) -> dict:
         except Exception:
             margin_stability = None
 
+    # data_limited triggers ONLY when ALL three quality scores
+    # (Piotroski, ROCE, ROE) are missing. Margin stability alone is
+    # not strong enough to light Quality without one return metric.
     if piotroski is None and roce is None and roe is None:
         return _neutral_axis("No quality metrics available")
 
@@ -536,6 +541,9 @@ def _axis_growth(data: dict) -> dict:
         except Exception:
             eps_cagr = None
 
+    # data_limited triggers ONLY when BOTH revenue CAGR and EPS CAGR
+    # are absent. Either one alone is enough to light the axis — many
+    # SMEs report only one of the two consistently.
     if rev_cagr is None and eps_cagr is None:
         return _neutral_axis("No growth history available")
 
@@ -572,19 +580,28 @@ def _axis_moat(data: dict, sector: str) -> dict:
 
     score = 5.0
     reasons: list[str] = []
+    moat_signal = False
+    margin_signal = False
+
     if isinstance(moat_grade, str):
         g = moat_grade.lower()
         if "wide" in g:
             score += 3.0
             reasons.append("Wide moat")
+            moat_signal = True
         elif "narrow" in g:
             score += 1.5
             reasons.append("Narrow moat")
+            moat_signal = True
         elif "none" in g or g == "no moat":
             score -= 1.5
             reasons.append("No moat")
+            moat_signal = True
 
-    # Margin stability proxy (IT)
+    # Margin stability proxy — works as a brand/pricing-power signal
+    # for any sector, not just IT. A small-cap with stable op margins
+    # over 3+ years exhibits real pricing power even without a formal
+    # moat classification.
     fins = data.get("financials") or []
     op_margins = [f.get("op_margin") for f in fins if f.get("op_margin") is not None]
     if len(op_margins) >= 3:
@@ -594,12 +611,21 @@ def _axis_moat(data: dict, sector: str) -> dict:
             score += max(-0.5, min(1.0, (5.0 - stdev) * 0.15))
             if stdev < 3.0:
                 reasons.append("Stable margins")
+                margin_signal = True
+            else:
+                # Even noisier margins still count as a real (if weak)
+                # signal — we read 3+ years of op-margin history.
+                margin_signal = True
+                reasons.append(f"Op-margin σ {stdev:.1f}")
         except Exception:
             pass
 
-    if not reasons:
-        return _neutral_axis("No moat classification available")
-    return _axis(score, ", ".join(reasons))
+    # data_limited only when we have NO moat classification AND no
+    # multi-year op-margin history. Either alone lights the axis.
+    if not (moat_signal or margin_signal):
+        return _neutral_axis("No moat classification or margin history")
+    return _axis(score, ", ".join(reasons) if reasons else "Partial moat data",
+                 data_limited=False)
 
 
 def _axis_safety(data: dict, sector: str) -> dict:
@@ -662,6 +688,9 @@ def _axis_safety(data: dict, sector: str) -> dict:
             return _neutral_axis("No IT-safety signal")
         return _axis(score_it, ", ".join(reasons_it) if reasons_it else "IT safety proxy")
 
+    # data_limited triggers ONLY when ALL of D/E, interest coverage and
+    # Altman Z are absent. A microcap with just D/E (and no Altman) is
+    # still a real safety signal and lights the axis.
     if de is None and int_cov is None and altman is None:
         return _neutral_axis("No leverage / coverage data")
 

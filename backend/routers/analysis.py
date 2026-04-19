@@ -59,7 +59,6 @@ KNOWN_BROKEN_TICKERS: dict[str, str] = {
 @router.get("/analysis/{ticker}", response_model=AnalysisResponse)
 async def get_analysis(
     ticker: str,
-    response: Response,
     include_summary: bool = Query(
         True,
         description=(
@@ -115,7 +114,6 @@ async def get_analysis(
     cached = cache.get(_cache_key)
     if cached:
         cached.cached = True
-        response.headers["X-Cache"] = "HIT-MEM"
         if not include_summary:
             # Caller asked to defer summary generation — strip it from the
             # cached payload so the client always gets a consistent contract.
@@ -126,7 +124,17 @@ async def get_analysis(
                 cached = cached.model_copy(update={"ai_summary": None})
             except Exception:
                 cached.ai_summary = None
-        return cached
+        # Return as JSONResponse so the X-Cache header is set ONCE.
+        # Previously we mutated `response.headers["X-Cache"]` on the
+        # Response param AND a parallel branch returned JSONResponse
+        # with its own X-Cache header — FastAPI merged the two,
+        # producing the comma-joined "HIT-MEM-RAW, MISS" bug.
+        from fastapi.responses import JSONResponse as _JSONResponse
+        from fastapi.encoders import jsonable_encoder as _je
+        return _JSONResponse(
+            content=_je(cached),
+            headers={"X-Cache": "HIT-MEM"},
+        )
 
     # Tier 2: persistent DB cache (shared across workers, survives restart).
     # Never raises — failures degrade to compute.
@@ -274,7 +282,6 @@ async def get_analysis(
                 "analysis_cache: write-back failed for %s: %s", ticker, _write_exc
             )
 
-        response.headers["X-Cache"] = "MISS"
         if not include_summary:
             # Cache retains the full object (including any ai_summary the
             # service populated); only the response to this caller is trimmed.
@@ -282,7 +289,17 @@ async def get_analysis(
                 result = result.model_copy(update={"ai_summary": None})
             except Exception:
                 result.ai_summary = None
-        return result
+        # Return as JSONResponse so the X-Cache=MISS header is the
+        # only X-Cache value set on this response. Mutating the
+        # `response: Response` param previously caused FastAPI to
+        # merge it with JSONResponse-set headers from the fast paths,
+        # which surfaced as "X-Cache: HIT-MEM-RAW, MISS" at the wire.
+        from fastapi.responses import JSONResponse as _JSONResponse
+        from fastapi.encoders import jsonable_encoder as _je
+        return _JSONResponse(
+            content=_je(result),
+            headers={"X-Cache": "MISS"},
+        )
     except TickerNotFoundError:
         # Data provider returned nothing for this symbol. 404 lets the
         # frontend distinguish "bad ticker" from "our service broke".
