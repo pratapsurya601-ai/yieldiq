@@ -142,6 +142,28 @@ def _get_adjusted_fcf(fcf, pat, is_financial):
     return fcf
 
 
+def _clamp_ev_ebitda(value):
+    """Defense-in-depth: cap EV/EBITDA at the response layer so absurd
+    values from any upstream path (yfinance unit mixup, stale cache row,
+    bad market_metrics column) can never reach the UI.
+
+    Audit feedback: INFY persistently shows EV/EBITDA = 1217.5× across
+    audits while peer median is ~24×. local_data_service.py:357 added
+    a sanity guard but the value can still leak through other paths
+    (eveb.get("current_ev_ebitda") if that ever fires). Final guard
+    here: anything outside (0.5, 200) returns None → UI renders "—".
+    """
+    if value is None:
+        return None
+    try:
+        v = float(value)
+    except (TypeError, ValueError):
+        return None
+    if v <= 0.5 or v > 200:
+        return None
+    return v
+
+
 def _enforce_scenario_order(bear, base, bull, price: float):
     """Defense-in-depth: ensure bull >= base >= bear in the final output.
 
@@ -2120,7 +2142,14 @@ class AnalysisService:
             and _ebit_val > 0
             and _total_assets > 0
         ):
-            _roce_val = round(_ebit_val / _total_assets * 100, 1)
+            _rounded = round(_ebit_val / _total_assets * 100, 1)
+            # Sanity guard: if the rounded value is EXACTLY 0.0, the
+            # underlying ratio was <0.05% — effectively noise. Returning
+            # 0.0% to the UI looks like "Weak" to users; "—" is more
+            # honest (audit feedback: HCLTECH/TCS/INFY/ITC all showed
+            # 0.0% because tiny EBIT/TA rounded down, misleading users
+            # into thinking the business had zero return on capital).
+            _roce_val = _rounded if _rounded > 0 else None
 
         # Banks / NBFCs: Debt/EBITDA and Interest Coverage are not
         # meaningful (deposits ≠ debt, interest expense is revenue).
@@ -2162,6 +2191,22 @@ class AnalysisService:
                 _rev_cagr_5y = _rcagr(_rev_series, 5)
         except Exception:
             pass
+        # Sanity clamp: CAGR outside ±50% is almost certainly a data
+        # artifact (currency conversion error, one-off spinoff/demerger,
+        # bad yfinance row). Audit feedback: HCLTECH showed -75.5% 3y
+        # CAGR, but its real 3y CAGR is +7-10%. Clamp to None so the
+        # UI renders "—" instead of an obviously-wrong -75%. Real
+        # business CAGR outside ±50% for established companies would
+        # have a manual review anyway (likely a special situation).
+        def _sanitize_cagr(v):
+            if v is None:
+                return None
+            try:
+                return None if abs(float(v)) > 0.50 else v
+            except (TypeError, ValueError):
+                return None
+        _rev_cagr_3y = _sanitize_cagr(_rev_cagr_3y)
+        _rev_cagr_5y = _sanitize_cagr(_rev_cagr_5y)
 
         # Enterprise Value in Crores: market_cap_cr + debt − cash.
         # market_cap not in enriched — derive from price × shares.
@@ -2347,7 +2392,7 @@ class AnalysisService:
                 insider_net_sentiment=(raw.get("finnhub_insider") or {}).get("sentiment"),
                 market_expectations_growth=rdcf.get("implied_growth"),
                 fcf_yield=fcf_yield.get("fcf_yield"),
-                ev_ebitda=eveb.get("current_ev_ebitda") or enriched.get("ev_to_ebitda"),
+                ev_ebitda=_clamp_ev_ebitda(eveb.get("current_ev_ebitda") or enriched.get("ev_to_ebitda")),
                 reverse_dcf_implied_growth=rdcf.get("implied_growth"),
                 bulk_deals=_bulk_deals,
             ),
