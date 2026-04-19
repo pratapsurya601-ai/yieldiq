@@ -189,7 +189,25 @@ def extract_fields(payload: dict | None) -> dict[str, Any]:
         "debt_to_equity": _get(payload, "debt_to_equity", "de_ratio")
         or _get(ratios, "debt_to_equity", "de_ratio"),
         "market_cap_cr": _get(payload, "market_cap_cr", "mcap_cr"),
+        # Verdict carries the "no DCF was possible" signal. Gates that
+        # interpret numerical fv/mos/ratio values must skip stocks where
+        # the verdict says those numbers are sentinels, not real values.
+        "verdict": _get(payload, "verdict") or _get(val, "verdict"),
     }
+
+
+# Verdicts that indicate the stock has no valid DCF output. The numerical
+# fields (fair_value, mos, bear/base/bull) are sentinels (0s) in these
+# cases — the UI renders a dedicated fallback card. Canary gates that
+# compare numbers must skip these stocks; otherwise they fire false
+# positives like "mos=0.00% but (fv-cmp)/cmp=-100%" for TATAMOTORS (which
+# was renamed to TMPV and has no live data yet).
+NO_DCF_VERDICTS = {"unavailable", "avoid", "under_review", "data_limited"}
+
+
+def _has_no_dcf(fields: dict[str, Any]) -> bool:
+    v = fields.get("verdict")
+    return isinstance(v, str) and v.lower() in NO_DCF_VERDICTS
 
 
 # ---------------------------------------------------------------------------
@@ -235,7 +253,12 @@ def gate2_mos_math(symbol: str, fields: dict[str, Any]) -> list[str]:
     """``mos`` must equal ``(fv - cmp) / cmp * 100`` within ``MOS_MATH_TOL`` pp.
     YieldIQ's API returns MoS as percent (e.g. 34.8 means +34.8%), not
     decimal — so the expected formula multiplies by 100 to match units.
-    Tolerance is ``MOS_MATH_TOL`` percentage points (default 2.0)."""
+    Tolerance is ``MOS_MATH_TOL`` percentage points (default 2.0).
+
+    Skipped when verdict indicates no DCF was possible (stock is in a
+    sentinel state — fv=0, mos=0 are placeholders, not real values)."""
+    if _has_no_dcf(fields):
+        return []
     fv, cmp_, mos = fields.get("fair_value"), fields.get("cmp"), fields.get("margin_of_safety")
     if not (_is_num(fv) and _is_num(cmp_) and _is_num(mos)):
         return []
@@ -248,7 +271,12 @@ def gate2_mos_math(symbol: str, fields: dict[str, Any]) -> list[str]:
 
 
 def gate3_dispersion(symbol: str, fields: dict[str, Any]) -> list[str]:
-    """bull > base > bear with > 5% spread on each side."""
+    """bull > base > bear with > 5% spread on each side.
+
+    Skipped when verdict indicates no DCF was possible (scenarios would
+    all be 0 sentinels in that state)."""
+    if _has_no_dcf(fields):
+        return []
     bull = _scalarize(fields.get("bull_case"))
     base = _scalarize(fields.get("base_case"))
     bear = _scalarize(fields.get("bear_case"))
@@ -289,7 +317,14 @@ def gate4_canary_bounds(
 
 
 def gate5_forbidden(symbol: str, fields: dict[str, Any]) -> list[str]:
-    """Explicit sentinels / unit-bug ranges that should never appear."""
+    """Explicit sentinels / unit-bug ranges that should never appear.
+
+    Skipped when verdict indicates no DCF was possible — fv=0/mos=0 are
+    intentional sentinels in that state, not bugs. Other ratio fields
+    (roce, ev_ebitda, revenue_cagr_3y) ARE still checked because they
+    come from non-DCF paths (ratios_service reads financials directly)."""
+    if _has_no_dcf(fields):
+        return []
     out: list[str] = []
     roce = fields.get("roce")
     if _is_num(roce) and roce == 0.0:

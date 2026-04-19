@@ -161,6 +161,41 @@ def test_gate5_fails_on_fv_cmp_ratio_extreme():
 
 
 # ---------------------------------------------------------------------------
+# PR-FV0: no-DCF verdict skip (TATAMOTORS rename, unavailable stocks)
+# ---------------------------------------------------------------------------
+
+
+def test_gate2_skips_unavailable_verdict():
+    # fv=0, cmp=X, mos=0 — would fire without the skip
+    f = _clean_fields(cmp=500.0, fair_value=0.0, margin_of_safety=0.0,
+                      verdict="unavailable")
+    assert cd.gate2_mos_math("TATAMOTORS", f) == []
+
+
+def test_gate3_skips_data_limited_verdict():
+    f = _clean_fields(bear_case=0.0, base_case=0.0, bull_case=0.0,
+                      verdict="data_limited")
+    assert cd.gate3_dispersion("TATAMOTORS", f) == []
+
+
+def test_gate5_skips_avoid_verdict():
+    # fv/cmp=0 would normally fire; avoid verdict short-circuits the check
+    f = _clean_fields(cmp=500.0, fair_value=0.0, margin_of_safety=0.0,
+                      bear_case=0.0, base_case=0.0, bull_case=0.0,
+                      verdict="avoid")
+    assert cd.gate5_forbidden("TATAMOTORS", f) == []
+
+
+def test_gate5_still_fires_on_fv_zero_WITHOUT_verdict_sentinel():
+    # If fv=0 ships with a normal verdict (product regression), still fail.
+    # This confirms the skip only bypasses when verdict is the sentinel.
+    f = _clean_fields(cmp=500.0, fair_value=0.0, margin_of_safety=0.0,
+                      verdict="fairly_valued")
+    violations = cd.gate5_forbidden("TATAMOTORS", f)
+    assert any("fv/cmp" in v for v in violations)
+
+
+# ---------------------------------------------------------------------------
 # Driver smoke tests
 # ---------------------------------------------------------------------------
 
