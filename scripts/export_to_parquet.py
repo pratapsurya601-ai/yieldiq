@@ -253,6 +253,13 @@ def main() -> int:
         print("DATABASE_URL not set", file=sys.stderr)
         return 2
 
+    # SQLAlchemy 2.x dropped the legacy postgres:// scheme in favour of
+    # postgresql:// (old Heroku / Aiven / many cloud providers still
+    # emit the bare form). Normalise so the engine loader finds the
+    # dialect on both.
+    if url.startswith("postgres://"):
+        url = "postgresql://" + url[len("postgres://"):]
+
     try:
         from sqlalchemy import create_engine
     except ImportError:
