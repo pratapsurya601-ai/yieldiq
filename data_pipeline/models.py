@@ -249,3 +249,83 @@ class FairValueHistory(Base):
         default=datetime.utcnow,
         onupdate=datetime.utcnow,
     )
+
+
+# ────────────────────────────────────────────────────────────────────
+# Phase-1 data-coverage tables (migration 005)
+# ────────────────────────────────────────────────────────────────────
+
+class RatioHistory(Base):
+    """Time-series of derived ratios per ticker.
+
+    One row per (ticker, period_end, period_type). Populated by
+    scripts/build_ratio_history.py from the financials table.
+
+    Unlike `Financials` which carries raw P&L/BS/CF fields, this table
+    is the *derived* layer — everything the frontend needs to render
+    10-year ratio sparklines without recomputing on each request.
+    """
+
+    __tablename__ = "ratio_history"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    ticker = Column(String(20), nullable=False, index=True)
+    period_end = Column(Date, nullable=False)
+    period_type = Column(String(10), nullable=False)   # annual | quarterly | ttm
+
+    # Profitability (PERCENT)
+    roe = Column(Float)
+    roce = Column(Float)
+    roa = Column(Float)
+
+    # Leverage
+    de_ratio = Column(Float)          # decimal
+    debt_ebitda = Column(Float)
+    interest_cov = Column(Float)
+
+    # Margins (PERCENT)
+    gross_margin = Column(Float)
+    operating_margin = Column(Float)
+    net_margin = Column(Float)
+    fcf_margin = Column(Float)
+
+    # Growth (DECIMAL YoY — 0.12 == 12%)
+    revenue_yoy = Column(Float)
+    ebitda_yoy = Column(Float)
+    pat_yoy = Column(Float)
+    fcf_yoy = Column(Float)
+
+    # Valuation (point-in-time at period_end)
+    pe_ratio = Column(Float)
+    pb_ratio = Column(Float)
+    ev_ebitda = Column(Float)
+    dividend_yield = Column(Float)    # PERCENT
+    market_cap_cr = Column(Float)
+
+    # Liquidity / efficiency
+    current_ratio = Column(Float)
+    asset_turnover = Column(Float)
+
+    # Provenance
+    computed_at = Column(DateTime, default=datetime.utcnow)
+    source_version = Column(String(10))
+
+
+class PeerGroup(Base):
+    """Precomputed peer lists per ticker.
+
+    Populated by scripts/build_peer_groups.py using sub_sector + market-cap
+    proximity. Rebuilt weekly by GitHub Actions. Top-6 peers per ticker.
+    """
+
+    __tablename__ = "peer_groups"
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    ticker = Column(String(20), nullable=False, index=True)
+    peer_ticker = Column(String(20), nullable=False)
+    rank = Column(Integer, nullable=False)        # 1 = closest peer
+    reason = Column(String(100))
+    mcap_ratio = Column(Float)                     # peer_mcap / ticker_mcap
+    sector = Column(String(100))
+    sub_sector = Column(String(100))
+    computed_at = Column(DateTime, default=datetime.utcnow)
