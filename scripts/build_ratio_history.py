@@ -243,6 +243,53 @@ def _latest_metrics_at_or_before(
     return row
 
 
+# Max tolerated gap between period_end and the daily_prices row we'll
+# use as "price at period end". 120 days covers typical quarterly-results
+# reporting lag + any daily_prices ingestion gaps without letting an
+# ancient price contaminate a recent ratio.
+_PRICE_LOOKUP_MAX_GAP_DAYS = 120
+
+
+def _price_at_or_before(
+    db: OrmSession, ticker: str, on_or_before: date,
+) -> float | None:
+    """Close price for `ticker` on the latest trading day on-or-before
+    `on_or_before`, within ``_PRICE_LOOKUP_MAX_GAP_DAYS``. Prefers the
+    split/bonus-adjusted column when present, else falls back to raw close.
+
+    Used by the per-period valuation computation (PE/PB/EV) so we don't
+    depend on the sparsely-populated market_metrics history."""
+    sql = text("""
+        SELECT trade_date, close_price, adj_close
+        FROM daily_prices
+        WHERE ticker = :t AND trade_date <= :d
+        ORDER BY trade_date DESC LIMIT 1
+    """)
+    row = db.execute(sql, {"t": ticker, "d": on_or_before}).first()
+    if row is None:
+        return None
+    td, close, adj = row[0], row[1], row[2]
+    # Skip if the nearest price is too far from period_end
+    try:
+        gap = (on_or_before - td).days
+        if gap > _PRICE_LOOKUP_MAX_GAP_DAYS:
+            return None
+    except Exception:
+        pass
+    # adj_close preferred (handles splits + bonuses); raw close fallback
+    if adj is not None:
+        try:
+            return float(adj)
+        except (TypeError, ValueError):
+            pass
+    if close is not None:
+        try:
+            return float(close)
+        except (TypeError, ValueError):
+            pass
+    return None
+
+
 def _compute_row(
     f: Financials,
     prior: Financials | None,
@@ -250,6 +297,7 @@ def _compute_row(
     *,
     ticker: str,
     clamp_log: list[tuple[str, str]],
+    price_at_period_end: float | None = None,
 ) -> dict[str, Any]:
     """Compute the full ratio_history row for one financial period."""
     raw = _parse_raw_json(f.raw_data)
@@ -375,15 +423,56 @@ def _compute_row(
             fcf_yoy = float(f.fcf_growth_yoy)
 
     # ── Valuation (point-in-time) ──
+    # Two sources, in order of preference:
+    #   1. Compute from primitives: daily_prices close × shares + Financials
+    #      pat/equity/debt/cash/ebitda. Gives real historical ratios at
+    #      any period_end back to when daily_prices starts (~5Y).
+    #   2. Fall back to the market_metrics snapshot at-or-before period_end.
+    #      market_metrics rarely has historical depth (today: 3 days), so
+    #      this mostly supplies dividend_yield + a same-day reference.
     pe_ratio = pb_ratio = ev_ebitda = dividend_yield = market_cap_cr = None
+
+    # Primitives. Financials.shares_outstanding is in LAKHS per the model
+    # comment (1 Lakh = 100_000 shares). Other monetary fields are stored
+    # in the filing's reporting unit — for Indian XBRL that's raw INR,
+    # and the existing pipeline normalises USD filers upstream, so we
+    # treat every number below as raw INR without further conversion.
+    shares_lakhs = float(f.shares_outstanding) if _is_finite(f.shares_outstanding) else None
+    mcap_inr: float | None = None
+    if price_at_period_end is not None and shares_lakhs is not None and shares_lakhs > 0:
+        mcap_inr = price_at_period_end * shares_lakhs * 1e5  # shares in Lakhs → units
+        market_cap_cr = mcap_inr / 1e7
+
+        # PE = market cap / net income
+        if _is_finite(f.pat) and float(f.pat) > 0:
+            pe_ratio = mcap_inr / float(f.pat)
+
+        # PB = market cap / shareholders equity
+        if _is_finite(f.total_equity) and float(f.total_equity) > 0:
+            pb_ratio = mcap_inr / float(f.total_equity)
+
+        # EV/EBITDA = (market cap + total_debt - cash) / ebitda
+        if (
+            _is_finite(f.ebitda)
+            and float(f.ebitda) > 0
+            and _is_finite(f.total_debt)
+            and _is_finite(f.cash_and_equivalents)
+        ):
+            ev_inr = mcap_inr + float(f.total_debt) - float(f.cash_and_equivalents)
+            ev_ebitda = ev_inr / float(f.ebitda)
+
+    # Fallback / supplement from market_metrics snapshot
     if mm is not None:
-        pe_ratio = mm.pe_ratio if _is_finite(mm.pe_ratio) else None
-        pb_ratio = mm.pb_ratio if _is_finite(mm.pb_ratio) else None
-        ev_ebitda = mm.ev_ebitda if _is_finite(mm.ev_ebitda) else None
-        dividend_yield = (
-            mm.dividend_yield if _is_finite(mm.dividend_yield) else None
-        )
-        market_cap_cr = mm.market_cap_cr if _is_finite(mm.market_cap_cr) else None
+        if pe_ratio is None and _is_finite(mm.pe_ratio):
+            pe_ratio = float(mm.pe_ratio)
+        if pb_ratio is None and _is_finite(mm.pb_ratio):
+            pb_ratio = float(mm.pb_ratio)
+        if ev_ebitda is None and _is_finite(mm.ev_ebitda):
+            ev_ebitda = float(mm.ev_ebitda)
+        if _is_finite(mm.dividend_yield):
+            dividend_yield = float(mm.dividend_yield)
+        if market_cap_cr is None and _is_finite(mm.market_cap_cr):
+            market_cap_cr = float(mm.market_cap_cr)
 
     # ── Liquidity / efficiency ──
     current_assets = _get_numeric(raw, "current_assets", "total_current_assets")
@@ -531,8 +620,14 @@ def process_ticker(
             continue
         prior = _find_prior_year_row(rows, idx_by_type, i)
         mm = _latest_metrics_at_or_before(db, ticker, f.period_end)
+        # New: compute historical valuation from primitives (daily_prices +
+        # Financials) because market_metrics lacks historical depth.
+        price = _price_at_or_before(db, ticker, f.period_end)
         row_values = _compute_row(
-            f, prior, mm, ticker=ticker, clamp_log=clamp_log,
+            f, prior, mm,
+            ticker=ticker,
+            clamp_log=clamp_log,
+            price_at_period_end=price,
         )
         db.execute(UPSERT_SQL, row_values)
         n_written += 1
