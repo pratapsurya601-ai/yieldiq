@@ -39,12 +39,12 @@ BOUNDS: dict[str, tuple[float, float, str]] = {
     "pe_ratio":           (-200, 500,  "warning"),
     "pb_ratio":           (0.01, 100,  "warning"),
     # FIX2: tightened from (-100, 500, warning) to (-100, 200, critical).
-    # Real EV/EBITDA outside this range is essentially never legitimate
-    # — anything higher is a unit mixup (HCLTECH was rendering 1376×
-    # because debt/cash/EBITDA in raw INR were divided into a Cr mcap).
-    # Fail-closed so the data quality issue surfaces in validators
-    # instead of leaking to the UI.
-    "ev_ebitda":          (-100, 200,  "critical"),
+    # PR1 (2026-04-19): floor moved to 0.5 — values exactly 0.0 (sentinel
+    # for "EBITDA was zero / negative, ratio is undefined") were leaking
+    # to the UI as "0.0×". Fail-closed: if you really hit 0.5×, the
+    # business has near-zero enterprise value relative to EBITDA which
+    # is itself a data-quality red flag worth surfacing.
+    "ev_ebitda":          (0.5,  200,  "critical"),
     "ps_ratio":           (0,    100,  "warning"),
 
     # ── Valuation outputs ─────────────────────────────────────
@@ -52,6 +52,17 @@ BOUNDS: dict[str, tuple[float, float, str]] = {
     "current_price":      (0.01, 1e7,  "critical"),
     "fair_value_ratio":   (0.20, 5.0,  "critical"),   # FV/CMP
     "margin_of_safety":   (-95,  500,  "critical"),   # percent
+    # PR1 additions ---------------------------------------------
+    # Tighter MoS gate for the response payload (the field name in the
+    # response is `margin_of_safety` in percent; `mos_pct` is the
+    # canonical name in dict-based ingestion records). ±150% catches
+    # impossible blended-FV cases without triggering on the legitimate
+    # +95% cap from the existing margin_of_safety bound.
+    "mos_pct":            (-150, 150,  "critical"),
+    # Warn-level FV/CMP ratio inside the existing critical band so a
+    # gentler trigger surfaces in dashboards before the hard 0.20-5.0
+    # cutoff fires. Anything outside 0.4-2.5x deserves human review.
+    "fair_value_to_price_ratio": (0.4, 2.5, "warning"),
 
     # ── Scores ────────────────────────────────────────────────
     "score":              (0,    100,  "critical"),
@@ -65,12 +76,28 @@ BOUNDS: dict[str, tuple[float, float, str]] = {
     "market_cap_inr":     (10e7, 30e12, "critical"),
 
     # ── Growth (decimal) ──────────────────────────────────────
-    "revenue_cagr_3y":    (-0.50, 1.50, "warning"),
+    # PR1: tightened from (-0.50, 1.50, warning) to (-0.40, 0.40, critical).
+    # Established large-caps with sustained ±40%+ 3y revenue CAGR are
+    # essentially nonexistent in our covered universe; values outside
+    # this band are almost always a base-period bug (post-IPO partial
+    # year, demerger, units mismatch). Fail-closed.
+    "revenue_cagr_3y":    (-0.40, 0.40, "critical"),
     "revenue_cagr_5y":    (-0.50, 1.00, "warning"),
     "fcf_growth":         (-0.90, 2.00, "warning"),
 
     # ── Efficiency ────────────────────────────────────────────
     "asset_turnover":     (0,    10.0, "warning"),
+}
+
+
+# Forbidden sentinel values. PR1: ratios_service used to emit `0.0` as a
+# silent "could not compute" sentinel for ROCE; the UI then rendered "0.0%"
+# which is materially different from "—". Treat exact-0 as invalid for these
+# fields so they fail-closed to NULL/render-dash. Add fields here whose
+# computation pipeline is known to use 0 as an undefined-sentinel.
+FORBIDDEN_VALUES: dict[str, tuple[float, ...]] = {
+    "roce":     (0.0,),
+    "roce_pct": (0.0,),
 }
 
 
@@ -86,6 +113,9 @@ def validate_field(name: str, value) -> tuple[bool, str | None]:
         return False, f"{name} must be numeric, got {type(value).__name__}"
     if v != v:  # NaN check
         return False, f"{name} is NaN"
+    forbidden = FORBIDDEN_VALUES.get(name)
+    if forbidden is not None and v in forbidden:
+        return False, f"{name}={v:g} is a forbidden sentinel (treat as NULL)"
     lo, hi, _sev = BOUNDS[name]
     if v < lo or v > hi:
         return False, f"{name}={v:g} outside bounds [{lo}, {hi}]"

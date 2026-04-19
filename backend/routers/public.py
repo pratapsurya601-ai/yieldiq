@@ -20,20 +20,23 @@ logger = logging.getLogger("yieldiq.public")
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 
 
-def _cached_json(content, s_maxage: int, swr: int = 3600):
+def _cached_json(content, s_maxage: int, swr: int = 3600, extra_headers: dict | None = None):
     """Wrap content in a JSONResponse with Vercel-edge Cache-Control.
 
     `s-maxage` applies to shared caches only (Vercel edge, CDNs) so
     browsers still revalidate; `stale-while-revalidate` lets the
     edge serve stale for `swr` seconds while refreshing in the
     background. Both values are in seconds.
+
+    `extra_headers` lets callers stamp observability headers (e.g.
+    X-Source) without losing the Cache-Control contract.
     """
-    return JSONResponse(
-        content=content,
-        headers={
-            "Cache-Control": f"public, s-maxage={s_maxage}, stale-while-revalidate={swr}",
-        },
-    )
+    headers = {
+        "Cache-Control": f"public, s-maxage={s_maxage}, stale-while-revalidate={swr}",
+    }
+    if extra_headers:
+        headers.update(extra_headers)
+    return JSONResponse(content=content, headers=headers)
 
 
 # ── Helpers ───────────────────────────────────────────────────
@@ -56,7 +59,17 @@ def _safe_close(session) -> None:
 
 
 def _extract_analysis_summary(result) -> dict:
-    """Extract a flat summary dict from a full AnalysisResponse object."""
+    """Extract a flat summary dict from a full AnalysisResponse object.
+
+    Single-Source-of-Truth contract (PR1):
+        Every value MUST be a direct read from the AnalysisResponse the
+        analysis pipeline produced. NO local computation, NO synthesised
+        fallbacks. If the SEO frontend asks for a field that is not on
+        AnalysisResponse, return None here and log — that field must be
+        added to the canonical schema in a follow-up PR; we do NOT
+        materialise it locally because that re-creates the very drift
+        we just deleted.
+    """
     v = result.valuation
     q = result.quality
     c = result.company
@@ -227,13 +240,26 @@ async def get_demo_cards():
 async def get_stock_summary(ticker: str):
     """
     Public stock summary for SEO pages. No auth required.
-    1-hour cache. Checks analysis cache first, then runs analysis.
+
+    Single-Source-of-Truth (PR1, 2026-04-19):
+        Reads exclusively from `analysis_cache` (persisted v35 payload).
+        NEVER recomputes locally — that path was the cause of the public/
+        authed FV drift (HCLTECH, etc.). If the cache is empty for a
+        ticker, we return a 503 "data under review" payload rather than
+        synthesizing a different number than the authed endpoint.
+
+        All fields the SEO page renders are sourced from the canonical
+        AnalysisResponse schema. Any field the SEO page wants that is NOT
+        in the cache schema must be added to AnalysisResponse — it cannot
+        be back-doored here without re-introducing the drift bug.
+
+    Cache: edge s-maxage=600, swr=3600. X-Source header for observability.
     """
     ticker = ticker.upper().strip()
     if not ticker.endswith(".NS") and not ticker.endswith(".BO"):
         ticker = f"{ticker}.NS"
 
-    # Resolve aliases
+    # Resolve aliases (e.g. ZOMATO.NS → ETERNAL.NS)
     try:
         from backend.routers.analysis import TICKER_ALIASES
         ticker = TICKER_ALIASES.get(ticker, ticker)
@@ -241,19 +267,21 @@ async def get_stock_summary(ticker: str):
         pass
 
     _cache_key = f"public:stock-summary:{ticker}"
-    cached = cache.get(_cache_key)
-    if cached is not None:
-        return _cached_json(cached, s_maxage=600, swr=3600)
+    _cached_summary = cache.get(_cache_key)
+    if _cached_summary is not None:
+        return _cached_json(
+            _cached_summary,
+            s_maxage=600,
+            swr=3600,
+            extra_headers={"X-Source": "analysis_cache_v35", "X-Cache": "HIT"},
+        )
 
-    # Tier 1: in-memory analysis cache
+    # Resolve the canonical AnalysisResponse from the same place the
+    # authed endpoint serves it. Tier 1 is the in-memory cache (warm
+    # path); tier 2 is the persistent analysis_cache table (survives
+    # Railway redeploys). Both are populated only by the analysis
+    # service, never by this router.
     analysis_cached = cache.get(f"analysis:{ticker}")
-
-    # Tier 2: persistent analysis_cache DB table. This survives Railway
-    # redeploys (the in-memory cache does not). Before wiring this in,
-    # every deploy wiped the warmed 199-ticker set from memory, so the
-    # SEO stock-summary endpoint would fall through to the expensive
-    # full-compute path — which sometimes throws transiently and returns
-    # "Analysis unavailable" even for healthy tickers like TATAPOWER.
     if analysis_cached is None or not hasattr(analysis_cached, "valuation"):
         try:
             from backend.services import analysis_cache_service
@@ -265,39 +293,50 @@ async def get_stock_summary(ticker: str):
                 # skip the DB round-trip.
                 cache.set(f"analysis:{ticker}", analysis_cached, ttl=86400)
         except Exception as _exc:
-            logger.info("stock-summary: analysis_cache tier-2 lookup failed for %s: %s", ticker, _exc)
+            logger.info(
+                "stock-summary: analysis_cache tier-2 lookup failed for %s: %s",
+                ticker, _exc,
+            )
 
-    if analysis_cached and hasattr(analysis_cached, "valuation"):
-        from backend.services.validators import check_and_quarantine
-        quarantine = check_and_quarantine(ticker, analysis_cached)
-        if quarantine is not None:
-            # Do NOT cache the under_review payload against the clean
-            # cache key — the moment the next analysis run produces clean
-            # data, we want the wrapper to recompute, not serve stale.
-            return quarantine
-        summary = _extract_analysis_summary(analysis_cached)
-        cache.set(_cache_key, summary, ttl=3600)
-        return _cached_json(summary, s_maxage=600, swr=3600)
+    # Cache miss on BOTH tiers → 503 under_review. We do NOT recompute
+    # here. The warmer / nightly job is responsible for populating the
+    # cache; serving a "different" FV from a freshly-computed analysis
+    # would silently re-introduce the SoT drift bug PR1 closes.
+    if analysis_cached is None or not hasattr(analysis_cached, "valuation"):
+        logger.info("stock-summary cache miss for %s — returning under_review", ticker)
+        return JSONResponse(
+            status_code=503,
+            content={
+                "status": "under_review",
+                "ticker": ticker,
+                "message": "Analysis is being prepared for this ticker. Please check back shortly.",
+                "last_validated_at": "",
+                "reason": "cache_miss_no_recompute_on_public_path",
+                "issue_count": 0,
+            },
+            headers={
+                "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+                "X-Source": "analysis_cache_v35",
+                "X-Cache": "MISS",
+            },
+        )
 
-    # Run analysis if not cached
-    try:
-        from backend.services.analysis_service import AnalysisService
-        from backend.services.validators import check_and_quarantine
-        result = AnalysisService().get_full_analysis(ticker)
-        quarantine = check_and_quarantine(ticker, result)
-        if quarantine is not None:
-            return quarantine
-        summary = _extract_analysis_summary(result)
-        cache.set(_cache_key, summary, ttl=3600)
-        return _cached_json(summary, s_maxage=600, swr=3600)
-    except Exception as e:
-        err_str = str(e).lower()
-        if "not found" in err_str or "no data" in err_str:
-            raise HTTPException(status_code=404, detail=f"Ticker {ticker} not found")
-        # exc_info=True makes the full stack trace flow into Sentry via
-        # LoggingIntegration, so we stop flying blind on generic 500s.
-        logger.error("stock-summary failed for %s", ticker, exc_info=True)
-        raise HTTPException(status_code=500, detail="Analysis unavailable")
+    # Quarantine gate — same as the authed endpoint. If validators flag
+    # this payload, return the under_review structure WITHOUT caching it
+    # under the clean key.
+    from backend.services.validators import check_and_quarantine
+    quarantine = check_and_quarantine(ticker, analysis_cached)
+    if quarantine is not None:
+        return quarantine
+
+    summary = _extract_analysis_summary(analysis_cached)
+    cache.set(_cache_key, summary, ttl=3600)
+    return _cached_json(
+        summary,
+        s_maxage=600,
+        swr=3600,
+        extra_headers={"X-Source": "analysis_cache_v35", "X-Cache": "MISS"},
+    )
 
 
 @router.get("/all-tickers")

@@ -8,6 +8,7 @@ import {
   getPeers,
   getFinancials,
 } from "@/lib/api"
+import { fetchPrism } from "@/lib/prism"
 import AnalysisHero from "@/components/analysis/AnalysisHero"
 import AnalysisTabs, { type AnalysisTabDef } from "@/components/analysis/AnalysisTabs"
 import InsightCards from "@/components/analysis/InsightCards"
@@ -165,6 +166,22 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     enabled: !!ticker,
     staleTime: 5 * 60 * 1000,
   })
+
+  // PR1 SSR fix (Option C): Prism is now hydrated client-side instead of
+  // SSR-fetched. The legacy <AnalysisHero/> renders immediately while this
+  // query resolves; once it lands, <EditorialHero/> takes over. Long
+  // staleTime + cacheTime so route-level navigations re-use the payload.
+  const { data: prismLive } = useQuery({
+    queryKey: ["prism", ticker],
+    queryFn: () => fetchPrism(ticker),
+    enabled: !!ticker,
+    staleTime: 5 * 60 * 1000,
+    retry: 1,
+  })
+  // Prefer the freshest source: SSR-passed prop (legacy callers) → live
+  // query result. `prism ?? prismLive` keeps any external caller that
+  // still passes a server-rendered payload working.
+  const prismResolved = prism ?? prismLive ?? null
 
   // ─── Deferred queries — fire only when their tab opens ────────────
   useQuery({
@@ -539,9 +556,9 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         {/* Editorial hero — Prism-driven. Uses server-rendered prism payload
             when available; falls back to the legacy AnalysisHero when the
             Prism endpoint is unreachable so users still see something. */}
-        {prism ? (
+        {prismResolved ? (
           <EditorialHero
-            data={prism}
+            data={prismResolved}
             fairValue={valuation.fair_value}
             currentPrice={valuation.current_price}
             marginOfSafety={valuation.margin_of_safety}
