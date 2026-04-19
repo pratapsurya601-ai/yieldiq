@@ -1,0 +1,47 @@
+name: Peer Groups — Weekly Rebuild
+
+# Rebuilds the peer_groups table from stocks + market_metrics.
+#
+# Why weekly: peer relationships are stable week-over-week. Sector and
+# cap-category changes are rare events (new listings, cap rebalances,
+# sector reclassifications). Weekly rebuild catches those without
+# churning the table daily.
+#
+# Runtime: ~3-5 minutes for ~2,500 tickers.
+#
+# Secrets required:
+#   - DATABASE_URL : Aiven Postgres connection string (read+write)
+
+on:
+  schedule:
+    - cron: "0 4 * * 0"  # Sunday 04:00 UTC = 09:30 IST
+  workflow_dispatch: {}
+
+concurrency:
+  group: peer-groups-rebuild
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install sqlalchemy psycopg2-binary
+
+      - name: Run peer-group builder
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret missing"
+            exit 1
+          fi
+          python scripts/build_peer_groups.py --all
