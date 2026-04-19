@@ -23,7 +23,7 @@ from typing import Any, Optional
 #   - Would TCS / INFY / any existing top-100 ticker's fair_value change?
 #     YES  -> bump required
 #     NO   -> do not bump, even if you changed analysis_service.py
-CACHE_VERSION = 38  # PR-NTPC: defense-in-depth scenario ordering. _enforce_scenario_order wraps the final ScenariosOutput so bull >= base >= bear is GUARANTEED at serialization, regardless of upstream DCF instability (NTPC + utilities had bull < base from terminal_g near WACC). Old v37 cached payloads have unsorted scenarios; bump invalidates. v37=PR-BANKSC-2. v36=PR-BANKSC. v35=FV stability. v34=MoS formula. v33=scenarios. v32=MoS SoT.
+CACHE_VERSION = 39  # PR-DISCOVER-CONSISTENCY: yieldiq50 cache TTL was 24h, captured the static_seed for tickers not yet warmed in analysis_cache (e.g. ITC frozen at +38% MoS while live SEO page showed -1.7%). TTL now 300s — the per-ticker override re-runs every 5 min, Discover converges on live analysis_cache values. Bump invalidates yesterday's stale daily cache immediately. v38=PR-NTPC scenario order. v37=PR-BANKSC-2. v36=PR-BANKSC. v35=FV stability. v34=MoS formula. v33=scenarios. v32=MoS SoT.
 
 
 class CacheService:

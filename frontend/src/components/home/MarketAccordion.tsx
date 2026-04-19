@@ -32,7 +32,8 @@ export default function MarketAccordion() {
   const summary = (() => {
     const parts: string[] = []
     if (nifty) {
-      parts.push(`${nifty.name} ${nifty.change_pct >= 0 ? "+" : ""}${formatPct(nifty.change_pct)}`)
+      // formatPct already prepends "+" or "-" sign — don't double it.
+      parts.push(`${nifty.name} ${formatPct(nifty.change_pct)}`)
     }
     if (usdInr !== null) {
       parts.push(`USD/INR ₹${usdInr.toFixed(2)}`)

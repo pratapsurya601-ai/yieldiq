@@ -765,9 +765,17 @@ async def get_yieldiq50(user: dict = Depends(get_current_user)):
     stocks = sorted(by_ticker.values(), key=lambda x: x.score, reverse=True)[:50]
     result = ScreenerResponse(results=stocks, total=len(stocks))
     if stocks:
-        cache.set(_cache_key, result, ttl=86400)
+        # PR-DISCOVER-CONSISTENCY: TTL was 24h. Audit found Discover
+        # served ITC at static 38% MoS all day even after the SEO page
+        # showed live -1.7%. Root cause: this cache was set at the
+        # first morning request when analysis_cache for ITC was empty,
+        # so the static seed won and got frozen for 24h. Shortening to
+        # 5 min lets the per-ticker override (lines ~722-750) re-run
+        # frequently — within 5 min of any user-triggered analysis,
+        # Discover reflects the updated MoS.
+        cache.set(_cache_key, result, ttl=300)
         try:
-            cache.set(_cache_key + ":raw", result.model_dump(mode="json"), ttl=86400)
+            cache.set(_cache_key + ":raw", result.model_dump(mode="json"), ttl=300)
         except Exception:
             pass
     return result

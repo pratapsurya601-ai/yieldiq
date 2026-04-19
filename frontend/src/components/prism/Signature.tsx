@@ -208,7 +208,13 @@ export default function Signature({
       <g>
         {ordered.map((p, i) => {
           const s = scores[i]
-          const minR = maxRadius * 0.22 // outside the central composite text
+          // PR-PRISM-OVERLAP: when MANY pillars are data_limited (e.g.
+          // a Portfolio Prism with 5/6 n/a), all the n/a pills used to
+          // collide with the central composite text. Push minR further
+          // out (32% of maxRadius) so the n/a pills sit clearly outside
+          // the score's typographic footprint (~17% of size = ~21% of
+          // maxRadius once axis-label margin is accounted for).
+          const minR = maxRadius * 0.32
           // Only nudge data_limited pills outward — real score-0 vertices
           // belong on the polygon at the centre.
           const pillR = p.data_limited ? minR : (s / 10) * maxRadius
@@ -293,7 +299,14 @@ export default function Signature({
             letterSpacing: "-0.02em",
           }}
         >
-          {Number.isFinite(overall) ? overall.toFixed(1) : "—"}
+          {/* When ALL or majority of pillars are data_limited, the
+              composite is misleading (a "5.0" derived from neutrals
+              looks like a real score). Show "—" instead. */}
+          {(() => {
+            const limitedCount = pillars.filter((p) => p.data_limited).length
+            if (limitedCount >= Math.ceil(pillars.length / 2)) return "—"
+            return Number.isFinite(overall) ? overall.toFixed(1) : "—"
+          })()}
         </text>
         <text
           x={cx}

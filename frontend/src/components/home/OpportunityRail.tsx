@@ -38,7 +38,7 @@ export default function OpportunityRail() {
     <section>
       <div className="px-4 mb-2">
         <h2 className="font-display text-base md:text-lg font-bold text-ink leading-snug">
-          {count} wide-moat stock{count === 1 ? "" : "s"} now at &gt;20% margin of safety
+          {`${count} wide-moat ${count === 1 ? "stock" : "stocks"} now at >20% margin of safety`}
         </h2>
         <p className="text-xs text-caption mt-0.5">
           Filtered from the YieldIQ 50. Model estimate. Not investment advice.

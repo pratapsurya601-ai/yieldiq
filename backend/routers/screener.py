@@ -53,9 +53,18 @@ def _query_stocks_from_db(min_score: int = 0, min_mos: float = -100,
             """)
             total = db.execute(count_q).scalar() or 0
 
+            # PR-SCREENER-DEDUP: market_metrics can have duplicate ticker
+            # rows (multi-listing on NSE+BSE, or pipeline write conflicts).
+            # The JOIN above multiplies them. Dedupe in Python so the
+            # output has exactly one row per ticker (first hit wins —
+            # already ordered by pe_ratio so that's the cheapest).
             stocks = []
+            seen: set[str] = set()
             for row in rows:
                 ticker = row[0]
+                if not ticker or ticker in seen:
+                    continue
+                seen.add(ticker)
                 name = row[1] or ticker
                 pe = row[2] or 0
                 pb = row[3] or 0
