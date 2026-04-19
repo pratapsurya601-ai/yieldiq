@@ -121,37 +121,47 @@ def main() -> int:
             time.sleep(args.sleep)
             continue
 
+        import math
         def _num(v, kind=float):
+            # Handle None, NaN (pd.isna), empty strings
+            if v is None:
+                return None
             try:
+                if isinstance(v, float) and math.isnan(v):
+                    return None
                 x = kind(v)
-                return x if x else None
+                if isinstance(x, float) and math.isnan(x):
+                    return None
+                return x
             except (TypeError, ValueError):
                 return None
 
+        # Use to_dict('records') — robust against itertuples' column-name
+        # munging + lets us handle NaN explicitly per cell.
         rows_to_insert = []
-        for row in df.itertuples(index=False):
-            ticker = getattr(row, "ticker", None)
-            if not ticker:
+        for rec in df.to_dict("records"):
+            ticker = rec.get("ticker")
+            if ticker is None or (isinstance(ticker, float) and math.isnan(ticker)):
                 continue
-            try:
-                close = _num(getattr(row, "close_price", None))
-                rows_to_insert.append({
-                    "ticker": str(ticker).strip(),
-                    "trade_date": d,
-                    "open": _num(getattr(row, "open_price", None)),
-                    "high": _num(getattr(row, "high_price", None)),
-                    "low": _num(getattr(row, "low_price", None)),
-                    "close": close,
-                    "prev_close": _num(getattr(row, "prev_close", None)),
-                    "volume": _num(getattr(row, "volume", None), int),
-                    "turnover_cr": _num(getattr(row, "turnover_cr", None)),
-                    "delivery_qty": _num(getattr(row, "delivery_qty", None), int),
-                    "delivery_pct": _num(getattr(row, "delivery_pct", None)),
-                    "vwap": _num(getattr(row, "vwap", None)),
-                    "adj_close": close,   # raw close; corp-actions applied at read time
-                })
-            except (TypeError, ValueError):
+            ticker_str = str(ticker).strip()
+            if not ticker_str or ticker_str.lower() == "nan":
                 continue
+            close = _num(rec.get("close_price"))
+            rows_to_insert.append({
+                "ticker": ticker_str,
+                "trade_date": d,
+                "open": _num(rec.get("open_price")),
+                "high": _num(rec.get("high_price")),
+                "low": _num(rec.get("low_price")),
+                "close": close,
+                "prev_close": _num(rec.get("prev_close")),
+                "volume": _num(rec.get("volume"), int),
+                "turnover_cr": _num(rec.get("turnover_cr")),
+                "delivery_qty": _num(rec.get("delivery_qty"), int),
+                "delivery_pct": _num(rec.get("delivery_pct")),
+                "vwap": _num(rec.get("vwap")),
+                "adj_close": close,
+            })
 
         if not rows_to_insert:
             time.sleep(args.sleep)
