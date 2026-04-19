@@ -93,10 +93,21 @@ def _extract_analysis_summary(result) -> dict:
         "bull_case": round(v.bull_case, 2),
         "wacc": round(v.wacc, 4),
         "confidence": v.confidence_score,
-        "roe": round(q.roe, 2) if q.roe else None,
-        "de_ratio": round(q.de_ratio, 2) if q.de_ratio else None,
+        # PR-EXTRACT-FIX (2026-04-19): `if x else None` treats 0.0 as
+        # missing, which hid real zero-debt cash-rich IT names (TCS,
+        # INFY reliably have de_ratio ≈ 0 and were rendering "—").
+        # Use `is not None` so genuine zeros pass through.
+        "roe": round(q.roe, 2) if q.roe is not None else None,
+        "de_ratio": round(q.de_ratio, 2) if q.de_ratio is not None else None,
         # Phase 2.1 ratios — Optional; None renders as "—" on frontend.
-        "roce": getattr(q, "roce", None),
+        # ROCE sentinel guard: the ratios_service computation returns
+        # None for bad inputs, but some older cached payloads carry
+        # 0.0 as a leaked sentinel (before FIX2). Collapse those to
+        # None here so the UI doesn't render a misleading "0.0% Weak"
+        # chip for companies that have real ROCE > 0 the next cache cycle.
+        "roce": (lambda r: None if r is None or abs(r) < 0.05 else r)(
+            getattr(q, "roce", None)
+        ),
         "debt_ebitda": getattr(q, "debt_ebitda", None),
         "interest_coverage": getattr(q, "interest_coverage", None),
         "current_ratio": getattr(q, "current_ratio", None),
