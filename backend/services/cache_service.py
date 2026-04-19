@@ -23,7 +23,7 @@ from typing import Any, Optional
 #   - Would TCS / INFY / any existing top-100 ticker's fair_value change?
 #     YES  -> bump required
 #     NO   -> do not bump, even if you changed analysis_service.py
-CACHE_VERSION = 36  # PR-BANKSC: P/B financial scenarios — bear was hard-coded `_bvps × 1.5` which equals base when peer P/B median ≈ 1.5 (HDFCBANK bear=base=₹542). Now matches bull structure (`_bvps × _pb_median × 0.7`). Affects all banks/NBFCs/insurance using P/B method. Old v35 cached bear scenarios are wrong; bump invalidates. v35=FV stability snapshot. v34=MoS formula. v33=scenarios. v32=MoS source-of-truth.
+CACHE_VERSION = 37  # PR-BANKSC-2: financial_valuation_service P/BV bear/bull used UNADJUSTED median_pb while base used fair_pb (with ROE clamp at 0.7/1.4). When adj hit 0.7, base coincidentally equaled bear (HDFCBANK ₹542=₹542). Now bear/bull both scale off fair_pb. v36 cached scenarios are still wrong; bump invalidates. v36=PR-BANKSC analysis_service P/B path. v35=FV stability. v34=MoS formula. v33=scenarios. v32=MoS SoT.
 
 
 class CacheService:

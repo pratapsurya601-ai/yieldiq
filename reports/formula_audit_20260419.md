@@ -5,10 +5,10 @@
 Computations (want: exactly 1):
   - backend/routers/portfolio.py:159  _do_import()  [mos]
   - backend/routers/screener.py:71  _query_stocks_from_db()  [mos]   ⚠ DUPLICATE
-  - backend/services/analysis_service.py:1584  _get_full_analysis_inner()  [mos_pct]   ⚠ DUPLICATE
-  - backend/services/analysis_service.py:1786  _get_full_analysis_inner()  [mos_pct]   ⚠ DUPLICATE
-  - backend/services/analysis_service.py:2293  _get_full_analysis_inner()  [mos_pct]   ⚠ DUPLICATE
-  - backend/services/analysis_service.py:2295  _get_full_analysis_inner()  [mos_pct]   ⚠ DUPLICATE
+  - backend/services/analysis_service.py:1589  _get_full_analysis_inner()  [mos_pct]   ⚠ DUPLICATE
+  - backend/services/analysis_service.py:1791  _get_full_analysis_inner()  [mos_pct]   ⚠ DUPLICATE
+  - backend/services/analysis_service.py:2298  _get_full_analysis_inner()  [mos_pct]   ⚠ DUPLICATE
+  - backend/services/analysis_service.py:2300  _get_full_analysis_inner()  [mos_pct]   ⚠ DUPLICATE
   - backend/services/financial_valuation_service.py:285  _compute_pbv_path()  [mos_pct]   ⚠ DUPLICATE
   - backend/services/financial_valuation_service.py:325  _compute_pe_path()  [mos_pct]   ⚠ DUPLICATE
   - backend/services/hex_history_service.py:465  _compute_value_axis()  [mos_pct]   ⚠ DUPLICATE
@@ -43,11 +43,11 @@ Passthroughs (count: 50):
   - backend/routers/screener.py:207  _query_preset_from_db()  [margin_of_safety]
   - backend/services/analysis_service.py:1207  _get_full_analysis_inner()  [margin_of_safety]
   - backend/services/analysis_service.py:1248  _get_full_analysis_inner()  [margin_of_safety]
-  - backend/services/analysis_service.py:1793  _get_full_analysis_inner()  [mos_pct]
-  - backend/services/analysis_service.py:1814  _sc()  [mos_pct]
-  - backend/services/analysis_service.py:1978  _get_full_analysis_inner()  [mos]
-  - backend/services/analysis_service.py:2205  _get_full_analysis_inner()  [margin_of_safety]
-  - backend/services/analysis_service.py:2294  _get_full_analysis_inner()  [mos_pct]
+  - backend/services/analysis_service.py:1798  _get_full_analysis_inner()  [mos_pct]
+  - backend/services/analysis_service.py:1819  _sc()  [mos_pct]
+  - backend/services/analysis_service.py:1983  _get_full_analysis_inner()  [mos]
+  - backend/services/analysis_service.py:2210  _get_full_analysis_inner()  [margin_of_safety]
+  - backend/services/analysis_service.py:2299  _get_full_analysis_inner()  [mos_pct]
   - backend/services/financial_valuation_service.py:293  _compute_pbv_path()  [margin_of_safety]
   - backend/services/financial_valuation_service.py:331  _compute_pe_path()  [margin_of_safety]
   - backend/services/hex_service.py:361  _axis_value_general()  [mos_pct]
@@ -84,8 +84,8 @@ Passthroughs (count: 29):
   - backend/routers/public.py:606  _flatten()  [fair_value]
   - backend/services/analysis_service.py:1207  _get_full_analysis_inner()  [fair_value]
   - backend/services/analysis_service.py:1248  _get_full_analysis_inner()  [fair_value]
-  - backend/services/analysis_service.py:1978  _get_full_analysis_inner()  [fv]
-  - backend/services/analysis_service.py:2205  _get_full_analysis_inner()  [fair_value]
+  - backend/services/analysis_service.py:1983  _get_full_analysis_inner()  [fv]
+  - backend/services/analysis_service.py:2210  _get_full_analysis_inner()  [fair_value]
   - backend/services/financial_valuation_service.py:293  _compute_pbv_path()  [fair_value]
   - backend/services/financial_valuation_service.py:331  _compute_pe_path()  [fair_value]
   - backend/services/hex_history_service.py:476  _fetch_current_fv_and_revenue()  [fv]
@@ -117,7 +117,7 @@ Computations (want: exactly 1):
 Passthroughs (count: 5):
   - backend/models/responses.py:29  ValuationOutput()  [bear_case]
   - backend/routers/public.py:76  _extract_analysis_summary()  [bear_case]
-  - backend/services/analysis_service.py:2205  _get_full_analysis_inner()  [bear_case]
+  - backend/services/analysis_service.py:2210  _get_full_analysis_inner()  [bear_case]
   - backend/services/financial_valuation_service.py:293  _compute_pbv_path()  [bear_case]
   - backend/services/financial_valuation_service.py:331  _compute_pe_path()  [bear_case]
 
@@ -131,7 +131,7 @@ Computations (want: exactly 1):
 Passthroughs (count: 5):
   - backend/models/responses.py:30  ValuationOutput()  [base_case]
   - backend/routers/public.py:76  _extract_analysis_summary()  [base_case]
-  - backend/services/analysis_service.py:2205  _get_full_analysis_inner()  [base_case]
+  - backend/services/analysis_service.py:2210  _get_full_analysis_inner()  [base_case]
   - backend/services/financial_valuation_service.py:293  _compute_pbv_path()  [base_case]
   - backend/services/financial_valuation_service.py:331  _compute_pe_path()  [base_case]
 
@@ -145,7 +145,7 @@ Computations (want: exactly 1):
 Passthroughs (count: 5):
   - backend/models/responses.py:31  ValuationOutput()  [bull_case]
   - backend/routers/public.py:76  _extract_analysis_summary()  [bull_case]
-  - backend/services/analysis_service.py:2205  _get_full_analysis_inner()  [bull_case]
+  - backend/services/analysis_service.py:2210  _get_full_analysis_inner()  [bull_case]
   - backend/services/financial_valuation_service.py:293  _compute_pbv_path()  [bull_case]
   - backend/services/financial_valuation_service.py:331  _compute_pe_path()  [bull_case]
 
@@ -159,7 +159,7 @@ Computations (want: exactly 1):
 Passthroughs (count: 5):
   - backend/models/responses.py:69  QualityOutput()  [roce]
   - backend/routers/public.py:76  _extract_analysis_summary()  [roce]
-  - backend/services/analysis_service.py:2242  _get_full_analysis_inner()  [roce]
+  - backend/services/analysis_service.py:2247  _get_full_analysis_inner()  [roce]
   - backend/services/hex_service.py:466  _axis_quality()  [roce]
   - backend/validators/consistency.py:37  check_consistency()  [roce]
 
@@ -177,7 +177,7 @@ Passthroughs (count: 10):
   - backend/routers/public.py:603  _flatten()  [ev_ebitda]
   - backend/routers/public.py:605  _flatten()  [ev_ebitda]
   - backend/routers/public.py:606  _flatten()  [ev_ebitda]
-  - backend/services/analysis_service.py:2274  _get_full_analysis_inner()  [ev_ebitda]
+  - backend/services/analysis_service.py:2279  _get_full_analysis_inner()  [ev_ebitda]
   - backend/services/local_data_service.py:376  assemble_local()  [ev_to_ebitda]
   - backend/services/peers_service.py:225  _build_row()  [ev_ebitda]
   - backend/services/peers_service.py:262  _build_row()  [ev_ebitda]
@@ -192,7 +192,7 @@ Computations (want: exactly 1):
 Passthroughs (count: 6):
   - backend/models/responses.py:77  QualityOutput()  [revenue_cagr_3y]
   - backend/routers/public.py:76  _extract_analysis_summary()  [revenue_cagr_3y]
-  - backend/services/analysis_service.py:2242  _get_full_analysis_inner()  [revenue_cagr_3y]
+  - backend/services/analysis_service.py:2247  _get_full_analysis_inner()  [revenue_cagr_3y]
   - backend/services/financials_service.py:399  _compute_summary()  [revenue_cagr_3y]
   - backend/services/financials_service.py:412  _compute_summary()  [revenue_cagr_3y]
   - backend/services/financials_service.py:421  _compute_summary()  [revenue_cagr_3y]
@@ -207,7 +207,7 @@ Computations (want: exactly 1):
 Passthroughs (count: 3):
   - backend/models/responses.py:78  QualityOutput()  [revenue_cagr_5y]
   - backend/routers/public.py:76  _extract_analysis_summary()  [revenue_cagr_5y]
-  - backend/services/analysis_service.py:2242  _get_full_analysis_inner()  [revenue_cagr_5y]
+  - backend/services/analysis_service.py:2247  _get_full_analysis_inner()  [revenue_cagr_5y]
 
 STATUS: ℹ no computation found (passthrough-only — verify upstream)
 
@@ -216,7 +216,7 @@ STATUS: ℹ no computation found (passthrough-only — verify upstream)
 Computations (want: exactly 1):
   - backend/routers/public.py:974  get_dupont_analysis()  [roe]
   - backend/services/analysis_service.py:229  _compute_roe_fallback()  [roe]   ⚠ DUPLICATE
-  - backend/services/analysis_service.py:2242  _get_full_analysis_inner()  [roe]   ⚠ DUPLICATE
+  - backend/services/analysis_service.py:2247  _get_full_analysis_inner()  [roe]   ⚠ DUPLICATE
 
 Passthroughs (count: 13):
   - backend/models/responses.py:66  QualityOutput()  [roe]
@@ -244,7 +244,7 @@ Passthroughs (count: 10):
   - backend/models/responses.py:67  QualityOutput()  [de_ratio]
   - backend/routers/public.py:76  _extract_analysis_summary()  [de_ratio]
   - backend/routers/public.py:606  _flatten()  [de_ratio]
-  - backend/services/analysis_service.py:2242  _get_full_analysis_inner()  [de_ratio]
+  - backend/services/analysis_service.py:2247  _get_full_analysis_inner()  [de_ratio]
   - backend/services/financials_service.py:127  _Row()  [debt_to_equity]
   - backend/services/financials_service.py:361  _build_year()  [debt_to_equity]
   - backend/services/local_data_service.py:167  assemble_local()  [de_ratio]

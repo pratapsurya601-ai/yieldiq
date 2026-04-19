@@ -279,8 +279,15 @@ def _compute_pbv_path(
 
     fair_pb = median_pb * adj
     base = round(bvps * fair_pb, 2)
-    bear = round(bvps * median_pb * 0.7, 2)
-    bull = round(bvps * median_pb * 1.3, 2)
+    # PR-BANKSC-2: bear/bull must scale off the SAME fair_pb that base
+    # uses, otherwise when `adj` hits the 0.7/1.4 clamp, base lands
+    # exactly at the bear (or bull) mark and the scenarios collapse to
+    # bear=base. Concrete repro: HDFCBANK with adj=0.7 produced
+    # base = bvps × median_pb × 0.7, identical to the (wrong)
+    # bear = bvps × median_pb × 0.7. Now bear/bull are always proper
+    # ±30% of the actual base.
+    bear = round(bvps * fair_pb * 0.7, 2)
+    bull = round(bvps * fair_pb * 1.3, 2)
 
     mos_pct = ((base - price) / price * 100.0) if price > 0 else 0.0
 
