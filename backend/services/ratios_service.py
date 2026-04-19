@@ -21,7 +21,10 @@
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 
+import logging
 from typing import Sequence
+
+log = logging.getLogger("yieldiq.ratios")
 
 
 def _num(v):
@@ -90,19 +93,56 @@ def compute_ev_ebitda(
         is correct regardless of caller convention — and so the same
         sanity check (1×–500×) holds in the validators chain.
     """
-    _mc_cr = _num(market_cap_cr)
-    _td_inr = _num(total_debt_inr) or 0.0
-    _tc_inr = _num(total_cash_inr) or 0.0
-    _eb_inr = _num(ebitda_inr)
+    # ── UNIT CONTRACT — DO NOT BREAK ─────────────────────────────
+    # Numerator (EV) and denominator (EBITDA) MUST end up in the
+    # SAME unit before the division. The historical bug class was
+    # passing EV in raw INR and EBITDA in Cr (or vice versa), which
+    # produced ratios off by a factor of 1e7 (HCLTECH=1376×, INFY=
+    # 1217× in real payloads).
+    #
+    # Argument units accepted by this helper:
+    #   market_cap_cr   -> CRORES         (e.g. 5_60_000 for ₹5.6L Cr)
+    #   total_debt_inr  -> RAW INR        (e.g. 8.4e10 for ₹8,400 Cr)
+    #   total_cash_inr  -> RAW INR
+    #   ebitda_inr      -> RAW INR
+    #
+    # We normalise EVERYTHING to Crores below. Both `ev_cr` and
+    # `ebitda_cr` are in CRORES at the point of division, so the
+    # ratio is unit-free and dimensionally correct.
+    # ────────────────────────────────────────────────────────────
+    _mc_cr = _num(market_cap_cr)         # already Cr
+    _td_inr = _num(total_debt_inr) or 0.0  # raw INR -> /1e7 -> Cr
+    _tc_inr = _num(total_cash_inr) or 0.0  # raw INR -> /1e7 -> Cr
+    _eb_inr = _num(ebitda_inr)             # raw INR -> /1e7 -> Cr
     if _mc_cr is None or _eb_inr is None or _eb_inr <= 0:
         return None  # don't fall back to 0 — return None for "data n/a"
-    debt_cr = _td_inr / _CR
-    cash_cr = _tc_inr / _CR
-    ebitda_cr = _eb_inr / _CR
+    debt_cr = _td_inr / _CR    # raw INR -> Cr
+    cash_cr = _tc_inr / _CR    # raw INR -> Cr
+    ebitda_cr = _eb_inr / _CR  # raw INR -> Cr
     if ebitda_cr <= 0:
         return None
-    ev_cr = _mc_cr + debt_cr - cash_cr
-    return round(ev_cr / ebitda_cr, 1)
+    ev_cr = _mc_cr + debt_cr - cash_cr   # Cr + Cr - Cr -> Cr
+    ratio = round(ev_cr / ebitda_cr, 1)  # Cr / Cr -> unit-free ×
+
+    # WARNING log when the SOURCE produces a ratio outside the
+    # plausible band (0.5×, 200×). The response-layer
+    # `_clamp_ev_ebitda` (analysis_service.py) and the
+    # local_data_service.py:357 sanity guard both still clamp this
+    # for the UI, but this log lets us monitor source-data quality
+    # so unit mixups don't silently re-emerge.
+    try:
+        if not (0.5 < ratio < 200):
+            log.warning(
+                "RATIOS: EV/EBITDA raw=%.1f× outside (0.5, 200) "
+                "(mcap_cr=%.2f debt_cr=%.2f cash_cr=%.2f "
+                "ebitda_cr=%.2f) — likely source-data issue; will "
+                "be clamped at response layer.",
+                ratio, _mc_cr, debt_cr, cash_cr, ebitda_cr,
+            )
+    except Exception:
+        pass
+
+    return ratio
 
 
 def compute_debt_to_ebitda(total_debt, ebitda) -> float | None:
@@ -155,17 +195,81 @@ def compute_revenue_cagr(revenues: Sequence[float], years: int) -> float | None:
     """
     revenues: iterable with the LATEST value LAST (chronological).
     Returns DECIMAL CAGR (0.124 = 12.4%) or None when insufficient data.
+
+    PR-DATA-2 source-side hardening:
+      1. Year-ordering: caller MUST pass oldest→newest. We do NOT
+         re-sort here because we have no reliable timestamp on the
+         scalars; if upstream reverses, every CAGR will be wrong with
+         the inverse sign — that is the sole shape this function
+         expects, and it is now asserted by the |cagr| > 50% WARNING
+         log below (a -75% read on a stable IT services name is the
+         classic reversed-series signature).
+      2. NaN filtering: previously only `None` was stripped, so NaN
+         floats survived the comprehension and produced NaN CAGR. Now
+         filtered alongside None.
+      3. Index-shift bug: the previous filter dropped Nones silently,
+         which shifted `series[-years-1]` away from "true 3y ago" when
+         a middle year was missing. We now require the FULL window of
+         consecutive non-None, non-NaN values; if the last `years+1`
+         positions in the input contain any holes we return None
+         rather than silently mis-aligning the base year.
+      4. Non-positive base year: explicit guard — CAGR is undefined
+         when the base revenue is <= 0 (loss-to-profit swings, JV
+         carve-outs, fresh listings, accounting restatements).
     """
     if revenues is None:
         return None
+
+    def _clean(x):
+        if x is None:
+            return None
+        try:
+            f = float(x)
+            if f != f:  # NaN
+                return None
+            return f
+        except (TypeError, ValueError):
+            return None
+
+    raw = list(revenues)
+    if len(raw) < years + 1:
+        return None
+
+    # Take the last `years + 1` positions and require ALL of them to
+    # be valid — preserves correct year alignment.
+    window = [_clean(v) for v in raw[-(years + 1):]]
+    if any(v is None for v in window):
+        return None
+
+    start = window[0]
+    end = window[-1]
+
+    # Guard: cannot CAGR off a non-positive base. A negative or zero
+    # base year (loss year, demerger, restated to zero) makes the
+    # power formula meaningless or sign-flipped.
+    if start is None or start <= 0:
+        return None
+    if end is None or end <= 0:
+        return None
+
+    cagr = round((end / start) ** (1.0 / years) - 1.0, 4)
+
+    # WARNING log when the SOURCE produces an absurd CAGR. The
+    # response-layer `_sanitize_cagr` (analysis_service.py) still
+    # clamps |CAGR| > 50% to None for the UI, but this log lets us
+    # measure how often the upstream series itself is dirty (FX
+    # mixup, year-order flip, special situation) so we can chase
+    # the root cause rather than just the symptom.
     try:
-        series = [float(r) for r in revenues if r is not None]
-    except (TypeError, ValueError):
-        return None
-    if len(series) <= years:
-        return None
-    start = series[-years - 1]
-    end = series[-1]
-    if start is None or end is None or start <= 0 or end <= 0:
-        return None
-    return round((end / start) ** (1.0 / years) - 1.0, 4)
+        if abs(cagr) > 0.50:
+            log.warning(
+                "RATIOS: revenue CAGR %dy raw=%.4f outside ±50%% "
+                "(start=%.2f end=%.2f window_len=%d) — likely "
+                "source-data issue; will be clamped to None at "
+                "response layer.",
+                years, cagr, start, end, len(window),
+            )
+    except Exception:
+        pass
+
+    return cagr

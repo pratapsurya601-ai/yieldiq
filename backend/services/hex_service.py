@@ -637,7 +637,89 @@ def _axis_safety(data: dict, sector: str) -> dict:
     int_cov = q.get("interest_coverage")
     altman = q.get("altman_z")
 
-    if sector == "bank":
+    # PR-D1: bank-aware Safety branch.
+    # Banks should NOT be scored on D/E / interest coverage / Altman Z —
+    # those metrics are designed for non-financial corporates. Tier-1
+    # capital ratio, gross NPA% and net NPA% are the right safety proxies
+    # for banks. We branch when our internal sector classifier says "bank"
+    # (which already absorbs raw `sector` containing "Bank" / "Financial
+    # Services" — see `_classify_sector` above) and additionally honour an
+    # explicit `sub_sector` containing "Bank" if a caller provides it.
+    raw_sector_str = str(data.get("sector") or "").lower()
+    raw_subsector_str = str(data.get("sub_sector") or "").lower()
+    is_bank_branch = (
+        sector == "bank"
+        or ("bank" in raw_sector_str)
+        or ("financial services" in raw_sector_str and "bank" in raw_subsector_str)
+    )
+    if is_bank_branch:
+        # Look for bank-specific inputs on the data envelope. These fields
+        # are NOT currently populated by the analysis pipeline; if/when
+        # they are added (likely sources: BSE XBRL filings, RBI Form A),
+        # this branch will start producing real bank-Safety scores.
+        # Until then we fall back to the existing P/BV franchise proxy.
+        q_in = data.get("quality") or analysis.get("quality") or {}
+        metrics_in = data.get("metrics") or {}
+        gnpa_pct = (
+            q_in.get("gnpa_pct")
+            or metrics_in.get("gnpa_pct")
+            or data.get("gnpa_pct")
+        )
+        nnpa_pct = (
+            q_in.get("nnpa_pct")
+            or metrics_in.get("nnpa_pct")
+            or data.get("nnpa_pct")
+        )
+        tier1_ratio = (
+            q_in.get("tier1_ratio")
+            or metrics_in.get("tier1_ratio")
+            or data.get("tier1_ratio")
+        )
+
+        bank_inputs_available = any(
+            v is not None for v in (gnpa_pct, nnpa_pct, tier1_ratio)
+        )
+
+        if bank_inputs_available:
+            score = 5.0
+            reasons_b: list[str] = []
+            try:
+                if tier1_ratio is not None:
+                    t1 = float(tier1_ratio)
+                    # RBI minimum Tier-1 (incl. CCB) is ~9.5%. 13%+ comfortable,
+                    # 16%+ strong. Map linearly with caps.
+                    score += max(-2.5, min(2.5, (t1 - 12.0) * 0.5))
+                    reasons_b.append(f"Tier-1 {t1:.1f}%")
+                if gnpa_pct is not None:
+                    g = float(gnpa_pct)
+                    # GNPA: <2% strong (+1.5), 4% neutral, >8% distressed (-2.5)
+                    score += max(-2.5, min(1.5, (4.0 - g) * 0.4))
+                    reasons_b.append(f"GNPA {g:.2f}%")
+                if nnpa_pct is not None:
+                    n = float(nnpa_pct)
+                    # NNPA: <0.5% strong (+1.0), 1.5% neutral, >3% bad (-2.0)
+                    score += max(-2.0, min(1.0, (1.5 - n) * 0.7))
+                    reasons_b.append(f"NNPA {n:.2f}%")
+                return _axis(
+                    score,
+                    ", ".join(reasons_b) if reasons_b else "Bank capital/asset-quality proxy",
+                )
+            except Exception:
+                logger.info(
+                    "PR-D1 bank Safety inputs present but unparseable for %s, "
+                    "using generic P/BV proxy",
+                    data.get("ticker") or "?",
+                )
+        else:
+            # Documented fallback: until the pipeline plumbs gnpa_pct/
+            # nnpa_pct/tier1_ratio into the hex data envelope, this is the
+            # only path. Logged at INFO so we can grep prod for bank
+            # tickers that would benefit from real CAR data.
+            logger.info(
+                "PR-D1 bank Safety inputs missing for %s, using generic formula",
+                data.get("ticker") or "?",
+            )
+
         # CAR/book proxy — use pb_ratio inverse + quality.grade if present
         metrics = data.get("metrics") or {}
         pb = metrics.get("pb_ratio")

@@ -4,6 +4,8 @@ import { notFound } from "next/navigation"
 import { validateAnalysisData } from "@/lib/validators"
 import DataQualityBanner from "@/components/analysis/DataQualityBanner"
 import DataUnderReview from "@/components/DataUnderReview"
+import ValuationGrid from "@/components/analysis/ValuationGrid"
+import { timeAgo } from "@/lib/dataFreshness"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -73,10 +75,12 @@ function clientSanityFail(d: StockSummary): boolean {
 
 async function getStockData(ticker: string): Promise<StockResponse | null> {
   try {
-    // Shorter revalidate (300s / 5 min) so quality-gate corrections propagate
-    // quickly. Was 3600s which meant HCL's post-fix ₹1,723 took up to an hour
-    // to replace the stale ₹6,075 in the CDN. Keep this aggressive until we
-    // wire on-demand revalidation.
+    // 300s time-based fallback. Real freshness comes from on-demand
+    // revalidation: backend/services/analysis_cache_service.save_cached
+    // POSTs /api/revalidate after every successful cache write, so the
+    // SEO page typically refreshes within seconds of a re-analysis.
+    // The 5-minute TTL is just the safety net for when the on-demand
+    // hook is unavailable (env var missing, network blip, etc.).
     const res = await fetch(`${API_BASE}/api/v1/public/stock-summary/${ticker}`, {
       next: { revalidate: 300 },
     })
@@ -297,6 +301,23 @@ export default async function StockFairValuePage(
                 </div>
               </div>
             </div>
+            {/* Freshness badge — server-rendered "Updated N ago" relative
+                to the cached AnalysisResponse.timestamp. Omitted when the
+                payload has no timestamp (per Trust-Surface spec — never
+                fabricate a freshness signal). Value is fixed for the
+                lifetime of an ISR slice (~5 min revalidate on this route),
+                which is acceptable given the page's freshness budget. */}
+            {(() => {
+              const ago = timeAgo(data.last_updated)
+              return ago ? (
+                <p className="mt-3 text-[11px] text-gray-400">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-50 border border-gray-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" aria-hidden />
+                    Updated {ago}
+                  </span>
+                </p>
+              ) : null
+            })()}
           </div>
         </div>
 
@@ -349,21 +370,34 @@ export default async function StockFairValuePage(
           </div>
         )}
 
-        {/* DCF Scenarios */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">DCF Scenario Analysis</h2>
-          <div className="grid grid-cols-3 gap-4">
-            {[
-              { label: "Bear Case", value: data.bear_case, color: "border-red-200 bg-red-50", textColor: "text-red-700" },
-              { label: "Base Case", value: data.base_case, color: "border-blue-200 bg-blue-50", textColor: "text-blue-700" },
-              { label: "Bull Case", value: data.bull_case, color: "border-green-200 bg-green-50", textColor: "text-green-700" },
-            ].map(s => (
-              <div key={s.label} className={`rounded-xl p-4 text-center border ${s.color}`}>
-                <p className="text-xs text-gray-500 mb-1">{s.label}</p>
-                <p className={`text-xl font-bold font-mono ${s.textColor}`}>{fmt(s.value)}</p>
-              </div>
-            ))}
-          </div>
+        {/* DCF Scenarios — shared with the authed analysis page via
+            <ValuationGrid />. Per-scenario MoS is derived from CMP since
+            the public stock-summary payload only carries the raw bear/
+            base/bull fair-value figures (the canonical AnalysisResponse
+            ScenariosOutput is not yet exposed on this endpoint). */}
+        <div className="mb-8">
+          <ValuationGrid
+            bear={{
+              fair_value: data.bear_case,
+              mos_pct: data.current_price > 0
+                ? ((data.bear_case - data.current_price) / data.bear_case) * 100
+                : 0,
+            }}
+            base={{
+              fair_value: data.base_case,
+              mos_pct: data.current_price > 0
+                ? ((data.base_case - data.current_price) / data.base_case) * 100
+                : 0,
+            }}
+            bull={{
+              fair_value: data.bull_case,
+              mos_pct: data.current_price > 0
+                ? ((data.bull_case - data.current_price) / data.bull_case) * 100
+                : 0,
+            }}
+            currentPrice={data.current_price}
+            currency={data.currency}
+          />
         </div>
 
         {/* AI Summary */}

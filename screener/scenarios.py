@@ -81,10 +81,33 @@ def run_scenarios(
     except Exception as _e:
         log.debug(f"PE blend unavailable in scenarios: {_e}")
 
+    # PR-DET-2: terminal_g clamp metadata for INFO-level logging.
+    _ticker_for_log = enriched.get("ticker") or enriched.get("symbol") or "?"
+    _sector_for_log = enriched.get("sector") or "general"
+
     for name, params in SCENARIOS.items():
         growth  = _clamp(base_growth     + params["growth_adj"])
         wacc    = float(np.clip(base_wacc     + params["wacc_adj"],     0.07, 0.22))
         term_g  = float(np.clip(base_terminal_g + params["terminal_adj"], 0.01, 0.05))
+
+        # PR-DET-2: enforce terminal_g ∈ [0.005, wacc - 0.005]. The ±100bps
+        # terminal_adj can otherwise push utilities/FMCG terminal_g negative
+        # or above WACC (the latter blows up the Gordon denominator). This
+        # clamp is scenario-specific and intentionally separate from the
+        # existing `if wacc <= term_g` guard below — we want a positive
+        # floor and a 50bps-below-WACC ceiling, not just spread > 0.
+        _term_g_pre = term_g
+        _lo = 0.005
+        _hi = max(_lo, wacc - 0.005)
+        term_g = float(np.clip(term_g, _lo, _hi))
+        if term_g != _term_g_pre:
+            log.info(
+                "PR-DET-2 terminal_g clamp: %s [%s] scenario=%s "
+                "wacc=%.4f term_g %.4f -> %.4f",
+                _ticker_for_log, _sector_for_log, name,
+                wacc, _term_g_pre, term_g,
+            )
+
         if wacc <= term_g:
             term_g = wacc - 0.02
 

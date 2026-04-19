@@ -558,61 +558,6 @@ async def get_ai_summary(ticker: str, user: dict = Depends(get_current_user)):
     return payload
 
 
-_STATIC_YIQ50: list[tuple] = [
-    ("ITC.NS",          "ITC Limited",              80,  38.0, "Wide",   "FMCG"),
-    ("SUNPHARMA.NS",    "Sun Pharma",               74,  28.0, "Wide",   "Pharma"),
-    ("PERSISTENT.NS",   "Persistent Systems",       62,  20.0, "Narrow", "IT Services"),
-    ("DRREDDY.NS",      "Dr Reddys Labs",           60,  18.0, "Wide",   "Pharma"),
-    ("HCLTECH.NS",      "HCL Technologies",         58,  15.0, "Wide",   "IT Services"),
-    ("CIPLA.NS",        "Cipla",                    56,  14.0, "Narrow", "Pharma"),
-    ("INFY.NS",         "Infosys",                  55,   8.0, "Wide",   "IT Services"),
-    ("COFORGE.NS",      "Coforge",                  55,  12.0, "Narrow", "IT Services"),
-    ("DIVISLAB.NS",     "Divis Laboratories",       54,  11.0, "Narrow", "Pharma"),
-    ("WIPRO.NS",        "Wipro",                    52,  12.0, "Narrow", "IT Services"),
-    ("BRITANNIA.NS",    "Britannia Industries",     52,   9.0, "Narrow", "FMCG"),
-    ("TATAELXSI.NS",    "Tata Elxsi",               50,   8.0, "Narrow", "IT Services"),
-    ("MARUTI.NS",       "Maruti Suzuki",            50,  10.0, "Narrow", "Auto"),
-    ("DABUR.NS",        "Dabur India",              50,   7.0, "Narrow", "FMCG"),
-    ("TCS.NS",          "Tata Consultancy",         49,   4.0, "Wide",   "IT Services"),
-    ("BHARTIARTL.NS",   "Bharti Airtel",            48,   5.0, "Wide",   "Telecom"),
-    ("APOLLOHOSP.NS",   "Apollo Hospitals",         48,   5.0, "Narrow", "Healthcare"),
-    ("PIDILITIND.NS",   "Pidilite Industries",      46,   3.0, "Wide",   "Chemicals"),
-    ("NESTLEIND.NS",    "Nestle India",             45,  -5.0, "Wide",   "FMCG"),
-    ("EICHERMOT.NS",    "Eicher Motors",            44,  -2.0, "Wide",   "Auto"),
-    ("ULTRACEMCO.NS",   "UltraTech Cement",         42,  -6.0, "Narrow", "Cement"),
-    ("TITAN.NS",        "Titan Company",            42,  -8.0, "Wide",   "Consumer"),
-    ("LT.NS",           "Larsen & Toubro",          40, -10.0, "Narrow", "Infra"),
-    ("BAJFINANCE.NS",   "Bajaj Finance",            38, -12.0, "Wide",   "NBFC"),
-    ("IRCTC.NS",        "IRCTC",                    36, -15.0, "Wide",   "Travel"),
-    # Additional 25 entries to ensure static fallback can fill 50 rows.
-    ("HINDUNILVR.NS",   "Hindustan Unilever",       60,  12.0, "Wide",   "FMCG"),
-    ("HDFCBANK.NS",     "HDFC Bank",                58,   6.0, "Wide",   "Banking"),
-    ("ICICIBANK.NS",    "ICICI Bank",               57,   8.0, "Wide",   "Banking"),
-    ("KOTAKBANK.NS",    "Kotak Mahindra Bank",      54,   3.0, "Wide",   "Banking"),
-    ("AXISBANK.NS",     "Axis Bank",                52,   4.0, "Narrow", "Banking"),
-    ("SBIN.NS",         "State Bank of India",      50,   7.0, "Narrow", "Banking"),
-    ("INDUSINDBK.NS",   "IndusInd Bank",            45,  -4.0, "Narrow", "Banking"),
-    ("BAJAJFINSV.NS",   "Bajaj Finserv",            48,  -6.0, "Wide",   "NBFC"),
-    ("CHOLAFIN.NS",     "Cholamandalam Finance",    52,   3.0, "Narrow", "NBFC"),
-    ("MUTHOOTFIN.NS",   "Muthoot Finance",          54,   9.0, "Narrow", "NBFC"),
-    ("RELIANCE.NS",     "Reliance Industries",      56,   5.0, "Wide",   "Oil & Gas"),
-    ("ONGC.NS",         "ONGC",                     42,  -8.0, "Narrow", "Oil & Gas"),
-    ("TATAMOTORS.NS",   "Tata Motors",              44,  -5.0, "Narrow", "Auto"),
-    ("MOTHERSON.NS",    "Samvardhana Motherson",    46,   2.0, "Narrow", "Auto"),
-    ("BOSCHLTD.NS",     "Bosch",                    50,   4.0, "Wide",   "Auto"),
-    ("JSWSTEEL.NS",     "JSW Steel",                41,  -9.0, "Narrow", "Metals"),
-    ("TATASTEEL.NS",    "Tata Steel",               39, -11.0, "Narrow", "Metals"),
-    ("HINDALCO.NS",     "Hindalco",                 43,  -4.0, "Narrow", "Metals"),
-    ("AMBUJACEM.NS",    "Ambuja Cements",           46,   1.0, "Narrow", "Cement"),
-    ("ACC.NS",          "ACC",                      44,  -3.0, "Narrow", "Cement"),
-    ("SIEMENS.NS",      "Siemens",                  49,  -2.0, "Wide",   "Capital Goods"),
-    ("ABB.NS",          "ABB India",                48,  -1.0, "Wide",   "Capital Goods"),
-    ("BEL.NS",          "Bharat Electronics",       55,   7.0, "Wide",   "Defence"),
-    ("DMART.NS",        "Avenue Supermarts",        52,   6.0, "Wide",   "Retail"),
-    ("TRENT.NS",        "Trent",                    56,  10.0, "Narrow", "Retail"),
-]
-
-
 def _load_screener_csv() -> list[ScreenerStock]:
     """Read screener_results.csv if available. Returns [] on any error."""
     try:
@@ -672,13 +617,23 @@ def _load_cached_analyses() -> list[ScreenerStock]:
 
 @router.get("/yieldiq50", response_model=ScreenerResponse)
 async def get_yieldiq50(user: dict = Depends(get_current_user)):
-    """Top 50 undervalued high-quality stocks. Cached daily.
+    """Top 50 undervalued high-quality stocks. Cached for 5 minutes.
 
-    Sources are merged (not exclusive) and deduped by ticker so the
-    response reliably fills 50 rows:
+    Sources are merged (not exclusive) and deduped by ticker:
       1. Real screener CSV output (highest priority — real scores)
       2. Warm AnalysisResponse cache (real scores from recent runs)
-      3. Static fallback (50 Nifty-100 tickers with placeholder scores)
+
+    No static seed any more — the prior _STATIC_YIQ50 list shipped
+    placeholder MoS values that disagreed with the live SEO pages
+    (Discover would show ITC at +38% MoS while /stocks/ITC.NS/fair-value
+    showed -1.7%). With the per-ticker cache override loop now reading
+    live analysis_cache for every row, the static seed was dead code:
+    any ticker with a warm cache row was already overridden, and any
+    ticker without one had no business showing fabricated numbers.
+
+    On a cold cache (no screener CSV, no warm in-process entries) we
+    return an empty list with HTTP 200 — frontend should treat
+    `total == 0` as "warming, check back shortly".
     """
     _cache_key = f"yieldiq50:{date.today().isoformat()}"
 
@@ -715,11 +670,11 @@ async def get_yieldiq50(user: dict = Depends(get_current_user)):
             if s.ticker and s.ticker not in by_ticker:
                 by_ticker[s.ticker] = s
 
-    # Promote each static-seed ticker to a LIVE PG-cached row if one exists.
-    # This is the single source of truth for cross-page MoS consistency:
-    # if /analysis/HCLTECH has a warm tier-2 cache row, /yieldiq50 must
-    # surface the same MoS rather than the stale static seed.
-    for t, name, default_score, default_mos, default_moat, default_sector in _STATIC_YIQ50:
+    # Re-fetch each known ticker against the LIVE PG-cached row so we
+    # never serve a stale score/MoS once the live cache has fresher data.
+    # Iterates only over tickers we already discovered above (CSV +
+    # warm cache) — no static seed list any more.
+    for t in list(by_ticker.keys()):
         try:
             cached_payload = analysis_cache_service.get_cached(t)
         except Exception:
@@ -734,33 +689,21 @@ async def get_yieldiq50(user: dict = Depends(get_current_user)):
             live_score = q.get("yieldiq_score")
             if live_mos is None or live_score is None:
                 continue
+            prev = by_ticker[t]
             by_ticker[t] = ScreenerStock(
                 ticker=t,
-                company_name=c.get("company_name") or name,
+                company_name=c.get("company_name") or prev.company_name,
                 score=int(live_score),
                 margin_of_safety=round(float(live_mos), 1),
-                moat=q.get("moat") or default_moat,
-                sector=c.get("sector") or default_sector,
+                moat=q.get("moat") or prev.moat,
+                sector=c.get("sector") or prev.sector,
                 verdict=v.get("verdict") or (
                     "undervalued" if live_mos > 10 else "fairly_valued" if live_mos > -10 else "overvalued"
                 ),
             )
         except Exception:
-            # Best-effort — fall through to static fallback below
+            # Best-effort — keep the pre-override row from the source merge
             continue
-
-    # Pad from static only if we still have < 50 real entries.
-    if len(by_ticker) < 50:
-        for t, name, score, mos, moat, sector in _STATIC_YIQ50:
-            if t in by_ticker:
-                continue
-            by_ticker[t] = ScreenerStock(
-                ticker=t, company_name=name, score=score,
-                margin_of_safety=mos, moat=moat, sector=sector,
-                verdict="undervalued" if mos > 10 else "fairly_valued" if mos > -10 else "overvalued",
-            )
-            if len(by_ticker) >= 50:
-                break
 
     stocks = sorted(by_ticker.values(), key=lambda x: x.score, reverse=True)[:50]
     result = ScreenerResponse(results=stocks, total=len(stocks))
