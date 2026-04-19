@@ -432,34 +432,38 @@ def _compute_row(
     #      this mostly supplies dividend_yield + a same-day reference.
     pe_ratio = pb_ratio = ev_ebitda = dividend_yield = market_cap_cr = None
 
-    # Primitives. Financials.shares_outstanding is in LAKHS per the model
-    # comment (1 Lakh = 100_000 shares). Other monetary fields are stored
-    # in the filing's reporting unit — for Indian XBRL that's raw INR,
-    # and the existing pipeline normalises USD filers upstream, so we
-    # treat every number below as raw INR without further conversion.
+    # Unit contract for this block:
+    #   shares_outstanding : LAKHS (1 lakh = 100_000 shares)   — from Financials
+    #   pat, ebitda, total_debt, cash_and_equivalents, total_equity : CRORES
+    #       — these are stored in Cr by the XBRL ingestion pipeline
+    #         (verified empirically: RELIANCE FY25 pat=69648 matches the
+    #         reported ₹69,648 Cr headline)
+    #   price_at_period_end : INR/share
+    # Deriving market cap in Crores keeps every ratio dimensionless:
+    #   mcap_cr = price_inr × shares_lakhs × 1e5 / 1e7 = price × shares_lakhs / 100
     shares_lakhs = float(f.shares_outstanding) if _is_finite(f.shares_outstanding) else None
-    mcap_inr: float | None = None
+    mcap_cr: float | None = None
     if price_at_period_end is not None and shares_lakhs is not None and shares_lakhs > 0:
-        mcap_inr = price_at_period_end * shares_lakhs * 1e5  # shares in Lakhs → units
-        market_cap_cr = mcap_inr / 1e7
+        mcap_cr = price_at_period_end * shares_lakhs / 100.0
+        market_cap_cr = mcap_cr
 
-        # PE = market cap / net income
+        # PE = market cap (Cr) / net income (Cr)
         if _is_finite(f.pat) and float(f.pat) > 0:
-            pe_ratio = mcap_inr / float(f.pat)
+            pe_ratio = mcap_cr / float(f.pat)
 
-        # PB = market cap / shareholders equity
+        # PB = market cap (Cr) / shareholders equity (Cr)
         if _is_finite(f.total_equity) and float(f.total_equity) > 0:
-            pb_ratio = mcap_inr / float(f.total_equity)
+            pb_ratio = mcap_cr / float(f.total_equity)
 
-        # EV/EBITDA = (market cap + total_debt - cash) / ebitda
+        # EV/EBITDA = (market cap + total_debt − cash) / ebitda — all Cr
         if (
             _is_finite(f.ebitda)
             and float(f.ebitda) > 0
             and _is_finite(f.total_debt)
             and _is_finite(f.cash_and_equivalents)
         ):
-            ev_inr = mcap_inr + float(f.total_debt) - float(f.cash_and_equivalents)
-            ev_ebitda = ev_inr / float(f.ebitda)
+            ev_cr = mcap_cr + float(f.total_debt) - float(f.cash_and_equivalents)
+            ev_ebitda = ev_cr / float(f.ebitda)
 
     # Fallback / supplement from market_metrics snapshot
     if mm is not None:
