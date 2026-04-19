@@ -14,3 +14,7 @@ data/yf_cache/
 data_pipeline/nse_prices/raw/
 # Local canary run artifact — CI uploads it separately
 canary_report.json
+
+# Canary harness ephemeral outputs (committed snapshots are kept under scripts/snapshots/)
+canary_report.json
+canary_report.md
