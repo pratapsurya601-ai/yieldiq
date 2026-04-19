@@ -109,39 +109,46 @@ def main() -> int:
             time.sleep(args.sleep)
             continue
 
-        # Normalise column names — NSE bhavcopy has specific format
-        df.columns = [c.strip().upper().replace(" ", "_") for c in df.columns]
+        # Downloader already emits normalised lowercase columns:
+        # ticker, SERIES, DATE1, prev_close, open_price, high_price,
+        # low_price, LAST_PRICE, close_price, vwap, volume, turnover_cr,
+        # trades, delivery_qty, delivery_pct, trade_date
 
         # Only EQ series (equity shares), skip ETFs/bonds
         if "SERIES" in df.columns:
-            df = df[df["SERIES"].str.strip() == "EQ"]
+            df = df[df["SERIES"].astype(str).str.strip() == "EQ"]
         if df.empty:
             time.sleep(args.sleep)
             continue
 
+        def _num(v, kind=float):
+            try:
+                x = kind(v)
+                return x if x else None
+            except (TypeError, ValueError):
+                return None
+
         rows_to_insert = []
         for row in df.itertuples(index=False):
-            ticker = getattr(row, "SYMBOL", None)
+            ticker = getattr(row, "ticker", None)
             if not ticker:
                 continue
             try:
-                # NSE columns: SYMBOL, SERIES, DATE1, PREV_CLOSE, OPEN_PRICE,
-                # HIGH_PRICE, LOW_PRICE, LAST_PRICE, CLOSE_PRICE, AVG_PRICE,
-                # TTL_TRD_QNTY, TURNOVER_LACS, NO_OF_TRADES, DELIV_QTY, DELIV_PER
+                close = _num(getattr(row, "close_price", None))
                 rows_to_insert.append({
-                    "ticker": ticker.strip(),
+                    "ticker": str(ticker).strip(),
                     "trade_date": d,
-                    "open": float(getattr(row, "OPEN_PRICE", 0) or 0) or None,
-                    "high": float(getattr(row, "HIGH_PRICE", 0) or 0) or None,
-                    "low": float(getattr(row, "LOW_PRICE", 0) or 0) or None,
-                    "close": float(getattr(row, "CLOSE_PRICE", 0) or 0) or None,
-                    "prev_close": float(getattr(row, "PREV_CLOSE", 0) or 0) or None,
-                    "volume": int(getattr(row, "TTL_TRD_QNTY", 0) or 0) or None,
-                    "turnover_cr": float(getattr(row, "TURNOVER_LACS", 0) or 0) / 100.0 or None,
-                    "delivery_qty": int(getattr(row, "DELIV_QTY", 0) or 0) or None,
-                    "delivery_pct": float(getattr(row, "DELIV_PER", 0) or 0) or None,
-                    "vwap": float(getattr(row, "AVG_PRICE", 0) or 0) or None,
-                    "adj_close": float(getattr(row, "CLOSE_PRICE", 0) or 0) or None,
+                    "open": _num(getattr(row, "open_price", None)),
+                    "high": _num(getattr(row, "high_price", None)),
+                    "low": _num(getattr(row, "low_price", None)),
+                    "close": close,
+                    "prev_close": _num(getattr(row, "prev_close", None)),
+                    "volume": _num(getattr(row, "volume", None), int),
+                    "turnover_cr": _num(getattr(row, "turnover_cr", None)),
+                    "delivery_qty": _num(getattr(row, "delivery_qty", None), int),
+                    "delivery_pct": _num(getattr(row, "delivery_pct", None)),
+                    "vwap": _num(getattr(row, "vwap", None)),
+                    "adj_close": close,   # raw close; corp-actions applied at read time
                 })
             except (TypeError, ValueError):
                 continue
