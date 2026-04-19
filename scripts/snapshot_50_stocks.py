@@ -106,7 +106,7 @@ def main() -> int:
     OUT_PATH.write_text(
         json.dumps(
             {
-                "snapshot_at": _dt.datetime.utcnow().isoformat() + "Z",
+                "snapshot_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
                 "purpose": "before_unified_source_collapse",
                 "ticker_count": len(TICKERS),
                 "rows": rows,

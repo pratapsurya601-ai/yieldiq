@@ -3,25 +3,36 @@
 import { useState, useEffect } from "react"
 
 /**
- * Fixed bottom-left "Beta" chip. Replaces the previous full-width
- * banner that stole ~40px of vertical space on every page. The chip
- * is dismissible; state is persisted in localStorage. Keep the key
- * `yiq_beta_banner_v2_dismissed` so users who already dismissed the
- * old banner don't see the new chip either.
+ * Fixed bottom-left "Beta" chip.
+ *
+ * Default: HIDDEN. Per re-audit feedback ("erodes confidence when
+ * visible during use") the pill no longer shows by default. Power
+ * users / internal review can opt in by visiting any page with
+ * `?beta=1` in the URL — that sets the localStorage flag to show
+ * the pill on subsequent loads. The dismiss × clears the flag.
+ *
+ * Migration: previously-shown chip is silently hidden for everyone
+ * on first load post this change. The legacy `yiq_beta_banner_v2_dismissed`
+ * key is no longer consulted.
  */
+const SHOW_KEY = "yiq_beta_pill_show"
+
 export default function BetaBanner() {
   const [show, setShow] = useState(false)
 
   useEffect(() => {
-    const dismissed =
-      typeof window !== "undefined" &&
-      localStorage.getItem("yiq_beta_banner_v2_dismissed")
-    if (!dismissed) setShow(true)
+    if (typeof window === "undefined") return
+    // Opt-in via ?beta=1 URL param (sticky once set)
+    const url = new URL(window.location.href)
+    if (url.searchParams.get("beta") === "1") {
+      localStorage.setItem(SHOW_KEY, "1")
+    }
+    setShow(localStorage.getItem(SHOW_KEY) === "1")
   }, [])
 
   const dismiss = () => {
     if (typeof window !== "undefined") {
-      localStorage.setItem("yiq_beta_banner_v2_dismissed", "1")
+      localStorage.removeItem(SHOW_KEY)
     }
     setShow(false)
   }
