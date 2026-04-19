@@ -490,37 +490,57 @@ def _compute_row(
     pe_ratio = pb_ratio = ev_ebitda = dividend_yield = market_cap_cr = None
 
     # Unit contract for this block:
-    #   shares_outstanding : LAKHS (1 lakh = 100_000 shares)   — from Financials
-    #   pat, ebitda, total_debt, cash_and_equivalents, total_equity : CRORES
-    #       — these are stored in Cr by the XBRL ingestion pipeline
-    #         (verified empirically: RELIANCE FY25 pat=69648 matches the
-    #         reported ₹69,648 Cr headline)
-    #   price_at_period_end : INR/share
-    # Deriving market cap in Crores keeps every ratio dimensionless:
-    #   mcap_cr = price_inr × shares_lakhs × 1e5 / 1e7 = price × shares_lakhs / 100
+    #   shares_outstanding : LAKHS (1 lakh = 100_000 shares), regardless of
+    #       filing currency — shares are a count, not a monetary value.
+    #   pat, ebitda, total_debt, cash_and_equivalents, total_equity :
+    #       — INR filers: already in CRORES
+    #       — USD filers: stored in "USD 10M units" (a pipeline convention
+    #         for tickers in USD_REPORTER_TICKERS). Convert to INR Cr using
+    #         USD_TO_INR_CR_FACTOR (≈ 83). Diagnosed from INFY: stored
+    #         pat=315.8 corresponds to ₹27,111 Cr reported → factor ≈ 85.8.
+    #   price_at_period_end : INR/share (NSE trade price, always INR)
+    # Deriving market cap in Crores keeps every ratio dimensionless.
+    # Market cap itself is unaffected by filing currency because it comes
+    # from NSE trade price × share count.
+    _USD_TO_INR_CR_FACTOR = 83.0   # static approximation; for precise
+                                    # historical ratios, resolve against
+                                    # rbi_rate at period_end (TODO)
+
+    _currency = (
+        (getattr(f, "currency", None) or "INR").upper().strip()
+    )
+
+    def _to_cr(v: Any) -> float | None:
+        """Normalise a monetary field to INR Crores based on filing currency."""
+        if not _is_finite(v):
+            return None
+        x = float(v)
+        if _currency == "USD":
+            return x * _USD_TO_INR_CR_FACTOR
+        return x   # INR (and anything else) treated as Cr
+
     shares_lakhs = float(f.shares_outstanding) if _is_finite(f.shares_outstanding) else None
     mcap_cr: float | None = None
     if price_at_period_end is not None and shares_lakhs is not None and shares_lakhs > 0:
         mcap_cr = price_at_period_end * shares_lakhs / 100.0
         market_cap_cr = mcap_cr
 
-        # PE = market cap (Cr) / net income (Cr)
-        if _is_finite(f.pat) and float(f.pat) > 0:
-            pe_ratio = mcap_cr / float(f.pat)
+        pat_cr = _to_cr(f.pat)
+        equity_cr = _to_cr(f.total_equity)
+        ebitda_cr = _to_cr(f.ebitda)
+        debt_cr = _to_cr(f.total_debt)
+        cash_cr = _to_cr(f.cash_and_equivalents)
 
-        # PB = market cap (Cr) / shareholders equity (Cr)
-        if _is_finite(f.total_equity) and float(f.total_equity) > 0:
-            pb_ratio = mcap_cr / float(f.total_equity)
-
-        # EV/EBITDA = (market cap + total_debt − cash) / ebitda — all Cr
+        if pat_cr is not None and pat_cr > 0:
+            pe_ratio = mcap_cr / pat_cr
+        if equity_cr is not None and equity_cr > 0:
+            pb_ratio = mcap_cr / equity_cr
         if (
-            _is_finite(f.ebitda)
-            and float(f.ebitda) > 0
-            and _is_finite(f.total_debt)
-            and _is_finite(f.cash_and_equivalents)
+            ebitda_cr is not None and ebitda_cr > 0
+            and debt_cr is not None and cash_cr is not None
         ):
-            ev_cr = mcap_cr + float(f.total_debt) - float(f.cash_and_equivalents)
-            ev_ebitda = ev_cr / float(f.ebitda)
+            ev_cr = mcap_cr + debt_cr - cash_cr
+            ev_ebitda = ev_cr / ebitda_cr
 
     # Fallback / supplement from market_metrics snapshot
     if mm is not None:
