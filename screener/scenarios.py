@@ -14,12 +14,12 @@ log = get_logger(__name__)
 
 SCENARIOS = {
     "Bear 🐻": {
-        "growth_adj":    -0.05,
-        "wacc_adj":      +0.02,
-        "terminal_adj":  -0.01,
+        "growth_adj":    -0.06,
+        "wacc_adj":      +0.015,
+        "terminal_adj":  -0.010,
         "pe_scenario":   "bear",
         "color":         "#ef4444",
-        "desc":          "Pessimistic: lower growth, higher discount rate",
+        "desc":          "Pessimistic: lower growth, higher discount rate, lower terminal",
     },
     "Base 📊": {
         "growth_adj":     0.00,
@@ -30,12 +30,19 @@ SCENARIOS = {
         "desc":           "Base case: model's central estimate",
     },
     "Bull 🐂": {
-        "growth_adj":    +0.04,
-        "wacc_adj":      -0.01,
-        "terminal_adj":  +0.005,
+        # FIX3: bumped from (+0.04 / -0.01 / +0.005) to (+0.06 / -0.015 / +0.010).
+        # Old values produced Bull within ~1% of Base because (a) +4pp growth
+        # fades quickly toward 4% terminal under _exponential_fade, (b) -100bps
+        # WACC and +50bps terminal moved the dominant terminal-value bucket
+        # only ~5%. With WACC and terminal-g being the heaviest levers in a
+        # 10y DCF, widening those produces a sensible 20-40% Bull-vs-Base
+        # spread on representative IT large-caps (TCS/INFY/HCLTECH).
+        "growth_adj":    +0.06,
+        "wacc_adj":      -0.015,
+        "terminal_adj":  +0.010,
         "pe_scenario":   "bull",
         "color":         "#10b981",
-        "desc":          "Optimistic: higher growth, lower discount rate",
+        "desc":          "Optimistic: higher growth, lower discount rate, higher terminal",
     },
 }
 

@@ -37,20 +37,51 @@ def test_roce_handles_none_inputs():
 
 
 # ── EV / EBITDA ──────────────────────────────────────────────
+# FIX2: signature is now compute_ev_ebitda(market_cap_cr, debt_inr,
+# cash_inr, ebitda_inr) — mixed units mirror the live `enriched` dict
+# (market_cap_cr in Crores, debt/cash/EBITDA in raw INR).
+# 1 Cr = 1e7 INR.
+
+_CR_T = 1e7  # INR per Cr
 
 
 def test_ev_ebitda_basic():
-    # EV = 1000 + 200 - 100 = 1100; EV/EBITDA = 1100/100 = 11.0
-    assert compute_ev_ebitda(1000, 200, 100, 100) == 11.0
+    # market_cap = 1100 Cr; debt = 200 Cr (in INR); cash = 100 Cr;
+    # ebitda = 100 Cr. EV = 1100 + 200 - 100 = 1200 Cr. Ratio = 12.0
+    assert compute_ev_ebitda(
+        1100,
+        200 * _CR_T,
+        100 * _CR_T,
+        100 * _CR_T,
+    ) == 12.0
+
+
+def test_ev_ebitda_hcltech_realistic():
+    # FIX2 verification: HCLTECH-like inputs.
+    # Mcap ~₹3,90,000 Cr; debt ~₹6,000 Cr; cash ~₹21,000 Cr;
+    # EBITDA ~₹19,000 Cr. EV ≈ 375,000 Cr. EV/EBITDA ≈ 19.7.
+    ratio = compute_ev_ebitda(
+        390_000,
+        6_000 * _CR_T,
+        21_000 * _CR_T,
+        19_000 * _CR_T,
+    )
+    assert 18.0 <= ratio <= 21.0, f"expected ~20×, got {ratio}"
 
 
 def test_ev_ebitda_negative_ebitda_returns_none():
-    assert compute_ev_ebitda(1000, 0, 0, -50) is None
+    assert compute_ev_ebitda(1000, 0, 0, -50 * _CR_T) is None
 
 
 def test_ev_ebitda_zero_debt_zero_cash_defaults():
-    # Even with debt/cash None, computes from mcap
-    assert compute_ev_ebitda(500, None, None, 50) == 10.0
+    # Even with debt/cash None, computes from mcap.
+    # mcap = 500 Cr, ebitda = 50 Cr. EV = 500 Cr. Ratio = 10.0
+    assert compute_ev_ebitda(500, None, None, 50 * _CR_T) == 10.0
+
+
+def test_ev_ebitda_missing_mcap_returns_none():
+    # FIX2: must return None (not 0.0) so frontend renders "—".
+    assert compute_ev_ebitda(None, 100, 50, 200 * _CR_T) is None
 
 
 # ── Debt / EBITDA ────────────────────────────────────────────

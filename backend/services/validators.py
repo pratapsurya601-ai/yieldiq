@@ -155,6 +155,36 @@ def validate_analysis(response) -> ValidationResult:
                 f"FCF growth assumption {fcf_growth*100:.1f}% sustained 10y — historically rare"
             )
 
+        # ── FIX1: FV/MoS reconciliation gate ──────────────────
+        # The displayed margin_of_safety MUST equal (FV-CMP)/CMP*100
+        # within a small slack. If it doesn't, the response carries
+        # two inconsistent FV fields (e.g. pre- vs post-moat-adjust)
+        # and we fail-closed via the under_review path. 2pp slack
+        # absorbs rounding and the Wide-moat IV smoothing band.
+        try:
+            fv_chk = getattr(v, "fair_value", None)
+            cmp_chk = getattr(v, "current_price", None)
+            mos_chk = getattr(v, "margin_of_safety", None)
+            if (
+                fv_chk is not None
+                and cmp_chk is not None
+                and mos_chk is not None
+                and float(cmp_chk) > 0
+                and float(fv_chk) > 0
+            ):
+                expected_mos = (float(fv_chk) - float(cmp_chk)) / float(cmp_chk) * 100.0
+                if abs(float(mos_chk) - expected_mos) > 2.0:
+                    result.ok = False
+                    result.severity = "critical"
+                    result.failed_fields.append("margin_of_safety")
+                    result.issues.append(
+                        f"MOS_FV_MISMATCH: displayed MoS {float(mos_chk):.1f}% "
+                        f"inconsistent with (FV-CMP)/CMP={expected_mos:.1f}% "
+                        f"(FV={float(fv_chk):g}, CMP={float(cmp_chk):g})"
+                    )
+        except (TypeError, ValueError):
+            pass
+
     # ── DCF TRACE (ring-buffer) CHECKS ────────────────────────
     try:
         from screener.dcf_engine import DCF_TRACES  # lazy import to avoid cycles

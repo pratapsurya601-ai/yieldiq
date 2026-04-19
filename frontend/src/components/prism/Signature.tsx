@@ -199,12 +199,20 @@ export default function Signature({
         })}
       </g>
 
-      {/* Vertex pills — color-coded per pillar so users learn the palette. */}
+      {/* Vertex pills — color-coded per pillar so users learn the palette.
+          A data_limited pillar with score 0 would otherwise place its
+          "n/a" badge exactly on (cx,cy) and visually collide with the
+          central composite score (e.g. "4.9"). Pin those to a minimum
+          radius so the n/a stays on the spoke, never on top of the
+          centre. */}
       <g>
         {ordered.map((p, i) => {
           const s = scores[i]
-          const r = (s / 10) * maxRadius
-          const [x, y] = signatureVertex(cx, cy, r, i)
+          const minR = maxRadius * 0.22 // outside the central composite text
+          // Only nudge data_limited pills outward — real score-0 vertices
+          // belong on the polygon at the centre.
+          const pillR = p.data_limited ? minR : (s / 10) * maxRadius
+          const [x, y] = signatureVertex(cx, cy, pillR, i)
           const color = p.data_limited ? "var(--color-caption)" : pillarColor(p.key)
           const isPulse = p.key === "pulse"
           const spotlightOn = highlightedPillar != null
@@ -285,7 +293,7 @@ export default function Signature({
             letterSpacing: "-0.02em",
           }}
         >
-          {overall.toFixed(1)}
+          {Number.isFinite(overall) ? overall.toFixed(1) : "—"}
         </text>
         <text
           x={cx}

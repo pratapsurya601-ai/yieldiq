@@ -23,7 +23,7 @@ from typing import Any, Optional
 #   - Would TCS / INFY / any existing top-100 ticker's fair_value change?
 #     YES  -> bump required
 #     NO   -> do not bump, even if you changed analysis_service.py
-CACHE_VERSION = 31  # bumped: DCF volatility mitigation — hysteresis on fcf_base_source + 3-day EMA smooth persisted + WARN on suspicious drift
+CACHE_VERSION = 33  # bumped: FIX3 — scenario adjustments widened (Bull/Bear growth_adj +/-0.06, wacc_adj +/-0.015, terminal_adj +/-0.010). Old payloads carry collapsed Bull case (within 1% of Base) and must be invalidated. Also: Monte Carlo seeded via local Generator instead of global np.random.seed.
 
 
 class CacheService:

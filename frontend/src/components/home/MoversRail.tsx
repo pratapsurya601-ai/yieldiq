@@ -32,25 +32,32 @@ export default function MoversRail() {
     ticker: string
     display: string
     name: string
-    changePct: number | null
+    /** Holding's lifetime P&L %, NOT today's move. Null when unknown. */
+    pnlPct: number | null
   }
 
   let cards: Card[] = []
   if (holdings.length > 0) {
-    cards = holdings.slice(0, 8).map((h) => ({
-      ticker: h.display_ticker,
-      display: h.display_ticker,
-      name: h.company_name,
-      // holdings-live doesn't ship today's change — use P&L % as the signal
-      // until a dedicated "today" field exists.
-      changePct: h.pnl_pct,
-    }))
+    cards = holdings.slice(0, 8).map((h) => {
+      // Sanity-clamp absurd values (e.g. cost_basis ≈ 0 producing
+      // five-figure pcts, or a stale snapshot showing -50% on a blue
+      // chip). Anything beyond ±500% is almost certainly bad data —
+      // hide rather than mislead.
+      const raw = typeof h.pnl_pct === "number" && Number.isFinite(h.pnl_pct) ? h.pnl_pct : null
+      const safe = raw !== null && Math.abs(raw) <= 500 ? raw : null
+      return {
+        ticker: h.display_ticker,
+        display: h.display_ticker,
+        name: h.company_name,
+        pnlPct: safe,
+      }
+    })
   } else if (watchlist && watchlist.length > 0) {
     cards = watchlist.slice(0, 8).map((w) => ({
       ticker: w.ticker,
       display: w.ticker,
       name: w.company_name,
-      changePct: null,
+      pnlPct: null,
     }))
   }
 
@@ -85,15 +92,20 @@ export default function MoversRail() {
               <p className="text-[10px] text-caption truncate max-w-[130px]">
                 {c.name}
               </p>
-              {c.changePct !== null ? (
-                <p
-                  className={`text-sm font-bold font-mono mt-1 ${
-                    c.changePct >= 0 ? "text-green-600" : "text-red-600"
-                  }`}
-                >
-                  {c.changePct >= 0 ? "+" : ""}
-                  {c.changePct.toFixed(2)}%
-                </p>
+              {c.pnlPct !== null ? (
+                <>
+                  <p
+                    className={`text-sm font-bold font-mono mt-1 ${
+                      c.pnlPct >= 0 ? "text-green-600" : "text-red-600"
+                    }`}
+                  >
+                    {c.pnlPct >= 0 ? "+" : ""}
+                    {c.pnlPct.toFixed(2)}%
+                  </p>
+                  <p className="text-[9px] text-caption uppercase tracking-wider mt-0.5">
+                    P&amp;L
+                  </p>
+                </>
               ) : (
                 <p className="text-[10px] text-caption font-mono mt-1">
                   Watching

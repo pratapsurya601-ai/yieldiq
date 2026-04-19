@@ -15,8 +15,13 @@ BOUNDS: dict[str, tuple[float, float, str]] = {
     # ── Return metrics (percent) ──────────────────────────────
     "roe":                (-100, 200,  "warning"),    # ROE percent
     "roe_pct":            (-100, 200,  "warning"),
-    "roce":               (-100, 200,  "warning"),    # ROCE percent
-    "roce_pct":           (-100, 200,  "warning"),
+    # FIX2: tightened upper bound from 200 → 100. ROCE > 100% means
+    # capital employed is tiny relative to EBIT — almost always a
+    # data-quality issue (unit mixup, missing balance sheet) rather
+    # than a real signal. Negative ROCE is genuine (loss-making) so
+    # we keep the floor at -100.
+    "roce":               (-100, 100,  "warning"),    # ROCE percent
+    "roce_pct":           (-100, 100,  "warning"),
 
     # ── Cost of capital (decimal) ─────────────────────────────
     "wacc":               (0.02, 0.30, "critical"),   # 2%-30%
@@ -33,7 +38,13 @@ BOUNDS: dict[str, tuple[float, float, str]] = {
     # ── Valuation multiples ───────────────────────────────────
     "pe_ratio":           (-200, 500,  "warning"),
     "pb_ratio":           (0.01, 100,  "warning"),
-    "ev_ebitda":          (-100, 500,  "warning"),
+    # FIX2: tightened from (-100, 500, warning) to (-100, 200, critical).
+    # Real EV/EBITDA outside this range is essentially never legitimate
+    # — anything higher is a unit mixup (HCLTECH was rendering 1376×
+    # because debt/cash/EBITDA in raw INR were divided into a Cr mcap).
+    # Fail-closed so the data quality issue surfaces in validators
+    # instead of leaking to the UI.
+    "ev_ebitda":          (-100, 200,  "critical"),
     "ps_ratio":           (0,    100,  "warning"),
 
     # ── Valuation outputs ─────────────────────────────────────

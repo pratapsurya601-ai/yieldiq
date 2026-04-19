@@ -553,12 +553,19 @@ def monte_carlo_valuation(
         return {"error": "No valid FCF base for Monte Carlo"}
 
     iv_values = []
-    np.random.seed(42)
+    # FIX3: use a LOCAL Generator instead of mutating the global np.random
+    # state. The previous `np.random.seed(42)` call set the *process-global*
+    # seed, which (a) leaks determinism into any other code that touches
+    # np.random later in the request, and (b) is itself non-deterministic
+    # under thread interleaving when multiple analyses run in parallel
+    # (ThreadPoolExecutor inside analysis_service). A per-call default_rng
+    # keeps Monte Carlo reproducible without polluting global RNG state.
+    _rng = np.random.default_rng(seed=42)
 
     for _ in range(n_simulations):
-        sim_growth = _clamp(np.random.normal(base_growth, 0.02))
-        sim_wacc   = float(np.clip(np.random.normal(base_wacc, 0.01), 0.08, 0.20))
-        sim_tg     = float(np.clip(np.random.normal(0.03, 0.005), 0.01, 0.04))
+        sim_growth = _clamp(float(_rng.normal(base_growth, 0.02)))
+        sim_wacc   = float(np.clip(_rng.normal(base_wacc, 0.01), 0.08, 0.20))
+        sim_tg     = float(np.clip(_rng.normal(0.03, 0.005), 0.01, 0.04))
         if sim_wacc <= sim_tg:
             sim_tg = sim_wacc - 0.02
 

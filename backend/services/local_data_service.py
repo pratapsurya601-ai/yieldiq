@@ -342,7 +342,30 @@ def assemble_local(ticker: str, db_session) -> dict | None:
     # total_debt/cash are now in raw INR (after CR multiplication above)
     enterprise_value = (market_cap_cr * CR) + total_debt - total_cash \
         if market_cap_cr > 0 else 0.0
-    ev_to_ebitda_calc = (enterprise_value / (ebitda * CR)) if ebitda > 0 else ev_ebitda_mm
+    # FIX2: ev_to_ebitda hardening.
+    #   `ebitda` here is in Cr when sourced from `financials` (line 206)
+    #   but may have been overwritten with a raw-INR TTM value from
+    #   `company_financials` quarterly rows (line 262). In either case
+    #   the rest of this module multiplies by CR to get raw INR, so the
+    #   division below is correct ONLY when `ebitda` is truly in Cr.
+    #
+    #   The direct DB column `ev_ebitda_mm` (from `market_metrics`) is
+    #   the trusted fallback for absurd computed values — measured on
+    #   HCLTECH the computed path was producing 1376× while the DB
+    #   column carried the correct ~20×. Guard with a sanity range so
+    #   unit mixups from any upstream source can't leak to the UI.
+    if ebitda > 0:
+        _calc = enterprise_value / (ebitda * CR)
+        if 0 < _calc < 200:
+            ev_to_ebitda_calc = _calc
+        elif ev_ebitda_mm and 0 < ev_ebitda_mm < 200:
+            ev_to_ebitda_calc = ev_ebitda_mm  # trust the DB column
+        else:
+            ev_to_ebitda_calc = None  # surface as "—" not "1376×"
+    elif ev_ebitda_mm and 0 < ev_ebitda_mm < 200:
+        ev_to_ebitda_calc = ev_ebitda_mm
+    else:
+        ev_to_ebitda_calc = None
     latest_rev_raw = income_df["revenue"].iloc[-1] if not income_df.empty else 0
     ev_to_revenue = (enterprise_value / latest_rev_raw) if latest_rev_raw > 0 else 0.0
 

@@ -1769,11 +1769,18 @@ class AnalysisService:
             except Exception:
                 pass
 
-        # NOTE: mos_pct is intentionally NOT recomputed after the moat
-        # IV adjustment — matches pre-parallelization behavior where
-        # yiq_score / inv_plan / verdict all used the pre-adjustment
-        # MoS. Only the displayed fair_value / base_case reflect the
-        # moat delta.
+        # CRITICAL FIX (FIX1): mos_pct MUST be recomputed from the
+        # post-adjustment `iv` so that the displayed MoS reconciles
+        # with the displayed `fair_value` via (FV-CMP)/CMP. Prior
+        # behaviour preserved a "pre-moat" MoS even though the
+        # displayed FV reflected the moat delta — users saw e.g.
+        # FV ₹3,223 with MoS −0.1% when the math demands +24.8%.
+        # Single source of truth: derive MoS from the SAME `iv`
+        # field that is shown to the user. Covers both DCF and
+        # financial-stock P/BV paths (financials skip the moat
+        # adjustment block above, so this is a no-op for them but
+        # remains safe).
+        mos_pct = ((iv - price) / price * 100) if price > 0 else 0
 
         # Analyst upside: (target - price) / price * 100
         _analyst_target = (raw.get("finnhub_price_target") or {}).get("mean", 0) or 0

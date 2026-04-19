@@ -715,6 +715,40 @@ async def get_yieldiq50(user: dict = Depends(get_current_user)):
             if s.ticker and s.ticker not in by_ticker:
                 by_ticker[s.ticker] = s
 
+    # Promote each static-seed ticker to a LIVE PG-cached row if one exists.
+    # This is the single source of truth for cross-page MoS consistency:
+    # if /analysis/HCLTECH has a warm tier-2 cache row, /yieldiq50 must
+    # surface the same MoS rather than the stale static seed.
+    for t, name, default_score, default_mos, default_moat, default_sector in _STATIC_YIQ50:
+        try:
+            cached_payload = analysis_cache_service.get_cached(t)
+        except Exception:
+            cached_payload = None
+        if not cached_payload:
+            continue
+        try:
+            v = cached_payload.get("valuation", {}) or {}
+            q = cached_payload.get("quality", {}) or {}
+            c = cached_payload.get("company", {}) or {}
+            live_mos = v.get("margin_of_safety")
+            live_score = q.get("yieldiq_score")
+            if live_mos is None or live_score is None:
+                continue
+            by_ticker[t] = ScreenerStock(
+                ticker=t,
+                company_name=c.get("company_name") or name,
+                score=int(live_score),
+                margin_of_safety=round(float(live_mos), 1),
+                moat=q.get("moat") or default_moat,
+                sector=c.get("sector") or default_sector,
+                verdict=v.get("verdict") or (
+                    "undervalued" if live_mos > 10 else "fairly_valued" if live_mos > -10 else "overvalued"
+                ),
+            )
+        except Exception:
+            # Best-effort — fall through to static fallback below
+            continue
+
     # Pad from static only if we still have < 50 real entries.
     if len(by_ticker) < 50:
         for t, name, score, mos, moat, sector in _STATIC_YIQ50:
