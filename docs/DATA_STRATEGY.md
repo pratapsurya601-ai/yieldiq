@@ -152,6 +152,63 @@ for gaps. This matches what Screener.in themselves use.
 4. **Coverage of ratio series:** % of tickers with at least 20 quarterly RatioHistory
    rows. _Target: 80% by end of week 1._
 
+## Storage layer — dual-write (Postgres + Parquet)
+
+Since day-one the project has been Postgres-first (Aiven managed). That
+stays. On top of it we now maintain a Parquet mirror of every key
+table, rebuilt nightly, so analytics (DuckDB / Polars / pandas) and
+backup/portability flows don't compete with the live API for row reads.
+
+**Why both:**
+- **Postgres** — sub-ms indexed lookups for the API. Transactional.
+  Handles concurrent writes from the ingestion pipelines. Correct
+  for every hot-path request the FastAPI app serves.
+- **Parquet** — columnar, compressed, portable. Ideal for:
+  - Full-table scans with DuckDB (dashboard queries, cross-ticker ranks)
+  - Polars / pandas workflows (notebooks, ad-hoc analysis)
+  - S3 backups and disaster recovery
+  - Cross-validation — read Parquet with one engine, compare against
+    Postgres, catch silent divergence
+  - Eventual open-dataset release (no peer does this today)
+
+**Layout under `data/parquet/`:**
+
+| File / directory | Source table | Partition | Compression |
+|------------------|--------------|-----------|-------------|
+| `stocks.parquet` | `stocks` | — | snappy |
+| `financials.parquet` | `financials` | — | zstd |
+| `ratio_history.parquet` | `ratio_history` | — | snappy |
+| `peer_groups.parquet` | `peer_groups` | — | snappy |
+| `market_metrics.parquet` | `market_metrics` | — | snappy |
+| `shareholding_pattern.parquet` | `shareholding_pattern` | — | snappy |
+| `fair_value_history.parquet` | `fair_value_history` | — | snappy |
+| `daily_prices/year=YYYY/part-0.parquet` | `daily_prices` | `year` | snappy |
+
+`financials` uses zstd because of the large `raw_data` JSON column;
+snappy is fine (and faster) for everything else.
+
+**Run manually:**
+```bash
+DATABASE_URL=... python scripts/export_to_parquet.py
+```
+
+**Query with DuckDB (no Postgres needed):**
+```bash
+python scripts/duckdb_query.py
+# or one-shot:
+python scripts/duckdb_query.py -q "SELECT ticker, roe, roce FROM ratio_history WHERE period_end = '2025-03-31' AND roe > 20 ORDER BY roe DESC LIMIT 20"
+```
+
+**CI:** `parquet_export_nightly.yml` runs at 04:15 UTC, 45 min after
+`ratio_history_daily.yml` finishes, so the derived layer is captured
+in the same snapshot as the raw layer. Output is uploaded as a
+workflow artifact (30-day retention). S3 sync is a follow-up once a
+bucket is provisioned.
+
+**Not committed to git:** Parquet files are gitignored. Full export is
+~50-200 MB; it churns every day. Use the nightly artifact or sync to
+S3 for persistence.
+
 ## Non-goals (deliberately not building)
 
 - **Intraday tick data.** Expensive, not useful for long-term valuation app.
