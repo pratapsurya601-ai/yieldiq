@@ -23,6 +23,9 @@ from backend.models.responses import (
     InsightCards, BulkDealItem, CompanyInfo, ScenariosOutput, ScenarioCase,
     PriceLevels, ScreenerStock, RedFlag,
 )
+# CACHE_VERSION is stamped into the computation_inputs snapshot so the
+# audit trail records exactly which code generation produced an FV.
+from backend.services.cache_service import CACHE_VERSION
 
 # ── Import existing engines (NO rewrites) ─────────────────────
 from data.collector import StockDataCollector
@@ -2149,6 +2152,53 @@ class AnalysisService:
                 f"[info] Valued via {_method} peer band — DCF not "
                 f"meaningful for financials."
             )
+
+        # ── FV stability snapshot (v35) ──────────────────────────
+        # Pin every input that shaped the displayed `iv` into the
+        # response (and therefore into analysis_cache.payload). Warm
+        # cache hits return the cached payload byte-for-byte, so the
+        # snapshot lets us reproduce the FV later without re-fetching
+        # yfinance/Aiven (which drift between cold computes and were
+        # the root cause of ITC/HCLTECH/INFY shifting between cache
+        # states). All values are pre-computed scalars already used
+        # above — this block does NOT re-fetch or re-derive.
+        try:
+            _ci_revenue = (
+                enriched.get("latest_revenue")
+                or enriched.get("revenue")
+                or 0
+            )
+            if hasattr(_ci_revenue, "__iter__") and not isinstance(_ci_revenue, (str, bytes)):
+                # `revenue` may be a Series/list — take the most recent
+                try:
+                    _ci_revenue = float(list(_ci_revenue)[-1])
+                except Exception:
+                    _ci_revenue = 0
+            _computation_inputs = {
+                "code_version": "fv-stability-v1",
+                "computed_at": _ts,
+                "data_source": _data_source,
+                "current_price": float(price or 0),
+                "shares_outstanding": float(enriched.get("shares") or 0),
+                "revenue_ttm": float(_ci_revenue or 0),
+                "ebit_ttm": float(enriched.get("ebit") or 0),
+                "fcf_ttm": float(enriched.get("latest_fcf") or 0),
+                "pat_ttm": float(enriched.get("latest_pat") or 0),
+                "total_debt": float(enriched.get("total_debt") or 0),
+                "total_cash": float(enriched.get("total_cash") or 0),
+                "wacc": float(wacc or 0),
+                "terminal_growth": float(terminal_g or 0),
+                "base_growth": float(base_growth or 0),
+                "iv_raw_pre_moat": float(locals().get("iv_raw") or 0),
+                "iv_post_moat": float(iv or 0),
+                "moat_grade": moat_result.get("grade", "None"),
+                "valuation_model": "pb_ratio" if is_financial else "dcf",
+                "is_financial": bool(is_financial),
+                "cache_version": CACHE_VERSION,
+            }
+        except Exception:
+            _computation_inputs = None
+
         return AnalysisResponse(
             ticker=ticker,
             company=company,
@@ -2255,6 +2305,7 @@ class AnalysisService:
             data_confidence=_confidence,
             data_issues=_data_issues,
             timestamp=_ts,
+            computation_inputs=_computation_inputs,
         )
 
     def get_ai_summary(self, ticker: str, analysis: AnalysisResponse) -> str:

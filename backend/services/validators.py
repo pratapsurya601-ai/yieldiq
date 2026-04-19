@@ -185,6 +185,48 @@ def validate_analysis(response) -> ValidationResult:
         except (TypeError, ValueError):
             pass
 
+        # ── FV stability check (v35) ──────────────────────────
+        # Defense-in-depth: every fresh compute MUST attach
+        # computation_inputs (the snapshot of yfinance/Aiven values
+        # that produced the displayed FV). Missing snapshot on a
+        # fresh response means a code path silently bypassed the
+        # snapshot block — that's the regression we're guarding
+        # against. Old cached payloads (pre-v35) without the field
+        # are tolerated by the warm path itself; this check fires
+        # only on freshly-computed responses (cached=False).
+        try:
+            ci = getattr(response, "computation_inputs", None)
+            is_cached = bool(getattr(response, "cached", False))
+            if not is_cached and not ci:
+                # Info-severity: don't flip verdict, but log so we
+                # notice if a deploy regresses the snapshot.
+                result.issues.append(
+                    "FV_STABILITY_INFO: computation_inputs missing on "
+                    "fresh compute — FV audit trail unavailable"
+                )
+                if result.severity == "ok":
+                    result.severity = "warning"
+            elif ci and isinstance(ci, dict):
+                # Sanity: the snapshotted iv_post_moat must match the
+                # displayed fair_value within a tight band. If it
+                # doesn't, something mutated FV after the snapshot
+                # was taken — exactly the class of bug we're killing.
+                snap_iv = float(ci.get("iv_post_moat") or 0)
+                disp_fv = float(getattr(v, "fair_value", 0) or 0)
+                if snap_iv > 0 and disp_fv > 0:
+                    drift = abs(snap_iv - disp_fv) / snap_iv
+                    if drift > 0.01:  # 1% tolerance for rounding
+                        result.ok = False
+                        result.severity = "critical"
+                        result.failed_fields.append("fair_value")
+                        result.issues.append(
+                            f"FV_INPUT_MISMATCH: displayed FV {disp_fv:g} "
+                            f"drifted from snapshotted iv_post_moat "
+                            f"{snap_iv:g} (drift {drift*100:.2f}%)"
+                        )
+        except Exception:
+            pass
+
     # ── DCF TRACE (ring-buffer) CHECKS ────────────────────────
     try:
         from screener.dcf_engine import DCF_TRACES  # lazy import to avoid cycles

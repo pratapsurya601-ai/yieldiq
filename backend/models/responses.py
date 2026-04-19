@@ -213,6 +213,13 @@ class AnalysisResponse(BaseModel):
     data_issues: list[str] = []
     cached: bool = False
     timestamp: str = ""
+    # Snapshot of the exact inputs that produced `valuation.fair_value`
+    # at compute time. Persisted into analysis_cache.payload so warm
+    # cache hits can be reproduced/audited deterministically. Optional
+    # because pre-v35 cached payloads may not have it (back-compat).
+    # See backend/services/validators/stability.py for the structural
+    # check that fires when this is missing on a fresh compute.
+    computation_inputs: Optional[dict] = None
 
 
 # ── Screener response ─────────────────────────────────────────

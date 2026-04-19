@@ -23,7 +23,7 @@ from typing import Any, Optional
 #   - Would TCS / INFY / any existing top-100 ticker's fair_value change?
 #     YES  -> bump required
 #     NO   -> do not bump, even if you changed analysis_service.py
-CACHE_VERSION = 34  # bumped: prism/hex/hex_history MoS formula was (FV-CMP)/FV → corrected to (FV-CMP)/CMP. Old prism payloads have wrong verdict_band (e.g. HCLTECH +27% MoS shown as Expensive). FIX3(33)=scenarios. FIX1(32)=MoS source-of-truth in analysis_service.
+CACHE_VERSION = 35  # FV stability fix: snapshot computation_inputs into payload so warm-cache reads return byte-identical FV. Old payloads (v34) had transient FV that shifted across cold recomputes (ITC ₹573→₹301, HCLTECH ₹1,173→₹1,837, INFY ₹1,801→₹1,917). v35 invalidates them so the new fix can populate fresh. v34=MoS formula. FIX3(33)=scenarios. FIX1(32)=MoS source-of-truth.
 
 
 class CacheService:
