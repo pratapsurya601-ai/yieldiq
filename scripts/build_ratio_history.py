@@ -244,21 +244,20 @@ def _latest_metrics_at_or_before(
 
 
 # Max tolerated gap between period_end and the daily_prices row we'll
-# use as "price at period end". 120 days covers typical quarterly-results
-# reporting lag + any daily_prices ingestion gaps without letting an
-# ancient price contaminate a recent ratio.
-_PRICE_LOOKUP_MAX_GAP_DAYS = 120
+# use as "price at period end". 180 days covers typical quarterly-results
+# reporting lag, daily_prices ingestion gaps, and the rolling 52-week
+# contamination window is still avoided.
+_PRICE_LOOKUP_MAX_GAP_DAYS = 180
 
 
 def _price_at_or_before(
     db: OrmSession, ticker: str, on_or_before: date,
 ) -> float | None:
     """Close price for `ticker` on the latest trading day on-or-before
-    `on_or_before`, within ``_PRICE_LOOKUP_MAX_GAP_DAYS``. Prefers the
-    split/bonus-adjusted column when present, else falls back to raw close.
-
-    Used by the per-period valuation computation (PE/PB/EV) so we don't
-    depend on the sparsely-populated market_metrics history."""
+    `on_or_before`, within ``_PRICE_LOOKUP_MAX_GAP_DAYS``. Returns the
+    RAW close — the caller is expected to apply corporate-action
+    adjustments (see ``_adjust_price``) because daily_prices.adj_close
+    is not reliably backfilled in this pipeline."""
     sql = text("""
         SELECT trade_date, close_price, adj_close
         FROM daily_prices
@@ -269,25 +268,83 @@ def _price_at_or_before(
     if row is None:
         return None
     td, close, adj = row[0], row[1], row[2]
-    # Skip if the nearest price is too far from period_end
     try:
         gap = (on_or_before - td).days
         if gap > _PRICE_LOOKUP_MAX_GAP_DAYS:
             return None
     except Exception:
         pass
-    # adj_close preferred (handles splits + bonuses); raw close fallback
-    if adj is not None:
-        try:
-            return float(adj)
-        except (TypeError, ValueError):
-            pass
+    # Prefer raw close_price — adj_close in this DB is not actually
+    # backfilled for splits/bonuses (verified empirically: RELIANCE
+    # 2022-03-31 shows close==adj_close=2634.75, yet the Oct 2024 1:1
+    # bonus should have halved the historical adjusted price). We
+    # apply corporate-action adjustment explicitly in _adjust_price.
     if close is not None:
         try:
             return float(close)
         except (TypeError, ValueError):
             pass
+    if adj is not None:
+        try:
+            return float(adj)
+        except (TypeError, ValueError):
+            pass
     return None
+
+
+def _load_corporate_actions(
+    db: OrmSession, ticker: str,
+) -> list[tuple[date, float]]:
+    """Return [(ex_date, adjustment_factor)] for ticker, sorted ASC.
+    Used to back out splits/bonuses from historical prices so that
+    ``raw_close × current_shares`` lands on the right market cap."""
+    sql = text("""
+        SELECT ex_date, adjustment_factor
+        FROM corporate_actions
+        WHERE ticker = :t
+          AND adjustment_factor IS NOT NULL
+          AND adjustment_factor > 0
+          AND ex_date IS NOT NULL
+        ORDER BY ex_date ASC
+    """)
+    rows = db.execute(sql, {"t": ticker}).fetchall()
+    out: list[tuple[date, float]] = []
+    for r in rows:
+        try:
+            out.append((r[0], float(r[1])))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+def _adjust_price(
+    raw_close: float, period_end: date, actions: list[tuple[date, float]],
+) -> float:
+    """Adjust raw_close so it's comparable against CURRENT shares_outstanding.
+
+    For each corporate action with ex_date > period_end, the current share
+    count has been inflated (bonus) or contracted (reverse split) since
+    that period. Dividing raw_close by the compound factor gives a price
+    that, when multiplied by current shares, reproduces the period-end
+    market cap correctly.
+
+    Example — RELIANCE 1:1 bonus on 2024-10-28 has adjustment_factor=2.0:
+        period_end=2022-03-31:
+            factor = 2.0   (bonus happened AFTER this period)
+            raw_close = 2634 → adjusted = 1317
+            mcap = 1317 × 13.5B shares = 17.77L Cr  ✓ (matches reported)
+        period_end=2025-03-31:
+            factor = 1.0   (bonus happened BEFORE this period)
+            raw_close = 1275 → adjusted = 1275
+            mcap = 1275 × 13.5B shares = 17.25L Cr  ✓
+    """
+    factor = 1.0
+    for ex_date, f in actions:
+        if ex_date > period_end:
+            factor *= f
+    if factor != 1.0:
+        return raw_close / factor
+    return raw_close
 
 
 def _compute_row(
@@ -619,14 +676,18 @@ def process_ticker(
     clamp_log: list[tuple[str, str]] = []
     n_written = 0
 
+    # Load corporate actions once per ticker — used to back out
+    # splits/bonuses from historical prices.
+    actions = _load_corporate_actions(db, ticker)
+
     for i, f in enumerate(rows):
         if since is not None and f.period_end < since:
             continue
         prior = _find_prior_year_row(rows, idx_by_type, i)
         mm = _latest_metrics_at_or_before(db, ticker, f.period_end)
-        # New: compute historical valuation from primitives (daily_prices +
-        # Financials) because market_metrics lacks historical depth.
         price = _price_at_or_before(db, ticker, f.period_end)
+        if price is not None and actions:
+            price = _adjust_price(price, f.period_end, actions)
         row_values = _compute_row(
             f, prior, mm,
             ticker=ticker,
