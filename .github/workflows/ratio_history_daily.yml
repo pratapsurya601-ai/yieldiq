@@ -1,0 +1,61 @@
+name: Ratio History — Daily Rebuild
+
+# Re-computes the ratio_history table from the financials table.
+#
+# Why daily: the financials table gets appended to by the XBRL pipeline
+# (new quarterly filings land rolling T+45 days post-period-end), and
+# market_metrics updates every trading day (prices shift PE/PB/EV-EBITDA
+# at period_end). Running once a day keeps the derived layer fresh
+# without hammering the DB.
+#
+# The script is idempotent — it UPSERTs per (ticker, period_end, period_type).
+# A full rebuild over ~2,500 tickers takes ~15-20 minutes.
+#
+# Secrets required:
+#   - DATABASE_URL : Aiven Postgres connection string (read+write)
+
+on:
+  schedule:
+    - cron: "30 3 * * *"  # 03:30 UTC = 09:00 IST, after financials.yml
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: "Scope: all | top500 | single ticker (comma list)"
+        required: false
+        default: "all"
+
+concurrency:
+  group: ratio-history-rebuild
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install sqlalchemy psycopg2-binary python-dateutil
+
+      - name: Run ratio history builder
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret missing"
+            exit 1
+          fi
+          SCOPE="${{ github.event.inputs.scope || 'all' }}"
+          if [ "$SCOPE" = "all" ]; then
+            python scripts/build_ratio_history.py --all
+          elif [ "$SCOPE" = "top500" ]; then
+            python scripts/build_ratio_history.py --top 500
+          else
+            python scripts/build_ratio_history.py --tickers "$SCOPE"
+          fi

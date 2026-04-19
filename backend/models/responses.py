@@ -361,3 +361,96 @@ class SuccessResponse(BaseModel):
 class ErrorResponse(BaseModel):
     ok: bool = False
     error: str = ""
+
+
+# ── Historical financials (public endpoint) ───────────────────
+
+class HistoricalFinancialPeriod(BaseModel):
+    period_end: str
+    period_type: str
+    revenue: Optional[float] = None
+    ebitda: Optional[float] = None
+    ebit: Optional[float] = None
+    pat: Optional[float] = None
+    eps_diluted: Optional[float] = None
+    cfo: Optional[float] = None
+    capex: Optional[float] = None
+    free_cash_flow: Optional[float] = None
+    total_assets: Optional[float] = None
+    total_equity: Optional[float] = None
+    total_debt: Optional[float] = None
+    cash_and_equivalents: Optional[float] = None
+    shares_outstanding: Optional[float] = None
+    roe: Optional[float] = None
+    roa: Optional[float] = None
+    debt_to_equity: Optional[float] = None
+    gross_margin: Optional[float] = None
+    operating_margin: Optional[float] = None
+    net_margin: Optional[float] = None
+    fcf_margin: Optional[float] = None
+    revenue_growth_yoy: Optional[float] = None
+    pat_growth_yoy: Optional[float] = None
+
+
+class HistoricalFinancialsResponse(BaseModel):
+    ticker: str
+    currency: str = "INR"
+    periods: list[HistoricalFinancialPeriod] = []
+
+
+# ── Ratio history (public endpoint) ───────────────────────────
+
+class RatioHistoryPeriod(BaseModel):
+    period_end: str
+    period_type: str
+    roe: Optional[float] = None
+    roce: Optional[float] = None
+    roa: Optional[float] = None
+    de_ratio: Optional[float] = None
+    debt_ebitda: Optional[float] = None
+    interest_cov: Optional[float] = None
+    gross_margin: Optional[float] = None
+    operating_margin: Optional[float] = None
+    net_margin: Optional[float] = None
+    fcf_margin: Optional[float] = None
+    revenue_yoy: Optional[float] = None
+    ebitda_yoy: Optional[float] = None
+    pat_yoy: Optional[float] = None
+    fcf_yoy: Optional[float] = None
+    pe_ratio: Optional[float] = None
+    pb_ratio: Optional[float] = None
+    ev_ebitda: Optional[float] = None
+    dividend_yield: Optional[float] = None
+    market_cap_cr: Optional[float] = None
+    current_ratio: Optional[float] = None
+    asset_turnover: Optional[float] = None
+
+
+class RatioHistoryResponse(BaseModel):
+    ticker: str
+    periods: list[RatioHistoryPeriod] = []
+
+
+# ── Peer groups (public endpoint) ─────────────────────────────
+
+class PeerInfo(BaseModel):
+    peer_ticker: str
+    rank: int
+    sector: Optional[str] = None
+    sub_sector: Optional[str] = None
+    mcap_ratio: Optional[float] = None
+    # Selected fields from peer's latest analysis cache / ratio history
+    company_name: Optional[str] = None
+    fair_value: Optional[float] = None
+    current_price: Optional[float] = None
+    margin_of_safety: Optional[float] = None
+    verdict: Optional[str] = None
+    score: Optional[float] = None
+    moat: Optional[str] = None
+    roe: Optional[float] = None
+    pe_ratio: Optional[float] = None
+
+
+class PeersResponse(BaseModel):
+    ticker: str
+    peers: list[PeerInfo] = []
