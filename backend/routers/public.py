@@ -1363,6 +1363,208 @@ async def get_price_history_endpoint(
     return out
 
 
+@router.get("/screener/query")
+async def screener_query(
+    filters: str | None = Query(
+        default=None,
+        description=(
+            "Comma-separated filter triples in the form `field op value`. "
+            "Supported ops: < > <= >= = !=. "
+            "Fields: pe_ratio, pb_ratio, ev_ebitda, roe, roce, "
+            "de_ratio, market_cap_cr, mos, score, sector. "
+            "Example: pe_ratio<20,roce>15,market_cap_cr>1000"
+        ),
+    ),
+    sort: str = Query(default="mos", description="Sort field (prefix with - for desc)"),
+    limit: int = Query(default=50, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+):
+    """Flexible public stock screener — no auth required, 5-min cache.
+
+    Powers shareable SEO URLs like
+      /api/v1/public/screener/query?filters=pe_ratio<20,roce>15
+      /screen/cheap-quality     -> frontend slug -> this endpoint
+
+    Joins ``stocks`` (name, sector, mcap) with ``ratio_history`` (latest
+    annual) and ``fair_value_history`` (latest MoS) so a single query
+    returns the same shape as the frontend screener table.
+    """
+    import re
+    import hashlib
+
+    _key_parts = (filters or "", sort, limit, offset)
+    _cache_key = "public:screener:" + hashlib.sha1(
+        repr(_key_parts).encode()
+    ).hexdigest()
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    # ── parse filters ──────────────────────────────────────────────
+    _ALLOWED_FIELDS: dict[str, str] = {
+        "pe_ratio":       "rh.pe_ratio",
+        "pb_ratio":       "rh.pb_ratio",
+        "ev_ebitda":      "rh.ev_ebitda",
+        "roe":            "rh.roe",
+        "roce":           "rh.roce",
+        "de_ratio":       "rh.de_ratio",
+        "market_cap_cr":  "mm.market_cap_cr",
+        "mcap":           "mm.market_cap_cr",   # alias
+        "mos":            "fv.mos",
+        "score":          "fv.score",
+        "sector":         "s.sector",
+    }
+    _ALLOWED_OPS = {"<", ">", "<=", ">=", "=", "!="}
+    _TRIPLE_RE = re.compile(r"^([a-z_]+)\s*(<=|>=|!=|<|>|=)\s*(.+)$", re.I)
+
+    where_clauses: list[str] = ["s.is_active = TRUE"]
+    where_params: list = []
+    parsed_filters: dict[str, list[tuple[str, str]]] = {}
+    if filters:
+        for raw in filters.split(","):
+            raw = raw.strip()
+            if not raw:
+                continue
+            m = _TRIPLE_RE.match(raw)
+            if not m:
+                raise HTTPException(status_code=400, detail=f"bad filter: {raw!r}")
+            field, op, val = m.group(1).lower(), m.group(2), m.group(3).strip()
+            if field not in _ALLOWED_FIELDS:
+                raise HTTPException(status_code=400, detail=f"unknown field: {field}")
+            if op not in _ALLOWED_OPS:
+                raise HTTPException(status_code=400, detail=f"bad op: {op}")
+            col = _ALLOWED_FIELDS[field]
+            # Cast value safely
+            if field == "sector":
+                where_clauses.append(f"LOWER({col}) {op} LOWER(%s)")
+                where_params.append(val.strip("'\""))
+            else:
+                try:
+                    where_params.append(float(val))
+                except ValueError:
+                    raise HTTPException(status_code=400, detail=f"bad numeric: {val}")
+                where_clauses.append(f"{col} {op} %s")
+            parsed_filters.setdefault(field, []).append((op, val))
+
+    # ── sort order ─────────────────────────────────────────────────
+    sort_col = sort.lstrip("-")
+    sort_dir = "DESC" if sort.startswith("-") or sort in ("mos", "score") else "ASC"
+    _SORT_MAP = {
+        "mos": "fv.mos DESC NULLS LAST",
+        "score": "fv.score DESC NULLS LAST",
+        "market_cap_cr": "mm.market_cap_cr DESC NULLS LAST",
+        "pe_ratio": "rh.pe_ratio ASC NULLS LAST",
+        "roe": "rh.roe DESC NULLS LAST",
+        "roce": "rh.roce DESC NULLS LAST",
+        "ticker": "s.ticker ASC",
+    }
+    order_by = _SORT_MAP.get(sort_col, "fv.mos DESC NULLS LAST")
+
+    # ── query ──────────────────────────────────────────────────────
+    import os
+    import psycopg2
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        raise HTTPException(status_code=503, detail="DB unavailable")
+
+    sql = f"""
+        WITH latest_ratio AS (
+          SELECT DISTINCT ON (ticker) ticker, pe_ratio, pb_ratio, ev_ebitda,
+                 roe, roce, de_ratio
+          FROM ratio_history
+          WHERE period_type='annual'
+          ORDER BY ticker, period_end DESC
+        ),
+        latest_mm AS (
+          SELECT DISTINCT ON (ticker) ticker, market_cap_cr, close_price
+          FROM market_metrics
+          ORDER BY ticker, trade_date DESC
+        ),
+        latest_fv AS (
+          SELECT DISTINCT ON (ticker) ticker, mos, score, verdict, fair_value
+          FROM fair_value_history
+          ORDER BY ticker, date DESC
+        )
+        SELECT s.ticker, s.company_name, s.sector,
+               rh.pe_ratio, rh.pb_ratio, rh.ev_ebitda,
+               rh.roe, rh.roce, rh.de_ratio,
+               mm.market_cap_cr, mm.close_price,
+               fv.mos, fv.score, fv.verdict, fv.fair_value
+        FROM stocks s
+        LEFT JOIN latest_ratio rh ON rh.ticker = s.ticker
+        LEFT JOIN latest_mm mm    ON mm.ticker = s.ticker
+        LEFT JOIN latest_fv fv    ON fv.ticker = s.ticker
+        WHERE {' AND '.join(where_clauses)}
+        ORDER BY {order_by}
+        LIMIT %s OFFSET %s
+    """
+    params = where_params + [limit, offset]
+
+    conn = psycopg2.connect(url)
+    try:
+        cur = conn.cursor()
+        cur.execute(sql, params)
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        # Total count (cheap separate query — no ratio join needed)
+        cur.execute(
+            f"SELECT COUNT(*) FROM stocks s "
+            f"LEFT JOIN ratio_history rh ON rh.ticker = s.ticker "
+            f"AND rh.period_type='annual' "
+            f"LEFT JOIN market_metrics mm ON mm.ticker = s.ticker "
+            f"LEFT JOIN fair_value_history fv ON fv.ticker = s.ticker "
+            f"WHERE {' AND '.join(where_clauses)}",
+            where_params,
+        )
+        total = cur.fetchone()[0]
+    finally:
+        conn.close()
+
+    # Coerce Decimals → float, dates → iso
+    import decimal
+    import datetime as _dt
+    def _clean(v):
+        if isinstance(v, decimal.Decimal):
+            return float(v)
+        if isinstance(v, (_dt.date, _dt.datetime)):
+            return v.isoformat()
+        return v
+    out_rows = [{k: _clean(v) for k, v in r.items()} for r in rows]
+
+    payload = {
+        "total": int(total),
+        "limit": limit,
+        "offset": offset,
+        "sort": sort,
+        "filters_applied": parsed_filters,
+        "results": out_rows,
+    }
+    cache.set(_cache_key, payload, ttl=300)
+    return payload
+
+
+@router.get("/screener/fields")
+async def screener_fields():
+    """Metadata: which fields the screener accepts, with human labels."""
+    return {
+        "fields": [
+            {"key": "pe_ratio",      "label": "P/E",                "type": "number"},
+            {"key": "pb_ratio",      "label": "P/B",                "type": "number"},
+            {"key": "ev_ebitda",     "label": "EV/EBITDA",          "type": "number"},
+            {"key": "roe",           "label": "ROE %",              "type": "number"},
+            {"key": "roce",          "label": "ROCE %",             "type": "number"},
+            {"key": "de_ratio",      "label": "Debt/Equity",        "type": "number"},
+            {"key": "market_cap_cr", "label": "Market Cap (Cr)",    "type": "number"},
+            {"key": "mos",           "label": "Margin of Safety %", "type": "number"},
+            {"key": "score",         "label": "YieldIQ Score",      "type": "number"},
+            {"key": "sector",        "label": "Sector",             "type": "string"},
+        ],
+        "ops": ["<", ">", "<=", ">=", "=", "!="],
+        "sort_keys": ["mos", "score", "market_cap_cr", "pe_ratio", "roe", "roce", "ticker"],
+        "example": "pe_ratio<20,roce>15,market_cap_cr>1000",
+    }
+
+
 @router.get("/top-tickers")
 async def get_public_top_tickers(limit: int = 500):
     """Public list of active NSE tickers sorted by market_cap_cr DESC.

@@ -34,5 +34,37 @@
     }
   ],
   "categories": ["finance", "business"],
-  "lang": "en-IN"
+  "lang": "en-IN",
+  "scope": "/",
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Search stocks",
+      "short_name": "Search",
+      "description": "Find a stock by ticker or name",
+      "url": "/home?focus=search",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Nifty 50 dashboard",
+      "short_name": "Nifty 50",
+      "description": "Valuation view of all 50 largecaps",
+      "url": "/nifty50",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "RELIANCE fair value",
+      "short_name": "RELIANCE",
+      "description": "Open RELIANCE analysis",
+      "url": "/stocks/RELIANCE/fair-value",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Earnings calendar",
+      "short_name": "Earnings",
+      "description": "Upcoming NSE earnings",
+      "url": "/earnings-calendar",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
 }
