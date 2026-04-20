@@ -70,6 +70,55 @@ def _build_url(trade_date: date) -> str:
     )
 
 
+def download_bhavcopy_legacy_with_status(
+    trade_date: date,
+    session=None,
+) -> tuple["pd.DataFrame | None", int]:
+    """Same as :func:`download_bhavcopy_legacy` but also returns the HTTP
+    status code so callers can distinguish 404 (holiday) from 403/5xx
+    (throttle/transient). Returns ``(df_or_None, http_code)``.
+
+    ``http_code`` is 0 when the request raised before receiving a response.
+    """
+    if trade_date >= LEGACY_CUTOFF:
+        logger.warning(
+            "%s is on/after legacy cutoff %s — use nse_bhavcopy.download_bhavcopy",
+            trade_date, LEGACY_CUTOFF,
+        )
+
+    url = _build_url(trade_date)
+    if session is None:
+        session = _get_nse_session()
+
+    try:
+        response = session.get(url, timeout=30)
+    except Exception as exc:
+        logger.error("legacy bhavcopy %s download error: %s", trade_date, exc)
+        return None, 0
+
+    code = response.status_code
+    if code == 404:
+        return None, 404
+    if code != 200:
+        logger.warning("legacy bhavcopy %s: HTTP %s", trade_date, code)
+        return None, code
+    if not response.content or len(response.content) < 200:
+        return None, 200
+
+    try:
+        with zipfile.ZipFile(io.BytesIO(response.content)) as zf:
+            names = zf.namelist()
+            if not names:
+                return None, 200
+            with zf.open(names[0]) as fp:
+                df = pd.read_csv(fp)
+    except (zipfile.BadZipFile, Exception) as exc:
+        logger.error("legacy bhavcopy %s parse failed: %s", trade_date, exc)
+        return None, code
+
+    return _clean_legacy(df, trade_date), 200
+
+
 def download_bhavcopy_legacy(
     trade_date: date,
     session=None,

@@ -1,0 +1,126 @@
+name: Phase C — Fundamentals 10Y BSE Backfill
+
+# Pulls 10 years of annual + quarterly financials from BSE Peercomp JSON
+# API for every ticker with a populated bse_code. Runs sharded across
+# 4 parallel GH Actions runners. Each shard gets its own IP so BSE's
+# per-IP rate limit is effectively 4× our throughput.
+#
+# Single-shard time: ~3 hrs for ~2,300 tickers
+# 4-shard time: ~45 min
+#
+# Writes into the `financials` table. Idempotent (db.merge) — safe
+# to re-run or run alongside other ingestion.
+#
+# Trigger: manual (workflow_dispatch) — no cron. Run once to backfill,
+# then the nightly serial fundamentals_backfill.yml keeps things fresh.
+
+on:
+  workflow_dispatch:
+    inputs:
+      shards:
+        description: "Number of parallel shards (1–8)"
+        required: false
+        default: "4"
+      top:
+        description: "Limit to top-N by market cap (blank = all)"
+        required: false
+        default: ""
+      skip_threshold:
+        description: "Skip tickers with >= N annual periods already"
+        required: false
+        default: "8"
+      no_skip:
+        description: "Re-fetch everything (overwrite existing)"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+concurrency:
+  group: phase-c-fundamentals-10y
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]  # matches default shards=4
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'psycopg[binary]>=3.1' psycopg2-binary sqlalchemy requests
+
+      - name: Skip if shard >= shards
+        id: guard
+        run: |
+          SHARDS="${{ github.event.inputs.shards || '4' }}"
+          if [ "${{ matrix.shard }}" -ge "$SHARDS" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            echo "shard ${{ matrix.shard }} >= shards=$SHARDS — skipping"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run shard
+        if: steps.guard.outputs.skip == 'false'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          ARGS="--shard ${{ matrix.shard }} --shards ${{ github.event.inputs.shards || '4' }}"
+          ARGS="$ARGS --skip-threshold ${{ github.event.inputs.skip_threshold || '8' }}"
+          if [ -n "${{ github.event.inputs.top }}" ]; then
+            ARGS="$ARGS --top ${{ github.event.inputs.top }}"
+          fi
+          if [ "${{ github.event.inputs.no_skip }}" = "true" ]; then
+            ARGS="$ARGS --no-skip"
+          fi
+          echo "python scripts/backfill_fundamentals_10y_bse.py $ARGS"
+          python scripts/backfill_fundamentals_10y_bse.py $ARGS
+
+  summary:
+    needs: backfill
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Coverage summary
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          pip install psycopg2-binary --quiet
+          python - <<'PY'
+          import os, psycopg2
+          c = psycopg2.connect(os.environ["DATABASE_URL"]); cur = c.cursor()
+          cur.execute("SELECT COUNT(*), COUNT(DISTINCT ticker) FROM financials")
+          total, tickers = cur.fetchone()
+          cur.execute("""
+            SELECT COUNT(*) FROM (
+              SELECT ticker FROM financials
+              WHERE period_type='annual' AND revenue IS NOT NULL
+              GROUP BY ticker HAVING COUNT(*) >= 8
+            ) t
+          """)
+          deep = cur.fetchone()[0]
+          cur.execute("""
+            SELECT COUNT(*) FROM (
+              SELECT ticker FROM financials
+              WHERE period_type='annual' GROUP BY ticker HAVING COUNT(*) >= 10
+            ) t
+          """)
+          tenyr = cur.fetchone()[0]
+          print(f"financials total rows: {total:,}")
+          print(f"distinct tickers:      {tickers:,}")
+          print(f"tickers with >=8 annuals: {deep:,}")
+          print(f"tickers with >=10 annuals: {tenyr:,}")
+          PY

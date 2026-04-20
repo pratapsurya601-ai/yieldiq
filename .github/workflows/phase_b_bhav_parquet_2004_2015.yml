@@ -1,0 +1,102 @@
+name: Phase B — NSE Bhavcopy 2004-2015 → Parquet
+
+# Pulls pre-2016 daily bhavcopies from archives.nseindia.com and writes
+# them to Parquet (partitioned by year/month), NOT to Postgres. The live
+# API only queries 2016+ daily_prices, and putting 12 more years of
+# price rows into Aiven would blow past the 1 GB Hobby cap. Analytics
+# that need long history read PG ∪ Parquet via DuckDB.
+#
+# Shards by year (one year per matrix job) so 12 parallel GH runners
+# cover 2004-2015 in one pass. Each shard writes its year's Parquet
+# files to data/parquet/daily_prices_archive/year=YYYY/ and commits
+# back to the repo.
+#
+# Single-shard time: ~35-45 min (one year)
+# Parallel 12 shards: ~45 min total
+#
+# Expected output: ~90-130 MB total across 12 years.
+
+on:
+  workflow_dispatch:
+    inputs:
+      start_year:
+        description: "Start year (default 2004)"
+        required: false
+        default: "2004"
+      end_year:
+        description: "End year (default 2015)"
+        required: false
+        default: "2015"
+      sleep:
+        description: "Seconds between NSE requests"
+        required: false
+        default: "0.5"
+
+concurrency:
+  group: phase-b-bhav-parquet
+  cancel-in-progress: false
+
+jobs:
+  backfill-year:
+    strategy:
+      fail-fast: false
+      max-parallel: 4  # be polite to NSE — 4 concurrent IPs is enough
+      matrix:
+        year: [2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015]
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so the commit step can push cleanly
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas pyarrow curl_cffi
+
+      - name: Skip if year out of range
+        id: guard
+        run: |
+          Y=${{ matrix.year }}
+          S=${{ github.event.inputs.start_year || '2004' }}
+          E=${{ github.event.inputs.end_year || '2015' }}
+          if [ "$Y" -lt "$S" ] || [ "$Y" -gt "$E" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run year ${{ matrix.year }}
+        if: steps.guard.outputs.skip == 'false'
+        run: |
+          python scripts/backfill_bhavcopy_parquet_archive.py \
+            --start ${{ matrix.year }}-01-01 \
+            --end ${{ matrix.year }}-12-31 \
+            --sleep ${{ github.event.inputs.sleep || '0.5' }}
+
+      - name: Commit year ${{ matrix.year }} parquet files
+        if: steps.guard.outputs.skip == 'false'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # Only commit the year partition for this matrix cell to avoid conflicts
+          git add -f "data/parquet/daily_prices_archive/year=${{ matrix.year }}/" \
+                     "data/parquet/daily_prices_archive/_manifest.jsonl" 2>/dev/null || true
+          if git diff --cached --quiet; then
+            echo "no parquet changes for ${{ matrix.year }}"
+          else
+            git commit -m "data: bhav parquet archive ${{ matrix.year }}"
+            # Pull-rebase-push loop to tolerate concurrent matrix commits
+            for i in 1 2 3 4 5; do
+              git pull --rebase origin main && git push origin HEAD:main && break
+              echo "retry $i"
+              sleep 5
+            done
+          fi
