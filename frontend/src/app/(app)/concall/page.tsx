@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import api from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
+import ConcallEmpty from "@/components/empty-states/ConcallEmpty"
 
 interface GuidanceItem {
   topic: string
@@ -191,15 +192,21 @@ export default function ConcallPage() {
             </div>
           )}
 
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
-            <h3 className="text-sm font-bold text-gray-900 mb-2">How to get a transcript</h3>
-            <ol className="text-xs text-gray-600 space-y-1 list-decimal list-inside">
-              <li>Visit company&apos;s investor relations page or BSE/NSE filings</li>
-              <li>Look for &ldquo;Q3 FY26 Earnings Call Transcript&rdquo; (usually a PDF)</li>
-              <li>Open the PDF, select all text (Ctrl+A), copy (Ctrl+C)</li>
-              <li>Paste here, click Analyze</li>
-            </ol>
-          </div>
+          {transcript.length === 0 ? (
+            <div className="bg-gray-50 border border-gray-200 rounded-2xl">
+              <ConcallEmpty />
+            </div>
+          ) : (
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
+              <h3 className="text-sm font-bold text-gray-900 mb-2">How to get a transcript</h3>
+              <ol className="text-xs text-gray-600 space-y-1 list-decimal list-inside">
+                <li>Visit company&apos;s investor relations page or BSE/NSE filings</li>
+                <li>Look for &ldquo;Q3 FY26 Earnings Call Transcript&rdquo; (usually a PDF)</li>
+                <li>Open the PDF, select all text (Ctrl+A), copy (Ctrl+C)</li>
+                <li>Paste here, click Analyze</li>
+              </ol>
+            </div>
+          )}
         </>
       )}
 

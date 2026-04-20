@@ -8,6 +8,7 @@ import { formatCurrency, formatPct, cn, verdictDisplayLabel } from "@/lib/utils"
 import { SCORE_COLOR, VERDICT_COLORS } from "@/lib/constants"
 import type { Verdict } from "@/types/api"
 import Link from "next/link"
+import CompareEmpty from "@/components/empty-states/CompareEmpty"
 
 interface SearchResult {
   ticker: string
@@ -425,12 +426,7 @@ function CompareContent() {
       )}
 
       {/* Empty state */}
-      {!bothSelected && !isLoading && (
-        <div className="text-center py-12">
-          <p className="text-3xl mb-3">&#x2696;&#xFE0F;</p>
-          <p className="text-sm text-gray-500">Select two stocks above to compare them</p>
-        </div>
-      )}
+      {!bothSelected && !isLoading && <CompareEmpty />}
 
       <p className="text-[10px] text-gray-400 text-center leading-relaxed px-4">
         All outputs are model estimates using publicly available data. Not investment advice.
