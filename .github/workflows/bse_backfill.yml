@@ -22,7 +22,7 @@ concurrency:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60  # per-ticker ISIN fallback path needs ~30 min for 3k tickers; give 2x headroom
     steps:
       - name: Checkout
         uses: actions/checkout@v4

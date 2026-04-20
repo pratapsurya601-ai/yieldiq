@@ -468,9 +468,11 @@ def main() -> int:
         # as of April 2026. Switch to per-ticker PeerSmartSearch lookup.
         logger.warning(
             "BSE bulk master unavailable — falling back to per-ticker lookup "
-            "(~15 min for 3,000 stocks)"
+            "(~10 min for 3,000 stocks at 0.15s sleep)"
         )
-        mapping = backfill_per_ticker(sess, stocks)
+        # BSE PeerSmartSearch tolerates ~5 req/s per recon; 0.15s sleep is
+        # well within budget and halves the wall-clock vs the 0.3s default.
+        mapping = backfill_per_ticker(sess, stocks, sleep=0.15)
 
     updated = _upsert_bse_codes(Session, mapping)
     logger.info("UPDATE complete — %d rows written", updated)
