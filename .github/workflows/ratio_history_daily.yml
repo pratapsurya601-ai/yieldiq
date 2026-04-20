@@ -55,7 +55,25 @@ jobs:
           if [ "$SCOPE" = "all" ]; then
             python scripts/build_ratio_history.py --all
           elif [ "$SCOPE" = "top500" ]; then
-            python scripts/build_ratio_history.py --top 500
+            # Derive top-500 NSE tickers by market_cap_cr from DB,
+            # then pass as --tickers list (build_ratio_history.py
+            # has no --top arg).
+            TICKERS=$(python -c "
+          import os, psycopg2
+          c = psycopg2.connect(os.environ['DATABASE_URL']); cur = c.cursor()
+          cur.execute(\"\"\"
+            SELECT s.ticker FROM stocks s
+            LEFT JOIN LATERAL (
+              SELECT market_cap_cr FROM market_metrics
+              WHERE ticker = s.ticker ORDER BY trade_date DESC LIMIT 1
+            ) mm ON TRUE
+            WHERE s.is_active = TRUE
+            ORDER BY COALESCE(mm.market_cap_cr, 0) DESC
+            LIMIT 500
+          \"\"\")
+          print(','.join(r[0] for r in cur.fetchall()))
+          ")
+            python scripts/build_ratio_history.py --tickers "$TICKERS"
           else
             python scripts/build_ratio_history.py --tickers "$SCOPE"
           fi
