@@ -31,7 +31,7 @@ concurrency:
 jobs:
   rebuild:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 350  # full 4,549-ticker sweep at ~5.5s/ticker = ~7hrs
 
     steps:
       - uses: actions/checkout@v4
