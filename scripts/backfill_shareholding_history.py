@@ -100,7 +100,15 @@ def main() -> int:
                     help="Quarters considered 'enough' (default 18 ≈ 4.5Y)")
     ap.add_argument("--limit", type=int, default=None,
                     help="Cap tickers processed (smoke testing)")
+    ap.add_argument("--shard", type=int, default=0,
+                    help="This shard's index (0..shards-1) when sharding")
+    ap.add_argument("--shards", type=int, default=1,
+                    help="Total shards (for parallel GH Actions matrix)")
     args = ap.parse_args()
+    # If --shards/--shard are provided without --top/--tickers, default
+    # to --all so all shards collectively cover the active universe.
+    if args.shards > 1 and not (args.top or args.tickers or args.all):
+        args.all = True
 
     if not os.environ.get("DATABASE_URL"):
         print("DATABASE_URL not set", file=sys.stderr)
@@ -120,7 +128,18 @@ def main() -> int:
     Session = sessionmaker(bind=engine)
 
     universe = _resolve_universe(args, engine)
-    logger.info("universe size: %d tickers", len(universe))
+    if args.shards > 1:
+        # Ticker-index sharding so each GH Actions runner gets every Nth ticker.
+        # Stable across re-runs as long as the universe query order is stable
+        # (we order by market cap desc then ticker — both are deterministic).
+        before = len(universe)
+        universe = universe[args.shard::args.shards]
+        logger.info(
+            "shard %d/%d: %d of %d tickers",
+            args.shard, args.shards, len(universe), before,
+        )
+    else:
+        logger.info("universe size: %d tickers", len(universe))
 
     if args.skip_existing:
         with engine.connect() as conn:

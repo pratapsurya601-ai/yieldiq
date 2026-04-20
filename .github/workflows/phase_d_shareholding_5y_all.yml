@@ -1,0 +1,124 @@
+name: Phase D — Shareholding 5Y (All Active Tickers)
+
+# Pulls 5 years of quarterly shareholding data from NSE's corporate
+# share-holdings master API for every active ticker. NSE publishes the
+# same SEBI XBRL that BSE does, and the NSE JSON master endpoint is
+# open (no Akamai wall, no session cookies required).
+#
+# Uses the existing scripts/backfill_shareholding_history.py which
+# already hits this endpoint. We just run it on GH Actions with matrix
+# sharding to cover 2,300+ NSE tickers in ~2 hours instead of a day.
+#
+# Per-ticker time: ~14s (1s master JSON + 20 quarters * ~0.4s XBRL
+# resolution). 2,300 / 5 shards ~= 460 tickers/shard = ~1.8 hrs per
+# shard. Parallel across 5 runners = ~1.8 hrs total wall-clock.
+#
+# NSE hasn't rate-limited at the observed pace in recon testing, but
+# we stay polite with a 2s sleep between tickers per shard.
+#
+# Writes into the shareholding_pattern table via the existing upsert
+# path. Idempotent. Safe to re-run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      shards:
+        description: "Number of parallel shards (1–8, default 5)"
+        required: false
+        default: "5"
+      sleep:
+        description: "Seconds between tickers per shard"
+        required: false
+        default: "2.0"
+      no_skip:
+        description: "Re-fetch tickers even if they already have deep history"
+        required: false
+        default: "true"
+        type: choice
+        options: ["true", "false"]
+
+concurrency:
+  group: phase-d-shareholding-5y
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        shard: [0, 1, 2, 3, 4]
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'psycopg[binary]>=3.1' psycopg2-binary sqlalchemy \
+                       requests curl_cffi beautifulsoup4 lxml
+
+      - name: Skip if shard >= shards
+        id: guard
+        run: |
+          SHARDS="${{ github.event.inputs.shards || '5' }}"
+          if [ "${{ matrix.shard }}" -ge "$SHARDS" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run shard ${{ matrix.shard }}
+        if: steps.guard.outputs.skip == 'false'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          ARGS="--shard ${{ matrix.shard }} --shards ${{ github.event.inputs.shards || '5' }}"
+          ARGS="$ARGS --sleep ${{ github.event.inputs.sleep || '2.0' }}"
+          if [ "${{ github.event.inputs.no_skip }}" = "false" ]; then
+            ARGS="$ARGS --skip-existing"
+          fi
+          echo "python scripts/backfill_shareholding_history.py $ARGS"
+          python scripts/backfill_shareholding_history.py $ARGS
+
+  summary:
+    needs: backfill
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Coverage summary
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          pip install psycopg2-binary --quiet
+          python - <<'PY'
+          import os, psycopg2
+          c = psycopg2.connect(os.environ["DATABASE_URL"]); cur = c.cursor()
+          cur.execute("SELECT COUNT(*), COUNT(DISTINCT ticker) FROM shareholding_pattern")
+          total, tickers = cur.fetchone()
+          cur.execute("""
+            SELECT COUNT(*) FROM (
+              SELECT ticker FROM shareholding_pattern
+              GROUP BY ticker HAVING COUNT(*) >= 20
+            ) t
+          """)
+          deep5y = cur.fetchone()[0]
+          cur.execute("""
+            SELECT COUNT(*) FROM (
+              SELECT ticker FROM shareholding_pattern
+              GROUP BY ticker HAVING COUNT(*) >= 12
+            ) t
+          """)
+          deep3y = cur.fetchone()[0]
+          print(f"shareholding_pattern rows: {total:,}")
+          print(f"distinct tickers:          {tickers:,}")
+          print(f"tickers with >=20 qtrs (5Y): {deep5y:,}")
+          print(f"tickers with >=12 qtrs (3Y): {deep3y:,}")
+          PY
