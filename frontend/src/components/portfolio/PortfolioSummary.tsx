@@ -230,7 +230,7 @@ export default async function PortfolioSummary({ holdings }: Props) {
                   {s.sector}
                 </span>
                 <span className="font-mono text-gray-500">
-                  {fmt(s.value)} · {s.pct.toFixed(1)}%
+                  {fmt(s.value)} · {s.pct != null ? s.pct.toFixed(1) : "0"}%
                 </span>
               </div>
               <div

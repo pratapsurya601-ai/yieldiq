@@ -122,9 +122,9 @@ export default function Prism({
   const reactId = useId().replace(/:/g, "")
   const uid = `prism-${reactId}`
 
-  const ariaLabel = `Prism for ${data.ticker}: composite ${data.overall.toFixed(
-    1,
-  )} of 10, verdict ${data.verdict_label}`
+  const ariaLabel = `Prism for ${data.ticker}: composite ${
+    data.overall != null ? data.overall.toFixed(1) : "\u2014"
+  } of 10, verdict ${data.verdict_label}`
 
   // The mode toggle only renders when the component is uncontrolled OR
   // controlled but the consumer registered onModeChange — so the consumer

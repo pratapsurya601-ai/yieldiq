@@ -389,7 +389,7 @@ export default function PortfolioPrism({ holdings }: Props) {
               className="text-sm font-bold mb-1"
               style={{ color: "var(--color-text)" }}
             >
-              {PILLAR_LABEL[strongest.key]} &middot; {strongest.score.toFixed(1)}
+              {PILLAR_LABEL[strongest.key]} &middot; {strongest.score != null ? strongest.score.toFixed(1) : "\u2014"}
             </p>
             <p
               className="text-xs"
@@ -415,7 +415,7 @@ export default function PortfolioPrism({ holdings }: Props) {
               className="text-sm font-bold mb-1"
               style={{ color: "var(--color-text)" }}
             >
-              {PILLAR_LABEL[weakest.key]} &middot; {weakest.score.toFixed(1)}
+              {PILLAR_LABEL[weakest.key]} &middot; {weakest.score != null ? weakest.score.toFixed(1) : "\u2014"}
             </p>
             <p
               className="text-xs"

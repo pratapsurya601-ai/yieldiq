@@ -353,8 +353,8 @@ function CompareContent() {
             />
             <CompareRow
               label="WACC"
-              val1={`${s1.wacc.toFixed(1)}%`}
-              val2={`${s2.wacc.toFixed(1)}%`}
+              val1={s1.wacc != null ? `${s1.wacc.toFixed(1)}%` : "\u2014"}
+              val2={s2.wacc != null ? `${s2.wacc.toFixed(1)}%` : "\u2014"}
               winner={getWinner(s1.wacc, s2.wacc, false)}
             />
             <CompareRow
@@ -372,15 +372,15 @@ function CompareContent() {
             />
             <CompareRow
               label="ROE"
-              val1={`${s1.roe.toFixed(1)}%`}
-              val2={`${s2.roe.toFixed(1)}%`}
+              val1={s1.roe != null ? `${s1.roe.toFixed(1)}%` : "\u2014"}
+              val2={s2.roe != null ? `${s2.roe.toFixed(1)}%` : "\u2014"}
               winner={getWinner(s1.roe, s2.roe)}
               highlight
             />
             <CompareRow
               label="D/E Ratio"
-              val1={s1.de_ratio.toFixed(2)}
-              val2={s2.de_ratio.toFixed(2)}
+              val1={s1.de_ratio != null ? s1.de_ratio.toFixed(2) : "\u2014"}
+              val2={s2.de_ratio != null ? s2.de_ratio.toFixed(2) : "\u2014"}
               winner={getWinner(s1.de_ratio, s2.de_ratio, false)}
             />
           </div>

@@ -96,7 +96,7 @@ export default async function DuPontPage(
       <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-8 text-center">
         <p className="text-xs text-blue-700 mb-2">ROE = Net Margin &times; Asset Turnover &times; Equity Multiplier</p>
         <p className="text-2xl sm:text-3xl font-black text-blue-900 font-mono">
-          {latest.roe_pct.toFixed(1)}% = {latest.net_margin_pct.toFixed(1)}% &times; {latest.asset_turnover.toFixed(2)} &times; {latest.equity_multiplier.toFixed(2)}
+          {latest.roe_pct != null ? `${latest.roe_pct.toFixed(1)}%` : "\u2014"} = {latest.net_margin_pct != null ? `${latest.net_margin_pct.toFixed(1)}%` : "\u2014"} &times; {latest.asset_turnover != null ? latest.asset_turnover.toFixed(2) : "\u2014"} &times; {latest.equity_multiplier != null ? latest.equity_multiplier.toFixed(2) : "\u2014"}
         </p>
         <p className="text-xs text-blue-600 mt-2">Latest: {latest.fy}</p>
       </div>
@@ -106,8 +106,8 @@ export default async function DuPontPage(
         <div className="bg-white border border-gray-200 rounded-2xl p-5">
           <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Profitability</p>
           <p className="text-sm text-gray-500 mb-2">Net Margin</p>
-          <p className="text-3xl font-black text-gray-900 mb-1">{latest.net_margin_pct.toFixed(1)}%</p>
-          {first && (
+          <p className="text-3xl font-black text-gray-900 mb-1">{latest.net_margin_pct != null ? `${latest.net_margin_pct.toFixed(1)}%` : "\u2014"}</p>
+          {first && first.net_margin_pct != null && latest.net_margin_pct != null && (
             <p className={`text-xs font-semibold ${pctColor(latest.net_margin_pct, first.net_margin_pct)}`}>
               {first.net_margin_pct.toFixed(1)}% →{latest.net_margin_pct.toFixed(1)}%
             </p>
@@ -117,8 +117,8 @@ export default async function DuPontPage(
         <div className="bg-white border border-gray-200 rounded-2xl p-5">
           <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Efficiency</p>
           <p className="text-sm text-gray-500 mb-2">Asset Turnover</p>
-          <p className="text-3xl font-black text-gray-900 mb-1">{latest.asset_turnover.toFixed(2)}x</p>
-          {first && (
+          <p className="text-3xl font-black text-gray-900 mb-1">{latest.asset_turnover != null ? `${latest.asset_turnover.toFixed(2)}x` : "\u2014"}</p>
+          {first && first.asset_turnover != null && latest.asset_turnover != null && (
             <p className={`text-xs font-semibold ${pctColor(latest.asset_turnover, first.asset_turnover)}`}>
               {first.asset_turnover.toFixed(2)}x →{latest.asset_turnover.toFixed(2)}x
             </p>
@@ -128,8 +128,8 @@ export default async function DuPontPage(
         <div className="bg-white border border-gray-200 rounded-2xl p-5">
           <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Leverage</p>
           <p className="text-sm text-gray-500 mb-2">Equity Multiplier</p>
-          <p className="text-3xl font-black text-gray-900 mb-1">{latest.equity_multiplier.toFixed(2)}x</p>
-          {first && (
+          <p className="text-3xl font-black text-gray-900 mb-1">{latest.equity_multiplier != null ? `${latest.equity_multiplier.toFixed(2)}x` : "\u2014"}</p>
+          {first && first.equity_multiplier != null && latest.equity_multiplier != null && (
             <p className={`text-xs font-semibold ${pctColor(first.equity_multiplier, latest.equity_multiplier)}`}>
               {first.equity_multiplier.toFixed(2)}x →{latest.equity_multiplier.toFixed(2)}x
             </p>
