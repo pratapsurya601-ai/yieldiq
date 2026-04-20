@@ -22,3 +22,8 @@ canary_report.md
 # Windows shortcuts
 *.lnk
 token.txt
+
+# Parquet dual-write output — files can be 100+ MB, rebuilt by
+# export_to_parquet.py / CI. Sync to S3 or git-lfs for persistence.
+data/parquet/
+.env.local

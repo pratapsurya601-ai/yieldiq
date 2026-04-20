@@ -100,8 +100,32 @@ class StockRow:
     ticker: str
     sector: str | None
     sub_sector: str | None
-    market_cap_category: str | None
+    market_cap_category: str | None   # stored column, often null
     market_cap_cr: float | None
+    derived_tier: str | None           # computed from market_cap_cr
+
+
+def _derive_tier(mcap_cr: float | None) -> str | None:
+    """SEBI-aligned cap-tier thresholds, INR Cr.
+
+    Used when stocks.market_cap_category is not populated — which is
+    the common case until the stocks table is re-enriched. Thresholds:
+      - Large : mcap_cr >= 20_000   (roughly top 100 by market cap)
+      - Mid   : 5_000 <= mcap_cr < 20_000
+      - Small : 1_000 <= mcap_cr < 5_000
+      - Micro : mcap_cr < 1_000
+    Micro + Small share a pool for peer purposes (otherwise the long
+    tail is too sparse). Large and Mid stay separate.
+    """
+    if mcap_cr is None or mcap_cr <= 0:
+        return None
+    if mcap_cr >= 20_000:
+        return "Large"
+    if mcap_cr >= 5_000:
+        return "Mid"
+    if mcap_cr >= 1_000:
+        return "Small"
+    return "Micro"
 
 
 def _sub_sector_of(row: StockRow) -> str | None:
@@ -113,6 +137,15 @@ def _sub_sector_of(row: StockRow) -> str | None:
     function needs to change.
     """
     return row.sub_sector
+
+
+def _peer_tier(row: StockRow) -> str | None:
+    """The tier used for peer grouping: stored category if present,
+    else the derived tier from market_cap_cr. Keeps pre-enriched
+    rows stable while giving coverage to the (current) all-null case."""
+    if row.market_cap_category:
+        return row.market_cap_category
+    return row.derived_tier
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -141,13 +174,15 @@ def _load_universe(db: OrmSession) -> list[StockRow]:
     rows = db.execute(_LOAD_SQL).fetchall()
     out: list[StockRow] = []
     for r in rows:
+        mcap = float(r[4]) if r[4] is not None else None
         out.append(
             StockRow(
                 ticker=r[0],
                 sector=r[1],
                 sub_sector=r[2],
                 market_cap_category=r[3],
-                market_cap_cr=float(r[4]) if r[4] is not None else None,
+                market_cap_cr=mcap,
+                derived_tier=_derive_tier(mcap),
             )
         )
     return out
@@ -167,35 +202,46 @@ def _pick_peers(
     """
     if target.market_cap_cr is None or target.market_cap_cr <= 0:
         return ([], "no_mcap")
-    if target.market_cap_category is None:
-        return ([], "no_mcap_category")
+
+    target_tier = _peer_tier(target)
+    if target_tier is None:
+        return ([], "no_tier")
 
     target_sub = _sub_sector_of(target)
     reason = "same_sub_sector_mcap_proximity"
 
-    def _candidates(match_sub: bool) -> list[StockRow]:
+    def _candidates(strategy: str) -> list[StockRow]:
+        """strategy ∈ {'sub', 'sector', 'tier'} — progressively looser."""
         out: list[StockRow] = []
         for s in universe:
             if s.ticker == target.ticker:
                 continue
-            if s.market_cap_category != target.market_cap_category:
+            if _peer_tier(s) != target_tier:
                 continue
             if s.market_cap_cr is None or s.market_cap_cr <= 0:
                 continue
-            if match_sub:
+            if strategy == "sub":
                 peer_sub = _sub_sector_of(s)
                 if not target_sub or not peer_sub or peer_sub != target_sub:
                     continue
-            else:
+            elif strategy == "sector":
                 if not s.sector or not target.sector or s.sector != target.sector:
                     continue
+            # 'tier' strategy: same cap tier only, no sector filter
             out.append(s)
         return out
 
-    cands = _candidates(match_sub=True) if target_sub else []
-    if not cands:
-        cands = _candidates(match_sub=False)
+    cands = _candidates("sub") if target_sub else []
+    if not cands and target.sector:
+        cands = _candidates("sector")
         reason = "same_sector_mcap_proximity"
+    if not cands:
+        # Last-resort fallback: same cap tier only. Keeps peer block
+        # populated even when sector/industry data is missing from the
+        # stocks table (common before enrichment). Mcap proximity still
+        # ranks these, so the closest-size peers surface first.
+        cands = _candidates("tier")
+        reason = "same_cap_tier_mcap_proximity"
     if not cands:
         return ([], "no_candidates")
 

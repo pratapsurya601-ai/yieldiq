@@ -1,0 +1,79 @@
+name: Parquet Export — Nightly
+
+# Dual-write layer: mirrors every key Postgres table to Parquet so
+# DuckDB / Polars / pandas users (and backup jobs) have an always-fresh
+# portable copy. Runs AFTER the ratio_history rebuild so the derived
+# layer is caught in the same snapshot as the raw layer.
+#
+# Output: data/parquet/*.parquet (and a partitioned data/parquet/daily_prices/)
+# Artifact: uploaded so humans can download without DB access.
+#
+# The Parquet files are NOT committed to the repo — they're too large
+# and would churn every day. Instead we:
+#   1. Upload as a workflow artifact (retained 30 days)
+#   2. Leave a follow-up PR to sync to S3 (when a bucket is provisioned)
+#
+# Secrets required:
+#   - DATABASE_URL : Aiven Postgres read URI
+
+on:
+  schedule:
+    # 04:15 UTC — after ratio_history_daily.yml (03:30) completes
+    - cron: "15 4 * * *"
+  workflow_dispatch:
+    inputs:
+      tables:
+        description: "Comma-separated tables to export (default: all)"
+        required: false
+        default: ""
+
+concurrency:
+  group: parquet-export
+  cancel-in-progress: false
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install sqlalchemy psycopg2-binary pandas pyarrow
+
+      - name: Run Parquet export
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret missing"
+            exit 1
+          fi
+          TABLES_ARG=""
+          if [ -n "${{ github.event.inputs.tables }}" ]; then
+            TABLES_ARG="--tables ${{ github.event.inputs.tables }}"
+          fi
+          python scripts/export_to_parquet.py $TABLES_ARG
+
+      - name: Report sizes
+        run: |
+          echo "## Parquet export summary" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          ls -lh data/parquet/ 2>/dev/null | tail -n +2 >> $GITHUB_STEP_SUMMARY || true
+          echo '' >> $GITHUB_STEP_SUMMARY
+          du -sh data/parquet/daily_prices/ 2>/dev/null >> $GITHUB_STEP_SUMMARY || true
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Parquet artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: yieldiq-parquet-${{ github.run_number }}
+          path: data/parquet/
+          retention-days: 30
+          compression-level: 0   # files already compressed (zstd/snappy)

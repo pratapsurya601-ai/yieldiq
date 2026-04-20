@@ -1841,3 +1841,316 @@ async def get_peers(
         return _data_unavailable_payload(full_ticker, "query_failed")
     finally:
         _safe_close(db)
+
+
+# ---------------------------------------------------------------
+# IPO calendar — public endpoint
+# ---------------------------------------------------------------
+# NOTE: This is a curated stub list. There is no `ipos` table in
+# the pipeline schema yet. Replace the in-memory list with a real
+# DB query once an IPO ingestion job is in place (proposed: scrape
+# NSE/BSE upcoming-issues page nightly into a new `ipos` table).
+# Until then this gives the SEO surface a stable shape to render.
+
+_IPO_STUB: list[dict] = [
+    # ── Upcoming ──────────────────────────────────────────────
+    {
+        "symbol": "NSDL", "company_name": "National Securities Depository Ltd",
+        "issue_size_cr": 4500.0, "price_band_min": 760.0, "price_band_max": 800.0,
+        "ipo_open_date": "2026-04-28", "ipo_close_date": "2026-04-30",
+        "listing_date": None, "status": "upcoming", "exchange": "NSE",
+        "sector": "Financial Services",
+    },
+    {
+        "symbol": "TATACAP", "company_name": "Tata Capital Ltd",
+        "issue_size_cr": 15000.0, "price_band_min": 310.0, "price_band_max": 326.0,
+        "ipo_open_date": "2026-05-05", "ipo_close_date": "2026-05-07",
+        "listing_date": None, "status": "upcoming", "exchange": "NSE",
+        "sector": "Financial Services",
+    },
+    {
+        "symbol": "LGELECT", "company_name": "LG Electronics India Ltd",
+        "issue_size_cr": 8500.0, "price_band_min": 1080.0, "price_band_max": 1108.0,
+        "ipo_open_date": "2026-05-12", "ipo_close_date": "2026-05-14",
+        "listing_date": None, "status": "upcoming", "exchange": "NSE",
+        "sector": "Consumer Durables",
+    },
+    {
+        "symbol": "PHYSICSWALLAH", "company_name": "PhysicsWallah Ltd",
+        "issue_size_cr": 4600.0, "price_band_min": 103.0, "price_band_max": 109.0,
+        "ipo_open_date": "2026-05-18", "ipo_close_date": "2026-05-20",
+        "listing_date": None, "status": "upcoming", "exchange": "NSE",
+        "sector": "Education",
+    },
+    {
+        "symbol": "ZEPTO", "company_name": "Kiranakart Technologies (Zepto) Ltd",
+        "issue_size_cr": 6800.0, "price_band_min": 0.0, "price_band_max": 0.0,
+        "ipo_open_date": "2026-06-02", "ipo_close_date": "2026-06-04",
+        "listing_date": None, "status": "upcoming", "exchange": "NSE",
+        "sector": "Consumer Internet",
+    },
+    # ── Recent (already listed) ───────────────────────────────
+    {
+        "symbol": "SWIGGY", "company_name": "Swiggy Ltd",
+        "issue_size_cr": 11327.0, "price_band_min": 371.0, "price_band_max": 390.0,
+        "ipo_open_date": "2025-11-06", "ipo_close_date": "2025-11-08",
+        "listing_date": "2025-11-13", "status": "recent", "exchange": "NSE",
+        "sector": "Consumer Internet",
+    },
+    {
+        "symbol": "HEXT", "company_name": "Hexaware Technologies Ltd",
+        "issue_size_cr": 8750.0, "price_band_min": 674.0, "price_band_max": 708.0,
+        "ipo_open_date": "2026-02-12", "ipo_close_date": "2026-02-14",
+        "listing_date": "2026-02-19", "status": "recent", "exchange": "NSE",
+        "sector": "IT Services",
+    },
+    {
+        "symbol": "NTPCGREEN", "company_name": "NTPC Green Energy Ltd",
+        "issue_size_cr": 10000.0, "price_band_min": 102.0, "price_band_max": 108.0,
+        "ipo_open_date": "2025-11-19", "ipo_close_date": "2025-11-22",
+        "listing_date": "2025-11-27", "status": "recent", "exchange": "NSE",
+        "sector": "Power",
+    },
+    {
+        "symbol": "VISHALMEGA", "company_name": "Vishal Mega Mart Ltd",
+        "issue_size_cr": 8000.0, "price_band_min": 74.0, "price_band_max": 78.0,
+        "ipo_open_date": "2025-12-11", "ipo_close_date": "2025-12-13",
+        "listing_date": "2025-12-18", "status": "recent", "exchange": "NSE",
+        "sector": "Retail",
+    },
+    {
+        "symbol": "WAAREE", "company_name": "Waaree Energies Ltd",
+        "issue_size_cr": 4321.0, "price_band_min": 1427.0, "price_band_max": 1503.0,
+        "ipo_open_date": "2025-10-21", "ipo_close_date": "2025-10-23",
+        "listing_date": "2025-10-28", "status": "recent", "exchange": "NSE",
+        "sector": "Renewable Energy",
+    },
+]
+
+
+@router.get("/ipos")
+async def get_ipo_calendar(
+    status: str = Query(default="upcoming", pattern="^(upcoming|recent|all)$"),
+):
+    """List of IPOs (upcoming and recently listed).
+
+    NOTE: Returns a curated stub list — there is no IPO ingestion job
+    yet. The shape is stable so frontend can render against it; swap
+    the body for a real DB query once data lands.
+    """
+    _cache_key = f"public:ipos:{status}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    if status == "all":
+        items = list(_IPO_STUB)
+    else:
+        items = [i for i in _IPO_STUB if i["status"] == status]
+
+    items.sort(key=lambda x: x.get("ipo_open_date") or "")
+
+    result = {
+        "status_filter": status,
+        "total": len(items),
+        "ipos": items,
+        "source": "curated_stub",  # caller-visible signal that this is placeholder data
+    }
+    cache.set(_cache_key, result, ttl=3600)
+    return _cached_json(result, s_maxage=3600, swr=7200)
+
+
+@router.get("/ipos/{symbol}")
+async def get_ipo_detail(symbol: str):
+    """Single IPO detail page payload."""
+    sym = symbol.upper().strip()
+    _cache_key = f"public:ipo:{sym}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    match = next((i for i in _IPO_STUB if i["symbol"].upper() == sym), None)
+    if not match:
+        raise HTTPException(status_code=404, detail="IPO not found")
+
+    cache.set(_cache_key, match, ttl=3600)
+    return _cached_json(match, s_maxage=3600, swr=7200)
+
+
+# ---------------------------------------------------------------
+# Segment revenue — public endpoint
+# ---------------------------------------------------------------
+
+@router.get("/segments/{ticker}")
+async def get_segment_revenue(ticker: str, years: int = Query(default=5, ge=1, le=10)):
+    """Time series of segment-level revenue parsed from XBRL `raw_data`.
+
+    Returns a uniform shape:
+        {ticker, segments: [{name, points: [{period_end, revenue_cr}]}]}
+
+    Empty `segments` list when no segment data is found (the common
+    case for companies that don't disclose segments).
+    """
+    clean = ticker.replace(".NS", "").replace(".BO", "").upper()
+    full_ticker = clean if clean.endswith((".NS", ".BO")) else f"{clean}.NS"
+
+    _cache_key = f"public:segments:{full_ticker}:{years}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    db = _get_db_session()
+    series: dict[str, list[dict]] = {}
+    if db:
+        try:
+            from data_pipeline.models import Financials
+            from backend.services.segment_revenue_service import extract_segments
+
+            rows = (
+                db.query(Financials)
+                .filter(Financials.ticker == full_ticker)
+                .filter(Financials.period_type == "annual")
+                .order_by(Financials.period_end.desc())
+                .limit(years)
+                .all()
+            )
+
+            for f in rows:
+                period = f.period_end.isoformat() if f.period_end else None
+                segs = extract_segments(f.raw_data, period_end=period, period_type="annual")
+                for s in segs:
+                    series.setdefault(s["name"], []).append({
+                        "period_end": s["period_end"],
+                        "revenue_cr": s["revenue_cr"],
+                    })
+        except Exception as exc:
+            logger.warning(f"segments query failed for {full_ticker}: {exc}")
+        finally:
+            _safe_close(db)
+
+    # Sort each segment's points by date ascending.
+    segments_out = []
+    for name, pts in series.items():
+        pts_sorted = sorted(pts, key=lambda p: p.get("period_end") or "")
+        segments_out.append({"name": name, "points": pts_sorted})
+    segments_out.sort(key=lambda s: s["name"])
+
+    result = {
+        "ticker": full_ticker,
+        "display_ticker": clean,
+        "years": years,
+        "segments": segments_out,
+    }
+    cache.set(_cache_key, result, ttl=3600)
+    return _cached_json(result, s_maxage=3600, swr=7200)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Dividend history — corporate_actions feed
+# ═══════════════════════════════════════════════════════════════
+import re as _re  # noqa: E402  (kept local — only used by this endpoint)
+
+# Parses "DIVIDEND - RS 5 PER SHARE", "FINAL DIVIDEND RS.2.50/-",
+# "INTERIM DIVIDEND - RE 1/-", "DIVIDEND-12.50%" etc. Captures the
+# first numeric amount; percentage forms are ignored (face-value
+# dependent, not safe to assume ₹10).
+_DIV_AMOUNT_RE = _re.compile(
+    r"(?:RS|INR|RE|\u20B9)\.?\s*([0-9]+(?:\.[0-9]+)?)",
+    _re.IGNORECASE,
+)
+
+
+def _parse_dividend_amount(text_blob: str | None) -> float | None:
+    """Extract the per-share dividend amount from an NSE corporate-action
+    subject line. Returns None if no rupee amount can be parsed."""
+    if not text_blob:
+        return None
+    m = _DIV_AMOUNT_RE.search(text_blob)
+    if not m:
+        return None
+    try:
+        v = float(m.group(1))
+    except (TypeError, ValueError):
+        return None
+    # Sanity bound — Indian per-share dividends rarely exceed ₹2000;
+    # anything above that is almost always a misparse.
+    if v <= 0 or v > 2000:
+        return None
+    return v
+
+
+@router.get("/dividends/{ticker}")
+async def get_dividend_history(
+    ticker: str,
+    years: int = Query(default=10, ge=1, le=25),
+):
+    """Dividend history for a ticker from the `corporate_actions` table.
+
+    No auth. 6-hour edge cache + 1-hour in-memory cache — the underlying
+    NSE corporate-actions feed only updates daily.
+    """
+    full_ticker = _normalize_ticker(ticker)
+    clean = full_ticker.replace(".NS", "").replace(".BO", "")
+
+    _cache_key = f"public:dividends:{full_ticker}:{years}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=21600, swr=86400)
+
+    db = _get_db_session()
+    if db is None:
+        return _data_unavailable_payload(full_ticker, "db_session_unavailable")
+
+    try:
+        from data_pipeline.models import CorporateAction
+        cutoff = date.today() - timedelta(days=int(years) * 366)
+        rows = (
+            db.query(CorporateAction)
+            .filter(CorporateAction.ticker == clean)
+            .filter(CorporateAction.ex_date.isnot(None))
+            .filter(CorporateAction.ex_date >= cutoff)
+            .order_by(CorporateAction.ex_date.desc())
+            .all()
+        )
+
+        # Filter for dividend rows (NSE puts type in action_type / remarks).
+        dividends: list[dict] = []
+        for r in rows:
+            blob = " ".join(filter(None, [
+                (r.action_type or ""),
+                (r.remarks or ""),
+            ])).upper()
+            if "DIVIDEND" not in blob:
+                continue
+            amount = _parse_dividend_amount(blob)
+            dividends.append({
+                "ex_date": r.ex_date.isoformat(),
+                "amount": amount,
+            })
+
+        # Total paid over last 5 calendar years (sum of parseable amounts).
+        five_yr_cutoff = date.today() - timedelta(days=5 * 366)
+        total_5y: float = 0.0
+        any_5y = False
+        for d in dividends:
+            try:
+                ex_d = date.fromisoformat(d["ex_date"])
+            except ValueError:
+                continue
+            if ex_d >= five_yr_cutoff and d["amount"] is not None:
+                total_5y += float(d["amount"])
+                any_5y = True
+
+        result = {
+            "ticker": full_ticker,
+            "count": len(dividends),
+            "total_paid_5y": round(total_5y, 2) if any_5y else None,
+            "dividends": dividends,
+        }
+        cache.set(_cache_key, result, ttl=3600)
+        return _cached_json(result, s_maxage=21600, swr=86400)
+    except Exception as exc:
+        logger.warning(f"dividends failed for {clean}: {exc}", exc_info=True)
+        return _data_unavailable_payload(full_ticker, "query_failed")
+    finally:
+        _safe_close(db)

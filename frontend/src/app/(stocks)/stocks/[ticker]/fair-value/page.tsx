@@ -8,8 +8,11 @@ import ValuationGrid from "@/components/analysis/ValuationGrid"
 import HistoricFinancialsTable from "@/components/analysis/HistoricFinancialsTable"
 import RatioSparklines from "@/components/analysis/RatioSparklines"
 import PeerComparisonCard from "@/components/analysis/PeerComparisonCard"
-import { getHistoricalFinancials, getRatiosHistory, getPublicPeers } from "@/lib/api"
+import DividendHistorySparkline from "@/components/analysis/DividendHistorySparkline"
+import SegmentRevenueTable from "@/components/analysis/SegmentRevenueTable"
+import { getHistoricalFinancials, getRatiosHistory, getPublicPeers, getDividendHistory } from "@/lib/api"
 import { timeAgo } from "@/lib/dataFreshness"
+import ExcelExportButton from "@/components/analysis/ExcelExportButton"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -196,11 +199,12 @@ export default async function StockFairValuePage(
   // Each of the three auxiliary fetchers returns `null` on 503/network error
   // and the child components render a graceful placeholder in that case —
   // they never block the rest of the page from rendering.
-  const [data, financials, ratios, peers] = await Promise.all([
+  const [data, financials, ratios, peers, dividends] = await Promise.all([
     getStockData(ticker),
     getHistoricalFinancials(ticker, 10, "annual"),
     getRatiosHistory(ticker, 10, "annual"),
     getPublicPeers(ticker, 5),
+    getDividendHistory(ticker, 10),
   ])
   if (!data) notFound()
 
@@ -331,6 +335,19 @@ export default async function StockFairValuePage(
                 </p>
               ) : null
             })()}
+            {/* Power-user actions: deep-dive sensitivity heatmap + offline Excel.
+                Kept in the hero so they're discoverable without competing with
+                the primary verdict copy. */}
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <Link
+                href={`/stocks/${display}/fair-value/sensitivity`}
+                className="inline-flex items-center gap-1.5 rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 transition"
+                style={{ borderColor: "var(--color-border, #E2E8F0)" }}
+              >
+                DCF Sensitivity →
+              </Link>
+              <ExcelExportButton ticker={display} />
+            </div>
           </div>
         </div>
 
@@ -420,6 +437,14 @@ export default async function StockFairValuePage(
         <RatioSparklines ticker={display} data={ratios} />
         <HistoricFinancialsTable ticker={display} data={financials} />
         <PeerComparisonCard ticker={display} data={peers} />
+        <DividendHistorySparkline
+          ticker={display}
+          data={dividends}
+          currentPrice={data.current_price ?? null}
+        />
+
+        {/* Segment-level revenue (renders nothing if company doesn't disclose). */}
+        <SegmentRevenueTable ticker={display} years={5} />
 
         {/* AI Summary */}
         {data.ai_summary_snippet && (

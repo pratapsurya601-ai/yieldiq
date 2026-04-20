@@ -454,3 +454,61 @@ class PeerInfo(BaseModel):
 class PeersResponse(BaseModel):
     ticker: str
     peers: list[PeerInfo] = []
+
+
+# ── IPO calendar (public endpoint, curated stub for now) ──────
+
+class IPOEntry(BaseModel):
+    symbol: str
+    company_name: str
+    issue_size_cr: Optional[float] = None
+    price_band_min: Optional[float] = None
+    price_band_max: Optional[float] = None
+    ipo_open_date: Optional[str] = None      # ISO date
+    ipo_close_date: Optional[str] = None     # ISO date
+    listing_date: Optional[str] = None       # ISO date, None if not yet listed
+    status: Literal["upcoming", "recent"] = "upcoming"
+    exchange: str = "NSE"
+    sector: Optional[str] = None
+
+
+class IPOListResponse(BaseModel):
+    status_filter: Literal["upcoming", "recent", "all"] = "upcoming"
+    total: int = 0
+    ipos: list[IPOEntry] = []
+    source: str = "curated_stub"  # placeholder marker until ingestion job exists
+
+
+# ── Segment revenue (public endpoint) ─────────────────────────
+
+class SegmentPoint(BaseModel):
+    period_end: Optional[str] = None         # ISO date
+    revenue_cr: float = 0
+
+
+class SegmentSeries(BaseModel):
+    name: str
+    points: list[SegmentPoint] = []
+
+
+class SegmentRevenueResponse(BaseModel):
+    ticker: str
+    display_ticker: str
+    years: int = 5
+    segments: list[SegmentSeries] = []
+
+
+# ── Dividend history (public endpoint) ────────────────────────
+
+
+class DividendEvent(BaseModel):
+    """One ex-dividend event from the corporate_actions feed."""
+    ex_date: str                       # ISO YYYY-MM-DD
+    amount: Optional[float] = None     # ₹ per share, parsed from action text
+
+
+class DividendHistoryResponse(BaseModel):
+    ticker: str
+    count: int = 0
+    total_paid_5y: Optional[float] = None    # sum of `amount` within last 5Y
+    dividends: list[DividendEvent] = []
