@@ -1,0 +1,54 @@
+name: Hourly Alerts Evaluator
+
+# Runs scripts/alerts_evaluator.py every hour on the top of the hour.
+# The evaluator is idempotent (COOLDOWN_HOURS=24) so a duplicate run
+# within the same hour is a no-op for already-fired alerts.
+#
+# Env requirements (repo secrets):
+#   - DATABASE_URL     -- Aiven Postgres (same one used by Railway)
+#   - SENDGRID_API_KEY -- for outbound email
+#
+# Schedule: "0 * * * *"  (UTC, top of every hour).
+
+on:
+  schedule:
+    - cron: "0 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Evaluate only, don't send or persist"
+        required: false
+        default: "false"
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+      SENDGRID_FROM_EMAIL: ${{ secrets.SENDGRID_FROM_EMAIL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          # Minimal set — the evaluator only needs SQLAlchemy + psycopg2 +
+          # sendgrid + (optionally) supabase for email resolution.
+          pip install "SQLAlchemy>=2.0" "psycopg2-binary" sendgrid supabase python-dotenv
+
+      - name: Run evaluator
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            python scripts/alerts_evaluator.py --dry-run
+          else
+            python scripts/alerts_evaluator.py
+          fi

@@ -1,12 +1,25 @@
 # backend/routers/alerts.py
 # ═══════════════════════════════════════════════════════════════
-# Price Alerts CRUD + trigger checking — Supabase-backed.
+# Alerts CRUD — backed by the Postgres `user_alerts` table
+# (migration 009). Evaluated hourly by scripts/alerts_evaluator.py.
+#
+# Endpoints (all require_auth):
+#   GET    /api/v1/alerts/          list my alerts
+#   POST   /api/v1/alerts/          create alert
+#   PATCH  /api/v1/alerts/{id}      update status/threshold
+#   DELETE /api/v1/alerts/{id}      delete
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
-import sys, os, logging
+
+import logging
+import os
+import sys
 from pathlib import Path
-from datetime import datetime, timezone
+from typing import Optional
+
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy.orm import Session as OrmSession
 
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
 if _PROJECT_ROOT not in sys.path:
@@ -15,219 +28,213 @@ _DASHBOARD_ROOT = os.path.join(_PROJECT_ROOT, "dashboard")
 if _DASHBOARD_ROOT not in sys.path:
     sys.path.insert(0, _DASHBOARD_ROOT)
 
-from backend.models.requests import CreateAlertRequest
-from backend.models.responses import AlertResponse, SuccessResponse
-from backend.middleware.auth import get_current_user, is_superuser
+from backend.middleware.auth import get_current_user
+from backend.models.alerts import ALERT_KINDS, ALERT_STATUSES, UserAlert
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/alerts", tags=["alerts"])
 
-# Free gets 3 alerts — matches the "feel free to try" promise elsewhere
-# in the app. Used to be 0 which made the Alert button feel broken to
-# every new user. Pro/Analyst stay unchanged.
-ALERT_LIMITS: dict[str, int] = {
-    "free": 3,
-    "starter": 10,    # legacy alias
-    "pro": 10,
-    "analyst": 9999,
-}
 
+# ── Dependency: DB session ────────────────────────────────────
 
-def _get_supabase():
-    """Get Supabase admin client for server-side alert operations."""
+def _get_db():
+    """Yield a SQLAlchemy session bound to the pipeline engine.
+
+    Raises 503 if DATABASE_URL isn't configured — the alerts engine is
+    Postgres-only; there is no SQLite fallback for the new schema.
+    """
+    from data_pipeline.db import Session as _S
+    if _S is None:
+        raise HTTPException(status_code=503, detail="Database not configured")
+    db = _S()
     try:
-        from db.supabase_client import get_admin_client
-        return get_admin_client()
-    except Exception:
-        return None
+        yield db
+    finally:
+        db.close()
 
 
-# ── GET /api/v1/alerts — list user's active alerts ────────────
+# ── Pydantic payloads ─────────────────────────────────────────
 
-@router.get("/", response_model=list[AlertResponse])
-async def get_alerts(user: dict = Depends(get_current_user)):
-    """Get all active price alerts for the authenticated user."""
-    email = user.get("email", "")
-    if not email:
-        return []
-
-    client = _get_supabase()
-    if client:
-        try:
-            result = (
-                client.table("price_alerts")
-                .select("*")
-                .eq("user_email", email)
-                .eq("is_active", True)
-                .order("created_at", desc=True)
-                .execute()
-            )
-            return [
-                AlertResponse(
-                    id=row.get("id", 0),
-                    ticker=row.get("ticker", ""),
-                    alert_type=row.get("alert_type", ""),
-                    target_price=row.get("target_price", 0),
-                    created_at=str(row.get("created_at", "")),
-                    is_active=row.get("is_active", True),
-                )
-                for row in (result.data or [])
-            ]
-        except Exception as e:
-            logger.warning(f"Supabase alerts read failed: {e}")
-
-    # Fallback to SQLite
-    try:
-        from alerts import get_active_alerts
-        alerts = get_active_alerts(int(user["user_id"]))
-        return [
-            AlertResponse(
-                id=a.get("id", 0), ticker=a.get("ticker", ""),
-                alert_type=a.get("alert_type", ""), target_price=a.get("target_price", 0),
-                created_at=str(a.get("created_at", "")), is_active=a.get("is_active", True),
-            )
-            for a in alerts
-        ]
-    except Exception:
-        return []
+class AlertCreatePayload(BaseModel):
+    ticker: str
+    kind: str
+    threshold: Optional[float] = None
+    notify_email: Optional[bool] = True
+    notify_push: Optional[bool] = False
 
 
-# ── POST /api/v1/alerts — create new alert ────────────────────
+# Legacy payload shape used by the old Supabase-backed router and still
+# emitted by frontend/src/lib/api.ts createAlert() at time of the
+# migration. Translated into AlertCreatePayload by POST /create below.
+class LegacyAlertCreatePayload(BaseModel):
+    ticker: str
+    alert_type: str  # "price_above" | "price_below" | "mos_above" | ...
+    target_price: float
 
-@router.post("/", response_model=SuccessResponse)
-async def create_alert_root(req: CreateAlertRequest, user: dict = Depends(get_current_user)):
-    """Create a new price alert (POST to /)."""
-    return await create_alert(req, user)
+
+class AlertPatchPayload(BaseModel):
+    status: Optional[str] = None
+    threshold: Optional[float] = None
+    notify_email: Optional[bool] = None
+    notify_push: Optional[bool] = None
 
 
-@router.post("/create", response_model=SuccessResponse)
-async def create_alert(req: CreateAlertRequest, user: dict = Depends(get_current_user)):
-    """Create a new price alert."""
-    email = user.get("email", "")
-    tier = user.get("tier", "free")
-    if not email:
-        raise HTTPException(status_code=401, detail="Email not found in token")
+def _user_id(user: dict) -> str:
+    """Extract the stable user identifier from the JWT payload."""
+    uid = user.get("user_id") or user.get("sub") or user.get("email")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Missing user identifier")
+    return str(uid)
 
-    ticker = req.ticker.strip().upper()
-    alert_type = req.alert_type.strip().lower()
-    if alert_type not in ("above", "below", "iv_reached", "price_below", "price_above"):
-        raise HTTPException(status_code=400, detail=f"Invalid alert type '{alert_type}'")
-    # Normalize: price_below -> below, price_above -> above
-    if alert_type == "price_below":
-        alert_type = "below"
-    elif alert_type == "price_above":
-        alert_type = "above"
 
-    if req.target_price <= 0:
-        raise HTTPException(status_code=400, detail="Target price must be greater than zero")
+def _serialize(alert: UserAlert) -> dict:
+    return alert.to_dict()
 
-    # Superuser bypass — same pattern as /analysis rate-limit in auth.py
-    if is_superuser(user):
-        tier = "analyst"
 
-    client = _get_supabase()
-    if client:
-        try:
-            # Check tier limit
-            limit = ALERT_LIMITS.get(tier, 3)
-            existing = (
-                client.table("price_alerts")
-                .select("id", count="exact")
-                .eq("user_email", email)
-                .eq("is_active", True)
-                .execute()
-            )
-            current_count = existing.count if existing.count is not None else len(existing.data or [])
-            if current_count >= limit:
-                raise HTTPException(
-                    status_code=429,
-                    detail=f"Alert limit reached ({current_count}/{limit}). Upgrade for more."
-                )
+# ── GET / ─────────────────────────────────────────────────────
 
-            now = datetime.now(timezone.utc).isoformat()
-            client.table("price_alerts").insert({
-                "user_email": email,
-                "ticker": ticker,
-                "alert_type": alert_type,
-                "target_price": req.target_price,
-                "is_active": True,
-                "created_at": now,
-            }).execute()
-            return SuccessResponse(message=f"Alert set for {ticker}")
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.warning(f"Supabase alert create failed: {e}")
-            raise HTTPException(status_code=500, detail="Failed to create alert")
+@router.get("/")
+async def list_alerts(
+    user: dict = Depends(get_current_user),
+    db: OrmSession = Depends(_get_db),
+):
+    uid = _user_id(user)
+    rows = (
+        db.query(UserAlert)
+        .filter(UserAlert.user_id == uid)
+        .order_by(UserAlert.created_at.desc())
+        .all()
+    )
+    return [_serialize(r) for r in rows]
 
-    # Fallback to SQLite
-    try:
-        from alerts import create_alert as _sqlite_create
-        result = _sqlite_create(
-            user_id=int(user["user_id"]), ticker=ticker,
-            alert_type=alert_type, target_price=req.target_price,
-            tier=tier,
+
+# ── POST / ────────────────────────────────────────────────────
+
+@router.post("/create")
+async def create_alert_legacy(
+    payload: LegacyAlertCreatePayload,
+    user: dict = Depends(get_current_user),
+    db: OrmSession = Depends(_get_db),
+):
+    """Legacy-shape compatibility route for frontend/src/lib/api.ts
+    ``createAlert()``. Translates ``{alert_type, target_price}`` to the
+    new ``{kind, threshold}`` and delegates to create_alert."""
+    translated = AlertCreatePayload(
+        ticker=payload.ticker,
+        kind=payload.alert_type,
+        threshold=payload.target_price,
+    )
+    return await create_alert(translated, user=user, db=db)
+
+
+@router.post("/")
+async def create_alert(
+    payload: AlertCreatePayload,
+    user: dict = Depends(get_current_user),
+    db: OrmSession = Depends(_get_db),
+):
+    uid = _user_id(user)
+    ticker = (payload.ticker or "").strip().upper()
+    kind = (payload.kind or "").strip().lower()
+
+    if not ticker:
+        raise HTTPException(status_code=400, detail="ticker is required")
+    if kind not in ALERT_KINDS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"invalid kind '{kind}' (allowed: {', '.join(ALERT_KINDS)})",
         )
-        if result.get("ok"):
-            return SuccessResponse(message=f"Alert set for {ticker}")
-        raise HTTPException(status_code=400, detail=result.get("error", "Failed"))
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    # threshold required for everything except verdict_change
+    if kind != "verdict_change" and payload.threshold is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"threshold is required for kind='{kind}'",
+        )
+
+    existing = (
+        db.query(UserAlert)
+        .filter(
+            UserAlert.user_id == uid,
+            UserAlert.ticker == ticker,
+            UserAlert.kind == kind,
+        )
+        .one_or_none()
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=409,
+            detail="Alert already exists for this (ticker, kind)",
+        )
+
+    alert = UserAlert(
+        user_id=uid,
+        ticker=ticker,
+        kind=kind,
+        threshold=payload.threshold if kind != "verdict_change" else None,
+        status="active",
+        notify_email=bool(payload.notify_email) if payload.notify_email is not None else True,
+        notify_push=bool(payload.notify_push) if payload.notify_push is not None else False,
+    )
+    db.add(alert)
+    db.commit()
+    db.refresh(alert)
+    return _serialize(alert)
 
 
-# ── DELETE /api/v1/alerts/{alert_id} — delete alert ──────────
+# ── PATCH /{id} ───────────────────────────────────────────────
 
-@router.delete("/{alert_id}", response_model=SuccessResponse)
-async def delete_alert(alert_id: int, user: dict = Depends(get_current_user)):
-    """Delete a price alert."""
-    email = user.get("email", "")
-    if not email:
-        raise HTTPException(status_code=401, detail="Email not found in token")
-
-    client = _get_supabase()
-    if client:
-        try:
-            result = (
-                client.table("price_alerts")
-                .delete()
-                .eq("id", alert_id)
-                .eq("user_email", email)
-                .execute()
-            )
-            if result.data and len(result.data) > 0:
-                return SuccessResponse(message="Alert removed")
-            raise HTTPException(status_code=404, detail="Alert not found")
-        except HTTPException:
-            raise
-        except Exception as e:
-            logger.warning(f"Supabase alert delete failed: {e}")
-            raise HTTPException(status_code=500, detail="Failed to delete alert")
-
-    # Fallback to SQLite
-    try:
-        from alerts import delete_alert as _sqlite_delete
-        result = _sqlite_delete(alert_id, int(user["user_id"]))
-        if result.get("ok"):
-            return SuccessResponse(message="Alert removed")
+@router.patch("/{alert_id}")
+async def update_alert(
+    alert_id: int,
+    payload: AlertPatchPayload,
+    user: dict = Depends(get_current_user),
+    db: OrmSession = Depends(_get_db),
+):
+    uid = _user_id(user)
+    alert = (
+        db.query(UserAlert)
+        .filter(UserAlert.id == alert_id, UserAlert.user_id == uid)
+        .one_or_none()
+    )
+    if alert is None:
         raise HTTPException(status_code=404, detail="Alert not found")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+
+    if payload.status is not None:
+        if payload.status not in ALERT_STATUSES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"invalid status (allowed: {', '.join(ALERT_STATUSES)})",
+            )
+        alert.status = payload.status
+    if payload.threshold is not None:
+        alert.threshold = payload.threshold
+    if payload.notify_email is not None:
+        alert.notify_email = bool(payload.notify_email)
+    if payload.notify_push is not None:
+        alert.notify_push = bool(payload.notify_push)
+
+    db.commit()
+    db.refresh(alert)
+    return _serialize(alert)
 
 
-# ── POST /api/v1/alerts/check — manual trigger check ─────────
+# ── DELETE /{id} ──────────────────────────────────────────────
 
-@router.post("/check")
-async def check_alerts_endpoint(user: dict = Depends(get_current_user)):
-    """Check all alerts against current prices (manual trigger)."""
-    try:
-        from backend.services.alert_service import check_and_trigger_alerts
-        triggered = check_and_trigger_alerts(user_email=user.get("email"))
-        return {"triggered": triggered, "count": len(triggered)}
-    except Exception as e:
-        logger.warning(f"Alert check failed: {e}")
-        return {"triggered": [], "count": 0}
+@router.delete("/{alert_id}")
+async def delete_alert(
+    alert_id: int,
+    user: dict = Depends(get_current_user),
+    db: OrmSession = Depends(_get_db),
+):
+    uid = _user_id(user)
+    alert = (
+        db.query(UserAlert)
+        .filter(UserAlert.id == alert_id, UserAlert.user_id == uid)
+        .one_or_none()
+    )
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    db.delete(alert)
+    db.commit()
+    return {"ok": True, "id": alert_id}
