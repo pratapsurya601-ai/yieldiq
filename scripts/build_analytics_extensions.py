@@ -182,41 +182,53 @@ def piotroski_f_score(f: dict, prior: dict | None) -> int | None:
 
 
 # ──────────────────────────────────────────────────────────────────────
-# Altman Z-Score (manufacturing formula)
+# Altman Z-Score — SIMPLIFIED 4-component variant
 # ──────────────────────────────────────────────────────────────────────
+# The classical Altman 1968 formula uses Working Capital and Retained
+# Earnings, neither of which we can resolve from Indian XBRL filings
+# reliably (raw_data carries them <5% of the time → 0% Z-score coverage).
+#
+# We drop those two terms and re-weight the remaining four (re-using the
+# original Altman manufacturing weights, with the equity contribution
+# redistributing the 1.4 weight that previously sat on retained earnings):
+#
+#     Z_simplified = 3.3·(EBIT/TA) + 1.0·(Revenue/TA)
+#                  + 0.6·(MarketCap/TotalLiab) + 1.4·(Equity/TA)
+#
+# where TotalLiab = TA − Equity (a robust identity in our schema).
+# This is no longer the canonical Z-score — but it ranks distress risk
+# in the same direction and gives us 60-80% coverage instead of ~0%.
 def altman_z_score(f: dict, market_cap_cr: float | None) -> float | None:
-    """Manufacturing formula. Returns None when any component can't be
-    resolved rather than silently using a zero."""
+    """4-component simplified Altman variant. Returns None only when one
+    of TA / Equity / Revenue / EBIT / MarketCap is missing."""
     ta = f.get("total_assets")
     rev = f.get("revenue")
-    ebit = f.get("ebit") or f.get("_ebit_effective")
+    # Same fallback chain as ROCE compute: explicit ebit → raw_data ebit
+    # → pbt+interest → ebitda. _ebit_effective is pre-computed in
+    # _normalise_row using the same chain.
+    ebit = f.get("ebit") if _finite(f.get("ebit")) else f.get("_ebit_effective")
     te = f.get("total_equity")
-    td = f.get("total_debt")
-    wc = f.get("_working_capital")
-    re = f.get("_retained_earnings")
 
     if not (_finite(ta) and ta > 0):
+        return None
+    if not (_finite(te) and te > 0):
+        return None
+    if not _finite(rev):
+        return None
+    if not _finite(ebit):
         return None
     if market_cap_cr is None or not _finite(market_cap_cr):
         return None
 
-    tl = None
-    if _finite(ta) and _finite(te):
-        tl = float(ta) - float(te)
-    elif _finite(td):
-        tl = float(td)   # crude proxy — total debt not total liabilities
-
-    if tl is None or tl <= 0:
-        return None
-    if not _finite(ebit) or not _finite(rev) or not _finite(wc) or not _finite(re):
+    tl = float(ta) - float(te)
+    if tl <= 0:
         return None
 
     z = (
-        1.2 * (wc / ta)
-        + 1.4 * (re / ta)
-        + 3.3 * (ebit / ta)
-        + 0.6 * (market_cap_cr / tl)
-        + 1.0 * (rev / ta)
+        3.3 * (float(ebit) / float(ta))
+        + 1.0 * (float(rev) / float(ta))
+        + 0.6 * (float(market_cap_cr) / tl)
+        + 1.4 * (float(te) / float(ta))
     )
     return round(z, 3)
 
@@ -427,10 +439,131 @@ def main() -> int:
             logger.warning("ticker %s failed: %s", t, e)
             sess.rollback()
 
-    sess.close()
+    # ───────────────────────────────────────────────────────────────
+    # Step 2 — Sector percentile rankings
+    # ───────────────────────────────────────────────────────────────
+    # Computes roe / roce / pe / de percentiles within each
+    # (period_end, period_type, sector) cohort. PE and D/E are
+    # REVERSED so lower = higher percentile (better).
+    #
+    # Sector source: stocks.sector (≈77% populated). Tickers without a
+    # sector fall back to a synthetic cap-tier cohort built from
+    # stocks.market_cap_category — so every ticker still gets a peer
+    # group. One big SQL UPDATE per (period_end, period_type) cohort
+    # is dramatically faster than per-ticker recompute.
+    if not _interrupted:
+        try:
+            sess2 = sessionmaker(bind=engine)()
+            try:
+                _compute_sector_percentiles(sess2)
+            finally:
+                sess2.close()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("sector percentile pass failed: %s", e)
+
     engine.dispose()
     logger.info("done. updated=%d, skipped=%d", tot_upd, tot_skip)
     return 0
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Step 2 — Sector percentile rankings (set-based UPDATE per period)
+# ──────────────────────────────────────────────────────────────────────
+# We compute, for each (period_end, period_type) slice, the percentile
+# rank of every ticker within its sector (or cap-tier fallback). The
+# work is done entirely in SQL via PERCENT_RANK() OVER PARTITION BY,
+# which is orders of magnitude faster than a Python loop.
+#
+# Coverage assumption: stocks.sector is the canonical sector column
+# (now ~77% populated). For unsectored tickers we fall back to a
+# synthetic cohort key derived from stocks.market_cap_category
+# ("Large" / "Mid" / "Small"), so every row joins exactly one cohort.
+_SECTOR_PCT_SQL = text("""
+WITH cohort AS (
+    SELECT
+        rh.ticker,
+        rh.period_end,
+        rh.period_type,
+        rh.roe,
+        rh.roce,
+        rh.pe_ratio,
+        rh.de_ratio,
+        COALESCE(
+            NULLIF(s.sector, ''),
+            '__cap__:' || COALESCE(NULLIF(s.market_cap_category, ''), 'unknown')
+        ) AS cohort_key
+    FROM ratio_history rh
+    LEFT JOIN stocks s ON s.ticker = rh.ticker
+    WHERE rh.period_end = :pe AND rh.period_type = :pt
+),
+ranked AS (
+    SELECT
+        ticker,
+        period_end,
+        period_type,
+        -- PERCENT_RANK returns 0..1; multiply by 99 + 1 → 1..100.
+        -- Higher value = better (top of cohort).
+        CASE
+            WHEN COUNT(roe) OVER (PARTITION BY cohort_key) > 1 AND roe IS NOT NULL
+            THEN (PERCENT_RANK() OVER (PARTITION BY cohort_key ORDER BY roe NULLS FIRST) * 99.0 + 1.0)
+        END AS roe_pct,
+        CASE
+            WHEN COUNT(roce) OVER (PARTITION BY cohort_key) > 1 AND roce IS NOT NULL
+            THEN (PERCENT_RANK() OVER (PARTITION BY cohort_key ORDER BY roce NULLS FIRST) * 99.0 + 1.0)
+        END AS roce_pct,
+        -- PE: lower = better → DESC ordering.
+        CASE
+            WHEN COUNT(pe_ratio) OVER (PARTITION BY cohort_key) > 1
+                AND pe_ratio IS NOT NULL AND pe_ratio > 0
+            THEN (PERCENT_RANK() OVER (PARTITION BY cohort_key ORDER BY pe_ratio DESC NULLS FIRST) * 99.0 + 1.0)
+        END AS pe_pct,
+        -- D/E: lower = better → DESC ordering.
+        CASE
+            WHEN COUNT(de_ratio) OVER (PARTITION BY cohort_key) > 1 AND de_ratio IS NOT NULL
+            THEN (PERCENT_RANK() OVER (PARTITION BY cohort_key ORDER BY de_ratio DESC NULLS FIRST) * 99.0 + 1.0)
+        END AS de_pct
+    FROM cohort
+)
+UPDATE ratio_history rh SET
+    roe_sector_pct  = ranked.roe_pct,
+    roce_sector_pct = ranked.roce_pct,
+    pe_sector_pct   = ranked.pe_pct,
+    de_sector_pct   = ranked.de_pct
+FROM ranked
+WHERE rh.ticker = ranked.ticker
+  AND rh.period_end = ranked.period_end
+  AND rh.period_type = ranked.period_type
+""")
+
+
+def _compute_sector_percentiles(sess) -> None:
+    """Populate the four *_sector_pct columns for every (period_end,
+    period_type) slice present in ratio_history."""
+    periods = sess.execute(text(
+        "SELECT DISTINCT period_end, period_type FROM ratio_history "
+        "WHERE period_end IS NOT NULL ORDER BY period_end DESC"
+    )).fetchall()
+    logger.info("sector percentiles: %d period slices to process", len(periods))
+    done = 0
+    for pe, pt in periods:
+        if _interrupted:
+            logger.info("sector percentile pass interrupted at %d/%d",
+                        done, len(periods))
+            break
+        try:
+            sess.execute(_SECTOR_PCT_SQL, {"pe": pe, "pt": pt})
+            sess.commit()
+        except Exception as e:  # noqa: BLE001
+            logger.warning("sector pct update failed for (%s, %s): %s",
+                           pe, pt, e)
+            sess.rollback()
+            continue
+        done += 1
+        if done % 50 == 0:
+            logger.info("sector percentiles: [%d/%d] periods done",
+                        done, len(periods))
+    logger.info("sector percentiles: completed %d/%d period slices",
+                done, len(periods))
 
 
 if __name__ == "__main__":
