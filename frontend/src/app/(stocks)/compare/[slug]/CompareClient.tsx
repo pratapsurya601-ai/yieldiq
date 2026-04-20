@@ -240,12 +240,12 @@ export default function CompareClient({ data }: { data: CompareData }) {
       {/* Overall winner card */}
       {overallName ? (
         <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6 text-center mb-8">
-          <p className="text-sm text-green-700 font-semibold mb-1">Overall Winner</p>
+          <p className="text-sm text-green-700 font-semibold mb-1">Model Favors</p>
           <p className="text-xl sm:text-2xl font-black text-gray-900">
-            {overallName} is more undervalued right now
+            {overallName} shows a larger model margin of safety
           </p>
           <p className="text-sm text-gray-600 mt-1">
-            {overallWins} of {total_metrics} quality metrics favor it
+            Leads on {overallWins} of {total_metrics} model metrics &middot; not investment advice
           </p>
         </div>
       ) : (

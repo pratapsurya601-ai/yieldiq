@@ -111,7 +111,7 @@ export default function ConcallPage() {
         <Link href="/portfolio" className="text-xs text-gray-500 hover:text-gray-900 mb-3 inline-flex items-center gap-1">
           &larr; Back
         </Link>
-        <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase mb-1">AI Analyst</p>
+        <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase mb-1">AI Summary</p>
         <h1 className="text-2xl font-black text-gray-900 mb-1">Concall Transcript Analysis</h1>
         <p className="text-sm text-gray-500">Paste an earnings call transcript &mdash; get structured insights in 10 seconds.</p>
       </div>
