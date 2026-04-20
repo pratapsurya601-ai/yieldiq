@@ -414,6 +414,86 @@ export const getPublicPeers = (
     3600,
   )
 
+// ── Dividend history ─────────────────────────────────────────
+export interface DividendEvent {
+  ex_date: string                        // ISO YYYY-MM-DD
+  amount: number | null                  // ₹ per share, null when un-parseable
+}
+
+export interface DividendHistoryResponse {
+  ticker: string
+  count: number
+  total_paid_5y: number | null
+  dividends: DividendEvent[]
+}
+
+export const getDividendHistory = (
+  ticker: string,
+  years: number = 10,
+): Promise<DividendHistoryResponse | null> =>
+  publicGet<DividendHistoryResponse>(
+    `/api/v1/public/dividends/${ticker}?years=${years}`,
+    21600,                               // 6h — matches backend edge cache
+  )
+
+// ---------------------------------------------------------------------------
+// Stock summary (used by sensitivity heatmap, Excel export, portfolio tracker)
+// ---------------------------------------------------------------------------
+// Mirrors the StockSummary shape rendered on the fair-value page. Returns
+// null on under_review (503) or any error so callers can degrade gracefully.
+
+export interface StockSummary {
+  ticker: string
+  company_name: string
+  sector: string
+  industry: string
+  exchange: string
+  currency: string
+  fair_value: number
+  current_price: number
+  mos: number
+  verdict: string
+  score: number
+  grade: string
+  moat: string
+  piotroski: number
+  bear_case: number
+  base_case: number
+  bull_case: number
+  wacc: number
+  confidence: number
+  roe: number | null
+  de_ratio: number | null
+  roce: number | null
+  debt_ebitda: number | null
+  interest_coverage: number | null
+  current_ratio: number | null
+  asset_turnover: number | null
+  revenue_cagr_3y: number | null
+  revenue_cagr_5y: number | null
+  ev_ebitda: number | null
+  market_cap: number
+  ai_summary_snippet: string | null
+  last_updated: string | null
+}
+
+export const getStockSummary = async (
+  ticker: string,
+): Promise<StockSummary | null> => {
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+  try {
+    const res = await fetch(`${base}/api/v1/public/stock-summary/${ticker}`, {
+      next: { revalidate: 300 },
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    if (data && data.status === "under_review") return null
+    return data as StockSummary
+  } catch {
+    return null
+  }
+}
+
 // Auth
 export const login = (email: string, password: string): Promise<TokenResponse> =>
   api.post("/api/v1/auth/login", { email, password }).then(r => r.data)
