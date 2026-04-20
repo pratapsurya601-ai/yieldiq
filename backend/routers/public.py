@@ -1301,6 +1301,68 @@ async def get_risk_stats_endpoint(ticker: str, years: int = Query(default=3, ge=
         raise HTTPException(status_code=500, detail="Risk stats unavailable")
 
 
+@router.get("/price-history/{ticker}")
+async def get_price_history_endpoint(
+    ticker: str,
+    start: str | None = Query(default=None, description="YYYY-MM-DD, defaults to 10Y ago"),
+    end: str | None = Query(default=None, description="YYYY-MM-DD, defaults to today"),
+):
+    """Long-range OHLC price history spanning PG live table and Parquet archive.
+
+    Unlike ``/technicals`` which reads only the per-ticker Parquet cache,
+    this endpoint unions the authoritative PG ``daily_prices`` table
+    (2016→today) with the Parquet archive populated by Phase B
+    (2004-2015). Use this for 10Y+ charts.
+
+    No auth. 1-hour cache.
+    """
+    from datetime import date as _date, timedelta as _td
+
+    ticker = ticker.upper().strip()
+    clean = ticker.replace(".NS", "").replace(".BO", "")
+
+    # Sensible defaults — 10Y window to today
+    if not end:
+        end = _date.today().isoformat()
+    if not start:
+        start = (_date.today() - _td(days=365 * 10)).isoformat()
+
+    _cache_key = f"public:price-history:{clean}:{start}:{end}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+
+    try:
+        from backend.services.price_history_service import get_price_history
+        df = get_price_history(clean, start=start, end=end)
+    except Exception as e:
+        logger.warning(f"price-history failed for {clean}: {e}")
+        raise HTTPException(status_code=500, detail="Price history unavailable")
+
+    if df is None or df.empty:
+        raise HTTPException(status_code=404, detail=f"No price history for {clean}")
+
+    out = {
+        "ticker": ticker,
+        "start": start,
+        "end": end,
+        "rows": int(len(df)),
+        "series": [
+            {
+                "date": (r["trade_date"].isoformat() if hasattr(r["trade_date"], "isoformat") else str(r["trade_date"])),
+                "open": float(r["open_price"]) if r.get("open_price") is not None else None,
+                "high": float(r["high_price"]) if r.get("high_price") is not None else None,
+                "low": float(r["low_price"]) if r.get("low_price") is not None else None,
+                "close": float(r["close_price"]) if r.get("close_price") is not None else None,
+                "volume": int(r["volume"]) if r.get("volume") else None,
+            }
+            for r in df.to_dict(orient="records")
+        ],
+    }
+    cache.set(_cache_key, out, ttl=3600)
+    return out
+
+
 @router.get("/top-tickers")
 async def get_public_top_tickers(limit: int = 500):
     """Public list of active NSE tickers sorted by market_cap_cr DESC.

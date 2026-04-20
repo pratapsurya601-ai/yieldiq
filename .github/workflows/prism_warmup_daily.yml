@@ -1,0 +1,69 @@
+name: Prism SEO warmup (daily)
+
+# Hits /prism/{ticker} and /api/og/prism/{ticker} for every active
+# ticker so Next.js ISR pre-generates the static HTML and the OG image
+# PNG is cached at the edge. New tickers from Phase A get indexed faster
+# because Google crawlers see sub-second responses instead of cold SSR.
+#
+# Why daily: Vercel's ISR expires after ~24h; keep the top pages warm
+# so the crawler always gets fresh HTML. Not aggressive — lightweight
+# HTTP GETs are cheap and Vercel doesn't throttle them.
+#
+# Runs:
+#   - Daily 04:00 UTC = 09:30 IST (post-market open, after ratio rebuild)
+#   - Manual workflow_dispatch with a --limit override for spot testing
+
+on:
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Only warm first N tickers (blank = all)"
+        required: false
+        default: ""
+      workers:
+        description: "Concurrent workers (default 10)"
+        required: false
+        default: "10"
+      skip_og:
+        description: "Skip OG image warming"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+concurrency:
+  group: prism-warmup-daily
+  cancel-in-progress: false
+
+jobs:
+  warm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests psycopg2-binary
+
+      - name: Run prism warmup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          WARMUP_BASE: "https://yieldiq.in"
+        run: |
+          ARGS="--workers ${{ github.event.inputs.workers || '10' }}"
+          if [ -n "${{ github.event.inputs.limit }}" ]; then
+            ARGS="$ARGS --limit ${{ github.event.inputs.limit }}"
+          fi
+          if [ "${{ github.event.inputs.skip_og }}" = "true" ]; then
+            ARGS="$ARGS --skip-og"
+          fi
+          python scripts/warm_prism_pages.py $ARGS
