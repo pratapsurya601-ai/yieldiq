@@ -119,13 +119,13 @@ export default async function RiskAnalysisPage(
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Annualised Volatility</p>
-          <p className="text-xl font-bold text-gray-900">{data.volatility_pct.toFixed(1)}%</p>
+          <p className="text-xl font-bold text-gray-900">{data.volatility_pct != null ? `${data.volatility_pct.toFixed(1)}%` : "\u2014"}</p>
           <p className="text-[10px] text-gray-400 mt-0.5">{volRegime} volatility</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Max Drawdown</p>
-          <p className="text-xl font-bold text-red-600">{data.max_drawdown_pct.toFixed(1)}%</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">{data.max_drawdown_days} days peak-to-trough</p>
+          <p className="text-xl font-bold text-red-600">{data.max_drawdown_pct != null ? `${data.max_drawdown_pct.toFixed(1)}%` : "\u2014"}</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">{data.max_drawdown_days ?? "\u2014"} days peak-to-trough</p>
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Beta vs Nifty</p>
@@ -134,7 +134,7 @@ export default async function RiskAnalysisPage(
         </div>
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Return/Vol Ratio</p>
-          <p className={`text-xl font-bold ${pctColor(data.sharpe_proxy)}`}>{data.sharpe_proxy.toFixed(2)}</p>
+          <p className={`text-xl font-bold ${data.sharpe_proxy != null ? pctColor(data.sharpe_proxy) : "text-gray-400"}`}>{data.sharpe_proxy != null ? data.sharpe_proxy.toFixed(2) : "\u2014"}</p>
           <p className="text-[10px] text-gray-400 mt-0.5">Simple Sharpe proxy</p>
         </div>
       </div>

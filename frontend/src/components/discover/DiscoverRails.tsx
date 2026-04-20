@@ -57,8 +57,9 @@ export function SectorLeaders({ stocks }: SectorLeadersProps) {
               <span className="text-[9px] font-semibold text-caption bg-bg rounded px-1.5 py-0.5 uppercase tracking-wider">{sector}</span>
             </div>
             <p className="text-base font-bold text-brand font-mono">
-              {stock.margin_of_safety > 0 ? "+" : ""}
-              {stock.margin_of_safety.toFixed(0)}%
+              {stock.margin_of_safety != null
+                ? `${stock.margin_of_safety > 0 ? "+" : ""}${stock.margin_of_safety.toFixed(0)}%`
+                : "\u2014"}
             </p>
             <p className="text-[10px] text-caption">MoS &middot; Model estimate</p>
           </Link>
@@ -133,10 +134,14 @@ export function NearLowsRail() {
                 <span className="text-[9px] font-semibold text-success bg-bg rounded px-1.5 py-0.5 uppercase tracking-wider">Score {s.yieldiq_score}</span>
               </div>
               <p className="text-base font-bold text-ink font-mono tabular-nums">
-                ₹{s.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                {s.price != null ? `\u20b9${s.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}` : "\u2014"}
               </p>
               <p className="text-[10px] text-caption">
-                {s.distance_pct <= 1 ? "At 52w low" : `+${s.distance_pct.toFixed(1)}% above 52w low`}
+                {s.distance_pct == null
+                  ? "\u2014"
+                  : s.distance_pct <= 1
+                    ? "At 52w low"
+                    : `+${s.distance_pct.toFixed(1)}% above 52w low`}
               </p>
             </Link>
           ))}
@@ -213,7 +218,7 @@ export function LowestPERail({ stocks: _unused }: LowestPERailProps) {
                 <span className="text-[9px] font-semibold text-success bg-bg rounded px-1.5 py-0.5 uppercase tracking-wider">Score {s.yieldiq_score}</span>
               </div>
               <p className="text-base font-bold text-ink font-mono tabular-nums">
-                {s.pe_ratio.toFixed(1)}×
+                {s.pe_ratio != null ? `${s.pe_ratio.toFixed(1)}\u00d7` : "\u2014"}
               </p>
               <p className="text-[10px] text-caption">P/E ratio</p>
             </Link>
