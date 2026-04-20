@@ -27,8 +27,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })
     if (res.ok) {
       const tickers: { ticker: string; last_updated: string | null }[] = await res.json()
+      // URL-encode the ticker so symbols like "M&M" become "M%26M" — XML
+      // sitemaps MUST contain only URL-safe characters; a bare "&" makes
+      // Google Search Console emit "Parsing error" for the whole file.
       const fairValuePages: MetadataRoute.Sitemap = tickers.map(t => ({
-        url: `https://yieldiq.in/stocks/${t.ticker}/fair-value`,
+        url: `https://yieldiq.in/stocks/${encodeURIComponent(t.ticker)}/fair-value`,
         lastModified: t.last_updated ? new Date(t.last_updated) : new Date(),
         changeFrequency: "daily" as const,
         priority: 0.7,
@@ -39,14 +42,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       // 301 to /prism/* via next.config redirects, but we still list them for
       // sitemap completeness during the transition window).
       const hexPages: MetadataRoute.Sitemap = tickers.map(t => ({
-        url: `https://yieldiq.in/hex/${t.ticker.replace(/\.(NS|BO)$/i, "")}`,
+        url: `https://yieldiq.in/hex/${encodeURIComponent(t.ticker.replace(/\.(NS|BO)$/i, ""))}`,
         lastModified: t.last_updated ? new Date(t.last_updated) : new Date(),
         changeFrequency: "daily" as const,
         priority: 0.7,
       }))
       // Prism SEO pages — the new canonical viral surface. One per ticker.
       const prismPages: MetadataRoute.Sitemap = tickers.map(t => ({
-        url: `https://yieldiq.in/prism/${t.ticker.replace(/\.(NS|BO)$/i, "")}`,
+        url: `https://yieldiq.in/prism/${encodeURIComponent(t.ticker.replace(/\.(NS|BO)$/i, ""))}`,
         lastModified: t.last_updated ? new Date(t.last_updated) : new Date(),
         changeFrequency: "daily" as const,
         priority: 0.8,
