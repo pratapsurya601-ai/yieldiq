@@ -70,6 +70,10 @@ class PeersService:
 
     def get_peer_comparison(self, ticker: str, db, cache) -> dict:
         ticker = (ticker or "").upper().strip()
+        # Stash db so _build_row -> _cached_score can hit the
+        # fair_value_history fallback without changing the row-builder's
+        # call signature (it already has many positional args).
+        self._db = db
 
         # Late imports — the peer fetcher pulls numpy/pandas, which
         # we don't want on the import path of the router module.
@@ -176,38 +180,66 @@ class PeersService:
 
     # ── Private helpers ────────────────────────────────────────
 
-    def _cached_score(self, t: str, cache) -> dict:
-        """Read score data off cached AnalysisResponse, if present."""
+    def _cached_score(self, t: str, cache, db=None) -> dict:
+        """Read score data off cached AnalysisResponse, falling back to
+        ``fair_value_history`` in the DB when the cache is cold.
+
+        Before this change, peer tickers not recently analysed showed
+        SCORE/FAIR VAL/MOS as '—' on the Peers tab. The DB fallback
+        populates FV/MoS/verdict for any ticker we've ever analysed."""
         empty = {
             "yieldiq_score": None, "grade": None,
             "fair_value": None, "mos_pct": None,
             "verdict": None, "company_name": None,
         }
-        if cache is None:
-            return empty
-        try:
-            obj = cache.get(f"analysis:{t}")
-        except Exception:
-            return empty
-        if obj is None:
-            return empty
-        try:
-            return {
-                "yieldiq_score": getattr(obj.quality, "yieldiq_score", None)
+        if cache is not None:
+            try:
+                obj = cache.get(f"analysis:{t}")
+            except Exception:
+                obj = None
+            if obj is not None:
+                try:
+                    return {
+                        "yieldiq_score": getattr(obj.quality, "yieldiq_score", None)
+                                         if getattr(obj, "quality", None) else None,
+                        "grade": getattr(obj.quality, "grade", None)
                                  if getattr(obj, "quality", None) else None,
-                "grade": getattr(obj.quality, "grade", None)
-                         if getattr(obj, "quality", None) else None,
-                "fair_value": getattr(obj.valuation, "fair_value", None)
-                              if getattr(obj, "valuation", None) else None,
-                "mos_pct": getattr(obj.valuation, "margin_of_safety", None)
-                           if getattr(obj, "valuation", None) else None,
-                "verdict": getattr(obj.valuation, "verdict", None)
-                           if getattr(obj, "valuation", None) else None,
-                "company_name": getattr(obj.company, "company_name", None)
-                                if getattr(obj, "company", None) else None,
-            }
-        except Exception:
+                        "fair_value": getattr(obj.valuation, "fair_value", None)
+                                      if getattr(obj, "valuation", None) else None,
+                        "mos_pct": getattr(obj.valuation, "margin_of_safety", None)
+                                   if getattr(obj, "valuation", None) else None,
+                        "verdict": getattr(obj.valuation, "verdict", None)
+                                   if getattr(obj, "valuation", None) else None,
+                        "company_name": getattr(obj.company, "company_name", None)
+                                        if getattr(obj, "company", None) else None,
+                    }
+                except Exception:
+                    pass
+
+        # DB fallback: latest fair_value_history row for this ticker.
+        if db is None:
             return empty
+        try:
+            from sqlalchemy import text as _t
+            row = db.execute(_t("""
+                SELECT fair_value, mos_pct, verdict
+                FROM fair_value_history
+                WHERE ticker = :t
+                ORDER BY date DESC
+                LIMIT 1
+            """), {"t": t}).fetchone()
+            if row is not None:
+                return {
+                    "yieldiq_score": None,  # not persisted; cache-only for now
+                    "grade": None,
+                    "fair_value": float(row[0]) if row[0] is not None else None,
+                    "mos_pct": float(row[1]) if row[1] is not None else None,
+                    "verdict": row[2],
+                    "company_name": None,
+                }
+        except Exception:
+            pass
+        return empty
 
     def _build_row(
         self, t: str, is_main: bool,
@@ -217,7 +249,7 @@ class PeersService:
         mm = mm_map.get(st)
         fin = fin_map.get(st)
         lv = live.get(t, {})
-        score = self._cached_score(t, cache)
+        score = self._cached_score(t, cache, db=getattr(self, "_db", None))
 
         # Valuation multiples
         pe = _first(mm.pe_ratio if mm else None, lv.get("pe"))
