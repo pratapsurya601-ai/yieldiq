@@ -70,7 +70,10 @@ jobs:
           # Minimal: SQLAlchemy + psycopg for Aiven PG. yfinance/pandas
           # not required for historical backfill (only point-in-time
           # financials + stored fair_value).
-          pip install "sqlalchemy>=2.0" "psycopg[binary]>=3.1" python-dateutil
+          # psycopg2-binary added because backfill_hex_history.py imports
+          # `psycopg2` directly via data_pipeline.db; without it the
+          # pure-psycopg3 install above raises ModuleNotFoundError.
+          pip install "sqlalchemy>=2.0" "psycopg[binary]>=3.1" psycopg2-binary python-dateutil
 
       - name: Ensure hex_history table exists
         if: steps.env_check.outputs.skip == 'false'
