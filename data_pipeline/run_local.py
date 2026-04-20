@@ -67,6 +67,12 @@ def main():
         print('Example: python data_pipeline/run_local.py --db "postgresql://postgres:xxx@xxx.proxy.rlwy.net:12345/railway"')
         sys.exit(1)
 
+    # SQLAlchemy 2.x dropped the legacy 'postgres://' dialect name. Aiven
+    # (and most Heroku-style providers) still emit the short form. Normalise
+    # to 'postgresql://' so create_engine resolves the dialect.
+    if db_url.startswith("postgres://"):
+        db_url = "postgresql://" + db_url[len("postgres://"):]
+
     os.environ["DATABASE_URL"] = db_url
 
     # Now import pipeline modules (they read DATABASE_URL on import)

@@ -378,13 +378,16 @@ def _compute_row(
     )
     if current_liab is None:
         # proxy: total_assets - total_equity - total_debt
-        if (
-            _is_finite(f.total_assets)
-            and _is_finite(f.total_equity)
-            and _is_finite(f.total_debt)
-        ):
+        # If total_debt is missing (common for zero-debt microcaps + tickers
+        # where XBRL didn't parse a distinct long-term-debt field), treat
+        # as 0. TA + TE alone are enough to back out current_liab as
+        # (TA - TE) in that case — an approximation that biases capital
+        # employed down toward equity, which is acceptable given ROCE here
+        # is a ranking signal, not a P&L audit.
+        if _is_finite(f.total_assets) and _is_finite(f.total_equity):
+            td = float(f.total_debt) if _is_finite(f.total_debt) else 0.0
             current_liab = (
-                float(f.total_assets) - float(f.total_equity) - float(f.total_debt)
+                float(f.total_assets) - float(f.total_equity) - td
             )
             if current_liab < 0:
                 current_liab = None

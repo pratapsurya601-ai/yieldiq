@@ -16,7 +16,11 @@ from data_pipeline.sources.bse_xbrl import (
 )
 from data_pipeline.sources.yfinance_supplement import fetch_and_store_yfinance
 
-engine = create_engine(os.environ["DATABASE_URL"], pool_recycle=300, pool_pre_ping=True)
+# SQLAlchemy 2.x dropped 'postgres://' — normalise to 'postgresql://'
+_db_url = os.environ["DATABASE_URL"]
+if _db_url.startswith("postgres://"):
+    _db_url = "postgresql://" + _db_url[len("postgres://"):]
+engine = create_engine(_db_url, pool_recycle=300, pool_pre_ping=True)
 Session = sessionmaker(bind=engine)
 db = Session()
 
