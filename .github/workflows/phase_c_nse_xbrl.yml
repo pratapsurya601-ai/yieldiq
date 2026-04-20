@@ -1,0 +1,113 @@
+name: Phase C (NSE XBRL) — 20Y Fundamentals from NSE archives
+
+# Replaces the dead BSE Peercomp path. Pulls NSE's
+# /api/corporates-financial-results filings list, downloads each XBRL
+# file from nsearchives.nseindia.com (open, no Akamai wall), parses
+# with lxml, stores into financials table.
+#
+# Per ticker ~8s (master call + ~10-20 XBRL downloads). 3,000 tickers
+# across 5 shards ≈ 80 min wall-clock.
+
+on:
+  workflow_dispatch:
+    inputs:
+      shards:
+        description: "Parallel shards (1-8)"
+        required: false
+        default: "5"
+      top:
+        description: "Top-N by market cap (blank = all)"
+        required: false
+        default: ""
+      max_annual:
+        description: "Max annual filings per ticker"
+        required: false
+        default: "15"
+      max_quarterly:
+        description: "Max quarterly filings per ticker"
+        required: false
+        default: "40"
+      no_skip:
+        description: "Re-fetch everything"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+concurrency:
+  group: phase-c-nse-xbrl
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4]
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install 'psycopg[binary]>=3.1' psycopg2-binary sqlalchemy \
+                       requests curl_cffi lxml
+
+      - name: Skip if shard >= shards
+        id: guard
+        run: |
+          SHARDS="${{ github.event.inputs.shards || '5' }}"
+          if [ "${{ matrix.shard }}" -ge "$SHARDS" ]; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run shard ${{ matrix.shard }}
+        if: steps.guard.outputs.skip == 'false'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          ARGS="--shard ${{ matrix.shard }} --shards ${{ github.event.inputs.shards || '5' }}"
+          ARGS="$ARGS --max-annual ${{ github.event.inputs.max_annual || '15' }}"
+          ARGS="$ARGS --max-quarterly ${{ github.event.inputs.max_quarterly || '40' }}"
+          if [ -n "${{ github.event.inputs.top }}" ]; then
+            ARGS="$ARGS --top ${{ github.event.inputs.top }}"
+          fi
+          if [ "${{ github.event.inputs.no_skip }}" = "true" ]; then
+            ARGS="$ARGS --no-skip"
+          fi
+          python scripts/backfill_fundamentals_nse_xbrl.py $ARGS
+
+  summary:
+    needs: backfill
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - uses: actions/checkout@v4
+      - name: Coverage
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          pip install psycopg2-binary --quiet
+          python - <<'PY'
+          import os, psycopg2
+          c = psycopg2.connect(os.environ["DATABASE_URL"]); cur = c.cursor()
+          cur.execute("SELECT COUNT(*), COUNT(DISTINCT ticker) FROM financials WHERE data_source='NSE_XBRL'")
+          t, tk = cur.fetchone()
+          cur.execute("SELECT COUNT(*) FROM (SELECT ticker FROM financials WHERE period_type='annual' AND revenue IS NOT NULL GROUP BY ticker HAVING COUNT(*) >= 10) x")
+          d10 = cur.fetchone()[0]
+          cur.execute("SELECT COUNT(*) FROM financials WHERE period_type='quarterly'")
+          q = cur.fetchone()[0]
+          print(f"NSE_XBRL rows:     {t:,}")
+          print(f"NSE_XBRL tickers:  {tk:,}")
+          print(f"  >=10 annuals:    {d10:,}")
+          print(f"quarterly rows:    {q:,}")
+          PY
