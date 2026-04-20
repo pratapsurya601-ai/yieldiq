@@ -58,6 +58,13 @@ def _bootstrap_paths() -> None:
 _UA = "Mozilla/5.0 (compatible; YieldIQ/1.0)"
 _BSE_JSON_URL = "https://api.bseindia.com/BseIndiaAPI/api/ListOfScripCode/w"
 _BSE_CSV_URL = "https://www.bseindia.com/corporates/List_Scrips.aspx"
+# Per-ticker fallback — BSE bulk master started 301'ing to error_Bse.html
+# in April 2026. PeerSmartSearch accepts an ISIN (exact hit) or ticker
+# (fuzzy) and returns an HTML snippet containing the scrip code.
+_BSE_SMART_SEARCH_URL = (
+    "https://api.bseindia.com/BseIndiaAPI/api/PeerSmartSearch/w"
+    "?Type=SS&text={query}"
+)
 
 
 def _session() -> requests.Session:
@@ -102,6 +109,69 @@ def _fetch_bse_master_json(sess: requests.Session) -> List[Dict[str, Any]]:
             logger.info("BSE JSON attempt %d failed: %s", attempt + 1, exc)
             time.sleep(2.0 * (attempt + 1))
     return []
+
+
+# Pattern: ng-click="liclick('500325','RELIANCE INDUSTRIES LTD')"
+# Second best match in the response string carries the ticker/ISIN.
+_SMART_RE = re.compile(r"liclick\('(\d+)',")
+
+
+def _lookup_bse_code_by_query(sess: requests.Session, query: str) -> Optional[str]:
+    """Use PeerSmartSearch to resolve an ISIN or ticker to a BSE scrip code.
+
+    Returns the first scrip code in the result list, or None if no match.
+    The endpoint returns a JSON-string wrapping HTML `<li>` snippets.
+    """
+    if not query:
+        return None
+    url = _BSE_SMART_SEARCH_URL.format(query=query.strip())
+    try:
+        resp = sess.get(url, timeout=15)
+        if resp.status_code != 200:
+            return None
+        body = resp.text or ""
+        m = _SMART_RE.search(body)
+        if not m:
+            return None
+        return m.group(1)
+    except Exception:
+        return None
+
+
+def backfill_per_ticker(
+    sess: requests.Session,
+    stocks: List[Dict[str, Any]],
+    sleep: float = 0.3,
+    progress_every: int = 100,
+) -> Dict[str, str]:
+    """Fallback path for when BSE bulk master is unavailable.
+
+    For each stock with no bse_code, look up by ISIN first (deterministic),
+    then by ticker symbol as secondary. Returns mapping ticker -> bse_code.
+    """
+    mapping: Dict[str, str] = {}
+    need = [s for s in stocks if not s.get("bse_code")]
+    logger.info("per-ticker lookup: %d stocks need a bse_code", len(need))
+
+    for i, s in enumerate(need, 1):
+        code: Optional[str] = None
+        if s.get("isin"):
+            code = _lookup_bse_code_by_query(sess, s["isin"])
+        if not code and s.get("ticker"):
+            # Fallback: search by ticker symbol (NSE symbol — usually matches BSE)
+            code = _lookup_bse_code_by_query(sess, s["ticker"])
+        if code:
+            mapping[s["ticker"]] = code
+
+        if i % progress_every == 0:
+            logger.info(
+                "  per-ticker progress: %d/%d  matched=%d",
+                i, len(need), len(mapping),
+            )
+        time.sleep(sleep)
+
+    logger.info("per-ticker lookup done: matched %d / %d", len(mapping), len(need))
+    return mapping
 
 
 # ---------------------------------------------------------------------------
@@ -381,19 +451,26 @@ def main() -> int:
     sess = _session()
     bse_rows = _fetch_bse_master_json(sess)
     logger.info("fetched %d rows from BSE equity master", len(bse_rows))
-    if not bse_rows:
-        logger.error("no BSE master data — cannot backfill")
-        return 1
 
-    mapping, counts, ambiguous = match_bse_codes(bse_rows, stocks)
-    logger.info(
-        "match results: isin=%d name_exact=%d name_fuzzy=%d "
-        "ambiguous=%d unmatched=%d already=%d",
-        counts["isin"], counts["name_exact"], counts["name_fuzzy"],
-        counts["ambiguous"], counts["unmatched"], counts["already"],
-    )
-    if ambiguous:
-        logger.info("ambiguous tickers (first 20): %s", ambiguous[:20])
+    if bse_rows:
+        # Happy path — bulk master worked.
+        mapping, counts, ambiguous = match_bse_codes(bse_rows, stocks)
+        logger.info(
+            "match results: isin=%d name_exact=%d name_fuzzy=%d "
+            "ambiguous=%d unmatched=%d already=%d",
+            counts["isin"], counts["name_exact"], counts["name_fuzzy"],
+            counts["ambiguous"], counts["unmatched"], counts["already"],
+        )
+        if ambiguous:
+            logger.info("ambiguous tickers (first 20): %s", ambiguous[:20])
+    else:
+        # Fallback path — BSE bulk master returns a 301 to error_Bse.html
+        # as of April 2026. Switch to per-ticker PeerSmartSearch lookup.
+        logger.warning(
+            "BSE bulk master unavailable — falling back to per-ticker lookup "
+            "(~15 min for 3,000 stocks)"
+        )
+        mapping = backfill_per_ticker(sess, stocks)
 
     updated = _upsert_bse_codes(Session, mapping)
     logger.info("UPDATE complete — %d rows written", updated)
