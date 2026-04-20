@@ -1,0 +1,76 @@
+name: Phase A — BSE-only universe expansion
+
+# Fetches BSE's daily equity bhavcopy, dedupes against existing stocks
+# by ISIN, and inserts BSE-only tickers (not listed on NSE). Target:
+# take the stocks table from 3,068 → ~5,500 to match Screener breadth.
+#
+# Expected BSE-only additions: ~2,000-2,500 (groups A, B, X only;
+# skips T/Z/M illiquid/suspended).
+#
+# Safe to re-run — insert uses ON CONFLICT DO NOTHING on ticker.
+# Should be run ONCE manually after Phase C finishes so fundamentals
+# are fresh for the new BSE-only universe.
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Report only, don't write to DB"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+      groups:
+        description: "Comma-separated group codes (default A,B,X)"
+        required: false
+        default: "A,B,X"
+
+concurrency:
+  group: phase-a-bse-universe
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas requests 'psycopg[binary]>=3.1' psycopg2-binary sqlalchemy
+
+      - name: Run BSE universe ingest
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          ARGS="--groups ${{ github.event.inputs.groups || 'A,B,X' }}"
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          python scripts/ingest_bse_only_universe.py $ARGS
+
+      - name: Coverage summary
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python - <<'PY'
+          import os, psycopg2
+          c = psycopg2.connect(os.environ["DATABASE_URL"]); cur = c.cursor()
+          cur.execute("SELECT COUNT(*) FROM stocks WHERE is_active")
+          total = cur.fetchone()[0]
+          cur.execute("SELECT COUNT(*) FROM stocks WHERE bse_code IS NOT NULL AND is_active")
+          bse = cur.fetchone()[0]
+          cur.execute("SELECT COUNT(*) FROM stocks WHERE is_active AND ticker LIKE '%.BO'")
+          bo = cur.fetchone()[0]
+          print(f"total active stocks: {total:,}")
+          print(f"  with bse_code:    {bse:,}")
+          print(f"  with .BO suffix:  {bo:,}")
+          PY
