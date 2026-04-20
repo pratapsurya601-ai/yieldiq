@@ -5,9 +5,12 @@ interface Props {
   data: HistoricalFinancialsResponse | null
 }
 
-// Backend financial figures are raw INR (rupees). Convert to Crores (1Cr = 10M)
-// for display. Confirmed by existing code paths that divide by 1e7 for "Cr".
-const CR = 1e7
+// UNIT CONTRACT: backend /public/financials returns the raw Financials
+// table rows, which are ALREADY stored in Crores by the XBRL ingestion
+// pipeline (verified: RELIANCE FY25 pat=69648 == the reported ₹69,648 Cr
+// headline). Do NOT divide again. If we ever ingest values in raw INR,
+// flip this to 1e7.
+const CR = 1
 
 type RawGetter = (p: HistoricalFinancialsResponse["periods"][number]) => number | null
 
