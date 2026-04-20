@@ -56,7 +56,7 @@ export default function HexLegend({ data, onAxisTap }: HexLegendProps) {
                   marginTop: 2,
                 }}
               >
-                {ax.score.toFixed(1)}
+                {ax.score != null ? ax.score.toFixed(1) : "\u2014"}
                 <span
                   style={{
                     fontSize: 10,

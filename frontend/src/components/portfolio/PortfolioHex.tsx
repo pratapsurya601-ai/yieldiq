@@ -203,7 +203,7 @@ export default function PortfolioHex({ holdings }: Props) {
               <p className="mt-3 text-xs text-body text-center">
                 Overall:{" "}
                 <span className="font-bold text-ink">
-                  {displayData.overall.toFixed(1)}/10
+                  {displayData.overall != null ? `${displayData.overall.toFixed(1)}/10` : "\u2014"}
                 </span>
                 {" · "}Strongest axis:{" "}
                 <span className="font-semibold">{AXIS_LABEL[strongest.key]}</span>

@@ -362,7 +362,7 @@ export default function PortfolioPrism({ holdings }: Props) {
                 className="font-bold"
                 style={{ color: "var(--color-text)" }}
               >
-                {prismData.overall.toFixed(1)}/10
+                {prismData.overall != null ? `${prismData.overall.toFixed(1)}/10` : "\u2014"}
               </span>
             </p>
           </>

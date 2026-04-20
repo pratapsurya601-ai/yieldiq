@@ -142,7 +142,7 @@ export default function HexExplainer({
             className="font-mono tabular-nums font-bold"
             style={{ fontSize: 40, color: "var(--color-ink)", lineHeight: 1 }}
           >
-            {ax.score.toFixed(1)}
+            {ax.score != null ? ax.score.toFixed(1) : "\u2014"}
           </span>
           <span
             className="font-mono"

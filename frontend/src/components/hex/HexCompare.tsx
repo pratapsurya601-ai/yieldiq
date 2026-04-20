@@ -69,8 +69,8 @@ export default function HexCompare({ a, b, size = 280 }: HexCompareProps) {
         style={{ overflow: "visible" }}
       >
         <title>
-          Hex compare: {a.ticker} ({a.overall.toFixed(1)}) vs {b.ticker} (
-          {b.overall.toFixed(1)})
+          Hex compare: {a.ticker} ({a.overall != null ? a.overall.toFixed(1) : "\u2014"}) vs {b.ticker} (
+          {b.overall != null ? b.overall.toFixed(1) : "\u2014"})
         </title>
 
         <g style={{ stroke: "var(--color-border)", fill: "none" }}>

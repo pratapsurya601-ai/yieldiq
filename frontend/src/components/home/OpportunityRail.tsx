@@ -54,7 +54,7 @@ export default function OpportunityRail() {
             <div className="flex items-baseline justify-between gap-2">
               <p className="font-bold text-sm text-ink truncate">{s.ticker}</p>
               <p className="text-xs font-mono text-green-600 font-bold">
-                {s.margin_of_safety.toFixed(0)}% MoS
+                {s.margin_of_safety != null ? `${s.margin_of_safety.toFixed(0)}% MoS` : "\u2014"}
               </p>
             </div>
             <p className="text-[11px] text-caption truncate">{s.company_name}</p>

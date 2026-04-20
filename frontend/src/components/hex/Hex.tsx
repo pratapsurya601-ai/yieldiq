@@ -362,7 +362,7 @@ export default function Hex({
                     transition: "fill 300ms ease",
                   }}
                 >
-                  {p.score.toFixed(1)}
+                  {p.score != null ? p.score.toFixed(1) : "\u2014"}
                 </text>
               </g>
             )
