@@ -1,5 +1,23 @@
 # backend/routers/screener.py
 # Stock screener — queries Aiven pipeline DB for real-time ranked stocks.
+#
+# ─── market_metrics dedupe discipline (2026-04-21) ────────────────────
+# The ``market_metrics`` table stores ONE ROW PER LISTING, not per
+# ticker. Dual-listed tickers (NSE+BSE) therefore have TWO rows each,
+# and ~70% of the table (2,652/3,780) is effectively duplicate when
+# viewed through the stocks-master "one ticker, one company" lens.
+# Any query that JOINs market_metrics directly against stocks (or does
+# ``SELECT ... FROM market_metrics``) will inflate:
+#   • COUNT(*) by up to 2×
+#   • result lists (same ticker twice — BPCL regressed this way in prod)
+#   • aggregate ORDER BY mm.market_cap_cr (same ticker appears twice)
+# The cure is ALWAYS either (a) ``DISTINCT ON (ticker) ... ORDER BY
+# ticker, trade_date DESC`` inside a CTE/subquery, or (b) ``GROUP BY
+# ticker`` before JOINing. We do NOT add a unique constraint on
+# market_metrics(ticker) because the duplicates have semantic meaning
+# (NSE-listing row vs BSE-listing row carry different close_price,
+# volume, etc.). Deduplicate at READ TIME.  See docs/ticker_format_audit.md.
+# ─────────────────────────────────────────────────────────────────────
 from __future__ import annotations
 import logging
 from fastapi import APIRouter, Depends, Query
@@ -24,7 +42,19 @@ def _query_stocks_from_db(min_score: int = 0, min_mos: float = -100,
         try:
             # Get stocks with market metrics — rank by PE (lower = more undervalued)
             # Only show quality stocks: market cap > 2000 Cr, PE between 3-50
+            #
+            # DISTINCT ON (mm.ticker) dedupes cross-listing rows in
+            # market_metrics (NSE+BSE). See the module-level design note
+            # at the top of this file. Without it, "2,907 stocks" in the
+            # UI was ~1,700 real tickers counted twice.
             query = text("""
+                WITH mm_dedup AS (
+                    SELECT DISTINCT ON (ticker)
+                        ticker, pe_ratio, pb_ratio, beta_1yr,
+                        market_cap_cr, dividend_yield
+                    FROM market_metrics
+                    ORDER BY ticker, trade_date DESC
+                )
                 SELECT
                     s.ticker,
                     s.company_name,
@@ -34,7 +64,7 @@ def _query_stocks_from_db(min_score: int = 0, min_mos: float = -100,
                     mm.market_cap_cr,
                     mm.dividend_yield
                 FROM stocks s
-                JOIN market_metrics mm ON mm.ticker = s.ticker
+                JOIN mm_dedup mm ON mm.ticker = s.ticker
                 WHERE s.is_active = true
                   AND mm.pe_ratio BETWEEN 3 AND 50
                   AND mm.market_cap_cr > 2000
@@ -44,9 +74,16 @@ def _query_stocks_from_db(min_score: int = 0, min_mos: float = -100,
             offset = (page - 1) * page_size
             rows = db.execute(query, {"lim": page_size, "off": offset}).fetchall()
 
+            # Count must ALSO dedupe — pre-fix this was returning ~2,900
+            # for a true universe of ~1,700.
             count_q = text("""
+                WITH mm_dedup AS (
+                    SELECT DISTINCT ON (ticker) ticker, pe_ratio, market_cap_cr
+                    FROM market_metrics
+                    ORDER BY ticker, trade_date DESC
+                )
                 SELECT COUNT(*) FROM stocks s
-                JOIN market_metrics mm ON mm.ticker = s.ticker
+                JOIN mm_dedup mm ON mm.ticker = s.ticker
                 WHERE s.is_active = true
                   AND mm.pe_ratio BETWEEN 3 AND 50
                   AND mm.market_cap_cr > 2000

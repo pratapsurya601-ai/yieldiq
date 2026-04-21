@@ -509,10 +509,18 @@ def load_top_tickers(limit: int = 500) -> List[str]:
     from sqlalchemy import text as _t
     sess = Session()
     try:
+        # DISTINCT ON dedupes cross-listing rows in market_metrics
+        # (same ticker on NSE+BSE). See design note in
+        # backend/routers/screener.py.
         rows = sess.execute(_t(
+            "WITH mm_dedup AS ("
+            "  SELECT DISTINCT ON (ticker) ticker, market_cap_cr "
+            "  FROM market_metrics "
+            "  ORDER BY ticker, trade_date DESC"
+            ") "
             "SELECT s.ticker "
             "FROM stocks s "
-            "LEFT JOIN market_metrics mm ON mm.ticker = s.ticker "
+            "LEFT JOIN mm_dedup mm ON mm.ticker = s.ticker "
             "WHERE s.is_active = TRUE "
             "ORDER BY COALESCE(mm.market_cap_cr, 0) DESC "
             "LIMIT :lim"
