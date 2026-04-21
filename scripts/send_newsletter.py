@@ -29,7 +29,7 @@ Override recipients with a CSV (one email per line, header optional)::
 Environment
 -----------
 SENDGRID_API_KEY        required for any actual send
-SENDGRID_FROM_EMAIL     defaults to noreply@yieldiq.com
+SENDGRID_FROM_EMAIL     defaults to hello@yieldiq.in
 NEWSLETTER_API_BASE     defaults to http://localhost:8000;
                         set to https://api.yieldiq.in in CI
 NEWSLETTER_OG_BASE      defaults to https://www.yieldiq.in

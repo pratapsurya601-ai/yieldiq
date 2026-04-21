@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 # ── SendGrid config ───────────────────────────────────────────
 
 SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")
-FROM_EMAIL = os.environ.get("SENDGRID_FROM_EMAIL", "noreply@yieldiq.com")
+FROM_EMAIL = os.environ.get("SENDGRID_FROM_EMAIL", "hello@yieldiq.in")
 
 BRAND_PRIMARY = "#2563EB"
 BRAND_ACCENT = "#06B6D4"
