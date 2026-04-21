@@ -2675,27 +2675,240 @@ class AnalysisService:
         )
 
     def get_ai_summary(self, ticker: str, analysis: AnalysisResponse) -> str:
-        """Generate AI summary using existing Gemini/Groq integration."""
+        """Generate a ONE-sentence factual stock summary (<=280 chars).
+
+        Previous implementation (pre FIX-AI-SUMMARY-FLAGSHIPS) imported
+        ``dashboard.utils.data_helpers.generate_ai_summary`` and called it
+        with 6 positional args. That function actually requires 13
+        positional args, so every call raised ``TypeError`` and the
+        exception handler returned "" -- which is why every flagship had
+        ``ai_summary_snippet: null`` on the public /stock-summary endpoint.
+
+        This replacement:
+          - Builds its own compact prompt from the canonical AnalysisResponse
+            so output is always consistent with the rest of the payload.
+          - Generates EXACTLY ONE sentence (<=280 chars). The public
+            endpoint truncates ai_summary to 200 chars for the snippet,
+            so a 3-paragraph answer was always going to be clipped.
+          - Is SEBI-compliant: no "buy" / "sell" / "hold", uses
+            "appears undervalued/overvalued by the model" framing.
+          - Falls back Gemini -> Groq on quota/region errors. Returns ""
+            on total failure so the UI degrades gracefully (empty slot,
+            never 500).
+
+        ENV VAR REQUIREMENT (prod): at least one of GEMINI_API_KEY or
+        GROQ_API_KEY must be set on Railway. If neither is configured,
+        the method logs a WARNING and returns "" -- the feature silently
+        no-ops rather than breaking the endpoint.
+        """
+        import logging
+        import os as _os
+        _log = logging.getLogger("yieldiq.ai_summary")
+
+        _gemini_key = _os.environ.get("GEMINI_API_KEY", "").strip()
+        _groq_key = _os.environ.get("GROQ_API_KEY", "").strip()
+        if not _gemini_key and not _groq_key:
+            _log.warning(
+                f"[{ticker}] AI summary skipped: neither GEMINI_API_KEY nor "
+                f"GROQ_API_KEY is set in the environment. Add one on Railway "
+                f"to enable ai_summary_snippet on public stock-summary "
+                f"responses. See .env.example lines 12-18."
+            )
+            return ""
+
+        # Build a compact, factual prompt off the canonical AnalysisResponse.
+        try:
+            _v = analysis.valuation
+            _q = analysis.quality
+            _c = analysis.company
+            _mos = getattr(_v, "margin_of_safety", None)
+            _moat = getattr(_q, "moat", None) or "unrated"
+            _sector = getattr(_c, "sector", None) or "unlisted sector"
+            _name = getattr(_c, "company_name", None) or ticker
+            _score = getattr(_q, "yieldiq_score", None)
+            _grade = getattr(_q, "grade", None)
+            # Direction phrase -- factual, no buy/sell.
+            if _mos is None:
+                _direction = "trading near its model fair value"
+            elif _mos >= 15:
+                _direction = "appears undervalued by the model"
+            elif _mos >= 0:
+                _direction = "trading close to its model fair value"
+            elif _mos >= -15:
+                _direction = "trading slightly above its model fair value"
+            else:
+                _direction = "appears overvalued by the model"
+
+            _mos_line = (
+                f"Margin of safety vs model fair value: {_mos:.1f}%\n"
+                if _mos is not None else "Margin of safety: unavailable\n"
+            )
+            _score_line = (
+                f"YieldIQ score: {_score}/100 (grade {_grade or 'unrated'}).\n"
+                if _score is not None else ""
+            )
+            _prompt = (
+                "You are a senior equity analyst writing for a retail investor. "
+                "Write EXACTLY ONE factual sentence (max 280 characters) "
+                "describing this stock. Be balanced and specific. "
+                "Use neutral language. Do NOT say 'buy', 'sell', or 'hold'. "
+                "Do NOT include a disclaimer (the UI renders one separately).\n\n"
+                f"Stock: {_name} ({ticker})\n"
+                f"Sector: {_sector}\n"
+                f"Economic moat: {_moat}\n"
+                f"{_mos_line}"
+                f"Model framing you may use: '{_direction}'.\n"
+                f"{_score_line}"
+                "Write one sentence. No preamble, no bullet, no headers."
+            )
+        except Exception as exc:
+            _log.error(
+                f"[{ticker}] AI summary prompt build failed: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            return ""
+
+        def _clean_one_sentence(text: str) -> str:
+            """Collapse LLM output to a single sentence <=280 chars."""
+            if not text:
+                return ""
+            s = text.strip().strip('"').strip("'").strip()
+            for _prefix in (
+                "Summary:", "summary:",
+                "Here is the summary:", "Here's the summary:",
+            ):
+                if s.startswith(_prefix):
+                    s = s[len(_prefix):].strip()
+            import re as _re
+            _match = _re.split(r"(?<=[.!?])\s+", s, maxsplit=1)
+            if _match:
+                s = _match[0].strip()
+            if len(s) > 280:
+                s = s[:277].rstrip() + "..."
+            return s
+
+        # -- Try Gemini first ----------------------------------------
+        if _gemini_key:
+            try:
+                from google import genai as _genai
+                _client = _genai.Client(api_key=_gemini_key)
+                _response = _client.models.generate_content(
+                    model="gemini-2.0-flash", contents=_prompt,
+                )
+                _out = _clean_one_sentence(getattr(_response, "text", "") or "")
+                if _out:
+                    _log.info(f"[{ticker}] AI summary via Gemini ({len(_out)} chars)")
+                    return _out
+                _log.warning(f"[{ticker}] Gemini returned empty; falling back to Groq")
+            except Exception as exc:
+                _err = str(exc).lower()
+                if not any(k in _err for k in ("quota", "429", "resource_exhausted", "limit")):
+                    _log.error(
+                        f"[{ticker}] Gemini call failed (non-quota): "
+                        f"{type(exc).__name__}: {exc}"
+                    )
+                else:
+                    _log.info(f"[{ticker}] Gemini quota/limit hit; falling back to Groq")
+
+        # -- Fallback: Groq -----------------------------------------
+        if _groq_key:
+            try:
+                from groq import Groq as _Groq
+                _client = _Groq(api_key=_groq_key)
+                _resp = _client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": _prompt}],
+                    max_tokens=120,
+                    temperature=0.2,
+                )
+                _out = _clean_one_sentence(_resp.choices[0].message.content or "")
+                if _out:
+                    _log.info(f"[{ticker}] AI summary via Groq ({len(_out)} chars)")
+                    return _out
+                _log.warning(f"[{ticker}] Groq returned empty summary")
+            except Exception as exc:
+                _log.error(f"[{ticker}] Groq call failed: {type(exc).__name__}: {exc}")
+
+        return ""
+
+    def ensure_ai_summary(
+        self,
+        ticker: str,
+        analysis: AnalysisResponse,
+        *,
+        generate_if_missing: bool = False,
+    ) -> AnalysisResponse:
+        """Attach a cached AI summary to ``analysis.ai_summary`` if one exists.
+
+        Non-blocking helper for the /public/stock-summary hot path.
+        Read order:
+
+          1. If ``analysis.ai_summary`` is already populated -> return as-is.
+          2. Check in-memory cache key ``ai_summary:{ticker}`` (written by
+             /api/v1/analysis/{ticker}/summary endpoint and by
+             scripts/warm_ai_summaries.py) -> attach and return.
+          3. If ``generate_if_missing=True``, call ``get_ai_summary``
+             inline (synchronous LLM call -- ONLY the warmup script
+             should pass this flag; the request path must not, to keep
+             p50 < 200ms).
+
+        By default, returns quickly with whatever it found in cache and
+        lets the out-of-band warmup job populate the rest. Never raises.
+        """
         import logging
         _log = logging.getLogger("yieldiq.ai_summary")
         try:
-            _log.info(f"[{ticker}] Requesting AI summary...")
-            from dashboard.utils.data_helpers import generate_ai_summary
-            result = generate_ai_summary(
-                ticker, analysis.company.company_name,
-                analysis.valuation.margin_of_safety,
-                analysis.quality.moat,
-                analysis.valuation.fcf_growth_rate,
-                analysis.valuation.confidence_score,
-            )
-            if result:
-                _log.info(f"[{ticker}] AI summary received ({len(result)} chars)")
-                return result
-            _log.warning(f"[{ticker}] AI summary returned empty/None")
-            return ""
+            if getattr(analysis, "ai_summary", None):
+                return analysis
+
+            from backend.services.cache_service import cache as _cache
+            _cached = _cache.get(f"ai_summary:{ticker}")
+            _cached_text: str | None = None
+            if isinstance(_cached, dict):
+                _cached_text = _cached.get("summary")
+            elif isinstance(_cached, str):
+                _cached_text = _cached
+            if _cached_text:
+                try:
+                    analysis.ai_summary = _cached_text
+                except Exception:
+                    try:
+                        analysis = analysis.model_copy(
+                            update={"ai_summary": _cached_text}
+                        )
+                    except Exception:
+                        pass
+                return analysis
+
+            if generate_if_missing:
+                _text = self.get_ai_summary(ticker, analysis)
+                if _text:
+                    try:
+                        analysis.ai_summary = _text
+                    except Exception:
+                        try:
+                            analysis = analysis.model_copy(
+                                update={"ai_summary": _text}
+                            )
+                        except Exception:
+                            pass
+                    try:
+                        _cache.set(
+                            f"ai_summary:{ticker}",
+                            {"summary": _text},
+                            ttl=86400,
+                        )
+                    except Exception as exc:
+                        _log.warning(
+                            f"[{ticker}] ai_summary cache set failed: {exc}"
+                        )
+            return analysis
         except Exception as exc:
-            _log.error(f"[{ticker}] AI summary failed: {type(exc).__name__}: {exc}")
-            return ""
+            _log.warning(
+                f"[{ticker}] ensure_ai_summary failed, returning analysis "
+                f"unchanged: {type(exc).__name__}: {exc}"
+            )
+            return analysis
 
     def get_reverse_dcf(
         self,
