@@ -1,5 +1,6 @@
 import Link from "next/link"
 import type { PublicPeersResponse } from "@/lib/api"
+import MetricTooltip from "@/components/analysis/MetricTooltip"
 
 interface Props {
   ticker: string
@@ -78,11 +79,29 @@ export default function PeerComparisonCard({ ticker, data }: Props) {
           <thead>
             <tr className="text-[10px] uppercase tracking-wider text-gray-500 border-b border-gray-200">
               <th className="text-left py-2 pr-3 font-semibold">Peer</th>
-              <th className="text-right py-2 px-2 font-semibold">MoS</th>
-              <th className="text-right py-2 px-2 font-semibold">Score</th>
-              <th className="text-left py-2 px-2 font-semibold">Verdict</th>
-              <th className="text-right py-2 px-2 font-semibold">ROE</th>
-              <th className="text-right py-2 pl-2 font-semibold">PE</th>
+              <th className="text-right py-2 px-2 font-semibold">
+                <span className="inline-flex items-center justify-end gap-1 w-full">
+                  <MetricTooltip metricKey="mos">MoS</MetricTooltip>
+                </span>
+              </th>
+              <th className="text-right py-2 px-2 font-semibold">
+                <span className="inline-flex items-center justify-end gap-1 w-full">
+                  <MetricTooltip metricKey="yieldiq_score">Score</MetricTooltip>
+                </span>
+              </th>
+              <th className="text-left py-2 px-2 font-semibold">
+                <MetricTooltip metricKey="verdict">Verdict</MetricTooltip>
+              </th>
+              <th className="text-right py-2 px-2 font-semibold">
+                <span className="inline-flex items-center justify-end gap-1 w-full">
+                  <MetricTooltip metricKey="roe">ROE</MetricTooltip>
+                </span>
+              </th>
+              <th className="text-right py-2 pl-2 font-semibold">
+                <span className="inline-flex items-center justify-end gap-1 w-full">
+                  <MetricTooltip metricKey="pe_ratio">PE</MetricTooltip>
+                </span>
+              </th>
             </tr>
           </thead>
           <tbody>

@@ -19,6 +19,7 @@
 
 import { useId } from "react"
 import { formatMarketCap } from "@/lib/formatters"
+import MetricTooltip from "@/components/analysis/MetricTooltip"
 
 interface SectorRank {
   rank: number
@@ -117,9 +118,11 @@ export default function ScoreCard({
       aria-label="YieldIQ score summary"
     >
       {/* Header label */}
-      <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-caption">
-        YieldIQ Score
-      </p>
+      <MetricTooltip metricKey="yieldiq_score">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-caption">
+          YieldIQ Score
+        </p>
+      </MetricTooltip>
 
       {/* Score + grade pill */}
       <div className="flex items-end justify-between">
@@ -132,13 +135,15 @@ export default function ScoreCard({
           </span>
           <span className="text-sm text-caption tabular-nums">/100</span>
         </div>
-        <span
-          className="inline-flex items-center justify-center min-w-[42px] h-[28px] rounded-md px-2 text-sm font-bold text-white tracking-wide"
-          style={{ background: gradeGradient(grade) }}
-          aria-label={`Grade ${grade}`}
-        >
-          {grade || "—"}
-        </span>
+        <MetricTooltip metricKey="grade">
+          <span
+            className="inline-flex items-center justify-center min-w-[42px] h-[28px] rounded-md px-2 text-sm font-bold text-white tracking-wide"
+            style={{ background: gradeGradient(grade) }}
+            aria-label={`Grade ${grade}`}
+          >
+            {grade || "—"}
+          </span>
+        </MetricTooltip>
       </div>
 
       {/* 12M trend sparkline */}
@@ -191,7 +196,9 @@ export default function ScoreCard({
       {/* Market cap footer */}
       {marketCapCr && marketCapCr > 0 && (
         <div className="mt-auto pt-2 border-t border-bg/10 flex items-baseline justify-between">
-          <span className="text-[10px] uppercase tracking-[0.15em] text-caption">Market cap</span>
+          <MetricTooltip metricKey="market_cap">
+            <span className="text-[10px] uppercase tracking-[0.15em] text-caption">Market cap</span>
+          </MetricTooltip>
           <span className="tabular-nums text-sm text-bg">{fmtMarketCap(marketCapCr)}</span>
         </div>
       )}
