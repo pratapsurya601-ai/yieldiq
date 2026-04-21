@@ -501,6 +501,61 @@ def _axis_quality(data: dict, sector: str) -> dict:
     roce = q.get("roce")
     roe = q.get("roe")
 
+    # ── Bank branch (feat/bank-prism-metrics 2026-04-21) ──────────
+    # For banks, ROCE is None by design (capital-employed doesn't apply
+    # to deposit-funded businesses). We blend ROA + ROE against
+    # bank-appropriate thresholds so the Quality axis actually lights
+    # up. Anchors are the Indian banking cohort:
+    #   ROA:   >1.4% strong, ~1.0% average, <0.6% weak
+    #   ROE:   >16% strong, ~12% average, <8% weak
+    # Piotroski is de-emphasised — most of its 9 signals (inventory
+    # turnover, gross margin, asset turnover) don't map to banks.
+    if sector == "bank":
+        roa = q.get("roa")
+        if roa is None and roe is None:
+            return _neutral_axis("No bank quality data (ROA/ROE)")
+        score = 5.0
+        reasons: list[str] = []
+        if roa is not None:
+            try:
+                r = float(roa)
+                # ROA anchor 1.0% = neutral. 1.4% -> ~6.0, 1.8% -> ~7.0,
+                # 0.6% -> ~4.0. Bounded so a single metric can't pin the
+                # axis to a floor/ceiling.
+                score += max(-2.0, min(3.0, (r - 1.0) * 2.5))
+                reasons.append(f"ROA {r:.2f}%")
+            except Exception:
+                pass
+        if roe is not None:
+            try:
+                v = float(roe)
+                # ROE anchor 12% = neutral. Each +4% ROE = +1 axis pt.
+                # 16% -> 6.0, 20% -> 7.0, 8% -> 4.0. Bounded both sides.
+                score += max(-2.0, min(2.5, (v - 12.0) * 0.25))
+                reasons.append(f"ROE {v:.1f}%")
+            except Exception:
+                pass
+        # Cost-to-Income sharpens Quality — low c2i = operating leverage.
+        c2i = q.get("cost_to_income")
+        if c2i is not None:
+            try:
+                c = float(c2i)
+                # Indian bank cohort: top private ~40-45%, PSU ~55-65%.
+                # Anchor 55% (cohort median) so PSU banks aren't punished
+                # for running normal-for-PSU cost ratios; a private bank
+                # at 42% gets a +0.6 uplift, a weak bank at 75% gets
+                # -1.0. Bounded tightly — c/i is a tiebreaker, not the
+                # dominant driver.
+                score += max(-1.2, min(0.8, (55.0 - c) * 0.05))
+                reasons.append(f"C/I {c:.0f}%")
+            except Exception:
+                pass
+        return _axis(
+            score,
+            ", ".join(reasons) if reasons else "Bank quality partial",
+            data_limited=(roa is None and roe is None),
+        )
+
     # Operating margin stability from annual financials
     fins = data.get("financials") or []
     op_margins = [f.get("op_margin") for f in fins if f.get("op_margin") is not None]
@@ -556,9 +611,45 @@ def _axis_quality(data: dict, sector: str) -> dict:
     )
 
 
-def _axis_growth(data: dict) -> dict:
+def _axis_growth(data: dict, sector: str = "general") -> dict:
     analysis = data.get("analysis") or {}
     q = analysis.get("quality") or {}
+
+    # ── Bank branch (feat/bank-prism-metrics 2026-04-21) ──────────
+    # Banks' growth is better measured as advances + deposits + PAT
+    # YoY than revenue CAGR (revenue here is interest-income-heavy
+    # and swings with the rate cycle). The analysis_service populates
+    # `advances_yoy` / `deposits_yoy` / `pat_yoy_bank` via
+    # _fetch_bank_metrics_inputs.
+    if sector == "bank":
+        adv_yoy = q.get("advances_yoy")
+        dep_yoy = q.get("deposits_yoy")
+        pat_yoy = q.get("pat_yoy_bank")
+        parts = [v for v in (adv_yoy, dep_yoy, pat_yoy) if v is not None]
+        if not parts:
+            return _neutral_axis("No bank growth history")
+        score = 5.0
+        reasons: list[str] = []
+        # Each +10% composite growth ≈ +1.0 axis point.
+        # Advances / deposits get equal weight; PAT is quality-of-growth.
+        try:
+            comps = [float(v) for v in parts]
+            avg = sum(comps) / len(comps)
+            score += avg * 0.10
+        except Exception:
+            return _neutral_axis("Bank growth parse error")
+        if adv_yoy is not None:
+            reasons.append(f"Adv YoY {float(adv_yoy):.1f}%")
+        if dep_yoy is not None:
+            reasons.append(f"Dep YoY {float(dep_yoy):.1f}%")
+        if pat_yoy is not None:
+            reasons.append(f"PAT YoY {float(pat_yoy):.1f}%")
+        return _axis(
+            score,
+            ", ".join(reasons) if reasons else "Bank growth partial",
+            data_limited=False,
+        )
+
     rev_cagr = q.get("revenue_cagr_3y")
     if rev_cagr is None:
         rev_cagr = q.get("revenue_cagr_5y")
@@ -619,6 +710,51 @@ def _axis_moat(data: dict, sector: str) -> dict:
     reasons: list[str] = []
     moat_signal = False
     margin_signal = False
+
+    # ── Bank branch: moat = scale + distribution ───────────────────
+    # For banks, the traditional "Wide/Narrow" moat call is misleading
+    # — our analysis pipeline returns "N/A (Financial)". Scale (measured
+    # by market cap / total assets) is the single biggest durable
+    # advantage in Indian banking: distribution network, CASA base,
+    # regulatory relationships, and low-cost-funds all scale. This
+    # matches how the Street values franchise strength (look at SBIN
+    # vs. RBLBANK P/B gap for the intuition).
+    if sector == "bank":
+        metrics = data.get("metrics") or {}
+        mcap_cr = metrics.get("market_cap_cr")
+        # Scale anchor: 50,000 Cr = 5.0 (neutral), each 10x market cap
+        # ≈ +2 axis points. SBIN / HDFCBANK / ICICIBANK land near 8-9;
+        # microcap banks near 3-4.
+        if mcap_cr is not None:
+            try:
+                mc = float(mcap_cr)
+                if mc > 0:
+                    score = 5.0 + max(-3.0, min(3.5, math.log10(mc / 50000.0) * 2.0))
+                    reasons.append(f"Scale (mcap {mc:,.0f} Cr)")
+                    moat_signal = True
+            except Exception:
+                pass
+        # Cost-to-Income as a franchise-quality signal: a bank with
+        # structurally lower c2i has pricing power in deposits +
+        # operating leverage — both franchise proxies.
+        c2i = q.get("cost_to_income")
+        if c2i is not None:
+            try:
+                c = float(c2i)
+                # 45% = +0.5, 65% = -0.5. Cap tightly so this never
+                # dominates the scale signal.
+                score += max(-0.8, min(0.8, (50.0 - c) * 0.04))
+                reasons.append(f"C/I {c:.0f}%")
+                margin_signal = True
+            except Exception:
+                pass
+        if not (moat_signal or margin_signal):
+            return _neutral_axis("No bank scale/efficiency signal")
+        return _axis(
+            score,
+            ", ".join(reasons) if reasons else "Bank franchise partial",
+            data_limited=False,
+        )
 
     if isinstance(moat_grade, str):
         g = moat_grade.lower()
@@ -1054,7 +1190,7 @@ def compute_hex(ticker: str) -> dict:
     except Exception:
         quality_axis = _neutral_axis("quality axis error")
     try:
-        growth_axis = _axis_growth(data)
+        growth_axis = _axis_growth(data, sector)
     except Exception:
         growth_axis = _neutral_axis("growth axis error")
     try:
