@@ -1635,7 +1635,7 @@ async def get_public_top_tickers(limit: int = 500):
 
 
 @router.get("/near-52w-lows")
-async def get_near_52w_lows(limit: int = 6, max_distance_pct: float = 15.0, min_score: int = 55):
+async def get_near_52w_lows(limit: int = 6, max_distance_pct: float = 25.0, min_score: int = 35):
     """Stocks trading close to their 52-week low with strong fundamentals.
 
     Factual filter — NOT a recommendation.
@@ -1727,7 +1727,7 @@ async def get_near_52w_lows(limit: int = 6, max_distance_pct: float = 15.0, min_
 
 
 @router.get("/lowest-pe")
-async def get_lowest_pe(limit: int = 6, min_score: int = 55, max_pe: float = 40.0):
+async def get_lowest_pe(limit: int = 6, min_score: int = 35, max_pe: float = 60.0):
     """Stocks with the lowest P/E ratio that still pass fundamental quality.
 
     Factual composition — NOT a recommendation. Reads market_metrics.pe_ratio

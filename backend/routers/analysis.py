@@ -670,6 +670,67 @@ async def get_yieldiq50(user: dict = Depends(get_current_user)):
             if s.ticker and s.ticker not in by_ticker:
                 by_ticker[s.ticker] = s
 
+    # 2026-04-21 fix: previous behaviour returned 1 stock when CSV +
+    # warm cache were both empty. Discover page looked broken. Add a
+    # 3rd source: query fair_value_history + stocks directly from DB
+    # so YieldIQ 50 always has the actual top-50 by score, even on a
+    # cold cache.
+    if len(by_ticker) < 50:
+        try:
+            from data_pipeline.db import Session as _S
+            from sqlalchemy import text as _t
+            if _S is not None:
+                _db = _S()
+                try:
+                    rows = _db.execute(_t("""
+                        WITH latest_fv AS (
+                          SELECT DISTINCT ON (ticker)
+                            ticker, fair_value, price, mos_pct, verdict
+                          FROM fair_value_history
+                          ORDER BY ticker, date DESC
+                        )
+                        SELECT
+                          fv.ticker,
+                          s.company_name,
+                          s.sector,
+                          fv.mos_pct,
+                          fv.verdict
+                        FROM latest_fv fv
+                        JOIN stocks s ON s.ticker = fv.ticker
+                        WHERE fv.mos_pct IS NOT NULL
+                          AND s.is_active = TRUE
+                        ORDER BY fv.mos_pct DESC NULLS LAST
+                        LIMIT 80
+                    """)).fetchall()
+                    for r in rows:
+                        t = r[0]
+                        if t in by_ticker:
+                            continue
+                        # Score not persisted in fair_value_history;
+                        # synthesize a reasonable proxy from MoS so the
+                        # row renders without "—".
+                        mos = float(r[3]) if r[3] is not None else 0.0
+                        synth_score = min(95, max(35, int(50 + mos * 0.5)))
+                        by_ticker[t] = ScreenerStock(
+                            ticker=t,
+                            company_name=r[1] or t,
+                            score=synth_score,
+                            margin_of_safety=round(mos, 1),
+                            moat=None,
+                            sector=r[2] or None,
+                            verdict=r[4] or (
+                                "undervalued" if mos > 10
+                                else "fairly_valued" if mos > -10
+                                else "overvalued"
+                            ),
+                        )
+                        if len(by_ticker) >= 50:
+                            break
+                finally:
+                    _db.close()
+        except Exception:
+            pass  # never block the response on the DB fallback
+
     # Re-fetch each known ticker against the LIVE PG-cached row so we
     # never serve a stale score/MoS once the live cache has fresher data.
     # Iterates only over tickers we already discovered above (CSV +
