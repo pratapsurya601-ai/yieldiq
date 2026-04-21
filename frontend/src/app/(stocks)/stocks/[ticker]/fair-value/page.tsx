@@ -13,6 +13,7 @@ import SegmentRevenueTable from "@/components/analysis/SegmentRevenueTable"
 import { getHistoricalFinancials, getRatiosHistory, getPublicPeers, getDividendHistory } from "@/lib/api"
 import { timeAgo } from "@/lib/dataFreshness"
 import ExcelExportButton from "@/components/analysis/ExcelExportButton"
+import ShareReportCard from "@/components/analysis/ShareReportCard"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -371,6 +372,7 @@ export default async function StockFairValuePage(
                 DCF Sensitivity →
               </Link>
               <ExcelExportButton ticker={display} />
+              <ShareReportCard ticker={data.ticker} variant="compact" />
             </div>
           </div>
         </div>

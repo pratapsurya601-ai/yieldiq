@@ -23,6 +23,7 @@ import FinancialStatements from "@/components/analysis/FinancialStatements"
 import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
+import ShareReportCard from "@/components/analysis/ShareReportCard"
 import UnlockCTA from "@/components/payg/UnlockCTA"
 import UnlockBadge from "@/components/payg/UnlockBadge"
 import {
@@ -597,9 +598,12 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               indices={[]}
             />
           </div>
-          <Link href={`/compare?stock1=${ticker}`} className="shrink-0 text-xs text-brand hover:underline whitespace-nowrap">
-            Compare →
-          </Link>
+          <div className="shrink-0 flex items-center gap-3">
+            <ShareReportCard ticker={ticker} variant="compact" />
+            <Link href={`/compare?stock1=${ticker}`} className="text-xs text-brand hover:underline whitespace-nowrap">
+              Compare →
+            </Link>
+          </div>
         </div>
 
         {/* Editorial hero — Prism-driven. Uses server-rendered prism payload
@@ -643,17 +647,20 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           onTabChange={(key) => setOpenedTabs((prev) => new Set(prev).add(key))}
         />
 
-        <div className="bg-gradient-to-r from-[color:var(--color-brand-50)] to-surface border border-border rounded-xl p-4 flex items-center justify-between gap-3">
-          <div>
+        <div className="bg-gradient-to-r from-[color:var(--color-brand-50)] to-surface border border-border rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
+          <div className="min-w-0">
             <p className="text-sm font-semibold text-ink">Share this analysis</p>
-            <p className="text-xs text-caption">Beautiful report card for WhatsApp &amp; Twitter</p>
+            <p className="text-xs text-caption">Prism card tuned for Instagram Story &amp; Twitter vertical</p>
           </div>
-          <a
-            href={`/report/${ticker}`}
-            className="inline-flex items-center justify-center bg-brand text-white text-xs font-semibold px-4 py-2 min-h-[40px] rounded-lg hover:opacity-90 active:scale-[0.97] transition whitespace-nowrap"
-          >
-            View Report Card →
-          </a>
+          <div className="flex items-center gap-2 flex-wrap">
+            <ShareReportCard ticker={ticker} />
+            <a
+              href={`/report/${ticker}`}
+              className="inline-flex items-center justify-center text-xs font-semibold text-brand hover:underline px-2 py-2 min-h-[40px]"
+            >
+              Text-only report →
+            </a>
+          </div>
         </div>
 
         <p className="text-xs text-caption text-center leading-relaxed px-4">
