@@ -1227,7 +1227,18 @@ def _fetch_roce_inputs(
         cl = _f(bal_row.get("current_liabilities")) if bal_row else None
 
         # If company_financials is missing pieces, backfill from
-        # `financials` (the NSE XBRL-populated legacy table).
+        # `financials` (the NSE XBRL-populated table).
+        #
+        # ORDER BY quirk: a ticker can have BOTH yfinance rows and
+        # NSE_XBRL rows. yfinance periods are often a year NEWER
+        # (e.g. 2026-03-31 projected) but missing ebit + current_
+        # liabilities. NSE_XBRL rows (e.g. 2024-03-31 actual) have
+        # them. A naive `ORDER BY period_end DESC LIMIT 1` picks the
+        # yfinance row and comes back all-NULL, failing ROCE.
+        #
+        # Fix: prefer rows that ACTUALLY CARRY the ROCE denominator
+        # (current_liabilities IS NOT NULL), then the freshest within
+        # that subset. Falls back to any row if none qualifies.
         if ebit is None or ta is None or cl is None:
             old_row = db.execute(text("""
                 SELECT ebit, ebitda, total_assets, current_liabilities
@@ -1235,7 +1246,11 @@ def _fetch_roce_inputs(
                 WHERE ticker = :t
                   AND period_type = 'annual'
                   AND period_end IS NOT NULL
-                ORDER BY period_end DESC
+                ORDER BY
+                  (current_liabilities IS NOT NULL) DESC,
+                  (total_assets IS NOT NULL) DESC,
+                  (ebit IS NOT NULL OR ebitda IS NOT NULL) DESC,
+                  period_end DESC
                 LIMIT 1
             """), {"t": db_ticker}).mappings().first()
             if old_row:
