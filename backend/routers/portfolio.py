@@ -187,6 +187,12 @@ def _do_import(parsed: list[dict], broker: str, user: dict) -> dict:
                 company_name=company_name,
                 sector=sector,
                 notes=f"Imported from {broker} ({qty} shares)",
+                # 2026-04-21 multi-account: tag each row with the broker
+                # so two CSVs from different demats stay separate. Old
+                # single-broker users have account_label='zerodha' (or
+                # whatever they uploaded as) instead of merging.
+                account_label=broker or "default",
+                quantity=float(qty) if qty else None,
             )
             if ok:
                 imported += 1

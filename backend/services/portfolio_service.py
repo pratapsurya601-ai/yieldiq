@@ -49,9 +49,19 @@ def save_holding(
     sector: str = "",
     notes: str = "",
     company_name: str = "",
+    account_label: str = "default",
+    quantity: float | None = None,
 ) -> tuple[bool, str]:
     """
     Upsert a holding for a user. Returns (ok, error_message).
+
+    ``account_label``: lets the same ticker exist multiple times under
+    different demat accounts (e.g. 'zerodha', 'icici'). Unique key is
+    (user_email, ticker, account_label). Defaults to "default" so all
+    pre-2026-04-21 single-account rows continue to upsert correctly.
+
+    ``quantity``: optional. If provided, persisted to the holdings row.
+    Old callers that only stored entry_price still work.
     """
     if not user_email:
         return False, "user_email required"
@@ -63,13 +73,14 @@ def save_holding(
         return False, "Supabase unavailable"
 
     ticker_up = ticker.upper()
+    label = (account_label or "default").lower().strip() or "default"
     now_iso = datetime.now(timezone.utc).isoformat()
 
     try:
-        # Upsert on (user_email, ticker) unique constraint
         row = {
             "user_email": user_email,
             "ticker": ticker_up,
+            "account_label": label,
             "company_name": company_name,
             "entry_price": float(entry_price),
             "iv": float(iv) if iv else 0,
@@ -80,11 +91,38 @@ def save_holding(
             "notes": notes or "",
             "saved_at": now_iso,
         }
-        client.table("holdings").upsert(row, on_conflict="user_email,ticker").execute()
+        if quantity is not None:
+            row["quantity"] = float(quantity)
+        # New conflict target: (user_email, ticker, account_label).
+        # If the Supabase table doesn't yet have account_label + the new
+        # composite unique constraint, fall back to the legacy single-
+        # column conflict so this code keeps working until migration runs.
+        try:
+            client.table("holdings").upsert(
+                row, on_conflict="user_email,ticker,account_label",
+            ).execute()
+        except Exception as upsert_exc:
+            msg = str(upsert_exc).lower()
+            if "account_label" in msg or "no unique" in msg or "constraint" in msg:
+                logger.info(
+                    "holdings table missing account_label constraint; "
+                    "falling back to (user_email,ticker) upsert. Apply "
+                    "migration 010_holdings_account_label.sql to enable "
+                    "multi-account separation."
+                )
+                row.pop("account_label", None)
+                client.table("holdings").upsert(
+                    row, on_conflict="user_email,ticker",
+                ).execute()
+            else:
+                raise
         return True, ""
     except Exception as e:
         err_msg = f"{type(e).__name__}: {e}"
-        logger.warning(f"save_holding failed for {user_email}/{ticker_up}: {err_msg}")
+        logger.warning(
+            "save_holding failed for %s/%s/%s: %s",
+            user_email, ticker_up, label, err_msg,
+        )
         return False, err_msg
 
 
@@ -109,21 +147,32 @@ def get_holdings(user_email: str) -> list[dict]:
         return []
 
 
-def remove_holding(user_email: str, ticker: str) -> bool:
-    """Delete a holding by ticker for a user."""
+def remove_holding(
+    user_email: str,
+    ticker: str,
+    account_label: str | None = None,
+) -> bool:
+    """Delete a holding by ticker (and optionally account_label) for a user.
+
+    If ``account_label`` is omitted, removes ALL rows for the ticker —
+    matches the pre-multi-account behaviour. Pass it explicitly to
+    target a single account's row.
+    """
     if not user_email or not ticker:
         return False
     client = _get_supabase()
     if client is None:
         return False
     try:
-        result = (
+        q = (
             client.table("holdings")
             .delete()
             .eq("user_email", user_email)
             .eq("ticker", ticker.upper())
-            .execute()
         )
+        if account_label:
+            q = q.eq("account_label", account_label.lower().strip())
+        result = q.execute()
         return bool(result.data)
     except Exception as e:
         logger.warning(f"remove_holding failed for {user_email}/{ticker}: {e}")
