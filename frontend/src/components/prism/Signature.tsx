@@ -1,3 +1,13 @@
+"use client"
+
+import { useEffect, useRef, useState } from "react"
+import {
+  animate,
+  motion,
+  useMotionValue,
+  useReducedMotion,
+  useTransform,
+} from "framer-motion"
 import type { Pillar, PillarKey, VerdictBand } from "./types"
 import { pillarColor } from "@/lib/prism"
 import { PRISM_PILLAR_ORDER } from "@/lib/prism"
@@ -16,6 +26,12 @@ interface Props {
   /** Phase 2: dim every non-matching vertex to ~30% when set. */
   highlightedPillar?: PillarKey | null
   uid: string
+  /**
+   * When true, play the initial entrance animations (vertex sweep-in,
+   * score count-up, springy vertex pills). When false (e.g. onboarding
+   * demo, time-machine scrubber, portfolio grid) render instantly.
+   */
+  firstView?: boolean
 }
 
 const AXIS_LABEL: Record<PillarKey, string> = {
@@ -38,6 +54,248 @@ export function signatureVertex(
 }
 
 /**
+ * Axis-by-axis polygon sweep-in. Each of the 6 axes has its radius
+ * driven by a spring-eased local clock, staggered 80ms. Shared polygon
+ * points are recomputed from the per-axis progress so the outline
+ * "blooms" from the centre outwards without 6 separate SVG elements.
+ */
+function useSweepInRadii(
+  targetScores: number[],
+  enabled: boolean,
+  maxRadius: number,
+): number[] {
+  const [radii, setRadii] = useState<number[]>(() =>
+    enabled
+      ? targetScores.map(() => 0)
+      : targetScores.map((s) => (s / 10) * maxRadius),
+  )
+
+  // Only the initial mount plays the sweep-in. Subsequent score updates
+  // jump to the new target without re-animating (prevents jitter when
+  // data refreshes or a parent re-renders).
+  const didMountRef = useRef(false)
+
+  useEffect(() => {
+    if (!enabled) {
+      setRadii(targetScores.map((s) => (s / 10) * maxRadius))
+      return
+    }
+
+    if (didMountRef.current) {
+      setRadii(targetScores.map((s) => (s / 10) * maxRadius))
+      return
+    }
+    didMountRef.current = true
+
+    const start = performance.now()
+    const duration = 600
+    const stagger = 80
+    // cubic-bezier(0.2, 0.8, 0.2, 1) — calm ease-out without overshoot.
+    const ease = (t: number) => {
+      const clamped = Math.max(0, Math.min(1, t))
+      // Approximation via cubic-bezier sampling: quick-enough for 60fps.
+      const u = 1 - clamped
+      return (
+        3 * u * u * clamped * 0.8 +
+        3 * u * clamped * clamped * (1 - 0.2) +
+        clamped * clamped * clamped
+      )
+    }
+
+    let raf = 0
+    const tick = () => {
+      const now = performance.now()
+      const next = targetScores.map((s, i) => {
+        const local = (now - start - i * stagger) / duration
+        const eased = ease(local)
+        return (s / 10) * maxRadius * eased
+      })
+      setRadii(next)
+      const lastLocal =
+        (now - start - (targetScores.length - 1) * stagger) / duration
+      if (lastLocal < 1) {
+        raf = requestAnimationFrame(tick)
+      } else {
+        setRadii(targetScores.map((s) => (s / 10) * maxRadius))
+      }
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+    // We intentionally exclude targetScores/maxRadius from deps — the
+    // sweep-in runs exactly once on mount. Changes after mount jump to
+    // the new values via the `didMountRef` branch above on the next
+    // render of this effect's sibling state path.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, maxRadius])
+
+  // Keep steady-state in sync when scores change post-mount.
+  useEffect(() => {
+    if (!didMountRef.current) return
+    setRadii(targetScores.map((s) => (s / 10) * maxRadius))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetScores.join(","), maxRadius])
+
+  return radii
+}
+
+/**
+ * Animated count-up text for a single score. Animates from 0 → target
+ * over 500ms on first mount; after that, subsequent target changes are
+ * applied instantly to avoid jitter on hover / data refresh.
+ */
+function CountUpText({
+  x,
+  y,
+  target,
+  color,
+  fontSize,
+  enabled,
+  label,
+}: {
+  x: number
+  y: number
+  target: number
+  color: string
+  fontSize: number
+  enabled: boolean
+  label: string
+}) {
+  const mv = useMotionValue(enabled ? 0 : target)
+  const rounded = useTransform(mv, (latest) => latest.toFixed(1))
+  const didAnimateRef = useRef(false)
+
+  useEffect(() => {
+    if (!enabled) {
+      mv.set(target)
+      return
+    }
+    if (didAnimateRef.current) {
+      mv.set(target)
+      return
+    }
+    didAnimateRef.current = true
+    const controls = animate(mv, target, {
+      duration: 0.5,
+      ease: "easeOut",
+    })
+    return () => controls.stop()
+  }, [enabled, target, mv])
+
+  if (label === "n/a") {
+    return (
+      <text
+        x={x}
+        y={y}
+        textAnchor="middle"
+        dominantBaseline="central"
+        style={{
+          fill: color,
+          fontSize,
+          fontWeight: 800,
+          fontFamily:
+            "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
+        }}
+      >
+        n/a
+      </text>
+    )
+  }
+
+  return (
+    <motion.text
+      x={x}
+      y={y}
+      textAnchor="middle"
+      dominantBaseline="central"
+      style={{
+        fill: color,
+        fontSize,
+        fontWeight: 800,
+        fontFamily:
+          "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
+      }}
+    >
+      {rounded}
+    </motion.text>
+  )
+}
+
+/**
+ * Count-up for the central composite score. Renders the fractional part
+ * as discrete <tspan>s (integer / U+002E / fraction) so the decimal
+ * separator can never kern or font-substitute into a colon — same fix
+ * as the pre-animation version. Animated on first mount only; uses
+ * motion values + useTransform (no setState in effect) so the tspans
+ * update directly off the animated motion value.
+ */
+function CompositeCountUp({
+  cx,
+  cy,
+  target,
+  size,
+  enabled,
+}: {
+  cx: number
+  cy: number
+  target: number
+  size: number
+  enabled: boolean
+}) {
+  const mv = useMotionValue(enabled ? 0 : target)
+  const didAnimateRef = useRef(false)
+  const wholeMv = useTransform(mv, (v) => {
+    const clamped = Math.max(0, Math.min(10, v))
+    const rounded = Math.round(clamped * 10) / 10
+    return String(Math.floor(rounded))
+  })
+  const fracMv = useTransform(mv, (v) => {
+    const clamped = Math.max(0, Math.min(10, v))
+    const rounded = Math.round(clamped * 10) / 10
+    const whole = Math.floor(rounded)
+    return String(Math.round((rounded - whole) * 10))
+  })
+
+  useEffect(() => {
+    if (!enabled) {
+      mv.set(target)
+      return
+    }
+    if (didAnimateRef.current) {
+      mv.set(target)
+      return
+    }
+    didAnimateRef.current = true
+    const controls = animate(mv, target, {
+      duration: 0.5,
+      ease: "easeOut",
+    })
+    return () => controls.stop()
+  }, [enabled, target, mv])
+
+  return (
+    <motion.text
+      x={cx}
+      y={cy - 2}
+      textAnchor="middle"
+      dominantBaseline="central"
+      style={{
+        fill: "var(--color-ink)",
+        fontSize: Math.round(size * 0.17),
+        fontWeight: 800,
+        fontFamily:
+          "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
+      }}
+    >
+      <motion.tspan>{wholeMv}</motion.tspan>
+      <tspan dx="0.02em" dy="0" style={{ letterSpacing: "0" }}>
+        {"\u002E"}
+      </tspan>
+      <motion.tspan dx="0.02em">{fracMv}</motion.tspan>
+    </motion.text>
+  )
+}
+
+/**
  * Signature (radial hex) renderer — returns `<g>` contents so the parent
  * `<Prism>` can interleave the Spectrum layer and animate shared children.
  * Visibility is driven by `t`: at t=0 we render fully, fading out by t=0.5.
@@ -53,14 +311,21 @@ export default function Signature({
   onPillarTap,
   highlightedPillar,
   uid,
+  firstView = false,
 }: Props) {
   const cx = size / 2
   const cy = size / 2
   const maxRadius = size / 2 - 34
 
+  const prefersReducedMotion = useReducedMotion()
+  const animationsEnabled = firstView && !prefersReducedMotion
+
+  // Axis hover state. Tracks the hovered axis key so we can scale +
+  // glow the corresponding vertex pill. Independent from `onPillarTap`.
+  const [hoveredAxis, setHoveredAxis] = useState<PillarKey | null>(null)
+
   // Signature fades out between t=0.0 and t=0.45 so Spectrum can take over.
   const vis = Math.max(0, 1 - t / 0.45)
-  if (vis <= 0) return null
 
   const ordered = PRISM_PILLAR_ORDER.map(
     (k) => pillars.find((p) => p.key === k)!,
@@ -68,6 +333,12 @@ export default function Signature({
   const scores = ordered.map((p) =>
     p.score == null ? 0 : Math.max(0, Math.min(10, p.score)),
   )
+
+  // Per-axis animated radii. Only the main polygon's radii animate; the
+  // grid rings and spokes are static (they're background chrome).
+  const animatedRadii = useSweepInRadii(scores, animationsEnabled, maxRadius)
+
+  if (vis <= 0) return null
 
   const gridRings = [2, 4, 6, 8, 10].map((s) => {
     const r = (s / 10) * maxRadius
@@ -81,11 +352,8 @@ export default function Signature({
     signatureVertex(cx, cy, maxRadius, i),
   )
 
-  const mainPoints = scores
-    .map((s, i) => {
-      const r = (s / 10) * maxRadius
-      return signatureVertex(cx, cy, r, i).join(",")
-    })
+  const mainPoints = animatedRadii
+    .map((r, i) => signatureVertex(cx, cy, r, i).join(","))
     .join(" ")
 
   const medianPoints = ordered
@@ -192,15 +460,28 @@ export default function Signature({
         {ordered.map((p, i) => {
           const [x, y] = signatureVertex(cx, cy, maxRadius + 22, i)
           return (
-            <text
+            <motion.text
               key={p.key}
               x={x}
               y={y}
               textAnchor="middle"
               dominantBaseline="middle"
+              onHoverStart={() => setHoveredAxis(p.key)}
+              onHoverEnd={() =>
+                setHoveredAxis((prev) => (prev === p.key ? null : prev))
+              }
+              whileHover={
+                prefersReducedMotion
+                  ? undefined
+                  : { scale: 1.05, transition: { duration: 0.15 } }
+              }
+              style={{
+                cursor: "default",
+                transformOrigin: `${x}px ${y}px`,
+              }}
             >
               {AXIS_LABEL[p.key]}
-            </text>
+            </motion.text>
           )
         })}
       </g>
@@ -230,8 +511,28 @@ export default function Signature({
           const spotlightOn = highlightedPillar != null
           const isSpotlit = spotlightOn && highlightedPillar === p.key
           const vertexOpacity = !spotlightOn || isSpotlit ? 1 : 0.3
+          const isHovered = hoveredAxis === p.key
+          // Springy entrance for the vertex circles on first mount only.
+          // Stagger by axis index so the pills "pop in" in order.
+          const entrance = animationsEnabled
+            ? {
+                initial: { scale: 0, opacity: 0 },
+                animate: { scale: 1, opacity: vertexOpacity },
+                transition: {
+                  delay: 0.15 + i * 0.06,
+                  type: "spring" as const,
+                  stiffness: 320,
+                  damping: 22,
+                  opacity: { duration: 0.2 },
+                },
+              }
+            : {
+                initial: false as const,
+                animate: { scale: 1, opacity: vertexOpacity },
+                transition: { duration: 0.24, ease: "easeOut" as const },
+              }
           return (
-            <g
+            <motion.g
               key={p.key}
               role="button"
               tabIndex={onPillarTap ? 0 : -1}
@@ -245,10 +546,10 @@ export default function Signature({
                   onPillarTap(p.key)
                 }
               }}
+              {...entrance}
               style={{
                 cursor: onPillarTap ? "pointer" : "default",
-                opacity: vertexOpacity,
-                transition: "opacity 240ms ease",
+                transformOrigin: `${x}px ${y}px`,
               }}
               className={isPulse ? "prism-pulse-breathe" : undefined}
             >
@@ -259,32 +560,38 @@ export default function Signature({
                 height={44}
                 fill="transparent"
               />
-              <circle
+              <motion.circle
                 cx={x}
                 cy={y}
                 r={14}
+                animate={
+                  prefersReducedMotion
+                    ? undefined
+                    : {
+                        scale: isHovered ? 1.08 : 1,
+                        filter: isHovered
+                          ? `drop-shadow(0 0 6px ${color})`
+                          : "drop-shadow(0 0 0px rgba(0,0,0,0))",
+                      }
+                }
+                transition={{ duration: 0.18, ease: "easeOut" }}
                 style={{
                   fill: "var(--color-surface)",
                   stroke: color,
                   strokeWidth: 2,
+                  transformOrigin: `${x}px ${y}px`,
                 }}
               />
-              <text
+              <CountUpText
                 x={x}
                 y={y}
-                textAnchor="middle"
-                dominantBaseline="central"
-                style={{
-                  fill: color,
-                  fontSize: Math.max(10, Math.round(size * 0.038)),
-                  fontWeight: 800,
-                  fontFamily:
-                    "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
-                }}
-              >
-                {p.data_limited ? "n/a" : s.toFixed(1)}
-              </text>
-            </g>
+                target={s}
+                color={color}
+                fontSize={Math.max(10, Math.round(size * 0.038))}
+                enabled={animationsEnabled && !p.data_limited}
+                label={p.data_limited ? "n/a" : s.toFixed(1)}
+              />
+            </motion.g>
           )
         })}
       </g>
@@ -306,41 +613,59 @@ export default function Signature({
                locale string conversion can swap in U+066B / U+2024
                / U+003A etc. */}
       <g aria-hidden="true">
-        <text
-          x={cx}
-          y={cy - 2}
-          textAnchor="middle"
-          dominantBaseline="central"
-          style={{
-            fill: "var(--color-ink)",
-            fontSize: Math.round(size * 0.17),
-            fontWeight: 800,
-            fontFamily:
-              "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
-          }}
-        >
-          {(() => {
-            const limitedCount = pillars.filter((p) => p.data_limited).length
-            // When ALL or majority of pillars are data_limited, the
-            // composite is misleading (a "5.0" derived from neutrals
-            // looks like a real score). Show "—" instead.
-            if (limitedCount >= Math.ceil(pillars.length / 2)) return "—"
-            if (!Number.isFinite(overall)) return "—"
-            const clamped = Math.max(0, Math.min(10, overall))
-            const rounded = Math.round(clamped * 10) / 10
-            const whole = Math.floor(rounded)
-            const frac = Math.round((rounded - whole) * 10)
+        {(() => {
+          const limitedCount = pillars.filter((p) => p.data_limited).length
+          // When ALL or majority of pillars are data_limited, the
+          // composite is misleading (a "5.0" derived from neutrals
+          // looks like a real score). Show "—" instead.
+          if (limitedCount >= Math.ceil(pillars.length / 2)) {
             return (
-              <>
-                <tspan>{whole}</tspan>
-                <tspan dx="0.02em" dy="0" style={{ letterSpacing: "0" }}>
-                  {"\u002E"}
-                </tspan>
-                <tspan dx="0.02em">{frac}</tspan>
-              </>
+              <text
+                x={cx}
+                y={cy - 2}
+                textAnchor="middle"
+                dominantBaseline="central"
+                style={{
+                  fill: "var(--color-ink)",
+                  fontSize: Math.round(size * 0.17),
+                  fontWeight: 800,
+                  fontFamily:
+                    "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
+                }}
+              >
+                —
+              </text>
             )
-          })()}
-        </text>
+          }
+          if (!Number.isFinite(overall)) {
+            return (
+              <text
+                x={cx}
+                y={cy - 2}
+                textAnchor="middle"
+                dominantBaseline="central"
+                style={{
+                  fill: "var(--color-ink)",
+                  fontSize: Math.round(size * 0.17),
+                  fontWeight: 800,
+                  fontFamily:
+                    "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
+                }}
+              >
+                —
+              </text>
+            )
+          }
+          return (
+            <CompositeCountUp
+              cx={cx}
+              cy={cy}
+              target={overall}
+              size={size}
+              enabled={animationsEnabled}
+            />
+          )
+        })()}
         <text
           x={cx}
           y={cy + Math.round(size * 0.11)}
