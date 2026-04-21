@@ -78,7 +78,9 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           NEWSLETTER_API_BASE: ${{ secrets.API_BASE_URL || 'https://yieldiq-production.up.railway.app' }}
-          NEWSLETTER_OG_BASE: "https://api.yieldiq.in"
+          # OG route is a Next.js edge route on the frontend host, not
+          # the FastAPI backend. Using api.yieldiq.in here 404s.
+          NEWSLETTER_OG_BASE: "https://www.yieldiq.in"
           JWT_SECRET: ${{ secrets.JWT_SECRET }}
         run: |
           python scripts/send_newsletter.py "${{ steps.pick.outputs.post }}" --send

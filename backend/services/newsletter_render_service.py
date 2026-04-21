@@ -41,7 +41,10 @@ _DEFAULT_API_BASE = os.environ.get(
 )
 _OG_IMAGE_BASE = os.environ.get(
     "NEWSLETTER_OG_BASE",
-    "https://api.yieldiq.in",
+    # OG route `/api/og/analysis/[ticker]` is a Next.js edge route on the
+    # frontend host (Vercel), NOT on the FastAPI backend. Using
+    # api.yieldiq.in here would 404.
+    "https://www.yieldiq.in",
 )
 _SITE_URL = os.environ.get("NEWSLETTER_SITE_URL", "https://yieldiq.in")
 
