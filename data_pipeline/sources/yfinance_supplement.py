@@ -61,6 +61,23 @@ def fetch_and_store_yfinance(ticker_ns: str, ticker: str, db: Session) -> bool:
                 ev_cr=_to_cr(info.get("enterpriseValue")),
             ))
 
+        # Commit market metrics before attempting financial statements.
+        # If the financials block raises (e.g. UNIQUE on uq_financials_period)
+        # and we rolled back the whole transaction, we'd lose the metrics
+        # we just staged. Committing here makes the two steps independent.
+        try:
+            db.commit()
+        except Exception as mm_exc:
+            logger.error(
+                "Market metrics commit failed for %s: %s: %s",
+                ticker_ns, type(mm_exc).__name__, mm_exc,
+            )
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return False
+
         # Get financial statements
         try:
             cf = stock.cashflow
@@ -126,16 +143,39 @@ def fetch_and_store_yfinance(ticker_ns: str, ticker: str, db: Session) -> bool:
                                         setattr(existing_fin, attr, val)
                             else:
                                 db.add(fin)
-                    except Exception:
+                    except Exception as row_exc:
+                        # If the autoflush / add raised (e.g. UNIQUE on
+                        # (ticker, period_end, period_type)), the session
+                        # is pending-rollback. Clear it before moving on.
+                        logger.debug(
+                            "Financials row skipped for %s: %s: %s",
+                            ticker, type(row_exc).__name__, row_exc,
+                        )
+                        try:
+                            db.rollback()
+                        except Exception:
+                            pass
                         continue
         except Exception as e:
-            logger.warning(f"Financial statements failed for {ticker}: {e}")
+            logger.warning(
+                "Financial statements failed for %s: %s: %s",
+                ticker, type(e).__name__, e,
+            )
+            # Same discipline: drop any pending-rollback state so the
+            # db.commit() below can still flush the MarketMetrics row.
+            try:
+                db.rollback()
+            except Exception:
+                pass
 
         db.commit()
         return True
 
     except Exception as e:
-        logger.error(f"yfinance fetch failed for {ticker_ns}: {e}")
+        logger.error(
+            "yfinance fetch failed for %s: %s: %s",
+            ticker_ns, type(e).__name__, e,
+        )
         try:
             db.rollback()
         except Exception:
@@ -148,6 +188,14 @@ def fetch_price_history(ticker_ns: str, ticker: str, db: Session,
     """
     Download price history from yfinance and store in daily_prices.
     Uses Ticker.history() which worked for the first 50 stocks.
+
+    Session discipline: every exit path — whether success, early return
+    from an empty frame, a yfinance exception, or an ORM IntegrityError
+    during flush/commit — leaves the session in a clean state. Without
+    this, one ticker's UNIQUE constraint violation on (ticker, trade_date)
+    poisons the session and every subsequent ticker in the same batch
+    fails with "This Session's transaction has been rolled back due to
+    a previous exception during flush" (see Sentry PYTHON-FASTAPI-3A/3B/38/39).
     """
     try:
         stock = yf.Ticker(ticker_ns)
@@ -164,6 +212,12 @@ def fetch_price_history(ticker_ns: str, ticker: str, db: Session,
 
         if df is None or df.empty:
             logger.warning(f"No price history for {ticker_ns}")
+            # Nothing was added to the session, but roll back defensively
+            # in case a previous caller left pending state.
+            try:
+                db.rollback()
+            except Exception:
+                pass
             return 0
 
         logger.info(f"{ticker}: got {len(df)} rows, columns={list(df.columns)}")
@@ -198,14 +252,58 @@ def fetch_price_history(ticker_ns: str, ticker: str, db: Session,
                 )
                 db.add(price)
                 stored += 1
-            except Exception:
+            except Exception as row_exc:
+                # A single malformed row must not poison the session for
+                # the remaining rows of THIS ticker. If the exception came
+                # from an autoflush (e.g. UNIQUE violation on a duplicate
+                # trade_date), the session is already in pending-rollback
+                # state — rollback before continuing.
+                logger.debug(
+                    "Row skipped for %s (%s): %s: %s",
+                    ticker, getattr(idx, "date", lambda: idx)(),
+                    type(row_exc).__name__, row_exc,
+                )
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
                 continue
 
-        db.commit()
+        try:
+            db.commit()
+        except Exception as commit_exc:
+            # Surface the ORIGINAL exception (IntegrityError, DataError,
+            # etc.) rather than the cascading "transaction rolled back"
+            # message that would hit the outer handler otherwise.
+            logger.error(
+                "Price history commit failed for %s: %s: %s",
+                ticker_ns, type(commit_exc).__name__, commit_exc,
+            )
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            return 0
         return stored
 
     except Exception as e:
-        logger.error(f"Price history failed for {ticker_ns}: {e}")
+        # Log the real exception type + message so Sentry doesn't just
+        # show the downstream "rolled back due to previous exception"
+        # cascade. ALWAYS rollback — without this, one ticker's flush
+        # failure poisons the shared session for every subsequent ticker
+        # in batch_fetch_prices (root cause of the 4-ticker cascade seen
+        # on 2026-04-21 at 11:00:13–15 UTC).
+        logger.error(
+            "Price history failed for %s: %s: %s",
+            ticker_ns, type(e).__name__, e,
+        )
+        try:
+            db.rollback()
+        except Exception as rb_exc:
+            logger.warning(
+                "Rollback after price-history failure also failed for %s: %s",
+                ticker_ns, rb_exc,
+            )
         return 0
 
 
@@ -242,7 +340,17 @@ def batch_fetch_prices(tickers: list[str], db: Session,
             else:
                 logger.warning(f"[{i+1}/{len(tickers_to_fetch)}] {ticker}: no price data")
         except Exception as e:
-            logger.error(f"[{i+1}/{len(tickers_to_fetch)}] {ticker} FAILED: {e}")
+            logger.error(
+                "[%d/%d] %s FAILED: %s: %s",
+                i + 1, len(tickers_to_fetch), ticker, type(e).__name__, e,
+            )
+            # Belt-and-braces: fetch_price_history should already have
+            # rolled back, but if any exception escaped the inner handler
+            # we must clear the session before the next ticker queries it.
+            try:
+                db.rollback()
+            except Exception:
+                pass
             # On rate limit, wait longer then retry once
             if "Too Many Requests" in str(e) or "429" in str(e):
                 logger.info("Rate limited — waiting 30s before retry")
@@ -252,8 +360,15 @@ def batch_fetch_prices(tickers: list[str], db: Session,
                     if records > 0:
                         success += 1
                         total_records += records
-                except Exception:
-                    pass
+                except Exception as retry_exc:
+                    logger.warning(
+                        "Retry after rate-limit failed for %s: %s: %s",
+                        ticker, type(retry_exc).__name__, retry_exc,
+                    )
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
 
         # Rate limit — 2s between calls to avoid yfinance blocking
         time.sleep(2)
@@ -285,7 +400,18 @@ def batch_fetch_fundamentals(tickers: list[str], db: Session) -> tuple[int, int]
             else:
                 failed += 1
         except Exception as e:
-            logger.error(f"Fundamentals failed for {ticker}: {e}")
+            logger.error(
+                "Fundamentals failed for %s: %s: %s",
+                ticker, type(e).__name__, e,
+            )
+            # Defensive rollback: fetch_and_store_yfinance handles its own
+            # cleanup, but a surprise exception path (e.g. network error
+            # mid-flush) could leave the shared session pending-rollback
+            # and take down every subsequent ticker in the batch.
+            try:
+                db.rollback()
+            except Exception:
+                pass
             failed += 1
             if "Too Many Requests" in str(e) or "429" in str(e):
                 logger.info("Rate limited — waiting 30s")
@@ -315,7 +441,16 @@ def _update_freshness(db: Session, data_type: str, count: int, status: str):
         freshness.status = status
         db.commit()
     except Exception as e:
-        logger.warning(f"Freshness update failed: {e}")
+        logger.warning(
+            "Freshness update failed: %s: %s", type(e).__name__, e,
+        )
+        # Same rule as everywhere else in this module: a failed commit
+        # leaves the session pending-rollback. Clear it so the next
+        # ticker loop iteration doesn't cascade-fail.
+        try:
+            db.rollback()
+        except Exception:
+            pass
 
 
 def _to_cr(value) -> float | None:
