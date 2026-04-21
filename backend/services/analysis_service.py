@@ -2692,27 +2692,24 @@ class AnalysisService:
             so a 3-paragraph answer was always going to be clipped.
           - Is SEBI-compliant: no "buy" / "sell" / "hold", uses
             "appears undervalued/overvalued by the model" framing.
-          - Falls back Gemini -> Groq on quota/region errors. Returns ""
-            on total failure so the UI degrades gracefully (empty slot,
-            never 500).
+          - Uses Groq (llama-3.3-70b-versatile) as the single provider.
+            Returns "" on any failure so the UI degrades gracefully
+            (empty slot, never 500).
 
-        ENV VAR REQUIREMENT (prod): at least one of GEMINI_API_KEY or
-        GROQ_API_KEY must be set on Railway. If neither is configured,
-        the method logs a WARNING and returns "" -- the feature silently
-        no-ops rather than breaking the endpoint.
+        ENV VAR REQUIREMENT (prod): GROQ_API_KEY must be set on Railway.
+        If missing, the method logs a WARNING and returns "" -- the
+        feature silently no-ops rather than breaking the endpoint.
         """
         import logging
         import os as _os
         _log = logging.getLogger("yieldiq.ai_summary")
 
-        _gemini_key = _os.environ.get("GEMINI_API_KEY", "").strip()
         _groq_key = _os.environ.get("GROQ_API_KEY", "").strip()
-        if not _gemini_key and not _groq_key:
+        if not _groq_key:
             _log.warning(
-                f"[{ticker}] AI summary skipped: neither GEMINI_API_KEY nor "
-                f"GROQ_API_KEY is set in the environment. Add one on Railway "
-                f"to enable ai_summary_snippet on public stock-summary "
-                f"responses. See .env.example lines 12-18."
+                f"[{ticker}] AI summary skipped: GROQ_API_KEY is not set in "
+                f"the environment. Add it on Railway to enable "
+                f"ai_summary_snippet on public stock-summary responses."
             )
             return ""
 
@@ -2787,47 +2784,23 @@ class AnalysisService:
                 s = s[:277].rstrip() + "..."
             return s
 
-        # -- Try Gemini first ----------------------------------------
-        if _gemini_key:
-            try:
-                from google import genai as _genai
-                _client = _genai.Client(api_key=_gemini_key)
-                _response = _client.models.generate_content(
-                    model="gemini-2.0-flash", contents=_prompt,
-                )
-                _out = _clean_one_sentence(getattr(_response, "text", "") or "")
-                if _out:
-                    _log.info(f"[{ticker}] AI summary via Gemini ({len(_out)} chars)")
-                    return _out
-                _log.warning(f"[{ticker}] Gemini returned empty; falling back to Groq")
-            except Exception as exc:
-                _err = str(exc).lower()
-                if not any(k in _err for k in ("quota", "429", "resource_exhausted", "limit")):
-                    _log.error(
-                        f"[{ticker}] Gemini call failed (non-quota): "
-                        f"{type(exc).__name__}: {exc}"
-                    )
-                else:
-                    _log.info(f"[{ticker}] Gemini quota/limit hit; falling back to Groq")
-
-        # -- Fallback: Groq -----------------------------------------
-        if _groq_key:
-            try:
-                from groq import Groq as _Groq
-                _client = _Groq(api_key=_groq_key)
-                _resp = _client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[{"role": "user", "content": _prompt}],
-                    max_tokens=120,
-                    temperature=0.2,
-                )
-                _out = _clean_one_sentence(_resp.choices[0].message.content or "")
-                if _out:
-                    _log.info(f"[{ticker}] AI summary via Groq ({len(_out)} chars)")
-                    return _out
-                _log.warning(f"[{ticker}] Groq returned empty summary")
-            except Exception as exc:
-                _log.error(f"[{ticker}] Groq call failed: {type(exc).__name__}: {exc}")
+        # -- Groq (single provider) ---------------------------------
+        try:
+            from groq import Groq as _Groq
+            _client = _Groq(api_key=_groq_key)
+            _resp = _client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": _prompt}],
+                max_tokens=120,
+                temperature=0.2,
+            )
+            _out = _clean_one_sentence(_resp.choices[0].message.content or "")
+            if _out:
+                _log.info(f"[{ticker}] AI summary via Groq ({len(_out)} chars)")
+                return _out
+            _log.warning(f"[{ticker}] Groq returned empty summary")
+        except Exception as exc:
+            _log.error(f"[{ticker}] Groq call failed: {type(exc).__name__}: {exc}")
 
         return ""
 
