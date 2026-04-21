@@ -525,9 +525,14 @@ async def get_portfolio_health(user: dict = Depends(get_current_user)):
     mapped = []
     for h in live_holdings:
         ticker = h.get("ticker", "")
-        # Pull additional context from analysis cache (red flags, moat)
+        # Pull additional context from analysis cache (red flags, moat,
+        # sector). We do NOT trust h["sector"] alone because CSV import
+        # writes sector="" placeholder when analysis_cache is cold at
+        # import time (BUG #15, 2026-04-21). Prefer the live cached
+        # value; fall back to the DB row; final fallback is "Unknown".
         red_flag_count = 0
         moat = "None"
+        cached_sector: str | None = None
         try:
             cached = _c.get(f"analysis:{ticker}")
             if cached and hasattr(cached, "insights"):
@@ -535,8 +540,18 @@ async def get_portfolio_health(user: dict = Depends(get_current_user)):
                 red_flag_count = len(rf) if isinstance(rf, list) else 0
             if cached and hasattr(cached, "quality"):
                 moat = cached.quality.moat or "None"
+            if cached and hasattr(cached, "company"):
+                # cached.company.sector is the authoritative source —
+                # same path used elsewhere in analysis_service.
+                cs = getattr(cached.company, "sector", None)
+                if cs:
+                    cached_sector = str(cs).strip() or None
         except Exception:
             pass
+
+        # Prefer live cache -> holdings row -> "Unknown"
+        row_sector = (h.get("sector") or "").strip()
+        sector = cached_sector or row_sector or "Unknown"
 
         mapped.append({
             "ticker": h.get("ticker", ""),
@@ -547,7 +562,7 @@ async def get_portfolio_health(user: dict = Depends(get_current_user)):
             "mos": h.get("mos_pct", 0),  # field rename: mos_pct -> mos
             "moat": moat,
             "red_flags": red_flag_count,
-            "sector": h.get("sector", "Unknown") or "Unknown",
+            "sector": sector,
         })
 
     health = calculate_portfolio_health(mapped)

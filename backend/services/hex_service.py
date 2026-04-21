@@ -69,19 +69,47 @@ AXIS_WEIGHTS = {
 
 
 # ── DB session helper ────────────────────────────────────────────
+# Module-level flags so we log WHY the DB is unreachable exactly once per
+# process instead of spamming the log on every per-holding hex compute.
+# When a Portfolio Prism request fans out to 18 holdings, we DO NOT want
+# 18 identical stacktraces — just one, loud, at WARNING, on first failure.
+_SESSION_IMPORT_WARNED = False
+_SESSION_NONE_WARNED = False
+_SESSION_CONSTRUCT_WARNED = False
+
+
 def _get_session():
     """Lazily acquire a pipeline SQLAlchemy session, or None."""
+    global _SESSION_IMPORT_WARNED, _SESSION_NONE_WARNED, _SESSION_CONSTRUCT_WARNED
     try:
         from data_pipeline.db import Session  # type: ignore
     except Exception as exc:
-        logger.warning("hex: pipeline db import failed: %s", exc)
+        if not _SESSION_IMPORT_WARNED:
+            logger.warning(
+                "hex: data_pipeline.db import failed (%s: %s) — all per-ticker "
+                "hex fetches will return empty data for this process",
+                type(exc).__name__, exc,
+            )
+            _SESSION_IMPORT_WARNED = True
         return None
     if Session is None:
+        if not _SESSION_NONE_WARNED:
+            logger.warning(
+                "hex: data_pipeline.db.Session is None — DATABASE_URL probably "
+                "unset or engine init failed. Hex will run in data_limited mode."
+            )
+            _SESSION_NONE_WARNED = True
         return None
     try:
         return Session()
     except Exception as exc:
-        logger.warning("hex: Session() failed: %s", exc)
+        if not _SESSION_CONSTRUCT_WARNED:
+            logger.warning(
+                "hex: Session() constructor failed (%s: %s) — hex will run "
+                "in data_limited mode",
+                type(exc).__name__, exc,
+            )
+            _SESSION_CONSTRUCT_WARNED = True
         return None
 
 
@@ -223,6 +251,9 @@ def _fetch_core_data(ticker: str) -> dict:
     }
     sess = _get_session()
     if sess is None:
+        # _get_session() already logged the root cause once at WARNING.
+        # We return an empty `out`; the caller will fall back to
+        # _neutral_axis() on every axis and the UI renders "n/a".
         return out
     try:
         bare = ticker.replace(".NS", "").replace(".BO", "")
@@ -1063,11 +1094,20 @@ def compute_hex_safe(ticker: str) -> dict:
     Public wrapper that NEVER raises. On any unhandled exception, returns
     a neutral payload with data_limited=True so the router can always
     serve HTTP 200.
+
+    When this falls through to the neutral payload, we log LOUD (WARNING,
+    with exception class name) so ops can spot silent hex regressions in
+    production logs. Without this, a broken DB connection would manifest
+    to users as "n/a on all 6 axes" with zero signal in the logs.
     """
     try:
         return compute_hex(ticker)
     except Exception as exc:
-        logger.warning("hex: compute_hex_safe fallback for %s: %s", ticker, exc)
+        logger.warning(
+            "hex: compute_hex_safe fallback for %s — %s: %s",
+            ticker, type(exc).__name__, exc,
+            exc_info=True,
+        )
         return {
             "ticker": _normalize_ticker(ticker) or ticker,
             "sector_category": "general",
@@ -1076,6 +1116,7 @@ def compute_hex_safe(ticker: str) -> dict:
             "sector_medians": {k: 5.0 for k in AXIS_WEIGHTS},
             "computed_at": datetime.now(timezone.utc).isoformat(),
             "error": "compute_error",
+            "error_class": type(exc).__name__,
             "data_limited": True,
             "disclaimer": DISCLAIMER,
         }
@@ -1085,6 +1126,19 @@ def compute_portfolio_hex(holdings: list[dict]) -> dict:
     """
     Aggregate portfolio Hex: weighted mean per axis across tickers.
     `holdings` is a list of {ticker, weight}. Weights are renormalized.
+
+    BUG #14 fix (2026-04-21):
+    Previous behaviour: if ANY single holding returned data_limited=True
+    for an axis, the entire portfolio axis was poisoned to data_limited
+    and the UI rendered "n/a" on all 6 axes. A single Sri-Lanka-listed
+    or illiquid ticker could break the whole Prism.
+
+    New behaviour: an axis is flagged data_limited ONLY when every
+    contributing holding is data_limited for that axis. Otherwise we
+    compute the weighted mean over the SUBSET of holdings with real
+    scores, renormalize the subset weights to 1.0, and set
+    `partial_data=True` so the UI can still show a number with a hint
+    that not every holding contributed.
     """
     if not holdings:
         return {
@@ -1106,8 +1160,11 @@ def compute_portfolio_hex(holdings: list[dict]) -> dict:
         ]
 
     per_ticker = []
-    agg: dict[str, float] = {k: 0.0 for k in AXIS_WEIGHTS}
-    any_limited = {k: False for k in AXIS_WEIGHTS}
+    # Per-axis accumulators: weighted score sum + weight sum OVER
+    # non-data_limited holdings only.
+    agg_score: dict[str, float] = {k: 0.0 for k in AXIS_WEIGHTS}
+    agg_weight: dict[str, float] = {k: 0.0 for k in AXIS_WEIGHTS}
+    limited_count: dict[str, int] = {k: 0 for k in AXIS_WEIGHTS}
 
     for h, w in zip(holdings, weights):
         hx = compute_hex_safe(h.get("ticker", ""))
@@ -1115,17 +1172,43 @@ def compute_portfolio_hex(holdings: list[dict]) -> dict:
                            "overall": hx.get("overall")})
         for k in AXIS_WEIGHTS:
             ax = hx["axes"].get(k, {})
-            agg[k] += float(ax.get("score", 5.0)) * w
             if ax.get("data_limited"):
-                any_limited[k] = True
+                limited_count[k] += 1
+                continue
+            try:
+                score = float(ax.get("score", 5.0))
+            except (TypeError, ValueError):
+                limited_count[k] += 1
+                continue
+            agg_score[k] += score * w
+            agg_weight[k] += w
 
     axes_out = {}
-    for k, v in agg.items():
+    total_holdings = len(holdings)
+    for k in AXIS_WEIGHTS:
         labeler = _label_pulse if k == "pulse" else _label_general
-        axes_out[k] = _axis(
-            v, f"Weighted across {len(holdings)} holdings",
-            data_limited=any_limited[k], labeler=labeler,
-        )
+        contributing = total_holdings - limited_count[k]
+        if agg_weight[k] <= 0 or contributing == 0:
+            # Every holding is data_limited on this axis — genuinely n/a.
+            axes_out[k] = _neutral_axis(
+                f"No data on any of {total_holdings} holdings", labeler=labeler,
+            )
+        else:
+            mean = agg_score[k] / agg_weight[k]
+            if limited_count[k] > 0:
+                why = (
+                    f"Weighted across {contributing}/{total_holdings} "
+                    f"holdings ({limited_count[k]} had limited data)"
+                )
+            else:
+                why = f"Weighted across {total_holdings} holdings"
+            out = _axis(mean, why, data_limited=False, labeler=labeler)
+            # Extra flag so the UI can render a soft "partial" hint
+            # without downgrading the whole axis to n/a.
+            out["partial_data"] = limited_count[k] > 0
+            out["contributing_count"] = contributing
+            out["total_count"] = total_holdings
+            axes_out[k] = out
 
     overall = round(
         _clamp(sum(axes_out[k]["score"] * w for k, w in AXIS_WEIGHTS.items())),
