@@ -101,6 +101,7 @@ class Financials(Base):
     total_assets = Column(Float)
     total_equity = Column(Float)
     total_debt = Column(Float)
+    current_liabilities = Column(Float)       # needed for ROCE denominator
     cash_and_equivalents = Column(Float)
     net_debt = Column(Float)
     shares_outstanding = Column(Float)        # in Lakhs

@@ -140,7 +140,31 @@ _FIELD_TAGS = {
         "FinanceCosts",
         "InterestExpense",
     ],
+    # Operating profit / EBIT — needed for proper ROCE numerator.
+    # First tag is the most common Ind-AS "profit from operations" line;
+    # the explicit EBIT / EarningsBeforeInterestAndTax tags are rare
+    # but worth checking before we fall back to derivation.
+    "operating_profit": [
+        "ProfitLossFromContinuingOperationsBeforeTax",
+        "ProfitFromOperations",
+        "ProfitLossFromOperatingActivities",
+        "OperatingProfit",
+        "EarningsBeforeInterestAndTax",
+        "EBIT",
+    ],
     # Balance sheet
+    "total_assets": [
+        "Assets",
+        "TotalAssets",
+        "AssetsTotal",
+        "TotalOfAssets",
+    ],
+    "current_liabilities": [
+        "CurrentLiabilities",
+        "TotalCurrentLiabilities",
+        "LiabilitiesCurrent",
+        "CurrentLiabilitiesTotal",
+    ],
     "total_debt": [
         "Borrowings",
         "LongTermBorrowings",
@@ -280,14 +304,34 @@ def parse_nse_xbrl(xml_bytes: bytes, ticker: str, period_end: date,
     eps = _pick_value(facts, contexts, _FIELD_TAGS["eps_diluted"], period_end)
     depreciation = _pick_value(facts, contexts, _FIELD_TAGS["depreciation"], period_end)
     pbt = _pick_value(facts, contexts, _FIELD_TAGS["pbt"], period_end)
+    total_assets = _pick_value(facts, contexts, _FIELD_TAGS["total_assets"], period_end)
+    current_liabilities = _pick_value(
+        facts, contexts, _FIELD_TAGS["current_liabilities"], period_end
+    )
     total_debt = _pick_value(facts, contexts, _FIELD_TAGS["total_debt"], period_end)
     total_equity = _pick_value(facts, contexts, _FIELD_TAGS["total_equity"], period_end)
     cash = _pick_value(facts, contexts, _FIELD_TAGS["cash"], period_end)
     cfo = _pick_value(facts, contexts, _FIELD_TAGS["cfo"], period_end)
     capex = _pick_value(facts, contexts, _FIELD_TAGS["capex"], period_end)
 
-    # EBITDA proxy: PBT + depreciation + finance cost
+    # Operating profit — the preferred EBIT source. If the filing
+    # carries an explicit "Profit from operations" / EBIT tag we use
+    # it directly; otherwise we reconstruct EBIT from PBT + finance
+    # cost below.
+    operating_profit = _pick_value(
+        facts, contexts, _FIELD_TAGS["operating_profit"], period_end
+    )
     finance_cost = _pick_value(facts, contexts, _FIELD_TAGS["finance_cost"], period_end)
+
+    # EBIT = operating_profit from filing if present;
+    # otherwise derive: EBIT = PBT + finance_cost (classic reconstruction).
+    # EBITDA (below) = EBIT + depreciation.
+    ebit = operating_profit
+    if ebit is None and pbt is not None:
+        fc = finance_cost or 0.0
+        ebit = pbt + fc
+
+    # EBITDA proxy: PBT + depreciation + finance cost
     ebitda = None
     if pbt is not None:
         parts = [pbt]
@@ -347,9 +391,12 @@ def parse_nse_xbrl(xml_bytes: bytes, ticker: str, period_end: date,
         "period_type": period_type,
         "revenue": _scale(revenue),
         "pat": _scale(pat),
+        "ebit": _scale(ebit),
         "ebitda": _scale(ebitda),
         "cfo": _scale(cfo),
         "capex": _scale(capex),
+        "total_assets": _scale(total_assets),
+        "current_liabilities": _scale(current_liabilities),
         "total_debt": _scale(total_debt),
         "total_equity": _scale(total_equity),
         "cash": _scale(cash),
