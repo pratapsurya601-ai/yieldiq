@@ -426,7 +426,10 @@ def _build_metrics_rows(summary: dict[str, Any]) -> str:
         ),
         (
             "Moat",
-            str(summary.get("moat") or "&mdash;").title(),
+            # FIX (2026-04-22): don't .title() the &mdash; fallback — that
+            # capitalises the entity to &Mdash; which isn't valid HTML and
+            # renders as literal text in Gmail/Outlook.
+            (summary["moat"].title() if summary.get("moat") else "&mdash;"),
             "#0F172A",
         ),
         (
