@@ -2409,6 +2409,25 @@ class AnalysisService:
         _shares = enriched.get("shares") or 0
         _current_liab = enriched.get("current_liabilities") or _cl_db or 0
 
+        # ── FIX-ROCE-UNIT-MISMATCH (2026-04-22) ────────────────
+        # The vars above mix two unit systems:
+        #   - _ebit_val (from XBRL pipeline) is in INR Crores
+        #   - enriched.total_assets (from yfinance) is in raw INR
+        # yfinance's total_assets for TCS.NS = 1,823,720,000,000 (raw
+        # INR = ₹1.82 trillion = ₹182,372 Cr). Mixed with EBIT=66,714
+        # (Cr), the ratio becomes 66714 / 1.82e12 × 100 ≈ 10⁻⁹ %,
+        # rounds to 0.0, then the sanity guard turns 0.0 into None →
+        # flagships show "—" for ROCE despite perfect DB data.
+        #
+        # Fix: for the ROCE compute specifically, prefer the DB-
+        # sourced TA / CL (which match _ebit_val's Crore unit) over
+        # enriched when the DB has them. Other ratios (debt_ebitda,
+        # EV, etc.) keep the original _total_assets for backward
+        # compatibility — they use debt/cash from enriched so their
+        # own unit contract is intact.
+        _ta_for_roce = _ta_db if _ta_db is not None else (enriched.get("total_assets") or 0)
+        _cl_for_roce = _cl_db if _cl_db is not None else (enriched.get("current_liabilities") or 0)
+
         # Sector-based "bank / NBFC / Financial" detection — leverage
         # and interest-coverage ratios are not meaningful for these.
         _sector_str = (company.sector or "").lower()
@@ -2430,7 +2449,7 @@ class AnalysisService:
             compute_interest_coverage as _compute_int_cov,
         )
         _roce_val: float | None = _compute_roce(
-            _ebit_val, _total_assets, _current_liab
+            _ebit_val, _ta_for_roce, _cl_for_roce
         )
         # Fallback path: primary returned None (often because
         # current_liabilities isn't on file for older `financials`
@@ -2442,9 +2461,9 @@ class AnalysisService:
             _roce_val is None
             and _ebit_val is not None
             and _ebit_val > 0
-            and _total_assets > 0
+            and _ta_for_roce > 0
         ):
-            _rounded = round(_ebit_val / _total_assets * 100, 1)
+            _rounded = round(_ebit_val / _ta_for_roce * 100, 1)
             # Sanity guard: if the rounded value is EXACTLY 0.0, the
             # underlying ratio was <0.05% — effectively noise. Returning
             # 0.0% to the UI looks like "Weak" to users; "—" is more
