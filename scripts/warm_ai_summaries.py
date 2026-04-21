@@ -22,7 +22,7 @@ calls the LLM once per ticker, and writes the result into BOTH tiers:
 
 Run locally
 -----------
-    # Requires GEMINI_API_KEY or GROQ_API_KEY in the environment.
+    # Requires GROQ_API_KEY in the environment.
     python scripts/warm_ai_summaries.py
     python scripts/warm_ai_summaries.py --limit 15
     python scripts/warm_ai_summaries.py --tickers RELIANCE.NS,TCS.NS
@@ -79,20 +79,15 @@ FLAGSHIP_TICKERS: list[str] = [
 
 
 def _preflight_keys() -> bool:
-    """Return True iff at least one LLM provider key is configured."""
-    g = os.environ.get("GEMINI_API_KEY", "").strip()
+    """Return True iff GROQ_API_KEY is configured."""
     q = os.environ.get("GROQ_API_KEY", "").strip()
-    if not g and not q:
+    if not q:
         logger.error(
-            "NEITHER GEMINI_API_KEY NOR GROQ_API_KEY is set in the "
-            "environment. Set at least one and re-run. "
-            "See .env.example lines 12-18."
+            "GROQ_API_KEY is not set in the environment. "
+            "Set it on Railway and re-run."
         )
         return False
-    if g:
-        logger.info("Gemini key detected (primary provider)")
-    if q:
-        logger.info("Groq key detected (fallback provider)")
+    logger.info("Groq key detected")
     return True
 
 
@@ -204,8 +199,7 @@ def main() -> int:
         else:
             fail += 1
             logger.error(f"  {ticker}: {status}")
-        # Be gentle with the free-tier LLM rate limits (Gemini: 15 RPM,
-        # Groq: 30 RPM on free tier). 2s spacing is safely under both.
+        # Be gentle with Groq's free-tier rate limit (~30 RPM).
         time.sleep(2.0)
 
     logger.info(f"Done. ok={ok} fail={fail}")
