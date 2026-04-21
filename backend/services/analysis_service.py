@@ -271,6 +271,50 @@ for _t in (FINANCIAL_COMPANIES - _NBFC_TICKERS - _INSURANCE_TICKERS):
     TICKER_SECTOR_OVERRIDES[_t] = "Banking"
 
 
+# Known Indian bare-ticker set. Built once from ticker_search.INDIAN_STOCKS
+# so adding a stock there automatically extends canonicalization.
+# Guarded behind a lazy property — import cycles are annoying.
+_KNOWN_INDIAN_BARE: frozenset[str] | None = None
+
+
+def _known_indian_bare() -> frozenset[str]:
+    global _KNOWN_INDIAN_BARE
+    if _KNOWN_INDIAN_BARE is None:
+        try:
+            from backend.services.ticker_search import INDIAN_STOCKS
+            bare = {
+                d["ticker"].replace(".NS", "").replace(".BO", "").upper()
+                for d in INDIAN_STOCKS
+                if d.get("ticker")
+            }
+            _KNOWN_INDIAN_BARE = frozenset(bare)
+        except Exception:
+            _KNOWN_INDIAN_BARE = frozenset()
+    return _KNOWN_INDIAN_BARE
+
+
+def _canonicalize_ticker(ticker: str) -> str:
+    """Normalize bare Indian tickers to their .NS form.
+
+    Example: 'TCS' → 'TCS.NS' (it's in INDIAN_STOCKS). 'AAPL' stays
+    'AAPL' (genuinely US). '.NS'/'.BO' tickers pass through unchanged.
+
+    The backend's is_indian detection relies on suffix presence (see
+    line ~1478). Without canonicalization, a bare Indian ticker like
+    'TCS' flows through the US pipeline and returns sector=US General,
+    currency=USD, and all XBRL-sourced fields null. Visible on the
+    Discover rails and any caller that passes bare symbols.
+    """
+    if not ticker:
+        return ticker
+    t = ticker.strip().upper()
+    if t.endswith(".NS") or t.endswith(".BO"):
+        return t
+    if t in _known_indian_bare():
+        return f"{t}.NS"
+    return t
+
+
 def _normalize_pct(val) -> float | None:
     """
     Normalize a percentage-ish value to always be in PERCENTAGE form (23.5 for 23.5%).
@@ -1366,6 +1410,14 @@ class AnalysisService:
 
     def get_full_analysis(self, ticker: str) -> AnalysisResponse:
         """Public entry — validates output before returning."""
+        # FIX-BUG-A (2026-04-22): bare Indian tickers (e.g. "TCS") get
+        # misrouted to the US pipeline because is_indian relies on the
+        # .NS/.BO suffix (see line ~1478). Normalize known Indian
+        # symbols to their .NS form at the API entrypoint so downstream
+        # code (sector resolve, currency, XBRL lookups) sees the
+        # canonical form. Falls through unchanged for genuinely US
+        # tickers (AAPL, MSFT, etc.) that aren't in the known set.
+        ticker = _canonicalize_ticker(ticker)
         result = self._get_full_analysis_inner(ticker)
         try:
             from backend.services.validators import validate_analysis, log_validation
