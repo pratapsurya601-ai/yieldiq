@@ -9,7 +9,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
     () =>
       new QueryClient({
         defaultOptions: {
-          queries: { staleTime: 5 * 60 * 1000, retry: 2 },
+          queries: {
+            staleTime: 5 * 60 * 1000,
+            retry: 2,
+            // Default refetchOnWindowFocus=true fires a request every
+            // time the user switches back to the tab. For a finance app
+            // where most data (DCF, Prism, ratios) is slow-changing,
+            // this burns bandwidth + rate-limits us against upstream
+            // providers (yfinance, Groq) for no UX benefit — staleTime
+            // already handles freshness. Opt out; individual queries
+            // that DO need tab-focus refetch can override per-call.
+            refetchOnWindowFocus: false,
+          },
         },
       })
   )
