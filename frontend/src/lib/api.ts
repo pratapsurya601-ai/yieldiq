@@ -218,6 +218,7 @@ export interface LiveHolding {
   sector: string
   entry_price: number
   quantity: number
+  account_label: string
   current_price: number
   invested_value: number
   current_value: number

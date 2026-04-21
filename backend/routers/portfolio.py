@@ -50,6 +50,8 @@ async def get_holdings(user: dict = Depends(get_current_user)):
             sector=h.get("sector", "") or "",
             notes=h.get("notes", "") or "",
             saved_at=str(h.get("saved_at", "") or ""),
+            account_label=h.get("account_label") or "default",
+            quantity=float(h.get("quantity") or 0),
         )
         for h in holdings
     ]

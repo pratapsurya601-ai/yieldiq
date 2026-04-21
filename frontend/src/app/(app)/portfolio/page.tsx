@@ -202,13 +202,23 @@ function PortfolioInner() {
               </div>
             )}
 
-            {/* Holdings List */}
+            {/* Holdings List — key includes account_label so two rows of
+                the same ticker (e.g. SILVERBEES held in Zerodha AND ICICI)
+                stay as separate cards instead of colliding on the React key
+                and rendering as one merged/averaged position. */}
             {holdings.map((h) => (
-              <Link key={h.ticker} href={`/analysis/${h.ticker}`}
+              <Link key={`${h.ticker}:${h.account_label || "default"}`} href={`/analysis/${h.ticker}`}
                 className="block bg-white rounded-xl border border-gray-100 p-4 hover:border-blue-200 transition">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
-                    <p className="font-bold text-gray-900">{h.display_ticker || h.ticker.replace(".NS", "")}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-bold text-gray-900">{h.display_ticker || h.ticker.replace(".NS", "")}</p>
+                      {h.account_label && h.account_label !== "default" && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                          {h.account_label}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 truncate">{h.sector || h.company_name || "—"}</p>
                   </div>
                   <div className="text-right">
