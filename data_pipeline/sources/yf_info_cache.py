@@ -10,18 +10,30 @@ easily eliminate the call, but we CAN cache the whole response.
 Strategy:
     1. First call for a ticker: live-fetch + write through to
        ``yfinance_info_cache`` table (slow, one-time).
-    2. Subsequent call within ``ttl_minutes`` (default 30): DB
-       lookup (~50ms), no yfinance hit.
+    2. Subsequent call within ``ttl_minutes`` (default 30 days):
+       DB/file lookup (~50ms), no yfinance hit.
     3. Subsequent call after TTL: return the stale row immediately
        AND fire a daemon thread to refresh in background (user
        doesn't wait).
-    4. DB outage / missing table: fall back to live-fetch every
-       time — we stay functional, just slow.
+    4. DB outage / missing table: fall back to file cache or
+       live-fetch — we stay functional, just slow.
 
 The table schema is created by ``scripts/migrate_yfinance_info_cache.py``
 via the ``.github/workflows/migrate.yml`` manual workflow. If the
 table is absent, this module no-ops gracefully; callers never see
 a crash, only a live-fetch path.
+
+TTL rationale (2026-04-21, yfinance-quick-wins-week1):
+    ``.info`` returns sector, industry, shortName, longName,
+    description, 52-week high/low, beta, forward PE, trailingPE,
+    dividendYield, marketCap, and ~30 other fields. Of these, only
+    price-derived values (regularMarketPrice, marketCap, trailingPE)
+    change intra-day. Everything else (sector/industry/description/
+    shortName/beta) changes annually or less. The analysis pipeline
+    no longer depends on ``.info`` for live price — that comes from
+    the daily_prices table. So a 30-day TTL is safe: stale price is
+    replaced by the DB lookup, everything else is correct for 30+
+    days. 43200 minutes == 30 days.
 """
 from __future__ import annotations
 
@@ -33,6 +45,9 @@ from pathlib import Path
 from typing import Any
 
 log = logging.getLogger("yieldiq.yf_info_cache")
+
+# 30 days. See module docstring for rationale.
+DEFAULT_TTL_MINUTES = 30 * 24 * 60  # 43_200
 
 
 def _db_session():
@@ -155,7 +170,7 @@ def _refresh_async(ticker: str) -> None:
     threading.Thread(target=_go, daemon=True, name=f"yfinfo-refresh-{ticker}").start()
 
 
-def get_info(ticker: str, ttl_minutes: int = 30) -> tuple[dict, bool]:
+def get_info(ticker: str, ttl_minutes: int = DEFAULT_TTL_MINUTES) -> tuple[dict, bool]:
     """
     Return ``(info, from_cache)``. Never raises.
 
