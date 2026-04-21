@@ -45,6 +45,14 @@ TICKER_ALIASES: dict[str, str] = {
     "DOMINOS":         "JUBLFOOD.NS",
     "BLUESTAR.NS":     "BLUESTARCO.NS", # Blue Star Ltd (NSE canonical)
     "BLUESTAR":        "BLUESTARCO.NS",
+    # Mindtree merged into LTI → LTIMindtree (Nov 2022). Old ticker
+    # LTI kept listing but was renamed LTIM which itself was later
+    # relisted as LTIMINDTREE. Legacy user bookmarks + some of our
+    # own TICKER_ALIASES in external scripts still hit LTIM.NS — it
+    # exists on yfinance but returns stale/partial data. Sentry sees
+    # 208+ events/day from this one symbol. Redirect to the canonical.
+    "LTIM.NS":         "LTIMINDTREE.NS",
+    "LTIM":            "LTIMINDTREE.NS",
 }
 
 # ── Known-broken upstream tickers ─────────────────────────────
