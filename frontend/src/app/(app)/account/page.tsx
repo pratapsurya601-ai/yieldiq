@@ -203,17 +203,22 @@ function AccountInner() {
       // 503 from backend = Razorpay plan ID env var not set yet; show
       // a specific message so ops can tell the user exactly why.
       const msg = (err as Error)?.message || ""
-      const status = (err as { response?: { status?: number } })?.response?.status
+      const axErr = err as {
+        response?: { status?: number; data?: { detail?: string } }
+      }
+      const status = axErr?.response?.status
+      const backendDetail = axErr?.response?.data?.detail
       if (!msg.includes("Razorpay script failed")) {
-        // 503 = backend signalled "plan ID env var not configured yet"
-        // (separate from a generic init failure). We report "init" as the
-        // GA4 tag since that's the closest match in the existing union —
-        // the specific 503 reason is still surfaced in the toast + Railway
-        // logs. Widening the tag union later lets us distinguish in GA.
         trackCheckoutFailed(planId, "init")
       }
       if (status === 503) {
         showToast("Plan not live yet — email support@yieldiq.in to get early access.", "err")
+      } else if (backendDetail) {
+        // Backend-provided detail carries the real Razorpay error
+        // (e.g. "Subscription init failed: BadRequestError: The ID
+        // provided is invalid or could not be found"). Surface it so
+        // ops can self-diagnose without Railway log access.
+        showToast(backendDetail, "err")
       } else {
         showToast("Could not initiate payment. Please try again.", "err")
       }
