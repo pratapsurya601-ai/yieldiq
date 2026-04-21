@@ -44,11 +44,18 @@ def _load_top_tickers(limit: int) -> list[str]:
         return []
     sess = Session()
     try:
+        # DISTINCT ON (ticker) dedupes cross-listing rows. Without it,
+        # dual-listed tickers (NSE+BSE, e.g. BPCL) appear twice in the
+        # backfill queue. See design note in backend/routers/screener.py.
         rows = sess.execute(
             text(
                 """
-                SELECT ticker FROM market_metrics
-                WHERE market_cap_cr IS NOT NULL
+                SELECT ticker FROM (
+                    SELECT DISTINCT ON (ticker) ticker, market_cap_cr
+                    FROM market_metrics
+                    WHERE market_cap_cr IS NOT NULL
+                    ORDER BY ticker, trade_date DESC
+                ) t
                 ORDER BY market_cap_cr DESC
                 LIMIT :lim
                 """

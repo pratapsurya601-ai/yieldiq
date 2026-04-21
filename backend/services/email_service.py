@@ -337,18 +337,30 @@ def _get_top_undervalued_stocks(limit: int = 5) -> list[dict]:
             from sqlalchemy import text
             db = Session()
             try:
+                # DISTINCT ON dedupes cross-listing rows in market_metrics
+                # AND in daily_prices (same ticker, NSE+BSE -> two rows
+                # even on the same trade_date). See design note in
+                # backend/routers/screener.py.
                 query = text("""
+                    WITH mm_dedup AS (
+                        SELECT DISTINCT ON (ticker) ticker, pe_ratio
+                        FROM market_metrics
+                        ORDER BY ticker, trade_date DESC
+                    ),
+                    dp_dedup AS (
+                        SELECT DISTINCT ON (ticker) ticker, close_price
+                        FROM daily_prices
+                        ORDER BY ticker, trade_date DESC
+                    )
                     SELECT
                         s.ticker,
                         s.company_name,
                         dp.close_price,
                         mm.pe_ratio
                     FROM stocks s
-                    JOIN daily_prices dp ON dp.ticker = s.ticker
-                    JOIN market_metrics mm ON mm.ticker = s.ticker
+                    JOIN dp_dedup dp ON dp.ticker = s.ticker
+                    JOIN mm_dedup mm ON mm.ticker = s.ticker
                     WHERE s.is_active = true
-                      AND dp.trade_date = (SELECT MAX(trade_date) FROM daily_prices)
-                      AND mm.trade_date = (SELECT MAX(trade_date) FROM market_metrics)
                     ORDER BY mm.pe_ratio ASC NULLS LAST
                     LIMIT :lim
                 """)

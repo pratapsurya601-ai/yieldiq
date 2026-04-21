@@ -1536,14 +1536,33 @@ async def screener_query(
         cur.execute(sql, params)
         cols = [d[0] for d in cur.description]
         rows = [dict(zip(cols, r)) for r in cur.fetchall()]
-        # Total count (cheap separate query — no ratio join needed)
+        # Total count — MUST dedupe the joined tables just like the main
+        # query above, otherwise ratio_history (multi-period) and
+        # market_metrics (multi-listing) inflate COUNT(*) 2-4×. We reuse
+        # the same CTE pattern as the list query so count and list stay
+        # consistent. See design note in backend/routers/screener.py.
         cur.execute(
-            f"SELECT COUNT(*) FROM stocks s "
-            f"LEFT JOIN ratio_history rh ON rh.ticker = s.ticker "
-            f"AND rh.period_type='annual' "
-            f"LEFT JOIN market_metrics mm ON mm.ticker = s.ticker "
-            f"LEFT JOIN fair_value_history fv ON fv.ticker = s.ticker "
-            f"WHERE {' AND '.join(where_clauses)}",
+            f"SELECT COUNT(*) FROM ("
+            f"  WITH latest_ratio AS ("
+            f"    SELECT DISTINCT ON (ticker) ticker, pe_ratio, pb_ratio, "
+            f"           ev_ebitda, roe, roce, de_ratio "
+            f"    FROM ratio_history WHERE period_type='annual' "
+            f"    ORDER BY ticker, period_end DESC"
+            f"  ),"
+            f"  latest_mm AS ("
+            f"    SELECT DISTINCT ON (ticker) ticker, market_cap_cr, close_price "
+            f"    FROM market_metrics ORDER BY ticker, trade_date DESC"
+            f"  ),"
+            f"  latest_fv AS ("
+            f"    SELECT DISTINCT ON (ticker) ticker, mos, score, verdict, fair_value "
+            f"    FROM fair_value_history ORDER BY ticker, date DESC"
+            f"  )"
+            f"  SELECT 1 FROM stocks s "
+            f"  LEFT JOIN latest_ratio rh ON rh.ticker = s.ticker "
+            f"  LEFT JOIN latest_mm mm    ON mm.ticker = s.ticker "
+            f"  LEFT JOIN latest_fv fv    ON fv.ticker = s.ticker "
+            f"  WHERE {' AND '.join(where_clauses)}"
+            f") _sub",
             where_params,
         )
         total = cur.fetchone()[0]
@@ -1615,10 +1634,18 @@ async def get_public_top_tickers(limit: int = 500):
         from sqlalchemy import text as _t
         sess = Session()
         try:
+            # DISTINCT ON dedupes cross-listing rows in market_metrics
+            # (same ticker on NSE+BSE → two mm rows → duplicated output).
+            # See design note in backend/routers/screener.py.
             rows = sess.execute(_t(
+                "WITH mm_dedup AS ("
+                "  SELECT DISTINCT ON (ticker) ticker, market_cap_cr "
+                "  FROM market_metrics "
+                "  ORDER BY ticker, trade_date DESC"
+                ") "
                 "SELECT s.ticker "
                 "FROM stocks s "
-                "LEFT JOIN market_metrics mm ON mm.ticker = s.ticker "
+                "LEFT JOIN mm_dedup mm ON mm.ticker = s.ticker "
                 "WHERE s.is_active = TRUE "
                 "ORDER BY COALESCE(mm.market_cap_cr, 0) DESC "
                 "LIMIT :lim"

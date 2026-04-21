@@ -341,8 +341,14 @@ def _fetch_market_cap_cr(ticker: str) -> Optional[float]:
         return None
     try:
         try:
+            # ORDER BY trade_date DESC LIMIT 1 - dual-listed tickers
+            # (NSE+BSE) have two rows in market_metrics; pick the
+            # freshest. See design note in backend/routers/screener.py.
             row = sess.execute(
-                text("SELECT market_cap_cr FROM market_metrics WHERE ticker = :t"),
+                text(
+                    "SELECT market_cap_cr FROM market_metrics "
+                    "WHERE ticker = :t ORDER BY trade_date DESC LIMIT 1"
+                ),
                 {"t": ticker},
             ).fetchone()
         except Exception:

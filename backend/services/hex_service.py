@@ -249,10 +249,14 @@ def _fetch_core_data(ticker: str) -> dict:
 
         # 2. market_metrics
         try:
+            # ORDER BY trade_date DESC LIMIT 1 - dual-listed tickers
+            # (NSE+BSE) have two rows in market_metrics; pick the
+            # freshest. See design note in backend/routers/screener.py.
             row = sess.execute(
                 text(
                     "SELECT pe_ratio, pb_ratio, ev_ebitda, market_cap_cr "
-                    "FROM market_metrics WHERE ticker = :t"
+                    "FROM market_metrics WHERE ticker = :t "
+                    "ORDER BY trade_date DESC LIMIT 1"
                 ),
                 {"t": ticker},
             ).fetchone()
