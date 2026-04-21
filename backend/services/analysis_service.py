@@ -335,22 +335,48 @@ def _fetch_current_assets(ticker: str) -> float | None:
 def _canonicalize_ticker(ticker: str) -> str:
     """Normalize bare Indian tickers to their .NS form.
 
-    Example: 'TCS' → 'TCS.NS' (it's in INDIAN_STOCKS). 'AAPL' stays
-    'AAPL' (genuinely US). '.NS'/'.BO' tickers pass through unchanged.
+    Examples:
+        'TCS'        → 'TCS.NS'      (known Indian, add suffix)
+        'TCS NS'     → 'TCS.NS'      (space-separated variant)
+        'TCS.NS'     → 'TCS.NS'      (already canonical)
+        'TCS.BO'     → 'TCS.BO'      (BSE variant — preserved)
+        ' tcs '      → 'TCS.NS'      (whitespace + case)
+        'AAPL'       → 'AAPL'        (genuinely US, unchanged)
+        '  '         → ''            (empty after strip)
 
-    The backend's is_indian detection relies on suffix presence (see
-    line ~1478). Without canonicalization, a bare Indian ticker like
-    'TCS' flows through the US pipeline and returns sector=US General,
-    currency=USD, and all XBRL-sourced fields null. Visible on the
-    Discover rails and any caller that passes bare symbols.
+    The backend's is_indian detection relies on suffix presence. Without
+    canonicalization, a bare Indian ticker like 'TCS' flows through the
+    US pipeline and returns sector='US General', currency='USD', and
+    all XBRL-sourced fields null. Visible on the Discover rails and any
+    caller that passes bare symbols (screen results, autocomplete, etc).
     """
     if not ticker:
         return ticker
+    # 1. Whitespace + case normalization
     t = ticker.strip().upper()
+    if not t:
+        return t
+    # 2. Space-separated variants ('TCS NS' / 'TCS BO' / 'TCS BSE' /
+    #    'TCS NSE') — collapse internal whitespace and attempt a suffix
+    #    match BEFORE the bare-ticker-set lookup.
+    if " " in t:
+        parts = t.split()
+        base = parts[0]
+        tail = "".join(parts[1:])  # 'NS', 'BO', 'NSE', 'BSE', etc.
+        # Map common tail variants to canonical suffixes
+        if tail in ("NS", "NSE"):
+            return f"{base}.NS"
+        if tail in ("BO", "BSE"):
+            return f"{base}.BO"
+        # Unknown tail — fall through to bare-ticker logic on the base
+        t = base
+    # 3. Already has a canonical suffix — preserve as-is
     if t.endswith(".NS") or t.endswith(".BO"):
         return t
+    # 4. Bare ticker known to be Indian — append .NS
     if t in _known_indian_bare():
         return f"{t}.NS"
+    # 5. Genuinely US or unknown — pass through
     return t
 
 
