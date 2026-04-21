@@ -949,13 +949,20 @@ async def get_chart_data(
     if cached:
         return cached
 
-    # --- Price history: DuckDB Parquet first, yfinance fallback ---
+    # --- Price history ---
+    # Source priority:
+    #   1. DuckDB Parquet  (fastest; local file, <50ms)
+    #   2. `daily_prices` Postgres table (bhavcopy-sourced, daily refresh)
+    #   3. yfinance live  (emergency fallback; Sentry-tagged so we can
+    #      track how often bhavcopy coverage is missing)
     _PERIOD_DAYS = {"1m": 30, "3m": 90, "6m": 180, "1y": 365}
     _days = _PERIOD_DAYS.get(period, 30)
     prices: list[dict] = []
+    _clean = ticker.replace(".NS", "").replace(".BO", "")
+
+    # 1. Parquet (primary)
     try:
         from data_pipeline.nse_prices.db_integration import get_price_history
-        _clean = ticker.replace(".NS", "").replace(".BO", "")
         df = get_price_history(_clean, _days)
         if df is not None and not df.empty:
             for _, row in df.iterrows():
@@ -966,9 +973,56 @@ async def get_chart_data(
     except Exception:
         pass
 
-    # Fallback to yfinance if Parquet file doesn't exist
+    # 2. Postgres daily_prices (secondary — fed by NSE bhavcopy loader)
     if not prices:
         try:
+            from data_pipeline.db import Session as _PipelineSession
+            if _PipelineSession is not None:
+                from sqlalchemy import text
+                from datetime import date as _date, timedelta as _td
+                _sess = _PipelineSession()
+                try:
+                    _start = _date.today() - _td(days=_days)
+                    rows = _sess.execute(
+                        text(
+                            "SELECT trade_date, close_price "
+                            "FROM daily_prices "
+                            "WHERE ticker = :t AND trade_date >= :start "
+                            "ORDER BY trade_date ASC"
+                        ),
+                        {"t": _clean, "start": _start},
+                    ).mappings().all()
+                    for r in rows:
+                        if r["close_price"] is None:
+                            continue
+                        prices.append({
+                            "date": str(r["trade_date"])[:10],
+                            "price": round(float(r["close_price"]), 2),
+                        })
+                finally:
+                    try:
+                        _sess.close()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+
+    # 3. Fallback to yfinance only if neither parquet nor daily_prices had rows.
+    # Warning log + Sentry tag so we can monitor how often this path fires.
+    if not prices:
+        try:
+            import logging as _logging
+            _logging.getLogger("yieldiq.analysis").warning(
+                "chart-data fell back to yfinance for %s (parquet + daily_prices both empty)",
+                ticker,
+            )
+            try:
+                import sentry_sdk as _sentry_sdk
+                _sentry_sdk.set_tag("data_source", "yfinance_fallback")
+                _sentry_sdk.set_tag("endpoint", "chart-data")
+            except Exception:
+                pass
+
             import yfinance as yf
             hist = yf.Ticker(ticker).history(period=yf_period)
             if hist is not None and not hist.empty:
