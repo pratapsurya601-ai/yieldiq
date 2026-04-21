@@ -1665,19 +1665,26 @@ async def get_near_52w_lows(limit: int = 6, max_distance_pct: float = 25.0, min_
         try:
             # Top 400 by market cap that have an analysis_cache entry
             # (strong-fundamentals proxy — scored stocks only). Left-join
-            # live_quotes for current price in one pass.
+            # live_quotes for current price in one pass. DISTINCT ON
+            # dedupes cross-listing duplicates in market_metrics (same
+            # ticker listed on NSE+BSE → two mm rows → two result rows).
             rows = sess.execute(_t(
-                "SELECT s.ticker, s.company_name, "
-                "       lq.price AS price, "
-                "       (ac.payload->'quality'->>'yieldiq_score')::int AS score "
-                "FROM stocks s "
-                "LEFT JOIN market_metrics mm ON mm.ticker = s.ticker "
-                "LEFT JOIN live_quotes lq ON lq.ticker = s.ticker "
-                "LEFT JOIN analysis_cache ac ON ac.ticker = s.ticker "
-                "WHERE s.is_active = TRUE "
-                "  AND ac.ticker IS NOT NULL "
-                "  AND lq.price IS NOT NULL "
-                "ORDER BY COALESCE(mm.market_cap_cr, 0) DESC "
+                "SELECT ticker, company_name, price, score FROM ("
+                "  SELECT DISTINCT ON (s.ticker) "
+                "         s.ticker, s.company_name, "
+                "         lq.price AS price, "
+                "         (ac.payload->'quality'->>'yieldiq_score')::int AS score, "
+                "         COALESCE(mm.market_cap_cr, 0) AS mcap "
+                "  FROM stocks s "
+                "  LEFT JOIN market_metrics mm ON mm.ticker = s.ticker "
+                "  LEFT JOIN live_quotes lq ON lq.ticker = s.ticker "
+                "  LEFT JOIN analysis_cache ac ON ac.ticker = s.ticker "
+                "  WHERE s.is_active = TRUE "
+                "    AND ac.ticker IS NOT NULL "
+                "    AND lq.price IS NOT NULL "
+                "  ORDER BY s.ticker, COALESCE(mm.market_cap_cr, 0) DESC"
+                ") t "
+                "ORDER BY mcap DESC "
                 "LIMIT 400"
             )).fetchall()
         finally:
@@ -1747,19 +1754,28 @@ async def get_lowest_pe(limit: int = 6, min_score: int = 35, max_pe: float = 60.
         from sqlalchemy import text as _t
         sess = Session()
         try:
+            # DISTINCT ON (s.ticker) dedupes cross-listing duplicates:
+            # market_metrics can have two rows per ticker when the same
+            # company is listed on NSE+BSE (e.g. BPCL appeared twice in
+            # prod before this change). Subquery wrapper so the final
+            # ORDER BY pe_ratio still sorts globally after dedupe.
             rows = sess.execute(_t(
-                "SELECT s.ticker, s.company_name, "
-                "       mm.pe_ratio, "
-                "       (ac.payload->'quality'->>'yieldiq_score')::int AS score "
-                "FROM stocks s "
-                "JOIN market_metrics mm ON mm.ticker = s.ticker "
-                "JOIN analysis_cache ac ON ac.ticker = s.ticker "
-                "WHERE s.is_active = TRUE "
-                "  AND mm.pe_ratio IS NOT NULL "
-                "  AND mm.pe_ratio > 0 "
-                "  AND mm.pe_ratio <= :max_pe "
-                "  AND (ac.payload->'quality'->>'yieldiq_score')::int >= :min_score "
-                "ORDER BY mm.pe_ratio ASC "
+                "SELECT ticker, company_name, pe_ratio, score FROM ("
+                "  SELECT DISTINCT ON (s.ticker) "
+                "         s.ticker, s.company_name, "
+                "         mm.pe_ratio, "
+                "         (ac.payload->'quality'->>'yieldiq_score')::int AS score "
+                "  FROM stocks s "
+                "  JOIN market_metrics mm ON mm.ticker = s.ticker "
+                "  JOIN analysis_cache ac ON ac.ticker = s.ticker "
+                "  WHERE s.is_active = TRUE "
+                "    AND mm.pe_ratio IS NOT NULL "
+                "    AND mm.pe_ratio > 0 "
+                "    AND mm.pe_ratio <= :max_pe "
+                "    AND (ac.payload->'quality'->>'yieldiq_score')::int >= :min_score "
+                "  ORDER BY s.ticker, mm.pe_ratio ASC"
+                ") t "
+                "ORDER BY pe_ratio ASC "
                 "LIMIT :lim"
             ), {"max_pe": max_pe, "min_score": min_score, "lim": limit}).fetchall()
         finally:
