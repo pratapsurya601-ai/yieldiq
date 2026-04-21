@@ -568,6 +568,103 @@ async def list_payg_unlocks(user: dict = Depends(get_current_user)):
         return {"unlocks": []}
 
 
+# ────────────────────────────────────────────────────────────────
+# Webhook idempotency helpers
+#
+# Razorpay does not put a single opaque event-UUID in the body, and
+# the `x-razorpay-event-id` header is not consistently present across
+# older plan events. We therefore synthesise a deterministic dedup
+# key from three body fields that together uniquely identify a
+# logical event delivery: (account_id, event, created_at). The same
+# webhook replayed by Razorpay carries identical values for all
+# three; a legitimately-new event differs on created_at at minimum.
+#
+# If all three fields are missing we return None — the caller then
+# skips the idempotency shortcut and relies on the per-event
+# handlers' own upsert-by-subscription-id shape-idempotency. This is
+# strictly a noise / side-effect reduction; the shape of the users_meta
+# + subscriptions rows is the same either way.
+# ────────────────────────────────────────────────────────────────
+def _razorpay_event_id(payload: dict) -> str | None:
+    """Build a stable dedup key for a Razorpay webhook payload.
+
+    Preference order:
+      1. `payload["id"]` — if Razorpay ever populates a single
+         event-UUID at the top level, use it directly.
+      2. (account_id, event, created_at) composite — the documented
+         stable tuple across retries of the same logical event.
+    Returns None if we can't construct either form (caller falls
+    back to the shape-idempotency of the downstream handlers).
+    """
+    if not isinstance(payload, dict):
+        return None
+    # Some Razorpay account configs include a top-level `id` on the
+    # event envelope. Prefer it when present.
+    top_id = payload.get("id")
+    if isinstance(top_id, str) and top_id.strip():
+        return f"rzp:{top_id.strip()}"
+
+    account_id = payload.get("account_id") or ""
+    event = payload.get("event") or ""
+    created_at = payload.get("created_at")
+    if not (account_id and event and created_at is not None):
+        return None
+    return f"rzp:{account_id}:{event}:{created_at}"
+
+
+def _claim_webhook_event(event_id: str, event_type: str, logger) -> bool:
+    """Attempt to claim this event_id in `webhook_events`.
+
+    Returns True if this event has ALREADY been processed (i.e. the
+    INSERT raised a unique-constraint violation) — the caller MUST
+    then return 200 OK without re-running the handler.
+
+    Returns False on successful insert OR on any infra failure
+    (Supabase down, table missing pre-migration, network hiccup) —
+    the caller then proceeds with normal processing. We deliberately
+    fail-open on insert errors because re-running a shape-idempotent
+    handler is strictly safer than dropping a real event.
+    """
+    try:
+        from db.supabase_client import get_admin_client
+        client_sb = get_admin_client()
+        if client_sb is None:
+            # Infra gap — fail open; handlers are shape-idempotent.
+            logger.warning("idempotency skip: no supabase client")
+            return False
+        client_sb.table("webhook_events").insert({
+            "provider": "razorpay",
+            "event_id": event_id,
+            "event_type": event_type,
+        }).execute()
+        return False
+    except Exception as e:
+        # postgrest returns a 409 / "duplicate key" PostgrestAPIError
+        # on UNIQUE violation. We can't rely on a typed exception here
+        # since supabase-py versions change the class, so match on the
+        # error text. Any OTHER error (table missing, auth, network)
+        # we fail-open and let the handler run — the downstream writes
+        # are shape-idempotent so the outcome is still correct.
+        s = str(e).lower()
+        if (
+            "duplicate key" in s
+            or "unique constraint" in s
+            or "23505" in s  # Postgres SQLSTATE for unique_violation
+            or "already exists" in s
+        ):
+            logger.info(
+                "webhook duplicate suppressed: event_id=%s type=%s",
+                event_id, event_type,
+            )
+            return True
+        # Unexpected error — log and proceed with processing.
+        logger.warning(
+            "idempotency insert failed (proceeding with handler): %s: %s",
+            type(e).__name__, e,
+        )
+        return False
+
+
 @router.post("/webhook")
 async def razorpay_webhook(request: Request):
     """Razorpay subscription lifecycle webhook.
@@ -584,9 +681,16 @@ async def razorpay_webhook(request: Request):
     `RAZORPAY_WEBHOOK_SECRET`. Unknown events are ack'd with 200 so
     Razorpay doesn't retry them.
 
-    Idempotency: upserts by `razorpay_subscription_id`. Repeat events
-    are safe — the tier either re-applies (activated) or re-demotes
-    (cancelled) without side-effects.
+    Idempotency:
+      - Primary dedup: on-insert UNIQUE(provider, event_id) against
+        the `webhook_events` table (migration 002). If the insert
+        trips the unique constraint, this is a retry of an event we
+        already processed → return 200 OK so Razorpay stops retrying
+        and we do NOT re-fire any tier-flip side effects.
+      - Secondary safety net: the per-event handlers themselves are
+        shape-idempotent (upsert by `razorpay_subscription_id`), so
+        if the dedup table is briefly unavailable the tier outcome
+        is still correct — we just pay in log noise.
 
     Railway setup:
       1. Razorpay dashboard → Settings → Webhooks → + Add
@@ -646,6 +750,16 @@ async def razorpay_webhook(request: Request):
         "webhook received: event=%s sub_id=%s tier_hint=%s",
         event, subscription_id, tier_hint,
     )
+
+    # 2a. Idempotency check. Razorpay retries on any non-2xx / timeout
+    # for up to ~24h — without dedup we'd re-fire tier flips, double
+    # "demoted to free" logs, and stomp on subscriptions rows. The
+    # event-id we store is a provider-natural composite; see
+    # _razorpay_event_id below for why it's built this way.
+    _dedup_event_id = _razorpay_event_id(payload)
+    if _dedup_event_id and _claim_webhook_event(_dedup_event_id, event, logger):
+        # Already processed — ack so Razorpay stops retrying.
+        return {"ok": True, "duplicate": True, "event": event}
 
     # 3. No subscription context (e.g. payment.captured standalone) —
     # ack and skip. Not an error.
