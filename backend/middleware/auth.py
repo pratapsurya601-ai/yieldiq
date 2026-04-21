@@ -53,6 +53,67 @@ security = HTTPBearer(auto_error=False)
 TIER_LIMITS = {"free": 5, "starter": 999999, "pro": 999999, "analyst": 999999}
 
 
+# ─────────────────────────────────────────────────────────────────
+# Tier freshness cache
+#
+# JWTs carry a snapshot of `tier` from login time. When a user pays
+# via Razorpay and verify-subscription flips their users_meta.tier,
+# the existing JWT still says 'free' — so rate limiting and tier
+# gates silently ignore the upgrade until the user logs out + back
+# in to mint a new token.
+#
+# Fix: on every authenticated request, read the fresh tier from
+# users_meta with a 60-second in-process cache to keep DB pressure
+# bounded (1 read/min per active user, not per request).
+#
+# verify-subscription + the webhook call invalidate_tier_cache(uid)
+# so upgrades are effectively instant — no 60s lag between payment
+# and unlock.
+# ─────────────────────────────────────────────────────────────────
+_tier_cache: dict[str, tuple[str, float]] = {}
+_TIER_CACHE_TTL_SECS = 60
+
+
+def invalidate_tier_cache(user_id: str) -> None:
+    """Drop cached tier for this user — call after Razorpay tier flip
+    so the very next request reflects the new tier instead of waiting
+    up to 60s for the cache to expire."""
+    _tier_cache.pop(user_id, None)
+
+
+def _get_fresh_tier(user_id: str, jwt_tier: str) -> str:
+    """Read tier from users_meta. 60s per-user cache. Silent fallback
+    to jwt_tier on any Supabase failure (we never want a DB hiccup
+    to 500 authenticated requests)."""
+    import time as _t
+    now = _t.monotonic()
+    cached = _tier_cache.get(user_id)
+    if cached and cached[1] > now:
+        return cached[0]
+
+    tier = jwt_tier
+    try:
+        from db.supabase_client import get_admin_client
+        client = get_admin_client()
+        result = (
+            client.table("users_meta")
+            .select("tier")
+            .eq("id", user_id)
+            .limit(1)
+            .execute()
+        )
+        rows = result.data or []
+        if rows and rows[0].get("tier"):
+            tier = rows[0]["tier"]
+    except Exception:
+        # Don't even log — this runs on every request and the JWT
+        # fallback is safe.
+        pass
+
+    _tier_cache[user_id] = (tier, now + _TIER_CACHE_TTL_SECS)
+    return tier
+
+
 def create_access_token(user_id: str, email: str, tier: str = "free") -> str:
     """Create JWT token with 7-day expiry."""
     payload = {
@@ -82,6 +143,10 @@ async def get_current_user(
         tier = payload.get("tier", "free")
         if user_id is None:
             raise HTTPException(status_code=401, detail="Invalid token")
+        # JWT tier is a stale snapshot from login time. Read the
+        # current tier from users_meta so post-payment upgrades take
+        # effect without forcing a re-login.
+        tier = _get_fresh_tier(user_id, tier)
         return {"user_id": user_id, "email": email, "tier": tier}
     except JWTError:
         raise HTTPException(

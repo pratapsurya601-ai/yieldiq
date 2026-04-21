@@ -5,7 +5,7 @@ import os
 import sys
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request
-from backend.middleware.auth import get_current_user
+from backend.middleware.auth import get_current_user, invalidate_tier_cache
 
 RAZORPAY_WEBHOOK_SECRET = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "").strip()
 
@@ -338,6 +338,12 @@ async def verify_subscription(
                 user.get("email"), razorpay_subscription_id,
                 type(sb_exc).__name__, sb_exc,
             )
+
+        # Invalidate the per-user tier cache so the very next API
+        # request reads the fresh tier from Supabase. Without this,
+        # there's a ~60s window where the user is paid but still
+        # rate-limited at free tier.
+        invalidate_tier_cache(user["user_id"])
 
         # Best-effort SQLite auth sync (legacy self-hosted path — no-op
         # in production where Supabase is the auth backend).

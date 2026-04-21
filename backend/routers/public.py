@@ -337,18 +337,25 @@ async def get_stock_summary(ticker: str):
             # router invokes it (see backend/routers/analysis.py:24 for
             # the singleton instance pattern).
             from backend.services.analysis_service import AnalysisService
+            import time as _time
             _svc = AnalysisService()
             logger.info(
                 "stock-summary cache miss for %s — lazy-recompute fallback", ticker
             )
+            _compute_start = _time.monotonic()
             analysis_cached = _svc.get_full_analysis(ticker)
+            _compute_ms = int((_time.monotonic() - _compute_start) * 1000)
             # Best-effort persist so the next hit is a straight cache read.
             # If persist fails, the response is still correct; we just lose
             # the warm-path optimization on this worker.
             try:
                 from backend.services import analysis_cache_service
+                # save_cached signature is (ticker, payload, compute_ms) —
+                # previously we passed only 2 args, which threw
+                # "missing 1 required positional argument: 'compute_ms'"
+                # on every cache miss and silently lost the write-back.
                 analysis_cache_service.save_cached(
-                    ticker, analysis_cached.model_dump()
+                    ticker, analysis_cached.model_dump(), _compute_ms
                 )
             except Exception as _persist_exc:
                 logger.warning(
