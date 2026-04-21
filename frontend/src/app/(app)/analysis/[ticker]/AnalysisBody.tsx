@@ -27,6 +27,7 @@ import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcr
 import ShareReportCard from "@/components/analysis/ShareReportCard"
 import UnlockCTA from "@/components/payg/UnlockCTA"
 import UnlockBadge from "@/components/payg/UnlockBadge"
+import { usePaygStore } from "@/store/paygStore"
 import {
   formatCurrency,
   formatPct,
@@ -161,6 +162,13 @@ export default function AnalysisBody({ ticker, prism }: Props) {
   }
   const queryClient = useQueryClient()
 
+  // PAYG unlock state — used to suppress the 429 gate flash after a
+  // just-completed unlock. The server-side tier bump may lag the client
+  // state by one tick, so a refetch can briefly return 429 even though
+  // the user has an active unlock. Without this check the user sees
+  // "Unlock for ₹99" reappear after they already paid.
+  const isPaygUnlockedForTicker = usePaygStore((s) => s.isUnlocked(ticker))
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["analysis", ticker],
     queryFn: () => getAnalysis(ticker),
@@ -267,6 +275,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     const msg = (error as { message?: string })?.message ?? ""
     const is429 = msg.includes("Daily analysis limit reached")
     const is404 = msg.includes("Ticker not found")
+    // Race-condition guard: if the user just completed a PAYG unlock,
+    // paygStore may flip to unlocked before the next queryClient
+    // invalidate completes. Render a skeleton instead of flashing the
+    // "Unlock ₹99" CTA again. Once the refetch returns with the unlocked
+    // payload, this whole branch unrenders naturally.
+    if (is429 && isPaygUnlockedForTicker) {
+      return <LoadingSteps />
+    }
     const backendNote = (error as {
       response?: { data?: { detail?: { note?: string } | string } }
     })?.response?.data?.detail
