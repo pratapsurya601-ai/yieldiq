@@ -293,6 +293,45 @@ def _known_indian_bare() -> frozenset[str]:
     return _KNOWN_INDIAN_BARE
 
 
+def _fetch_current_assets(ticker: str) -> float | None:
+    """Latest current_assets (Crores) from company_financials. None on
+    miss — callers should fall back to enriched if needed, though note
+    unit mismatch: DB is Crores, enriched is raw INR.
+
+    Paired with _fetch_roce_inputs's current_liabilities: use both from
+    DB so the current_ratio numerator and denominator share units."""
+    db = _get_pipeline_session()
+    if db is None:
+        return None
+    try:
+        from sqlalchemy import text
+        db_ticker = ticker.replace(".NS", "").replace(".BO", "")
+        row = db.execute(text("""
+            SELECT current_assets
+            FROM company_financials
+            WHERE ticker_nse = :t
+              AND statement_type = 'balance_sheet'
+              AND period_type = 'annual'
+              AND period_end_date IS NOT NULL
+            ORDER BY period_end_date DESC
+            LIMIT 1
+        """), {"t": db_ticker}).mappings().first()
+        if row is None:
+            return None
+        val = row.get("current_assets")
+        try:
+            return float(val) if val is not None else None
+        except (TypeError, ValueError):
+            return None
+    except Exception:
+        return None
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
 def _canonicalize_ticker(ticker: str) -> str:
     """Normalize bare Indian tickers to their .NS form.
 
@@ -2545,10 +2584,16 @@ class AnalysisService:
             compute_revenue_cagr as _rcagr,
         )
 
-        _current_ratio = _cr(
-            enriched.get("current_assets"),
-            enriched.get("current_liabilities"),
-        )
+        # FIX-CURRENT-RATIO-UNIT (2026-04-22): same pattern as ROCE.
+        # enriched.current_assets is in raw INR (trillions), DB
+        # current_liabilities is in Crores. Mixing them produces either
+        # None (when enriched.cl is missing — common) or a nonsense
+        # ratio. Prefer DB values for both inputs when available so the
+        # ratio stays unit-consistent.
+        _ca_db = _fetch_current_assets(ticker)
+        _ca_for_ratio = _ca_db if _ca_db is not None else enriched.get("current_assets")
+        _cl_for_ratio = _cl_db if _cl_db is not None else enriched.get("current_liabilities")
+        _current_ratio = _cr(_ca_for_ratio, _cl_for_ratio)
         _asset_turnover = _at(
             enriched.get("latest_revenue") or enriched.get("revenue"),
             _total_assets,
