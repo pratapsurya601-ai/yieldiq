@@ -172,19 +172,21 @@ export default function Signature({
         }}
       />
 
-      {/* Axis labels — polar placement just outside the outer ring. */}
+      {/* Axis labels — polar placement just outside the outer ring.
+          Bumped to fontSize 12 + ink-color for first-time-user readability
+          (audit feedback: caption-grey labels were hard to scan). */}
       <g
         style={{
-          fill: "var(--color-caption)",
-          fontSize: 10.5,
+          fill: "var(--color-ink)",
+          fontSize: 12,
           fontWeight: 700,
-          letterSpacing: "0.1em",
+          letterSpacing: "0.12em",
           fontFamily:
             "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
         }}
       >
         {ordered.map((p, i) => {
-          const [x, y] = signatureVertex(cx, cy, maxRadius + 20, i)
+          const [x, y] = signatureVertex(cx, cy, maxRadius + 22, i)
           return (
             <text
               key={p.key}
@@ -323,6 +325,25 @@ export default function Signature({
           }}
         >
           / 10
+        </text>
+        {/* Tiny verdict-band hint under the score so first-time
+            visitors immediately know what 6.3 means without scrolling. */}
+        <text
+          x={cx}
+          y={cy + Math.round(size * 0.18)}
+          textAnchor="middle"
+          dominantBaseline="central"
+          style={{
+            fill: "var(--color-caption)",
+            fontSize: Math.round(size * 0.035),
+            fontWeight: 700,
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            fontFamily:
+              "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
+          }}
+        >
+          composite
         </text>
       </g>
 
