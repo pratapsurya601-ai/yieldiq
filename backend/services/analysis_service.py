@@ -313,6 +313,67 @@ def _compute_roe_fallback(enriched: dict):
     return None
 
 
+# 2-hour in-memory cache for the yfinance statement-based ROE so we
+# don't re-pull financials on every analysis request for the same ticker.
+_YF_ROE_CACHE: dict[str, tuple[float, float | None]] = {}
+
+
+def _yf_compute_roe_from_statements(ticker: str) -> float | None:
+    """Compute ROE = NetIncome / avgStockholdersEquity from yfinance's
+    financials + balance_sheet dataframes.
+
+    Used as a 2nd-tier fallback when ``.info.returnOnEquity`` is None
+    (common for SBIN, KOTAKBANK, HINDUNILVR, BAJFINANCE etc.).
+
+    Returns ROE as a decimal (0.17 for 17%) or None on any failure.
+    Cached for 2 hours per ticker.
+    """
+    import time as _t
+    now = _t.time()
+    cached = _YF_ROE_CACHE.get(ticker)
+    if cached and (now - cached[0]) < 7200:
+        return cached[1]
+    try:
+        import yfinance as yf
+        sym = ticker if (ticker.endswith(".NS") or ticker.endswith(".BO")) else f"{ticker}.NS"
+        t = yf.Ticker(sym)
+        fin = t.financials
+        bs = t.balance_sheet
+        if fin is None or bs is None or fin.empty or bs.empty:
+            _YF_ROE_CACHE[ticker] = (now, None)
+            return None
+        ni_rows = ("Net Income", "Net Income Common Stockholders", "Net Income From Continuing Operation Net Minority Interest")
+        ni = None
+        for r in ni_rows:
+            if r in fin.index:
+                col = fin.columns[0]
+                v = fin.loc[r, col]
+                if v is not None and not (isinstance(v, float) and (v != v)):
+                    ni = float(v)
+                    break
+        eq = None
+        eq_rows = ("Stockholders Equity", "Total Stockholder Equity", "Common Stock Equity")
+        for r in eq_rows:
+            if r in bs.index:
+                eq_vals = bs.loc[r, bs.columns[:2]].dropna()
+                if len(eq_vals) >= 1:
+                    eq = float(eq_vals.mean())
+                    break
+        if ni is None or eq is None or eq <= 0:
+            _YF_ROE_CACHE[ticker] = (now, None)
+            return None
+        roe = ni / eq
+        # Sanity: -200%..200%; otherwise it's almost certainly a unit error
+        if not (-2.0 <= roe <= 2.0):
+            _YF_ROE_CACHE[ticker] = (now, None)
+            return None
+        _YF_ROE_CACHE[ticker] = (now, roe)
+        return roe
+    except Exception:
+        _YF_ROE_CACHE[ticker] = (now, None)
+        return None
+
+
 def _resolve_sector(raw_sector: str, clean_ticker: str = "") -> str:
     """Map raw yfinance/screener sector names to cleaner display names.
 
@@ -1560,7 +1621,18 @@ class AnalysisService:
                     # merger went from 17% to 7.8% on paper because equity
                     # base inflated 2.5x overnight). yfinance uses TTM PAT /
                     # avg equity which absorbs the structural shift correctly.
-                    "roe": raw.get("returnOnEquity") or enriched.get("roe"),
+                    #
+                    # Fallback chain (2026-04-21 expansion):
+                    # 1. raw.returnOnEquity (yfinance .info — best when present)
+                    # 2. _yf_compute_roe_from_statements — manual NI/avgEq from
+                    #    yfinance financials + balance_sheet. Catches SBIN,
+                    #    KOTAKBANK, HINDUNILVR where .info returns None.
+                    # 3. enriched.roe (our PAT/total_equity from filings)
+                    "roe": (
+                        raw.get("returnOnEquity")
+                        or _yf_compute_roe_from_statements(ticker)
+                        or enriched.get("roe")
+                    ),
                     "returnOnEquity": raw.get("returnOnEquity"),
                     "shares": enriched.get("shares") or raw.get("shares", 0),
                 }
