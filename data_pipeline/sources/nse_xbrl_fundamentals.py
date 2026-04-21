@@ -286,16 +286,6 @@ def parse_nse_xbrl(xml_bytes: bytes, ticker: str, period_end: date,
     cfo = _pick_value(facts, contexts, _FIELD_TAGS["cfo"], period_end)
     capex = _pick_value(facts, contexts, _FIELD_TAGS["capex"], period_end)
 
-    # XBRL values are in INR. Our DB stores in Crores (1 Cr = 1e7 INR).
-    # Most NSE XBRLs file in actual INR; some file in Rs Crore already.
-    # Heuristic: if revenue > 1e7 × 100 (i.e. >100 Cr in raw INR), scale down.
-    def _to_cr(x):
-        if x is None:
-            return None
-        if abs(x) > 1e9:  # > 100 Cr in raw INR
-            return x / 1e7
-        return x
-
     # EBITDA proxy: PBT + depreciation + finance cost
     finance_cost = _pick_value(facts, contexts, _FIELD_TAGS["finance_cost"], period_end)
     ebitda = None
@@ -307,19 +297,63 @@ def parse_nse_xbrl(xml_bytes: bytes, ticker: str, period_end: date,
             parts.append(finance_cost)
         ebitda = sum(parts)
 
+    # Unit normalisation — per-filing, not per-field.
+    #
+    # Indian XBRL filings publish numbers in one of three unit scales:
+    #   1. Absolute rupees (raw INR)      → typical revenue 1e11-1e14
+    #   2. Lakhs (x 10^5)                 → typical revenue 1e4-1e7
+    #   3. Crores (x 10^7, our DB unit)   → typical revenue 10-5e5
+    #
+    # The previous per-field heuristic compared each value against 1e9
+    # independently — fine for large caps, catastrophic for small caps
+    # where PAT is below the threshold while equity is already in Cr.
+    # Example (HONDAPOWER seen in prod logs):
+    #   pat = 158_000_000 (raw rupees, = 15.8 Cr)
+    #   total_equity = 812.11 (already in Cr)
+    #   per-field heuristic: both below 1e9, both left as-is
+    #   → stored as pat=158M Cr, equity=812 Cr, ROE=(158M/812)*100
+    #     = 19,455,549% — pure corruption.
+    #
+    # Fix: pick ONE scale per filing based on revenue magnitude (the
+    # most reliable anchor — always the largest non-derivative number
+    # in an income statement) and apply it uniformly to every field.
+    # PAT, equity, cash, debt etc. all come from the SAME XBRL file,
+    # so they share the filing's unit choice.
+    if revenue is not None and revenue > 0:
+        abs_rev = abs(revenue)
+        if abs_rev > 1e11:           # raw rupees (e.g. Reliance ₹9L cr = 9e12)
+            scale = 1e7
+        elif abs_rev > 1e8:          # also raw rupees, smaller company
+            scale = 1e7
+        elif abs_rev > 1e4:          # lakhs (10^5 each = Cr when /100)
+            scale = 1e2
+        else:                        # already crores
+            scale = 1.0
+    else:
+        # No revenue anchor — use a conservative field-by-field check
+        # only on the flow-of-funds fields. Safer to null-out than guess.
+        scale = None
+
+    def _scale(x):
+        if x is None:
+            return None
+        if scale is None:
+            return None  # can't trust without an anchor
+        return x / scale
+
     return {
         "ticker": ticker,
         "period_end": period_end,
         "period_type": period_type,
-        "revenue": _to_cr(revenue),
-        "pat": _to_cr(pat),
-        "ebitda": _to_cr(ebitda),
-        "cfo": _to_cr(cfo),
-        "capex": _to_cr(capex),
-        "total_debt": _to_cr(total_debt),
-        "total_equity": _to_cr(total_equity),
-        "cash": _to_cr(cash),
-        "eps_diluted": eps,  # already per-share rupees
+        "revenue": _scale(revenue),
+        "pat": _scale(pat),
+        "ebitda": _scale(ebitda),
+        "cfo": _scale(cfo),
+        "capex": _scale(capex),
+        "total_debt": _scale(total_debt),
+        "total_equity": _scale(total_equity),
+        "cash": _scale(cash),
+        "eps_diluted": eps,  # per-share rupees, not scaled
         "source": "NSE_XBRL",
     }
 

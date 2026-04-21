@@ -424,7 +424,19 @@ def fetch_historical_financials(scrip_code: str, ticker: str) -> list[dict]:
 
 def store_financials(financial_data: dict, db: Session,
                      period_end: date, period_type: str = "annual") -> bool:
-    """Store financial data into financials table."""
+    """Upsert one period of financials.
+
+    On conflict on uq_financials_period (ticker, period_end, period_type)
+    we UPDATE the existing row — prior callers used db.merge() which
+    keys on primary key, not the unique constraint, so re-runs collided
+    with UniqueViolation and rolled back.
+
+    Also applies a ROE sanity guard: if computed ROE is outside
+    ±200% it's almost certainly a unit-scale mismatch between pat and
+    equity (historically happened with mixed raw-rupees + crores from
+    NSE XBRL). Better to store NULL than garbage — downstream services
+    can refetch from .info/yfinance if NULL.
+    """
     try:
         ticker = financial_data["ticker"]
 
@@ -435,26 +447,66 @@ def store_financials(financial_data: dict, db: Session,
         fcf = (cfo - abs(capex)) if cfo and capex else None
         equity = financial_data.get("total_equity")
 
-        record = Financials(
-            ticker=ticker,
-            period_end=period_end,
-            period_type=period_type,
-            revenue=revenue,
-            pat=pat,
-            cfo=cfo,
-            capex=capex,
-            free_cash_flow=fcf,
-            eps_diluted=financial_data.get("eps_diluted"),
-            total_debt=financial_data.get("total_debt"),
-            cash_and_equivalents=financial_data.get("cash"),
-            total_equity=equity,
-            roe=(_safe_div(pat, equity) * 100) if pat and equity else None,
-            data_source=financial_data.get("source", "BSE_API"),
-            raw_data=financial_data.get("raw"),
-            currency=_detect_currency(ticker, financial_data),
-        )
+        # Sanity guard on ROE — cap extremes instead of writing garbage.
+        roe = None
+        if pat and equity:
+            raw_roe = _safe_div(pat, equity) * 100
+            if raw_roe is not None and -200 <= raw_roe <= 200:
+                roe = raw_roe
+            else:
+                logger.warning(
+                    "store_financials: dropping implausible roe=%.1f for "
+                    "%s %s (pat=%s equity=%s — likely unit mismatch)",
+                    raw_roe, ticker, period_end, pat, equity,
+                )
 
-        db.merge(record)
+        from sqlalchemy import text as _text
+        stmt = _text("""
+            INSERT INTO financials (
+                ticker, period_end, period_type,
+                revenue, pat, cfo, capex, free_cash_flow,
+                eps_diluted, total_debt, cash_and_equivalents,
+                total_equity, roe, data_source, raw_data, currency
+            ) VALUES (
+                :ticker, :period_end, :period_type,
+                :revenue, :pat, :cfo, :capex, :fcf,
+                :eps, :debt, :cash,
+                :equity, :roe, :source, :raw, :currency
+            )
+            ON CONFLICT ON CONSTRAINT uq_financials_period
+            DO UPDATE SET
+                revenue = EXCLUDED.revenue,
+                pat = EXCLUDED.pat,
+                cfo = EXCLUDED.cfo,
+                capex = EXCLUDED.capex,
+                free_cash_flow = EXCLUDED.free_cash_flow,
+                eps_diluted = EXCLUDED.eps_diluted,
+                total_debt = EXCLUDED.total_debt,
+                cash_and_equivalents = EXCLUDED.cash_and_equivalents,
+                total_equity = EXCLUDED.total_equity,
+                roe = EXCLUDED.roe,
+                data_source = EXCLUDED.data_source,
+                raw_data = EXCLUDED.raw_data,
+                currency = EXCLUDED.currency
+        """)
+        db.execute(stmt, {
+            "ticker": ticker,
+            "period_end": period_end,
+            "period_type": period_type,
+            "revenue": revenue,
+            "pat": pat,
+            "cfo": cfo,
+            "capex": capex,
+            "fcf": fcf,
+            "eps": financial_data.get("eps_diluted"),
+            "debt": financial_data.get("total_debt"),
+            "cash": financial_data.get("cash"),
+            "equity": equity,
+            "roe": roe,
+            "source": financial_data.get("source", "BSE_API"),
+            "raw": financial_data.get("raw"),
+            "currency": _detect_currency(ticker, financial_data),
+        })
         db.commit()
         return True
 
