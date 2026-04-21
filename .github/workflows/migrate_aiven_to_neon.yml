@@ -98,15 +98,17 @@ jobs:
       - name: Restore to Neon
         if: ${{ github.event.inputs.dry_run != 'true' }}
         run: |
-          # pg_restore custom-format dump. -j for parallel workers on
-          # Neon (compute units are generous; 4 workers is fine).
-          # --no-owner --no-acl again so Neon's default role applies.
-          pg_restore "$DST_NORM" \
+          # pg_restore custom-format dump. NOTE: pg_restore takes the
+          # target via -d flag (unlike pg_dump/psql which accept the URI
+          # positionally). -j for parallel workers; Neon is generous.
+          # --no-owner --no-acl so Neon's default role applies.
+          pg_restore -d "$DST_NORM" \
             --no-owner --no-acl \
             -j 4 \
             /tmp/yieldiq.dump || true
           # pg_restore exits non-zero on harmless warnings (e.g. extensions
-          # already present). We verify by row counts below, not exit code.
+          # already present). We verify via the row-count diff below, not
+          # the exit code, so `|| true` is deliberate.
 
       - name: Post-restore — target row counts
         if: ${{ github.event.inputs.dry_run != 'true' }}
@@ -134,7 +136,12 @@ jobs:
             echo '```diff' >> "$GITHUB_STEP_SUMMARY"
             cat /tmp/diff.out >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
-            echo "::warning::Row counts differ — inspect the diff above before cutover."
+            # Fail the step on mismatch — ::warning:: doesn't fail the
+            # workflow, so earlier runs reported "success" even when the
+            # restore produced zero rows. Treat ANY row-count diff as a
+            # hard failure so cutover only happens on a verified copy.
+            echo "::error::Row counts differ between Aiven and Neon — see diff in run summary."
+            exit 1
           fi
 
       - name: Report Neon DB size
