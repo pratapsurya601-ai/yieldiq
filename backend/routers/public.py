@@ -29,7 +29,10 @@ router = APIRouter(prefix="/api/v1/public", tags=["public"])
 # ─────────────────────────────────────────────────────────────────
 @router.get("/roce-probe/{ticker}")
 async def roce_probe(ticker: str):
-    """Returns the raw output of _fetch_roce_inputs for a ticker."""
+    """Returns the raw output of _fetch_roce_inputs for a ticker,
+    PLUS the enriched-dict values that get mixed in downstream.
+    This way we can see exactly why _compute_roce in the main flow
+    yields a different answer than the probe."""
     import traceback
     from backend.services.analysis_service import (
         _fetch_roce_inputs, _get_pipeline_session,
@@ -49,6 +52,25 @@ async def roce_probe(ticker: str):
             "session_error": f"{type(exc).__name__}: {exc}",
         }
 
+    # Pull the same `enriched` dict the analysis pipeline uses, so we
+    # can see whether its total_assets / current_liabilities values
+    # (which take priority over _ta_db / _cl_db in get_full_analysis)
+    # are poisoning the ROCE compute with a wrong unit or stale value.
+    enriched_probe = {}
+    try:
+        from data.collector import get_all as _data_get_all
+        raw = _data_get_all(ticker) or {}
+        enriched_probe = {
+            "total_assets": raw.get("total_assets"),
+            "current_liabilities": raw.get("current_liabilities"),
+            "total_debt": raw.get("total_debt"),
+            "ebitda": raw.get("ebitda"),
+            "roe": raw.get("roe"),
+            "roce": raw.get("roce"),
+        }
+    except Exception as exc:
+        enriched_probe = {"error": f"{type(exc).__name__}: {exc}"}
+
     try:
         ebit, ta, cl, interest = _fetch_roce_inputs(ticker)
         denom = None
@@ -57,15 +79,31 @@ async def roce_probe(ticker: str):
             denom = ta - cl
             if ebit is not None and denom and denom > 0:
                 roce_pct = round(ebit / denom * 100, 2)
+
+        # Now simulate what get_full_analysis actually computes:
+        # _total_assets = enriched.total_assets OR _ta_db OR 0
+        # _current_liab = enriched.current_liabilities OR _cl_db OR 0
+        _ta_final = enriched_probe.get("total_assets") or ta or 0
+        _cl_final = enriched_probe.get("current_liabilities") or cl or 0
+        from backend.services.ratios_service import compute_roce as _c_roce
+        _roce_as_main_flow = _c_roce(ebit, _ta_final, _cl_final)
+
         return {
             "ticker": ticker,
             "session_ok": session_ok,
-            "ebit": ebit,
-            "total_assets": ta,
-            "current_liabilities": cl,
-            "capital_employed": denom,
-            "interest_expense": interest,
-            "roce_pct_computed": roce_pct,
+            # From _fetch_roce_inputs (DB values in Crores)
+            "db_ebit": ebit,
+            "db_total_assets": ta,
+            "db_current_liabilities": cl,
+            "db_interest_expense": interest,
+            "db_capital_employed": denom,
+            "db_roce_pct": roce_pct,
+            # From data.collector / yfinance (units may differ!)
+            "enriched": enriched_probe,
+            # What the main flow actually computes (mixing both)
+            "main_flow_ta_used": _ta_final,
+            "main_flow_cl_used": _cl_final,
+            "main_flow_roce_pct": _roce_as_main_flow,
         }
     except Exception as exc:
         return {
