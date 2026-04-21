@@ -384,16 +384,32 @@ def get_risk_stats(
         if df is None or len(df) < 30:
             return None
 
+        import numpy as np
+
+        # Root-cause guard (Sentry PYTHON-FASTAPI-6V):
+        # Recently-listed / illiquid tickers occasionally have zero or
+        # negative closes in the Parquet archive (corporate-action glitches
+        # or pre-listing placeholder rows). np.log(0) returns -inf, which
+        # then propagates NaN through every downstream metric (vol,
+        # max_drawdown, sharpe_proxy) and blows up the FastAPI JSON encoder
+        # via `allow_nan=False`. Filter non-positive closes up front.
         closes = df["close"].astype(float).values
+        finite_mask = np.isfinite(closes) & (closes > 0)
+        if not finite_mask.all():
+            closes = closes[finite_mask]
+            df = df.loc[finite_mask].reset_index(drop=True)
+        if len(closes) < 30:
+            return None
 
         # Daily log returns
-        import numpy as np
         log_returns = np.diff(np.log(closes))
-        if len(log_returns) == 0:
+        if len(log_returns) < 2:
+            # ddof=1 std needs at least 2 samples; single-sample → NaN.
             return None
 
         # Annualised volatility (assume 252 trading days/year)
-        vol = float(np.std(log_returns, ddof=1) * math.sqrt(252))
+        vol_raw = float(np.std(log_returns, ddof=1) * math.sqrt(252))
+        vol = vol_raw if math.isfinite(vol_raw) else 0.0
 
         # Max drawdown calculation
         running_max = np.maximum.accumulate(closes)
@@ -413,8 +429,13 @@ def get_risk_stats(
                 recovery_days = j - max_dd_idx
                 break
 
-        # Current drawdown
-        current_dd = float((closes[-1] - running_max[-1]) / running_max[-1])
+        # Current drawdown (guard against zero running_max, which would NaN
+        # the serializer; finite_mask above makes this mostly theoretical).
+        current_dd = (
+            float((closes[-1] - running_max[-1]) / running_max[-1])
+            if running_max[-1] > 0
+            else 0.0
+        )
 
         # 52-week high/low
         if len(closes) >= 252:
@@ -428,7 +449,11 @@ def get_risk_stats(
         def _return_over(days_back: int) -> float | None:
             if len(closes) < days_back + 1:
                 return None
-            return float((closes[-1] - closes[-days_back - 1]) / closes[-days_back - 1] * 100)
+            base = closes[-days_back - 1]
+            if base <= 0:  # avoid inf / NaN from zero-denominator
+                return None
+            val = float((closes[-1] - base) / base * 100)
+            return val if math.isfinite(val) else None
 
         ret_1m = _return_over(21)
         ret_3m = _return_over(63)
@@ -436,10 +461,17 @@ def get_risk_stats(
         ret_3y = _return_over(252 * 3)
 
         # Simple return/vol ratio (not true Sharpe — no risk-free sub)
-        total_return = float((closes[-1] - closes[0]) / closes[0])
+        if closes[0] > 0:
+            total_return = float((closes[-1] - closes[0]) / closes[0])
+        else:
+            total_return = 0.0
         n_years = max(len(closes) / 252.0, 0.1)
-        annualized_return = (1 + total_return) ** (1 / n_years) - 1 if total_return > -1 else -1
-        sharpe_proxy = float(annualized_return / vol) if vol > 0 else 0
+        annualized_return = (1 + total_return) ** (1 / n_years) - 1 if total_return > -1 else -1.0
+        if not math.isfinite(annualized_return):
+            annualized_return = 0.0
+        sharpe_proxy = float(annualized_return / vol) if vol > 0 else 0.0
+        if not math.isfinite(sharpe_proxy):
+            sharpe_proxy = 0.0
 
         # Beta calculation vs benchmark
         beta = None
@@ -453,16 +485,27 @@ def get_risk_stats(
                     ORDER BY date ASC
                 """).df()
                 if bench_df is not None and len(bench_df) >= 30:
-                    # Align on dates
+                    # Align on dates; filter non-positive closes on both sides
                     merged = df.merge(bench_df, on="date", suffixes=("_s", "_b"))
                     if len(merged) >= 30:
-                        s_ret = np.diff(np.log(merged["close_s"].astype(float).values))
-                        b_ret = np.diff(np.log(merged["close_b"].astype(float).values))
-                        if np.std(b_ret) > 0:
-                            cov = np.cov(s_ret, b_ret, ddof=1)[0, 1]
-                            var_b = np.var(b_ret, ddof=1)
-                            if var_b > 0:
-                                beta = float(cov / var_b)
+                        s_close = merged["close_s"].astype(float).values
+                        b_close = merged["close_b"].astype(float).values
+                        mmask = (
+                            np.isfinite(s_close) & (s_close > 0) &
+                            np.isfinite(b_close) & (b_close > 0)
+                        )
+                        if mmask.sum() >= 30:
+                            s_close = s_close[mmask]
+                            b_close = b_close[mmask]
+                            s_ret = np.diff(np.log(s_close))
+                            b_ret = np.diff(np.log(b_close))
+                            if len(b_ret) >= 2 and np.std(b_ret) > 0:
+                                cov = np.cov(s_ret, b_ret, ddof=1)[0, 1]
+                                var_b = np.var(b_ret, ddof=1)
+                                if var_b > 0:
+                                    beta_raw = float(cov / var_b)
+                                    if math.isfinite(beta_raw):
+                                        beta = beta_raw
         except Exception:
             pass
 
