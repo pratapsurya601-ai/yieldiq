@@ -232,31 +232,32 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
           )}
         </Card>
 
-        <Card title="Gold (Comex)">
-          {pulse.gold_usd && pulse.usd_inr ? (
+        {/* HIDDEN 2026-04-21: Comex futures USD x USD/INR derived
+            value drifts ~8-15% from Indian retail spot (import duty
+            + GST premium). Showing the wrong INR price hurts trust
+            more than missing the card hurts experience. Bring back
+            once we wire MCX or IBJA daily reference rate. */}
+        {false && pulse.gold_usd && pulse.usd_inr ? (
+          <Card title="Gold (Comex)">
             <>
               <p className="text-lg font-bold text-ink tabular-nums">
                 ${pulse.gold_usd.toFixed(0)}
               </p>
               <p className="text-[10px] text-caption">/oz \u00b7 futures</p>
             </>
-          ) : (
-            <Dash />
-          )}
-        </Card>
+          </Card>
+        ) : null}
 
-        <Card title="Silver (Comex)">
-          {pulse.silver_usd && pulse.usd_inr ? (
+        {false && pulse.silver_usd && pulse.usd_inr ? (
+          <Card title="Silver (Comex)">
             <>
               <p className="text-lg font-bold text-ink tabular-nums">
                 ${pulse.silver_usd.toFixed(2)}
               </p>
               <p className="text-[10px] text-caption">/oz \u00b7 futures</p>
             </>
-          ) : (
-            <Dash />
-          )}
-        </Card>
+          </Card>
+        ) : null}
       </div>
 
       {/* AI summary — only when populated */}
