@@ -1184,8 +1184,16 @@ def _fetch_roce_inputs(
     Returns all-Nones if no annual data is available. Any individual
     field may still be None — callers decide how to degrade.
     """
+    import logging as _l_top
+    _roce_log = _l_top.getLogger("yieldiq.analysis")
+    _roce_log.info("roce inputs: called for %s", ticker)
     db = _get_pipeline_session()
     if db is None:
+        _roce_log.warning(
+            "roce inputs: BAILING for %s — _get_pipeline_session returned None "
+            "(DB in cooldown, URL unset, or engine init failed)",
+            ticker,
+        )
         return None, None, None, None
     try:
         from sqlalchemy import text
