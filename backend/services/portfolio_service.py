@@ -418,14 +418,27 @@ def _fetch_yfinance_price(ticker: str) -> float | None:
     # Strip Zerodha hyphen suffixes (e.g. "PREMCO-X" -> "PREMCO")
     # Common suffixes: -X (BSE), -EQ, -BE, -BL, -BT, -BZ
     base_no_suffix = base
+    has_bse_only_suffix = False
     for suffix in ("-X", "-EQ", "-BE", "-BL", "-BT", "-BZ"):
         if base.upper().endswith(suffix):
             base_no_suffix = base[: -len(suffix)]
+            # -X and -E are BSE-exclusive trading groups (illiquid /
+            # exclusive). -EQ/-BE/-BL/-BT/-BZ are also BSE trading-
+            # group suffixes. None of these exist on NSE, so skip the
+            # `.NS` variant for the full suffixed form — trying it
+            # always 404s on yfinance and spams Sentry (208+ events/
+            # day on $PREMCO-X.NS, $TATAGOLD-E.NS pre-fix).
+            has_bse_only_suffix = True
             break
 
-    # Build candidates in priority order
+    # Build candidates in priority order. When the base has a BSE-only
+    # hyphen suffix, omit the `.NS` variant of the full suffixed form —
+    # but still try the stripped form on both exchanges (the base
+    # symbol may genuinely trade on NSE too).
     if ticker.endswith(".BO"):
-        candidates = [f"{base}.BO", f"{base}.NS"]
+        candidates = [f"{base}.BO"]
+        if not has_bse_only_suffix:
+            candidates.append(f"{base}.NS")
         if base_no_suffix != base:
             candidates += [f"{base_no_suffix}.BO", f"{base_no_suffix}.NS"]
     elif ticker.endswith(".NS"):
@@ -434,6 +447,9 @@ def _fetch_yfinance_price(ticker: str) -> float | None:
             candidates += [f"{base_no_suffix}.NS", f"{base_no_suffix}.BO"]
     else:
         candidates = [f"{base}.NS", f"{base}.BO"]
+        if has_bse_only_suffix:
+            # Drop the invalid `{base}.NS` that was just added above
+            candidates = [c for c in candidates if c != f"{base}.NS"]
         if base_no_suffix != base:
             candidates += [f"{base_no_suffix}.NS", f"{base_no_suffix}.BO"]
 
