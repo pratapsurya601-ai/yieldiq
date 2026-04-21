@@ -243,3 +243,57 @@ def send_newsletter_to_all() -> int:
 
     logger.info(f"Newsletter complete: {count}/{len(emails)} sent")
     return count
+
+
+# ═══════════════════════════════════════════════════════════════
+# WEEKLY FOUNDER PICK — single-pick, founder-authored
+# Used by `scripts/send_newsletter.py`. Body HTML is rendered up
+# front from a Markdown post; this layer just resolves recipients
+# and rate-limits the SendGrid calls.
+# ═══════════════════════════════════════════════════════════════
+
+
+def send_weekly_pick_to(
+    email: str,
+    *,
+    subject: str,
+    html: str,
+) -> bool:
+    """Send a pre-rendered weekly-pick HTML email to one address.
+
+    Centralizes the unsubscribe gate so callers (CLI script, Admin
+    trigger) don't each re-implement it.
+    """
+    if is_user_unsubscribed(email):
+        logger.debug("skipping unsubscribed recipient")
+        return False
+    return _send_email(email, subject, html)
+
+
+def get_weekly_pick_recipients() -> list[str]:
+    """Subscriber list for the founder weekly pick.
+
+    Source-of-truth assumption: `users_meta.email_opted_out` flag in
+    Supabase. Anyone with `email_opted_out=false` (or NULL) and a
+    non-empty email is on the list. The CLI script can also accept
+    a CSV path via `--list-csv` to override this for one-off sends
+    or pre-launch / waitlist beta blasts.
+    """
+    try:
+        from db.supabase_client import get_admin_client
+        client = get_admin_client()
+        if not client:
+            return []
+        result = (
+            client.table("users_meta")
+            .select("email")
+            .or_("email_opted_out.is.null,email_opted_out.eq.false")
+            .execute()
+        )
+        return [
+            r["email"] for r in (result.data or [])
+            if r.get("email")
+        ]
+    except Exception as e:
+        logger.warning("weekly-pick recipients fetch failed: %s", e)
+        return []
