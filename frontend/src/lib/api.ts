@@ -495,6 +495,72 @@ export const getStockSummary = async (
   }
 }
 
+// ---------------------------------------------------------------------------
+// PAYG (Pay-as-you-go) — ₹99 for 24h access to a single analysis.
+// Backend: POST /create-order → Razorpay modal → POST /verify → ticker unlocked.
+// Unlock state lives in Postgres; /payg-unlocks returns only unlocks within
+// the last 24h (backend filters).
+// ---------------------------------------------------------------------------
+
+export interface PaygCreateOrderResponse {
+  order_id: string
+  amount: number          // paise — 9900 = ₹99
+  currency: string        // "INR"
+  key_id: string          // Razorpay public key
+  plan: string            // "single_analysis"
+  ticker: string
+  name: string
+  description: string
+}
+
+export interface PaygVerifyResponse {
+  ok: boolean
+  unlock: { ticker: string; hours: number }
+  message: string
+}
+
+export interface PaygUnlock {
+  ticker: string
+  unlocked_at: string     // ISO timestamp
+  razorpay_payment_id: string
+}
+
+export interface PaygUnlocksResponse {
+  unlocks: PaygUnlock[]
+}
+
+export const createPaygOrder = (
+  ticker: string,
+  planId: string = "single_analysis",
+): Promise<PaygCreateOrderResponse> =>
+  api
+    .post("/api/v1/payments/create-order", null, {
+      params: { plan_id: planId, ticker },
+    })
+    .then((r) => r.data)
+
+export const verifyPaygPayment = (args: {
+  razorpay_order_id: string
+  razorpay_payment_id: string
+  razorpay_signature: string
+  ticker: string
+  planId?: string
+}): Promise<PaygVerifyResponse> =>
+  api
+    .post("/api/v1/payments/verify", null, {
+      params: {
+        razorpay_order_id: args.razorpay_order_id,
+        razorpay_payment_id: args.razorpay_payment_id,
+        razorpay_signature: args.razorpay_signature,
+        plan_id: args.planId ?? "single_analysis",
+        ticker: args.ticker,
+      },
+    })
+    .then((r) => r.data)
+
+export const listPaygUnlocks = (): Promise<PaygUnlocksResponse> =>
+  api.get("/api/v1/payments/payg-unlocks").then((r) => r.data)
+
 // Auth
 export const login = (email: string, password: string): Promise<TokenResponse> =>
   api.post("/api/v1/auth/login", { email, password }).then(r => r.data)

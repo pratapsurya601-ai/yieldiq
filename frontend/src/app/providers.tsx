@@ -2,6 +2,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { useState, useEffect } from "react"
 import InstallPrompt from "@/components/InstallPrompt"
+import PaygHydrator from "@/components/payg/PaygHydrator"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -26,6 +27,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      {/* Seeds usePaygStore from /payg-unlocks whenever the user is
+          authed. Renders nothing; kept inside QueryClientProvider so it
+          can piggy-back on react-query's retry / caching. */}
+      <PaygHydrator />
       {children}
       <InstallPrompt />
     </QueryClientProvider>
