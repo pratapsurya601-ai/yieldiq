@@ -136,8 +136,14 @@ export default function Prism({
       className={className}
       style={{
         position: "relative",
-        width: size,
-        height: size,
+        // Responsive: take up to `size` pixels but never overflow the
+        // parent. On narrow viewports (<375px) the square naturally
+        // shrinks via width:100% / aspect-ratio. The SVG viewBox keeps
+        // all geometry — including axis labels — scaling uniformly.
+        width: "100%",
+        maxWidth: size,
+        aspectRatio: "1 / 1",
+        height: "auto",
         // CSS custom property carrier for the Pulse breathing animation.
         ["--pulse-hz" as string]: `${(
           1 / Math.max(0.05, data.pulse_velocity_hz)
@@ -145,12 +151,13 @@ export default function Prism({
       }}
     >
       <svg
-        width={size}
-        height={size}
+        width="100%"
+        height="100%"
         viewBox={`0 0 ${size} ${size}`}
+        preserveAspectRatio="xMidYMid meet"
         role="img"
         aria-label={ariaLabel}
-        style={{ overflow: "visible" }}
+        style={{ overflow: "visible", display: "block" }}
       >
         <title>{ariaLabel}</title>
         {/* Cross-fade the two views using `t`. Each view short-circuits when

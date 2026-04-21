@@ -173,12 +173,16 @@ export default function Signature({
       />
 
       {/* Axis labels — polar placement just outside the outer ring.
-          Bumped to fontSize 12 + ink-color for first-time-user readability
-          (audit feedback: caption-grey labels were hard to scan). */}
+          Label font is tied to `size` (SVG viewBox units) so the label
+          stays legible when the SVG is scaled down on mobile: at size=240
+          the label is ~13px, at size=340 it is ~15px. Previously a hard-
+          coded 12 produced sub-10px labels on a 240 viewport scaled to
+          the width of a 375px device. Minimum floor of 12 keeps the
+          text above WCAG small-text threshold. */}
       <g
         style={{
           fill: "var(--color-ink)",
-          fontSize: 12,
+          fontSize: Math.max(12, Math.round(size * 0.045)),
           fontWeight: 700,
           letterSpacing: "0.12em",
           fontFamily:
@@ -272,7 +276,7 @@ export default function Signature({
                 dominantBaseline="central"
                 style={{
                   fill: color,
-                  fontSize: 10.5,
+                  fontSize: Math.max(10, Math.round(size * 0.038)),
                   fontWeight: 800,
                   fontFamily:
                     "var(--font-mono), ui-monospace, SFMono-Regular, monospace",

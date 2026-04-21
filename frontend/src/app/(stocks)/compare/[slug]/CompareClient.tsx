@@ -3,6 +3,7 @@
 import Link from "next/link"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { formatMarketCap } from "@/lib/formatters"
 
 export interface StockData {
   ticker: string
@@ -54,11 +55,9 @@ function fmtPct(n: number | null | undefined): string {
 
 function fmtMarketCap(n: number | null | undefined): string {
   if (n == null || isNaN(n) || n <= 0) return DASH
-  // Backend returns market_cap in INR; show in Cr (1 Cr = 1e7)
-  const cr = n / 1e7
-  if (cr >= 1e5) return `\u20B9${(cr / 1e5).toFixed(1)}L Cr`
-  if (cr >= 1000) return `\u20B9${(cr / 1000).toFixed(1)}K Cr`
-  return `\u20B9${cr.toFixed(0)} Cr`
+  // Backend returns market_cap in INR; canonical formatter expects Cr
+  // (1 Cr = 1e7) and emits "₹x.xx Lakh Cr" for large caps.
+  return formatMarketCap(n / 1e7)
 }
 
 function verdictLabel(v: string): string {

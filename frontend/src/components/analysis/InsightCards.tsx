@@ -54,7 +54,7 @@ function _roceCard(
     return {
       title: "ROCE",
       value: "\u2014",
-      subtitle: "Insufficient data",
+      subtitle: "Awaiting data \u2014 updates weekly",
       color: "text-caption",
       icon: "\u{1f4c8}",
       borderColor: "border-l-border",
@@ -98,7 +98,7 @@ function _debtEbitdaCard(
     return {
       title: "Debt / EBITDA",
       value: "\u2014",
-      subtitle: "Insufficient data",
+      subtitle: "Awaiting data \u2014 updates weekly",
       color: "text-caption",
       icon: "\u2696\ufe0f",
       borderColor: "border-l-border",
@@ -141,7 +141,7 @@ function _interestCoverageCard(
     return {
       title: "Interest Coverage",
       value: "\u2014",
-      subtitle: "Insufficient data",
+      subtitle: "Awaiting data \u2014 updates weekly",
       color: "text-caption",
       icon: "\u{1f6e1}\ufe0f",
       borderColor: "border-l-border",
@@ -274,8 +274,8 @@ export default function InsightCards({ quality, insights, valuation, currency = 
       }
       return {
         title: "Earnings",
-        value: "N/A",
-        subtitle: "No upcoming earnings data",
+        value: "Not scheduled",
+        subtitle: "No confirmed earnings date yet",
         color: "text-body",
         icon: "\u{1f4c5}",
         borderColor: "border-l-border",
@@ -322,7 +322,7 @@ export default function InsightCards({ quality, insights, valuation, currency = 
       title: "Wall Street Target",
       value: insights.wall_street_avg_target !== null && insights.wall_street_avg_target > 0
         ? formatCurrency(insights.wall_street_avg_target, currency)
-        : "N/A",
+        : "No coverage",
       subtitle: insights.wall_street_target_count !== null && insights.wall_street_target_count > 0
         ? `${insights.wall_street_target_count} analyst${insights.wall_street_target_count !== 1 ? "s" : ""}`
         : insights.wall_street_avg_target !== null && insights.wall_street_avg_target > 0

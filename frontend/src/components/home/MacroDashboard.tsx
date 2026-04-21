@@ -13,8 +13,10 @@ interface Props {
 /* ------------------------------------------------------------------ */
 function fmtCr(v: number): string {
   const abs = Math.abs(v)
-  if (abs >= 100_000) return `₹${(abs / 100_000).toFixed(1)}L Cr`
-  if (abs >= 1_000) return `₹${(abs / 1_000).toFixed(1)}K Cr`
+  // Flow values (FII/DII) rarely cross a lakh-cr but spell it out when
+  // they do — matches the "Lakh Cr" convention used across the app.
+  if (abs >= 100_000) return `₹${(abs / 100_000).toFixed(1)} Lakh Cr`
+  if (abs >= 1_000) return `₹${Math.round(abs).toLocaleString("en-IN")} Cr`
   return `₹${abs.toFixed(0)} Cr`
 }
 
