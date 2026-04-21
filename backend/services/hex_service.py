@@ -650,11 +650,38 @@ def _axis_growth(data: dict, sector: str = "general") -> dict:
             data_limited=False,
         )
 
+    # Revenue CAGR — from analysis payload first, financials as fallback.
+    #
+    # FIX (prism-nonbank-regression): previously we only read
+    # `analysis.quality.revenue_cagr_3y|_5y`. For tickers whose cached
+    # analysis payload doesn't carry those fields (stale cache, or
+    # yfinance income_df was too short at compute time) the whole Growth
+    # axis degraded to data_limited=true → UI renders "n/a". TCS.NS
+    # was the canary: analysis_cache.quality had neither CAGR field even
+    # though the financials table has 5+ years of revenue. Fall back to
+    # computing CAGR from the financials series so Growth stays lit
+    # whenever we can derive it from EITHER source.
     rev_cagr = q.get("revenue_cagr_3y")
     if rev_cagr is None:
         rev_cagr = q.get("revenue_cagr_5y")
 
-    # EPS CAGR from financials
+    # Unit normalisation: analysis_service emits CAGR as DECIMAL
+    # (0.124 = 12.4%, see ratios_service.compute_revenue_cagr docstring
+    # and responses.QualityOutput.revenue_cagr_3y). Internally this
+    # function scores in PERCENT units (anchor 10% -> 5.5). Convert
+    # now so the score contribution & the displayed reason both use
+    # the same unit. Values already in percent (>= 1.0) are left alone.
+    if rev_cagr is not None:
+        try:
+            rv = float(rev_cagr)
+            if -1.5 < rv < 1.5:
+                rev_cagr = rv * 100.0
+            else:
+                rev_cagr = rv
+        except (TypeError, ValueError):
+            rev_cagr = None
+
+    # EPS CAGR from financials — already in percent units.
     fins = data.get("financials") or []
     eps_series = [f.get("eps") for f in fins if f.get("eps") is not None]
     eps_cagr = None
@@ -669,6 +696,20 @@ def _axis_growth(data: dict, sector: str = "general") -> dict:
         except Exception:
             eps_cagr = None
 
+    # Revenue CAGR fallback — derive from the financials series (same
+    # source as EPS CAGR above) when analysis payload lacked CAGR.
+    if rev_cagr is None:
+        rev_series = [f.get("revenue") for f in fins if f.get("revenue") is not None]
+        if len(rev_series) >= 3:
+            try:
+                old = float(rev_series[-1])
+                new = float(rev_series[0])
+                years = len(rev_series) - 1
+                if old > 0 and new > 0 and years > 0:
+                    rev_cagr = ((new / old) ** (1.0 / years) - 1.0) * 100.0
+            except Exception:
+                rev_cagr = None
+
     # data_limited triggers ONLY when BOTH revenue CAGR and EPS CAGR
     # are absent. Either one alone is enough to light the axis — many
     # SMEs report only one of the two consistently.
@@ -680,7 +721,7 @@ def _axis_growth(data: dict, sector: str = "general") -> dict:
     if rev_cagr is not None:
         try:
             r = float(rev_cagr)
-            # Anchor 10% -> 5.5; 20% -> 6.5
+            # Anchor 10% -> 5.5; 20% -> 6.5. r is in PERCENT.
             score += r * 0.10
             reasons.append(f"Rev CAGR {r:.1f}%")
         except Exception:
@@ -812,17 +853,20 @@ def _axis_safety(data: dict, sector: str) -> dict:
     # Banks should NOT be scored on D/E / interest coverage / Altman Z —
     # those metrics are designed for non-financial corporates. Tier-1
     # capital ratio, gross NPA% and net NPA% are the right safety proxies
-    # for banks. We branch when our internal sector classifier says "bank"
-    # (which already absorbs raw `sector` containing "Bank" / "Financial
-    # Services" — see `_classify_sector` above) and additionally honour an
-    # explicit `sub_sector` containing "Bank" if a caller provides it.
-    raw_sector_str = str(data.get("sector") or "").lower()
-    raw_subsector_str = str(data.get("sub_sector") or "").lower()
-    is_bank_branch = (
-        sector == "bank"
-        or ("bank" in raw_sector_str)
-        or ("financial services" in raw_sector_str and "bank" in raw_subsector_str)
-    )
+    # for banks.
+    #
+    # FIX (prism-nonbank-regression): previously this branch ALSO matched
+    # any raw sector string containing "bank" or ("financial services"
+    # + sub_sector "bank"). That double-gating could mis-route a non-bank
+    # into the bank Safety branch if `stocks.sector` carried an unusual
+    # string (e.g. "Banking Equipment Manufacturer"). The internal
+    # `_classify_sector` above is the authoritative classifier — it
+    # already consults both the hand-maintained bank/NBFC ticker sets
+    # AND the raw `sector` string via the same "bank/financial services"
+    # heuristics. Trusting its output is both strictly correct and
+    # cheaper — we only fall into the bank Safety branch when the
+    # classifier explicitly returned "bank".
+    is_bank_branch = (sector == "bank")
     if is_bank_branch:
         # Look for bank-specific inputs on the data envelope. These fields
         # are NOT currently populated by the analysis pipeline; if/when
