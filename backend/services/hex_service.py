@@ -621,6 +621,13 @@ def _axis_growth(data: dict, sector: str = "general") -> dict:
     # and swings with the rate cycle). The analysis_service populates
     # `advances_yoy` / `deposits_yoy` / `pat_yoy_bank` via
     # _fetch_bank_metrics_inputs.
+    #
+    # UNIT CONTRACT (verified 2026-04-22): these three fields are all
+    # produced by ratios_service.compute_yoy_growth which returns
+    # PERCENT (12.5 means 12.5%). Do NOT apply the decimal→percent
+    # normalisation that _axis_growth's non-bank path does below —
+    # that would silently 100× the score. The non-bank path uses
+    # compute_revenue_cagr which returns DECIMAL, hence the asymmetry.
     if sector == "bank":
         adv_yoy = q.get("advances_yoy")
         dep_yoy = q.get("deposits_yoy")
@@ -632,6 +639,8 @@ def _axis_growth(data: dict, sector: str = "general") -> dict:
         reasons: list[str] = []
         # Each +10% composite growth ≈ +1.0 axis point.
         # Advances / deposits get equal weight; PAT is quality-of-growth.
+        # Inputs are in PERCENT units (see UNIT CONTRACT above), so
+        # `avg * 0.10` yields the correct score contribution.
         try:
             comps = [float(v) for v in parts]
             avg = sum(comps) / len(comps)
