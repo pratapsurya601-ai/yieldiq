@@ -1554,7 +1554,13 @@ class AnalysisService:
                     "trailingEps": raw.get("trailingEps"),
                     "eps": enriched.get("eps"),
                     "fh_eps_ttm": raw.get("fh_eps_ttm"),
-                    "roe": enriched.get("roe") or raw.get("returnOnEquity"),
+                    # Prefer yfinance's industry-standard returnOnEquity over our
+                    # PAT/total_equity computation. The computed value gets
+                    # distorted by merger accounting (HDFCBANK post-HDFC Ltd
+                    # merger went from 17% to 7.8% on paper because equity
+                    # base inflated 2.5x overnight). yfinance uses TTM PAT /
+                    # avg equity which absorbs the structural shift correctly.
+                    "roe": raw.get("returnOnEquity") or enriched.get("roe"),
                     "returnOnEquity": raw.get("returnOnEquity"),
                     "shares": enriched.get("shares") or raw.get("shares", 0),
                 }
