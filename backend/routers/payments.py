@@ -243,11 +243,16 @@ async def create_subscription(
         import logging
         logging.getLogger("yieldiq.payments").error(
             f"create-subscription failed for {user.get('email')} "
-            f"plan={plan_id} billing={billing}: {type(e).__name__}: {e}"
+            f"plan={plan_id} billing={billing} rz_plan_id={rz_plan_id}: "
+            f"{type(e).__name__}: {e}"
         )
+        # Surface the actual Razorpay error message (e.g. "plan id is
+        # invalid", "authentication failed") so ops can fix it without
+        # needing log access. Safe to expose — no secrets in these.
+        err_msg = str(e).strip() or type(e).__name__
         raise HTTPException(
             status_code=500,
-            detail=f"Subscription init failed: {type(e).__name__}",
+            detail=f"Subscription init failed: {type(e).__name__}: {err_msg}",
         )
 
 
