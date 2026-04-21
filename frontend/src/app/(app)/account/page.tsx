@@ -205,7 +205,12 @@ function AccountInner() {
       const msg = (err as Error)?.message || ""
       const status = (err as { response?: { status?: number } })?.response?.status
       if (!msg.includes("Razorpay script failed")) {
-        trackCheckoutFailed(planId, status === 503 ? "config_missing" : "init")
+        // 503 = backend signalled "plan ID env var not configured yet"
+        // (separate from a generic init failure). We report "init" as the
+        // GA4 tag since that's the closest match in the existing union —
+        // the specific 503 reason is still surfaced in the toast + Railway
+        // logs. Widening the tag union later lets us distinguish in GA.
+        trackCheckoutFailed(planId, "init")
       }
       if (status === 503) {
         showToast("Plan not live yet — email support@yieldiq.in to get early access.", "err")
