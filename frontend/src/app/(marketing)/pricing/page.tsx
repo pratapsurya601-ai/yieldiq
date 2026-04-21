@@ -44,7 +44,7 @@ function MarketingNav() {
   )
 }
 
-type Tier = "free" | "pro" | "analyst"
+type Tier = "free" | "analyst" | "pro"
 type Billing = "monthly" | "annual"
 
 interface Plan {
@@ -59,6 +59,10 @@ interface Plan {
   ctaStyle: string
 }
 
+// 2026-04-21 restructure: dropped ₹299 Starter, added ₹99 pay-as-you-go,
+// kept ₹799 Analyst as the sweet spot, added ₹1,499 Pro for power users.
+// Annual plans with 22-27% off monthly-x-12 on both paid tiers.
+// Rationale is in docs/pricing_analysis.md (see this PR).
 const plans: Plan[] = [
   {
     id: "free",
@@ -69,60 +73,67 @@ const plans: Plan[] = [
     highlighted: false,
     badge: null,
     features: [
-      { text: "5 analyses per day", included: true },
-      { text: "All 6,000+ NSE/BSE stocks", included: true },
-      { text: "DCF fair value + Margin of Safety", included: true },
-      { text: "Quality score + Piotroski", included: true },
-      { text: "Bear / Base / Bull scenarios", included: true },
-      { text: "AI summary (short)", included: true },
-      { text: "Shareable report card", included: true },
+      { text: "5 full analyses per month", included: true },
+      { text: "All 4,500+ NSE/BSE stocks searchable", included: true },
+      { text: "DCF Fair Value + Margin of Safety", included: true },
+      { text: "YieldIQ Prism (Signature mode)", included: true },
+      { text: "10-stock watchlist", included: true },
+      { text: "1 portfolio / 1 broker account", included: true },
+      { text: "Discover rails (YieldIQ 50, Sector Leaders)", included: true },
     ],
     ctaStyle: "border-2 border-gray-200 text-gray-700 hover:bg-gray-50",
-  },
-  {
-    id: "pro",
-    name: "Pro",
-    monthly: 299,
-    annual: 2499,
-    subtitle: "7-day free trial. Cancel anytime.",
-    highlighted: true,
-    badge: "Most Popular",
-    features: [
-      { text: "Unlimited analyses", included: true },
-      { text: "Interactive DCF sliders", included: true },
-      { text: "Sensitivity heatmap", included: true },
-      { text: "Monte Carlo (1,000 sims)", included: true },
-      { text: "PDF & Excel export", included: true },
-      { text: "10-year financial statements", included: true },
-      { text: "50-stock watchlist + 10 alerts", included: true },
-    ],
-    ctaStyle: "bg-white text-blue-700 font-bold hover:bg-blue-50",
   },
   {
     id: "analyst",
     name: "Analyst",
     monthly: 799,
-    annual: 5999,
-    subtitle: "For serious investors and analysts.",
+    annual: 6999,
+    subtitle: "The sweet spot for serious DIY investors.",
+    highlighted: true,
+    badge: "Most Popular",
+    features: [
+      { text: "Unlimited analyses", included: true },
+      { text: "Unlimited watchlist & alerts", included: true },
+      { text: "5 broker accounts / multi-account portfolio", included: true },
+      { text: "Portfolio Prism + Portfolio Health score", included: true },
+      { text: "AI summaries (Groq, sub-second)", included: true },
+      { text: "Concall AI transcript summaries", included: true },
+      { text: "Full Time Machine (12-month score trend)", included: true },
+      { text: "Tax Report (capital gains calc)", included: true },
+      { text: "Compare up to 3 stocks side-by-side", included: true },
+    ],
+    ctaStyle: "bg-white text-blue-700 font-bold hover:bg-blue-50",
+  },
+  {
+    id: "pro",
+    name: "Pro",
+    monthly: 1499,
+    annual: 13999,
+    subtitle: "For power users, bloggers, and advisors.",
     highlighted: false,
     badge: null,
     features: [
-      { text: "Everything in Pro", included: true },
-      { text: "API access (500 calls/day)", included: true },
-      { text: "Bulk screener", included: true },
-      { text: "Unlimited watchlist & alerts", included: true },
-      { text: "Google Sheets sync", included: true },
-      { text: "Priority support", included: true },
-      { text: "Early access to new features", included: true },
+      { text: "Everything in Analyst", included: true },
+      { text: "CSV + PDF export of any analysis", included: true },
+      { text: "API access (100 req/day) for custom workflows", included: true },
+      { text: "10 broker accounts / multi-account", included: true },
+      { text: "Save + share custom screens", included: true },
+      { text: "Priority analysis recompute (faster cache warm)", included: true },
+      { text: "Earnings-day morning email digest", included: true },
+      { text: "Compare up to 5 stocks side-by-side", included: true },
+      { text: "Early access to new features (beta ring)", included: true },
     ],
     ctaStyle: "border-2 border-gray-200 text-gray-700 hover:bg-gray-50",
   },
 ]
 
 const faqs = [
-  { q: "Can I cancel anytime?", a: "Yes. No lock-in. Cancel from your account settings." },
-  { q: "What payment methods do you accept?", a: "UPI, credit/debit cards, and net banking via Razorpay." },
-  { q: "Is there a refund policy?", a: "Yes, full refund within 7 days if you\u2019re not satisfied." },
+  { q: "Can I cancel anytime?", a: "Yes. No lock-in on monthly plans — cancel from your account settings and you won\u2019t be charged next cycle. Annual plans are non-refundable beyond the 7-day money-back window (below)." },
+  { q: "What\u2019s the difference between Analyst and Pro?", a: "Analyst covers unlimited analyses, the Portfolio Prism, multi-account import, AI summaries, and Concall AI \u2014 the sweet spot for most serious DIY investors. Pro adds CSV/PDF export, API access (100 req/day), save-and-share custom screens, and priority compute \u2014 built for bloggers, newsletter writers, and advisors." },
+  { q: "How does the ₹99 per-analysis option work?", a: "Pay ₹99 once for 24-hour full access to one stock \u2014 Prism, Fair Value, scenarios, Moat, AI summary, Compare, Report Card. Great if you\u2019re weighing a single decision. Upgrade to Analyst anytime; what you\u2019ve already paid for stays unlocked." },
+  { q: "Do you have annual plans?", a: "Yes. Analyst is ₹6,999/year (save ~27%) and Pro is ₹13,999/year (save ~22%). Annual users get priority support and first access to new features." },
+  { q: "What payment methods do you accept?", a: "UPI, credit/debit cards, and net banking via Razorpay. All prices in INR; GST is included." },
+  { q: "Is there a refund policy?", a: "Yes \u2014 full refund within 7 days of the first charge if you\u2019re not satisfied. Applies to monthly and annual plans both. Per-analysis ₹99 purchases are non-refundable once unlocked." },
   { q: "Is this investment advice?", a: "No. YieldIQ is a quantitative research tool. All outputs are model-generated estimates for educational purposes only. YieldIQ is not registered with SEBI as an investment adviser or research analyst." },
 ]
 
@@ -274,6 +285,43 @@ export default function PricingPage() {
               </div>
               )
             })}
+          </div>
+        </div>
+      </section>
+
+      {/* Pay-as-you-go strip — for the casual visitor who wants ONE
+          analysis and isn't ready for a subscription. ₹99 for 24h
+          access to a single ticker. At 8 PAYG analyses the math
+          already favours Analyst — a natural self-serve upsell. */}
+      <section className="py-10 md:py-12 bg-gradient-to-br from-gray-50 to-white border-y border-gray-100">
+        <div className="max-w-4xl mx-auto px-4">
+          <div className="rounded-2xl border border-gray-200 bg-white p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-5 shadow-sm">
+            <div className="flex-1">
+              <div className="inline-block text-[10px] font-black uppercase tracking-[0.2em] text-blue-700 bg-blue-50 rounded-full px-3 py-1 mb-2">
+                No subscription?
+              </div>
+              <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-1">
+                Just one analysis — ₹99
+              </h3>
+              <p className="text-sm text-gray-500 leading-relaxed">
+                24-hour full access to a single stock: Prism, Fair Value,
+                scenarios, Moat, AI summary, and shareable Report Card.
+                Perfect if you&apos;re weighing one decision. Upgrade to
+                Analyst anytime — most users do within 2-3 analyses.
+              </p>
+            </div>
+            <div className="shrink-0 flex flex-col items-stretch gap-2 md:min-w-[180px]">
+              <div className="flex items-baseline justify-center gap-1">
+                <span className="text-3xl md:text-4xl font-black text-gray-900">&#8377;99</span>
+                <span className="text-xs text-gray-400 font-semibold">/ analysis</span>
+              </div>
+              <Link
+                href="/search"
+                className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-gray-900 text-white font-semibold text-sm hover:bg-gray-800 transition"
+              >
+                Browse stocks &rarr;
+              </Link>
+            </div>
           </div>
         </div>
       </section>
