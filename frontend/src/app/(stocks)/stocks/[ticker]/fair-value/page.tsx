@@ -13,6 +13,7 @@ import SegmentRevenueTable from "@/components/analysis/SegmentRevenueTable"
 import { getHistoricalFinancials, getRatiosHistory, getPublicPeers, getDividendHistory } from "@/lib/api"
 import { timeAgo } from "@/lib/dataFreshness"
 import ExcelExportButton from "@/components/analysis/ExcelExportButton"
+import { formatMarketCap } from "@/lib/formatters"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -385,7 +386,8 @@ export default async function StockFairValuePage(
             { label: "ROE", value: data.roe != null ? `${data.roe.toFixed(1)}%` : "\u2014", color: "text-gray-900" },
             { label: "Debt/Equity", value: data.de_ratio != null ? data.de_ratio.toFixed(2) : "\u2014", color: "text-gray-900" },
             { label: "WACC", value: `${(data.wacc * 100).toFixed(1)}%`, color: "text-gray-900" },
-            { label: "Market Cap", value: data.market_cap ? `\u20B9${(data.market_cap / 1e10).toFixed(0)}K Cr` : "\u2014", color: "text-gray-900" },
+            // Backend returns market_cap in INR (not Cr). /1e7 → Cr.
+            { label: "Market Cap", value: data.market_cap ? formatMarketCap(data.market_cap / 1e7) : "\u2014", color: "text-gray-900" },
           ].map(m => (
             <div key={m.label} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
               <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">{m.label}</p>

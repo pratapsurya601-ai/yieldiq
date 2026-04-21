@@ -13,6 +13,33 @@ const SUGGESTIONS = [
   { ticker: "ITC.NS", label: "ITC" },
 ]
 
+/**
+ * Hardcoded TCS demo used in the `idle` state so the Prism is never
+ * empty. Gives a first-time visitor a concrete example of what each
+ * axis looks like before they type anything. Values are editorial
+ * picks — close enough to real TCS readings (FY25) to feel honest,
+ * labelled explicitly as an example so we can't be accused of
+ * misrepresenting live data.
+ */
+const TCS_DEMO: PrismData = {
+  ticker: "TCS.NS",
+  company_name: "Tata Consultancy Services",
+  verdict_band: "undervalued",
+  verdict_label: "Undervalued \u00b7 32.7% MoS",
+  overall: 7.55,
+  refraction_index: 0.7,
+  pulse_velocity_hz: 0.4,
+  disclaimer: "Illustrative example. Not investment advice.",
+  pillars: [
+    { key: "pulse",   score: 6.5, label: "Neutral",  why: "Steady momentum, low volatility.",              data_limited: false, weight: 0.10 },
+    { key: "quality", score: 9.2, label: "Strong",   why: "Industry-leading ROE and margin stability.",    data_limited: false, weight: 0.22 },
+    { key: "moat",    score: 7.5, label: "Wide",     why: "Entrenched enterprise relationships, scale.",   data_limited: false, weight: 0.18 },
+    { key: "safety",  score: 8.1, label: "Strong",   why: "Net-cash balance sheet, strong coverage.",      data_limited: false, weight: 0.15 },
+    { key: "growth",  score: 6.8, label: "Moderate", why: "Mid-single-digit revenue growth holding up.",   data_limited: false, weight: 0.15 },
+    { key: "value",   score: 7.2, label: "Attractive", why: "Fair value \u20b93,465 vs price \u20b92,611.", data_limited: false, weight: 0.20 },
+  ],
+}
+
 function normalize(t: string): string {
   const up = t.trim().toUpperCase()
   if (!up) return up
@@ -159,6 +186,22 @@ export default function StepFirstStock({ onNext }: StepFirstStockProps) {
               </button>
             ))}
           </div>
+
+          {/* Pre-populated TCS demo so the Prism never looks empty. Rendered
+              at ~55% opacity so it clearly reads as an example rather than
+              a live result. Once the user types a ticker, the idle block
+              is replaced by the `loading`/`ready` branches. */}
+          <div className="mt-8 flex flex-col items-center" aria-hidden="true">
+            <div className="opacity-60 w-full max-w-[240px]">
+              <Prism data={TCS_DEMO} firstView={false} size={240} />
+            </div>
+            <p className="mt-3 text-xs text-caption text-center max-w-[18rem]">
+              Example: <span className="font-semibold text-body">TCS</span> &middot; Fair Value &#8377;3,465 vs &#8377;2,611 &middot; MoS +32.7%
+            </p>
+            <p className="mt-1 text-xs text-caption text-center max-w-[18rem]">
+              Type your own ticker above to see its shape.
+            </p>
+          </div>
         </>
       )}
 
@@ -178,7 +221,9 @@ export default function StepFirstStock({ onNext }: StepFirstStockProps) {
             animation: "onboardingReveal 700ms cubic-bezier(0.34, 1.56, 0.64, 1) both",
           }}
         >
-          <Prism data={prism} firstView={true} size={280} />
+          <div className="w-full max-w-[280px]">
+            <Prism data={prism} firstView={true} size={280} />
+          </div>
           <div className="mt-6 text-center">
             <div className="flex items-baseline justify-center gap-1">
               <span className="font-editorial text-6xl text-ink tabular-nums">

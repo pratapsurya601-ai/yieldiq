@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { getPeers, type PeerRow, type PeersResponse } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { formatMarketCap } from "@/lib/formatters"
 
 interface Props {
   ticker: string
@@ -53,14 +54,13 @@ function fmtMoS(v: number | null): string {
 }
 
 function fmtMarketCap(cr: number | null, currency: string): string {
-  if (cr === null || cr === undefined) return "—"
-  const sym = currency === "INR" ? "\u20b9" : "$"
+  if (cr === null || cr === undefined) return "\u2014"
   if (currency === "INR") {
-    if (cr >= 100_000) return `${sym}${(cr / 100_000).toFixed(1)}L Cr`
-    if (cr >= 1_000) return `${sym}${(cr / 1_000).toFixed(1)}K Cr`
-    return `${sym}${cr.toFixed(0)} Cr`
+    // Canonical "Lakh Cr" formatter.
+    return formatMarketCap(cr)
   }
   // USD path — "market_cap_cr" is actually millions for US tickers
+  const sym = "$"
   if (cr >= 1_000_000) return `${sym}${(cr / 1_000_000).toFixed(1)}T`
   if (cr >= 1_000) return `${sym}${(cr / 1_000).toFixed(1)}B`
   return `${sym}${cr.toFixed(0)}M`

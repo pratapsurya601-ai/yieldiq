@@ -194,11 +194,11 @@ export default function EditorialHero({
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 mt-1">
             <Stat
               label="Fair Value"
-              value={fairValue > 0 ? formatCurrency(fairValue, currency) : "—"}
+              value={fairValue > 0 ? formatCurrency(fairValue, currency) : "Not reported"}
             />
             <Stat
               label="Current Price"
-              value={currentPrice > 0 ? formatCurrency(currentPrice, currency) : "—"}
+              value={currentPrice > 0 ? formatCurrency(currentPrice, currency) : "Awaiting data"}
             />
             {!dataLimited && (
               <div>
@@ -224,7 +224,7 @@ export default function EditorialHero({
                 </dd>
               </div>
             )}
-            <Stat label="Moat" value={moat || "—"} />
+            <Stat label="Moat" value={moat || "Not rated"} />
           </dl>
 
           <p className="text-[11px] text-caption leading-relaxed mt-2">
@@ -236,7 +236,11 @@ export default function EditorialHero({
             Column 2 — The Prism (mobile: 2nd)
             ══════════════════════════════════════════════════════════ */}
         <div className="lg:col-span-5 order-2 lg:order-2 flex flex-col items-center">
-          <div className="relative">
+          {/* Responsive-safe wrapper: on phones the Prism caps at the
+              device width (with a small gutter) rather than overflowing
+              horizontally. Prism itself now uses width:100% + aspect
+              ratio, so the max-width here defines the upper bound. */}
+          <div className="relative w-full max-w-[340px] mx-auto">
             <Prism
               data={data}
               size={340}

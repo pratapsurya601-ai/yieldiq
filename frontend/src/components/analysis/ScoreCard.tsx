@@ -9,7 +9,7 @@
  *   (sparkline, 12M)
  *   Sector rank: 8 / 47     ▓▓▓▓▓▓▓░░
  *   REFRACTION 2.3          higher = more opinionated
- *   Market cap: ₹1.24L Cr
+ *   Market cap: ₹1.24 Lakh Cr
  *
  * Uses design tokens so it auto-inverts in dark mode. The card background
  * is `bg-ink` (ink-on-bg contrast) which gives us a near-black surface in
@@ -18,6 +18,7 @@
  */
 
 import { useId } from "react"
+import { formatMarketCap } from "@/lib/formatters"
 
 interface SectorRank {
   rank: number
@@ -49,11 +50,9 @@ function gradeGradient(grade: string): string {
   return "linear-gradient(135deg, var(--color-warning), var(--color-danger))"
 }
 
-function fmtMarketCap(cr: number): string {
-  if (cr >= 100_000) return `\u20B9${(cr / 100_000).toFixed(2)}L Cr`
-  if (cr >= 1_000) return `\u20B9${(cr / 1_000).toFixed(1)}K Cr`
-  return `\u20B9${cr.toFixed(0)} Cr`
-}
+// Canonical market-cap formatter lives in `@/lib/formatters`. We delegate
+// here so the tokenised "Lakh Cr" copy stays consistent across the app.
+const fmtMarketCap = formatMarketCap
 
 /** Tiny inline sparkline, 100×24. Last point gets a dot. */
 function Sparkline({ points }: { points: number[] }) {

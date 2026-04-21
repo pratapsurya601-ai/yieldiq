@@ -201,13 +201,13 @@ export default function AnalysisHero({
             <div>
               <dt className="text-xs text-caption">Fair Value</dt>
               <dd className="font-mono tabular-nums text-lg font-semibold text-ink">
-                {fairValue > 0 ? formatCurrency(fairValue, currency) : "—"}
+                {fairValue > 0 ? formatCurrency(fairValue, currency) : "Not reported"}
               </dd>
             </div>
             <div>
               <dt className="text-xs text-caption">Current</dt>
               <dd className="font-mono tabular-nums text-lg font-semibold text-ink">
-                {currentPrice > 0 ? formatCurrency(currentPrice, currency) : "—"}
+                {currentPrice > 0 ? formatCurrency(currentPrice, currency) : "Awaiting data"}
               </dd>
             </div>
 

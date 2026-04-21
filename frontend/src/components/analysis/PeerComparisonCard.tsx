@@ -17,7 +17,9 @@ function verdictClasses(v: string | null | undefined): string {
 }
 
 function verdictLabel(v: string | null | undefined): string {
-  if (!v) return "\u2014"
+  // Fallback was a bare em-dash, which read as broken. "Pending" is
+  // honest — the verdict hasn't been computed for this peer yet.
+  if (!v) return "Pending"
   const k = v.toLowerCase()
   const map: Record<string, string> = {
     undervalued: "Undervalued",
