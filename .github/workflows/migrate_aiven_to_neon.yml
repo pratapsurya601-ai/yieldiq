@@ -1,0 +1,138 @@
+name: Migrate Aiven -> Neon (one-shot)
+
+# ONE-OFF migration workflow — dumps the Aiven Postgres (current
+# DATABASE_URL) and restores into Neon (NEON_DATABASE_URL secret).
+# Prints row counts for every table on both sides for verification.
+#
+# Safe to re-run: uses --clean --if-exists so Neon gets fully reset
+# and rebuilt. The Aiven source is never written to.
+#
+# After a successful run, the user updates DATABASE_URL in Railway
+# and in the GitHub Actions secrets to point at Neon. This workflow
+# itself keeps pointing at Aiven (it is the source, not the target).
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dump + count only, do NOT restore to Neon"
+        required: false
+        default: "false"
+        type: choice
+        options: ["false", "true"]
+
+concurrency:
+  group: migrate-aiven-to-neon
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Install Postgres 17 client
+        run: |
+          sudo sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/pgdg.gpg
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-17
+          pg_dump --version
+          pg_restore --version
+
+      - name: Verify both URLs are set
+        env:
+          SRC_URL: ${{ secrets.DATABASE_URL }}
+          DST_URL: ${{ secrets.NEON_DATABASE_URL }}
+        run: |
+          if [ -z "$SRC_URL" ]; then
+            echo "::error::DATABASE_URL secret (Aiven source) missing."
+            exit 1
+          fi
+          if [ -z "$DST_URL" ]; then
+            echo "::error::NEON_DATABASE_URL secret (Neon target) missing."
+            exit 1
+          fi
+          # Normalise postgres:// -> postgresql:// for client tools.
+          src_norm="${SRC_URL/#postgres:\/\//postgresql:\/\/}"
+          dst_norm="${DST_URL/#postgres:\/\//postgresql:\/\/}"
+          echo "SRC_NORM=$src_norm" >> "$GITHUB_ENV"
+          echo "::add-mask::$src_norm"
+          echo "DST_NORM=$dst_norm" >> "$GITHUB_ENV"
+          echo "::add-mask::$dst_norm"
+
+      - name: Pre-dump — source row counts
+        run: |
+          psql "$SRC_NORM" -At -c "
+            SELECT relname || E'\t' || n_live_tup
+            FROM pg_stat_user_tables
+            ORDER BY relname
+          " > /tmp/src_counts.tsv
+          echo "### Source (Aiven) row counts" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/src_counts.tsv >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Dump Aiven to file
+        run: |
+          # --no-owner + --no-acl: Neon has its own roles, we don't want
+          # the dump to try to SET OWNER to an Aiven-specific user that
+          # doesn't exist on Neon.
+          # --clean --if-exists: target is wiped cleanly on restore so
+          # repeated runs converge.
+          # -Fc (custom format): compact, index-friendly, parallel-restore
+          # capable.
+          # --exclude-schema=cron: Aiven has pg_cron installed; Neon does
+          # not. Skip that schema entirely.
+          pg_dump "$SRC_NORM" \
+            --no-owner --no-acl \
+            --clean --if-exists \
+            --exclude-schema=cron \
+            -Fc -f /tmp/yieldiq.dump
+          ls -lh /tmp/yieldiq.dump
+
+      - name: Restore to Neon
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          # pg_restore custom-format dump. -j for parallel workers on
+          # Neon (compute units are generous; 4 workers is fine).
+          # --no-owner --no-acl again so Neon's default role applies.
+          pg_restore "$DST_NORM" \
+            --no-owner --no-acl \
+            -j 4 \
+            /tmp/yieldiq.dump || true
+          # pg_restore exits non-zero on harmless warnings (e.g. extensions
+          # already present). We verify by row counts below, not exit code.
+
+      - name: Post-restore — target row counts
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          # Run ANALYZE first so pg_stat_user_tables reflects real counts
+          # (Neon may not have n_live_tup populated yet for fresh tables).
+          psql "$DST_NORM" -c "ANALYZE;"
+          psql "$DST_NORM" -At -c "
+            SELECT relname || E'\t' || n_live_tup
+            FROM pg_stat_user_tables
+            ORDER BY relname
+          " > /tmp/dst_counts.tsv
+          echo "### Target (Neon) row counts" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          cat /tmp/dst_counts.tsv >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Diff src vs dst counts
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          echo "### Row count diff" >> "$GITHUB_STEP_SUMMARY"
+          if diff -u /tmp/src_counts.tsv /tmp/dst_counts.tsv > /tmp/diff.out; then
+            echo "MATCH — every table has the same row count on both sides." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo '```diff' >> "$GITHUB_STEP_SUMMARY"
+            cat /tmp/diff.out >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::Row counts differ — inspect the diff above before cutover."
+          fi
+
+      - name: Report Neon DB size
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        run: |
+          psql "$DST_NORM" -c "SELECT pg_size_pretty(pg_database_size(current_database())) AS neon_size;"
