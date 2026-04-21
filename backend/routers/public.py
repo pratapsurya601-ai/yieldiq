@@ -6,9 +6,10 @@
 from __future__ import annotations
 
 import logging
+import math
 import time as _time
 from datetime import date, timedelta
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -18,6 +19,27 @@ from backend.services.cache_service import cache
 logger = logging.getLogger("yieldiq.public")
 
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
+
+
+# ─────────────────────────────────────────────────────────────────
+# JSON-safety helper (Sentry PYTHON-FASTAPI-6V):
+# FastAPI/Pydantic's JSON encoder runs the stdlib json module with
+# allow_nan=False semantics — any NaN / Inf in the response dict
+# raises ValueError at serialization time and the client sees a 500.
+# This recursive sanitizer converts non-finite floats to None while
+# preserving real zeros and every other value unchanged. It runs as
+# defensive middleware; compute-site fixes still apply upstream.
+# ─────────────────────────────────────────────────────────────────
+def _nan_to_none(v: Any) -> Any:
+    if isinstance(v, float):
+        if math.isnan(v) or math.isinf(v):
+            return None
+        return v
+    if isinstance(v, dict):
+        return {k: _nan_to_none(x) for k, x in v.items()}
+    if isinstance(v, (list, tuple)):
+        return [_nan_to_none(x) for x in v]
+    return v
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -1437,7 +1459,9 @@ async def get_risk_stats_endpoint(ticker: str, years: int = Query(default=3, ge=
     _cache_key = f"public:risk-stats:{clean}:{years}"
     cached = cache.get(_cache_key)
     if cached is not None:
-        return cached
+        # Sanitize on read too: existing cache entries populated before
+        # this fix may still contain NaN/Inf and would 500 the encoder.
+        return _nan_to_none(cached)
 
     try:
         from data_pipeline.nse_prices.db_integration import get_risk_stats
@@ -1445,6 +1469,11 @@ async def get_risk_stats_endpoint(ticker: str, years: int = Query(default=3, ge=
         if result is None:
             raise HTTPException(status_code=404, detail=f"No price history for {clean}")
         result["ticker"] = ticker
+        # Belt-and-suspenders: root cause fixed at compute site, but
+        # defend the JSON encoder from any future regression that
+        # reintroduces NaN/Inf (div-by-zero, empty .mean()/.std(), etc.)
+        # See Sentry PYTHON-FASTAPI-6V.
+        result = _nan_to_none(result)
         cache.set(_cache_key, result, ttl=86400)
         return result
     except HTTPException:
