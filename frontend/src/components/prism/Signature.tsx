@@ -289,7 +289,22 @@ export default function Signature({
         })}
       </g>
 
-      {/* Central composite score — only in Signature mode. */}
+      {/* Central composite score — only in Signature mode.
+          FIX (prism-five-five): the decimal point was rendering as ":"
+          on some devices/fonts. Cause: `letterSpacing: -0.02em` at
+          ~17% of size (≈58px) in a heavy (weight 800) mono font pulled
+          the 3 glyphs "5.5" so close that the tiny bottom-aligned "."
+          visually merged with the adjacent "5" above its vertical
+          centre, reading as a colon. Fix:
+            1. Drop the negative letterSpacing (kerning is already tight
+               in mono faces; the squeeze was purely cosmetic).
+            2. Render the integer / separator / fraction as three
+               distinct <tspan>s so the browser never substitutes or
+               kerns the separator into something else, and pin the
+               separator to the digits' baseline for unambiguous visual
+               positioning. We use U+002E FULL STOP explicitly so no
+               locale string conversion can swap in U+066B / U+2024
+               / U+003A etc. */}
       <g aria-hidden="true">
         <text
           x={cx}
@@ -302,16 +317,28 @@ export default function Signature({
             fontWeight: 800,
             fontFamily:
               "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
-            letterSpacing: "-0.02em",
           }}
         >
-          {/* When ALL or majority of pillars are data_limited, the
-              composite is misleading (a "5.0" derived from neutrals
-              looks like a real score). Show "—" instead. */}
           {(() => {
             const limitedCount = pillars.filter((p) => p.data_limited).length
+            // When ALL or majority of pillars are data_limited, the
+            // composite is misleading (a "5.0" derived from neutrals
+            // looks like a real score). Show "—" instead.
             if (limitedCount >= Math.ceil(pillars.length / 2)) return "—"
-            return Number.isFinite(overall) ? overall.toFixed(1) : "—"
+            if (!Number.isFinite(overall)) return "—"
+            const clamped = Math.max(0, Math.min(10, overall))
+            const rounded = Math.round(clamped * 10) / 10
+            const whole = Math.floor(rounded)
+            const frac = Math.round((rounded - whole) * 10)
+            return (
+              <>
+                <tspan>{whole}</tspan>
+                <tspan dx="0.02em" dy="0" style={{ letterSpacing: "0" }}>
+                  {"\u002E"}
+                </tspan>
+                <tspan dx="0.02em">{frac}</tspan>
+              </>
+            )
           })()}
         </text>
         <text

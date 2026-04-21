@@ -202,7 +202,11 @@ export default function Spectrum({
         })}
       </g>
 
-      {/* Output composite + verdict pill. */}
+      {/* Output composite + verdict pill.
+          FIX (prism-five-five): render the score as three distinct
+          <tspan>s (integer / U+002E / fraction) so the decimal point
+          can never kern or font-substitute into something that reads
+          as ":". Matches the central composite in Signature.tsx. */}
       <g>
         <circle
           cx={cx}
@@ -222,7 +226,20 @@ export default function Spectrum({
               "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
           }}
         >
-          {overall.toFixed(1)}
+          {(() => {
+            if (!Number.isFinite(overall)) return "\u2014"
+            const clamped = Math.max(0, Math.min(10, overall))
+            const rounded = Math.round(clamped * 10) / 10
+            const whole = Math.floor(rounded)
+            const frac = Math.round((rounded - whole) * 10)
+            return (
+              <>
+                <tspan>{whole}</tspan>
+                <tspan dx="0.02em">{"\u002E"}</tspan>
+                <tspan dx="0.02em">{frac}</tspan>
+              </>
+            )
+          })()}
         </text>
         <text
           x={cx}
