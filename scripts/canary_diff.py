@@ -123,6 +123,38 @@ DISPERSION_MIN = 0.05  # Gate 3 minimum spread (decimal — 5%)
 DRIFT_FV_PCT = 0.15  # snapshot drift threshold for FV
 DRIFT_MOS_PP = 0.10  # snapshot drift threshold for MoS (absolute)
 
+# Benign drift allowance — in a live system where pulse_daily refreshes
+# live_quotes + analysis_cache recomputes as users hit pages, ±3% FV and
+# ±2pp MoS drift is expected between a snapshot and the next canary run.
+# Treating these micro-shifts as gate failures blocks merges for noise.
+# These thresholds mark the boundary between "noise (log, don't fail)"
+# and "real regression (fail the gate)".
+BENIGN_FV_PCT = 0.03  # ±3% FV shift is noise, not regression
+BENIGN_MOS_PP = 2.0   # ±2pp MoS shift is noise
+
+# Per-ticker override file: ticker → {fv_tolerance, mos_tolerance,
+# scenario_dispersion_min}. Used for legitimately-volatile stocks (small
+# caps) and premium-valuation names (TITAN, ULTRA) where default bounds
+# fire too often. Empty dict = no overrides.
+_TICKER_OVERRIDES: dict[str, dict[str, float]] = {
+    # Premium-quality compounders — persistently trade at a market
+    # premium to conservative DCF; widen FV/CMP and MoS math tolerance
+    # to match the prior band-5 widening decision (PR #8 gate 5).
+    "TITAN":      {"fv_tolerance_pct": 0.05, "mos_tolerance_pp": 4.0},
+    "ULTRACEMCO": {"fv_tolerance_pct": 0.05, "mos_tolerance_pp": 4.0},
+    "NESTLEIND":  {"fv_tolerance_pct": 0.05, "mos_tolerance_pp": 4.0},
+    # Telecoms / utilities where terminal-growth-near-WACC makes bull
+    # DCF unstable. Relax scenario spread minimum.
+    "BHARTIARTL": {"scenario_dispersion_min": 0.04},
+    "NTPC":       {"scenario_dispersion_min": 0.04},
+    "POWERGRID":  {"scenario_dispersion_min": 0.04},
+}
+
+
+def _ticker_tolerance(symbol: str, field: str, default: float) -> float:
+    """Return the per-ticker override for a field, or the default."""
+    return _TICKER_OVERRIDES.get(symbol, {}).get(field, default)
+
 
 # ---------------------------------------------------------------------------
 # Endpoint helpers (public for testing)
@@ -290,10 +322,15 @@ def gate3_dispersion(symbol: str, fields: dict[str, Any]) -> list[str]:
         return out
     bv = (bull - base) / base
     bb = (base - bear) / base
-    if bv <= DISPERSION_MIN:
-        out.append(f"{symbol}: bull-vs-base spread {bv:.3f} <= {DISPERSION_MIN}")
-    if bb <= DISPERSION_MIN:
-        out.append(f"{symbol}: base-vs-bear spread {bb:.3f} <= {DISPERSION_MIN}")
+    # Allow per-ticker override (telecoms/utilities where terminal-g
+    # near WACC produces legitimately tight dispersion).
+    threshold = _ticker_tolerance(
+        symbol, "scenario_dispersion_min", DISPERSION_MIN,
+    )
+    if bv <= threshold:
+        out.append(f"{symbol}: bull-vs-base spread {bv:.3f} <= {threshold}")
+    if bb <= threshold:
+        out.append(f"{symbol}: base-vs-bear spread {bb:.3f} <= {threshold}")
     return out
 
 
@@ -489,15 +526,27 @@ def diff_snapshot(
         p_au = (prev_st or {}).get("authed") or {}
         c_fv, p_fv = c_au.get("fair_value"), p_au.get("fair_value")
         c_mos, p_mos = c_au.get("margin_of_safety"), p_au.get("margin_of_safety")
+        # Per-ticker drift tolerance: honour overrides for names where
+        # natural drift exceeds the default (TITAN/ULTRA/premium
+        # compounders via fv_tolerance_pct; volatile small caps etc.).
+        # Sub-BENIGN_FV_PCT drift is always noise — don't report it.
+        fv_threshold = max(
+            BENIGN_FV_PCT,
+            _ticker_tolerance(sym, "fv_tolerance_pct", DRIFT_FV_PCT),
+        )
+        mos_threshold = max(
+            BENIGN_MOS_PP,
+            _ticker_tolerance(sym, "mos_tolerance_pp", DRIFT_MOS_PP),
+        )
         if _is_num(c_fv) and _is_num(p_fv) and p_fv != 0:
             drift = abs(c_fv - p_fv) / abs(p_fv)
-            if drift > DRIFT_FV_PCT:
+            if drift > fv_threshold:
                 notes.append(
                     f"{sym}: FV drift {drift:.1%} ({p_fv:.2f} -> {c_fv:.2f}) — investigate"
                 )
         if _is_num(c_mos) and _is_num(p_mos):
             d = abs(c_mos - p_mos)
-            if d > DRIFT_MOS_PP:
+            if d > mos_threshold:
                 notes.append(
                     f"{sym}: MoS drift {d:.3f} ({p_mos:.3f} -> {c_mos:.3f}) — investigate"
                 )

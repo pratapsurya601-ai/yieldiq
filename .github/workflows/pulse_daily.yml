@@ -11,13 +11,17 @@ name: Pulse Daily Data Refresh
 
 on:
   schedule:
-    - cron: "0 12 * * 1-5"  # Mon-Fri, 12:00 UTC (17:30 IST)
+    # Post-close refresh (5:30 PM IST, ~30 min after NSE close)
+    - cron: "0 12 * * 1-5"  # Mon-Fri, 12:00 UTC
+    # Pre-open refresh (8:30 AM IST, 1h before NSE open) so users
+    # waking up see fresh live_quotes on their watchlist + Discover rails.
+    - cron: "0 3 * * 1-5"   # Mon-Fri, 03:00 UTC
   workflow_dispatch:
     inputs:
       limit:
-        description: "Number of tickers to refresh (default 500)"
+        description: "Number of tickers to refresh (default 1500)"
         required: false
-        default: "500"
+        default: "1500"
 
 concurrency:
   group: pulse-daily
@@ -63,5 +67,33 @@ jobs:
           PYTHONUNBUFFERED: "1"
           PULSE_LOG_LEVEL: "INFO"
         run: |
+          # Expanded from 500 -> 1500 on 2026-04-21 now that Neon has no
+          # pool-connection ceiling and yfinance ThreadPool is the real
+          # throughput limit. 1500 covers Nifty500 + mid+small-cap watch
+          # universe. Any failures beyond ~300 are usually yfinance
+          # delisted/invalid tickers that the fetcher should log once.
           python backend/scripts/pulse_daily.py \
-            --limit "${{ github.event.inputs.limit || '500' }}"
+            --limit "${{ github.event.inputs.limit || '1500' }}"
+
+      - name: Coverage summary
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          # Post-run visibility: how many live_quotes rows landed.
+          # Empty result here means pulse ran but wrote nothing — surface
+          # loudly instead of silent cron failure.
+          python - <<'PY'
+          import os, psycopg2
+          url = os.environ["DATABASE_URL"]
+          if url.startswith("postgres://"):
+              url = "postgresql://" + url[len("postgres://"):]
+          c = psycopg2.connect(url); cur = c.cursor()
+          cur.execute("SELECT COUNT(*), MAX(as_of) FROM public.live_quotes WHERE as_of > now() - interval '2 hours'")
+          fresh, latest = cur.fetchone()
+          cur.execute("SELECT COUNT(*) FROM public.live_quotes")
+          total = cur.fetchone()[0]
+          print(f"live_quotes total={total:,} fresh<2h={fresh:,} latest={latest}")
+          if fresh < 500:
+              print(f"::warning::Only {fresh} fresh quotes — pulse may be under-covering. Expected 1000+.")
+          PY
