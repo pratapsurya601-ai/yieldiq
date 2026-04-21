@@ -365,9 +365,50 @@ def _ensure_pipeline_tables():
     # (e.g. analysis_cache, which is managed by raw SQL so the JSONB
     # column maps cleanly and doesn't get accidentally dropped by a
     # future SQLAlchemy model rename).
+    #
+    # History / why this looks the way it does:
+    #   The previous implementation logged every failure at WARNING
+    #   with just the str(exc) — no traceback. Migration 012 was
+    #   failing on every Railway boot with
+    #     "sqlalchemy.cyextension.immutabledict.immutabledict is not a sequence"
+    #   and nobody noticed because the single-line warning got lost in
+    #   the boot spam and Sentry was configured to ignore WARNINGs.
+    #
+    #   Root cause of the immutabledict error: Connection.exec_driver_sql()
+    #   in SQLAlchemy 2.0 can pass an immutabledict as the `parameters`
+    #   argument to psycopg2's cursor.execute(). psycopg2 then tries to
+    #   iterate it as a positional-parameter sequence and raises
+    #   TypeError. The fix is to route parameterless DDL through
+    #   Connection.execute(text(sql)) — that path never hands a bound-
+    #   parameters dict to the DBAPI when the text has no placeholders.
+    #
+    # Policy:
+    #   - Log failures at ERROR with full traceback (Sentry sees them).
+    #   - Never block startup on a migration failure by default — schema
+    #     drift is preferable to a crash-loop on boot. But route known
+    #     schema-critical migrations through an allowlist that bubbles
+    #     and halts startup (set _CRITICAL_MIGRATIONS below when/if we
+    #     ever have a migration that MUST succeed).
+    #   - Known-safe-to-ignore error substrings stay at WARNING without
+    #     traceback so they don't create Sentry noise on every boot.
+    _KNOWN_NOISE_SUBSTRINGS: tuple[str, ...] = (
+        # Postgres idempotency chatter — these happen because our
+        # migrations use IF NOT EXISTS / ON CONFLICT so re-runs are
+        # already no-ops at the SQL level. If psycopg2 ever does raise
+        # these it's not a real failure.
+        "already exists",
+        "duplicate column",
+        "duplicate_object",
+    )
+    _CRITICAL_MIGRATIONS: frozenset[str] = frozenset({
+        # Add filenames here if a migration must succeed to keep the app
+        # functional. Empty today — all current migrations are defensive/
+        # additive and safe to skip (the downstream code already null-
+        # checks the columns they add).
+    })
+
     try:
         from pathlib import Path as _Path
-        from sqlalchemy import text as _text
         from data_pipeline.db import engine as _eng
         if _eng is None:
             return
@@ -375,21 +416,71 @@ def _ensure_pipeline_tables():
         if not _mig_dir.exists():
             return
         for _f in sorted(_mig_dir.glob("*.sql")):
+            _sql = _f.read_text(encoding="utf-8")
+            # Migrations wrap their own BEGIN/COMMIT, so strip those and
+            # let SQLAlchemy's transaction own it.
+            _cleaned = "\n".join(
+                line for line in _sql.splitlines()
+                if line.strip().upper() not in ("BEGIN;", "COMMIT;")
+            ).strip()
+            if not _cleaned:
+                continue
             try:
-                _sql = _f.read_text(encoding="utf-8")
-                with _eng.begin() as _conn:
-                    # Migrations wrap their own BEGIN/COMMIT, so strip
-                    # those and let SQLAlchemy's transaction own it.
-                    _cleaned = "\n".join(
-                        line for line in _sql.splitlines()
-                        if line.strip().upper() not in ("BEGIN;", "COMMIT;")
-                    )
-                    _conn.exec_driver_sql(_cleaned)
+                # Go through the raw DBAPI cursor instead of
+                # Connection.exec_driver_sql(). exec_driver_sql() in
+                # SQLAlchemy 2.0 can hand an immutabledict to psycopg2
+                # as the parameters argument, and psycopg2 then tries
+                # to iterate it as a positional sequence and raises:
+                #     TypeError: ...immutabledict is not a sequence
+                # The raw cursor.execute(sql) path accepts multi-statement
+                # DDL scripts (including DO $$ ... $$ blocks in some of
+                # the later migrations) without SQLAlchemy interposing
+                # parameter binding at all.
+                _raw = _eng.raw_connection()
+                try:
+                    _cur = _raw.cursor()
+                    try:
+                        _cur.execute(_cleaned)
+                        _raw.commit()
+                    except Exception:
+                        try:
+                            _raw.rollback()
+                        except Exception:
+                            pass
+                        raise
+                    finally:
+                        _cur.close()
+                finally:
+                    _raw.close()
                 logger.info("Migration applied/verified: %s", _f.name)
             except Exception as _me:
-                logger.warning("Migration %s skipped: %s", _f.name, _me)
+                _err_str = str(_me).lower()
+                _is_noise = any(s in _err_str for s in _KNOWN_NOISE_SUBSTRINGS)
+                if _f.name in _CRITICAL_MIGRATIONS and not _is_noise:
+                    # Schema-critical: halt boot so ops notices and
+                    # doesn't silently serve a broken schema.
+                    logger.error(
+                        "CRITICAL migration %s failed — aborting startup",
+                        _f.name, exc_info=True,
+                    )
+                    raise
+                if _is_noise:
+                    logger.warning(
+                        "Migration %s skipped (benign — %s)",
+                        _f.name, _me,
+                    )
+                else:
+                    # Non-critical but unexpected: ERROR + traceback so
+                    # Sentry captures it and ops sees schema drift as it
+                    # happens instead of months later.
+                    logger.error(
+                        "Migration %s failed (non-blocking) — schema drift possible",
+                        _f.name, exc_info=True,
+                    )
     except Exception as e:
-        logger.warning(f"Migration runner skipped: {e}")
+        # Outer guard for the runner itself (Path/glob/engine init bugs).
+        # Still non-blocking but logged loudly.
+        logger.error("Migration runner aborted: %s", e, exc_info=True)
 
 
 def _prewarm_popular_stocks():
