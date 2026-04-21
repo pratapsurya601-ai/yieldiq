@@ -23,6 +23,7 @@ import { useMemo, useState } from "react"
 import Prism from "@/components/prism/Prism"
 import PillarExplainer from "@/components/prism/PillarExplainer"
 import ScoreCard from "@/components/analysis/ScoreCard"
+import MetricTooltip from "@/components/analysis/MetricTooltip"
 import { verdictColor } from "@/lib/prism"
 import { timeAgo } from "@/lib/dataFreshness"
 import type {
@@ -87,10 +88,27 @@ function titleCase(s: string): string {
 }
 
 /** The three cells share style; small helper keeps JSX flat. */
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({
+  label,
+  value,
+  metricKey,
+}: {
+  label: string
+  value: string
+  metricKey?: string
+}) {
+  const labelEl = (
+    <dt className="text-[10px] uppercase tracking-[0.15em] text-caption">
+      {label}
+    </dt>
+  )
   return (
     <div>
-      <dt className="text-[10px] uppercase tracking-[0.15em] text-caption">{label}</dt>
+      {metricKey ? (
+        <MetricTooltip metricKey={metricKey}>{labelEl}</MetricTooltip>
+      ) : (
+        labelEl
+      )}
       <dd className="font-mono tabular-nums text-lg font-semibold text-ink">{value}</dd>
     </div>
   )
@@ -154,9 +172,11 @@ export default function EditorialHero({
               className="inline-block w-2.5 h-2.5 rounded-full"
               style={{ background: color }}
             />
-            <span className="text-[11px] uppercase tracking-[0.15em] text-body">
-              {bandCaption(data.verdict_band)}
-            </span>
+            <MetricTooltip metricKey="verdict">
+              <span className="text-[11px] uppercase tracking-[0.15em] text-body">
+                {bandCaption(data.verdict_band)}
+              </span>
+            </MetricTooltip>
           </div>
 
           {/* Value-trap indicator — factual warning when Value is maxed
@@ -195,16 +215,20 @@ export default function EditorialHero({
             <Stat
               label="Fair Value"
               value={fairValue > 0 ? formatCurrency(fairValue, currency) : "Not reported"}
+              metricKey="fair_value"
             />
             <Stat
               label="Current Price"
               value={currentPrice > 0 ? formatCurrency(currentPrice, currency) : "Awaiting data"}
+              metricKey="current_price"
             />
             {!dataLimited && (
               <div>
-                <dt className="text-[10px] uppercase tracking-[0.15em] text-caption">
-                  Margin of Safety
-                </dt>
+                <MetricTooltip metricKey="mos">
+                  <dt className="text-[10px] uppercase tracking-[0.15em] text-caption">
+                    Margin of Safety
+                  </dt>
+                </MetricTooltip>
                 <dd
                   className={`font-mono tabular-nums text-lg font-semibold ${
                     marginOfSafety >= 0 ? "text-success" : "text-danger"
@@ -224,7 +248,7 @@ export default function EditorialHero({
                 </dd>
               </div>
             )}
-            <Stat label="Moat" value={moat || "Not rated"} />
+            <Stat label="Moat" value={moat || "Not rated"} metricKey="moat" />
           </dl>
 
           <p className="text-[11px] text-caption leading-relaxed mt-2">

@@ -4,6 +4,7 @@ import { useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/utils"
 import type { QualityOutput, InsightCards as InsightCardsType, ValuationOutput } from "@/types/api"
+import MetricTooltip from "@/components/analysis/MetricTooltip"
 
 interface InsightCardsProps {
   quality: QualityOutput
@@ -24,6 +25,8 @@ interface CardData {
   subtitleColor?: string
   disabled?: boolean
   tooltip?: string
+  /** Key into metric_explanations.ts — drives the hover tooltip. */
+  metricKey?: string
 }
 
 // ── Helpers for the four financial-ratio cards ───────────────
@@ -48,6 +51,7 @@ function _roceCard(
       borderColor: "border-l-border",
       disabled: true,
       tooltip: "Return on Capital Employed is a non-financial metric \u2014 capital adequacy (Tier-1 / CAR) is the right safety proxy for a bank.",
+      metricKey: "car",
     }
   }
   if (roce === null || roce === undefined) {
@@ -59,6 +63,7 @@ function _roceCard(
       icon: "\u{1f4c8}",
       borderColor: "border-l-border",
       tooltip: "Return on Capital Employed \u2014 how efficiently the business turns capital into earnings.",
+      metricKey: "roce",
     }
   }
   const band =
@@ -74,6 +79,7 @@ function _roceCard(
     icon: "\u{1f4c8}",
     borderColor: band.b,
     tooltip: "Return on Capital Employed \u2014 how efficiently the business turns capital into earnings.",
+    metricKey: "roce",
   }
 }
 
@@ -92,6 +98,7 @@ function _debtEbitdaCard(
       borderColor: "border-l-border",
       disabled: true,
       tooltip: "Debt / EBITDA treats liabilities as borrowings. For a bank, deposits fund the business \u2014 they aren\u2019t debt in the corporate-finance sense.",
+      metricKey: "debt_ebitda",
     }
   }
   if (debtEbitda === null || debtEbitda === undefined) {
@@ -103,6 +110,7 @@ function _debtEbitdaCard(
       icon: "\u2696\ufe0f",
       borderColor: "border-l-border",
       tooltip: "Leverage ratio \u2014 how many years of EBITDA would repay all debt. Banks excluded.",
+      metricKey: "debt_ebitda",
     }
   }
   const band =
@@ -118,6 +126,7 @@ function _debtEbitdaCard(
     icon: "\u2696\ufe0f",
     borderColor: band.b,
     tooltip: "Leverage ratio \u2014 how many years of EBITDA would repay all debt. Banks excluded.",
+    metricKey: "debt_ebitda",
   }
 }
 
@@ -135,6 +144,7 @@ function _interestCoverageCard(
       borderColor: "border-l-border",
       disabled: true,
       tooltip: "Interest Coverage measures how many times operating profit covers interest expense. For a bank, interest earned IS the revenue line \u2014 the ratio is nonsensical.",
+      metricKey: "interest_coverage",
     }
   }
   if (ic === null || ic === undefined) {
@@ -146,6 +156,7 @@ function _interestCoverageCard(
       icon: "\u{1f6e1}\ufe0f",
       borderColor: "border-l-border",
       tooltip: "How many times operating profit covers interest expense. Banks excluded.",
+      metricKey: "interest_coverage",
     }
   }
   const band =
@@ -161,6 +172,7 @@ function _interestCoverageCard(
     icon: "\u{1f6e1}\ufe0f",
     borderColor: band.b,
     tooltip: "How many times operating profit covers interest expense. Banks excluded.",
+    metricKey: "interest_coverage",
   }
 }
 
@@ -177,6 +189,7 @@ function _promoterCard(
       icon: "\u{1f465}",
       borderColor: "border-l-border",
       tooltip: "Percent of shares held by promoters. Higher generally means aligned interests, but watch for pledge.",
+      metricKey: "promoter_holding",
     }
   }
   const pledged = pledgePct !== null && pledgePct !== undefined && pledgePct > 0
@@ -196,6 +209,7 @@ function _promoterCard(
     icon: "\u{1f465}",
     borderColor: pledged ? "border-l-red-500" : band.b,
     tooltip: "Percent of shares held by promoters. Higher generally means aligned interests, but watch for pledge.",
+    metricKey: "promoter_holding",
   }
 }
 
@@ -238,6 +252,7 @@ export default function InsightCards({ quality, insights, valuation, currency = 
       color: quality.piotroski_score >= 7 ? "text-blue-700" : quality.piotroski_score >= 4 ? "text-amber-700" : "text-red-700",
       icon: "\u{1f4ca}",
       borderColor: quality.piotroski_score >= 7 ? "border-l-blue-500" : quality.piotroski_score >= 4 ? "border-l-amber-500" : "border-l-red-500",
+      metricKey: "piotroski_score",
     },
     {
       title: "Moat",
@@ -246,6 +261,7 @@ export default function InsightCards({ quality, insights, valuation, currency = 
       color: quality.moat === "Wide" ? "text-blue-700" : quality.moat === "Narrow" ? "text-amber-700" : "text-red-700",
       icon: "\u{1f6e1}\ufe0f",
       borderColor: quality.moat === "Wide" ? "border-l-blue-500" : quality.moat === "Narrow" ? "border-l-amber-500" : "border-l-red-500",
+      metricKey: "moat",
     },
     {
       title: "Red Flags",
@@ -373,7 +389,13 @@ export default function InsightCards({ quality, insights, valuation, currency = 
           >
             <div className="flex items-center gap-1.5 mb-1.5">
               <span className="text-sm">{card.icon}</span>
-              <p className="text-xs text-caption">{card.title}</p>
+              {card.metricKey ? (
+                <MetricTooltip metricKey={card.metricKey}>
+                  <p className="text-xs text-caption">{card.title}</p>
+                </MetricTooltip>
+              ) : (
+                <p className="text-xs text-caption">{card.title}</p>
+              )}
             </div>
             <p className={cn("text-lg font-semibold", card.color)}>{card.value}</p>
             <p className={cn("text-xs mt-1 line-clamp-1", card.subtitleColor ?? "text-caption")}>{card.subtitle}</p>
@@ -390,7 +412,6 @@ export default function InsightCards({ quality, insights, valuation, currency = 
           {ratioCards.map((card) => (
             <div
               key={card.title}
-              title={card.tooltip}
               className={cn(
                 "rounded-xl bg-surface border border-border border-l-[3px] p-4 shadow-sm",
                 card.borderColor,
@@ -399,7 +420,13 @@ export default function InsightCards({ quality, insights, valuation, currency = 
             >
               <div className="flex items-center gap-1.5 mb-1.5">
                 <span className="text-sm">{card.icon}</span>
-                <p className="text-xs text-caption">{card.title}</p>
+                {card.metricKey ? (
+                  <MetricTooltip metricKey={card.metricKey}>
+                    <p className="text-xs text-caption">{card.title}</p>
+                  </MetricTooltip>
+                ) : (
+                  <p className="text-xs text-caption">{card.title}</p>
+                )}
               </div>
               <p className={cn("text-lg font-semibold", card.color)}>{card.value}</p>
               <p className={cn("text-xs mt-1 line-clamp-1", card.subtitleColor ?? "text-caption")}>{card.subtitle}</p>

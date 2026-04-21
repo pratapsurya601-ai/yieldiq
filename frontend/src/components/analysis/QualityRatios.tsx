@@ -2,6 +2,7 @@
 
 import type { QualityOutput, InsightCards as InsightCardsType } from "@/types/api"
 import { cn } from "@/lib/utils"
+import MetricTooltip from "@/components/analysis/MetricTooltip"
 
 interface Props {
   quality: QualityOutput
@@ -16,13 +17,14 @@ function RatioCard({
   value,
   subtitle,
   tone,
-  tooltip,
+  metricKey,
 }: {
   label: string
   value: string
   subtitle?: string
   tone: "green" | "amber" | "red" | "neutral"
-  tooltip: string
+  /** Dictionary key for the MetricTooltip popover. */
+  metricKey: string
 }) {
   const toneClass = {
     green:   "border-l-green-500",
@@ -43,9 +45,10 @@ function RatioCard({
         "rounded-xl bg-surface border border-border border-l-[3px] p-3",
         toneClass,
       )}
-      title={tooltip}
     >
-      <p className="text-[10px] text-caption uppercase tracking-wide">{label}</p>
+      <MetricTooltip metricKey={metricKey}>
+        <p className="text-[10px] text-caption uppercase tracking-wide">{label}</p>
+      </MetricTooltip>
       <p className={cn("text-lg font-bold font-mono tabular-nums mt-0.5", valueClass)}>
         {value}
       </p>
@@ -249,7 +252,7 @@ export default function QualityRatios({ quality, insights }: Props) {
               label="ROA"
               value={fmtRatio(quality.roa, "%")}
               tone={roaTone(quality.roa)}
-              tooltip="Return on Assets. Net income ÷ total assets × 100. The clearest single measure of how profitably a bank runs its balance sheet. Indian bank cohort: >1.4% strong, ~1.0% average, <0.6% weak."
+              metricKey="roa"
             />
             <RatioCard
               label="ROE"
@@ -258,33 +261,33 @@ export default function QualityRatios({ quality, insights }: Props) {
                 ? "neutral"
                 : quality.roe >= 15 ? "green"
                 : quality.roe >= 10 ? "amber" : "red"}
-              tooltip="Return on Equity. Net income ÷ shareholder equity. Indian private banks target >15%; PSU banks run 12-16%."
+              metricKey="roe"
             />
             <RatioCard
               label="Cost / Income"
               value={fmtRatio(quality.cost_to_income, "%")}
               tone={costToIncomeTone(quality.cost_to_income)}
-              tooltip="Operating expense ÷ total income. Lower is better. Top Indian private banks run ~40-45%; PSU banks ~55-65%."
+              metricKey="cost_to_income"
             />
             <RatioCard
               label="Advances YoY"
               value={fmtRatio(quality.advances_yoy, "%")}
               subtitle="Proxy: total assets YoY"
               tone={growthYoyTone(quality.advances_yoy)}
-              tooltip="Loan book year-on-year growth, proxied via total assets (until we wire NSE XBRL Schedule VII). Indian system credit grows ~10-12% long-term."
+              metricKey="advances_yoy"
             />
             <RatioCard
               label="Deposits YoY"
               value={fmtRatio(quality.deposits_yoy, "%")}
               subtitle="Proxy: total liab YoY"
               tone={growthYoyTone(quality.deposits_yoy)}
-              tooltip="Deposit base year-on-year growth, proxied via total liabilities (until we wire NSE XBRL Schedule V). Slower than advances signals funding stress."
+              metricKey="deposits_yoy"
             />
             <RatioCard
               label="PAT YoY"
               value={fmtRatio(quality.pat_yoy_bank, "%")}
               tone={growthYoyTone(quality.pat_yoy_bank)}
-              tooltip="Net profit year-on-year growth."
+              metricKey="pat_yoy_bank"
             />
           </div>
 
@@ -319,26 +322,26 @@ export default function QualityRatios({ quality, insights }: Props) {
             label="ROCE"
             value={fmtRatio(roce, "%")}
             tone={roceTone(roce)}
-            tooltip="Return on Capital Employed. EBIT ÷ total assets × 100. Measures how efficiently the business uses its capital base. Higher is better."
+            metricKey="roce"
           />
           <RatioCard
             label="EV / EBITDA"
             value={fmtRatio(evEbitda, "x")}
             tone={evEbitdaTone(evEbitda)}
-            tooltip="Enterprise Value ÷ EBITDA. A capital-structure-neutral valuation multiple — better than P/E for debt-heavy businesses. Lower is cheaper."
+            metricKey="ev_ebitda"
           />
           <RatioCard
             label="Debt / EBITDA"
             value={fmtRatio(debt_ebitda, "x")}
             subtitle={debt_ebitda_label ?? undefined}
             tone={debtEbitdaTone(debt_ebitda)}
-            tooltip="Years of EBITDA needed to pay off debt. <1 excellent, 1–3 healthy, 3–5 leveraged, >5 risky."
+            metricKey="debt_ebitda"
           />
           <RatioCard
             label="Int. Coverage"
             value={fmtRatio(interest_coverage, "x")}
             tone={interestCoverageTone(interest_coverage)}
-            tooltip="EBIT ÷ Interest Expense. How many times operating profit covers interest payments. >3 is safe."
+            metricKey="interest_coverage"
           />
         </div>
       )}
