@@ -3,26 +3,25 @@
     YieldIQ primary mark — Y letterform where the right arm is a magnifying glass.
     Concept: analyze-the-yield. The Y is the company; the magnifier is the tool.
     Rim glow echoes the Prism hex palette (cyan → magenta).
-
-    Refresh v2 (2026-04-22): matches the design on the PDF brief with 4 fixes —
-    (1) even Y stroke weights, (2) aligned gradient direction on rim + handle,
-    (3) safe-area padding so rim doesn't kiss canvas edge, (4) small variant
-    companion (logo-mark-small.svg) that drops the bars inside the magnifier.
   -->
   <defs>
+    <!-- Deep-space body: top indigo, bottom near-black -->
     <radialGradient id="bodyGrad" cx="50%" cy="40%" r="70%">
       <stop offset="0%" stop-color="#2E2A7A"/>
       <stop offset="55%" stop-color="#151242"/>
       <stop offset="100%" stop-color="#030214"/>
     </radialGradient>
+    <!-- Rim: cyan → magenta, same direction as handle (fix #2) -->
     <linearGradient id="rimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#22D3EE"/>
       <stop offset="100%" stop-color="#EC4899"/>
     </linearGradient>
+    <!-- Magnifier: matches rim direction (fix #2) -->
     <linearGradient id="magGrad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#22D3EE"/>
       <stop offset="100%" stop-color="#EC4899"/>
     </linearGradient>
+    <!-- Soft outer glow so rim doesn't kiss the canvas edge (fix #3) -->
     <filter id="rimGlow" x="-20%" y="-20%" width="140%" height="140%">
       <feGaussianBlur stdDeviation="6" result="b"/>
       <feMerge>
@@ -32,20 +31,30 @@
     </filter>
   </defs>
 
+  <!-- Body with safe-area padding (fix #3): circle inset from edge by 32px -->
   <circle cx="256" cy="256" r="220" fill="url(#bodyGrad)"/>
+
+  <!-- Rim -->
   <circle cx="256" cy="256" r="220" fill="none" stroke="url(#rimGrad)" stroke-width="4" filter="url(#rimGlow)"/>
 
-  <!-- Y letterform — all three strokes share width=20 -->
+  <!-- Y letterform. All three strokes share width=20 (fix #1: even weights) -->
+  <!-- Left arm: from upper-left, down to center junction -->
   <path d="M 168 168 L 256 300" stroke="#F8FAFC" stroke-width="20" stroke-linecap="round" fill="none"/>
+  <!-- Stem: from junction straight down -->
   <path d="M 256 300 L 256 404" stroke="#F8FAFC" stroke-width="20" stroke-linecap="round" fill="none"/>
+  <!-- Right arm = magnifier handle, ends at the glass -->
   <path d="M 256 300 L 316 240" stroke="url(#magGrad)" stroke-width="20" stroke-linecap="round" fill="none"/>
 
-  <!-- Magnifier ring + bar chart + up-arrow -->
+  <!-- Magnifying glass ring -->
   <circle cx="348" cy="208" r="50" fill="none" stroke="url(#magGrad)" stroke-width="14"/>
+
+  <!-- Inside the magnifier: bar chart + up-arrow -->
+  <!-- Bars: ascending heights, cyan -->
   <rect x="320" y="220" width="6" height="14" rx="1" fill="#22D3EE"/>
   <rect x="332" y="214" width="6" height="20" rx="1" fill="#22D3EE"/>
   <rect x="344" y="208" width="6" height="26" rx="1" fill="#22D3EE"/>
   <rect x="356" y="200" width="6" height="34" rx="1" fill="#22D3EE"/>
+  <!-- Up-arrow sweep (amber) -->
   <path d="M 322 202 L 340 192 L 356 186 L 370 180" stroke="#F59E0B" stroke-width="3" stroke-linecap="round" fill="none"/>
   <polygon points="370,180 362,180 368,174" fill="#F59E0B"/>
 </svg>

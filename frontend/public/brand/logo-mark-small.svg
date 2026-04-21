@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="YieldIQ">
+  <!--
+    Simplified small-size variant. Drops the bar chart inside the magnifier,
+    keeps just the up-arrow so the concept survives at 32px / 16px.
+    Thicker strokes so nothing disappears at favicon scale.
+  -->
+  <defs>
+    <radialGradient id="bodyGrad" cx="50%" cy="40%" r="70%">
+      <stop offset="0%" stop-color="#2E2A7A"/>
+      <stop offset="55%" stop-color="#151242"/>
+      <stop offset="100%" stop-color="#030214"/>
+    </radialGradient>
+    <linearGradient id="rimGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+    <linearGradient id="magGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22D3EE"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+  </defs>
+
+  <circle cx="256" cy="256" r="220" fill="url(#bodyGrad)"/>
+  <circle cx="256" cy="256" r="220" fill="none" stroke="url(#rimGrad)" stroke-width="6"/>
+
+  <!-- Y strokes thicker (28 vs 20) to survive downscaling -->
+  <path d="M 168 168 L 256 300" stroke="#F8FAFC" stroke-width="28" stroke-linecap="round" fill="none"/>
+  <path d="M 256 300 L 256 404" stroke="#F8FAFC" stroke-width="28" stroke-linecap="round" fill="none"/>
+  <path d="M 256 300 L 312 244" stroke="url(#magGrad)" stroke-width="28" stroke-linecap="round" fill="none"/>
+
+  <!-- Magnifier: just the ring + up-arrow, no bars -->
+  <circle cx="348" cy="208" r="54" fill="none" stroke="url(#magGrad)" stroke-width="18"/>
+  <!-- Single bold up-arrow centered in the glass -->
+  <path d="M 328 228 L 348 188 L 368 228" stroke="#F59E0B" stroke-width="10" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <path d="M 348 188 L 348 222" stroke="#F59E0B" stroke-width="10" stroke-linecap="round" fill="none"/>
+</svg>

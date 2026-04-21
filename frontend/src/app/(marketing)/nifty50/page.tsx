@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     url: "https://yieldiq.in/nifty50",
     siteName: "YieldIQ",
     type: "website",
-    images: [{ url: "https://yieldiq.in/logo_icon.jpeg", width: 512, height: 512 }],
+    images: [{ url: "https://www.yieldiq.in/logo-1024.png", width: 1024, height: 1024 }],
   },
   alternates: { canonical: "https://yieldiq.in/nifty50" },
 }
