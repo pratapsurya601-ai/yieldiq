@@ -162,13 +162,37 @@ export async function generateMetadata(
   }
 
   const vText = verdictLabel(data.verdict)
+  // SEO-2026-04-21: rewrite for "X share price" intent.
+  // GSC showed 225 impressions / 0 clicks — we ranked but didn't get
+  // clicks. Top real-user queries: "acc share", "indus towers latest
+  // news", "bluestar share price", "biocon latest news" — all
+  // "<ticker> [share|price|news]" patterns we didn't match in our title.
+  // New title leads with "Share Price <price>" so the SERP snippet
+  // hits the keyword users actually type, then differentiates with
+  // fair value (our moat).
+  const priceText = data.current_price ? fmt(data.current_price) : ""
+  const fvText = data.fair_value ? fmt(data.fair_value) : ""
+  const mosText = data.mos != null
+    ? `${data.mos > 0 ? "+" : ""}${data.mos.toFixed(1)}% MoS`
+    : ""
+  // Format e.g. "HDFCBANK Share Price ₹1,815 — Fair Value ₹1,892 (+4.2% MoS) | YieldIQ"
+  const titleParts: string[] = [`${display} Share Price`]
+  if (priceText) titleParts.push(priceText)
+  let title = titleParts.join(" ")
+  if (fvText) {
+    title += ` \u2014 Fair Value ${fvText}`
+    if (mosText) title += ` (${mosText})`
+  } else {
+    title += ` \u2014 ${vText}`
+  }
+  title += " | YieldIQ"
 
   return {
-    title: `${data.company_name} (${display}) Fair Value \u2014 ${vText} | YieldIQ`,
-    description: `${data.company_name} DCF valuation: Fair value ${fmt(data.fair_value)} vs price ${fmt(data.current_price)}. Margin of Safety ${pct(data.mos)}. YieldIQ Score: ${data.score}/100. Free analysis.`,
+    title,
+    description: `${data.company_name} share price ${priceText || "live"}. DCF fair value ${fvText || "n/a"}, margin of safety ${pct(data.mos)}, YieldIQ Score ${data.score}/100. Free DCF analysis on YieldIQ.`,
     openGraph: {
-      title: `${display} \u2014 ${vText} | YieldIQ Fair Value`,
-      description: `${data.company_name} fair value ${fmt(data.fair_value)} vs ${fmt(data.current_price)}. Score: ${data.score}/100. Moat: ${data.moat}.`,
+      title: `${display} Share Price ${priceText} \u2014 Fair Value ${fvText} | YieldIQ`,
+      description: `${data.company_name} fair value ${fvText} vs ${priceText}. Score: ${data.score}/100. Moat: ${data.moat}.`,
       url: `https://yieldiq.in/stocks/${display}/fair-value`,
       siteName: "YieldIQ",
       type: "article",
@@ -183,8 +207,8 @@ export async function generateMetadata(
     },
     twitter: {
       card: "summary_large_image",
-      title: `${display} \u2014 ${vText} | YieldIQ`,
-      description: `Fair value ${fmt(data.fair_value)} vs ${fmt(data.current_price)}. Score: ${data.score}/100.`,
+      title: `${display} Share Price ${priceText} | YieldIQ`,
+      description: `Fair value ${fvText} vs ${priceText}. Score: ${data.score}/100.`,
       images: [`https://yieldiq.in/api/og/${data.ticker}`],
     },
     alternates: { canonical: `https://yieldiq.in/stocks/${display}/fair-value` },
