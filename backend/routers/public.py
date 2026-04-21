@@ -58,15 +58,21 @@ async def roce_probe(ticker: str):
     # are poisoning the ROCE compute with a wrong unit or stale value.
     enriched_probe = {}
     try:
-        from data.collector import get_all as _data_get_all
-        raw = _data_get_all(ticker) or {}
+        # Match exactly what analysis_service.get_full_analysis does:
+        #   raw = StockDataCollector(ticker).get_all()
+        #   enriched = compute_metrics(raw)
+        from data.collector import StockDataCollector
+        from data.processor import compute_metrics
+        raw = StockDataCollector(ticker).get_all() or {}
+        enriched_full = compute_metrics(raw) or {}
         enriched_probe = {
-            "total_assets": raw.get("total_assets"),
-            "current_liabilities": raw.get("current_liabilities"),
-            "total_debt": raw.get("total_debt"),
-            "ebitda": raw.get("ebitda"),
-            "roe": raw.get("roe"),
-            "roce": raw.get("roce"),
+            "total_assets": enriched_full.get("total_assets"),
+            "current_liabilities": enriched_full.get("current_liabilities"),
+            "total_debt": enriched_full.get("total_debt"),
+            "ebitda": enriched_full.get("ebitda"),
+            "roe": enriched_full.get("roe"),
+            "roce": enriched_full.get("roce"),
+            "ebit": enriched_full.get("ebit"),
         }
     except Exception as exc:
         enriched_probe = {"error": f"{type(exc).__name__}: {exc}"}
