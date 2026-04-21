@@ -5,3 +5,8 @@ python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-multipart==0.0.9
 httpx==0.27.0
+# Newsletter — Markdown -> HTML for the founder weekly pick.
+# Small, fast, well-maintained; no extra deps. Renderer has an
+# in-house fallback if this isn't installed (see
+# backend/services/newsletter_render_service.py::_md_to_html).
+mistune==3.0.2
