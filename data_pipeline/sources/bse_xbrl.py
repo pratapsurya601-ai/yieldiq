@@ -352,6 +352,14 @@ def fetch_historical_financials(scrip_code: str, ticker: str) -> list[dict]:
             or _parse_cr(cf.get("PurchaseOfFixedAssets"))
         )
 
+        # TODO(xbrl-roce): BSE Peercomp's "bs_annual" rows don't expose
+        # a reliable TotalAssets / CurrentLiabilities field across the
+        # full universe. Leave ebit/total_assets/current_liabilities
+        # unset here and let the NSE XBRL pipeline (which does parse
+        # those tags) populate them — the ON CONFLICT upsert in
+        # store_financials won't clobber already-populated values
+        # unless EXCLUDED carries non-null data. If we later audit a
+        # reliable BSE field name we can wire them in here.
         results.append({
             "ticker": ticker,
             "period_end": period_end,
@@ -446,6 +454,11 @@ def store_financials(financial_data: dict, db: Session,
         capex = financial_data.get("capex")
         fcf = (cfo - abs(capex)) if cfo and capex else None
         equity = financial_data.get("total_equity")
+        # New fields (optional — NSE XBRL populates these; BSE
+        # Peercomp / BSE API paths currently leave them None).
+        ebit = financial_data.get("ebit")
+        total_assets = financial_data.get("total_assets")
+        current_liabilities = financial_data.get("current_liabilities")
 
         # Sanity guard on ROE — cap extremes instead of writing garbage.
         roe = None
@@ -464,19 +477,27 @@ def store_financials(financial_data: dict, db: Session,
         stmt = _text("""
             INSERT INTO financials (
                 ticker, period_end, period_type,
-                revenue, pat, cfo, capex, free_cash_flow,
+                revenue, pat, ebit, cfo, capex, free_cash_flow,
                 eps_diluted, total_debt, cash_and_equivalents,
-                total_equity, roe, data_source, raw_data, currency
+                total_equity, total_assets, current_liabilities,
+                roe, data_source, raw_data, currency
             ) VALUES (
                 :ticker, :period_end, :period_type,
-                :revenue, :pat, :cfo, :capex, :fcf,
+                :revenue, :pat, :ebit, :cfo, :capex, :fcf,
                 :eps, :debt, :cash,
-                :equity, :roe, :source, :raw, :currency
+                :equity, :total_assets, :current_liabilities,
+                :roe, :source, :raw, :currency
             )
             ON CONFLICT ON CONSTRAINT uq_financials_period
             DO UPDATE SET
                 revenue = EXCLUDED.revenue,
                 pat = EXCLUDED.pat,
+                -- Use COALESCE for the new balance-sheet fields so a
+                -- later BSE_PEERCOMP upsert (which leaves these NULL)
+                -- does NOT clobber values populated earlier by the
+                -- NSE_XBRL ingest. Income-statement fields are
+                -- recomputed per ingest so we overwrite them freely.
+                ebit = COALESCE(EXCLUDED.ebit, financials.ebit),
                 cfo = EXCLUDED.cfo,
                 capex = EXCLUDED.capex,
                 free_cash_flow = EXCLUDED.free_cash_flow,
@@ -484,6 +505,10 @@ def store_financials(financial_data: dict, db: Session,
                 total_debt = EXCLUDED.total_debt,
                 cash_and_equivalents = EXCLUDED.cash_and_equivalents,
                 total_equity = EXCLUDED.total_equity,
+                total_assets = COALESCE(EXCLUDED.total_assets, financials.total_assets),
+                current_liabilities = COALESCE(
+                    EXCLUDED.current_liabilities, financials.current_liabilities
+                ),
                 roe = EXCLUDED.roe,
                 data_source = EXCLUDED.data_source,
                 raw_data = EXCLUDED.raw_data,
@@ -495,6 +520,7 @@ def store_financials(financial_data: dict, db: Session,
             "period_type": period_type,
             "revenue": revenue,
             "pat": pat,
+            "ebit": ebit,
             "cfo": cfo,
             "capex": capex,
             "fcf": fcf,
@@ -502,6 +528,8 @@ def store_financials(financial_data: dict, db: Session,
             "debt": financial_data.get("total_debt"),
             "cash": financial_data.get("cash"),
             "equity": equity,
+            "total_assets": total_assets,
+            "current_liabilities": current_liabilities,
             "roe": roe,
             "source": financial_data.get("source", "BSE_API"),
             "raw": financial_data.get("raw"),

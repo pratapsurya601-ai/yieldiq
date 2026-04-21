@@ -1099,7 +1099,10 @@ def _fetch_ebit_and_interest(ticker: str) -> tuple[float | None, float | None]:
 
     Priority:
       1. ``company_financials`` table (new XBRL pipeline — has explicit EBIT)
-      2. ``financials`` table (old pipeline — has EBITDA, use as EBIT proxy)
+      2. ``financials`` table (now populated by NSE XBRL parser too —
+         FIX-XBRL-ROCE added ebit, total_assets, current_liabilities
+         extraction upstream so we prefer the explicit ebit column and
+         fall back to ebitda only when ebit is absent).
 
     Returns (None, None) if neither table has data for this ticker.
     """
@@ -1133,9 +1136,10 @@ def _fetch_ebit_and_interest(ticker: str) -> tuple[float | None, float | None]:
             if ebit is not None:
                 return ebit, interest
 
-        # Fallback: old financials table has EBITDA (use as EBIT proxy)
-        # EBITDA ≈ EBIT + depreciation. Without depreciation data,
-        # EBITDA is a reasonable upper-bound proxy for ROCE calculation.
+        # Fallback: `financials` table. Prefer explicit `ebit` (now
+        # populated by the NSE XBRL parser); if NULL, fall back to
+        # EBITDA (EBIT + depreciation — a reasonable upper-bound
+        # proxy when depreciation is unavailable).
         old_row = db.execute(text("""
             SELECT ebitda, ebit
             FROM financials
@@ -1158,6 +1162,97 @@ def _fetch_ebit_and_interest(ticker: str) -> tuple[float | None, float | None]:
             "ebit/interest fetch failed for %s: %s", ticker, exc
         )
         return None, None
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
+def _fetch_roce_inputs(
+    ticker: str,
+) -> tuple[float | None, float | None, float | None, float | None]:
+    """
+    Fetch all ROCE inputs in one round-trip: (ebit, total_assets,
+    current_liabilities, interest_expense).
+
+    Priority:
+      1. ``company_financials`` (new XBRL pipeline with explicit fields)
+      2. ``financials`` (now carries total_assets + current_liabilities
+         thanks to FIX-XBRL-ROCE)
+
+    Returns all-Nones if no annual data is available. Any individual
+    field may still be None — callers decide how to degrade.
+    """
+    db = _get_pipeline_session()
+    if db is None:
+        return None, None, None, None
+    try:
+        from sqlalchemy import text
+        db_ticker = ticker.replace(".NS", "").replace(".BO", "")
+
+        def _f(v):
+            try:
+                return float(v) if v is not None else None
+            except (TypeError, ValueError):
+                return None
+
+        # Prefer company_financials but company_financials is statement-
+        # sharded. Pull income + balance rows independently and merge.
+        inc_row = db.execute(text("""
+            SELECT ebit, interest_expense, period_end_date
+            FROM company_financials
+            WHERE ticker_nse = :t
+              AND statement_type = 'income'
+              AND period_type = 'annual'
+              AND period_end_date IS NOT NULL
+            ORDER BY period_end_date DESC
+            LIMIT 1
+        """), {"t": db_ticker}).mappings().first()
+
+        bal_row = db.execute(text("""
+            SELECT total_assets, current_liabilities
+            FROM company_financials
+            WHERE ticker_nse = :t
+              AND statement_type = 'balance_sheet'
+              AND period_type = 'annual'
+              AND period_end_date IS NOT NULL
+            ORDER BY period_end_date DESC
+            LIMIT 1
+        """), {"t": db_ticker}).mappings().first()
+
+        ebit = _f(inc_row.get("ebit")) if inc_row else None
+        interest = _f(inc_row.get("interest_expense")) if inc_row else None
+        ta = _f(bal_row.get("total_assets")) if bal_row else None
+        cl = _f(bal_row.get("current_liabilities")) if bal_row else None
+
+        # If company_financials is missing pieces, backfill from
+        # `financials` (the NSE XBRL-populated legacy table).
+        if ebit is None or ta is None or cl is None:
+            old_row = db.execute(text("""
+                SELECT ebit, ebitda, total_assets, current_liabilities
+                FROM financials
+                WHERE ticker = :t
+                  AND period_type = 'annual'
+                  AND period_end IS NOT NULL
+                ORDER BY period_end DESC
+                LIMIT 1
+            """), {"t": db_ticker}).mappings().first()
+            if old_row:
+                if ebit is None:
+                    ebit = _f(old_row.get("ebit")) or _f(old_row.get("ebitda"))
+                if ta is None:
+                    ta = _f(old_row.get("total_assets"))
+                if cl is None:
+                    cl = _f(old_row.get("current_liabilities"))
+
+        return ebit, ta, cl, interest
+    except Exception as exc:
+        import logging
+        logging.getLogger("yieldiq.analysis").debug(
+            "roce inputs fetch failed for %s: %s", ticker, exc
+        )
+        return None, None, None, None
     finally:
         try:
             db.close()
@@ -2261,14 +2356,19 @@ class AnalysisService:
         # ROCE, Debt/EBITDA (with band label), Interest Coverage,
         # Enterprise Value. Every metric is Optional — None flows
         # through to the frontend which renders "—".
-        _ebit_val, _interest_exp = _fetch_ebit_and_interest(ticker)
+        #
+        # FIX-XBRL-ROCE (2026-04): pull EBIT + Total Assets +
+        # Current Liabilities together from the pipeline DB so that
+        # the ROCE denominator is populated even when the yfinance-
+        # sourced `enriched` dict happens to lack these fields.
+        _ebit_val, _ta_db, _cl_db, _interest_exp = _fetch_roce_inputs(ticker)
 
-        _total_assets = enriched.get("total_assets") or 0
+        _total_assets = enriched.get("total_assets") or _ta_db or 0
         _total_debt = enriched.get("total_debt") or 0
         _total_cash = enriched.get("total_cash") or 0
         _ebitda = enriched.get("ebitda") or 0
         _shares = enriched.get("shares") or 0
-        _current_liab = enriched.get("current_liabilities") or 0
+        _current_liab = enriched.get("current_liabilities") or _cl_db or 0
 
         # Sector-based "bank / NBFC / Financial" detection — leverage
         # and interest-coverage ratios are not meaningful for these.
