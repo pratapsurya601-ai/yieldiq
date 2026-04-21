@@ -1261,11 +1261,27 @@ def _fetch_roce_inputs(
                 if cl is None:
                     cl = _f(old_row.get("current_liabilities"))
 
+        # Diagnostic log — elevated to INFO so we can trace why ROCE
+        # ends up None on flagships (DB has the data per manual SQL
+        # probe but prod was silently returning None). Drop back to
+        # DEBUG once the 50 flagships all compute green.
+        import logging as _l
+        _l.getLogger("yieldiq.analysis").info(
+            "roce inputs for %s (db_ticker=%s): ebit=%s ta=%s cl=%s int=%s "
+            "(inc_row=%s bal_row=%s)",
+            ticker, db_ticker, ebit, ta, cl, interest,
+            "hit" if inc_row else "MISS",
+            "hit" if bal_row else "MISS",
+        )
         return ebit, ta, cl, interest
     except Exception as exc:
-        import logging
-        logging.getLogger("yieldiq.analysis").debug(
-            "roce inputs fetch failed for %s: %s", ticker, exc
+        # Was .debug() — silently swallowed every failure. Elevated so
+        # we actually see exceptions. Full traceback too, since the
+        # shape of the exception matters for diagnosis.
+        import logging as _l
+        _l.getLogger("yieldiq.analysis").exception(
+            "roce inputs fetch failed for %s: %s: %s",
+            ticker, type(exc).__name__, exc,
         )
         return None, None, None, None
     finally:
