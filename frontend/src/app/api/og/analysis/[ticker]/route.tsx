@@ -804,11 +804,16 @@ export async function GET(
       width: 1080,
       height: 1920,
       headers: {
-        // 1 hour fresh at edge; up to 1 day stale-while-revalidate so the
-        // same user re-sharing quickly never waits for a regen. The SVG
-        // hex is pure deterministic drawing — once cached, it stays cheap.
+        // FIX-OG-CACHE-SYNC (2026-04-22): previous value was
+        //   max-age=3600, s-maxage=86400 (1d edge), SWR=604800 (7d)
+        // — mismatched with `revalidate = 3600` above. Meant a user
+        // who shared a card then updated their thesis could have the
+        // stale image served for up to 23h. Now all three match the
+        // 1-hour revalidate window; SWR=7d stays as a graceful
+        // degradation layer (edge can serve stale while refreshing
+        // in the background).
         "Cache-Control":
-          "public, max-age=3600, s-maxage=86400, stale-while-revalidate=604800",
+          "public, max-age=3600, s-maxage=3600, stale-while-revalidate=604800",
       },
     }
   )
