@@ -73,6 +73,19 @@ export interface QualityOutput {
   fii_pct?: number | null
   dii_pct?: number | null
   public_pct?: number | null
+  // Bank-native metrics — present for banks/NBFCs, null elsewhere.
+  // See docs/bank_data_availability.md for the coverage matrix.
+  is_bank?: boolean
+  roa?: number | null              // percent
+  cost_to_income?: number | null   // percent
+  advances_yoy?: number | null     // percent, proxied via total_assets YoY
+  deposits_yoy?: number | null     // percent, proxied via total_liab YoY
+  revenue_yoy_bank?: number | null // percent
+  pat_yoy_bank?: number | null     // percent
+  nim?: number | null              // percent — null until NSE XBRL Sch A/B lands
+  car?: number | null              // percent — null until NSE XBRL Sch XI lands
+  nnpa?: number | null             // percent — null until NSE XBRL Sch XVIII lands
+  casa?: number | null             // percent — null until NSE XBRL Sch V lands
 }
 
 export interface BulkDealItem {

@@ -29,7 +29,27 @@ interface CardData {
 // ── Helpers for the four financial-ratio cards ───────────────
 // Centralised so the JSX stays readable and the thresholds match
 // the product spec (ROCE / Debt-EBITDA / Interest Coverage bands).
-function _roceCard(roce: number | null | undefined): CardData {
+//
+// For banks (isBankLike=true), the three leverage/return-on-capital
+// cards don't apply — we show a banker's note pointing the user at
+// the Prism axis that DOES answer the equivalent question for a
+// bank, per feat/bank-prism-metrics (2026-04-21).
+function _roceCard(
+  roce: number | null | undefined,
+  isBankLike: boolean = false,
+): CardData {
+  if (isBankLike) {
+    return {
+      title: "ROCE",
+      value: "\u2014",
+      subtitle: "Not applicable \u2014 banks use capital adequacy, not capital employed. See Safety axis \u2192",
+      color: "text-caption",
+      icon: "\u{1f4c8}",
+      borderColor: "border-l-border",
+      disabled: true,
+      tooltip: "Return on Capital Employed is a non-financial metric \u2014 capital adequacy (Tier-1 / CAR) is the right safety proxy for a bank.",
+    }
+  }
   if (roce === null || roce === undefined) {
     return {
       title: "ROCE",
@@ -66,12 +86,12 @@ function _debtEbitdaCard(
     return {
       title: "Debt / EBITDA",
       value: "\u2014",
-      subtitle: "Not applicable for banks",
+      subtitle: "Not applicable \u2014 deposits aren\u2019t debt. See Safety axis \u2192",
       color: "text-caption",
       icon: "\u2696\ufe0f",
       borderColor: "border-l-border",
       disabled: true,
-      tooltip: "Leverage ratio \u2014 how many years of EBITDA would repay all debt. Banks excluded.",
+      tooltip: "Debt / EBITDA treats liabilities as borrowings. For a bank, deposits fund the business \u2014 they aren\u2019t debt in the corporate-finance sense.",
     }
   }
   if (debtEbitda === null || debtEbitda === undefined) {
@@ -109,12 +129,12 @@ function _interestCoverageCard(
     return {
       title: "Interest Coverage",
       value: "\u2014",
-      subtitle: "Not applicable for banks",
+      subtitle: "Not applicable \u2014 for banks, interest is revenue. See Quality axis \u2192",
       color: "text-caption",
       icon: "\u{1f6e1}\ufe0f",
       borderColor: "border-l-border",
       disabled: true,
-      tooltip: "How many times operating profit covers interest expense. Banks excluded.",
+      tooltip: "Interest Coverage measures how many times operating profit covers interest expense. For a bank, interest earned IS the revenue line \u2014 the ratio is nonsensical.",
     }
   }
   if (ic === null || ic === undefined) {
@@ -196,13 +216,19 @@ export default function InsightCards({ quality, insights, valuation, currency = 
     _tkrUpper.endsWith("BANK.NS") ||
     _tkrUpper.endsWith("BANK.BO")
 
+  // Prefer the authoritative backend flag (quality.is_bank, 2026-04-21).
+  // Fall back to the string heuristic for back-compat with any payload
+  // that predates the new field.
+  const isBankFromBackend = quality.is_bank === true
+  const isBank = isBankFromBackend || isBankLike
+
   const ratioCards: CardData[] = useMemo(() => [
-    _roceCard(quality.roce),
-    _debtEbitdaCard(quality.debt_ebitda, quality.debt_ebitda_label, isBankLike),
-    _interestCoverageCard(quality.interest_coverage, isBankLike),
+    _roceCard(quality.roce, isBank),
+    _debtEbitdaCard(quality.debt_ebitda, quality.debt_ebitda_label, isBank),
+    _interestCoverageCard(quality.interest_coverage, isBank),
     _promoterCard(quality.promoter_pct, quality.promoter_pledge_pct),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [quality.roce, quality.debt_ebitda, quality.debt_ebitda_label, quality.interest_coverage, quality.promoter_pct, quality.promoter_pledge_pct, isBankLike])
+  ], [quality.roce, quality.debt_ebitda, quality.debt_ebitda_label, quality.interest_coverage, quality.promoter_pct, quality.promoter_pledge_pct, isBank])
 
   const cards: CardData[] = useMemo(() => [
     {
