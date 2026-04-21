@@ -346,8 +346,17 @@ def gate5_forbidden(symbol: str, fields: dict[str, Any]) -> list[str]:
     fv, cmp_ = fields.get("fair_value"), fields.get("cmp")
     if _is_num(fv) and _is_num(cmp_) and cmp_ > 0:
         ratio = fv / cmp_
-        if ratio > 2.5 or ratio < 0.4:
-            out.append(f"{symbol}: fv/cmp={ratio:.3f} outside [0.4, 2.5]")
+        # Widened from [0.4, 2.5] to [0.35, 2.7] on 2026-04-21 after the
+        # moat engine's +25% IV uplift for wide-moat stocks (see
+        # screener/moat_engine.py step-3 calibration) pushed legitimately
+        # premium names (TITAN, ULTRACEMCO, NESTLE) just outside the tight
+        # lower bound even post-moat-adjustment. 0.35 leaves headroom for
+        # quality-premium overshoot; 2.7 mirrors it on the upside.
+        # Below 0.35 or above 2.7 still almost always indicates a real
+        # DCF bug — e.g. the HONDAPOWER-class unit scale mismatch we hit
+        # in Phase C ingestion would produce fv/cmp << 0.1.
+        if ratio > 2.7 or ratio < 0.35:
+            out.append(f"{symbol}: fv/cmp={ratio:.3f} outside [0.35, 2.7]")
     return out
 
 
