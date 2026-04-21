@@ -76,3 +76,10 @@ export function trackCheckoutFailed(
 ) {
   trackEvent("checkout_failed", { plan, reason })
 }
+
+/** Fired when the backend verifies a successful PAYG (₹99 single-analysis)
+ *  payment. Keeps the PAYG funnel separate from the subscription funnel
+ *  while reusing the existing checkout_opened/checkout_failed events. */
+export function trackPaygUnlocked(ticker: string) {
+  trackEvent("payg_unlocked", { ticker, plan: "single_analysis" })
+}

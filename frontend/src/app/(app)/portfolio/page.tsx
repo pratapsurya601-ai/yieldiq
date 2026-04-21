@@ -4,6 +4,7 @@ import { getHoldingsLive, getPortfolioHealth, getWatchlist, removeFromWatchlist,
 import HealthScore from "@/components/portfolio/HealthScore"
 import PortfolioPrism from "@/components/portfolio/PortfolioPrism"
 import { PnLSparklinePlaceholder, BelowFairValueBanner } from "@/components/portfolio/HealthDashboard"
+import UnlockBadge from "@/components/payg/UnlockBadge"
 import { formatCurrency } from "@/lib/utils"
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -303,7 +304,10 @@ function PortfolioInner() {
               <div key={w.ticker} className="flex items-center bg-white rounded-xl border border-gray-100 hover:border-blue-200 transition">
                 <Link href={`/analysis/${w.ticker}`} className="flex-1 flex items-center justify-between p-4">
                   <div>
-                    <p className="font-medium text-gray-900">{w.ticker.replace(".NS", "")}</p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-medium text-gray-900">{w.ticker.replace(".NS", "")}</p>
+                      <UnlockBadge ticker={w.ticker} size="sm" />
+                    </div>
                     <p className="text-xs text-gray-400">{w.company_name}</p>
                   </div>
                   <div className="text-right">

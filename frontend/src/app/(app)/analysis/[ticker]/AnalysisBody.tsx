@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
-import { useQuery } from "@tanstack/react-query"
+import { useQuery, useQueryClient } from "@tanstack/react-query"
 import {
   getAnalysis,
   getChartData,
@@ -23,6 +23,8 @@ import FinancialStatements from "@/components/analysis/FinancialStatements"
 import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
+import UnlockCTA from "@/components/payg/UnlockCTA"
+import UnlockBadge from "@/components/payg/UnlockBadge"
 import {
   formatCurrency,
   formatPct,
@@ -147,6 +149,15 @@ export default function AnalysisBody({ ticker, prism }: Props) {
   // fires when the tab is opened, at which point the user expects a
   // fraction-of-a-second wait.
   const [openedTabs, setOpenedTabs] = useState<Set<string>>(() => new Set(["summary"]))
+
+  // Toast for PAYG flow (reuses the styling pattern from account/page.tsx).
+  // Lives here so the 429 gate and any inline unlock can share it.
+  const [paygToast, setPaygToast] = useState<{ msg: string; tone: "ok" | "err" } | null>(null)
+  const showPaygToast = (msg: string, tone: "ok" | "err" = "ok") => {
+    setPaygToast({ msg, tone })
+    setTimeout(() => setPaygToast(null), 4000)
+  }
+  const queryClient = useQueryClient()
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["analysis", ticker],
@@ -282,11 +293,46 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               : "Data provider may be temporarily unavailable. Try again in a moment."}
         </p>
         {is429 ? (
-          <a href="/pricing" className="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition">Upgrade</a>
+          <div className="space-y-4">
+            <a href="/pricing" className="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition">
+              Upgrade to Analyst
+            </a>
+
+            {/* PAYG alternative — one-off \u20B999 unlock for this ticker. */}
+            <div className="flex items-center gap-3 max-w-xs mx-auto" role="separator" aria-hidden="true">
+              <div className="flex-1 h-px bg-border" />
+              <p className="text-[10px] font-semibold text-caption uppercase tracking-wider">or</p>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+            <UnlockCTA
+              ticker={ticker}
+              source="analysis_gate"
+              onUnlocked={() => {
+                showPaygToast(`Unlocked for 24h`, "ok")
+                // Re-run the blocked queries so the page renders the
+                // full analysis immediately without a hard reload.
+                queryClient.invalidateQueries({ queryKey: ["analysis", ticker] })
+                queryClient.invalidateQueries({ queryKey: ["prism", ticker] })
+                queryClient.invalidateQueries({ queryKey: ["chart-data", ticker] })
+              }}
+              onError={(msg) => showPaygToast(msg, "err")}
+            />
+          </div>
         ) : is404 ? (
           <a href="/search" className="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition">Search again</a>
         ) : (
           <button onClick={() => window.location.reload()} className="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition">Try again</button>
+        )}
+
+        {paygToast && (
+          <div
+            className={`fixed bottom-20 md:top-20 md:bottom-auto left-1/2 -translate-x-1/2 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-sm text-center ${
+              paygToast.tone === "err" ? "bg-red-600" : "bg-gray-900"
+            }`}
+            role="status"
+          >
+            {paygToast.msg}
+          </div>
         )}
       </div>
     )
@@ -540,7 +586,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             <h1 className="font-editorial text-2xl md:text-3xl font-semibold text-ink truncate leading-tight">
               {formatCompanyName(company.company_name)}
             </h1>
-            <p className="text-xs text-caption truncate">{company.ticker}</p>
+            <p className="text-xs text-caption truncate flex items-center gap-2 flex-wrap">
+              <span>{company.ticker}</span>
+              <UnlockBadge ticker={company.ticker} size="sm" />
+            </p>
             <Breadcrumb
               exchange={exchange}
               sector={company.sector}

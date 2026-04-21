@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { getHoldingsLive, getWatchlist } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
+import UnlockBadge from "@/components/payg/UnlockBadge"
 
 // Horizontal rail of the user's tracked tickers with today's move. Shows
 // holdings if present, otherwise watchlist. If neither, a single skeleton
@@ -88,7 +89,10 @@ export default function MoversRail() {
               href={`/analysis/${c.ticker}`}
               className="flex-shrink-0 snap-start bg-surface rounded-xl border border-border px-4 py-3 min-w-[150px] hover:border-brand transition"
             >
-              <p className="text-xs font-bold text-ink">{c.display}</p>
+              <div className="flex items-center gap-1.5">
+                <p className="text-xs font-bold text-ink">{c.display}</p>
+                <UnlockBadge ticker={c.ticker} size="sm" />
+              </div>
               <p className="text-[10px] text-caption truncate max-w-[130px]">
                 {c.name}
               </p>
