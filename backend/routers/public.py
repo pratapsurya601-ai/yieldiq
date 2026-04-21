@@ -1668,15 +1668,15 @@ async def get_near_52w_lows(limit: int = 6, max_distance_pct: float = 25.0, min_
             # live_quotes for current price in one pass.
             rows = sess.execute(_t(
                 "SELECT s.ticker, s.company_name, "
-                "       lq.last_price AS price, "
-                "       (ac.payload->>'yieldiq_score')::int AS score "
+                "       lq.price AS price, "
+                "       (ac.payload->'quality'->>'yieldiq_score')::int AS score "
                 "FROM stocks s "
                 "LEFT JOIN market_metrics mm ON mm.ticker = s.ticker "
                 "LEFT JOIN live_quotes lq ON lq.ticker = s.ticker "
                 "LEFT JOIN analysis_cache ac ON ac.ticker = s.ticker "
                 "WHERE s.is_active = TRUE "
                 "  AND ac.ticker IS NOT NULL "
-                "  AND lq.last_price IS NOT NULL "
+                "  AND lq.price IS NOT NULL "
                 "ORDER BY COALESCE(mm.market_cap_cr, 0) DESC "
                 "LIMIT 400"
             )).fetchall()
@@ -1750,7 +1750,7 @@ async def get_lowest_pe(limit: int = 6, min_score: int = 35, max_pe: float = 60.
             rows = sess.execute(_t(
                 "SELECT s.ticker, s.company_name, "
                 "       mm.pe_ratio, "
-                "       (ac.payload->>'yieldiq_score')::int AS score "
+                "       (ac.payload->'quality'->>'yieldiq_score')::int AS score "
                 "FROM stocks s "
                 "JOIN market_metrics mm ON mm.ticker = s.ticker "
                 "JOIN analysis_cache ac ON ac.ticker = s.ticker "
@@ -1758,7 +1758,7 @@ async def get_lowest_pe(limit: int = 6, min_score: int = 35, max_pe: float = 60.
                 "  AND mm.pe_ratio IS NOT NULL "
                 "  AND mm.pe_ratio > 0 "
                 "  AND mm.pe_ratio <= :max_pe "
-                "  AND (ac.payload->>'yieldiq_score')::int >= :min_score "
+                "  AND (ac.payload->'quality'->>'yieldiq_score')::int >= :min_score "
                 "ORDER BY mm.pe_ratio ASC "
                 "LIMIT :lim"
             ), {"max_pe": max_pe, "min_score": min_score, "lim": limit}).fetchall()
