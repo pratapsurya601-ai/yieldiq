@@ -90,7 +90,7 @@ export function NearLowsRail() {
 
   useEffect(() => {
     let cancelled = false
-    fetch(`${API_BASE}/api/v1/public/near-52w-lows?limit=6&max_distance_pct=15&min_score=55`)
+    fetch(`${API_BASE}/api/v1/public/near-52w-lows?limit=6&max_distance_pct=25&min_score=35`)
       .then((r) => r.ok ? r.json() : Promise.reject(r.status))
       .then((d) => { if (!cancelled) setStocks(d.stocks || []) })
       .catch(() => { if (!cancelled) setError(true) })
@@ -118,7 +118,7 @@ export function NearLowsRail() {
       )}
       {stocks !== null && stocks.length === 0 && !error && (
         <div className="bg-surface rounded-xl border border-border p-4 text-center">
-          <p className="text-xs text-caption">No stocks currently within 15% of their 52-week low with a quality score &ge; 55. Markets rallied or our cache is warming.</p>
+          <p className="text-xs text-caption">No stocks currently within 25% of their 52-week low with a quality score &ge; 35. Markets rallied or our cache is warming.</p>
         </div>
       )}
       {stocks !== null && stocks.length > 0 && (
@@ -147,7 +147,7 @@ export function NearLowsRail() {
           ))}
         </div>
       )}
-      <p className="text-[10px] text-caption mt-1">Top-400 by market cap, within 15% of 52w low, YieldIQ score &ge; 55. Model estimate.</p>
+      <p className="text-[10px] text-caption mt-1">Top-400 by market cap, within 25% of 52w low, YieldIQ score &ge; 35. Model estimate.</p>
     </section>
   )
 }
@@ -174,7 +174,7 @@ export function LowestPERail({ stocks: _unused }: LowestPERailProps) {
 
   useEffect(() => {
     let cancelled = false
-    fetch(`${API_BASE}/api/v1/public/lowest-pe?limit=6&min_score=55&max_pe=40`)
+    fetch(`${API_BASE}/api/v1/public/lowest-pe?limit=6&min_score=35&max_pe=60`)
       .then((r) => r.ok ? r.json() : Promise.reject(r.status))
       .then((d) => { if (!cancelled) setItems(d.stocks || []) })
       .catch(() => { if (!cancelled) setError(true) })
@@ -202,7 +202,7 @@ export function LowestPERail({ stocks: _unused }: LowestPERailProps) {
       )}
       {items !== null && items.length === 0 && !error && (
         <div className="bg-surface rounded-xl border border-border p-4 text-center">
-          <p className="text-xs text-caption">No stocks currently under P/E 40 with a quality score &ge; 55.</p>
+          <p className="text-xs text-caption">No stocks currently under P/E 60 with a quality score &ge; 35.</p>
         </div>
       )}
       {items !== null && items.length > 0 && (
@@ -225,7 +225,7 @@ export function LowestPERail({ stocks: _unused }: LowestPERailProps) {
           ))}
         </div>
       )}
-      <p className="text-[10px] text-caption mt-1">Lowest P/E stocks with YieldIQ score &ge; 55 and P/E &le; 40. Model estimate.</p>
+      <p className="text-[10px] text-caption mt-1">Lowest P/E stocks with YieldIQ score &ge; 35 and P/E &le; 60. Model estimate.</p>
     </section>
   )
 }

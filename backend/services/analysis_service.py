@@ -2138,14 +2138,42 @@ class AnalysisService:
         ]
 
         # ── Assemble response ─────────────────────────────────
+        # Build the canonical scenarios object FIRST. ValuationOutput
+        # flat fields (bear_case/base_case/bull_case) MUST read from the
+        # same clamped output as ScenariosOutput — otherwise the public
+        # stock-summary endpoint (which serialises the flat fields)
+        # diverges from the authed /analysis endpoint (which serialises
+        # scenarios.*.iv). BHARTIARTL surfaced this: bull DCF undershot
+        # base when terminal_g sat close to WACC, and the pre-clamp
+        # flat field got bull < base while the clamped scenarios had
+        # bull >= base * 1.05. Canary gate 1 (single_source_of_truth)
+        # + gate 3 (dispersion) both fired for that one row.
         if is_financial:
-            _bear_case = bear_iv
-            _base_case = round(iv, 2)
-            _bull_case = bull_iv
+            _sc_bear_pre = ScenarioCase(
+                iv=bear_iv,
+                mos_pct=round((bear_iv - price) / price * 100, 1) if price > 0 else 0,
+                growth=0, wacc=round(wacc, 4), term_g=round(terminal_g, 4),
+            )
+            _sc_bull_pre = ScenarioCase(
+                iv=bull_iv,
+                mos_pct=round((bull_iv - price) / price * 100, 1) if price > 0 else 0,
+                growth=0, wacc=round(wacc, 4), term_g=round(terminal_g, 4),
+            )
         else:
-            _bear_case = _sc("Bear case").iv or _sc("Bear 🐻").iv
-            _base_case = round(iv, 2)
-            _bull_case = _sc("Bull case").iv or _sc("Bull 🐂").iv
+            _sc_bear_pre = _sc("Bear case") if scenarios_raw.get("Bear case") else _sc("Bear 🐻")
+            _sc_bull_pre = _sc("Bull case") if scenarios_raw.get("Bull case") else _sc("Bull 🐂")
+        _sc_base_pre = ScenarioCase(
+            iv=round(iv, 2), mos_pct=round(mos_pct, 1),
+            growth=round(base_growth, 4),
+            wacc=round(wacc, 4), term_g=round(terminal_g, 4),
+        )
+        _scenarios_clamped = _enforce_scenario_order(
+            bear=_sc_bear_pre, base=_sc_base_pre, bull=_sc_bull_pre, price=price,
+        )
+
+        _bear_case = _scenarios_clamped.bear.iv
+        _base_case = _scenarios_clamped.base.iv
+        _bull_case = _scenarios_clamped.bull.iv
 
         # ── Dividend data (one yfinance .info call, ~1s) ─────
         # Swallowed — never blocks the main response.
@@ -2531,12 +2559,7 @@ class AnalysisService:
                 reverse_dcf_implied_growth=rdcf.get("implied_growth"),
                 bulk_deals=_bulk_deals,
             ),
-            scenarios=_enforce_scenario_order(
-                bear=ScenarioCase(iv=bear_iv, mos_pct=round((bear_iv - price) / price * 100, 1) if price > 0 else 0, growth=0, wacc=round(wacc, 4), term_g=round(terminal_g, 4)) if is_financial else (_sc("Bear case") if scenarios_raw.get("Bear case") else _sc("Bear 🐻")),
-                base=ScenarioCase(iv=round(iv, 2), mos_pct=round(mos_pct, 1), growth=round(base_growth, 4), wacc=round(wacc, 4), term_g=round(terminal_g, 4)),
-                bull=ScenarioCase(iv=bull_iv, mos_pct=round((bull_iv - price) / price * 100, 1) if price > 0 else 0, growth=0, wacc=round(wacc, 4), term_g=round(terminal_g, 4)) if is_financial else (_sc("Bull case") if scenarios_raw.get("Bull case") else _sc("Bull 🐂")),
-                price=price,
-            ),
+            scenarios=_scenarios_clamped,
             price_levels=PriceLevels(
                 entry_signal=assign_signal(mos_pct / 100, reliability_score=dcf_res.get("reliability_score", 100)),
                 discount_zone=pt.get("buy_price"),

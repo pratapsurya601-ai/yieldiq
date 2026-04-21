@@ -270,6 +270,8 @@ class HoldingResponse(BaseModel):
     sector: str = ""
     notes: str = ""
     saved_at: str = ""
+    account_label: str = "default"
+    quantity: float = 0
 
 
 class WatchlistItemResponse(BaseModel):

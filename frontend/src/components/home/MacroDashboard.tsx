@@ -241,7 +241,7 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
           <Card title="Gold (Comex)">
             <>
               <p className="text-lg font-bold text-ink tabular-nums">
-                ${pulse.gold_usd.toFixed(0)}
+                ${pulse.gold_usd?.toFixed(0)}
               </p>
               <p className="text-[10px] text-caption">/oz \u00b7 futures</p>
             </>
@@ -252,7 +252,7 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
           <Card title="Silver (Comex)">
             <>
               <p className="text-lg font-bold text-ink tabular-nums">
-                ${pulse.silver_usd.toFixed(2)}
+                ${pulse.silver_usd?.toFixed(2)}
               </p>
               <p className="text-[10px] text-caption">/oz \u00b7 futures</p>
             </>

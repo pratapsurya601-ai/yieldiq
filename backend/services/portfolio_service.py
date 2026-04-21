@@ -234,8 +234,16 @@ def get_holdings_with_live_data(user_email: str) -> dict:
     for h in holdings:
         ticker = h.get("ticker", "")
         entry_price = float(h.get("entry_price", 0) or 0)
-        # Extract quantity from notes if available (e.g. "Imported from zerodha (80 shares)")
-        quantity = _extract_quantity(h.get("notes", "")) or 1
+        # Prefer the structured quantity column (migration 011). Fall back
+        # to the legacy notes-regex so pre-migration rows still render.
+        qty_col = h.get("quantity")
+        if qty_col is not None:
+            try:
+                quantity = float(qty_col)
+            except (TypeError, ValueError):
+                quantity = _extract_quantity(h.get("notes", "")) or 1
+        else:
+            quantity = _extract_quantity(h.get("notes", "")) or 1
         invested = entry_price * quantity
 
         # Get current price from the fastest available source
@@ -273,6 +281,7 @@ def get_holdings_with_live_data(user_email: str) -> dict:
             "sector": h.get("sector", "") or "—",
             "entry_price": round(entry_price, 2),
             "quantity": quantity,
+            "account_label": h.get("account_label") or "default",
             "current_price": round(current_price, 2),
             "invested_value": round(invested, 2),
             "current_value": round(current_value, 2),
