@@ -1,3 +1,6 @@
+"use client"
+
+import { motion, useReducedMotion } from "framer-motion"
 import type { Pillar, PillarKey, VerdictBand } from "./types"
 import { pillarColor, verdictColor, PRISM_PILLAR_ORDER } from "@/lib/prism"
 
@@ -16,6 +19,8 @@ interface Props {
   /** Phase 2: dim every non-matching lens to ~30% when set. */
   highlightedPillar?: PillarKey | null
   uid: string
+  /** When true, play initial entrance animations on mount. */
+  firstView?: boolean
 }
 
 /**
@@ -45,17 +50,19 @@ const AXIS_LABEL: Record<PillarKey, string> = {
 export default function Spectrum({
   pillars,
   overall,
-  pulseHz,
   size,
   t,
   verdictBand,
   verdictLabel,
   onPillarTap,
   highlightedPillar,
-  uid,
+  firstView = false,
 }: Props) {
   const cx = size / 2
   const lensMaxW = size - 100 // leave 50px margin each side for labels
+
+  const prefersReducedMotion = useReducedMotion()
+  const animationsEnabled = firstView && !prefersReducedMotion
 
   const vis = Math.max(0, (t - 0.55) / 0.45)
   if (vis <= 0) return null
@@ -135,8 +142,24 @@ export default function Spectrum({
           const lensOpacity = !spotlightOn || isSpotlit ? 1 : 0.3
           // Trapezoid: wider at top, narrower at bottom — light refracting.
           const path = `M ${cx - halfW} ${y - 8} L ${cx + halfW} ${y - 8} L ${cx + halfW * 0.75} ${y + 8} L ${cx - halfW * 0.75} ${y + 8} Z`
+          // Subtle fade-in stagger for each lens row on first mount.
+          const entrance = animationsEnabled
+            ? {
+                initial: { opacity: 0, y: 4 },
+                animate: { opacity: lensOpacity, y: 0 },
+                transition: {
+                  delay: 0.1 + i * 0.05,
+                  duration: 0.35,
+                  ease: "easeOut" as const,
+                },
+              }
+            : {
+                initial: false as const,
+                animate: { opacity: lensOpacity },
+                transition: { duration: 0.24, ease: "easeOut" as const },
+              }
           return (
-            <g
+            <motion.g
               key={p.key}
               role="button"
               tabIndex={onPillarTap ? 0 : -1}
@@ -150,10 +173,9 @@ export default function Spectrum({
                   onPillarTap(p.key)
                 }
               }}
+              {...entrance}
               style={{
                 cursor: onPillarTap ? "pointer" : "default",
-                opacity: lensOpacity,
-                transition: "opacity 240ms ease",
               }}
               className={isPulse ? "prism-pulse-breathe" : undefined}
             >
@@ -197,7 +219,7 @@ export default function Spectrum({
               >
                 {p.data_limited ? "n/a" : `${s.toFixed(1)} /10`}
               </text>
-            </g>
+            </motion.g>
           )
         })}
       </g>
