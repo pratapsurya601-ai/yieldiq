@@ -45,6 +45,54 @@ def _cache_key(ticker: str) -> str:
 
 
 # ── Endpoints ────────────────────────────────────────────────────
+@router.get("/health")
+async def hex_health():
+    """
+    Ops sanity check: is the hex engine alive and can it reach the
+    pipeline DB? Returns a stable JSON shape even when everything is
+    broken so dashboards can alert on `db_reachable=false`.
+
+    Added 2026-04-21 after BUG #14 (Portfolio Prism silently degraded
+    to n/a on all 6 axes because data_pipeline.db was unimportable).
+    """
+    sample_ticker = "RELIANCE.NS"
+    try:
+        sess = hex_service._get_session()
+        db_reachable = sess is not None
+        if sess is not None:
+            try:
+                sess.close()
+            except Exception:
+                pass
+    except Exception as exc:
+        db_reachable = False
+        logger.warning("hex_health: _get_session raised %s: %s",
+                       type(exc).__name__, exc)
+
+    try:
+        sample = hex_service.compute_hex_safe(sample_ticker)
+        sample_axes_limited = sum(
+            1 for k in hex_service.AXIS_WEIGHTS
+            if sample.get("axes", {}).get(k, {}).get("data_limited")
+        )
+        sample_overall = sample.get("overall")
+    except Exception as exc:
+        sample = {"error": f"{type(exc).__name__}: {exc}"}
+        sample_axes_limited = len(hex_service.AXIS_WEIGHTS)
+        sample_overall = None
+
+    healthy = db_reachable and sample_axes_limited < len(hex_service.AXIS_WEIGHTS)
+    return {
+        "healthy": healthy,
+        "db_reachable": db_reachable,
+        "sample_ticker": sample_ticker,
+        "sample_overall": sample_overall,
+        "sample_axes_data_limited": sample_axes_limited,
+        "sample_axes_total": len(hex_service.AXIS_WEIGHTS),
+        "disclaimer": hex_service.DISCLAIMER,
+    }
+
+
 @router.get("/sector-median/{category}")
 async def get_sector_median(category: str):
     """
