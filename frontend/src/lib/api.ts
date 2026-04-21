@@ -35,12 +35,16 @@ api.interceptors.response.use(
 )
 
 // Analysis
-// Backend default is include_summary=true which adds 5-15s of Groq
-// AI-summary latency on EVERY cache miss. We always defer the summary
-// to a separate lazy fetch via getAISummary so the hero renders fast.
-// Measured impact: analysis-page TTI drops from ~11s to ~2-3s cold.
+// feat/ai-narrative-summary (2026-04-21): the narrative summary is now
+// baked into AnalysisResponse.ai_summary during the cold-compute path
+// and persisted in the analysis_cache tiers, so warm reads include it
+// at zero extra latency. The legacy ?include_summary=false escape hatch
+// existed because the OLD summary flow routed through a separate
+// synchronous endpoint that added 5-15s to every request; that is no
+// longer true. We now request the summary by default and render it
+// above the Prism hex when present, hide the component when null.
 export const getAnalysis = (ticker: string): Promise<AnalysisResponse> =>
-  api.get(`/api/v1/analysis/${ticker}?include_summary=false`).then(r => r.data)
+  api.get(`/api/v1/analysis/${ticker}`).then(r => r.data)
 
 export const getAISummary = (ticker: string): Promise<{ summary: string }> =>
   api.get(`/api/v1/analysis/${ticker}/summary`).then(r => r.data)

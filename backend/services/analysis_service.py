@@ -1646,6 +1646,30 @@ class AnalysisService:
         except Exception as _ve:
             import logging as _vl
             _vl.getLogger("yieldiq.validators").warning(f"Validator crashed for {ticker}: {_ve}")
+
+        # ── Narrative AI summary (feat/ai-narrative-summary) ─────
+        # One-sentence plain-English conclusion ("undervalued by X%,
+        # standout strength, concern") rendered above the Prism hex.
+        # Generated once per cold compute and baked into
+        # AnalysisResponse.ai_summary so the cache tiers (tier-0 raw,
+        # tier-1 pydantic, tier-2 Postgres analysis_cache.payload)
+        # carry it forward for all warm reads. Gracefully degrades
+        # to None on any failure — frontend hides the component in
+        # that case.
+        try:
+            if not getattr(result, "ai_summary", None):
+                narrative = self.generate_narrative_summary(ticker, result)
+                if narrative:
+                    try:
+                        result.ai_summary = narrative
+                    except Exception:
+                        result = result.model_copy(update={"ai_summary": narrative})
+        except Exception as _ne:
+            import logging as _nl
+            _nl.getLogger("yieldiq.ai_summary").warning(
+                f"narrative summary generation crashed for {ticker}: "
+                f"{type(_ne).__name__}: {_ne}"
+            )
         return result
 
     def _get_full_analysis_inner(self, ticker: str) -> AnalysisResponse:
@@ -3101,6 +3125,225 @@ class AnalysisService:
             timestamp=_ts,
             computation_inputs=_computation_inputs,
         )
+
+    # ── Narrative one-sentence summary (feat/ai-narrative-summary) ─
+    # Richer variant of ``get_ai_summary`` that is cached alongside
+    # the analysis payload and rendered ABOVE the Prism hex. Target
+    # output: "TCS appears undervalued by 32.7%. Exceptional 54.9%
+    # ROCE, wide moat in IT services, but growth is slowing vs 5-year
+    # average." — one or two sentences, ~30-45 words, mentions
+    # verdict, one standout strength, one concern.
+    #
+    # Separate from ``get_ai_summary`` (which is a narrower factual
+    # descriptor used by /public/stock-summary snippet feeds) so we
+    # can keep both endpoints stable while this one evolves.
+    def generate_narrative_summary(
+        self,
+        ticker: str,
+        analysis: AnalysisResponse,
+    ) -> str:
+        """Return a 1-2-sentence narrative summary. Empty string on failure.
+
+        Constraints:
+          - Groq-only (llama-3.3-70b-versatile) — matches the rest of
+            the codebase (prism_narration_service, get_ai_summary).
+          - SEBI-safe: no "buy", "sell", "hold", "accumulate", "recommend",
+            "target price". Post-filter rejects any output that contains
+            those words and returns "" instead.
+          - Skipped when verdict is data_limited / unavailable / avoid /
+            under_review (no useful story to tell, and speculative
+            prose would mislead).
+          - Skipped when GROQ_API_KEY is missing. Feature silently
+            no-ops; the UI hides the component when the field is empty.
+          - Never raises. Returns "" on any error path.
+
+        Cost: ~1 call per cold compute. At 500 flagship tickers
+        computed once per 24h, this is ≤500 Groq calls/day. At
+        llama-3.3-70b-versatile rates (free tier up to 30 RPM /
+        ~14,400 RPD) this is well inside quota.
+        """
+        import logging
+        import os as _os
+        _log = logging.getLogger("yieldiq.ai_summary")
+
+        _groq_key = _os.environ.get("GROQ_API_KEY", "").strip()
+        if not _groq_key:
+            _log.info(
+                f"[{ticker}] narrative summary skipped: GROQ_API_KEY not set"
+            )
+            return ""
+
+        # Tier/verdict gate — don't fabricate a narrative when the
+        # underlying analysis is degraded.
+        try:
+            _v = analysis.valuation
+            _verdict = str(getattr(_v, "verdict", "") or "").lower()
+            _bad_verdicts = {
+                "data_limited",
+                "unavailable",
+                "under_review",
+                "avoid",
+                "",
+            }
+            if _verdict in _bad_verdicts:
+                _log.info(
+                    f"[{ticker}] narrative skipped: verdict={_verdict!r}"
+                )
+                return ""
+            _fv = float(getattr(_v, "fair_value", 0) or 0)
+            _cp = float(getattr(_v, "current_price", 0) or 0)
+            if _fv <= 0 or _cp <= 0:
+                _log.info(
+                    f"[{ticker}] narrative skipped: fv={_fv} cp={_cp}"
+                )
+                return ""
+        except Exception as exc:
+            _log.warning(
+                f"[{ticker}] narrative gate check failed: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            return ""
+
+        # Build the prompt. Include growth + quality + moat so the
+        # LLM has enough to pick a real strength + concern.
+        try:
+            _q = analysis.quality
+            _c = analysis.company
+
+            _name = getattr(_c, "company_name", None) or ticker
+            _sector = getattr(_c, "sector", None) or "unlisted sector"
+            _mos = getattr(_v, "margin_of_safety", None)
+            _roce = getattr(_q, "roce", None)
+            _roe = getattr(_q, "roe", None)
+            _moat = getattr(_q, "moat", None) or "Unrated"
+            _cagr5 = getattr(_q, "revenue_cagr_5y", None)
+            _cagr3 = getattr(_q, "revenue_cagr_3y", None)
+            _piotroski = getattr(_q, "piotroski_score", None)
+            _de = getattr(_q, "de_ratio", None)
+            _int_cov = getattr(_q, "interest_coverage", None)
+            _score = getattr(_q, "yieldiq_score", None)
+
+            # Direction phrasing — factual, neutral.
+            if _mos is None:
+                _direction = "trades near its model fair value"
+            elif _mos >= 15:
+                _direction = f"appears undervalued by {abs(_mos):.1f}%"
+            elif _mos >= -15:
+                _direction = "trades close to its model fair value"
+            else:
+                _direction = f"appears overvalued by {abs(_mos):.1f}%"
+
+            def _fmt_pct(val, dp: int = 1) -> str:
+                if val is None:
+                    return "n/a"
+                try:
+                    return f"{float(val):.{dp}f}%"
+                except Exception:
+                    return "n/a"
+
+            def _fmt_num(val, dp: int = 2) -> str:
+                if val is None:
+                    return "n/a"
+                try:
+                    return f"{float(val):.{dp}f}"
+                except Exception:
+                    return "n/a"
+
+            _data_block = (
+                f"Ticker: {ticker} ({_name})\n"
+                f"Sector: {_sector}\n"
+                f"Fair Value: {_fmt_num(_fv)} | Current: {_fmt_num(_cp)} | "
+                f"MoS: {_fmt_pct(_mos)}\n"
+                f"Verdict phrase: '{_direction}'\n"
+                f"ROCE: {_fmt_pct(_roce)} | ROE: {_fmt_pct(_roe)}\n"
+                f"Moat: {_moat}\n"
+                f"Revenue CAGR 3y: {_fmt_pct(_cagr3)} | 5y: {_fmt_pct(_cagr5)}\n"
+                f"Piotroski: {_piotroski if _piotroski is not None else 'n/a'}/9\n"
+                f"D/E: {_fmt_num(_de)} | Interest coverage: {_fmt_num(_int_cov, 1)}x\n"
+                f"YieldIQ score: {_score if _score is not None else 'n/a'}/100\n"
+            )
+
+            _system = (
+                "You are a concise Indian equity analyst. Write a single "
+                "plain-English summary of the analysis below for a retail "
+                "investor. Mention the verdict (undervalued/overvalued or "
+                "fairly valued), ONE standout strength, and ONE concern "
+                "or watch-item. Be specific — use the numbers given. "
+                "Length: 30-45 words, one or two sentences max. "
+                "Neutral tone: do NOT use the words buy, sell, hold, "
+                "accumulate, recommend, or target price. Do NOT include "
+                "a disclaimer (rendered separately). Reply with ONLY "
+                "the sentence(s), no preamble, no markdown, no bullets."
+            )
+            _user = f"Data:\n{_data_block}\nSummary:"
+        except Exception as exc:
+            _log.error(
+                f"[{ticker}] narrative prompt build failed: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            return ""
+
+        # SEBI post-filter — identical policy to prism_narration_service.
+        import re as _re
+        _FORBIDDEN = _re.compile(
+            r"\b(buy|sell|hold|accumulate|recommend|recommendation|"
+            r"target\s+price|price\s+target|should\s+(buy|sell|hold))\b",
+            _re.IGNORECASE,
+        )
+
+        def _clean(text: str) -> str:
+            if not text:
+                return ""
+            s = text.strip().strip('"').strip("'").strip()
+            for _pfx in (
+                "Summary:", "summary:",
+                "Here is the summary:", "Here's the summary:",
+                "Here is a summary:", "Here's a summary:",
+            ):
+                if s.startswith(_pfx):
+                    s = s[len(_pfx):].strip()
+            # Hard length cap to protect the UI layout.
+            if len(s) > 400:
+                s = s[:397].rstrip() + "..."
+            return s
+
+        try:
+            from groq import Groq as _Groq
+            _client = _Groq(api_key=_groq_key)
+            _resp = _client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": _system},
+                    {"role": "user", "content": _user},
+                ],
+                max_tokens=180,
+                temperature=0.3,
+            )
+        except Exception as exc:
+            _log.warning(
+                f"[{ticker}] narrative Groq call failed: "
+                f"{type(exc).__name__}: {exc}"
+            )
+            return ""
+
+        try:
+            _raw = _resp.choices[0].message.content or ""
+        except Exception:
+            return ""
+
+        _out = _clean(_raw)
+        if not _out:
+            _log.warning(f"[{ticker}] narrative Groq returned empty text")
+            return ""
+        if _FORBIDDEN.search(_out):
+            _log.info(
+                f"[{ticker}] narrative rejected by SEBI filter: {_out[:80]!r}"
+            )
+            return ""
+        _log.info(
+            f"[{ticker}] narrative ok ({len(_out)} chars) via Groq"
+        )
+        return _out
 
     def get_ai_summary(self, ticker: str, analysis: AnalysisResponse) -> str:
         """Generate a ONE-sentence factual stock summary (<=280 chars).

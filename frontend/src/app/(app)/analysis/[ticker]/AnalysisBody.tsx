@@ -22,6 +22,7 @@ import FairValueHistory from "@/components/analysis/FairValueHistory"
 import FinancialStatements from "@/components/analysis/FinancialStatements"
 import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
+import NarrativeSummary from "@/components/analysis/NarrativeSummary"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
 import UnlockCTA from "@/components/payg/UnlockCTA"
 import UnlockBadge from "@/components/payg/UnlockBadge"
@@ -601,6 +602,12 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             Compare →
           </Link>
         </div>
+
+        {/* AI narrative summary — one-sentence conclusion rendered above
+            the Prism hex so users can grasp the verdict in ~2 seconds
+            without decoding the full card array. Component returns null
+            when data.ai_summary is empty, so no reserved blank space. */}
+        <NarrativeSummary summary={data.ai_summary} />
 
         {/* Editorial hero — Prism-driven. Uses server-rendered prism payload
             when available; falls back to the legacy AnalysisHero when the
