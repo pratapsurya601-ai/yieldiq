@@ -119,9 +119,9 @@ export default function ConcallPage() {
       {/* Tier gate */}
       {tier === "free" && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
-          <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">Pro Feature</p>
+          <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">Analyst Feature</p>
           <p className="text-sm text-amber-900 mb-3">
-            AI concall analysis is a Pro (&#8377;299/mo) feature. Upgrade to extract guidance, financial highlights,
+            AI concall analysis is an Analyst (&#8377;799/mo) feature. Upgrade to extract guidance, financial highlights,
             and Q&amp;A themes from any earnings call.
           </p>
           <Link href="/pricing" className="inline-block bg-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-amber-700 transition">

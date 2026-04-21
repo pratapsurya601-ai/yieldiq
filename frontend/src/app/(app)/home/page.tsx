@@ -55,8 +55,8 @@ export default function HomePage() {
               </p>
               <p className="text-xs text-amber-800 mt-0.5">
                 {remaining === 0
-                  ? "Daily quota resets at midnight IST. Upgrade to Pro for unlimited analyses."
-                  : "Make it count \u2014 or upgrade to Pro for unlimited analyses (\u20B9299/mo)."}
+                  ? "Monthly quota resets on the 1st. Upgrade to Analyst for unlimited analyses."
+                  : "Make it count \u2014 or upgrade to Analyst for unlimited analyses (\u20B9799/mo)."}
               </p>
             </div>
             <Link

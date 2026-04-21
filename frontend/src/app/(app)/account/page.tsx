@@ -278,58 +278,58 @@ function AccountInner() {
         <div ref={upgradeSectionRef} className="space-y-3 scroll-mt-20">
           <h2 className="text-sm font-semibold text-gray-900">Upgrade your plan</h2>
 
-          {/* Pro */}
-          <div className={`relative bg-white rounded-2xl border-2 p-5 transition ${upgradeHint === "pro" ? "border-blue-500 ring-4 ring-blue-100" : "border-blue-200"}`}>
+          {/* Analyst — sweet-spot tier, most users start here */}
+          <div className={`relative bg-white rounded-2xl border-2 p-5 transition ${upgradeHint === "analyst" ? "border-blue-500 ring-4 ring-blue-100" : "border-blue-200"}`}>
             <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full shadow-sm">
               Most Popular
             </span>
             <div className="flex items-center justify-between mb-3 mt-1">
               <div>
-                <h3 className="font-bold text-gray-900">Pro</h3>
-                <p className="text-xs text-gray-500">For regular investors</p>
+                <h3 className="font-bold text-gray-900">Analyst</h3>
+                <p className="text-xs text-gray-500">For serious DIY investors</p>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold text-gray-900">{"\u20b9"}299</p>
+                <p className="text-2xl font-bold text-gray-900">{"\u20b9"}799</p>
                 <p className="text-xs text-gray-400">/month</p>
               </div>
             </div>
             <ul className="space-y-1.5 mb-4 text-sm text-gray-600">
               <li>&#10003; Unlimited analyses</li>
-              <li>&#10003; Interactive DCF sliders</li>
-              <li>&#10003; Sensitivity heatmap</li>
-              <li>&#10003; Monte Carlo (1,000 sims)</li>
-              <li>&#10003; PDF & Excel export</li>
-              <li>&#10003; 50-stock watchlist + 10 alerts</li>
+              <li>&#10003; Portfolio Prism + Health score</li>
+              <li>&#10003; Multi-account portfolios (5 brokers)</li>
+              <li>&#10003; AI summaries + Concall AI</li>
+              <li>&#10003; Time Machine + Tax Report</li>
+              <li>&#10003; Compare up to 3 stocks</li>
             </ul>
-            <button onClick={() => handleUpgrade("pro")} disabled={upgrading}
+            <button onClick={() => handleUpgrade("analyst")} disabled={upgrading}
               className="w-full py-3 min-h-[44px] bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 active:scale-[0.98] transition disabled:opacity-50 disabled:active:scale-100">
-              {upgrading ? "Processing..." : "Upgrade to Pro \u2014 \u20b9299/mo"}
+              {upgrading ? "Processing..." : "Upgrade to Analyst \u2014 \u20b9799/mo"}
             </button>
           </div>
 
-          {/* Analyst */}
-          <div className={`bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-5 text-white transition ${upgradeHint === "analyst" ? "ring-4 ring-blue-400" : ""}`}>
+          {/* Pro — power user tier with exports + API */}
+          <div className={`bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-5 text-white transition ${upgradeHint === "pro" ? "ring-4 ring-blue-400" : ""}`}>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h3 className="font-bold">Analyst</h3>
-                <p className="text-xs text-gray-400">For serious investors</p>
+                <h3 className="font-bold">Pro</h3>
+                <p className="text-xs text-gray-400">For bloggers, advisors, power users</p>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold">{"\u20b9"}799</p>
+                <p className="text-2xl font-bold">{"\u20b9"}1,499</p>
                 <p className="text-xs text-gray-400">/month</p>
               </div>
             </div>
             <ul className="space-y-1.5 mb-4 text-sm text-gray-300">
-              <li>&#10003; Everything in Pro</li>
-              <li>&#10003; API access (500 calls/day)</li>
-              <li>&#10003; Bulk screener</li>
-              <li>&#10003; Unlimited watchlist & alerts</li>
-              <li>&#10003; Google Sheets sync</li>
-              <li>&#10003; Priority support</li>
+              <li>&#10003; Everything in Analyst</li>
+              <li>&#10003; CSV + PDF export</li>
+              <li>&#10003; API access (100 req/day)</li>
+              <li>&#10003; 10 broker accounts</li>
+              <li>&#10003; Save + share custom screens</li>
+              <li>&#10003; Priority compute + earnings-day digest</li>
             </ul>
-            <button onClick={() => handleUpgrade("analyst")} disabled={upgrading}
+            <button onClick={() => handleUpgrade("pro")} disabled={upgrading}
               className="w-full py-3 min-h-[44px] bg-white text-gray-900 rounded-xl text-sm font-bold hover:bg-gray-100 active:scale-[0.98] transition disabled:opacity-50 disabled:active:scale-100">
-              {upgrading ? "Processing..." : "Upgrade to Analyst \u2014 \u20b9799/mo"}
+              {upgrading ? "Processing..." : "Upgrade to Pro \u2014 \u20b91,499/mo"}
             </button>
           </div>
         </div>
@@ -340,7 +340,7 @@ function AccountInner() {
           <p className="text-sm text-gray-500">Current plan</p>
           <p className="text-lg font-bold text-blue-700 uppercase">{tier}</p>
           <p className="text-xs text-gray-400 mt-1">
-            {tier === "pro" || tier === "starter" ? "\u20b9299/month" : tier === "analyst" ? "\u20b9799/month" : ""}
+            {tier === "analyst" ? "\u20b9799/month" : tier === "pro" ? "\u20b91,499/month" : ""}
           </p>
         </div>
       )}
