@@ -4,8 +4,10 @@ from __future__ import annotations
 import os
 import sys
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from backend.middleware.auth import get_current_user
+
+RAZORPAY_WEBHOOK_SECRET = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "").strip()
 
 _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 if _ROOT not in sys.path:
@@ -384,3 +386,154 @@ async def verify_payment(
         raise HTTPException(status_code=400, detail="Payment verification failed")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/webhook")
+async def razorpay_webhook(request: Request):
+    """Razorpay subscription lifecycle webhook.
+
+    Source of truth for ongoing subscription state. Handles:
+      - subscription.activated   — first charge succeeded → promote tier
+      - subscription.charged     — renewal succeeded → log (tier unchanged)
+      - subscription.halted      — retries failing → log, keep tier (Razorpay
+                                    retries for ~3 days before cancelling)
+      - subscription.cancelled   — user cancelled / all retries failed → demote
+      - subscription.completed   — total_count reached → demote
+
+    Security: verifies `X-Razorpay-Signature` against the raw body +
+    `RAZORPAY_WEBHOOK_SECRET`. Unknown events are ack'd with 200 so
+    Razorpay doesn't retry them.
+
+    Idempotency: upserts by `razorpay_subscription_id`. Repeat events
+    are safe — the tier either re-applies (activated) or re-demotes
+    (cancelled) without side-effects.
+
+    Railway setup:
+      1. Razorpay dashboard → Settings → Webhooks → + Add
+      2. URL: https://api.yieldiq.in/api/v1/payments/webhook
+      3. Secret: generate random string (e.g. `openssl rand -hex 32`)
+      4. Events: subscription.activated, .charged, .halted, .cancelled, .completed
+      5. Copy the secret into Railway env var RAZORPAY_WEBHOOK_SECRET
+    """
+    import json
+    import logging
+    import razorpay
+    logger = logging.getLogger("yieldiq.payments.webhook")
+
+    if not RAZORPAY_WEBHOOK_SECRET:
+        logger.error("RAZORPAY_WEBHOOK_SECRET not set — rejecting webhook")
+        raise HTTPException(status_code=503, detail="Webhook not configured")
+
+    body_bytes = await request.body()
+    signature = request.headers.get("X-Razorpay-Signature", "")
+    if not signature:
+        logger.warning("webhook missing X-Razorpay-Signature header")
+        raise HTTPException(status_code=400, detail="Missing signature")
+
+    # 1. Verify signature against raw body. CRITICAL — do not accept
+    # unsigned webhooks; anyone could forge tier upgrades otherwise.
+    try:
+        client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
+        client.utility.verify_webhook_signature(
+            body_bytes.decode("utf-8"),
+            signature,
+            RAZORPAY_WEBHOOK_SECRET,
+        )
+    except Exception as e:
+        logger.warning(
+            "webhook signature verification failed: %s: %s",
+            type(e).__name__, e,
+        )
+        raise HTTPException(status_code=400, detail="Invalid signature")
+
+    # 2. Parse body.
+    try:
+        payload = json.loads(body_bytes.decode("utf-8"))
+    except Exception as e:
+        logger.error("webhook body parse failed: %s", e)
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    event = payload.get("event", "")
+    sub_entity = (
+        (payload.get("payload", {}) or {})
+        .get("subscription", {}) or {}
+    ).get("entity", {}) or {}
+    subscription_id = sub_entity.get("id")
+    notes = sub_entity.get("notes", {}) or {}
+    tier_hint = notes.get("tier")  # set by create_subscription handler
+
+    logger.info(
+        "webhook received: event=%s sub_id=%s tier_hint=%s",
+        event, subscription_id, tier_hint,
+    )
+
+    # 3. No subscription context (e.g. payment.captured standalone) —
+    # ack and skip. Not an error.
+    if not subscription_id:
+        return {"ok": True, "ignored": event}
+
+    # 4. Map event to tier action. Always return 200 on handler
+    # exceptions so Razorpay doesn't pile up retries for something we
+    # need to debug manually.
+    try:
+        from db.supabase_client import get_client
+        client_sb = get_client()
+        if client_sb is None:
+            logger.error("webhook: Supabase unavailable, skipping tier update")
+            return {"ok": True, "warning": "no-supabase-client"}
+
+        if event == "subscription.activated":
+            new_tier = tier_hint if tier_hint in ("analyst", "pro") else "analyst"
+            client_sb.table("users_meta").update({
+                "tier": new_tier,
+            }).eq("razorpay_subscription_id", subscription_id).execute()
+            logger.info(
+                "webhook promoted sub=%s to tier=%s",
+                subscription_id, new_tier,
+            )
+
+        elif event == "subscription.charged":
+            # Successful renewal — no tier change, log only. If tier
+            # was previously demoted due to a halt + cancel, the user
+            # has already been demoted; Razorpay will have created a
+            # new subscription for their next charge, which'd fire
+            # .activated again. Safe no-op.
+            logger.info("webhook renewal charged: sub=%s", subscription_id)
+
+        elif event == "subscription.halted":
+            # Razorpay retries failed cards for ~3 days. Do NOT demote
+            # yet — the user's card may be temporarily declined. Log
+            # for ops visibility; Razorpay will fire .cancelled if all
+            # retries fail, which IS the demote signal.
+            logger.warning(
+                "webhook subscription halted (keeping tier): sub=%s",
+                subscription_id,
+            )
+
+        elif event in ("subscription.cancelled", "subscription.completed"):
+            # User cancelled OR Razorpay's retry window expired OR
+            # total_count reached. Demote to free immediately. Clear
+            # razorpay_subscription_id so a future re-subscribe
+            # doesn't ambiguously match this stale subscription.
+            client_sb.table("users_meta").update({
+                "tier": "free",
+                "razorpay_subscription_id": None,
+            }).eq("razorpay_subscription_id", subscription_id).execute()
+            logger.info(
+                "webhook demoted sub=%s to free (%s)",
+                subscription_id, event,
+            )
+
+        else:
+            # subscription.pending, subscription.paused, etc. — ack.
+            logger.info("webhook event not handled: %s", event)
+
+    except Exception as e:
+        # Don't 500 — Razorpay would retry forever. Log loudly and ack.
+        logger.exception(
+            "webhook handler failed event=%s sub=%s: %s",
+            event, subscription_id, e,
+        )
+        return {"ok": True, "warning": str(e)}
+
+    return {"ok": True, "event": event}
