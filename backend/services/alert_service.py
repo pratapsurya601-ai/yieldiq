@@ -9,6 +9,8 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
+from backend.services.logging_utils import hash_email
+
 logger = logging.getLogger(__name__)
 
 # ── SendGrid config ───────────────────────────────────────────
@@ -26,7 +28,7 @@ def send_alert_email(
 ) -> bool:
     """Send a price alert email via SendGrid."""
     if not SENDGRID_API_KEY:
-        logger.info(f"SendGrid not configured — skipping email for {ticker} to {to_email}")
+        logger.info(f"SendGrid not configured — skipping email for {ticker} to {hash_email(to_email)}")
         return False
 
     try:
@@ -174,10 +176,10 @@ def send_alert_email(
     try:
         sg = SendGridAPIClient(SENDGRID_API_KEY)
         sg.send(message)
-        logger.info(f"Alert email sent to {to_email} for {ticker}")
+        logger.info(f"Alert email sent to {hash_email(to_email)} for {ticker}")
         return True
     except Exception as e:
-        logger.error(f"SendGrid email failed for {to_email}: {e}")
+        logger.error(f"SendGrid email failed for {hash_email(to_email)}: {e}")
         return False
 
 

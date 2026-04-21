@@ -26,6 +26,8 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 
+from backend.services.logging_utils import hash_email
+
 logger = logging.getLogger("yieldiq.portfolio")
 
 
@@ -143,7 +145,7 @@ def get_holdings(user_email: str) -> list[dict]:
         )
         return result.data or []
     except Exception as e:
-        logger.warning(f"get_holdings failed for {user_email}: {e}")
+        logger.warning(f"get_holdings failed for {hash_email(user_email)}: {e}")
         return []
 
 
@@ -175,7 +177,7 @@ def remove_holding(
         result = q.execute()
         return bool(result.data)
     except Exception as e:
-        logger.warning(f"remove_holding failed for {user_email}/{ticker}: {e}")
+        logger.warning(f"remove_holding failed for {hash_email(user_email)}/{ticker}: {e}")
         return False
 
 

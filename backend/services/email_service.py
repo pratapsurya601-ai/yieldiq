@@ -10,6 +10,8 @@ import hashlib
 import time
 from datetime import datetime, timedelta, timezone
 
+from backend.services.logging_utils import hash_email
+
 logger = logging.getLogger(__name__)
 
 # ── SendGrid config ───────────────────────────────────────────
@@ -81,7 +83,7 @@ def _email_footer(email: str) -> str:
 def _send_email(to_email: str, subject: str, html_content: str) -> bool:
     """Send an email via SendGrid. Returns True on success."""
     if not SENDGRID_API_KEY:
-        logger.info(f"SendGrid not configured -- skipping email to {to_email}")
+        logger.info(f"SendGrid not configured -- skipping email to {hash_email(to_email)}")
         return False
 
     try:
@@ -100,10 +102,10 @@ def _send_email(to_email: str, subject: str, html_content: str) -> bool:
     try:
         sg = SendGridAPIClient(SENDGRID_API_KEY)
         sg.send(message)
-        logger.info(f"Email sent to {to_email}: {subject}")
+        logger.info(f"Email sent to {hash_email(to_email)}: {subject}")
         return True
     except Exception as e:
-        logger.error(f"SendGrid email failed for {to_email}: {e}")
+        logger.error(f"SendGrid email failed for {hash_email(to_email)}: {e}")
         return False
 
 
@@ -122,7 +124,7 @@ def is_user_unsubscribed(email: str) -> bool:
         if result.data:
             return bool(result.data.get("email_opted_out", False))
     except Exception as e:
-        logger.debug(f"Could not check unsubscribe status for {email}: {e}")
+        logger.debug(f"Could not check unsubscribe status for {hash_email(email)}: {e}")
     return False
 
 
@@ -134,10 +136,10 @@ def mark_user_unsubscribed(email: str) -> bool:
         client.table("users_meta").update(
             {"email_opted_out": True}
         ).eq("email", email).execute()
-        logger.info(f"User unsubscribed: {email}")
+        logger.info(f"User unsubscribed: {hash_email(email)}")
         return True
     except Exception as e:
-        logger.error(f"Failed to unsubscribe {email}: {e}")
+        logger.error(f"Failed to unsubscribe {hash_email(email)}: {e}")
         return False
 
 
@@ -650,7 +652,7 @@ def send_weekly_digests_to_all() -> int:
                 sent += 1
             time.sleep(1)  # Rate limit: 1/sec for SendGrid
         except Exception as e:
-            logger.error(f"Weekly digest failed for {email}: {e}")
+            logger.error(f"Weekly digest failed for {hash_email(email)}: {e}")
 
     logger.info(f"Weekly digest: {sent}/{len(emails)} sent (limit: {DAILY_DIGEST_LIMIT})")
     return sent
