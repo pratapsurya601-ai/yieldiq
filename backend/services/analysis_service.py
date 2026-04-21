@@ -1093,76 +1093,146 @@ def _query_promoter_pledge(ticker: str):
     return data.get("promoter_pledge_pct") if data else None
 
 
-def _fetch_ebit_and_interest(ticker: str) -> tuple[float | None, float | None]:
+def _fetch_ebit_and_interest(
+    ticker: str,
+    enriched: dict | None = None,
+) -> tuple[float | None, float | None]:
     """
     Pull the most recent annual EBIT and interest_expense.
 
-    Priority:
+    Priority (FIX-ROCE-FLAGSHIPS, 2026-04-21):
       1. ``company_financials`` table (new XBRL pipeline — has explicit EBIT)
       2. ``financials`` table (old pipeline — has EBITDA, use as EBIT proxy)
+      3. ``enriched["income_df"]`` operating_income (collector / local_data
+         path — most recent row). This recovers flagships where the DB
+         tables have NULL EBIT but the yfinance income-statement dataframe
+         was successfully parsed by the collector and carried on `enriched`.
+      4. Live yfinance ``Ticker.income_stmt`` dataframe — last-resort
+         network call for deep fallback. Only attempted when the DB and
+         `enriched` paths both return None.
 
-    Returns (None, None) if neither table has data for this ticker.
+    Returns (None, None) only when truly unavailable.
     """
+    def _f(v):
+        try:
+            return float(v) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    # ── Paths 1 & 2: database tables ─────────────────────────
     db = _get_pipeline_session()
-    if db is None:
-        return None, None
-    try:
-        from sqlalchemy import text
-        db_ticker = ticker.replace(".NS", "").replace(".BO", "")
+    if db is not None:
+        try:
+            from sqlalchemy import text
+            db_ticker = ticker.replace(".NS", "").replace(".BO", "")
 
-        # Try company_financials first (has real EBIT)
-        row = db.execute(text("""
-            SELECT ebit, interest_expense
-            FROM company_financials
-            WHERE ticker_nse = :t
-              AND statement_type = 'income'
-              AND period_type = 'annual'
-              AND period_end_date IS NOT NULL
-            ORDER BY period_end_date DESC
-            LIMIT 1
-        """), {"t": db_ticker}).mappings().first()
-        def _f(v):
+            # Try company_financials first (has real EBIT)
+            row = db.execute(text("""
+                SELECT ebit, interest_expense
+                FROM company_financials
+                WHERE ticker_nse = :t
+                  AND statement_type = 'income'
+                  AND period_type = 'annual'
+                  AND period_end_date IS NOT NULL
+                ORDER BY period_end_date DESC
+                LIMIT 1
+            """), {"t": db_ticker}).mappings().first()
+
+            if row:
+                ebit = _f(row.get("ebit"))
+                interest = _f(row.get("interest_expense"))
+                if ebit is not None:
+                    return ebit, interest
+
+            # Fallback: old financials table has EBITDA (EBIT proxy).
+            # EBITDA ≈ EBIT + depreciation. Without depreciation data,
+            # EBITDA is a reasonable upper-bound proxy for ROCE.
+            old_row = db.execute(text("""
+                SELECT ebitda, ebit
+                FROM financials
+                WHERE ticker = :t
+                  AND period_type = 'annual'
+                  AND period_end IS NOT NULL
+                ORDER BY period_end DESC
+                LIMIT 1
+            """), {"t": db_ticker}).mappings().first()
+
+            if old_row:
+                ebit_val = _f(old_row.get("ebit")) or _f(old_row.get("ebitda"))
+                if ebit_val is not None:
+                    return ebit_val, None  # No interest_expense in old table
+        except Exception as exc:
+            import logging
+            logging.getLogger("yieldiq.analysis").debug(
+                "ebit/interest DB fetch failed for %s: %s", ticker, exc
+            )
+        finally:
             try:
-                return float(v) if v is not None else None
-            except (TypeError, ValueError):
-                return None
+                db.close()
+            except Exception:
+                pass
 
-        if row:
-            ebit = _f(row.get("ebit"))
-            interest = _f(row.get("interest_expense"))
-            if ebit is not None:
-                return ebit, interest
+    # ── Path 3: enriched income_df (already parsed yfinance dataframe) ──
+    # The collector/local_data pipelines populate `income_df` with annual
+    # rows containing `operating_income`. This catches flagships where
+    # the XBRL-sourced DB tables have NULL EBIT but yfinance DID parse it.
+    if enriched is not None:
+        try:
+            inc = enriched.get("income_df")
+            if inc is not None and hasattr(inc, "empty") and not inc.empty:
+                if "operating_income" in inc.columns:
+                    # Last row = latest year (collector sorts ascending
+                    # by year, see data/collector.py ~ line 1309).
+                    _latest = inc["operating_income"].dropna()
+                    if len(_latest) > 0:
+                        _val = _f(_latest.iloc[-1])
+                        if _val is not None and _val > 0:
+                            return _val, None
+        except Exception as exc:
+            import logging
+            logging.getLogger("yieldiq.analysis").debug(
+                "ebit fetch from enriched.income_df failed for %s: %s",
+                ticker, exc,
+            )
 
-        # Fallback: old financials table has EBITDA (use as EBIT proxy)
-        # EBITDA ≈ EBIT + depreciation. Without depreciation data,
-        # EBITDA is a reasonable upper-bound proxy for ROCE calculation.
-        old_row = db.execute(text("""
-            SELECT ebitda, ebit
-            FROM financials
-            WHERE ticker = :t
-              AND period_type = 'annual'
-              AND period_end IS NOT NULL
-            ORDER BY period_end DESC
-            LIMIT 1
-        """), {"t": db_ticker}).mappings().first()
-
-        if old_row:
-            ebit_val = _f(old_row.get("ebit")) or _f(old_row.get("ebitda"))
-            if ebit_val is not None:
-                return ebit_val, None  # No interest_expense in old table
-
-        return None, None
+    # ── Path 4: live yfinance income_stmt (last resort, network call) ──
+    # Only hit when every other source is empty. yfinance exposes annual
+    # EBIT directly as the "EBIT" or "Operating Income" row of the
+    # `income_stmt` dataframe.
+    try:
+        import yfinance as _yf
+        _is = _yf.Ticker(ticker).income_stmt
+        if _is is not None and not _is.empty:
+            _ebit_row = None
+            for _label in ("EBIT", "Operating Income", "Ebit"):
+                if _label in _is.index:
+                    _ebit_row = _is.loc[_label]
+                    break
+            if _ebit_row is not None and len(_ebit_row) > 0:
+                # Columns are date-like, newest first
+                _val = _f(_ebit_row.iloc[0])
+                if _val is not None and _val > 0:
+                    # yfinance returns raw native-currency amount; same
+                    # convention used elsewhere in this pipeline.
+                    _int_val = None
+                    try:
+                        if "Interest Expense" in _is.index:
+                            _iv = _is.loc["Interest Expense"]
+                            if len(_iv) > 0:
+                                _int_val = _f(_iv.iloc[0])
+                                if _int_val is not None:
+                                    _int_val = abs(_int_val)
+                    except Exception:
+                        _int_val = None
+                    return _val, _int_val
     except Exception as exc:
         import logging
         logging.getLogger("yieldiq.analysis").debug(
-            "ebit/interest fetch failed for %s: %s", ticker, exc
+            "ebit fetch from live yfinance income_stmt failed for %s: %s",
+            ticker, exc,
         )
-        return None, None
-    finally:
-        try:
-            db.close()
-        except Exception:
-            pass
+
+    return None, None
 
 
 def _debt_ebitda_label(ratio: float | None) -> str | None:
@@ -2261,14 +2331,32 @@ class AnalysisService:
         # ROCE, Debt/EBITDA (with band label), Interest Coverage,
         # Enterprise Value. Every metric is Optional — None flows
         # through to the frontend which renders "—".
-        _ebit_val, _interest_exp = _fetch_ebit_and_interest(ticker)
+        _ebit_val, _interest_exp = _fetch_ebit_and_interest(
+            ticker, enriched=enriched
+        )
 
         _total_assets = enriched.get("total_assets") or 0
         _total_debt = enriched.get("total_debt") or 0
         _total_cash = enriched.get("total_cash") or 0
         _ebitda = enriched.get("ebitda") or 0
         _shares = enriched.get("shares") or 0
-        _current_liab = enriched.get("current_liabilities") or 0
+        # FIX-ROCE-FLAGSHIPS (2026-04-21): do NOT default to 0. When
+        # current_liabilities is truly missing (local_data_service never
+        # populates it; collector fills 0.0 when the balance-sheet row
+        # is absent), we want to pass None so ratios_service.compute_roce
+        # returns None and we fall through to the EBIT/Total-Assets
+        # fallback instead of computing ROCE off `TA − 0 = TA`.
+        #
+        # Treat 0 the same as missing — a real company never has zero
+        # current liabilities, so 0 is the sentinel for "row not in
+        # the dataframe".
+        _cl_raw = enriched.get("current_liabilities")
+        try:
+            _current_liab = float(_cl_raw) if _cl_raw is not None else None
+            if _current_liab is not None and _current_liab <= 0:
+                _current_liab = None
+        except (TypeError, ValueError):
+            _current_liab = None
 
         # Sector-based "bank / NBFC / Financial" detection — leverage
         # and interest-coverage ratios are not meaningful for these.
@@ -2280,11 +2368,23 @@ class AnalysisService:
             or ticker.upper().endswith(("BANK.NS", "BANK.BO"))
         )
 
-        # ROCE uses the textbook capital-employed denominator:
-        #   EBIT / (Total Assets − Current Liabilities)  [returns %]
-        # Falls back to ebit / total_assets when current_liabilities
-        # is missing so we don't regress coverage for tickers lacking
-        # that field.
+        # ROCE fallback chain (FIX-ROCE-FLAGSHIPS, 2026-04-21). In order:
+        #   a) Primary:    EBIT / (Total Assets − Current Liabilities)
+        #                  — textbook formula
+        #   b) Fallback 1: EBIT / Total Assets
+        #                  — less precise but works when CL is missing
+        #   c) Fallback 2: yfinance `.info.returnOnCapitalEmployed`
+        #                  — some tickers expose this pre-computed
+        #   d) Fallback 3: operatingCashflow / totalAssets proxy from
+        #                  yfinance `.info` (diagnostic-grade)
+        #   e) Final:      None (render as "—", NOT "0.0% Weak")
+        #
+        # Previously every flagship (RELIANCE, TCS, HDFCBANK, INFY, …)
+        # rendered as "0.0% Weak" because current_liabilities was
+        # defaulted to 0, making the primary compute succeed against
+        # (TA − 0 = TA) and then `_rounded = EBIT/TA*100` evaluated to
+        # exactly 0.0 when EBIT was also None/0. This drove YieldIQ's
+        # #1 credibility complaint.
         from backend.services.ratios_service import (
             compute_roce as _compute_roce,
             compute_debt_to_ebitda as _compute_debt_ebitda,
@@ -2293,16 +2393,13 @@ class AnalysisService:
         _roce_val: float | None = _compute_roce(
             _ebit_val, _total_assets, _current_liab
         )
-        # Fallback path: primary returned None (often because
-        # current_liabilities isn't on file for older `financials`
-        # rows). Use the looser EBIT/Total Assets definition so we
-        # keep coverage. Must guard against EBIT<=0 though — otherwise
-        # tickers with missing/zero EBIT render as misleading "0.0% Weak"
-        # (e.g. RELIANCE appeared as 0% on the analysis page).
+        # (b) Fallback 1 — looser EBIT/Total Assets. Guards against
+        # EBIT<=0 and TA<=0 so we never divide-by-noise.
         if (
             _roce_val is None
             and _ebit_val is not None
             and _ebit_val > 0
+            and _total_assets
             and _total_assets > 0
         ):
             _rounded = round(_ebit_val / _total_assets * 100, 1)
@@ -2313,6 +2410,67 @@ class AnalysisService:
             # 0.0% because tiny EBIT/TA rounded down, misleading users
             # into thinking the business had zero return on capital).
             _roce_val = _rounded if _rounded > 0 else None
+
+        # (c) Fallback 2 — yfinance `.info.returnOnCapitalEmployed`.
+        # Some tickers expose a pre-computed ROCE field. yfinance stores
+        # it as a decimal (0.235 for 23.5%), so let _normalize_pct handle
+        # the convention.
+        if _roce_val is None:
+            try:
+                _roce_info = (
+                    raw.get("returnOnCapitalEmployed")
+                    if isinstance(raw, dict) else None
+                )
+                if _roce_info is not None:
+                    _norm = _normalize_pct(_roce_info)
+                    if _norm is not None and _norm > 0:
+                        _roce_val = _norm
+            except Exception:
+                pass
+
+        # (d) Fallback 3 — operatingCashflow / totalAssets proxy. This
+        # is NOT textbook ROCE but is a useful "return on capital
+        # deployed" proxy when everything upstream is empty. Only used
+        # when no other signal exists, so a gentle approximation beats
+        # a hard "—".
+        if _roce_val is None:
+            try:
+                _ocf = None
+                _ta_info = None
+                if isinstance(raw, dict):
+                    _ocf = raw.get("operatingCashflow")
+                    _ta_info = raw.get("totalAssets") or _total_assets
+                else:
+                    _ta_info = _total_assets
+                if _ocf is not None and _ta_info and _ta_info > 0:
+                    _ocf_f = float(_ocf)
+                    if _ocf_f > 0:
+                        _proxy = round(_ocf_f / float(_ta_info) * 100, 1)
+                        if _proxy > 0:
+                            _roce_val = _proxy
+            except Exception:
+                pass
+
+        # Final sanity guard — if despite all of the above _roce_val
+        # ended up exactly 0.0 AND we have positive EBIT, that is a
+        # unit/computation bug not a real signal. Clear to None so the
+        # frontend renders "—" instead of "0.0% Weak".
+        if (
+            _roce_val is not None
+            and float(_roce_val) == 0.0
+            and _ebit_val is not None
+            and _ebit_val > 0
+        ):
+            try:
+                import logging as _roce_log
+                _roce_log.getLogger("yieldiq.analysis").warning(
+                    "ROCE sanity: ticker=%s ebit=%s ta=%s cl=%s → 0.0%% "
+                    "with positive EBIT, treating as None.",
+                    ticker, _ebit_val, _total_assets, _current_liab,
+                )
+            except Exception:
+                pass
+            _roce_val = None
 
         # Banks / NBFCs: Debt/EBITDA and Interest Coverage are not
         # meaningful (deposits ≠ debt, interest expense is revenue).
