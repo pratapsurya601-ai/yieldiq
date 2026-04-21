@@ -48,10 +48,20 @@ class DividendService:
         import yfinance as yf
 
         # Reuse caller-provided .info if available — saves ~20s
-        # by avoiding a duplicate yfinance quoteSummary call.
-        if yf_info:
+        # by avoiding a duplicate yfinance quoteSummary call. BUT: the
+        # caller's enriched dict can have stripped dividend fields
+        # (HCLTECH bug, 2026-04-21: yf_info from collector lacked
+        # dividendYield/lastDividendValue, so we returned has_dividends=False
+        # for a stock paying \u20b954/share). If both are missing, fall through
+        # to a fresh .info fetch.
+        info = None
+        if yf_info and (
+            yf_info.get("lastDividendValue") is not None
+            or yf_info.get("dividendYield") is not None
+            or yf_info.get("dividendRate") is not None
+        ):
             info = yf_info
-        else:
+        if info is None:
             t = yf.Ticker(ticker)
             try:
                 info = t.info or {}
