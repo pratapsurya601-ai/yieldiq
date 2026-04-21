@@ -159,6 +159,25 @@ CREATE TABLE IF NOT EXISTS price_snapshots (
     UNIQUE(ticker, saved_at, horizon)
 );
 
+-- 13a. PAYG (pay-as-you-go) analysis unlocks
+-- One row per successful ₹99 single-analysis purchase. The "unlock"
+-- lasts 24h from unlocked_at — enforce the TTL in application code
+-- since Postgres has no native row-expiry.
+CREATE TABLE IF NOT EXISTS payg_unlocks (
+    id                  BIGSERIAL PRIMARY KEY,
+    user_email          TEXT NOT NULL,
+    ticker              TEXT NOT NULL,
+    razorpay_payment_id TEXT,
+    razorpay_order_id   TEXT,
+    amount_paise        INTEGER,
+    unlocked_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- Idempotency: one Razorpay payment_id maps to exactly one unlock
+    -- (so a retried /verify call doesn't create duplicate rows).
+    UNIQUE(razorpay_payment_id)
+);
+CREATE INDEX IF NOT EXISTS idx_payg_user_ticker
+    ON payg_unlocks(user_email, ticker, unlocked_at DESC);
+
 -- 13. Sector DCF cache
 CREATE TABLE IF NOT EXISTS sector_dcf_cache (
     sector      TEXT PRIMARY KEY,

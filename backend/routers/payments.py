@@ -128,26 +128,43 @@ async def get_plans():
 @router.post("/create-order")
 async def create_order(
     plan_id: str = "pro",
+    ticker: str | None = None,
     user: dict = Depends(get_current_user),
 ):
-    """Create a Razorpay order for the selected plan."""
+    """Create a Razorpay order for a one-time purchase.
+
+    For `plan_id="single_analysis"` (₹99 PAYG), `ticker` is required —
+    the unlock is scoped to that exact ticker. The ticker is stamped
+    into Razorpay order notes so /verify can persist the unlock row
+    against the right symbol.
+    """
     if plan_id not in PLANS:
         raise HTTPException(status_code=400, detail="Invalid plan")
+    if plan_id == "single_analysis" and not ticker:
+        raise HTTPException(
+            status_code=400,
+            detail="ticker is required for single_analysis purchases",
+        )
 
     plan = PLANS[plan_id]
 
     try:
         import razorpay
         client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
+        notes = {
+            "user_id": user["user_id"],
+            "email": user["email"],
+            "plan": plan_id,
+        }
+        if ticker:
+            # Strip market suffix so we can match on bare symbol in the
+            # unlocks table (ticker may arrive as "TCS" or "TCS.NS").
+            notes["ticker"] = ticker.upper().strip()
         order = client.order.create({
             "amount": plan["amount"],
             "currency": plan["currency"],
             "receipt": f"yiq_{user['user_id']}_{plan_id}",
-            "notes": {
-                "user_id": user["user_id"],
-                "email": user["email"],
-                "plan": plan_id,
-            },
+            "notes": notes,
         })
         return {
             "order_id": order["id"],
@@ -155,6 +172,7 @@ async def create_order(
             "currency": plan["currency"],
             "key_id": RAZORPAY_KEY_ID,
             "plan": plan_id,
+            "ticker": notes.get("ticker"),
             "name": "YieldIQ",
             "description": plan["description"],
         }
@@ -381,41 +399,92 @@ async def verify_payment(
     razorpay_payment_id: str,
     razorpay_signature: str,
     plan_id: str = "pro",
+    ticker: str | None = None,
     user: dict = Depends(get_current_user),
 ):
-    """Verify Razorpay payment and upgrade user tier.
+    """Verify a one-time Razorpay Order payment.
 
-    Legacy one-time Order verification — kept for the ₹99 PAYG path
-    and any old clients still mid-flight. New monthly/annual flows
-    should use /verify-subscription.
+    Two modes:
+      - plan_id="single_analysis"  → ₹99 PAYG. Inserts a row into
+        payg_unlocks so the user can access that ticker for 24h even
+        if their free-tier monthly quota is exhausted. `ticker` is
+        required in this mode.
+      - plan_id="pro" | "analyst"  → legacy one-time upgrade path
+        (superseded by /create-subscription for new flows; kept for
+        in-flight old clients).
     """
+    import logging
+    logger = logging.getLogger("yieldiq.payments")
+
     try:
         import razorpay
         client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
 
-        # Verify signature
+        # Verify signature (Order-based — SDK's default works here).
         client.utility.verify_payment_signature({
             "razorpay_order_id": razorpay_order_id,
             "razorpay_payment_id": razorpay_payment_id,
             "razorpay_signature": razorpay_signature,
         })
 
-        # Payment verified — upgrade user tier
+        # Branch 1: PAYG single-analysis — record the unlock, don't
+        # touch tier. These users stay on 'free' tier but gain 24h
+        # access to one specific ticker.
+        if plan_id == "single_analysis":
+            if not ticker:
+                raise HTTPException(
+                    status_code=400,
+                    detail="ticker is required for single_analysis",
+                )
+            _ticker = ticker.upper().strip()
+            try:
+                from db.supabase_client import get_admin_client
+                client_sb = get_admin_client()
+                if client_sb is not None:
+                    # on_conflict=razorpay_payment_id makes retries
+                    # idempotent — a second /verify call with the same
+                    # payment_id doesn't duplicate the unlock row.
+                    client_sb.table("payg_unlocks").upsert({
+                        "user_email": user["email"],
+                        "ticker": _ticker,
+                        "razorpay_payment_id": razorpay_payment_id,
+                        "razorpay_order_id": razorpay_order_id,
+                        "amount_paise": PLANS["single_analysis"]["amount"],
+                    }, on_conflict="razorpay_payment_id").execute()
+                    logger.info(
+                        "PAYG unlock recorded: %s ticker=%s payment=%s",
+                        user["email"], _ticker, razorpay_payment_id,
+                    )
+            except Exception as exc:
+                # User paid — don't 500. Log loudly; we can backfill.
+                logger.error(
+                    "PAYG unlock persist failed for %s ticker=%s: %s: %s",
+                    user["email"], _ticker,
+                    type(exc).__name__, exc,
+                )
+            return {
+                "ok": True,
+                "unlock": {"ticker": _ticker, "hours": 24},
+                "message": f"Analysis unlocked for {_ticker} (24 hours)",
+            }
+
+        # Branch 2: legacy tier upgrade via one-time order.
         new_tier = plan_id if plan_id in ("pro", "analyst") else "pro"
-
-        # Update in Supabase
         try:
-            from db.supabase_client import get_client
-            client_sb = get_client()
-            if client_sb:
-                client_sb.table("users_meta").upsert({
-                    "user_id": user["user_id"],
+            from db.supabase_client import get_admin_client
+            client_sb = get_admin_client()
+            if client_sb is not None:
+                client_sb.table("users_meta").update({
                     "tier": new_tier,
-                }).execute()
-        except Exception:
-            pass
+                }).eq("id", user["user_id"]).execute()
+        except Exception as exc:
+            logger.error(
+                "verify-order users_meta update failed for %s: %s: %s",
+                user["email"], type(exc).__name__, exc,
+            )
 
-        # Update in SQLite auth
+        invalidate_tier_cache(user["user_id"])
+
         try:
             _dashboard = os.path.join(_ROOT, "dashboard")
             if _dashboard not in sys.path:
@@ -430,10 +499,73 @@ async def verify_payment(
             "tier": new_tier,
             "message": f"Upgraded to {new_tier.title()} plan",
         }
+    except HTTPException:
+        raise
     except razorpay.errors.SignatureVerificationError:
         raise HTTPException(status_code=400, detail="Payment verification failed")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─────────────────────────────────────────────────────────────────
+# PAYG unlock helpers (for tier-gating logic elsewhere in the app)
+# ─────────────────────────────────────────────────────────────────
+
+def has_active_payg_unlock(email: str, ticker: str, hours: int = 24) -> bool:
+    """True if this user bought a single_analysis unlock for this
+    ticker within the last `hours` (default 24). Falls back to False
+    on any Supabase error — callers should degrade gracefully."""
+    if not email or not ticker:
+        return False
+    try:
+        from db.supabase_client import get_admin_client
+        from datetime import datetime, timedelta, timezone
+        client_sb = get_admin_client()
+        if client_sb is None:
+            return False
+        _ticker = ticker.upper().strip()
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+        result = (
+            client_sb.table("payg_unlocks")
+            .select("id")
+            .eq("user_email", email)
+            .eq("ticker", _ticker)
+            .gte("unlocked_at", cutoff)
+            .limit(1)
+            .execute()
+        )
+        return bool(result.data)
+    except Exception:
+        return False
+
+
+@router.get("/payg-unlocks")
+async def list_payg_unlocks(user: dict = Depends(get_current_user)):
+    """List the caller's active (within 24h) PAYG unlocks. Frontend
+    uses this to badge tickers as 'unlocked' in the UI and avoid
+    prompting to pay again."""
+    try:
+        from db.supabase_client import get_admin_client
+        from datetime import datetime, timedelta, timezone
+        client_sb = get_admin_client()
+        if client_sb is None:
+            return {"unlocks": []}
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        result = (
+            client_sb.table("payg_unlocks")
+            .select("ticker,unlocked_at,razorpay_payment_id")
+            .eq("user_email", user["email"])
+            .gte("unlocked_at", cutoff)
+            .order("unlocked_at", desc=True)
+            .execute()
+        )
+        return {"unlocks": result.data or []}
+    except Exception as e:
+        import logging
+        logging.getLogger("yieldiq.payments").warning(
+            "list_payg_unlocks failed for %s: %s", user.get("email"), e,
+        )
+        return {"unlocks": []}
 
 
 @router.post("/webhook")
