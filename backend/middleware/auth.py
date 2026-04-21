@@ -73,6 +73,22 @@ TIER_LIMITS = {"free": 5, "starter": 999999, "pro": 999999, "analyst": 999999}
 _tier_cache: dict[str, tuple[str, float]] = {}
 _TIER_CACHE_TTL_SECS = 60
 
+# Observability for persistent Supabase failures in the tier refresh
+# path. We don't want to log on every single failure (this runs per
+# request), but we MUST surface sustained problems — otherwise a paid
+# user with a broken users_meta row or a bad RLS policy stays stuck
+# on their stale JWT tier and we never find out.
+#
+# Policy: keep a sliding 5-minute window of failure timestamps per user.
+# If 3+ failures accumulate in that window AND we haven't logged for
+# this user in the last 60 seconds, emit a WARN. Still falls back to
+# the JWT tier silently — logging is purely additive.
+_tier_fetch_failures: dict[str, list[float]] = {}
+_tier_fetch_last_logged: dict[str, float] = {}
+_TIER_FAIL_WINDOW_SECS = 300.0   # 5 min sliding window
+_TIER_FAIL_THRESHOLD = 3          # failures within window before we log
+_TIER_FAIL_LOG_COOLDOWN_SECS = 60.0  # per-user log de-dupe
+
 
 def invalidate_tier_cache(user_id: str) -> None:
     """Drop cached tier for this user — call after Razorpay tier flip
@@ -81,10 +97,53 @@ def invalidate_tier_cache(user_id: str) -> None:
     _tier_cache.pop(user_id, None)
 
 
+def _record_tier_fetch_failure(user_id: str, jwt_tier: str) -> None:
+    """Append a failure timestamp for this user, prune the sliding
+    window, and emit a WARN if we've crossed the threshold AND the
+    per-user log cooldown has elapsed. Best-effort — never raises.
+
+    Kept as a separate helper so the hot path in _get_fresh_tier stays
+    readable and so this logic can be unit-tested in isolation.
+    """
+    import time as _t
+    try:
+        now = _t.monotonic()
+        window = _tier_fetch_failures.setdefault(user_id, [])
+        window.append(now)
+        # Prune anything older than the sliding window.
+        cutoff = now - _TIER_FAIL_WINDOW_SECS
+        # List is small (bounded by request rate × window); linear scan is fine.
+        while window and window[0] < cutoff:
+            window.pop(0)
+
+        if len(window) < _TIER_FAIL_THRESHOLD:
+            return
+
+        last_logged = _tier_fetch_last_logged.get(user_id, 0.0)
+        if now - last_logged < _TIER_FAIL_LOG_COOLDOWN_SECS:
+            return
+
+        _tier_fetch_last_logged[user_id] = now
+        _log().warning(
+            "Supabase tier fetch failed %d× for user %s in %ds — "
+            "falling back to JWT tier=%s",
+            len(window), user_id, int(_TIER_FAIL_WINDOW_SECS), jwt_tier,
+        )
+    except Exception:
+        # Observability must never break the request.
+        pass
+
+
 def _get_fresh_tier(user_id: str, jwt_tier: str) -> str:
     """Read tier from users_meta. 60s per-user cache. Silent fallback
     to jwt_tier on any Supabase failure (we never want a DB hiccup
-    to 500 authenticated requests)."""
+    to 500 authenticated requests).
+
+    Observability: persistent failures (3+ in 5min for the same user)
+    emit a rate-limited WARN via _record_tier_fetch_failure — so a
+    broken users_meta row / RLS policy / Neon cold-start loop is
+    visible in logs without spamming them on every request.
+    """
     import time as _t
     now = _t.monotonic()
     cached = _tier_cache.get(user_id)
@@ -106,9 +165,10 @@ def _get_fresh_tier(user_id: str, jwt_tier: str) -> str:
         if rows and rows[0].get("tier"):
             tier = rows[0]["tier"]
     except Exception:
-        # Don't even log — this runs on every request and the JWT
-        # fallback is safe.
-        pass
+        # JWT fallback is safe; silently log at WARN only when failures
+        # are persistent (see _record_tier_fetch_failure). We never
+        # raise — a DB hiccup must not 500 authenticated requests.
+        _record_tier_fetch_failure(user_id, jwt_tier)
 
     _tier_cache[user_id] = (tier, now + _TIER_CACHE_TTL_SECS)
     return tier
