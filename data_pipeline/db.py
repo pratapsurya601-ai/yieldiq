@@ -39,6 +39,25 @@ engine = create_engine(
 ) if DATABASE_URL else None
 if engine:
     _logger.info("DB_INIT: engine created OK")
+    # Neon's pooler does NOT honour ALTER ROLE default search_path, and
+    # it explicitly rejects connection-startup `options=-c search_path`.
+    # But it does allow a plain `SET search_path` inside an open session.
+    # We attach an event listener so every new raw connection runs SET
+    # immediately on checkout — puts 'public' back on the path and our
+    # unqualified queries (SELECT * FROM stocks) resolve correctly on
+    # Neon. Harmless on Aiven (redundant but a no-op).
+    from sqlalchemy import event as _event
+    @_event.listens_for(engine, "connect")
+    def _set_search_path(dbapi_conn, _record):
+        try:
+            cur = dbapi_conn.cursor()
+            cur.execute("SET search_path TO public")
+            cur.close()
+        except Exception:
+            # Don't block connections if this fails — fall back to
+            # whatever default the server has. Logs will surface any
+            # real issue at query time.
+            pass
 else:
     _logger.warning("DB_INIT: engine is None (DATABASE_URL not set)")
 Session = sessionmaker(bind=engine) if engine else None
