@@ -285,6 +285,73 @@ async def test_fetch_one(ticker: str):
         return {"status": "error", "error": str(e), "type": type(e).__name__}
 
 
+def _get_recent_prices_from_bhavcopy(ticker: str, days: int = 5):
+    """Return the last ``days`` trading days of OHLCV from daily_prices.
+
+    Shape matches yf.download's post-MultiIndex-flatten columns:
+        Open, High, Low, Close, Volume  (Date as index)
+
+    Returns ``None`` when:
+      * ``DATABASE_URL`` is not set
+      * the table has no rows for this ticker in the window
+      * any SQLAlchemy error is raised
+
+    Callers must treat ``None`` as "fall back to live fetch".
+    """
+    try:
+        from data_pipeline.db import Session as _PipelineSession
+        if _PipelineSession is None:
+            return None
+        from sqlalchemy import text
+        import pandas as pd
+        from datetime import date as _date, timedelta as _td
+
+        clean = ticker.replace(".NS", "").replace(".BO", "").upper()
+        # Pull a wider window than strictly needed — trading calendars
+        # drop weekends/holidays, so 5 trading days is ~7-9 calendar days.
+        # 3x safety margin to avoid clipping long holiday weekends.
+        start = _date.today() - _td(days=max(days * 3, 14))
+
+        sess = _PipelineSession()
+        try:
+            rows = sess.execute(
+                text(
+                    "SELECT trade_date, open_price, high_price, low_price, "
+                    "       close_price, volume "
+                    "FROM daily_prices "
+                    "WHERE ticker = :t AND trade_date >= :start "
+                    "ORDER BY trade_date DESC "
+                    "LIMIT :lim"
+                ),
+                {"t": clean, "start": start, "lim": int(days)},
+            ).mappings().all()
+        finally:
+            try:
+                sess.close()
+            except Exception:
+                pass
+
+        if not rows:
+            return None
+
+        df = pd.DataFrame([dict(r) for r in rows])
+        # Reverse so oldest → newest (same orientation as yf.download)
+        df = df.iloc[::-1].reset_index(drop=True)
+        df["trade_date"] = pd.to_datetime(df["trade_date"])
+        df = df.set_index("trade_date")
+        df.index.name = "Date"
+        df = df.rename(columns={
+            "open_price": "Open",
+            "high_price": "High",
+            "low_price": "Low",
+            "close_price": "Close",
+            "volume": "Volume",
+        })
+        return df[["Open", "High", "Low", "Close", "Volume"]]
+    except Exception:
+        return None
+
+
 @router.get("/test/raw-price/{ticker}")
 async def test_raw_price(ticker: str):
     """Test: show raw yfinance result for a stock using both methods."""
@@ -305,19 +372,41 @@ async def test_raw_price(ticker: str):
     except Exception as e:
         results["ticker_history"] = f"error: {e}"
 
-    # Method 2: yf.download
+    # Method 2: yf.download — try bhavcopy (daily_prices table) first,
+    # fall through to live yfinance only if the table is empty for
+    # this ticker. Sentry-tagged warning when we do fall through so
+    # we can monitor bhavcopy coverage gaps in production.
     try:
         import pandas as pd
-        df2 = yf.download(f"{ticker}.NS", period="5d", progress=False)
+        df2 = _get_recent_prices_from_bhavcopy(f"{ticker}.NS", days=5)
         if df2 is not None and not df2.empty:
-            if isinstance(df2.columns, pd.MultiIndex):
-                df2.columns = [col[0] if isinstance(col, tuple) else col for col in df2.columns]
             results["yf_download"] = {
                 "rows": len(df2), "columns": list(df2.columns),
                 "sample": df2.tail(2).reset_index().astype(str).to_dict("records"),
+                "source": "bhavcopy",
             }
         else:
-            results["yf_download"] = "empty"
+            logger.warning(
+                "pipeline.test_raw_price fell back to yfinance for %s (daily_prices empty)",
+                ticker,
+            )
+            try:
+                import sentry_sdk as _sentry_sdk
+                _sentry_sdk.set_tag("data_source", "yfinance_fallback")
+                _sentry_sdk.set_tag("endpoint", "pipeline_test_raw_price")
+            except Exception:
+                pass
+            df2 = yf.download(f"{ticker}.NS", period="5d", progress=False)
+            if df2 is not None and not df2.empty:
+                if isinstance(df2.columns, pd.MultiIndex):
+                    df2.columns = [col[0] if isinstance(col, tuple) else col for col in df2.columns]
+                results["yf_download"] = {
+                    "rows": len(df2), "columns": list(df2.columns),
+                    "sample": df2.tail(2).reset_index().astype(str).to_dict("records"),
+                    "source": "yfinance",
+                }
+            else:
+                results["yf_download"] = "empty"
     except Exception as e:
         results["yf_download"] = f"error: {e}"
 

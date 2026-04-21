@@ -1045,12 +1045,14 @@ class StockDataCollector:
         for attempt in range(1, len(_backoff) + 1):
             try:
                 self._ticker_obj = _yf_ticker(self.ticker)
-                # PERF: route .info through the 30-min DB cache to
+                # PERF: route .info through the 30-day DB cache to
                 # avoid the 15-30s Yahoo quoteSummary call on every
                 # analysis. Cache miss still calls yfinance live.
+                # Sector/industry/description/name change <1/yr so
+                # 30d TTL is safe; price now comes from daily_prices.
                 try:
                     from data_pipeline.sources.yf_info_cache import get_info as _cached_info
-                    _info_dict, _from_cache = _cached_info(self.ticker, ttl_minutes=30)
+                    _info_dict, _from_cache = _cached_info(self.ticker)
                     self._yf_info = _info_dict or {}
                     if _from_cache and self._yf_info:
                         log.info(f"[{self.ticker}] yfinance .info served from DB cache")
@@ -1420,10 +1422,10 @@ class StockDataCollector:
             _backoff_orig = [0]  # Single fast attempt for Indian stocks
             try:
                 self._ticker_obj = _yf_ticker(self.ticker)
-                # PERF: route .info through the 30-min DB cache
+                # PERF: route .info through the 30-day DB cache
                 try:
                     from data_pipeline.sources.yf_info_cache import get_info as _cached_info
-                    _info_dict, _from_cache = _cached_info(self.ticker, ttl_minutes=30)
+                    _info_dict, _from_cache = _cached_info(self.ticker)
                     self._yf_info = _info_dict or {}
                     if _from_cache and self._yf_info:
                         log.info(f"[{self.ticker}] yfinance .info served from DB cache (fast path)")
