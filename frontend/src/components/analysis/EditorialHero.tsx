@@ -18,9 +18,10 @@
  */
 
 import dynamic from "next/dynamic"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 
 import Prism from "@/components/prism/Prism"
+import PillarExplainer from "@/components/prism/PillarExplainer"
 import ScoreCard from "@/components/analysis/ScoreCard"
 import { verdictColor } from "@/lib/prism"
 import { timeAgo } from "@/lib/dataFreshness"
@@ -113,6 +114,25 @@ export default function EditorialHero({
   const color = verdictColor(data.verdict_band)
   const [highlightedPillar, setHighlightedPillar] =
     useState<PillarKey | null>(null)
+  // Tap-to-explain state — opens a PillarExplainer sheet with the
+  // axis's factual `why` string. Separate from highlightedPillar
+  // (which is narrator-driven glow) so users can tap without the
+  // narrator fighting for control.
+  const [explainerAxis, setExplainerAxis] = useState<PillarKey | null>(null)
+
+  // Value-trap indicator — fires when the stock looks cheap (Value >= 8)
+  // but the cheapness is paired with weak quality or no competitive moat.
+  // Classic value-trap pattern: market is pricing in real fundamental
+  // risk. Copy stays factual ("possible value trap — deep discount but
+  // weak quality / moat"); we never tell anyone to buy or sell.
+  const valueTrap = useMemo(() => {
+    const val = data.pillars.find((p) => p.key === "value")
+    const qual = data.pillars.find((p) => p.key === "quality")
+    if (!val || val.score == null || val.score < 8) return false
+    const qualityWeak = qual?.score != null && qual.score < 5
+    const moatNone = (moat || "").toLowerCase() === "none"
+    return qualityWeak || moatNone
+  }, [data.pillars, moat])
 
   return (
     <section
@@ -138,6 +158,27 @@ export default function EditorialHero({
               {bandCaption(data.verdict_band)}
             </span>
           </div>
+
+          {/* Value-trap indicator — factual warning when Value is maxed
+              but Quality or Moat is weak. Classic "undervalued for a
+              reason" pattern. Not a sell recommendation; just surfaces
+              the tension so the user can factor it into their read. */}
+          {valueTrap && (
+            <div
+              role="note"
+              aria-label="Possible value trap"
+              className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] leading-snug text-amber-900"
+            >
+              <svg className="w-4 h-4 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 3.5h.01M10.29 3.86l-8.4 14.42A2 2 0 003.61 21h16.78a2 2 0 001.72-2.72L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <span>
+                <span className="font-semibold">Possible value trap.</span>{" "}
+                Deep discount paired with weak quality or no durable moat —
+                undervalued stocks often stay undervalued for a reason.
+              </span>
+            </div>
+          )}
 
           {/* Serif headline — the verdict as an editorial title. We do NOT
               fabricate longer prose here (SEBI). The verdict label from the
@@ -169,7 +210,17 @@ export default function EditorialHero({
                     marginOfSafety >= 0 ? "text-success" : "text-danger"
                   }`}
                 >
-                  {marginOfSafety > 80 ? "+80%+" : formatPct(marginOfSafety)}
+                  {
+                    // Previous copy was "+80%+" which reads like a broken
+                    // render. Show the real signed number; only if it's
+                    // truly enormous (>200%) do we collapse to ">+200%"
+                    // so the layout doesn't overflow.
+                    marginOfSafety > 200
+                      ? ">+200%"
+                      : marginOfSafety < -200
+                      ? "<-200%"
+                      : formatPct(marginOfSafety)
+                  }
                 </dd>
               </div>
             )}
@@ -191,6 +242,7 @@ export default function EditorialHero({
               size={340}
               defaultMode={defaultMode}
               highlightedPillar={highlightedPillar}
+              onPillarTap={setExplainerAxis}
             />
           </div>
           <p className="mt-3 text-[11px] text-caption leading-snug text-center max-w-[30ch]">
@@ -232,6 +284,16 @@ export default function EditorialHero({
           />
         </div>
       </div>
+
+      {/* Tap-to-explain sheet — rendered at section-level so its fixed
+          positioning escapes the 3-column grid. Opens when the user
+          clicks/taps a vertex in the Signature. */}
+      <PillarExplainer
+        open={explainerAxis !== null}
+        axis={explainerAxis}
+        data={data}
+        onClose={() => setExplainerAxis(null)}
+      />
     </section>
   )
 }
