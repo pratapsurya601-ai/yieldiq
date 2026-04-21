@@ -1,0 +1,79 @@
+backend/routers/admin.py:159:        fi = yf.Ticker(f"{t}.NS").fast_info
+backend/routers/analysis.py:973:            hist = yf.Ticker(ticker).history(period=yf_period)
+backend/routers/pipeline.py:296:        stock = yf.Ticker(f"{ticker}.NS")
+backend/routers/pipeline.py:308:    # Method 2: yf.download
+backend/routers/pipeline.py:311:        df2 = yf.download(f"{ticker}.NS", period="5d", progress=False)
+backend/routers/pipeline.py:365:        stock = yf.Ticker("RELIANCE.NS")
+backend/services/alert_service.py:193:                info = yf.Ticker(ticker).fast_info
+backend/services/analysis_service.py:2943:                        _info = _yf.Ticker(ticker).info or {}
+backend/services/analysis_service.py:422:        t = yf.Ticker(sym)
+backend/services/data_service.py:180:        stock = yf.Ticker(ticker_ns)
+backend/services/data_service.py:62:                tk = yf.Ticker(symbol)
+backend/services/data_service.py:81:                _vix = yf.Ticker(_vix_sym).fast_info
+backend/services/dividend_service.py:65:            t = yf.Ticker(ticker)
+backend/services/financials_service.py:257:        t = yf.Ticker(ticker_ns)
+backend/services/hex_service.py:1075:        t = yf.Ticker(ticker)
+backend/services/macro_service.py:167:        fi = yf.Ticker("USDINR=X").fast_info
+backend/services/macro_service.py:188:                fi = yf.Ticker(sym).fast_info
+backend/services/macro_service.py:208:            fi = yf.Ticker("^NSEMDCP50").fast_info
+backend/services/macro_service.py:213:                fi = yf.Ticker("^NSMIDCP150").fast_info
+backend/services/news_service.py:87:        t = yf.Ticker(ticker)
+backend/services/portfolio_service.py:440:            tk = yf.Ticker(t)
+backend/services/pulse_data_service.py:206:            tk = yf.Ticker(yf_symbol)
+backend/workers/market_data_refresher.py:116:                    tk = yf.Ticker(t)
+backend/workers/market_data_refresher.py:192:                fi = yf.Ticker(yf_sym).fast_info
+backend/workers/market_data_refresher.py:22:# Keep batches small so a single call to yf.Tickers(...) never blows
+backend/workers/market_data_refresher.py:245:                fi = yf.Ticker(sym).fast_info
+build_us_tickers.py:273:            mc = yf.Ticker(ticker).fast_info.market_cap
+dashboard/alerts.py:328:                info  = yf.Ticker(ticker).fast_info
+dashboard/features.py:104:        t = yf.Ticker(ticker)
+dashboard/features.py:259:        t = yf.Ticker(ticker)
+dashboard/features.py:516:        t = yf.Ticker(ticker)
+dashboard/features.py:832:        t  = yf.Ticker(ticker)
+dashboard/morning_brief.py:64:            fi    = yf.Ticker(sym).fast_info
+dashboard/morning_brief.py:82:            out[sym] = float(yf.Ticker(sym).fast_info.last_price or 0)
+dashboard/morning_brief.py:99:            fi    = yf.Ticker(t).fast_info
+dashboard/portfolio.py:490:        fi = yf.Ticker(ticker).fast_info
+dashboard/portfolio.py:503:        raw = yf.download(all_t, start=start_str, progress=False, auto_adjust=True)
+dashboard/portfolio.py:524:        info = yf.Ticker(ticker).info
+dashboard/sector_dashboard.py:172:        t    = yf.Ticker(tk)
+dashboard/sector_heatmap.py:79:    raw     = yf.download(
+dashboard/tabs/backtest_tab.py:84:        hist  = yf.Ticker(ticker).history(start=start, end=end)
+dashboard/tabs/compare_tab.py:113:        df = yf.download(
+dashboard/tabs/compare_tab.py:82:        t = yf.Ticker(ticker)
+dashboard/tabs/earnings_tab.py:149:        t = yf.Ticker(ticker)
+dashboard/tabs/earnings_tab.py:64:    For each ticker, call yf.Ticker.calendar and keep entries whose
+dashboard/tabs/earnings_tab.py:76:            t   = yf.Ticker(ticker)
+dashboard/tabs/home_tab.py:130:                _tk = yf.Ticker(t)
+dashboard/tabs/home_tab.py:149:        _vix = yf.Ticker(_vix_ticker).fast_info
+dashboard/tabs/home_tab.py:256:                _tk = yf.Ticker(t)
+dashboard/tabs/watchlist_tab.py:27:            info = yf.Ticker(ticker).fast_info
+dashboard/utils/data_helpers.py:433:        fi = yf.Ticker(sym).fast_info
+data/collector.py:72:def _yf_ticker(symbol: str) -> "yf.Ticker":
+data/collector.py:73:    """Return a yf.Ticker with rotated User-Agent to reduce rate-limiting."""
+data/collector.py:78:        _sess = yf.utils.requests.Session()
+data/collector.py:80:        return yf.Ticker(symbol, session=_sess)
+data/collector.py:82:        return yf.Ticker(symbol)
+data/collector.py:956:        self._ticker_obj: Optional[yf.Ticker] = None
+data_pipeline/nse_prices/yf_downloader.py:48:        hist = yf.Ticker(symbol).history(period=period, auto_adjust=False)
+data_pipeline/sources/rbi_rate.py:44:        bond = yf.Ticker("IN10Y.NS")
+data_pipeline/sources/yf_info_cache.py:107:        return yf.Ticker(ticker).info or {}
+data_pipeline/sources/yfinance_supplement.py:201:        stock = yf.Ticker(ticker_ns)
+data_pipeline/sources/yfinance_supplement.py:26:        stock = yf.Ticker(ticker_ns)
+data_pipeline/xbrl/test_adr_fix.py:23:            info = yf.Ticker(sym).info or {}
+data_pipeline/xbrl/yf_fetcher.py:63:    yf_ticker = yf.Ticker(symbol)
+data_pipeline/xbrl/yf_probe.py:16:        ticker = yf.Ticker(symbol)
+screener/ev_ebitda.py:103:                info = yf.Ticker(p).info
+screener/fcf_yield.py:85:        info  = yf.Ticker(ticker_sym).info
+screener/relative_valuation.py:195:        t = yf.Ticker(ticker)
+screener/sector_relative.py:251:        info      = yf.Ticker(t).fast_info  # fast_info is much faster than .info
+screener/sector_relative.py:260:            full    = yf.Ticker(t).info
+scripts/backfill_corporate_actions_yf.py:16:    DATABASE_URL=... python scripts/backfill_corporate_actions_yf.py --all
+scripts/backfill_corporate_actions_yf.py:17:    DATABASE_URL=... python scripts/backfill_corporate_actions_yf.py --top 500
+scripts/backfill_corporate_actions_yf.py:18:    DATABASE_URL=... python scripts/backfill_corporate_actions_yf.py --tickers RELIANCE,TCS
+scripts/backfill_corporate_actions_yf.py:88:        yt = yf.Ticker(symbol)
+scripts/enrich_stocks_sector_yf.py:10:    DATABASE_URL=... python scripts/enrich_stocks_sector_yf.py --tickers RELIANCE,TCS
+scripts/enrich_stocks_sector_yf.py:11:    DATABASE_URL=... python scripts/enrich_stocks_sector_yf.py --only-missing  # skip already-populated rows
+scripts/enrich_stocks_sector_yf.py:67:        info = yf.Ticker(f"{ticker}.NS").info or {}
+scripts/enrich_stocks_sector_yf.py:9:    DATABASE_URL=... python scripts/enrich_stocks_sector_yf.py --all
+utils/config.py:101:        t = yf.Ticker(ticker_sym)
