@@ -1,12 +1,90 @@
 name: Weekly Newsletter
 
+# ─────────────────────────────────────────────────────────────────
+# Weekly founder-authored newsletter (Stock of the Week).
+#
+# Two modes, controlled by workflow_dispatch input `mode`:
+#
+#   1. founder-pick  — the new flow (default).
+#                      Renders the latest content/newsletter/*.md post
+#                      via scripts/send_newsletter.py and sends to the
+#                      live Supabase subscriber list.
+#
+#   2. legacy-digest — the older auto-digest that hits the Railway
+#                      /admin/trigger-newsletter endpoint. Kept while
+#                      we transition off it; safe to remove once the
+#                      founder-pick cadence is steady (4+ weeks live).
+# ─────────────────────────────────────────────────────────────────
+
 on:
   schedule:
     - cron: "30 2 * * 0"  # Sunday 2:30 UTC = 8:00 AM IST
-  workflow_dispatch:       # Manual trigger
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "Which newsletter pipeline to run"
+        required: false
+        default: "founder-pick"
+        type: choice
+        options:
+          - founder-pick
+          - legacy-digest
+      markdown_path:
+        description: "Override the Markdown post path (founder-pick only). Leave blank to auto-pick latest."
+        required: false
+        default: ""
 
 jobs:
-  send-newsletter:
+  founder-pick:
+    if: ${{ github.event_name == 'schedule' || github.event.inputs.mode == 'founder-pick' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install backend deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements_backend.txt
+          pip install sendgrid supabase
+
+      - name: Pick the post to send
+        id: pick
+        run: |
+          if [ -n "${{ github.event.inputs.markdown_path }}" ]; then
+            POST="${{ github.event.inputs.markdown_path }}"
+          else
+            # Default: most recently modified file in content/newsletter/
+            POST=$(ls -t content/newsletter/*.md 2>/dev/null | head -n1)
+          fi
+          if [ -z "$POST" ] || [ ! -f "$POST" ]; then
+            echo "::error::No markdown post found to send"
+            exit 1
+          fi
+          echo "post=$POST" >> "$GITHUB_OUTPUT"
+          echo "Selected post: $POST"
+
+      - name: Send weekly newsletter
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          SENDGRID_FROM_EMAIL: ${{ secrets.SENDGRID_FROM_EMAIL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          NEWSLETTER_API_BASE: ${{ secrets.API_BASE_URL || 'https://yieldiq-production.up.railway.app' }}
+          NEWSLETTER_OG_BASE: "https://api.yieldiq.in"
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        run: |
+          python scripts/send_newsletter.py "${{ steps.pick.outputs.post }}" --send
+
+  legacy-digest:
+    if: ${{ github.event.inputs.mode == 'legacy-digest' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
