@@ -390,6 +390,22 @@ async def get_stock_summary(ticker: str):
     if quarantine is not None:
         return quarantine
 
+    # FIX-AI-SUMMARY-FLAGSHIPS (2026-04-21): attach ai_summary snippet if
+    # one is cached (populated by the /analysis/{ticker}/summary endpoint
+    # on first authed request, or by scripts/warm_ai_summaries.py on the
+    # flagship warmup job). NON-BLOCKING: never calls the LLM on the
+    # request path, so public-endpoint latency stays ~200ms. If no summary
+    # is cached yet, ai_summary_snippet will be null on this response --
+    # the warmup job is responsible for populating it.
+    try:
+        from backend.services.analysis_service import AnalysisService as _AS
+        analysis_cached = _AS().ensure_ai_summary(ticker, analysis_cached)
+    except Exception as _ai_exc:
+        logger.info(
+            "stock-summary: ensure_ai_summary non-fatal for %s: %s",
+            ticker, _ai_exc,
+        )
+
     summary = _extract_analysis_summary(analysis_cached)
     cache.set(_cache_key, summary, ttl=3600)
     return _cached_json(
