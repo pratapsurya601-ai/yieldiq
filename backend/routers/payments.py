@@ -19,6 +19,29 @@ if not RAZORPAY_KEY_ID:
     import logging as _rl
     _rl.getLogger("yieldiq.payments").warning("RAZORPAY_KEY_ID not set — payments disabled")
 
+# Razorpay Subscription plan IDs (created in Razorpay Dashboard →
+# Subscriptions → Plans). Set these on Railway after creating each
+# plan. The env var name pattern matches the (tier, billing) tuple
+# used by the frontend so `create-subscription?plan_id=analyst&
+# billing=monthly` resolves to RAZORPAY_PLAN_ANALYST_MONTHLY.
+#
+# If any of these are missing, create-subscription returns 503 for
+# that specific (tier, billing) pair — other tiers still work.
+RAZORPAY_PLAN_IDS: dict[str, str] = {
+    "analyst_monthly": os.environ.get("RAZORPAY_PLAN_ANALYST_MONTHLY", "").strip(),
+    "analyst_annual":  os.environ.get("RAZORPAY_PLAN_ANALYST_ANNUAL", "").strip(),
+    "pro_monthly":     os.environ.get("RAZORPAY_PLAN_PRO_MONTHLY", "").strip(),
+    "pro_annual":      os.environ.get("RAZORPAY_PLAN_PRO_ANNUAL", "").strip(),
+}
+_missing_plan_ids = [k for k, v in RAZORPAY_PLAN_IDS.items() if not v]
+if _missing_plan_ids:
+    import logging as _rl2
+    _rl2.getLogger("yieldiq.payments").warning(
+        "Missing Razorpay plan IDs for: %s — subscription upgrades "
+        "to those tiers will 503 until env vars are set on Railway.",
+        ", ".join(_missing_plan_ids),
+    )
+
 
     # Debug endpoint removed — live payments active
 
@@ -139,6 +162,164 @@ async def create_order(
         raise HTTPException(status_code=500, detail=f"Payment init failed: {type(e).__name__}: {e}")
 
 
+@router.post("/create-subscription")
+async def create_subscription(
+    plan_id: str,
+    billing: str = "monthly",
+    user: dict = Depends(get_current_user),
+):
+    """Create a Razorpay Subscription for analyst/pro at monthly/annual.
+
+    Use this for recurring plans. For the one-time ₹99 PAYG single
+    analysis use /create-order instead.
+
+    Returns subscription_id + short_url; frontend opens the Razorpay
+    checkout modal with subscription_id. On first charge, Razorpay
+    fires a webhook (subscription.activated) that promotes the user
+    tier — no verify step needed for the initial payment.
+    """
+    if plan_id not in ("analyst", "pro"):
+        raise HTTPException(
+            status_code=400,
+            detail="plan_id must be 'analyst' or 'pro' (use /create-order for ₹99 single-analysis)",
+        )
+    if billing not in ("monthly", "annual"):
+        raise HTTPException(
+            status_code=400, detail="billing must be 'monthly' or 'annual'",
+        )
+
+    rz_plan_key = f"{plan_id}_{billing}"
+    rz_plan_id = RAZORPAY_PLAN_IDS.get(rz_plan_key, "")
+    if not rz_plan_id:
+        # Tell ops exactly which env var is missing. Surface as 503
+        # (service unavailable) rather than 500 — it's a config hole,
+        # not an app bug.
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"This tier isn't available for purchase yet. "
+                f"Razorpay plan ID for {rz_plan_key} not configured. "
+                f"Set env var RAZORPAY_PLAN_{rz_plan_key.upper()} on Railway."
+            ),
+        )
+
+    try:
+        import razorpay
+        client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
+
+        # total_count: how many billing cycles before Razorpay auto-
+        # cancels. 12 monthlies = 1 year; 1 annual = 1 year. After that
+        # Razorpay emails the user to renew — gives us a natural
+        # "cancel anytime without code" safety rail.
+        total_count = 12 if billing == "monthly" else 1
+
+        sub = client.subscription.create({
+            "plan_id": rz_plan_id,
+            "total_count": total_count,
+            "customer_notify": 1,
+            "notes": {
+                "user_id": user["user_id"],
+                "email": user["email"],
+                "tier": plan_id,
+                "billing": billing,
+            },
+        })
+
+        plan_key_display = f"{plan_id}_{'annual' if billing == 'annual' else ''}".rstrip("_") or plan_id
+        display_plan = PLANS.get(plan_key_display) or PLANS.get(plan_id, {})
+
+        return {
+            "subscription_id": sub["id"],
+            "short_url": sub.get("short_url"),
+            "key_id": RAZORPAY_KEY_ID,
+            "plan": plan_id,
+            "billing": billing,
+            "amount": display_plan.get("amount"),
+            "currency": display_plan.get("currency", "INR"),
+            "name": "YieldIQ",
+            "description": display_plan.get("description", ""),
+        }
+    except Exception as e:
+        import logging
+        logging.getLogger("yieldiq.payments").error(
+            f"create-subscription failed for {user.get('email')} "
+            f"plan={plan_id} billing={billing}: {type(e).__name__}: {e}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Subscription init failed: {type(e).__name__}",
+        )
+
+
+@router.post("/verify-subscription")
+async def verify_subscription(
+    razorpay_subscription_id: str,
+    razorpay_payment_id: str,
+    razorpay_signature: str,
+    plan_id: str,
+    user: dict = Depends(get_current_user),
+):
+    """Verify the first-charge signature for a subscription and
+    promote the user's tier in users_meta.
+
+    Note: the source of truth for ongoing subscription status is the
+    webhook (subscription.activated / subscription.charged / .halted /
+    .cancelled). This endpoint handles the synchronous post-checkout
+    confirmation so the UI can flip the user's tier immediately
+    without waiting for the webhook.
+    """
+    try:
+        import razorpay
+        client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
+
+        # Razorpay subscription payments sign the payment_id against
+        # the subscription_id (not order_id). SDK's utility handles
+        # both forms when given the right kwargs.
+        client.utility.verify_payment_signature({
+            "razorpay_subscription_id": razorpay_subscription_id,
+            "razorpay_payment_id": razorpay_payment_id,
+            "razorpay_signature": razorpay_signature,
+        })
+
+        new_tier = plan_id if plan_id in ("analyst", "pro") else "analyst"
+
+        try:
+            from db.supabase_client import get_client
+            client_sb = get_client()
+            if client_sb:
+                client_sb.table("users_meta").upsert({
+                    "user_id": user["user_id"],
+                    "tier": new_tier,
+                    "razorpay_subscription_id": razorpay_subscription_id,
+                }).execute()
+        except Exception:
+            pass
+
+        try:
+            _dashboard = os.path.join(_ROOT, "dashboard")
+            if _dashboard not in sys.path:
+                sys.path.insert(0, _dashboard)
+            from auth import set_tier
+            set_tier(user["email"], new_tier)
+        except Exception:
+            pass
+
+        return {
+            "ok": True,
+            "tier": new_tier,
+            "subscription_id": razorpay_subscription_id,
+            "message": f"Subscribed to {new_tier.title()} plan",
+        }
+    except razorpay.errors.SignatureVerificationError:  # type: ignore[name-defined]
+        raise HTTPException(status_code=400, detail="Subscription verification failed")
+    except Exception as e:
+        import logging
+        logging.getLogger("yieldiq.payments").error(
+            f"verify-subscription failed: {type(e).__name__}: {e}"
+        )
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.post("/verify")
 async def verify_payment(
     razorpay_order_id: str,
@@ -147,7 +328,12 @@ async def verify_payment(
     plan_id: str = "pro",
     user: dict = Depends(get_current_user),
 ):
-    """Verify Razorpay payment and upgrade user tier."""
+    """Verify Razorpay payment and upgrade user tier.
+
+    Legacy one-time Order verification — kept for the ₹99 PAYG path
+    and any old clients still mid-flight. New monthly/annual flows
+    should use /verify-subscription.
+    """
     try:
         import razorpay
         client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))

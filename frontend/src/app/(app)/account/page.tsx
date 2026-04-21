@@ -117,11 +117,18 @@ function AccountInner() {
     // GA4: upgrade_clicked — entry point of the paid funnel. Source
     // differentiates pricing-driven vs. account-page clicks so we can
     // see which surface converts better.
-    const hintedBilling = searchParams.get("billing") || "monthly"
+    const hintedBilling = (searchParams.get("billing") === "annual" ? "annual" : "monthly") as "monthly" | "annual"
     trackUpgradeClicked(planId, `account:${hintedBilling}`)
     setUpgrading(true)
     try {
-      const { data } = await api.post(`/api/v1/payments/create-order?plan_id=${planId}`)
+      // 2026-04-21: switched from one-time Orders API (/create-order)
+      // to Razorpay Subscriptions API (/create-subscription) so monthly
+      // and annual plans actually auto-renew instead of being single
+      // charges. The ₹99 PAYG path still uses /create-order — this
+      // handler only triggers for analyst/pro subscriptions.
+      const { data } = await api.post(
+        `/api/v1/payments/create-subscription?plan_id=${planId}&billing=${hintedBilling}`
+      )
 
       // Load Razorpay script if not loaded
       if (!window.Razorpay) {
@@ -144,23 +151,28 @@ function AccountInner() {
 
       const options = {
         key: data.key_id,
-        amount: data.amount,
-        currency: data.currency,
+        // For subscriptions we pass subscription_id (not order_id).
+        // Razorpay checkout handles the first charge + schedules
+        // the renewals off this subscription_id.
+        subscription_id: data.subscription_id,
         name: "YieldIQ",
         description: data.description,
-        order_id: data.order_id,
         prefill: { email: email || "" },
         theme: { color: "#1D4ED8" },
         modal: {
           // GA4: user dismissed the checkout modal without paying
           ondismiss: () => trackCheckoutFailed(planId, "cancelled"),
         },
-        handler: async (response: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string }) => {
-          // Verify payment on backend
+        handler: async (response: {
+          razorpay_subscription_id: string
+          razorpay_payment_id: string
+          razorpay_signature: string
+        }) => {
+          // Verify subscription signature on backend and flip tier.
           try {
-            const verifyRes = await api.post("/api/v1/payments/verify", null, {
+            const verifyRes = await api.post("/api/v1/payments/verify-subscription", null, {
               params: {
-                razorpay_order_id: response.razorpay_order_id,
+                razorpay_subscription_id: response.razorpay_subscription_id,
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_signature: response.razorpay_signature,
                 plan_id: planId,
@@ -172,7 +184,7 @@ function AccountInner() {
               trackSubscriptionStarted(planId, hintedBilling)
               // Update local auth state — no reload needed, Zustand subscribers re-render.
               setAuth(token || "", userId || "", email || "", verifyRes.data.tier, analysesToday, analysisLimit)
-              showToast(`Upgraded to ${verifyRes.data.tier.toUpperCase()} \u2014 enjoy!`, "ok")
+              showToast(`Subscribed to ${verifyRes.data.tier.toUpperCase()} \u2014 enjoy!`, "ok")
             } else {
               trackCheckoutFailed(planId, "verify")
             }
@@ -186,13 +198,20 @@ function AccountInner() {
       const rzp = new window.Razorpay(options)
       rzp.open()
     } catch (err) {
-      // Distinguishes init failure (create-order 4xx/5xx, SDK init) from
-      // the script-load case we already tagged above.
+      // Distinguishes init failure (create-subscription 4xx/5xx,
+      // SDK init) from the script-load case we already tagged above.
+      // 503 from backend = Razorpay plan ID env var not set yet; show
+      // a specific message so ops can tell the user exactly why.
       const msg = (err as Error)?.message || ""
+      const status = (err as { response?: { status?: number } })?.response?.status
       if (!msg.includes("Razorpay script failed")) {
-        trackCheckoutFailed(planId, "init")
+        trackCheckoutFailed(planId, status === 503 ? "config_missing" : "init")
       }
-      showToast("Could not initiate payment. Please try again.", "err")
+      if (status === 503) {
+        showToast("Plan not live yet — email support@yieldiq.in to get early access.", "err")
+      } else {
+        showToast("Could not initiate payment. Please try again.", "err")
+      }
     } finally {
       setUpgrading(false)
     }
