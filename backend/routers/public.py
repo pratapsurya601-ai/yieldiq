@@ -20,6 +20,62 @@ logger = logging.getLogger("yieldiq.public")
 router = APIRouter(prefix="/api/v1/public", tags=["public"])
 
 
+# ─────────────────────────────────────────────────────────────────
+# Debug probe — direct call into _fetch_roce_inputs with no caching,
+# no compute, no wrappers. Returns exactly what the function yields
+# so we can tell if the gap is pipeline vs read vs somewhere else.
+# Safe to leave in prod for a few days — it's an admin-grade probe
+# that hits the DB directly and returns only metadata.
+# ─────────────────────────────────────────────────────────────────
+@router.get("/roce-probe/{ticker}")
+async def roce_probe(ticker: str):
+    """Returns the raw output of _fetch_roce_inputs for a ticker."""
+    import traceback
+    from backend.services.analysis_service import (
+        _fetch_roce_inputs, _get_pipeline_session,
+    )
+    try:
+        sess = _get_pipeline_session()
+        session_ok = sess is not None
+        if sess is not None:
+            try:
+                sess.close()
+            except Exception:
+                pass
+    except Exception as exc:
+        return {
+            "ticker": ticker,
+            "session_ok": False,
+            "session_error": f"{type(exc).__name__}: {exc}",
+        }
+
+    try:
+        ebit, ta, cl, interest = _fetch_roce_inputs(ticker)
+        denom = None
+        roce_pct = None
+        if ta is not None and cl is not None:
+            denom = ta - cl
+            if ebit is not None and denom and denom > 0:
+                roce_pct = round(ebit / denom * 100, 2)
+        return {
+            "ticker": ticker,
+            "session_ok": session_ok,
+            "ebit": ebit,
+            "total_assets": ta,
+            "current_liabilities": cl,
+            "capital_employed": denom,
+            "interest_expense": interest,
+            "roce_pct_computed": roce_pct,
+        }
+    except Exception as exc:
+        return {
+            "ticker": ticker,
+            "session_ok": session_ok,
+            "error": f"{type(exc).__name__}: {exc}",
+            "traceback": traceback.format_exc(),
+        }
+
+
 def _cached_json(content, s_maxage: int, swr: int = 3600, extra_headers: dict | None = None):
     """Wrap content in a JSONResponse with Vercel-edge Cache-Control.
 
