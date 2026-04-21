@@ -90,6 +90,30 @@ function fmtRatio(v: number | null | undefined, suffix: string): string {
 }
 
 /* ------------------------------------------------------------------ */
+/* Bank-specific tone helpers                                           */
+/* ------------------------------------------------------------------ */
+function roaTone(v: number | null | undefined): "green" | "amber" | "red" | "neutral" {
+  if (v === null || v === undefined) return "neutral"
+  // Indian bank cohort: >1.4% strong, ~1.0% average, <0.6% weak.
+  if (v >= 1.4) return "green"
+  if (v >= 0.8) return "amber"
+  return "red"
+}
+function costToIncomeTone(v: number | null | undefined): "green" | "amber" | "red" | "neutral" {
+  if (v === null || v === undefined) return "neutral"
+  // Top private banks 40-45%; PSU 55-65%; struggling >70%.
+  if (v <= 50) return "green"
+  if (v <= 65) return "amber"
+  return "red"
+}
+function growthYoyTone(v: number | null | undefined): "green" | "amber" | "red" | "neutral" {
+  if (v === null || v === undefined) return "neutral"
+  if (v >= 12) return "green"
+  if (v >= 6) return "amber"
+  return "red"
+}
+
+/* ------------------------------------------------------------------ */
 /* Shareholding stacked bar                                             */
 /* ------------------------------------------------------------------ */
 interface Segment {
@@ -190,47 +214,134 @@ function ShareholdingBar({
 export default function QualityRatios({ quality, insights }: Props) {
   const { roce, debt_ebitda, debt_ebitda_label, interest_coverage } = quality
   const evEbitda = insights.ev_ebitda
+  const isBank = quality.is_bank === true
 
   // If every ratio is null AND no shareholding data, don't render at all —
-  // avoids showing an empty shell on tickers with no DB coverage.
+  // avoids showing an empty shell on tickers with no DB coverage. For
+  // banks we include the bank-native metrics in the "anyRatio" check so
+  // a bank page with ROA / C/I / YoY but no generic ratios still renders.
+  const anyBankMetric =
+    [quality.roa, quality.cost_to_income, quality.advances_yoy, quality.deposits_yoy,
+     quality.pat_yoy_bank, quality.revenue_yoy_bank].some(v => v !== null && v !== undefined)
   const anyRatio =
     [roce, debt_ebitda, interest_coverage, evEbitda].some(v => v !== null && v !== undefined)
+    || anyBankMetric
   const anyShareholding =
     [quality.promoter_pct, quality.fii_pct, quality.dii_pct].some(v => v !== null && v !== undefined)
   if (!anyRatio && !anyShareholding) return null
 
   return (
     <div className="bg-surface rounded-2xl border border-border p-5 space-y-4">
-      <h2 className="text-sm font-semibold text-ink">Quality Ratios</h2>
+      <h2 className="text-sm font-semibold text-ink">
+        {isBank ? "Bank Ratios" : "Quality Ratios"}
+      </h2>
 
-      {/* 2x2 grid of ratio cards */}
-      <div className="grid grid-cols-2 gap-2">
-        <RatioCard
-          label="ROCE"
-          value={fmtRatio(roce, "%")}
-          tone={roceTone(roce)}
-          tooltip="Return on Capital Employed. EBIT ÷ total assets × 100. Measures how efficiently the business uses its capital base. Higher is better."
-        />
-        <RatioCard
-          label="EV / EBITDA"
-          value={fmtRatio(evEbitda, "x")}
-          tone={evEbitdaTone(evEbitda)}
-          tooltip="Enterprise Value ÷ EBITDA. A capital-structure-neutral valuation multiple — better than P/E for debt-heavy businesses. Lower is cheaper."
-        />
-        <RatioCard
-          label="Debt / EBITDA"
-          value={fmtRatio(debt_ebitda, "x")}
-          subtitle={debt_ebitda_label ?? undefined}
-          tone={debtEbitdaTone(debt_ebitda)}
-          tooltip="Years of EBITDA needed to pay off debt. <1 excellent, 1–3 healthy, 3–5 leveraged, >5 risky."
-        />
-        <RatioCard
-          label="Int. Coverage"
-          value={fmtRatio(interest_coverage, "x")}
-          tone={interestCoverageTone(interest_coverage)}
-          tooltip="EBIT ÷ Interest Expense. How many times operating profit covers interest payments. >3 is safe."
-        />
-      </div>
+      {/* Render bank-native cards for banks; generic cards otherwise.
+          The generic set (ROCE / Debt/EBITDA / Int Coverage) does not
+          apply to deposit-funded businesses, so we replace them with
+          ROA / Cost-to-Income / Advances YoY / Deposits YoY and point
+          the user at the relevant Prism axis for the numbers that
+          DO apply to banks (e.g. capital adequacy → Safety axis). */}
+      {isBank ? (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            <RatioCard
+              label="ROA"
+              value={fmtRatio(quality.roa, "%")}
+              tone={roaTone(quality.roa)}
+              tooltip="Return on Assets. Net income ÷ total assets × 100. The clearest single measure of how profitably a bank runs its balance sheet. Indian bank cohort: >1.4% strong, ~1.0% average, <0.6% weak."
+            />
+            <RatioCard
+              label="ROE"
+              value={fmtRatio(quality.roe, "%")}
+              tone={quality.roe === null || quality.roe === undefined
+                ? "neutral"
+                : quality.roe >= 15 ? "green"
+                : quality.roe >= 10 ? "amber" : "red"}
+              tooltip="Return on Equity. Net income ÷ shareholder equity. Indian private banks target >15%; PSU banks run 12-16%."
+            />
+            <RatioCard
+              label="Cost / Income"
+              value={fmtRatio(quality.cost_to_income, "%")}
+              tone={costToIncomeTone(quality.cost_to_income)}
+              tooltip="Operating expense ÷ total income. Lower is better. Top Indian private banks run ~40-45%; PSU banks ~55-65%."
+            />
+            <RatioCard
+              label="Advances YoY"
+              value={fmtRatio(quality.advances_yoy, "%")}
+              subtitle="Proxy: total assets YoY"
+              tone={growthYoyTone(quality.advances_yoy)}
+              tooltip="Loan book year-on-year growth, proxied via total assets (until we wire NSE XBRL Schedule VII). Indian system credit grows ~10-12% long-term."
+            />
+            <RatioCard
+              label="Deposits YoY"
+              value={fmtRatio(quality.deposits_yoy, "%")}
+              subtitle="Proxy: total liab YoY"
+              tone={growthYoyTone(quality.deposits_yoy)}
+              tooltip="Deposit base year-on-year growth, proxied via total liabilities (until we wire NSE XBRL Schedule V). Slower than advances signals funding stress."
+            />
+            <RatioCard
+              label="PAT YoY"
+              value={fmtRatio(quality.pat_yoy_bank, "%")}
+              tone={growthYoyTone(quality.pat_yoy_bank)}
+              tooltip="Net profit year-on-year growth."
+            />
+          </div>
+
+          {/* Banker's note: explain why the generic ratios are absent
+              and point the user at the Prism axes that DO answer the
+              equivalent question for a bank. */}
+          <div className="pt-3 border-t border-border space-y-1.5">
+            <p className="text-[11px] font-semibold text-caption uppercase tracking-wide">
+              Why no ROCE / Debt-EBITDA / Interest Coverage?
+            </p>
+            <ul className="text-[11px] text-caption space-y-1 leading-relaxed">
+              <li>
+                <span className="font-medium text-ink">ROCE</span> — not applicable:
+                banks use capital adequacy, not capital employed. See Safety axis in
+                the Prism.
+              </li>
+              <li>
+                <span className="font-medium text-ink">Debt / EBITDA</span> — not
+                applicable: deposits aren&apos;t debt. See Safety axis in the Prism.
+              </li>
+              <li>
+                <span className="font-medium text-ink">Interest Coverage</span> — not
+                applicable: for a bank, interest is revenue. See Quality axis in the
+                Prism.
+              </li>
+            </ul>
+          </div>
+        </>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <RatioCard
+            label="ROCE"
+            value={fmtRatio(roce, "%")}
+            tone={roceTone(roce)}
+            tooltip="Return on Capital Employed. EBIT ÷ total assets × 100. Measures how efficiently the business uses its capital base. Higher is better."
+          />
+          <RatioCard
+            label="EV / EBITDA"
+            value={fmtRatio(evEbitda, "x")}
+            tone={evEbitdaTone(evEbitda)}
+            tooltip="Enterprise Value ÷ EBITDA. A capital-structure-neutral valuation multiple — better than P/E for debt-heavy businesses. Lower is cheaper."
+          />
+          <RatioCard
+            label="Debt / EBITDA"
+            value={fmtRatio(debt_ebitda, "x")}
+            subtitle={debt_ebitda_label ?? undefined}
+            tone={debtEbitdaTone(debt_ebitda)}
+            tooltip="Years of EBITDA needed to pay off debt. <1 excellent, 1–3 healthy, 3–5 leveraged, >5 risky."
+          />
+          <RatioCard
+            label="Int. Coverage"
+            value={fmtRatio(interest_coverage, "x")}
+            tone={interestCoverageTone(interest_coverage)}
+            tooltip="EBIT ÷ Interest Expense. How many times operating profit covers interest payments. >3 is safe."
+          />
+        </div>
+      )}
 
       {/* Shareholding breakdown */}
       {anyShareholding && (

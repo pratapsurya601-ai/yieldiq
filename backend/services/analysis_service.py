@@ -1382,6 +1382,178 @@ def _fetch_roce_inputs(
             pass
 
 
+def _fetch_bank_metrics_inputs(ticker: str) -> dict | None:
+    """Fetch the inputs needed for bank-native Prism metrics.
+
+    Returns a dict with up to 4 years of annual income + balance sheet
+    data from ``company_financials`` plus the latest ROA/ROE from the
+    ``financials`` rollup. All values are Optional — callers decide how
+    to degrade.
+
+    Returned shape::
+
+        {
+            # Latest period
+            "period_end":           "2025-03-31" | None,
+            "net_income":           float | None,
+            "revenue":              float | None,
+            "operating_expense":    float | None,
+            "interest_earned":      float | None,  # TODO: XBRL Sch A
+            "interest_expended":    float | None,  # TODO: XBRL Sch B
+            "total_assets":         float | None,
+            "total_liabilities":    float | None,
+            "total_equity":         float | None,
+            # From `financials` rollup (pre-computed)
+            "roa":                  float | None,  # percent
+            "roe":                  float | None,  # percent
+            # Multi-period series (newest → oldest), for YoY + CAGR
+            "revenue_series":       [float, ...],  # up to 4 annual points
+            "net_income_series":    [float, ...],
+            "total_assets_series":  [float, ...],
+            "total_liab_series":    [float, ...],
+        }
+
+    Returns ``None`` if the DB is unreachable. Safe to call for any
+    ticker — non-banks simply get data back that the caller will not
+    use (the caller only reads it when ``_is_bank_like`` is True).
+    """
+    import logging as _l_top
+    _bm_log = _l_top.getLogger("yieldiq.analysis")
+
+    db = _get_pipeline_session()
+    if db is None:
+        return None
+    try:
+        from sqlalchemy import text
+        db_ticker = ticker.replace(".NS", "").replace(".BO", "")
+
+        def _f(v):
+            try:
+                return float(v) if v is not None else None
+            except (TypeError, ValueError):
+                return None
+
+        # Annual income series (up to 4 years, newest first)
+        inc_rows = db.execute(text("""
+            SELECT period_end_date, revenue, net_income, operating_expense,
+                   interest_earned, interest_expended
+            FROM company_financials
+            WHERE ticker_nse = :t
+              AND statement_type = 'income'
+              AND period_type = 'annual'
+              AND period_end_date IS NOT NULL
+            ORDER BY period_end_date DESC
+            LIMIT 4
+        """), {"t": db_ticker}).mappings().all()
+
+        # Annual balance sheet series
+        bal_rows = db.execute(text("""
+            SELECT period_end_date, total_assets, total_liabilities,
+                   total_equity
+            FROM company_financials
+            WHERE ticker_nse = :t
+              AND statement_type = 'balance_sheet'
+              AND period_type = 'annual'
+              AND period_end_date IS NOT NULL
+            ORDER BY period_end_date DESC
+            LIMIT 4
+        """), {"t": db_ticker}).mappings().all()
+
+        # Pre-computed ROA/ROE from the `financials` rollup (already
+        # normalised to percent upstream).
+        fin_row = db.execute(text("""
+            SELECT roa, roe, total_assets, total_equity, revenue, pat
+            FROM financials
+            WHERE ticker = :t
+              AND period_type = 'annual'
+              AND period_end IS NOT NULL
+            ORDER BY period_end DESC
+            LIMIT 1
+        """), {"t": db_ticker}).mappings().first()
+
+        latest_inc = inc_rows[0] if inc_rows else {}
+        latest_bal = bal_rows[0] if bal_rows else {}
+
+        # Revenue from company_financials if present; fall back to
+        # `financials.revenue` so HDFCBANK / ICICIBANK (missing opex
+        # but present revenue in both tables) still light up.
+        rev_latest = _f(latest_inc.get("revenue")) if latest_inc else None
+        if rev_latest is None and fin_row:
+            rev_latest = _f(fin_row.get("revenue"))
+
+        ni_latest = _f(latest_inc.get("net_income")) if latest_inc else None
+        if ni_latest is None and fin_row:
+            ni_latest = _f(fin_row.get("pat"))
+
+        ta_latest = _f(latest_bal.get("total_assets")) if latest_bal else None
+        if ta_latest is None and fin_row:
+            ta_latest = _f(fin_row.get("total_assets"))
+
+        te_latest = _f(latest_bal.get("total_equity")) if latest_bal else None
+        if te_latest is None and fin_row:
+            te_latest = _f(fin_row.get("total_equity"))
+
+        out = {
+            "period_end": (
+                str(latest_inc.get("period_end_date"))
+                if latest_inc and latest_inc.get("period_end_date")
+                else None
+            ),
+            "net_income": ni_latest,
+            "revenue": rev_latest,
+            "operating_expense": _f(latest_inc.get("operating_expense")) if latest_inc else None,
+            # TODO(NSE-XBRL-Sch-A-B): `interest_earned` / `interest_expended`
+            # are not populated by the current ingest — every bank row
+            # in company_financials has these as NULL. Wire them here
+            # once the Schedule A/B extractor lands in data_pipeline.
+            "interest_earned": _f(latest_inc.get("interest_earned")) if latest_inc else None,
+            "interest_expended": _f(latest_inc.get("interest_expended")) if latest_inc else None,
+            "total_assets": ta_latest,
+            "total_liabilities": _f(latest_bal.get("total_liabilities")) if latest_bal else None,
+            "total_equity": te_latest,
+            "roa": _f(fin_row.get("roa")) if fin_row else None,
+            "roe": _f(fin_row.get("roe")) if fin_row else None,
+            # Series — newest first
+            "revenue_series": [
+                _f(r.get("revenue")) for r in inc_rows
+                if _f(r.get("revenue")) is not None
+            ],
+            "net_income_series": [
+                _f(r.get("net_income")) for r in inc_rows
+                if _f(r.get("net_income")) is not None
+            ],
+            "total_assets_series": [
+                _f(r.get("total_assets")) for r in bal_rows
+                if _f(r.get("total_assets")) is not None
+            ],
+            "total_liab_series": [
+                _f(r.get("total_liabilities")) for r in bal_rows
+                if _f(r.get("total_liabilities")) is not None
+            ],
+        }
+
+        _bm_log.info(
+            "bank metrics inputs for %s: period=%s rev=%s pat=%s opex=%s "
+            "ta=%s tl=%s roa=%s roe=%s inc_rows=%d bal_rows=%d",
+            ticker, out["period_end"], out["revenue"], out["net_income"],
+            out["operating_expense"], out["total_assets"], out["total_liabilities"],
+            out["roa"], out["roe"], len(inc_rows), len(bal_rows),
+        )
+        return out
+    except Exception as exc:
+        import logging as _l
+        _l.getLogger("yieldiq.analysis").exception(
+            "bank metrics fetch failed for %s: %s: %s",
+            ticker, type(exc).__name__, exc,
+        )
+        return None
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
 def _debt_ebitda_label(ratio: float | None) -> str | None:
     """Map Debt/EBITDA to a text band. None in → None out."""
     if ratio is None:
@@ -2575,6 +2747,94 @@ class AnalysisService:
             _debt_ebitda_lbl = _debt_ebitda_label(_debt_ebitda_val)
             _interest_cov_val = _compute_int_cov(_ebit_val, _interest_exp)
 
+        # ── Bank-native metrics (feat/bank-prism-metrics 2026-04-21) ──
+        # For banks we fill a small set of fields that DO apply:
+        #   roa, cost_to_income, advances_yoy (proxy), deposits_yoy (proxy),
+        #   revenue_yoy_bank, pat_yoy_bank, nim (when XBRL Sch A/B lands).
+        #
+        # All default to None for non-banks, so the QualityOutput contract
+        # is unchanged for the existing 950+ non-bank tickers — canary-
+        # diff sees an additive change only. See docs/bank_data_availability.md
+        # for the coverage matrix.
+        _bm_roa: float | None = None
+        _bm_cost_to_income: float | None = None
+        _bm_advances_yoy: float | None = None      # proxy: total_assets YoY
+        _bm_deposits_yoy: float | None = None      # proxy: total_liab YoY
+        _bm_revenue_yoy: float | None = None
+        _bm_pat_yoy: float | None = None
+        _bm_nim: float | None = None
+        # Absolute bank metrics we cannot source yet — kept as explicit
+        # None so the schema is stable and the frontend can render "—".
+        _bm_car: float | None = None               # TODO: NSE XBRL Sch XI
+        _bm_nnpa: float | None = None              # TODO: NSE XBRL Sch XVIII
+        _bm_casa: float | None = None              # TODO: NSE XBRL Sch V
+
+        if _is_bank_like:
+            from backend.services.ratios_service import (
+                compute_roa as _compute_roa,
+                compute_cost_to_income as _compute_c2i,
+                compute_yoy_growth as _compute_yoy,
+                compute_nim as _compute_nim,
+            )
+            _bm = _fetch_bank_metrics_inputs(ticker)
+            if _bm is not None:
+                # ROA — prefer the pre-computed `financials.roa` (already a
+                # percent). Fall back to net_income / total_assets if the
+                # rollup row is missing but the raw numbers are there.
+                _bm_roa = _bm.get("roa")
+                if _bm_roa is None:
+                    _bm_roa = _compute_roa(
+                        _bm.get("net_income"), _bm.get("total_assets"),
+                    )
+
+                # Cost-to-Income — opex / revenue (revenue here is the XBRL
+                # `total_income` surrogate since the split into
+                # interest/non-interest income is not extracted yet).
+                _bm_cost_to_income = _compute_c2i(
+                    _bm.get("operating_expense"), _bm.get("revenue"),
+                )
+
+                # YoY series — "newest first", so [0] vs [1] is the latest
+                # FY vs. the prior FY.
+                _rev_series = _bm.get("revenue_series") or []
+                _pat_series = _bm.get("net_income_series") or []
+                _ta_series = _bm.get("total_assets_series") or []
+                _tl_series = _bm.get("total_liab_series") or []
+
+                if len(_rev_series) >= 2:
+                    _bm_revenue_yoy = _compute_yoy(_rev_series[0], _rev_series[1])
+                if len(_pat_series) >= 2:
+                    _bm_pat_yoy = _compute_yoy(_pat_series[0], _pat_series[1])
+                if len(_ta_series) >= 2:
+                    # Total assets YoY as a proxy for advances YoY — loans
+                    # are the dominant asset for a commercial bank. When
+                    # Sch VII advances extraction lands, replace with the
+                    # real advances series.
+                    # TODO(NSE-XBRL-Sch-VII): swap to real advances series.
+                    _bm_advances_yoy = _compute_yoy(_ta_series[0], _ta_series[1])
+                if len(_tl_series) >= 2:
+                    # Total liabilities YoY as a proxy for deposits YoY —
+                    # deposits are the dominant liability. Replace with
+                    # Schedule V deposits when extraction lands.
+                    # TODO(NSE-XBRL-Sch-V): swap to real deposits series.
+                    _bm_deposits_yoy = _compute_yoy(_tl_series[0], _tl_series[1])
+
+                # NIM — will return None today (inputs are NULL), surfaces
+                # as soon as Schedule A/B extraction populates them.
+                _bm_nim = _compute_nim(
+                    _bm.get("interest_earned"),
+                    _bm.get("interest_expended"),
+                    _bm.get("total_assets"),
+                )
+                # TODO(NSE-XBRL-Sch-XI): populate _bm_car from Schedule XI
+                # (Capital Adequacy). Until then CAR stays None and the
+                # frontend renders "—". The hex_service Safety axis
+                # already handles the bank branch independently.
+                # TODO(NSE-XBRL-Sch-XVIII): populate _bm_nnpa from
+                # Schedule XVIII (Asset Classification).
+                # TODO(NSE-XBRL-Sch-V-split): populate _bm_casa from
+                # Schedule V (Deposits — current/savings/term split).
+
         # ── Phase 2.1 ratios ─────────────────────────────────
         # All new fields are Optional in QualityOutput; when data is
         # missing they stay None and render as "—" in the frontend.
@@ -2795,6 +3055,19 @@ class AnalysisService:
                 fii_pct=_sh.get("fii_pct"),
                 dii_pct=_sh.get("dii_pct"),
                 public_pct=_sh.get("public_pct"),
+                # Bank-native metrics — None for non-banks. See
+                # docs/bank_data_availability.md for the coverage matrix.
+                is_bank=_is_bank_like,
+                roa=_bm_roa,
+                cost_to_income=_bm_cost_to_income,
+                advances_yoy=_bm_advances_yoy,
+                deposits_yoy=_bm_deposits_yoy,
+                revenue_yoy_bank=_bm_revenue_yoy,
+                pat_yoy_bank=_bm_pat_yoy,
+                nim=_bm_nim,
+                car=_bm_car,
+                nnpa=_bm_nnpa,
+                casa=_bm_casa,
             ),
             insights=InsightCards(
                 patience_months=hp.get("min_months"),

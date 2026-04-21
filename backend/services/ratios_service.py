@@ -191,6 +191,91 @@ def compute_asset_turnover(revenue, total_assets) -> float | None:
     return round(_rev / _ta, 2)
 
 
+# ═══════════════════════════════════════════════════════════════
+# Bank-native helpers (added 2026-04-21 for feat/bank-prism-metrics)
+#
+# Banks don't play well with the generic ROCE / Debt/EBITDA / Interest
+# Coverage set — deposits aren't debt, capital employed ≠ total assets,
+# and interest is revenue not a cost to cover. These helpers give us
+# bank-appropriate primitives that feed the Prism axes.
+#
+# Data availability notes (see docs/bank_data_availability.md):
+#   - ROA, ROE          → `financials` table (pre-computed)
+#   - Cost-to-Income    → `company_financials.operating_expense / revenue`
+#   - YoY growth        → derived from annual series
+#   - NIM / CAR / NPA   → NOT in DB yet (source: NSE XBRL Sch A/B/XI/XVIII)
+# ═══════════════════════════════════════════════════════════════
+
+
+def compute_roa(net_income, total_assets) -> float | None:
+    """Return On Assets = Net Income / Total Assets. Returns PERCENT.
+
+    Both inputs must be in the same monetary unit; ratio is unit-free.
+    Non-positive assets → None.
+    """
+    _ni = _num(net_income)
+    _ta = _num(total_assets)
+    if _ta is None or _ta <= 0:
+        return None
+    if _ni is None:
+        return None
+    return round(_ni / _ta * 100.0, 2)
+
+
+def compute_cost_to_income(operating_expense, total_income) -> float | None:
+    """Cost-to-Income = Operating Expense / Total Income. Returns PERCENT.
+
+    For banks, `total_income` is (interest earned + non-interest income).
+    When that split isn't available we pass `revenue` (the
+    `company_financials.revenue` column already aggregates them for the
+    XBRL ingest). Lower is better; top Indian private banks run ~40-45%,
+    PSU banks ~50-55%.
+
+    Non-positive denominator → None.
+    """
+    _opex = _num(operating_expense)
+    _rev = _num(total_income)
+    if _rev is None or _rev <= 0:
+        return None
+    if _opex is None or _opex < 0:
+        return None
+    return round(_opex / _rev * 100.0, 2)
+
+
+def compute_yoy_growth(current, previous) -> float | None:
+    """Year-over-year growth as PERCENT.
+
+    Returns None when the prior value is <= 0 (growth formula undefined)
+    or either value is missing. Use this for Advances YoY / Deposits YoY
+    / Revenue YoY / PAT YoY.
+    """
+    _curr = _num(current)
+    _prev = _num(previous)
+    if _curr is None or _prev is None:
+        return None
+    if _prev <= 0:
+        return None
+    return round((_curr - _prev) / _prev * 100.0, 2)
+
+
+def compute_nim(interest_earned, interest_expended, total_assets) -> float | None:
+    """Net Interest Margin = (Int Earned − Int Expended) / Total Assets.
+
+    Returns PERCENT. Input fields are typically NULL in our current
+    `company_financials` rows — this function is here for the day the
+    NSE XBRL Schedule A/B extractor lands. Until then callers will feed
+    all-None and get None back (correctly).
+    """
+    _ie = _num(interest_earned)
+    _iex = _num(interest_expended)
+    _ta = _num(total_assets)
+    if _ta is None or _ta <= 0:
+        return None
+    if _ie is None or _iex is None:
+        return None
+    return round((_ie - _iex) / _ta * 100.0, 2)
+
+
 def compute_revenue_cagr(revenues: Sequence[float], years: int) -> float | None:
     """
     revenues: iterable with the LATEST value LAST (chronological).
