@@ -23,29 +23,79 @@ if not RAZORPAY_KEY_ID:
     # Debug endpoint removed — live payments active
 
 PLANS = {
-    "pro": {
-        "name": "Pro Plan",
-        "amount": 29900,  # ₹299 in paise
-        "currency": "INR",
-        "description": "Unlimited analyses, Monte Carlo, sensitivity, PDF/Excel reports",
-    },
+    # Recurring subscriptions — the two paid tiers.
     "analyst": {
-        "name": "Analyst Plan",
+        "name": "Analyst",
         "amount": 79900,  # ₹799 in paise
         "currency": "INR",
-        "description": "Everything in Pro + API access, bulk screener, Sheets sync",
+        "interval": "monthly",
+        "description": (
+            "Unlimited analyses, Portfolio Prism, multi-account portfolios, "
+            "AI summaries, Concall AI, Time Machine. For serious DIY investors."
+        ),
+    },
+    "analyst_annual": {
+        "name": "Analyst (Annual)",
+        "amount": 699900,  # ₹6,999 in paise — 27% off monthly × 12
+        "currency": "INR",
+        "interval": "annual",
+        "description": (
+            "All Analyst features, billed yearly. Save ₹2,589/yr (~27%) vs monthly."
+        ),
+    },
+    "pro": {
+        "name": "Pro",
+        "amount": 149900,  # ₹1,499 in paise
+        "currency": "INR",
+        "interval": "monthly",
+        "description": (
+            "Everything in Analyst + CSV/PDF export, API access (100/day), "
+            "priority compute, 10 broker accounts, save + share custom screens."
+        ),
+    },
+    "pro_annual": {
+        "name": "Pro (Annual)",
+        "amount": 1399900,  # ₹13,999 in paise — 22% off monthly × 12
+        "currency": "INR",
+        "interval": "annual",
+        "description": (
+            "All Pro features, billed yearly. Save ₹3,989/yr (~22%) vs monthly."
+        ),
+    },
+    # One-time pay-as-you-go — casual visitor who wants ONE analysis.
+    # 24h unlock for a single ticker. Natural upsell: at 8 analyses
+    # (₹99 × 8 = ₹792) they're already past the Analyst monthly price.
+    "single_analysis": {
+        "name": "Single Analysis",
+        "amount": 9900,  # ₹99 in paise
+        "currency": "INR",
+        "interval": "one_time",
+        "description": (
+            "24-hour access to a full Prism analysis for ONE stock. "
+            "Covers Fair Value, scenarios, Moat, AI summary, Compare, "
+            "and shareable Report Card."
+        ),
     },
 }
+
+# Free-tier monthly analysis quota. Enforced by the analysis router
+# via the middleware that consults users_meta.tier + the monthly usage
+# counter. Documented here so a single edit updates both docs and code.
+FREE_TIER_MONTHLY_ANALYSIS_LIMIT = 5
 
 
 @router.get("/plans")
 async def get_plans():
-    """Get available subscription plans."""
+    """Get available subscription plans + one-time purchase options."""
     return {
         "plans": [
-            {"id": "pro", **PLANS["pro"], "display_price": "₹299/mo"},
             {"id": "analyst", **PLANS["analyst"], "display_price": "₹799/mo"},
+            {"id": "analyst_annual", **PLANS["analyst_annual"], "display_price": "₹6,999/yr"},
+            {"id": "pro", **PLANS["pro"], "display_price": "₹1,499/mo"},
+            {"id": "pro_annual", **PLANS["pro_annual"], "display_price": "₹13,999/yr"},
+            {"id": "single_analysis", **PLANS["single_analysis"], "display_price": "₹99 / analysis"},
         ],
+        "free_tier_limit": FREE_TIER_MONTHLY_ANALYSIS_LIMIT,
         "key_id": RAZORPAY_KEY_ID,
     }
 
