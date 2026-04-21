@@ -11,10 +11,11 @@ import time as _time
 from datetime import date, timedelta
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 from backend.services.cache_service import cache
+from backend.middleware.auth import get_current_user, is_superuser
 
 logger = logging.getLogger("yieldiq.public")
 
@@ -46,15 +47,27 @@ def _nan_to_none(v: Any) -> Any:
 # Debug probe — direct call into _fetch_roce_inputs with no caching,
 # no compute, no wrappers. Returns exactly what the function yields
 # so we can tell if the gap is pipeline vs read vs somewhere else.
-# Safe to leave in prod for a few days — it's an admin-grade probe
-# that hits the DB directly and returns only metadata.
+#
+# HARDENED 2026-04-22: superuser-only. Previously public; returned
+# internal DB shape (column names, enriched vs DB values, session
+# status) which is dev-grade info-disclosure. Now gated to
+# SUPERUSER_EMAILS env list. Non-superusers get 404 (no acknowledgement
+# the endpoint exists at all) to avoid signalling its presence.
+# Schedule for removal after 1 week of stable ROCE values in prod;
+# until then, kept for debugging regressions.
 # ─────────────────────────────────────────────────────────────────
 @router.get("/roce-probe/{ticker}")
-async def roce_probe(ticker: str):
-    """Returns the raw output of _fetch_roce_inputs for a ticker,
-    PLUS the enriched-dict values that get mixed in downstream.
-    This way we can see exactly why _compute_roce in the main flow
-    yields a different answer than the probe."""
+async def roce_probe(
+    ticker: str,
+    user: dict = Depends(get_current_user),
+):
+    """Superuser-only probe: raw output of _fetch_roce_inputs PLUS the
+    enriched-dict values that get mixed in downstream. Lets ops debug
+    why _compute_roce in the main flow yields a different answer than
+    a direct probe (unit mismatch, cache staleness, pipeline gap)."""
+    if not is_superuser(user):
+        # 404 rather than 403 so non-admins can't enumerate the endpoint
+        raise HTTPException(status_code=404, detail="Not found")
     import traceback
     from backend.services.analysis_service import (
         _fetch_roce_inputs, _get_pipeline_session,
