@@ -2010,6 +2010,43 @@ class AnalysisService:
         else:
             verdict = "avoid"
 
+        # ── Verdict hysteresis: dampen near-threshold flips ───
+        # Bug from 2026-04-20 audit: same ticker (HCLTECH) showed
+        # Fair -> Over -> Under across 15-min reloads. Two causes:
+        # 1. MoS recompute gives slightly different value each run
+        # 2. ±15% boundary is hard, so 14.8 vs 15.2 flips verdict
+        #
+        # Mitigation: if there's a recent fair_value_history verdict and
+        # the new mos is within 2pp of a threshold, keep the prior verdict.
+        try:
+            from data_pipeline.db import Session as _PG_Session
+            from sqlalchemy import text as _hys_text
+            if _PG_Session is not None and verdict in ("undervalued", "fairly_valued", "overvalued"):
+                _hys_db = _PG_Session()
+                try:
+                    _prev = _hys_db.execute(_hys_text("""
+                        SELECT verdict, mos_pct FROM fair_value_history
+                        WHERE ticker = :t
+                          AND date >= CURRENT_DATE - INTERVAL '7 days'
+                          AND verdict IN ('undervalued', 'fairly_valued', 'overvalued')
+                        ORDER BY date DESC LIMIT 1
+                    """), {"t": ticker}).fetchone()
+                finally:
+                    _hys_db.close()
+                if _prev and _prev[0] and _prev[0] != verdict and _prev[1] is not None:
+                    _prev_v, _prev_m = _prev[0], float(_prev[1])
+                    # Within 2pp of either ±15% boundary?
+                    near_pos = abs(mos_pct - 15) <= 2.0
+                    near_neg = abs(mos_pct + 15) <= 2.0
+                    if near_pos or near_neg:
+                        # And the flip is across exactly the nearby threshold?
+                        flipped_pos = (_prev_m > 15) != (mos_pct > 15)
+                        flipped_neg = (_prev_m > -15) != (mos_pct > -15)
+                        if (near_pos and flipped_pos) or (near_neg and flipped_neg):
+                            verdict = _prev_v
+        except Exception:
+            pass  # never block the response on hysteresis lookup
+
         # ── Earnings date (NSE first, Finnhub fallback) ─────
         _earnings = _query_earnings_date(ticker)
         _earnings_date = (
