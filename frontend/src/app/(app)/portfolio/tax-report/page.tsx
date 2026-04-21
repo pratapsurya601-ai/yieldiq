@@ -150,9 +150,9 @@ export default function TaxReportPage() {
       {/* Tier gate */}
       {tier === "free" && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
-          <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">Paid Feature</p>
+          <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">Analyst Feature</p>
           <p className="text-sm text-amber-900 mb-3">
-            Capital gains tax computation is a Pro (&#8377;299/mo) feature. ITR-ready CSV export requires Analyst (&#8377;799/mo).
+            Capital gains tax computation + ITR-ready CSV export is an Analyst (&#8377;799/mo) feature.
           </p>
           <Link href="/pricing" className="inline-block bg-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-amber-700 transition">
             See pricing &rarr;

@@ -195,9 +195,9 @@ function DemoCard() {
 
 /* ── Pricing teaser data ──────────────────────────────── */
 const pricingPlans = [
-  { name: "Free",    price: "\u20B90",   period: "/forever", tagline: "5 analyses a day. All features." },
-  { name: "Pro",     price: "\u20B9299", period: "/month",   tagline: "Unlimited analyses + watchlist 50.",  highlight: true },
-  { name: "Analyst", price: "\u20B9799", period: "/month",   tagline: "API, bulk screener, Sheets sync." },
+  { name: "Free",    price: "\u20B90",     period: "/forever", tagline: "5 analyses a month. All core features." },
+  { name: "Analyst", price: "\u20B9799",   period: "/month",   tagline: "Unlimited analyses, Portfolio Prism, AI summaries.", highlight: true },
+  { name: "Pro",     price: "\u20B91,499", period: "/month",   tagline: "CSV/PDF export, API access, priority compute." },
 ]
 
 /* ═════════════════════════════════════════════════════════
