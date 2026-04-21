@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useId, useRef, useState } from "react"
+import { useReducedMotion } from "framer-motion"
 import Signature from "./Signature"
 import Spectrum from "./Spectrum"
 import type { PillarKey, PrismData, PrismMode } from "./types"
@@ -58,6 +59,7 @@ export default function Prism({
   highlightedPillar,
   className,
 }: PrismProps) {
+  const prefersReducedMotion = useReducedMotion()
   const isControlled = mode !== undefined
   const [internalMode, setInternalMode] = useState<PrismMode>(
     mode ?? defaultMode,
@@ -82,6 +84,13 @@ export default function Prism({
   useEffect(() => {
     const target = activeMode === "spectrum" ? 1 : 0
     if (target === targetTRef.current && t === target) return
+
+    // Reduced-motion: jump straight to the target mode with no morph.
+    if (prefersReducedMotion) {
+      targetTRef.current = target
+      setT(target)
+      return
+    }
 
     targetTRef.current = target
     startTRef.current = t
@@ -109,7 +118,7 @@ export default function Prism({
       rafRef.current = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeMode, firstView])
+  }, [activeMode, firstView, prefersReducedMotion])
 
   const handleToggle = useCallback(
     (next: PrismMode) => {
@@ -175,6 +184,7 @@ export default function Prism({
           onPillarTap={onPillarTap}
           highlightedPillar={highlightedPillar ?? null}
           uid={uid}
+          firstView={firstView}
         />
         <Spectrum
           pillars={data.pillars}
@@ -189,6 +199,7 @@ export default function Prism({
           onPillarTap={onPillarTap}
           highlightedPillar={highlightedPillar ?? null}
           uid={uid}
+          firstView={firstView}
         />
       </svg>
 
