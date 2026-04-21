@@ -478,6 +478,36 @@ async def get_all_tickers():
     except Exception as e:
         logger.warning(f"all-tickers NSE_UNIVERSE merge failed: {e}")
 
+    # Source 4 (added 2026-04-21 after GSC showed only 264/4549 stocks
+    # were indexed): every active row from the `stocks` table. The
+    # sitemap consumer needs the full universe — Phase A added ~1,500
+    # BSE-only tickers that had no FairValueHistory yet, and pre-Phase-A
+    # NSE tickers without analyses were also missing.
+    db2 = _get_db_session()
+    if db2:
+        try:
+            from sqlalchemy import text as _t
+            rows = db2.execute(_t(
+                "SELECT ticker FROM stocks WHERE is_active = TRUE"
+            )).fetchall()
+            for r in rows:
+                t = r[0]
+                if not t:
+                    continue
+                display = t.replace(".NS", "").replace(".BO", "")
+                if display in seen_symbols:
+                    continue
+                seen_symbols.add(display)
+                tickers.append({
+                    "ticker": display,
+                    "full_ticker": t if (t.endswith(".NS") or t.endswith(".BO")) else f"{t}.NS",
+                    "last_updated": None,
+                })
+        except Exception as e:
+            logger.warning(f"all-tickers stocks-table merge failed: {e}")
+        finally:
+            _safe_close(db2)
+
     cache.set(_cache_key, tickers, ttl=86400)
     return _cached_json(tickers, s_maxage=86400, swr=172800)
 
