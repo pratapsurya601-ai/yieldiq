@@ -275,33 +275,72 @@ async def verify_subscription(
     confirmation so the UI can flip the user's tier immediately
     without waiting for the webhook.
     """
-    try:
-        import razorpay
-        client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
+    import hmac
+    import hashlib
+    import logging
+    logger = logging.getLogger("yieldiq.payments")
 
-        # Razorpay subscription payments sign the payment_id against
-        # the subscription_id (not order_id). SDK's utility handles
-        # both forms when given the right kwargs.
-        client.utility.verify_payment_signature({
-            "razorpay_subscription_id": razorpay_subscription_id,
-            "razorpay_payment_id": razorpay_payment_id,
-            "razorpay_signature": razorpay_signature,
-        })
+    try:
+        # Razorpay's Python SDK `verify_payment_signature` is Order-
+        # based and demands `razorpay_order_id` — passing subscription
+        # kwargs yields KeyError. For Subscriptions the canonical
+        # signature is HMAC_SHA256(secret, f"{payment_id}|{sub_id}").
+        # See https://razorpay.com/docs/payments/subscriptions/verify-signature/
+        expected_signature = hmac.new(
+            RAZORPAY_KEY_SECRET.encode("utf-8"),
+            f"{razorpay_payment_id}|{razorpay_subscription_id}".encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        if not hmac.compare_digest(expected_signature, razorpay_signature):
+            logger.warning(
+                "verify-subscription signature mismatch for sub=%s payment=%s",
+                razorpay_subscription_id, razorpay_payment_id,
+            )
+            raise HTTPException(
+                status_code=400,
+                detail="Subscription verification failed (signature mismatch)",
+            )
 
         new_tier = plan_id if plan_id in ("analyst", "pro") else "analyst"
 
+        # Promote tier in users_meta. Schema: PK is `id` (UUID), not
+        # `user_id`. Only touch `tier` — we track subscription metadata
+        # separately in the `subscriptions` table where the schema
+        # supports it.
         try:
             from db.supabase_client import get_client
             client_sb = get_client()
             if client_sb:
-                client_sb.table("users_meta").upsert({
-                    "user_id": user["user_id"],
+                client_sb.table("users_meta").update({
                     "tier": new_tier,
-                    "razorpay_subscription_id": razorpay_subscription_id,
-                }).execute()
-        except Exception:
-            pass
+                }).eq("id", user["user_id"]).execute()
 
+                # Upsert subscription metadata so the webhook can map
+                # razorpay_sub_id → user_email for lifecycle events.
+                # on_conflict=razorpay_sub_id (UNIQUE) makes this safe
+                # for repeat calls if user retries checkout.
+                client_sb.table("subscriptions").upsert({
+                    "user_email": user["email"],
+                    "razorpay_sub_id": razorpay_subscription_id,
+                    "razorpay_payment_id": razorpay_payment_id,
+                    "razorpay_plan_id": RAZORPAY_PLAN_IDS.get(
+                        f"{new_tier}_monthly", ""
+                    ),
+                    "tier": new_tier,
+                    "status": "active",
+                }, on_conflict="razorpay_sub_id").execute()
+        except Exception as sb_exc:
+            # Don't fail the whole request if Supabase write fails —
+            # the user has already paid. Log loudly so we can
+            # reconcile by hand.
+            logger.error(
+                "verify-subscription Supabase write failed for %s sub=%s: %s: %s",
+                user.get("email"), razorpay_subscription_id,
+                type(sb_exc).__name__, sb_exc,
+            )
+
+        # Best-effort SQLite auth sync (legacy self-hosted path — no-op
+        # in production where Supabase is the auth backend).
         try:
             _dashboard = os.path.join(_ROOT, "dashboard")
             if _dashboard not in sys.path:
@@ -317,14 +356,17 @@ async def verify_subscription(
             "subscription_id": razorpay_subscription_id,
             "message": f"Subscribed to {new_tier.title()} plan",
         }
-    except razorpay.errors.SignatureVerificationError:  # type: ignore[name-defined]
-        raise HTTPException(status_code=400, detail="Subscription verification failed")
+    except HTTPException:
+        raise
     except Exception as e:
-        import logging
-        logging.getLogger("yieldiq.payments").error(
-            f"verify-subscription failed: {type(e).__name__}: {e}"
+        logger.error(
+            "verify-subscription failed: %s: %s",
+            type(e).__name__, e,
         )
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"verify-subscription failed: {type(e).__name__}: {e}",
+        )
 
 
 @router.post("/verify")
@@ -482,22 +524,42 @@ async def razorpay_webhook(request: Request):
             logger.error("webhook: Supabase unavailable, skipping tier update")
             return {"ok": True, "warning": "no-supabase-client"}
 
+        # Look up user by razorpay_sub_id in the `subscriptions` table.
+        # users_meta doesn't store subscription_id directly — that'd
+        # be a schema dead-end since users can resubscribe over time.
+        sub_row = client_sb.table("subscriptions").select(
+            "user_email,tier"
+        ).eq("razorpay_sub_id", subscription_id).limit(1).execute()
+        rows = sub_row.data or []
+        if not rows:
+            logger.warning(
+                "webhook: no subscriptions row for sub=%s event=%s "
+                "(verify-subscription may have missed the initial insert)",
+                subscription_id, event,
+            )
+            return {"ok": True, "warning": "no-subscriptions-row"}
+        user_email = rows[0]["user_email"]
+        stored_tier = rows[0].get("tier") or "analyst"
+
         if event == "subscription.activated":
-            new_tier = tier_hint if tier_hint in ("analyst", "pro") else "analyst"
+            new_tier = tier_hint if tier_hint in ("analyst", "pro") else stored_tier
             client_sb.table("users_meta").update({
                 "tier": new_tier,
-            }).eq("razorpay_subscription_id", subscription_id).execute()
+            }).eq("email", user_email).execute()
+            client_sb.table("subscriptions").update({
+                "status": "active",
+                "tier": new_tier,
+            }).eq("razorpay_sub_id", subscription_id).execute()
             logger.info(
-                "webhook promoted sub=%s to tier=%s",
-                subscription_id, new_tier,
+                "webhook promoted %s (sub=%s) to tier=%s",
+                user_email, subscription_id, new_tier,
             )
 
         elif event == "subscription.charged":
-            # Successful renewal — no tier change, log only. If tier
-            # was previously demoted due to a halt + cancel, the user
-            # has already been demoted; Razorpay will have created a
-            # new subscription for their next charge, which'd fire
-            # .activated again. Safe no-op.
+            # Successful renewal — no tier change, just log & stamp.
+            client_sb.table("subscriptions").update({
+                "status": "active",
+            }).eq("razorpay_sub_id", subscription_id).execute()
             logger.info("webhook renewal charged: sub=%s", subscription_id)
 
         elif event == "subscription.halted":
@@ -505,23 +567,26 @@ async def razorpay_webhook(request: Request):
             # yet — the user's card may be temporarily declined. Log
             # for ops visibility; Razorpay will fire .cancelled if all
             # retries fail, which IS the demote signal.
+            client_sb.table("subscriptions").update({
+                "status": "halted",
+            }).eq("razorpay_sub_id", subscription_id).execute()
             logger.warning(
-                "webhook subscription halted (keeping tier): sub=%s",
-                subscription_id,
+                "webhook subscription halted (keeping tier): %s sub=%s",
+                user_email, subscription_id,
             )
 
         elif event in ("subscription.cancelled", "subscription.completed"):
-            # User cancelled OR Razorpay's retry window expired OR
-            # total_count reached. Demote to free immediately. Clear
-            # razorpay_subscription_id so a future re-subscribe
-            # doesn't ambiguously match this stale subscription.
+            # User cancelled OR retry window expired OR total_count
+            # reached. Demote to free immediately.
             client_sb.table("users_meta").update({
                 "tier": "free",
-                "razorpay_subscription_id": None,
-            }).eq("razorpay_subscription_id", subscription_id).execute()
+            }).eq("email", user_email).execute()
+            client_sb.table("subscriptions").update({
+                "status": event.split(".")[-1],  # "cancelled" or "completed"
+            }).eq("razorpay_sub_id", subscription_id).execute()
             logger.info(
-                "webhook demoted sub=%s to free (%s)",
-                subscription_id, event,
+                "webhook demoted %s (sub=%s) to free (%s)",
+                user_email, subscription_id, event,
             )
 
         else:
