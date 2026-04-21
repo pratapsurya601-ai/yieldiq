@@ -615,44 +615,26 @@ def _load_cached_analyses() -> list[ScreenerStock]:
     return out
 
 
-@router.get("/yieldiq50", response_model=ScreenerResponse)
-async def get_yieldiq50(user: dict = Depends(get_current_user)):
-    """Top 50 undervalued high-quality stocks. Cached for 5 minutes.
+async def _build_yieldiq50() -> ScreenerResponse:
+    """Build the YieldIQ 50 ScreenerResponse (no HTTP concerns).
 
-    Sources are merged (not exclusive) and deduped by ticker:
-      1. Real screener CSV output (highest priority — real scores)
-      2. Warm AnalysisResponse cache (real scores from recent runs)
-
-    No static seed any more — the prior _STATIC_YIQ50 list shipped
-    placeholder MoS values that disagreed with the live SEO pages
-    (Discover would show ITC at +38% MoS while /stocks/ITC.NS/fair-value
-    showed -1.7%). With the per-ticker cache override loop now reading
-    live analysis_cache for every row, the static seed was dead code:
-    any ticker with a warm cache row was already overridden, and any
-    ticker without one had no business showing fabricated numbers.
-
-    On a cold cache (no screener CSV, no warm in-process entries) we
-    return an empty list with HTTP 200 — frontend should treat
-    `total == 0` as "warming, check back shortly".
+    Split out from the HTTP handler so internal callers (e.g.
+    get_top_pick) can consume the pydantic model directly, without
+    the JSONResponse wrapping the HTTP endpoint applies for cache
+    headers.
     """
     _cache_key = f"yieldiq50:{date.today().isoformat()}"
 
-    # Tier-0 RAW dict cache — skips Pydantic re-serialization of the
-    # 50-stock ScreenerResponse. Data is identical for all users
-    # (same top-50 list), auth is still enforced via Depends above.
+    # RAW dict cache — rebuild ScreenerResponse from the dict so the
+    # return type is stable for all callers. HTTP handler adds cache
+    # headers separately; internal callers get the model.
     _raw = cache.get(_cache_key + ":raw")
     if _raw is not None:
-        from fastapi.responses import JSONResponse as _JSONResponse
-        return _JSONResponse(
-            content=_raw,
-            headers={
-                "X-Cache": "HIT-MEM-RAW",
-                # Auth-gated — private so Vercel edge does not share
-                # across users. 1h max-age is fine since the list is
-                # recomputed daily.
-                "Cache-Control": "private, max-age=3600",
-            },
-        )
+        try:
+            return ScreenerResponse(**_raw)
+        except Exception:
+            # Corrupt/old raw cache — fall through and rebuild.
+            pass
 
     cached = cache.get(_cache_key)
     if cached:
@@ -785,10 +767,36 @@ async def get_yieldiq50(user: dict = Depends(get_current_user)):
     return result
 
 
+@router.get("/yieldiq50", response_model=ScreenerResponse)
+async def get_yieldiq50(response: Response, user: dict = Depends(get_current_user)):
+    """Top 50 undervalued high-quality stocks. Cached for 5 minutes.
+
+    Sources are merged (not exclusive) and deduped by ticker:
+      1. Real screener CSV output (highest priority — real scores)
+      2. Warm AnalysisResponse cache (real scores from recent runs)
+
+    On a cold cache (no screener CSV, no warm in-process entries) we
+    return an empty list with HTTP 200 — frontend should treat
+    `total == 0` as "warming, check back shortly".
+
+    HTTP-layer concern: when the raw dict cache is warm, set edge
+    cache headers so Vercel/CDN can reuse responses. Auth-gated data,
+    so private. 1h max-age is fine since the list is recomputed daily.
+    The underlying data build is delegated to _build_yieldiq50 so that
+    internal callers (get_top_pick) get a typed ScreenerResponse and
+    are not affected by this HTTP-only wrapping.
+    """
+    _cache_key = f"yieldiq50:{date.today().isoformat()}"
+    if cache.get(_cache_key + ":raw") is not None:
+        response.headers["X-Cache"] = "HIT-MEM-RAW"
+        response.headers["Cache-Control"] = "private, max-age=3600"
+    return await _build_yieldiq50()
+
+
 @router.get("/top-pick")
 async def get_top_pick(user: dict = Depends(get_current_user)):
     """Highest conviction stock from YieldIQ 50. Never returns score 0."""
-    yiq50 = await get_yieldiq50(user)
+    yiq50 = await _build_yieldiq50()
 
     # Filter for valid high-conviction stocks
     valid = [
