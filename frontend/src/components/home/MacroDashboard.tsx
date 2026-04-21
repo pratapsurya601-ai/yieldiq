@@ -232,26 +232,26 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
           )}
         </Card>
 
-        <Card title="Gold">
+        <Card title="Gold (Comex)">
           {pulse.gold_usd && pulse.usd_inr ? (
             <>
               <p className="text-lg font-bold text-ink tabular-nums">
-                {fmtInrLakh(metalInrPer(10, pulse.gold_usd, pulse.usd_inr))}
+                ${pulse.gold_usd.toFixed(0)}
               </p>
-              <p className="text-[10px] text-caption">per 10g</p>
+              <p className="text-[10px] text-caption">/oz \u00b7 futures</p>
             </>
           ) : (
             <Dash />
           )}
         </Card>
 
-        <Card title="Silver">
+        <Card title="Silver (Comex)">
           {pulse.silver_usd && pulse.usd_inr ? (
             <>
               <p className="text-lg font-bold text-ink tabular-nums">
-                {fmtInrLakh(metalInrPer(1000, pulse.silver_usd, pulse.usd_inr))}
+                ${pulse.silver_usd.toFixed(2)}
               </p>
-              <p className="text-[10px] text-caption">per kg</p>
+              <p className="text-[10px] text-caption">/oz \u00b7 futures</p>
             </>
           ) : (
             <Dash />
