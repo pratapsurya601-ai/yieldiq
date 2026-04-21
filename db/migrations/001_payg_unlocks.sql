@@ -25,3 +25,30 @@ CREATE TABLE IF NOT EXISTS payg_unlocks (
 
 CREATE INDEX IF NOT EXISTS idx_payg_user_ticker
     ON payg_unlocks(user_email, ticker, unlocked_at DESC);
+
+-- ─────────────────────────────────────────────────────────────────
+-- Row Level Security
+--
+-- The backend uses service_role (via get_admin_client) for all writes
+-- and reads on this table — that bypasses RLS entirely. RLS matters
+-- for defence-in-depth against accidental exposure via anon key or
+-- future client-side Supabase calls.
+--
+-- Policy: a caller authenticated with a JWT can SELECT only their own
+-- unlocks (matched by email on the JWT's `email` claim). Writes are
+-- blocked for anon/authenticated keys — only service_role can insert.
+-- ─────────────────────────────────────────────────────────────────
+
+ALTER TABLE payg_unlocks ENABLE ROW LEVEL SECURITY;
+
+-- Drop any pre-existing policy (so this migration is idempotent).
+DROP POLICY IF EXISTS "payg_unlocks_self_select" ON payg_unlocks;
+
+CREATE POLICY "payg_unlocks_self_select"
+    ON payg_unlocks FOR SELECT
+    TO authenticated
+    USING (user_email = (auth.jwt() ->> 'email'));
+
+-- No INSERT/UPDATE/DELETE policies for non-service roles — service
+-- role bypasses RLS, so backend writes still work. Any other key
+-- (anon, authenticated) can't mutate unlocks.
