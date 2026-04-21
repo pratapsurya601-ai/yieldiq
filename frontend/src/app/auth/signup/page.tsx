@@ -31,12 +31,20 @@ function SignupContent() {
       const res = await signup(email, password, referralCode)
       Cookies.set("yieldiq_token", res.access_token, { expires: 7 })
       setAuth(res.access_token, res.user_id, res.email, res.tier, 0, 5)
-      // Reset onboarding state for new users
-      const settingsStore = JSON.parse(localStorage.getItem("yieldiq-settings") || "{}")
-      if (settingsStore.state) {
-        settingsStore.state.onboardingComplete = false
-        localStorage.setItem("yieldiq-settings", JSON.stringify(settingsStore))
-      }
+      // Reset onboarding state for new users — both the zustand-persisted
+      // settings store AND the onboardingPreferences blob. This avoids a
+      // previous user's completed-state lingering on a shared device.
+      // (Backend is always the cross-device source of truth on login; this
+      // just prevents a local-cache false-positive on the immediate
+      // post-signup redirect, before we've called getOnboardingStatus.)
+      try {
+        const settingsStore = JSON.parse(localStorage.getItem("yieldiq-settings") || "{}")
+        if (settingsStore.state) {
+          settingsStore.state.onboardingComplete = false
+          localStorage.setItem("yieldiq-settings", JSON.stringify(settingsStore))
+        }
+        localStorage.removeItem("yieldiq_prefs")
+      } catch { /* localStorage disabled — fine, nothing to clear */ }
       // Honor ?next= redirect (from pricing page tier-aware CTAs, etc.)
       const next = searchParams.get("next")
       // GA4: signup_completed with source so we can split the funnel

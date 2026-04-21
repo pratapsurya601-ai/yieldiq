@@ -1,6 +1,16 @@
-// Onboarding preferences — localStorage is the source of truth.
-// If a future backend endpoint exists for user preferences, we POST to it
-// best-effort and swallow errors (see persistPreferencesRemote).
+// Onboarding preferences
+// ─────────────────────────────────────────────────────────────────
+// localStorage is the FAST-PATH cache (instant render, prevents
+// flash-of-wizard). Backend (/api/v1/auth/complete-onboarding, backed
+// by Supabase user_onboarding) is the cross-device source of truth
+// for the `completed` flag. Interests/firstStock stay local-only for
+// now — the server endpoint accepts them but doesn't persist them yet
+// (ready for a future sync without another frontend change).
+//
+// Previously we POSTed EVERY writePreferences call to a nonexistent
+// /api/v1/users/me/preferences endpoint which silently 404'd. That's
+// fixed by (a) changing the endpoint and (b) only firing the network
+// call when completed=true, which is the only state we persist.
 
 import api from "@/lib/api"
 
@@ -53,8 +63,13 @@ export function writePreferences(patch: Partial<OnboardingPreferences>): Onboard
   } catch {
     // storage quota / disabled — ignore, localStorage is soft
   }
-  // Fire-and-forget backend sync (endpoint may not exist — we swallow errors).
-  void persistPreferencesRemote(next)
+  // Only sync to backend when onboarding is actually completed — the
+  // user_onboarding table only cares about the terminal completed=true
+  // event. Writes during intermediate steps (interest selection, first
+  // stock pick) stay local.
+  if (next.completed === true) {
+    void persistPreferencesRemote(next)
+  }
   return next
 }
 
@@ -71,11 +86,22 @@ export function isOnboardingComplete(): boolean {
 }
 
 async function persistPreferencesRemote(prefs: OnboardingPreferences): Promise<void> {
-  // No backend preferences endpoint exists today. If one is added later
-  // (e.g. POST /api/v1/users/me/preferences), this will silently succeed.
+  // POST to the completion endpoint. Only call this when prefs.completed is
+  // true — the caller (writePreferences / markCompleted) enforces that.
   try {
-    await api.post("/api/v1/users/me/preferences", prefs, { timeout: 3000 })
+    await api.post(
+      "/api/v1/auth/complete-onboarding",
+      {
+        last_step: 3,
+        interests: prefs.interests,
+        firstStock: prefs.firstStock ?? null,
+      },
+      { timeout: 4000 },
+    )
   } catch {
-    // Expected today — localStorage is the source of truth.
+    // Soft-fail — localStorage already holds the completion flag, and
+    // the login-time getOnboardingStatus() check will resolve any drift
+    // by re-POSTing from resolveOnboardingDone() when it sees localStorage
+    // says completed but backend says not completed.
   }
 }

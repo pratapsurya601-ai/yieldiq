@@ -1,8 +1,10 @@
 "use client"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { login } from "@/lib/api"
+import { login, getOnboardingStatus, completeOnboardingRemote } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
+import { useSettingsStore } from "@/store/settingsStore"
+import { markCompleted } from "@/lib/onboardingPreferences"
 import Cookies from "js-cookie"
 import Link from "next/link"
 
@@ -13,6 +15,64 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const router = useRouter()
   const { setAuth } = useAuthStore()
+  const completeOnboardingStore = useSettingsStore((s) => s.completeOnboarding)
+
+  /**
+   * Resolve whether this user has completed onboarding.
+   *
+   * Source of truth = backend (Supabase user_onboarding table). Backend is
+   * cross-device; localStorage is per-device. If the backend check fails
+   * or is degraded (source="default"), we fall back to localStorage so a
+   * transient Supabase hiccup doesn't force onboarded users back through
+   * the wizard on every login.
+   *
+   * Only redirect to /onboarding if BOTH signals say "not completed".
+   */
+  const resolveOnboardingDone = async (): Promise<boolean> => {
+    // Fast-path: localStorage. If either the zustand store OR the
+    // onboardingPreferences blob says completed, treat that as the floor.
+    let localDone = false
+    try {
+      const settings = JSON.parse(localStorage.getItem("yieldiq-settings") || "{}")
+      localDone = Boolean(settings?.state?.onboardingComplete)
+    } catch { /* corrupt localStorage — treat as not done */ }
+    try {
+      const prefs = JSON.parse(localStorage.getItem("yieldiq_prefs") || "{}")
+      if (prefs?.completed === true) localDone = true
+    } catch { /* ignore */ }
+
+    // Authoritative: backend.
+    try {
+      const status = await getOnboardingStatus()
+      if (status.source === "db") {
+        // Backend was reachable and authoritative.
+        // If backend says completed, sync it into localStorage so future
+        // page loads don't flash the wizard while the API call is in flight.
+        if (status.completed) {
+          try {
+            markCompleted()
+            completeOnboardingStore()
+          } catch { /* localStorage disabled / SSR — ignore */ }
+          return true
+        }
+        // Backend says NOT completed. If localStorage says completed
+        // (user onboarded here previously), trust localStorage AND push
+        // that state to the backend in the background so next login
+        // across devices is consistent.
+        if (localDone) {
+          void completeOnboardingRemote({ last_step: 3 }).catch(() => { /* best-effort */ })
+          return true
+        }
+        return false
+      }
+      // source="default" → backend call succeeded but couldn't reach DB.
+      // Fall back to localStorage.
+      return localDone
+    } catch {
+      // Network/API error → localStorage fallback.
+      return localDone
+    }
+  }
 
   const handleLogin = async () => {
     setError("")
@@ -21,9 +81,8 @@ export default function LoginPage() {
       const res = await login(email, password)
       Cookies.set("yieldiq_token", res.access_token, { expires: 7 })
       setAuth(res.access_token, res.user_id, res.email, res.tier, res.analyses_today, res.analysis_limit)
-      // Check if onboarding is complete
-      const settings = JSON.parse(localStorage.getItem("yieldiq-settings") || "{}")
-      const onboardingDone = settings?.state?.onboardingComplete
+
+      const onboardingDone = await resolveOnboardingDone()
       router.push(onboardingDone ? "/home" : "/onboarding")
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || "Login failed"

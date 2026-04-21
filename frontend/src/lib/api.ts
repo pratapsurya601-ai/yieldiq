@@ -575,4 +575,25 @@ export const signup = (email: string, password: string, referralCode?: string | 
 export const getMe = () =>
   api.get("/api/v1/auth/me").then(r => r.data)
 
+// Onboarding state — backend is source of truth, localStorage is fast-path cache.
+// Added 2026-04-21 to fix: users who completed onboarding on device A would see
+// the wizard again when logging in on device B/incognito because the completion
+// flag lived only in localStorage (yieldiq-settings).
+export interface OnboardingStatusResponse {
+  completed: boolean
+  last_step: number
+  completed_at: string | null
+  source: "db" | "default"
+}
+
+export const getOnboardingStatus = (): Promise<OnboardingStatusResponse> =>
+  api.get("/api/v1/auth/onboarding-status", { timeout: 4000 }).then(r => r.data)
+
+export const completeOnboardingRemote = (body?: {
+  last_step?: number
+  interests?: string[]
+  firstStock?: string | null
+}): Promise<{ completed: boolean; completed_at: string }> =>
+  api.post("/api/v1/auth/complete-onboarding", body ?? {}, { timeout: 4000 }).then(r => r.data)
+
 export default api
