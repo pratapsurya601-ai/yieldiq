@@ -82,6 +82,22 @@ class QualityOutput(BaseModel):
     fii_pct: Optional[float] = None
     dii_pct: Optional[float] = None
     public_pct: Optional[float] = None
+    # ── Bank-native metrics (feat/bank-prism-metrics 2026-04-21) ──
+    # All optional; set for bank/NBFC tickers, None everywhere else.
+    # See docs/bank_data_availability.md for the data-coverage matrix.
+    # Frontend can use `is_bank` as the render switch without
+    # re-deriving sector.
+    is_bank: bool = False
+    roa: Optional[float] = None                   # percent, net_income / total_assets × 100
+    cost_to_income: Optional[float] = None        # percent, opex / total_income × 100
+    advances_yoy: Optional[float] = None          # percent, total_assets YoY (proxy)
+    deposits_yoy: Optional[float] = None          # percent, total_liabilities YoY (proxy)
+    revenue_yoy_bank: Optional[float] = None      # percent
+    pat_yoy_bank: Optional[float] = None          # percent
+    nim: Optional[float] = None                   # percent, TODO: XBRL Sch A/B
+    car: Optional[float] = None                   # percent, TODO: XBRL Sch XI
+    nnpa: Optional[float] = None                  # percent, TODO: XBRL Sch XVIII
+    casa: Optional[float] = None                  # percent, TODO: XBRL Sch V
 
 
 class BulkDealItem(BaseModel):
