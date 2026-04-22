@@ -92,6 +92,55 @@ async def register(req: RegisterRequest):
     )
 
 
+class ForgotPasswordRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+
+
+@router.post("/forgot-password")
+async def forgot_password(req: ForgotPasswordRequest):
+    """Trigger a Supabase password-reset email.
+
+    Always returns 200 regardless of whether the email is registered
+    (anti-enumeration: don't leak account existence to random probes).
+    Supabase sends the recovery email via whatever SMTP is configured
+    in Project Settings → Auth → SMTP; for YieldIQ that's the SendGrid
+    relay configured 2026-04-22.
+    """
+    email = req.email.strip().lower()
+    if not email or "@" not in email:
+        return {"ok": True}
+    try:
+        from db.supabase_client import get_client
+        client = get_client()
+        if client is None:
+            # Silent — anti-enumeration. Operators see the issue in logs.
+            logging.getLogger("yieldiq.auth").warning(
+                "forgot-password: Supabase client unavailable"
+            )
+            return {"ok": True}
+        # Supabase sends the email via the configured SMTP. redirect_to
+        # should be an allowlisted URL in Supabase Auth → URL Configuration.
+        # Without redirect_to, the email link points at Supabase's hosted
+        # recovery page, which is fine for the MVP — user verification of
+        # deliverability is the whole point. UX polish (custom reset page)
+        # is a follow-up.
+        try:
+            client.auth.reset_password_for_email(
+                email,
+                options={"redirect_to": "https://www.yieldiq.in/auth/login"},
+            )
+        except TypeError:
+            # Older Supabase SDKs use positional args / different kwargs.
+            client.auth.reset_password_for_email(email)
+    except Exception as exc:
+        # Don't expose the failure to the caller (anti-enumeration) but
+        # log it so we can see it in Sentry when the config breaks.
+        logging.getLogger("yieldiq.auth").warning(
+            "forgot-password failed for %s: %s", email, exc
+        )
+    return {"ok": True}
+
+
 @router.get("/me", response_model=UserResponse)
 async def get_me(user: dict = Depends(get_current_user)):
     """Get current user info."""
