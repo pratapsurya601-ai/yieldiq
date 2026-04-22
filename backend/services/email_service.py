@@ -195,70 +195,20 @@ def send_welcome_email(email: str, name: str = "") -> bool:
             <!-- ═══ GREETING ═══ -->
             <tr>
               <td style="padding:36px 32px 0;">
-                <h1 style="margin:0 0 6px;font-size:24px;font-weight:700;color:#0F172A;">Welcome, {display_name}</h1>
-                <p style="margin:0;font-size:16px;color:#64748B;line-height:1.5;">You're in. Here's your edge.</p>
+                <h1 style="margin:0 0 6px;font-size:24px;font-weight:700;color:#0F172A;">Welcome, {display_name}.</h1>
+                <p style="margin:0;font-size:16px;color:#64748B;line-height:1.5;">You&rsquo;re in &mdash; your first DCF is two clicks away.</p>
               </td>
             </tr>
 
-            <!-- ═══ 3 STEPS ═══ -->
+            <!-- ═══ FOUNDER NOTE ═══ -->
             <tr>
-              <td style="padding:28px 32px 0;">
-                <!-- Step 1 -->
-                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:12px;">
-                  <tr>
-                    <td style="background-color:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:16px 18px;">
-                      <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                        <tr>
-                          <td width="36" valign="top">
-                            <span style="font-size:18px;line-height:1;">&#128269;</span>
-                          </td>
-                          <td valign="top" style="padding-left:4px;">
-                            <span style="font-size:12px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:1px;">Step 1</span>
-                            <p style="margin:4px 0 0;font-size:15px;font-weight:600;color:#0F172A;">Search any NSE/BSE stock</p>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-
-                <!-- Step 2 -->
-                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:12px;">
-                  <tr>
-                    <td style="background-color:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:16px 18px;">
-                      <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                        <tr>
-                          <td width="36" valign="top">
-                            <span style="font-size:18px;line-height:1;">&#128202;</span>
-                          </td>
-                          <td valign="top" style="padding-left:4px;">
-                            <span style="font-size:12px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:1px;">Step 2</span>
-                            <p style="margin:4px 0 0;font-size:15px;font-weight:600;color:#0F172A;">Get instant DCF fair value</p>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-
-                <!-- Step 3 -->
-                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:12px;">
-                  <tr>
-                    <td style="background-color:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:16px 18px;">
-                      <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                        <tr>
-                          <td width="36" valign="top">
-                            <span style="font-size:18px;line-height:1;">&#127919;</span>
-                          </td>
-                          <td valign="top" style="padding-left:4px;">
-                            <span style="font-size:12px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:1px;">Step 3</span>
-                            <p style="margin:4px 0 0;font-size:15px;font-weight:600;color:#0F172A;">Know before you invest</p>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
+              <td style="padding:24px 32px 0;">
+                <p style="margin:0 0 14px;font-size:15px;color:#334155;line-height:1.7;">
+                  Thanks for signing up. YieldIQ gives you an opinionated fair-value estimate on every NSE and BSE stock you look at &mdash; backed by a transparent DCF, a 6-pillar quality score, and Bear / Base / Bull scenarios. Most of what you need to decide on a stock, in under a minute.
+                </p>
+                <p style="margin:0;font-size:15px;color:#334155;line-height:1.7;">
+                  Your first <strong style="color:#0F172A;">5 analyses today</strong> are on the house. A good place to start is a stock you already hold or one you&rsquo;ve been researching.
+                </p>
               </td>
             </tr>
 
@@ -287,27 +237,40 @@ def send_welcome_email(email: str, name: str = "") -> bool:
                        style="background-color:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;">
                   <tr>
                     <td style="padding:20px 22px 8px;">
-                      <span style="font-size:13px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:1px;">What you get</span>
+                      <span style="font-size:13px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:1px;">What&rsquo;s included</span>
                     </td>
                   </tr>
                   <tr>
                     <td style="padding:0 22px 6px;">
                       <p style="margin:0;font-size:14px;color:#334155;line-height:2;">
-                        &#10003;&nbsp; 15 valuation engines<br>
-                        &#10003;&nbsp; 2,900+ NSE/BSE stocks covered<br>
-                        &#10003;&nbsp; Bear / Base / Bull scenarios<br>
-                        &#10003;&nbsp; Free &mdash; 5 analyses per day
+                        &#10003;&nbsp; DCF fair value + margin of safety on 2,900+ NSE / BSE stocks<br>
+                        &#10003;&nbsp; Prism score across Pulse, Quality, Moat, Safety, Growth, Value<br>
+                        &#10003;&nbsp; Bear / Base / Bull scenarios on every analysis<br>
+                        &#10003;&nbsp; 5 free deep analyses per day
                       </p>
                     </td>
                   </tr>
                   <tr>
                     <td style="padding:4px 22px 18px;">
                       <a href="{SITE_URL}/pricing" style="font-size:13px;color:{BRAND_PRIMARY};text-decoration:underline;">
-                        Upgrade for unlimited &rarr;
+                        See paid plans for unlimited access &rarr;
                       </a>
                     </td>
                   </tr>
                 </table>
+              </td>
+            </tr>
+
+            <!-- ═══ FOUNDER SIGNATURE ═══ -->
+            <tr>
+              <td style="padding:28px 32px 4px;">
+                <p style="margin:0 0 10px;font-size:14px;color:#334155;line-height:1.7;">
+                  If anything breaks or feels off, reply to this email &mdash; it reaches me directly.
+                </p>
+                <p style="margin:0;font-size:14px;color:#0F172A;line-height:1.7;">
+                  &mdash;&nbsp;Surya<br>
+                  <span style="color:#64748B;">Founder, YieldIQ</span>
+                </p>
               </td>
             </tr>
 
