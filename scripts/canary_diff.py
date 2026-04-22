@@ -247,7 +247,8 @@ NO_DCF_VERDICTS = {"unavailable", "avoid", "under_review", "data_limited"}
 # analysis-service layer + refreshing financials for the post-demerger
 # entity. Tracked as TODO in backend/services/analysis (follow-up PR).
 KNOWN_BROKEN_TICKERS = {
-    "TATAMOTORS.NS",
+    # Canary spec uses bare NSE symbols (e.g. "TATAMOTORS") not .NS form.
+    "TATAMOTORS",
 }
 
 

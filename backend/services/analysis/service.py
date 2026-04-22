@@ -137,6 +137,24 @@ class AnalysisService(NarrativeMixin):
                     result.data_issues = existing
                 except Exception:
                     pass
+            # FIX-TMPV-VERDICT (2026-04-22): when validators flag a critical
+            # issue (e.g. TATAMOTORS→TMPV post-demerger with fv/cmp≈5.6),
+            # promote the verdict to "under_review". Previously only the
+            # public /stock-summary endpoint applied this gate (via
+            # check_and_quarantine), so the authed /analysis endpoint
+            # kept shipping the raw bad-DCF verdict to admin callers and
+            # the canary harness. That caused gate-5 false positives and
+            # 606 Sentry events on TMPV. Promoting verdict here keeps the
+            # full response shape (admin can still see all fields + the
+            # data_issues list above) but signals the state consistently
+            # across all endpoints so downstream code (canary's
+            # _has_no_dcf, frontend render branches) handles it correctly.
+            if not vr.ok and vr.severity == "critical":
+                try:
+                    if getattr(result, "valuation", None) is not None:
+                        result.valuation.verdict = "under_review"
+                except Exception:
+                    pass
         except Exception as _ve:
             import logging as _vl
             _vl.getLogger("yieldiq.validators").warning(f"Validator crashed for {ticker}: {_ve}")
