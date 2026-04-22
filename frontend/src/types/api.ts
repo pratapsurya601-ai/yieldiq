@@ -68,6 +68,14 @@ export interface QualityOutput {
   debt_ebitda_label?: string | null
   interest_coverage?: number | null
   enterprise_value?: number | null
+  // Phase 2.1 additions — backfilled by backend (see backend/models/responses.py
+  // QualityOutput). Added to the frontend type on 2026-04-22 to wire up the
+  // three ratio cards that were already coming down the wire but silently
+  // dropped by the render list.
+  current_ratio?: number | null     // ratio, current_assets / current_liabilities
+  asset_turnover?: number | null    // ratio, revenue / total_assets
+  revenue_cagr_3y?: number | null   // DECIMAL (0.124 = 12.4%) — multiply by 100 to display
+  revenue_cagr_5y?: number | null   // DECIMAL
   promoter_pct?: number | null
   promoter_pledge_pct?: number | null
   fii_pct?: number | null

@@ -87,9 +87,40 @@ function interestCoverageTone(v: number | null | undefined): "green" | "amber" |
   return "red"
 }
 
+/* Phase 2.1 — tone helpers for Day-3 #12 ratio backfill. */
+function currentRatioTone(v: number | null | undefined): "green" | "amber" | "red" | "neutral" {
+  if (v === null || v === undefined) return "neutral"
+  // >1.5 comfortable short-term liquidity; 1.0-1.5 adequate; <1 potential squeeze
+  if (v >= 1.5) return "green"
+  if (v >= 1.0) return "amber"
+  return "red"
+}
+function assetTurnoverTone(v: number | null | undefined): "green" | "amber" | "red" | "neutral" {
+  if (v === null || v === undefined) return "neutral"
+  // Broad industrial benchmark: >1 strong capital efficiency, 0.5-1 average, <0.5 capital heavy
+  if (v >= 1.0) return "green"
+  if (v >= 0.5) return "amber"
+  return "red"
+}
+function revenueCagrTone(v: number | null | undefined): "green" | "amber" | "red" | "neutral" {
+  // v is a DECIMAL (0.124 = 12.4%). Indian blue-chip cohort: >15% strong, 8-15% average, <8% weak.
+  if (v === null || v === undefined) return "neutral"
+  const pct = v * 100
+  if (pct >= 15) return "green"
+  if (pct >= 8) return "amber"
+  return "red"
+}
+
 function fmtRatio(v: number | null | undefined, suffix: string): string {
   if (v === null || v === undefined) return "—"
   return `${v.toFixed(1)}${suffix}`
+}
+
+/* Revenue CAGR is a DECIMAL — convert to percent for display.
+   toFixed already preserves the minus sign for negative growth. */
+function fmtCagr(v: number | null | undefined): string {
+  if (v === null || v === undefined) return "—"
+  return `${(v * 100).toFixed(1)}%`
 }
 
 /* ------------------------------------------------------------------ */
@@ -223,6 +254,11 @@ function ShareholdingBar({
 /* ------------------------------------------------------------------ */
 export default function QualityRatios({ quality, insights }: Props) {
   const { roce, debt_ebitda, debt_ebitda_label, interest_coverage } = quality
+  // Phase 2.1 additions — backend already emits these in QualityOutput but
+  // they were previously dropped from the render list. Day-3 fix #12.
+  const currentRatio = quality.current_ratio
+  const assetTurnover = quality.asset_turnover
+  const revenueCagr3y = quality.revenue_cagr_3y
   const evEbitda = insights.ev_ebitda
   const isBank = quality.is_bank === true
 
@@ -234,7 +270,8 @@ export default function QualityRatios({ quality, insights }: Props) {
     [quality.roa, quality.cost_to_income, quality.advances_yoy, quality.deposits_yoy,
      quality.pat_yoy_bank, quality.revenue_yoy_bank].some(v => v !== null && v !== undefined)
   const anyRatio =
-    [roce, debt_ebitda, interest_coverage, evEbitda].some(v => v !== null && v !== undefined)
+    [roce, debt_ebitda, interest_coverage, evEbitda,
+     currentRatio, assetTurnover, revenueCagr3y].some(v => v !== null && v !== undefined)
     || anyBankMetric
   const anyShareholding =
     [quality.promoter_pct, quality.fii_pct, quality.dii_pct].some(v => v !== null && v !== undefined)
@@ -349,6 +386,31 @@ export default function QualityRatios({ quality, insights }: Props) {
             value={fmtRatio(interest_coverage, "x")}
             tone={interestCoverageTone(interest_coverage)}
             metricKey="interest_coverage"
+          />
+          {/* Phase 2.1 ratios — Day-3 fix #12 (2026-04-22). Backend already
+              emits current_ratio / asset_turnover / revenue_cagr_3y in
+              QualityOutput; they were silently dropped by the prior render
+              list. Revenue CAGR arrives as a DECIMAL, not a percent. */}
+          <RatioCard
+            label="Current Ratio"
+            value={fmtRatio(currentRatio, "x")}
+            subtitle="Short-term liquidity"
+            tone={currentRatioTone(currentRatio)}
+            metricKey="current_ratio"
+          />
+          <RatioCard
+            label="Asset Turnover"
+            value={fmtRatio(assetTurnover, "x")}
+            subtitle="Revenue per ₹ of assets"
+            tone={assetTurnoverTone(assetTurnover)}
+            metricKey="asset_turnover"
+          />
+          <RatioCard
+            label="Revenue CAGR (3Y)"
+            value={fmtCagr(revenueCagr3y)}
+            subtitle="3-year revenue growth"
+            tone={revenueCagrTone(revenueCagr3y)}
+            metricKey="revenue_cagr_3y"
           />
         </div>
       )}
