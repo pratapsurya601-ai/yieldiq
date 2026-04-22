@@ -105,7 +105,7 @@ function StockSearchInput({
       ) : (
         <>
           <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none"
+            className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-600 pointer-events-none"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -134,7 +134,7 @@ function StockSearchInput({
                   className="w-full text-left px-4 py-3 hover:bg-blue-50 transition flex items-center justify-between border-b border-gray-50 last:border-0"
                 >
                   <span className="font-medium text-gray-900 text-sm">{s.name}</span>
-                  <span className="text-xs text-gray-400 font-mono">{s.ticker.replace(".NS", "")}</span>
+                  <span className="text-xs text-gray-600 font-mono">{s.ticker.replace(".NS", "")}</span>
                 </button>
               ))}
             </div>
@@ -241,7 +241,7 @@ function CompareContent() {
       {/* Stock pickers */}
       <div className="flex items-end gap-2">
         <div className="flex-1">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Stock 1</p>
+          <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Stock 1</p>
           <StockSearchInput
             value={name1}
             onSelect={handleSelect1}
@@ -254,7 +254,7 @@ function CompareContent() {
             setTicker1(ticker2); setName1(name2)
             setTicker2(t1); setName2(n1)
           }}
-          className="mb-0.5 p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition text-gray-400 hover:text-gray-600 shrink-0"
+          className="mb-0.5 p-2 rounded-lg border border-gray-200 hover:bg-gray-50 transition text-gray-600 hover:text-gray-800 shrink-0"
           title="Swap stocks"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -262,7 +262,7 @@ function CompareContent() {
           </svg>
         </button>
         <div className="flex-1">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Stock 2</p>
+          <p className="text-xs font-bold text-gray-600 uppercase tracking-widest mb-2">Stock 2</p>
           <StockSearchInput
             value={name2}
             onSelect={handleSelect2}
@@ -291,18 +291,18 @@ function CompareContent() {
         <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
           {/* Header */}
           <div className="grid grid-cols-3 items-center gap-2 px-3 py-3 border-b border-gray-100 bg-gray-50">
-            <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Metric</span>
+            <span className="text-xs font-bold text-gray-600 uppercase tracking-widest">Metric</span>
             <div className="text-center">
               <Link href={`/analysis/${s1.ticker}`} className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition">
                 {s1.company_name}
               </Link>
-              <p className="text-[10px] text-gray-400">{s1.ticker.replace(".NS", "")} &middot; {s1.sector}</p>
+              <p className="text-xs text-gray-600">{s1.ticker.replace(".NS", "")} &middot; {s1.sector}</p>
             </div>
             <div className="text-center">
               <Link href={`/analysis/${s2.ticker}`} className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition">
                 {s2.company_name}
               </Link>
-              <p className="text-[10px] text-gray-400">{s2.ticker.replace(".NS", "")} &middot; {s2.sector}</p>
+              <p className="text-xs text-gray-600">{s2.ticker.replace(".NS", "")} &middot; {s2.sector}</p>
             </div>
           </div>
 
@@ -414,7 +414,7 @@ function CompareContent() {
               const winName = winTicker === s1.ticker ? s1.company_name : s2.company_name
               return (
                 <div key={cat} className="bg-white rounded-lg border border-gray-100 px-3 py-2 text-center">
-                  <p className="text-gray-400 uppercase tracking-widest mb-1" style={{ fontSize: "9px" }}>
+                  <p className="text-gray-600 uppercase tracking-widest mb-1" style={{ fontSize: "9px" }}>
                     {cat}
                   </p>
                   <p className="font-medium text-gray-900 truncate">{winName.split(" ")[0]}</p>
@@ -428,7 +428,7 @@ function CompareContent() {
       {/* Empty state */}
       {!bothSelected && !isLoading && <CompareEmpty />}
 
-      <p className="text-[10px] text-gray-400 text-center leading-relaxed px-4">
+      <p className="text-xs text-gray-600 text-center leading-relaxed px-4">
         All outputs are model estimates using publicly available data. Not investment advice.
       </p>
     </div>
@@ -437,7 +437,7 @@ function CompareContent() {
 
 export default function ComparePage() {
   return (
-    <Suspense fallback={<div className="flex items-center justify-center py-20 text-gray-400">Loading comparison...</div>}>
+    <Suspense fallback={<div className="flex items-center justify-center py-20 text-gray-600">Loading comparison...</div>}>
       <CompareContent />
     </Suspense>
   )

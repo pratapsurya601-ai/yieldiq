@@ -250,7 +250,7 @@ function AccountInner() {
             <p className="font-medium text-gray-900 truncate">{email || "Not signed in"}</p>
             <div className="flex items-center gap-2 mt-1">
               <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 uppercase">{tier}</span>
-              <span className="text-xs text-gray-400">
+              <span className="text-xs text-gray-600">
                 {analysisLimit >= 999999 ? "Unlimited analyses" : `${analysesToday}/${analysisLimit} analyses today`}
               </span>
             </div>
@@ -300,7 +300,7 @@ function AccountInner() {
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold text-gray-900">{"\u20b9"}799</p>
-                <p className="text-xs text-gray-400">/month</p>
+                <p className="text-xs text-gray-600">/month</p>
               </div>
             </div>
             <ul className="space-y-1.5 mb-4 text-sm text-gray-600">
@@ -349,7 +349,7 @@ function AccountInner() {
         <div className="bg-white rounded-2xl border border-gray-100 p-5 text-center">
           <p className="text-sm text-gray-500">Current plan</p>
           <p className="text-lg font-bold text-blue-700 uppercase">{tier}</p>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-gray-600 mt-1">
             {tier === "analyst" ? "\u20b9799/month" : tier === "pro" ? "\u20b91,499/month" : ""}
           </p>
         </div>
@@ -358,12 +358,12 @@ function AccountInner() {
       {/* Share & Earn — Referral Section */}
       <ReferralSection />
 
-      <p className="text-[10px] text-gray-400 text-center">
+      <p className="text-xs text-gray-600 text-center">
         YieldIQ is not registered with SEBI as an investment adviser. All outputs are model estimates only.
       </p>
 
       {/* Sign out — less prominent, at the very bottom */}
-      <button onClick={handleLogout} className="w-full py-2 text-sm text-gray-400 font-medium hover:text-red-500 transition text-center">
+      <button onClick={handleLogout} className="w-full py-2 text-sm text-gray-600 font-medium hover:text-red-500 transition text-center">
         Sign out
       </button>
     </div>
