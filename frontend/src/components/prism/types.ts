@@ -50,4 +50,11 @@ export interface PrismData {
    * this is missing rather than rendering a dash.
    */
   computed_at?: string
+  /**
+   * Last 12 monthly YieldIQ-score samples (oldest → newest, 0-100).
+   * Backend returns `[]` when fewer than 3 monthly rows exist in
+   * `fair_value_history`. Consumers should render an "insufficient
+   * history" state rather than fake data when length < 2.
+   */
+  score_history_12m?: number[]
 }

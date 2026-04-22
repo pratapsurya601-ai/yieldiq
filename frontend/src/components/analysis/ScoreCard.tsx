@@ -59,18 +59,17 @@ const fmtMarketCap = formatMarketCap
 function Sparkline({ points }: { points: number[] }) {
   const uid = useId()
   if (!points || points.length < 2) {
+    // Insufficient-history state. Backend returns an empty array when
+    // fewer than three monthly samples exist in fair_value_history. We
+    // render a labelled dashed baseline instead of a near-invisible line
+    // (previous behaviour looked like "empty dots" to users — #20 Day-3).
     return (
-      <svg width={100} height={24} aria-hidden>
-        <line
-          x1={0}
-          y1={12}
-          x2={100}
-          y2={12}
-          stroke="currentColor"
-          strokeOpacity={0.25}
-          strokeDasharray="2 3"
-        />
-      </svg>
+      <span
+        className="text-[9px] italic text-caption/80 tabular-nums"
+        aria-label="Insufficient price history to draw the 12-month score trend"
+      >
+        Insufficient history
+      </span>
     )
   }
   const min = Math.min(...points)

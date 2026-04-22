@@ -4,7 +4,14 @@ import { Inter, Inter_Tight, JetBrains_Mono, Fraunces } from "next/font/google";
 import "./globals.css";
 import { Providers } from "./providers";
 import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+// NOTE: @vercel/speed-insights intentionally removed — the Speed Insights
+// ingestion endpoint (/_vercel/speed-insights/vitals, served via the
+// hashed /<id>/vitals path) was returning a consistent 503 on every
+// page load because Speed Insights isn't enabled on the Vercel project.
+// That polluted Sentry / network-error monitoring with a fixed-rate
+// failure. To re-enable, enable "Speed Insights" on the Vercel dashboard,
+// re-add `@vercel/speed-insights` to package.json, and mount
+// `<SpeedInsights />` next to `<Analytics />` below.
 import BetaBanner from "@/components/marketing/BetaBanner";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
@@ -164,7 +171,6 @@ export default function RootLayout({
         <Providers>{children}</Providers>
         <ServiceWorkerRegister />
         <Analytics />
-        <SpeedInsights />
       </body>
     </html>
   );
