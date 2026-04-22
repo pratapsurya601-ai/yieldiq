@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 from backend.models.responses import RedFlag
+from screener.moat_engine import STRONG_BRAND_ALLOWLIST as _STRONG_BRAND_ALLOWLIST
 from backend.services.analysis.constants import (
     FINANCIAL_COMPANIES,  # noqa: F401  (kept for parity with the monolith)
     _NBFC_TICKERS,
@@ -830,6 +831,156 @@ def _add_flags(
                     )
         except Exception:
             pass
+
+    # ── Day-3 additions: bellwether-aware strength signals ──────
+    # Fixes issue #19: large-cap quality names (TITAN, HDFCBANK,
+    # NESTLEIND, ...) were surfacing zero "info" flags because the
+    # previous five rules required ROE>20 (Titan's ROE is None in
+    # our enriched dict), Piotroski>=7, zero debt, Wide moat, or
+    # FCF margin>10% — Titan hits none of these despite ROCE=36.9%
+    # and 3y revenue CAGR of 28%. These extra rules read ROCE /
+    # revenue_cagr_3y / interest_coverage / debt_to_equity that
+    # service.py now injects into ``enriched`` before calling the
+    # flag builder (FIX-DAY3-STRENGTHS 2026-04-22).
+
+    # I6 — Durable profitability: ROCE > 15%
+    # ROCE is sector-agnostic (works for banks too, unlike ROE). We
+    # read the same _roce_val service.py stuffs back into enriched.
+    try:
+        roce = enriched.get("roce")
+        if roce is not None:
+            # Service injects ROCE as a percent (e.g. 36.9), but
+            # accept decimal 0-1 inputs defensively in case the
+            # contract ever slips.
+            roce_pct = float(roce) * 100 if abs(float(roce)) <= 1 else float(roce)
+            if roce_pct > 15:
+                add(
+                    flag="high_roce",
+                    severity="info",
+                    title="Durable Return on Capital",
+                    explanation=(
+                        "Return on capital employed above 15% — the "
+                        "business earns substantially more than its "
+                        "cost of capital on every rupee deployed."
+                    ),
+                    data_point=f"ROCE: {roce_pct:.1f}%",
+                    why_it_matters=(
+                        "High ROCE sustained over time is the single "
+                        "strongest quantitative signal of a durable "
+                        "business. It means reinvested profits compound "
+                        "shareholder value at above-average rates."
+                    ),
+                )
+    except Exception:
+        pass
+
+    # I7 — Consistent growth: 3y revenue CAGR > 8%
+    try:
+        cagr3 = enriched.get("revenue_cagr_3y")
+        if cagr3 is not None:
+            # Stored as decimal (0.28 = 28%).
+            cagr_pct = float(cagr3) * 100 if abs(float(cagr3)) <= 1 else float(cagr3)
+            if cagr_pct > 8:
+                add(
+                    flag="strong_growth",
+                    severity="info",
+                    title="Consistent Revenue Growth",
+                    explanation=(
+                        "Revenue has compounded above 8% annually over "
+                        "the past three years — a pace that outpaces "
+                        "nominal GDP and typical peer sets."
+                    ),
+                    data_point=f"3-year revenue CAGR: {cagr_pct:.1f}%",
+                    why_it_matters=(
+                        "Sustained top-line growth expands the DCF "
+                        "base and — when paired with stable margins — "
+                        "is a precondition for multi-year compounding."
+                    ),
+                )
+    except Exception:
+        pass
+
+    # I8 — Strong balance sheet: D/E < 0.5 AND interest coverage > 5
+    # Skip for financials (leverage isn't meaningful for banks).
+    if not is_financial:
+        try:
+            de = enriched.get("debt_to_equity")
+            ic = enriched.get("interest_coverage")
+            de_ok = de is not None and float(de) < 0.5
+            ic_ok = ic is not None and float(ic) > 5
+            if de_ok and ic_ok:
+                add(
+                    flag="strong_balance_sheet",
+                    severity="info",
+                    title="Strong Balance Sheet",
+                    explanation=(
+                        "Low leverage and comfortable interest coverage — "
+                        "the business can absorb shocks without "
+                        "refinancing risk."
+                    ),
+                    data_point=f"D/E: {float(de):.2f} · Interest coverage: {float(ic):.1f}x",
+                    why_it_matters=(
+                        "Balance-sheet strength preserves optionality "
+                        "during credit cycles and limits the downside "
+                        "in adverse scenarios."
+                    ),
+                )
+        except Exception:
+            pass
+
+    # I9 — Category leader: allowlist membership. Kicks in whenever
+    # no other info flag would surface for a bellwether (fall-through
+    # is handled at the end by the "ensure-at-least-one" guard below).
+    try:
+        _raw_t = str(enriched.get("ticker") or "").strip().upper()
+        if _raw_t in _STRONG_BRAND_ALLOWLIST or (
+            _raw_t.endswith(".BO")
+            and (_raw_t[:-3] + ".NS") in _STRONG_BRAND_ALLOWLIST
+        ):
+            add(
+                flag="category_leader",
+                severity="info",
+                title="Category Leader / Franchise",
+                explanation=(
+                    "Established market leadership with durable brand, "
+                    "distribution, or network advantages that are hard "
+                    "to replicate in the Indian market."
+                ),
+                data_point="Recognised bellwether franchise",
+                why_it_matters=(
+                    "Category leaders compound through pricing power "
+                    "and share-of-wallet gains even in slow-growth "
+                    "environments, and defend returns during downturns."
+                ),
+            )
+    except Exception:
+        pass
+
+    # ── Cap info flags at 3 (highest-signal first) ──────────────
+    # Rank: wide_moat > high_roce > strong_piotroski > high_roe >
+    # strong_growth > strong_balance_sheet > strong_fcf >
+    # debt_free > category_leader. Keep top 3; drop the rest.
+    _INFO_PRIORITY = {
+        "wide_moat":            0,
+        "high_roce":            1,
+        "strong_piotroski":     2,
+        "high_roe":             3,
+        "strong_growth":        4,
+        "strong_balance_sheet": 5,
+        "strong_fcf":           6,
+        "debt_free":            7,
+        "category_leader":      8,
+    }
+    try:
+        _info = [f for f in flags if f.severity == "info"]
+        _non_info = [f for f in flags if f.severity != "info"]
+        _info.sort(key=lambda f: _INFO_PRIORITY.get(f.flag, 99))
+        _kept = _info[:3]
+        flags.clear()
+        flags.extend(_non_info)
+        flags.extend(_kept)
+    except Exception:
+        pass
 
 
 def _fx_multiplier(currency: str | None) -> float:

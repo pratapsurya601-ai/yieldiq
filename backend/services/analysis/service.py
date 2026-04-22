@@ -1134,18 +1134,14 @@ class AnalysisService(NarrativeMixin):
             )
 
         # ── Structured red flags for the deep-dive UI ────────
-        try:
-            _structured_flags = _build_structured_flags(
-                enriched=enriched,
-                piotroski=piotroski,
-                moat_result=moat_result,
-                is_financial=is_financial,
-                existing_flags=_red_flags,
-                price=price,
-                mos_pct=mos_pct,
-            )
-        except Exception:
-            _structured_flags = []
+        # MOVED (FIX-DAY3-STRENGTHS 2026-04-22): the build call was
+        # here originally, but the newer info-flag rules (ROCE,
+        # revenue CAGR, interest coverage, D/E) need values that
+        # service.py only computes later in the function (roce_val,
+        # rev_cagr_3y, ...). We defer the build until after those
+        # are injected into ``enriched``. See the call further down
+        # labelled "DEFERRED STRUCTURED FLAG BUILD".
+        _structured_flags: list = []
 
         # ── Forward-fill fair value history (async) ─────────
         # Writes one row per ticker per day. Runs in a daemon thread so
@@ -1422,6 +1418,43 @@ class AnalysisService(NarrativeMixin):
                 return None
         _rev_cagr_3y = _sanitize_cagr(_rev_cagr_3y)
         _rev_cagr_5y = _sanitize_cagr(_rev_cagr_5y)
+
+        # ── DEFERRED STRUCTURED FLAG BUILD (FIX-DAY3-STRENGTHS) ──
+        # Inject newly-computed ratios into ``enriched`` so the
+        # info-flag rules in utils._add_flags can read them. These
+        # keys were not previously on enriched (they live on the
+        # QualityOutput object instead), so overwriting is safe.
+        # ROCE is written as-is (already a percent, e.g. 36.9).
+        # CAGRs are written as decimals (the convention used
+        # elsewhere in enriched, e.g. enriched['revenue_growth']).
+        try:
+            enriched["roce"] = _roce_val
+            enriched["revenue_cagr_3y"] = _rev_cagr_3y
+            enriched["revenue_cagr_5y"] = _rev_cagr_5y
+            enriched["interest_coverage"] = _interest_cov_val
+            # debt_to_equity: derive if missing. enriched may already
+            # have it from yfinance info.
+            if enriched.get("debt_to_equity") is None:
+                _eq = enriched.get("total_equity") or 0
+                _td = enriched.get("total_debt") or 0
+                if _eq and _eq > 0:
+                    enriched["debt_to_equity"] = _td / _eq
+            enriched["ticker"] = ticker
+        except Exception:
+            pass
+
+        try:
+            _structured_flags = _build_structured_flags(
+                enriched=enriched,
+                piotroski=piotroski,
+                moat_result=moat_result,
+                is_financial=is_financial,
+                existing_flags=_red_flags,
+                price=price,
+                mos_pct=mos_pct,
+            )
+        except Exception:
+            _structured_flags = []
 
         # Enterprise Value in Crores: market_cap_cr + debt − cash.
         # market_cap not in enriched — derive from price × shares.
