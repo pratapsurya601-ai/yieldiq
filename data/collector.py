@@ -83,6 +83,13 @@ def _yf_ticker(symbol: str) -> "yf.Ticker":
 
 from utils.logger import get_logger
 from utils.config import MAX_RETRIES, FCF_HISTORY_YEARS
+from data.yf_circuit import (
+    check_or_raise as _yf_check_circuit,
+    is_open as _yf_circuit_is_open,
+    record_failure as _yf_record_failure,
+    record_success as _yf_record_success,
+    DataUnavailableError,
+)
 
 log = get_logger(__name__)
 
@@ -1040,6 +1047,16 @@ class StockDataCollector:
     # ── yfinance load ─────────────────────────────────────────
     def _load_yf(self) -> bool:
         import random
+        # Circuit breaker — if yfinance has been failing repeatedly, skip
+        # the retry storm entirely and let downstream code fall through to
+        # FMP/Finnhub. Saves ~30-60s per ticker during a real Yahoo outage
+        # and reduces our rate-limit footprint so the circuit can close
+        # sooner. See data/yf_circuit.py for the state machine.
+        if _yf_circuit_is_open():
+            log.info(
+                f"[{self.ticker}] yfinance circuit open — skipping retry loop"
+            )
+            return False
         # Aggressive retry: 4 attempts with jitter to beat rate-limiting
         _backoff = [0, 3, 8, 15] if FMP_KEY else [0, 5, 15, 30, 60]
         for attempt in range(1, len(_backoff) + 1):
@@ -1068,8 +1085,10 @@ class StockDataCollector:
                         raise ValueError("Empty yfinance response")
                 if attempt > 1:
                     log.info(f"[{self.ticker}] yfinance succeeded on attempt {attempt}")
+                _yf_record_success()
                 return True
             except Exception as exc:
+                _yf_record_failure(exc)
                 _wait = _backoff[attempt - 1] + random.uniform(0, 3)  # Add jitter
                 _exc_str = str(exc).lower()
                 _is_rate_limit = "429" in _exc_str or "rate" in _exc_str or "too many" in _exc_str or "forbidden" in _exc_str
@@ -1077,6 +1096,11 @@ class StockDataCollector:
                     log.warning(f"[{self.ticker}] yfinance rate-limited (attempt {attempt}/{len(_backoff)}), waiting {_wait:.0f}s...")
                 else:
                     log.warning(f"[{self.ticker}] yfinance attempt {attempt}: {exc}")
+                # If the circuit opened mid-loop (another thread tripped it),
+                # bail immediately instead of sleeping through the cooldown.
+                if _yf_circuit_is_open():
+                    log.info(f"[{self.ticker}] yfinance circuit opened mid-retry — aborting loop")
+                    return False
                 if attempt < len(_backoff):
                     time.sleep(_wait)
         return False
@@ -1418,26 +1442,34 @@ class StockDataCollector:
 
         # For Indian stocks: try yfinance with shorter timeout to avoid long waits
         if is_indian and FMP_KEY:
-            # Quick yfinance attempt (1 try only) — if it fails, FMP will cover
-            _backoff_orig = [0]  # Single fast attempt for Indian stocks
-            try:
-                self._ticker_obj = _yf_ticker(self.ticker)
-                # PERF: route .info through the 30-day DB cache
-                try:
-                    from data_pipeline.sources.yf_info_cache import get_info as _cached_info
-                    _info_dict, _from_cache = _cached_info(self.ticker)
-                    self._yf_info = _info_dict or {}
-                    if _from_cache and self._yf_info:
-                        log.info(f"[{self.ticker}] yfinance .info served from DB cache (fast path)")
-                except Exception:
-                    self._yf_info = self._ticker_obj.info or {}
-                _yf_ok = bool(self._yf_info.get("regularMarketPrice") or self._yf_info.get("currentPrice"))
-                if _yf_ok:
-                    log.info(f"[{self.ticker}] yfinance quick load OK")
-                else:
-                    _yf_ok = False
-            except Exception:
+            # Quick yfinance attempt (1 try only) — if it fails, FMP will cover.
+            # Circuit-break first: when yfinance is known to be failing, skip
+            # the attempt entirely and go straight to FMP.
+            if _yf_circuit_is_open():
+                log.info(f"[{self.ticker}] yfinance circuit open — going straight to FMP/Finnhub")
                 _yf_ok = False
+            else:
+                _backoff_orig = [0]  # Single fast attempt for Indian stocks
+                try:
+                    self._ticker_obj = _yf_ticker(self.ticker)
+                    # PERF: route .info through the 30-day DB cache
+                    try:
+                        from data_pipeline.sources.yf_info_cache import get_info as _cached_info
+                        _info_dict, _from_cache = _cached_info(self.ticker)
+                        self._yf_info = _info_dict or {}
+                        if _from_cache and self._yf_info:
+                            log.info(f"[{self.ticker}] yfinance .info served from DB cache (fast path)")
+                    except Exception:
+                        self._yf_info = self._ticker_obj.info or {}
+                    _yf_ok = bool(self._yf_info.get("regularMarketPrice") or self._yf_info.get("currentPrice"))
+                    if _yf_ok:
+                        log.info(f"[{self.ticker}] yfinance quick load OK")
+                        _yf_record_success()
+                    else:
+                        _yf_ok = False
+                except Exception as _exc:
+                    _yf_record_failure(_exc)
+                    _yf_ok = False
             if not _yf_ok:
                 log.info(f"[{self.ticker}] Indian stock — skipping yfinance retry, using FMP+Finnhub")
         else:
