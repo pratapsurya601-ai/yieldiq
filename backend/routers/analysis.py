@@ -102,6 +102,17 @@ async def get_analysis(
     # to response.ticker to show a "renamed to …" banner.
     ticker = TICKER_ALIASES.get(original_ticker, original_ticker)
 
+    # Build the usage headers dict once — must be merged into EVERY
+    # JSONResponse returned below. When a cache tier hits, FastAPI uses
+    # that new JSONResponse's headers and discards the ones the
+    # check_analysis_limit dependency set on its injected Response.
+    # Without this, the nav counter stayed at 0/5 on every cache hit
+    # (confirmed in prod 2026-04-23 via browser fetch probe).
+    _usage_headers = {
+        "X-Analyses-Today": str(user.get("analyses_today", "")),
+        "X-Analyses-Limit": str(user.get("analysis_limit", "")),
+    }
+
     # Tier 0: in-memory RAW dict cache (fastest path — no Pydantic).
     # Set by the tier-2 DB-cache fast path below. Warm-warm requests
     # on the same worker return via this branch in ~5-10ms.
@@ -114,8 +125,8 @@ async def get_analysis(
         if not include_summary and _raw_cached.get("ai_summary") is not None:
             _out = dict(_raw_cached)
             _out["ai_summary"] = None
-            return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW"})
-        return _JSONResponse(content=_raw_cached, headers={"X-Cache": "HIT-MEM-RAW"})
+            return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
+        return _JSONResponse(content=_raw_cached, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
 
     # Tier 1: in-memory Pydantic cache (legacy, for paths that set
     # the object form). Slower than tier-0 because FastAPI re-serializes.
@@ -141,7 +152,7 @@ async def get_analysis(
         from fastapi.encoders import jsonable_encoder as _je
         return _JSONResponse(
             content=_je(cached),
-            headers={"X-Cache": "HIT-MEM"},
+            headers={"X-Cache": "HIT-MEM", **_usage_headers},
         )
 
     # Tier 2: persistent DB cache (shared across workers, survives restart).
@@ -175,7 +186,7 @@ async def get_analysis(
             # from tier-1 for the same reason — the warm-warm path is now
             # dict → JSONResponse, effectively zero-cost serialization.
             cache.set(_cache_key + ":raw", _clean, ttl=86400)
-            return _JSONResponse(content=_clean, headers={"X-Cache": "HIT-DB-FAST"})
+            return _JSONResponse(content=_clean, headers={"X-Cache": "HIT-DB-FAST", **_usage_headers})
         except Exception as _exc:
             import logging as _logging
             _logging.getLogger("yieldiq.analysis").warning(
@@ -306,7 +317,7 @@ async def get_analysis(
         from fastapi.encoders import jsonable_encoder as _je
         return _JSONResponse(
             content=_je(result),
-            headers={"X-Cache": "MISS"},
+            headers={"X-Cache": "MISS", **_usage_headers},
         )
     except TickerNotFoundError:
         # Data provider returned nothing for this symbol. 404 lets the
