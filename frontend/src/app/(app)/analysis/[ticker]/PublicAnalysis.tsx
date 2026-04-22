@@ -207,7 +207,7 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
               value={
                 mos_pct === null || mos_pct === undefined
                   ? "—"
-                  : formatPct(mos_pct / 100)
+                  : formatPct(mos_pct)
               }
               emphasis={mosTone === "positive"}
             />
