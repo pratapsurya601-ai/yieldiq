@@ -172,11 +172,11 @@ export default function IndexDashboardClient({ data }: { data: DashboardData }) 
             <tbody>
               {sorted.map((s, i) => (
                 <tr key={s.ticker} className={`border-b border-gray-100 hover:bg-gray-50 transition cursor-pointer ${rowBg(s.mos)}`}>
-                  <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
+                  <td className="px-4 py-3 text-gray-500 text-xs">{i + 1}</td>
                   <td className="px-4 py-3">
                     <Link href={`/stocks/${s.display_ticker}/fair-value`} className="hover:text-blue-600 transition">
                       <p className="font-semibold text-gray-900">{s.display_ticker}</p>
-                      <p className="text-xs text-gray-400 truncate max-w-[180px]">{s.company_name}</p>
+                      <p className="text-xs text-gray-600 truncate max-w-[180px]">{s.company_name}</p>
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-right font-mono text-gray-900">{fmt(s.current_price)}</td>
@@ -186,12 +186,12 @@ export default function IndexDashboardClient({ data }: { data: DashboardData }) 
                   </td>
                   <td className="px-4 py-3 text-right font-bold text-gray-900">{s.score}</td>
                   <td className="px-4 py-3 text-center">{verdictBadge(s.verdict)}</td>
-                  <td className="px-4 py-3 text-xs text-gray-400 hidden sm:table-cell">{s.sector}</td>
+                  <td className="px-4 py-3 text-xs text-gray-600 hidden sm:table-cell">{s.sector}</td>
                 </tr>
               ))}
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-12 text-center text-gray-400">
+                  <td colSpan={8} className="px-4 py-12 text-center text-gray-600">
                     No data available yet. Cache is warming up — check back in a few minutes.
                   </td>
                 </tr>
@@ -214,11 +214,11 @@ export default function IndexDashboardClient({ data }: { data: DashboardData }) 
 
       {/* Disclaimer */}
       <footer className="py-6 border-t border-gray-100">
-        <p className="text-[10px] text-gray-400 text-center max-w-2xl mx-auto px-4">
+        <p className="text-xs text-gray-600 text-center max-w-2xl mx-auto px-4 leading-relaxed">
           Model estimates using publicly available data. Not investment advice.
           YieldIQ is not registered with SEBI as an investment adviser or research analyst.
         </p>
-        <div className="flex justify-center gap-4 mt-3 text-xs text-gray-400">
+        <div className="flex justify-center gap-4 mt-3 text-xs text-gray-600">
           <Link href="/" className="hover:text-gray-600">&copy; 2026 YieldIQ</Link>
           <Link href="/terms" className="hover:text-gray-600">Terms</Link>
           <Link href="/privacy" className="hover:text-gray-600">Privacy</Link>
