@@ -51,7 +51,12 @@ BOUNDS: dict[str, tuple[float, float, str]] = {
     "fair_value":         (0.01, 1e7,  "critical"),   # INR per share
     "current_price":      (0.01, 1e7,  "critical"),
     "fair_value_ratio":   (0.20, 5.0,  "critical"),   # FV/CMP
-    "margin_of_safety":   (-95,  500,  "critical"),   # percent
+    # MoS can legitimately approach -100% for extremely overvalued
+    # stocks (fair_value → 0 relative to price). Widened from -95 to
+    # -100 after NIVABUPA.NS tripped at -96.5% — legitimate "very
+    # overvalued" signal, not a data bug. 1,481 Sentry events in a
+    # week were all this one boundary case.
+    "margin_of_safety":   (-100, 500,  "critical"),   # percent
     # PR1 additions ---------------------------------------------
     # Tighter MoS gate for the response payload (the field name in the
     # response is `margin_of_safety` in percent; `mos_pct` is the

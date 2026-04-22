@@ -68,7 +68,10 @@ BOUNDS = {
     "wacc":              (0.02, 0.30, "critical"),    # 2%-30%
     "terminal_growth":   (0.0,  0.08, "critical"),    # 0%-8%
     "fcf_growth_rate":   (-0.50, 0.80, "warning"),    # -50% to +80%
-    "margin_of_safety":  (-95, 500, "critical"),      # -95% to +500%
+    # MoS floor widened from -95 to -100 (2026-04-22). See bounds.py
+    # for the rationale — NIVABUPA.NS legitimately lands at -96.5%
+    # when extremely overvalued; not a data bug.
+    "margin_of_safety":  (-100, 500, "critical"),      # -100% to +500%
     "fair_value_ratio":  (0.20, 5.0, "critical"),     # FV/CMP ratio
     "roe_pct":           (-100, 200, "warning"),      # -100% to +200%
     "roce_pct":          (-100, 200, "warning"),

@@ -96,13 +96,67 @@ if _SENTRY_DSN:
         _boot_log.getLogger("yieldiq.sentry").warning("Sentry init failed: %s", exc)
 
 
+# Known-benign event signatures that should NEVER hit Sentry. Every
+# pattern here represents a class of "expected noise" we explicitly
+# chose to swallow — not a bug class we're hiding. If a real regression
+# surfaces as a new variant of one of these, grep the list first.
+_SENTRY_NOISE_PATTERNS = (
+    # yfinance: ticker 404s and "delisted" warnings. These fire routinely
+    # for invalid tickers that bots/crawlers hit via /api/og/{ticker} and
+    # for BSE-only symbols (*-X, *-E series) that Yahoo doesn't index.
+    # They're bubbling up from inside service.get_full_analysis() — the
+    # outer try/except in the route returns a fallback, but the logged
+    # ERROR from yfinance still triggers Sentry via LoggingIntegration.
+    "possibly delisted; no price data found",
+    "Quote not found for symbol:",
+    "No data found, symbol may be delisted",
+    # yfinance curl_cffi cookie jar race — concurrent requests writing to
+    # the same _cookieschema.strategy row. Harmless; retry succeeds.
+    "UNIQUE constraint failed: _cookieschema.strategy",
+    # holdings lives in Supabase, migration 011 targets Neon pipeline DB
+    # and always fails cleanly (ALTER on non-existent table). The portfolio
+    # feature uses Supabase directly; this ALTER is a no-op that should
+    # stay a no-op. Already handled by the non-critical migration path;
+    # suppressing the Sentry noise for schema drift we've accepted.
+    'relation "holdings" does not exist',
+    # 011-related: the outer "Migration NNN failed (non-blocking)" log.
+    "Migration 011_holdings_account_label.sql failed",
+)
+
+
 def _scrub_event(event):
-    """Strip obvious secrets from Sentry events. Cheap defence-in-depth;
-    Sentry's default PII filters are stricter, this just catches our
-    specific leak shapes (JWT_SECRET, API keys) if they appear in
-    exception messages or log breadcrumbs."""
+    """Strip secrets from Sentry events AND drop known-benign noise.
+
+    Two jobs:
+      1. Redact accidentally-embedded secret strings (JWT_SECRET, API keys,
+         DATABASE_URL) before shipping to Sentry. Cheap defence-in-depth.
+      2. Return None for events matching our known-benign noise patterns
+         (see _SENTRY_NOISE_PATTERNS above). Sentry treats a None return
+         as "don't send this event" — stops the 80%+ of traffic that was
+         yfinance 404s and schema-drift noise drowning real signal.
+    """
     try:
         import re as _re
+        # ── (2) noise filter — fast exit before doing anything else ──
+        def _matches_noise(payload: str) -> bool:
+            if not payload:
+                return False
+            return any(p in payload for p in _SENTRY_NOISE_PATTERNS)
+
+        for ex in (event.get("exception", {}).get("values") or []):
+            if _matches_noise(ex.get("value", "")) or _matches_noise(ex.get("type", "")):
+                return None  # drop this event entirely
+        msg = event.get("message") or ""
+        if isinstance(msg, dict):
+            msg = msg.get("formatted") or msg.get("message") or ""
+        if _matches_noise(msg):
+            return None
+        # logentry shape (from the Logging integration)
+        logentry = event.get("logentry") or {}
+        if _matches_noise(logentry.get("message", "")) or _matches_noise(logentry.get("formatted", "")):
+            return None
+
+        # ── (1) secret scrubbing ──
         SECRET_NAMES = ("JWT_SECRET", "DATABASE_URL", "SUPABASE_SERVICE_KEY",
                         "SENDGRID_API_KEY", "GEMINI_API_KEY", "GROQ_API_KEY",
                         "FINNHUB_API_KEY", "FMP_API_KEY",
@@ -119,6 +173,8 @@ def _scrub_event(event):
             if "message" in bc:
                 bc["message"] = _clean(bc["message"])
     except Exception:
+        # Scrubber crashes must never block event delivery — if we can't
+        # scrub, send the raw event rather than silently dropping.
         pass
     return event
 

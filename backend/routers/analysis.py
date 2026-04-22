@@ -858,21 +858,31 @@ async def get_top_pick(user: dict = Depends(get_current_user)):
     """Highest conviction stock from YieldIQ 50. Never returns score 0."""
     yiq50 = await _build_yieldiq50()
 
+    # Defensive: `_build_yieldiq50` can return a bare dict or a cached
+    # JSONResponse on rare fallback paths (e.g. a stale raw-cache entry
+    # that failed ScreenerResponse rehydration). Guard against both
+    # rather than crash with 'JSONResponse' object has no attribute 'results'.
+    results = getattr(yiq50, "results", None)
+    if results is None and isinstance(yiq50, dict):
+        results = yiq50.get("results")
+    if not results:
+        return None
+
     # Filter for valid high-conviction stocks
     valid = [
-        r for r in yiq50.results
-        if r.score > 50 and r.margin_of_safety > 5
+        r for r in results
+        if getattr(r, "score", 0) > 50 and getattr(r, "margin_of_safety", 0) > 5
     ]
 
     if valid:
         # Sort by combined conviction: 60% score + 40% MoS (capped at 50)
-        best = max(valid, key=lambda r: r.score * 0.6 + min(r.margin_of_safety, 50) * 0.4)
+        best = max(valid, key=lambda r: getattr(r, "score", 0) * 0.6 + min(getattr(r, "margin_of_safety", 0), 50) * 0.4)
         return {
-            "ticker": best.ticker,
-            "company_name": best.company_name,
-            "score": best.score,
-            "mos": best.margin_of_safety,
-            "moat": best.moat,
+            "ticker": getattr(best, "ticker", ""),
+            "company_name": getattr(best, "company_name", ""),
+            "score": getattr(best, "score", 0),
+            "mos": getattr(best, "margin_of_safety", 0),
+            "moat": getattr(best, "moat", ""),
             "summary": "",
         }
 
@@ -1020,15 +1030,32 @@ async def get_chart_data(
     prices: list[dict] = []
     _clean = ticker.replace(".NS", "").replace(".BO", "")
 
+    # Helper to guard against NaN/inf leaking into JSON. `float(nan)`
+    # round-trips fine in Python but FastAPI's JSONEncoder raises
+    # "Out of range float values are not JSON compliant: nan" on
+    # serialize. Sentry was catching ~36 events/week from this on
+    # chart-data alone. Return None for non-finite values so the
+    # frontend can render a gap in the line chart cleanly.
+    import math as _math
+    def _num(v):
+        try:
+            f = float(v)
+            return round(f, 2) if _math.isfinite(f) else None
+        except (TypeError, ValueError):
+            return None
+
     # 1. Parquet (primary)
     try:
         from data_pipeline.nse_prices.db_integration import get_price_history
         df = get_price_history(_clean, _days)
         if df is not None and not df.empty:
             for _, row in df.iterrows():
+                _p = _num(row["close"])
+                if _p is None:
+                    continue  # skip rows with NaN close
                 prices.append({
                     "date": str(row["date"])[:10],
-                    "price": round(float(row["close"]), 2),
+                    "price": _p,
                 })
     except Exception:
         pass
@@ -1053,11 +1080,12 @@ async def get_chart_data(
                         {"t": _clean, "start": _start},
                     ).mappings().all()
                     for r in rows:
-                        if r["close_price"] is None:
+                        _p = _num(r["close_price"])
+                        if _p is None:
                             continue
                         prices.append({
                             "date": str(r["trade_date"])[:10],
-                            "price": round(float(r["close_price"]), 2),
+                            "price": _p,
                         })
                 finally:
                     try:
@@ -1088,9 +1116,12 @@ async def get_chart_data(
             if hist is not None and not hist.empty:
                 hist = hist.reset_index()
                 for _, row in hist.iterrows():
+                    _p = _num(row["Close"])
+                    if _p is None:
+                        continue
                     prices.append({
                         "date": row["Date"].strftime("%Y-%m-%d"),
-                        "price": round(float(row["Close"]), 2),
+                        "price": _p,
                     })
         except Exception:
             pass  # prices stays empty → frontend falls back to mock
@@ -1106,18 +1137,24 @@ async def get_chart_data(
         income_df = collector.get_income_history()
         if income_df is not None and not income_df.empty:
             for _, row in income_df.iterrows():
+                _v = _num(row.get("revenue", 0))
+                if _v is None:
+                    continue
                 revenue_list.append({
                     "year": str(row.get("year", "")),
-                    "value": round(float(row.get("revenue", 0))),
+                    "value": round(_v),
                 })
 
         fcf_list: list[dict] = []
         cf_df = collector.get_cashflow_history()
         if cf_df is not None and not cf_df.empty:
             for _, row in cf_df.iterrows():
+                _v = _num(row.get("fcf", 0))
+                if _v is None:
+                    continue
                 fcf_list.append({
                     "year": str(row.get("year", "")),
-                    "value": round(float(row.get("fcf", 0))),
+                    "value": round(_v),
                 })
 
         if revenue_list or fcf_list:
