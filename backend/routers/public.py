@@ -1675,24 +1675,24 @@ async def screener_query(
 
     sql = f"""
         WITH latest_ratio AS (
-          SELECT DISTINCT ON (ticker) ticker, pe_ratio, pb_ratio, ev_ebitda,
-                 roe, roce, de_ratio
+          -- ratio_history owns ROE / ROCE / D-E etc. It does NOT carry
+          -- pe_ratio / pb_ratio / ev_ebitda — those live on market_metrics
+          -- (see data_pipeline/models.py::MarketMetrics). Previous query
+          -- referenced rh.pe_ratio/rh.pb_ratio/rh.ev_ebitda and raised
+          -- psycopg2 UndefinedColumn (pgcode 42703) on every request.
+          SELECT DISTINCT ON (ticker) ticker, roe, roce, de_ratio
           FROM ratio_history
           WHERE period_type='annual'
           ORDER BY ticker, period_end DESC
         ),
         latest_mm AS (
-          -- NOTE (P0-#1 follow-up, 2026-04-22): `market_metrics` does NOT
-          -- carry `close_price` (see data_pipeline/models.py::MarketMetrics —
-          -- that column lives on `daily_prices`). The previous query
-          -- referenced mm.close_price and raised psycopg2 UndefinedColumn
-          -- (pgcode 42703) on every single /public/screener/query request,
-          -- which mapped to HTTP 400 "rejected by DB" in the frontend. Pull
-          -- market_cap from market_metrics, price from daily_prices, and
-          -- LEFT-JOIN the two on ticker so the public response contract
-          -- keeps both columns.
+          -- market_metrics owns market_cap_cr + pe/pb/ev-ebitda ratios.
+          -- close_price lives on daily_prices. LATERAL-JOIN the latest
+          -- price onto each ticker so the public contract keeps both.
           SELECT DISTINCT ON (mm.ticker)
-                 mm.ticker, mm.market_cap_cr, dp.close_price
+                 mm.ticker, mm.market_cap_cr,
+                 mm.pe_ratio, mm.pb_ratio, mm.ev_ebitda,
+                 dp.close_price
           FROM market_metrics mm
           LEFT JOIN LATERAL (
             SELECT close_price FROM daily_prices dp2
@@ -1708,7 +1708,7 @@ async def screener_query(
           ORDER BY ticker, date DESC
         )
         SELECT s.ticker, s.company_name, s.sector,
-               rh.pe_ratio, rh.pb_ratio, rh.ev_ebitda,
+               mm.pe_ratio, mm.pb_ratio, mm.ev_ebitda,
                rh.roe, rh.roce, rh.de_ratio,
                mm.market_cap_cr, mm.close_price,
                fv.mos_pct AS mos, fv.confidence AS score, fv.verdict, fv.fair_value
