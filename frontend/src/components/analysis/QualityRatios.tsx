@@ -159,13 +159,20 @@ function ShareholdingBar({
     )
   }
 
+  // Only include FII / DII rows when the server actually reported a
+  // value. Defaulting missing fields to 0 renders as "FII 0.0%" which
+  // reads as "no foreign holders" — misleading for blue-chips where
+  // the data just wasn't wired through. Hide instead of faking.
   const segments: Segment[] = [
     { label: "Promoter", pct: p,             color: "bg-blue-500" },
-    { label: "FII",      pct: f ?? 0,        color: "bg-purple-500" },
-    { label: "DII",      pct: d ?? 0,        color: "bg-cyan-500" },
+    ...(f !== null ? [{ label: "FII",    pct: f,       color: "bg-purple-500" }] : []),
+    ...(d !== null ? [{ label: "DII",    pct: d,       color: "bg-cyan-500" }]   : []),
     { label: "Public",   pct: pub ?? 0,      color: "bg-border" },
   ]
   const total = segments.reduce((s, x) => s + x.pct, 0)
+  const legendCols = segments.length === 4 ? "grid-cols-4"
+                    : segments.length === 3 ? "grid-cols-3"
+                    : "grid-cols-2"
 
   return (
     <div className="space-y-2">
@@ -182,7 +189,7 @@ function ShareholdingBar({
       </div>
 
       {/* Legend */}
-      <div className="grid grid-cols-4 gap-2 text-[10px]">
+      <div className={cn("grid gap-2 text-[10px]", legendCols)}>
         {segments.map(seg => (
           <div key={seg.label} className="flex items-center gap-1">
             <span className={cn("h-2 w-2 rounded-full", seg.color)} aria-hidden />

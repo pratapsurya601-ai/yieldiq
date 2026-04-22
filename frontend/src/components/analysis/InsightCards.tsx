@@ -29,153 +29,14 @@ interface CardData {
   metricKey?: string
 }
 
-// ── Helpers for the four financial-ratio cards ───────────────
-// Centralised so the JSX stays readable and the thresholds match
-// the product spec (ROCE / Debt-EBITDA / Interest Coverage bands).
-//
-// For banks (isBankLike=true), the three leverage/return-on-capital
-// cards don't apply — we show a banker's note pointing the user at
-// the Prism axis that DOES answer the equivalent question for a
-// bank, per feat/bank-prism-metrics (2026-04-21).
-function _roceCard(
-  roce: number | null | undefined,
-  isBankLike: boolean = false,
-): CardData {
-  if (isBankLike) {
-    return {
-      title: "ROCE",
-      value: "\u2014",
-      subtitle: "Not applicable \u2014 banks use capital adequacy, not capital employed. See Safety axis \u2192",
-      color: "text-caption",
-      icon: "\u{1f4c8}",
-      borderColor: "border-l-border",
-      disabled: true,
-      tooltip: "Return on Capital Employed is a non-financial metric \u2014 capital adequacy (Tier-1 / CAR) is the right safety proxy for a bank.",
-      metricKey: "car",
-    }
-  }
-  if (roce === null || roce === undefined) {
-    return {
-      title: "ROCE",
-      value: "\u2014",
-      subtitle: "Awaiting data \u2014 updates weekly",
-      color: "text-caption",
-      icon: "\u{1f4c8}",
-      borderColor: "border-l-border",
-      tooltip: "Return on Capital Employed \u2014 how efficiently the business turns capital into earnings.",
-      metricKey: "roce",
-    }
-  }
-  const band =
-    roce > 20 ? { c: "text-green-700", b: "border-l-green-500", label: "Excellent" }
-    : roce >= 15 ? { c: "text-blue-700", b: "border-l-blue-500", label: "Healthy" }
-    : roce >= 10 ? { c: "text-amber-700", b: "border-l-amber-500", label: "Moderate" }
-    : { c: "text-red-700", b: "border-l-red-500", label: "Weak" }
-  return {
-    title: "ROCE",
-    value: `${roce.toFixed(1)}%`,
-    subtitle: band.label,
-    color: band.c,
-    icon: "\u{1f4c8}",
-    borderColor: band.b,
-    tooltip: "Return on Capital Employed \u2014 how efficiently the business turns capital into earnings.",
-    metricKey: "roce",
-  }
-}
-
-function _debtEbitdaCard(
-  debtEbitda: number | null | undefined,
-  label: string | null | undefined,
-  isBankLike: boolean,
-): CardData {
-  if (isBankLike) {
-    return {
-      title: "Debt / EBITDA",
-      value: "\u2014",
-      subtitle: "Not applicable \u2014 deposits aren\u2019t debt. See Safety axis \u2192",
-      color: "text-caption",
-      icon: "\u2696\ufe0f",
-      borderColor: "border-l-border",
-      disabled: true,
-      tooltip: "Debt / EBITDA treats liabilities as borrowings. For a bank, deposits fund the business \u2014 they aren\u2019t debt in the corporate-finance sense.",
-      metricKey: "debt_ebitda",
-    }
-  }
-  if (debtEbitda === null || debtEbitda === undefined) {
-    return {
-      title: "Debt / EBITDA",
-      value: "\u2014",
-      subtitle: "Awaiting data \u2014 updates weekly",
-      color: "text-caption",
-      icon: "\u2696\ufe0f",
-      borderColor: "border-l-border",
-      tooltip: "Leverage ratio \u2014 how many years of EBITDA would repay all debt. Banks excluded.",
-      metricKey: "debt_ebitda",
-    }
-  }
-  const band =
-    debtEbitda < 1.0 ? { c: "text-green-700", b: "border-l-green-500", label: "Excellent" }
-    : debtEbitda < 2.5 ? { c: "text-blue-700", b: "border-l-blue-500", label: "Healthy" }
-    : debtEbitda < 4.0 ? { c: "text-amber-700", b: "border-l-amber-500", label: "Leveraged" }
-    : { c: "text-red-700", b: "border-l-red-500", label: "High Risk" }
-  return {
-    title: "Debt / EBITDA",
-    value: `${debtEbitda.toFixed(1)}x`,
-    subtitle: label ?? band.label,
-    color: band.c,
-    icon: "\u2696\ufe0f",
-    borderColor: band.b,
-    tooltip: "Leverage ratio \u2014 how many years of EBITDA would repay all debt. Banks excluded.",
-    metricKey: "debt_ebitda",
-  }
-}
-
-function _interestCoverageCard(
-  ic: number | null | undefined,
-  isBankLike: boolean,
-): CardData {
-  if (isBankLike) {
-    return {
-      title: "Interest Coverage",
-      value: "\u2014",
-      subtitle: "Not applicable \u2014 for banks, interest is revenue. See Quality axis \u2192",
-      color: "text-caption",
-      icon: "\u{1f6e1}\ufe0f",
-      borderColor: "border-l-border",
-      disabled: true,
-      tooltip: "Interest Coverage measures how many times operating profit covers interest expense. For a bank, interest earned IS the revenue line \u2014 the ratio is nonsensical.",
-      metricKey: "interest_coverage",
-    }
-  }
-  if (ic === null || ic === undefined) {
-    return {
-      title: "Interest Coverage",
-      value: "\u2014",
-      subtitle: "Awaiting data \u2014 updates weekly",
-      color: "text-caption",
-      icon: "\u{1f6e1}\ufe0f",
-      borderColor: "border-l-border",
-      tooltip: "How many times operating profit covers interest expense. Banks excluded.",
-      metricKey: "interest_coverage",
-    }
-  }
-  const band =
-    ic > 5 ? { c: "text-green-700", b: "border-l-green-500", label: "Strong" }
-    : ic >= 2 ? { c: "text-blue-700", b: "border-l-blue-500", label: "Adequate" }
-    : ic >= 1 ? { c: "text-amber-700", b: "border-l-amber-500", label: "Weak" }
-    : { c: "text-red-700", b: "border-l-red-500", label: "Distressed" }
-  return {
-    title: "Interest Coverage",
-    value: `${ic.toFixed(1)}x`,
-    subtitle: band.label,
-    color: band.c,
-    icon: "\u{1f6e1}\ufe0f",
-    borderColor: band.b,
-    tooltip: "How many times operating profit covers interest expense. Banks excluded.",
-    metricKey: "interest_coverage",
-  }
-}
-
+// ── Helpers for the financial-ratio cards ────────────────────
+// NOTE (2026-04-22, fix/day2-stockdetail): ROCE / Debt-EBITDA /
+// Interest Coverage cards used to live here too. They duplicated
+// the same three ratios in QualityRatios.tsx (Quality tab), so
+// users saw each metric twice on every stock page. The generic
+// set is now owned solely by QualityRatios; InsightCards keeps
+// only the promoter card because it frames ownership/alignment,
+// not a "quality ratio".
 function _promoterCard(
   promoterPct: number | null | undefined,
   pledgePct: number | null | undefined,
@@ -213,36 +74,19 @@ function _promoterCard(
   }
 }
 
-export default function InsightCards({ quality, insights, valuation, currency = "INR", sector = "", ticker = "" }: InsightCardsProps) {
+export default function InsightCards({ quality, insights, valuation, currency = "INR" }: InsightCardsProps) {
   // Separate genuine business red flags from model/data warnings
   const MODEL_WARNING_PATTERNS = /missing|using default|estimated|no data|unavailable|not available|insufficient/i
   const businessFlags = (insights.red_flags || []).filter((f) => !MODEL_WARNING_PATTERNS.test(f))
   const modelWarnings = (insights.red_flags || []).filter((f) => MODEL_WARNING_PATTERNS.test(f))
 
-  // Banks / NBFCs — mirror the backend rule so the frontend never
-  // promises a computation for tickers the backend deliberately
-  // returned None for.
-  const _sectorLC = (sector || "").toLowerCase()
-  const _tkrUpper = (ticker || "").toUpperCase()
-  const isBankLike =
-    _sectorLC.includes("bank") ||
-    _sectorLC.includes("financial") ||
-    _tkrUpper.endsWith("BANK.NS") ||
-    _tkrUpper.endsWith("BANK.BO")
-
-  // Prefer the authoritative backend flag (quality.is_bank, 2026-04-21).
-  // Fall back to the string heuristic for back-compat with any payload
-  // that predates the new field.
-  const isBankFromBackend = quality.is_bank === true
-  const isBank = isBankFromBackend || isBankLike
-
+  // Secondary "Ownership" strip — the ROCE / Debt-EBITDA / Interest
+  // Coverage cards that used to live beside this one were removed
+  // on 2026-04-22 because they duplicated QualityRatios exactly.
   const ratioCards: CardData[] = useMemo(() => [
-    _roceCard(quality.roce, isBank),
-    _debtEbitdaCard(quality.debt_ebitda, quality.debt_ebitda_label, isBank),
-    _interestCoverageCard(quality.interest_coverage, isBank),
     _promoterCard(quality.promoter_pct, quality.promoter_pledge_pct),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [quality.roce, quality.debt_ebitda, quality.debt_ebitda_label, quality.interest_coverage, quality.promoter_pct, quality.promoter_pledge_pct, isBank])
+  ], [quality.promoter_pct, quality.promoter_pledge_pct])
 
   const cards: CardData[] = useMemo(() => [
     {
@@ -408,11 +252,12 @@ export default function InsightCards({ quality, insights, valuation, currency = 
         ))}
       </div>
 
-      {/* Financial ratios — kept in a labelled secondary section so
-          the primary 7-card grid stays readable on mobile (2 cols)
-          rather than spilling into an 11-card tile wall. */}
+      {/* Ownership — secondary strip. Originally held the four
+          "financial ratios" (ROCE / Debt-EBITDA / Interest Coverage
+          / Promoter) but the first three were deduped into
+          QualityRatios on 2026-04-22; only ownership remains here. */}
       <div className="pt-2">
-        <p className="text-xs font-semibold text-caption mb-2 px-1">Financial Ratios</p>
+        <p className="text-xs font-semibold text-caption mb-2 px-1">Ownership</p>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           {ratioCards.map((card) => (
             <div
