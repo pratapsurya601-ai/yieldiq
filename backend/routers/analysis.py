@@ -717,6 +717,17 @@ async def _build_yieldiq50() -> ScreenerResponse:
     # 3rd source: query fair_value_history + stocks directly from DB
     # so YieldIQ 50 always has the actual top-50 by score, even on a
     # cold cache.
+    #
+    # 2026-04-22 P0-#2/#3 fix: the DB fallback previously surfaced
+    # negative-MoS rows and micro-caps with blown-up MoS (e.g. ADSL
+    # +164%, NAM-INDIA -73%) into the "top undervalued" rail. Two
+    # guardrails now applied at the SQL layer:
+    #   - require mos_pct strictly > 0 AND verdict NOT IN bad-list
+    #   - require market_cap_cr >= 1000 (small-cap floor) — micro-caps
+    #     with tiny denominators produce unreliable DCF outputs that
+    #     should not anchor the headline Discover rail.
+    # Extra in-Python |mos|<=100 clamp catches any rows that slipped
+    # past the SQL market-cap check (e.g. missing market_metrics row).
     if len(by_ticker) < 50:
         try:
             from data_pipeline.db import Session as _S
@@ -730,17 +741,31 @@ async def _build_yieldiq50() -> ScreenerResponse:
                             ticker, fair_value, price, mos_pct, verdict
                           FROM fair_value_history
                           ORDER BY ticker, date DESC
+                        ),
+                        latest_mm AS (
+                          SELECT DISTINCT ON (ticker)
+                            ticker, market_cap_cr
+                          FROM market_metrics
+                          ORDER BY ticker, date DESC
                         )
                         SELECT
                           fv.ticker,
                           s.company_name,
                           s.sector,
                           fv.mos_pct,
-                          fv.verdict
+                          fv.verdict,
+                          mm.market_cap_cr
                         FROM latest_fv fv
                         JOIN stocks s ON s.ticker = fv.ticker
+                        LEFT JOIN latest_mm mm ON mm.ticker = fv.ticker
                         WHERE fv.mos_pct IS NOT NULL
+                          AND fv.mos_pct > 0
+                          AND fv.mos_pct <= 100
                           AND s.is_active = TRUE
+                          AND (fv.verdict IS NULL OR fv.verdict NOT IN (
+                            'avoid','under_review','data_limited','overvalued'
+                          ))
+                          AND COALESCE(mm.market_cap_cr, 0) >= 1000
                         ORDER BY fv.mos_pct DESC NULLS LAST
                         LIMIT 80
                     """)).fetchall()
@@ -752,6 +777,11 @@ async def _build_yieldiq50() -> ScreenerResponse:
                         # synthesize a reasonable proxy from MoS so the
                         # row renders without "—".
                         mos = float(r[3]) if r[3] is not None else 0.0
+                        # Defensive clamp — SQL already filters |mos|<=100
+                        # but belt-and-braces for any historical row that
+                        # slipped through with a stale unclamped value.
+                        if not (0 < mos <= 100):
+                            continue
                         synth_score = min(95, max(35, int(50 + mos * 0.5)))
                         by_ticker[t] = ScreenerStock(
                             ticker=t,
@@ -762,8 +792,7 @@ async def _build_yieldiq50() -> ScreenerResponse:
                             sector=r[2] or None,
                             verdict=r[4] or (
                                 "undervalued" if mos > 10
-                                else "fairly_valued" if mos > -10
-                                else "overvalued"
+                                else "fairly_valued"
                             ),
                         )
                         if len(by_ticker) >= 50:
@@ -808,7 +837,44 @@ async def _build_yieldiq50() -> ScreenerResponse:
             # Best-effort — keep the pre-override row from the source merge
             continue
 
-    stocks = sorted(by_ticker.values(), key=lambda x: x.score, reverse=True)[:50]
+    # ── P0-#2/#3 integrity filter (2026-04-22) ─────────────────
+    # The YieldIQ 50 is shipped to Discover as the "top undervalued
+    # picks" rail. It must never surface:
+    #   - negative-MoS stocks (the model says OVERvalued)
+    #   - |MoS| > 100% (micro-cap DCF blow-ups with tiny FV or price
+    #     denominators — ADSL +164%, INDIANHUME +100% etc.)
+    #   - verdicts that explicitly say "don't trust this":
+    #     avoid / under_review / data_limited / overvalued
+    #   - micro-caps < ₹1,000 Cr (FV volatility dominates in this
+    #     bucket; better to hide than to rank #1)
+    # ScreenerStock has no market_cap field, so the micro-cap gate is
+    # enforced upstream in the fair_value_history SQL + by preferring
+    # the analysis_cache override (which only exists for analysed
+    # tickers that have passed the per-ticker validator). If a
+    # ScreenerStock reaches this point with |mos|>100 or a bad
+    # verdict, drop it unconditionally.
+    _BAD_VERDICTS = {"avoid", "under_review", "data_limited", "overvalued"}
+    def _ok_for_top50(s: "ScreenerStock") -> bool:
+        try:
+            mos = float(s.margin_of_safety)
+        except Exception:
+            return False
+        if not (0 < mos <= 100):
+            return False
+        if (s.verdict or "").lower() in _BAD_VERDICTS:
+            return False
+        return True
+
+    _filtered = [s for s in by_ticker.values() if _ok_for_top50(s)]
+    # Sort by MoS descending — the user-facing rail is "top
+    # undervalued" so MoS is the honest primary sort key. Tie-break
+    # by score for stability. The previous sort by score alone was
+    # the sort-key bug that surfaced -50%/-73% MoS stocks at #2/#3.
+    stocks = sorted(
+        _filtered,
+        key=lambda x: (x.margin_of_safety, x.score),
+        reverse=True,
+    )[:50]
     result = ScreenerResponse(results=stocks, total=len(stocks))
     if stocks:
         # PR-DISCOVER-CONSISTENCY: TTL was 24h. Audit found Discover
