@@ -209,9 +209,14 @@ def _query_preset_from_db(preset: str, page: int = 1,
                 except Exception:
                     pass
                 full_ticker = _ticker if "." in _ticker else f"{_ticker}.NS"
-                if filter_fn(score, mos, moat, pe) and full_ticker not in seen_tickers:
+                # Dedup by bare ticker (strip .NS/.BO) so NSE+BSE listings
+                # of the same company and raw-vs-suffixed cache entries
+                # can't both be counted. Pre-fix this was producing
+                # 899 > 550-Nifty-500-universe in prod.
+                _dedup_key = full_ticker.split(".")[0]
+                if filter_fn(score, mos, moat, pe) and _dedup_key not in seen_tickers:
                     candidates.append((full_ticker, score, mos))
-                    seen_tickers.add(full_ticker)
+                    seen_tickers.add(_dedup_key)
         except Exception as _exc:
             logger.info("analysis_cache scan skipped: %s", _exc)
 
@@ -236,9 +241,10 @@ def _query_preset_from_db(preset: str, page: int = 1,
             except Exception:
                 pe = None
 
-            if filter_fn(score, mos, moat, pe) and val.ticker not in seen_tickers:
+            _dedup_key2 = val.ticker.split(".")[0]
+            if filter_fn(score, mos, moat, pe) and _dedup_key2 not in seen_tickers:
                 candidates.append((val.ticker, score, mos))
-                seen_tickers.add(val.ticker)
+                seen_tickers.add(_dedup_key2)
 
         # Sort by score (descending) then MoS
         candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
@@ -291,8 +297,17 @@ async def run_preset(
     preset_name: str,
     user: dict = Depends(get_current_user),
 ):
-    """Run a pre-built screener preset. Available to all users."""
-    stocks, total = _query_preset_from_db(preset_name)
+    """Run a pre-built screener preset. Available to all users.
+
+    Frontend sends slug-style preset names with dashes
+    (``deep-value``, ``growth-quality``) — the in-memory filter dispatch
+    below keys on underscores (``deep_value``, ``growth_quality``).
+    Without this normalisation, BOTH slugs fell through to ``_is_custom``
+    (``score >= 30``) and returned an identical, over-inflated count
+    (899/899 in prod on 2026-04-22). Fixes P0-#5 on the Day-1 audit.
+    """
+    api_preset = preset_name.replace("-", "_")
+    stocks, total = _query_preset_from_db(api_preset)
 
     return ScreenerResponse(
         results=stocks, total=total, page=1, page_size=25,

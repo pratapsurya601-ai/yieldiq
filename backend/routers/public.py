@@ -1596,6 +1596,17 @@ async def screener_query(
         return cached
 
     # ── parse filters ──────────────────────────────────────────────
+    # NOTE (P0-#1 fix, 2026-04-22): fair_value_history real columns are
+    # ``mos_pct`` (not ``mos``) and there is NO ``score`` column — the
+    # authoritative schema is in scripts/migrate.py::create_fair_value_history
+    # and backend/routers/analysis.py line 730. The previous mapping
+    # pointed ``fv.mos``/``fv.score`` at non-existent columns, so EVERY
+    # call to this endpoint raised ``psycopg2.errors.UndefinedColumn``
+    # and returned HTTP 500 — which the frontend swallowed as
+    # "No stocks match", falsely telling users no cheap-and-quality
+    # stocks exist. We map ``mos`` -> ``mos_pct`` and retire ``score``
+    # (confidence is the closest persisted analogue; expose it so the
+    # public /screener/fields contract still has 10 fields).
     _ALLOWED_FIELDS: dict[str, str] = {
         "pe_ratio":       "rh.pe_ratio",
         "pb_ratio":       "rh.pb_ratio",
@@ -1605,8 +1616,8 @@ async def screener_query(
         "de_ratio":       "rh.de_ratio",
         "market_cap_cr":  "mm.market_cap_cr",
         "mcap":           "mm.market_cap_cr",   # alias
-        "mos":            "fv.mos",
-        "score":          "fv.score",
+        "mos":            "fv.mos_pct",
+        "score":          "fv.confidence",
         "sector":         "s.sector",
     }
     _ALLOWED_OPS = {"<", ">", "<=", ">=", "=", "!="}
@@ -1645,15 +1656,15 @@ async def screener_query(
     sort_col = sort.lstrip("-")
     sort_dir = "DESC" if sort.startswith("-") or sort in ("mos", "score") else "ASC"
     _SORT_MAP = {
-        "mos": "fv.mos DESC NULLS LAST",
-        "score": "fv.score DESC NULLS LAST",
+        "mos": "fv.mos_pct DESC NULLS LAST",
+        "score": "fv.confidence DESC NULLS LAST",
         "market_cap_cr": "mm.market_cap_cr DESC NULLS LAST",
         "pe_ratio": "rh.pe_ratio ASC NULLS LAST",
         "roe": "rh.roe DESC NULLS LAST",
         "roce": "rh.roce DESC NULLS LAST",
         "ticker": "s.ticker ASC",
     }
-    order_by = _SORT_MAP.get(sort_col, "fv.mos DESC NULLS LAST")
+    order_by = _SORT_MAP.get(sort_col, "fv.mos_pct DESC NULLS LAST")
 
     # ── query ──────────────────────────────────────────────────────
     import os
@@ -1676,7 +1687,7 @@ async def screener_query(
           ORDER BY ticker, trade_date DESC
         ),
         latest_fv AS (
-          SELECT DISTINCT ON (ticker) ticker, mos, score, verdict, fair_value
+          SELECT DISTINCT ON (ticker) ticker, mos_pct, confidence, verdict, fair_value
           FROM fair_value_history
           ORDER BY ticker, date DESC
         )
@@ -1684,7 +1695,7 @@ async def screener_query(
                rh.pe_ratio, rh.pb_ratio, rh.ev_ebitda,
                rh.roe, rh.roce, rh.de_ratio,
                mm.market_cap_cr, mm.close_price,
-               fv.mos, fv.score, fv.verdict, fv.fair_value
+               fv.mos_pct AS mos, fv.confidence AS score, fv.verdict, fv.fair_value
         FROM stocks s
         LEFT JOIN latest_ratio rh ON rh.ticker = s.ticker
         LEFT JOIN latest_mm mm    ON mm.ticker = s.ticker
@@ -1695,42 +1706,90 @@ async def screener_query(
     """
     params = where_params + [limit, offset]
 
-    conn = psycopg2.connect(url)
+    # Defensive DB execution (P0-#1 fix 2026-04-22):
+    # Historically any psycopg2 error on a new filter combination bubbled
+    # as a raw 500, which the frontend swallowed into the "No stocks
+    # match" empty state — making users believe no cheap-and-quality
+    # stocks exist. We now translate driver-level errors into a 400 with
+    # the offending filter set so (a) the frontend can show a distinct
+    # "screener failed" message and (b) the error surfaces in Sentry
+    # with enough context to debug. True DB-outage errors still 503.
     try:
-        cur = conn.cursor()
-        cur.execute(sql, params)
-        cols = [d[0] for d in cur.description]
-        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        conn = psycopg2.connect(url)
+    except Exception as _conn_exc:
+        logger.warning("screener DB connect failed: %s", _conn_exc)
+        raise HTTPException(status_code=503, detail="DB unavailable") from _conn_exc
+    try:
+        try:
+            cur = conn.cursor()
+            cur.execute(sql, params)
+            cols = [d[0] for d in cur.description]
+            rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+        except psycopg2.Error as _pg_exc:
+            # Roll back so the connection can be reused for the count
+            # query — but we're closing immediately anyway in finally.
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            logger.warning(
+                "screener query failed (filters=%r sort=%r): %s",
+                filters, sort, _pg_exc,
+            )
+            # pgcode 22xxx = data exception (cast/overflow), 42xxx = syntax.
+            # Anything else is a genuine server problem — bubble as 500.
+            _code = getattr(_pg_exc, "pgcode", "") or ""
+            if _code.startswith(("22", "42")):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"screener query rejected by DB: {_code or 'type/syntax error'}. "
+                           f"Check filter values are numeric where expected.",
+                ) from _pg_exc
+            raise HTTPException(
+                status_code=500,
+                detail="screener query failed — try different filters",
+            ) from _pg_exc
         # Total count — MUST dedupe the joined tables just like the main
         # query above, otherwise ratio_history (multi-period) and
         # market_metrics (multi-listing) inflate COUNT(*) 2-4×. We reuse
         # the same CTE pattern as the list query so count and list stay
         # consistent. See design note in backend/routers/screener.py.
-        cur.execute(
-            f"SELECT COUNT(*) FROM ("
-            f"  WITH latest_ratio AS ("
-            f"    SELECT DISTINCT ON (ticker) ticker, pe_ratio, pb_ratio, "
-            f"           ev_ebitda, roe, roce, de_ratio "
-            f"    FROM ratio_history WHERE period_type='annual' "
-            f"    ORDER BY ticker, period_end DESC"
-            f"  ),"
-            f"  latest_mm AS ("
-            f"    SELECT DISTINCT ON (ticker) ticker, market_cap_cr, close_price "
-            f"    FROM market_metrics ORDER BY ticker, trade_date DESC"
-            f"  ),"
-            f"  latest_fv AS ("
-            f"    SELECT DISTINCT ON (ticker) ticker, mos, score, verdict, fair_value "
-            f"    FROM fair_value_history ORDER BY ticker, date DESC"
-            f"  )"
-            f"  SELECT 1 FROM stocks s "
-            f"  LEFT JOIN latest_ratio rh ON rh.ticker = s.ticker "
-            f"  LEFT JOIN latest_mm mm    ON mm.ticker = s.ticker "
-            f"  LEFT JOIN latest_fv fv    ON fv.ticker = s.ticker "
-            f"  WHERE {' AND '.join(where_clauses)}"
-            f") _sub",
-            where_params,
-        )
-        total = cur.fetchone()[0]
+        try:
+            cur.execute(
+                f"SELECT COUNT(*) FROM ("
+                f"  WITH latest_ratio AS ("
+                f"    SELECT DISTINCT ON (ticker) ticker, pe_ratio, pb_ratio, "
+                f"           ev_ebitda, roe, roce, de_ratio "
+                f"    FROM ratio_history WHERE period_type='annual' "
+                f"    ORDER BY ticker, period_end DESC"
+                f"  ),"
+                f"  latest_mm AS ("
+                f"    SELECT DISTINCT ON (ticker) ticker, market_cap_cr, close_price "
+                f"    FROM market_metrics ORDER BY ticker, trade_date DESC"
+                f"  ),"
+                f"  latest_fv AS ("
+                f"    SELECT DISTINCT ON (ticker) ticker, mos_pct, confidence, verdict, fair_value "
+                f"    FROM fair_value_history ORDER BY ticker, date DESC"
+                f"  )"
+                f"  SELECT 1 FROM stocks s "
+                f"  LEFT JOIN latest_ratio rh ON rh.ticker = s.ticker "
+                f"  LEFT JOIN latest_mm mm    ON mm.ticker = s.ticker "
+                f"  LEFT JOIN latest_fv fv    ON fv.ticker = s.ticker "
+                f"  WHERE {' AND '.join(where_clauses)}"
+                f") _sub",
+                where_params,
+            )
+            total = cur.fetchone()[0]
+        except psycopg2.Error as _pg_exc2:
+            # Row query already succeeded — fall back to the returned
+            # row count as a best-effort total so the user at least sees
+            # their matches. Don't fail the whole request over a count.
+            logger.warning("screener count query failed: %s", _pg_exc2)
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            total = len(rows)
     finally:
         conn.close()
 
