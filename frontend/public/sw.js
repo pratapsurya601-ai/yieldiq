@@ -1,61 +1,89 @@
-// YieldIQ service worker — stale-while-revalidate for read-mostly PUBLIC API routes.
+// YieldIQ service worker — installable-PWA build (v2).
 //
-// Contract: this SW only caches GET requests to PUBLIC endpoints (no Authorization
-// header). Authed routes are passed straight through to the network — this avoids
-// cross-user cache leakage on shared devices.
+// Design goals (deliberately minimal):
+//   1. Navigation requests: network-first, fall back to /offline on failure.
+//      This is what makes the PWA feel like a real app when the network
+//      goes away mid-session. No stale HTML served to logged-in users.
+//   2. Static app shell (/_next/static/*, /favicon*, /icon-*, /logo*):
+//      cache-first. Content-hashed under /_next/static, so cache-first is
+//      safe forever — old hashes simply never get requested again.
+//   3. API calls (api.yieldiq.in/*, /api/*): PASS-THROUGH. We do not cache
+//      backend responses at the SW layer. Prices, valuations, and user
+//      data must come from origin. React Query handles in-memory caching
+//      at the app layer.
+//   4. Activate: nuke any cache not named CACHE_NAME so bumping the version
+//      invalidates the previous SW's caches atomically.
 //
-// Skip SW-caching for:
-//   - Non-GET methods (mutations)
-//   - Any request carrying an Authorization header (user-specific)
-//   - /api/v1/admin/*, /api/v1/auth/*, /api/v1/watchlist, /api/v1/portfolio
-//
-// Cache version: bump the suffix (v1 -> v2) to force-invalidate all cached entries.
-const CACHE_NAME = 'yieldiq-api-v1'
+// Bumping: change CACHE_NAME's suffix (v2 -> v3) to force every client to
+// drop its caches on next activation. This is the escape hatch if a stale
+// asset gets baked in.
 
-// Cacheable path patterns. Applied to (pathname + search). These are all public,
-// read-mostly endpoints that don't require auth and benefit from repeat-visit warmth.
-const CACHEABLE_PATTERNS = [
-  /\/api\/v1\/analysis\/[^/?#]+(?:\?.*)?$/, // GET analysis root only (not /history, etc.)
-  /\/api\/v1\/prism\//,
-  /\/api\/v1\/public\//,
-  /\/api\/v1\/hex\//,
-  /\/api\/v1\/yieldiq50/,
+const CACHE_NAME = 'yieldiq-v2'
+
+// URL that the SW falls back to when a navigation request fails. Must be
+// a real app route rendered by /app/offline/page.tsx so that the document
+// shell is self-contained (no external fetches).
+const OFFLINE_URL = '/offline'
+
+// Static asset path prefixes we runtime-cache on first request.
+// /_next/static/* is content-hashed by Next.js so the URL itself changes
+// with every deploy — cache-first is safe.
+const STATIC_PREFIXES = [
+  '/_next/static/',
+  '/favicon',
+  '/icon-',
+  '/logo',
+  '/apple-touch-icon',
 ]
 
-// Path prefixes we always skip even if they match — belt-and-suspenders.
-const NEVER_CACHE_PREFIXES = [
-  '/api/v1/admin/',
-  '/api/v1/auth/',
-  '/api/v1/watchlist',
-  '/api/v1/portfolio',
-]
-
-self.addEventListener('install', () => {
-  // Activate immediately on first install so the page benefits on next load.
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    (async () => {
+      // Pre-cache the offline shell so it's guaranteed available even on
+      // the very first network failure after install.
+      const cache = await caches.open(CACHE_NAME)
+      try {
+        await cache.add(new Request(OFFLINE_URL, { cache: 'reload' }))
+      } catch {
+        // If pre-cache fails (e.g. route not yet deployed), proceed anyway;
+        // runtime nav handler will attempt to cache it on first successful
+        // fetch.
+      }
+    })(),
+  )
+  // Activate new SW immediately on first install.
   self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
-  // Nuke caches whose name doesn't match the current version.
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
+    (async () => {
+      // Drop any cache whose name doesn't match the current version.
+      const keys = await caches.keys()
+      await Promise.all(
         keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)),
-      ),
-    ),
+      )
+      await self.clients.claim()
+    })(),
   )
-  self.clients.claim()
 })
+
+function isStaticAsset(url) {
+  return STATIC_PREFIXES.some((p) => url.pathname.startsWith(p))
+}
+
+function isApiRequest(url) {
+  // Same-origin /api/* OR any request to the api.yieldiq.in host.
+  if (url.hostname === 'api.yieldiq.in') return true
+  if (url.pathname.startsWith('/api/')) return true
+  return false
+}
 
 self.addEventListener('fetch', (event) => {
   const { request } = event
 
-  // Fast bail-outs — never interfere with:
-  //   - non-GET (mutations)
-  //   - authed requests (bearer token present)
-  //   - anything on a different origin (let browser handle)
+  // Only handle GET. Mutations must always hit the network.
   if (request.method !== 'GET') return
-  if (request.headers.get('authorization')) return
 
   let url
   try {
@@ -64,38 +92,68 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // Only handle same-origin-style API calls — allow any origin, but the
-  // pathname has to look like our API surface.
-  const pathAndSearch = url.pathname + url.search
+  // API requests: pass-through. We never cache backend responses —
+  // stale prices on a shared device are worse than a network round-trip.
+  if (isApiRequest(url)) return
 
-  if (NEVER_CACHE_PREFIXES.some((p) => url.pathname.startsWith(p))) return
-  if (!CACHEABLE_PATTERNS.some((p) => p.test(pathAndSearch))) return
+  // Navigation requests (HTML documents): network-first, fall back to
+  // the pre-cached /offline shell. `request.mode === 'navigate'` is the
+  // canonical signal for a top-level document fetch.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      (async () => {
+        try {
+          const fresh = await fetch(request)
+          return fresh
+        } catch {
+          const cache = await caches.open(CACHE_NAME)
+          const cached = await cache.match(OFFLINE_URL)
+          if (cached) return cached
+          // Absolute last-resort inline shell if /offline isn't cached
+          // for some reason. Keep it tiny and self-contained.
+          return new Response(
+            '<!doctype html><meta charset=utf-8><title>Offline</title>' +
+              '<body style="font:16px system-ui;padding:2rem;text-align:center">' +
+              "<h1>You're offline</h1>" +
+              '<p>YieldIQ needs an internet connection for live prices.</p>' +
+              '</body>',
+            { headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+          )
+        }
+      })(),
+    )
+    return
+  }
 
-  event.respondWith(
-    caches.open(CACHE_NAME).then(async (cache) => {
-      const cached = await cache.match(request)
-
-      const networkPromise = fetch(request)
-        .then((res) => {
-          // Only cache successful responses — never 4xx/5xx/opaqueredirect.
-          // Also require a basic/cors response we can actually replay.
+  // Static app shell: cache-first. Content-hashed under /_next/static.
+  if (isStaticAsset(url)) {
+    event.respondWith(
+      (async () => {
+        const cache = await caches.open(CACHE_NAME)
+        const cached = await cache.match(request)
+        if (cached) return cached
+        try {
+          const fresh = await fetch(request)
+          // Only cache successful, non-opaque responses.
           if (
-            res &&
-            res.ok &&
-            (res.type === 'basic' || res.type === 'cors' || res.type === 'default')
+            fresh &&
+            fresh.ok &&
+            (fresh.type === 'basic' || fresh.type === 'default')
           ) {
-            // Clone before cache.put; original Response stream is single-use.
-            cache.put(request, res.clone()).catch(() => {
-              // Quota / opaque errors are non-fatal.
+            cache.put(request, fresh.clone()).catch(() => {
+              // Quota errors non-fatal.
             })
           }
-          return res
-        })
-        .catch(() => cached || Response.error())
+          return fresh
+        } catch (err) {
+          // No cached copy and network is down — let the browser
+          // render its native error for this sub-resource.
+          throw err
+        }
+      })(),
+    )
+    return
+  }
 
-      // SWR: serve cached instantly if we have it; let the network refresh in
-      // the background. If no cache, we have to wait on the network.
-      return cached || networkPromise
-    }),
-  )
+  // Everything else: let the browser handle it (no SW intervention).
 })
