@@ -163,6 +163,15 @@ function ScreenerInner() {
         <p className="text-sm text-caption mt-1">
           Build a filter, run it against the full universe, save what works.
         </p>
+        {/* SEBI-safe inline disclaimer. Global TrustFooter covers this
+            too, but screened lists can easily be misread as stock
+            picks, so we surface a direct reminder on this specific
+            page. Don't remove without also updating the global footer. */}
+        <p className="text-[11px] text-caption mt-2 leading-relaxed">
+          Screener results are filter outputs from publicly available data &mdash;
+          not stock picks or investment advice. YieldIQ is not registered with
+          SEBI as an investment adviser. Form your own view.
+        </p>
       </header>
 
       {showEmptyState ? (

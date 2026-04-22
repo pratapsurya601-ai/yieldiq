@@ -1127,7 +1127,7 @@ The standard answer is the Gordon Growth formula:
 
 **Terminal Value = FCF(year 10) x (1 + g) / (r - g)**
 
-Where g is terminal growth (we suggest 4% for India) and r is the discount rate (we suggest 11-13%).
+Where g is terminal growth (industry convention: 4% for India) and r is the discount rate (industry convention: 11-13%).
 
 Terminal value is usually 60-70% of total DCF value. That is a lot. Small changes here swing fair value a lot. This is why being honest about terminal growth matters more than being precise about year 7 forecasts.
 

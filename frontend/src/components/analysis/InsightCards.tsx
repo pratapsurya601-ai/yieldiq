@@ -356,7 +356,12 @@ export default function InsightCards({ quality, insights, valuation, currency = 
         const qtyLabel = latestDeal.qty_lakh >= 1 ? `${latestDeal.qty_lakh.toFixed(1)}L` : `${Math.round(latestDeal.qty_lakh * 1e5).toLocaleString("en-IN")}`
         return {
           title: "Insider Activity",
-          value: `${latestDeal.deal_type === "BUY" ? "Buy" : "Sell"} (${latestDeal.category})`,
+          // SEBI-safe framing: the bare word "Buy"/"Sell" as a label can
+          // read like a recommendation. This is actually the transaction
+          // direction of a publicly-disclosed bulk deal — prefix with
+          // "Deal:" so it's unambiguously reporting someone else's trade,
+          // not advising the user to do the same.
+          value: `Deal: ${latestDeal.deal_type === "BUY" ? "Buy-side" : "Sell-side"} (${latestDeal.category})`,
           subtitle: `${clientShort} ${qtyLabel} @ ${currency === "INR" ? "\u20b9" : "$"}${Math.round(latestDeal.price).toLocaleString(currency === "INR" ? "en-IN" : "en-US")}`,
           color: latestDeal.deal_type === "BUY" ? "text-blue-700" : "text-red-700",
           icon: "\u{1f465}",
