@@ -160,10 +160,21 @@ async def create_order(
             # Strip market suffix so we can match on bare symbol in the
             # unlocks table (ticker may arrive as "TCS" or "TCS.NS").
             notes["ticker"] = ticker.upper().strip()
+        # Razorpay caps `receipt` at 40 chars. `user_id` is a 36-char UUID,
+        # so the original `yiq_{uuid}_{plan_id}` format blew past that
+        # (56+ chars) and every PAYG checkout failed with:
+        #   BadRequestError: receipt: the length must be no more than 40.
+        # Shortened to the first 8 hex chars of the UUID (still unique per
+        # user in practice — collision risk ~1 in 4B within a tier) and
+        # defensively truncated to 40 so a future longer `plan_id` can't
+        # reintroduce the bug. Traceability to the user is preserved via
+        # the `notes` dict (which carries the full user_id + email).
+        _uid8 = str(user["user_id"]).replace("-", "")[:8]
+        _receipt = f"yiq_{_uid8}_{plan_id}"[:40]
         order = client.order.create({
             "amount": plan["amount"],
             "currency": plan["currency"],
-            "receipt": f"yiq_{user['user_id']}_{plan_id}",
+            "receipt": _receipt,
             "notes": notes,
         })
         return {

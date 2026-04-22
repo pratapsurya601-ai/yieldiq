@@ -1,6 +1,13 @@
 import axios from "axios"
 import Cookies from "js-cookie"
 import type { AnalysisResponse, TokenResponse, MarketPulseResponse, ScreenerResponse, PortfolioHealthResponse, HoldingResponse, SectorOverviewItem, WatchlistItemResponse, AlertResponse, SuccessResponse } from "@/types/api"
+// Static import — previously a dynamic import() was used here to avoid
+// a theoretical circular with authStore, but there's no circular (authStore
+// does not import api.ts) and the async path silently dropped counter
+// updates in production: by the time the Promise resolved, the user was
+// looking at a stale "2/5 today" and had to log out and back in to see
+// the real count. Direct import runs synchronously per response.
+import { useAuthStore } from "@/store/authStore"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -12,6 +19,29 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Case-insensitive header getter. Axios normalizes to lowercase in most
+// versions, but preserves Camel-Case in a few older/middleware setups.
+// Belt-and-braces: check both common shapes.
+function _readHeader(headers: unknown, name: string): string | undefined {
+  if (!headers || typeof headers !== "object") return undefined
+  const h = headers as Record<string, unknown>
+  const lc = name.toLowerCase()
+  if (h[lc] !== undefined) return String(h[lc])
+  // Try Camel-Case (X-Analyses-Today)
+  const cc = name
+    .split("-")
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join("-")
+  if (h[cc] !== undefined) return String(h[cc])
+  // Axios occasionally exposes headers via a Headers-like object with get()
+  const g = (h as { get?: (k: string) => string | null }).get
+  if (typeof g === "function") {
+    const v = g.call(h, lc) ?? g.call(h, cc)
+    if (v !== null && v !== undefined) return String(v)
+  }
+  return undefined
+}
+
 api.interceptors.response.use(
   (res) => {
     // Backend's check_analysis_limit dependency surfaces the free-tier
@@ -20,32 +50,28 @@ api.interceptors.response.use(
     // expose_headers in backend/main.py). Mirror them into the auth
     // store so the nav widget, home page, and account page all reflect
     // the real backend state immediately — no /auth/me round-trip
-    // needed. Guarded against server-side execution (authStore is a
-    // client-only hook) and malformed headers.
-    try {
-      if (typeof window !== "undefined") {
-        const today = res.headers?.["x-analyses-today"]
-        const limit = res.headers?.["x-analyses-limit"]
+    // needed.
+    if (typeof window !== "undefined") {
+      try {
+        const today = _readHeader(res.headers, "x-analyses-today")
+        const limit = _readHeader(res.headers, "x-analyses-limit")
         if (today !== undefined || limit !== undefined) {
-          // Lazy import to avoid circular dep on module load.
-          import("@/store/authStore").then(({ useAuthStore }) => {
-            const s = useAuthStore.getState()
-            const nextToday = today !== undefined ? Number(today) : s.analysesToday
-            const nextLimit = limit !== undefined ? Number(limit) : s.analysisLimit
-            if (Number.isFinite(nextToday) && Number.isFinite(nextLimit)) {
-              useAuthStore.setState({
-                analysesToday: nextToday,
-                analysisLimit: nextLimit,
-              })
-            }
-          }).catch(() => {
-            // Store import failed — swallow; counter will update on next login.
-          })
+          const s = useAuthStore.getState()
+          const nextToday = today !== undefined ? Number(today) : s.analysesToday
+          const nextLimit = limit !== undefined ? Number(limit) : s.analysisLimit
+          if (Number.isFinite(nextToday) && Number.isFinite(nextLimit)) {
+            useAuthStore.setState({
+              analysesToday: nextToday,
+              analysisLimit: nextLimit,
+            })
+          }
         }
+      } catch (e) {
+        // Don't let a counter-sync error block the response, but log so
+        // a broken auth store is visible in prod devtools, not silent.
+        // eslint-disable-next-line no-console
+        console.warn("[api] X-Analyses header sync failed:", e)
       }
-    } catch {
-      // Any sync failure shouldn't block the response. The counter is a
-      // best-effort UI affordance, not a correctness-critical signal.
     }
     return res
   },
