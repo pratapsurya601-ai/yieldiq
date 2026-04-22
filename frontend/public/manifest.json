@@ -1,12 +1,17 @@
 {
+  "id": "yieldiq",
   "name": "YieldIQ — Stock Valuation",
   "short_name": "YieldIQ",
   "description": "Know if a stock is undervalued. Free DCF valuation for Indian stocks.",
-  "start_url": "/home",
+  "scope": "/",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#FFFFFF",
-  "theme_color": "#2563EB",
   "orientation": "portrait",
+  "background_color": "#0F172A",
+  "theme_color": "#2563EB",
+  "lang": "en-IN",
+  "categories": ["finance", "business"],
+  "prefer_related_applications": false,
   "icons": [
     {
       "src": "/icon-192.png",
@@ -33,10 +38,6 @@
       "purpose": "any"
     }
   ],
-  "categories": ["finance", "business"],
-  "lang": "en-IN",
-  "scope": "/",
-  "prefer_related_applications": false,
   "shortcuts": [
     {
       "name": "Search stocks",
