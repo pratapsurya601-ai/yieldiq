@@ -1,0 +1,312 @@
+"use client"
+
+/**
+ * PublicAnalysis — the anon fallback body for /analysis/[ticker].
+ *
+ * Renders the Prism 6-pillar view + a summary card + inline upsell CTAs
+ * in place of each gated section (AI narrative, 10-year financials,
+ * peer comparison, FV-history chart, DCF chart, reverse DCF, risk).
+ *
+ * Why this exists: the landing page advertises "Analyse any stock free /
+ * No sign-up needed" and the primary CTA lands users here. Before this
+ * component, AnalysisBody's call to `getAnalysis()` 401'd for anonymous
+ * visitors and the axios interceptor bounced them to /auth/login — the
+ * public promise collapsed. Now anons see a genuinely useful page with
+ * a clear escalation path to signup.
+ *
+ * Data source: /api/v1/prism/{ticker} is public and already returns the
+ * hex axes, verdict, fair value, price, MoS, composite score, grade,
+ * sector, and market cap — everything needed for a credible free view.
+ */
+
+import Link from "next/link"
+import { useQuery } from "@tanstack/react-query"
+import api from "@/lib/api"
+import { adaptPrismResponse } from "@/lib/prism"
+import Prism from "@/components/prism/Prism"
+import PrismSkeleton from "@/components/prism/PrismSkeleton"
+import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
+import {
+  formatCurrency,
+  formatPct,
+  formatCompanyName,
+  verdictDisplayLabel,
+} from "@/lib/utils"
+
+/**
+ * Raw Prism response shape — superset of the adapted PrismData the
+ * `<Prism>` component consumes. The summary card needs several fields
+ * (`price`, `fair_value`, `mos_pct`, `yieldiq_score_100`, `grade`,
+ * `sector`, `market_cap_cr`) that `adaptPrismResponse` drops, so we
+ * fetch the raw payload once and feed both surfaces from it.
+ */
+interface PrismRaw {
+  ticker?: string
+  company_name?: string
+  sector?: string
+  price?: number | null
+  fair_value?: number | null
+  mos_pct?: number | null
+  verdict_label?: string | null
+  yieldiq_score_100?: number | null
+  grade?: string | null
+  market_cap_cr?: number | null
+}
+
+const GATED_SECTIONS: Array<{ title: string; blurb: string }> = [
+  {
+    title: "Full DCF valuation",
+    blurb:
+      "10-year revenue + cash-flow forecast with bull/base/bear scenarios, terminal-value sensitivity, and a reverse-DCF to see what growth the market is already pricing in.",
+  },
+  {
+    title: "AI analyst summary",
+    blurb:
+      "A plain-English read of this stock's margin of safety, moat, and red flags — generated from the underlying data, not boilerplate.",
+  },
+  {
+    title: "10-year financial statements",
+    blurb:
+      "Income statement, balance sheet, and cash-flow history with quality ratios (ROE, ROCE, debt/equity) charted over time.",
+  },
+  {
+    title: "Peer comparison",
+    blurb:
+      "Sector + market-cap matched peers, side-by-side on Prism axes, valuation multiples, and growth.",
+  },
+  {
+    title: "Price + fair-value history",
+    blurb:
+      "See how the fair-value estimate has tracked vs. price over the last 12 months — great for spotting widening discounts.",
+  },
+]
+
+export default function PublicAnalysis({ ticker }: { ticker: string }) {
+  const tickerUpper = ticker.toUpperCase()
+
+  const {
+    data: raw,
+    isLoading,
+    isError,
+  } = useQuery<PrismRaw>({
+    queryKey: ["public-prism-raw", tickerUpper],
+    queryFn: async () => {
+      const res = await api.get(
+        `/api/v1/prism/${encodeURIComponent(tickerUpper)}`,
+      )
+      return res.data as PrismRaw
+    },
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
+  })
+
+  const prism = raw ? adaptPrismResponse(raw, tickerUpper) : null
+
+  if (isLoading) {
+    return (
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+        <div className="h-4 w-40 bg-subtle rounded animate-pulse mb-3" />
+        <div className="h-10 w-64 bg-subtle rounded animate-pulse mb-6" />
+        <div className="grid lg:grid-cols-[1fr,1fr] gap-6">
+          <div className="h-72 bg-subtle rounded-2xl animate-pulse" />
+          <PrismSkeleton />
+        </div>
+      </main>
+    )
+  }
+
+  if (isError || !raw || !prism) {
+    return (
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-16 text-center">
+        <h1 className="text-2xl font-display font-bold text-ink mb-2">
+          Couldn&rsquo;t load analysis for {tickerUpper}
+        </h1>
+        <p className="text-body mb-6">
+          The ticker might be mistyped, or the data service is temporarily
+          unavailable. Try another stock from our search.
+        </p>
+        <Link
+          href="/search"
+          className="inline-flex items-center justify-center px-5 py-2.5 bg-brand text-white rounded-lg font-semibold hover:opacity-90 transition"
+        >
+          Search stocks
+        </Link>
+      </main>
+    )
+  }
+
+  const {
+    company_name,
+    sector,
+    market_cap_cr,
+    price,
+    fair_value,
+    mos_pct,
+    verdict_label,
+    yieldiq_score_100,
+    grade,
+  } = raw
+
+  const displayTicker = tickerUpper.replace(/\.(NS|BO)$/i, "")
+  const exchange = tickerUpper.endsWith(".BO") ? "BSE" : "NSE"
+  const companyDisplay = formatCompanyName(company_name ?? "", tickerUpper)
+  const verdictText = verdict_label
+    ? verdictDisplayLabel(verdict_label)
+    : "Under Review"
+
+  // MoS sign determines the tint of the summary pill. Positive = undervalued.
+  const mosTone =
+    mos_pct === null || mos_pct === undefined
+      ? "neutral"
+      : mos_pct >= 15
+      ? "positive"
+      : mos_pct <= -15
+      ? "negative"
+      : "neutral"
+
+  const mosToneClasses: Record<string, string> = {
+    positive: "bg-green-50 text-green-800 border-green-200",
+    negative: "bg-red-50 text-red-800 border-red-200",
+    neutral: "bg-amber-50 text-amber-800 border-amber-200",
+  }
+
+  return (
+    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8">
+      {/* ── Breadcrumb + title ───────────────────────────────── */}
+      <header className="space-y-3">
+        <Breadcrumb
+          exchange={exchange}
+          sector={sector ?? ""}
+          marketCapBucket={bucketFromMarketCapCr(market_cap_cr)}
+        />
+        <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+          <h1 className="font-display text-3xl sm:text-4xl font-black text-ink tracking-tight">
+            {displayTicker}
+          </h1>
+          <p className="text-body text-lg">{companyDisplay}</p>
+        </div>
+      </header>
+
+      {/* ── Summary card + Prism ─────────────────────────────── */}
+      <section className="grid lg:grid-cols-[1fr,auto] gap-6 items-start">
+        <div className="bg-bg border border-border rounded-2xl p-6 shadow-sm space-y-5">
+          <div
+            className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-wider ${mosToneClasses[mosTone]}`}
+          >
+            {verdictText}
+          </div>
+
+          <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
+            <Stat label="Current price" value={formatCurrency(price ?? 0)} />
+            <Stat
+              label="Fair value"
+              value={fair_value ? formatCurrency(fair_value) : "—"}
+            />
+            <Stat
+              label="Margin of safety"
+              value={
+                mos_pct === null || mos_pct === undefined
+                  ? "—"
+                  : formatPct(mos_pct / 100)
+              }
+              emphasis={mosTone === "positive"}
+            />
+            <Stat
+              label="YieldIQ score"
+              value={
+                yieldiq_score_100 !== null && yieldiq_score_100 !== undefined
+                  ? `${yieldiq_score_100}/100${grade ? ` · ${grade}` : ""}`
+                  : "—"
+              }
+            />
+          </dl>
+
+          <p className="text-xs text-caption leading-relaxed">
+            YieldIQ&rsquo;s model estimate. Not investment advice. Fair value
+            is a model output based on public fundamentals and a sector-aware
+            DCF, not a price target.
+          </p>
+        </div>
+
+        <div className="flex items-center justify-center lg:justify-end">
+          <Prism data={prism} size={340} firstView />
+        </div>
+      </section>
+
+      {/* ── Upsell ───────────────────────────────────────────── */}
+      <section className="bg-gradient-to-br from-blue-50 via-white to-cyan-50 border border-blue-200 rounded-2xl p-6 sm:p-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+          <div>
+            <p className="text-xs font-bold text-blue-700 uppercase tracking-widest mb-1">
+              Create a free account to unlock
+            </p>
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-ink">
+              The full {displayTicker} analysis
+            </h2>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Link
+              href={`/auth/signup?next=${encodeURIComponent(
+                `/analysis/${tickerUpper}`,
+              )}`}
+              className="inline-flex items-center justify-center px-5 py-3 min-h-[44px] bg-brand text-white rounded-lg font-semibold hover:opacity-90 active:scale-[0.98] transition"
+            >
+              Create free account
+            </Link>
+            <Link
+              href={`/auth/login?next=${encodeURIComponent(
+                `/analysis/${tickerUpper}`,
+              )}`}
+              className="inline-flex items-center justify-center px-5 py-3 min-h-[44px] border border-brand/40 text-brand rounded-lg font-semibold hover:bg-brand-50 active:scale-[0.98] transition"
+            >
+              Log in
+            </Link>
+          </div>
+        </div>
+
+        <ul className="grid sm:grid-cols-2 gap-4">
+          {GATED_SECTIONS.map((s) => (
+            <li
+              key={s.title}
+              className="bg-white/70 backdrop-blur-sm border border-white rounded-xl p-4"
+            >
+              <h3 className="font-semibold text-ink mb-1">{s.title}</h3>
+              <p className="text-sm text-body leading-relaxed">{s.blurb}</p>
+            </li>
+          ))}
+        </ul>
+
+        <p className="text-xs text-caption mt-5">
+          Free tier: one deep analysis per day. No card required. Cancel anytime.
+        </p>
+      </section>
+    </main>
+  )
+}
+
+/* ── Helpers ─────────────────────────────────────────────── */
+
+function Stat({
+  label,
+  value,
+  emphasis,
+}: {
+  label: string
+  value: string
+  emphasis?: boolean
+}) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <dt className="text-[10px] font-bold text-caption uppercase tracking-wider">
+        {label}
+      </dt>
+      <dd
+        className={`font-mono tabular-nums text-lg sm:text-xl ${
+          emphasis ? "text-green-700 font-bold" : "text-ink font-semibold"
+        }`}
+      >
+        {value}
+      </dd>
+    </div>
+  )
+}

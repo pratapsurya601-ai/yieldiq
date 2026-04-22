@@ -16,8 +16,17 @@ api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401 && typeof window !== "undefined") {
-      Cookies.remove("yieldiq_token")
-      window.location.href = "/auth/login"
+      // Only treat 401 as "session expired" when a token was actually
+      // present. For anonymous visitors (e.g. hitting /analysis/:ticker
+      // without signing up — the landing page advertises this as free),
+      // a 401 from a gated backend endpoint is expected; bubble it up to
+      // the caller and let the page show its public fallback or upsell
+      // rather than hard-redirecting the whole browser to /auth/login.
+      const hadToken = Cookies.get("yieldiq_token")
+      if (hadToken) {
+        Cookies.remove("yieldiq_token")
+        window.location.href = "/auth/login"
+      }
     }
     if (err.response?.status === 429) {
       err.message = "Daily analysis limit reached. Upgrade for more."

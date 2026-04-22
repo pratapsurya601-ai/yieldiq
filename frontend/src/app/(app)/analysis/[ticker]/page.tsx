@@ -1,48 +1,51 @@
 /**
  * /analysis/[ticker] — server shell.
  *
- * PR1 SSR-cascade fix (Option C, 2026-04-19):
- *   The previous version did `await getPrismData(ticker)` on the server
- *   with a 4 s AbortController. On Vercel that produced a 9 s perceived
- *   regression for cold tickers:
+ * Branches on the presence of the `yieldiq_token` cookie:
  *
- *     1. SSR fires GET /api/v1/prism/{ticker} (cold = ~6.7 s).
- *     2. AbortController fires at 4 s → SSR returns the legacy-hero
- *        fallback HTML.
- *     3. Browser hydrates AnalysisBody, which then issues GET
- *        /api/v1/analysis/{ticker} client-side (also cold = ~5-9 s).
- *     4. User sees blank-then-hero-then-content over 9-13 s.
+ *   - Authenticated users get the full `AnalysisBody` — DCF, AI narrative,
+ *     10-year financials, peer comparison, FV history, and all other
+ *     gated surfaces.
  *
- *   Net: SSR was paying 4 s of TTFB for a result the client immediately
- *   threw away. We now ship a thin server shell (TTFB <100 ms) and let
- *   AnalysisBody hydrate Prism client-side via react-query in parallel
- *   with the analysis fetch. AnalysisBody already gracefully falls back
- *   to <AnalysisHero/> while prism is null, so visitors see the legacy
- *   hero immediately and Prism upgrades when it lands.
+ *   - Anonymous users get `PublicAnalysis` — the Prism 6-pillar view + a
+ *     summary card + inline upsell CTAs in place of each gated section.
+ *     The landing page markets "analyse any stock free" and the CTA sends
+ *     users to /analysis/:ticker; if we return the authed body to an
+ *     anon visitor, the axios interceptor in `lib/api.ts` bounces them
+ *     to /auth/login the moment `getAnalysis()` returns 401 and the
+ *     entire public promise collapses. Routing to /prism/:ticker would
+ *     work for the happy path but would leave social shares of
+ *     /analysis/:ticker URLs broken for the logged-out majority of
+ *     visitors. Keeping one URL with a dual-mode body is the long-term
+ *     shape — one source of truth, one shareable link.
  *
- *   Trade-off: above-the-fold LCP loses the SSR-painted Prism for the
- *   first cold visit. But (a) cold visits were already 9 s so LCP was
- *   not the win we thought; (b) CDN warming + prism's own server-side
- *   cache mean repeat visitors still get a fast paint.
+ * PR1 SSR-cascade fix (Option C, 2026-04-19) is preserved: we still ship
+ * a thin server shell and let the body hydrate Prism + analysis data
+ * client-side so TTFB stays under ~100 ms.
  */
 
+import { cookies } from "next/headers"
 import AnalysisBody from "./AnalysisBody"
+import PublicAnalysis from "./PublicAnalysis"
 import TickerStrip from "@/components/analysis/TickerStrip"
 
 export default async function AnalysisPage({
   params,
 }: {
-  // Next.js 16: dynamic route params arrive as a Promise.
   params: Promise<{ ticker: string }>
 }) {
   const { ticker } = await params
+  const cookieStore = await cookies()
+  const isAuthenticated = Boolean(cookieStore.get("yieldiq_token")?.value)
 
   return (
     <>
       <TickerStrip />
-      {/* prism={null} → AnalysisBody renders the legacy AnalysisHero
-          immediately and hydrates Prism client-side. */}
-      <AnalysisBody ticker={ticker} prism={null} />
+      {isAuthenticated ? (
+        <AnalysisBody ticker={ticker} prism={null} />
+      ) : (
+        <PublicAnalysis ticker={ticker} />
+      )}
     </>
   )
 }
