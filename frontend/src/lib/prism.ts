@@ -72,6 +72,15 @@ export function adaptPrismResponse(raw: unknown, fallbackTicker = ""): PrismData
     }
   }
 
+  // Score history — optional array of numbers, 0..100, oldest → newest.
+  // Backend emits `score_history_12m: []` when it doesn't have at least
+  // three monthly samples. We keep empty arrays as-is so consumers can
+  // render an "insufficient history" state.
+  const rawHistory = r.score_history_12m
+  const score_history_12m = Array.isArray(rawHistory)
+    ? rawHistory.filter((n): n is number => typeof n === "number" && Number.isFinite(n))
+    : []
+
   return {
     ticker: String(r.ticker ?? fallbackTicker),
     company_name: String(r.company_name ?? fallbackTicker),
@@ -83,6 +92,7 @@ export function adaptPrismResponse(raw: unknown, fallbackTicker = ""): PrismData
     pulse_velocity_hz: typeof r.pulse_velocity_hz === "number" && r.pulse_velocity_hz > 0 ? r.pulse_velocity_hz : 0.33,
     sector_medians,
     disclaimer: typeof r.disclaimer === "string" ? r.disclaimer : "Model estimate. Not investment advice.",
+    score_history_12m,
   }
 }
 

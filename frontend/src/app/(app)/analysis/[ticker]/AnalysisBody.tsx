@@ -643,7 +643,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             score100={quality.yieldiq_score}
             grade={quality.grade}
             sectorRank={null}
-            trend12m={[]}
+            trend12m={prismResolved.score_history_12m ?? []}
             marketCapCr={marketCapCr}
             dataLimited={dataLimited}
           />
