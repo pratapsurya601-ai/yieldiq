@@ -23,14 +23,26 @@ export default function HealthScore({ score, grade, summary, issues, strengths }
 
   return (
     <div className={cn("rounded-xl bg-surface border border-border shadow-sm p-4")}>
+      {/* FIX day2-#14: this Health score (0–100 + letter grade) is the
+          PRIMARY portfolio-level headline number. The Prism hex above
+          renders a 0–10 fundamentals composite as part of its visual —
+          those are different lenses (construction + concentration vs.
+          weighted fundamentals), not duplicate summaries. The tooltip
+          makes that split explicit so users don't see "competing" scores. */}
       <div className="flex items-center justify-between mb-3">
         <div>
-          <p className="text-xs text-caption mb-0.5">Portfolio Health</p>
+          <p
+            className="text-xs text-caption mb-0.5"
+            title="Portfolio Health scores construction (concentration, valuation spread, leverage). The Prism hex above scores weighted fundamentals (0–10). Different lenses — both useful."
+          >
+            Portfolio Health
+          </p>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold text-ink">{score}</span>
             <span className={cn("text-lg font-semibold", gradeColor)}>
               {grade}
             </span>
+            <span className="text-xs text-caption">/ 100</span>
           </div>
         </div>
       </div>

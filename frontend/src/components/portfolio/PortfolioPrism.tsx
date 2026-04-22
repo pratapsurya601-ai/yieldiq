@@ -136,12 +136,23 @@ function deriveVerdict(overall: number): {
 function hexToPrismData(hex: HexResponse, holdingCount: number): PrismData {
   const pillars: Pillar[] = AXIS_KEYS.map((k) => {
     const axis = hex.axes[k]
+    // FIX day2-#13: defend against a missing axis payload or a backend
+    // "—" label slipping in as the lens verdict. Pillar axis NAMES (Value,
+    // Quality, Pulse, ...) are rendered via a hard-coded map in
+    // Signature/Spectrum keyed on `key`, so the axis *name* is always
+    // safe. But `label` is used in PillarExplainer — fall back to the
+    // pillar name so it never renders a literal dash.
+    const pillarKey = k as PillarKey
+    const safeLabel =
+      axis && typeof axis.label === "string" && axis.label.trim() && axis.label.trim() !== "\u2014"
+        ? axis.label
+        : PILLAR_LABEL[pillarKey]
     return {
-      key: k as PillarKey,
-      score: axis.data_limited ? null : axis.score,
-      label: axis.label,
-      why: axis.why,
-      data_limited: axis.data_limited,
+      key: pillarKey,
+      score: axis && axis.data_limited ? null : (axis?.score ?? null),
+      label: safeLabel,
+      why: (axis && typeof axis.why === "string" ? axis.why : "Data not available."),
+      data_limited: axis ? !!axis.data_limited : true,
       weight: 1 / 6,
     }
   })
@@ -334,39 +345,35 @@ export default function PortfolioPrism({ holdings }: Props) {
         {payload.length === 1 ? "" : "s"}. Model estimate.
       </p>
 
+      {/* Prism visual wrapper — width/height constrained to `size` so the
+          inner SVG's `aspectRatio: 1/1` can never blow up the layout on
+          wide desktop viewports. Previously the Prism root div had
+          `width: 100%` with `maxWidth: size`, which in an items-center
+          flex-column caused the browser to reserve full parent width
+          BEFORE applying maxWidth — leaving a huge blank square below
+          the actual rendered hex. Pinning the wrapper here keeps the
+          section compact. */}
       <div className="flex flex-col items-center">
-        {isLoading || !prismData ? (
-          <>
-            <PrismSkeleton size={size} />
-            <p
-              className="mt-3 text-xs"
-              style={{ color: "var(--color-caption)" }}
-            >
-              Computing your Portfolio Prism...
-            </p>
-          </>
-        ) : (
-          <>
+        <div style={{ width: size, maxWidth: "100%" }}>
+          {isLoading || !prismData ? (
+            <>
+              <PrismSkeleton size={size} />
+              <p
+                className="mt-3 text-xs text-center"
+                style={{ color: "var(--color-caption)" }}
+              >
+                Computing your Portfolio Prism...
+              </p>
+            </>
+          ) : (
             <Prism
               data={prismData}
               size={size}
               defaultMode="signature"
               sectorOverlay={overlayNifty}
             />
-            <p
-              className="mt-3 text-xs text-center"
-              style={{ color: "var(--color-caption)" }}
-            >
-              Overall:{" "}
-              <span
-                className="font-bold"
-                style={{ color: "var(--color-text)" }}
-              >
-                {prismData.overall != null ? `${prismData.overall.toFixed(1)}/10` : "\u2014"}
-              </span>
-            </p>
-          </>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Strongest / Weakest lens cards */}

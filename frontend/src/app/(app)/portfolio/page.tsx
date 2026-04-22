@@ -186,7 +186,16 @@ function PortfolioInner() {
             {/* Warn when any holding is trading >15% below our model fair value */}
             <BelowFairValueBanner holdings={holdings} />
             {/* Portfolio Summary */}
-            {summary && summary.count > 0 && (
+            {summary && summary.count > 0 && (() => {
+              // FIX day2-#15: the backend's `winners`/`losers` counts use
+              // `pnl > 0` and `pnl < 0` respectively, which drops
+              // zero-gain holdings (e.g. TATAGOLD-E @ +0.00%) into
+              // neither bucket — so Winners + Losers < count.
+              // Recompute client-side with ties going to Winners
+              // (0% ≥ 0%) so the two buckets always sum to count.
+              const winners = holdings.filter((h) => h.pnl_pct >= 0).length
+              const losers = holdings.filter((h) => h.pnl_pct < 0).length
+              return (
               <div className="bg-gradient-to-br from-blue-600 to-cyan-500 rounded-2xl p-5 text-white">
                 <p className="text-xs font-bold uppercase tracking-wider opacity-80 mb-1">Total Value</p>
                 <p className="text-3xl font-black mb-1">{fmtRsCompact(summary.total_current_value)}</p>
@@ -205,15 +214,16 @@ function PortfolioInner() {
                   </div>
                   <div>
                     <p className="opacity-80">Winners</p>
-                    <p className="font-bold text-sm">{summary.winners}/{summary.count}</p>
+                    <p className="font-bold text-sm">{winners}/{summary.count}</p>
                   </div>
                   <div>
                     <p className="opacity-80">Losers</p>
-                    <p className="font-bold text-sm">{summary.losers}/{summary.count}</p>
+                    <p className="font-bold text-sm">{losers}/{summary.count}</p>
                   </div>
                 </div>
               </div>
-            )}
+              )
+            })()}
 
             {/* Holdings List — key includes account_label so two rows of
                 the same ticker (e.g. SILVERBEES held in Zerodha AND ICICI)

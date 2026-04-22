@@ -458,17 +458,22 @@ export default function Signature({
         }}
       >
         {ordered.map((p, i) => {
+          // FIX day2-#13: fall back to PRISM_PILLAR_ORDER[i] if p is
+          // missing/malformed so the axis label (e.g. "PULSE") always
+          // renders — never "—" or blank — regardless of whether the
+          // backend axis payload is data_limited or partially missing.
+          const pillarKey = (p?.key ?? PRISM_PILLAR_ORDER[i]) as PillarKey
           const [x, y] = signatureVertex(cx, cy, maxRadius + 22, i)
           return (
             <motion.text
-              key={p.key}
+              key={pillarKey}
               x={x}
               y={y}
               textAnchor="middle"
               dominantBaseline="middle"
-              onHoverStart={() => setHoveredAxis(p.key)}
+              onHoverStart={() => setHoveredAxis(pillarKey)}
               onHoverEnd={() =>
-                setHoveredAxis((prev) => (prev === p.key ? null : prev))
+                setHoveredAxis((prev) => (prev === pillarKey ? null : prev))
               }
               whileHover={
                 prefersReducedMotion
@@ -480,7 +485,7 @@ export default function Signature({
                 transformOrigin: `${x}px ${y}px`,
               }}
             >
-              {AXIS_LABEL[p.key]}
+              {AXIS_LABEL[pillarKey]}
             </motion.text>
           )
         })}
