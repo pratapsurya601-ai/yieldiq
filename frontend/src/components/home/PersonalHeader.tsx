@@ -18,9 +18,15 @@ function nameFromEmail(email: string | null): string {
 }
 
 export default function PersonalHeader({ email }: { email: string | null }) {
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
-  const greeting = mounted ? greetingForHour(new Date().getHours()) : "Welcome back"
+  // Greeting MUST be computed client-side: `new Date().getHours()` on the
+  // Node SSR pass runs in the server's timezone (UTC on Railway/Vercel),
+  // which produced "Good morning" at 18:00 IST for users. We hydrate the
+  // real local-time greeting only after mount, and render a neutral
+  // "Welcome back" placeholder in the meantime to keep markup stable.
+  const [greeting, setGreeting] = useState<string>("Welcome back")
+  useEffect(() => {
+    setGreeting(greetingForHour(new Date().getHours()))
+  }, [])
   const name = nameFromEmail(email)
   // No streak-tracking infrastructure exists yet — intentionally blank.
   const streakSuffix = ""

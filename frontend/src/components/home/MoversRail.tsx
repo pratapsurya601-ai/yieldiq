@@ -65,8 +65,13 @@ export default function MoversRail() {
   return (
     <section>
       <div className="flex items-baseline justify-between px-4 mb-2">
+        {/* Renamed from "Your movers" (2026-04-22): the numeric badge is
+            holding-period P&L, not today's % move. "Movers" universally
+            means intraday change — which we don't have a data source for
+            yet. Re-rename to "Your movers" only after wiring a
+            daily-change feed. */}
         <h2 className="font-display text-sm font-bold text-ink uppercase tracking-wider">
-          Your movers
+          Your positions
         </h2>
         {cards.length > 0 && (
           <Link href="/portfolio" className="text-xs font-semibold text-brand">
@@ -93,9 +98,15 @@ export default function MoversRail() {
                 <p className="text-xs font-bold text-ink">{c.display}</p>
                 <UnlockBadge ticker={c.ticker} size="sm" />
               </div>
-              <p className="text-[10px] text-caption truncate max-w-[130px]">
-                {c.name}
-              </p>
+              {/* Only render the subtitle when we actually have a company
+                  name distinct from the ticker. Some holdings rows come
+                  back with company_name == ticker (or empty), which used
+                  to render "TATSILV / TATSILV" — ugly and redundant. */}
+              {c.name && c.name !== c.ticker && c.name !== c.display ? (
+                <p className="text-[10px] text-caption truncate max-w-[130px]">
+                  {c.name}
+                </p>
+              ) : null}
               {c.pnlPct !== null ? (
                 <>
                   <p
