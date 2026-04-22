@@ -1,9 +1,24 @@
 "use client"
+// ─────────────────────────────────────────────────────────────────────
+// Temporarily hidden rails (2026-04-22) — restore when data is reliable:
+//   1. NearLowsRail ("52-week lows with strong fundamentals")
+//      - Endpoint: GET /api/v1/public/near-52w-lows
+//      - Backend: backend/routers/public.py:1829
+//      - Re-enable: uncomment line 130 below
+//   2. LowestPERail ("Lowest P/E with strong fundamentals")
+//      - Endpoint: GET /api/v1/public/lowest-pe
+//      - Backend: backend/routers/public.py:1930
+//      - Re-enable: uncomment line 133 below
+// Both rails fetch from live endpoints but frequently render empty/
+// near-empty states for first-time visitors, making the page feel
+// half-finished. Hide until the underlying data coverage is denser.
+// ─────────────────────────────────────────────────────────────────────
 import { useQuery } from "@tanstack/react-query"
 import { getYieldIQ50, getTopPick } from "@/lib/api"
 import TopPickCard from "@/components/discover/TopPickCard"
 import ScreenerPresetsWithCounts from "@/components/discover/ScreenerPresetsWithCounts"
-import { SectorLeaders, NearLowsRail, LowestPERail } from "@/components/discover/DiscoverRails"
+import { SectorLeaders } from "@/components/discover/DiscoverRails"
+// import { NearLowsRail, LowestPERail } from "@/components/discover/DiscoverRails"
 import { useAuthStore } from "@/store/authStore"
 import Link from "next/link"
 
@@ -111,11 +126,11 @@ export default function DiscoverPage() {
         <SectorLeaders stocks={yiq50.results} />
       )}
 
-      {/* 52-week lows with strong fundamentals — placeholder until data ships */}
-      <NearLowsRail />
+      {/* UNCOMMENT WHEN /api/v1/public/near-52w-lows RETURNS DENSE DATA */}
+      {/* <NearLowsRail /> */}
 
-      {/* Lowest P/E in YieldIQ 50 — placeholder until multiple fields land */}
-      {yiq50 && <LowestPERail stocks={yiq50.results} />}
+      {/* UNCOMMENT WHEN /api/v1/public/lowest-pe RETURNS DENSE DATA */}
+      {/* {yiq50 && <LowestPERail stocks={yiq50.results} />} */}
 
       {/* Screener Presets */}
       <section>
