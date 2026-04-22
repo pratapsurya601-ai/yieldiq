@@ -326,7 +326,33 @@ async def get_analysis(
 
 @router.get("/analysis/{ticker}/og-data")
 async def get_og_data(ticker: str):
-    """Return Open Graph data for social sharing. No auth required."""
+    """Return Open Graph data for social sharing. No auth required.
+
+    Cache-source unification (2026-04-22):
+        Previously called `service.get_full_analysis()` directly and
+        cached the result under its own `og:{ticker}` key. That meant
+        og-data served a DIFFERENT canonical value than
+        /public/stock-summary when the two computed in different
+        contexts (cold worker, partial yfinance outage, etc.).
+
+        INFY.NS and NESTLEIND.NS were observed returning fv=0/price=0
+        /verdict=under_review via og-data while /public/stock-summary
+        returned real numbers (fv=1916.74, score=76, undervalued) — the
+        og: cache had poisoned zeros from an earlier failed compute,
+        and the 1-hour TTL was re-poisoning itself every cycle.
+
+        New path matches /public/stock-summary's tiered lookup:
+            1. Local og: cache (1h) — fast path
+            2. `analysis:{ticker}` tier-1 in-memory cache (24h)
+            3. `analysis_cache_service.get_cached()` tier-2 Postgres
+            4. `service.get_full_analysis()` live compute (last resort)
+
+        Same source of truth as /public/stock-summary + the authed
+        /analysis endpoint. Also adds a zero-poison guard: if the
+        resolved payload has both fair_value and current_price == 0,
+        we do NOT write it into the og: cache — a fresh compute gets
+        to try again on the next request.
+    """
     ticker = ticker.upper().strip()
     _cache_key = f"og:{ticker}"
     cached = cache.get(_cache_key)
@@ -334,7 +360,24 @@ async def get_og_data(ticker: str):
         return cached
 
     try:
-        result = service.get_full_analysis(ticker)
+        # Tiered cache resolution — matches public/stock-summary so all
+        # three endpoints (og-data, public stock-summary, authed analysis)
+        # serve the same canonical AnalysisResponse.
+        result = cache.get(f"analysis:{ticker}")
+        if result is None or not hasattr(result, "valuation"):
+            try:
+                from backend.services import analysis_cache_service
+                from backend.models.responses import AnalysisResponse
+                _db_payload = analysis_cache_service.get_cached(ticker)
+                if _db_payload:
+                    result = AnalysisResponse(**_db_payload)
+                    cache.set(f"analysis:{ticker}", result, ttl=86400)
+            except Exception:
+                result = None
+        if result is None or not hasattr(result, "valuation"):
+            # Last resort: live compute. Any output zeros here will be
+            # caught by the zero-poison guard below rather than cached.
+            result = service.get_full_analysis(ticker)
         display_ticker = ticker.replace(".NS", "").replace(".BO", "")
 
         # ── Output sanity gate (router-level defense in depth) ──
@@ -391,6 +434,15 @@ async def get_og_data(ticker: str):
             "price": _px,
             "mos": _mos,
         }
+        # Zero-poison guard: if both fv and price ended up 0 (cold compute
+        # failure, upstream data gap, etc.), skip the cache write so the
+        # next request gets a fresh attempt. Previously the 1-hour TTL
+        # on bad data created a self-perpetuating poison cycle for any
+        # ticker that failed a single cold compute. Verdict-based cases
+        # (real "under_review" with a known-bad reason) still cache —
+        # they have a valid price and are legitimately labeled.
+        if _fv == 0 and _px == 0:
+            return og
         cache.set(_cache_key, og, ttl=3600)
         return og
     except Exception:
