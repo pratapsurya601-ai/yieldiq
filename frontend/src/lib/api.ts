@@ -76,6 +76,31 @@ api.interceptors.response.use(
     return res
   },
   (err) => {
+    // Mirror X-Analyses-* headers on ERROR responses too (primarily 429).
+    // When the rate limiter blocks the 6th call of the day, the backend
+    // raises HTTPException with X-Analyses-Today/Limit in the headers
+    // dict. Without this block, the nav counter stays at its previous
+    // value (or at 0 if the user refreshed before hitting the cap) —
+    // confusingly showing 0/5 on the Daily-limit-reached screen.
+    if (typeof window !== "undefined" && err.response?.headers) {
+      try {
+        const today = _readHeader(err.response.headers, "x-analyses-today")
+        const limit = _readHeader(err.response.headers, "x-analyses-limit")
+        if (today !== undefined || limit !== undefined) {
+          const s = useAuthStore.getState()
+          const nextToday = today !== undefined ? Number(today) : s.analysesToday
+          const nextLimit = limit !== undefined ? Number(limit) : s.analysisLimit
+          if (Number.isFinite(nextToday) && Number.isFinite(nextLimit)) {
+            useAuthStore.setState({
+              analysesToday: nextToday,
+              analysisLimit: nextLimit,
+            })
+          }
+        }
+      } catch {
+        // swallow — counter sync is best-effort, never block error flow
+      }
+    }
     if (err.response?.status === 401 && typeof window !== "undefined") {
       // Only treat 401 as "session expired" when a token was actually
       // present. For anonymous visitors (e.g. hitting /analysis/:ticker

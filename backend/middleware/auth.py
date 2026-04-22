@@ -266,15 +266,26 @@ def check_analysis_limit(
     allowed, used, limit = rate_limiter.check_and_increment(
         user["user_id"], user["tier"]
     )
+    # Always set headers on the 200 response object FIRST so the success
+    # path carries them. For the 429 path we ALSO include them on the
+    # HTTPException headers dict — FastAPI builds the error response
+    # from scratch and ignores the dependency-scoped Response headers,
+    # so if we don't pass them via HTTPException(..., headers=...) the
+    # nav counter goes stale the instant a user hits the cap (nav shows
+    # 0/5 despite just having run 5, seen in production 2026-04-23).
+    response.headers["X-Analyses-Today"] = str(used)
+    response.headers["X-Analyses-Limit"] = str(limit)
     if not allowed:
         raise HTTPException(
             status_code=429,
             detail=f"Daily analysis limit reached ({used}/{limit}). Upgrade for more.",
+            headers={
+                "X-Analyses-Today": str(used),
+                "X-Analyses-Limit": str(limit),
+            },
         )
     user["analyses_today"] = used
     user["analysis_limit"] = limit
-    response.headers["X-Analyses-Today"] = str(used)
-    response.headers["X-Analyses-Limit"] = str(limit)
     return user
 
 
