@@ -20,12 +20,14 @@
  */
 
 import Link from "next/link"
+import type { ReactNode } from "react"
 import { useQuery } from "@tanstack/react-query"
 import api from "@/lib/api"
 import { adaptPrismResponse } from "@/lib/prism"
 import Prism from "@/components/prism/Prism"
 import PrismSkeleton from "@/components/prism/PrismSkeleton"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
+import MetricTooltip from "@/components/analysis/MetricTooltip"
 import {
   formatCurrency,
   formatPct,
@@ -196,14 +198,23 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
             {verdictText}
           </div>
 
+          {/* Metric labels are wrapped in <MetricTooltip> so the "?"
+              icon surfaces a plain-English explainer on hover/tap.
+              First-time visitors (target: retail investors without a
+              fundamental-analysis background) get instant context on
+              jargon like "Margin of Safety" and "YieldIQ score" without
+              leaving the page. Copy lives in lib/metric_explanations.ts.
+              Current price gets no tooltip — it's universally understood
+              and the tight 4-up layout reads cleaner without a fourth
+              icon. */}
           <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
             <Stat label="Current price" value={formatCurrency(price ?? 0)} />
             <Stat
-              label="Fair value"
+              label={<MetricTooltip metricKey="fair_value">Fair value</MetricTooltip>}
               value={fair_value ? formatCurrency(fair_value) : "—"}
             />
             <Stat
-              label="Margin of safety"
+              label={<MetricTooltip metricKey="mos">Margin of safety</MetricTooltip>}
               value={
                 mos_pct === null || mos_pct === undefined
                   ? "—"
@@ -212,7 +223,7 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
               emphasis={mosTone === "positive"}
             />
             <Stat
-              label="YieldIQ score"
+              label={<MetricTooltip metricKey="yieldiq_score">YieldIQ score</MetricTooltip>}
               value={
                 yieldiq_score_100 !== null && yieldiq_score_100 !== undefined
                   ? `${yieldiq_score_100}/100${grade ? ` · ${grade}` : ""}`
@@ -291,7 +302,10 @@ function Stat({
   value,
   emphasis,
 }: {
-  label: string
+  // Accepts a plain string OR a ReactNode so we can wrap the label in
+  // MetricTooltip for jargon terms (Fair value, Margin of safety,
+  // YieldIQ score) without forcing every caller to do the same.
+  label: ReactNode
   value: string
   emphasis?: boolean
 }) {
