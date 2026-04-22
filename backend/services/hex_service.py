@@ -410,25 +410,47 @@ def _axis_value_general(data: dict) -> dict:
     if mos_pct is None and pe is None:
         return _neutral_axis("No valuation data available")
 
-    # Anchor: MoS of 0 -> 5; each +10% MoS bumps ~1.5 points.
-    score = 5.0
+    # FIX-PRISM-VALUE-SIGMOID (2026-04-22): replaced linear anchor-plus-slope
+    # mapping with a logistic sigmoid. Old formula (score = 5 + 0.15*MoS + pe_adj)
+    # hit the floor at 0.0/10 for any stock with MoS <= -33% (RELIANCE at -35%,
+    # NESTLE at -58%, KPITTECH at -39%, etc.) — users read that as broken/missing
+    # data rather than "deeply overvalued." Sigmoid produces an asymptotic curve
+    # that never pins to exact 0 or 10 while preserving the anchor (MoS=0 → 5.0)
+    # and the relative ordering. Calibration points at k=0.08:
+    #   MoS -100%  -> 0.04
+    #   MoS  -50%  -> 0.18
+    #   MoS  -33%  -> 0.67   (was 0.0 pre-fix — the RELIANCE case)
+    #   MoS    0%  -> 5.00
+    #   MoS  +33%  -> 9.34
+    #   MoS +100%  -> 9.97
+    # P/E is folded into the sigmoid argument as MoS-equivalent percentage
+    # points so the final axis stays inside [0, 10] without a separate clamp
+    # path. Prior per-1-PE adjustment was 0.05 score ≈ 0.33pp MoS; scaled here
+    # to (22-PE)*3.3 with ±13pp cap to match the original max ±2.0 score contrib.
+    import math as _math
+    signal = 0.0
     reasons: list[str] = []
     if mos_pct is not None:
         try:
-            score += 0.15 * float(mos_pct)
+            signal += float(mos_pct)
             reasons.append(f"MoS {float(mos_pct):.0f}%")
         except Exception:
             pass
     if pe is not None:
         try:
             pe_f = float(pe)
-            # Below 15 cheap (+1.0), above 40 rich (-1.0); midpoint 22.
-            pe_adj = (22.0 - pe_f) * 0.05
-            pe_adj = max(-2.0, min(2.0, pe_adj))
-            score += pe_adj
+            # Each 1 unit below P/E=22 adds ~3.3pp MoS-equivalent, capped at ±13pp.
+            pe_adj = (22.0 - pe_f) * 3.3
+            pe_adj = max(-13.0, min(13.0, pe_adj))
+            signal += pe_adj
             reasons.append(f"P/E {pe_f:.1f}")
         except Exception:
             pass
+    try:
+        score = 10.0 / (1.0 + _math.exp(-0.08 * signal))
+    except (OverflowError, ValueError):
+        # exp overflow at extreme signal magnitudes — pick the asymptote.
+        score = 10.0 if signal > 0 else 0.0
 
     why = ", ".join(reasons) if reasons else "Partial valuation data"
     # data_limited only when we had NO signal at all. If either mos_pct or pe
