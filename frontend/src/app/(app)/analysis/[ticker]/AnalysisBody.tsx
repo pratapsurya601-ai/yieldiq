@@ -416,14 +416,22 @@ export default function AnalysisBody({ ticker, prism }: Props) {
   const requestedDisplay = requestedTicker.replace(".NS", "").replace(".BO", "")
   const canonicalDisplay = canonicalTicker.replace(".NS", "").replace(".BO", "")
 
+  // FIX Day-3 #4 (2026-04-22): the prior guard looked for a nested
+  // `statements.income_statement` shape that the backend has never emitted —
+  // `/api/v1/analysis/{ticker}/financials` returns a flat object with
+  // `income`, `balance_sheet`, `cash_flow` arrays at the top level (see
+  // backend/services/financials_service.py + frontend/src/lib/api.ts
+  // FinancialsResponse). The mismatch meant `hasAnyStatement` was always
+  // false and every ticker — including TITAN and ADSL which have 3+ years
+  // of statements — showed "Financials not yet available".
   const financialsPayload = financialsQuery.data as
-    | { statements?: { income_statement?: unknown[]; balance_sheet?: unknown[]; cash_flow?: unknown[] } }
+    | { income?: unknown[]; balance_sheet?: unknown[]; cash_flow?: unknown[] }
     | undefined
   const hasAnyStatement =
-    !!financialsPayload?.statements &&
-    (((financialsPayload.statements.income_statement?.length ?? 0) > 0) ||
-      ((financialsPayload.statements.balance_sheet?.length ?? 0) > 0) ||
-      ((financialsPayload.statements.cash_flow?.length ?? 0) > 0))
+    !!financialsPayload &&
+    (((financialsPayload.income?.length ?? 0) > 0) ||
+      ((financialsPayload.balance_sheet?.length ?? 0) > 0) ||
+      ((financialsPayload.cash_flow?.length ?? 0) > 0))
   const financialsEmpty = financialsQuery.isFetched && !hasAnyStatement
 
   // Market cap on CompanyInfo is in absolute INR — convert to crores.
