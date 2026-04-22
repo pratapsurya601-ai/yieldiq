@@ -1142,6 +1142,7 @@ class AnalysisService(NarrativeMixin):
                 is_financial=is_financial,
                 existing_flags=_red_flags,
                 price=price,
+                mos_pct=mos_pct,
             )
         except Exception:
             _structured_flags = []

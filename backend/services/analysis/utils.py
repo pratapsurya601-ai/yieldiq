@@ -331,6 +331,7 @@ def _build_structured_flags(
     is_financial: bool,
     existing_flags: list,
     price: float,
+    mos_pct: float | None = None,
 ) -> list:
     """
     Generate structured ``RedFlag`` objects from the already-built
@@ -342,7 +343,9 @@ def _build_structured_flags(
     """
     flags: list = []
     try:
-        _add_flags(flags, enriched, piotroski, moat_result, is_financial, price)
+        _add_flags(
+            flags, enriched, piotroski, moat_result, is_financial, price, mos_pct
+        )
     except Exception as exc:
         import logging
         logging.getLogger("yieldiq.red_flags").debug(
@@ -360,6 +363,7 @@ def _add_flags(
     moat_result: dict,
     is_financial: bool,
     price: float,
+    mos_pct: float | None = None,
 ) -> None:
     """All flag-specific logic. Appends RedFlag objects to ``flags``."""
 
@@ -653,6 +657,53 @@ def _add_flags(
                         "Moderate pledge risk. Monitor if the stock "
                         "falls sharply — forced selling can accelerate "
                         "the decline."
+                    ),
+                )
+    except Exception:
+        pass
+
+    # W8 — Possible value trap (mirrors the EditorialHero banner)
+    # Frontend formula: Value pillar ≥ 8 AND (Quality pillar < 5 OR
+    # Moat = None). Backend proxies:
+    #   • Value ≥ 8  →  MoS > 30%   (deep discount)
+    #   • Quality < 5  →  Piotroski F ≤ 4
+    #   • Moat = None  →  moat_result.grade == "None"
+    # We only fire this when we have a real MoS number (so the banner
+    # and this flag fire on the same set of stocks). Severity "warning"
+    # to match the amber tone of the EditorialHero note.
+    try:
+        mos_val = mos_pct
+        if mos_val is None:
+            mos_val = enriched.get("mos_pct")
+        if mos_val is not None and float(mos_val) > 30:
+            moat_grade = (moat_result.get("grade") or "") if moat_result else ""
+            moat_none = str(moat_grade).strip().lower() == "none"
+            p_score_vt = int(piotroski.get("score", 0)) if piotroski else 0
+            quality_weak = 0 < p_score_vt <= 4
+            if moat_none or quality_weak:
+                reasons = []
+                if quality_weak:
+                    reasons.append(f"Piotroski F-Score {p_score_vt}/9")
+                if moat_none:
+                    reasons.append("no durable moat")
+                reason_str = " · ".join(reasons) if reasons else "weak fundamentals"
+                add(
+                    flag="value_trap",
+                    severity="warning",
+                    title="Possible Value Trap",
+                    explanation=(
+                        "Deep discount paired with weak quality or no "
+                        "durable moat — undervalued stocks often stay "
+                        "undervalued for a reason."
+                    ),
+                    data_point=(
+                        f"Margin of safety: {float(mos_val):.0f}% · {reason_str}"
+                    ),
+                    why_it_matters=(
+                        "Classic value-trap pattern: the market is pricing "
+                        "in real fundamental risk. Cross-check the earnings "
+                        "trajectory and balance sheet before assuming the "
+                        "discount will close."
                     ),
                 )
     except Exception:
