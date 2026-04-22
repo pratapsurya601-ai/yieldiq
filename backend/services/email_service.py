@@ -17,7 +17,14 @@ logger = logging.getLogger(__name__)
 # ── SendGrid config ───────────────────────────────────────────
 
 SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY", "")
-FROM_EMAIL = os.environ.get("SENDGRID_FROM_EMAIL", "noreply@yieldiq.com")
+# Default FROM domain is yieldiq.in (NOT .com). The earlier default
+# pointed at .com which SendGrid rejected whenever SENDGRID_FROM_EMAIL
+# wasn't explicitly set on Railway, silently dropping every welcome
+# email. 2026-04-22: founder tested signup with prisuva3+test1@gmail.com
+# and received nothing. Code fix here; also verify SENDGRID_FROM_EMAIL
+# on Railway matches a SendGrid-verified sender (Single Sender or
+# Domain Authentication) or Sendgrid will 403 the API call.
+FROM_EMAIL = os.environ.get("SENDGRID_FROM_EMAIL", "noreply@yieldiq.in")
 
 BRAND_PRIMARY = "#2563EB"
 BRAND_ACCENT = "#06B6D4"
