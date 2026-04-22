@@ -692,11 +692,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
     # Custom response headers have to be whitelisted here or the browser
-    # strips them from JS-visible headers. X-Cache tells the frontend +
-    # devtools whether a response hit memory/DB cache or was computed
-    # fresh — useful for both users' debug experience and our own
-    # observability when tailing prod traffic.
-    expose_headers=["X-Cache"],
+    # strips them from JS-visible headers.
+    #   - X-Cache: hit memory/DB cache vs. computed fresh (debug + obs).
+    #   - X-Analyses-Today / X-Analyses-Limit: usage counter for the
+    #     free-tier rate limiter. Surfaced from `check_analysis_limit`
+    #     so the frontend auth store can update in lock-step with the
+    #     backend after every /analysis/:ticker call, without a second
+    #     round-trip to /auth/me.
+    expose_headers=["X-Cache", "X-Analyses-Today", "X-Analyses-Limit"],
 )
 
 # ── GZip compression ─────────────────────────────────────────

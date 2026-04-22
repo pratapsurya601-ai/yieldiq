@@ -13,7 +13,42 @@ api.interceptors.request.use((config) => {
 })
 
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // Backend's check_analysis_limit dependency surfaces the free-tier
+    // counter on every gated endpoint via X-Analyses-Today / -Limit
+    // response headers (see backend/middleware/auth.py + CORS
+    // expose_headers in backend/main.py). Mirror them into the auth
+    // store so the nav widget, home page, and account page all reflect
+    // the real backend state immediately — no /auth/me round-trip
+    // needed. Guarded against server-side execution (authStore is a
+    // client-only hook) and malformed headers.
+    try {
+      if (typeof window !== "undefined") {
+        const today = res.headers?.["x-analyses-today"]
+        const limit = res.headers?.["x-analyses-limit"]
+        if (today !== undefined || limit !== undefined) {
+          // Lazy import to avoid circular dep on module load.
+          import("@/store/authStore").then(({ useAuthStore }) => {
+            const s = useAuthStore.getState()
+            const nextToday = today !== undefined ? Number(today) : s.analysesToday
+            const nextLimit = limit !== undefined ? Number(limit) : s.analysisLimit
+            if (Number.isFinite(nextToday) && Number.isFinite(nextLimit)) {
+              useAuthStore.setState({
+                analysesToday: nextToday,
+                analysisLimit: nextLimit,
+              })
+            }
+          }).catch(() => {
+            // Store import failed — swallow; counter will update on next login.
+          })
+        }
+      }
+    } catch {
+      // Any sync failure shouldn't block the response. The counter is a
+      // best-effort UI affordance, not a correctness-critical signal.
+    }
+    return res
+  },
   (err) => {
     if (err.response?.status === 401 && typeof window !== "undefined") {
       // Only treat 401 as "session expired" when a token was actually

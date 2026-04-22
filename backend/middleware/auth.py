@@ -5,7 +5,7 @@ from __future__ import annotations
 import sys, os
 from pathlib import Path
 from datetime import datetime, timedelta
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Response, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
@@ -228,8 +228,23 @@ async def get_current_user_optional(
         return None
 
 
-def check_analysis_limit(user: dict = Depends(get_current_user)):
-    """Check daily analysis limit by tier. Raises 429 if exceeded."""
+def check_analysis_limit(
+    response: Response,
+    user: dict = Depends(get_current_user),
+):
+    """Check daily analysis limit by tier. Raises 429 if exceeded.
+
+    Also writes `X-Analyses-Today` and `X-Analyses-Limit` response
+    headers on success so the frontend can keep its usage counter in
+    lock-step with the backend without a second round-trip to
+    /auth/me. The Zustand auth store reads these headers inside
+    lib/api.ts's getAnalysis interceptor and updates
+    analysesToday + analysisLimit atomically. Previously the frontend
+    counter was set once at login and then never refreshed —
+    incrementAnalyses() existed in the store but was orphaned, and
+    the response body carried no usage metadata, so users saw "0/5
+    today" indefinitely until they reloaded the page.
+    """
     # Superuser bypass: still track usage (so admin sees correct numbers
     # in the UI) but never block.
     if is_superuser(user):
@@ -244,6 +259,8 @@ def check_analysis_limit(user: dict = Depends(get_current_user)):
         user["analyses_today"] = used
         user["analysis_limit"] = limit
         user["is_superuser"] = True
+        response.headers["X-Analyses-Today"] = str(used)
+        response.headers["X-Analyses-Limit"] = str(limit)
         return user
 
     allowed, used, limit = rate_limiter.check_and_increment(
@@ -256,6 +273,8 @@ def check_analysis_limit(user: dict = Depends(get_current_user)):
         )
     user["analyses_today"] = used
     user["analysis_limit"] = limit
+    response.headers["X-Analyses-Today"] = str(used)
+    response.headers["X-Analyses-Limit"] = str(limit)
     return user
 
 
