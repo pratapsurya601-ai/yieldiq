@@ -26,6 +26,52 @@ from utils.logger import get_logger
 log = get_logger(__name__)
 
 
+# ── Strong-brand / franchise allowlist (MVP floor) ──────────────
+# Tickers here get a moat floor of "Narrow" / score ≥ 42 regardless
+# of what the 5-signal formula returns.
+#
+# Rationale: the 5-signal moat formula under-prices intangibles
+# (brand equity, distribution franchise, regulatory/licensing edge,
+# switching costs). Properly scoring these is analyst-intensive
+# work. For Day-1 launch we hard-code a floor for tickers whose
+# moat is obvious to any informed Indian retail investor, so the
+# app does not embarrass itself calling TITAN or NESTLEIND moat-
+# less. Proper methodology refresh tracked separately.
+#
+# Selection rule: inclusion requires BOTH (a) a durable consumer /
+# financial / scale franchise recognised by the market, AND (b)
+# large-cap status. Do not add mid-caps here on gut feeling —
+# this is a circuit-breaker, not a quality list.
+STRONG_BRAND_ALLOWLIST = {
+    # Consumer franchises — brand + distribution moat
+    "TITAN.NS", "NESTLEIND.NS", "HINDUNILVR.NS", "ASIANPAINT.NS",
+    "BRITANNIA.NS", "DABUR.NS", "PIDILITIND.NS", "COLPAL.NS",
+    "PGHH.NS", "MARICO.NS", "GILLETTE.NS",
+    # Financial franchises — brand + network + scale moats
+    "HDFCBANK.NS", "HDFCAMC.NS", "ICICIBANK.NS", "KOTAKBANK.NS",
+    "BAJAJFINSV.NS", "BAJFINANCE.NS",
+    # Tech franchises — scale + switching-cost moats
+    "TCS.NS", "INFY.NS", "HCLTECH.NS",
+}
+
+# Floor score applied when the allowlist kicks in. 42 puts it
+# comfortably inside the Narrow band (40-69) without overstating.
+ALLOWLIST_MOAT_FLOOR_SCORE = 42
+
+
+def _is_allowlisted(ticker: str | None) -> bool:
+    """Normalised allowlist membership check. Accepts .NS or .BO suffixes."""
+    if not ticker:
+        return False
+    t = str(ticker).strip().upper()
+    if t in STRONG_BRAND_ALLOWLIST:
+        return True
+    # Accept .BO twins too (BSE listings of the same company)
+    if t.endswith(".BO") and (t[:-3] + ".NS") in STRONG_BRAND_ALLOWLIST:
+        return True
+    return False
+
+
 # ── Sector median FCF margins (for FCF Superiority signal) ──────
 SECTOR_MEDIAN_FCF_MARGIN = {
     "it_services":     0.18,
@@ -402,12 +448,22 @@ def compute_moat_score(enriched: dict, wacc: float) -> dict:
         else:
             grade = "None"
         moat_types = _detect_moat_types(enriched, total)
+        # Allowlist floor — see STRONG_BRAND_ALLOWLIST docstring.
+        floor_note = None
+        if _is_allowlisted(ticker) and (grade == "None" or total < ALLOWLIST_MOAT_FLOOR_SCORE):
+            total = max(total, ALLOWLIST_MOAT_FLOOR_SCORE)
+            grade = "Narrow"
+            floor_note = "Allowlist floor applied (methodology refresh pending)"
+            log.info(f"[{ticker}] Moat allowlist floor applied (financial): → {grade} ({total}/100)")
         summary = f"{grade} moat (financial). Score {total}/100 (scaled from {raw_total}/60)."
+        if floor_note:
+            summary = f"{summary} {floor_note}."
         log.info(f"[{ticker}] Moat (financial): {grade} ({total}/100) — {', '.join(moat_types) if moat_types else summary}")
         return {
             "score": total, "grade": grade,
             "moat_types": moat_types, "summary": summary,
             "signals": signals,
+            "floor_applied": bool(floor_note),
         }
 
     # Op margin < 8% → commodity / no-moat business
@@ -453,6 +509,19 @@ def compute_moat_score(enriched: dict, wacc: float) -> dict:
         grade = "Narrow"
         total = max(total, 42)
 
+    # ── Allowlist floor ─────────────────────────────────────────
+    # See STRONG_BRAND_ALLOWLIST docstring. Floors ≥ Narrow/42 for
+    # strong-brand / franchise names. Does NOT upgrade a Narrow score
+    # to Wide — the floor is a minimum, not a boost. This means the
+    # 5-signal formula continues to govern Wide-moat assignment;
+    # the floor only prevents embarrassing "None" grades on bellwethers.
+    floor_applied = False
+    if _is_allowlisted(ticker) and (grade == "None" or total < ALLOWLIST_MOAT_FLOOR_SCORE):
+        total = max(total, ALLOWLIST_MOAT_FLOOR_SCORE)
+        grade = "Narrow"
+        floor_applied = True
+        log.info(f"[{ticker}] Moat allowlist floor applied: → {grade} ({total}/100)")
+
     # ── Moat types ───────────────────────────────────────────────
     moat_types = _detect_moat_types(enriched, total)
 
@@ -463,6 +532,8 @@ def compute_moat_score(enriched: dict, wacc: float) -> dict:
         summary = f"{grade} moat driven by {', '.join(moat_types[:2])}. Score {total}/100."
     else:
         summary = f"{grade} moat. Score {total}/100."
+    if floor_applied:
+        summary = f"{summary} Allowlist floor applied (methodology refresh pending)."
 
     log.info(f"[{ticker}] Moat: {grade} ({total}/100) — {', '.join(moat_types) if moat_types else summary}")
 
@@ -472,6 +543,7 @@ def compute_moat_score(enriched: dict, wacc: float) -> dict:
         "moat_types": moat_types,
         "summary":    summary,
         "signals":    signals,
+        "floor_applied": floor_applied,
     }
 
 
