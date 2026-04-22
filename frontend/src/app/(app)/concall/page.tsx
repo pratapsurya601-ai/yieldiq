@@ -175,7 +175,7 @@ export default function ConcallPage() {
               rows={12}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono bg-white resize-y"
             />
-            <p className="text-[10px] text-gray-400 mt-1">{transcript.length.toLocaleString()} characters &middot; minimum 200 required</p>
+            <p className="text-xs text-gray-600 mt-1">{transcript.length.toLocaleString()} characters &middot; minimum 200 required</p>
           </div>
 
           <button
@@ -320,7 +320,7 @@ export default function ConcallPage() {
           )}
 
           {/* Disclaimer */}
-          <p className="text-[10px] text-gray-400 text-center mt-6">
+          <p className="text-xs text-gray-600 text-center mt-6">
             AI-generated summary from your transcript. May contain inaccuracies. Verify against the original transcript.
             Not investment advice. YieldIQ is not registered with SEBI.
           </p>
