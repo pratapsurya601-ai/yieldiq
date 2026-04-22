@@ -149,8 +149,14 @@ export default function Prism({
         // parent. On narrow viewports (<375px) the square naturally
         // shrinks via width:100% / aspect-ratio. The SVG viewBox keeps
         // all geometry — including axis labels — scaling uniformly.
+        // FIX day2-#6: cap at `size` in BOTH dimensions. Previously only
+        // maxWidth was capped; on wide flex-column parents (e.g.
+        // portfolio section) the aspectRatio trick was making the
+        // Prism reserve a giant square block of height before the
+        // maxWidth cap took effect, leaving huge blank space below.
         width: "100%",
         maxWidth: size,
+        maxHeight: size,
         aspectRatio: "1 / 1",
         height: "auto",
         // CSS custom property carrier for the Pulse breathing animation.
