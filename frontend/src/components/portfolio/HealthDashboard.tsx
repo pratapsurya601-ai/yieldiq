@@ -8,20 +8,20 @@ import type { LiveHolding } from "@/lib/api"
 // page already has it from React Query.
 
 // ---- P&L sparkline placeholder -------------------------------------------
-// The backend doesn't expose /portfolio/history yet. Per SEBI guidance we
-// never fake chart data, so this is an explicit "coming soon" card rather
-// than a generative placeholder. When the endpoint ships, swap the inner
-// body for a real <svg> path.
+// HIDDEN as of 2026-04-22: the backend doesn't expose /portfolio/history,
+// and the gradient Total-Value header on the portfolio page already shows
+// current value + cumulative P&L abs/%. A dashed "coming soon" card in
+// that slot was pure noise — per SEBI guidance we never fake chart data,
+// and per product discipline we don't ship empty placeholders.
+//
+// To restore once GET /portfolio/history ships:
+//   1. Re-enable this component body (render a real <svg> sparkline from
+//      the returned [{date, value}] series).
+//   2. Un-hide the render site in
+//      frontend/src/app/(app)/portfolio/page.tsx (search for
+//      "PnLSparklinePlaceholder").
 export function PnLSparklinePlaceholder() {
-  return (
-    <div className="bg-surface rounded-xl border border-dashed border-border p-4">
-      <div className="flex items-center justify-between mb-1">
-        <p className="text-[10px] font-bold text-caption uppercase tracking-widest">P&amp;L trend (30d)</p>
-        <span className="text-[9px] text-caption uppercase tracking-wider">Model estimate</span>
-      </div>
-      <p className="text-sm text-caption">Performance history coming soon.</p>
-    </div>
-  )
+  return null
 }
 
 // ---- Below-fair-value banner ---------------------------------------------
