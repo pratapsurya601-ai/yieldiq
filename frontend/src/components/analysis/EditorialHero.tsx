@@ -64,6 +64,17 @@ export interface EditorialHeroProps {
   marketCapCr?: number | null
   /** True when DCF inputs aren't reliable — shows a Data Limited banner instead of verdict. */
   dataLimited?: boolean
+  /**
+   * Structured red-flag list from the backend insights payload. The
+   * "Possible value trap" banner fires when — and ONLY when — this
+   * array contains a ``value_trap`` entry. Backend /services/analysis
+   * is the single source of truth; the banner used to recompute the
+   * trigger from Prism pillars here, which drifted from the W8 rule
+   * in ``backend/services/analysis/utils.py`` and produced the
+   * ADSL-style "banner says trap, Red Flags list says None" contradiction
+   * the external auditor flagged (B2 / P0-#8 follow-up, 2026-04-22).
+   */
+  redFlags?: Array<{ flag: string; severity?: string }>
 }
 
 function bandCaption(band: VerdictBand): string {
@@ -127,6 +138,7 @@ export default function EditorialHero({
   trend12m,
   marketCapCr,
   dataLimited,
+  redFlags,
 }: EditorialHeroProps) {
   const defaultMode: PrismMode = "spectrum"
   const color = verdictColor(data.verdict_band)
@@ -138,19 +150,19 @@ export default function EditorialHero({
   // narrator fighting for control.
   const [explainerAxis, setExplainerAxis] = useState<PillarKey | null>(null)
 
-  // Value-trap indicator — fires when the stock looks cheap (Value >= 8)
-  // but the cheapness is paired with weak quality or no competitive moat.
-  // Classic value-trap pattern: market is pricing in real fundamental
-  // risk. Copy stays factual ("possible value trap — deep discount but
-  // weak quality / moat"); we never tell anyone to buy or sell.
-  const valueTrap = useMemo(() => {
-    const val = data.pillars.find((p) => p.key === "value")
-    const qual = data.pillars.find((p) => p.key === "quality")
-    if (!val || val.score == null || val.score < 8) return false
-    const qualityWeak = qual?.score != null && qual.score < 5
-    const moatNone = (moat || "").toLowerCase() === "none"
-    return qualityWeak || moatNone
-  }, [data.pillars, moat])
+  // Value-trap indicator — fires when the backend insights pipeline has
+  // tagged this stock with the ``value_trap`` red flag. We intentionally
+  // do NOT recompute the trigger from Prism pillars here: the previous
+  // implementation (Value>=8 AND (Quality<5 OR Moat=None)) and the backend
+  // W8 rule (mos_pct>30 AND (piotroski<=4 OR moat==None)) drifted apart
+  // and produced the contradictory "Possible value trap" banner +
+  // "Red Flags: None" state on ADSL. Single source of truth = backend
+  // red_flags array; banner renders iff value_trap is present in it.
+  // See backend/services/analysis/utils.py::_add_flags W8 rule.
+  const valueTrap = useMemo(
+    () => (redFlags ?? []).some((f) => f?.flag === "value_trap"),
+    [redFlags],
+  )
 
   return (
     <section

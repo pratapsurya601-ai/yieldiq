@@ -654,6 +654,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             trend12m={prismResolved.score_history_12m ?? []}
             marketCapCr={marketCapCr}
             dataLimited={dataLimited}
+            redFlags={insights?.red_flags_structured ?? []}
           />
         ) : (
           <AnalysisHero

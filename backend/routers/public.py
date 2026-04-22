@@ -1682,9 +1682,25 @@ async def screener_query(
           ORDER BY ticker, period_end DESC
         ),
         latest_mm AS (
-          SELECT DISTINCT ON (ticker) ticker, market_cap_cr, close_price
-          FROM market_metrics
-          ORDER BY ticker, trade_date DESC
+          -- NOTE (P0-#1 follow-up, 2026-04-22): `market_metrics` does NOT
+          -- carry `close_price` (see data_pipeline/models.py::MarketMetrics —
+          -- that column lives on `daily_prices`). The previous query
+          -- referenced mm.close_price and raised psycopg2 UndefinedColumn
+          -- (pgcode 42703) on every single /public/screener/query request,
+          -- which mapped to HTTP 400 "rejected by DB" in the frontend. Pull
+          -- market_cap from market_metrics, price from daily_prices, and
+          -- LEFT-JOIN the two on ticker so the public response contract
+          -- keeps both columns.
+          SELECT DISTINCT ON (mm.ticker)
+                 mm.ticker, mm.market_cap_cr, dp.close_price
+          FROM market_metrics mm
+          LEFT JOIN LATERAL (
+            SELECT close_price FROM daily_prices dp2
+            WHERE dp2.ticker = mm.ticker
+            ORDER BY dp2.trade_date DESC
+            LIMIT 1
+          ) dp ON TRUE
+          ORDER BY mm.ticker, mm.trade_date DESC
         ),
         latest_fv AS (
           SELECT DISTINCT ON (ticker) ticker, mos_pct, confidence, verdict, fair_value
@@ -1764,8 +1780,9 @@ async def screener_query(
                 f"    ORDER BY ticker, period_end DESC"
                 f"  ),"
                 f"  latest_mm AS ("
-                f"    SELECT DISTINCT ON (ticker) ticker, market_cap_cr, close_price "
-                f"    FROM market_metrics ORDER BY ticker, trade_date DESC"
+                f"    SELECT DISTINCT ON (mm.ticker) mm.ticker, mm.market_cap_cr "
+                f"    FROM market_metrics mm "
+                f"    ORDER BY mm.ticker, mm.trade_date DESC"
                 f"  ),"
                 f"  latest_fv AS ("
                 f"    SELECT DISTINCT ON (ticker) ticker, mos_pct, confidence, verdict, fair_value "
