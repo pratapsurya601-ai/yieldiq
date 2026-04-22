@@ -1,0 +1,49 @@
+name: OG Image Health
+
+# Curls every /api/og/* endpoint and fails if Content-Length is < 10 KB or
+# Content-Type isn't image/png. Catches Satori silent-throw regressions on
+# Vercel edge runtime that return 200 OK with zero bytes.
+#
+# Runs daily and on every push to main that touches an OG route or its
+# JSX helpers. Manual dispatch for ad-hoc verification after a deploy.
+
+env:
+  HOST: "https://www.yieldiq.in"
+  MIN_BYTES: "10000"
+
+on:
+  schedule:
+    - cron: "30 2 * * *"   # 02:30 UTC daily — after Vercel nightly cache refresh
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/src/app/api/og/**"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe OG endpoints
+        run: |
+          set -euo pipefail
+          tickers=(TCS.NS HDFCBANK.NS INFY.NS)
+          routes=(/api/og /api/og/analysis /api/og/prism /api/og/hex)
+          fail=0
+          for route in "${routes[@]}"; do
+            for t in "${tickers[@]}"; do
+              url="${HOST}${route}/${t}?cb=${GITHUB_RUN_ID}"
+              headers=$(curl -sS -D- -o /tmp/og.bin --http1.1 \
+                -H 'Accept-Encoding: identity' --max-time 30 "$url")
+              code=$(printf '%s' "$headers" | awk 'NR==1{print $2}')
+              ctype=$(printf '%s' "$headers" | awk 'tolower($1)=="content-type:"{print $2}' | tr -d '\r')
+              bytes=$(stat -c%s /tmp/og.bin)
+              if [[ "$code" != "200" || "$ctype" != image/png* || "$bytes" -lt "$MIN_BYTES" ]]; then
+                echo "::error::FAIL $url  code=$code  type=$ctype  bytes=$bytes  (min=$MIN_BYTES)"
+                fail=1
+              else
+                echo "ok   $url  bytes=$bytes"
+              fi
+            done
+          done
+          exit $fail

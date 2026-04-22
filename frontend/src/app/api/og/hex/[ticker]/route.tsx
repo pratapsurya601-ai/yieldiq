@@ -302,7 +302,7 @@ export async function GET(
               fontSize={18}
               fontWeight={600}
               fill="#94A3B8"
-              letterSpacing={2}
+              style={{ letterSpacing: 2 }}
             >
               / 10
             </text>
