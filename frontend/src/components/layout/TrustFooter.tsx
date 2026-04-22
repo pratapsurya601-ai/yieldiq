@@ -161,6 +161,14 @@ export default function TrustFooter() {
                 </Link>
               </li>
               <li>
+                <Link
+                  href="/methodology"
+                  className="text-body hover:text-ink transition-colors"
+                >
+                  Methodology
+                </Link>
+              </li>
+              <li>
                 <a
                   href="mailto:hello@yieldiq.in"
                   className="text-body hover:text-ink transition-colors"
