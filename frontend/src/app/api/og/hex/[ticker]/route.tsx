@@ -63,12 +63,18 @@ export async function GET(
   const overall = Math.max(0, Math.min(10, Number(data.overall ?? 0)))
   const company = (data.company_name || cleanTicker).toString().slice(0, 60)
 
-  // Hexagon geometry — 6 axes, 0..10 radial
+  // Hexagon geometry — 6 axes, 0..10 radial. SVG_TOP is the y-offset of
+  // the SVG inside the root container — shared by the SVG itself and the
+  // HTML overlays that replace <text> nodes (Satori in Next 16 rejects
+  // <text> in SVG, so labels + numbers are positioned absolutely as
+  // <div>s over the geometric shapes; see analysis/[ticker] for the
+  // same pattern).
   const W = 1200
   const H = 1200
   const cx = 600
   const cy = 700
   const R = 340
+  const SVG_TOP = 260
 
   const vertex = (i: number, valueOf10: number): [number, number] => {
     const angle = -Math.PI / 2 + (i * 2 * Math.PI) / 6
@@ -197,116 +203,151 @@ export async function GET(
           </span>
         </div>
 
-        {/* Hex SVG */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            marginTop: 10,
-          }}
+        {/* Hex — SVG holds ONLY geometric shapes; all typography is
+            layered as absolutely-positioned HTML below. */}
+        <svg
+          width={W}
+          height={780}
+          style={{ position: "absolute", left: 0, top: SVG_TOP }}
         >
-          <svg width={W} height={780} style={{ position: "absolute", left: 0, top: 260 }}>
-            {/* Grid rings */}
-            {[2, 4, 6, 8, 10].map((v) => (
-              <polygon
-                key={v}
-                points={ringPolygon(v)}
-                fill="none"
+          {/* Grid rings */}
+          {[2, 4, 6, 8, 10].map((v) => (
+            <polygon
+              key={v}
+              points={ringPolygon(v)}
+              fill="none"
+              stroke="rgba(148,163,184,0.25)"
+              strokeWidth={1.5}
+            />
+          ))}
+          {/* Spokes */}
+          {AXIS_ORDER.map((_, i) => {
+            const [x, y] = vertex(i, 10)
+            return (
+              <line
+                key={i}
+                x1={cx}
+                y1={cy}
+                x2={x}
+                y2={y}
                 stroke="rgba(148,163,184,0.25)"
                 strokeWidth={1.5}
               />
-            ))}
-            {/* Spokes */}
-            {AXIS_ORDER.map((_, i) => {
-              const [x, y] = vertex(i, 10)
-              return (
-                <line
-                  key={i}
-                  x1={cx}
-                  y1={cy}
-                  x2={x}
-                  y2={y}
-                  stroke="rgba(148,163,184,0.25)"
-                  strokeWidth={1.5}
-                />
-              )
+            )
+          })}
+          {/* Data polygon */}
+          {fetchOk && (
+            <polygon
+              points={dataPoly}
+              fill="rgba(96,165,250,0.35)"
+              stroke="#60A5FA"
+              strokeWidth={4}
+            />
+          )}
+          {/* Vertex circles only — numbers rendered as HTML overlays */}
+          {fetchOk &&
+            AXIS_ORDER.map((k, i) => {
+              const [x, y] = vertex(i, scores[i])
+              const color = scoreColor(scores[i])
+              return <circle key={k} cx={x} cy={y} r={22} fill={color} />
             })}
-            {/* Data polygon */}
-            {fetchOk && (
-              <polygon
-                points={dataPoly}
-                fill="rgba(96,165,250,0.35)"
-                stroke="#60A5FA"
-                strokeWidth={4}
-              />
-            )}
-            {/* Vertex pills */}
-            {fetchOk &&
-              AXIS_ORDER.map((k, i) => {
-                const [x, y] = vertex(i, scores[i])
-                const color = scoreColor(scores[i])
-                return (
-                  <g key={k}>
-                    <circle cx={x} cy={y} r={22} fill={color} />
-                    <text
-                      x={x}
-                      y={y + 2}
-                      textAnchor="middle"
-                      dominantBaseline="central"
-                      fontSize={20}
-                      fontWeight={800}
-                      fill="#ffffff"
-                    >
-                      {scores[i].toFixed(1)}
-                    </text>
-                  </g>
-                )
-              })}
-            {/* Axis labels */}
-            {AXIS_ORDER.map((k, i) => {
-              const [x, y] = labelPos[i]
-              return (
-                <text
-                  key={k}
-                  x={x}
-                  y={y}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={28}
-                  fontWeight={700}
-                  fill="#E2E8F0"
-                >
-                  {AXIS_LABEL[k].toUpperCase()}
-                </text>
-              )
-            })}
-            {/* Center overall score */}
-            <circle cx={cx} cy={cy} r={72} fill="rgba(15,23,42,0.85)" stroke="#60A5FA" strokeWidth={3} />
-            <text
-              x={cx}
-              y={cy - 6}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize={58}
-              fontWeight={900}
-              fill="#ffffff"
+          {/* Center composite disc — number overlaid as HTML */}
+          <circle
+            cx={cx}
+            cy={cy}
+            r={72}
+            fill="rgba(15,23,42,0.85)"
+            stroke="#60A5FA"
+            strokeWidth={3}
+          />
+        </svg>
+
+        {/* Axis labels — HTML overlays aligned to each hex vertex */}
+        {AXIS_ORDER.map((k, i) => {
+          const [x, y] = labelPos[i]
+          return (
+            <div
+              key={`lbl-${k}`}
+              style={{
+                position: "absolute",
+                left: x - 100,
+                top: SVG_TOP + y - 16,
+                width: 200,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#E2E8F0",
+                fontSize: 26,
+                fontWeight: 700,
+                letterSpacing: 1,
+              }}
             >
-              {fetchOk ? overall.toFixed(1) : "\u2014"}
-            </text>
-            <text
-              x={cx}
-              y={cy + 32}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize={18}
-              fontWeight={600}
-              fill="#94A3B8"
-              style={{ letterSpacing: 2 }}
-            >
-              / 10
-            </text>
-          </svg>
+              {AXIS_LABEL[k].toUpperCase()}
+            </div>
+          )
+        })}
+
+        {/* Vertex score numbers */}
+        {fetchOk &&
+          AXIS_ORDER.map((k, i) => {
+            const [x, y] = vertex(i, scores[i])
+            return (
+              <div
+                key={`num-${k}`}
+                style={{
+                  position: "absolute",
+                  left: x - 30,
+                  top: SVG_TOP + y - 14,
+                  width: 60,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ffffff",
+                  fontSize: 20,
+                  fontWeight: 800,
+                }}
+              >
+                {scores[i].toFixed(1)}
+              </div>
+            )
+          })}
+
+        {/* Center composite number + "/ 10" caption */}
+        <div
+          style={{
+            position: "absolute",
+            left: cx - 90,
+            top: SVG_TOP + cy - 42,
+            width: 180,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              color: "#ffffff",
+              fontSize: 56,
+              fontWeight: 900,
+              lineHeight: 1,
+              display: "flex",
+            }}
+          >
+            {fetchOk ? overall.toFixed(1) : "\u2014"}
+          </div>
+          <div
+            style={{
+              color: "#94A3B8",
+              fontSize: 18,
+              fontWeight: 600,
+              letterSpacing: 2,
+              marginTop: 8,
+              display: "flex",
+            }}
+          >
+            / 10
+          </div>
         </div>
 
         {/* Footer */}

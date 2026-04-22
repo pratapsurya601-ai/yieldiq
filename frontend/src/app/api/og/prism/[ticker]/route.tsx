@@ -92,12 +92,18 @@ export async function GET(
     return typeof v === "number" ? v : 0
   })
 
-  // Hexagon geometry for the Signature.
+  // Hexagon geometry for the Signature. SVG_TOP is the y-offset of the
+  // SVG inside the root container — shared by the SVG itself and the
+  // HTML overlays that replace <text> nodes (Satori in Next 16 rejects
+  // <text> in SVG, so labels + numbers are positioned absolutely as
+  // <div>s over the geometric shapes; see analysis/[ticker] for the
+  // same pattern).
   const W = 1200
   const H = 1200
   const cx = 600
   const cy = 640
   const R = 300
+  const SVG_TOP = 110
 
   const vertex = (i: number, valueOf10: number): [number, number] => {
     const angle = -Math.PI / 2 + (i * 2 * Math.PI) / 6
@@ -217,113 +223,150 @@ export async function GET(
           </div>
         </div>
 
-        {/* Signature (center 700×700, approximately) */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            marginTop: 20,
-          }}
+        {/* Signature — SVG holds ONLY geometric shapes; all typography
+            is layered as absolutely-positioned HTML below. */}
+        <svg
+          width={W}
+          height={720}
+          style={{ position: "absolute", left: 0, top: SVG_TOP }}
         >
-          <svg width={W} height={720} style={{ position: "absolute", left: 0, top: 110 }}>
-            {/* Grid rings */}
-            {[2, 4, 6, 8, 10].map((v) => (
-              <polygon
-                key={v}
-                points={ringPolygon(v)}
-                fill="none"
+          {/* Grid rings */}
+          {[2, 4, 6, 8, 10].map((v) => (
+            <polygon
+              key={v}
+              points={ringPolygon(v)}
+              fill="none"
+              stroke="rgba(148,163,184,0.25)"
+              strokeWidth={1.5}
+            />
+          ))}
+          {/* Spokes */}
+          {PILLAR_ORDER.map((_, i) => {
+            const [x, y] = vertex(i, 10)
+            return (
+              <line
+                key={i}
+                x1={cx}
+                y1={cy}
+                x2={x}
+                y2={y}
                 stroke="rgba(148,163,184,0.25)"
                 strokeWidth={1.5}
               />
-            ))}
-            {/* Spokes */}
-            {PILLAR_ORDER.map((_, i) => {
-              const [x, y] = vertex(i, 10)
-              return (
-                <line
-                  key={i}
-                  x1={cx}
-                  y1={cy}
-                  x2={x}
-                  y2={y}
-                  stroke="rgba(148,163,184,0.25)"
-                  strokeWidth={1.5}
-                />
-              )
+            )
+          })}
+          {fetchOk && (
+            <polygon
+              points={dataPoly}
+              fill="rgba(96,165,250,0.35)"
+              stroke="#60A5FA"
+              strokeWidth={4}
+            />
+          )}
+          {/* Vertex circles only — numbers rendered as HTML overlays */}
+          {fetchOk &&
+            PILLAR_ORDER.map((k, i) => {
+              const [x, y] = vertex(i, scores[i])
+              const color = PILLAR_COLOR[k] || scoreColor(scores[i])
+              return <circle key={k} cx={x} cy={y} r={20} fill={color} />
             })}
-            {fetchOk && (
-              <polygon
-                points={dataPoly}
-                fill="rgba(96,165,250,0.35)"
-                stroke="#60A5FA"
-                strokeWidth={4}
-              />
-            )}
-            {fetchOk &&
-              PILLAR_ORDER.map((k, i) => {
-                const [x, y] = vertex(i, scores[i])
-                const color = PILLAR_COLOR[k] || scoreColor(scores[i])
-                return (
-                  <g key={k}>
-                    <circle cx={x} cy={y} r={20} fill={color} />
-                    <text
-                      x={x}
-                      y={y + 1}
-                      textAnchor="middle"
-                      dominantBaseline="central"
-                      fontSize={18}
-                      fontWeight={800}
-                      fill="#ffffff"
-                    >
-                      {scores[i].toFixed(1)}
-                    </text>
-                  </g>
-                )
-              })}
-            {PILLAR_ORDER.map((k, i) => {
-              const [x, y] = labelPos[i]
-              return (
-                <text
-                  key={k}
-                  x={x}
-                  y={y}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={24}
-                  fontWeight={700}
-                  fill="#E2E8F0"
-                >
-                  {PILLAR_LABEL[k].toUpperCase()}
-                </text>
-              )
-            })}
-            {/* Center composite score — huge */}
-            <circle cx={cx} cy={cy} r={82} fill="rgba(15,23,42,0.9)" stroke="#60A5FA" strokeWidth={3} />
-            <text
-              x={cx}
-              y={cy - 8}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize={68}
-              fontWeight={900}
-              fill="#ffffff"
+          {/* Center composite disc — number overlaid as HTML */}
+          <circle
+            cx={cx}
+            cy={cy}
+            r={82}
+            fill="rgba(15,23,42,0.9)"
+            stroke="#60A5FA"
+            strokeWidth={3}
+          />
+        </svg>
+
+        {/* Axis labels — HTML overlays aligned to each hex vertex */}
+        {PILLAR_ORDER.map((k, i) => {
+          const [x, y] = labelPos[i]
+          return (
+            <div
+              key={`lbl-${k}`}
+              style={{
+                position: "absolute",
+                left: x - 80,
+                top: SVG_TOP + y - 14,
+                width: 160,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#E2E8F0",
+                fontSize: 22,
+                fontWeight: 700,
+                letterSpacing: 1,
+              }}
             >
-              {fetchOk ? overall.toFixed(1) : "\u2014"}
-            </text>
-            <text
-              x={cx}
-              y={cy + 38}
-              textAnchor="middle"
-              dominantBaseline="middle"
-              fontSize={18}
-              fontWeight={600}
-              fill="#94A3B8"
-              style={{ letterSpacing: 2 }}
-            >
-              / 10
-            </text>
-          </svg>
+              {PILLAR_LABEL[k].toUpperCase()}
+            </div>
+          )
+        })}
+
+        {/* Vertex score numbers */}
+        {fetchOk &&
+          PILLAR_ORDER.map((k, i) => {
+            const [x, y] = vertex(i, scores[i])
+            return (
+              <div
+                key={`num-${k}`}
+                style={{
+                  position: "absolute",
+                  left: x - 26,
+                  top: SVG_TOP + y - 12,
+                  width: 52,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ffffff",
+                  fontSize: 18,
+                  fontWeight: 800,
+                }}
+              >
+                {scores[i].toFixed(1)}
+              </div>
+            )
+          })}
+
+        {/* Center composite number + "/ 10" caption */}
+        <div
+          style={{
+            position: "absolute",
+            left: cx - 90,
+            top: SVG_TOP + cy - 44,
+            width: 180,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <div
+            style={{
+              color: "#ffffff",
+              fontSize: 64,
+              fontWeight: 900,
+              lineHeight: 1,
+              display: "flex",
+            }}
+          >
+            {fetchOk ? overall.toFixed(1) : "\u2014"}
+          </div>
+          <div
+            style={{
+              color: "#94A3B8",
+              fontSize: 18,
+              fontWeight: 600,
+              letterSpacing: 2,
+              marginTop: 8,
+              display: "flex",
+            }}
+          >
+            / 10
+          </div>
         </div>
 
         {/* Mini Spectrum strip (160px) */}
