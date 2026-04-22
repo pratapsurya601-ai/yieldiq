@@ -29,6 +29,27 @@ import {
 
 const DEFAULT_LIMIT = 50
 
+// Axios wraps FastAPI's `{detail: "..."}` body under error.response.data.detail.
+// The default Error.message for axios is "Request failed with status code 4xx",
+// which tells the user nothing. This helper walks the axios shape first and
+// falls back to Error.message — critical for the P0-#1 fix: a screener 400/500
+// must render a distinct actionable message, NOT the "No stocks match" empty
+// state, so users don't falsely conclude the universe is empty.
+function extractScreenerError(err: unknown): string {
+  if (err && typeof err === "object") {
+    const anyErr = err as {
+      response?: { status?: number; data?: { detail?: unknown } }
+      message?: string
+    }
+    const detail = anyErr.response?.data?.detail
+    if (typeof detail === "string" && detail) return detail
+    const status = anyErr.response?.status
+    if (status && anyErr.message) return `${anyErr.message} (HTTP ${status})`
+    if (anyErr.message) return anyErr.message
+  }
+  return "Check that every filter has a field and value."
+}
+
 function ScreenerInner() {
   const router = useRouter()
   const pathname = usePathname()
@@ -224,14 +245,16 @@ function ScreenerInner() {
 
             {error && (
               <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                <p className="text-sm font-medium text-amber-800">Screener failed</p>
+                <p className="text-sm font-medium text-amber-800">
+                  Screener failed &mdash; try different filters
+                </p>
                 <p className="text-xs text-amber-700 mt-1">
-                  {(error as Error).message || "Check that every filter has a field and value."}
+                  {extractScreenerError(error)}
                 </p>
               </div>
             )}
 
-            {hasRun && (
+            {hasRun && !error && (
               <ResultsTable
                 rows={data?.results ?? []}
                 total={data?.total ?? 0}
