@@ -15,6 +15,7 @@
 // ─────────────────────────────────────────────────────────────────────
 import { useQuery } from "@tanstack/react-query"
 import { getYieldIQ50, getTopPick } from "@/lib/api"
+import { formatMoS } from "@/lib/utils"
 import TopPickCard from "@/components/discover/TopPickCard"
 import ScreenerPresetsWithCounts from "@/components/discover/ScreenerPresetsWithCounts"
 import { SectorLeaders } from "@/components/discover/DiscoverRails"
@@ -23,6 +24,12 @@ import { useAuthStore } from "@/store/authStore"
 import Link from "next/link"
 
 const RANK_COLORS = ["bg-yellow-500", "bg-gray-400", "bg-amber-600"]
+
+// P0-#3 (2026-04-22): display-side MoS clamp lives in @/lib/utils
+// (single source of truth). Backend now filters the YIQ 50 list to
+// 0 < MoS ≤ 100, but defense-in-depth: any stray value ≥100 or
+// ≤-100 (from a stale cache or older entry) renders as ≥100.0% /
+// ≤-100.0% — never a raw "+164%".
 
 export default function DiscoverPage() {
   const { tier } = useAuthStore()
@@ -64,7 +71,10 @@ export default function DiscoverPage() {
                     #{i + 1}
                   </span>
                   <p className="text-sm font-bold text-gray-900 truncate">{s.ticker.replace(".NS", "")}</p>
-                  <p className="text-lg font-bold text-blue-700 font-mono">{s.margin_of_safety > 0 ? "+" : ""}{s.margin_of_safety.toFixed(0)}%</p>
+                  <p className="text-lg font-bold text-blue-700 font-mono">{formatMoS(s.margin_of_safety)}</p>
+                  {Math.abs(s.margin_of_safety) >= 100 && (
+                    <p className="text-[9px] text-gray-400 leading-tight">uncertain on micro-caps</p>
+                  )}
                   <p className="text-[10px] text-gray-500">Score: {s.score}</p>
                 </Link>
               ))}
@@ -90,7 +100,7 @@ export default function DiscoverPage() {
                           </Link>
                         </td>
                         <td className="px-3 py-2 text-right font-mono">{s.score}</td>
-                        <td className="px-3 py-2 text-right font-mono">{s.margin_of_safety > 0 ? "+" : ""}{s.margin_of_safety.toFixed(1)}%</td>
+                        <td className="px-3 py-2 text-right font-mono">{formatMoS(s.margin_of_safety)}</td>
                       </tr>
                     ))}
                   </tbody>

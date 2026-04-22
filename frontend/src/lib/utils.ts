@@ -17,7 +17,15 @@ export function formatCurrency(value: number, currency: string = "INR"): string 
   return `$${value.toLocaleString("en-US", { maximumFractionDigits: 2 })}`
 }
 
+// P0-#3 (2026-04-22): clamp MoS at +/-100%. Backend widens/narrows the
+// validator range for storage, but the UI must never render implausible
+// "+164%"-style values that break user trust on micro-caps where the
+// DCF denominator blows up. Out-of-band values render as ">=100.0%" /
+// "<=-100.0%" with a single-source-of-truth clamp here.
 export function formatMoS(mos: number): string {
+  if (!Number.isFinite(mos)) return "—"
+  if (mos >= 100) return "\u2265100.0%"
+  if (mos <= -100) return "\u2264-100.0%"
   return `${mos >= 0 ? "+" : ""}${mos.toFixed(1)}%`
 }
 
