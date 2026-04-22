@@ -96,6 +96,11 @@ class ForgotPasswordRequest(BaseModel):
     email: str = Field(min_length=3, max_length=254)
 
 
+class UpdatePasswordRequest(BaseModel):
+    access_token: str = Field(min_length=10, max_length=4096)
+    new_password: str = Field(min_length=6, max_length=200)
+
+
 @router.post("/forgot-password")
 async def forgot_password(req: ForgotPasswordRequest):
     """Trigger a Supabase password-reset email.
@@ -118,16 +123,15 @@ async def forgot_password(req: ForgotPasswordRequest):
                 "forgot-password: Supabase client unavailable"
             )
             return {"ok": True}
-        # Supabase sends the email via the configured SMTP. redirect_to
-        # should be an allowlisted URL in Supabase Auth → URL Configuration.
-        # Without redirect_to, the email link points at Supabase's hosted
-        # recovery page, which is fine for the MVP — user verification of
-        # deliverability is the whole point. UX polish (custom reset page)
-        # is a follow-up.
+        # redirect_to MUST be an allowlisted URL in Supabase Auth →
+        # URL Configuration → Redirect URLs. This points the reset link
+        # at our in-brand /auth/reset-password page (not Supabase's
+        # hosted recovery UI). The page reads access_token from the URL
+        # hash and calls /auth/update-password below.
         try:
             client.auth.reset_password_for_email(
                 email,
-                options={"redirect_to": "https://www.yieldiq.in/auth/login"},
+                options={"redirect_to": "https://www.yieldiq.in/auth/reset-password"},
             )
         except TypeError:
             # Older Supabase SDKs use positional args / different kwargs.
@@ -139,6 +143,80 @@ async def forgot_password(req: ForgotPasswordRequest):
             "forgot-password failed for %s: %s", email, exc
         )
     return {"ok": True}
+
+
+@router.post("/update-password")
+async def update_password(req: UpdatePasswordRequest):
+    """Set a new password using a Supabase recovery access token.
+
+    The reset flow:
+      1. User clicks email link → lands on /auth/reset-password with
+         #access_token=... in the URL hash (Supabase's convention).
+      2. Frontend reads the token and POSTs here with the token + new
+         password.
+      3. We call Supabase's REST endpoint to update the user's password,
+         authenticating as that user via the recovery token.
+
+    Uses direct REST call instead of the Python SDK because the SDK's
+    session-mutation pattern (set_session then update_user) is flaky
+    in a stateless FastAPI process.
+    """
+    import os
+    import requests
+    supabase_url = os.environ.get("SUPABASE_URL", "").rstrip("/")
+    anon_key = os.environ.get("SUPABASE_ANON_KEY", "")
+    if not supabase_url or not anon_key:
+        raise HTTPException(
+            status_code=503,
+            detail="Auth backend unavailable — please try again shortly.",
+        )
+    try:
+        resp = requests.put(
+            f"{supabase_url}/auth/v1/user",
+            headers={
+                "Authorization": f"Bearer {req.access_token}",
+                "apikey": anon_key,
+                "Content-Type": "application/json",
+            },
+            json={"password": req.new_password},
+            timeout=15,
+        )
+    except requests.RequestException as exc:
+        logging.getLogger("yieldiq.auth").warning(
+            "update-password: network error: %s", exc
+        )
+        raise HTTPException(status_code=503, detail="Network error, please retry.")
+
+    if resp.status_code == 200:
+        return {"ok": True}
+
+    # Map Supabase's error shapes to user-friendly messages without
+    # leaking internals. The most common failures here are:
+    #   401 — token expired or already consumed (reset links are single-use)
+    #   422 — password fails Supabase's strength requirements
+    try:
+        body = resp.json()
+        msg = body.get("msg") or body.get("message") or body.get("error_description") or ""
+    except Exception:
+        msg = resp.text[:200] if resp.text else ""
+
+    if resp.status_code in (401, 403):
+        raise HTTPException(
+            status_code=400,
+            detail="This reset link has expired or already been used. Request a new one.",
+        )
+    if resp.status_code == 422:
+        raise HTTPException(
+            status_code=400,
+            detail=msg or "Password doesn't meet requirements. Try at least 8 characters.",
+        )
+    logging.getLogger("yieldiq.auth").warning(
+        "update-password: Supabase returned %s: %s", resp.status_code, msg
+    )
+    raise HTTPException(
+        status_code=400,
+        detail="Couldn't set password. Request a new reset link.",
+    )
 
 
 @router.get("/me", response_model=UserResponse)

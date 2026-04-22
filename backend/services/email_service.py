@@ -261,15 +261,14 @@ def send_welcome_email(email: str, name: str = "") -> bool:
               </td>
             </tr>
 
-            <!-- ═══ FOUNDER SIGNATURE ═══ -->
+            <!-- ═══ SIGN-OFF ═══ -->
             <tr>
               <td style="padding:28px 32px 4px;">
                 <p style="margin:0 0 10px;font-size:14px;color:#334155;line-height:1.7;">
-                  If anything breaks or feels off, reply to this email &mdash; it reaches me directly.
+                  If anything breaks or feels off, reply to this email &mdash; we read every reply.
                 </p>
                 <p style="margin:0;font-size:14px;color:#0F172A;line-height:1.7;">
-                  &mdash;&nbsp;Surya<br>
-                  <span style="color:#64748B;">Founder, YieldIQ</span>
+                  &mdash;&nbsp;The YieldIQ Team
                 </p>
               </td>
             </tr>
