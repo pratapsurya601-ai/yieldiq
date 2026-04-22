@@ -204,7 +204,7 @@ def send_welcome_email(email: str, name: str = "") -> bool:
             <tr>
               <td style="padding:24px 32px 0;">
                 <p style="margin:0 0 14px;font-size:15px;color:#334155;line-height:1.7;">
-                  Thanks for signing up. YieldIQ gives you an opinionated fair-value estimate on every NSE and BSE stock you look at &mdash; backed by a transparent DCF, a 6-pillar quality score, and Bear / Base / Bull scenarios. Most of what you need to decide on a stock, in under a minute.
+                  Thanks for signing up. YieldIQ gives you a data-backed fair-value estimate on every NSE and BSE stock you look at &mdash; produced by a transparent DCF, a 6-pillar quality score, and Bear / Base / Bull scenarios. Most of what you need to form your own view on a stock, in under a minute.
                 </p>
                 <p style="margin:0;font-size:15px;color:#334155;line-height:1.7;">
                   Your first <strong style="color:#0F172A;">5 analyses today</strong> are on the house. A good place to start is a stock you already hold or one you&rsquo;ve been researching.
