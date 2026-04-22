@@ -127,10 +127,35 @@ class NarrativeMixin:
                 _direction = f"appears overvalued by {abs(_mos):.1f}%"
 
             def _fmt_pct(val, dp: int = 1) -> str:
+                """For already-percent values (ROCE/ROE/MoS normalized at
+                the response layer via _normalize_pct).
+                """
                 if val is None:
                     return "n/a"
                 try:
                     return f"{float(val):.{dp}f}%"
+                except Exception:
+                    return "n/a"
+
+            def _fmt_cagr_pct(val, dp: int = 1) -> str:
+                """FIX-CAGR-DECIMAL (2026-04-22): revenue_cagr_3y/5y come
+                from compute_revenue_cagr() which returns DECIMAL (0.058
+                = 5.8%). Unlike ROCE/ROE/MoS which are normalized to
+                percent at the response boundary, CAGR stays decimal —
+                passing 0.058 through _fmt_pct would send '0.1%' to the
+                LLM, which then dutifully echoes that. Multiply by 100.
+
+                Tolerant of legacy percent emitters: if |val| >= 1.5 we
+                assume it's already percent (real-world business CAGR
+                expressed as a decimal would never exceed 1.5 = 150%).
+                """
+                if val is None:
+                    return "n/a"
+                try:
+                    v = float(val)
+                    if abs(v) >= 1.5:
+                        return f"{v:.{dp}f}%"
+                    return f"{v * 100:.{dp}f}%"
                 except Exception:
                     return "n/a"
 
@@ -150,7 +175,7 @@ class NarrativeMixin:
                 f"Verdict phrase: '{_direction}'\n"
                 f"ROCE: {_fmt_pct(_roce)} | ROE: {_fmt_pct(_roe)}\n"
                 f"Moat: {_moat}\n"
-                f"Revenue CAGR 3y: {_fmt_pct(_cagr3)} | 5y: {_fmt_pct(_cagr5)}\n"
+                f"Revenue CAGR 3y: {_fmt_cagr_pct(_cagr3)} | 5y: {_fmt_cagr_pct(_cagr5)}\n"
                 f"Piotroski: {_piotroski if _piotroski is not None else 'n/a'}/9\n"
                 f"D/E: {_fmt_num(_de)} | Interest coverage: {_fmt_num(_int_cov, 1)}x\n"
                 f"YieldIQ score: {_score if _score is not None else 'n/a'}/100\n"
