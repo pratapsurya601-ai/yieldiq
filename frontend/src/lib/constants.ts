@@ -9,7 +9,9 @@ export const VERDICT_COLORS = {
   unavailable: { bg: "bg-gray-100", text: "text-gray-500", border: "border-gray-300", hex: "#9CA3AF" },
 } as const
 
-export const TIER_LIMITS = { free: 5, starter: Infinity, pro: Infinity, analyst: Infinity } as const
+// Free tier cap: 3 deep analyses / day. Mirrors backend/middleware/
+// rate_limit.py + backend/middleware/auth.py. See decision-memo-free-tier.md.
+export const TIER_LIMITS = { free: 3, starter: Infinity, pro: Infinity, analyst: Infinity } as const
 
 export const SCORE_COLOR = (score: number): string => {
   if (score >= 75) return "#185FA5"

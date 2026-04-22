@@ -50,12 +50,12 @@ export default function HomePage() {
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-amber-900">
                 {remaining === 0
-                  ? "You\u2019ve used all 5 analyses today"
+                  ? `You\u2019ve used all ${dailyLimit ?? 3} analyses today`
                   : "1 analysis left today"}
               </p>
               <p className="text-xs text-amber-800 mt-0.5">
                 {remaining === 0
-                  ? "Monthly quota resets on the 1st. Upgrade to Analyst for unlimited analyses."
+                  ? "Daily quota resets at midnight UTC. Upgrade to Analyst for unlimited analyses."
                   : "Make it count \u2014 or upgrade to Analyst for unlimited analyses (\u20B9799/mo)."}
               </p>
             </div>

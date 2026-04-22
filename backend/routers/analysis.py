@@ -80,7 +80,7 @@ async def get_analysis(
 ):
     """
     Full stock analysis with DCF, quality scores, scenarios, and insights.
-    Rate limited by tier: Free=5/day, Starter=50/day, Pro=unlimited.
+    Rate limited by tier: Free=3/day, Analyst=unlimited, Pro=unlimited.
 
     Cache tiers (in order): in-memory cache_service -> analysis_cache
     (Postgres) -> compute. The persistent tier survives worker restarts

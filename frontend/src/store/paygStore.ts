@@ -1,7 +1,7 @@
 // paygStore.ts — tracks the user's active PAYG (₹99 / 24 h) unlocks.
 //
 // PAYG is additive to tier-based gating:
-//   - Free tier gets 5 analyses / day.
+//   - Free tier gets 3 analyses / day.
 //   - Analyst / Pro are unlimited.
 //   - PAYG unlocks a single ticker for 24 h regardless of tier.
 //

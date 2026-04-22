@@ -73,10 +73,10 @@ const plans: Plan[] = [
     highlighted: false,
     badge: null,
     features: [
-      { text: "5 full analyses per month", included: true },
+      { text: "3 full analyses per day (90+/month)", included: true },
+      { text: "Unlimited YieldIQ Prism snapshots", included: true },
       { text: "All 4,500+ NSE/BSE stocks searchable", included: true },
       { text: "DCF Fair Value + Margin of Safety", included: true },
-      { text: "YieldIQ Prism (Signature mode)", included: true },
       { text: "10-stock watchlist", included: true },
       { text: "1 portfolio / 1 broker account", included: true },
       { text: "Discover rails (YieldIQ 50, Sector Leaders)", included: true },

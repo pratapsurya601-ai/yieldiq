@@ -88,7 +88,7 @@ async def register(req: RegisterRequest):
         email=result["email"],
         tier="free",
         analyses_today=0,
-        analysis_limit=5,
+        analysis_limit=3,
     )
 
 

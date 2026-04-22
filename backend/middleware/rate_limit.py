@@ -9,8 +9,15 @@ import threading
 class RateLimiter:
     """Daily rate limiter per user. Resets at midnight UTC."""
 
+    # Free tier: 3 deep analyses / day (policy/free-tier-v2, 2026-04-22).
+    # Prior value was 5/day but pricing copy advertised "5/month", which
+    # both under-delivered in messaging (retail bounced assuming monthly)
+    # and over-delivered in code (5/day ≈ 150/month). The redesign
+    # aligns the count to the peer-audit recommendation — narrower
+    # daily count, wider paywall on interpretive features (AI narrative,
+    # reverse DCF, scenarios) in a follow-up PR. See decision-memo-free-tier.md.
     TIER_LIMITS = {
-        "free": 5,
+        "free": 3,
         "starter": 999999,   # legacy alias
         "pro": 999999,
         "analyst": 999999,
@@ -24,7 +31,7 @@ class RateLimiter:
         """
         Returns: (allowed, used_today, limit)
         """
-        limit = self.TIER_LIMITS.get(tier, 5)
+        limit = self.TIER_LIMITS.get(tier, 3)
         key = f"{user_id}:{date.today().isoformat()}"
         with self._lock:
             current = self._counts[key]
@@ -35,7 +42,7 @@ class RateLimiter:
 
     def get_usage(self, user_id: str, tier: str) -> tuple[int, int]:
         """Get current usage without incrementing."""
-        limit = self.TIER_LIMITS.get(tier, 5)
+        limit = self.TIER_LIMITS.get(tier, 3)
         key = f"{user_id}:{date.today().isoformat()}"
         with self._lock:
             return self._counts.get(key, 0), limit

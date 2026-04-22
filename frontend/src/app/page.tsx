@@ -195,9 +195,9 @@ function DemoCard() {
 
 /* ── Pricing teaser data ──────────────────────────────── */
 const pricingPlans = [
-  { name: "Free",    price: "\u20B90",     period: "/forever", tagline: "5 analyses a month. All core features." },
-  { name: "Analyst", price: "\u20B9799",   period: "/month",   tagline: "Unlimited analyses, Portfolio Prism, AI summaries.", highlight: true },
-  { name: "Pro",     price: "\u20B91,499", period: "/month",   tagline: "CSV/PDF export, API access, priority compute." },
+  { name: "Free",    price: "\u20B90",     period: "/forever", tagline: "3 deep analyses per day. Unlimited Prism snapshots. No card." },
+  { name: "Analyst", price: "\u20B9799",   period: "/month",   tagline: "Unlimited analyses, AI narrative, reverse DCF, scenarios.", highlight: true },
+  { name: "Pro",     price: "\u20B91,499", period: "/month",   tagline: "CSV/PDF export, alerts, API access, priority compute." },
 ]
 
 /* ═════════════════════════════════════════════════════════
@@ -243,9 +243,9 @@ function LandingContent() {
               <p className="text-gray-400 text-sm">
                 <span className="text-white font-semibold">2,900 stocks</span>
                 <span className="mx-2 text-gray-600">&middot;</span>
-                <span className="text-white font-semibold">Free DCF</span>
+                <span className="text-white font-semibold">3 deep analyses/day free</span>
                 <span className="mx-2 text-gray-600">&middot;</span>
-                <span className="text-white font-semibold">30s per analysis</span>
+                <span className="text-white font-semibold">Unlimited Prism</span>
               </p>
             </div>
 

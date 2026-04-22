@@ -50,7 +50,11 @@ JWT_EXPIRE_DAYS = 7
 
 security = HTTPBearer(auto_error=False)
 
-TIER_LIMITS = {"free": 5, "starter": 999999, "pro": 999999, "analyst": 999999}
+# Free = 3 deep analyses / day (policy/free-tier-v2). Must match
+# backend/middleware/rate_limit.py:TIER_LIMITS — both are read in
+# different paths (enforcer vs. /auth/me) and MUST stay in lockstep
+# or the UI will show a different limit than the backend enforces.
+TIER_LIMITS = {"free": 3, "starter": 999999, "pro": 999999, "analyst": 999999}
 
 
 # ─────────────────────────────────────────────────────────────────
