@@ -521,9 +521,23 @@ def _axis_value_it(data: dict) -> dict:
         # Fall back to general P/E logic
         return _axis_value_general(data)
     try:
-        # Convert cr to same unit as revenue (revenue typically in abs rupees
-        # or cr depending on source). Use ratio rather than absolute.
-        rev_multiple = float(mcap_cr) / max(1.0, float(rev) / 1e7)
+        # Both mcap_cr and rev are in Crores — rev comes from
+        # _fetch_core_data which reads `financials.revenue` directly
+        # from the DB and that column stores Cr (confirmed 2026-04-23
+        # against TCS: DB has revenue=267021.0 = Rs.2.67 Lakh Cr, matches
+        # real FY2026 number). The previous `/1e7` divisor was a pre-PR
+        # #43 assumption that revenue came through in raw rupees —
+        # which was also wrong back then (post-v35 the column was
+        # always Cr), but the bug stayed hidden because PR #43 was the
+        # first time the financials list wasn't empty.
+        #
+        # Consequence of the old math on TCS:
+        #   rev/1e7 = 267021/1e7 = 0.027  -> max(1,0.027) = 1
+        #   rev_multiple = 912000/1 = 912000x
+        #   score = 5 + (5 - 912000)*0.6 = -547k  -> clamped to 0.0
+        # Value axis rendered 0.0/10 on TCS despite +37% MoS (UI
+        # contradiction: verdict "UNDERVALUED", value axis "empty").
+        rev_multiple = float(mcap_cr) / max(1.0, float(rev))
         # IT cohort median EV/Rev ~4-5x; anchor 5.0 mid.
         score = 5.0 + (5.0 - rev_multiple) * 0.6
         return _axis(
