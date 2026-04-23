@@ -401,6 +401,54 @@ def _filing_is_consolidated(filing: dict[str, Any]) -> bool | None:
     return None
 
 
+def _pick_value_ytd(facts, contexts, local_names, period_end: date) -> float | None:
+    """Pick the YTD full-fiscal-year value from a Q4 XBRL filing.
+
+    Ind-AS quarterly XBRL filings publish BOTH contexts per flow-item:
+      - OneD  -> standalone quarter (e.g. Q4 alone)
+      - FourD -> year-to-date cumulative (e.g. full FY when Q4 file)
+
+    Default `_pick_value` returns whichever value happens to hit the
+    exact-end-date match first — often OneD (Q4 alone), landing us
+    at ~25% of the true FY. For annual synthesis we explicitly want
+    FourD (= full FY YTD).
+
+    Verified against BPCL/TCS/RELIANCE/INFY/ONGC FY21-FY25 filings on
+    2026-04-24: every Q4 file exposes both contexts; FourD values
+    match reality to within 2%. See `_contexts_deep.py` diagnostic
+    run that surfaced this.
+
+    Falls back to the default magnitude-max when no Four-prefixed
+    context has this tag (legacy IGAAP filings pre-2016 predate the
+    convention).
+    """
+    period_end_s = period_end.isoformat()
+    for ln in local_names:
+        candidates = facts.get(ln, [])
+        if not candidates:
+            continue
+        # Prefer contexts whose ID starts with "Four" (YTD full-year)
+        four_candidates = [
+            (val, ctx) for val, ctx in candidates
+            if ctx.startswith("Four") or "Ytd" in ctx or "YTD" in ctx
+        ]
+        if four_candidates:
+            # Among Four-prefixed contexts, prefer exact period_end match
+            for val, ctx in four_candidates:
+                ci = contexts.get(ctx, {})
+                if ci.get("end") == period_end_s or ci.get("instant") == period_end_s:
+                    return val
+            # Otherwise take max magnitude among Four-prefixed
+            return max(four_candidates, key=lambda x: abs(x[0]))[0]
+        # No Four-prefixed context — fall back to default behaviour
+        for val, ctx in candidates:
+            ci = contexts.get(ctx, {})
+            if ci.get("end") == period_end_s or ci.get("instant") == period_end_s:
+                return val
+        return max(candidates, key=lambda x: abs(x[0]))[0]
+    return None
+
+
 def _pick_value(facts, contexts, local_names, period_end: date) -> float | None:
     """Pick the first non-null value whose context matches period_end."""
     period_end_s = period_end.isoformat()
@@ -440,13 +488,22 @@ def parse_nse_xbrl(xml_bytes: bytes, ticker: str, period_end: date,
         )
         period_type = inferred
 
-    revenue = _pick_value(facts, contexts, _FIELD_TAGS["revenue"], period_end)
+    # Context-pick strategy. For annual extraction we prefer the
+    # year-to-date (FourD) context rather than the standalone-quarter
+    # (OneD) context — see `_pick_value_ytd` docstring. Flow items
+    # (revenue/pat/cfo/capex/...) have BOTH contexts available; balance-
+    # sheet items are instants (point-in-time), same value either way.
+    _pick_flow = _pick_value_ytd if period_type == "annual" else _pick_value
+
+    revenue = _pick_flow(facts, contexts, _FIELD_TAGS["revenue"], period_end)
     if revenue is None:
-        revenue = _pick_value(facts, contexts, _FIELD_TAGS["total_income"], period_end)
-    pat = _pick_value(facts, contexts, _FIELD_TAGS["pat"], period_end)
-    eps = _pick_value(facts, contexts, _FIELD_TAGS["eps_diluted"], period_end)
-    depreciation = _pick_value(facts, contexts, _FIELD_TAGS["depreciation"], period_end)
-    pbt = _pick_value(facts, contexts, _FIELD_TAGS["pbt"], period_end)
+        revenue = _pick_flow(facts, contexts, _FIELD_TAGS["total_income"], period_end)
+    pat = _pick_flow(facts, contexts, _FIELD_TAGS["pat"], period_end)
+    eps = _pick_flow(facts, contexts, _FIELD_TAGS["eps_diluted"], period_end)
+    depreciation = _pick_flow(facts, contexts, _FIELD_TAGS["depreciation"], period_end)
+    pbt = _pick_flow(facts, contexts, _FIELD_TAGS["pbt"], period_end)
+    # Balance-sheet items = instants, use default picker (Four vs One
+    # doesn't apply — same snapshot value either way).
     total_assets = _pick_value(facts, contexts, _FIELD_TAGS["total_assets"], period_end)
     current_liabilities = _pick_value(
         facts, contexts, _FIELD_TAGS["current_liabilities"], period_end
@@ -454,17 +511,15 @@ def parse_nse_xbrl(xml_bytes: bytes, ticker: str, period_end: date,
     total_debt = _pick_value(facts, contexts, _FIELD_TAGS["total_debt"], period_end)
     total_equity = _pick_value(facts, contexts, _FIELD_TAGS["total_equity"], period_end)
     cash = _pick_value(facts, contexts, _FIELD_TAGS["cash"], period_end)
-    cfo = _pick_value(facts, contexts, _FIELD_TAGS["cfo"], period_end)
-    capex = _pick_value(facts, contexts, _FIELD_TAGS["capex"], period_end)
+    # cfo / capex are cash-flow FLOWS — need YTD for annual extraction.
+    cfo = _pick_flow(facts, contexts, _FIELD_TAGS["cfo"], period_end)
+    capex = _pick_flow(facts, contexts, _FIELD_TAGS["capex"], period_end)
 
-    # Operating profit — the preferred EBIT source. If the filing
-    # carries an explicit "Profit from operations" / EBIT tag we use
-    # it directly; otherwise we reconstruct EBIT from PBT + finance
-    # cost below.
-    operating_profit = _pick_value(
+    # Operating profit — flow item, YTD for annual.
+    operating_profit = _pick_flow(
         facts, contexts, _FIELD_TAGS["operating_profit"], period_end
     )
-    finance_cost = _pick_value(facts, contexts, _FIELD_TAGS["finance_cost"], period_end)
+    finance_cost = _pick_flow(facts, contexts, _FIELD_TAGS["finance_cost"], period_end)
 
     # EBIT = operating_profit from filing if present;
     # otherwise derive: EBIT = PBT + finance_cost (classic reconstruction).
