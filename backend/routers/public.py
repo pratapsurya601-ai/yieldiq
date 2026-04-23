@@ -2737,3 +2737,38 @@ async def get_dividend_history(
         return _data_unavailable_payload(full_ticker, "query_failed")
     finally:
         _safe_close(db)
+
+
+# ─────────────────────────────────────────────────────────────────
+# Ticker index — slim JSON dump used by the client-side fuzzy search.
+# Returns every known instrument (stocks + ETFs + MFs) with just the
+# fields the search UI needs. ~90 KB uncompressed, ~20 KB gzipped.
+#
+# Called ONCE by the frontend build script (scripts/build_ticker_index.mjs)
+# which writes the result to public/tickers.json. Not hit on every
+# keystroke — keystrokes hit the bundled static JSON + Fuse.js in-browser.
+# ─────────────────────────────────────────────────────────────────
+@router.get("/tickers-index")
+async def tickers_index():
+    from datetime import datetime, timezone
+    from backend.services.ticker_search import INDIAN_STOCKS, MUTUAL_FUNDS, ETFS
+
+    tickers: list[dict] = []
+    for s in INDIAN_STOCKS + ETFS + MUTUAL_FUNDS:
+        t = s["ticker"]
+        tickers.append({
+            "ticker": t,
+            "display_ticker": t.replace(".NS", "").replace(".BO", ""),
+            "company_name": s["name"],
+            "type": s.get("type", "stock"),
+            "keywords": s.get("keywords", []),
+        })
+    payload = {
+        "version": 1,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "count": len(tickers),
+        "tickers": tickers,
+    }
+    # Long s-maxage: this list only changes on deploys. The frontend
+    # build script bakes it into public/tickers.json anyway.
+    return _cached_json(payload, s_maxage=3600, swr=86400)

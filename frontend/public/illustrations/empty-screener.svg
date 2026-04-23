@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none" role="img" aria-label="Screener empty state illustration">
+  <title>No stocks match the current filter</title>
+  <ellipse cx="160" cy="180" rx="110" ry="8" fill="#E5EDF7"/>
+  <circle cx="130" cy="95" r="48" stroke="#2563EB" stroke-width="6" fill="#EFF6FF"/>
+  <line x1="166" y1="131" x2="206" y2="170" stroke="#2563EB" stroke-width="10" stroke-linecap="round"/>
+  <path d="M108 78 H152 L138 100 V118 L122 112 V100 Z" stroke="#1E40AF" stroke-width="3" stroke-linejoin="round" fill="#FFFFFF"/>
+  <circle cx="230" cy="60" r="3" fill="#60A5FA"/>
+  <circle cx="252" cy="110" r="4" fill="#93C5FD"/>
+  <circle cx="80" cy="40" r="3" fill="#93C5FD"/>
+  <path d="M258 55 l0 12 M252 61 l12 0" stroke="#60A5FA" stroke-width="2" stroke-linecap="round"/>
+</svg>

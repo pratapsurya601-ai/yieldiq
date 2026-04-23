@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200" fill="none" role="img" aria-label="Portfolio empty state illustration">
+  <title>Portfolio is empty — start by adding a holding</title>
+  <ellipse cx="160" cy="180" rx="110" ry="8" fill="#E5EDF7"/>
+  <rect x="60" y="50" width="200" height="120" rx="12" fill="#FFFFFF" stroke="#2563EB" stroke-width="3"/>
+  <line x1="78" y1="148" x2="242" y2="148" stroke="#CBD5E1" stroke-width="2"/>
+  <line x1="78" y1="70" x2="78" y2="148" stroke="#CBD5E1" stroke-width="2"/>
+  <polyline points="82,132 112,118 142,124 172,96 202,104 238,78" stroke="#2563EB" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="112" cy="118" r="4" fill="#2563EB"/>
+  <circle cx="172" cy="96" r="4" fill="#2563EB"/>
+  <circle cx="238" cy="78" r="4" fill="#2563EB"/>
+  <circle cx="248" cy="58" r="16" fill="#2563EB"/>
+  <path d="M248 50 v16 M240 58 h16" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round"/>
+</svg>

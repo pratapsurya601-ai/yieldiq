@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
+import EmptyState from "@/components/common/EmptyState"
 import type { ScreenerQueryRow } from "@/lib/screenerFilters"
 
 interface ResultsTableProps {
@@ -126,11 +127,19 @@ export default function ResultsTable({ rows, total, isLoading, pageSize = 50, er
   }
 
   if (rows.length === 0) {
+    // Illustrated empty state — the screener is one of the few places
+    // where a zero-result outcome is expected *and* first-visit-like
+    // (users explore presets on Day 1). Text-only felt cold in usability
+    // testing; the illustration + preset CTA closes the loop.
     return (
-      <div className="rounded-2xl border border-border bg-bg p-8 text-center">
-        <p className="text-sm text-caption">No stocks match these filters.</p>
-        <p className="text-xs text-caption mt-1">Try relaxing a threshold or removing a filter.</p>
-      </div>
+      <EmptyState
+        illustration="/illustrations/empty-screener.svg"
+        illustrationAlt="Illustration of a magnifying glass over a funnel"
+        title="No matches yet"
+        description="Try relaxing a threshold or removing a filter — or start from a preset."
+        secondaryLabel="Explore presets"
+        secondaryHref="/screener"
+      />
     )
   }
 

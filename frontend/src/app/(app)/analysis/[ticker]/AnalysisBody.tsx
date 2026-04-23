@@ -7,6 +7,7 @@ import {
   getFVHistory,
   getPeers,
   getFinancials,
+  getRatiosHistory,
 } from "@/lib/api"
 import { fetchPrism } from "@/lib/prism"
 import AnalysisHero from "@/components/analysis/AnalysisHero"
@@ -225,6 +226,18 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     queryFn: () => getFinancials(ticker, "annual", 5),
     enabled: !!ticker && openedTabs.has("financials"),
     staleTime: 5 * 60 * 1000,
+    retry: 1,
+  })
+  // Lazy-load 10-year ratio history for sparklines on ratio cards. Only fires
+  // once a tab that renders <QualityRatios /> opens (Valuation / Quality), so
+  // the Overview tab stays lean. Endpoint has a 1-hour server cache + 15-min
+  // edge SWR, and the response is ~3-5kB — negligible cost.
+  const ratiosHistoryQuery = useQuery({
+    queryKey: ["ratios-history", ticker, 10, "annual"],
+    queryFn: () => getRatiosHistory(ticker, 10, "annual"),
+    enabled:
+      !!ticker && (openedTabs.has("valuation") || openedTabs.has("quality")),
+    staleTime: 15 * 60 * 1000,
     retry: 1,
   })
 
@@ -498,7 +511,11 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             sector={company.sector}
             ticker={company.ticker}
           />
-          <QualityRatios quality={quality} insights={insights} />
+          <QualityRatios
+            quality={quality}
+            insights={insights}
+            ratioHistory={ratiosHistoryQuery.data ?? null}
+          />
         </div>
       ),
     },
@@ -515,7 +532,11 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             sector={company.sector}
             ticker={company.ticker}
           />
-          <QualityRatios quality={quality} insights={insights} />
+          <QualityRatios
+            quality={quality}
+            insights={insights}
+            ratioHistory={ratiosHistoryQuery.data ?? null}
+          />
           <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
         </div>
       ),
