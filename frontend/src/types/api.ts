@@ -4,7 +4,13 @@ export type Verdict = "undervalued" | "fairly_valued" | "overvalued" | "avoid" |
 export type Grade = "A" | "B" | "C" | "D" | "F"
 export type Tier = "free" | "starter" | "pro" | "analyst"
 export type Confidence = "high" | "medium" | "low" | "unusable"
-export type MoatGrade = "Wide" | "Narrow" | "None"
+// Mirrors backend QualityOutput.moat Literal exactly. "Moderate" was
+// added 2026-04-23 when PR #36 introduced the STRONG_BRAND_ALLOWLIST
+// floor (score ≥60). "N/A (Financial)" covers bank/insurance/NBFC
+// tickers where the moat engine returns a sector-specific sentinel.
+// Keep this union in sync with backend/models/responses.py — a drift
+// silently crashes Vercel builds via the InsightCards moat card.
+export type MoatGrade = "Wide" | "Moderate" | "Narrow" | "None" | "N/A (Financial)"
 
 export interface CompanyInfo {
   ticker: string
