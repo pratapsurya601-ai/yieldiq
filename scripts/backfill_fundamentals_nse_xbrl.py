@@ -102,6 +102,17 @@ def main() -> int:
     ap.add_argument("--max-annual", type=int, default=15)
     ap.add_argument("--max-quarterly", type=int, default=40)
     ap.add_argument("--inter-ticker-sleep", type=float, default=0.5)
+    ap.add_argument(
+        "--tickers",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated explicit ticker allowlist (bare symbols, e.g. "
+            "'BPCL,ONGC,IOC'). Overrides --top / --shard / --shards / "
+            "--limit entirely — useful for targeted re-parses after a "
+            "parser-coverage fix without re-ingesting the full universe."
+        ),
+    )
     args = ap.parse_args()
 
     if not os.environ.get("DATABASE_URL"):
@@ -110,7 +121,17 @@ def main() -> int:
     engine = _engine()
     Session = sessionmaker(bind=engine)
 
-    tickers = _load_tickers(engine, args.top, args.shard, args.shards)
+    # --tickers short-circuits the DB-driven universe load. Any symbol
+    # with '.NS' / '.BO' suffix gets stripped so either form works.
+    if args.tickers:
+        tickers = [
+            t.strip().upper().replace(".NS", "").replace(".BO", "")
+            for t in args.tickers.split(",")
+            if t.strip()
+        ]
+        logger.info("using --tickers allowlist: %s", tickers)
+    else:
+        tickers = _load_tickers(engine, args.top, args.shard, args.shards)
     logger.info("shard %d/%d: %d tickers (top=%s, limit=%s)",
                 args.shard, args.shards, len(tickers), args.top, args.limit)
     if not tickers:
