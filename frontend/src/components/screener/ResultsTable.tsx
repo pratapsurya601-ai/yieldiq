@@ -10,6 +10,14 @@ interface ResultsTableProps {
   total: number
   isLoading: boolean
   pageSize?: number
+  // When the upstream query failed, callers should pass the error
+  // through so we DON'T render the "No stocks match" empty state —
+  // that would falsely tell users no stocks meet their filters when
+  // the truth is the API returned 4xx/5xx. The caller renders a
+  // dedicated error banner; we just bail out of our own render.
+  // Fixes P0-#1 frontend surfacing regression (see
+  // extractScreenerError in app/(app)/screener/page.tsx).
+  error?: unknown
 }
 
 type SortDir = "asc" | "desc"
@@ -35,7 +43,7 @@ function formatCell(v: unknown): string {
   return String(v)
 }
 
-export default function ResultsTable({ rows, total, isLoading, pageSize = 50 }: ResultsTableProps) {
+export default function ResultsTable({ rows, total, isLoading, pageSize = 50, error = null }: ResultsTableProps) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>("desc")
   const [page, setPage] = useState(0)
@@ -99,6 +107,16 @@ export default function ResultsTable({ rows, total, isLoading, pageSize = 50 }: 
         </div>
       </div>
     )
+  }
+
+  // Never render the "No stocks match" empty state when the upstream
+  // query errored. A 400 from a malformed DSL, a 429 rate-limit, or a
+  // 500 would otherwise be indistinguishable from a truly empty result
+  // set — which was the original P0-#1 regression that made users
+  // think no cheap-and-quality stocks exist. When there's an error we
+  // render nothing and let the parent show its dedicated error banner.
+  if (error != null) {
+    return null
   }
 
   if (rows.length === 0) {
