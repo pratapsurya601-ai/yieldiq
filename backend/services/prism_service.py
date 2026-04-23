@@ -19,7 +19,7 @@ import time
 from datetime import datetime, timezone, date, timedelta
 from typing import Any, Optional
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 
 from backend.services import hex_service
 from backend.services.cache_service import cache
@@ -153,12 +153,30 @@ def _pulse_velocity_hz(ticker: str) -> float:
 
 
 def _score_history_12m(ticker: str) -> list[int]:
-    """Last 12 monthly buckets of yieldiq score scaled 0..100. Empty on <3 rows."""
+    """Last 12 monthly buckets of yieldiq score scaled 0..100.
+
+    Empty on <2 monthly buckets — matches the frontend Sparkline gate
+    (``points.length < 2``) so backend and UI agree on what "insufficient
+    history" means. Earlier this was <3 which produced "Insufficient
+    history" for tickers with only 2 months of fair_value_history data
+    even though the sparkline would happily draw a 2-point line.
+
+    Queries ``fair_value_history`` under both the canonical ``TITAN.NS``
+    form and the bare ``TITAN`` form. Historical rows were written via
+    two code paths that disagreed on suffix handling (store_today_fair_value
+    persists whatever ticker it's given, typically canonical; some
+    backfill/admin paths stripped .NS/.BO first). Matching both forms
+    ensures the sparkline renders regardless of which writer touched
+    the row most recently. See fix/score-history-12m-pipeline (2026-04-23).
+    """
     sess = _get_session()
     if sess is None:
         return []
     try:
         cutoff = date.today() - timedelta(days=400)
+        # Accept both canonical (TICKER.NS) and bare (TICKER) forms.
+        bare = ticker.replace(".NS", "").replace(".BO", "")
+        candidates = {ticker, bare}
         # fair_value_history has: ticker, date, fair_value, price, mos_pct, confidence
         # We don't have yieldiq_score here directly; derive a proxy from
         # mos_pct clamped [-50..+50] → [0..100].
@@ -167,17 +185,17 @@ def _score_history_12m(ticker: str) -> list[int]:
                 text(
                     "SELECT date, mos_pct, confidence "
                     "FROM fair_value_history "
-                    "WHERE ticker = :t AND date >= :c "
+                    "WHERE ticker IN :tickers AND date >= :c "
                     "ORDER BY date ASC"
-                ),
-                {"t": ticker, "c": cutoff},
+                ).bindparams(bindparam("tickers", expanding=True)),
+                {"tickers": list(candidates), "c": cutoff},
             ).fetchall()
         except Exception:
             rows = []
     finally:
         _safe_close(sess)
 
-    if not rows or len(rows) < 3:
+    if not rows:
         return []
 
     # Bucket by YYYY-MM keep the last value of the month
@@ -204,7 +222,7 @@ def _score_history_12m(ticker: str) -> list[int]:
         buckets[key] = round(blended)
 
     ordered = [buckets[k] for k in sorted(buckets.keys())]
-    if len(ordered) < 3:
+    if len(ordered) < 2:
         return []
     return [int(v) for v in ordered[-12:]]
 
