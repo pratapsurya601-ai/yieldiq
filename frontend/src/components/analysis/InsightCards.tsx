@@ -80,8 +80,9 @@ export default function InsightCards({ quality, insights, valuation, currency = 
   // which left it out of sync with RedFlagInsights (which always used structured).
   // Observed on TITAN.NS: deep-dive said "1 risk · 3 strengths" but this card said
   // "Red Flags: None" — same page, two different answers. Fixed by deriving from
-  // structured: non-info = risks; info = strengths (tracked for parity but not
-  // surfaced in the card title).
+  // structured: non-info = risks; info = strengths. Both counts are surfaced
+  // in dedicated summary cards below, derived from the same filtered array
+  // so the summary and the Risk & Quality Deep Dive always agree.
   const MODEL_WARNING_PATTERNS = /missing|using default|estimated|no data|unavailable|not available|insufficient/i
   const structured = insights.red_flags_structured || []
   const businessFlagTitles = structured
@@ -111,15 +112,34 @@ export default function InsightCards({ quality, insights, valuation, currency = 
       borderColor: quality.piotroski_score >= 7 ? "border-l-blue-500" : quality.piotroski_score >= 4 ? "border-l-amber-500" : "border-l-red-500",
       metricKey: "piotroski_score",
     },
-    {
-      title: "Moat",
-      value: quality.moat,
-      subtitle: `Score: ${quality.moat_score}/100`,
-      color: quality.moat === "Wide" ? "text-blue-700" : quality.moat === "Narrow" ? "text-amber-700" : "text-red-700",
-      icon: "\u{1f6e1}\ufe0f",
-      borderColor: quality.moat === "Wide" ? "border-l-blue-500" : quality.moat === "Narrow" ? "border-l-amber-500" : "border-l-red-500",
-      metricKey: "moat",
-    },
+    (() => {
+      // Moat colouring follows the backend label mapping
+      // (`_moat_label_from_score` in screener/moat_engine.py):
+      //   Wide      → blue   (strong)
+      //   Moderate  → green  (good; new band added 2026-04-23)
+      //   Narrow    → amber  (acceptable)
+      //   None / —  → red    (no durable advantage)
+      const m = quality.moat
+      const color =
+        m === "Wide"     ? "text-blue-700"
+        : m === "Moderate" ? "text-green-700"
+        : m === "Narrow"   ? "text-amber-700"
+        :                    "text-red-700"
+      const borderColor =
+        m === "Wide"     ? "border-l-blue-500"
+        : m === "Moderate" ? "border-l-green-500"
+        : m === "Narrow"   ? "border-l-amber-500"
+        :                    "border-l-red-500"
+      return {
+        title: "Moat",
+        value: m,
+        subtitle: `Score: ${quality.moat_score}/100`,
+        color,
+        icon: "\u{1f6e1}\ufe0f",
+        borderColor,
+        metricKey: "moat",
+      }
+    })(),
     {
       title: "Red Flags",
       value: businessFlags.length === 0 ? "None" : `${businessFlags.length} found`,
@@ -128,6 +148,27 @@ export default function InsightCards({ quality, insights, valuation, currency = 
       icon: "\u{1f6a9}",
       borderColor: businessFlags.length === 0 ? "border-l-blue-500" : "border-l-red-500",
     },
+    // Strengths summary card — single-source-of-truth is the same
+    // `red_flags_structured` array the Risk & Quality Deep Dive reads
+    // (via RedFlagInsights). Prior to 2026-04-23 this count wasn't
+    // surfaced here; the summary card and deep-dive disagreed on
+    // TITAN ("0 strengths" vs "3 strengths"). Deriving from the
+    // exact same filter makes them provably identical. See PR
+    // `fix/moat-floor-strength-ssot`.
+    (() => {
+      const strengthTitles = structured
+        .filter((f) => f.severity === "info")
+        .map((f) => f.title)
+      const n = strengthTitles.length
+      return {
+        title: "Strengths",
+        value: n === 0 ? "None" : `${n} found`,
+        subtitle: n > 0 ? strengthTitles[0] : "No positive signals detected",
+        color: n > 0 ? "text-green-700" : "text-caption",
+        icon: "\u2728",
+        borderColor: n > 0 ? "border-l-green-500" : "border-l-border",
+      }
+    })(),
     (() => {
       if (insights.earnings_date) {
         const formatted = new Date(insights.earnings_date).toLocaleDateString("en-IN", {

@@ -31,7 +31,7 @@ from typing import Any, Optional
 #             the UI then shows "Red Flags: None" and "No strengths
 #             found" on stocks that should fire new rules.
 #     NO   -> do not bump, even if you changed analysis_service.py
-CACHE_VERSION = 42  # Day-3 W6 (weak_piotroski) + W9 (category_leader) rules flushed. Pre-Day-3 cached payloads were serving empty red_flags_structured for allowlisted bellwethers (TITAN showed "Red Flags: None" + "No strengths found" despite Piotroski 2/9 WEAK — confirmed in MCP audit 2026-04-23). FV unchanged by this bump (rule changes don't affect DCF output). v41=PR-DET-2 + PR-D2 terminal_g clamp + NBFC WACC +50bps. v40=Day-3 sanity clamps. v39=Discover TTL. v38=PR-NTPC scenario order. v37=PR-BANKSC-2. v36=PR-BANKSC. v35=FV stability. v34=MoS formula. v33=scenarios. v32=MoS SoT.
+CACHE_VERSION = 43  # fix/moat-floor-strength-ssot: moat allowlist floor now raises score to the "Moderate" band (≥60) instead of the no-op 42-floor that still mapped to Narrow; adds "Moderate" as a moat label; strengths summary card derives from red_flags_structured (same SSOT as Risk & Quality Deep Dive). Cached payloads from v42 served Narrow labels + no strengths-count for allowlisted bellwethers (TITAN, RELIANCE, HDFCBANK shown as Narrow 50/60/57 in MCP audit 2026-04-23). FV-drift: zero — moat DCF adjustments for Moderate share the Narrow ladder so floored stocks keep identical fair value. v42=Day-3 W6+W9 rules. v41=PR-DET-2 + PR-D2 terminal_g clamp + NBFC WACC +50bps. v40=Day-3 sanity clamps. v39=Discover TTL. v38=PR-NTPC scenario order. v37=PR-BANKSC-2. v36=PR-BANKSC. v35=FV stability. v34=MoS formula. v33=scenarios. v32=MoS SoT.
 
 
 class CacheService:
