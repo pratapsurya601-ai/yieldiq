@@ -244,9 +244,42 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
           </p>
         </div>
 
-        <div className="flex items-center justify-center lg:justify-end">
+        <div className="flex flex-col items-center lg:items-end gap-2">
           <Prism data={prism} size={340} firstView />
+          <Link
+            href="/methodology"
+            className="text-xs text-brand underline hover:opacity-80 transition"
+          >
+            How is this score computed? &rarr;
+          </Link>
         </div>
+      </section>
+
+      {/* ── Why we're different ─────────────────────────────── */}
+      <section className="bg-white border border-border rounded-2xl p-6 sm:p-7">
+        <h2 className="font-display text-lg sm:text-xl font-bold text-ink mb-4">
+          What makes this different
+        </h2>
+        <ul className="grid sm:grid-cols-3 gap-4">
+          <li>
+            <p className="font-semibold text-ink text-sm mb-1">Source-linked</p>
+            <p className="text-sm text-body leading-relaxed">
+              Every number clicks through to the filing it came from.
+            </p>
+          </li>
+          <li>
+            <p className="font-semibold text-ink text-sm mb-1">Assumptions-editable</p>
+            <p className="text-sm text-body leading-relaxed">
+              You can change WACC, growth, margins and re-run the DCF yourself.
+            </p>
+          </li>
+          <li>
+            <p className="font-semibold text-ink text-sm mb-1">Descriptive-only</p>
+            <p className="text-sm text-body leading-relaxed">
+              No SEBI-regulated buy/sell signals &mdash; a valuation layer you apply your own judgement to.
+            </p>
+          </li>
+        </ul>
       </section>
 
       {/* ── Upsell ───────────────────────────────────────────── */}
@@ -254,10 +287,10 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
           <div>
             <p className="text-xs font-bold text-blue-700 uppercase tracking-widest mb-1">
-              Create a free account to unlock
+              Sign up (free, 1 analysis / day)
             </p>
             <h2 className="font-display text-xl sm:text-2xl font-bold text-ink">
-              The full {displayTicker} analysis
+              See the full 10-year financials, AI summary, scenario table, and editable DCF
             </h2>
           </div>
           <div className="flex flex-col sm:flex-row gap-3">
