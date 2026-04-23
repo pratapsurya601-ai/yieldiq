@@ -57,7 +57,14 @@ class QualityOutput(BaseModel):
     piotroski_grade: str = ""
     earnings_quality_grade: str = ""
     earnings_quality_score: float = 0
-    moat: Literal["Wide", "Narrow", "None", "N/A (Financial)"] = "None"
+    # "Moderate" added 2026-04-23: PR #36 introduced the
+    # STRONG_BRAND_ALLOWLIST floor that lifts bellwether scores to ≥60
+    # (the Narrow/Moderate band boundary in _moat_label_from_score),
+    # but the Literal here wasn't updated. Every floored allowlist
+    # ticker (TITAN/RELIANCE/HDFCBANK) then raised
+    # "1 validation error for QualityOutput" → 503 on prod.
+    # See Railway logs 2026-04-23 09:04 UTC.
+    moat: Literal["Wide", "Moderate", "Narrow", "None", "N/A (Financial)"] = "None"
     moat_score: float = 0
     momentum_score: float = 0
     momentum_grade: str = ""
