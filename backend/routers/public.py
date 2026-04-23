@@ -1675,11 +1675,13 @@ async def screener_query(
 
     sql = f"""
         WITH latest_ratio AS (
-          -- ratio_history owns ROE / ROCE / D-E etc. It does NOT carry
-          -- pe_ratio / pb_ratio / ev_ebitda — those live on market_metrics
-          -- (see data_pipeline/models.py::MarketMetrics). Previous query
-          -- referenced rh.pe_ratio/rh.pb_ratio/rh.ev_ebitda and raised
-          -- psycopg2 UndefinedColumn (pgcode 42703) on every request.
+          -- ratio_history owns ROE / ROCE / D-E etc. It also carries
+          -- pe_ratio / pb_ratio / ev_ebitda columns (see RatioHistory
+          -- ORM in data_pipeline/models.py) but for screener filters we
+          -- prefer the daily-fresh values from market_metrics (mm alias)
+          -- so thresholds match the values rendered in result rows.
+          -- This CTE therefore projects only the quality ratios that
+          -- are sourced from ratio_history.
           SELECT DISTINCT ON (ticker) ticker, roe, roce, de_ratio
           FROM ratio_history
           WHERE period_type='annual'

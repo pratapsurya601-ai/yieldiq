@@ -27,8 +27,8 @@ log = get_logger(__name__)
 
 
 # ── Strong-brand / franchise allowlist (MVP floor) ──────────────
-# Tickers here get a moat floor of "Narrow" / score ≥ 42 regardless
-# of what the 5-signal formula returns.
+# Tickers here get a moat floor of "Moderate" regardless of what
+# the 5-signal formula returns.
 #
 # Rationale: the 5-signal moat formula under-prices intangibles
 # (brand equity, distribution franchise, regulatory/licensing edge,
@@ -42,6 +42,14 @@ log = get_logger(__name__)
 # financial / scale franchise recognised by the market, AND (b)
 # large-cap status. Do not add mid-caps here on gut feeling —
 # this is a circuit-breaker, not a quality list.
+#
+# 2026-04-23 root-cause fix: the previous floor clamped score to
+# ≥ 42 which always landed inside the Narrow band (40-69). A user
+# read "TITAN: Narrow moat, 50/100" and reasonably asked why a
+# franchise with 36.9% ROCE / 28% revenue CAGR / 28.7% ROE is
+# labelled Narrow. The floor is now a "Moderate" band (60-69) and
+# the threshold is derived from `_moat_label_from_score` so the
+# two can never drift apart again.
 STRONG_BRAND_ALLOWLIST = {
     # Consumer franchises — brand + distribution moat
     "TITAN.NS", "NESTLEIND.NS", "HINDUNILVR.NS", "ASIANPAINT.NS",
@@ -52,11 +60,65 @@ STRONG_BRAND_ALLOWLIST = {
     "BAJAJFINSV.NS", "BAJFINANCE.NS",
     # Tech franchises — scale + switching-cost moats
     "TCS.NS", "INFY.NS", "HCLTECH.NS",
+    # Conglomerate / energy franchise — scale + distribution
+    # moat, regulatory access (refining, telecom, retail).
+    # Added 2026-04-23 after the MCP audit caught RELIANCE.NS
+    # scoring Narrow 60/100 via the large-cap-only path; its
+    # franchise characteristics warrant explicit allowlist
+    # membership so the floor governs the label instead of the
+    # soft large-cap branch.
+    "RELIANCE.NS",
 }
 
-# Floor score applied when the allowlist kicks in. 42 puts it
-# comfortably inside the Narrow band (40-69) without overstating.
-ALLOWLIST_MOAT_FLOOR_SCORE = 42
+# ── Moat label bands ────────────────────────────────────────────
+# Single source of truth for score → label mapping. Every caller
+# (main pipeline, financial pipeline, allowlist floor, tests) MUST
+# derive the label from this function. Prior to 2026-04-23 the
+# thresholds were inlined in three places and the allowlist floor
+# (then 42) silently no-op'd because 42 already mapped to Narrow.
+#
+# Bands (score 0-100):
+#   Wide     ≥ 70
+#   Moderate ≥ 60
+#   Narrow   ≥ 40
+#   None     otherwise
+#
+# "Moderate" sits between Narrow and Wide and exists specifically
+# for bellwether franchises that clear the allowlist but don't
+# quite hit the Wide threshold on the 5-signal formula.
+_MOAT_BAND_WIDE = 70
+_MOAT_BAND_MODERATE = 60
+_MOAT_BAND_NARROW = 40
+
+
+def _moat_label_from_score(score: int | float) -> str:
+    """Score → label. Single source of truth — do not inline."""
+    s = float(score or 0)
+    if s >= _MOAT_BAND_WIDE:
+        return "Wide"
+    if s >= _MOAT_BAND_MODERATE:
+        return "Moderate"
+    if s >= _MOAT_BAND_NARROW:
+        return "Narrow"
+    return "None"
+
+
+def _min_score_for_label(label: str) -> int:
+    """Inverse of `_moat_label_from_score` — used by the allowlist
+    floor so the floor tracks the band boundaries automatically."""
+    return {
+        "Wide":     _MOAT_BAND_WIDE,
+        "Moderate": _MOAT_BAND_MODERATE,
+        "Narrow":   _MOAT_BAND_NARROW,
+        "None":     0,
+    }.get(label, 0)
+
+
+# Allowlisted bellwethers floor at "Moderate". We derive the score
+# floor from the label boundary instead of hardcoding an integer so
+# the floor and the label mapping can never drift apart again.
+ALLOWLIST_FLOOR_LABEL = "Moderate"
+ALLOWLIST_MOAT_FLOOR_SCORE = _min_score_for_label(ALLOWLIST_FLOOR_LABEL)
 
 
 def _is_allowlisted(ticker: str | None) -> bool:
@@ -441,18 +503,13 @@ def compute_moat_score(enriched: dict, wacc: float) -> dict:
             "ROIC Quality":   (s2, d2),
             "Rev Stability":  (s3, d3),
         }
-        if total >= 70:
-            grade = "Wide"
-        elif total >= 40:
-            grade = "Narrow"
-        else:
-            grade = "None"
+        grade = _moat_label_from_score(total)
         moat_types = _detect_moat_types(enriched, total)
         # Allowlist floor — see STRONG_BRAND_ALLOWLIST docstring.
         floor_note = None
-        if _is_allowlisted(ticker) and (grade == "None" or total < ALLOWLIST_MOAT_FLOOR_SCORE):
+        if _is_allowlisted(ticker) and total < ALLOWLIST_MOAT_FLOOR_SCORE:
             total = max(total, ALLOWLIST_MOAT_FLOOR_SCORE)
-            grade = "Narrow"
+            grade = _moat_label_from_score(total)
             floor_note = "Allowlist floor applied (methodology refresh pending)"
             log.info(f"[{ticker}] Moat allowlist floor applied (financial): → {grade} ({total}/100)")
         summary = f"{grade} moat (financial). Score {total}/100 (scaled from {raw_total}/60)."
@@ -494,31 +551,31 @@ def compute_moat_score(enriched: dict, wacc: float) -> dict:
     }
 
     # ── Grade ────────────────────────────────────────────────────
-    if total >= 70:
-        grade = "Wide"
-    elif total >= 40:
-        grade = "Narrow"
-    else:
-        grade = "None"
+    grade = _moat_label_from_score(total)
 
     # ── Large-cap floor ─────────────────────────────────────────
     # Companies with massive revenue + positive FCF can't truly be "None"
     latest_rev = enriched.get("latest_revenue", 0)
     latest_fcf = enriched.get("latest_fcf", 0)
     if grade == "None" and latest_rev > 500_000_000_000 and latest_fcf > 0:
-        grade = "Narrow"
-        total = max(total, 42)
+        total = max(total, _min_score_for_label("Narrow") + 2)
+        grade = _moat_label_from_score(total)
 
     # ── Allowlist floor ─────────────────────────────────────────
-    # See STRONG_BRAND_ALLOWLIST docstring. Floors ≥ Narrow/42 for
-    # strong-brand / franchise names. Does NOT upgrade a Narrow score
-    # to Wide — the floor is a minimum, not a boost. This means the
-    # 5-signal formula continues to govern Wide-moat assignment;
-    # the floor only prevents embarrassing "None" grades on bellwethers.
+    # See STRONG_BRAND_ALLOWLIST docstring. Floors to "Moderate" for
+    # strong-brand / franchise names. Does NOT upgrade beyond Moderate —
+    # the floor is a minimum, not a boost. The 5-signal formula
+    # continues to govern Wide-moat assignment; the floor only
+    # prevents embarrassing sub-Moderate grades on bellwethers.
+    #
+    # 2026-04-23 fix: previously floored to score 42, which still
+    # mapped to "Narrow" via the 40-band threshold — i.e. the floor
+    # was a no-op for the label. Now floors to the "Moderate"
+    # band boundary derived from `_min_score_for_label`.
     floor_applied = False
-    if _is_allowlisted(ticker) and (grade == "None" or total < ALLOWLIST_MOAT_FLOOR_SCORE):
+    if _is_allowlisted(ticker) and total < ALLOWLIST_MOAT_FLOOR_SCORE:
         total = max(total, ALLOWLIST_MOAT_FLOOR_SCORE)
-        grade = "Narrow"
+        grade = _moat_label_from_score(total)
         floor_applied = True
         log.info(f"[{ticker}] Moat allowlist floor applied: → {grade} ({total}/100)")
 
@@ -582,7 +639,15 @@ def apply_moat_adjustments(
         growth_delta  = +0.020        # +2.0% FCF growth (was +1.5%)
         term_g_delta  = +0.010        # +1.0% terminal growth (was +0.5%)
         iv_delta_pct  = +25.0         # +25% IV premium (was +15%)
-    elif grade == "Narrow":
+    elif grade in ("Moderate", "Narrow"):
+        # Moderate and Narrow share the same DCF adjustment ladder.
+        # This is intentional: introducing the "Moderate" label on
+        # 2026-04-23 must NOT change FV for any bellwether (the
+        # canary-diff contract requires zero-FV-drift for this fix
+        # because it's a label/metadata change, not a valuation
+        # change). Allowlisted stocks that used to floor into Narrow
+        # (score 42) now floor into Moderate (score 60); keeping the
+        # same WACC/growth deltas preserves their fair value exactly.
         wacc_delta    = -0.005        # -0.5% WACC (was 0)
         growth_delta  = +0.010        # +1.0% (was +0.5%)
         term_g_delta  = +0.005        # +0.5% (was 0)

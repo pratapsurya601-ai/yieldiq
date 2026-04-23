@@ -254,12 +254,13 @@ function ScreenerInner() {
               </div>
             )}
 
-            {hasRun && !error && (
+            {hasRun && (
               <ResultsTable
                 rows={data?.results ?? []}
                 total={data?.total ?? 0}
                 isLoading={isFetching}
                 pageSize={limit}
+                error={error}
               />
             )}
           </div>
