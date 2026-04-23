@@ -100,20 +100,31 @@ _FIELD_TAGS = {
         "TotalRevenueFromOperations",
         "NetSalesOrRevenueFromOperations",
         "IncomeFromOperations",
+        # Seen on PSU oil marketers (BPCL/HPCL/IOC) Ind-AS filings where
+        # the headline line is "Income from Operations" / gross revenue.
+        "GrossRevenueFromOperations",
+        "RevenueFromSaleOfProducts",
     ],
     "total_income": [
         "TotalIncome",
         "TotalRevenue",
+        # Older IGAAP filings (pre-2016) used this alias.
+        "TotalRevenueIncludingOtherIncome",
     ],
     "pat": [
         "ProfitLossForPeriod",
         "ProfitLossForThePeriod",
         "ProfitAfterTaxFromContinuingOperations",
         "NetProfit",
+        # Ind-AS 2020 variant (seen on TCS/INFY/HDFCBANK).
+        "ProfitLossAfterTax",
+        "ProfitLossAttributableToOwnersOfParent",
     ],
     "pbt": [
         "ProfitLossBeforeTaxFromContinuingOperations",
         "ProfitBeforeTax",
+        "ProfitLossBeforeTax",
+        "ProfitLossBeforeExceptionalItemsAndTax",
     ],
     "eps_diluted": [
         "DilutedEarningsPerShareAfterExtraordinaryItems",
@@ -135,10 +146,13 @@ _FIELD_TAGS = {
         "DepreciationDepletionAndAmortisationExpense",
         "DepreciationAndAmortisationExpense",
         "DepreciationAmortizationAndDepletionExpense",
+        # Seen on ONGC / upstream oil filings.
+        "DepreciationDepletionAmortisationAndImpairmentExpense",
     ],
     "finance_cost": [
         "FinanceCosts",
         "InterestExpense",
+        "FinanceCost",
     ],
     # Operating profit / EBIT — needed for proper ROCE numerator.
     # First tag is the most common Ind-AS "profit from operations" line;
@@ -170,26 +184,58 @@ _FIELD_TAGS = {
         "LongTermBorrowings",
         "BorrowingsCurrent",
         "BorrowingsNonCurrent",
+        # Ind-AS 2020 refinement seen on RELIANCE / ONGC.
+        "BorrowingsNoncurrent",
+        "NoncurrentBorrowings",
+        "CurrentBorrowings",
     ],
     "total_equity": [
         "EquityAttributableToOwnersOfParent",
         "Equity",
         "ShareholdersFunds",
         "TotalEquity",
+        # Banking schema (HDFCBANK etc.) splits capital + reserves;
+        # we match on the combined roll-up when available.
+        "EquityAttributableToOwnersOfTheParent",
     ],
     "cash": [
         "CashAndCashEquivalents",
         "CashAndBankBalances",
+        "CashAndCashEquivalentsCashFlowStatement",
     ],
     # Cash flow
     "cfo": [
         "CashFlowsFromUsedInOperatingActivities",
         "NetCashFlowFromOperatingActivities",
+        # Variants surfaced on BPCL + HPCL FY22-FY24 filings where the
+        # narrower "generated" wording replaces "from/used in". Without
+        # these, CFO parses as NULL and FCF breaks.
+        "NetCashFlowsFromUsedInOperatingActivities",
+        "CashFlowsFromUsedInOperatingActivitiesTotal",
+        "CashGeneratedFromOperations",
+        "NetCashGeneratedFromOperatingActivities",
+        "NetCashFromUsedInOperatingActivities",
     ],
     "capex": [
         "PurchaseOfPropertyPlantAndEquipment",
         "PurchaseOfFixedAssets",
         "PaymentsToAcquirePropertyPlantAndEquipment",
+        # PSU oil/gas Ind-AS tag variants surfaced on BPCL / HPCL /
+        # IOC / ONGC — parent agent's investigation found capex NULL
+        # on every NSE_XBRL row for these tickers. These forms cover
+        # the "property, plant, equipment and intangibles" roll-up and
+        # the "cash outflow" wording used on investing-activities lines.
+        "PurchaseOfPropertyPlantAndEquipmentAndIntangibleAssets",
+        "PurchaseOfPropertyPlantEquipmentAndIntangibleAssets",
+        "PurchaseOfTangibleAssets",
+        "AcquisitionOfPropertyPlantAndEquipment",
+        "CashOutflowOnPurchaseOfPropertyPlantAndEquipment",
+        "PaymentsForPropertyPlantAndEquipment",
+        "AdditionsToPropertyPlantAndEquipment",
+        "AdditionsToFixedAssets",
+        # Oil & gas upstream capex (ONGC-specific).
+        "CapitalExpenditure",
+        "PurchaseOfIntangibleAssets",
     ],
 }
 
@@ -273,6 +319,88 @@ def _extract_contexts(xml_bytes: bytes) -> dict[str, dict[str, Any]]:
     return ctx_map
 
 
+def _detect_period_type_from_contexts(
+    contexts: dict[str, dict[str, Any]],
+    period_end: date,
+) -> str | None:
+    """Infer 'annual' vs 'quarterly' from the XBRL duration contexts.
+
+    The `<context><period>` duration is the ground truth for a filing —
+    the NSE endpoint label ("Annual"/"Quarterly") is only a hint and
+    occasionally misclassifies (e.g. a Q4+FY combined filing tagged
+    under the Annual endpoint carries a 90-day duration).
+
+    Rules:
+    - Find the duration context whose endDate matches period_end.
+    - Compute (endDate - startDate) in days.
+    - 300+ days → annual; 60-120 days → quarterly.
+    - Return None if no duration context matches period_end (caller
+      falls back to endpoint-based hint).
+    """
+    period_end_s = period_end.isoformat()
+    best_days: int | None = None
+    for _cid, info in contexts.items():
+        if info.get("end") != period_end_s:
+            continue
+        start_s = info.get("start")
+        if not start_s:
+            continue
+        try:
+            start_d = datetime.strptime(start_s, "%Y-%m-%d").date()
+        except Exception:
+            continue
+        days = (period_end - start_d).days
+        if days <= 0:
+            continue
+        if best_days is None or days > best_days:
+            best_days = days
+    if best_days is None:
+        return None
+    if best_days >= 300:
+        return "annual"
+    if 60 <= best_days <= 120:
+        return "quarterly"
+    # Half-year or 9-month combined filings — treat as annual-adjacent
+    # quarterly since our downstream ratios are annual-only anyway.
+    # Returning None lets the endpoint hint win.
+    return None
+
+
+_CONSOLIDATED_KEYS = (
+    "consolidated",
+    "isConsolidated",
+    "is_consolidated",
+    "relatingTo",
+    "relating_to",
+    "nature",
+    "reResType",
+    "resultType",
+    "result_type",
+    "type",
+)
+
+
+def _filing_is_consolidated(filing: dict[str, Any]) -> bool | None:
+    """Inspect a filing-index entry for its Consolidated/Standalone label.
+
+    NSE's `corporates-financial-results` entries expose the distinction
+    under a handful of keys depending on the endpoint version. Returns
+    True for Consolidated, False for Standalone, None if undetermined.
+    """
+    for k in _CONSOLIDATED_KEYS:
+        v = filing.get(k)
+        if v is None:
+            continue
+        s = str(v).strip().lower()
+        if not s:
+            continue
+        if "consolidated" in s and "non" not in s and "standalone" not in s:
+            return True
+        if "standalone" in s or s.startswith("non-consolidated") or s == "non consolidated":
+            return False
+    return None
+
+
 def _pick_value(facts, contexts, local_names, period_end: date) -> float | None:
     """Pick the first non-null value whose context matches period_end."""
     period_end_s = period_end.isoformat()
@@ -291,11 +419,26 @@ def _pick_value(facts, contexts, local_names, period_end: date) -> float | None:
 
 def parse_nse_xbrl(xml_bytes: bytes, ticker: str, period_end: date,
                     period_type: str = "annual") -> dict[str, Any] | None:
-    """Parse one XBRL file into our canonical financials row shape."""
+    """Parse one XBRL file into our canonical financials row shape.
+
+    `period_type` is the endpoint-based hint ('annual'/'quarterly'). If
+    the XBRL contexts carry an unambiguous duration we prefer that over
+    the hint — the endpoint occasionally misclassifies Q4+FY combined
+    filings. See `_detect_period_type_from_contexts`.
+    """
     facts = _extract_facts(xml_bytes)
     if not facts:
         return None
     contexts = _extract_contexts(xml_bytes)
+
+    # Context-duration wins over endpoint hint when they disagree.
+    inferred = _detect_period_type_from_contexts(contexts, period_end)
+    if inferred and inferred != period_type:
+        logger.info(
+            "nse_xbrl period_type override for %s %s: endpoint=%s, context=%s",
+            ticker, period_end.isoformat(), period_type, inferred,
+        )
+        period_type = inferred
 
     revenue = _pick_value(facts, contexts, _FIELD_TAGS["revenue"], period_end)
     if revenue is None:
@@ -452,22 +595,64 @@ def fetch_ticker_financials(
         # Keep the most recent `cap` filings (NSE returns newest first)
         filings = filings[:cap]
 
-        seen_periods: set[date] = set()
+        # ── Consolidated-preference grouping ──────────────────────────
+        # For a given period_end, NSE may return both a Standalone and
+        # a Consolidated filing. We want exactly one row per period:
+        # prefer Consolidated; write Standalone only if that's all we
+        # have. This matches the pattern yfinance uses and avoids
+        # duplicate rows (one NULL-heavy standalone shadowing the
+        # real consolidated numbers).
+        grouped: dict[date, dict[str, dict[str, Any]]] = {}
         for f in filings:
             to_s = f.get("toDate") or f.get("to_date")
             period_end = _parse_nse_date(to_s) if to_s else None
             if period_end is None:
                 continue
-            if period_end in seen_periods:
-                # Prefer earlier filing (first seen) which is usually the
-                # most recent submission. NSE frequently has duplicates.
-                continue
-            seen_periods.add(period_end)
-
             xbrl_url = f.get("xbrl")
             if not xbrl_url or not xbrl_url.startswith("http"):
                 continue
+            is_consol = _filing_is_consolidated(f)
+            # Bucket: "consolidated" | "standalone" | "unknown"
+            if is_consol is True:
+                bucket = "consolidated"
+            elif is_consol is False:
+                bucket = "standalone"
+            else:
+                bucket = "unknown"
+            slot = grouped.setdefault(period_end, {})
+            # Keep first-seen per bucket (NSE returns newest first).
+            slot.setdefault(bucket, f)
 
+        # Emit in (newest → oldest) order so caller-side logs stay
+        # deterministic and match what was previously produced.
+        for period_end in sorted(grouped.keys(), reverse=True):
+            slot = grouped[period_end]
+            if "consolidated" in slot:
+                chosen = slot["consolidated"]
+                source_label = "NSE_XBRL"
+                if "standalone" in slot:
+                    logger.info(
+                        "nse_xbrl consolidated-preference: %s %s — "
+                        "dropping standalone in favour of consolidated",
+                        symbol, period_end.isoformat(),
+                    )
+            elif "unknown" in slot:
+                # No explicit Consolidated/Standalone label — trust the
+                # filing as-is (historical behaviour).
+                chosen = slot["unknown"]
+                source_label = "NSE_XBRL"
+            else:
+                # Only a Standalone exists. Per contract, write it but
+                # tag the source so downstream can tell them apart.
+                chosen = slot["standalone"]
+                source_label = "NSE_XBRL_STANDALONE"
+                logger.info(
+                    "nse_xbrl standalone-only: %s %s — "
+                    "writing standalone (no consolidated filing available)",
+                    symbol, period_end.isoformat(),
+                )
+
+            xbrl_url = chosen.get("xbrl")
             try:
                 r = session.get(xbrl_url, timeout=20)
             except Exception as exc:
@@ -481,6 +666,7 @@ def fetch_ticker_financials(
                 period_type="annual" if period == "Annual" else "quarterly",
             )
             if row:
+                row["source"] = source_label
                 all_rows.append(row)
 
             time.sleep(sleep)
