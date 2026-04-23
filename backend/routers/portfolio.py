@@ -108,6 +108,30 @@ async def remove_holding(ticker: str, user: dict = Depends(get_current_user)):
     return SuccessResponse(message=f"{ticker} removed from portfolio")
 
 
+@router.delete("/holdings", response_model=SuccessResponse)
+async def reset_holdings(user: dict = Depends(get_current_user)):
+    """Bulk-clear every holding for the signed-in user.
+
+    Destructive — the frontend MUST show a confirm modal before calling
+    this. No soft-delete: the rows are removed from Supabase. Users
+    re-import from broker CSV or add back via the UI after calling this.
+    """
+    from backend.services.portfolio_service import remove_all_holdings
+    email = user.get("email", "")
+    if not email:
+        raise HTTPException(status_code=401, detail="Email required")
+
+    ok, count = remove_all_holdings(email)
+    if not ok:
+        raise HTTPException(status_code=500, detail="Failed to reset holdings")
+    return SuccessResponse(
+        message=(
+            f"Cleared {count} holding{'' if count == 1 else 's'}"
+            if count else "Portfolio already empty"
+        )
+    )
+
+
 def _do_import(parsed: list[dict], broker: str, user: dict) -> dict:
     """Shared import logic — accepts pre-parsed holdings list."""
     from backend.services.portfolio_service import save_holding

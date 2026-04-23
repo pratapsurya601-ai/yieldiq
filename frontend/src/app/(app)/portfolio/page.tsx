@@ -1,6 +1,6 @@
 "use client"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { getHoldingsLive, getPortfolioHealth, getWatchlist, removeFromWatchlist, getAlerts, deleteAlert } from "@/lib/api"
+import { getHoldingsLive, getPortfolioHealth, getWatchlist, removeFromWatchlist, getAlerts, deleteAlert, resetHoldings } from "@/lib/api"
 import HealthScore from "@/components/portfolio/HealthScore"
 import PortfolioPrism from "@/components/portfolio/PortfolioPrism"
 // PnLSparklinePlaceholder is intentionally not imported — the card is
@@ -90,6 +90,26 @@ function PortfolioInner() {
       showToast("Alert removed")
     },
     onError: () => showToast("Failed to remove alert"),
+  })
+
+  // Reset-holdings flow. The confirm modal is gated by `resetConfirm`
+  // so an accidental click on the button can't wipe the portfolio.
+  // Health + prism queries are invalidated too because both derive from
+  // holdings — without this the UI would still show the stale Prism
+  // after the table goes empty.
+  const [resetConfirm, setResetConfirm] = useState(false)
+  const resetHoldingsMut = useMutation({
+    mutationFn: () => resetHoldings(),
+    onSuccess: (data: { message?: string }) => {
+      queryClient.invalidateQueries({ queryKey: ["holdings-live"] })
+      queryClient.invalidateQueries({ queryKey: ["portfolio-health"] })
+      setResetConfirm(false)
+      showToast(data?.message || "Holdings cleared")
+    },
+    onError: () => {
+      setResetConfirm(false)
+      showToast("Failed to reset holdings")
+    },
   })
 
   function showToast(msg: string) {
@@ -305,7 +325,7 @@ function PortfolioInner() {
         )
       )}
       {tab === "holdings" && !holdingsError && holdings && holdings.length > 0 && (
-        <div className="flex flex-wrap justify-end gap-4">
+        <div className="flex flex-wrap justify-end items-center gap-4">
           <Link href="/concall" className="text-xs text-blue-600 font-semibold hover:underline">
             Concall AI &rarr;
           </Link>
@@ -315,6 +335,64 @@ function PortfolioInner() {
           <Link href="/portfolio/import" className="text-xs text-blue-600 font-semibold hover:underline">
             + Import from broker CSV
           </Link>
+          <button
+            type="button"
+            onClick={() => setResetConfirm(true)}
+            className="text-xs text-red-600 font-semibold hover:underline disabled:opacity-50"
+            disabled={resetHoldingsMut.isPending}
+          >
+            Reset holdings
+          </button>
+        </div>
+      )}
+
+      {/* Reset-holdings confirm modal.
+          Shown only after the user clicks "Reset holdings" — never on
+          first mount. The destructive button is red + requires a
+          second click; the cancel button is the default-focused one so
+          pressing Enter exits safely. */}
+      {resetConfirm && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="reset-holdings-title"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4"
+          onClick={() => !resetHoldingsMut.isPending && setResetConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <h3 id="reset-holdings-title" className="text-sm font-semibold text-gray-900">
+                Delete all {holdings?.length ?? 0} holdings?
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                This permanently removes every holding from your portfolio.
+                Your watchlist and alerts are not affected. You&apos;ll need
+                to re-import from broker CSV or add them back manually.
+              </p>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <button
+                type="button"
+                autoFocus
+                onClick={() => setResetConfirm(false)}
+                disabled={resetHoldingsMut.isPending}
+                className="min-h-[36px] px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => resetHoldingsMut.mutate()}
+                disabled={resetHoldingsMut.isPending}
+                className="min-h-[36px] px-3 py-1.5 text-xs font-semibold text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50"
+              >
+                {resetHoldingsMut.isPending ? "Clearing..." : "Yes, delete all"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

@@ -149,6 +149,38 @@ def get_holdings(user_email: str) -> list[dict]:
         return []
 
 
+def remove_all_holdings(user_email: str) -> tuple[bool, int]:
+    """Delete every holding for a user. Returns (ok, count_deleted).
+
+    Used by the "Reset holdings" bulk action on the portfolio page. A
+    failed Supabase call returns ``(False, 0)``; an empty portfolio
+    returns ``(True, 0)`` so the caller can render a no-op toast rather
+    than a generic error.
+    """
+    if not user_email:
+        return False, 0
+    client = _get_supabase()
+    if client is None:
+        return False, 0
+    try:
+        # Supabase python client requires a filter on delete; we use
+        # eq(user_email) as the scope. Returns the deleted rows so we
+        # can count them for the UI confirmation toast.
+        result = (
+            client.table("holdings")
+            .delete()
+            .eq("user_email", user_email)
+            .execute()
+        )
+        rows = result.data or []
+        return True, len(rows)
+    except Exception as e:
+        logger.warning(
+            f"remove_all_holdings failed for {hash_email(user_email)}: {e}"
+        )
+        return False, 0
+
+
 def remove_holding(
     user_email: str,
     ticker: str,
@@ -227,6 +259,19 @@ def get_holdings_with_live_data(user_email: str) -> dict:
         except Exception as e:
             logger.warning(f"Parallel yfinance fetch failed: {e}")
 
+    # Today's % move per ticker, from live_quotes (populated every ~5m
+    # during market hours). Used by the home "Your positions" rail and
+    # any component that wants today's P&L separate from lifetime P&L.
+    # One bulk SELECT instead of N round-trips; missing tickers just get
+    # `None` on the response, which the frontend already handles.
+    day_quotes: dict[str, dict] = {}
+    try:
+        from backend.services import market_data_service as _mds
+        all_tickers = [h.get("ticker") for h in holdings if h.get("ticker")]
+        day_quotes = _mds.get_live_quotes_bulk(all_tickers) or {}
+    except Exception as e:
+        logger.warning(f"day_quotes bulk fetch failed: {e}")
+
     enriched = []
     total_invested = 0.0
     total_current = 0.0
@@ -289,6 +334,19 @@ def get_holdings_with_live_data(user_email: str) -> dict:
             "current_value": round(current_value, 2),
             "pnl_abs": round(pnl_abs, 2),
             "pnl_pct": round(pnl_pct, 2),
+            # Today's move — distinct from lifetime pnl_pct above. Both
+            # are None when live_quotes hasn't seen this ticker yet.
+            # day_change_abs is derived on the server so the frontend
+            # doesn't need the previous close.
+            "day_change_pct": round(float(day_quotes.get(ticker, {}).get("change_pct")), 2)
+                if day_quotes.get(ticker, {}).get("change_pct") is not None else None,
+            "day_change_abs": round(
+                (current_price * quantity * float(day_quotes[ticker]["change_pct"]) / 100.0), 2
+            ) if (
+                ticker in day_quotes
+                and day_quotes[ticker].get("change_pct") is not None
+                and current_price > 0
+            ) else None,
             "fair_value": round(fair_value, 2) if fair_value else None,
             "mos_pct": round(mos_pct, 2) if mos_pct is not None else None,
             "verdict": verdict,
