@@ -1627,6 +1627,11 @@ class AnalysisService(NarrativeMixin):
                 enterprise_value=round(dcf_res.get("enterprise_value", 0), 0),
                 equity_value=round(dcf_res.get("equity_value", 0), 0),
                 fcf_data_source=_fcf_data_source,
+                # feat/freshness-stamps: compute timestamp marks when
+                # the price was pulled from upstream (yfinance/NSE
+                # Parquet). Both are delayed — frontend renders as
+                # "Delayed", never "Live". See FreshnessStamp.tsx.
+                current_price_as_of=_ts,
             ),
             quality=QualityOutput(
                 yieldiq_score=yiq_score.get("score", 0),
@@ -1672,6 +1677,15 @@ class AnalysisService(NarrativeMixin):
                 car=_bm_car,
                 nnpa=_bm_nnpa,
                 casa=_bm_casa,
+                # feat/freshness-stamps: most recent filing period_end
+                # from the enriched bundle. Key names vary across data
+                # paths (local DB vs yfinance collector); probe a few.
+                latest_filing_period_end=(
+                    enriched.get("latest_period_end")
+                    or enriched.get("period_end")
+                    or enriched.get("latest_filing_period_end")
+                    or None
+                ),
             ),
             insights=InsightCards(
                 patience_months=hp.get("min_months"),
@@ -1690,6 +1704,16 @@ class AnalysisService(NarrativeMixin):
                 ev_ebitda=_clamp_ev_ebitda(eveb.get("current_ev_ebitda") or enriched.get("ev_to_ebitda")),
                 reverse_dcf_implied_growth=rdcf.get("implied_growth"),
                 bulk_deals=_bulk_deals,
+                # feat/freshness-stamps: Finnhub's /price-target
+                # endpoint doesn't expose a last-updated field on the
+                # free tier. Stamp with the compute timestamp whenever
+                # any target data is present; otherwise None so the
+                # frontend won't render a misleading freshness line.
+                analyst_target_as_of=(
+                    _ts
+                    if (raw.get("finnhub_price_target") or {}).get("mean")
+                    else None
+                ),
             ),
             scenarios=_scenarios_clamped,
             price_levels=PriceLevels(

@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/utils"
 import type { QualityOutput, InsightCards as InsightCardsType, ValuationOutput } from "@/types/api"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
+import FreshnessStamp from "@/components/common/FreshnessStamp"
 
 interface InsightCardsProps {
   quality: QualityOutput
@@ -32,6 +33,12 @@ interface CardData {
    *  where SEBI compliance requires we disclose provenance and that
    *  the figure is reference data, not our recommendation. */
   source?: string
+  /** feat/freshness-stamps — ISO timestamp for the "As of X" caption
+   *  rendered under the source line. Used by the Analyst Consensus
+   *  card to tell the user when the target was last refreshed. */
+  freshnessAt?: string | null
+  /** Prefix for the freshness caption. Defaults to "As of". */
+  freshnessPrefix?: string
 }
 
 // ── Helpers for the financial-ratio cards ────────────────────
@@ -256,6 +263,11 @@ export default function InsightCards({ quality, insights, valuation, currency = 
           ? "Analyst consensus"
           : "No analyst coverage",
       source: "Source: Finnhub \u2014 reference data only, not investment advice.",
+      // feat/freshness-stamps: tell the user how fresh the consensus
+      // number is. Backend stamps with compute time whenever any
+      // target data is present; null → stamp is omitted entirely.
+      freshnessAt: insights.analyst_target_as_of ?? null,
+      freshnessPrefix: "As of",
       color: "text-body",
       icon: "\u{1f3af}",
       borderColor: "border-l-border",
@@ -318,6 +330,13 @@ export default function InsightCards({ quality, insights, valuation, currency = 
             <p className={cn("text-xs mt-1 line-clamp-1", card.subtitleColor ?? "text-caption")}>{card.subtitle}</p>
             {card.source ? (
               <p className="text-caption text-[11px] mt-1 leading-snug">{card.source}</p>
+            ) : null}
+            {card.freshnessAt ? (
+              <FreshnessStamp
+                timestamp={card.freshnessAt}
+                prefix={card.freshnessPrefix ?? "As of"}
+                className="block mt-0.5"
+              />
             ) : null}
           </div>
         ))}

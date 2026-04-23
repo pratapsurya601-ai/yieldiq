@@ -373,10 +373,25 @@ def assemble_local(ticker: str, db_session) -> dict | None:
     log.info("LOCAL_DATA: assembled %s from DB+Parquet (price=%.2f, %d fin rows)",
              ticker, price, len(revenue_list))
 
+    # feat/freshness-stamps: surface the period_end of the latest
+    # annual row consumed above so the Quality Ratios card can render
+    # "Latest filing: Mar 2024" without a re-query.
+    _latest_period_end = None
+    try:
+        if "fins" in locals() and fins:
+            _pe = fins[0].get("period_end")
+            if _pe is not None:
+                _latest_period_end = (
+                    _pe.isoformat() if hasattr(_pe, "isoformat") else str(_pe)
+                )
+    except Exception:
+        _latest_period_end = None
+
     return {
         # Core — all monetary values in RAW INR (not Crores)
         "ticker":           ticker,
         "price":            price,
+        "latest_period_end": _latest_period_end,
         "shares":           shares_raw,
         "total_debt":       total_debt,
         "total_cash":       total_cash,

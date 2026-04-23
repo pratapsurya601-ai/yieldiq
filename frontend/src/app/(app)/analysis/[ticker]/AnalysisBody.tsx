@@ -22,6 +22,7 @@ import FairValueHistory from "@/components/analysis/FairValueHistory"
 import FinancialStatements from "@/components/analysis/FinancialStatements"
 import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
+import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
 import ShareReportCard from "@/components/analysis/ShareReportCard"
@@ -586,6 +587,20 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         onShare={onShare}
         onTimeMachine={() => setTimeMachineOpen(true)}
       />
+      {/* feat/freshness-stamps: price/compute freshness beneath the
+          sticky header. Two stamps — one for the quote ("Delayed"),
+          one for the overall analysis recompute time ("Recomputed") —
+          give users immediate context on how stale the numbers are. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
+        <FreshnessStamp
+          timestamp={valuation.current_price_as_of}
+          prefix="Delayed, as of"
+        />
+        <FreshnessStamp
+          timestamp={data.timestamp}
+          prefix="Recomputed"
+        />
+      </div>
 
       {copiedShare && (
         <div className="mt-2 text-xs text-brand bg-brand-50 border border-border rounded-lg px-3 py-2">

@@ -3,6 +3,7 @@
 import type { QualityOutput, InsightCards as InsightCardsType } from "@/types/api"
 import { cn } from "@/lib/utils"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
+import FreshnessStamp from "@/components/common/FreshnessStamp"
 
 interface Props {
   quality: QualityOutput
@@ -279,9 +280,18 @@ export default function QualityRatios({ quality, insights }: Props) {
 
   return (
     <div className="bg-surface rounded-2xl border border-border p-5 space-y-4">
-      <h2 className="text-sm font-semibold text-ink">
-        {isBank ? "Bank Ratios" : "Quality Ratios"}
-      </h2>
+      <div className="flex items-baseline justify-between gap-3">
+        <h2 className="text-sm font-semibold text-ink">
+          {isBank ? "Bank Ratios" : "Quality Ratios"}
+        </h2>
+        {/* feat/freshness-stamps: "Latest filing: Mar 2024" tells the
+            user whether these ratios are from a recent FY filing or a
+            stale row. Null timestamp collapses to nothing. */}
+        <FreshnessStamp
+          timestamp={quality.latest_filing_period_end}
+          prefix="Latest filing"
+        />
+      </div>
 
       {/* Render bank-native cards for banks; generic cards otherwise.
           The generic set (ROCE / Debt/EBITDA / Int Coverage) does not
