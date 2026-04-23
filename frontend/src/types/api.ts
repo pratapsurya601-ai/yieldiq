@@ -4,7 +4,13 @@ export type Verdict = "undervalued" | "fairly_valued" | "overvalued" | "avoid" |
 export type Grade = "A" | "B" | "C" | "D" | "F"
 export type Tier = "free" | "starter" | "pro" | "analyst"
 export type Confidence = "high" | "medium" | "low" | "unusable"
-export type MoatGrade = "Wide" | "Narrow" | "None"
+// Mirrors backend QualityOutput.moat Literal at backend/models/responses.py:67.
+// "Moderate" is emitted for allowlisted bellwethers floored by PR #36 / PR #41
+// (score >=60). "N/A (Financial)" is emitted for banks/NBFCs where the moat
+// engine returns a sector-specific sentinel. Drift between this union and the
+// backend Literal silently breaks the Vercel build via InsightCards.tsx moat
+// card comparisons — keep them synchronized.
+export type MoatGrade = "Wide" | "Moderate" | "Narrow" | "None" | "N/A (Financial)"
 
 export interface CompanyInfo {
   ticker: string
