@@ -1,12 +1,45 @@
 "use client"
 
+import { useState, useMemo } from "react"
 import type { QualityOutput, InsightCards as InsightCardsType } from "@/types/api"
+import type { RatioHistoryResponse, RatioHistoryPeriod } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
+import Sparkline, { type SparklinePoint } from "@/components/analysis/Sparkline"
+import RatioTrendModal, { type RatioTrendSeriesPoint } from "@/components/analysis/RatioTrendModal"
 
 interface Props {
   quality: QualityOutput
   insights: InsightCardsType
+  /** Optional 10-year ratio history; when absent, cards render without sparklines (graceful). */
+  ratioHistory?: RatioHistoryResponse | null
+}
+
+/* ------------------------------------------------------------------ */
+/* Trend helpers — turn RatioHistoryResponse → per-metric time series  */
+/* ------------------------------------------------------------------ */
+/** Key on RatioHistoryPeriod → trend series (oldest→newest). */
+function buildSeries(
+  data: RatioHistoryResponse | null | undefined,
+  key: keyof RatioHistoryPeriod,
+): RatioTrendSeriesPoint[] {
+  if (!data || !data.periods || data.periods.length === 0) return []
+  // Endpoint returns newest→oldest; reverse for chart rendering.
+  const sorted = [...data.periods].sort((a, b) => {
+    const ax = a.period_end || ""
+    const bx = b.period_end || ""
+    return ax.localeCompare(bx)
+  })
+  const windowed = sorted.slice(-10)
+  return windowed.map(p => {
+    const raw = p[key]
+    const v = typeof raw === "number" && !isNaN(raw) ? raw : null
+    return { period_end: p.period_end || "", value: v }
+  })
+}
+
+function seriesToPoints(series: RatioTrendSeriesPoint[]): SparklinePoint[] {
+  return series.map(p => (p.value === null ? null : p.value))
 }
 
 /* ------------------------------------------------------------------ */
@@ -18,6 +51,8 @@ function RatioCard({
   subtitle,
   tone,
   metricKey,
+  sparklinePoints,
+  onExpand,
 }: {
   label: string
   value: string
@@ -25,6 +60,10 @@ function RatioCard({
   tone: "green" | "amber" | "red" | "neutral"
   /** Dictionary key for the MetricTooltip popover. */
   metricKey: string
+  /** Optional trend values (oldest→newest); when ≥2 numeric values, renders sparkline. */
+  sparklinePoints?: SparklinePoint[]
+  /** If provided, card becomes clickable and opens the expanded trend modal. */
+  onExpand?: () => void
 }) {
   const toneClass = {
     green:   "border-l-green-500",
@@ -39,13 +78,17 @@ function RatioCard({
     neutral: "text-caption",
   }[tone]
 
-  return (
-    <div
-      className={cn(
-        "rounded-xl bg-surface border border-border border-l-[3px] p-3",
-        toneClass,
-      )}
-    >
+  let numericCount = 0
+  if (sparklinePoints) {
+    for (const p of sparklinePoints) {
+      if (typeof p === "number" && !isNaN(p)) numericCount++
+    }
+  }
+  const hasTrend = numericCount >= 2
+  const clickable = hasTrend && !!onExpand
+
+  const body = (
+    <>
       <MetricTooltip metricKey={metricKey}>
         <p className="text-[10px] text-caption uppercase tracking-wide">{label}</p>
       </MetricTooltip>
@@ -55,6 +98,45 @@ function RatioCard({
       {subtitle && (
         <p className="text-[10px] text-caption mt-0.5">{subtitle}</p>
       )}
+      {hasTrend && (
+        <div className="mt-2">
+          <Sparkline
+            points={sparklinePoints!}
+            color={tone}
+            height={32}
+            ariaLabel={`${label} 10-year trend`}
+          />
+        </div>
+      )}
+    </>
+  )
+
+  if (clickable) {
+    return (
+      <button
+        type="button"
+        onClick={onExpand}
+        className={cn(
+          "text-left w-full rounded-xl bg-surface border border-border border-l-[3px] p-3",
+          "hover:border-ink/20 hover:shadow-sm transition focus:outline-none",
+          "focus-visible:ring-2 focus-visible:ring-ink/20",
+          toneClass,
+        )}
+        aria-label={`${label} — open trend chart`}
+      >
+        {body}
+      </button>
+    )
+  }
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl bg-surface border border-border border-l-[3px] p-3",
+        toneClass,
+      )}
+    >
+      {body}
     </div>
   )
 }
@@ -252,7 +334,7 @@ function ShareholdingBar({
 /* ------------------------------------------------------------------ */
 /* Main component                                                       */
 /* ------------------------------------------------------------------ */
-export default function QualityRatios({ quality, insights }: Props) {
+export default function QualityRatios({ quality, insights, ratioHistory }: Props) {
   const { roce, debt_ebitda, debt_ebitda_label, interest_coverage } = quality
   // Phase 2.1 additions — backend already emits these in QualityOutput but
   // they were previously dropped from the render list. Day-3 fix #12.
@@ -261,6 +343,32 @@ export default function QualityRatios({ quality, insights }: Props) {
   const revenueCagr3y = quality.revenue_cagr_3y
   const evEbitda = insights.ev_ebitda
   const isBank = quality.is_bank === true
+
+  // ─── Ratio trends ───────────────────────────────────────────────────
+  // Pull each series out of the 10-yr ratio history once per render so
+  // sparklines and modals share the same array identity.
+  const trends = useMemo(() => ({
+    roe: buildSeries(ratioHistory, "roe"),
+    roce: buildSeries(ratioHistory, "roce"),
+    de_ratio: buildSeries(ratioHistory, "de_ratio"),
+    debt_ebitda: buildSeries(ratioHistory, "debt_ebitda"),
+    interest_cov: buildSeries(ratioHistory, "interest_cov"),
+    pe_ratio: buildSeries(ratioHistory, "pe_ratio"),
+    pb_ratio: buildSeries(ratioHistory, "pb_ratio"),
+    ev_ebitda: buildSeries(ratioHistory, "ev_ebitda"),
+    current_ratio: buildSeries(ratioHistory, "current_ratio"),
+    asset_turnover: buildSeries(ratioHistory, "asset_turnover"),
+    revenue_yoy: buildSeries(ratioHistory, "revenue_yoy"),
+    roa: buildSeries(ratioHistory, "roa"),
+  }), [ratioHistory])
+
+  // Expanded-chart modal state — single modal, driven by which ratio is open.
+  type OpenRatio =
+    | { key: string; title: string; suffix: string; decimals: number
+        series: RatioTrendSeriesPoint[]; color: "green" | "amber" | "red" | "neutral"
+        threshold?: number }
+    | null
+  const [openRatio, setOpenRatio] = useState<OpenRatio>(null)
 
   // If every ratio is null AND no shareholding data, don't render at all —
   // avoids showing an empty shell on tickers with no DB coverage. For
@@ -297,6 +405,12 @@ export default function QualityRatios({ quality, insights }: Props) {
               value={fmtRatio(quality.roa, "%")}
               tone={roaTone(quality.roa)}
               metricKey="roa"
+              sparklinePoints={seriesToPoints(trends.roa)}
+              onExpand={() => setOpenRatio({
+                key: "roa", title: "ROA \u2014 10-year trend",
+                suffix: "%", decimals: 2,
+                series: trends.roa, color: roaTone(quality.roa), threshold: 1.0,
+              })}
             />
             <RatioCard
               label="ROE"
@@ -306,6 +420,19 @@ export default function QualityRatios({ quality, insights }: Props) {
                 : quality.roe >= 15 ? "green"
                 : quality.roe >= 10 ? "amber" : "red"}
               metricKey="roe"
+              sparklinePoints={seriesToPoints(trends.roe)}
+              onExpand={() => {
+                const tone: "green" | "amber" | "red" | "neutral" =
+                  quality.roe === null || quality.roe === undefined
+                    ? "neutral"
+                    : quality.roe >= 15 ? "green"
+                    : quality.roe >= 10 ? "amber" : "red"
+                setOpenRatio({
+                  key: "roe", title: "ROE \u2014 10-year trend",
+                  suffix: "%", decimals: 1,
+                  series: trends.roe, color: tone, threshold: 15,
+                })
+              }}
             />
             <RatioCard
               label="Cost / Income"
@@ -367,12 +494,24 @@ export default function QualityRatios({ quality, insights }: Props) {
             value={fmtRatio(roce, "%")}
             tone={roceTone(roce)}
             metricKey="roce"
+            sparklinePoints={seriesToPoints(trends.roce)}
+            onExpand={() => setOpenRatio({
+              key: "roce", title: "ROCE \u2014 10-year trend",
+              suffix: "%", decimals: 1,
+              series: trends.roce, color: roceTone(roce), threshold: 15,
+            })}
           />
           <RatioCard
             label="EV / EBITDA"
             value={fmtRatio(evEbitda, "x")}
             tone={evEbitdaTone(evEbitda)}
             metricKey="ev_ebitda"
+            sparklinePoints={seriesToPoints(trends.ev_ebitda)}
+            onExpand={() => setOpenRatio({
+              key: "ev_ebitda", title: "EV / EBITDA \u2014 10-year trend",
+              suffix: "x", decimals: 1,
+              series: trends.ev_ebitda, color: evEbitdaTone(evEbitda),
+            })}
           />
           <RatioCard
             label="Debt / EBITDA"
@@ -380,12 +519,25 @@ export default function QualityRatios({ quality, insights }: Props) {
             subtitle={debt_ebitda_label ?? undefined}
             tone={debtEbitdaTone(debt_ebitda)}
             metricKey="debt_ebitda"
+            sparklinePoints={seriesToPoints(trends.debt_ebitda)}
+            onExpand={() => setOpenRatio({
+              key: "debt_ebitda", title: "Debt / EBITDA \u2014 10-year trend",
+              suffix: "x", decimals: 2,
+              series: trends.debt_ebitda, color: debtEbitdaTone(debt_ebitda),
+            })}
           />
           <RatioCard
             label="Int. Coverage"
             value={fmtRatio(interest_coverage, "x")}
             tone={interestCoverageTone(interest_coverage)}
             metricKey="interest_coverage"
+            sparklinePoints={seriesToPoints(trends.interest_cov)}
+            onExpand={() => setOpenRatio({
+              key: "interest_cov", title: "Interest Coverage \u2014 10-year trend",
+              suffix: "x", decimals: 1,
+              series: trends.interest_cov, color: interestCoverageTone(interest_coverage),
+              threshold: 2,
+            })}
           />
           {/* Phase 2.1 ratios — Day-3 fix #12 (2026-04-22). Backend already
               emits current_ratio / asset_turnover / revenue_cagr_3y in
@@ -397,13 +549,26 @@ export default function QualityRatios({ quality, insights }: Props) {
             subtitle="Short-term liquidity"
             tone={currentRatioTone(currentRatio)}
             metricKey="current_ratio"
+            sparklinePoints={seriesToPoints(trends.current_ratio)}
+            onExpand={() => setOpenRatio({
+              key: "current_ratio", title: "Current Ratio \u2014 10-year trend",
+              suffix: "x", decimals: 2,
+              series: trends.current_ratio, color: currentRatioTone(currentRatio),
+              threshold: 1.5,
+            })}
           />
           <RatioCard
             label="Asset Turnover"
             value={fmtRatio(assetTurnover, "x")}
-            subtitle="Revenue per ₹ of assets"
+            subtitle="Revenue per \u20b9 of assets"
             tone={assetTurnoverTone(assetTurnover)}
             metricKey="asset_turnover"
+            sparklinePoints={seriesToPoints(trends.asset_turnover)}
+            onExpand={() => setOpenRatio({
+              key: "asset_turnover", title: "Asset Turnover \u2014 10-year trend",
+              suffix: "x", decimals: 2,
+              series: trends.asset_turnover, color: assetTurnoverTone(assetTurnover),
+            })}
           />
           <RatioCard
             label="Revenue CAGR (3Y)"
@@ -429,6 +594,20 @@ export default function QualityRatios({ quality, insights }: Props) {
             pledgePct={quality.promoter_pledge_pct}
           />
         </div>
+      )}
+
+      {/* Expanded trend chart — only mounted when a ratio card is clicked. */}
+      {openRatio && (
+        <RatioTrendModal
+          open={true}
+          onClose={() => setOpenRatio(null)}
+          title={openRatio.title}
+          suffix={openRatio.suffix}
+          decimals={openRatio.decimals}
+          series={openRatio.series}
+          color={openRatio.color}
+          threshold={openRatio.threshold}
+        />
       )}
     </div>
   )
