@@ -278,19 +278,25 @@ def _fetch_core_data(ticker: str) -> dict:
         except Exception as exc:
             logger.debug("hex: analysis_cache fetch failed for %s: %s", ticker, exc)
 
-        # 2. market_metrics
+        # 2. market_metrics — try canonical THEN bare (writers disagree
+        # on suffix handling; HDFCBANK had rows under bare form only,
+        # which starved the bank-branch moat axis of its scale signal).
         try:
-            # ORDER BY trade_date DESC LIMIT 1 - dual-listed tickers
-            # (NSE+BSE) have two rows in market_metrics; pick the
-            # freshest. See design note in backend/routers/screener.py.
-            row = sess.execute(
-                text(
-                    "SELECT pe_ratio, pb_ratio, ev_ebitda, market_cap_cr "
-                    "FROM market_metrics WHERE ticker = :t "
-                    "ORDER BY trade_date DESC LIMIT 1"
-                ),
-                {"t": ticker},
-            ).fetchone()
+            row = None
+            for cand in (ticker, bare) if ticker != bare else (ticker,):
+                # ORDER BY trade_date DESC LIMIT 1 - dual-listed tickers
+                # (NSE+BSE) have two rows in market_metrics; pick the
+                # freshest. See design note in backend/routers/screener.py.
+                row = sess.execute(
+                    text(
+                        "SELECT pe_ratio, pb_ratio, ev_ebitda, market_cap_cr "
+                        "FROM market_metrics WHERE ticker = :t "
+                        "ORDER BY trade_date DESC LIMIT 1"
+                    ),
+                    {"t": cand},
+                ).fetchone()
+                if row:
+                    break
             if row:
                 out["metrics"] = {
                     "pe_ratio": row[0],
@@ -301,12 +307,24 @@ def _fetch_core_data(ticker: str) -> dict:
         except Exception as exc:
             logger.debug("hex: market_metrics fetch failed for %s: %s", ticker, exc)
 
-        # 3. financials — last ~5y of annuals
+        # 3. financials — last ~6y of annuals.
+        # Column names MUST match data_pipeline.models.Financials:
+        #   operating_margin (NOT op_margin), free_cash_flow (NOT fcf),
+        #   eps_diluted (NOT eps). There is no `interest_coverage` column
+        #   on this table — it lives on the analysis QualityOutput only.
+        # The previous query used the short aliases and raised
+        # `UndefinedColumn` for every ticker → the exception was
+        # swallowed, out["financials"] stayed []. That neutralised the
+        # op-margin-stability signal in _axis_moat and the revenue-CAGR
+        # fallback in _axis_growth for ANY ticker whose cached
+        # analysis_cache.payload lacked quality.moat /
+        # quality.revenue_cagr_*y (the TCS symptom set
+        # 2026-04-23).
         try:
             rows = sess.execute(
                 text(
-                    "SELECT period_end, revenue, fcf, op_margin, eps, "
-                    "debt_to_equity, interest_coverage "
+                    "SELECT period_end, revenue, free_cash_flow, "
+                    "operating_margin, eps_diluted, debt_to_equity "
                     "FROM financials "
                     "WHERE ticker = :t AND period_type = 'annual' "
                     "ORDER BY period_end DESC LIMIT 6"
@@ -321,13 +339,13 @@ def _fetch_core_data(ticker: str) -> dict:
                     "op_margin": r[3],
                     "eps": r[4],
                     "de": r[5],
-                    "int_cov": r[6],
                 }
                 for r in rows
             ]
         except Exception as exc:
-            # Schema may differ; fall back to SELECT * style introspection quietly
-            logger.debug("hex: financials fetch failed for %s: %s", ticker, exc)
+            # Log at INFO (not debug) so the next regression of this
+            # class is visible in Railway logs without a log-level bump.
+            logger.info("hex: financials fetch failed for %s: %s", ticker, exc)
 
         # 4. stocks.sector
         try:
@@ -834,6 +852,14 @@ def _axis_moat(data: dict, sector: str) -> dict:
             score += 3.0
             reasons.append("Wide moat")
             moat_signal = True
+        elif "moderate" in g:
+            # PR #36 introduced the "Moderate" band via the
+            # STRONG_BRAND_ALLOWLIST floor. Map it between Narrow and
+            # Wide so bellwethers (TITAN, RELIANCE) don't collapse to
+            # neutral when the allowlist fires.
+            score += 2.0
+            reasons.append("Moderate moat")
+            moat_signal = True
         elif "narrow" in g:
             score += 1.5
             reasons.append("Narrow moat")
@@ -842,6 +868,36 @@ def _axis_moat(data: dict, sector: str) -> dict:
             score -= 1.5
             reasons.append("No moat")
             moat_signal = True
+
+    # Numeric moat_score fallback — when `quality.moat` is null in a
+    # stale cached payload, the analysis pipeline still persists
+    # `quality.moat_score` (0-100 scale, see QualityOutput). Map it
+    # onto the same band contributions so a null-label row still lights
+    # the axis. This mirrors the STRONG_BRAND_ALLOWLIST floor logic
+    # applied in analysis/service.py (>=60 ≈ Moderate, >=75 ≈ Wide).
+    if not moat_signal:
+        try:
+            ms = q.get("moat_score")
+            if ms is not None:
+                ms_f = float(ms)
+                if ms_f >= 75.0:
+                    score += 3.0
+                    reasons.append(f"Moat score {ms_f:.0f}/100")
+                    moat_signal = True
+                elif ms_f >= 60.0:
+                    score += 2.0
+                    reasons.append(f"Moat score {ms_f:.0f}/100")
+                    moat_signal = True
+                elif ms_f >= 40.0:
+                    score += 1.5
+                    reasons.append(f"Moat score {ms_f:.0f}/100")
+                    moat_signal = True
+                elif ms_f > 0.0:
+                    score -= 1.0
+                    reasons.append(f"Moat score {ms_f:.0f}/100")
+                    moat_signal = True
+        except (TypeError, ValueError):
+            pass
 
     # Margin stability proxy — works as a brand/pricing-power signal
     # for any sector, not just IT. A small-cap with stable op margins

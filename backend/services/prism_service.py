@@ -358,24 +358,34 @@ def _fetch_market_cap_cr(ticker: str) -> Optional[float]:
     if sess is None:
         return None
     try:
-        try:
-            # ORDER BY trade_date DESC LIMIT 1 - dual-listed tickers
-            # (NSE+BSE) have two rows in market_metrics; pick the
-            # freshest. See design note in backend/routers/screener.py.
-            row = sess.execute(
-                text(
-                    "SELECT market_cap_cr FROM market_metrics "
-                    "WHERE ticker = :t ORDER BY trade_date DESC LIMIT 1"
-                ),
-                {"t": ticker},
-            ).fetchone()
-        except Exception:
-            row = None
-        if row and row[0] is not None:
+        # Accept canonical (TICKER.NS) and bare forms — market_metrics
+        # rows are written by two code paths that disagree on suffix
+        # handling (same class of bug as fair_value_history, see PR #34).
+        # HDFCBANK is the canary: canonical ticker lookup returned None
+        # even though market_metrics had a bare-ticker row → bank-branch
+        # moat axis lost its scale signal → rendered "n/a" on prod
+        # 2026-04-23.
+        bare = ticker.replace(".NS", "").replace(".BO", "")
+        candidates = [ticker, bare] if ticker != bare else [ticker]
+        for cand in candidates:
             try:
-                return float(row[0])
+                # ORDER BY trade_date DESC LIMIT 1 - dual-listed tickers
+                # (NSE+BSE) have two rows in market_metrics; pick the
+                # freshest. See design note in backend/routers/screener.py.
+                row = sess.execute(
+                    text(
+                        "SELECT market_cap_cr FROM market_metrics "
+                        "WHERE ticker = :t ORDER BY trade_date DESC LIMIT 1"
+                    ),
+                    {"t": cand},
+                ).fetchone()
             except Exception:
-                return None
+                row = None
+            if row and row[0] is not None:
+                try:
+                    return float(row[0])
+                except Exception:
+                    continue
         return None
     finally:
         _safe_close(sess)
