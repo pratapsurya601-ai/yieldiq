@@ -75,9 +75,22 @@ function _promoterCard(
 }
 
 export default function InsightCards({ quality, insights, valuation, currency = "INR" }: InsightCardsProps) {
-  // Separate genuine business red flags from model/data warnings
+  // Single source of truth: red_flags_structured (backend-authored, severity-tagged).
+  // Prior to 2026-04-23 this card read the legacy insights.red_flags string list,
+  // which left it out of sync with RedFlagInsights (which always used structured).
+  // Observed on TITAN.NS: deep-dive said "1 risk · 3 strengths" but this card said
+  // "Red Flags: None" — same page, two different answers. Fixed by deriving from
+  // structured: non-info = risks; info = strengths (tracked for parity but not
+  // surfaced in the card title).
   const MODEL_WARNING_PATTERNS = /missing|using default|estimated|no data|unavailable|not available|insufficient/i
-  const businessFlags = (insights.red_flags || []).filter((f) => !MODEL_WARNING_PATTERNS.test(f))
+  const structured = insights.red_flags_structured || []
+  const businessFlagTitles = structured
+    .filter((f) => f.severity !== "info" && !MODEL_WARNING_PATTERNS.test(f.title))
+    .map((f) => f.title)
+  const businessFlags = businessFlagTitles
+  // Preserve the legacy string list for "data limitations" fallback rendering
+  // below — that block intentionally surfaces model-level caveats that never
+  // made it into the structured list.
   const modelWarnings = (insights.red_flags || []).filter((f) => MODEL_WARNING_PATTERNS.test(f))
 
   // Secondary "Ownership" strip — the ROCE / Debt-EBITDA / Interest
