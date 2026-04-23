@@ -207,6 +207,11 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
               Current price gets no tooltip — it's universally understood
               and the tight 4-up layout reads cleaner without a fourth
               icon. */}
+          {/* TODO(PR-B, SEBI-compliance): render <PriceTimestamp
+               as_of={as_of ?? null} /> underneath the "Current price"
+               stat once the backend /api/v1/public/stock-summary
+               endpoint includes `as_of` on the returned payload (the
+               underlying market_data_service row already has it). */}
           <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
             <Stat label="Current price" value={formatCurrency(price ?? 0)} />
             <Stat

@@ -265,6 +265,10 @@ function PortfolioInner() {
                     <p className="text-xs text-gray-500 truncate">{h.sector || h.company_name || "—"}</p>
                   </div>
                   <div className="text-right">
+                    {/* TODO(PR-B, SEBI-compliance): render <PriceTimestamp
+                         as_of={h.as_of ?? null} /> under CMP once the
+                         portfolio holdings endpoint surfaces `as_of`
+                         for each holding's current_price. */}
                     <p className="text-sm font-mono font-semibold text-gray-900">{formatCurrency(h.current_price, "INR")}</p>
                     <p className="text-[10px] text-gray-500 uppercase tracking-wider">CMP</p>
                   </div>
