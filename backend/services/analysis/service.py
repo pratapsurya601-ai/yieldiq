@@ -71,7 +71,24 @@ from backend.services.analysis.constants import (
     INVENTORY_HEAVY_TICKERS,
     COMPANY_NAME_OVERRIDES,
     _PB_MEDIANS,
+    _NBFC_TICKERS,
 )
+
+# ── NBFC WACC floor ─────────────────────────────────────────────
+# BAJFINANCE and peers route through the P/B financial-company
+# valuation path, which means DCFEngine (and its NBFC premium at
+# screener/dcf_engine.py:92-108) never runs for them. Their surfaced
+# WACC therefore comes straight from models.forecaster.compute_wacc,
+# a pure CAPM output with no NBFC awareness — which lands ~9.8% for
+# BAJFINANCE's beta/rf/debt mix and fails canary gate 4.
+#
+# Fix: apply a 0.11 floor to the reported `wacc` field for every
+# ticker in `_NBFC_TICKERS` after `compute_wacc` returns, but BEFORE
+# the P/B vs DCF split. The floor is deliberately NOT propagated into
+# `compute_financial_fair_value` (P/B valuation) — fair value stays
+# identical, only the surfaced `wacc` field moves. This is a cosmetic
+# correction to the reported cost of capital, not a valuation change.
+NBFC_WACC_FLOOR = 0.11
 from backend.services.analysis.utils import (
     _canonicalize_ticker,
     _resolve_sector,
@@ -437,6 +454,23 @@ class AnalysisService(NarrativeMixin):
         except Exception:
             wacc_data = {"beta": 1.0, "beta_source": "fallback"}
             wacc = 0.10
+
+        # ── NBFC WACC floor (surface-only, zero FV drift) ──────
+        # Applies to every ticker in `_NBFC_TICKERS`. Uses max(), not
+        # set — NBFCs whose CAPM already exceeds 0.11 are unchanged.
+        # Only the reported `wacc` / `wacc_data["wacc"]` fields are
+        # floored; `compute_financial_fair_value` below is P/B-based
+        # and does not consume `wacc`, so fair value is invariant.
+        if clean_ticker in _NBFC_TICKERS and wacc < NBFC_WACC_FLOOR:
+            import logging as _nbfc_log
+            _nbfc_log.getLogger("yieldiq.analysis").info(
+                "NBFC WACC floor applied: %s %.4f -> %.4f",
+                clean_ticker, wacc, NBFC_WACC_FLOOR,
+            )
+            wacc = NBFC_WACC_FLOOR
+            if isinstance(wacc_data, dict):
+                wacc_data["wacc"] = NBFC_WACC_FLOOR
+                wacc_data["wacc_floor_applied"] = True
 
         country = get_active_country()
         terminal_g = country.get("default_terminal_growth", 0.025)
