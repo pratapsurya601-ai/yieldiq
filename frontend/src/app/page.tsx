@@ -52,6 +52,7 @@ function MarketingNav() {
         </Link>
         <div className="hidden md:flex items-center gap-8 text-sm">
           <Link href="/features" className="text-gray-400 hover:text-white transition">Features</Link>
+          <Link href="/methodology" className="text-gray-400 hover:text-white transition">Methodology</Link>
           <Link href="/pricing" className="text-gray-400 hover:text-white transition">Pricing</Link>
           <Link href="/auth/login" className="text-gray-400 hover:text-white transition">Sign in</Link>
           <Link href="/auth/signup" className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold px-5 py-2 rounded-lg hover:opacity-90 transition shadow-lg shadow-blue-500/20">
@@ -67,6 +68,7 @@ function MarketingNav() {
       {open && (
         <div className="md:hidden px-4 pb-4 space-y-3 bg-[#080E1A]/95 backdrop-blur-xl">
           <Link href="/features" className="block text-gray-400 text-sm py-1">Features</Link>
+          <Link href="/methodology" className="block text-gray-400 text-sm py-1">Methodology</Link>
           <Link href="/pricing" className="block text-gray-400 text-sm py-1">Pricing</Link>
           <Link href="/auth/login" className="block text-gray-400 text-sm py-1">Sign in</Link>
           <Link href="/auth/signup" className="block bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold px-5 py-2 rounded-lg text-center text-sm">
@@ -186,7 +188,7 @@ function DemoCard() {
         </div>
         <div className="flex items-center gap-1.5 mt-3 justify-center">
           <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-          <span className="text-[10px] text-gray-500">Live data</span>
+          <span className="text-[10px] text-gray-500">Recomputed nightly</span>
         </div>
       </div>
     </div>
@@ -217,15 +219,18 @@ function LandingContent() {
           <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
             <div className="flex-1 text-center lg:text-left">
               <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-black text-white leading-[1.1] mb-6 tracking-tight">
-                Know what a stock is worth.
+                A transparent DCF valuation
                 <br />
                 <span className="bg-gradient-to-r from-blue-400 via-cyan-300 to-blue-500 bg-clip-text text-transparent">
-                  Before you invest.
+                  for Indian equities.
                 </span>
               </h1>
 
-              <p className="text-gray-400 text-lg md:text-xl max-w-xl mx-auto lg:mx-0 mb-8 leading-relaxed">
-                Institutional-grade DCF valuation for Indian retail investors. No spreadsheets, no guesswork &mdash; just a fair-value estimate in seconds.
+              <p className="text-gray-300 text-lg md:text-xl max-w-xl mx-auto lg:mx-0 mb-4 leading-relaxed">
+                Built for self-directed long-term investors &mdash; every assumption is editable, every number links to the source filing.
+              </p>
+              <p className="text-gray-500 text-sm md:text-base max-w-xl mx-auto lg:mx-0 mb-8 leading-relaxed">
+                Not a broker. Not a chart tool. Not a tipster service. A valuation layer that sits on top of the fundamentals you already read on Screener.in.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-6">
@@ -243,9 +248,15 @@ function LandingContent() {
               <p className="text-gray-400 text-sm">
                 <span className="text-white font-semibold">2,900 stocks</span>
                 <span className="mx-2 text-gray-600">&middot;</span>
-                <span className="text-white font-semibold">Free DCF</span>
+                <span className="text-white font-semibold">Source-linked</span>
                 <span className="mx-2 text-gray-600">&middot;</span>
-                <span className="text-white font-semibold">30s per analysis</span>
+                <span className="text-white font-semibold">Editable assumptions</span>
+              </p>
+
+              <p className="mt-4 text-gray-500 text-xs">
+                <Link href="/methodology" className="underline hover:text-gray-300 transition">
+                  How the score is computed &rarr;
+                </Link>
               </p>
             </div>
 
@@ -322,6 +333,21 @@ function LandingContent() {
           </FadeIn>
           <div className="grid md:grid-cols-3 gap-6">
             {[
+              {
+                icon: "\u{1F517}",
+                title: "Source-linked",
+                body: "Every number clicks through to the filing it came from \u2014 annual report, quarterly filing, or RBI release. No black boxes.",
+              },
+              {
+                icon: "\u270F\uFE0F",
+                title: "Assumptions-editable",
+                body: "Don\u2019t trust our WACC, growth, or margin inputs? Change them and re-run the DCF yourself. This is a model, not a verdict.",
+              },
+              {
+                icon: "\u{1F4D0}",
+                title: "Descriptive-only",
+                body: "No SEBI-regulated buy/sell signals. No tips, no picks. A valuation layer you apply your own judgement to.",
+              },
               {
                 icon: "\u{1F4CA}",
                 title: "Indian risk-free rate",

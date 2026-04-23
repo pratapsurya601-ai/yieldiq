@@ -45,14 +45,27 @@ function display(t: string): string {
   return t.toUpperCase().replace(/\.(NS|BO)$/i, "")
 }
 
-async function getPrism(ticker: string): Promise<PrismData | null> {
+interface PrismFetch {
+  data: PrismData
+  marketCapCr: number | null
+  verdict: string | null
+}
+
+async function getPrism(ticker: string): Promise<PrismFetch | null> {
   try {
     const res = await fetch(
       `${API_BASE}/api/v1/prism/${encodeURIComponent(withSuffix(ticker))}`,
       { next: { revalidate: 3600 } }
     )
     if (!res.ok) return null
-    return adaptPrismResponse(await res.json(), ticker)
+    const raw = (await res.json()) as Record<string, unknown>
+    return {
+      data: adaptPrismResponse(raw, ticker),
+      marketCapCr:
+        typeof raw.market_cap_cr === "number" ? (raw.market_cap_cr as number) : null,
+      verdict:
+        typeof raw.verdict_label === "string" ? (raw.verdict_label as string) : null,
+    }
   } catch {
     return null
   }
@@ -63,7 +76,8 @@ export async function generateMetadata(
 ): Promise<Metadata> {
   const { ticker } = await params
   const disp = display(ticker)
-  const data = await getPrism(ticker)
+  const fetched = await getPrism(ticker)
+  const data = fetched?.data ?? null
 
   const company = data?.company_name || disp
   const verdict = data?.verdict_label || "6-pillar profile"
@@ -113,8 +127,16 @@ export default async function PrismPage(
   { params }: { params: Promise<{ ticker: string }> }
 ) {
   const { ticker } = await params
-  const data = await getPrism(ticker)
-  if (!data) notFound()
+  const fetched = await getPrism(ticker)
+  if (!fetched) notFound()
+  const data = fetched.data
+  const marketCapCr = fetched.marketCapCr ?? 0
+  const dataLimitedVerdict = (fetched.verdict ?? "").toLowerCase() === "data limited"
+  // Bellwethers (market cap > 10,000 Cr) have full data — suppress the
+  // per-axis "thin data" caveat entirely on those tickers to avoid the
+  // "toy / incomplete" framing an anon visitor otherwise picks up.
+  const isBellwether = marketCapCr > 10000
+  const showAxisCaveat = !isBellwether && dataLimitedVerdict
 
   const disp = display(data.ticker || ticker)
   const canonical = `https://yieldiq.in/prism/${disp}`
@@ -205,9 +227,9 @@ export default async function PrismPage(
                 <p className="text-xs text-gray-400 mt-2 leading-relaxed">
                   {PILLAR_BLURB[key]}
                 </p>
-                {pillar.data_limited && (
+                {pillar.data_limited && showAxisCaveat && (
                   <p className="text-[11px] text-amber-600 mt-2">
-                    Data limited &mdash; score may be incomplete.
+                    Thin data for this pillar &mdash; DCF inputs fall back to sector medians. Recomputed nightly.
                   </p>
                 )}
               </div>

@@ -388,6 +388,21 @@ export default function Signature({
         fill={`url(#${uid}-sig-glow)`}
       />
 
+      {/* PR-ANON-POSITIONING: subtle fill of the full outer hex so that a
+          median-score polygon (all pillars ~5/10) still reads as "data
+          present, median values" instead of "empty / tool broken". The
+          fill is intentionally very light (2.5% ink) — invisible against
+          strong polygons, but provides visual anchor when the main
+          polygon is tiny and centred. Fades with the grid rings. */}
+      <polygon
+        points={gridRings[gridRings.length - 1].pts}
+        style={{
+          fill: "var(--color-ink)",
+          fillOpacity: 0.025,
+          opacity: Math.max(0, 1 - t / 0.3),
+        }}
+      />
+
       {/* Grid rings fade out first so the main polygon reads clean during morph. */}
       <g
         style={{

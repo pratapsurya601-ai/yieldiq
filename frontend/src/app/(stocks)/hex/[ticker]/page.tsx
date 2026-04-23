@@ -32,14 +32,19 @@ function display(t: string): string {
   return t.toUpperCase().replace(/\.(NS|BO)$/i, "")
 }
 
-async function getHex(ticker: string): Promise<HexResponse | null> {
+async function getHex(
+  ticker: string,
+): Promise<(HexResponse & { market_cap_cr?: number | null; verdict_label?: string | null }) | null> {
   try {
     const res = await fetch(
       `${API_BASE}/api/v1/hex/${encodeURIComponent(withSuffix(ticker))}`,
       { next: { revalidate: 3600 } }
     )
     if (!res.ok) return null
-    return (await res.json()) as HexResponse
+    return (await res.json()) as HexResponse & {
+      market_cap_cr?: number | null
+      verdict_label?: string | null
+    }
   } catch {
     return null
   }
@@ -111,6 +116,15 @@ export default async function HexPage(
   }
 
   const overall = Math.max(0, Math.min(10, data.overall))
+  const marketCapCr =
+    typeof data.market_cap_cr === "number" ? data.market_cap_cr : 0
+  const dataLimitedVerdict =
+    (data.verdict_label ?? "").toLowerCase() === "data limited"
+  // Bellwethers (market cap > 10,000 Cr) have full data — suppress the
+  // per-axis caveat so an anon visitor doesn't read "incomplete" where
+  // the data is actually solid.
+  const isBellwether = marketCapCr > 10000
+  const showAxisCaveat = !isBellwether && dataLimitedVerdict
 
   return (
     <>
@@ -177,9 +191,9 @@ export default async function HexPage(
                 <p className="text-xs text-gray-400 mt-2 leading-relaxed">
                   {HEX_AXIS_BLURB[key]}
                 </p>
-                {axis.data_limited && (
+                {axis.data_limited && showAxisCaveat && (
                   <p className="text-[11px] text-amber-600 mt-2">
-                    Data limited &mdash; score may be incomplete.
+                    Thin data for this axis &mdash; DCF inputs fall back to sector medians. Recomputed nightly.
                   </p>
                 )}
               </div>
