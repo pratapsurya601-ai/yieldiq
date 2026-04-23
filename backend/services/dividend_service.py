@@ -47,13 +47,26 @@ class DividendService:
     def _fetch(self, ticker: str, enriched: dict | None, yf_info: dict | None = None) -> dict:
         import yfinance as yf
 
-        # Reuse caller-provided .info if available — saves ~20s
-        # by avoiding a duplicate yfinance quoteSummary call. BUT: the
-        # caller's enriched dict can have stripped dividend fields
-        # (HCLTECH bug, 2026-04-21: yf_info from collector lacked
-        # dividendYield/lastDividendValue, so we returned has_dividends=False
-        # for a stock paying \u20b954/share). If both are missing, fall through
-        # to a fresh .info fetch.
+        # ── DB-first: the `corporate_actions` table (populated from
+        # the NSE feed) is the canonical source for Indian dividends.
+        # Same data that powers GET /api/v1/public/dividends/{ticker}.
+        # yfinance's .info drops dividend fields on ~30% of Indian
+        # tickers (TCS, HCLTECH, etc observed — confirmed 2026-04-23
+        # when TCS's InsightCards.dividend was rendering "None" despite
+        # 20 NSE-recorded dividend payments in the last 5 years).
+        # Strategy:
+        #   1. Hit corporate_actions for the dividend series.
+        #   2. If present, compute yield/payout from series + current
+        #      price/shares (which we have in enriched/yf_info).
+        #   3. Only fall back to yfinance .info when the DB is empty.
+        db_series = self._fetch_from_db(ticker)
+        if db_series:
+            return self._build_from_series(
+                ticker, db_series, enriched, yf_info
+            )
+
+        # ── yfinance path (fallback for tickers missing from NSE feed
+        # or for non-Indian symbols).
         info = None
         if yf_info and (
             yf_info.get("lastDividendValue") is not None
@@ -71,7 +84,20 @@ class DividendService:
         last_div = info.get("lastDividendValue")
         div_yield_raw = info.get("dividendYield")
 
+        # ── Series fallback: if .info stripped the fields but the
+        # yfinance .dividends series has rows, rebuild from that. This
+        # is the gap the old code missed — it returned has_dividends=False
+        # even when the underlying payment series was populated.
         if not last_div or div_yield_raw is None:
+            try:
+                t_fallback = yf.Ticker(ticker)
+                hist_fallback = t_fallback.dividends
+                if hist_fallback is not None and len(hist_fallback) > 0:
+                    return self._build_from_yf_series(
+                        ticker, hist_fallback, enriched, info
+                    )
+            except Exception as _e:
+                log.debug("yfinance series fallback failed for %s: %s", ticker, _e)
             return {
                 "has_dividends": False,
                 "ticker": ticker,
@@ -146,6 +172,205 @@ class DividendService:
             "sustainability": sust_label,
             "sustainability_reason": sust_reason,
         }
+
+    # ── DB-first fetch ─────────────────────────────────────────
+
+    def _fetch_from_db(self, ticker: str) -> list[dict] | None:
+        """Return list of `{ex_date: date, amount: float}` sorted oldest→newest.
+
+        Same corporate_actions query as the public /dividends/{ticker}
+        endpoint. Returns None on any failure (DB unavailable, import
+        failure, unparseable rows) so the caller falls through to
+        yfinance. Returns [] if the table has zero rows for this ticker
+        (genuinely no dividends).
+        """
+        from datetime import date, timedelta
+        clean = ticker.replace(".NS", "").replace(".BO", "")
+        try:
+            from backend.database import SessionLocal
+            from data_pipeline.models import CorporateAction
+        except Exception as exc:
+            log.debug("DB import failed for %s: %s", ticker, exc)
+            return None
+
+        db = None
+        try:
+            db = SessionLocal()
+            cutoff = date.today() - timedelta(days=10 * 366)  # 10-year window
+            rows = (
+                db.query(CorporateAction)
+                .filter(CorporateAction.ticker == clean)
+                .filter(CorporateAction.ex_date.isnot(None))
+                .filter(CorporateAction.ex_date >= cutoff)
+                .order_by(CorporateAction.ex_date.asc())
+                .all()
+            )
+            out: list[dict] = []
+            for r in rows:
+                blob = " ".join(
+                    filter(None, [(r.action_type or ""), (r.remarks or "")])
+                ).upper()
+                if "DIVIDEND" not in blob:
+                    continue
+                amount = self._parse_dividend_amount(blob)
+                if amount is None or amount <= 0:
+                    continue
+                out.append({"ex_date": r.ex_date, "amount": float(amount)})
+            return out
+        except Exception as exc:
+            log.debug("corporate_actions query failed for %s: %s", ticker, exc)
+            return None
+        finally:
+            if db is not None:
+                try:
+                    db.close()
+                except Exception:
+                    pass
+
+    def _parse_dividend_amount(self, blob: str) -> float | None:
+        """Extract rupee amount from a corporate-actions remarks blob.
+
+        Common formats: "DIVIDEND RS 10", "INT DIV 7/-", "DIVIDEND - 25.00 PER SHARE".
+        """
+        import re
+        # Match a decimal number anywhere in the blob
+        m = re.search(r"(\d+(?:\.\d+)?)", blob)
+        if not m:
+            return None
+        try:
+            v = float(m.group(1))
+            # Sanity band: anything > 5000 is almost certainly not a
+            # per-share dividend amount (face value or lot size noise).
+            return v if 0 < v < 5000 else None
+        except ValueError:
+            return None
+
+    def _build_from_series(
+        self,
+        ticker: str,
+        series: list[dict],
+        enriched: dict | None,
+        yf_info: dict | None,
+    ) -> dict:
+        """Build the full DividendData response from a DB-sourced series.
+
+        Computes yield / payout / coverage from the payment series + the
+        current price (from yf_info or enriched). This is the TCS fix —
+        yfinance.info can have blank dividend fields but the NSE series
+        still lets us show accurate, current numbers.
+        """
+        from datetime import date as _date, timedelta as _td
+        if not series:
+            return self._empty(ticker)
+
+        today = _date.today()
+        ttm_cutoff = today - _td(days=365)
+        last_12m = [x for x in series if x["ex_date"] >= ttm_cutoff]
+        ttm_total = sum(x["amount"] for x in last_12m) if last_12m else 0.0
+        last_payment = max(series, key=lambda x: x["ex_date"])
+        last_div = last_payment["amount"]
+
+        price = None
+        if yf_info:
+            price = yf_info.get("currentPrice") or yf_info.get("regularMarketPrice")
+        if not price and enriched:
+            price = enriched.get("current_price") or enriched.get("price")
+        try:
+            price = float(price) if price else None
+        except (TypeError, ValueError):
+            price = None
+
+        div_yield_pct = (ttm_total / price * 100) if (price and ttm_total > 0) else 0.0
+
+        # FY buckets — pandas-free reimplementation of _build_fy_history
+        # for the list-of-dicts shape we have from the DB.
+        from collections import defaultdict
+        fy_sum: dict[int, float] = defaultdict(float)
+        fy_count: dict[int, int] = defaultdict(int)
+        for item in series:
+            d = item["ex_date"]
+            fy = d.year + 1 if d.month >= 4 else d.year
+            fy_sum[fy] += item["amount"]
+            fy_count[fy] += 1
+        recent_fys = sorted(fy_sum.keys(), reverse=True)[:5]
+        fy_history = [
+            {
+                "fy": f"FY{fy}",
+                "total_per_share": round(fy_sum[fy], 2),
+                "payment_count": fy_count[fy],
+            }
+            for fy in sorted(recent_fys)
+        ]
+        consecutive_years = self._count_consecutive(fy_history)
+
+        payout_raw = float((yf_info or {}).get("payoutRatio") or 0)
+        payout_pct = round(payout_raw * 100, 1)
+        five_yr_avg = (yf_info or {}).get("fiveYearAvgDividendYield")
+        try:
+            five_yr_avg_out = round(float(five_yr_avg), 2) if five_yr_avg else None
+        except (TypeError, ValueError):
+            five_yr_avg_out = None
+
+        # Ex-date: NEXT_EX_DATE on the NSE feed isn't consistently
+        # available; use last known + cadence inference would be
+        # noisy. Defer to yf_info if present.
+        next_ex_date: str | None = None
+        next_ex_days: int | None = None
+        ex_ts = (yf_info or {}).get("exDividendDate")
+        if ex_ts:
+            try:
+                from datetime import datetime as _dt, timezone as _tz
+                ex_d = _dt.fromtimestamp(int(ex_ts), tz=_tz.utc).date()
+                if ex_d >= today:
+                    next_ex_date = ex_d.isoformat()
+                    next_ex_days = (ex_d - today).days
+            except Exception:
+                pass
+
+        div_rate = ttm_total  # trailing 12-month sum is the live "rate"
+        is_fin = self._is_financial(ticker, yf_info or {})
+        coverage = self._compute_coverage(enriched, yf_info or {}, is_fin, div_rate)
+        sust_label, sust_reason = self._sustainability(
+            payout_pct, coverage, consecutive_years
+        )
+
+        return {
+            "has_dividends": True,
+            "ticker": ticker,
+            "message": "",
+            "current_yield_pct": round(div_yield_pct, 2),
+            "payout_ratio_pct": payout_pct,
+            "five_yr_avg_yield": five_yr_avg_out,
+            "dividend_rate_per_share": round(div_rate, 2),
+            "last_dividend_value": round(float(last_div), 2),
+            "next_ex_date": next_ex_date,
+            "next_ex_days": next_ex_days,
+            "consecutive_years": consecutive_years,
+            "fy_history": fy_history,
+            "coverage_ratio": coverage,
+            "sustainability": sust_label,
+            "sustainability_reason": sust_reason,
+        }
+
+    def _build_from_yf_series(
+        self,
+        ticker: str,
+        hist,
+        enriched: dict | None,
+        info: dict,
+    ) -> dict:
+        """Fallback for yfinance .info missing dividend fields but
+        .dividends series having data. Converts the pandas series into
+        the same list-of-dicts shape and reuses _build_from_series."""
+        series = []
+        for dt, amount in hist.items():
+            try:
+                d = dt.date() if hasattr(dt, "date") else dt
+                series.append({"ex_date": d, "amount": float(amount)})
+            except Exception:
+                continue
+        series.sort(key=lambda x: x["ex_date"])
+        return self._build_from_series(ticker, series, enriched, info)
 
     # ── Helpers ────────────────────────────────────────────────
 
