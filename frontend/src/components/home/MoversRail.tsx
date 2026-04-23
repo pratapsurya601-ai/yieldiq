@@ -33,24 +33,28 @@ export default function MoversRail() {
     ticker: string
     display: string
     name: string
-    /** Holding's lifetime P&L %, NOT today's move. Null when unknown. */
-    pnlPct: number | null
+    /** Today's move in rupees (per-holding, quantity-weighted). Null when live_quote missing. */
+    dayAbs: number | null
+    /** Today's move in %. Null when live_quote missing. Used for color + fallback display. */
+    dayPct: number | null
   }
 
   let cards: Card[] = []
   if (holdings.length > 0) {
     cards = holdings.slice(0, 8).map((h) => {
-      // Sanity-clamp absurd values (e.g. cost_basis ≈ 0 producing
-      // five-figure pcts, or a stale snapshot showing -50% on a blue
-      // chip). Anything beyond ±500% is almost certainly bad data —
-      // hide rather than mislead.
-      const raw = typeof h.pnl_pct === "number" && Number.isFinite(h.pnl_pct) ? h.pnl_pct : null
-      const safe = raw !== null && Math.abs(raw) <= 500 ? raw : null
+      // Clamp absurd daily %s (> ±25% on a single day is almost always
+      // a stale-quote bug, e.g. an ex-bonus/ex-split that hasn't been
+      // price-adjusted yet). Hiding is safer than misleading a user
+      // into thinking their Infy just moved -40% today.
+      const rawPct = typeof h.day_change_pct === "number" && Number.isFinite(h.day_change_pct) ? h.day_change_pct : null
+      const pctOk = rawPct !== null && Math.abs(rawPct) <= 25
+      const rawAbs = typeof h.day_change_abs === "number" && Number.isFinite(h.day_change_abs) ? h.day_change_abs : null
       return {
         ticker: h.display_ticker,
         display: h.display_ticker,
         name: h.company_name,
-        pnlPct: safe,
+        dayAbs: pctOk ? rawAbs : null,
+        dayPct: pctOk ? rawPct : null,
       }
     })
   } else if (watchlist && watchlist.length > 0) {
@@ -58,18 +62,30 @@ export default function MoversRail() {
       ticker: w.ticker,
       display: w.ticker,
       name: w.company_name,
-      pnlPct: null,
+      dayAbs: null,
+      dayPct: null,
     }))
+  }
+
+  // Compact ₹ formatter — mirrors portfolio page so home + full tab
+  // use the same units. Signs the output so "+₹1.2K" / "-₹450" format.
+  function fmtRsCompact(n: number): string {
+    const abs = Math.abs(n)
+    const sign = n < 0 ? "-" : "+"
+    if (abs >= 10_000_000) return `${sign}\u20B9${(abs / 10_000_000).toFixed(2)}Cr`
+    if (abs >= 100_000) return `${sign}\u20B9${(abs / 100_000).toFixed(2)}L`
+    if (abs >= 1_000) return `${sign}\u20B9${(abs / 1_000).toFixed(1)}K`
+    return `${sign}\u20B9${abs.toFixed(0)}`
   }
 
   return (
     <section>
       <div className="flex items-baseline justify-between px-4 mb-2">
-        {/* Renamed from "Your movers" (2026-04-22): the numeric badge is
-            holding-period P&L, not today's % move. "Movers" universally
-            means intraday change — which we don't have a data source for
-            yet. Re-rename to "Your movers" only after wiring a
-            daily-change feed. */}
+        {/* Badge semantics: today's P&L (rupees), coloured by direction.
+            Source is live_quotes.change_pct applied to current_value —
+            wired 2026-04-23 after user feedback that the lifetime-%
+            reading on this rail was misleading. Falls back to % only
+            when rupee amount isn't derivable. */}
         <h2 className="font-display text-sm font-bold text-ink uppercase tracking-wider">
           Your positions
         </h2>
@@ -107,18 +123,19 @@ export default function MoversRail() {
                   {c.name}
                 </p>
               ) : null}
-              {c.pnlPct !== null ? (
+              {c.dayAbs !== null || c.dayPct !== null ? (
                 <>
                   <p
                     className={`text-sm font-bold font-mono mt-1 ${
-                      c.pnlPct >= 0 ? "text-green-600" : "text-red-600"
+                      (c.dayAbs ?? c.dayPct ?? 0) >= 0 ? "text-green-600" : "text-red-600"
                     }`}
                   >
-                    {c.pnlPct >= 0 ? "+" : ""}
-                    {c.pnlPct.toFixed(2)}%
+                    {c.dayAbs !== null
+                      ? fmtRsCompact(c.dayAbs)
+                      : `${(c.dayPct ?? 0) >= 0 ? "+" : ""}${(c.dayPct ?? 0).toFixed(2)}%`}
                   </p>
                   <p className="text-[9px] text-caption uppercase tracking-wider mt-0.5">
-                    P&amp;L
+                    Today
                   </p>
                 </>
               ) : (

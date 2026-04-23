@@ -323,6 +323,10 @@ export interface LiveHolding {
   current_value: number
   pnl_abs: number
   pnl_pct: number
+  /** Today's change in rupees (per-holding, already × quantity). Null if no live_quote row. */
+  day_change_abs: number | null
+  /** Today's change in %. Null if no live_quote row. */
+  day_change_pct: number | null
   fair_value: number | null
   mos_pct: number | null
   verdict: string
