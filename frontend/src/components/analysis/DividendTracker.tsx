@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import { cn } from "@/lib/utils"
+import FreshnessStamp from "@/components/common/FreshnessStamp"
 import type { DividendData } from "@/types/api"
 
 interface Props {
@@ -71,6 +72,13 @@ export default function DividendTracker({ dividend, currency = "INR" }: Props) {
         <div>
           <p className="text-sm font-semibold text-ink">💰 Dividend History</p>
           <p className="text-xs text-caption mt-0.5">{summaryLine}</p>
+          {/* feat/freshness-stamps: most recent ex-date anchors the
+              card so a lapsed dividend schedule is immediately visible. */}
+          <FreshnessStamp
+            timestamp={dividend.last_ex_date}
+            prefix="Last dividend"
+            className="mt-0.5 block"
+          />
         </div>
         <span
           className={cn(

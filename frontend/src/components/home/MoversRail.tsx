@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { getHoldingsLive, getWatchlist } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
 import UnlockBadge from "@/components/payg/UnlockBadge"
+import FreshnessStamp from "@/components/common/FreshnessStamp"
 
 // Horizontal rail of the user's tracked tickers with today's move. Shows
 // holdings if present, otherwise watchlist. If neither, a single skeleton
@@ -95,6 +96,18 @@ export default function MoversRail() {
           </Link>
         )}
       </div>
+      {/* feat/freshness-stamps: single batch-level freshness caption
+          for the whole rail — cards share one snapshot so we don't
+          repeat it per-card. Reads `as_of` off the holdings payload
+          when the backend surfaces it; null → stamp collapses. */}
+      {cards.length > 0 && (
+        <div className="px-4 -mt-1 mb-1">
+          <FreshnessStamp
+            timestamp={(holdingsData as { as_of?: string | null } | undefined)?.as_of ?? null}
+            prefix="Prices, delayed, as of"
+          />
+        </div>
+      )}
       {/* TODO(PR-B, SEBI-compliance): render <PriceTimestamp
            as_of={holdingsData?.as_of ?? null} /> once on the rail
            header row (the cards share one snapshot, so a single

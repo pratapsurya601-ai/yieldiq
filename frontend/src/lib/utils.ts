@@ -143,3 +143,42 @@ export function formatCompanyName(name: string, ticker?: string): string {
     })
     .join(" ")
 }
+
+/**
+ * Absolute short-form date for <FreshnessStamp />. Renders "Mar 2024"
+ * for historical filings. Caller prepends a label ("Latest filing: ...").
+ * Returns "" for unparseable input so callers can collapse the stamp.
+ */
+export function formatAbsoluteShort(input: string | Date): string {
+  const d = input instanceof Date ? input : new Date(input)
+  const t = d.getTime()
+  if (!Number.isFinite(t)) return ""
+  return d.toLocaleDateString("en-IN", { month: "short", year: "numeric" })
+}
+
+/**
+ * Relative-time formatter used by <FreshnessStamp />. Compact forms
+ * designed to sit inline in the 11px caption without wrapping:
+ *   < 60s   → "just now"
+ *   < 60m   → "{n}m ago"
+ *   < 24h   → "{n}h ago"
+ *   < 7d    → "{n}d ago"
+ *   beyond  → falls back to formatAbsoluteShort
+ *
+ * Future timestamps (negative diff, from clock skew) collapse to
+ * "just now" so the UI never renders "in 2h" on an analysis card.
+ */
+export function formatRelativeTime(input: string | Date): string {
+  const d = input instanceof Date ? input : new Date(input)
+  const t = d.getTime()
+  if (!Number.isFinite(t)) return ""
+  const diffMs = Date.now() - t
+  if (diffMs < 60_000) return "just now"
+  const m = Math.floor(diffMs / 60_000)
+  if (m < 60) return `${m}m ago`
+  const h = Math.floor(m / 60)
+  if (h < 24) return `${h}h ago`
+  const days = Math.floor(h / 24)
+  if (days < 7) return `${days}d ago`
+  return formatAbsoluteShort(d)
+}

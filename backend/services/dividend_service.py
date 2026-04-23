@@ -130,9 +130,21 @@ class DividendService:
 
         fy_history: list[dict] = []
         consecutive_years = 0
+        # feat/freshness-stamps: capture the most recent ex-date from
+        # the yfinance .dividends series for the "Last dividend: ..."
+        # stamp on the DividendTracker card.
+        last_ex_date_iso: str | None = None
         if hist is not None and len(hist) > 0:
             fy_history = self._build_fy_history(hist)
             consecutive_years = self._count_consecutive(fy_history)
+            try:
+                _last_idx = hist.index[-1]
+                last_ex_date_iso = (
+                    _last_idx.date().isoformat()
+                    if hasattr(_last_idx, "date") else str(_last_idx)[:10]
+                )
+            except Exception:
+                last_ex_date_iso = None
 
         # ── Next ex-date
         next_ex_date: str | None = None
@@ -171,6 +183,7 @@ class DividendService:
             "coverage_ratio": coverage,
             "sustainability": sust_label,
             "sustainability_reason": sust_reason,
+            "last_ex_date": last_ex_date_iso,
         }
 
     # ── DB-first fetch ─────────────────────────────────────────
@@ -360,6 +373,13 @@ class DividendService:
             "coverage_ratio": coverage,
             "sustainability": sust_label,
             "sustainability_reason": sust_reason,
+            # feat/freshness-stamps: last_payment is the max ex_date
+            # record from the corporate_actions series. ex_date is a
+            # datetime.date — serialise to ISO YYYY-MM-DD.
+            "last_ex_date": (
+                last_payment["ex_date"].isoformat()
+                if last_payment and last_payment.get("ex_date") else None
+            ),
         }
 
     def _build_from_yf_series(

@@ -48,6 +48,12 @@ class ValuationOutput(BaseModel):
     mos_extreme_note: str | None = None
     fcf_data_source: str = ""  # "ttm", "annual", or "yfinance"
     valuation_model: str = "dcf"  # "dcf" or "pb_ratio" for financials
+    # ── Freshness (feat/freshness-stamps, 2026-04-24) ─────────
+    # ISO-8601 timestamp marking when the displayed price was pulled
+    # from the upstream source. Null on legacy cached payloads /
+    # degraded fallbacks. Frontend renders via
+    # <FreshnessStamp prefix="Delayed" /> — never "Live" (SEBI).
+    current_price_as_of: Optional[str] = None
 
 
 class QualityOutput(BaseModel):
@@ -105,6 +111,12 @@ class QualityOutput(BaseModel):
     car: Optional[float] = None                   # percent, TODO: XBRL Sch XI
     nnpa: Optional[float] = None                  # percent, TODO: XBRL Sch XVIII
     casa: Optional[float] = None                  # percent, TODO: XBRL Sch V
+    # ── Freshness (feat/freshness-stamps, 2026-04-24) ─────────
+    # period_end (ISO YYYY-MM-DD) of the most recent filing feeding
+    # the ratios on this card. Null when the service couldn't derive
+    # it (yfinance-only fallback). Surfaced as
+    # "Latest filing: Mar 2024" via <FreshnessStamp />.
+    latest_filing_period_end: Optional[str] = None
 
 
 class BulkDealItem(BaseModel):
@@ -138,6 +150,11 @@ class DividendData(BaseModel):
     coverage_ratio: Optional[float] = None
     sustainability: str = "moderate"
     sustainability_reason: str = ""
+    # ── Freshness (feat/freshness-stamps, 2026-04-24) ─────────
+    # ISO date (YYYY-MM-DD) of the most recent ex-dividend event in
+    # corporate_actions. Surfaced as "Last dividend: Jan 16, 2025"
+    # under the Dividend Tracker card. None when has_dividends is False.
+    last_ex_date: Optional[str] = None
 
 
 class RedFlag(BaseModel):
@@ -167,6 +184,11 @@ class InsightCards(BaseModel):
     ev_ebitda: Optional[float] = None
     reverse_dcf_implied_growth: Optional[float] = None
     bulk_deals: list[BulkDealItem] = []
+    # ── Freshness (feat/freshness-stamps, 2026-04-24) ─────────
+    # ISO timestamp of analyst consensus last refresh. Free-tier
+    # Finnhub/yfinance fallback don't surface it; analysis service
+    # stamps with the compute time whenever target data is present.
+    analyst_target_as_of: Optional[str] = None
 
 
 # ── Reverse DCF detailed response ─────────────────────────────

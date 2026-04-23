@@ -52,6 +52,10 @@ export interface ValuationOutput {
   mos_is_extreme: boolean
   mos_extreme_note: string | null
   fcf_data_source: string  // "ttm", "annual", or "yfinance"
+  // feat/freshness-stamps — ISO timestamp of last price pull. Null on
+  // legacy/degraded payloads. Render via <FreshnessStamp prefix="Delayed" />;
+  // never "Live" (SEBI discipline, prices are always delayed).
+  current_price_as_of?: string | null
 }
 
 export interface QualityOutput {
@@ -100,6 +104,9 @@ export interface QualityOutput {
   car?: number | null              // percent — null until NSE XBRL Sch XI lands
   nnpa?: number | null             // percent — null until NSE XBRL Sch XVIII lands
   casa?: number | null             // percent — null until NSE XBRL Sch V lands
+  // feat/freshness-stamps — period_end (YYYY-MM-DD) of the latest
+  // filing feeding these ratios. Null on yfinance-only paths.
+  latest_filing_period_end?: string | null
 }
 
 export interface BulkDealItem {
@@ -142,6 +149,8 @@ export interface DividendData {
   coverage_ratio: number | null
   sustainability: "strong" | "moderate" | "at_risk"
   sustainability_reason: string
+  // feat/freshness-stamps — ISO date (YYYY-MM-DD) of the last ex-dividend event.
+  last_ex_date?: string | null
 }
 
 export interface InsightCards {
@@ -161,6 +170,10 @@ export interface InsightCards {
   ev_ebitda: number | null
   reverse_dcf_implied_growth: number | null
   bulk_deals: BulkDealItem[]
+  // feat/freshness-stamps — ISO timestamp of the analyst consensus refresh.
+  // Null when unavailable; backend falls back to compute time when any
+  // target data is present.
+  analyst_target_as_of?: string | null
 }
 
 export interface ScenarioCase {
