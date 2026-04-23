@@ -149,6 +149,38 @@ def get_holdings(user_email: str) -> list[dict]:
         return []
 
 
+def remove_all_holdings(user_email: str) -> tuple[bool, int]:
+    """Delete every holding for a user. Returns (ok, count_deleted).
+
+    Used by the "Reset holdings" bulk action on the portfolio page. A
+    failed Supabase call returns ``(False, 0)``; an empty portfolio
+    returns ``(True, 0)`` so the caller can render a no-op toast rather
+    than a generic error.
+    """
+    if not user_email:
+        return False, 0
+    client = _get_supabase()
+    if client is None:
+        return False, 0
+    try:
+        # Supabase python client requires a filter on delete; we use
+        # eq(user_email) as the scope. Returns the deleted rows so we
+        # can count them for the UI confirmation toast.
+        result = (
+            client.table("holdings")
+            .delete()
+            .eq("user_email", user_email)
+            .execute()
+        )
+        rows = result.data or []
+        return True, len(rows)
+    except Exception as e:
+        logger.warning(
+            f"remove_all_holdings failed for {hash_email(user_email)}: {e}"
+        )
+        return False, 0
+
+
 def remove_holding(
     user_email: str,
     ticker: str,
