@@ -35,6 +35,12 @@ function formatCell(v: unknown): string {
   return String(v)
 }
 
+// TODO(PR-B, SEBI-compliance): when a screener row contains a price
+// column (current_price / cmp / price), render <PriceTimestamp
+// as_of={...} /> at the top of the table once the screener response
+// returns a batch-level `as_of` (or per-row `as_of`). Presently the
+// screener runs over the cached analysis tape so no freshness stamp
+// is passed through; blocked on backend plumbing.
 export default function ResultsTable({ rows, total, isLoading, pageSize = 50 }: ResultsTableProps) {
   const [sortKey, setSortKey] = useState<string | null>(null)
   const [sortDir, setSortDir] = useState<SortDir>("desc")

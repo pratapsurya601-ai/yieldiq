@@ -95,6 +95,12 @@ export default function MoversRail() {
           </Link>
         )}
       </div>
+      {/* TODO(PR-B, SEBI-compliance): render <PriceTimestamp
+           as_of={holdingsData?.as_of ?? null} /> once on the rail
+           header row (the cards share one snapshot, so a single
+           header-level timestamp is enough). Blocked on
+           /api/v1/holdings/live surfacing `as_of`; the underlying
+           market_data_service row already has it. */}
       {cards.length === 0 ? (
         <div className="px-4">
           <div className="rounded-xl border border-dashed border-border bg-surface p-4 text-sm text-body">

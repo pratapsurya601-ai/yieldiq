@@ -572,6 +572,13 @@ export default function AnalysisBody({ ticker, prism }: Props) {
 
   return (
     <div className="max-w-2xl md:max-w-3xl lg:max-w-6xl mx-auto px-4 pb-20">
+      {/* TODO(PR-B, SEBI-compliance): render <PriceTimestamp
+           as_of={valuation.as_of ?? null} /> under the current
+           price once the backend propagates `as_of` into the
+           analysis response (ValuationOutput / StockSummary).
+           See backend/services/market_data_service.py — the field
+           exists on the market_quotes row but is NOT passed through
+           backend/services/analysis/service.py at build time. */}
       <StickyHeader
         ticker={data.ticker}
         price={valuation.current_price}

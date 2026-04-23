@@ -640,12 +640,17 @@ export async function GET(
         </div>
 
         {/* ─── Fair Value vs Price strip ──────────────────────────── */}
+        {/* FIX-SEBI-COMPLIANCE (2026-04-23): all three absolute blocks
+            below (FV strip, Moat chip, CTA) are shifted up by 220px so
+            the 192px-high disclaimer banner at the very bottom never
+            overlaps them. The banner itself is baked into the rendered
+            pixels — see final <div> in this component. */}
         <div
           style={{
             position: "absolute",
             left: 64,
             right: 64,
-            bottom: 360,
+            bottom: 580,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -728,7 +733,7 @@ export async function GET(
               position: "absolute",
               left: 64,
               right: 64,
-              bottom: 280,
+              bottom: 500,
               display: "flex",
               justifyContent: "center",
             }}
@@ -757,7 +762,7 @@ export async function GET(
             position: "absolute",
             left: 0,
             right: 0,
-            bottom: 64,
+            bottom: 260,
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
@@ -786,16 +791,62 @@ export async function GET(
           >
             yieldiq.in
           </div>
+        </div>
+
+        {/* ─── SEBI compliance disclaimer banner (baked-in) ───────
+            FIX-SEBI-COMPLIANCE (2026-04-23): the prior card only had
+            a small muted "Model estimate. Not investment advice."
+            line at the bottom that could be cropped out of a
+            screenshot while preserving the fair value / verdict
+            numbers. SEBI guidance requires a prominent, non-removable
+            disclaimer on any shareable research artefact. This banner
+            is positioned INSIDE the rendered Satori output (not as a
+            DOM overlay on the modal), so it rasterizes into the PNG
+            pixels and cannot be stripped by cropping the displayed
+            preview. The banner is ~10% of card height (192 / 1920)
+            with a high-contrast amber background and pure-white
+            body copy — satisfies the "conspicuous" bar in SEBI
+            Research Analysts Regulations, 2014 (Reg. 19 disclosures). */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            bottom: 0,
+            height: 192,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "0 48px",
+            background: "#78350F",
+            borderTop: "4px solid #F59E0B",
+          }}
+        >
           <div
             style={{
-              color: "#475569",
-              fontSize: 16,
-              fontWeight: 500,
-              marginTop: 18,
+              color: "#FDE68A",
+              fontSize: 20,
+              fontWeight: 800,
+              letterSpacing: 3,
+              textTransform: "uppercase",
+              display: "flex",
+              marginBottom: 14,
+            }}
+          >
+            Important Disclosure
+          </div>
+          <div
+            style={{
+              color: "#FFFFFF",
+              fontSize: 30,
+              fontWeight: 700,
+              textAlign: "center",
+              lineHeight: 1.3,
               display: "flex",
             }}
           >
-            Model estimate. Not investment advice.
+            {"Model estimate \u00B7 Not investment advice \u00B7 YieldIQ is not SEBI-registered"}
           </div>
         </div>
       </div>

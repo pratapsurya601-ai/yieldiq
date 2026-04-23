@@ -27,6 +27,11 @@ interface CardData {
   tooltip?: string
   /** Key into metric_explanations.ts — drives the hover tooltip. */
   metricKey?: string
+  /** Caption-sized attribution line rendered below the subtitle.
+   *  Used for third-party data (e.g. analyst consensus from Finnhub)
+   *  where SEBI compliance requires we disclose provenance and that
+   *  the figure is reference data, not our recommendation. */
+  source?: string
 }
 
 // ── Helpers for the financial-ratio cards ────────────────────
@@ -192,7 +197,15 @@ export default function InsightCards({ quality, insights, valuation, currency = 
       return empty
     })(),
     {
-      title: "Wall Street Target",
+      // FIX-SEBI-COMPLIANCE (2026-04-23, Gap 3): renamed from
+      // "Wall Street Target" -> "Analyst Consensus (third-party)".
+      // The old label implied a YieldIQ-produced price target, which
+      // we do not publish. This number is the mean of external sell-
+      // side analyst targets sourced from Finnhub (see backend
+      // services/analysis/service.py :: finnhub_price_target). The
+      // card now also surfaces the provenance caption so the user
+      // understands it is reference data, not our recommendation.
+      title: "Analyst Consensus (third-party)",
       value: insights.wall_street_avg_target !== null && insights.wall_street_avg_target > 0
         ? formatCurrency(insights.wall_street_avg_target, currency)
         : "No coverage",
@@ -201,6 +214,7 @@ export default function InsightCards({ quality, insights, valuation, currency = 
         : insights.wall_street_avg_target !== null && insights.wall_street_avg_target > 0
           ? "Analyst consensus"
           : "No analyst coverage",
+      source: "Source: Finnhub \u2014 reference data only, not investment advice.",
       color: "text-body",
       icon: "\u{1f3af}",
       borderColor: "border-l-border",
@@ -261,6 +275,9 @@ export default function InsightCards({ quality, insights, valuation, currency = 
             </div>
             <p className={cn("text-lg font-semibold", card.color)}>{card.value}</p>
             <p className={cn("text-xs mt-1 line-clamp-1", card.subtitleColor ?? "text-caption")}>{card.subtitle}</p>
+            {card.source ? (
+              <p className="text-caption text-[11px] mt-1 leading-snug">{card.source}</p>
+            ) : null}
           </div>
         ))}
       </div>
