@@ -473,30 +473,37 @@ def store_financials(financial_data: dict, db: Session,
                     raw_roe, ticker, period_end, pat, equity,
                 )
 
+        # Neon `financials` schema check (2026-04-24): `current_liabilities`
+        # was declared on the SQLAlchemy ORM model but never applied as a
+        # migration against the prod DB — every INSERT that referenced it
+        # failed with `column "current_liabilities" of relation
+        # "financials" does not exist`, silently swallowed, dropping the
+        # entire NSE XBRL backfill. Omitted here until a proper migration
+        # adds the column; the extracted value is dropped on the floor
+        # (no downstream consumer uses it today).
         from sqlalchemy import text as _text
         stmt = _text("""
             INSERT INTO financials (
                 ticker, period_end, period_type,
                 revenue, pat, ebit, cfo, capex, free_cash_flow,
                 eps_diluted, total_debt, cash_and_equivalents,
-                total_equity, total_assets, current_liabilities,
+                total_equity, total_assets,
                 roe, data_source, raw_data, currency
             ) VALUES (
                 :ticker, :period_end, :period_type,
                 :revenue, :pat, :ebit, :cfo, :capex, :fcf,
                 :eps, :debt, :cash,
-                :equity, :total_assets, :current_liabilities,
+                :equity, :total_assets,
                 :roe, :source, :raw, :currency
             )
             ON CONFLICT ON CONSTRAINT uq_financials_period
             DO UPDATE SET
                 revenue = EXCLUDED.revenue,
                 pat = EXCLUDED.pat,
-                -- Use COALESCE for the new balance-sheet fields so a
-                -- later BSE_PEERCOMP upsert (which leaves these NULL)
-                -- does NOT clobber values populated earlier by the
-                -- NSE_XBRL ingest. Income-statement fields are
-                -- recomputed per ingest so we overwrite them freely.
+                -- COALESCE for balance-sheet fields so a later
+                -- BSE_PEERCOMP upsert (leaves these NULL) does NOT
+                -- clobber values populated by NSE_XBRL ingest.
+                -- Income-statement fields are recomputed per ingest.
                 ebit = COALESCE(EXCLUDED.ebit, financials.ebit),
                 cfo = EXCLUDED.cfo,
                 capex = EXCLUDED.capex,
@@ -506,9 +513,6 @@ def store_financials(financial_data: dict, db: Session,
                 cash_and_equivalents = EXCLUDED.cash_and_equivalents,
                 total_equity = EXCLUDED.total_equity,
                 total_assets = COALESCE(EXCLUDED.total_assets, financials.total_assets),
-                current_liabilities = COALESCE(
-                    EXCLUDED.current_liabilities, financials.current_liabilities
-                ),
                 roe = EXCLUDED.roe,
                 data_source = EXCLUDED.data_source,
                 raw_data = EXCLUDED.raw_data,
@@ -529,7 +533,6 @@ def store_financials(financial_data: dict, db: Session,
             "cash": financial_data.get("cash"),
             "equity": equity,
             "total_assets": total_assets,
-            "current_liabilities": current_liabilities,
             "roe": roe,
             "source": financial_data.get("source", "BSE_API"),
             "raw": financial_data.get("raw"),
