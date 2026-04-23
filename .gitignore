@@ -27,3 +27,21 @@ token.txt
 # export_to_parquet.py / CI. Sync to S3 or git-lfs for persistence.
 data/parquet/
 .env.local
+
+# Env backups / leftovers — never commit. The .bak variant is
+# especially dangerous because people create it right before
+# rotating keys and then forget to rotate.
+.env*.bak
+.env.*.bak
+*.env.bak
+.env.backup
+
+# Local Python venv
+.venv/
+
+# Ad-hoc debug artifacts from agent runs
+parity_scorecard.json
+tmp_screener.html
+preview.html
+scripts/keep_awake.ps1
+.claude/worktrees/
