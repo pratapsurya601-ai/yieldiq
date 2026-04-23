@@ -187,15 +187,25 @@ class DividendService:
         from datetime import date, timedelta
         clean = ticker.replace(".NS", "").replace(".BO", "")
         try:
-            from backend.database import SessionLocal
+            # Use the same session factory as every other router/service in
+            # the app — see backend/routers/public.py::_get_db_session.
+            # Original import was `from backend.database import SessionLocal`,
+            # which doesn't exist in this codebase — the import failed
+            # silently and the DB-first path never ran in prod (2026-04-23
+            # 16:37 IST: TCS showed stale yfinance yield 2.5% instead of the
+            # correct TTM 4.32% from the 4 NSE payments in the last 365 days).
+            from backend.services.analysis_service import _get_pipeline_session
             from data_pipeline.models import CorporateAction
         except Exception as exc:
-            log.debug("DB import failed for %s: %s", ticker, exc)
+            log.info("DB import failed for %s: %s", ticker, exc)
             return None
 
         db = None
         try:
-            db = SessionLocal()
+            db = _get_pipeline_session()
+            if db is None:
+                log.info("pipeline session unavailable for %s", ticker)
+                return None
             cutoff = date.today() - timedelta(days=10 * 366)  # 10-year window
             rows = (
                 db.query(CorporateAction)
