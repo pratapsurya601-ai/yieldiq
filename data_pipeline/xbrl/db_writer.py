@@ -105,7 +105,7 @@ _ALL_FIELDS = [
     'operating_cf', 'investing_cf', 'financing_cf', 'capex',
     'free_cash_flow', 'dividends_paid', 'net_cash_change',
     'interest_earned', 'interest_expended', 'total_income', 'interest',
-    'notes',
+    'notes', 'currency',
 ]
 
 
@@ -121,6 +121,7 @@ def _prepare(rec):
     }
     for f in _ALL_FIELDS:
         params[f] = rec.get(f)
+    params['currency'] = rec.get('currency', 'INR')
     return params
 
 
@@ -148,7 +149,7 @@ def upsert_records(records):
         operating_cf, investing_cf, financing_cf, capex,
         free_cash_flow, dividends_paid, net_cash_change,
         interest_earned, interest_expended, total_income, interest,
-        is_bank, is_audited, source, notes
+        is_bank, is_audited, source, notes, currency
     ) VALUES (
         %(ticker_nse)s, %(period_type)s, %(period_end_date)s, %(statement_type)s,
         %(revenue)s, %(gross_profit)s, %(ebitda)s, %(ebit)s, %(depreciation)s,
@@ -162,7 +163,7 @@ def upsert_records(records):
         %(operating_cf)s, %(investing_cf)s, %(financing_cf)s, %(capex)s,
         %(free_cash_flow)s, %(dividends_paid)s, %(net_cash_change)s,
         %(interest_earned)s, %(interest_expended)s, %(total_income)s, %(interest)s,
-        %(is_bank)s, %(is_audited)s, %(source)s, %(notes)s
+        %(is_bank)s, %(is_audited)s, %(source)s, %(notes)s, %(currency)s
     )
     ON CONFLICT (ticker_nse, period_type, period_end_date, statement_type, source)
     DO UPDATE SET
@@ -178,6 +179,7 @@ def upsert_records(records):
         operating_cf = EXCLUDED.operating_cf,
         free_cash_flow = EXCLUDED.free_cash_flow,
         capex = EXCLUDED.capex,
+        currency = EXCLUDED.currency,
         eps_diluted = EXCLUDED.eps_diluted,
         updated_at = NOW()
     """
