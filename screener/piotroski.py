@@ -397,19 +397,63 @@ def compute_piotroski_fscore(enriched: dict) -> dict:
     income_df = enriched.get("income_df")
     cf_df     = enriched.get("cf_df")
 
-    # ── Run all 9 signals ─────────────────────────────────────
-    SIGNALS = [
-        # (key, label, category, calc_fn)
-        ("f1", "ROA positive",             "Profitability",  _f1_roa_positive),
-        ("f2", "Operating cash flow > 0",  "Profitability",  _f2_ocf_positive),
-        ("f3", "ROA improving YoY",        "Profitability",  _f3_roa_improving),
-        ("f4", "FCF > Net income",         "Profitability",  _f4_accruals),
-        ("f5", "Leverage declining",       "Leverage",       _f5_leverage_falling),
-        ("f6", "Liquidity improving",      "Leverage",       _f6_current_ratio_improving),
-        ("f7", "No share dilution",        "Leverage",       _f7_no_dilution),
-        ("f8", "Gross margin improving",   "Efficiency",     _f8_gross_margin_improving),
-        ("f9", "Asset turnover improving", "Efficiency",     _f9_asset_turnover_improving),
-    ]
+    # ── Bank detection (BUG FIX 2026-04-24) ───────────────────
+    # The classic 9-signal Piotroski was designed for industrial firms.
+    # For banks, 5 of the 9 signals don't apply in any meaningful way:
+    #   f4 (FCF > NI)       — banks don't report FCF in the traditional
+    #                         sense; cash flow is dominated by financing
+    #                         activities (deposits/lending).
+    #   f5 (leverage down)  — banks are STRUCTURALLY highly-leveraged
+    #                         (deposits = liabilities = 8-12x equity is
+    #                         normal, not a red flag). The signal always
+    #                         fails for healthy banks.
+    #   f6 (current ratio)  — banks don't use current ratio; deposit
+    #                         maturity structure is the real concern
+    #                         and isn't captured here.
+    #   f8 (gross margin)   — banks have no cost-of-goods concept; NIM
+    #                         (net interest margin) is the analogue but
+    #                         isn't in this signal.
+    #   f9 (asset turnover) — banks' assets are loans, "turnover" is
+    #                         NII / total assets which is structurally
+    #                         low (~4-5%) and doesn't improve linearly.
+    #
+    # Result pre-fix: HDFCBANK scored 3/9 (should be 6-8). Every Indian
+    # private bank got WEAK grade despite being among the strongest
+    # lenders globally.
+    #
+    # Fix: for bank-like tickers, run only the 4 applicable signals
+    # (f1, f2, f3, f7) and scale to the 0-9 range. This preserves the
+    # "9-point scale" API expected by downstream consumers while
+    # correctly excluding inapplicable tests.
+    sector_raw = (enriched.get("sector") or "").lower()
+    is_bank = (
+        enriched.get("is_bank")
+        or "bank" in sector_raw
+        or "financial" in sector_raw
+        or ticker.upper().replace(".NS", "").replace(".BO", "").endswith("BANK")
+    )
+
+    if is_bank:
+        SIGNALS = [
+            ("f1", "ROA positive",            "Profitability", _f1_roa_positive),
+            ("f2", "Operating cash flow > 0", "Profitability", _f2_ocf_positive),
+            ("f3", "ROA improving YoY",       "Profitability", _f3_roa_improving),
+            ("f7", "No share dilution",       "Leverage",      _f7_no_dilution),
+        ]
+    else:
+        # ── Run all 9 signals (classic Piotroski for non-banks) ───
+        SIGNALS = [
+            # (key, label, category, calc_fn)
+            ("f1", "ROA positive",             "Profitability",  _f1_roa_positive),
+            ("f2", "Operating cash flow > 0",  "Profitability",  _f2_ocf_positive),
+            ("f3", "ROA improving YoY",        "Profitability",  _f3_roa_improving),
+            ("f4", "FCF > Net income",         "Profitability",  _f4_accruals),
+            ("f5", "Leverage declining",       "Leverage",       _f5_leverage_falling),
+            ("f6", "Liquidity improving",      "Leverage",       _f6_current_ratio_improving),
+            ("f7", "No share dilution",        "Leverage",       _f7_no_dilution),
+            ("f8", "Gross margin improving",   "Efficiency",     _f8_gross_margin_improving),
+            ("f9", "Asset turnover improving", "Efficiency",     _f9_asset_turnover_improving),
+        ]
 
     results  = []
     total    = 0
@@ -435,6 +479,17 @@ def compute_piotroski_fscore(enriched: dict) -> dict:
             "method":   method,
             "pass":     score == 1,
         })
+
+    # ── Bank scaling (BUG FIX 2026-04-24) ─────────────────────
+    # Bank signals only run 4 of 9 (see is_bank branch above). Scale
+    # the raw /4 back to the 0-9 range so downstream consumers that
+    # expect a 9-point scale (grade buckets, composite scoring,
+    # frontend labels) continue to work. Integer-rounded to avoid
+    # fractional scores in the UI. A bank passing 4/4 gets 9; 3/4 gets 7;
+    # 2/4 gets 4; 1/4 gets 2; 0/4 gets 0.
+    if is_bank:
+        raw_bank = total
+        total = int(round(raw_bank * 9 / 4))
 
     # ── Grade ──────────────────────────────────────────────────
     grade, txt_c, bg_c, bd_c, emoji = _get_grade(total)
