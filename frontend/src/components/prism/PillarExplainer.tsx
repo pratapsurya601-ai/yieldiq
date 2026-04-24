@@ -37,7 +37,9 @@ function toneColor(
   label: string,
 ): string {
   const up = label.toUpperCase()
+  // sebi-allow: strong, weak
   if (up === "STRONG" || up === "POSITIVE") return "var(--color-success)"
+  // sebi-allow: strong, weak
   if (up === "WEAK" || up === "NEGATIVE") return "var(--color-danger)"
   return "var(--color-caption)"
 }

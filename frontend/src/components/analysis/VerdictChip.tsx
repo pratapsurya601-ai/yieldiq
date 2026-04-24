@@ -5,9 +5,9 @@ import { VERDICT_COLORS } from "@/lib/constants"
 import type { Verdict } from "@/types/api"
 
 const VERDICT_LABELS: Record<Verdict, string> = {
-  undervalued: "Undervalued",
-  fairly_valued: "Fairly valued",
-  overvalued: "Overvalued",
+  undervalued: "Below Fair Value",
+  fairly_valued: "Near Fair Value",
+  overvalued: "Above Fair Value",
   avoid: "High Risk",
   data_limited: "Data Limited",
   unavailable: "Unavailable",

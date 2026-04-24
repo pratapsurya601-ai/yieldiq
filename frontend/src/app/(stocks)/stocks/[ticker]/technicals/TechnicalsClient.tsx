@@ -198,7 +198,7 @@ export default function TechnicalsClient({ data, ticker }: { data: TechData; tic
             <Line type="monotone" dataKey="macd_signal" stroke="#F59E0B" strokeWidth={2} dot={false} name="Signal" />
           </ComposedChart>
         </ResponsiveContainer>
-        <p className="text-[10px] text-gray-400 mt-2">MACD line crossing above/below signal line is a directional indicator, not a buy/sell instruction.</p>
+        <p className="text-[10px] text-gray-400 mt-2">MACD line crossing above/below signal line is a directional indicator, not a registered-advisor trade call.</p>
       </div>
 
       {/* Disclaimer */}
@@ -206,7 +206,7 @@ export default function TechnicalsClient({ data, ticker }: { data: TechData; tic
         <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">Important</p>
         <p className="text-sm text-amber-900 leading-relaxed">
           Technical indicators show <b>what prices have done</b>, not what they will do. RSI, MACD, and moving averages
-          are reference tools, not buy/sell signals. Combine with fundamentals (DCF, quality scores) for context.
+          are reference tools, not registered-advisor trade calls. Combine with fundamentals (DCF, quality scores) for context.
         </p>
       </div>
 

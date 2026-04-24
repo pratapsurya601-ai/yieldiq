@@ -199,6 +199,28 @@ export interface PriceLevels {
   holding_period: string | null
 }
 
+// Mirrors backend AnalyticalNoteOutput at backend/models/responses.py
+// (PR #69). Backend emits 0-5 contextual disclaimers per analysis flagging
+// structural DCF limitations for specific stock archetypes (premium brand,
+// conglomerate, regulated utility, cyclical trough, post-merger, high-P/E
+// growth, ADR / USD reporting).
+export type AnalyticalNoteKind =
+  | "data_quality"
+  | "premium_brand"
+  | "conglomerate"
+  | "regulated_utility"
+  | "cyclical_trough"
+  | "post_merger"
+  | "high_pe_growth"
+  | "adr_usd_reporting"
+export type AnalyticalNoteSeverity = "info" | "caution"
+export interface AnalyticalNoteOutput {
+  kind: AnalyticalNoteKind
+  severity: AnalyticalNoteSeverity
+  title: string
+  body: string
+}
+
 export interface AnalysisResponse {
   ticker: string
   company: CompanyInfo
@@ -210,6 +232,7 @@ export interface AnalysisResponse {
   ai_summary: string | null
   data_confidence: Confidence
   data_issues: string[]
+  analytical_notes?: AnalyticalNoteOutput[]
   cached: boolean
   timestamp: string
 }

@@ -75,11 +75,11 @@ function verdictText(v: string | undefined, mos: number): string {
   const absMos = Math.abs(mos)
   switch (v) {
     case "undervalued":
-      return `UNDERVALUED by ${absMos.toFixed(1)}%`
+      return `BELOW FAIR VALUE by ${absMos.toFixed(1)}%`
     case "fairly_valued":
-      return "FAIRLY VALUED"
+      return "NEAR FAIR VALUE"
     case "overvalued":
-      return `OVERVALUED by ${absMos.toFixed(1)}%`
+      return `ABOVE FAIR VALUE by ${absMos.toFixed(1)}%`
     case "avoid":
       return "HIGH RISK"
     case "data_limited":

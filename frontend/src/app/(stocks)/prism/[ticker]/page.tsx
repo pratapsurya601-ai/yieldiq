@@ -22,17 +22,17 @@ const PILLAR_LABEL: Record<PillarKey, string> = {
 
 const PILLAR_BLURB: Record<PillarKey, string> = {
   pulse:
-    "Pulse tracks recent momentum in price, analyst revisions, and news sentiment. Higher means stronger near-term tailwinds.",
+    "Pulse tracks recent momentum in price, analyst revisions, and news sentiment. Higher means more positive near-term tailwinds.",
   quality:
     "Quality captures profitability, return on capital, and earnings consistency. Higher means a better business.",
   moat:
     "Moat estimates durable competitive advantages — brand, scale, switching costs. Higher means more defensible.",
   safety:
-    "Safety looks at balance-sheet strength, leverage, and cash generation. Higher means lower financial risk.",
+    "Safety looks at balance-sheet quality, leverage, and cash generation. Higher means lower financial risk.",
   growth:
     "Growth reflects revenue and earnings expansion over recent years. Higher means faster compounding.",
   value:
-    "Value measures whether the stock is cheap relative to its intrinsic worth. Higher is cheaper.",
+    "Value measures how the stock's price compares to its intrinsic worth. Higher means more discount to fair value.",
 }
 
 function withSuffix(t: string): string {

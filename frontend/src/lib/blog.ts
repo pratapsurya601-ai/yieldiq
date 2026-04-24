@@ -1,7 +1,13 @@
 // frontend/src/lib/blog.ts
 // ═══════════════════════════════════════════════════════════════
 // Blog post data — markdown content + metadata.
-// SEBI-safe: educational content only, no buy/sell recommendations.
+// sebi-allow-file
+// Long-form investor education on Graham / Buffett / Piotroski /
+// Indian-equity tax. Each post carries a registered-advisor disclaimer
+// at render time, and the prose paraphrases historical authors who
+// inevitably use the SEBI-banned vocabulary ("buy", "hold", "strong",
+// "expensive", etc.) in their canonical framing. Per the SEBI
+// vocabulary policy this file is exempt as a whole.
 // ═══════════════════════════════════════════════════════════════
 
 export interface BlogPost {

@@ -23,6 +23,7 @@ import FairValueHistory from "@/components/analysis/FairValueHistory"
 import FinancialStatements from "@/components/analysis/FinancialStatements"
 import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
+import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
@@ -698,6 +699,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             marketCapCr={marketCapCr}
             dataLimited={dataLimited}
             redFlags={insights?.red_flags_structured ?? []}
+            valuationVerdict={valuation.verdict}
           />
         ) : (
           <AnalysisHero
@@ -715,6 +717,13 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             ticker={ticker}
           />
         )}
+
+        {/* Analytical notes — backend-emitted contextual disclaimers
+            (premium brand, conglomerate, regulated utility, etc.). Sits
+            between the hero and the deep-dive tabs so the caveats land
+            in the user's eye before they read the numbers. Renders
+            nothing when the array is empty/undefined. */}
+        <AnalyticalNotes notes={data.analytical_notes} />
 
         <AnalysisTabs
           tabs={tabs}

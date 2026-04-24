@@ -58,6 +58,10 @@ interface TaxSummary {
   }
 }
 
+// sebi-allow: buy, sell
+const CSV_PLACEHOLDER = "Symbol, Quantity, Buy Date, Buy Price, Sell Date, Sell Price"
+
+// sebi-allow: buy, sell
 const ZERODHA_EXAMPLE = `Symbol,Quantity,Buy Date,Buy Price,Sell Date,Sell Price
 RELIANCE,10,15-03-2023,2450,20-09-2024,2943
 ITC,50,10-01-2024,430,05-02-2025,460
@@ -173,7 +177,7 @@ export default function TaxReportPage() {
             <textarea
               value={csvText}
               onChange={e => setCsvText(e.target.value)}
-              placeholder="Symbol, Quantity, Buy Date, Buy Price, Sell Date, Sell Price"
+              placeholder={CSV_PLACEHOLDER}
               rows={8}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono bg-white resize-y"
             />
@@ -199,6 +203,7 @@ export default function TaxReportPage() {
             <ol className="text-xs text-gray-600 space-y-1 list-decimal list-inside">
               <li>Log in to <a href="https://console.zerodha.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Zerodha Console</a></li>
               <li>Reports &rarr; Tax P&amp;L &rarr; Select FY</li>
+              {/* sebi-allow: buy, sell */}
               <li>Download Equity &mdash; gives FIFO-matched buy/sell pairs</li>
               <li>Paste the CSV contents here</li>
             </ol>
@@ -317,8 +322,10 @@ export default function TaxReportPage() {
                         <tr className="border-b border-gray-200 text-gray-500">
                           <th className="text-left py-2 font-semibold">Ticker</th>
                           <th className="text-right py-2 font-semibold">Qty</th>
-                          <th className="text-right py-2 font-semibold">Buy</th>
-                          <th className="text-right py-2 font-semibold">Sell</th>
+                          {/* sebi-allow: buy, sell */}
+                          <th className="text-right py-2 font-semibold" title="Your transaction history">Buy</th>
+                          {/* sebi-allow: buy, sell */}
+                          <th className="text-right py-2 font-semibold" title="Your transaction history">Sell</th>
                           <th className="text-right py-2 font-semibold">Gain</th>
                           <th className="text-center py-2 font-semibold">Type</th>
                         </tr>

@@ -24,7 +24,7 @@ interface Preset {
 const PRESETS: Preset[] = [
   {
     name: "Buffett Style",
-    description: "Wide moat, strong earnings, fair price",
+    description: "Wide moat, consistent earnings, fair price",
     borderColor: "border-l-blue-600",
     bgGradient: "bg-gradient-to-br from-blue-50/50 to-white",
     query: "buffett",
@@ -40,7 +40,7 @@ const PRESETS: Preset[] = [
   },
   {
     name: "Growth Quality",
-    description: "Strong growth with quality fundamentals",
+    description: "High growth with quality fundamentals",
     borderColor: "border-l-violet-600",
     bgGradient: "bg-gradient-to-br from-violet-50/50 to-white",
     query: "growth-quality",

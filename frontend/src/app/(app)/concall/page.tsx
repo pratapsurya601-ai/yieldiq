@@ -32,7 +32,7 @@ interface ConcallAnalysis {
   cached: boolean
 }
 
-const SAMPLE_TRANSCRIPT = `Good morning everyone, and welcome to ABC Limited's Q3 FY26 earnings call. I'm pleased to report another strong quarter.
+const SAMPLE_TRANSCRIPT = `Good morning everyone, and welcome to ABC Limited's Q3 FY26 earnings call. I'm pleased to report another consistent quarter.
 
 Revenue grew 12% year-over-year to Rs 8,500 crore, driven primarily by 18% growth in our consumer segment. EBITDA margin expanded by 120 basis points to 23.4%, reflecting operating leverage and pricing actions taken last quarter.
 

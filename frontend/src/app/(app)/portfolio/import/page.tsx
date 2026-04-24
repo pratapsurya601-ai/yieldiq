@@ -11,6 +11,7 @@ type Broker = "zerodha" | "groww" | "upstox" | "icici" | "custom"
 
 const BROKER_OPTIONS: { value: Broker; label: string; format: string }[] = [
   { value: "zerodha", label: "Zerodha Console", format: "Symbol, ISIN, Qty, Avg.cost, ..." },
+  // sebi-allow: buy
   { value: "groww", label: "Groww", format: "Stock Name, ISIN, Quantity, Average buy price, ..." },
   { value: "upstox", label: "Upstox", format: "Company Name, Exchange, Quantity, Avg Price, ..." },
   { value: "icici", label: "ICICI Direct", format: "Stock, Qty, Avg Price, ..." },

@@ -159,7 +159,8 @@ export default async function PortfolioSummary({ holdings }: Props) {
               <tr className="text-left text-[10px] uppercase tracking-wider text-gray-400">
                 <th className="px-2 py-2">Ticker</th>
                 <th className="px-2 py-2 text-right">Qty</th>
-                <th className="px-2 py-2 text-right">Buy</th>
+                {/* sebi-allow: buy */}
+                <th className="px-2 py-2 text-right" title="Your transaction history">Buy</th>
                 <th className="px-2 py-2 text-right">CMP</th>
                 <th className="px-2 py-2 text-right">Invested</th>
                 <th className="px-2 py-2 text-right">Value</th>

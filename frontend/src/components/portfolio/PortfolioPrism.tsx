@@ -74,8 +74,8 @@ function strongestCopy(key: PillarKey, score: number): string {
         : "Moat is your best lens — holdings score near the market median for defensibility."
     case "safety":
       return strong
-        ? "Your holdings carry strong balance sheets with low leverage on average."
-        : "Safety is your best lens — balance-sheet strength is the most consistent signal."
+        ? "Your holdings carry durable balance sheets with low leverage on average."
+        : "Safety is your best lens — balance-sheet quality is the most consistent signal."
     case "pulse":
       return strong
         ? "Your holdings carry positive near-term momentum on average."
@@ -121,7 +121,7 @@ function deriveVerdict(overall: number): {
   band: VerdictBand
   label: string
 } {
-  if (overall >= 7.5) return { band: "deepValue", label: "Strong overall profile" }
+  if (overall >= 7.5) return { band: "deepValue", label: "Durable overall profile" }
   if (overall >= 5) return { band: "fair", label: "Balanced profile" }
   return { band: "overvalued", label: "Needs attention" }
 }

@@ -12,8 +12,8 @@ const TIPS: Record<string, string> = {
   mos: "Margin of Safety is the gap between the current price and our estimated fair value. A larger gap means more room for error in our estimates.",
   fcf: "Free Cash Flow is the cash a company generates after paying for operations and capital expenditures. It is what is actually available to shareholders.",
   score: "The YieldIQ Score combines valuation, quality, and momentum signals into a single 0-100 rating. Higher is better.",
-  moat: "An economic moat is a durable competitive advantage that protects a company from competitors, like strong brands, network effects, or switching costs.",
-  piotroski: "The Piotroski F-Score (0-9) measures financial strength using 9 accounting signals. A score of 7+ suggests strong fundamentals.",
+  moat: "An economic moat is a durable competitive advantage that protects a company from competitors, like established brands, network effects, or switching costs.",
+  piotroski: "The Piotroski F-Score (0-9) measures financial quality using 9 accounting signals. A score of 7+ suggests durable fundamentals.",
   dcf: "Discounted Cash Flow analysis estimates what a company is worth today by projecting future cash flows and discounting them back to present value.",
   confidence: "Confidence reflects how reliable our data inputs are. High confidence means consistent financials and good analyst coverage.",
 }

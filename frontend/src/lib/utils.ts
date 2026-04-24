@@ -65,9 +65,9 @@ export function verdictDisplayLabel(v: string): string {
   if (!v) return ""
   const key = v.toLowerCase().replace(/\s+/g, "_")
   const map: Record<string, string> = {
-    undervalued: "Undervalued",
-    fairly_valued: "Fairly valued",
-    overvalued: "Overvalued",
+    undervalued: "Below Fair Value",
+    fairly_valued: "Near Fair Value",
+    overvalued: "Above Fair Value",
     avoid: "High Risk",
     data_limited: "Data Limited",
     unavailable: "Unavailable",
@@ -75,6 +75,29 @@ export function verdictDisplayLabel(v: string): string {
   if (map[key]) return map[key]
   // Fallback: title-case the key
   return key.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
+}
+
+/**
+ * Region caption derived from the canonical Verdict value.
+ *
+ * Used by the EditorialHero small caption directly below the Prism dot —
+ * a one-line region label that stays in lockstep with verdictDisplayLabel
+ * so the headline and the caption can never disagree (the RELIANCE
+ * triple-contradiction bug was caused by hero/tab/region each computing
+ * their own label from a different field).
+ */
+export function verdictRegion(v: string): string {
+  if (!v) return "Near Fair Value"
+  const key = v.toLowerCase().replace(/\s+/g, "_")
+  const map: Record<string, string> = {
+    undervalued: "Below Fair Value",
+    fairly_valued: "Near Fair Value",
+    overvalued: "Above Fair Value",
+    avoid: "High Risk",
+    data_limited: "Data Limited",
+    unavailable: "Unavailable",
+  }
+  return map[key] ?? "Near Fair Value"
 }
 
 const COMPANY_NAME_OVERRIDES: Record<string, string> = {

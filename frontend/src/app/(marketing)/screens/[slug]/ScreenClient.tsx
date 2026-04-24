@@ -72,7 +72,8 @@ const SCREENS_LIST = [
   { slug: "high-roce", name: "High ROCE" },
   { slug: "low-pe-quality", name: "Low P/E + Quality" },
   { slug: "debt-free", name: "Debt-Free" },
-  { slug: "undervalued-quality", name: "Undervalued Quality" },
+  // sebi-allow: undervalued
+  { slug: "undervalued-quality", name: "Below Fair Value + Quality" },
   { slug: "wide-moat", name: "Wide Moat" },
   { slug: "high-piotroski", name: "High Piotroski" },
 ]

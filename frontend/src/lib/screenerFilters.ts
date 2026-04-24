@@ -102,7 +102,7 @@ export interface ScreenerPreset {
 export const SCREENER_PRESETS: ScreenerPreset[] = [
   {
     key: "cheap_quality",
-    label: "Cheap + Quality",
+    label: "Value + Quality",
     description: "Low P/E with high return on capital",
     filters: [
       { field: "pe_ratio", op: "<", value: "20" },

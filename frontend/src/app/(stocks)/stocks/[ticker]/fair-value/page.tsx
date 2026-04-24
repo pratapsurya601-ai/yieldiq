@@ -118,9 +118,9 @@ function verdictLabel(v: string): string {
   if (!v) return ""
   // SEBI-safe: map 'avoid' to 'High Risk' (descriptive, not advice)
   const map: Record<string, string> = {
-    undervalued: "Undervalued",
-    fairly_valued: "Fairly valued",
-    overvalued: "Overvalued",
+    undervalued: "Below Fair Value",
+    fairly_valued: "Near Fair Value",
+    overvalued: "Above Fair Value",
     avoid: "High Risk",
     data_limited: "Data Limited",
     unavailable: "Unavailable",

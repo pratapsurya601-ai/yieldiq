@@ -63,7 +63,7 @@ const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_ID || "";
 const themeInitScript = `(function(){try{var s=localStorage.getItem('yieldiq_theme');var m=window.matchMedia('(prefers-color-scheme: dark)').matches;var d=s==='dark'||((s==='system'||!s)&&m);var e=document.documentElement;if(d){e.classList.add('dark');}else{e.classList.remove('dark');}}catch(e){}})();`;
 
 export const metadata: Metadata = {
-  title: "YieldIQ — Know if a stock is undervalued",
+  title: "YieldIQ — Fair-value estimates for Indian stocks",
   description:
     "Free DCF valuation for 2,900+ NSE/BSE stocks. Instant fair value, margin of safety, and quality scores.",
   manifest: "/manifest.json",
@@ -86,7 +86,7 @@ export const metadata: Metadata = {
     title: "YieldIQ",
   },
   openGraph: {
-    title: "YieldIQ — Know if a stock is undervalued",
+    title: "YieldIQ — Fair-value estimates for Indian stocks",
     description: "Free DCF valuation for 2,900+ NSE/BSE stocks. Instant fair value, margin of safety, and quality scores.",
     url: "https://yieldiq.in",
     siteName: "YieldIQ",

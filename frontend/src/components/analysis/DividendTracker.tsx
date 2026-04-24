@@ -21,7 +21,7 @@ const SUST_CARD: Record<string, string> = {
 }
 
 const SUST_LABEL: Record<string, string> = {
-  strong: "● STRONG",
+  strong: "● HIGH",
   moderate: "● MODERATE",
   at_risk: "● AT RISK",
 }

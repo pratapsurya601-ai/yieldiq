@@ -9,6 +9,7 @@ import TopAction from "@/components/home/TopAction"
 import MoversRail from "@/components/home/MoversRail"
 import OpportunityRail from "@/components/home/OpportunityRail"
 import MarketAccordion from "@/components/home/MarketAccordion"
+import ErrorBoundary from "@/components/ErrorBoundary"
 import { useEffect, useState } from "react"
 
 export default function HomePage() {
@@ -77,19 +78,64 @@ export default function HomePage() {
         <TopAction />
       </div>
 
+      {/* Each rail is wrapped in its own ErrorBoundary so a single dying
+          rail (e.g. a transient API failure deep inside MarketAccordion's
+          fear/greed widget) cannot nuke the entire homepage. Fallbacks
+          are deliberately quiet — a neutral card matching the rail's
+          shape, never a giant red error block on the user's home screen. */}
+
       {/* 3. Your movers */}
       <div className="mt-6">
-        <MoversRail />
+        <ErrorBoundary
+          label="MoversRail"
+          fallback={
+            <section className="px-4">
+              <div className="bg-bg rounded-2xl border border-border p-5">
+                <p className="text-sm text-body">
+                  Movers temporarily unavailable.
+                </p>
+              </div>
+            </section>
+          }
+        >
+          <MoversRail />
+        </ErrorBoundary>
       </div>
 
       {/* 4. Opportunities (curated from YieldIQ 50) */}
       <div className="mt-6">
-        <OpportunityRail />
+        <ErrorBoundary
+          label="OpportunityRail"
+          fallback={
+            <section className="px-4">
+              <div className="bg-bg rounded-2xl border border-border p-5">
+                <p className="text-sm text-body">
+                  Top wide-moat stocks — refreshing.
+                </p>
+              </div>
+            </section>
+          }
+        >
+          <OpportunityRail />
+        </ErrorBoundary>
       </div>
 
       {/* 5. Market snapshot — collapsed accordion */}
       <div className="mt-6">
-        <MarketAccordion />
+        <ErrorBoundary
+          label="MarketAccordion"
+          fallback={
+            <section className="px-4">
+              <div className="bg-bg rounded-2xl border border-border p-5">
+                <p className="text-sm text-body">
+                  Market snapshot temporarily unavailable.
+                </p>
+              </div>
+            </section>
+          }
+        >
+          <MarketAccordion />
+        </ErrorBoundary>
       </div>
     </div>
   )

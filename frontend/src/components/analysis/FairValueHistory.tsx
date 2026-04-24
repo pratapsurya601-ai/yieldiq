@@ -59,7 +59,7 @@ function FVTooltip({
       </p>
       <p className={cn("mt-1 font-semibold", undervalued ? "text-green-300" : "text-red-300")}>
         MoS: {d.mos_pct != null ? `${d.mos_pct > 0 ? "+" : ""}${d.mos_pct.toFixed(1)}%` : "\u2014"}{" "}
-        {d.mos_pct != null && <span className="opacity-80">({undervalued ? "Undervalued" : "Overvalued"})</span>}
+        {d.mos_pct != null && <span className="opacity-80">({undervalued ? "Below Fair Value" : "Above Fair Value"})</span>}
       </p>
     </div>
   )

@@ -5,7 +5,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
 export const metadata: Metadata = {
   title: "Nifty 50 Fair Value Dashboard \u2014 All 50 Stocks Valued by DCF | YieldIQ",
-  description: "Free DCF valuation of all Nifty 50 stocks. See which are undervalued, overvalued, and fairly valued. Updated daily. No signup required.",
+  description: "Free DCF valuation of all Nifty 50 stocks. See which trade below, near, or above fair value. Updated daily. No signup required.",
   openGraph: {
     title: "Nifty 50 Valuation Dashboard | YieldIQ",
     description: "All 50 Nifty 50 stocks ranked by DCF fair value. Free, updated daily.",
