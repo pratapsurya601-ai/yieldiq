@@ -1,0 +1,99 @@
+name: Sector Isolation (merge gate)
+
+# One layer above canary-diff. Catches cross-sector leakage — the
+# failure mode where a change scoped to one sector silently cascades
+# across the whole universe (see PR #69 post-mortem and
+# docs/SECTOR_ISOLATION.md).
+#
+# Every PR touching scoring code MUST declare `sector-scope:` in its
+# body. Example:
+#   sector-scope: Cement, Banks
+# or, for a change that really does cross every sector:
+#   sector-scope: *
+#
+# Required secret: CANARY_AUTH_TOKEN  (admin-account JWT for /analysis)
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'models/**'
+      - 'backend/services/**'
+      - 'backend/routers/**'
+      - 'backend/validators/**'
+      - 'backend/models/**'
+      - 'scripts/canary_stocks_50.json'
+      - 'scripts/sector_snapshot.json'
+      - 'scripts/sector_isolation_check.py'
+      - 'scripts/update_sector_snapshot.py'
+      - '.github/workflows/sector_isolation.yml'
+  schedule:
+    - cron: '0 3 * * *'   # 03:00 UTC == 08:30 IST daily (30m after canary-diff)
+  workflow_dispatch:
+
+jobs:
+  sector-isolation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Extract PR body into a file
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          # GH injects the body via env; write to file for the script.
+          printf '%s' "$PR_BODY" > /tmp/pr_body.md
+          echo "---- PR body (first 40 lines) ----"
+          head -n 40 /tmp/pr_body.md || true
+
+      - name: Run sector-isolation check (PR)
+        if: github.event_name == 'pull_request'
+        env:
+          CANARY_API_BASE: https://api.yieldiq.in
+          CANARY_AUTH_TOKEN: ${{ secrets.CANARY_AUTH_TOKEN }}
+        run: |
+          python scripts/sector_isolation_check.py \
+            --pr-body-file /tmp/pr_body.md \
+            --require-scope \
+            --verbose
+
+      - name: Run sector-isolation check (scheduled / manual)
+        if: github.event_name != 'pull_request'
+        env:
+          CANARY_API_BASE: https://api.yieldiq.in
+          CANARY_AUTH_TOKEN: ${{ secrets.CANARY_AUTH_TOKEN }}
+        run: |
+          # On cron / manual runs we are checking the CURRENT baseline
+          # against live production. No sector-scope is required — any
+          # drift here means the baseline needs refreshing or something
+          # drifted overnight.
+          python scripts/sector_isolation_check.py --scope '*' --verbose
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sector-isolation-report
+          path: |
+            sector_isolation_report.json
+            sector_isolation_report.md
+          retention-days: 30
+
+      - name: Post report to PR on failure
+        if: failure() && github.event_name == 'pull_request'
+        uses: mshick/add-pr-comment@v2
+        with:
+          message-path: sector_isolation_report.md
+          message-id: sector-isolation

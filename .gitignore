@@ -45,3 +45,12 @@ tmp_screener.html
 preview.html
 scripts/keep_awake.ps1
 .claude/worktrees/
+
+# Debug dumps / agent artifacts (2026-04-25)
+_backfill*.log
+_full*.log
+dcf_full.txt
+sector_isolation_report.*
+canary_artifacts/
+dcf_artifacts/
+scripts/snapshots/snapshot_*.json

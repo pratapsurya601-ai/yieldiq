@@ -8,12 +8,14 @@ name: Hex History — Weekly Backfill
 # re-runs are safe.
 #
 # CRITICAL: this workflow does NOT hit the live Railway API. It connects
-# directly to Aiven Postgres via DATABASE_URL so the Railway worker isn't
-# blocked by 500 × 12 ≈ 6k snapshot computations.
+# directly to Aiven/Neon Postgres so the Railway worker isn't blocked by
+# 500 × 12 ≈ 6k snapshot computations.
 #
-# Secrets required:
-#   - DATABASE_URL : Aiven Postgres URL (same as Railway uses)
-# If missing, the workflow skips cleanly instead of failing loud.
+# Secrets required (one of):
+#   - NEON_DATABASE_URL : preferred (post-2026-04 migration)
+#   - DATABASE_URL      : legacy fallback (Aiven Postgres)
+# If BOTH are missing we now fail loud — the previous "skip cleanly"
+# behaviour silently ate weeks of empty backfills.
 
 on:
   schedule:
@@ -29,6 +31,11 @@ on:
         description: "Quarters per ticker (default 12)"
         required: false
         default: "12"
+      seed_from_cache:
+        description: "Seed missing rows from analysis_cache before backfill"
+        required: false
+        type: boolean
+        default: false
 
 concurrency:
   group: hex-history-weekly
@@ -37,37 +44,45 @@ concurrency:
 jobs:
   backfill:
     runs-on: ubuntu-latest
-    # Budget: 500 tickers × 12 quarters × ~50ms ≈ 5 min; pad to 60 min.
-    timeout-minutes: 60
+    # Was 60. Bumped to 180 after the 2026-04-22 cancellation: a full
+    # 500 × 12 backfill against Neon's cold-start cluster came in around
+    # 70 min and we want headroom for retries / contention spikes.
+    timeout-minutes: 180
 
     steps:
-      - name: Check for DATABASE_URL
-        id: env_check
+      - name: Resolve database URL (Neon preferred, Aiven fallback)
+        id: dburl
         env:
-          DB: ${{ secrets.DATABASE_URL }}
+          NEON_DB: ${{ secrets.NEON_DATABASE_URL }}
+          AIVEN_DB: ${{ secrets.DATABASE_URL }}
         run: |
-          if [ -z "$DB" ]; then
-            echo "::warning::DATABASE_URL missing — skipping."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
+          if [ -n "$NEON_DB" ]; then
+            echo "Using NEON_DATABASE_URL"
+            echo "source=neon" >> "$GITHUB_OUTPUT"
+            echo "::add-mask::$NEON_DB"
+            echo "DATABASE_URL=$NEON_DB" >> "$GITHUB_ENV"
+          elif [ -n "$AIVEN_DB" ]; then
+            echo "::warning::NEON_DATABASE_URL missing — falling back to legacy DATABASE_URL"
+            echo "source=aiven" >> "$GITHUB_OUTPUT"
+            echo "::add-mask::$AIVEN_DB"
+            echo "DATABASE_URL=$AIVEN_DB" >> "$GITHUB_ENV"
           else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Neither NEON_DATABASE_URL nor DATABASE_URL is set — failing loudly (was previously a silent skip)."
+            exit 1
           fi
 
       - name: Checkout
-        if: steps.env_check.outputs.skip == 'false'
         uses: actions/checkout@v4
 
       - name: Setup Python
-        if: steps.env_check.outputs.skip == 'false'
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
       - name: Install minimal deps
-        if: steps.env_check.outputs.skip == 'false'
         run: |
           python -m pip install --upgrade pip
-          # Minimal: SQLAlchemy + psycopg for Aiven PG. yfinance/pandas
+          # Minimal: SQLAlchemy + psycopg for Aiven/Neon PG. yfinance/pandas
           # not required for historical backfill (only point-in-time
           # financials + stored fair_value).
           # psycopg2-binary added because backfill_hex_history.py imports
@@ -75,10 +90,31 @@ jobs:
           # pure-psycopg3 install above raises ModuleNotFoundError.
           pip install "sqlalchemy>=2.0" "psycopg[binary]>=3.1" psycopg2-binary python-dateutil
 
+      - name: Pre-flight row counts
+        # Instant visibility into the chosen DB. If these numbers don't
+        # match what we expect, abort before the 70-min backfill burns CI
+        # minutes against the wrong cluster.
+        run: |
+          python - <<'PY'
+          import os
+          from sqlalchemy import create_engine, text
+          url = os.environ["DATABASE_URL"]
+          if url.startswith("postgres://"):
+              url = url.replace("postgres://", "postgresql+psycopg://", 1)
+          elif url.startswith("postgresql://"):
+              url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+          eng = create_engine(url)
+          tables = ["market_metrics", "company_financials", "analysis_cache", "fair_value_history"]
+          with eng.connect() as cx:
+              for t in tables:
+                  try:
+                      n = cx.execute(text(f"SELECT count(*) FROM {t}")).scalar()
+                      print(f"  {t:>24s}: {n:>10,} rows")
+                  except Exception as e:
+                      print(f"  {t:>24s}: ERROR {e}")
+          PY
+
       - name: Ensure hex_history table exists
-        if: steps.env_check.outputs.skip == 'false'
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           python - <<'PY'
           import os
@@ -99,12 +135,32 @@ jobs:
           PY
 
       - name: Run backfill
-        if: steps.env_check.outputs.skip == 'false'
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           LIMIT: ${{ github.event.inputs.limit || '500' }}
           QUARTERS: ${{ github.event.inputs.quarters || '12' }}
+          SEED_FROM_CACHE: ${{ github.event.inputs.seed_from_cache || 'false' }}
         run: |
-          python backend/scripts/backfill_hex_history.py \
-            --limit "$LIMIT" \
-            --quarters "$QUARTERS"
+          ARGS=("--limit" "$LIMIT" "--quarters" "$QUARTERS")
+          if [ "$SEED_FROM_CACHE" = "true" ]; then
+            ARGS+=("--seed-from-cache")
+          fi
+          python backend/scripts/backfill_hex_history.py "${ARGS[@]}"
+
+      - name: Post-flight hex_history row count (loud-fail if empty)
+        run: |
+          python - <<'PY'
+          import os, sys
+          from sqlalchemy import create_engine, text
+          url = os.environ["DATABASE_URL"]
+          if url.startswith("postgres://"):
+              url = url.replace("postgres://", "postgresql+psycopg://", 1)
+          elif url.startswith("postgresql://"):
+              url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+          eng = create_engine(url)
+          with eng.connect() as cx:
+              n = cx.execute(text("SELECT count(*) FROM hex_history")).scalar() or 0
+          print(f"hex_history: {n:,} rows after backfill")
+          if n == 0:
+              print("::error::hex_history is still empty after backfill — failing the job.")
+              sys.exit(1)
+          PY

@@ -1,0 +1,103 @@
+name: Fair Value History — Monthly Backfill
+
+# Seeds ``fair_value_history`` with one synthesized row per ticker per
+# calendar month, reaching back ``MONTHS`` months. Powers the 12-month
+# score sparkline on the analysis page (ScoreCard.tsx via
+# prism_service._score_history_12m).
+#
+# Why monthly and not daily: the live analysis path
+# (store_today_fair_value) already writes a daily row whenever a user
+# looks up a ticker, but those rows all fall inside "this month" —
+# the monthly-bucket collapse in _score_history_12m reduces them to
+# a single point, triggering the "Insufficient history" empty state.
+# This workflow plugs the gap by writing the last 14 month-end
+# points per ticker using daily_prices + today's fair_value.
+#
+# Runs at 20:00 UTC on the 1st of every month (01:30 IST on the 2nd —
+# after close) and on manual dispatch.
+#
+# CRITICAL: connects directly to Aiven Postgres via DATABASE_URL.
+# Does NOT hit the live Railway API.
+#
+# Idempotent: ON CONFLICT (ticker, date) DO UPDATE.
+#
+# Secrets required:
+#   - DATABASE_URL : Aiven Postgres URL (same as other pipeline workflows)
+# If missing, skip cleanly.
+
+on:
+  schedule:
+    # 1st of month, 20:00 UTC = 01:30 IST on the 2nd
+    - cron: "0 20 1 * *"
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: "Top N tickers by market cap (default 500)"
+        required: false
+        default: "500"
+      months:
+        description: "Months of history to seed (default 14)"
+        required: false
+        default: "14"
+      ticker:
+        description: "Optional single bare ticker (e.g. RELIANCE)"
+        required: false
+        default: ""
+
+concurrency:
+  group: fair-value-history-monthly
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    # 500 tickers × 14 months × ~15ms ≈ 3–5 min; pad generously.
+    timeout-minutes: 45
+
+    steps:
+      - name: Check for DATABASE_URL
+        id: env_check
+        env:
+          DB: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DB" ]; then
+            echo "::warning::DATABASE_URL missing — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.env_check.outputs.skip == 'false'
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        if: steps.env_check.outputs.skip == 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install minimal deps
+        if: steps.env_check.outputs.skip == 'false'
+        run: |
+          python -m pip install --upgrade pip
+          # Minimal footprint: SQLAlchemy + psycopg2-binary for Aiven.
+          # psycopg2-binary matches hex_history_weekly.yml and is what
+          # data_pipeline.db imports via ``import psycopg2``.
+          pip install "sqlalchemy>=2.0" psycopg2-binary python-dateutil
+
+      - name: Run monthly fair_value_history backfill
+        if: steps.env_check.outputs.skip == 'false'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          LIMIT: ${{ github.event.inputs.limit || '500' }}
+          MONTHS: ${{ github.event.inputs.months || '14' }}
+          TICKER: ${{ github.event.inputs.ticker || '' }}
+        run: |
+          if [ -n "$TICKER" ]; then
+            python backend/scripts/backfill_fair_value_history_monthly.py \
+              --ticker "$TICKER" --months "$MONTHS"
+          else
+            python backend/scripts/backfill_fair_value_history_monthly.py \
+              --limit "$LIMIT" --months "$MONTHS" --throttle 0.02
+          fi

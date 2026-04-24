@@ -35,6 +35,10 @@ import datetime as _dt
 import json
 import os
 import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any
 
 
 def _git_sha() -> str:
@@ -52,10 +56,7 @@ def _git_sha() -> str:
         return out.decode().strip()[:12]
     except Exception:
         return "unknown"
-import sys
-import time
-from pathlib import Path
-from typing import Any
+
 
 # Force UTF-8 stdout (mirrors canary_check.py).
 try:
@@ -65,12 +66,59 @@ except Exception:
     pass
 
 # --- HTTP shim (requests preferred, urllib fallback) -----------------------
+#
+# Railway cold-starts can stall the first request to /api/v1/analysis for
+# 5-15s while the worker pool warms. With a flat 30s timeout and zero
+# retries, a single unlucky cold-start was enough to flip a gate to FAIL
+# and block a clean PR. Retry with exponential backoff (~2.5s / 5s /
+# 12.5s) plus a 60s per-attempt timeout absorbs the cold-start without
+# letting genuinely-down endpoints hang the run forever.
+_FETCH_TIMEOUT = int(os.environ.get("CANARY_FETCH_TIMEOUT", "60"))
+_FETCH_RETRIES = int(os.environ.get("CANARY_FETCH_RETRIES", "3"))
+# How many fetch failures we tolerate before declaring the harness has
+# failed (vs a single flake). Default 2 — one stock can flake without
+# blocking; three flakes means the API is genuinely unhealthy.
+_MAX_FETCH_FAILURES = int(os.environ.get("CANARY_MAX_FETCH_FAILURES", "2"))
+
 try:
     import requests  # type: ignore
+    from requests.adapters import HTTPAdapter  # type: ignore
+    try:
+        # urllib3 ships transitively with requests; Retry has lived at
+        # this path since urllib3 1.26.
+        from urllib3.util.retry import Retry  # type: ignore
+    except Exception:  # pragma: no cover
+        Retry = None  # type: ignore
 
-    def _http_get(url: str, headers: dict[str, str] | None = None, timeout: int = 30):
+    _SESSION: "requests.Session | None" = None
+
+    def _get_session() -> "requests.Session":
+        global _SESSION
+        if _SESSION is not None:
+            return _SESSION
+        s = requests.Session()
+        if Retry is not None:
+            retry = Retry(
+                total=_FETCH_RETRIES,
+                backoff_factor=2.5,  # ~2.5s / 5s / 12.5s
+                status_forcelist=(500, 502, 503, 504),
+                allowed_methods=frozenset(["GET"]),
+                raise_on_status=False,
+            )
+            adapter = HTTPAdapter(
+                max_retries=retry,
+                pool_connections=10,
+                pool_maxsize=10,
+            )
+            s.mount("http://", adapter)
+            s.mount("https://", adapter)
+        _SESSION = s
+        return s
+
+    def _http_get(url: str, headers: dict[str, str] | None = None, timeout: int | None = None):
+        t = timeout if timeout is not None else _FETCH_TIMEOUT
         try:
-            r = requests.get(url, headers=headers or {}, timeout=timeout)
+            r = _get_session().get(url, headers=headers or {}, timeout=t)
             if r.status_code >= 400:
                 return None, f"HTTP {r.status_code}"
             return r.json(), None
@@ -81,15 +129,31 @@ except ImportError:  # pragma: no cover — exercised only when requests missing
     import urllib.request
     import urllib.error
 
-    def _http_get(url: str, headers: dict[str, str] | None = None, timeout: int = 30):
-        try:
-            req = urllib.request.Request(url, headers=headers or {})
-            with urllib.request.urlopen(req, timeout=timeout) as r:
-                if r.status >= 400:
-                    return None, f"HTTP {r.status}"
-                return json.loads(r.read().decode("utf-8")), None
-        except Exception as e:  # noqa: BLE001
-            return None, f"{type(e).__name__}: {e}"
+    def _http_get(url: str, headers: dict[str, str] | None = None, timeout: int | None = None):
+        # Manual retry schedule mirroring the urllib3 Retry above.
+        t = timeout if timeout is not None else _FETCH_TIMEOUT
+        delays = [2.5 * (2 ** i) for i in range(_FETCH_RETRIES)]  # 2.5, 5, 10...
+        last_err: str | None = None
+        for attempt in range(_FETCH_RETRIES + 1):
+            try:
+                req = urllib.request.Request(url, headers=headers or {})
+                with urllib.request.urlopen(req, timeout=t) as r:
+                    if r.status >= 500:
+                        last_err = f"HTTP {r.status}"
+                    elif r.status >= 400:
+                        return None, f"HTTP {r.status}"
+                    else:
+                        return json.loads(r.read().decode("utf-8")), None
+            except urllib.error.HTTPError as e:
+                if 500 <= e.code < 600:
+                    last_err = f"HTTP {e.code}"
+                else:
+                    return None, f"HTTP {e.code}"
+            except Exception as e:  # noqa: BLE001
+                last_err = f"{type(e).__name__}: {e}"
+            if attempt < _FETCH_RETRIES:
+                time.sleep(delays[attempt])
+        return None, last_err or "unknown error"
 
 
 # ---------------------------------------------------------------------------
@@ -253,7 +317,15 @@ KNOWN_BROKEN_TICKERS = {
 
 
 def _has_no_dcf(fields: dict[str, Any]) -> bool:
+    """Detect the sentinel-verdict short-circuit signal.
+
+    Accepts either an extracted-fields dict (top-level ``verdict``) or a
+    raw API payload (``valuation.verdict``). Numeric gates (2, 3, 5)
+    skip when this returns True because fv/mos/scenarios are all 0
+    sentinels in those states, not real values."""
     v = fields.get("verdict")
+    if v is None and isinstance(fields.get("valuation"), dict):
+        v = fields["valuation"].get("verdict")
     return isinstance(v, str) and v.lower() in NO_DCF_VERDICTS
 
 
@@ -468,33 +540,82 @@ def collect_state(
     return state
 
 
+def evaluate_result_dict(
+    payload: dict, *, verdict_overrides: dict | None = None
+) -> dict[str, list[str]]:
+    """Run all gates against a single pre-fetched payload dict.
+
+    Accepts either a raw API response (with nested ``valuation``,
+    ``ratios``, etc.) or a pre-extracted fields dict — extract_fields()
+    is a no-op on the latter when canonical keys are already present.
+
+    ``verdict_overrides`` may force the verdict to a sentinel value to
+    test short-circuit paths in isolation. Used by selftest fixtures
+    that want to assert "with verdict=data_limited, gate 5 fires zero
+    violations" independently of the rest of the pipeline.
+
+    Returns ``{"gate1": [...], "gate2": [...], ...}`` of violation
+    lists. Symbol is taken from payload["symbol"] when present.
+    """
+    sym = payload.get("symbol") if isinstance(payload, dict) else None
+    sym = sym or "<unknown>"
+    # Accept already-extracted fields if shape looks canonical.
+    fields = payload
+    if any(k in payload for k in ("valuation", "ratios", "scenarios", "growth")):
+        fields = extract_fields(payload)
+    if verdict_overrides and sym in verdict_overrides:
+        fields = dict(fields)
+        fields["verdict"] = verdict_overrides[sym]
+    bounds = payload.get("canary_bounds") if isinstance(payload, dict) else None
+    results = run_all_gates(sym, fields, fields, bounds)
+    return {f"gate{n}": v for n, v in results.items()}
+
+
 def evaluate(state: dict[str, dict], stocks: list[dict]) -> dict:
-    """Run all gates; produce report dict."""
+    """Run all gates; produce a structured report.
+
+    Distinguishes three failure modes so a network flake doesn't masquerade
+    as a gate regression:
+
+    - ``gate_violations``: real gate failures (these always fail the run)
+    - ``fetch_failures``: stocks we couldn't fetch (soft-fail if within
+      the ``CANARY_MAX_FETCH_FAILURES`` budget)
+    - ``excluded_from_gates``: KNOWN_BROKEN_TICKERS we deliberately skip
+
+    A run passes iff ``gate_violations == 0`` AND
+    ``fetch_failures <= CANARY_MAX_FETCH_FAILURES``. The legacy cascade
+    where each fetch failure inflated all five gate counters is gone — a
+    Railway cold-start no longer looks like a five-gate regression.
+    """
     bounds_map = {s["symbol"]: s.get("canary_bounds") for s in stocks}
     per_stock: list[dict] = []
     gate_totals = {n: 0 for n in GATE_NAMES}
     fetch_failures = 0
+    excluded = 0
 
     for spec in stocks:
         sym = spec["symbol"]
         st = state.get(sym, {})
         entry: dict[str, Any] = {"symbol": sym, "violations": {}, "fetch_error": st.get("error")}
 
-        # Skip tickers with accepted-but-broken state. Still fetched above
-        # so the snapshot records their current shape; just no gate eval.
         if sym in KNOWN_BROKEN_TICKERS:
             for n in GATE_NAMES:
                 entry["violations"][str(n)] = []
             entry["skipped"] = "known_broken"
+            excluded += 1
             per_stock.append(entry)
             continue
 
         if not st.get("public") or not st.get("authed"):
-            # All-fail the stock for visibility, but don't crash.
+            # NEW SEMANTIC: do NOT cascade into gate counters. A fetch
+            # failure is its own bucket — counted once, never inflates
+            # the per-gate totals. The previous "all-fail this ticker
+            # for visibility" trick blew up clean PRs every time
+            # Railway cold-started.
             fetch_failures += 1
             for n in GATE_NAMES:
-                entry["violations"][str(n)] = [f"{sym}: fetch failed ({st.get('error') or 'no data'})"]
-                gate_totals[n] += 1
+                entry["violations"][str(n)] = []
+            entry["skipped"] = "fetch_failed"
             per_stock.append(entry)
             continue
 
@@ -504,15 +625,22 @@ def evaluate(state: dict[str, dict], stocks: list[dict]) -> dict:
             gate_totals[n] += len(vs)
         per_stock.append(entry)
 
-    total_violations = sum(gate_totals.values())
+    gate_violations = sum(gate_totals.values())
+    fetch_budget = _MAX_FETCH_FAILURES
+    passed = (gate_violations == 0) and (fetch_failures <= fetch_budget)
+
     return {
         "commit_sha": _git_sha(),
         "timestamp": _dt.datetime.now(_dt.timezone.utc).isoformat(),
         "stocks_checked": len(stocks),
         "fetch_failures": fetch_failures,
+        "fetch_failure_budget": fetch_budget,
+        "excluded_from_gates": excluded,
         "gate_totals": {GATE_NAMES[n]: gate_totals[n] for n in GATE_NAMES},
-        "total_violations": total_violations,
-        "passed": total_violations == 0,
+        "gate_violations": gate_violations,
+        # Legacy alias — older tests / dashboards still read this name.
+        "total_violations": gate_violations,
+        "passed": passed,
         "per_stock": per_stock,
     }
 
@@ -592,8 +720,15 @@ def render_markdown(report: dict, drift_notes: list[str] | None = None) -> str:
         "",
     ]
     lines.append(f"Stocks checked: **{report['stocks_checked']}**")
-    lines.append(f"Fetch failures: **{report['fetch_failures']}**")
-    lines.append(f"Total violations: **{report['total_violations']}**")
+    fetch_n = report["fetch_failures"]
+    budget = report.get("fetch_failure_budget", _MAX_FETCH_FAILURES)
+    if fetch_n == 0:
+        lines.append("Fetch failures: **0**")
+    elif fetch_n <= budget:
+        lines.append(f"Fetch failures: **{fetch_n}** (WARN — within budget {budget})")
+    else:
+        lines.append(f"Fetch failures: **{fetch_n}** (FAIL — over budget {budget})")
+    lines.append(f"Gate violations: **{report['gate_violations']}**")
     lines.append("")
     lines.append("## Gate totals")
     for name, n in report["gate_totals"].items():
@@ -657,10 +792,25 @@ def main(argv: list[str] | None = None) -> int:
     Path(args.report_md).write_text(render_markdown(report, drift_notes), encoding="utf-8")
 
     print()
-    print(f"Total violations: {report['total_violations']}")
+    print(f"Gate violations: {report['gate_violations']}")
+    print(
+        f"Fetch failures: {report['fetch_failures']} "
+        f"(budget {report['fetch_failure_budget']})"
+    )
     for name, n in report["gate_totals"].items():
         flag = "ok" if n == 0 else "FAIL"
         print(f"  {flag:4s} {name}: {n}")
+    # Distinguish WARN (fetch flake within budget) from FAIL.
+    if report["fetch_failures"] > 0 and report["fetch_failures"] <= report["fetch_failure_budget"]:
+        print(
+            f"WARN: {report['fetch_failures']} fetch failure(s) within budget "
+            f"of {report['fetch_failure_budget']} — soft-pass."
+        )
+    elif report["fetch_failures"] > report["fetch_failure_budget"]:
+        print(
+            f"FAIL: {report['fetch_failures']} fetch failure(s) > budget "
+            f"of {report['fetch_failure_budget']} — API likely unhealthy."
+        )
     if drift_notes:
         print(f"Snapshot drift notes (advisory): {len(drift_notes)}")
     print(f"Reports: {args.report_json}, {args.report_md}")
