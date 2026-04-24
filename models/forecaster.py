@@ -48,11 +48,23 @@ def _exponential_fade(t: int, g0: float, g_terminal: float = TERMINAL_FADE_G) ->
 
 def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     """
-    Get the best FCF base estimate using multiple methods.
+    Get the best FCF base estimate used as the anchor of the two-stage
+    projection.
 
-    Core principle: use the HIGHEST CREDIBLE estimate, not the median.
+    Default strategy: use the HIGHEST CREDIBLE estimate via a median of
+    [latest_fcf, nopat_proxy, max_recent_fcf] with a 60%-of-NOPAT floor.
     For capital-cycle industries (pharma, manufacturing), one bad capex
-    year drags median down. The NOPAT proxy gives the true earning power.
+    year drags a naive median down, so the NOPAT proxy gives the true
+    earning power.
+
+    Cyclical override (added after the BPCL 2026-04 incident — DCF FV
+    Rs.716 vs analyst consensus Rs.400-500): for commodity-cycle sectors
+    (oil_gas, metals, cement, chemicals, auto, sugar, airlines) the peak
+    year (e.g. BPCL FY24 Rs.26,390 Cr from inventory gains) can propagate
+    via max_recent_fcf and nopat (peak-margin) into the terminal. For
+    these sectors we replace max_recent_fcf with the 5-year median of
+    positive FCFs (2-year trimmed-mean fallback) and cap the final base
+    to that value. Stable businesses keep the existing behaviour.
     """
     latest_fcf     = enriched.get("latest_fcf", 0)
     latest_revenue = enriched.get("latest_revenue", 0)
@@ -157,6 +169,34 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     median_val = candidates.get("median_recent_fcf", 0)
     p75_val    = candidates.get("hist_p75_margin", 0)
 
+    # ── Cyclical normalisation (option (a) — sector-gated 5y median) ─
+    # Ref: BPCL FY24 DCF returned FV Rs.716 vs consensus Rs.400-500. The
+    # FY24 FCF of Rs.26,390 Cr (a 2-6x outlier from inventory gains on
+    # falling crude) leaked into `max_recent_fcf` and — because the
+    # primary-selection took the median of [latest, nopat, max] — ended
+    # up dominating the terminal. For commodity / cycle-driven sectors
+    # we replace `max_val` with the 5-year median of positive FCFs and
+    # cap the final base to that normalised value. Stable businesses
+    # (IT, FMCG, pharma, etc.) retain the existing mean/max behaviour
+    # so genuine growth trajectories are not penalised.
+    _CYCLICAL_SECTORS = {
+        "oil_gas", "metals", "cement", "chemicals", "auto", "sugar",
+        "airlines",
+    }
+    sector_tag = (enriched.get("sector") or "").lower()
+    cyc_norm = None
+    if sector_tag in _CYCLICAL_SECTORS and not cf_df.empty and "fcf" in cf_df.columns:
+        _pos5 = cf_df["fcf"][cf_df["fcf"] > 0].tail(5)
+        if len(_pos5) >= 3:
+            cyc_norm = float(_pos5.median())
+        elif len(_pos5) >= 2:
+            # trimmed-mean fallback: drop the max, average the rest
+            _trim = _pos5.sort_values().iloc[:-1]
+            cyc_norm = float(_trim.mean()) if len(_trim) > 0 else None
+        if cyc_norm is not None and cyc_norm > 0:
+            # Override max_val so it cannot drag the selection upward
+            max_val = min(max_val, cyc_norm) if max_val > 0 else cyc_norm
+
     # Primary: median of latest_fcf, nopat_proxy, and max_recent_fcf
     # Using median instead of max prevents one outlier year from inflating the base
     valid_candidates = [v for v in [latest_val, nopat_val, max_val] if v > 0]
@@ -173,6 +213,12 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     base = max(primary, nopat_floor) if nopat_val > 0 else primary
 
     method = "median(latest_fcf, nopat_proxy, max_recent_fcf)"
+
+    # Cap cyclicals to the 5y-median normalised FCF so the nopat_floor
+    # (60% of peak-cycle EBIT) cannot smuggle the outlier back in.
+    if cyc_norm is not None and cyc_norm > 0 and base > cyc_norm:
+        base = cyc_norm
+        method = f"cyclical_5y_median({sector_tag})"
 
     # ── Hysteresis: resist flip-flopping between close candidates ──
     # When candidates are within ~10% of each other, small yfinance
