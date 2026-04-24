@@ -445,12 +445,35 @@ def compute_piotroski_fscore(enriched: dict) -> dict:
     # (f1, f2, f3, f7) and scale to the 0-9 range. This preserves the
     # "9-point scale" API expected by downstream consumers while
     # correctly excluding inapplicable tests.
+    # BUG FIX (2026-04-25): NBFCs (BAJFINANCE, CHOLAFIN, MUTHOOTFIN etc.)
+    # were falling through to classic 9-signal piotroski because their
+    # sector strings are "NBFC" / "Financial Services" (varies by source)
+    # and their tickers don't end with "BANK". But structurally they have
+    # the same piotroski incompatibilities as banks: high leverage by
+    # design, different asset-turnover math, loan-book instead of
+    # inventory. They need bank-mode scoring.
+    #
+    # Observed pre-fix: BAJFINANCE piotroski 3/9 (WEAK) → composite 57
+    # capped. Bank-mode should lift it to 7/9 → composite ~65 (PASS).
     sector_raw = (enriched.get("sector") or "").lower()
+    _bare = ticker.upper().replace(".NS", "").replace(".BO", "")
+    # NBFC + insurance tickers that structurally match bank piotroski.
+    # Keep lean — add new tickers as observed during launch monitoring.
+    _NBFC_INSURANCE_BANKLIKE = {
+        "BAJFINANCE", "BAJAJFINSV", "CHOLAFIN", "MUTHOOTFIN", "MANAPPURAM",
+        "SHRIRAMFIN", "LICHSGFIN", "LICHOUSFIN", "POONAWALLA", "AAVAS",
+        "HOMEFIRST", "SBICARD", "SUNDARMFIN", "CREDITACC",
+        "HDFCLIFE", "SBILIFE", "ICICIPRULI", "ICICIGI", "NIACL",
+        "STARHEALTH", "BAJAJHLDNG", "PFC", "RECLTD", "IRFC",
+    }
     is_bank = (
         enriched.get("is_bank")
         or "bank" in sector_raw
         or "financial" in sector_raw
-        or ticker.upper().replace(".NS", "").replace(".BO", "").endswith("BANK")
+        or "nbfc" in sector_raw
+        or "insurance" in sector_raw
+        or _bare.endswith("BANK")
+        or _bare in _NBFC_INSURANCE_BANKLIKE
     )
 
     if is_bank:

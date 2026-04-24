@@ -1,14 +1,33 @@
+import os
+
 import psycopg2
 
-from config import DATABASE_URL
+# Import defensively — `config` package may not export DATABASE_URL
+# in all deployment environments. Fall back to the OS env var, which
+# is the canonical source everywhere else in the codebase anyway
+# (data_pipeline/db.py, scripts/backfill_from_cache.py, etc. all use
+# os.environ["DATABASE_URL"]). This prevents the entire XBRL ingest
+# pipeline from failing to import when the legacy `config` shim is
+# absent.
+try:
+    from config import DATABASE_URL as _CFG_DATABASE_URL  # type: ignore
+except ImportError:
+    _CFG_DATABASE_URL = None
+
+
+def _resolve_database_url() -> str | None:
+    # Prefer the OS env var (set by Railway, .env files, and all other
+    # scripts). Fall back to the config shim for backwards compatibility.
+    return os.environ.get("DATABASE_URL") or _CFG_DATABASE_URL
 
 
 def get_conn():
-    if not DATABASE_URL:
+    url = _resolve_database_url()
+    if not url:
         raise RuntimeError(
             "DATABASE_URL is not set. Set it in .env or the environment."
         )
-    return psycopg2.connect(DATABASE_URL)
+    return psycopg2.connect(url)
 
 
 def create_tables():
