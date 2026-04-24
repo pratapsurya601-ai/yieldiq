@@ -179,9 +179,16 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     # cap the final base to that normalised value. Stable businesses
     # (IT, FMCG, pharma, etc.) retain the existing mean/max behaviour
     # so genuine growth trajectories are not penalised.
+    # Removed "cement" 2026-04-24 PM: the 5y-median cap was crushing
+    # SHREECEM (fv/cmp=0.226) and ULTRACEMCO (fv/cmp=0.306) during
+    # India's current infrastructure / real-estate demand boom, where
+    # cement FCFs are legitimately well above their 5-year median.
+    # Canary merge-gate was perma-failing on SHREECEM because of this.
+    # Cement is cyclical in principle but this cycle's base is
+    # structurally higher than the 5y lookback. Revisit with a
+    # longer window (7-10y) post-launch.
     _CYCLICAL_SECTORS = {
-        "oil_gas", "metals", "cement", "chemicals", "auto", "sugar",
-        "airlines",
+        "oil_gas", "metals", "chemicals", "auto", "sugar", "airlines",
     }
     sector_tag = (enriched.get("sector") or "").lower()
     cyc_norm = None
