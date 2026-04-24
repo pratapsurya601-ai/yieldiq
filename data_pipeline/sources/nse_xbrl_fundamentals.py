@@ -338,6 +338,16 @@ def _detect_period_type_from_contexts(
       falls back to endpoint-based hint).
     """
     period_end_s = period_end.isoformat()
+    # Ind-AS convention: a "Four"-prefixed context ID denotes the
+    # year-to-date full-FY cumulative duration, even when its
+    # <startDate>/<endDate> pair covers only the final quarter.
+    # If any such context matches period_end, the filing is annual.
+    # This is the permanent fix for the OneD/FourD bug that required
+    # the 2026-04-24 Data Patch X (see docs/ops/TEMP_patch_2026-04-24.md).
+    for cid, info in contexts.items():
+        if (info.get("end") == period_end_s
+                and isinstance(cid, str) and cid.startswith("Four")):
+            return "annual"
     best_days: int | None = None
     for _cid, info in contexts.items():
         if info.get("end") != period_end_s:
