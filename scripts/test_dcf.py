@@ -25,6 +25,33 @@ Design goals:
 The snapshot lives at scripts/dcf_golden.json and is committed. When you
 deliberately change DCF logic (new weights, different growth caps, etc.),
 you review the diff, decide it's intentional, and re-snapshot via --update.
+
+==============================================================================
+WHEN TO REBASELINE (IMPORTANT — avoids perma-fail on scoring PRs)
+==============================================================================
+
+This test is DESIGNED to fail on any deliberate scoring change. That's
+the point — it forces you to SEE the drift before shipping it. But
+after you've merged a scoring change and validated it via the
+scoring_regression.py harness + ground truth, you MUST rebaseline:
+
+    # On main, after a CACHE_VERSION bump PR lands and prod reflects it:
+    python scripts/test_dcf.py --update --rate 2.0
+    git add scripts/dcf_golden.json
+    git commit -m "rebaseline dcf_golden after PR #XX"
+
+Rule of thumb: every CACHE_VERSION bump in cache_service.py should be
+followed by a golden rebaseline in the same or immediately-next PR.
+
+If you're rebaselining because the test is failing on your PR:
+    1. First verify the drift is INTENTIONAL by comparing against
+       docs/audit/SCORING_GROUND_TRUTH.md via scripts/scoring_regression.py
+    2. Only then rebaseline.
+    3. Include the before/after diff summary in your PR description.
+
+Unreviewed rebaselining defeats the purpose of the harness — a
+regression can slip through "silently" by just updating the golden
+snapshot. Don't do that.
 """
 from __future__ import annotations
 
