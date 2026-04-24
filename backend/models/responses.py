@@ -245,6 +245,26 @@ class PriceLevels(BaseModel):
     holding_period: Optional[str] = None
 
 
+class AnalyticalNoteOutput(BaseModel):
+    """Contextual note emitted by backend/services/analytical_notes.py.
+
+    1–5 of these are attached to every AnalysisResponse as
+    `analytical_notes`. They flag structural DCF limitations for
+    specific stock archetypes (premium brand, conglomerate,
+    regulated utility, cyclical trough, post-merger, high-P/E
+    growth, ADR) via pattern-matched rules — no hardcoded ticker
+    maintenance beyond the tiny conglomerate allowlist.
+    """
+    kind: Literal[
+        "premium_brand", "conglomerate", "cyclical_trough",
+        "post_merger", "regulated_utility", "adr_usd_report",
+        "high_pe_growth",
+    ]
+    severity: Literal["info", "caution"] = "info"
+    title: str
+    body: str
+
+
 class AnalysisResponse(BaseModel):
     ticker: str
     company: CompanyInfo
@@ -256,6 +276,11 @@ class AnalysisResponse(BaseModel):
     ai_summary: Optional[str] = None
     data_confidence: Literal["high", "medium", "low", "unusable"] = "medium"
     data_issues: list[str] = []
+    # Contextual disclaimers emitted by
+    # backend/services/analytical_notes.py (PR #69). Always
+    # present; empty list when no rule fires. Purely additive —
+    # does NOT influence scoring or fair value.
+    analytical_notes: list[AnalyticalNoteOutput] = []
     cached: bool = False
     timestamp: str = ""
     # Snapshot of the exact inputs that produced `valuation.fair_value`

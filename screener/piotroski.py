@@ -47,6 +47,26 @@ from utils.logger import get_logger
 log = get_logger(__name__)
 
 
+# Tickers with recent (last 3 years) major M&A events. For these,
+# the Piotroski f3 (ROA improving YoY) and f7 (no share dilution)
+# signals fail mechanically due to merger accounting — inflated
+# asset base dilutes ROA, share issuance funds the deal — but
+# these don't reflect business-quality deterioration. Grant neutral
+# (0.5) scores on both signals for these tickers to avoid scoring
+# post-merger transition periods as permanent impairment.
+#
+# Review this list every 12 months. Graduate tickers out 3 years
+# after their merger close date. Keys are bare tickers (no .NS).
+#
+# Current members (as of 2026-04-24):
+RECENT_MERGER_BANKS = {
+    "HDFCBANK",   # HDFC Ltd merger, closed 2023-07-01
+    "AXISBANK",   # Citibank India retail merger, closed 2023-03-01
+    "INDUSINDBK", # Bharat Financial Inclusion merger, closed 2024-Q1
+    "IDFCFIRSTB", # IDFC Ltd reverse merger, closed 2024-Q4
+}
+
+
 # ── GRADE THRESHOLDS ─────────────────────────────────────────
 GRADE_MAP = {
     (8, 9): ("STRONG",  "#059669", "#ECFDF5", "#A7F3D0",  "🏆"),
@@ -455,8 +475,19 @@ def compute_piotroski_fscore(enriched: dict) -> dict:
             ("f9", "Asset turnover improving", "Efficiency",     _f9_asset_turnover_improving),
         ]
 
+    # ── Recent-merger exception (PR #67, 2026-04-24) ──────────
+    # For banks that closed major M&A in the last ~3 years, the
+    # f3 (ROA improving YoY) and f7 (no share dilution) signals
+    # break mechanically: the inflated post-merger asset base
+    # dilutes ROA even at constant profit, and share issuance
+    # funds the deal. Grant neutral (0.5) scores on those two
+    # signals — see RECENT_MERGER_BANKS above for the curated
+    # list and graduation policy.
+    ticker_bare = (ticker or "").upper().replace(".NS", "").replace(".BO", "")
+    is_recent_merger = is_bank and ticker_bare in RECENT_MERGER_BANKS
+
     results  = []
-    total    = 0
+    total    = 0.0
     cats     = {"Profitability": 0, "Leverage": 0, "Efficiency": 0}
     cat_max  = {"Profitability": 4, "Leverage": 3, "Efficiency": 2}
 
@@ -467,6 +498,13 @@ def compute_piotroski_fscore(enriched: dict) -> dict:
         except Exception as e:
             score, detail, method = 0, f"Error: {e}", "N/A"
             log.debug(f"[{ticker}] F-Score {key} error: {e}")
+
+        # Merger exception: f3 (ROA improving) and f7 (no dilution) fail
+        # mechanically for 3 years post-M&A. Replace 0 with 0.5 for these
+        # tickers on those two signals, so composite isn't dragged by
+        # transient merger artifacts.
+        if is_recent_merger and key in ("f3", "f7") and score == 0:
+            score = 0.5
 
         total += score
         cats[category] += score
@@ -490,6 +528,19 @@ def compute_piotroski_fscore(enriched: dict) -> dict:
     if is_bank:
         raw_bank = total
         total = int(round(raw_bank * 9 / 4))
+    else:
+        total = int(round(total))
+
+    # ── Merger-exception note (PR #67) ─────────────────────────
+    if is_recent_merger:
+        # Record this in the response so the frontend can surface it
+        # as an analytical note (see PR #69).
+        _merger_note = (
+            "Post-merger transition — f3/f7 neutralised "
+            "(see RECENT_MERGER_BANKS in piotroski.py)"
+        )
+    else:
+        _merger_note = None
 
     # ── Grade ──────────────────────────────────────────────────
     grade, txt_c, bg_c, bd_c, emoji = _get_grade(total)
@@ -520,6 +571,8 @@ def compute_piotroski_fscore(enriched: dict) -> dict:
         "academic_note":    academic_note,
         "passes":           sum(r["score"] for r in results),
         "fails":            9 - total,
+        "merger_exception_applied": bool(is_recent_merger),
+        "merger_note":      _merger_note,
     }
 
 

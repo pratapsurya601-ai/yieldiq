@@ -303,6 +303,25 @@ INDUSTRY_WACC = {
                              "hudco","irfc","indigrid","pfc","recltd","ncc"],
     },
 
+    # ── Regulated Utility (CERC/PNGRB bond-like cash flows) ───
+    "regulated_utility": {
+        "wacc_min":         0.085, "wacc_max": 0.10, "wacc_default": 0.09,
+        "terminal_growth":  0.04,
+        "beta_typical":     0.65,
+        "capex_intensity":  0.18,    # plant/grid build-out
+        "wc_days":          60,
+        "wc_pct_revenue":   0.12,
+        "rd_pct_revenue":   0.00,
+        "depreciation_pct": 0.10,
+        "fcf_conv_factor":  0.50,    # high capex, regulated returns
+        "rev_growth_max":   0.12,
+        "rev_growth_min":   0.02,
+        "fcf_growth_max":   0.10,
+        "description":      "Regulated Utility — CERC/PNGRB tariff, 15.5% regulated ROE, bond-like",
+        "notes":            "Regulated-return utilities (POWERGRID, NTPC, NHPC, PFC, RECLTD, GAIL, TORNTPOWER, ADANITRANS). Cash flows are government-underwritten via CERC tariff orders — low volatility, bond-like. Lower WACC (9%) vs generic utility 11% is appropriate.",
+        "keywords":         [],
+    },
+
     # ── Energy & Oil ──────────────────────────────────────────
     "oil_gas": {
         "wacc_min":         0.10, "wacc_max": 0.12, "wacc_default": 0.11,
@@ -913,12 +932,38 @@ def detect_sector_usa(ticker: str, yf_sector: str = "") -> str:
     return "us_general"
 
 
+# ══════════════════════════════════════════════════════════════
+# REGULATED UTILITY TICKERS (CERC/PNGRB tariff, bond-like cash flows)
+# Routed to `regulated_utility` sector (WACC 9%) instead of generic
+# `power`/`oil_gas`/`nbfc` (WACC 10.5-11%). Reflects 15.5% regulated
+# ROE on regulated asset base and government-underwritten cash flows.
+# ══════════════════════════════════════════════════════════════
+REGULATED_UTILITY_TICKERS = {
+    "POWERGRID",   # Inter-state transmission, CERC-regulated
+    "NTPC",        # Thermal + renewables, 15.5% regulated ROE
+    "NHPC",        # Hydro, regulated tariff
+    "PFC",         # Power Finance Corp, regulated NBFC
+    "RECLTD",      # Rural Electrification, regulated NBFC
+    "GAIL",        # Natural gas transmission, PNGRB-regulated
+    "TORNTPOWER",  # Distribution, state-regulated
+    "ADANITRANS",  # Transmission, CERC-regulated
+}
+
+
 def detect_sector(ticker: str, yf_sector: str = "") -> str:
     """Detect sector — routes US tickers to US WACC table, Indian to India table."""
     if _is_us_ticker(ticker):
         return detect_sector_usa(ticker, yf_sector)
 
     t = ticker.lower().replace(".ns","").replace(".bo","")
+
+    # ── Regulated-utility override (runs BEFORE generic power/oil_gas/nbfc) ──
+    # CERC/PNGRB-regulated cash flows deserve a lower WACC (9%) than the
+    # generic utility tier (10.5-11%) because returns are government-
+    # underwritten on a regulated asset base.
+    _ticker_bare = ticker.upper().replace(".NS", "").replace(".BO", "")
+    if _ticker_bare in REGULATED_UTILITY_TICKERS:
+        return "regulated_utility"
 
     # ── Ticker-first overrides ─────────────────────────────────
     # Yahoo Finance misclassifies many Indian stocks
