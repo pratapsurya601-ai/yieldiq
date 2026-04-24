@@ -114,10 +114,19 @@ def _min_score_for_label(label: str) -> int:
     }.get(label, 0)
 
 
-# Allowlisted bellwethers floor at "Moderate". We derive the score
-# floor from the label boundary instead of hardcoding an integer so
-# the floor and the label mapping can never drift apart again.
-ALLOWLIST_FLOOR_LABEL = "Moderate"
+# Allowlisted bellwethers floor at "Wide" (raised from "Moderate"
+# 2026-04-24 PM). The 5-signal moat formula was conservatively
+# classifying known-Wide-moat franchises (HDFCBANK, HUL, NESTLE,
+# TITAN, ASIANPAINT, TCS, MARUTI, RELIANCE etc.) as "Moderate"
+# because post-merger / capex-cycle / margin-compression years
+# drag the 5-signal computation. The allowlist exists precisely
+# for these bellwether franchises — their moat durability isn't
+# in doubt, just the 5-signal read. Raising the floor to "Wide"
+# aligns the label with street consensus for these 18 tickers
+# and lifts composite yieldiq_score by ~10 pts each (the moat
+# scoring difference between Moderate=15pts and Wide=25pts in
+# dashboard/utils/scoring.py::compute_yieldiq_score).
+ALLOWLIST_FLOOR_LABEL = "Wide"
 ALLOWLIST_MOAT_FLOOR_SCORE = _min_score_for_label(ALLOWLIST_FLOOR_LABEL)
 
 
