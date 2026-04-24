@@ -25,6 +25,8 @@ from typing import Any, Optional
 
 from sqlalchemy import text
 
+from backend.services.cache_service import CACHE_VERSION
+
 logger = logging.getLogger("yieldiq.endpoint_cache")
 
 
@@ -54,10 +56,12 @@ def get(key: str) -> Optional[dict]:
                 """
                 SELECT value
                 FROM endpoint_cache
-                WHERE key = :k AND expires_at > now()
+                WHERE key = :k
+                  AND cache_version = :version
+                  AND expires_at > now()
                 """
             ),
-            {"k": key},
+            {"k": key, "version": str(CACHE_VERSION)},
         ).fetchone()
         if not row:
             return None
@@ -92,15 +96,16 @@ def set(key: str, value: dict, ttl_hours: int = 24) -> None:
         sess.execute(
             text(
                 """
-                INSERT INTO endpoint_cache (key, value, expires_at)
-                VALUES (:k, CAST(:v AS JSONB), now() + (:ttl || ' hours')::interval)
+                INSERT INTO endpoint_cache (key, value, expires_at, cache_version)
+                VALUES (:k, CAST(:v AS JSONB), now() + (:ttl || ' hours')::interval, :version)
                 ON CONFLICT (key) DO UPDATE SET
-                    value      = EXCLUDED.value,
-                    expires_at = EXCLUDED.expires_at,
-                    created_at = now()
+                    value         = EXCLUDED.value,
+                    expires_at    = EXCLUDED.expires_at,
+                    cache_version = EXCLUDED.cache_version,
+                    created_at    = now()
                 """
             ),
-            {"k": key, "v": blob, "ttl": str(ttl_hours)},
+            {"k": key, "v": blob, "ttl": str(ttl_hours), "version": str(CACHE_VERSION)},
         )
         sess.commit()
     except Exception as exc:
