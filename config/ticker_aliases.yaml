@@ -1,0 +1,138 @@
+# ============================================================================
+# YieldIQ corporate-actions ticker alias registry
+# ----------------------------------------------------------------------------
+# Ops-editable source of truth for renamed / demerged / delisted listings.
+# Consulted by the ingest pipeline BEFORE hitting Yahoo/NSE and by the
+# analysis router BEFORE rendering. Add a new entry here whenever an Indian
+# corporate action (demerger, rename, spin-off, delisting) would otherwise
+# leave the pipeline 404-ing against a dead symbol.
+#
+# Schema
+# ------
+# <NSE_SYMBOL>:
+#   status: active | renamed | demerged | demerged_pending | delisted
+#   effective_date: YYYY-MM-DD          # date corp action took effect
+#   former_symbol: STR (optional)       # for status=renamed — old NSE code
+#   fetch_symbol: STR (optional)        # explicit Yahoo symbol override
+#   successors:                         # for demerged / demerged_pending
+#     - ticker: STR                     # successor NSE symbol (canonical)
+#       share_ratio: FLOAT              # shares received per old share
+#       fetch_symbol: STR | null        # Yahoo symbol, null if not listed yet
+#   note: STR                           # citation / human-readable context
+#
+# Status semantics
+# ----------------
+# active            — default; no special handling (entries here are rare,
+#                     used mainly to pin a non-default fetch_symbol).
+# renamed           — same legal entity, new symbol. Pipeline fetches under
+#                     current symbol; historical rows under former_symbol
+#                     are migrated via scripts/migrate_ticker_aliases.sql.
+# demerged          — entity split; successors listed and fetchable.
+#                     Pipeline skips the dead parent, iterates successors.
+#                     Read path returns a redirect payload.
+# demerged_pending  — split announced/effective but successor listing has
+#                     not happened yet (or symbols not public). Pipeline
+#                     skips silently; read path returns pending payload.
+# delisted          — gone, no successor. Pipeline skips; read path returns
+#                     a terminal "delisted" payload.
+# ============================================================================
+
+# ---------------------------------------------------------------------------
+# TATA MOTORS — demerger effective Q1 2026
+# ---------------------------------------------------------------------------
+# Board approved on 2024-08-01 (BSE notice / company press release). NCLT
+# sanction for the Scheme of Arrangement was obtained in Q4 FY26 and the
+# record date fell in Q1 2026. Post-demerger, Tata Motors Ltd. splits into:
+#   1. Tata Motors Passenger Vehicles Ltd. (TM-PV) — PV + EV + JLR
+#   2. Tata Motors Commercial Vehicles Ltd. (TM-CV) — CVBU
+# As of 2026-04-25 the two successor entities have NOT yet begun trading
+# under confirmed NSE symbols. Yahoo 404s every variant of TATAMOTORS*.
+# Keep status=demerged_pending until NSE publishes the listing circular;
+# then ops flips to status=demerged and populates fetch_symbol on each
+# successor. Placeholder tickers TMPV / TMCV match the working names used
+# in company filings but ARE NOT yet reserved NSE codes — do not fetch.
+TATAMOTORS:
+  status: demerged_pending
+  effective_date: 2026-03-01
+  successors:
+    - ticker: TMPV
+      share_ratio: 1.0
+      fetch_symbol: null
+    - ticker: TMCV
+      share_ratio: 1.0
+      fetch_symbol: null
+  note: >
+    Tata Motors Ltd. demerger into TM-PV (passenger/EV/JLR) and TM-CV
+    (commercial vehicles) per NCLT-sanctioned Scheme of Arrangement.
+    Record date Q1 2026. Listing circular / final NSE symbols pending
+    as of 2026-04-25 — ops must update fetch_symbol and flip status
+    to `demerged` once NSE publishes.
+
+# ---------------------------------------------------------------------------
+# LTIMindtree — Mindtree + L&T Infotech merger (Nov 2022)
+# ---------------------------------------------------------------------------
+# LTI absorbed Mindtree; the combined entity was renamed LTIMindtree and
+# NSE symbol changed MINDTREE -> LTIM. Historical Mindtree rows exist in
+# company_financials under ticker=MINDTREE and must be resolved under LTIM
+# for continuous long-run comparisons. Migration handled by
+# scripts/migrate_ticker_aliases.sql (idempotent).
+LTIM:
+  status: renamed
+  former_symbol: MINDTREE
+  effective_date: 2022-11-14
+  fetch_symbol: LTIM.NS
+  note: >
+    Mindtree Ltd. merged into Larsen & Toubro Infotech, renamed
+    LTIMindtree Ltd. NSE symbol MINDTREE retired; LTIM active. Some
+    legacy upstream sources still reference LTIMINDTREE — canonical
+    Yahoo symbol is LTIM.NS.
+
+# ---------------------------------------------------------------------------
+# HDFC Ltd — merged into HDFC Bank (effective 2023-07-01)
+# ---------------------------------------------------------------------------
+# Housing Development Finance Corp. (HDFC) merged into its subsidiary
+# HDFC Bank. HDFC shareholders received 42 HDFCBANK shares for every 25
+# HDFC shares. The HDFC symbol was delisted on 2023-07-13.
+HDFC:
+  status: delisted
+  effective_date: 2023-07-13
+  successors:
+    - ticker: HDFCBANK
+      share_ratio: 1.68   # 42/25
+      fetch_symbol: HDFCBANK.NS
+  note: >
+    HDFC Ltd. merged into HDFC Bank (reverse merger). Merger swap ratio
+    42 HDFCBANK : 25 HDFC. NSE delisting date 2023-07-13.
+
+# ---------------------------------------------------------------------------
+# Vedanta Ltd — proposed 6-way demerger (in progress)
+# ---------------------------------------------------------------------------
+# Vedanta Ltd. announced a demerger into five listed entities + the
+# parent in 2023; NCLT approvals have been partial and timelines have
+# slipped multiple times. As of 2026-04-25 the parent VEDL still trades
+# normally, so status is `active` with an explicit fetch_symbol. This
+# entry exists as a placeholder so ops can flip to `demerged` once the
+# scheme is sanctioned and successor listings begin. Current known
+# working names: Vedanta Aluminium, Vedanta Oil & Gas, Vedanta Power,
+# Vedanta Steel & Ferrous Materials, Vedanta Base Metals.
+VEDL:
+  status: active
+  fetch_symbol: VEDL.NS
+  note: >
+    Vedanta Ltd. 6-way demerger scheme pending NCLT sanction as of
+    2026-04-25. Monitor press releases; flip to demerged with successor
+    symbols when listing circular is published.
+
+# ---------------------------------------------------------------------------
+# Zomato -> Eternal (Nov 2024 rebrand)
+# ---------------------------------------------------------------------------
+# Zomato Ltd. rebranded to Eternal Ltd; NSE symbol ZOMATO -> ETERNAL.
+# This is a straight rename — same legal entity, same ISIN.
+ETERNAL:
+  status: renamed
+  former_symbol: ZOMATO
+  effective_date: 2024-11-20
+  fetch_symbol: ETERNAL.NS
+  note: >
+    Zomato Ltd. rebranded to Eternal Ltd. Single-entity rename; all
+    historical ZOMATO rows should resolve under ETERNAL.

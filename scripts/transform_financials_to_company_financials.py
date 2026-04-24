@@ -97,17 +97,23 @@ _SOURCE_COLUMNS = [
 
 
 def _normalize_ticker(raw: str) -> str:
-    """Normalize bare/suffixed tickers to the .NS form used by company_financials.
+    """Normalize tickers to the BARE form (no .NS / .BO suffix) used by
+    company_financials and analysis_cache.
 
-    Convention copied from `backend/services/analysis/db.py` (strip-then-suffix):
-    - "BPCL"     → "BPCL.NS"
-    - "BPCL.NS"  → "BPCL.NS"
-    - "BPCL.BO"  → "BPCL.NS"   (BSE suffix rewritten to NSE form)
+    Historical note (2026-04-25 data-hygiene pass): this function used to
+    return `bare + '.NS'`, which created ~22k shadow rows in
+    company_financials that no service-layer reader consumed (readers
+    strip the suffix before querying). The migration at
+    scripts/migrate_dual_ticker.sql cleans up the existing shadow rows;
+    this fix prevents future scripts from recreating them.
+
+    - "BPCL"     -> "BPCL"
+    - "BPCL.NS"  -> "BPCL"
+    - "BPCL.BO"  -> "BPCL"
     """
     if not raw:
         return raw
-    bare = raw.strip().upper().replace(".NS", "").replace(".BO", "")
-    return bare + ".NS"
+    return str(raw).strip().upper().replace(".NS", "").replace(".BO", "")
 
 
 def _build_records(row: dict) -> list[dict]:

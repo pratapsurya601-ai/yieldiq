@@ -42,7 +42,8 @@ for t in TICKERS:
             ('quarterly IS',  lambda d: extract_income_records(d, 'quarterly')),
             ('annual BS',     lambda d: extract_balance_records(d, 'annual')),
             ('quarterly BS',  lambda d: extract_balance_records(d, 'quarterly')),
-            ('annual CF',     lambda d: extract_cashflow_records(d)),
+            ('annual CF',     lambda d: extract_cashflow_records(d, 'annual')),
+            ('quarterly CF',  lambda d: extract_cashflow_records(d, 'quarterly')),
         ]:
             recs = fn(yfd)
             print(f"  yf {kind:<14s}: {len(recs)} records")

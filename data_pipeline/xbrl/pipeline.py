@@ -142,8 +142,14 @@ def run(tickers=None, mode='test', skip_nse=False):
             print(f"  Quarterly BS: {len(recs)} periods")
             all_records.extend(recs)
 
-            recs = extract_cashflow_records(yf_data)
+            recs = extract_cashflow_records(yf_data, 'annual')
             print(f"  Annual CF: {len(recs)} periods")
+            all_records.extend(recs)
+
+            # FIX-FCF-QUARTERLY (2026-04-25): quarterly CF now pulled too so
+            # TTM FCF summation has non-NULL operating_cf/capex/free_cash_flow.
+            recs = extract_cashflow_records(yf_data, 'quarterly')
+            print(f"  Quarterly CF: {len(recs)} periods")
             all_records.extend(recs)
         else:
             failed_tickers.append(ticker)

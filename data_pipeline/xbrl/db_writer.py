@@ -128,9 +128,24 @@ _ALL_FIELDS = [
 ]
 
 
+def _normalize_ticker_nse(raw):
+    """Defense-in-depth: force bare-form ticker (no .NS/.BO suffix).
+
+    Companion to the one-shot migration at scripts/migrate_dual_ticker.sql
+    (data-hygiene pass 2026-04-25). Service-layer readers
+    (backend/services/analysis/db.py etc.) strip the suffix before
+    querying, so any '.NS'/'.BO' row written here becomes a shadow row
+    nobody reads. Normalizing on write makes it impossible for a future
+    script — or a regressed caller — to recreate the 22k-row bug.
+    """
+    if raw is None:
+        return None
+    return str(raw).strip().upper().replace(".NS", "").replace(".BO", "")
+
+
 def _prepare(rec):
     params = {
-        'ticker_nse': rec.get('ticker_nse'),
+        'ticker_nse': _normalize_ticker_nse(rec.get('ticker_nse')),
         'period_type': rec.get('period_type'),
         'period_end_date': rec.get('period_end_date'),
         'statement_type': rec.get('statement_type'),
