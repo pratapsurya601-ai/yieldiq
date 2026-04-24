@@ -84,6 +84,7 @@ from sqlalchemy.orm import sessionmaker
 
 from data_pipeline.sources.nse_xbrl_fundamentals import parse_nse_xbrl
 from data_pipeline.sources.bse_xbrl import store_financials
+from data_pipeline.xbrl.db_writer import upsert_records
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s",
@@ -234,6 +235,79 @@ def _synthesize_annual(q4_row: dict) -> dict:
     return out
 
 
+# ── Dual-write support: tall-format writes to company_financials ─
+# Mirrors scripts/transform_financials_to_company_financials.py so
+# every new backfill row lands in the table service-layer readers
+# actually use (HEX history, /financials, analysis/db.py). The old
+# `financials` table remains the fallback and is still written by
+# store_financials() below.
+_INCOME_MAP = {
+    "revenue": "revenue", "ebitda": "ebitda", "ebit": "ebit",
+    "pretax_income": "pbt", "net_income": "pat",
+    "eps_basic": "eps_basic", "eps_diluted": "eps_diluted",
+}
+_BS_MAP = {
+    "total_assets": "total_assets", "total_equity": "total_equity",
+    "total_debt": "total_debt", "current_liabilities": "current_liabilities",
+    "cash": "cash_and_equivalents", "net_debt": "net_debt",
+}
+_CF_MAP = {
+    "operating_cf": "cfo", "investing_cf": "cfi", "financing_cf": "cff",
+    "capex": "capex", "free_cash_flow": "free_cash_flow",
+}
+_STATEMENT_GROUPS = [
+    ("income", _INCOME_MAP),
+    ("balance_sheet", _BS_MAP),
+    ("cashflow", _CF_MAP),
+]
+
+_SKIP_COMPANY_FINANCIALS = False
+
+
+def _normalize_ticker(raw: str) -> str:
+    bare = str(raw).strip().upper().replace(".NS", "").replace(".BO", "")
+    return bare + ".NS"
+
+
+def _build_cf_records(row: dict, period_end, period_type: str) -> list[dict]:
+    """Build up to 3 tall records (income/balance_sheet/cashflow) from a wide row."""
+    base = {
+        "ticker_nse": _normalize_ticker(row.get("ticker", "")),
+        "period_type": period_type,
+        "period_end_date": period_end,
+        "source": row.get("data_source") or "NSE_XBRL",
+        "currency": row.get("currency") or "INR",
+    }
+    records = []
+    for stmt_type, col_map in _STATEMENT_GROUPS:
+        values = {tgt: row.get(src) for tgt, src in col_map.items()}
+        if all(v is None for v in values.values()):
+            continue
+        rec = dict(base)
+        rec["statement_type"] = stmt_type
+        rec.update(values)
+        records.append(rec)
+    return records
+
+
+def _dual_write(row: dict, db_session, period_end, period_type: str) -> bool:
+    """Write to legacy `financials` first, then tall-format to `company_financials`.
+    Legacy write is authoritative; company_financials is best-effort."""
+    legacy_ok = store_financials(row, db_session, period_end, period_type)
+    if _SKIP_COMPANY_FINANCIALS:
+        return legacy_ok
+    try:
+        recs = _build_cf_records(row, period_end, period_type)
+        if recs:
+            upsert_records(recs)
+    except Exception as exc:
+        logger.warning(
+            "company_financials dual-write failed for %s %s: %s",
+            row.get("ticker"), period_end, exc,
+        )
+    return legacy_ok
+
+
 def _process_ticker(
     ticker: str,
     ticker_dir: Path,
@@ -273,7 +347,7 @@ def _process_ticker(
         # (YTD) context re-parse below.
         row["period_type"] = "quarterly"
         try:
-            if store_financials(row, db_session, pe, "quarterly"):
+            if _dual_write(row, db_session, pe, "quarterly"):
                 stats["stored_quarterly"] += 1
         except Exception as exc:
             logger.debug("store quarterly %s %s: %s", ticker, pe, exc)
@@ -298,7 +372,7 @@ def _process_ticker(
                 continue
             annual = _synthesize_annual(q4_annual)
             try:
-                if store_financials(annual, db_session, q4_annual["period_end"], "annual"):
+                if _dual_write(annual, db_session, q4_annual["period_end"], "annual"):
                     stats["stored_annual_synth"] += 1
             except Exception as exc:
                 logger.debug("store annual %s FY%d: %s", ticker, fy, exc)
@@ -317,8 +391,12 @@ def main() -> int:
                     help="Comma-separated allowlist (default: all cached tickers)")
     ap.add_argument("--no-synthesize", action="store_true",
                     help="Skip annual synthesis — write quarterlies only")
+    ap.add_argument("--skip-company-financials", action="store_true",
+                    help="Legacy single-write mode: skip the dual-write to company_financials")
     ap.add_argument("--progress-every", type=int, default=25)
     args = ap.parse_args()
+    global _SKIP_COMPANY_FINANCIALS
+    _SKIP_COMPANY_FINANCIALS = bool(args.skip_company_financials)
 
     if not os.environ.get("DATABASE_URL"):
         logger.error("DATABASE_URL not set")
