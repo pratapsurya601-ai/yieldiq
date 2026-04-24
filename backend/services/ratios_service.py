@@ -65,7 +65,21 @@ def compute_roce(ebit, total_assets, current_liabilities) -> float | None:
     cap_employed = _ta - _cl
     if cap_employed is None or cap_employed <= 0:
         return None
-    return round(_ebit / cap_employed * 100.0, 1)
+    roce_pct = round(_ebit / cap_employed * 100.0, 1)
+
+    # Sanity: ROCE above ~100% is almost always a sign-flip / unit-mix
+    # artefact (e.g. RECLTD 210%, UPL 237% in production from a
+    # current-liabilities sign error or capital-employed near zero
+    # post-demerger). A genuine ROCE >100% on a public company would
+    # be exceptional; refuse to propagate and let the UI render "—".
+    if roce_pct > 100.0:
+        log.warning(
+            "RATIOS: ROCE=%.1f%% > 100%% (ebit=%.2f ta=%.2f cl=%.2f "
+            "ce=%.2f) — likely sign-flip / unit mix; returning None",
+            roce_pct, _ebit, _ta, _cl, cap_employed,
+        )
+        return None
+    return roce_pct
 
 
 # Conversion: 1 Crore = 1e7 INR.

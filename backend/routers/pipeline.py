@@ -12,13 +12,13 @@ router = APIRouter(prefix="/api/pipeline", tags=["pipeline"])
 logger = logging.getLogger(__name__)
 
 
-def _require_admin(authorization: str = ""):
-    """Simple admin check — expand with proper auth later."""
-    admin_key = os.environ.get("PIPELINE_ADMIN_KEY", "")
-    if not admin_key:
-        return True  # No key set = no protection (dev mode)
-    # In production, check JWT admin claim from auth middleware
-    return True
+# 2026-04-25 hardening: the previous _require_admin was a no-op stub
+# that always returned True regardless of caller. The /debug + /test
+# pipeline endpoints leaked DB shape, BSE/yfinance internals, and let
+# any authenticated user trigger live yfinance fetches as a side
+# effect. Reuse the real require_admin from backend.routers.admin so
+# both routers share one ADMIN_EMAILS source of truth.
+from backend.routers.admin import require_admin as _require_admin  # noqa: E402
 
 
 def _get_db():
@@ -202,7 +202,7 @@ async def run_initial_setup():
 
 
 @router.get("/debug")
-async def debug_pipeline():
+async def debug_pipeline(user: dict = Depends(_require_admin)):
     """Show which stocks have data and which don't."""
     try:
         from sqlalchemy import func
@@ -258,7 +258,7 @@ async def debug_pipeline():
 
 
 @router.get("/test/fetch-one/{ticker}")
-async def test_fetch_one(ticker: str):
+async def test_fetch_one(ticker: str, user: dict = Depends(_require_admin)):
     """Test: fetch price + fundamentals for ONE stock. Runs synchronously."""
     try:
         from data_pipeline.db import Session
@@ -353,7 +353,7 @@ def _get_recent_prices_from_bhavcopy(ticker: str, days: int = 5):
 
 
 @router.get("/test/raw-price/{ticker}")
-async def test_raw_price(ticker: str):
+async def test_raw_price(ticker: str, user: dict = Depends(_require_admin)):
     """Test: show raw yfinance result for a stock using both methods."""
     import yfinance as yf
     results = {}
@@ -422,7 +422,7 @@ async def test_raw_price(ticker: str):
 
 
 @router.get("/test/bhavcopy")
-async def test_bhavcopy():
+async def test_bhavcopy(user: dict = Depends(_require_admin)):
     """Test: try downloading one day of NSE Bhavcopy. Diagnoses connectivity."""
     from datetime import date, timedelta
     try:
@@ -447,7 +447,7 @@ async def test_bhavcopy():
 
 
 @router.get("/test/yfinance")
-async def test_yfinance():
+async def test_yfinance(user: dict = Depends(_require_admin)):
     """Test: try fetching one stock via yfinance."""
     try:
         import yfinance as yf
@@ -466,7 +466,7 @@ async def test_yfinance():
 
 
 @router.get("/test/bse")
-async def test_bse():
+async def test_bse(user: dict = Depends(_require_admin)):
     """Test: try fetching RELIANCE from BSE API."""
     try:
         from data_pipeline.sources.bse_xbrl import download_financials_bse

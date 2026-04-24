@@ -73,11 +73,17 @@ def _enforce_scenario_order(bear, base, bull, price: float):
 
     This wrapper is the LAST line of defense before serialization. If
     bull < base or bear > base after all upstream logic, clamp them to
-    sane ±5% bands and flag with `scenario_clamped=True` in MoS-pct
+    sane ±7.5% bands and flag with `scenario_clamped=True` in MoS-pct
     field comment (kept silent to avoid user-visible "clamped" flag —
     the fact that it surfaced here means the upstream DCF was unstable
     for this ticker, which is a separate investigation, not a
     user-facing display bug).
+
+    Why ±7.5% (widened 2026-04-25 from ±5%): the canary harness Gate 3
+    floor is 5% bull/bear separation. Clamping at exactly ±5% leaves
+    no headroom — any rounding nudges the post-clamp scenario right
+    onto the gate boundary and trips it. ±7.5% buys a 2.5pp safety
+    margin above the floor.
     """
     from backend.models.responses import ScenarioCase, ScenariosOutput
     base_iv = base.iv or 0.0
@@ -88,10 +94,10 @@ def _enforce_scenario_order(bear, base, bull, price: float):
     if bear_iv <= base_iv <= bull_iv:
         return ScenariosOutput(bear=bear, base=base, bull=bull)
 
-    # Otherwise clamp. Bear can't exceed 95% of base; bull can't drop
-    # below 105% of base. Recompute mos_pct from clamped iv.
-    fixed_bear_iv = min(bear_iv, base_iv * 0.95) if base_iv > 0 else bear_iv
-    fixed_bull_iv = max(bull_iv, base_iv * 1.05) if base_iv > 0 else bull_iv
+    # Otherwise clamp. Bear can't exceed 92.5% of base; bull can't drop
+    # below 107.5% of base. Recompute mos_pct from clamped iv.
+    fixed_bear_iv = min(bear_iv, base_iv * 0.925) if base_iv > 0 else bear_iv
+    fixed_bull_iv = max(bull_iv, base_iv * 1.075) if base_iv > 0 else bull_iv
 
     def _mos(iv):
         if price and price > 0 and iv > 0:
@@ -110,7 +116,7 @@ def _enforce_scenario_order(bear, base, bull, price: float):
 
     import logging
     logging.getLogger("yieldiq.scenarios").warning(
-        "scenario_clamp: bear/bull clamped to base ±5%% — investigate "
+        "scenario_clamp: bear/bull clamped to base ±7.5%% — investigate "
         "(orig bear=%s base=%s bull=%s -> bear=%s base=%s bull=%s)",
         bear_iv, base_iv, bull_iv,
         fixed_bear.iv, base.iv, fixed_bull.iv,
@@ -217,12 +223,43 @@ def _normalize_pct(val) -> float | None:
 
 
 def _compute_roe_fallback(enriched: dict):
-    """Compute ROE from net_income / total_equity when yfinance doesn't provide it."""
+    """Compute ROE from net_income / total_equity when yfinance doesn't provide it.
+
+    Negative- or zero-equity guard (added 2026-04-25): when total_equity
+    is non-positive, the ratio NI/E is mathematically defined but
+    economically meaningless — a profitable company with negative book
+    equity (PAYTM-style accumulated losses) would produce a spurious
+    -439% ROE chip. We refuse to return a value in that case and stash
+    the reason into ``enriched['input_quality_flags']`` so downstream
+    can surface it as a data-quality note rather than a quality signal.
+    """
     try:
         net_income = enriched.get("net_income") or enriched.get("netIncome", 0)
-        equity = enriched.get("total_equity") or enriched.get("totalStockholderEquity", 0)
-        if net_income and equity and equity > 0:
-            roe = net_income / equity
+        # Read equity directly so we can distinguish "missing" from
+        # "<=0". The previous `or` short-circuit treated 0/negative as
+        # "missing" and silently propagated whatever fallback the rest
+        # of the pipeline produced.
+        equity = enriched.get("total_equity")
+        if equity is None:
+            equity = enriched.get("totalStockholderEquity")
+
+        # Negative or zero equity → refuse to compute, flag the input.
+        if equity is not None:
+            try:
+                eq_val = float(equity)
+            except (TypeError, ValueError):
+                eq_val = None
+            if eq_val is not None and eq_val <= 0:
+                flags = enriched.get("input_quality_flags")
+                if not isinstance(flags, list):
+                    flags = []
+                if "negative_equity" not in flags:
+                    flags.append("negative_equity")
+                enriched["input_quality_flags"] = flags
+                return None
+
+        if net_income and equity and float(equity) > 0:
+            roe = net_income / float(equity)
             if -2.0 <= roe <= 2.0:  # sanity: -200% to +200%
                 return round(roe, 4)
     except Exception:

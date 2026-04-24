@@ -189,8 +189,10 @@ async def create_order(
         }
     except Exception as e:
         import logging
-        logging.getLogger("yieldiq.payments").error(f"create-order failed: {type(e).__name__}: {e}")
-        raise HTTPException(status_code=500, detail=f"Payment init failed: {type(e).__name__}: {e}")
+        logging.getLogger("yieldiq.payments").exception("create-order failed: %r", e)
+        # Don't surface upstream message — Razorpay errors have included
+        # account-id fragments and key prefixes in the past.
+        raise HTTPException(status_code=500, detail="Payment initialization failed")
 
 
 @router.post("/create-subscription")
@@ -272,18 +274,15 @@ async def create_subscription(
         }
     except Exception as e:
         import logging
-        logging.getLogger("yieldiq.payments").error(
-            f"create-subscription failed for {user.get('email')} "
-            f"plan={plan_id} billing={billing} rz_plan_id={rz_plan_id}: "
-            f"{type(e).__name__}: {e}"
+        logging.getLogger("yieldiq.payments").exception(
+            "create-subscription failed for %s plan=%s billing=%s rz_plan_id=%s: %r",
+            user.get("email"), plan_id, billing, rz_plan_id, e,
         )
-        # Surface the actual Razorpay error message (e.g. "plan id is
-        # invalid", "authentication failed") so ops can fix it without
-        # needing log access. Safe to expose — no secrets in these.
-        err_msg = str(e).strip() or type(e).__name__
+        # Don't echo Razorpay's response — historically it contained
+        # the account_id and a fragment of the API key in error bodies.
         raise HTTPException(
             status_code=500,
-            detail=f"Subscription init failed: {type(e).__name__}: {err_msg}",
+            detail="Subscription initialization failed",
         )
 
 
@@ -421,13 +420,10 @@ async def verify_subscription(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(
-            "verify-subscription failed: %s: %s",
-            type(e).__name__, e,
-        )
+        logger.exception("verify-subscription failed: %r", e)
         raise HTTPException(
             status_code=500,
-            detail=f"verify-subscription failed: {type(e).__name__}: {e}",
+            detail="Subscription verification failed",
         )
 
 
@@ -542,7 +538,8 @@ async def verify_payment(
     except razorpay.errors.SignatureVerificationError:
         raise HTTPException(status_code=400, detail="Payment verification failed")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("verify-payment failed: %r", e)
+        raise HTTPException(status_code=500, detail="Payment verification failed")
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -1077,6 +1074,6 @@ async def razorpay_webhook(request: Request):
             "webhook handler failed event=%s sub=%s: %s",
             event, subscription_id, e,
         )
-        return {"ok": True, "warning": str(e)}
+        return {"ok": True, "warning": "handler-error"}
 
     return {"ok": True, "event": event}

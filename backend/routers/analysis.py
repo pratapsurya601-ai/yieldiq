@@ -23,6 +23,14 @@ from datetime import date
 router = APIRouter(prefix="/api/v1", tags=["analysis"])
 service = AnalysisService()
 
+# require_admin lives in backend.routers.admin (defined above
+# debug_router so it's importable at module-load time without
+# circular-import issues — admin doesn't import this module). The
+# /debug/* endpoints below were unauthenticated before 2026-04-25;
+# gating them prevents leaking DCF traces / parquet paths / local
+# assembler internals to anonymous callers.
+from backend.routers.admin import require_admin as _require_admin  # noqa: E402
+
 # ── Ticker renames ────────────────────────────────────────────
 # Map retired symbols → canonical symbol. Requests hit the new
 # ticker silently; frontend detects the mismatch between the URL
@@ -101,6 +109,32 @@ async def get_analysis(
     # will carry the canonical ticker — frontend compares URL param
     # to response.ticker to show a "renamed to …" banner.
     ticker = TICKER_ALIASES.get(original_ticker, original_ticker)
+
+    # ── Corporate-action redirect gate ──────────────────────────────
+    # If the ticker is in our alias YAML as demerged / demerged_pending
+    # / delisted, return a SIBLING redirect payload (not the normal
+    # AnalysisResponse shape) so the frontend can route the user to the
+    # successor entity / show a delisting notice without us trying to
+    # value a defunct ISIN. The active-ticker happy path is byte-
+    # identical to before — this branch only fires for non-active.
+    try:
+        from data_pipeline import ticker_aliases as _aliases
+        _status = _aliases.get_status(original_ticker)
+        if _status in ("demerged", "demerged_pending", "delisted"):
+            from fastapi.responses import JSONResponse as _JSONResponse
+            _payload = _aliases.get_successors_payload(original_ticker) or {}
+            _redirect = {
+                "result_kind": "corporate_action_redirect",
+                "status": _status,
+                "successors": _payload.get("successors", []),
+                "effective_date": _payload.get("effective_date"),
+                "note": _payload.get("note"),
+            }
+            return _JSONResponse(content=_redirect)
+    except Exception:
+        # Aliases module is best-effort — never break analysis on its
+        # import / parse failure. Active tickers fall through cleanly.
+        pass
 
     # Build the usage headers dict once — must be merged into EVERY
     # JSONResponse returned below. When a cache tier hits, FastAPI uses
@@ -227,51 +261,111 @@ async def get_analysis(
             _px = float(result.valuation.current_price or 0)
             _mos = float(result.valuation.margin_of_safety or 0)
             # Financials use the peer-median P/BV or P/E path, not DCF.
-            # Skip the FCF-specific checks but keep ratio/MoS sanity
-            # (defensive — a peer-path result should already be sane).
             _is_financial_path = (
                 getattr(result.valuation, "valuation_model", "") == "pb_ratio"
             )
-            # Zero fair value with positive price → validator fires
-            # mos=-100% on these (e.g. PFC.NS, other NBFCs where
-            # FCF-based DCF doesn't work). Caught by Sentry 18-Apr.
-            # For financials this should not happen with the new
-            # peer-band path, but if it does keep the data_limited
-            # fallback as a safety net.
-            if _px > 0 and _fv <= 0:
-                _suspicious = True
-            if _px > 0 and _fv > 0:
-                _r = _fv / _px
-                if _r > 3.0 or _r < 0.1:
-                    _suspicious = True
-            # Tightened from |mos|>200 to catch PFC-style -100%
-            # (previously slipped through since 100 < 200). Any mos
-            # that rounds to ±95+ is beyond what the validator allows
-            # and almost always indicates bad inputs rather than a
-            # genuinely 95%-undervalued stock.
-            # For financials valued via peer band, be slightly more
-            # permissive — a deep-value PSU bank can legitimately sit
-            # at ~60% undervalued; 95% is still outside the band.
-            if abs(_mos) >= 95 and not _is_financial_path:
-                _suspicious = True
-            if _is_financial_path and abs(_mos) >= 95:
-                # Tighter threshold for financials — the peer-band
-                # method shouldn't produce >95% MoS; if it does,
-                # inputs are bad.
-                _suspicious = True
-            if _suspicious:
-                result.valuation.verdict = "data_limited"
-                result.valuation.fair_value = 0.0
-                result.valuation.margin_of_safety = 0.0
-                result.valuation.margin_of_safety_display = 0.0
+
+            # ── FV bound-clamp (replaces the old FV=0 blanking) ─────
+            # Pre-2026-04-25 behaviour was to zero out FV / MoS when
+            # any of the four sentinels tripped:
+            #   * FV <= 0 with PX > 0          (fv_zero)
+            #   * FV/PX > 3.0                  (iv_px_high)
+            #   * FV/PX < 0.1                  (iv_px_low)
+            #   * |MoS| >= 95%                 (mos_extreme)
+            # That hid the symptom from the user (chip showed FV=0,
+            # verdict=data_limited) without giving them any signal
+            # WHY the model couldn't price the stock. We now clamp
+            # FV to the nearest plausible bound, recompute MoS off
+            # the clamped FV, set ``valuation.data_limited = True``
+            # and append a ``data_quality`` AnalyticalNoteOutput so
+            # the UI can surface a caution chip with reason-specific
+            # body copy.
+            _trigger: str | None = None
+            _clamped_fv: float | None = None
+            if _px > 0:
+                if _fv <= 0:
+                    _trigger = "fv_zero"
+                    _clamped_fv = round(_px * 0.1, 2)
+                else:
+                    _r = _fv / _px
+                    if _r > 3.0:
+                        _trigger = "iv_px_high"
+                        _clamped_fv = round(_px * 3.0, 2)
+                    elif _r < 0.1:
+                        _trigger = "iv_px_low"
+                        _clamped_fv = round(_px * 0.1, 2)
+
+            if _trigger is None and abs(_mos) >= 95:
+                # MoS-extreme path — pick clamp side from sign of MoS.
+                # Positive MoS = price below FV (FV >> px → high side).
+                # Negative MoS = price above FV (FV << px → low side).
+                _trigger = "mos_extreme"
+                if _mos >= 0:
+                    _clamped_fv = round(_px * 3.0, 2) if _px > 0 else 0.0
+                else:
+                    _clamped_fv = round(_px * 0.1, 2) if _px > 0 else 0.0
+
+            if _trigger is not None and _px > 0 and _clamped_fv is not None:
+                # Replace FV + recompute MoS off the clamped bound.
+                result.valuation.fair_value = _clamped_fv
+                _new_mos = round(((_clamped_fv - _px) / _px) * 100.0, 2)
+                result.valuation.margin_of_safety = _new_mos
+                result.valuation.margin_of_safety_display = _new_mos
                 result.valuation.mos_is_extreme = False
                 result.valuation.mos_extreme_note = None
+                result.valuation.data_limited = True
+                # Preserve existing data_issues text — clamp adds to it,
+                # never silently replaces.
                 _issues = list(getattr(result, "data_issues", []) or [])
                 _issues.append(
-                    "[critical] Fair value computation produced an "
-                    "unrealistic result — under review."
+                    "[caution] Fair value clamped to plausible bound — "
+                    f"trigger={_trigger}."
                 )
                 result.data_issues = _issues
+                # Emit a structured caution note (cap at 5 to match
+                # AnalyticalNoteOutput contract in models/responses.py).
+                try:
+                    from backend.models.responses import AnalyticalNoteOutput
+                    _bodies = {
+                        "fv_zero": (
+                            "Computed fair value was zero or negative — likely "
+                            "missing or NULL upstream cash-flow inputs. We have "
+                            "clamped the displayed fair value to 10% of the "
+                            "current price as a floor; treat the headline number "
+                            "as a data-quality signal rather than a price target."
+                        ),
+                        "iv_px_high": (
+                            "Computed fair value was more than 3x the current "
+                            "price. This usually reflects an extrapolation "
+                            "issue (negative discount rate, extreme growth "
+                            "input, or a one-off cash-flow spike). We have "
+                            "clamped the displayed fair value to 3x price."
+                        ),
+                        "iv_px_low": (
+                            "Computed fair value was less than 10% of the "
+                            "current price. This usually reflects depressed "
+                            "trough cash flows or a peer-band miss. We have "
+                            "clamped the displayed fair value to 10% of price."
+                        ),
+                        "mos_extreme": (
+                            "Computed margin of safety exceeded ±95% — beyond "
+                            "what the model can claim with confidence. Fair "
+                            "value has been clamped to the nearest plausible "
+                            "bound; the displayed MoS reflects the clamped FV."
+                        ),
+                    }
+                    _note = AnalyticalNoteOutput(
+                        kind="data_quality",
+                        severity="caution",
+                        title="Fair value clamped — data quality",
+                        body=_bodies.get(_trigger, _bodies["fv_zero"]),
+                    )
+                    _notes = list(getattr(result, "analytical_notes", []) or [])
+                    if len(_notes) < 5:
+                        _notes.append(_note)
+                        result.analytical_notes = _notes
+                except Exception:
+                    pass
         except Exception:
             pass
 
@@ -969,7 +1063,7 @@ async def get_top_pick(user: dict = Depends(get_current_user)):
 
 # Debug endpoints — keep for now, remove before public launch
 @router.get("/debug/parquet-status")
-async def debug_parquet_status():
+async def debug_parquet_status(user: dict = Depends(_require_admin)):
     """Diagnostic: check if Parquet files exist on this Railway instance."""
     import os
     from pathlib import Path
@@ -1026,7 +1120,7 @@ async def debug_parquet_status():
 
 
 @router.get("/debug/test-local/{ticker}")
-async def debug_test_local(ticker: str):
+async def debug_test_local(ticker: str, user: dict = Depends(_require_admin)):
     """Test local assembler directly — returns result or error."""
     ticker = ticker.upper().strip()
     import time as _t

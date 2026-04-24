@@ -38,6 +38,7 @@ NoteKind = Literal[
     "regulated_utility",
     "adr_usd_report",
     "high_pe_growth",
+    "data_quality",
 ]
 
 NoteSeverity = Literal["info", "caution"]

@@ -723,6 +723,28 @@ async def lifespan(app: FastAPI):
     /health endpoint responds immediately for Railway healthcheck."""
     import threading
     threading.Thread(target=_ensure_pipeline_tables, daemon=True).start()
+
+    # Screener column-mapping self-test. If SCREENER_FIELD_MAP has drifted
+    # from the live PG schema (the 2026-04-25 incident: pe_ratio mapped
+    # to rh.pe_ratio when the latest_ratio CTE only projected ROE/ROCE/D-E),
+    # log a SCREENER_SCHEMA_DRIFT line at ERROR so it shows up in Railway
+    # logs and Sentry. Runs in a background thread so it can't block the
+    # /health endpoint Railway uses for healthcheck.
+    def _screener_self_test() -> None:
+        try:
+            dsn = os.environ.get("DATABASE_URL") or os.environ.get("NEON_DATABASE_URL")
+            if not dsn:
+                return
+            from backend.routers.public import validate_screener_column_mapping
+            failures = validate_screener_column_mapping(dsn)
+            if failures:
+                for f in failures:
+                    logger.error("SCREENER_SCHEMA_DRIFT %s", f)
+        except Exception as exc:  # never raise from startup hook
+            logger.error("SCREENER_SCHEMA_DRIFT self-test crashed: %r", exc)
+
+    threading.Thread(target=_screener_self_test, daemon=True).start()
+
     sched = _start_pipeline_scheduler()
     _prewarm_popular_stocks()
     _auto_refresh_parquets_if_needed()

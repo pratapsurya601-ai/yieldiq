@@ -146,7 +146,22 @@ def _query_ttm_financials(ticker: str):
     """
     Query TTM financials from local DB.
     Returns dict with fcf, revenue, pat (INR-normalised) or None if unavailable.
+
+    3-path FCF resolution (added 2026-04-25 — see test_fcf_fallback_and_fv_clamp):
+      Path 1: TTM row has nonzero FCF → use it (source='ttm').
+      Path 2: TTM FCF is 0/None BUT at least one of the 4 underlying
+              quarterly rows carries non-NULL cfo/capex/fcf → return
+              TTM as-is; this is a partial / propagation issue, not a
+              missing-data issue (source='ttm').
+      Path 3: TTM FCF is 0/None AND all 4 quarterly rows have NULL
+              cfo+capex+fcf → the quarterly cash-flow columns are
+              unpopulated upstream. Fall back to most recent annual
+              FCF (source='ttm+annual_fcf_fallback') so DCF doesn't
+              collapse to 0.
     """
+    import logging as _log
+    _logger = _log.getLogger("yieldiq.db")
+
     db = _get_pipeline_session()
     if db is None:
         return None
@@ -161,7 +176,11 @@ def _query_ttm_financials(ticker: str):
             .order_by(desc(Financials.period_end))
             .first()
         )
-        if row and row.free_cash_flow is not None:
+        if row is None:
+            return None
+
+        # Path 1: healthy TTM FCF → primary path.
+        if row.free_cash_flow is not None and float(row.free_cash_flow or 0) != 0.0:
             fcf, rev, pat = _convert_row_to_inr(ticker, row)
             return {
                 "fcf": fcf,
@@ -171,11 +190,67 @@ def _query_ttm_financials(ticker: str):
                 "currency": getattr(row, "currency", None) or "INR",
                 "source": "ttm",
             }
-        return None
+
+        # Paths 2/3: TTM FCF is missing or zero. Inspect the 4 most
+        # recent quarterly rows to decide between "partial / data
+        # propagation issue" and "quarterly CF columns unpopulated".
+        quarters = (
+            db.query(Financials)
+            .filter(
+                Financials.ticker == db_ticker,
+                Financials.period_type == "quarterly",
+            )
+            .order_by(desc(Financials.period_end))
+            .limit(4)
+            .all()
+        )
+
+        any_quarter_has_cf = False
+        for q in quarters or []:
+            q_cfo = getattr(q, "cfo", None)
+            q_capex = getattr(q, "capex", None)
+            q_fcf = getattr(q, "free_cash_flow", None)
+            if q_cfo is not None or q_capex is not None or q_fcf is not None:
+                any_quarter_has_cf = True
+                break
+
+        if any_quarter_has_cf:
+            # Path 2: at least one quarterly has cash-flow data — TTM
+            # zero/null is a propagation gap, not missing source data.
+            # Return the TTM row as-is so callers can decide.
+            fcf, rev, pat = _convert_row_to_inr(ticker, row)
+            return {
+                "fcf": fcf,
+                "revenue": rev,
+                "pat": pat,
+                "period_end": str(row.period_end) if row.period_end else None,
+                "currency": getattr(row, "currency", None) or "INR",
+                "source": "ttm",
+            }
+
+        # Path 3: ALL 4 quarterlies have NULL cfo+capex+fcf — the
+        # underlying source rows are unpopulated. Fall back to the
+        # most recent annual FCF so DCF doesn't collapse to 0.
+        annual = _query_latest_annual_financials(ticker)
+        if annual is None:
+            return None
+
+        _logger.info(
+            "ticker=%s using annual FCF fallback (quarterly FCF columns "
+            "unpopulated; ttm_fcf=%s, %d quarterly rows inspected, all "
+            "cfo/capex/fcf NULL)",
+            ticker, row.free_cash_flow, len(quarters or []),
+        )
+        annual = dict(annual)
+        annual["source"] = "ttm+annual_fcf_fallback"
+        return annual
     except Exception:
         return None
     finally:
-        db.close()
+        try:
+            db.close()
+        except Exception:
+            pass
 
 
 def _query_latest_annual_financials(ticker: str):

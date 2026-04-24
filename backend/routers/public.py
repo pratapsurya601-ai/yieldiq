@@ -23,6 +23,92 @@ router = APIRouter(prefix="/api/v1/public", tags=["public"])
 
 
 # ─────────────────────────────────────────────────────────────────
+# Screener column mapping (module-level so CI guards can import it).
+#
+# NOTE (2026-04-25 incident): pe_ratio/pb_ratio/ev_ebitda were previously
+# mapped to ``rh.*`` (the latest_ratio CTE) but that CTE only projects
+# roe / roce / de_ratio. The columns actually live on the latest_mm CTE
+# (sourced from ``market_metrics``). Filters touching pe_ratio etc.
+# therefore raised psycopg2.errors.UndefinedColumn → HTTP 400 →
+# silent "No stocks match" in the UI. Promoting the map to module
+# scope lets ``test_screener_column_mapping.py`` probe each alias
+# against the live schema in CI.
+# ─────────────────────────────────────────────────────────────────
+SCREENER_FIELD_MAP: dict[str, str] = {
+    "pe_ratio":       "mm.pe_ratio",
+    "pb_ratio":       "mm.pb_ratio",
+    "ev_ebitda":      "mm.ev_ebitda",
+    "roe":            "rh.roe",
+    "roce":           "rh.roce",
+    "de_ratio":       "rh.de_ratio",
+    "market_cap_cr":  "mm.market_cap_cr",
+    "mcap":           "mm.market_cap_cr",   # alias
+    "mos":            "fv.mos_pct",
+    "score":          "fv.confidence",
+    "sector":         "s.sector",
+}
+
+
+def validate_screener_column_mapping(dsn: str | None) -> list[str]:
+    """Probe each SCREENER_FIELD_MAP entry against the live PG schema.
+
+    Issues one ``SELECT <col_expr> FROM <table> LIMIT 1`` per alias,
+    using the real CTE source table for each prefix. Returns a list of
+    human-readable failure strings (empty list = all good). Used by
+    both the CI parity test and the FastAPI startup self-test wired
+    in ``backend/main.py``.
+
+    This is intentionally tolerant of an empty / missing DSN: the
+    caller (startup hook) decides whether to log or no-op. The CI
+    test skips entirely when no DSN is available.
+    """
+    if not dsn:
+        return ["no DSN provided"]
+    # Map our CTE alias prefix → real underlying table for the probe.
+    _PREFIX_TABLE = {
+        "rh": "ratio_history",
+        "mm": "market_metrics",
+        "fv": "fair_value_history",
+        "s":  "stocks",
+    }
+    failures: list[str] = []
+    try:
+        import psycopg2  # local import — keep module import light
+    except Exception as exc:  # pragma: no cover - psycopg2 always present in CI
+        return [f"psycopg2 import failed: {exc!r}"]
+
+    try:
+        conn = psycopg2.connect(dsn)
+    except Exception as exc:
+        return [f"could not connect to DB: {exc!r}"]
+    try:
+        conn.autocommit = True
+        for alias, col_expr in SCREENER_FIELD_MAP.items():
+            try:
+                prefix, _, col = col_expr.partition(".")
+                if not col:
+                    failures.append(f"{alias}: malformed mapping {col_expr!r}")
+                    continue
+                table = _PREFIX_TABLE.get(prefix)
+                if not table:
+                    failures.append(
+                        f"{alias} → {col_expr}: unknown CTE prefix {prefix!r}"
+                    )
+                    continue
+                with conn.cursor() as cur:
+                    cur.execute(f"SELECT {col} FROM {table} LIMIT 1")
+                    cur.fetchone()
+            except Exception as exc:
+                failures.append(f"{alias} → {col_expr}: {exc!r}")
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+    return failures
+
+
+# ─────────────────────────────────────────────────────────────────
 # JSON-safety helper (Sentry PYTHON-FASTAPI-6V):
 # FastAPI/Pydantic's JSON encoder runs the stdlib json module with
 # allow_nan=False semantics — any NaN / Inf in the response dict
@@ -1607,19 +1693,10 @@ async def screener_query(
     # stocks exist. We map ``mos`` -> ``mos_pct`` and retire ``score``
     # (confidence is the closest persisted analogue; expose it so the
     # public /screener/fields contract still has 10 fields).
-    _ALLOWED_FIELDS: dict[str, str] = {
-        "pe_ratio":       "rh.pe_ratio",
-        "pb_ratio":       "rh.pb_ratio",
-        "ev_ebitda":      "rh.ev_ebitda",
-        "roe":            "rh.roe",
-        "roce":           "rh.roce",
-        "de_ratio":       "rh.de_ratio",
-        "market_cap_cr":  "mm.market_cap_cr",
-        "mcap":           "mm.market_cap_cr",   # alias
-        "mos":            "fv.mos_pct",
-        "score":          "fv.confidence",
-        "sector":         "s.sector",
-    }
+    # Source of truth lives at module scope as ``SCREENER_FIELD_MAP``
+    # so CI guards (test_screener_column_mapping.py) can import and
+    # probe it against the live schema. Local alias kept for readability.
+    _ALLOWED_FIELDS: dict[str, str] = SCREENER_FIELD_MAP
     _ALLOWED_OPS = {"<", ">", "<=", ">=", "=", "!="}
     _TRIPLE_RE = re.compile(r"^([a-z_]+)\s*(<=|>=|!=|<|>|=)\s*(.+)$", re.I)
 
@@ -1659,7 +1736,7 @@ async def screener_query(
         "mos": "fv.mos_pct DESC NULLS LAST",
         "score": "fv.confidence DESC NULLS LAST",
         "market_cap_cr": "mm.market_cap_cr DESC NULLS LAST",
-        "pe_ratio": "rh.pe_ratio ASC NULLS LAST",
+        "pe_ratio": "mm.pe_ratio ASC NULLS LAST",
         "roe": "rh.roe DESC NULLS LAST",
         "roce": "rh.roce DESC NULLS LAST",
         "ticker": "s.ticker ASC",

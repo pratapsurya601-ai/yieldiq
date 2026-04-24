@@ -90,7 +90,12 @@ async def add_holding(req: AddHoldingRequest, user: dict = Depends(get_current_u
         notes=req.notes,
     )
     if not ok:
-        raise HTTPException(status_code=500, detail=f"Failed to save holding: {err}")
+        # Don't echo the upstream Supabase / SQL error to the client —
+        # those messages have leaked column names, partial DSNs, and
+        # constraint internals in the past. Log server-side, return a
+        # clean generic message.
+        logger.exception("portfolio: Supabase save_holding failed: %r", err)
+        raise HTTPException(status_code=500, detail="Failed to save holding")
     return SuccessResponse(message=f"{req.ticker} added to portfolio")
 
 
@@ -247,7 +252,8 @@ async def import_holdings(req: ImportCSVRequest, user: dict = Depends(get_curren
     try:
         parsed = _parse_broker_csv(req.csv_text, req.broker)
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Could not parse CSV: {e}")
+        logger.warning("portfolio /import: CSV parse failed", exc_info=True)
+        raise HTTPException(status_code=400, detail="Could not parse CSV")
 
     return _do_import(parsed, req.broker, user)
 
@@ -296,7 +302,7 @@ async def import_holdings_file(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.warning(f"File import parse failed: {e}", exc_info=True)
-        raise HTTPException(status_code=400, detail=f"Could not parse file: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=400, detail="Could not parse file")
 
     return _do_import(parsed, broker, user)
 
