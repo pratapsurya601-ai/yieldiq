@@ -95,7 +95,23 @@ def fetch_and_store_yfinance(ticker_ns: str, ticker: str, db: Session) -> bool:
                         revenue = _get_val(inc, "Total Revenue", col) if inc is not None else None
                         pat = _get_val(inc, "Net Income", col) if inc is not None else None
                         ebitda = _get_val(inc, "EBITDA", col) if inc is not None else None
-                        total_equity = _get_val(bs, "Total Equity Gross Minority Interest", col) if bs is not None else None
+                        # BUG FIX 2026-04-24: was "Total Equity Gross Minority Interest"
+                        # which includes minority interest + Tier-1 perpetuals. For banks
+                        # this inflated equity ~50% — e.g. HDFCBANK stored 862k Cr vs real
+                        # ~570k Cr, halving ROE (7.8% vs real 11.8%) and cascading through
+                        # fair_value / HEX quality axes / composite score. Correct field is
+                        # "Stockholders Equity" (excludes minority interest), with fallback
+                        # to "Common Stock Equity" for tickers where the first field is absent.
+                        total_equity = (
+                            _get_val(bs, "Stockholders Equity", col) if bs is not None else None
+                        )
+                        if total_equity is None and bs is not None:
+                            total_equity = _get_val(bs, "Common Stock Equity", col)
+                        if total_equity is None and bs is not None:
+                            # Last-resort fallback to the old (wrong-for-banks) field
+                            # rather than returning None for non-bank tickers where
+                            # minority interest is negligible or absent.
+                            total_equity = _get_val(bs, "Total Equity Gross Minority Interest", col)
                         total_assets = _get_val(bs, "Total Assets", col) if bs is not None else None
 
                         fin = Financials(
