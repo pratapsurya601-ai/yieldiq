@@ -48,20 +48,43 @@ def compute_yieldiq_score(
 
     # Business Quality (50 pts) — Piotroski (25) + Moat (25)
     pio_score = min(piotroski / 9 * 25, 25)
+    # BUG FIX (2026-04-24): "Moderate" moat was not in the map, so every
+    # Moderate-moat ticker (HDFCBANK, ICICIBANK, TCS, HCLTECH, MARUTI, HUL,
+    # NESTLE, ASIANPAINT etc.) was scored as no-moat (0 pts instead of ~15).
+    # This alone was dragging composite scores down 15-20 points across
+    # most of the Nifty-30. Also added A+ / B+ / C+ grade variants to avoid
+    # similar misses from the narrative-layer grade output.
     _moat_map = {
-        "A": 25, "B": 18, "C": 10, "D": 3,
-        "Wide": 25, "Narrow": 18,
-        "None": 0, "none": 0, "N/A": 0, "": 0,
+        # Numeric grades (from moat_service)
+        "A+": 25, "A": 25, "B+": 22, "B": 18, "C+": 13, "C": 10, "D": 3,
+        # Narrative grades (from hex_service / prism)
+        "Wide": 25, "Narrow": 18, "Moderate": 15,
+        # Absent-moat variants
+        "None": 0, "none": 0, "N/A": 0, "n/a": 0, "": 0,
     }
     moat_pts   = _moat_map.get(str(moat_grade).strip(), 0)
     qual_score = pio_score + moat_pts
 
     # Growth (20 pts)
-    if rev_growth >= 20:    grw_score = 20
-    elif rev_growth >= 10:  grw_score = 15
-    elif rev_growth >= 5:   grw_score = 10
-    elif rev_growth >= 0:   grw_score = 5
-    else:                   grw_score = 0
+    # BUG FIX (2026-04-24): rev_growth arrives in DECIMAL form from
+    # `enriched["revenue_growth"]` (e.g. 0.15 = 15%), but this formula
+    # was calibrated for PERCENT (15 = 15%). Result: every growing
+    # company got grw_score=5 (the "rev_growth >= 0" bucket) instead
+    # of 10-20. Detect decimal form (|rev_growth| < 1.5) and convert
+    # to percent. 1.5x is the threshold because decimal growth beyond
+    # 150% is unrealistic for annual revenue — any value >= 1.5 is
+    # almost certainly already in percent units.
+    _rg = rev_growth
+    try:
+        if _rg is not None and -1.5 < float(_rg) < 1.5:
+            _rg = float(_rg) * 100.0
+    except (TypeError, ValueError):
+        _rg = 0
+    if _rg >= 20:    grw_score = 20
+    elif _rg >= 10:  grw_score = 15
+    elif _rg >= 5:   grw_score = 10
+    elif _rg >= 0:   grw_score = 5
+    else:            grw_score = 0
 
     # Sentiment (10 pts)
     if analyst_upside >= 20:    sent_score = 10

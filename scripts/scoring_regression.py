@@ -92,6 +92,7 @@ _ROW_RE = re.compile(
     r"^\s*\|\s*"
     r"(?P<ticker>[A-Z0-9._-]+\.[A-Z]{2})\s*\|\s*"    # TICKER.NS / .BO
     r"(?P<sector>[^|]*?)\s*\|\s*"                    # sector (may be blank)
+    r"(?:[^|]*?\|\s*)*?"                             # tolerate optional intermediate cells (e.g. moat)
     r"(?P<lo>\d+(?:\.\d+)?)\s*(?:-|to|–|—)\s*(?P<hi>\d+(?:\.\d+)?)"  # range
     r"\s*\|\s*"
     r"(?P<mid>\d+(?:\.\d+)?)?"                       # optional explicit mid
@@ -284,11 +285,28 @@ def main() -> int:
         print(f"ERROR: no rows parsed from {args.baseline}", file=sys.stderr)
         return 2
 
-    observed_map = fetch_observed([g.ticker for g in gt_rows])
+    # Fetch both suffix (.NS) and bare forms — analysis_cache stores
+    # separately under each ticker key, and different API paths populate
+    # different formats. Prefer the HIGHEST cache_version when both exist.
+    all_tickers: list[str] = []
+    for g in gt_rows:
+        all_tickers.append(g.ticker)
+        bare = g.ticker.replace(".NS", "").replace(".BO", "")
+        if bare != g.ticker:
+            all_tickers.append(bare)
+    observed_map = fetch_observed(all_tickers)
 
     results: list[RegressionResult] = []
     for g in gt_rows:
-        obs_row = observed_map.get(g.ticker)
+        # Try .NS first, then bare form. Pick highest cache_version.
+        bare = g.ticker.replace(".NS", "").replace(".BO", "")
+        candidates = [observed_map.get(g.ticker), observed_map.get(bare)]
+        candidates = [c for c in candidates if c is not None]
+        if candidates:
+            candidates.sort(key=lambda c: int(c.get("cache_version") or 0), reverse=True)
+            obs_row = candidates[0]
+        else:
+            obs_row = None
         obs_score = obs_row.get("score") if obs_row else None
         cache_v = obs_row.get("cache_version") if obs_row else None
         status, gap = classify(g, obs_score, args.tolerance)
