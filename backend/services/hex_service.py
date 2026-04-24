@@ -481,6 +481,27 @@ def _axis_value_bank(data: dict) -> dict:
     metrics = data.get("metrics") or {}
     pb = metrics.get("pb_ratio")
     mos_pct = _dig(analysis, "valuation", "margin_of_safety")
+
+    # ── BUG FIX #2 (HEX_AXIS_SOURCE_MAP.md §9 Bug #2) ─────────────
+    # NBFCs are classified into sector="bank" by `_classify_sector`
+    # via `_NBFC_TICKERS`, but the bank P/BV anchor of 2.5x is
+    # calibrated for deposit-funded banks. Indian NBFCs structurally
+    # trade at 3-6x P/BV because of their asset-light lending model
+    # plus higher ROE. Using the bank anchor floors BAJFINANCE
+    # (P/B ~5.5), BAJAJFINSV, CHOLAFIN, MUTHOOTFIN to Value=0 and
+    # drags the composite down to ~22 (observed BAJFINANCE=22 pre-fix).
+    #
+    # Detect NBFC by bare-ticker lookup and apply a higher P/BV anchor
+    # (3.5x = neutral) with a gentler slope so an NBFC at a reasonable
+    # 4x P/BV still scores ~4/10 instead of 0.
+    # Expected recovery: BAJFINANCE Value 0 -> ~4; composite 22 -> 55-65.
+    ticker_raw = data.get("ticker") or ""
+    t_bare = (
+        ticker_raw.upper().replace(".NS", "").replace(".BO", "")
+        if isinstance(ticker_raw, str) else ""
+    )
+    is_nbfc = t_bare in _NBFC_TICKERS
+
     if pb is None and mos_pct is None:
         return _neutral_axis("No P/BV or MoS available")
     score = 5.0
@@ -488,11 +509,20 @@ def _axis_value_bank(data: dict) -> dict:
     if pb is not None:
         try:
             pb_f = float(pb)
-            # Banking peer band centre ~2.5x; <1.5 cheap (+2), >4 rich (-2).
-            adj = (2.5 - pb_f) * 1.5
-            adj = max(-2.5, min(2.5, adj))
-            score += adj
-            reasons.append(f"P/BV {pb_f:.2f}")
+            if is_nbfc:
+                # NBFC band: anchor 3.5x (cohort neutral). Each 0.5 above
+                # -> -1.0 point; each 0.5 below -> +1.0. Capped so a
+                # single metric cannot pin to floor/ceiling.
+                adj = (3.5 - pb_f) * 2.0
+                adj = max(-2.5, min(2.5, adj))
+                score += adj
+                reasons.append(f"P/BV {pb_f:.2f} (NBFC cohort)")
+            else:
+                # Banking peer band centre ~2.5x; <1.5 cheap (+2), >4 rich (-2).
+                adj = (2.5 - pb_f) * 1.5
+                adj = max(-2.5, min(2.5, adj))
+                score += adj
+                reasons.append(f"P/BV {pb_f:.2f}")
         except Exception:
             pass
     if mos_pct is not None:
@@ -673,31 +703,56 @@ def _axis_growth(data: dict, sector: str = "general") -> dict:
         dep_yoy = q.get("deposits_yoy")
         pat_yoy = q.get("pat_yoy_bank")
         parts = [v for v in (adv_yoy, dep_yoy, pat_yoy) if v is not None]
-        if not parts:
-            return _neutral_axis("No bank growth history")
-        score = 5.0
-        reasons: list[str] = []
-        # Each +10% composite growth ≈ +1.0 axis point.
-        # Advances / deposits get equal weight; PAT is quality-of-growth.
-        # Inputs are in PERCENT units (see UNIT CONTRACT above), so
-        # `avg * 0.10` yields the correct score contribution.
-        try:
-            comps = [float(v) for v in parts]
-            avg = sum(comps) / len(comps)
-            score += avg * 0.10
-        except Exception:
-            return _neutral_axis("Bank growth parse error")
-        if adv_yoy is not None:
-            reasons.append(f"Adv YoY {float(adv_yoy):.1f}%")
-        if dep_yoy is not None:
-            reasons.append(f"Dep YoY {float(dep_yoy):.1f}%")
-        if pat_yoy is not None:
-            reasons.append(f"PAT YoY {float(pat_yoy):.1f}%")
-        return _axis(
-            score,
-            ", ".join(reasons) if reasons else "Bank growth partial",
-            data_limited=False,
+        if parts:
+            score = 5.0
+            reasons: list[str] = []
+            # Each +10% composite growth ≈ +1.0 axis point.
+            # Advances / deposits get equal weight; PAT is quality-of-growth.
+            # Inputs are in PERCENT units (see UNIT CONTRACT above), so
+            # `avg * 0.10` yields the correct score contribution.
+            try:
+                comps = [float(v) for v in parts]
+                avg = sum(comps) / len(comps)
+                score += avg * 0.10
+            except Exception:
+                return _neutral_axis("Bank growth parse error")
+            if adv_yoy is not None:
+                reasons.append(f"Adv YoY {float(adv_yoy):.1f}%")
+            if dep_yoy is not None:
+                reasons.append(f"Dep YoY {float(dep_yoy):.1f}%")
+            if pat_yoy is not None:
+                reasons.append(f"PAT YoY {float(pat_yoy):.1f}%")
+            return _axis(
+                score,
+                ", ".join(reasons) if reasons else "Bank growth partial",
+                data_limited=False,
+            )
+        # ── BUG FIX #3 Part B (HEX_AXIS_SOURCE_MAP.md §9 Bug #4) ─────
+        # Bank-specific YoY fields (advances_yoy, deposits_yoy,
+        # pat_yoy_bank) were added in feat/bank-prism-metrics on
+        # 2026-04-21. Any `analysis_cache.payload` written before
+        # that date — or any bank ticker whose `_is_bank_like`
+        # detection in analysis/service.py missed (e.g. SBIN when
+        # sector string is NULL and the BANK.NS suffix check fails) —
+        # has all three fields = None, which previously made the
+        # Growth axis return neutral 5.0 and crushed composite scores
+        # (HDFCBANK=17 pre-fix).
+        #
+        # Defensive fallback: when bank YoY fields are missing, fall
+        # through to the general-branch revenue/EPS CAGR logic below,
+        # computed on the fly from `data.financials`. This keeps Growth
+        # lit with a real signal until the cache refreshes under a
+        # bumped CACHE_VERSION.
+        # Affected tickers: HDFCBANK, ICICIBANK, KOTAKBANK, SBIN,
+        # AXISBANK, BAJFINANCE, BAJAJFINSV.
+        # Expected recovery: HDFCBANK Growth 5.0 -> 6-7 using
+        # revenue/EPS CAGR from financials; composite 17 -> ~55+.
+        logger.info(
+            "hex: bank YoY growth fields missing for %s, falling back "
+            "to revenue/EPS CAGR from financials",
+            data.get("ticker") or "?",
         )
+        # Flow continues into the general-branch CAGR code path below.
 
     # Revenue CAGR — from analysis payload first, financials as fallback.
     #
@@ -935,6 +990,32 @@ def _axis_safety(data: dict, sector: str) -> dict:
     de = q.get("de_ratio") or q.get("debt_to_equity")
     int_cov = q.get("interest_coverage")
     altman = q.get("altman_z")
+
+    # ── BUG FIX #1 (HEX_AXIS_SOURCE_MAP.md §9 Bug #1) ─────────────
+    # D/E unit normalisation. yfinance's `info.debtToEquity` returns
+    # the ratio as PERCENT (e.g. 45.0 means 45% i.e. 0.45), but the
+    # downstream arithmetic in the general + IT Safety branches
+    # expects DECIMAL (0.45). Feeding raw 45.0 into `(1.0 - de)*2.0`
+    # clips the score to -3.0 and collapses Safety to ~2.0/10 for
+    # every non-IT general stock with real debt — RELIANCE, ASIANPAINT,
+    # POWERGRID, NTPC, L&T all showed Safety 2-4 pre-fix.
+    #
+    # Heuristic: any reported D/E > 5.0 is almost certainly in
+    # percent units. A real decimal D/E of 5+ would itself be a
+    # distress signal and the rest of the Safety formula (interest
+    # coverage + Altman Z) would still flag it.
+    #
+    # Banks route to the bank branch above and never reach here, so
+    # their structural 10-15x D/E is not affected by this guard.
+    # Expected recovery: RELIANCE Safety ~3/10 -> ~6/10; composite
+    # lift ~1 point on dozens of general-branch Nifty names.
+    if de is not None:
+        try:
+            de_raw = float(de)
+            if de_raw > 5.0:
+                de = de_raw / 100.0
+        except (TypeError, ValueError):
+            pass
 
     # PR-D1: bank-aware Safety branch.
     # Banks should NOT be scored on D/E / interest coverage / Altman Z —
