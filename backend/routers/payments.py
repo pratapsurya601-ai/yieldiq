@@ -348,8 +348,21 @@ async def verify_subscription(
                 # razorpay_sub_id → user_email for lifecycle events.
                 # on_conflict=razorpay_sub_id (UNIQUE) makes this safe
                 # for repeat calls if user retries checkout.
-                client_sb.table("subscriptions").upsert({
-                    "user_email": user["email"],
+                # Bug C fix: normalise email to lower+strip so the
+                # stored row matches auth.users.email exactly — some
+                # Supabase auth flows echo back the original-case email
+                # the user typed at signup, which broke the case-sensitive
+                # webhook lookup (`.eq("email", uppercase)` silently
+                # missed the lowercase users_meta row).
+                _norm_email = (user["email"] or "").strip().lower()
+                # Bug B fix: stamp the catalogue price as amount_paise /
+                # currency on initial insert so revenue is visible in
+                # the subscriptions table even if the webhook payload
+                # somehow arrives without a payment entity.
+                _plan_amount = PLANS.get(new_tier, {}).get("amount")
+                _plan_currency = PLANS.get(new_tier, {}).get("currency", "INR")
+                _sub_row: dict = {
+                    "user_email": _norm_email,
                     "razorpay_sub_id": razorpay_subscription_id,
                     "razorpay_payment_id": razorpay_payment_id,
                     "razorpay_plan_id": RAZORPAY_PLAN_IDS.get(
@@ -357,7 +370,21 @@ async def verify_subscription(
                     ),
                     "tier": new_tier,
                     "status": "active",
-                }, on_conflict="razorpay_sub_id").execute()
+                    "currency": _plan_currency,
+                }
+                if _plan_amount:
+                    _sub_row["amount_paise"] = _plan_amount
+                client_sb.table("subscriptions").upsert(
+                    _sub_row, on_conflict="razorpay_sub_id",
+                ).execute()
+
+                # Bug A fix: also mirror tier into auth.users metadata
+                # here so the synchronous post-checkout path (before
+                # the webhook fires) gets the user the right UI
+                # immediately.
+                _propagate_tier_to_auth_metadata(
+                    user["user_id"], new_tier, logger,
+                )
         except Exception as sb_exc:
             # Don't fail the whole request if Supabase write fails —
             # the user has already paid. Log loudly so we can
@@ -623,6 +650,113 @@ def _razorpay_event_id(payload: dict) -> str | None:
     return f"rzp:{account_id}:{event}:{created_at}"
 
 
+def _propagate_tier_to_auth_metadata(user_id: str, tier: str, logger) -> None:
+    """Mirror the subscribed tier into auth.users.raw_user_meta_data.
+
+    Why: the frontend reads the user's tier from the JWT's
+    `user_metadata.tier` (minted from raw_user_meta_data on login /
+    refresh). Without this propagation, a paying user keeps seeing the
+    free-tier product until they log out and back in — even though
+    users_meta + subscriptions correctly show them as 'analyst' / 'pro'.
+    This was the root cause of the Kedar-2026-04-22 incident where a
+    paid user saw free-tier UI for 2 days before manual intervention.
+
+    Merge semantics: we READ existing user_metadata first and merge
+    {tier, email_verified} on top so we never clobber whatever else
+    Supabase / other code paths have stored there (e.g. full_name,
+    avatar_url, Google OAuth fields).
+
+    Best-effort: any failure is logged and swallowed. The subscriptions
+    row is the authoritative source; propagation is a UX convenience.
+    NEVER raises — a failure here must not cause Razorpay to retry the
+    webhook and risk duplicate side effects.
+    """
+    if not user_id or not tier:
+        return
+    try:
+        from db.supabase_client import get_admin_client
+        admin = get_admin_client()
+        if admin is None:
+            logger.warning(
+                "tier propagation skipped — no admin client (user=%s tier=%s)",
+                user_id, tier,
+            )
+            return
+        existing_meta: dict = {}
+        try:
+            existing = admin.auth.admin.get_user_by_id(user_id)
+            _u = getattr(existing, "user", None) if existing is not None else None
+            _m = getattr(_u, "user_metadata", None) if _u is not None else None
+            if isinstance(_m, dict):
+                existing_meta = dict(_m)
+        except Exception as read_exc:
+            # Non-fatal: fall through to a write that only sets the
+            # keys we care about. Worst case we overwrite nothing else
+            # because the account has no prior metadata.
+            logger.info(
+                "tier propagation: could not read existing metadata for %s (%s) — continuing with merge",
+                user_id, read_exc,
+            )
+
+        merged = {**existing_meta, "tier": tier, "email_verified": True}
+        admin.auth.admin.update_user_by_id(
+            user_id, {"user_metadata": merged},
+        )
+        logger.info(
+            "tier propagated to auth.users metadata: user=%s tier=%s",
+            user_id, tier,
+        )
+    except Exception as exc:
+        logger.warning(
+            "tier propagation failed (non-fatal) user=%s tier=%s: %s: %s",
+            user_id, tier, type(exc).__name__, exc,
+        )
+
+
+def _extract_amount_paise(payload: dict, logger) -> tuple[int | None, str]:
+    """Pull (amount_paise, currency) out of a Razorpay webhook payload.
+
+    Preference order:
+      1. `payload.payment.entity.amount` — present on
+         `subscription.charged` (actual money moved this cycle).
+      2. Plan lookup via `payload.subscription.entity.plan_id` →
+         PLANS[...] amount, so `subscription.activated` (which may or
+         may not carry a payment entity depending on Razorpay config)
+         still gets a useful amount.
+
+    Returns (None, 'INR') if neither is resolvable — caller should
+    still proceed with the webhook, it's not fatal.
+    """
+    try:
+        inner = (payload.get("payload") or {}) if isinstance(payload, dict) else {}
+        payment_entity = ((inner.get("payment") or {}).get("entity") or {})
+        amt = payment_entity.get("amount")
+        cur = payment_entity.get("currency") or "INR"
+        if isinstance(amt, int) and amt > 0:
+            return amt, cur
+
+        sub_entity = ((inner.get("subscription") or {}).get("entity") or {})
+        plan_id = sub_entity.get("plan_id") or ""
+        # Map Razorpay plan_id → our PLANS dict by reverse-looking-up
+        # the RAZORPAY_PLAN_IDS mapping. Fall back to the notes.tier
+        # so a mis-labelled plan still yields a best-effort amount.
+        for key, rz_id in RAZORPAY_PLAN_IDS.items():
+            if rz_id and rz_id == plan_id:
+                # key looks like 'analyst_monthly' / 'pro_annual'.
+                tier_key = key if key in PLANS else key.split("_")[0]
+                plan = PLANS.get(tier_key) or PLANS.get(key)
+                if plan:
+                    return int(plan.get("amount") or 0) or None, plan.get("currency", "INR")
+
+        notes_tier = (sub_entity.get("notes") or {}).get("tier")
+        if notes_tier and notes_tier in PLANS:
+            plan = PLANS[notes_tier]
+            return int(plan.get("amount") or 0) or None, plan.get("currency", "INR")
+    except Exception as exc:
+        logger.info("amount extract failed (non-fatal): %s: %s", type(exc).__name__, exc)
+    return None, "INR"
+
+
 def _claim_webhook_event(event_id: str, event_type: str, logger) -> bool:
     """Attempt to claim this event_id in `webhook_events`.
 
@@ -801,29 +935,105 @@ async def razorpay_webhook(request: Request):
                 subscription_id, event,
             )
             return {"ok": True, "warning": "no-subscriptions-row"}
-        user_email = rows[0]["user_email"]
+        # Bug C fix: always normalise the email we carry around inside
+        # the webhook — the subscriptions row may have been inserted
+        # with mixed case (Kedar's row stored 'KEDAR@...' while
+        # auth.users had the lowercase form, causing the email-based
+        # users_meta update below to silently miss). Lower+strip here
+        # so every downstream `.eq("email", ...)` hits the canonical
+        # form. Also fix the stored row in place so future lookups are
+        # consistent.
+        raw_email = rows[0]["user_email"] or ""
+        user_email = raw_email.strip().lower()
         stored_tier = rows[0].get("tier") or "analyst"
+        if raw_email != user_email:
+            try:
+                client_sb.table("subscriptions").update({
+                    "user_email": user_email,
+                }).eq("razorpay_sub_id", subscription_id).execute()
+                logger.info(
+                    "webhook normalised stored user_email from %r to %r (sub=%s)",
+                    raw_email, user_email, subscription_id,
+                )
+            except Exception as norm_exc:
+                logger.warning(
+                    "webhook email normalisation update failed (non-fatal): %s: %s",
+                    type(norm_exc).__name__, norm_exc,
+                )
+
+        # Bug B fix: pull the paise amount off the webhook payload so
+        # the subscriptions row reflects revenue. `subscription.charged`
+        # carries payload.payment.entity.amount; `subscription.activated`
+        # may not, so we fall back to the plan's catalogue amount.
+        amount_paise, amount_currency = _extract_amount_paise(payload, logger)
+
+        # Resolve user_id (UUID) for this email so we can mirror the
+        # tier into auth.users.raw_user_meta_data (Bug A fix). Looked
+        # up via users_meta which stores id + email. Best-effort — a
+        # missing row shouldn't derail the webhook.
+        user_id: str | None = None
+        try:
+            um = (
+                client_sb.table("users_meta")
+                .select("id")
+                .eq("email", user_email)
+                .limit(1)
+                .execute()
+            )
+            um_rows = um.data or []
+            if um_rows:
+                user_id = um_rows[0].get("id")
+        except Exception as uid_exc:
+            logger.warning(
+                "webhook user_id lookup failed for %s (non-fatal): %s: %s",
+                user_email, type(uid_exc).__name__, uid_exc,
+            )
 
         if event == "subscription.activated":
             new_tier = tier_hint if tier_hint in ("analyst", "pro") else stored_tier
             client_sb.table("users_meta").update({
                 "tier": new_tier,
             }).eq("email", user_email).execute()
-            client_sb.table("subscriptions").update({
+            sub_update: dict = {
                 "status": "active",
                 "tier": new_tier,
-            }).eq("razorpay_sub_id", subscription_id).execute()
+            }
+            if amount_paise:
+                sub_update["amount_paise"] = amount_paise
+                sub_update["currency"] = amount_currency
+            client_sb.table("subscriptions").update(sub_update).eq(
+                "razorpay_sub_id", subscription_id
+            ).execute()
+            # Bug A fix: mirror tier into auth.users metadata so the
+            # next JWT minted for this user carries tier=new_tier and
+            # the frontend stops showing free-tier UI.
+            if user_id:
+                _propagate_tier_to_auth_metadata(user_id, new_tier, logger)
+                invalidate_tier_cache(user_id)
             logger.info(
-                "webhook promoted %s (sub=%s) to tier=%s",
-                user_email, subscription_id, new_tier,
+                "webhook promoted %s (sub=%s) to tier=%s amount=%s",
+                user_email, subscription_id, new_tier, amount_paise,
             )
 
         elif event == "subscription.charged":
             # Successful renewal — no tier change, just log & stamp.
-            client_sb.table("subscriptions").update({
-                "status": "active",
-            }).eq("razorpay_sub_id", subscription_id).execute()
-            logger.info("webhook renewal charged: sub=%s", subscription_id)
+            sub_update = {"status": "active"}
+            if amount_paise:
+                sub_update["amount_paise"] = amount_paise
+                sub_update["currency"] = amount_currency
+            client_sb.table("subscriptions").update(sub_update).eq(
+                "razorpay_sub_id", subscription_id
+            ).execute()
+            # Bug A fix: re-assert tier propagation on every charge so
+            # a user whose metadata drifted (e.g. previous propagation
+            # failed transiently) is self-heals on the next renewal.
+            if user_id and stored_tier in ("analyst", "pro"):
+                _propagate_tier_to_auth_metadata(user_id, stored_tier, logger)
+                invalidate_tier_cache(user_id)
+            logger.info(
+                "webhook renewal charged: sub=%s amount=%s",
+                subscription_id, amount_paise,
+            )
 
         elif event == "subscription.halted":
             # Razorpay retries failed cards for ~3 days. Do NOT demote
@@ -847,6 +1057,11 @@ async def razorpay_webhook(request: Request):
             client_sb.table("subscriptions").update({
                 "status": event.split(".")[-1],  # "cancelled" or "completed"
             }).eq("razorpay_sub_id", subscription_id).execute()
+            # Bug A fix: also demote tier in auth.users metadata so the
+            # frontend reflects the downgrade on next JWT refresh.
+            if user_id:
+                _propagate_tier_to_auth_metadata(user_id, "free", logger)
+                invalidate_tier_cache(user_id)
             logger.info(
                 "webhook demoted %s (sub=%s) to free (%s)",
                 user_email, subscription_id, event,
