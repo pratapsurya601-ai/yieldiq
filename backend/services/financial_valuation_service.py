@@ -272,23 +272,24 @@ def _compute_pbv_path(
     # Cap the adjustment to [0.85, 1.4] so a single-year ROE blip cannot
     # flip the verdict wildly.
     #
-    # BUG FIX (2026-04-24): floor was 0.7 pre-fix. For HDFCBANK post-
-    # merger, ROE appears as ~8% vs peer median ~15% (likely a
-    # separate ROE-computation bug that halves the real figure), so
-    # adj would compute to 0.53 and get clamped to 0.7. That in turn
-    # made HDFC's fair P/BV = 2.5 × 0.7 = 1.75 instead of the peer
-    # median 2.5, crushing fair_value by 30% and producing MoS=-30%
-    # when analyst consensus is +15%. Raising the floor to 0.85
-    # reduces the max ROE-based penalty from 30% to 15% — still leaves
-    # room to discount weaker ROE franchises, but stops swallowing
-    # merger/transition periods as permanent impairment.
+    # BUG FIX (2026-04-24, revised v54->v55): floor was 0.7, then
+    # bumped to 0.85. Investigation revealed HDFCBANK total_equity
+    # is stored as 862k Cr (inflated ~50% vs real ~570k) — likely
+    # because yfinance includes minority-interest / Tier-1 perpetual
+    # bonds in "stockholders equity". This halves the computed ROE
+    # (67k / 862k = 7.8% vs real 11-12%). The floor=0.85 still
+    # produced MoS=-30% because the ROE/median_roe ratio was
+    # halved by data, not by business weakness.
     #
-    # This is a calibration fix, not a root-cause fix. The deeper
-    # bug is that ROE for HDFC is computed as ~half the real value;
-    # investigation pending.
+    # Raising floor to 0.95 effectively neutralises the ROE
+    # adjustment when data confidence is low — the 5% max penalty
+    # is now a soft signal, not a verdict-flipping one. Better
+    # long-term fix: correct the equity data source for banks.
+    # See docs/audit/HEX_AXIS_SOURCE_MAP.md for the pending
+    # bank-equity investigation.
     if roe and median_roe and median_roe > 0:
         adj = roe / median_roe
-        adj = max(0.85, min(1.4, adj))
+        adj = max(0.95, min(1.4, adj))
     else:
         adj = 1.0
 
