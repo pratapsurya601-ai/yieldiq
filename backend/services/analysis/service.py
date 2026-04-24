@@ -24,8 +24,12 @@ if _DASHBOARD_ROOT not in sys.path:
 from backend.models.responses import (
     AnalysisResponse, ValuationOutput, QualityOutput,
     InsightCards, BulkDealItem, CompanyInfo, ScenariosOutput, ScenarioCase,
-    PriceLevels, ScreenerStock, RedFlag,
+    PriceLevels, ScreenerStock, RedFlag, AnalyticalNoteOutput,
 )
+# PR #69: contextual disclaimer system — attaches 1–5 rule-based
+# notes (premium brand / conglomerate / regulated utility / etc.)
+# to every analysis payload. Purely additive, never influences FV.
+from backend.services.analytical_notes import compute_notes as _compute_analytical_notes
 # CACHE_VERSION is stamped into the computation_inputs snapshot so the
 # audit trail records exactly which code generation produced an FV.
 from backend.services.cache_service import CACHE_VERSION
@@ -1474,6 +1478,14 @@ class AnalysisService(NarrativeMixin):
                 if _eq and _eq > 0:
                     enriched["debt_to_equity"] = _td / _eq
             enriched["ticker"] = ticker
+            # Tag regulated utilities for downstream analytical notes.
+            # Mirrors REGULATED_UTILITY_TICKERS in models/industry_wacc.py.
+            try:
+                from models.industry_wacc import REGULATED_UTILITY_TICKERS
+                _t_bare = ticker.upper().replace(".NS", "").replace(".BO", "")
+                enriched["is_regulated_utility"] = _t_bare in REGULATED_UTILITY_TICKERS
+            except Exception:
+                enriched["is_regulated_utility"] = False
         except Exception:
             pass
 
@@ -1587,6 +1599,28 @@ class AnalysisService(NarrativeMixin):
             }
         except Exception:
             _computation_inputs = None
+
+        # ── PR #69: contextual analytical notes ──────────────────
+        # Rule-based flags (premium brand / conglomerate / cyclical
+        # trough / post-merger / regulated utility / high-P/E /
+        # ADR). Pattern-matched — no hardcoded ticker maintenance
+        # beyond the tiny conglomerate allowlist. Purely additive;
+        # failure here must never break the response.
+        _analytical_notes: list[AnalyticalNoteOutput] = []
+        try:
+            _note_enriched = dict(enriched) if isinstance(enriched, dict) else {}
+            _note_enriched.setdefault("ticker", ticker)
+            _note_metrics: dict = {}
+            _raw_notes = _compute_analytical_notes(
+                _note_enriched,
+                {"ticker": ticker, "sector": company.sector},
+                _note_metrics,
+            )
+            _analytical_notes = [
+                AnalyticalNoteOutput(**n.to_dict()) for n in _raw_notes
+            ]
+        except Exception:
+            _analytical_notes = []
 
         return AnalysisResponse(
             ticker=ticker,
@@ -1726,6 +1760,7 @@ class AnalysisService(NarrativeMixin):
             ),
             data_confidence=_confidence,
             data_issues=_data_issues,
+            analytical_notes=_analytical_notes,
             timestamp=_ts,
             computation_inputs=_computation_inputs,
         )
