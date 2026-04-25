@@ -217,21 +217,59 @@ def parse_scope(text: str | None) -> set[str] | None:
     """Extract ``sector-scope:`` from commit message / PR body.
 
     Returns None if no declaration is found (caller decides whether that
-    is fatal). Returns ``{'*'}`` for an explicit global override.
-    Otherwise returns a set of sector labels exactly as declared.
+    is fatal). Returns ``{'*'}`` for an explicit global override. Returns
+    an empty set for ``sector-scope: none`` (asserts no sector should
+    shift; any drift then fails the gate). Otherwise returns a set of
+    sector labels exactly as declared.
+
+    Tolerates Markdown decorations on the host line because PR bodies
+    routinely wrap the directive in backticks (`` `sector-scope: *` ``),
+    blockquotes (``> sector-scope: *``), list bullets (``- sector-scope:
+    *``) or trailing punctuation/closing backticks. The 2026-04-25
+    incident on PR #75 was caused by ``low.startswith("sector-scope:")``
+    failing on a backtick-wrapped declaration. We now strip the obvious
+    Markdown noise off both ends before matching, and also tolerate the
+    directive appearing partway through a line ("note: sector-scope: *").
+
     Matching against the snapshot is case-insensitive.
     """
     if not text:
         return None
+    # Strip leading/trailing chars that show up around inline directives
+    # in Markdown PR bodies / commit messages: backticks, blockquote
+    # markers, list bullets, whitespace. Deliberately EXCLUDES `*` and
+    # `_` — both can appear as legitimate scope tokens (`*` = global
+    # override) or sector-name characters, and stripping them would lose
+    # the payload (regression from the 2026-04-25 PR #75 incident).
+    _LINE_STRIP = " \t`>•-"
     for line in text.splitlines():
-        s = line.strip()
+        s = line.strip().strip(_LINE_STRIP)
         low = s.lower()
-        if not low.startswith("sector-scope:"):
+        # Find the directive even if it's preceded by inline preamble
+        # (e.g. "Note: sector-scope: *"); only the first occurrence on
+        # the line counts.
+        idx = low.find("sector-scope:")
+        if idx == -1:
             continue
-        payload = s.split(":", 1)[1].strip()
+        payload = s[idx + len("sector-scope:") :].strip().strip(_LINE_STRIP)
+        # Strip an optional trailing comma/punctuation that often follows
+        # an inline directive ("sector-scope: *, see docs/...").
+        if payload.endswith(","):
+            payload = payload[:-1].strip()
         if payload == "*":
             return {"*"}
-        parts = [p.strip() for p in payload.split(",") if p.strip()]
+        if payload.lower() == "none":
+            # Explicit "this PR shifts no sector" assertion. Any drift on
+            # any sector then fails the gate — which is exactly what the
+            # author is opting into.
+            return set()
+        parts = [p.strip().strip(_LINE_STRIP) for p in payload.split(",") if p.strip()]
+        # If `*` is anywhere in the parsed list, it's a global override —
+        # "Cement, *" is functionally identical to "*". Also catches
+        # "sector-scope: *, see docs/X" where the prose tail leaked into
+        # the payload.
+        if "*" in parts:
+            return {"*"}
         return set(parts)
     return None
 
