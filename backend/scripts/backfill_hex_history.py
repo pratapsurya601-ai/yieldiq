@@ -131,14 +131,30 @@ def _diagnose_empty(ticker: str) -> dict:
 
 
 def _seed_one_from_cache(ticker: str) -> int:
-    """Synthesise a single current-quarter hex_history row from the
-    analysis_cache payload's already-computed hex axes.
+    """Synthesise a single current-quarter hex_history row using the
+    SAME 6-axis derivation as the live API.
 
-    This is a fallback for tickers where the upstream financial
-    sources haven't ingested yet but we DO have a fresh
-    analysis_cache row (because a user has triggered a /analysis call
-    recently). Without this seeding, those tickers show no history
-    in the UI for up to a week until the next ingest cycle catches up.
+    Goes through ``backend.services.analysis.hex_axes.compute_axes_for_ticker``
+    — the single source of truth that delegates to
+    ``hex_service.compute_hex_safe``. Two prior bugs in this function,
+    fixed together:
+
+      (1) The previous implementation read ``payload["hex"]["axes"]``,
+          a key the analysis pipeline NEVER writes into the cache row.
+          Result: ``axes`` was always ``{}``, and every ticker silently
+          returned 0 from the seeder. The 2026-04-25 backfill produced
+          0 hex_history rows across all 50 canary tickers.
+
+      (2) The previous INSERT targeted columns ``axes JSONB`` and
+          ``source TEXT`` — neither of which exist on the
+          ``hex_history`` table. The real schema (see
+          ``hex_history_service._ensure_history_table``) has explicit
+          ``{value,quality,growth,moat,safety,pulse}_score`` numeric
+          columns plus ``overall``, ``refraction_index``,
+          ``verdict_band``, and ``quarter_end`` (NOT ``period_end``).
+          Even if (1) had returned data, this INSERT would have raised
+          UndefinedColumn — the seeder caught the exception silently
+          and continued returning 0.
 
     Returns the number of rows upserted (0 or 1).
     """
@@ -146,51 +162,90 @@ def _seed_one_from_cache(ticker: str) -> int:
         from sqlalchemy import text  # type: ignore
         from data_pipeline.db import Session  # type: ignore
         from datetime import date
+        from backend.services.analysis.hex_axes import (
+            compute_axes_for_ticker,
+        )
     except Exception as exc:
         log.warning("seed: import failed for %s: %s", ticker, exc)
         return 0
     sess = Session()
     try:
+        # Confirm there IS a cache row so we only seed tickers a user
+        # has actually warmed. compute_axes_for_ticker would otherwise
+        # neutral-fill any unknown ticker and pollute the table.
         row = sess.execute(
             text(
-                "SELECT payload FROM analysis_cache WHERE ticker = :tk "
+                "SELECT 1 FROM analysis_cache WHERE ticker = :tk "
                 "ORDER BY computed_at DESC LIMIT 1"
             ),
             {"tk": ticker},
         ).fetchone()
-        if not row or not row[0]:
+        if not row:
             return 0
-        payload = row[0]
-        if isinstance(payload, str):
-            import json as _json
-            try:
-                payload = _json.loads(payload)
-            except Exception:
-                return 0
-        axes = (
-            (payload or {})
-            .get("hex", {})
-            .get("axes", {})
-        )
-        if not axes:
+
+        try:
+            axes = compute_axes_for_ticker(ticker)
+        except Exception as exc:
+            log.warning("seed: axis derivation failed for %s: %s", ticker, exc)
             return 0
-        # Period-end = first day of the current quarter (canonical key
-        # used by hex_history elsewhere).
+
+        # Quarter-end = first day of the current quarter (canonical key
+        # used by hex_history elsewhere — column is `quarter_end`).
         today = date.today()
         q_start_month = ((today.month - 1) // 3) * 3 + 1
-        period_end = date(today.year, q_start_month, 1).isoformat()
+        quarter_end = date(today.year, q_start_month, 1).isoformat()
+
+        # Composite overall via the same weights hex_service uses.
+        try:
+            from backend.services.hex_service import AXIS_WEIGHTS
+            overall = (
+                axes.value   * AXIS_WEIGHTS["value"]
+                + axes.quality * AXIS_WEIGHTS["quality"]
+                + axes.growth  * AXIS_WEIGHTS["growth"]
+                + axes.moat    * AXIS_WEIGHTS["moat"]
+                + axes.safety  * AXIS_WEIGHTS["safety"]
+                + axes.pulse   * AXIS_WEIGHTS["pulse"]
+            )
+            overall = round(max(0.0, min(10.0, overall)), 2)
+        except Exception:
+            overall = None
+
         sess.execute(
             text(
                 """
-                INSERT INTO hex_history
-                    (ticker, period_end, axes, source)
-                VALUES (:tk, :pe, CAST(:ax AS JSONB), 'cache_seed')
-                ON CONFLICT (ticker, period_end) DO UPDATE
-                  SET axes = EXCLUDED.axes,
-                      source = EXCLUDED.source
+                INSERT INTO hex_history (
+                  ticker, quarter_end,
+                  value_score, quality_score, growth_score,
+                  moat_score, safety_score, pulse_score,
+                  overall, computed_at
+                ) VALUES (
+                  :tk, :qe,
+                  :value, :quality, :growth,
+                  :moat, :safety, :pulse,
+                  :overall, now()
+                )
+                ON CONFLICT (ticker, quarter_end) DO UPDATE SET
+                  value_score   = EXCLUDED.value_score,
+                  quality_score = EXCLUDED.quality_score,
+                  growth_score  = EXCLUDED.growth_score,
+                  moat_score    = EXCLUDED.moat_score,
+                  safety_score  = EXCLUDED.safety_score,
+                  pulse_score   = EXCLUDED.pulse_score,
+                  overall       = EXCLUDED.overall,
+                  computed_at   = now()
                 """
             ),
-            {"tk": ticker, "pe": period_end, "ax": _to_json(axes)},
+            {
+                "tk": ticker,
+                "qe": quarter_end,
+                "value": axes.value,
+                "quality": axes.quality,
+                "growth": axes.growth,
+                "moat": axes.moat,
+                "safety": axes.safety,
+                "pulse": axes.pulse,
+                "overall": overall,
+            },
         )
         sess.commit()
         return 1
@@ -228,7 +283,7 @@ def main() -> int:
     parser.add_argument("--fail-if-zero-ok", action="store_true",
                         help="Exit 1 when no ticker produced a successful backfill")
     parser.add_argument("--seed-from-cache", action="store_true",
-                        help="Synthesise a current-quarter row per ticker from analysis_cache.payload.hex.axes")
+                        help="Synthesise a current-quarter row per ticker via hex_axes.compute_axes_for_ticker (single source of truth)")
     args = parser.parse_args()
 
     # Refuse to run without a DSN — silently no-oping in CI is the
