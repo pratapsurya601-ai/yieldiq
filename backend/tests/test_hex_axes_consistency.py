@@ -191,26 +191,47 @@ def test_compute_axes_from_payload_prefers_inline_hex_block():
     )
 
 
-def test_compute_axes_from_payload_falls_back_to_ticker_lookup():
+def test_compute_axes_from_payload_derives_synthetically_from_cache_shape():
     """When the cache-row shape lacks a pre-computed hex block, the
-    function must delegate to compute_axes_for_ticker (i.e. the live
-    render path) using the payload's ticker — the only correct way
-    to get the 6 axes from the cache shape."""
+    function must derive axes via the PURE Python branch — reading
+    payload.quality.* and payload.valuation.* directly. NO backend
+    service imports allowed (the seeder runs in a slim env without
+    pydantic/streamlit/etc).
+
+    Updated 2026-04-25 after the workflow runs 24928636557 +
+    24931140894 + 24931374708 confirmed the prior ticker-delegation
+    path triggered ModuleNotFoundError cascades. The synthetic
+    derivation produces approximations (live render reads more sources)
+    but is good enough for the 12M sparkline.
+    """
     payload = {
         "ticker": "RELIANCE.NS",
-        "quality": {"piotroski_score": 7, "roce": 18.0},
-        "valuation": {"margin_of_safety": -10.0},
+        "quality": {
+            "moat_score": 70.0,
+            "fundamental_score": 67.0,
+            "momentum_score": 50.0,
+            "de_ratio": 0.36,
+            "interest_coverage": 5.8,
+            "revenue_cagr_3y": 0.115,
+        },
+        "valuation": {"margin_of_safety": 10.0},
         # no `hex` block on purpose
     }
-    with patch(
-        "backend.services.hex_service.compute_hex_safe",
-        return_value=_FAKE_LIVE_RESPONSE,
-    ) as mock_live:
-        out = compute_axes_from_payload(payload)
-    assert mock_live.called, (
-        "must delegate to live render when payload lacks hex block"
-    )
-    assert out.value == 4.3  # from _FAKE_LIVE_RESPONSE
+    out = compute_axes_from_payload(payload)
+    # Pure derivation — verify each axis is in the documented mapping.
+    assert out.moat == 7.0           # 70 / 10
+    assert out.quality == 6.7        # 67 / 10
+    assert out.pulse == 5.0          # 50 / 10
+    assert 6.0 <= out.safety <= 8.0  # de_ratio 0.36 → ~7.0, ic 5.8 no bonus
+    assert 5.0 <= out.growth <= 6.0  # cagr 11.5% → 3 + 0.115 * 20 = 5.3
+    assert 5.5 <= out.value <= 6.5   # MoS +10 → 5 + 10/12.5 = 5.8
+
+
+def test_compute_axes_from_payload_no_quality_returns_neutral():
+    """Defensive: payload without quality block falls through to the
+    neutral hexaxes."""
+    out = compute_axes_from_payload({"ticker": "X", "valuation": {}})
+    assert out == _neutral_hexaxes()
 
 
 def test_compute_axes_from_payload_neutral_on_empty_input():
