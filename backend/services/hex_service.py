@@ -58,14 +58,11 @@ DISCLAIMER = (
     "Model estimate. Fundamental + Market Profile. Not investment advice."
 )
 
-AXIS_WEIGHTS = {
-    "value": 0.20,
-    "quality": 0.20,
-    "growth": 0.20,
-    "moat": 0.15,
-    "safety": 0.15,
-    "pulse": 0.10,
-}
+# Canonical axis weights live in the pure hex_axes module so the
+# hex_history seeder can import them without pulling in this module's
+# streamlit/pydantic chain. Re-exported here for back-compat with
+# existing callers that do `from backend.services.hex_service import AXIS_WEIGHTS`.
+from backend.services.analysis.hex_axes import AXIS_WEIGHTS  # noqa: E402, F401
 
 
 # ── DB session helper ────────────────────────────────────────────

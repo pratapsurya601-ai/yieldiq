@@ -162,29 +162,42 @@ def _seed_one_from_cache(ticker: str) -> int:
         from sqlalchemy import text  # type: ignore
         from data_pipeline.db import Session  # type: ignore
         from datetime import date
+        # IMPORTANT: import the PURE hex_axes module only. Do NOT import
+        # hex_service / compute_axes_for_ticker — those pull in the full
+        # backend service stack (pydantic / fastapi / streamlit) which is
+        # not installed in the slim workflow env. compute_axes_from_payload
+        # has a pure-Python derivation branch for cache-row payloads.
         from backend.services.analysis.hex_axes import (
-            compute_axes_for_ticker,
+            compute_axes_from_payload,
+            AXIS_WEIGHTS,
         )
     except Exception as exc:
         log.warning("seed: import failed for %s: %s", ticker, exc)
         return 0
     sess = Session()
     try:
-        # Confirm there IS a cache row so we only seed tickers a user
-        # has actually warmed. compute_axes_for_ticker would otherwise
-        # neutral-fill any unknown ticker and pollute the table.
+        # Pull the actual cache row so we can derive axes from its
+        # payload via the pure-Python path (no service imports).
         row = sess.execute(
             text(
-                "SELECT 1 FROM analysis_cache WHERE ticker = :tk "
+                "SELECT payload FROM analysis_cache WHERE ticker = :tk "
                 "ORDER BY computed_at DESC LIMIT 1"
             ),
             {"tk": ticker},
         ).fetchone()
-        if not row:
+        if not row or not row[0]:
             return 0
 
+        payload = row[0]
+        if isinstance(payload, str):
+            import json as _json
+            try:
+                payload = _json.loads(payload)
+            except Exception:
+                return 0
+
         try:
-            axes = compute_axes_for_ticker(ticker)
+            axes = compute_axes_from_payload(payload)
         except Exception as exc:
             log.warning("seed: axis derivation failed for %s: %s", ticker, exc)
             return 0
@@ -195,9 +208,10 @@ def _seed_one_from_cache(ticker: str) -> int:
         q_start_month = ((today.month - 1) // 3) * 3 + 1
         quarter_end = date(today.year, q_start_month, 1).isoformat()
 
-        # Composite overall via the same weights hex_service uses.
+        # Composite overall via the same weights the live render uses.
+        # AXIS_WEIGHTS is imported from the pure hex_axes module above
+        # (NOT hex_service — that path drags in the full backend stack).
         try:
-            from backend.services.hex_service import AXIS_WEIGHTS
             overall = (
                 axes.value   * AXIS_WEIGHTS["value"]
                 + axes.quality * AXIS_WEIGHTS["quality"]

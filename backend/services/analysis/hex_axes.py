@@ -124,6 +124,20 @@ class HexAxes:
         }
 
 
+# Axis weights for the composite "overall" hex score. Defined HERE
+# (in the pure module) rather than in hex_service so the seeder can
+# import them without pulling in streamlit/pydantic. hex_service
+# re-exports the same constant for backward compatibility.
+AXIS_WEIGHTS: dict[str, float] = {
+    "value": 0.20,
+    "quality": 0.20,
+    "growth": 0.20,
+    "moat": 0.15,
+    "safety": 0.15,
+    "pulse": 0.10,
+}
+
+
 # ── Public API ─────────────────────────────────────────────────
 def compute_axes_for_ticker(ticker: str) -> HexAxes:
     """Single source of truth — delegates to the live render path.
@@ -143,22 +157,27 @@ def compute_axes_for_ticker(ticker: str) -> HexAxes:
 def compute_axes_from_payload(payload: dict) -> HexAxes:
     """Extract the 6 axes from an already-computed analysis payload.
 
-    Two cases:
+    Three cases (in priority order):
 
-    1. ``payload["hex"]["axes"]`` is present (live API response shape
-       — the analysis endpoint may attach the hex to its response).
-       We read directly.
+    1. ``payload["hex"]["axes"]`` is present (live API response shape).
+       Read directly — full live-render fidelity.
 
-    2. The payload only carries the cache-row shape
-       (``payload.quality.*`` / ``payload.valuation.*``) and no
-       pre-computed hex block. In that case the only correct
-       behaviour is to delegate to the live render path keyed on
-       ``payload["ticker"]`` (single source of truth — same code,
-       same DB lookups, same numbers as the API response).
+    2. Cache-row shape (``payload.quality.*`` / ``payload.valuation.*``)
+       with no pre-computed hex block. **Derive synthetically using a
+       PURE function** — no backend service imports. The seeded values
+       are approximations (the live render also reads market_metrics /
+       financials / hex_pulse_inputs which aren't in the cache row), but
+       good enough for the 12-month sparkline. Live render will overwrite
+       with full-fidelity values on the next ingest cycle.
 
-       If the payload also lacks a usable ticker, we return a fully
-       neutral ``HexAxes`` (5.0 everywhere). Raising here would
-       break the seeder's never-fail contract.
+       Why pure: this function is called from
+       ``backend/scripts/backfill_hex_history.py`` which runs in a slim
+       GH Actions env without pydantic/fastapi/streamlit. Importing
+       backend services there causes ``ModuleNotFoundError`` cascades
+       (caught by runs 24928636557 + 24931140894 + 24931374708).
+
+    3. No usable inputs at all → neutral HexAxes (5.0 everywhere).
+       Never raise — the seeder's contract is never-fail.
     """
     if not isinstance(payload, dict):
         return _neutral_hexaxes()
@@ -169,12 +188,110 @@ def compute_axes_from_payload(payload: dict) -> HexAxes:
     if isinstance(axes_dict, dict) and axes_dict:
         return _axes_dict_to_hexaxes(axes_dict)
 
-    # Case 2: cache-row shape — delegate to the live render path.
-    ticker = payload.get("ticker") or payload.get("symbol")
-    if isinstance(ticker, str) and ticker.strip():
-        return compute_axes_for_ticker(ticker)
+    # Case 2: cache-row shape — pure-Python synthetic derivation.
+    derived = _derive_axes_from_cache_payload(payload)
+    if derived is not None:
+        return derived
 
+    # Case 3: nothing usable.
     return _neutral_hexaxes()
+
+
+def _derive_axes_from_cache_payload(payload: dict) -> "HexAxes | None":
+    """Pure-Python axis derivation from the cache-row shape.
+
+    Reads ``payload.quality.*`` and ``payload.valuation.*`` directly.
+    Returns None if the payload doesn't look like a cache row.
+
+    NO backend service imports — this function MUST run in the slim
+    workflow env (sqlalchemy + psycopg only). If you need to add a
+    formula, add it inline below — do not import from
+    ``backend.services.hex_service`` or any sibling.
+    """
+    quality = payload.get("quality") if isinstance(payload, dict) else None
+    if not isinstance(quality, dict) or not quality:
+        return None
+    valuation = payload.get("valuation") if isinstance(payload, dict) else None
+    valuation = valuation if isinstance(valuation, dict) else {}
+
+    def _to_score10(v: Any, default: float = 5.0) -> float:
+        """Coerce a number to [0, 10]. The quality block stores most
+        scores as 0-100 so divide-by-10 if value > 10."""
+        if v is None:
+            return default
+        try:
+            x = float(v)
+        except (TypeError, ValueError):
+            return default
+        if x > 10:
+            x = x / 10.0
+        return max(0.0, min(10.0, x))
+
+    pulse = _to_score10(quality.get("momentum_score"))
+    quality_axis = _to_score10(quality.get("fundamental_score"))
+    moat = _to_score10(quality.get("moat_score"))
+
+    # Safety: synthesize from de_ratio + interest_coverage. Lower
+    # de_ratio = better. Higher interest_coverage = better.
+    safety = 5.0
+    de_ratio = quality.get("de_ratio")
+    if de_ratio is not None:
+        try:
+            de = float(de_ratio)
+            if de < 0.3:
+                safety = 8.5
+            elif de < 1.0:
+                safety = 7.0
+            elif de < 2.0:
+                safety = 5.0
+            else:
+                safety = 3.0
+        except (TypeError, ValueError):
+            pass
+    ic = quality.get("interest_coverage")
+    if ic is not None:
+        try:
+            ic_f = float(ic)
+            if ic_f > 10:
+                safety = min(10.0, safety + 1.0)
+            elif ic_f < 2:
+                safety = max(0.0, safety - 2.0)
+        except (TypeError, ValueError):
+            pass
+
+    # Growth: from revenue_cagr_3y. Decimal form (0.15 = 15% CAGR).
+    # 0% → 3, 5% → 4, 15% → 6, 25% → 8, 35%+ → 10
+    growth = 5.0
+    rev_cagr = quality.get("revenue_cagr_3y")
+    if rev_cagr is not None:
+        try:
+            cagr = float(rev_cagr)
+            if cagr < 0:
+                growth = max(0.0, 3.0 + cagr * 30)
+            else:
+                growth = min(10.0, 3.0 + cagr * 20)
+        except (TypeError, ValueError):
+            pass
+
+    # Value: from valuation.margin_of_safety (percentage).
+    # +50 → 9, +30 → 7.4, 0 → 5, -30 → 2.6, -50 → 1
+    value = 5.0
+    mos = valuation.get("margin_of_safety")
+    if mos is not None:
+        try:
+            m = float(mos)
+            value = max(0.0, min(10.0, 5.0 + m / 12.5))
+        except (TypeError, ValueError):
+            pass
+
+    return HexAxes(
+        pulse=pulse,
+        quality=quality_axis,
+        moat=moat,
+        safety=safety,
+        growth=growth,
+        value=value,
+    )
 
 
 # ── Internal helpers ───────────────────────────────────────────
