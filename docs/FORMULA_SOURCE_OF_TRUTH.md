@@ -115,3 +115,40 @@ The remaining 20+ metrics in `metric_explanations.ts`
 `deposits_yoy`, `pat_yoy_bank`, `roa`) still rely on the hard-coded
 mirror. The pattern for migrating each one is in this file plus the
 v1 PR (`feat/formula-source-of-truth`).
+
+## Hex axes — same pattern, different surface
+
+Status: introduced 2026-04-25 in
+`feat/hex-axes-single-source-of-truth`.
+Owner: `backend/services/analysis/hex_axes.py`.
+
+The 6-axis YieldIQ Hex (`pulse, quality, moat, safety, growth, value`)
+follows the same single-source-of-truth discipline as ratio formulas
+above:
+
+- `backend/services/analysis/hex_axes.py` defines the `HexAxes`
+  dataclass and the two public entry points
+  `compute_axes_for_ticker(ticker)` and
+  `compute_axes_from_payload(payload)`. Both delegate to
+  `backend.services.hex_service.compute_hex_safe` — the live
+  render path is the canonical implementation.
+- `hex_service.get_hex_axes(ticker)` is a thin re-export of
+  `compute_axes_for_ticker` for callers that already import
+  `hex_service`.
+- `backend/tests/test_hex_axes_consistency.py` locks the contract:
+  the live render path and any other consumer (currently only the
+  hex_history backfill seeder) MUST produce byte-identical 6-tuples
+  for the same ticker.
+
+The bug class this eliminates: on 2026-04-25 the hex_history weekly
+backfill (workflow run 24928636557) produced 0 rows across all 50
+canary tickers because `_seed_one_from_cache` read
+`payload["hex"]["axes"]` — a key the analysis pipeline never writes —
+and silently returned 0. The seeder also targeted columns (`axes
+JSONB`, `source TEXT`) that don't exist on the `hex_history` table.
+Both classes of drift are now caught at PR time by the consistency
+test.
+
+When adding a new consumer of the hex axes (share-card endpoint,
+new email digest, new alert rule, etc.), import from
+`backend.services.analysis.hex_axes` — never re-derive locally.
