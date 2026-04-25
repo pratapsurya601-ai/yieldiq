@@ -256,6 +256,18 @@ function AccountInner() {
             </div>
           </div>
         </div>
+        {/* Display-name editor link (PR #72). Sub-route /account/profile
+            handles the input + 3-edit lifetime cap. */}
+        <a
+          href="/account/profile"
+          className="flex items-center justify-between rounded-xl border border-gray-100 px-3 py-3 hover:bg-gray-50 transition"
+        >
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-gray-900">Display name</span>
+            <span className="text-xs text-gray-500">How we greet you across the app</span>
+          </div>
+          <span className="text-sm text-gray-400" aria-hidden>›</span>
+        </a>
       </div>
 
       {/* Settings */}

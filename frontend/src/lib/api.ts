@@ -1,6 +1,6 @@
 import axios from "axios"
 import Cookies from "js-cookie"
-import type { AnalysisResponse, TokenResponse, MarketPulseResponse, ScreenerResponse, PortfolioHealthResponse, HoldingResponse, SectorOverviewItem, WatchlistItemResponse, AlertResponse, SuccessResponse } from "@/types/api"
+import type { AnalysisResponse, TokenResponse, MarketPulseResponse, ScreenerResponse, PortfolioHealthResponse, HoldingResponse, SectorOverviewItem, WatchlistItemResponse, AlertResponse, SuccessResponse, ProfileUpdateResponse } from "@/types/api"
 // Static import — previously a dynamic import() was used here to avoid
 // a theoretical circular with authStore, but there's no circular (authStore
 // does not import api.ts) and the async path silently dropped counter
@@ -693,6 +693,14 @@ export interface OnboardingStatusResponse {
 
 export const getOnboardingStatus = (): Promise<OnboardingStatusResponse> =>
   api.get("/api/v1/auth/onboarding-status", { timeout: 4000 }).then(r => r.data)
+
+// Account profile (PR #72) — editable display name with 3-edit lifetime cap.
+export const updateProfileDisplayName = (
+  displayName: string,
+): Promise<ProfileUpdateResponse> =>
+  api
+    .patch("/api/v1/account/profile", { display_name: displayName })
+    .then((r) => r.data)
 
 export const completeOnboardingRemote = (body?: {
   last_step?: number

@@ -292,6 +292,10 @@ export interface TokenResponse {
   tier: Tier
   analyses_today: number
   analysis_limit: number
+  // Editable display name (PR #72) — null when never set;
+  // frontend falls back to nameFromEmail() in PersonalHeader.
+  display_name: string | null
+  display_name_edits_remaining: number
 }
 
 export interface UserResponse {
@@ -301,6 +305,15 @@ export interface UserResponse {
   analyses_today: number
   analysis_limit: number
   created_at: string
+  display_name: string | null
+  display_name_edits_remaining: number
+}
+
+// PATCH /api/v1/account/profile response shape.
+export interface ProfileUpdateResponse {
+  display_name: string
+  edits_used: number
+  edits_remaining: number
 }
 
 export interface HoldingResponse {

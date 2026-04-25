@@ -80,7 +80,16 @@ export default function LoginPage() {
     try {
       const res = await login(email, password)
       Cookies.set("yieldiq_token", res.access_token, { expires: 7 })
-      setAuth(res.access_token, res.user_id, res.email, res.tier, res.analyses_today, res.analysis_limit)
+      setAuth(
+        res.access_token,
+        res.user_id,
+        res.email,
+        res.tier,
+        res.analyses_today,
+        res.analysis_limit,
+        res.display_name ?? null,
+        res.display_name_edits_remaining ?? 3,
+      )
 
       const onboardingDone = await resolveOnboardingDone()
       router.push(onboardingDone ? "/home" : "/onboarding")

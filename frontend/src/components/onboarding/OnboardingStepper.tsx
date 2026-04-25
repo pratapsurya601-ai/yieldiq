@@ -1,7 +1,10 @@
 "use client"
 
 interface OnboardingStepperProps {
-  step: 0 | 1 | 2
+  // PR #72 widened this from `0 | 1 | 2` to `number` so we can use the
+  // same stepper with a 4-screen flow (Name → Interests → First stock →
+  // Explainer). Component still renders by index against totalSteps.
+  step: number
   totalSteps?: number
   onSkip?: () => void
   showSkip?: boolean

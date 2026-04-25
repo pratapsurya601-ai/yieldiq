@@ -30,7 +30,16 @@ function SignupContent() {
     try {
       const res = await signup(email, password, referralCode)
       Cookies.set("yieldiq_token", res.access_token, { expires: 7 })
-      setAuth(res.access_token, res.user_id, res.email, res.tier, 0, 5)
+      setAuth(
+        res.access_token,
+        res.user_id,
+        res.email,
+        res.tier,
+        0,
+        5,
+        res.display_name ?? null,
+        res.display_name_edits_remaining ?? 3,
+      )
       // Reset onboarding state for new users — both the zustand-persisted
       // settings store AND the onboardingPreferences blob. This avoids a
       // previous user's completed-state lingering on a shared device.

@@ -468,6 +468,12 @@ class TokenResponse(BaseModel):
     tier: Literal["free", "starter", "pro", "analyst"] = "free"
     analyses_today: int = 0
     analysis_limit: int = 5
+    # Editable display name (PR #72) — sourced from Supabase
+    # auth.users.raw_user_meta_data. Null when user has never set one
+    # (frontend falls back to nameFromEmail() for the greeting).
+    display_name: Optional[str] = None
+    # Remaining edits in the lifetime cap (default 3 for new users).
+    display_name_edits_remaining: int = 3
 
 
 class UserResponse(BaseModel):
@@ -477,6 +483,8 @@ class UserResponse(BaseModel):
     analyses_today: int = 0
     analysis_limit: int = 5
     created_at: str = ""
+    display_name: Optional[str] = None
+    display_name_edits_remaining: int = 3
 
 
 # ── Generic responses ─────────────────────────────────────────
