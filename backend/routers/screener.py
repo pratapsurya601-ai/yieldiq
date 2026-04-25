@@ -178,32 +178,34 @@ def _query_preset_from_db(preset: str, page: int = 1,
             from sqlalchemy import text as _sql_text
             _sess = _Session()
             try:
+                # PERF (egress): pull only the 5 JSON fields we need via
+                # JSONB path operators instead of the whole payload (which
+                # can be 100KB+ per row x ~500-3000 rows = tens of MB on a
+                # cold scan). Same field semantics as the prior dict-walk.
                 _rows = _sess.execute(_sql_text(
-                    "SELECT ticker, payload FROM analysis_cache "
-                    "WHERE computed_at > now() - interval '48 hours'"
+                    """
+                    SELECT
+                      ticker,
+                      (payload->'quality'->>'yieldiq_score')::float    AS score,
+                      (payload->'valuation'->>'margin_of_safety')::float AS mos,
+                      (payload->'quality'->>'moat')                    AS moat,
+                      (payload->'valuation'->>'eps_ttm')::float        AS eps_ttm,
+                      (payload->'valuation'->>'current_price')::float  AS current_price
+                    FROM analysis_cache
+                    WHERE computed_at > now() - interval '48 hours'
+                    """
                 )).fetchall()
             finally:
                 _sess.close()
             for _r in _rows:
                 _ticker = _r[0]
-                _payload = _r[1]
-                if _payload is None:
-                    continue
-                if isinstance(_payload, str):
-                    import json as _json
-                    try:
-                        _payload = _json.loads(_payload)
-                    except Exception:
-                        continue
-                _val = _payload.get("valuation") or {}
-                _qual = _payload.get("quality") or {}
-                score = _qual.get("yieldiq_score") or 0
-                mos = _val.get("margin_of_safety") or 0
-                moat = _qual.get("moat") or "None"
+                score = _r[1] or 0
+                mos = _r[2] or 0
+                moat = _r[3] or "None"
                 pe = None
                 try:
-                    eps = _val.get("eps_ttm") or 0
-                    cp = _val.get("current_price") or 0
+                    eps = _r[4] or 0
+                    cp = _r[5] or 0
                     if eps > 0 and cp > 0:
                         pe = cp / eps
                 except Exception:

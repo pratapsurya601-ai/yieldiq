@@ -475,24 +475,15 @@ def _fetch_current_fv_and_revenue(sess, ticker_nse: str, bare: str
     """Today's fair_value (from analysis_cache) and latest revenue."""
     fv = None
     try:
+        # PERF (egress): only need valuation.fair_value - extract via
+        # JSONB path so we don't ship the whole 100KB+ payload over.
         row = sess.execute(
-            text("SELECT payload FROM analysis_cache WHERE ticker = :t"),
+            text("SELECT (payload->'valuation'->>'fair_value')::float "
+                 "FROM analysis_cache WHERE ticker = :t"),
             {"t": ticker_nse},
         ).fetchone()
-        if row and row[0]:
-            payload = row[0]
-            if isinstance(payload, (bytes, bytearray)):
-                payload = payload.decode("utf-8")
-            if isinstance(payload, str):
-                import json as _json
-                try:
-                    payload = _json.loads(payload)
-                except Exception:
-                    payload = None
-            if isinstance(payload, dict):
-                v = (((payload.get("valuation") or {})).get("fair_value")
-                     if isinstance(payload.get("valuation"), dict) else None)
-                fv = _safe_float(v)
+        if row and row[0] is not None:
+            fv = _safe_float(row[0])
     except Exception:
         fv = None
 
@@ -539,24 +530,14 @@ def _fetch_price_at_quarter(sess, ticker_nse: str,
 
 def _fetch_current_moat_grade(sess, ticker_nse: str) -> Optional[str]:
     try:
+        # PERF (egress): only need quality.moat - extract via JSONB path.
         row = sess.execute(
-            text("SELECT payload FROM analysis_cache WHERE ticker = :t"),
+            text("SELECT payload->'quality'->>'moat' "
+                 "FROM analysis_cache WHERE ticker = :t"),
             {"t": ticker_nse},
         ).fetchone()
         if row and row[0]:
-            payload = row[0]
-            if isinstance(payload, (bytes, bytearray)):
-                payload = payload.decode("utf-8")
-            if isinstance(payload, str):
-                import json as _json
-                try:
-                    payload = _json.loads(payload)
-                except Exception:
-                    payload = None
-            if isinstance(payload, dict):
-                q = payload.get("quality") or {}
-                if isinstance(q, dict):
-                    return q.get("moat")
+            return row[0]
     except Exception:
         pass
     return None

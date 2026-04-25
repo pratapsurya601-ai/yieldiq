@@ -239,9 +239,20 @@ def _get_top_undervalued(n: int = 3) -> list[dict]:
 
     sess = Session()
     try:
+        # PERF (egress): JSONB path extraction - pull the 5 scalars we
+        # need instead of the full payload (100KB+ x 250 rows ~= 25MB
+        # per call). Same field semantics as the prior dict-walk path.
         rows = sess.execute(text(
             """
-            SELECT ticker, payload
+            SELECT
+              ticker,
+              (payload->'valuation'->>'verdict')                 AS verdict,
+              (payload->'valuation'->>'margin_of_safety')::float AS mos,
+              (payload->'valuation'->>'fair_value')::float       AS fair_value,
+              (payload->'valuation'->>'current_price')::float    AS current_price,
+              COALESCE(payload->'company'->>'company_name',
+                       payload->'company_info'->>'company_name',
+                       payload->'company_info'->>'name')         AS company_name
             FROM analysis_cache
             WHERE computed_at > now() - interval '48 hours'
             ORDER BY computed_at DESC
@@ -257,29 +268,18 @@ def _get_top_undervalued(n: int = 3) -> list[dict]:
 
     picks = []
     for r in rows:
-        payload = r[1] if len(r) > 1 else None
-        if not payload:
-            continue
-        if isinstance(payload, str):
-            import json as _json
-            try:
-                payload = _json.loads(payload)
-            except Exception:
-                continue
-        valuation = payload.get("valuation") or {}
-        company = payload.get("company") or {}
-        verdict = valuation.get("verdict")
-        mos = valuation.get("margin_of_safety")
+        verdict = r[1]
+        mos = r[2]
         if verdict in ("data_limited", "unavailable", None):
             continue
         if mos is None or mos < 10:
             continue
         picks.append({
             "ticker": r[0],
-            "company_name": company.get("company_name") or r[0],
+            "company_name": r[5] or r[0],
             "mos_pct": float(mos),
-            "fair_value": float(valuation.get("fair_value") or 0),
-            "current_price": float(valuation.get("current_price") or 0),
+            "fair_value": float(r[3] or 0),
+            "current_price": float(r[4] or 0),
         })
 
     picks.sort(key=lambda p: p["mos_pct"], reverse=True)
