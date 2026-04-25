@@ -1,12 +1,17 @@
 {
-  "taken_at": "2026-04-24T21:16:30.548103+00:00",
-  "cache_version": 63,
-  "commit_sha": "db20ef2b4e47",
+  "taken_at": "2026-04-25T04:42:55.560955+00:00",
+  "cache_version": 64,
+  "commit_sha": "e8967bdb5141",
   "changelog": [
     {
       "at": "2026-04-24T21:16:30.548103+00:00",
       "reason": "initial seed \u2014 live canary-50 pull against production 2026-04-25",
       "commit": "db20ef2b4e47"
+    },
+    {
+      "at": "2026-04-25T04:42:55.560955+00:00",
+      "reason": "Post-PR-70 deploy rebaseline. Per-ticker attribution in docs/rebaseline_2026-04-25.md: Banks (-16pt) = bank-mode piotroski reroute (PR #69); Cement (+48.9% FV) = cement FCF-cap removal (f79c390); FMCG/IT/Pharma drift = composite formula + rev_growth unit fix + moat allowlist + unified financials (b952784, bc1f942, 7dd7114). All 28 ticker shifts catalogued, zero ambiguous.",
+      "commit": "e8967bdb5141"
     }
   ],
   "sectors": {
@@ -14,14 +19,12 @@
       "tickers": [
         "RELIANCE"
       ],
-      "tickers_with_data": [
-        "RELIANCE"
-      ],
-      "median_fv": 1470.86,
-      "median_score": 66.0,
-      "median_mos_pct": 8.7,
-      "median_iv_px_ratio": 1.0868691347077515,
-      "n_with_data": 1
+      "tickers_with_data": [],
+      "median_fv": null,
+      "median_score": null,
+      "median_mos_pct": null,
+      "median_iv_px_ratio": null,
+      "n_with_data": 0
     },
     "IT Services": {
       "tickers": [
@@ -38,10 +41,10 @@
         "WIPRO",
         "TECHM"
       ],
-      "median_fv": 1822.77,
-      "median_score": 69.0,
-      "median_mos_pct": 30.4,
-      "median_iv_px_ratio": 1.304022217965907,
+      "median_fv": 1553.98,
+      "median_score": 66.0,
+      "median_mos_pct": 35.1,
+      "median_iv_px_ratio": 1.3514747191011236,
       "n_with_data": 5
     },
     "Banks": {
@@ -59,10 +62,10 @@
         "KOTAKBANK",
         "AXISBANK"
       ],
-      "median_fv": 782.71,
-      "median_score": 80.0,
-      "median_mos_pct": -2.5,
-      "median_iv_px_ratio": 0.9749207721117832,
+      "median_fv": 783.09,
+      "median_score": 64.0,
+      "median_mos_pct": -7.5,
+      "median_iv_px_ratio": 0.925221379881506,
       "n_with_data": 5
     },
     "FMCG": {
@@ -76,17 +79,18 @@
         "TATACONSUM"
       ],
       "tickers_with_data": [
+        "ITC",
         "HINDUNILVR",
         "NESTLEIND",
         "BRITANNIA",
         "DABUR",
         "TATACONSUM"
       ],
-      "median_fv": 769.22,
-      "median_score": 58.0,
-      "median_mos_pct": -33.7,
-      "median_iv_px_ratio": 0.6629002695417789,
-      "n_with_data": 5
+      "median_fv": 563.475,
+      "median_score": 57.0,
+      "median_mos_pct": -28.1,
+      "median_iv_px_ratio": 0.7190795766133679,
+      "n_with_data": 6
     },
     "Telecom": {
       "tickers": [
@@ -95,10 +99,10 @@
       "tickers_with_data": [
         "BHARTIARTL"
       ],
-      "median_fv": 1895.7,
-      "median_score": 74.0,
+      "median_fv": 1853.81,
+      "median_score": 58.0,
       "median_mos_pct": 2.2,
-      "median_iv_px_ratio": 1.0219407008086254,
+      "median_iv_px_ratio": 1.0216643703499586,
       "n_with_data": 1
     },
     "Capital Goods": {
@@ -108,10 +112,10 @@
       "tickers_with_data": [
         "LT"
       ],
-      "median_fv": 2927.5,
-      "median_score": 56.0,
-      "median_mos_pct": -28.2,
-      "median_iv_px_ratio": 0.7183343966236443,
+      "median_fv": 3471.88,
+      "median_score": 58.0,
+      "median_mos_pct": -13.5,
+      "median_iv_px_ratio": 0.8648780609321675,
       "n_with_data": 1
     },
     "NBFC": {
@@ -121,10 +125,10 @@
       "tickers_with_data": [
         "BAJFINANCE"
       ],
-      "median_fv": 830.19,
-      "median_score": 76.0,
-      "median_mos_pct": -11.6,
-      "median_iv_px_ratio": 0.8842626617670555,
+      "median_fv": 899.77,
+      "median_score": 68.0,
+      "median_mos_pct": -2.4,
+      "median_iv_px_ratio": 0.976365905268298,
       "n_with_data": 1
     },
     "Auto": {
@@ -144,10 +148,10 @@
         "BAJAJ-AUTO",
         "EICHERMOT"
       ],
-      "median_fv": 6082.86,
-      "median_score": 59.0,
-      "median_mos_pct": -23.7,
-      "median_iv_px_ratio": 0.7633625317886409,
+      "median_fv": 6079.07,
+      "median_score": 57.0,
+      "median_mos_pct": -15.9,
+      "median_iv_px_ratio": 0.8410108828939301,
       "n_with_data": 6
     },
     "Pharma": {
@@ -163,10 +167,10 @@
         "DIVISLAB",
         "CIPLA"
       ],
-      "median_fv": 1949.38,
-      "median_score": 58.5,
-      "median_mos_pct": 15.6,
-      "median_iv_px_ratio": 1.1562057846222684,
+      "median_fv": 1755.0300000000002,
+      "median_score": 50.0,
+      "median_mos_pct": -0.25,
+      "median_iv_px_ratio": 0.9975942205164552,
       "n_with_data": 4
     },
     "Consumer Discretionary": {
@@ -176,10 +180,10 @@
       "tickers_with_data": [
         "TITAN"
       ],
-      "median_fv": 1850.8,
-      "median_score": 49.0,
-      "median_mos_pct": -58.7,
-      "median_iv_px_ratio": 0.4131526664732013,
+      "median_fv": 1911.8,
+      "median_score": 60.0,
+      "median_mos_pct": -56.6,
+      "median_iv_px_ratio": 0.43351473922902495,
       "n_with_data": 1
     },
     "Cement": {
@@ -192,10 +196,10 @@
         "ULTRACEMCO",
         "SHREECEM"
       ],
-      "median_fv": 4408.84,
-      "median_score": 43.0,
-      "median_mos_pct": -63.4,
-      "median_iv_px_ratio": 0.3662131406262979,
+      "median_fv": 6563.09,
+      "median_score": 53.0,
+      "median_mos_pct": -45.3,
+      "median_iv_px_ratio": 0.547015335889315,
       "n_with_data": 2
     },
     "Utilities": {
@@ -203,15 +207,12 @@
         "POWERGRID",
         "NTPC"
       ],
-      "tickers_with_data": [
-        "POWERGRID",
-        "NTPC"
-      ],
-      "median_fv": 257.56,
-      "median_score": 46.0,
-      "median_mos_pct": -28.200000000000003,
-      "median_iv_px_ratio": 0.7181451082923598,
-      "n_with_data": 2
+      "tickers_with_data": [],
+      "median_fv": null,
+      "median_score": null,
+      "median_mos_pct": null,
+      "median_iv_px_ratio": null,
+      "n_with_data": 0
     },
     "Oil & Gas": {
       "tickers": [
@@ -237,7 +238,7 @@
         "COALINDIA"
       ],
       "median_fv": 373.04,
-      "median_score": 40.0,
+      "median_score": 37.0,
       "median_mos_pct": -13.6,
       "median_iv_px_ratio": 0.8643188137164041,
       "n_with_data": 1
@@ -254,7 +255,7 @@
         "HINDALCO"
       ],
       "median_fv": 805.33,
-      "median_score": 51.0,
+      "median_score": 56.0,
       "median_mos_pct": -22.7,
       "median_iv_px_ratio": 0.772647030605392,
       "n_with_data": 3
@@ -279,10 +280,10 @@
       "tickers_with_data": [
         "ASIANPAINT"
       ],
-      "median_fv": 1515.41,
-      "median_score": 47.0,
-      "median_mos_pct": -40.4,
-      "median_iv_px_ratio": 0.595773706557635,
+      "median_fv": 1243.77,
+      "median_score": 45.0,
+      "median_mos_pct": -50.0,
+      "median_iv_px_ratio": 0.5004909259184741,
       "n_with_data": 1
     },
     "Chemicals": {
