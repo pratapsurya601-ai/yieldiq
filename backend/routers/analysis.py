@@ -595,6 +595,8 @@ async def get_analysis_preview(ticker: str):
     # Apply alias rewrites (renames + nicknames) so colloquial requests
     # like /analysis/preview/HUL resolve to HINDUNILVR.NS instead of
     # 404-ing through TickerNotFoundError. Caught in PR #83 health audit.
+    # MUST run BEFORE the cache key is computed below so HUL and HINDUNILVR
+    # share a single edge-cache + in-memory cache entry.
     ticker = TICKER_ALIASES.get(ticker, ticker)
     try:
         from data_pipeline import ticker_aliases as _aliases_mod
@@ -604,11 +606,19 @@ async def get_analysis_preview(ticker: str):
     except Exception:
         pass
 
+    # PERF (egress, PR #85): wrap responses with Vercel-edge Cache-Control
+    # so repeat hits to share/preview links are absorbed by the CDN without
+    # backend (and Neon) round-trips. Public preview is identical for every
+    # viewer of a given ticker - no per-user data, no JWT - so a public
+    # s-maxage is safe.
+    from fastapi.responses import JSONResponse as _JSONResponse
+    _CC = "public, s-maxage=900, stale-while-revalidate=3600"
+
     # Check cache first
     _cache_key = f"preview:{ticker}"
     cached = cache.get(_cache_key)
     if cached:
-        return cached
+        return _JSONResponse(content=cached, headers={"Cache-Control": _CC})
 
     try:
         # PERF: blocking sync call → thread pool. See PR #83 note.
@@ -657,7 +667,7 @@ async def get_analysis_preview(ticker: str):
             "cta": "Sign up free to see full analysis with scenarios, insights, and more",
         }
         cache.set(_cache_key, preview, ttl=3600)  # 1 hour cache
-        return preview
+        return _JSONResponse(content=preview, headers={"Cache-Control": _CC})
     except Exception as e:
         import logging
         logging.getLogger("yieldiq.analysis").error(
@@ -1404,7 +1414,11 @@ async def get_chart_data(
         pass  # financials stays empty → frontend shows empty state
 
     result = {"prices": prices, "period": period, "financials": financials}
-    cache.set(_cache_key, result, ttl=900)  # 15 min cache
+    # PERF (egress): bumped 900s -> 21600s (6h). Chart data turns over
+    # daily (bhavcopy refresh) and CACHE_VERSION bumps invalidate on real
+    # analysis changes; 15 min was wastefully short and re-hit Neon for
+    # daily_prices on every miss.
+    cache.set(_cache_key, result, ttl=21600)
     return result
 
 

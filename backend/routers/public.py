@@ -1241,8 +1241,16 @@ async def get_screen(slug: str, limit: int = Query(default=50, le=200)):
         "total": len(candidates),
         "stocks": candidates,
     }
-    cache.set(_cache_key, result, ttl=1800)
-    return result
+    # PERF (egress): bumped 1800s -> 7200s (2h). Pre-built screens are
+    # rebuilt on CACHE_VERSION bumps and the underlying analysis_cache
+    # only refreshes every 24h on the hot path; 30 min was wastefully
+    # short for a public-tier listing endpoint.
+    cache.set(_cache_key, result, ttl=7200)
+    # PERF (egress): wrap with Vercel-edge Cache-Control so repeat
+    # /public/screens/{slug} hits are absorbed by the CDN. SEO landing
+    # surfaces hit this hot - caching at the edge for 15 min with SWR=1h
+    # eliminates the bulk of backend requests on this path.
+    return _cached_json(result, s_maxage=900, swr=3600)
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -1439,7 +1447,8 @@ async def get_news_feed(days: int = Query(default=7, ge=1, le=30), limit: int = 
     _cache_key = f"public:news-feed:{days}:{limit}"
     cached = cache.get(_cache_key)
     if cached is not None:
-        return cached
+        # PERF (egress): edge-cache repeat hits via CDN.
+        return _cached_json(cached, s_maxage=900, swr=3600)
 
     try:
         from backend.services.news_service import fetch_bse_filings
@@ -1448,8 +1457,10 @@ async def get_news_feed(days: int = Query(default=7, ge=1, le=30), limit: int = 
             "count": len(items),
             "items": items,
         }
-        cache.set(_cache_key, result, ttl=1800)
-        return result
+        # PERF (egress): bumped 1800s -> 7200s (2h) - BSE filings update
+        # at most a few times per day; 30 min was wastefully short.
+        cache.set(_cache_key, result, ttl=7200)
+        return _cached_json(result, s_maxage=900, swr=3600)
     except Exception as e:
         logger.warning(f"news feed failed: {e}")
         raise HTTPException(status_code=500, detail="News feed unavailable")
