@@ -1576,10 +1576,37 @@ def compute_portfolio_hex(holdings: list[dict]) -> dict:
     }
 
 
+# ── Single source of truth bridge ───────────────────────────────
+# `compute_hex` IS the canonical 6-axis derivation in this codebase.
+# Every other call site (live analysis render, hex_history seeder,
+# prism timeline, OG card) routes through
+# `backend.services.analysis.hex_axes.compute_axes_for_ticker`,
+# which delegates HERE. There is no parallel axis-derivation path.
+#
+# When you need just the {pulse, quality, moat, safety, growth, value}
+# floats (e.g. for the hex_history table inserts), call
+# `get_hex_axes(ticker)` below to get a typed `HexAxes` dataclass —
+# it is a thin projection over `compute_hex_safe(ticker)["axes"]`
+# that guarantees the same six floats are produced from the same
+# inputs at every call site. See docs/FORMULA_SOURCE_OF_TRUTH.md
+# for the broader pattern (introduced in PR #89 for ratio formulas).
+def get_hex_axes(ticker: str):
+    """Typed projection of the live-render axes onto a HexAxes dataclass.
+
+    Byte-identical to `compute_hex_safe(ticker)["axes"]` modulo the
+    discarded per-axis metadata (label, why, data_limited). Use this
+    from any call site that needs only the six floats; use
+    `compute_hex_safe` directly if you also need the metadata.
+    """
+    from backend.services.analysis.hex_axes import compute_axes_for_ticker
+    return compute_axes_for_ticker(ticker)
+
+
 __all__ = [
     "compute_hex",
     "compute_hex_safe",
     "compute_portfolio_hex",
+    "get_hex_axes",
     "DISCLAIMER",
     "AXIS_WEIGHTS",
 ]
