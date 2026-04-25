@@ -1,6 +1,27 @@
 /**
- * metric_explanations.ts
+ * metric_explanations.ts — TRANSITION FILE
  * ----------------------------------------------------------------------
+ * For metrics with a backend FormulaSpec
+ * (`backend/services/analysis/formulas.py`), the rendered tooltip
+ * `formula` and `oneLine` MUST come from `data.formulas[key]` on the
+ * analysis response — never from the strings below. The fields here
+ * are the FALLBACK rendering path used only when:
+ *   (a) the response predates this PR (legacy cached payload), or
+ *   (b) the metric has no backend FormulaSpec yet (most of this file).
+ *
+ * Source-of-truth precedence inside <MetricTooltip />:
+ *   1. data.formulas[metricKey].formula      (backend, always wins)
+ *   2. METRIC_EXPLANATIONS[metricKey].formula (this file, fallback)
+ *
+ * Wired metrics (do NOT edit `formula` here without also updating the
+ * corresponding FormulaSpec — the consistency test will fail):
+ *   margin_of_safety / mos, fair_value, roe, roce, piotroski_score,
+ *   moat_score, yieldiq_score, grade, eps_diluted, debt_to_equity.
+ *
+ * TODO(post-cache-rollover): once every cached payload carries
+ * `formulas`, delete the `formula` and `oneLine` fields below for
+ * those 10 metrics and rely entirely on the backend.
+ *
  * Plain-English copy for every metric surfaced on the analysis page.
  *
  * Target reader: a retail investor with ~2 years of experience — they
@@ -60,7 +81,9 @@ export const METRIC_EXPLANATIONS: Record<string, MetricExplanation> = {
     title: "Margin of Safety",
     oneLine:
       "How much of a discount (or premium) the current price offers versus our fair-value estimate.",
-    formula: "(Fair Value − Current Price) ÷ Fair Value × 100",
+    // Fixed 2026-04-25: was "÷ Fair Value", backend has always
+    // computed "÷ Current Price". See docs/FORMULA_SOURCE_OF_TRUTH.md.
+    formula: "(Fair Value − Current Price) ÷ Current Price × 100",
     good:
       "Above +30% is a deep discount to model fair value, +10-30% is a moderate discount, -10% to +10% is roughly at model fair value, below -20% is well above model fair value. Benjamin Graham documented a ~33% discount-to-FV threshold in The Intelligent Investor as the historical hurdle for value-investing methodology.",
   },

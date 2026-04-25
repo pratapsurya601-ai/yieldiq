@@ -23,6 +23,7 @@ import FairValueHistory from "@/components/analysis/FairValueHistory"
 import FinancialStatements from "@/components/analysis/FinancialStatements"
 import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
+import { FormulasProvider } from "@/components/analysis/MetricTooltip"
 import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
@@ -594,6 +595,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
   const exchange = (company.exchange || "NSE").toUpperCase() as "NSE" | "BSE"
 
   return (
+    <FormulasProvider value={data.formulas}>
     <div className="max-w-2xl md:max-w-3xl lg:max-w-6xl mx-auto px-4 pb-20">
       {/* TODO(PR-B, SEBI-compliance): render <PriceTimestamp
            as_of={valuation.as_of ?? null} /> under the current
@@ -761,5 +763,6 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         />
       )}
     </div>
+    </FormulasProvider>
   )
 }

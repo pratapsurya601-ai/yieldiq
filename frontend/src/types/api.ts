@@ -235,6 +235,30 @@ export interface AnalysisResponse {
   analytical_notes?: AnalyticalNoteOutput[]
   cached: boolean
   timestamp: string
+  /**
+   * Backend-authored formula metadata, keyed by metric id (e.g.
+   * "margin_of_safety", "roce"). Populated from
+   * backend/services/analysis/formulas.py — the single source of
+   * truth introduced after the 2026-04-25 MoS-tooltip drift bug.
+   *
+   * The MetricTooltip component prefers `formulas[key].formula` over
+   * the hard-coded mirror in `lib/metric_explanations.ts`. Optional
+   * because pre-PR cached payloads do not carry it.
+   */
+  formulas?: Record<string, FormulaInfo>
+}
+
+/**
+ * Per-metric metadata block emitted by the backend on every
+ * AnalysisResponse. Mirrors `backend/models/responses.py::FormulaInfo`.
+ */
+export interface FormulaInfo {
+  key: string
+  label: string
+  formula: string
+  explanation: string
+  units?: string
+  sector_note?: string | null
 }
 
 export interface ScreenerStock {
