@@ -22,7 +22,18 @@
 -- =====================================================================
 
 \set ON_ERROR_STOP on
-\set dryrun 1
+
+-- Default dryrun=1 if NOT explicitly passed via `-v dryrun=...` on the
+-- command line. The earlier unconditional `\set dryrun 1` was a bug:
+-- it overrode any `-v dryrun=0` flag, so "applies" silently became
+-- dry-runs (caught 2026-04-25 when MINDTREE→LTIM appeared to skip even
+-- with dryrun=0). `\if :{?dryrun}` tests whether the variable was set
+-- at the command line; only fall through to the safe default when it's
+-- absent.
+\if :{?dryrun}
+\else
+  \set dryrun 1
+\endif
 
 BEGIN;
 
