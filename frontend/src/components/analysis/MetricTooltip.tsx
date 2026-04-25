@@ -30,12 +30,61 @@
  * No new dependencies — Tailwind utility classes + React state only.
  */
 
-import { useEffect, useId, useRef, useState, type ReactNode } from "react"
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react"
 import {
   getExplanation,
   type MetricExplanation,
 } from "@/lib/metric_explanations"
+import type { FormulaInfo } from "@/types/api"
 import { cn } from "@/lib/utils"
+
+/**
+ * Context for backend-emitted formula metadata.
+ *
+ * Lives next to MetricTooltip because it has exactly one consumer. The
+ * analysis page wraps its tree in <FormulasProvider value={data.formulas}>
+ * so every nested MetricTooltip can prefer backend strings over the
+ * hard-coded mirror in `lib/metric_explanations.ts`.
+ *
+ * Background: see backend/services/analysis/formulas.py and
+ * docs/FORMULA_SOURCE_OF_TRUTH.md. Introduced after the 2026-04-25
+ * MoS-tooltip drift bug where the frontend mirror string had silently
+ * diverged from the backend computation for months.
+ */
+const FormulasContext = createContext<Record<string, FormulaInfo> | null>(null)
+
+export function FormulasProvider({
+  value,
+  children,
+}: {
+  value: Record<string, FormulaInfo> | undefined | null
+  children: ReactNode
+}) {
+  // Memoise so a stable identity is provided when `value` is undefined
+  // (cached pre-PR payloads). Without this, every parent rerender would
+  // create a new empty object and force every tooltip to re-render.
+  const stable = useMemo(() => value ?? null, [value])
+  return (
+    <FormulasContext.Provider value={stable}>
+      {children}
+    </FormulasContext.Provider>
+  )
+}
+
+function useBackendFormula(key: string): FormulaInfo | null {
+  const ctx = useContext(FormulasContext)
+  if (!ctx) return null
+  return ctx[key] ?? null
+}
 
 interface MetricTooltipProps {
   /** Key into METRIC_EXPLANATIONS (e.g. "roce", "debt_ebitda"). */
@@ -51,12 +100,24 @@ interface MetricTooltipProps {
 function Popover({
   id,
   explanation,
+  backend,
   alignRight,
 }: {
   id: string
   explanation: MetricExplanation
+  /**
+   * Backend-emitted formula metadata for this metric, when present.
+   * Always wins over fields on `explanation` for `formula`,
+   * `oneLine` (mapped from `explanation.explanation`), and
+   * `sectorNote`. The hard-coded mirror is the fallback only.
+   */
+  backend: FormulaInfo | null
   alignRight: boolean
 }) {
+  const formulaText = backend?.formula ?? explanation.formula
+  const oneLineText = backend?.explanation ?? explanation.oneLine
+  const sectorNoteText = backend?.sector_note ?? explanation.sectorNote
+  const titleText = backend?.label ?? explanation.title
   return (
     <div
       id={id}
@@ -74,24 +135,24 @@ function Popover({
       onClick={(e) => e.stopPropagation()}
     >
       <p className="text-[11px] font-semibold uppercase tracking-wide text-caption mb-1">
-        {explanation.title}
+        {titleText}
       </p>
       <p className="text-[12px] leading-snug text-body mb-2">
-        {explanation.oneLine}
+        {oneLineText}
       </p>
-      {explanation.formula && (
+      {formulaText && (
         <p className="text-[11px] font-mono text-caption mb-2 break-words">
-          {explanation.formula}
+          {formulaText}
         </p>
       )}
       <p className="text-[12px] leading-snug text-body">
         <span className="font-semibold text-ink">Good: </span>
         {explanation.good}
       </p>
-      {explanation.sectorNote && (
+      {sectorNoteText && (
         <p className="text-[11px] leading-snug text-caption mt-2 pt-2 border-t border-border">
           <span className="font-semibold">Sector note: </span>
-          {explanation.sectorNote}
+          {sectorNoteText}
         </p>
       )}
     </div>
@@ -105,6 +166,7 @@ export default function MetricTooltip({
   accentClassName,
 }: MetricTooltipProps) {
   const explanation = getExplanation(metricKey)
+  const backendFormula = useBackendFormula(metricKey)
   const [open, setOpen] = useState(false)
   const [alignRight, setAlignRight] = useState(false)
   const wrapperRef = useRef<HTMLSpanElement | null>(null)
@@ -148,9 +210,23 @@ export default function MetricTooltip({
     }
   }, [open])
 
-  // Fall back to plain children when we have no copy for this key.
-  // Better to hide the "?" than to show a useless empty popover.
-  if (!explanation) {
+  // Fall back to plain children when we have neither a hard-coded
+  // mirror nor a backend formula for this key. Better to hide the "?"
+  // than to show a useless empty popover. (When the backend ships a
+  // FormulaSpec for a key the frontend has no mirror for, we still
+  // render a tooltip — see the synth path below.)
+  const synthExplanation: MetricExplanation | null =
+    explanation ??
+    (backendFormula
+      ? {
+          title: backendFormula.label,
+          oneLine: backendFormula.explanation,
+          formula: backendFormula.formula,
+          good: "",
+          sectorNote: backendFormula.sector_note ?? undefined,
+        }
+      : null)
+  if (!synthExplanation) {
     return <span className={className}>{children}</span>
   }
 
@@ -163,7 +239,7 @@ export default function MetricTooltip({
       <button
         ref={triggerRef}
         type="button"
-        aria-label={`What is ${explanation.title}?`}
+        aria-label={`What is ${synthExplanation.title}?`}
         aria-describedby={open ? popoverId : undefined}
         aria-expanded={open}
         onClick={(e) => {
@@ -199,7 +275,8 @@ export default function MetricTooltip({
       {open && (
         <Popover
           id={popoverId}
-          explanation={explanation}
+          explanation={synthExplanation}
+          backend={backendFormula}
           alignRight={alignRight}
         />
       )}
