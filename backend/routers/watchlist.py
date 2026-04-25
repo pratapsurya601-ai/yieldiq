@@ -99,8 +99,8 @@ async def add_to_watchlist(req: AddWatchlistRequest, user: dict = Depends(get_cu
             ).execute()
             return SuccessResponse(message=f"{ticker} added to watchlist")
         except Exception as e:
-            logger.error(f"Supabase watchlist write failed: {type(e).__name__}: {e}")
-            raise HTTPException(status_code=500, detail=f"Watchlist error: {str(e)[:200]}")
+            logger.exception("Supabase watchlist write failed: %r", e)
+            raise HTTPException(status_code=500, detail="Failed to add to watchlist")
 
     # Fallback to dashboard SQLite
     try:
@@ -116,7 +116,8 @@ async def add_to_watchlist(req: AddWatchlistRequest, user: dict = Depends(get_cu
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("watchlist SQLite add failed: %r", e)
+        raise HTTPException(status_code=500, detail="Failed to add to watchlist")
 
 
 # ── POST /api/v1/watchlist/add — alias for POST / ────────────
@@ -176,7 +177,8 @@ async def remove_from_watchlist(ticker: str, user: dict = Depends(get_current_us
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception("watchlist SQLite remove failed: %r", e)
+        raise HTTPException(status_code=500, detail="Failed to remove from watchlist")
 
 
 # ── GET /api/v1/watchlist/check/{ticker} — check if in watchlist ──

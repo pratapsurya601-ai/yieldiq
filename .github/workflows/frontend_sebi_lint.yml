@@ -1,0 +1,42 @@
+name: Frontend SEBI Vocabulary Lint
+
+# Greps frontend/src/ for SEBI-banned vocabulary in user-facing strings
+# and fails the build if any hit is found. This is the long-term backstop
+# against regressions on the layout.tsx / OG-card / EditorialHero /
+# metric-explanations class of issue — a single "Undervalued" leaking
+# onto a share card is a SEBI-actionable exposure.
+#
+# Canonical banned-word list lives in
+# backend/services/analysis/sebi_filter.py and is duplicated into
+# scripts/check_sebi_words.py — the two MUST stay in sync (reviewer
+# checklist item on any PR touching either file).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/src/**"
+      - "scripts/check_sebi_words.py"
+      - "backend/services/analysis/sebi_filter.py"
+      - ".github/workflows/frontend_sebi_lint.yml"
+  pull_request:
+    paths:
+      - "frontend/src/**"
+      - "scripts/check_sebi_words.py"
+      - "backend/services/analysis/sebi_filter.py"
+      - ".github/workflows/frontend_sebi_lint.yml"
+  workflow_dispatch:
+
+jobs:
+  sebi-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run SEBI vocabulary lint
+        run: python scripts/check_sebi_words.py

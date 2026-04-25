@@ -174,6 +174,7 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-lg font-bold text-gray-900 mb-3">7. Your Rights</h2>
             <p className="text-gray-600 leading-relaxed">You have the right to:</p>
             <ul className="list-disc pl-5 text-gray-600 space-y-1 mt-2">
+              {/* sebi-allow: hold */}
               <li><strong>Access:</strong> Request a copy of the personal data we hold about you.</li>
               <li><strong>Correction:</strong> Request correction of inaccurate data.</li>
               <li><strong>Deletion:</strong> Request deletion of your account and associated data.</li>

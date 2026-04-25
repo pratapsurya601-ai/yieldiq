@@ -69,7 +69,14 @@ for i, (ticker, isin) in enumerate(todo):
         # --- yfinance fallback if BSE returned nothing ---
         if stored_from_bse == 0:
             yf_result = fetch_and_store_yfinance(f"{ticker}.NS", ticker, db)
-            if yf_result:
+            # The original intent here is "did we get historical financials
+            # for this ticker?" — not "did the price feed also work?".
+            # With the 2026-04-25 decoupling refactor, inspect the
+            # financials phase specifically so tickers like LTIM (valid
+            # statements, missing regularMarketPrice) stop being miscounted
+            # as failed. Falls back to `bool(yf_result)` for any future
+            # structured-return extension.
+            if getattr(yf_result, "financials", bool(yf_result)):
                 yf_ok += 1
                 success += 1
             else:

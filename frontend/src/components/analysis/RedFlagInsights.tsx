@@ -17,7 +17,7 @@ const SEVERITY_ORDER: Record<RedFlag["severity"], number> = {
 const SEVERITY_LABEL: Record<RedFlag["severity"], string> = {
   critical: "🔴 CRITICAL",
   warning: "🟡 WARNING",
-  info: "✅ STRENGTH",
+  info: "✅ POSITIVE",
 }
 
 const SEVERITY_CARD: Record<RedFlag["severity"], string> = {

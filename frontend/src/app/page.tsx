@@ -299,7 +299,7 @@ function LandingContent() {
               <div className="space-y-5">
                 {[
                   { num: "01", title: "Fair value from a 3-scenario DCF", body: "Bear / base / bull cases with an explicit weighted average \u2014 no single-point estimate hiding the uncertainty." },
-                  { num: "02", title: "Margin of safety vs. today\u2019s price", body: "Color-coded, percent-based. You see immediately whether the stock is cheap, fair, or rich at the current quote." },
+                  { num: "02", title: "Margin of safety vs. today\u2019s price", body: "Color-coded, percent-based. You see immediately whether the stock trades below, near, or well above fair value at the current quote." },
                   { num: "03", title: "YieldIQ score (0\u2013100) + letter grade", body: "Blends valuation, quality, moat, and safety into one number you can compare across sectors." },
                   { num: "04", title: "Moat & Piotroski on every stock", body: "Wide / Narrow / None moat classification plus the 9-point Piotroski F-Score \u2014 no manual digging." },
                   { num: "05", title: "AI summary in plain English", body: "A 2-sentence take on what actually matters for this business, generated fresh from the latest financials." },
@@ -346,7 +346,7 @@ function LandingContent() {
               {
                 icon: "\u{1F4D0}",
                 title: "Descriptive-only",
-                body: "No SEBI-regulated buy/sell signals. No tips, no picks. A valuation layer you apply your own judgement to.",
+                body: "No registered-advisor trade calls. No tips, no picks. A valuation layer you apply your own judgement to.",
               },
               {
                 icon: "\u{1F4CA}",

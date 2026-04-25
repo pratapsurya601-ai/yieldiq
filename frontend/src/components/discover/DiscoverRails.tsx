@@ -75,7 +75,7 @@ export function SectorLeaders({ stocks }: SectorLeadersProps) {
 }
 
 // ─────────────────────────────────────────────────────────────────────
-// 52-week lows with strong fundamentals
+// 52-week lows with durable fundamentals
 // ─────────────────────────────────────────────────────────────────────
 
 interface NearLowStock {
@@ -103,7 +103,7 @@ export function NearLowsRail() {
 
   return (
     <section>
-      <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-2">52-week lows with strong fundamentals</p>
+      <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-2">52-week lows with durable fundamentals</p>
       {stocks === null && !error && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -187,7 +187,7 @@ export function LowestPERail({ stocks: _unused }: LowestPERailProps) {
 
   return (
     <section>
-      <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-2">Lowest P/E with strong fundamentals</p>
+      <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-2">Lowest P/E with durable fundamentals</p>
       {items === null && !error && (
         <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
           {[0, 1, 2, 3, 4, 5].map((i) => (

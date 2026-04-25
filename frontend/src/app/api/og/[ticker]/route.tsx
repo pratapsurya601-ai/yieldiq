@@ -11,6 +11,12 @@ export const revalidate = 1800
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://api.yieldiq.in"
 
+// Bumped when the SEBI vocabulary sweep renamed verdict labels
+// ("Undervalued"/"Overvalued" → "Below Fair Value"/"Above Fair Value").
+// CDN scrapers cache OG cards aggressively; the X-OG-Cache-Version header
+// gives us a way to verify a refreshed card carries the new copy.
+const OG_CACHE_VERSION = "v2-sebi-fv-labels"
+
 interface OgData {
   ticker?: string
   fair_value?: number
@@ -26,9 +32,9 @@ interface OgData {
 // `avoid` maps to "High Risk", `data_limited`/`unavailable` to "Under Review".
 function verdictLabel(v?: string): string {
   switch (v) {
-    case "undervalued": return "Undervalued"
-    case "fairly_valued": return "Fairly Valued"
-    case "overvalued": return "Overvalued"
+    case "undervalued": return "Below Fair Value"
+    case "fairly_valued": return "Near Fair Value"
+    case "overvalued": return "Above Fair Value"
     case "avoid": return "High Risk"
     case "data_limited":
     case "unavailable":
@@ -423,6 +429,7 @@ export async function GET(
       headers: {
         "Cache-Control":
           "public, max-age=0, s-maxage=1800, stale-while-revalidate=86400",
+        "X-OG-Cache-Version": OG_CACHE_VERSION,
       },
     }
   )

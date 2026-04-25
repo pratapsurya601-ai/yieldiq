@@ -115,16 +115,16 @@ export function quarterLabel(isoDate: string): string {
 export function verdictBandLabel(band: VerdictBand): string {
   switch (band) {
     case "deepValue":
-      return "Deep Value"
+      return "Well Below Fair Value"
     case "undervalued":
-      return "Undervalued"
+      return "Below Fair Value"
     case "overvalued":
-      return "Overvalued"
+      return "Above Fair Value"
     case "expensive":
-      return "Expensive"
+      return "Well Above Fair Value"
     case "fair":
     default:
-      return "Fair"
+      return "Near Fair Value"
   }
 }
 

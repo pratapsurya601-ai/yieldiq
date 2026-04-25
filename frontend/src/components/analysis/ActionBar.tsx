@@ -50,9 +50,9 @@ function ActionButton({ icon, label, onClick }: { icon: React.ReactNode; label: 
 
 function verdictLabel(v: Verdict): string {
   switch (v) {
-    case "undervalued":   return "Undervalued"
-    case "fairly_valued": return "Fairly Valued"
-    case "overvalued":    return "Overvalued"
+    case "undervalued":   return "Below Fair Value"
+    case "fairly_valued": return "Near Fair Value"
+    case "overvalued":    return "Above Fair Value"
     case "avoid":         return "High Risk"
     case "data_limited":  return "Data Limited"
     case "unavailable":   return "Unavailable"
@@ -338,7 +338,7 @@ function buildPdfHtml(p: ActionBarProps): string {
   .scenario.bull .s-value { color: #16a34a; }
   .scenario .s-mos { font-size: 11px; color: #94a3b8; margin-top: 2px; }
   .wacc-strip { background: #f1f5f9; border-radius: 8px; padding: 10px 16px; font-size: 12px; color: #475569; margin-bottom: 24px; display: flex; gap: 24px; }
-  .wacc-strip strong { color: #1e293b; }
+  .wacc-strip b { color: #1e293b; }
   .disclaimer { font-size: 10px; color: #94a3b8; text-align: center; line-height: 1.6; border-top: 1px solid #e2e8f0; padding-top: 16px; margin-top: 16px; }
   .disclaimer .brand { font-weight: 600; color: #64748b; }
   @media print {
@@ -407,9 +407,9 @@ function buildPdfHtml(p: ActionBarProps): string {
   </div>
 
   <div class="wacc-strip">
-    <div><strong>WACC:</strong> ${(p.wacc * 100).toFixed(1)}%</div>
-    <div><strong>FCF Growth:</strong> ${(p.fcfGrowth * 100).toFixed(1)}%</div>
-    <div><strong>Confidence:</strong> ${p.confidence.toFixed(0)}%</div>
+    <div><b>WACC:</b> ${(p.wacc * 100).toFixed(1)}%</div>
+    <div><b>FCF Growth:</b> ${(p.fcfGrowth * 100).toFixed(1)}%</div>
+    <div><b>Confidence:</b> ${p.confidence.toFixed(0)}%</div>
   </div>
 
   <div class="disclaimer">
@@ -702,7 +702,7 @@ export default function ActionBar(props: ActionBarProps) {
     const dt = displayTicker(ticker)
     const shareData = {
       title: `${dt} \u2014 Stock Analysis`,
-      text: `${dt} analysis on YieldIQ \u2014 check if it's undervalued or overvalued`,
+      text: `${dt} analysis on YieldIQ \u2014 see how it compares to fair value`,
       url: shareUrl,
     }
 

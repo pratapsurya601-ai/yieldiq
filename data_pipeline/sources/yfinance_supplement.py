@@ -1,10 +1,26 @@
 # data_pipeline/sources/yfinance_supplement.py
 # PRIMARY data source — yfinance works from Railway (NSE/BSE block cloud IPs).
 # Downloads: prices (3yr history), financials, market metrics, beta.
+#
+# DECOUPLING REFACTOR (2026-04-25): `fetch_and_store_yfinance` used to bail
+# with `return False` whenever `info["regularMarketPrice"]` was None, which
+# silently dropped historical-financials ingest for tickers that merely had
+# a price-feed glitch or post-listing delay (LTIM was the canary). The
+# function is now split into three independently-gated phases:
+#
+#     _persist_price_snapshot      — needs a live/fallback price
+#     _persist_historical_financials — needs ticker.financials / income_stmt
+#     _persist_quarterly_supplement  — needs quarterly_* DataFrames
+#
+# The public entry point returns a structured dict
+# `{price: bool, financials: bool, quarterly: bool}`. Legacy boolean
+# callers keep working because we also expose `any(result.values())`
+# via `__bool__` on the result class — see `YfIngestResult` below.
 from __future__ import annotations
 
 import logging
 import time
+from dataclasses import asdict, dataclass
 from datetime import date, datetime, timedelta
 
 import pandas as pd
@@ -12,25 +28,52 @@ import yfinance as yf
 from sqlalchemy.orm import Session
 
 from data_pipeline.models import DailyPrice, DataFreshness, Financials, MarketMetrics
+from data_pipeline.ticker_aliases import (
+    resolve_for_fetch as _resolve_for_fetch,
+    Fetch as _Fetch,
+    Skip as _Skip,
+    Redirect as _Redirect,
+)
 
 logger = logging.getLogger(__name__)
 
 
-def fetch_and_store_yfinance(ticker_ns: str, ticker: str, db: Session) -> bool:
+@dataclass
+class YfIngestResult:
+    """Structured per-phase outcome for `fetch_and_store_yfinance`.
+
+    Legacy callers that do `if fetch_and_store_yfinance(...): ...` keep
+    working because `__bool__` is `any(...)` of the three phases. Callers
+    that need phase-level detail should inspect the fields directly.
     """
-    Fetch comprehensive financial data from yfinance for one stock.
-    ticker_ns: e.g. "RELIANCE.NS"
-    ticker: e.g. "RELIANCE"
+    price: bool = False
+    financials: bool = False
+    quarterly: bool = False
+
+    def __bool__(self) -> bool:  # backward-compat: `if result:` === partial-ok
+        return self.price or self.financials or self.quarterly
+
+    def as_dict(self) -> dict[str, bool]:
+        return asdict(self)
+
+
+def _has_live_price(info: dict | None) -> bool:
+    """Price snapshot is only meaningful if one of these fields is populated."""
+    if not info:
+        return False
+    return (
+        info.get("regularMarketPrice") is not None
+        or info.get("currentPrice") is not None
+        or info.get("previousClose") is not None
+    )
+
+
+def _persist_price_snapshot(ticker: str, info: dict, db: Session) -> bool:
+    """Upsert today's MarketMetrics row. Returns True on successful commit.
+
+    Only call this after `_has_live_price(info)` is True.
     """
     try:
-        stock = yf.Ticker(ticker_ns)
-        info = stock.info
-
-        if not info or info.get("regularMarketPrice") is None:
-            logger.warning(f"No yfinance data for {ticker_ns}")
-            return False
-
-        # Store market metrics — upsert to avoid unique constraint violations
         today = date.today()
         existing_metric = db.query(MarketMetrics).filter_by(
             ticker=ticker, trade_date=today
@@ -61,131 +104,285 @@ def fetch_and_store_yfinance(ticker_ns: str, ticker: str, db: Session) -> bool:
                 ev_cr=_to_cr(info.get("enterpriseValue")),
             ))
 
-        # Commit market metrics before attempting financial statements.
-        # If the financials block raises (e.g. UNIQUE on uq_financials_period)
-        # and we rolled back the whole transaction, we'd lose the metrics
-        # we just staged. Committing here makes the two steps independent.
-        try:
-            db.commit()
-        except Exception as mm_exc:
-            logger.error(
-                "Market metrics commit failed for %s: %s: %s",
-                ticker_ns, type(mm_exc).__name__, mm_exc,
-            )
-            try:
-                db.rollback()
-            except Exception:
-                pass
-            return False
-
-        # Get financial statements
-        try:
-            cf = stock.cashflow
-            bs = stock.balance_sheet
-            inc = stock.income_stmt
-
-            if cf is not None and not cf.empty:
-                for col in cf.columns[:5]:
-                    try:
-                        period_date = col.date() if hasattr(col, "date") else col
-
-                        cfo = _get_val(cf, "Operating Cash Flow", col)
-                        capex = _get_val(cf, "Capital Expenditure", col)
-                        fcf = (cfo - abs(capex)) if cfo and capex else None
-                        revenue = _get_val(inc, "Total Revenue", col) if inc is not None else None
-                        pat = _get_val(inc, "Net Income", col) if inc is not None else None
-                        ebitda = _get_val(inc, "EBITDA", col) if inc is not None else None
-                        # BUG FIX 2026-04-24: was "Total Equity Gross Minority Interest"
-                        # which includes minority interest + Tier-1 perpetuals. For banks
-                        # this inflated equity ~50% — e.g. HDFCBANK stored 862k Cr vs real
-                        # ~570k Cr, halving ROE (7.8% vs real 11.8%) and cascading through
-                        # fair_value / HEX quality axes / composite score. Correct field is
-                        # "Stockholders Equity" (excludes minority interest), with fallback
-                        # to "Common Stock Equity" for tickers where the first field is absent.
-                        total_equity = (
-                            _get_val(bs, "Stockholders Equity", col) if bs is not None else None
-                        )
-                        if total_equity is None and bs is not None:
-                            total_equity = _get_val(bs, "Common Stock Equity", col)
-                        if total_equity is None and bs is not None:
-                            # Last-resort fallback to the old (wrong-for-banks) field
-                            # rather than returning None for non-bank tickers where
-                            # minority interest is negligible or absent.
-                            total_equity = _get_val(bs, "Total Equity Gross Minority Interest", col)
-                        total_assets = _get_val(bs, "Total Assets", col) if bs is not None else None
-
-                        fin = Financials(
-                            ticker=ticker,
-                            period_end=period_date,
-                            period_type="annual",
-                            revenue=_to_cr(revenue),
-                            pat=_to_cr(pat),
-                            ebitda=_to_cr(ebitda),
-                            cfo=_to_cr(cfo),
-                            capex=_to_cr(capex),
-                            free_cash_flow=_to_cr(fcf),
-                            total_debt=_to_cr(
-                                _get_val(bs, "Total Debt", col) if bs is not None else None
-                            ),
-                            cash_and_equivalents=_to_cr(
-                                _get_val(bs, "Cash And Cash Equivalents", col) if bs is not None else None
-                            ),
-                            total_equity=_to_cr(total_equity),
-                            total_assets=_to_cr(total_assets),
-                            shares_outstanding=_to_lakhs(
-                                info.get("sharesOutstanding")
-                            ),
-                            roe=(_safe_pct(pat, total_equity)) if pat and total_equity else None,
-                            roa=(_safe_pct(pat, total_assets)) if pat and total_assets else None,
-                            net_margin=(_safe_pct(pat, revenue)) if pat and revenue else None,
-                            data_source="yfinance",
-                            # yfinance normalises all `.NS` / `.BO` financials
-                            # to INR regardless of how the issuer files, so
-                            # we always tag INR here.
-                            currency="INR",
-                        )
-
-                        if revenue and revenue > 0:
-                            existing_fin = db.query(Financials).filter_by(
-                                ticker=ticker, period_end=period_date, period_type="annual"
-                            ).first()
-                            if existing_fin:
-                                for attr in ["revenue", "pat", "ebitda", "cfo", "capex",
-                                             "free_cash_flow", "total_debt", "cash_and_equivalents",
-                                             "total_equity", "total_assets", "shares_outstanding",
-                                             "roe", "roa", "net_margin"]:
-                                    val = getattr(fin, attr, None)
-                                    if val is not None:
-                                        setattr(existing_fin, attr, val)
-                            else:
-                                db.add(fin)
-                    except Exception as row_exc:
-                        # If the autoflush / add raised (e.g. UNIQUE on
-                        # (ticker, period_end, period_type)), the session
-                        # is pending-rollback. Clear it before moving on.
-                        logger.debug(
-                            "Financials row skipped for %s: %s: %s",
-                            ticker, type(row_exc).__name__, row_exc,
-                        )
-                        try:
-                            db.rollback()
-                        except Exception:
-                            pass
-                        continue
-        except Exception as e:
-            logger.warning(
-                "Financial statements failed for %s: %s: %s",
-                ticker, type(e).__name__, e,
-            )
-            # Same discipline: drop any pending-rollback state so the
-            # db.commit() below can still flush the MarketMetrics row.
-            try:
-                db.rollback()
-            except Exception:
-                pass
-
         db.commit()
         return True
+    except Exception as exc:
+        logger.error(
+            "Market metrics commit failed for %s: %s: %s",
+            ticker, type(exc).__name__, exc,
+        )
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
+
+
+def _persist_historical_financials(
+    ticker: str, stock: "yf.Ticker", info: dict | None, db: Session
+) -> bool:
+    """Write annual Financials rows from stock.cashflow / income_stmt /
+    balance_sheet. Returns True iff at least one row was added/updated and
+    the surrounding commit succeeded.
+
+    Independent of the price snapshot: runs whenever yfinance has any
+    historical income/cashflow data, regardless of whether the intraday
+    price feed is live.
+    """
+    try:
+        cf = stock.cashflow
+        bs = stock.balance_sheet
+        inc = stock.income_stmt
+    except Exception as e:
+        logger.warning(
+            "Financial statements fetch failed for %s: %s: %s",
+            ticker, type(e).__name__, e,
+        )
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
+
+    # Phase is only meaningful if we have an income statement OR cashflow.
+    if (cf is None or cf.empty) and (inc is None or inc.empty):
+        return False
+
+    # Use whichever frame has columns to drive the period loop.
+    driver = cf if (cf is not None and not cf.empty) else inc
+    rows_written = 0
+    shares_out = info.get("sharesOutstanding") if info else None
+
+    for col in driver.columns[:5]:
+        try:
+            period_date = col.date() if hasattr(col, "date") else col
+
+            cfo = _get_val(cf, "Operating Cash Flow", col) if (cf is not None and not cf.empty) else None
+            capex = _get_val(cf, "Capital Expenditure", col) if (cf is not None and not cf.empty) else None
+            fcf = (cfo - abs(capex)) if cfo and capex else None
+            revenue = _get_val(inc, "Total Revenue", col) if inc is not None and not inc.empty else None
+            pat = _get_val(inc, "Net Income", col) if inc is not None and not inc.empty else None
+            ebitda = _get_val(inc, "EBITDA", col) if inc is not None and not inc.empty else None
+            # BUG FIX 2026-04-24: was "Total Equity Gross Minority Interest"
+            # which includes minority interest + Tier-1 perpetuals. For banks
+            # this inflated equity ~50% — e.g. HDFCBANK stored 862k Cr vs real
+            # ~570k Cr, halving ROE (7.8% vs real 11.8%) and cascading through
+            # fair_value / HEX quality axes / composite score. Correct field is
+            # "Stockholders Equity" (excludes minority interest), with fallback
+            # to "Common Stock Equity" for tickers where the first field is absent.
+            total_equity = (
+                _get_val(bs, "Stockholders Equity", col) if bs is not None and not bs.empty else None
+            )
+            if total_equity is None and bs is not None and not bs.empty:
+                total_equity = _get_val(bs, "Common Stock Equity", col)
+            if total_equity is None and bs is not None and not bs.empty:
+                # Last-resort fallback to the old (wrong-for-banks) field
+                # rather than returning None for non-bank tickers where
+                # minority interest is negligible or absent.
+                total_equity = _get_val(bs, "Total Equity Gross Minority Interest", col)
+            total_assets = _get_val(bs, "Total Assets", col) if bs is not None and not bs.empty else None
+
+            fin = Financials(
+                ticker=ticker,
+                period_end=period_date,
+                period_type="annual",
+                revenue=_to_cr(revenue),
+                pat=_to_cr(pat),
+                ebitda=_to_cr(ebitda),
+                cfo=_to_cr(cfo),
+                capex=_to_cr(capex),
+                free_cash_flow=_to_cr(fcf),
+                total_debt=_to_cr(
+                    _get_val(bs, "Total Debt", col) if bs is not None and not bs.empty else None
+                ),
+                cash_and_equivalents=_to_cr(
+                    _get_val(bs, "Cash And Cash Equivalents", col) if bs is not None and not bs.empty else None
+                ),
+                total_equity=_to_cr(total_equity),
+                total_assets=_to_cr(total_assets),
+                shares_outstanding=_to_lakhs(shares_out),
+                roe=(_safe_pct(pat, total_equity)) if pat and total_equity else None,
+                roa=(_safe_pct(pat, total_assets)) if pat and total_assets else None,
+                net_margin=(_safe_pct(pat, revenue)) if pat and revenue else None,
+                data_source="yfinance",
+                # yfinance normalises all `.NS` / `.BO` financials
+                # to INR regardless of how the issuer files, so
+                # we always tag INR here.
+                currency="INR",
+            )
+
+            if revenue and revenue > 0:
+                existing_fin = db.query(Financials).filter_by(
+                    ticker=ticker, period_end=period_date, period_type="annual"
+                ).first()
+                if existing_fin:
+                    for attr in ["revenue", "pat", "ebitda", "cfo", "capex",
+                                 "free_cash_flow", "total_debt", "cash_and_equivalents",
+                                 "total_equity", "total_assets", "shares_outstanding",
+                                 "roe", "roa", "net_margin"]:
+                        val = getattr(fin, attr, None)
+                        if val is not None:
+                            setattr(existing_fin, attr, val)
+                    rows_written += 1
+                else:
+                    db.add(fin)
+                    rows_written += 1
+        except Exception as row_exc:
+            # If the autoflush / add raised (e.g. UNIQUE on
+            # (ticker, period_end, period_type)), the session
+            # is pending-rollback. Clear it before moving on.
+            logger.debug(
+                "Financials row skipped for %s: %s: %s",
+                ticker, type(row_exc).__name__, row_exc,
+            )
+            try:
+                db.rollback()
+            except Exception:
+                pass
+            continue
+
+    if rows_written == 0:
+        return False
+
+    try:
+        db.commit()
+        return True
+    except Exception as commit_exc:
+        logger.error(
+            "Historical financials commit failed for %s: %s: %s",
+            ticker, type(commit_exc).__name__, commit_exc,
+        )
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        return False
+
+
+def _persist_quarterly_supplement(
+    ticker: str, stock: "yf.Ticker", db: Session
+) -> bool:
+    """Placeholder for parity with the yf_fetcher quarterly path.
+
+    This module historically only wrote annual rows into `financials`.
+    The quarterly pipeline that populates `company_financials` lives in
+    `data_pipeline/xbrl/yf_fetcher.py` + `db_writer.py` and is invoked
+    separately. We keep the phase here so the structured return value
+    stays symmetric and so a future migration can slot quarterly writes
+    into this module without changing any caller signatures.
+
+    Returns False today because this module does not currently persist
+    quarterly rows — the quarterly phase is handled by the XBRL path.
+    """
+    # Intentionally a no-op today. Guarded for future extension.
+    try:
+        _ = stock.quarterly_income_stmt  # probe to confirm symbol works
+    except Exception:
+        pass
+    return False
+
+
+def fetch_and_store_yfinance(
+    ticker_ns: str, ticker: str, db: Session
+) -> YfIngestResult:
+    """
+    Fetch comprehensive financial data from yfinance for one stock.
+    ticker_ns: e.g. "RELIANCE.NS"
+    ticker: e.g. "RELIANCE"
+
+    Returns a `YfIngestResult` dataclass with independent per-phase booleans:
+
+        result.price       — today's MarketMetrics row written
+        result.financials  — at least one annual Financials row written
+        result.quarterly   — quarterly rows written (currently always False;
+                             quarterly path lives in xbrl/yf_fetcher.py)
+
+    Legacy boolean usage (`if fetch_and_store_yfinance(...): ...`) still
+    works because `__bool__` on the result returns `any(...)` of the
+    three phases (= "partial success or better").
+    """
+    result = YfIngestResult()
+    # Corporate-actions alias gate. Consult BEFORE yfinance so a
+    # demerged/delisted parent doesn't generate Sentry 404 noise.
+    _res = _resolve_for_fetch(ticker)
+    if isinstance(_res, _Skip):
+        logger.info(
+            "ticker_aliases: skipping %s (reason=%s)", ticker, _res.reason
+        )
+        return result
+    if isinstance(_res, _Redirect):
+        logger.info(
+            "ticker_aliases: %s demerged; fetching successors %s",
+            ticker, [s.ticker for s in _res.successors],
+        )
+        for succ in _res.successors:
+            if not succ.fetch_symbol:
+                continue
+            try:
+                sub = fetch_and_store_yfinance(succ.fetch_symbol, succ.ticker, db)
+                # OR-merge per-phase flags so the caller sees true if
+                # ANY successor produced a row of that phase.
+                result.price = result.price or sub.price
+                result.financials = result.financials or sub.financials
+                result.quarterly = result.quarterly or sub.quarterly
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "ticker_aliases: successor %s fetch failed: %s",
+                    succ.ticker, exc,
+                )
+        return result
+    if isinstance(_res, _Fetch) and _res.symbol:
+        # Prefer the alias-resolved Yahoo symbol (handles fetch_symbol
+        # overrides for renamed tickers); falls back to caller-supplied
+        # ticker_ns otherwise.
+        ticker_ns = _res.symbol
+    try:
+        stock = yf.Ticker(ticker_ns)
+        try:
+            info = stock.info or {}
+        except Exception:
+            info = {}
+
+        # --- Phase 1: price snapshot (independent) ---
+        if _has_live_price(info):
+            result.price = _persist_price_snapshot(ticker, info, db)
+        else:
+            logger.info(
+                "ticker=%s price=skipped reason=no_live_price_in_info",
+                ticker,
+            )
+
+        # --- Phase 2: historical annual financials (independent) ---
+        result.financials = _persist_historical_financials(ticker, stock, info, db)
+
+        # --- Phase 3: quarterly supplement (independent, currently no-op) ---
+        result.quarterly = _persist_quarterly_supplement(ticker, stock, db)
+
+        # --- Partial-success logging ---
+        # Warnings are reserved for things humans need to act on. A missing
+        # price feed on a ticker whose financials ingested fine is expected
+        # (post-listing delay, weekend, temporary yfinance glitch) and
+        # should be INFO only.
+        if result.financials and not result.price:
+            logger.info(
+                "ticker=%s financials=ok price=failed quarterly=%s",
+                ticker, "ok" if result.quarterly else "skipped",
+            )
+        elif not result.financials and not result.price and not result.quarterly:
+            logger.warning(
+                "ticker=%s all_phases_failed (info_keys=%d)",
+                ticker, len(info) if info else 0,
+            )
+        else:
+            logger.info(
+                "ticker=%s price=%s financials=%s quarterly=%s",
+                ticker,
+                "ok" if result.price else "skipped",
+                "ok" if result.financials else "skipped",
+                "ok" if result.quarterly else "skipped",
+            )
+
+        return result
 
     except Exception as e:
         logger.error(
@@ -196,7 +393,7 @@ def fetch_and_store_yfinance(ticker_ns: str, ticker: str, db: Session) -> bool:
             db.rollback()
         except Exception:
             pass
-        return False
+        return result
 
 
 def fetch_price_history(ticker_ns: str, ticker: str, db: Session,
@@ -410,8 +607,11 @@ def batch_fetch_fundamentals(tickers: list[str], db: Session) -> tuple[int, int]
     for i, ticker in enumerate(tickers):
         ticker_ns = f"{ticker}.NS"
         try:
-            ok = fetch_and_store_yfinance(ticker_ns, ticker, db)
-            if ok:
+            result = fetch_and_store_yfinance(ticker_ns, ticker, db)
+            # Count a ticker as success if ANY phase wrote rows (partial
+            # success is still a win — e.g. financials=ok / price=failed
+            # for a post-listing-delay ticker like LTIM).
+            if result.financials or result.price or result.quarterly:
                 success += 1
             else:
                 failed += 1

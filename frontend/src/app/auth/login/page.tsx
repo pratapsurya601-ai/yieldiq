@@ -98,7 +98,7 @@ export default function LoginPage() {
         <div className="text-center">
           <img src="/logo-new.svg" alt="YieldIQ" className="w-16 h-16 rounded-xl mx-auto mb-3" />
           <h1 className="text-2xl font-bold text-gray-900">YieldIQ</h1>
-          <p className="text-sm text-gray-500 mt-1">Know if a stock is undervalued</p>
+          <p className="text-sm text-gray-500 mt-1">Fair-value estimates for Indian stocks</p>
         </div>
 
         <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">

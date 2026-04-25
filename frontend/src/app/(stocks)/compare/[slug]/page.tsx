@@ -48,7 +48,7 @@ export async function generateMetadata(
   const t1 = display(parsed.ticker1)
   const t2 = display(parsed.ticker2)
   const canonical = `https://yieldiq.in/compare/${t1}-vs-${t2}`
-  const title = `${t1} vs ${t2} \u2014 Which is More Undervalued? | YieldIQ`
+  const title = `${t1} vs ${t2} \u2014 Which Sits Further Below Fair Value? | YieldIQ`
   const description = `Side-by-side DCF fair value, margin of safety, moat, and quality comparison between ${t1} and ${t2}. Updated daily.`
   return {
     title,

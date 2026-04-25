@@ -1,7 +1,17 @@
 "use client"
-import { Component, type ReactNode } from "react"
+import { Component, type ErrorInfo, type ReactNode } from "react"
 
-interface Props { children: ReactNode; fallback?: ReactNode }
+interface Props {
+  children: ReactNode
+  fallback?: ReactNode
+  /**
+   * Optional human-readable tag used to identify which boundary caught
+   * the error in console output. Helpful when the homepage wraps each
+   * rail individually — without this, every crash logs the same generic
+   * "Something went wrong" with no way to tell which rail died.
+   */
+  label?: string
+}
 interface State { hasError: boolean; error?: Error }
 
 export default class ErrorBoundary extends Component<Props, State> {
@@ -9,6 +19,18 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    const tag = this.props.label ? `[ErrorBoundary:${this.props.label}]` : "[ErrorBoundary]"
+    // Tag the line so it's grep-able in a noisy console — pairs with
+    // the per-rail labels on the homepage.
+    console.error(`${tag} caught error`, error, info?.componentStack)
+    // SENTRY-HOOK: when @sentry/nextjs is wired in, replace the
+    // console.error above with `Sentry.captureException(error, {
+    //   tags: { boundary: this.props.label ?? "unknown" },
+    //   extra: { componentStack: info?.componentStack },
+    // })`. Intentionally not adding the dep here.
   }
 
   render() {

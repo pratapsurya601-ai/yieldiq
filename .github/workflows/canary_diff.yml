@@ -16,6 +16,7 @@ on:
       - 'backend/models/**'
       - 'scripts/canary_stocks_50.json'
       - 'scripts/canary_diff.py'
+      - 'scripts/canary_gate_selftest.py'
       - '.github/workflows/canary_diff.yml'
   schedule:
     - cron: '30 2 * * *'   # 02:30 UTC == 08:00 IST daily
@@ -40,6 +41,13 @@ jobs:
 
       - name: Unit tests for the gates
         run: pytest tests/test_canary_diff.py -v
+
+      - name: Run canary gate selftest
+        # If the harness itself has a bug, abort BEFORE the network hop.
+        # The selftest exercises every gate against fixture payloads
+        # (no I/O) so a failure here means CI cannot trust the gate
+        # decisions made by the production canary run that follows.
+        run: python scripts/canary_gate_selftest.py
 
       - name: Run canary-diff against production
         env:

@@ -67,7 +67,7 @@ function _promoterCard(
   }
   const pledged = pledgePct !== null && pledgePct !== undefined && pledgePct > 0
   const band =
-    promoterPct >= 50 ? { c: "text-blue-700", b: "border-l-blue-500", label: "Strong alignment" }
+    promoterPct >= 50 ? { c: "text-blue-700", b: "border-l-blue-500", label: "High alignment" }
     : promoterPct >= 25 ? { c: "text-body", b: "border-l-border", label: "Moderate" }
     : { c: "text-amber-700", b: "border-l-amber-500", label: "Low stake" }
   const subtitle = pledged
@@ -211,7 +211,7 @@ export default function InsightCards({ quality, insights, valuation, currency = 
       const div = insights.dividend
       if (div?.has_dividends && div.current_yield_pct !== null && div.current_yield_pct !== undefined) {
         const s = div.sustainability
-        const sustLabel = s === "strong" ? "\u25cf Strong"
+        const sustLabel = s === "strong" ? "\u25cf High"
           : s === "at_risk" ? "\u25cf At Risk"
           : "\u25cf Moderate"
         const sustColor = s === "strong" ? "text-green-600"

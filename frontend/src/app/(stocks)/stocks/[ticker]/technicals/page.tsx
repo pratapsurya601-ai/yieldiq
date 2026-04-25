@@ -11,7 +11,7 @@ export async function generateMetadata(
   const display = ticker.toUpperCase().replace(".NS", "").replace(".BO", "")
   return {
     title: `${display} Technical Indicators \u2014 RSI, MACD, SMA Charts | YieldIQ`,
-    description: `${display} technical analysis: 20/50/200-day moving averages, RSI(14), MACD, Bollinger Bands. Reference data, not buy signals.`,
+    description: `${display} technical analysis: 20/50/200-day moving averages, RSI(14), MACD, Bollinger Bands. Reference data, not registered-advisor trade calls.`,
     alternates: { canonical: `https://yieldiq.in/stocks/${display}/technicals` },
   }
 }

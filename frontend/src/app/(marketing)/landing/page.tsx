@@ -159,7 +159,7 @@ export default function LandingPage() {
             </div>
             <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
               <div className="text-3xl mb-4">&#x1F4B0;</div>
-              <h3 className="font-bold text-lg mb-2">Tools are expensive</h3>
+              <h3 className="font-bold text-lg mb-2">Tools cost a fortune</h3>
               <p className="text-gray-500 text-sm leading-relaxed">
                 Bloomberg Terminal costs &#8377;20L/year. Screeners give ratios, not valuations. The gap is massive.
               </p>

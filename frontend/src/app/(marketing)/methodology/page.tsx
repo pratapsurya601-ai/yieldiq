@@ -248,7 +248,7 @@ export default function MethodologyPage() {
             body="Price above the base case but below the bull. The market is implying a better outcome than our central estimate."
           />
           <Band
-            label="Overvalued"
+            label="Well Above Fair Value"
             body="Price above the bull-case fair value. The market is pricing in an outcome better than our most optimistic scenario."
           />
           <Band

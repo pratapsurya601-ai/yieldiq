@@ -30,9 +30,14 @@ import type {
   PillarKey,
   PrismData,
   PrismMode,
-  VerdictBand,
 } from "@/components/prism/types"
-import { formatCurrency, formatPct } from "@/lib/utils"
+import {
+  formatCurrency,
+  formatPct,
+  verdictDisplayLabel,
+  verdictRegion,
+} from "@/lib/utils"
+import type { Verdict } from "@/types/api"
 
 // Lazy-load so visitors who never click "Tell me the story" don't pay
 // the narrator's bundle cost.
@@ -65,6 +70,14 @@ export interface EditorialHeroProps {
   /** True when DCF inputs aren't reliable — shows a Data Limited banner instead of verdict. */
   dataLimited?: boolean
   /**
+   * Canonical Verdict — drives the headline and small region caption.
+   * Single source of truth across the analysis page (see RELIANCE
+   * triple-contradiction bug postmortem). The hero MUST derive its
+   * user-facing label from this field; verdictColor(data.verdict_band)
+   * is geometric only (ring palette), not a label.
+   */
+  valuationVerdict: Verdict
+  /**
    * Structured red-flag list from the backend insights payload. The
    * "Possible value trap" banner fires when — and ONLY when — this
    * array contains a ``value_trap`` entry. Backend /services/analysis
@@ -77,26 +90,11 @@ export interface EditorialHeroProps {
   redFlags?: Array<{ flag: string; severity?: string }>
 }
 
-function bandCaption(band: VerdictBand): string {
-  switch (band) {
-    case "deepValue":
-      return "Deep Value Region"
-    case "undervalued":
-      return "Undervalued Region"
-    case "fair":
-      return "Fair Value Region"
-    case "overvalued":
-      return "Overvalued Region"
-    case "expensive":
-      return "Expensive Region"
-    default:
-      return "Fair Value Region"
-  }
-}
-
-function titleCase(s: string): string {
-  return s.replace(/\w\S*/g, (t) => t.charAt(0).toUpperCase() + t.substr(1).toLowerCase())
-}
+// NOTE: bandCaption() and titleCase() were removed — both produced
+// user-facing labels keyed off prism band/verdict_label, which drifted
+// from the canonical valuation.verdict and caused the RELIANCE
+// triple-contradiction bug. Headline and region caption now derive from
+// the Verdict prop via verdictDisplayLabel/verdictRegion (lib/utils.ts).
 
 /** The three cells share style; small helper keeps JSX flat. */
 function Stat({
@@ -139,6 +137,7 @@ export default function EditorialHero({
   marketCapCr,
   dataLimited,
   redFlags,
+  valuationVerdict,
 }: EditorialHeroProps) {
   const defaultMode: PrismMode = "spectrum"
   const color = verdictColor(data.verdict_band)
@@ -186,7 +185,7 @@ export default function EditorialHero({
             />
             <MetricTooltip metricKey="verdict">
               <span className="text-[11px] uppercase tracking-[0.15em] text-body">
-                {bandCaption(data.verdict_band)}
+                {verdictRegion(valuationVerdict)}
               </span>
             </MetricTooltip>
           </div>
@@ -206,8 +205,8 @@ export default function EditorialHero({
               </svg>
               <span>
                 <span className="font-semibold">Possible value trap.</span>{" "}
-                Deep discount paired with weak quality or no durable moat —
-                undervalued stocks often stay undervalued for a reason.
+                Deep discount paired with limited quality or no durable moat —
+                stocks below fair value often stay below fair value for a reason.
               </span>
             </div>
           )}
@@ -219,7 +218,7 @@ export default function EditorialHero({
             className="font-editorial text-3xl leading-tight text-ink font-semibold"
             style={{ fontVariationSettings: "'opsz' 48" }}
           >
-            {titleCase(data.verdict_label)}
+            {verdictDisplayLabel(valuationVerdict)}
           </h2>
 
           {/* 2x2 metrics */}

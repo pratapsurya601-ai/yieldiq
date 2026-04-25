@@ -77,11 +77,11 @@ def _parse_mapped_keys_from_source() -> set[str]:
 
     src = Path(_ROOT, "backend", "routers", "public.py").read_text(encoding="utf-8")
     m = re.search(
-        r"_ALLOWED_FIELDS:\s*dict\[str,\s*str\]\s*=\s*\{([^}]+)\}",
+        r"SCREENER_FIELD_MAP:\s*dict\[str,\s*str\]\s*=\s*\{([^}]+)\}",
         src,
         re.DOTALL,
     )
-    assert m, "could not locate _ALLOWED_FIELDS literal in public.py"
+    assert m, "could not locate SCREENER_FIELD_MAP literal in public.py"
     keys = set(re.findall(r'"([a-z_]+)"\s*:', m.group(1)))
     assert keys, "parsed mapper dict is empty"
     return keys

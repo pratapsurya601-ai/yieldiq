@@ -102,23 +102,23 @@ export default function IndexDashboardClient({ data }: { data: DashboardData }) 
           <div className="flex flex-wrap justify-center gap-4 sm:gap-8">
             <div className="bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-center">
               <p className="text-2xl font-black text-green-400">{summary.undervalued}</p>
-              <p className="text-xs text-gray-400">Undervalued</p>
+              <p className="text-xs text-gray-400">Below Fair Value</p>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-center">
               <p className="text-2xl font-black text-blue-400">{summary.fairly_valued}</p>
-              <p className="text-xs text-gray-400">Fairly Valued</p>
+              <p className="text-xs text-gray-400">Near Fair Value</p>
             </div>
             <div className="bg-white/5 border border-white/10 rounded-xl px-5 py-3 text-center">
               <p className="text-2xl font-black text-red-400">{summary.overvalued}</p>
-              <p className="text-xs text-gray-400">Overvalued</p>
+              <p className="text-xs text-gray-400">Above Fair Value</p>
             </div>
           </div>
 
           {summary.most_undervalued && (
             <p className="text-sm text-gray-400 mt-4">
-              Most undervalued: <span className="text-green-400 font-semibold">{summary.most_undervalued.display_ticker}</span> (+{summary.most_undervalued.mos.toFixed(1)}%)
+              Largest discount to fair value: <span className="text-green-400 font-semibold">{summary.most_undervalued.display_ticker}</span> (+{summary.most_undervalued.mos.toFixed(1)}%)
               {summary.most_overvalued && (
-                <> &middot; Most overvalued: <span className="text-red-400 font-semibold">{summary.most_overvalued.display_ticker}</span> ({summary.most_overvalued.mos.toFixed(1)}%)</>
+                <> &middot; Largest premium to fair value: <span className="text-red-400 font-semibold">{summary.most_overvalued.display_ticker}</span> ({summary.most_overvalued.mos.toFixed(1)}%)</>
               )}
             </p>
           )}

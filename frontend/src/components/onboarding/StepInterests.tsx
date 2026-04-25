@@ -11,7 +11,7 @@ interface InterestCard {
 }
 
 const CARDS: InterestCard[] = [
-  { key: "value", title: "Value", desc: "I buy stocks below intrinsic worth", icon: "◆" },
+  { key: "value", title: "Value", desc: "I prefer stocks priced below intrinsic worth", icon: "◆" },
   { key: "quality", title: "Quality", desc: "I want profitable, low-debt compounders", icon: "◉" },
   { key: "growth", title: "Growth", desc: "I favor fast-expanding revenue / earnings", icon: "▲" },
   { key: "income", title: "Income", desc: "Dividends + yield matter to me", icon: "●" },

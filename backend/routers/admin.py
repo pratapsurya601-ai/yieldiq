@@ -34,13 +34,31 @@ def _sanitize_error(exc: Exception, context: str = "") -> str:
 
 router = APIRouter(prefix="/api/v1/admin", tags=["admin"])
 
-# Public debug router (no auth) — exposes read-only DCF traces so
-# production blow-ups can be diagnosed without scraping Railway logs.
+# Admin allow-list + require_admin dependency. Defined BEFORE
+# ``debug_router`` so the debug endpoints below can attach
+# ``Depends(require_admin)`` at decoration time. Previously these were
+# at the bottom of the file and the debug routes were unauthenticated —
+# which leaked DCF traces, fv-history stats, and price-pipeline
+# diagnostics to anyone who could guess the URL.
+ADMIN_EMAILS = {"pratapsurya601@gmail.com", "suryasbss601@gmail.com"}
+
+
+def require_admin(user: dict = Depends(get_current_user)):
+    """Dependency that requires admin email."""
+    if user.get("email") not in ADMIN_EMAILS:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+
+# admin-only debug router — read-only DCF traces, fv-history stats and
+# price-pipeline diagnostics. Gated by require_admin (see above) so
+# production blow-ups can be diagnosed without leaking internals to
+# unauthenticated callers.
 debug_router = APIRouter(prefix="/api/v1/debug", tags=["debug"])
 
 
 @debug_router.get("/dcf-trace")
-async def list_dcf_traces(limit: int = 50):
+async def list_dcf_traces(limit: int = 50, user: dict = Depends(require_admin)):
     """Return most recent DCF traces keyed by ticker (read-only)."""
     from screener.dcf_engine import DCF_TRACES
     items = list(DCF_TRACES.items())[-limit:]
@@ -48,7 +66,7 @@ async def list_dcf_traces(limit: int = 50):
 
 
 @debug_router.get("/dcf-trace/{ticker}")
-async def get_dcf_trace(ticker: str):
+async def get_dcf_trace(ticker: str, user: dict = Depends(require_admin)):
     """Return the most recent DCF trace for a single ticker."""
     from screener.dcf_engine import DCF_TRACES
     t = ticker.upper().strip()
@@ -61,7 +79,7 @@ async def get_dcf_trace(ticker: str):
 
 
 @debug_router.get("/fv-history-stats")
-async def fv_history_stats():
+async def fv_history_stats(user: dict = Depends(require_admin)):
     """
     Row counts per ticker in fair_value_history — monitors nightly
     collection accumulation. When min_days_covered crosses ~365, we
@@ -113,7 +131,7 @@ async def fv_history_stats():
 
 
 @debug_router.get("/universe-report")
-async def get_universe_report():
+async def get_universe_report(user: dict = Depends(require_admin)):
     """
     Returns the latest universe-scan report if present.
 
@@ -142,7 +160,7 @@ async def get_universe_report():
 
 
 @debug_router.get("/price-diag/{ticker}")
-async def price_diagnostic(ticker: str):
+async def price_diagnostic(ticker: str, user: dict = Depends(require_admin)):
     """
     Returns what every layer of the price pipeline sees for a given
     ticker — so we can tell whether bad prices are coming from yfinance,
@@ -202,14 +220,10 @@ async def price_diagnostic(ticker: str):
     out["cwd"] = os.getcwd()
     return out
 
-ADMIN_EMAILS = {"pratapsurya601@gmail.com", "suryasbss601@gmail.com"}
 
-
-def require_admin(user: dict = Depends(get_current_user)):
-    """Dependency that requires admin email."""
-    if user.get("email") not in ADMIN_EMAILS:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return user
+# ADMIN_EMAILS + require_admin are defined above (before debug_router)
+# so the /api/v1/debug/* routes can use Depends(require_admin) at
+# decoration time. Do not redefine here.
 
 
 @router.get("/coverage")

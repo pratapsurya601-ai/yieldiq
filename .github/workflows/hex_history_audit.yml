@@ -1,0 +1,54 @@
+name: Hex History — Daily Audit
+
+# Fails loudly if the hex_history table looks unhealthy:
+#   - zero rows total, or
+#   - zero rows with computed_at newer than 14 days.
+#
+# Exists because the weekly backfill silently produced zero rows for
+# weeks before anyone noticed — the Prism Time Machine UI just looked
+# empty. This audit makes "empty table" a red CI badge instead of an
+# invisible bug.
+#
+# Runs daily at 02:00 UTC (07:30 IST) — before the human day starts so
+# a breakage shows up in the inbox.
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: hex-history-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Resolve DB URL
+        id: db
+        env:
+          NEON: ${{ secrets.NEON_DATABASE_URL }}
+          AIVEN: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$NEON" ] && [ -z "$AIVEN" ]; then
+            echo "::error::No DB secret (NEON_DATABASE_URL or DATABASE_URL) configured."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install minimal deps
+        run: pip install "sqlalchemy>=2.0" "psycopg[binary]>=3.1"
+
+      - name: Run audit
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL || secrets.DATABASE_URL }}
+        run: python scripts/audit_hex_history.py --fresh-days 14

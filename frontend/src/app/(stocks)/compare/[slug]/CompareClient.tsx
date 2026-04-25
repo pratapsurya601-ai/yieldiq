@@ -62,9 +62,9 @@ function fmtMarketCap(n: number | null | undefined): string {
 
 function verdictLabel(v: string): string {
   const map: Record<string, string> = {
-    undervalued: "Undervalued",
-    fairly_valued: "Fairly Valued",
-    overvalued: "Overvalued",
+    undervalued: "Below Fair Value",
+    fairly_valued: "Near Fair Value",
+    overvalued: "Above Fair Value",
     avoid: "High Risk",
     data_limited: "Data Limited",
     unavailable: "Unavailable",

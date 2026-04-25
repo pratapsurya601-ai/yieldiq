@@ -24,7 +24,7 @@ interface ScreenerResponse {
 const PRESET_CONFIG: Record<string, { title: string; description: string; color: string }> = {
   buffett: {
     title: "Buffett Style",
-    description: "Wide moat, strong earnings, fair price. Score 60+ with 20%+ margin of safety.",
+    description: "Wide moat, consistent earnings, fair price. Score 60+ with 20%+ margin of safety.",
     color: "text-blue-600",
   },
   "deep-value": {
@@ -34,7 +34,7 @@ const PRESET_CONFIG: Record<string, { title: string; description: string; color:
   },
   "growth-quality": {
     title: "Growth Quality",
-    description: "Strong growth with quality fundamentals. Score 80+ with positive MoS.",
+    description: "High growth with quality fundamentals. Score 80+ with positive MoS.",
     color: "text-violet-600",
   },
   custom: {

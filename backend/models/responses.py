@@ -48,6 +48,12 @@ class ValuationOutput(BaseModel):
     mos_extreme_note: str | None = None
     fcf_data_source: str = ""  # "ttm", "annual", or "yfinance"
     valuation_model: str = "dcf"  # "dcf" or "pb_ratio" for financials
+    # Set when the router clamps an out-of-bounds FV (FV outside
+    # [0.1×price, 3×price] or |MoS| >= 95%). When True, the frontend
+    # should render the FV with a "data quality" caveat rather than
+    # treating it as a clean signal. Paired with an
+    # AnalyticalNoteOutput(kind="data_quality") in `analytical_notes`.
+    data_limited: bool = False
     # ── Freshness (feat/freshness-stamps, 2026-04-24) ─────────
     # ISO-8601 timestamp marking when the displayed price was pulled
     # from the upstream source. Null on legacy cached payloads /
@@ -258,7 +264,7 @@ class AnalyticalNoteOutput(BaseModel):
     kind: Literal[
         "premium_brand", "conglomerate", "cyclical_trough",
         "post_merger", "regulated_utility", "adr_usd_report",
-        "high_pe_growth",
+        "high_pe_growth", "data_quality",
     ]
     severity: Literal["info", "caution"] = "info"
     title: str

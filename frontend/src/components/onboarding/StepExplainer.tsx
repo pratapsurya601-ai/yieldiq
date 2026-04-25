@@ -7,7 +7,7 @@ const FALLBACK_PRISM: PrismData = {
   ticker: "SAMPLE",
   company_name: "Sample Co.",
   verdict_band: "undervalued",
-  verdict_label: "Looks undervalued",
+  verdict_label: "Below Fair Value",
   overall: 7.4,
   refraction_index: 1.2,
   pulse_velocity_hz: 0.33,
@@ -37,7 +37,7 @@ const BULLETS = [
   {
     icon: "💡",
     title: "Wider = better",
-    body: "Each lens\u2019s width is that pillar\u2019s score. Narrow means weak, wide means strong.",
+    body: "Each lens\u2019s width is that pillar\u2019s score. Narrow means low, wide means high.",
   },
   {
     icon: "🎯",

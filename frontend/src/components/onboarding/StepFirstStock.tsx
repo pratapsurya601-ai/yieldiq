@@ -25,7 +25,7 @@ const TCS_DEMO: PrismData = {
   ticker: "TCS.NS",
   company_name: "Tata Consultancy Services",
   verdict_band: "undervalued",
-  verdict_label: "Undervalued \u00b7 32.7% MoS",
+  verdict_label: "Below Fair Value \u00b7 32.7% MoS",
   overall: 7.55,
   refraction_index: 0.7,
   pulse_velocity_hz: 0.4,
@@ -34,9 +34,9 @@ const TCS_DEMO: PrismData = {
     { key: "pulse",   score: 6.5, label: "Neutral",  why: "Steady momentum, low volatility.",              data_limited: false, weight: 0.10 },
     { key: "quality", score: 9.2, label: "Strong",   why: "Industry-leading ROE and margin stability.",    data_limited: false, weight: 0.22 },
     { key: "moat",    score: 7.5, label: "Wide",     why: "Entrenched enterprise relationships, scale.",   data_limited: false, weight: 0.18 },
-    { key: "safety",  score: 8.1, label: "Strong",   why: "Net-cash balance sheet, strong coverage.",      data_limited: false, weight: 0.15 },
+    { key: "safety",  score: 8.1, label: "Strong",   why: "Net-cash balance sheet, durable coverage.",      data_limited: false, weight: 0.15 },
     { key: "growth",  score: 6.8, label: "Moderate", why: "Mid-single-digit revenue growth holding up.",   data_limited: false, weight: 0.15 },
-    { key: "value",   score: 7.2, label: "Attractive", why: "Fair value \u20b93,465 vs price \u20b92,611.", data_limited: false, weight: 0.20 },
+    { key: "value",   score: 7.2, label: "Favorable", why: "Fair value \u20b93,465 vs price \u20b92,611.", data_limited: false, weight: 0.20 },
   ],
 }
 

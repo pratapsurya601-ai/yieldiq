@@ -238,8 +238,49 @@ def test_evaluate_passes_on_clean_state():
 
 
 def test_evaluate_handles_fetch_failure_without_crashing():
+    # NEW SEMANTIC: a single fetch failure no longer cascades into per-gate
+    # violation counts. Within the default budget (2), a single fetch
+    # failure soft-passes the run.
     stocks = [{"symbol": "HCLTECH", "canary_bounds": HCLTECH_BOUNDS}]
     state = {"HCLTECH": {"public": None, "authed": None, "error": "HTTP 500"}}
     report = cd.evaluate(state, stocks)
-    assert report["passed"] is False
     assert report["fetch_failures"] == 1
+    assert report["gate_violations"] == 0
+    # 1 failure <= default budget of 2 -> soft-pass.
+    assert report["passed"] is True
+
+
+def test_evaluate_fails_when_fetch_failures_exceed_budget():
+    stocks = [
+        {"symbol": f"T{i}", "canary_bounds": None} for i in range(5)
+    ]
+    state = {
+        "T0": {"public": None, "authed": None, "error": "ReadTimeout"},
+        "T1": {"public": None, "authed": None, "error": "ReadTimeout"},
+        "T2": {"public": None, "authed": None, "error": "ReadTimeout"},
+        "T3": {"public": _clean_fields(), "authed": _clean_fields(), "error": None},
+        "T4": {"public": _clean_fields(), "authed": _clean_fields(), "error": None},
+    }
+    report = cd.evaluate(state, stocks)
+    assert report["fetch_failures"] == 3
+    assert report["gate_violations"] == 0
+    assert report["passed"] is False  # 3 > budget 2
+
+
+def test_evaluate_real_violation_still_fails_with_fetch_failures_under_budget():
+    stocks = [
+        {"symbol": "GOOD", "canary_bounds": None},
+        {"symbol": "BAD", "canary_bounds": None},
+        {"symbol": "FLAKE", "canary_bounds": None},
+    ]
+    bad_public = _clean_fields(fair_value=1000.0)
+    bad_authed = _clean_fields(fair_value=1200.0)  # gate 1 mismatch
+    state = {
+        "GOOD": {"public": _clean_fields(), "authed": _clean_fields(), "error": None},
+        "BAD": {"public": bad_public, "authed": bad_authed, "error": None},
+        "FLAKE": {"public": None, "authed": None, "error": "ReadTimeout"},
+    }
+    report = cd.evaluate(state, stocks)
+    assert report["fetch_failures"] == 1  # within budget
+    assert report["gate_violations"] >= 1
+    assert report["passed"] is False  # real violation always fails

@@ -37,8 +37,14 @@ function firstSentence(text: string | null): string | null {
   // Split on first ". " or newline. Keep it compact.
   const match = trimmed.match(/^(.{20,200}?[.!?])(\s|$)/)
   const candidate = match ? match[1] : trimmed.slice(0, 160)
-  // Strip any accidental buy/sell language defensively.
-  return candidate.replace(/\b(buy|sell)\b/gi, "hold")
+  // Strip any accidental advisory language defensively. `hold` is itself
+  // SEBI-banned per backend/services/analysis/sebi_filter.py, so we rewrite
+  // to the neutral "fair-value view" phrasing that mirrors the rest of the
+  // UI (see VerdictChip, EditorialHero).
+  return candidate.replace(
+    /\b(buy|accumulate|sell|hold|outperform|underperform|recommend|recommendation)\b/gi,
+    "fair-value view",
+  )
 }
 
 function fallbackThesis(verdict: Verdict, moat: string, mos: number): string {
@@ -55,7 +61,7 @@ function fallbackThesis(verdict: Verdict, moat: string, mos: number): string {
     return `${moatPhrase} trading above fair value. Wait for a larger margin of safety.`
   }
   if (verdict === "fairly_valued") {
-    return `${moatPhrase} at a fair price. Wait for MoS > 20% to accumulate.`
+    return `${moatPhrase} at a fair price. A larger margin of safety (MoS > 20%) would give a wider cushion.`
   }
   return `${moatPhrase}. Review model inputs before drawing conclusions.`
 }

@@ -1,3 +1,4 @@
+import logging
 import time
 
 import yfinance as yf
@@ -5,6 +6,22 @@ import pandas as pd
 
 from config import RUPEES_TO_CRORES
 from tickers import get_yf_symbol
+
+# Import the alias resolver via absolute path so this module works both
+# when executed as `python -m data_pipeline.xbrl.yf_fetcher` and from
+# the ingest scripts that sys.path-hack the xbrl dir onto the path.
+try:
+    from data_pipeline.ticker_aliases import (
+        resolve_for_fetch as _resolve_for_fetch,
+        Fetch as _Fetch,
+        Skip as _Skip,
+        Redirect as _Redirect,
+    )
+except ImportError:  # pragma: no cover — defensive fallback
+    _resolve_for_fetch = None
+    _Fetch = _Skip = _Redirect = None  # type: ignore[assignment]
+
+_log = logging.getLogger(__name__)
 
 
 # Tickers known to have US ADRs that yfinance may serve USD data for,
@@ -67,6 +84,16 @@ def _fetch_once(symbol):
         'quarterly_balance': yf_ticker.quarterly_balance_sheet,
         'annual_balance': yf_ticker.balance_sheet,
         'annual_cashflow': yf_ticker.cashflow,
+        # FIX-FCF-QUARTERLY (2026-04-25): quarterly cash-flow statement
+        # was previously never fetched, which left operating_cf / capex /
+        # free_cash_flow NULL on every quarterly row of company_financials
+        # and collapsed TTM FCF to 0 for ~81 tickers in Phase-2 canary.
+        # yfinance exposes this as `quarterly_cashflow` (alias of
+        # `quarterly_cash_flow`). Fields map 1:1 to the annual cashflow
+        # extractor below (Operating Cash Flow / Capital Expenditure /
+        # Free Cash Flow), so the same `extract_cashflow_records` logic
+        # can consume quarterly rows with `period_type='quarterly'`.
+        'quarterly_cashflow': yf_ticker.quarterly_cashflow,
         '_yf_ticker': yf_ticker,
     }
 
@@ -78,7 +105,37 @@ def fetch_yfinance_data(ticker):
     comes back empty. Quarterly statements are NOT required for retry trigger
     because yfinance frequently omits them by design for some tickers.
     """
-    symbol = get_yf_symbol(ticker)
+    # Alias resolution (corporate actions). Skip or iterate successors
+    # BEFORE touching yfinance so a demerged/delisted parent doesn't
+    # produce a scary 404 in the logs.
+    if _resolve_for_fetch is not None:
+        _res = _resolve_for_fetch(ticker)
+        if isinstance(_res, _Skip):
+            _log.info(
+                "ticker_aliases: skipping %s (reason=%s)", ticker, _res.reason
+            )
+            return None
+        if isinstance(_res, _Redirect):
+            _log.info(
+                "ticker_aliases: %s demerged; iterating successors %s",
+                ticker,
+                [s.ticker for s in _res.successors],
+            )
+            results = []
+            for succ in _res.successors:
+                if not succ.fetch_symbol:
+                    continue
+                sub = fetch_yfinance_data(succ.ticker)
+                if sub is not None:
+                    results.append(sub)
+            # Callers expect a single dict; when multiple successors are
+            # fetched, the ingest driver should call fetch_yfinance_data
+            # per successor directly. Returning the first for back-compat.
+            return results[0] if results else None
+        # else: _Fetch — use its symbol
+        symbol = _res.symbol if isinstance(_res, _Fetch) else get_yf_symbol(ticker)
+    else:
+        symbol = get_yf_symbol(ticker)
     max_attempts = 2
     last = None
 
@@ -249,9 +306,17 @@ def extract_balance_records(data, period_type='annual'):
     return records
 
 
-def extract_cashflow_records(data):
+def extract_cashflow_records(data, period_type='annual'):
+    """Extract cash-flow rows for either annual or quarterly periods.
+
+    FIX-FCF-QUARTERLY (2026-04-25): extended to accept `period_type` so
+    we can populate `company_financials` quarterly rows with OCF / capex
+    / FCF. Column/row names are identical across the two yfinance
+    frames so the mapping is shared.
+    """
     ticker = data['ticker']
-    stmt = data.get('annual_cashflow')
+    key = 'annual_cashflow' if period_type == 'annual' else 'quarterly_cashflow'
+    stmt = data.get(key)
     if stmt is None or stmt.empty:
         return []
 
@@ -269,7 +334,7 @@ def extract_cashflow_records(data):
 
         record = {
             'ticker_nse': ticker,
-            'period_type': 'annual',
+            'period_type': period_type,
             'period_end_date': _col_date(col),
             'operating_cf': g('Operating Cash Flow') or g('Cash Flow From Continuing Operating Activities'),
             'investing_cf': g('Investing Cash Flow') or g('Cash Flow From Continuing Investing Activities'),

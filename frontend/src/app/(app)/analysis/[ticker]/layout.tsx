@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     (ogData?.title as string) || `${displayTicker} Stock Analysis | YieldIQ`
   const description =
     (ogData?.description as string) ||
-    `Free DCF valuation for ${displayTicker}. Know if it's undervalued.`
+    `Free DCF valuation for ${displayTicker}. See its fair-value estimate, margin of safety, and quality scores.`
 
   // Use the dynamic OG image route — generates a 1200x630 PNG
   // with the stock's verdict, fair value, score, etc. baked in

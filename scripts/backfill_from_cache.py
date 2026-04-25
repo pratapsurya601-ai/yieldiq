@@ -265,8 +265,12 @@ _SKIP_COMPANY_FINANCIALS = False
 
 
 def _normalize_ticker(raw: str) -> str:
-    bare = str(raw).strip().upper().replace(".NS", "").replace(".BO", "")
-    return bare + ".NS"
+    # Return BARE form. See commentary on the twin function in
+    # scripts/transform_financials_to_company_financials.py and the
+    # migration scripts/migrate_dual_ticker.sql — bare-form is the one
+    # service-layer readers actually query; the previous `+ '.NS'` here
+    # was silently creating shadow rows nobody read (2026-04-25 fix).
+    return str(raw).strip().upper().replace(".NS", "").replace(".BO", "")
 
 
 def _build_cf_records(row: dict, period_end, period_type: str) -> list[dict]:

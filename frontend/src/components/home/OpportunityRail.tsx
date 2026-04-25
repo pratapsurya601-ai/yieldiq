@@ -6,8 +6,40 @@ import { getYieldIQ50 } from "@/lib/api"
 
 // Curated slice of YieldIQ 50 — Wide moat + MoS > 20%. Non-advisory framing:
 // we describe the filter, never say "buy" or "recommended".
+//
+// EMPTY-STATE POLICY (2026-04 UX restoration):
+// Previously this rail returned `null` when the filter matched 0 rows or
+// when the upstream query errored — the entire section silently vanished
+// from the homepage, which read as a layout glitch and hid the fact that
+// we *do* have a Discover surface. We now always render a card. The data-
+// side fix (refilling the YieldIQ 50 cache when the wide-moat shortlist
+// runs dry) is owned by the Discover cron, NOT this component. This rail
+// is the user-facing fallback only.
+function FallbackCard({ message }: { message: string }) {
+  return (
+    <section>
+      <div className="px-4 mb-2">
+        <h2 className="font-display text-base md:text-lg font-bold text-ink leading-snug">
+          Top wide-moat stocks
+        </h2>
+      </div>
+      <div className="px-4">
+        <div className="bg-bg rounded-2xl border border-border p-5">
+          <p className="text-sm text-body">{message}</p>
+          <Link
+            href="/discover"
+            className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-brand"
+          >
+            Browse Discover →
+          </Link>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function OpportunityRail() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ["yieldiq-50-home"],
     queryFn: getYieldIQ50,
     staleTime: 30 * 60 * 1000,
@@ -29,9 +61,16 @@ export default function OpportunityRail() {
     )
   }
 
+  if (isError) {
+    return <FallbackCard message="Shortlist temporarily unavailable" />
+  }
+
   if (count === 0) {
-    // Don't fabricate a count. Hide the section cleanly if nothing qualifies.
-    return null
+    // Don't fabricate a count. Show a visible placeholder rather than
+    // collapsing the section silently — see EMPTY-STATE POLICY above.
+    return (
+      <FallbackCard message="Refreshing the shortlist — check back shortly" />
+    )
   }
 
   return (
