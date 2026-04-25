@@ -12,7 +12,7 @@ from backend.middleware.auth import (
     get_current_user, login_user_and_get_token, register_user_and_get_token,
     is_superuser,
 )
-from backend.middleware.rate_limit import rate_limiter
+from backend.middleware.rate_limit import rate_limiter, clamped_used
 
 _log = logging.getLogger("yieldiq.auth.onboarding")
 
@@ -39,6 +39,10 @@ async def login(req: LoginRequest):
     used, limit = rate_limiter.get_usage(result["user_id"], _effective_tier)
     if _effective_limit is not None:
         limit = _effective_limit
+    # Display clamp — see clamped_used() docstring. Without this, a free
+    # user whose DB row reads count=14 (e.g. tier was pro yesterday)
+    # would log in and see "14/5 today" in the nav.
+    used = clamped_used(used, limit)
     # Pull editable display_name + remaining-edits from Supabase user_metadata
     # so the frontend can render the personalised greeting on first paint.
     # Soft-fails to (None, MAX) — never blocks login.
@@ -242,6 +246,9 @@ async def get_me(user: dict = Depends(get_current_user)):
     used, limit = rate_limiter.get_usage(user["user_id"], _effective_tier)
     if _limit_override is not None:
         limit = _limit_override
+    # Display clamp at the /auth/me boundary — the nav counter polls
+    # this endpoint, so a stale DB row > limit must not surface here.
+    used = clamped_used(used, limit)
     try:
         from backend.routers.account import get_display_name_state
         _dn, _dn_remaining = get_display_name_state(user["user_id"])

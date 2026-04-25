@@ -20,7 +20,7 @@ try:
 except ImportError:
     from jose import jwt, JWTError  # python-jose
 
-from backend.middleware.rate_limit import rate_limiter
+from backend.middleware.rate_limit import rate_limiter, clamped_used
 
 # Superuser emails — bypass the rate limiter and get effective tier="pro".
 # Comma-separated env var, case-insensitive comparison.
@@ -256,16 +256,25 @@ def check_analysis_limit(
         except Exception:
             pass
         user["tier"] = "pro"  # effective tier for downstream handlers
-        user["analyses_today"] = used
+        # Superusers have effectively-unlimited limit; clamp is a no-op
+        # but we still apply it for symmetry with the free path.
+        display_used = clamped_used(used, limit)
+        user["analyses_today"] = display_used
         user["analysis_limit"] = limit
         user["is_superuser"] = True
-        response.headers["X-Analyses-Today"] = str(used)
+        response.headers["X-Analyses-Today"] = str(display_used)
         response.headers["X-Analyses-Limit"] = str(limit)
+        response.headers["X-Analyses-Real-Count"] = str(used)
         return user
 
     allowed, used, limit = rate_limiter.check_and_increment(
         user["user_id"], user["tier"]
     )
+    # Display clamp: user-visible count never exceeds the limit (defence
+    # in depth — the SQL UPSERT guard is what actually enforces the cap,
+    # but a stale row from a tier flip could still leave count > limit
+    # for a single day; clamp here so the nav can't render "14/5").
+    display_used = clamped_used(used, limit)
     # Always set headers on the 200 response object FIRST so the success
     # path carries them. For the 429 path we ALSO include them on the
     # HTTPException headers dict — FastAPI builds the error response
@@ -273,19 +282,26 @@ def check_analysis_limit(
     # so if we don't pass them via HTTPException(..., headers=...) the
     # nav counter goes stale the instant a user hits the cap (nav shows
     # 0/5 despite just having run 5, seen in production 2026-04-23).
-    response.headers["X-Analyses-Today"] = str(used)
+    response.headers["X-Analyses-Today"] = str(display_used)
     response.headers["X-Analyses-Limit"] = str(limit)
+    # Operator-visibility header — exposes the raw DB count so we can
+    # tell when display clamp is masking drift. Free-tier users shouldn't
+    # see "5/5" on the nav while ops sees X-Analyses-Real-Count: 47 in
+    # logs without being told.
+    response.headers["X-Analyses-Real-Count"] = str(used)
     if not allowed:
         raise HTTPException(
             status_code=429,
-            detail=f"Daily analysis limit reached ({used}/{limit}). Upgrade for more.",
+            detail=f"Daily analysis limit reached ({display_used}/{limit}). Upgrade for more.",
             headers={
-                "X-Analyses-Today": str(used),
+                "X-Analyses-Today": str(display_used),
                 "X-Analyses-Limit": str(limit),
+                "X-Analyses-Real-Count": str(used),
             },
         )
-    user["analyses_today"] = used
+    user["analyses_today"] = display_used
     user["analysis_limit"] = limit
+    user["analyses_real_count"] = used
     return user
 
 

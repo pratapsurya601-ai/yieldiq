@@ -112,6 +112,19 @@ class RateLimiter:
         When the user is at or over limit, returns (False, current_count,
         limit) and does NOT increment. When allowed, returns (True,
         new_count, limit) with the counter already bumped.
+
+        Concurrency: the underlying SQL is an atomic UPSERT-with-guard
+        (`ON CONFLICT DO UPDATE ... WHERE daily_usage.count < :lim`) so
+        even with N concurrent requests at count=limit-1 only one
+        increment ever lands. The remaining N-1 see RETURNING return
+        no row → fall through to the SELECT branch and 429. This is
+        what makes the cap real across multi-worker Railway setups.
+
+        Display safety: callers should never expose the raw `count`
+        directly to end users — use `clamped_used()` (or `min(count,
+        limit)`) at the response boundary so a stale row from a prior
+        tier flip (e.g. user was pro=999999 last week with count=14,
+        now downgraded to free=5) cannot render "14/5" in the nav.
         """
         limit = self.TIER_LIMITS.get(tier, 5)
         sess = self._get_session()
@@ -244,6 +257,35 @@ class RateLimiter:
         key = f"{user_id}:{date.today().isoformat()}"
         with self._lock:
             return self._counts.get(key, 0)
+
+
+def clamped_used(used: int, limit: int) -> int:
+    """Clamp the used-count for safe display.
+
+    Never report `used > limit` to the user. The raw DB count can
+    legitimately exceed the user's *current* limit when their tier
+    was higher at increment time (e.g. they were on pro=unlimited
+    yesterday, ran 14 analyses, then downgraded to free=5 today —
+    the DB row for today still says 14 if the downgrade happened
+    mid-day). It can also exceed momentarily if the in-memory
+    fallback fired during a brief DB outage and then the counter
+    re-synced. Either way, the nav counter must read "5/5", not
+    "14/5".
+
+    Use this at every response boundary that emits `analyses_today`:
+      - TokenResponse (login)
+      - UserResponse (/auth/me)
+      - X-Analyses-Today header (analysis router)
+
+    Operators who want the raw count can read X-Analyses-Real-Count
+    on analysis responses (added 2026-04-25) or query daily_usage
+    directly.
+    """
+    if limit <= 0:
+        return 0
+    if used < 0:
+        return 0
+    return used if used < limit else limit
 
 
 rate_limiter = RateLimiter()
