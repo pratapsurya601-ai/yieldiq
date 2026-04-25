@@ -99,7 +99,13 @@ def _call_groq(prompt: str, system: str = _GROQ_SYSTEM) -> str | None:
         from groq import Groq
         client = Groq(api_key=api_key)
         comp = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            # 2026-04-25: switched from llama-3.3-70b-versatile to
+            # llama-3.1-8b-instant. Groq's TPD quota for the 70b
+            # model was exhausted (99785/100000 on the previous
+            # failing run), causing the daily blog workflow to fail.
+            # The 8b free-tier quota is much higher and the blog
+            # post is SEO content, not critical user-facing copy.
+            model="llama-3.1-8b-instant",
             messages=[
                 {"role": "system", "content": system},
                 {"role": "user", "content": prompt},
