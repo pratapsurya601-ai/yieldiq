@@ -1,7 +1,7 @@
 # backend/models/responses.py
 # Pydantic response models — the API contract for the Next.js frontend.
 from __future__ import annotations
-from pydantic import BaseModel, field_serializer
+from pydantic import BaseModel, Field, field_serializer
 from typing import Optional, Literal
 
 
@@ -474,6 +474,12 @@ class TokenResponse(BaseModel):
     display_name: Optional[str] = None
     # Remaining edits in the lifetime cap (default 3 for new users).
     display_name_edits_remaining: int = 3
+    # Feature flags resolved server-side for this user (see
+    # backend/services/feature_flags.py). Purely additive — pre-PR
+    # frontend clients ignore unknown fields; post-PR clients gain the
+    # ability to branch on staged-rollout / Pro-only beta features
+    # without a separate round-trip per flag.
+    feature_flags: dict[str, bool] = Field(default_factory=dict)
 
 
 class UserResponse(BaseModel):
@@ -485,6 +491,8 @@ class UserResponse(BaseModel):
     created_at: str = ""
     display_name: Optional[str] = None
     display_name_edits_remaining: int = 3
+    # See TokenResponse.feature_flags above.
+    feature_flags: dict[str, bool] = Field(default_factory=dict)
 
 
 # ── Generic responses ─────────────────────────────────────────

@@ -89,6 +89,7 @@ export default function LoginPage() {
         res.analysis_limit,
         res.display_name ?? null,
         res.display_name_edits_remaining ?? 3,
+        res.feature_flags ?? {},
       )
 
       const onboardingDone = await resolveOnboardingDone()

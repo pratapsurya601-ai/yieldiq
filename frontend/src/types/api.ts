@@ -320,6 +320,10 @@ export interface TokenResponse {
   // frontend falls back to nameFromEmail() in PersonalHeader.
   display_name: string | null
   display_name_edits_remaining: number
+  // Feature flags resolved server-side for this user. Optional because
+  // pre-PR backends omit the field; useFeatureFlag() treats absence as
+  // all-disabled.
+  feature_flags?: Record<string, boolean>
 }
 
 export interface UserResponse {
@@ -331,6 +335,8 @@ export interface UserResponse {
   created_at: string
   display_name: string | null
   display_name_edits_remaining: number
+  // See TokenResponse.feature_flags above.
+  feature_flags?: Record<string, boolean>
 }
 
 // PATCH /api/v1/account/profile response shape.
