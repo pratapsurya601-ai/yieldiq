@@ -395,3 +395,38 @@ export interface SuccessResponse {
   ok: boolean
   message: string
 }
+
+// ── Notifications (in-app bell + drawer) ─────────────────────
+// Mirrors backend/services/notifications_service.py NotificationType
+// and the row shape returned by the /api/v1/notifications/* routes.
+export type NotificationType =
+  | "alert_fired"
+  | "portfolio_event"
+  | "earnings_reminder"
+  | "market_event"
+  | "model_update"
+  | "system"
+
+export interface Notification {
+  id: number
+  type: NotificationType
+  title: string
+  body: string | null
+  link: string | null
+  metadata: Record<string, unknown>
+  created_at: string  // ISO8601
+  read_at: string | null
+}
+
+export interface NotificationsUnreadResponse {
+  items: Notification[]
+  count: number
+}
+
+export interface NotificationsRecentResponse {
+  items: Notification[]
+}
+
+export interface NotificationsUnreadCountResponse {
+  count: number
+}
