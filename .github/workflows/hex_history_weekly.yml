@@ -88,7 +88,15 @@ jobs:
           # psycopg2-binary added because backfill_hex_history.py imports
           # `psycopg2` directly via data_pipeline.db; without it the
           # pure-psycopg3 install above raises ModuleNotFoundError.
-          pip install "sqlalchemy>=2.0" "psycopg[binary]>=3.1" psycopg2-binary python-dateutil
+          # pydantic + fastapi added 2026-04-25 — PR #95's _seed_one_from_cache
+          # now delegates to backend.services.analysis.hex_axes which transitively
+          # imports the Pydantic response models. Without these, every seed call
+          # logs "No module named 'pydantic'" and returns 0 rows. Caught by the
+          # 24931140894 backfill run — 50/50 tickers errored on import.
+          # numpy/pandas required because compute_hex pulls in services that
+          # do trivial dataframe ops on cached metrics.
+          pip install "sqlalchemy>=2.0" "psycopg[binary]>=3.1" psycopg2-binary python-dateutil \
+                      "pydantic>=2.0" "fastapi>=0.100" numpy pandas
 
       - name: Pre-flight row counts
         # Instant visibility into the chosen DB. If these numbers don't
