@@ -15,7 +15,13 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://api.yieldiq.in"
 // ("Undervalued"/"Overvalued" → "Below Fair Value"/"Above Fair Value").
 // CDN scrapers cache OG cards aggressively; the X-OG-Cache-Version header
 // gives us a way to verify a refreshed card carries the new copy.
-const OG_CACHE_VERSION = "v2-sebi-fv-labels"
+//
+// v3-no-data-limited-title (2026-04-25): bumped to invalidate Twitter,
+// Reddit, WhatsApp & Slack scraper caches after we stopped letting the
+// raw "Data Limited" wire-format verdict leak into og:title strings via
+// the analysis layout's generateMetadata fallback. Forces a re-fetch on
+// the next share.
+const OG_CACHE_VERSION = "v3-no-data-limited-title"
 
 interface OgData {
   ticker?: string

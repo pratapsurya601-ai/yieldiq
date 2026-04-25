@@ -4,6 +4,33 @@ interface Props {
   params: Promise<{ ticker: string }>
 }
 
+// Verdicts where the model could not produce a confident fair value.
+// We must NEVER let the wire-format verdict ("data_limited",
+// "unavailable") or its title-cased form ("Data Limited") leak into a
+// page title or social-card preview — to a casual reader on Reddit /
+// Twitter the phrase reads as "the app is broken" or "this stock is
+// blacklisted", neither of which is true. Use neutral phrasing instead.
+const UNDER_REVIEW_VERDICTS = new Set(["data_limited", "unavailable"])
+
+// Substrings that may appear in a backend-supplied title for an under-
+// review ticker. Defense in depth: even if the og-data endpoint is
+// later updated to emit new variants, the title sanitizer rejects any
+// of these and falls back to the neutral form.
+const FORBIDDEN_TITLE_SUBSTRINGS = [
+  "Data Limited",
+  "Unavailable",
+  "Under Review",
+  "Avoid",
+]
+
+function neutralTitle(displayTicker: string): string {
+  return `${displayTicker} — Fair-value analysis | YieldIQ`
+}
+
+function neutralDescription(displayTicker: string): string {
+  return `Fair-value model for ${displayTicker} is under review. Inputs are being verified — full DCF, quality and moat analysis on YieldIQ.`
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { ticker } = await params
   const displayTicker = ticker.replace(".NS", "").replace(".BO", "")
@@ -20,11 +47,32 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // Fall through to defaults
   }
 
-  const title =
-    (ogData?.title as string) || `${displayTicker} Stock Analysis | YieldIQ`
-  const description =
-    (ogData?.description as string) ||
-    `Free DCF valuation for ${displayTicker}. See its fair-value estimate, margin of safety, and quality scores.`
+  const verdict =
+    typeof ogData?.verdict === "string" ? (ogData.verdict as string) : ""
+  const backendTitle =
+    typeof ogData?.title === "string" ? (ogData.title as string) : ""
+  const backendDescription =
+    typeof ogData?.description === "string"
+      ? (ogData.description as string)
+      : ""
+
+  // Sanitize: if the verdict is data_limited / unavailable, OR the
+  // backend-supplied title contains any user-hostile substring, replace
+  // both title and description with neutral copy. We do this BEFORE
+  // falling back to the generic default so we never accidentally render
+  // "RELIANCE — Data Limited | YieldIQ" in an og:title tag.
+  const isUnderReview =
+    UNDER_REVIEW_VERDICTS.has(verdict) ||
+    FORBIDDEN_TITLE_SUBSTRINGS.some((s) => backendTitle.includes(s))
+
+  const title = isUnderReview
+    ? neutralTitle(displayTicker)
+    : backendTitle || `${displayTicker} Stock Analysis | YieldIQ`
+
+  const description = isUnderReview
+    ? neutralDescription(displayTicker)
+    : backendDescription ||
+      `Free DCF valuation for ${displayTicker}. See its fair-value estimate, margin of safety, and quality scores.`
 
   // Use the dynamic OG image route — generates a 1200x630 PNG
   // with the stock's verdict, fair value, score, etc. baked in

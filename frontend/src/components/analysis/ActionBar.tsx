@@ -54,8 +54,12 @@ function verdictLabel(v: Verdict): string {
     case "fairly_valued": return "Near Fair Value"
     case "overvalued":    return "Above Fair Value"
     case "avoid":         return "High Risk"
-    case "data_limited":  return "Data Limited"
-    case "unavailable":   return "Unavailable"
+    // 2026-04-25: do NOT surface raw "Data Limited" / "Unavailable" in
+    // share-card titles, tweet bodies or web-share text — to a reader
+    // who never opened the app this reads as "the app is broken" or
+    // "this stock is blacklisted". Use neutral copy for both.
+    case "data_limited":  return "Under Review"
+    case "unavailable":   return "Under Review"
     default:              return v
   }
 }
