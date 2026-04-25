@@ -268,6 +268,25 @@ function AccountInner() {
           </div>
           <span className="text-sm text-caption" aria-hidden>›</span>
         </a>
+        {/* API keys link — gated UI lives at /account/api-keys.
+            Free/Analyst land on an upsell card; Pro sees the CRUD UI.
+            We surface the link at all tiers so the discovery path is
+            uniform — the PRO badge signals it's a paid feature. */}
+        <a
+          href="/account/api-keys"
+          className="flex items-center justify-between rounded-xl border border-border px-3 py-3 hover:bg-surface dark:hover:bg-bg transition"
+        >
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-ink">API keys</span>
+            <span className="text-xs text-caption">Programmatic access (100 req/day per key)</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {tier === "pro" && (
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-600 text-white">PRO</span>
+            )}
+            <span className="text-sm text-caption" aria-hidden>›</span>
+          </div>
+        </a>
       </div>
 
       {/* Settings */}
