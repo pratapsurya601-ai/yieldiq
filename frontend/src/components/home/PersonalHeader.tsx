@@ -1,6 +1,7 @@
 "use client"
 // TODO: swap to design tokens
 import { useEffect, useState } from "react"
+import { useAuthStore } from "@/store/authStore"
 
 function greetingForHour(hour: number): string {
   if (hour < 12) return "Good morning"
@@ -48,7 +49,11 @@ export default function PersonalHeader({ email }: { email: string | null }) {
   useEffect(() => {
     setGreeting(greetingForHour(currentISTHour()))
   }, [])
-  const name = nameFromEmail(email)
+  // Prefer the user-set display name (PR #72) over the email-derived
+  // fallback. nameFromEmail() stays as the last-resort default for
+  // accounts that haven't completed the StepName onboarding screen.
+  const displayName = useAuthStore((s) => s.displayName)
+  const name = (displayName && displayName.trim()) || nameFromEmail(email)
   // No streak-tracking infrastructure exists yet — intentionally blank.
   const streakSuffix = ""
 
