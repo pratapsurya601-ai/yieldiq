@@ -17,9 +17,60 @@ from backend.services.analysis_service import AnalysisService, TickerNotFoundErr
 from backend.services.cache_service import cache
 from backend.services import analysis_cache_service
 from backend.middleware.auth import get_current_user, get_current_user_optional, check_analysis_limit
+from backend.middleware.api_auth import get_user_from_api_key
+from backend.services import api_keys_service as _api_keys_svc
 from backend.services.ticker_search import search_tickers
 from backend.services.tier_caps import cap_for
 from datetime import date
+from typing import Optional
+from fastapi import Header
+
+
+async def _auth_jwt_or_api_key(
+    response: Response,
+    authorization: Optional[str] = Header(None),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+) -> dict:
+    """Auth for /analysis/{ticker} accepting EITHER JWT or API key.
+
+    Header sniffing happens FIRST so we never invoke the JWT-counter
+    increment for an API-key request. The per-user JWT counter and
+    the per-key API quota are deliberately separate (a Pro user with
+    5 keys gets 5 x 100 = 500 req/day by design — see
+    api_keys_service module docstring).
+
+    Routing:
+      * If ``Authorization: Bearer yk_...`` or ``X-API-Key: yk_...`` ->
+        validate via ``get_user_from_api_key`` (raises 401/403/429).
+      * Otherwise fall through to the existing JWT path
+        (``check_analysis_limit``) which preserves the free-tier
+        5/day cap, the X-Analyses-Today headers, and superuser bypass.
+    """
+    is_api_key = False
+    if authorization and authorization.startswith("Bearer "):
+        if authorization[len("Bearer "):].strip().startswith(
+                _api_keys_svc.RAW_KEY_PREFIX):
+            is_api_key = True
+    if not is_api_key and x_api_key and x_api_key.strip().startswith(
+            _api_keys_svc.RAW_KEY_PREFIX):
+        is_api_key = True
+
+    if is_api_key:
+        return await get_user_from_api_key(
+            authorization=authorization, x_api_key=x_api_key,
+        )
+
+    # JWT path — call the existing dependency manually so the response
+    # headers / counter side-effects fire identically to before.
+    from fastapi.security import HTTPAuthorizationCredentials
+    creds = None
+    if authorization and authorization.startswith("Bearer "):
+        creds = HTTPAuthorizationCredentials(
+            scheme="Bearer",
+            credentials=authorization[len("Bearer "):],
+        )
+    jwt_user = await get_current_user(creds)
+    return check_analysis_limit(response, jwt_user)
 
 router = APIRouter(prefix="/api/v1", tags=["analysis"])
 service = AnalysisService()
@@ -85,11 +136,16 @@ async def get_analysis(
             "true for backward compatibility."
         ),
     ),
-    user: dict = Depends(check_analysis_limit),
+    user: dict = Depends(_auth_jwt_or_api_key),
 ):
     """
     Full stock analysis with DCF, quality scores, scenarios, and insights.
     Rate limited by tier: Free=5/day, Starter=50/day, Pro=unlimited.
+
+    Auth: Either a Bearer JWT (browser/app) OR a Pro-tier API key
+    (``Authorization: Bearer yk_...`` or ``X-API-Key: yk_...``). API
+    keys have their own per-key 100 req/day quota independent of the
+    per-user JWT counter.
 
     Cache tiers (in order): in-memory cache_service -> analysis_cache
     (Postgres) -> compute. The persistent tier survives worker restarts
