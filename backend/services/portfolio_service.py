@@ -128,6 +128,21 @@ def save_holding(
         return False, err_msg
 
 
+def get_broker_account_labels(user_email: str) -> set[str]:
+    """Return the set of distinct broker account_labels currently held
+    by ``user_email``. Used by tier-cap enforcement: each distinct label
+    counts as one "broker account" against the per-tier cap.
+
+    Empty/missing labels are normalised to "default" — same convention
+    as ``save_holding``."""
+    rows = get_holdings(user_email)
+    labels: set[str] = set()
+    for h in rows:
+        raw = (h.get("account_label") or "default").lower().strip() or "default"
+        labels.add(raw)
+    return labels
+
+
 def get_holdings(user_email: str) -> list[dict]:
     """Return all holdings for a user."""
     if not user_email:

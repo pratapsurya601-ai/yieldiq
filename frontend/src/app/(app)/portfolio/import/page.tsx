@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import { TierCapUpsell, extractTierCapDetail, type TierCapDetail } from "@/components/common/TierCapUpsell"
 import { useRouter } from "next/navigation"
 import * as XLSX from "xlsx"
 import api from "@/lib/api"
@@ -37,6 +38,7 @@ export default function PortfolioImportPage() {
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ImportResult | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [capDetail, setCapDetail] = useState<TierCapDetail | null>(null)
   const router = useRouter()
   const tier = useAuthStore(s => s.tier)
 
@@ -106,6 +108,7 @@ export default function PortfolioImportPage() {
     }
     setLoading(true)
     setError(null)
+    setCapDetail(null)
     setResult(null)
     try {
       // Always send as CSV text — xlsx is converted client-side
@@ -115,13 +118,19 @@ export default function PortfolioImportPage() {
       })
       setResult(res.data)
     } catch (e) {
-      const err = e as { response?: { data?: { detail?: string }; status?: number }; message?: string }
-      const status = err.response?.status
-      const detail = err.response?.data?.detail || err.message || "Import failed"
-      if (status === 402) {
-        setError(`${detail} — Upgrade to Pro for unlimited imports.`)
+      const cap = extractTierCapDetail(e)
+      if (cap) {
+        setCapDetail(cap)
+        setError(null)
       } else {
-        setError(detail)
+        const err = e as { response?: { data?: { detail?: string }; status?: number }; message?: string }
+        const status = err.response?.status
+        const detail = err.response?.data?.detail || err.message || "Import failed"
+        if (status === 402) {
+          setError(`${detail} — Upgrade to Pro for unlimited imports.`)
+        } else {
+          setError(detail)
+        }
       }
     } finally {
       setLoading(false)
@@ -219,6 +228,10 @@ export default function PortfolioImportPage() {
       >
         {loading ? "Importing..." : "Import Holdings"}
       </button>
+
+      {capDetail && (
+        <TierCapUpsell detail={capDetail} onDismiss={() => setCapDetail(null)} />
+      )}
 
       {/* Error */}
       {error && (
