@@ -26,17 +26,49 @@ def get_client():
 
 def get_admin_client():
     """Get Supabase admin client (service role key — for server-side operations).
-    Use this for: creating users, updating tiers, admin operations."""
+    Use this for: creating users, updating tiers, admin operations.
+
+    REQUIRES the service role key. The earlier silent fallback to
+    SUPABASE_ANON_KEY was a footgun — the anon key cannot perform admin
+    operations like ``auth.admin.update_user_by_id()``, so the client
+    would build successfully but every admin call would fail at runtime
+    with a generic error. Caught 2026-04-25 when /api/v1/account/profile
+    returned "Couldn't save display name — please try again" on every
+    save attempt against prod, with the underlying cause being
+    SUPABASE_SERVICE_KEY missing in Railway env.
+
+    For local dev without the service key, set
+    ``YIELDIQ_ALLOW_ANON_ADMIN_FALLBACK=1`` to opt into the legacy
+    fallback. Production must NEVER set that.
+    """
     global _admin_client
     if _admin_client is None:
         from supabase import create_client
         url = os.environ.get("SUPABASE_URL", "")
         key = os.environ.get("SUPABASE_SERVICE_KEY", "")
-        if not url or not key:
-            # Fallback to anon key if service key not set
+        allow_fallback = os.environ.get(
+            "YIELDIQ_ALLOW_ANON_ADMIN_FALLBACK", ""
+        ).strip().lower() in {"1", "true", "yes"}
+        if not url:
+            raise RuntimeError(
+                "SUPABASE_URL must be set for the admin client."
+            )
+        if not key:
+            if not allow_fallback:
+                raise RuntimeError(
+                    "SUPABASE_SERVICE_KEY must be set for the admin "
+                    "client. The anon-key fallback is disabled because "
+                    "admin operations (e.g. update_user_by_id) silently "
+                    "fail with the anon key. Set "
+                    "YIELDIQ_ALLOW_ANON_ADMIN_FALLBACK=1 to opt into "
+                    "the legacy fallback for local-only dev."
+                )
             key = os.environ.get("SUPABASE_ANON_KEY", "")
-        if not url or not key:
-            raise RuntimeError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set")
+            if not key:
+                raise RuntimeError(
+                    "SUPABASE_SERVICE_KEY missing AND fallback "
+                    "SUPABASE_ANON_KEY also missing."
+                )
         _admin_client = create_client(url, key)
     return _admin_client
 
