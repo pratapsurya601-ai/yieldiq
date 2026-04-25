@@ -889,10 +889,17 @@ async def _build_yieldiq50() -> ScreenerResponse:
                           ORDER BY ticker, date DESC
                         ),
                         latest_mm AS (
+                          -- 2026-04-25 fix: market_metrics' date column is
+                          -- `trade_date`, not `date`. Previously this CTE
+                          -- raised UndefinedColumn at runtime; the outer
+                          -- try/except swallowed it and the entire DB
+                          -- fallback returned zero rows, leaving Discover
+                          -- to render "YieldIQ 50 is warming up" whenever
+                          -- the in-process cache and CSV were empty.
                           SELECT DISTINCT ON (ticker)
                             ticker, market_cap_cr
                           FROM market_metrics
-                          ORDER BY ticker, date DESC
+                          ORDER BY ticker, trade_date DESC
                         )
                         SELECT
                           fv.ticker,
