@@ -13,8 +13,13 @@ on:
   pull_request:
     paths:
       - "backend/services/analysis_service.py"
+      - "backend/services/analysis/**/*.py"
+      - "backend/services/ratios_service.py"
+      - "backend/services/analytical_notes.py"
       - "backend/services/validators.py"
       - "backend/services/local_data_service.py"
+      - "backend/routers/analysis.py"
+      - "backend/models/responses.py"
       - "data/collector.py"
       - "models/**/*.py"
       - "screener/**/*.py"
@@ -25,8 +30,13 @@ on:
     branches: [main]
     paths:
       - "backend/services/analysis_service.py"
+      - "backend/services/analysis/**/*.py"
+      - "backend/services/ratios_service.py"
+      - "backend/services/analytical_notes.py"
       - "backend/services/validators.py"
       - "backend/services/local_data_service.py"
+      - "backend/routers/analysis.py"
+      - "backend/models/responses.py"
       - "data/collector.py"
       - "models/**/*.py"
       - "screener/**/*.py"

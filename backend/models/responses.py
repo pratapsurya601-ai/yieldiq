@@ -1,8 +1,28 @@
 # backend/models/responses.py
 # Pydantic response models — the API contract for the Next.js frontend.
 from __future__ import annotations
-from pydantic import BaseModel
+from pydantic import BaseModel, field_serializer
 from typing import Optional, Literal
+
+
+# ── Shared serialization helpers ──────────────────────────────
+# Lock the float precision of monetary / scenario fields at the JSON
+# boundary. Without these, the authed `/api/v1/analysis/{ticker}`
+# endpoint streams raw 64-bit floats (e.g. bear_case=1209.8671239771572)
+# while the public `/api/v1/public/analysis/{ticker}` endpoint passes
+# values through `_extract_analysis_summary` which `round(x, 2)`s every
+# scalar. The mismatch produces canary "public-vs-authed precision
+# drift" violations like the DRREDDY 0.017% delta flagged in PR #70.
+# Fix: serialize the canonical model with explicit precision so both
+# endpoints agree byte-for-byte.
+
+def _round2(v: float | None) -> float | None:
+    if v is None:
+        return None
+    try:
+        return round(float(v), 2)
+    except (TypeError, ValueError):
+        return v
 
 
 # ── Core analysis response ────────────────────────────────────
@@ -60,6 +80,36 @@ class ValuationOutput(BaseModel):
     # degraded fallbacks. Frontend renders via
     # <FreshnessStamp prefix="Delayed" /> — never "Live" (SEBI).
     current_price_as_of: Optional[str] = None
+
+    # ── JSON precision lock (DRREDDY drift fix, 2026-04-25) ────
+    # Round monetary / scenario floats at serialization so the authed
+    # endpoint (returns this Pydantic model directly) matches the
+    # public endpoint (which already round(x, 2)s in
+    # `_extract_analysis_summary`). Internal arithmetic still uses
+    # full precision; only JSON output is rounded.
+    @field_serializer(
+        "fair_value",
+        "current_price",
+        "bear_case",
+        "base_case",
+        "bull_case",
+        "pv_fcfs",
+        "pv_terminal",
+        "enterprise_value",
+        "equity_value",
+    )
+    def _round_money(self, v: float) -> float:
+        return _round2(v)
+
+    @field_serializer("margin_of_safety", "margin_of_safety_display")
+    def _round_pct(self, v: float) -> float:
+        # MoS is rendered to 1 decimal everywhere on the frontend.
+        if v is None:
+            return v
+        try:
+            return round(float(v), 1)
+        except (TypeError, ValueError):
+            return v
 
 
 class QualityOutput(BaseModel):
