@@ -39,6 +39,14 @@ async def login(req: LoginRequest):
     used, limit = rate_limiter.get_usage(result["user_id"], _effective_tier)
     if _effective_limit is not None:
         limit = _effective_limit
+    # Pull editable display_name + remaining-edits from Supabase user_metadata
+    # so the frontend can render the personalised greeting on first paint.
+    # Soft-fails to (None, MAX) — never blocks login.
+    try:
+        from backend.routers.account import get_display_name_state
+        _dn, _dn_remaining = get_display_name_state(result["user_id"])
+    except Exception:
+        _dn, _dn_remaining = None, 3
     return TokenResponse(
         access_token=result["token"],
         user_id=result["user_id"],
@@ -46,6 +54,8 @@ async def login(req: LoginRequest):
         tier=_effective_tier,
         analyses_today=used,
         analysis_limit=limit,
+        display_name=_dn,
+        display_name_edits_remaining=_dn_remaining,
     )
 
 
@@ -89,6 +99,8 @@ async def register(req: RegisterRequest):
         tier="free",
         analyses_today=0,
         analysis_limit=5,
+        display_name=None,
+        display_name_edits_remaining=3,
     )
 
 
@@ -230,12 +242,19 @@ async def get_me(user: dict = Depends(get_current_user)):
     used, limit = rate_limiter.get_usage(user["user_id"], _effective_tier)
     if _limit_override is not None:
         limit = _limit_override
+    try:
+        from backend.routers.account import get_display_name_state
+        _dn, _dn_remaining = get_display_name_state(user["user_id"])
+    except Exception:
+        _dn, _dn_remaining = None, 3
     return UserResponse(
         user_id=user["user_id"],
         email=user["email"],
         tier=_effective_tier,
         analyses_today=used,
         analysis_limit=limit,
+        display_name=_dn,
+        display_name_edits_remaining=_dn_remaining,
     )
 
 

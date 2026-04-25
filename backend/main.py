@@ -185,6 +185,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from backend.routers import analysis, screener, portfolio, watchlist, alerts, market, auth
 from backend.routers import payments, pipeline, email, referral, admin, public, tax, concall
+from backend.routers import account as account_router
 from backend.routers import analytics as analytics_router
 from backend.middleware.cors import ALLOWED_ORIGINS, ALLOWED_ORIGIN_REGEX
 
@@ -867,6 +868,7 @@ app.include_router(public.router)
 app.include_router(analytics_router.router)
 app.include_router(tax.router)
 app.include_router(concall.router)
+app.include_router(account_router.router)
 from backend.routers import hex as hex_router
 app.include_router(hex_router.router)
 from backend.routers import prism as prism_router
