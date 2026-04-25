@@ -110,6 +110,19 @@ async def get_analysis(
     # to response.ticker to show a "renamed to …" banner.
     ticker = TICKER_ALIASES.get(original_ticker, original_ticker)
 
+    # ── Nickname rewrite (HUL → HINDUNILVR, etc.) ───────────────────
+    # YAML `status: nickname` entries are colloquial aliases — rewrite
+    # to canonical here so cache keys, compute, and the corp-action
+    # gate below all see the real ticker. Caught in PR #83 health audit
+    # (`/analysis/preview/HUL` was 404-ing in prod).
+    try:
+        from data_pipeline import ticker_aliases as _aliases_mod
+        _canonical = _aliases_mod.resolve_nickname(original_ticker)
+        if _canonical:
+            ticker = _canonical if "." in _canonical else f"{_canonical}.NS"
+    except Exception:
+        pass
+
     # ── Corporate-action redirect gate ──────────────────────────────
     # If the ticker is in our alias YAML as demerged / demerged_pending
     # / delisted, return a SIBLING redirect payload (not the normal
@@ -117,6 +130,9 @@ async def get_analysis(
     # successor entity / show a delisting notice without us trying to
     # value a defunct ISIN. The active-ticker happy path is byte-
     # identical to before — this branch only fires for non-active.
+    # `nickname` is intentionally excluded — those are routing rewrites
+    # (handled above), NOT corporate actions, and must pass through to
+    # a normal analysis under the canonical ticker.
     try:
         from data_pipeline import ticker_aliases as _aliases
         _status = _aliases.get_status(original_ticker)
@@ -235,7 +251,15 @@ async def get_analysis(
 
     _compute_start = _time.monotonic()
     try:
-        result = service.get_full_analysis(ticker)
+        # PERF: get_full_analysis is a SYNC function that does blocking
+        # I/O (yfinance HTTP, Postgres queries, an internal time.sleep
+        # retry backoff). Calling it directly from this async handler
+        # blocks the event loop — every concurrent request gets
+        # serialized, killing throughput. Push it onto the thread-pool
+        # executor so the loop stays responsive. Caught in 2026-04-25
+        # health audit (PR #83).
+        import asyncio as _asyncio
+        result = await _asyncio.to_thread(service.get_full_analysis, ticker)
 
         # ── Output sanity gate ──────────────────────────────────
         # Two-layer defense:
@@ -482,7 +506,9 @@ async def get_og_data(ticker: str):
         if result is None or not hasattr(result, "valuation"):
             # Last resort: live compute. Any output zeros here will be
             # caught by the zero-poison guard below rather than cached.
-            result = service.get_full_analysis(ticker)
+            # PERF: blocking sync call → thread pool. See PR #83 note.
+            import asyncio as _asyncio
+            result = await _asyncio.to_thread(service.get_full_analysis, ticker)
         display_ticker = ticker.replace(".NS", "").replace(".BO", "")
 
         # ── Output sanity gate (router-level defense in depth) ──
@@ -566,6 +592,18 @@ async def get_analysis_preview(ticker: str):
     """
     ticker = ticker.upper().strip()
 
+    # Apply alias rewrites (renames + nicknames) so colloquial requests
+    # like /analysis/preview/HUL resolve to HINDUNILVR.NS instead of
+    # 404-ing through TickerNotFoundError. Caught in PR #83 health audit.
+    ticker = TICKER_ALIASES.get(ticker, ticker)
+    try:
+        from data_pipeline import ticker_aliases as _aliases_mod
+        _canonical = _aliases_mod.resolve_nickname(ticker)
+        if _canonical:
+            ticker = _canonical if "." in _canonical else f"{_canonical}.NS"
+    except Exception:
+        pass
+
     # Check cache first
     _cache_key = f"preview:{ticker}"
     cached = cache.get(_cache_key)
@@ -573,7 +611,9 @@ async def get_analysis_preview(ticker: str):
         return cached
 
     try:
-        result = service.get_full_analysis(ticker)
+        # PERF: blocking sync call → thread pool. See PR #83 note.
+        import asyncio as _asyncio
+        result = await _asyncio.to_thread(service.get_full_analysis, ticker)
 
         # Output sanity gate — same as og-data and main /analysis
         _fv = float(result.valuation.fair_value or 0)
@@ -670,7 +710,8 @@ async def get_ai_summary(ticker: str, user: dict = Depends(get_current_user)):
     analysis = cache.get(_analysis_cache_key)
     if analysis is None:
         try:
-            analysis = service.get_full_analysis(ticker)
+            # PERF: blocking sync call → thread pool. See PR #83 note.
+            analysis = await asyncio.to_thread(service.get_full_analysis, ticker)
         except TickerNotFoundError:
             raise HTTPException(
                 status_code=404,
@@ -1625,9 +1666,13 @@ async def compare_stocks(
     ticker1 = ticker1.upper().strip()
     ticker2 = ticker2.upper().strip()
 
-    # Get both analyses (uses cache if available)
-    a1 = service.get_full_analysis(ticker1)
-    a2 = service.get_full_analysis(ticker2)
+    # Get both analyses (uses cache if available).
+    # PERF: blocking sync call → thread pool, run concurrently. See PR #83.
+    import asyncio as _asyncio
+    a1, a2 = await _asyncio.gather(
+        _asyncio.to_thread(service.get_full_analysis, ticker1),
+        _asyncio.to_thread(service.get_full_analysis, ticker2),
+    )
 
     return {
         "stock1": {
@@ -1727,7 +1772,9 @@ async def get_report(ticker: str, user: dict = Depends(get_current_user)):
     """Generate downloadable DCF report as text."""
     ticker = ticker.upper().strip()
     try:
-        analysis = service.get_full_analysis(ticker)
+        # PERF: blocking sync call → thread pool. See PR #83 note.
+        import asyncio as _asyncio
+        analysis = await _asyncio.to_thread(service.get_full_analysis, ticker)
         v = analysis.valuation
         q = analysis.quality
         s = analysis.scenarios

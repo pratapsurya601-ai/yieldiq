@@ -37,12 +37,21 @@ logger = logging.getLogger(__name__)
 AliasStatus = Literal[
     "active",
     "renamed",
+    "nickname",
     "demerged",
     "demerged_pending",
     "delisted",
 ]
 
-_VALID_STATUSES = {"active", "renamed", "demerged", "demerged_pending", "delisted"}
+_VALID_STATUSES = {
+    "active", "renamed", "nickname",
+    "demerged", "demerged_pending", "delisted",
+}
+
+# Statuses that represent a real corporate action (i.e. should trigger
+# the redirect gate in backend/routers/analysis.py). `nickname` is
+# explicitly NOT in this set — it is purely a routing rewrite.
+CORPORATE_ACTION_STATUSES = frozenset({"demerged", "demerged_pending", "delisted"})
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +179,23 @@ def get_status(ticker: str) -> AliasStatus:
     return entry.get("status", "active")  # type: ignore[return-value]
 
 
+def resolve_nickname(ticker: str) -> Optional[str]:
+    """Return the canonical ticker for a `nickname` entry, else None.
+
+    Read-path helper used by `backend/routers/analysis.py` to rewrite
+    colloquial requests (e.g. `/analysis/HUL`) to the canonical ticker
+    (`HINDUNILVR`) before any cache lookup or compute. Returns None for
+    every status except `nickname` so the caller falls through unchanged.
+    """
+    if not ticker:
+        return None
+    entry = load_aliases().get(ticker.upper().strip())
+    if not entry or entry.get("status") != "nickname":
+        return None
+    canonical = str(entry.get("canonical", "")).upper().strip()
+    return canonical or None
+
+
 def _default_fetch_symbol(ticker: str) -> str:
     """Mirror data_pipeline.xbrl.tickers.get_yf_symbol's default rule.
 
@@ -209,6 +235,30 @@ def resolve_for_fetch(ticker: str) -> ResolveResult:
     if status == "renamed":
         fetch_symbol = entry.get("fetch_symbol") or _default_fetch_symbol(key)
         return Fetch(symbol=fetch_symbol, ticker=key)
+
+    if status == "nickname":
+        # Colloquial alias — rewrite to the canonical ticker entirely.
+        # The returned `ticker` is the CANONICAL one (not the nickname),
+        # so downstream cache keys / response payloads / analytics events
+        # all attribute against the real entity. Request for "HUL"
+        # produces a response keyed on "HINDUNILVR".
+        canonical = str(entry.get("canonical", "")).upper().strip()
+        if not canonical:
+            # Misconfigured entry — degrade to fast path so we don't
+            # 500 a user request because of a YAML typo.
+            logger.error(
+                "ticker_aliases: nickname %s missing `canonical:`; falling back to default fetch",
+                key,
+            )
+            return Fetch(symbol=_default_fetch_symbol(key), ticker=key)
+        # If the canonical itself has a YAML entry (e.g. another rename),
+        # honour its fetch_symbol; cap recursion at 1 hop for simplicity.
+        canonical_entry = aliases.get(canonical)
+        if canonical_entry and canonical_entry.get("status") == "renamed":
+            fetch_symbol = canonical_entry.get("fetch_symbol") or _default_fetch_symbol(canonical)
+        else:
+            fetch_symbol = _default_fetch_symbol(canonical)
+        return Fetch(symbol=fetch_symbol, ticker=canonical)
 
     if status == "delisted":
         return Skip(reason="delisted", ticker=key)
@@ -257,7 +307,9 @@ def get_successors_payload(ticker: str) -> Optional[dict]:
     if not entry:
         return None
     status = entry.get("status", "active")
-    if status in ("active", "renamed"):
+    # `nickname` is a routing-only alias, not a corp action — never emit
+    # a redirect payload for it. Treat it identically to `active`.
+    if status in ("active", "renamed", "nickname"):
         return None
     successors = [
         {

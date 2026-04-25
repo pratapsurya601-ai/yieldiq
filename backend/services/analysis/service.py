@@ -264,6 +264,16 @@ class AnalysisService(NarrativeMixin):
                 except Exception:
                     pass
                 if raw is None and _attempt < 2:
+                    # Retry backoff between yfinance attempts. This used to
+                    # block the FastAPI event loop because the enclosing
+                    # `get_full_analysis` is a SYNC function called directly
+                    # from async route handlers. As of PR #83 (2026-04-25
+                    # health audit) every call site in
+                    # `backend/routers/analysis.py` wraps this entry point
+                    # in `asyncio.to_thread(...)`, so the sleep now sleeps
+                    # in a worker thread and never stalls the loop. If you
+                    # ever invoke `get_full_analysis` directly from an
+                    # `async def` again, push it through `to_thread` first.
                     _time.sleep(3 + _attempt * 3)  # 3s, 6s delays
 
         # ── Step 2: Validate ──────────────────────────────────

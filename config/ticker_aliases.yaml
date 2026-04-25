@@ -27,6 +27,13 @@
 # renamed           — same legal entity, new symbol. Pipeline fetches under
 #                     current symbol; historical rows under former_symbol
 #                     are migrated via scripts/migrate_ticker_aliases.sql.
+# nickname          — colloquial / shorthand alias for an existing canonical
+#                     ticker (e.g. "HUL" -> "HINDUNILVR"). NOT a corporate
+#                     action — same legal entity, no migration semantics.
+#                     Pipeline rewrites to canonical at fetch time; read
+#                     path treats request as the canonical ticker (no
+#                     redirect payload, no `X-Corporate-Action` header).
+#                     Use `canonical: <SYMBOL>` to point at the real ticker.
 # demerged          — entity split; successors listed and fetchable.
 #                     Pipeline skips the dead parent, iterates successors.
 #                     Read path returns a redirect payload.
@@ -136,3 +143,51 @@ ETERNAL:
   note: >
     Zomato Ltd. rebranded to Eternal Ltd. Single-entity rename; all
     historical ZOMATO rows should resolve under ETERNAL.
+
+# ---------------------------------------------------------------------------
+# Colloquial / nickname aliases — NOT corporate actions
+# ---------------------------------------------------------------------------
+# Indian retail investors and the financial press routinely refer to
+# stocks by short forms or brand names ("HUL" for Hindustan Unilever,
+# "HDFC LIFE" for HDFC Life Insurance, etc.). Yahoo and NSE only know
+# the canonical NSE codes — so a request for `/analysis/HUL` would 404
+# with TickerNotFoundError before this section existed.
+#
+# `status: nickname` rewrites the request to the `canonical` symbol
+# at fetch time. No corp-action redirect payload is emitted; the
+# response carries the canonical ticker and the corp-action gate in
+# `backend/routers/analysis.py` short-circuits ONLY for the actual
+# corp-action statuses (demerged / demerged_pending / delisted), NOT
+# for nicknames.
+#
+# Caught in 2026-04-25 health audit (PR #83) — `/analysis/preview/HUL`
+# was 404-ing in production.
+
+HUL:
+  status: nickname
+  canonical: HINDUNILVR
+  note: "Colloquial Hindustan Unilever ticker; rewrites to HINDUNILVR.NS at fetch time."
+
+JUBL FOOD:
+  status: nickname
+  canonical: JUBLFOOD
+  note: "Jubilant FoodWorks (Domino's franchisee in India)."
+
+BAJAJ FIN:
+  status: nickname
+  canonical: BAJFINANCE
+  note: "Bajaj Finance Ltd."
+
+HDFC LIFE:
+  status: nickname
+  canonical: HDFCLIFE
+  note: "HDFC Life Insurance Co. Ltd."
+
+KOTAK BANK:
+  status: nickname
+  canonical: KOTAKBANK
+  note: "Kotak Mahindra Bank Ltd."
+
+# Note: M&M is intentionally NOT listed here — `M&M` is already the
+# canonical NSE symbol (Mahindra & Mahindra) and is handled in the
+# `_default_fetch_symbol` specials map in data_pipeline/ticker_aliases.py.
