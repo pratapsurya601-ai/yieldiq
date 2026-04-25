@@ -62,7 +62,7 @@ export const METRIC_EXPLANATIONS: Record<string, MetricExplanation> = {
       "How much of a discount (or premium) the current price offers versus our fair-value estimate.",
     formula: "(Fair Value − Current Price) ÷ Fair Value × 100",
     good:
-      "Above +30% is deep value, +10-30% is a decent cushion, -10% to +10% is roughly fair, below -20% is well above fair value. Benjamin Graham looked for ~33% before considering a purchase.",
+      "Above +30% is a deep discount to model fair value, +10-30% is a moderate discount, -10% to +10% is roughly at model fair value, below -20% is well above model fair value. Benjamin Graham documented a ~33% discount-to-FV threshold in The Intelligent Investor as the historical hurdle for value-investing methodology.",
   },
   bear_case: {
     title: "Bear Case",
@@ -99,9 +99,9 @@ export const METRIC_EXPLANATIONS: Record<string, MetricExplanation> = {
   yieldiq_score: {
     title: "YieldIQ Score",
     oneLine:
-      "A 0-100 composite score blending valuation, quality, growth, and safety into one number — our shortcut for \"how investable is this business today.\"",
+      "A 0-100 composite score that blends our valuation, quality, growth, and safety axes into a single descriptive number. Reflects the model's view of a business's fundamentals at a point in time. Not investment advice.",
     good:
-      "Above 75 = high across the board, 55-75 = solid with trade-offs, 35-55 = mixed, below 35 = multiple risks. It rewards both below-fair-value AND high-quality — a stock can score low simply by being priced above fair value.",
+      "Above 75 = high across the board, 55-75 = mixed with trade-offs, 35-55 = several factors to consider, below 35 = multiple model concerns. The score rewards both below-fair-value AND high-quality fundamentals — a stock can score low simply by being priced above its model fair value.",
   },
   grade: {
     title: "Grade",
