@@ -21,12 +21,20 @@ interface Preset {
   countable: boolean
 }
 
+// 2026-04-25 dark-mode fix: the original gradients used Tailwind palette
+// colors (blue-50 / emerald-50 / violet-50 / amber-50 -> white) that do
+// NOT respond to the dark-mode class. In dark mode the cards rendered as
+// near-black with the description text invisible. Each preset now carries
+// both light AND dark gradient stops, and the description renders in
+// `text-body` (one tier brighter than `text-caption`) for legible contrast
+// on either background.
 const PRESETS: Preset[] = [
   {
     name: "Buffett Style",
     description: "Wide moat, consistent earnings, fair price",
     borderColor: "border-l-blue-600",
-    bgGradient: "bg-gradient-to-br from-blue-50/50 to-white",
+    bgGradient:
+      "bg-gradient-to-br from-blue-50/50 to-white dark:from-blue-950/30 dark:to-slate-900",
     query: "buffett",
     countable: true,
   },
@@ -34,7 +42,8 @@ const PRESETS: Preset[] = [
     name: "Deep Value",
     description: "High margin of safety, low P/E, high FCF yield",
     borderColor: "border-l-emerald-600",
-    bgGradient: "bg-gradient-to-br from-emerald-50/50 to-white",
+    bgGradient:
+      "bg-gradient-to-br from-emerald-50/50 to-white dark:from-emerald-950/30 dark:to-slate-900",
     query: "deep-value",
     countable: true,
   },
@@ -42,7 +51,8 @@ const PRESETS: Preset[] = [
     name: "Growth Quality",
     description: "High growth with quality fundamentals",
     borderColor: "border-l-violet-600",
-    bgGradient: "bg-gradient-to-br from-violet-50/50 to-white",
+    bgGradient:
+      "bg-gradient-to-br from-violet-50/50 to-white dark:from-violet-950/30 dark:to-slate-900",
     query: "growth-quality",
     countable: true,
   },
@@ -50,7 +60,8 @@ const PRESETS: Preset[] = [
     name: "Custom",
     description: "Set your own filters and criteria",
     borderColor: "border-l-amber-500",
-    bgGradient: "bg-gradient-to-br from-amber-50/50 to-white",
+    bgGradient:
+      "bg-gradient-to-br from-amber-50/50 to-white dark:from-amber-950/30 dark:to-slate-900",
     query: "custom",
     countable: false,
   },
@@ -91,7 +102,12 @@ function PresetCard({ preset }: { preset: Preset }) {
     >
       <div className="mb-3">
         <h3 className="text-sm font-semibold text-ink">{preset.name}</h3>
-        <p className="text-xs text-caption mt-1 line-clamp-2">{preset.description}</p>
+        {/* `text-body` (one tier brighter than `text-caption`) is needed for
+            legible contrast on the colored gradient backgrounds in BOTH
+            light and dark mode. The 2026-04-25 dark-mode bug was caused by
+            `text-caption` (#94A3B8 in dark) sitting too close in luminance
+            to the dark-mode gradient stops. */}
+        <p className="text-xs text-body mt-1 line-clamp-2">{preset.description}</p>
       </div>
       <Link
         href={`/discover/screener?preset=${preset.query}`}
