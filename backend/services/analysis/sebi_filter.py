@@ -62,6 +62,12 @@ BANNED_WORDS: tuple[str, ...] = (
     "accumulate",
     "recommend",
     "recommendation",
+    # Added 2026-04-25 after a UI string slipped through ("how investable
+    # is this business today" appeared in a tooltip on /analysis/{ticker}).
+    # The word reads as a directional verdict (i.e. should-you-invest), so
+    # it crosses from descriptive into advisory and triggers SEBI IA scope.
+    "investable",
+    "investability",
 )
 
 _BANNED_RE = re.compile(

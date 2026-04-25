@@ -77,6 +77,11 @@ BANNED_WORDS: tuple[str, ...] = (
     "accumulate",
     "recommend",
     "recommendation",
+    # Added 2026-04-25 after the YieldIQ Score tooltip ("how investable is
+    # this business today") slipped through onto a live analysis page.
+    # Reads as a should-you-invest verdict — advisory, not descriptive.
+    "investable",
+    "investability",
 )
 
 _BANNED_RE = re.compile(
