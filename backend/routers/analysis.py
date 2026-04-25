@@ -18,6 +18,7 @@ from backend.services.cache_service import cache
 from backend.services import analysis_cache_service
 from backend.middleware.auth import get_current_user, get_current_user_optional, check_analysis_limit
 from backend.services.ticker_search import search_tickers
+from backend.services.tier_caps import cap_for
 from datetime import date
 
 router = APIRouter(prefix="/api/v1", tags=["analysis"])
@@ -1686,6 +1687,31 @@ async def compare_stocks(
     """Compare two stocks side by side."""
     ticker1 = ticker1.upper().strip()
     ticker2 = ticker2.upper().strip()
+
+    # Tier-cap: enforce per-tier compare ticker limit. Today the endpoint
+    # only takes 2 tickers, so this check is inert at the contractual
+    # `cap >= 2` floor — but it keeps the cap centralised so the future
+    # multi-ticker compare endpoint will inherit enforcement for free.
+    # De-dup so comparing TICKER vs TICKER counts as 1, not 2.
+    requested_tickers = {t for t in (ticker1, ticker2) if t}
+    n = len(requested_tickers)
+    cap = cap_for(user.get("tier", "free"), "compare_tickers")
+    if n > cap:
+        tier_name = user.get("tier", "free")
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "compare_ticker_cap_reached",
+                "tier": tier_name,
+                "cap": cap,
+                "requested": n,
+                "message": (
+                    f"Your {tier_name.title()} plan allows comparing up to "
+                    f"{cap} stocks. Upgrade to compare more."
+                ),
+                "upgrade_link": "/pricing",
+            },
+        )
 
     # Get both analyses (uses cache if available).
     # PERF: blocking sync call → thread pool, run concurrently. See PR #83.

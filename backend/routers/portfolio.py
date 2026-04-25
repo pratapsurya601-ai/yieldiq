@@ -20,6 +20,7 @@ from backend.models.responses import (
     HoldingResponse, PortfolioHealthResponse, SuccessResponse,
 )
 from backend.middleware.auth import get_current_user
+from backend.services.tier_caps import cap_for
 
 logger = logging.getLogger("yieldiq.portfolio")
 
@@ -73,10 +74,37 @@ async def get_holdings_live(user: dict = Depends(get_current_user)):
 @router.post("/holdings", response_model=SuccessResponse)
 async def add_holding(req: AddHoldingRequest, user: dict = Depends(get_current_user)):
     """Add a single stock to user's portfolio."""
-    from backend.services.portfolio_service import save_holding
+    from backend.services.portfolio_service import (
+        save_holding, get_broker_account_labels,
+    )
     email = user.get("email", "")
     if not email:
         raise HTTPException(status_code=401, detail="Email required")
+
+    # Tier-cap: enforce broker account limit when this add introduces a
+    # NEW account_label. Adding another holding under a label the user
+    # already uses is always allowed (it does not open a new "account").
+    new_label = (req.account_label or "default").lower().strip() or "default"
+    existing_labels = get_broker_account_labels(email)
+    if new_label not in existing_labels:
+        cap = cap_for(user.get("tier", "free"), "broker_accounts")
+        if len(existing_labels) >= cap:
+            tier_name = user.get("tier", "free")
+            plural = "s" if cap != 1 else ""
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "broker_account_cap_reached",
+                    "tier": tier_name,
+                    "cap": cap,
+                    "current": len(existing_labels),
+                    "message": (
+                        f"Your {tier_name.title()} plan allows {cap} broker "
+                        f"account{plural}. Upgrade to add more."
+                    ),
+                    "upgrade_link": "/pricing",
+                },
+            )
 
     ok, err = save_holding(
         user_email=email,
@@ -88,6 +116,8 @@ async def add_holding(req: AddHoldingRequest, user: dict = Depends(get_current_u
         wacc=req.wacc,
         sector=req.sector,
         notes=req.notes,
+        account_label=new_label,
+        quantity=req.quantity,
     )
     if not ok:
         # Don't echo the upstream Supabase / SQL error to the client —
@@ -139,7 +169,9 @@ async def reset_holdings(user: dict = Depends(get_current_user)):
 
 def _do_import(parsed: list[dict], broker: str, user: dict) -> dict:
     """Shared import logic — accepts pre-parsed holdings list."""
-    from backend.services.portfolio_service import save_holding
+    from backend.services.portfolio_service import (
+        save_holding, get_broker_account_labels,
+    )
     from backend.services import analysis_service as svc
     from backend.services.cache_service import cache as _c
 
@@ -157,6 +189,30 @@ def _do_import(parsed: list[dict], broker: str, user: dict) -> dict:
             status_code=402,
             detail=f"Free tier limited to 5 holdings. Upgrade to Pro for unlimited import ({len(parsed)} holdings detected).",
         )
+
+    # Tier-cap: importing tags every new row with account_label=<broker>.
+    # If that broker is not already among the user labels, this import
+    # is opening a NEW broker account — enforce the per-tier cap.
+    new_label = (broker or "default").lower().strip() or "default"
+    existing_labels = get_broker_account_labels(email)
+    if new_label not in existing_labels:
+        cap = cap_for(tier, "broker_accounts")
+        if len(existing_labels) >= cap:
+            plural = "s" if cap != 1 else ""
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "error": "broker_account_cap_reached",
+                    "tier": tier,
+                    "cap": cap,
+                    "current": len(existing_labels),
+                    "message": (
+                        f"Your {tier.title()} plan allows {cap} broker "
+                        f"account{plural}. Upgrade to add more."
+                    ),
+                    "upgrade_link": "/pricing",
+                },
+            )
 
     imported = 0
     skipped = 0

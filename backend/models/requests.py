@@ -25,6 +25,11 @@ class AddHoldingRequest(BaseModel):
     wacc: float = 0
     sector: str = ""
     notes: str = ""
+    # 2026-04-25: optional broker account label so multi-broker users
+    # can tag a manually-added holding to a specific demat. Defaults
+    # server-side to "default" when omitted.
+    account_label: Optional[str] = None
+    quantity: Optional[float] = None
 
 
 class AddWatchlistRequest(BaseModel):
