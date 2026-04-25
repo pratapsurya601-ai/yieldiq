@@ -1297,41 +1297,63 @@ async def get_chart_data(
         except Exception:
             pass  # prices stays empty → frontend falls back to mock
 
-    # --- Financial data (revenue + FCF) from collector ---
+    # --- Financial data (revenue + FCF) from FinancialsService ---
+    # Same canonical source as /analysis/{ticker}/financials so both
+    # widgets on the page agree. The service returns values in Crores
+    # (INR) or Millions (non-INR); we convert to raw units here because
+    # the FinancialBars frontend formatter expects raw rupees / dollars.
     financials: dict = {}
     try:
-        from data.collector import StockDataCollector
+        from backend.services.financials_service import FinancialsService
 
-        collector = StockDataCollector(ticker)
+        svc = FinancialsService()
+        fin = svc.get_financials(ticker, period="annual", years=5)
+
+        # Currency unit determines the multiplier back to raw units.
+        unit = (fin or {}).get("currency_unit", "Cr")
+        scale = 1e7 if unit == "Cr" else 1e6  # Cr → ₹, M → $
 
         revenue_list: list[dict] = []
-        income_df = collector.get_income_history()
-        if income_df is not None and not income_df.empty:
-            for _, row in income_df.iterrows():
-                _v = _num(row.get("revenue", 0))
-                if _v is None:
-                    continue
+        fcf_list: list[dict] = []
+
+        # income / cash_flow are the same merged year rows in the service
+        # response. Iterate income for revenue, cash_flow for FCF; both
+        # are sorted newest→oldest from the service. Reverse not needed —
+        # the frontend sorts by year.localeCompare.
+        for row in (fin or {}).get("income", []) or []:
+            year_str: str | None = None
+            pe = row.get("period_end")
+            if pe:
+                # period_end is ISO YYYY-MM-DD; chart-data is annual
+                year_str = pe[:4]
+            if not year_str:
+                # fall back to formatted period (e.g. FY2025)
+                year_str = str(row.get("year") or "")
+            rev_v = _num(row.get("revenue"))
+            if rev_v is not None and year_str:
                 revenue_list.append({
-                    "year": str(row.get("year", "")),
-                    "value": round(_v),
+                    "year": year_str,
+                    "value": round(rev_v * scale),
                 })
 
-        fcf_list: list[dict] = []
-        cf_df = collector.get_cashflow_history()
-        if cf_df is not None and not cf_df.empty:
-            for _, row in cf_df.iterrows():
-                _v = _num(row.get("fcf", 0))
-                if _v is None:
-                    continue
+        for row in (fin or {}).get("cash_flow", []) or []:
+            year_str = None
+            pe = row.get("period_end")
+            if pe:
+                year_str = pe[:4]
+            if not year_str:
+                year_str = str(row.get("year") or "")
+            fcf_v = _num(row.get("free_cash_flow"))
+            if fcf_v is not None and year_str:
                 fcf_list.append({
-                    "year": str(row.get("year", "")),
-                    "value": round(_v),
+                    "year": year_str,
+                    "value": round(fcf_v * scale),
                 })
 
         if revenue_list or fcf_list:
             financials = {"revenue": revenue_list, "fcf": fcf_list}
     except Exception:
-        pass  # financials stays empty
+        pass  # financials stays empty → frontend shows empty state
 
     result = {"prices": prices, "period": period, "financials": financials}
     cache.set(_cache_key, result, ttl=900)  # 15 min cache
