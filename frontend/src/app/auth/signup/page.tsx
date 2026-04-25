@@ -74,7 +74,9 @@ function SignupContent() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
+    // [color-scheme:light] prevents dark-mode browsers from leaking light
+    // grey input text on the white card. See login/page.tsx for context.
+    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50 [color-scheme:light]">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <img src="/logo-new.svg" alt="YieldIQ" className="w-16 h-16 rounded-xl mx-auto mb-3" />
@@ -90,10 +92,10 @@ function SignupContent() {
           )}
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            placeholder="Email" className="w-full px-4 py-3 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSignup()}
-            placeholder="Password (min 6 characters)" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            placeholder="Password (min 6 characters)" className="w-full px-4 py-3 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <button onClick={handleSignup} disabled={loading}
             className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50">
             {loading ? "Creating account..." : "Create free account"}

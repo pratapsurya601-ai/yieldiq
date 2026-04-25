@@ -102,7 +102,13 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
+    // The auth surfaces are intentionally light-mode-only (most users land
+    // in light browsers and the brand assumes a light frame). Set
+    // color-scheme: light at the page wrapper so the browser's dark-mode
+    // UA stylesheet does NOT leak into form controls. Without this,
+    // Chrome on a dark-mode OS renders <input> text in light grey on the
+    // white background — invisible. Caught 2026-04-25.
+    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50 [color-scheme:light]">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <img src="/logo-new.svg" alt="YieldIQ" className="w-16 h-16 rounded-xl mx-auto mb-3" />
@@ -115,11 +121,14 @@ export default function LoginPage() {
 
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
+          {/* Belt-and-braces: explicit text/bg/placeholder colors on the
+              inputs so even if [color-scheme:light] above is ignored by an
+              old browser, the typed text stays dark on light. */}
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            placeholder="Email" className="w-full px-4 py-3 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-            placeholder="Password" className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            placeholder="Password" className="w-full px-4 py-3 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
 
           <button onClick={handleLogin} disabled={loading}
             className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50">
