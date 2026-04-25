@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/store/authStore"
 import { TIER_LIMITS } from "@/lib/constants"
 import ThemeToggle from "@/components/layout/ThemeToggle"
+import NotificationsBell from "@/components/notifications/NotificationsBell"
 
 const LINKS = [
   { label: "Home", href: "/home" },
@@ -91,6 +92,7 @@ export default function DesktopNav() {
             </svg>
             Search
           </Link>
+          <NotificationsBell />
           <ThemeToggle />
           <Link
             href="/account"
