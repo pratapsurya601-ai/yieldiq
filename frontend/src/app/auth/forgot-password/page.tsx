@@ -38,7 +38,9 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50">
+    // [color-scheme:light] prevents dark-mode browsers from leaking light
+    // grey input text on the white card. See login/page.tsx for context.
+    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50 [color-scheme:light]">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <img src="/logo-new.svg" alt="YieldIQ" className="w-16 h-16 rounded-xl mx-auto mb-3" />
@@ -93,7 +95,7 @@ export default function ForgotPasswordPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                 placeholder="Email"
-                className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
 
               <button
