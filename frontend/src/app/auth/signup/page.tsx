@@ -39,6 +39,7 @@ function SignupContent() {
         5,
         res.display_name ?? null,
         res.display_name_edits_remaining ?? 3,
+        res.feature_flags ?? {},
       )
       // Reset onboarding state for new users — both the zustand-persisted
       // settings store AND the onboardingPreferences blob. This avoids a

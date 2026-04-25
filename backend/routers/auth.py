@@ -13,6 +13,7 @@ from backend.middleware.auth import (
     is_superuser,
 )
 from backend.middleware.rate_limit import rate_limiter, clamped_used
+from backend.services.feature_flags import list_enabled_for
 
 _log = logging.getLogger("yieldiq.auth.onboarding")
 
@@ -60,6 +61,7 @@ async def login(req: LoginRequest):
         analysis_limit=limit,
         display_name=_dn,
         display_name_edits_remaining=_dn_remaining,
+        feature_flags=list_enabled_for(result["user_id"], _effective_tier),
     )
 
 
@@ -105,6 +107,7 @@ async def register(req: RegisterRequest):
         analysis_limit=5,
         display_name=None,
         display_name_edits_remaining=3,
+        feature_flags=list_enabled_for(result["user_id"], "free"),
     )
 
 
@@ -262,6 +265,7 @@ async def get_me(user: dict = Depends(get_current_user)):
         analysis_limit=limit,
         display_name=_dn,
         display_name_edits_remaining=_dn_remaining,
+        feature_flags=list_enabled_for(user["user_id"], _effective_tier),
     )
 
 
