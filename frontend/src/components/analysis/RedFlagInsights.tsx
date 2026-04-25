@@ -21,15 +21,15 @@ const SEVERITY_LABEL: Record<RedFlag["severity"], string> = {
 }
 
 const SEVERITY_CARD: Record<RedFlag["severity"], string> = {
-  critical: "border-l-4 border-red-500 bg-red-50",
-  warning: "border-l-4 border-yellow-500 bg-yellow-50",
-  info: "border-l-4 border-green-500 bg-green-50",
+  critical: "border-l-4 border-red-500 bg-red-50 dark:bg-red-950/30",
+  warning: "border-l-4 border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30",
+  info: "border-l-4 border-green-500 bg-green-50 dark:bg-green-950/30",
 }
 
 const SEVERITY_BADGE: Record<RedFlag["severity"], string> = {
-  critical: "text-red-700",
-  warning: "text-yellow-700",
-  info: "text-green-700",
+  critical: "text-red-700 dark:text-red-300",
+  warning: "text-yellow-700 dark:text-yellow-300",
+  info: "text-green-700 dark:text-green-300",
 }
 
 export default function RedFlagInsights({ flags }: Props) {

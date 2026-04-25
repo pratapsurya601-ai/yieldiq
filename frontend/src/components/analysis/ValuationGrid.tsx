@@ -51,9 +51,21 @@ const CASE_LABEL: Record<CaseKey, string> = {
 }
 
 const CASE_PALETTE: Record<CaseKey, { border: string; bg: string; value: string }> = {
-  bear: { border: "border-red-200", bg: "bg-red-50", value: "text-red-700" },
-  base: { border: "border-blue-200", bg: "bg-blue-50", value: "text-blue-700" },
-  bull: { border: "border-green-200", bg: "bg-green-50", value: "text-green-700" },
+  bear: {
+    border: "border-red-200 dark:border-red-900",
+    bg: "bg-red-50 dark:bg-red-950/30",
+    value: "text-red-700 dark:text-red-300",
+  },
+  base: {
+    border: "border-blue-200 dark:border-blue-900",
+    bg: "bg-blue-50 dark:bg-blue-950/30",
+    value: "text-blue-700 dark:text-blue-300",
+  },
+  bull: {
+    border: "border-green-200 dark:border-green-900",
+    bg: "bg-green-50 dark:bg-green-950/30",
+    value: "text-green-700 dark:text-green-300",
+  },
 }
 
 function fmtMos(mos: number | null | undefined): string {
@@ -63,8 +75,8 @@ function fmtMos(mos: number | null | undefined): string {
 }
 
 function mosTone(mos: number | null | undefined): string {
-  if (mos == null || Number.isNaN(mos)) return "text-gray-400"
-  return mos >= 0 ? "text-green-600" : "text-red-600"
+  if (mos == null || Number.isNaN(mos)) return "text-caption"
+  return mos >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
 }
 
 export default function ValuationGrid({
@@ -81,10 +93,10 @@ export default function ValuationGrid({
   ]
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6">
+    <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6">
       <div className="flex items-baseline justify-between mb-4">
-        <h2 className="text-lg font-bold text-gray-900">DCF Scenario Analysis</h2>
-        <p className="text-xs text-gray-400">
+        <h2 className="text-lg font-bold text-ink">DCF Scenario Analysis</h2>
+        <p className="text-xs text-caption">
           vs CMP {formatCurrency(currentPrice, currency)}
         </p>
       </div>
@@ -96,7 +108,7 @@ export default function ValuationGrid({
               key={key}
               className={`rounded-xl p-4 text-center border ${palette.border} ${palette.bg}`}
             >
-              <p className="text-[11px] uppercase tracking-wider text-gray-500 mb-1">
+              <p className="text-[11px] uppercase tracking-wider text-caption mb-1">
                 {CASE_LABEL[key]}
               </p>
               <p className={`text-xl font-bold font-mono tabular-nums ${palette.value}`}>
@@ -106,7 +118,7 @@ export default function ValuationGrid({
                 MoS {fmtMos(data.mos_pct)}
               </p>
               {data.verdict ? (
-                <p className="text-[10px] text-gray-400 mt-1 capitalize">
+                <p className="text-[10px] text-caption mt-1 capitalize">
                   {data.verdict.replace(/_/g, " ")}
                 </p>
               ) : null}

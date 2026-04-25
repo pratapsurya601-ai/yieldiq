@@ -53,7 +53,7 @@ export default function UnlockCTA({
         type="button"
         onClick={handleClick}
         disabled={busy}
-        className="inline-flex items-center justify-center px-4 py-2 min-h-[40px] bg-white text-brand border border-brand/40 rounded-lg text-sm font-semibold hover:bg-brand-50 active:scale-[0.98] transition disabled:opacity-60"
+        className="inline-flex items-center justify-center px-4 py-2 min-h-[40px] bg-bg dark:bg-surface text-brand border border-brand/40 rounded-lg text-sm font-semibold hover:bg-brand-50 active:scale-[0.98] transition disabled:opacity-60"
       >
         {busy ? "Opening checkout…" : `Unlock ${"\u20B9"}99 \u00B7 24h`}
       </button>

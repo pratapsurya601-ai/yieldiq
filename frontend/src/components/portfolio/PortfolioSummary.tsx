@@ -107,7 +107,7 @@ export default async function PortfolioSummary({ holdings }: Props) {
     <div className="space-y-6">
       {/* Headline KPIs */}
       <section
-        className="rounded-2xl border bg-white p-5 sm:p-6"
+        className="rounded-2xl border bg-bg dark:bg-surface p-5 sm:p-6"
         style={{ borderColor: "var(--color-border, #E2E8F0)" }}
       >
         <h2 className="text-lg font-bold mb-4" style={{ color: "var(--color-ink, #0F172A)" }}>
@@ -147,7 +147,7 @@ export default async function PortfolioSummary({ holdings }: Props) {
 
       {/* Holdings table */}
       <section
-        className="rounded-2xl border bg-white p-5 sm:p-6"
+        className="rounded-2xl border bg-bg dark:bg-surface p-5 sm:p-6"
         style={{ borderColor: "var(--color-border, #E2E8F0)" }}
       >
         <h2 className="text-lg font-bold mb-3" style={{ color: "var(--color-ink, #0F172A)" }}>
@@ -156,7 +156,7 @@ export default async function PortfolioSummary({ holdings }: Props) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-[10px] uppercase tracking-wider text-gray-400">
+              <tr className="text-left text-[10px] uppercase tracking-wider text-caption">
                 <th className="px-2 py-2">Ticker</th>
                 <th className="px-2 py-2 text-right">Qty</th>
                 {/* sebi-allow: buy */}
@@ -217,7 +217,7 @@ export default async function PortfolioSummary({ holdings }: Props) {
 
       {/* Sector mix */}
       <section
-        className="rounded-2xl border bg-white p-5 sm:p-6"
+        className="rounded-2xl border bg-bg dark:bg-surface p-5 sm:p-6"
         style={{ borderColor: "var(--color-border, #E2E8F0)" }}
       >
         <h2 className="text-lg font-bold mb-3" style={{ color: "var(--color-ink, #0F172A)" }}>
@@ -230,7 +230,7 @@ export default async function PortfolioSummary({ holdings }: Props) {
                 <span className="font-semibold" style={{ color: "var(--color-ink, #0F172A)" }}>
                   {s.sector}
                 </span>
-                <span className="font-mono text-gray-500">
+                <span className="font-mono text-caption">
                   {fmt(s.value)} · {s.pct != null ? s.pct.toFixed(1) : "0"}%
                 </span>
               </div>
@@ -257,7 +257,7 @@ function Kpi({ label, value, color }: { label: string; value: string; color?: st
       className="rounded-xl border p-3"
       style={{ borderColor: "var(--color-border, #E2E8F0)" }}
     >
-      <p className="text-[10px] uppercase tracking-wider text-gray-400">{label}</p>
+      <p className="text-[10px] uppercase tracking-wider text-caption">{label}</p>
       <p className={`text-base font-bold font-mono mt-1 ${color ?? ""}`}>{value}</p>
     </div>
   )

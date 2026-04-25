@@ -46,14 +46,14 @@ function ReferralSection() {
   if (!referralCode) return null
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
-      <h2 className="text-sm font-semibold text-gray-900">Invite friends, get rewards</h2>
-      <p className="text-xs text-gray-500">Share your link. When a friend signs up, you get +5 bonus analyses.</p>
+    <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-5 space-y-3">
+      <h2 className="text-sm font-semibold text-ink">Invite friends, get rewards</h2>
+      <p className="text-xs text-caption">Share your link. When a friend signs up, you get +5 bonus analyses.</p>
       <div className="flex items-center gap-2">
         <input
           readOnly
           value={referralLink}
-          className="flex-1 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs text-gray-700 truncate"
+          className="flex-1 px-3 py-2 bg-surface border border-border rounded-lg text-xs text-body truncate"
         />
         <button
           onClick={handleCopy}
@@ -64,12 +64,12 @@ function ReferralSection() {
       </div>
       <div className="flex gap-6 text-center pt-1">
         <div>
-          <p className="text-lg font-bold text-gray-900">{stats.referral_count}</p>
-          <p className="text-xs text-gray-500">friends invited</p>
+          <p className="text-lg font-bold text-ink">{stats.referral_count}</p>
+          <p className="text-xs text-caption">friends invited</p>
         </div>
         <div>
-          <p className="text-lg font-bold text-blue-600">{stats.bonus_analyses}</p>
-          <p className="text-xs text-gray-500">bonus analyses earned</p>
+          <p className="text-lg font-bold text-brand">{stats.bonus_analyses}</p>
+          <p className="text-xs text-caption">bonus analyses earned</p>
         </div>
       </div>
     </div>
@@ -239,18 +239,18 @@ function AccountInner() {
           {toast.msg}
         </div>
       )}
-      <h1 className="text-xl font-bold text-gray-900">Account</h1>
+      <h1 className="text-xl font-bold text-ink">Account</h1>
 
       {/* Profile */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-3">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-5 space-y-3">
         <div className="flex items-center gap-4">
           {/* YieldIQ logo */}
           <img src="/logo-new.svg" alt="YieldIQ" className="w-14 h-14 rounded-xl flex-shrink-0 shadow-md" />
           <div className="flex-1 min-w-0">
-            <p className="font-medium text-gray-900 truncate">{email || "Not signed in"}</p>
+            <p className="font-medium text-ink truncate">{email || "Not signed in"}</p>
             <div className="flex items-center gap-2 mt-1">
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 uppercase">{tier}</span>
-              <span className="text-xs text-gray-600">
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300 uppercase">{tier}</span>
+              <span className="text-xs text-body">
                 {analysisLimit >= 999999 ? "Unlimited analyses" : `${analysesToday}/${analysisLimit} analyses today`}
               </span>
             </div>
@@ -260,35 +260,35 @@ function AccountInner() {
             handles the input + 3-edit lifetime cap. */}
         <a
           href="/account/profile"
-          className="flex items-center justify-between rounded-xl border border-gray-100 px-3 py-3 hover:bg-gray-50 transition"
+          className="flex items-center justify-between rounded-xl border border-border px-3 py-3 hover:bg-surface dark:hover:bg-bg transition"
         >
           <div className="flex flex-col">
-            <span className="text-sm font-medium text-gray-900">Display name</span>
-            <span className="text-xs text-gray-500">How we greet you across the app</span>
+            <span className="text-sm font-medium text-ink">Display name</span>
+            <span className="text-xs text-caption">How we greet you across the app</span>
           </div>
-          <span className="text-sm text-gray-400" aria-hidden>›</span>
+          <span className="text-sm text-caption" aria-hidden>›</span>
         </a>
       </div>
 
       {/* Settings */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
-        <h2 className="text-sm font-semibold text-gray-900">Settings</h2>
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-5 space-y-4">
+        <h2 className="text-sm font-semibold text-ink">Settings</h2>
         <div className="flex items-center justify-between">
-          <span className="text-sm text-gray-700">Theme</span>
+          <span className="text-sm text-body">Theme</span>
           <ThemeToggle />
         </div>
         <label className="flex items-center justify-between">
-          <span className="text-sm text-gray-700">Learn Mode</span>
+          <span className="text-sm text-body">Learn Mode</span>
           <button onClick={toggleLearnMode}
-            className={`w-10 h-6 rounded-full transition ${learnMode ? "bg-blue-600" : "bg-gray-200"}`}>
+            className={`w-10 h-6 rounded-full transition ${learnMode ? "bg-blue-600" : "bg-gray-200 dark:bg-gray-700"}`}>
             <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${learnMode ? "translate-x-5" : "translate-x-1"}`} />
           </button>
         </label>
         {tier !== "free" && (
           <label className="flex items-center justify-between">
-            <span className="text-sm text-gray-700">Pro Mode</span>
+            <span className="text-sm text-body">Pro Mode</span>
             <button onClick={toggleProMode}
-              className={`w-10 h-6 rounded-full transition ${proMode ? "bg-blue-600" : "bg-gray-200"}`}>
+              className={`w-10 h-6 rounded-full transition ${proMode ? "bg-blue-600" : "bg-gray-200 dark:bg-gray-700"}`}>
               <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${proMode ? "translate-x-5" : "translate-x-1"}`} />
             </button>
           </label>
@@ -298,24 +298,24 @@ function AccountInner() {
       {/* Pricing Cards */}
       {tier === "free" && (
         <div ref={upgradeSectionRef} className="space-y-3 scroll-mt-20">
-          <h2 className="text-sm font-semibold text-gray-900">Upgrade your plan</h2>
+          <h2 className="text-sm font-semibold text-ink">Upgrade your plan</h2>
 
           {/* Analyst — sweet-spot tier, most users start here */}
-          <div className={`relative bg-white rounded-2xl border-2 p-5 transition ${upgradeHint === "analyst" ? "border-blue-500 ring-4 ring-blue-100" : "border-blue-200"}`}>
+          <div className={`relative bg-bg dark:bg-surface rounded-2xl border-2 p-5 transition ${upgradeHint === "analyst" ? "border-blue-500 ring-4 ring-blue-100 dark:ring-blue-900/40" : "border-blue-200 dark:border-blue-900"}`}>
             <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full shadow-sm">
               Most Popular
             </span>
             <div className="flex items-center justify-between mb-3 mt-1">
               <div>
-                <h3 className="font-bold text-gray-900">Analyst</h3>
-                <p className="text-xs text-gray-500">For serious DIY investors</p>
+                <h3 className="font-bold text-ink">Analyst</h3>
+                <p className="text-xs text-caption">For serious DIY investors</p>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold text-gray-900">{"\u20b9"}799</p>
-                <p className="text-xs text-gray-600">/month</p>
+                <p className="text-2xl font-bold text-ink">{"\u20b9"}799</p>
+                <p className="text-xs text-body">/month</p>
               </div>
             </div>
-            <ul className="space-y-1.5 mb-4 text-sm text-gray-600">
+            <ul className="space-y-1.5 mb-4 text-sm text-body">
               <li>&#10003; Unlimited analyses</li>
               <li>&#10003; Portfolio Prism + Health score</li>
               <li>&#10003; Multi-account portfolios (5 brokers)</li>
@@ -330,6 +330,9 @@ function AccountInner() {
           </div>
 
           {/* Pro — power user tier with exports + API */}
+          {/* dark-mode-allow: card is intentionally always-dark (premium "midnight"
+              treatment) so the from-gray-900/to-gray-800 + text-gray-300/400 stays
+              fixed in both modes. */}
           <div className={`bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-5 text-white transition ${upgradeHint === "pro" ? "ring-4 ring-blue-400" : ""}`}>
             <div className="flex items-center justify-between mb-3">
               <div>
@@ -358,10 +361,10 @@ function AccountInner() {
       )}
 
       {tier !== "free" && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 text-center">
-          <p className="text-sm text-gray-500">Current plan</p>
-          <p className="text-lg font-bold text-blue-700 uppercase">{tier}</p>
-          <p className="text-xs text-gray-600 mt-1">
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-5 text-center">
+          <p className="text-sm text-caption">Current plan</p>
+          <p className="text-lg font-bold text-blue-700 dark:text-blue-300 uppercase">{tier}</p>
+          <p className="text-xs text-body mt-1">
             {tier === "analyst" ? "\u20b9799/month" : tier === "pro" ? "\u20b91,499/month" : ""}
           </p>
         </div>
@@ -370,12 +373,12 @@ function AccountInner() {
       {/* Share & Earn — Referral Section */}
       <ReferralSection />
 
-      <p className="text-xs text-gray-600 text-center">
+      <p className="text-xs text-body text-center">
         YieldIQ is not registered with SEBI as an investment adviser. All outputs are model estimates only.
       </p>
 
       {/* Sign out — less prominent, at the very bottom */}
-      <button onClick={handleLogout} className="w-full py-2 text-sm text-gray-600 font-medium hover:text-red-500 transition text-center">
+      <button onClick={handleLogout} className="w-full py-2 text-sm text-body font-medium hover:text-red-500 transition text-center">
         Sign out
       </button>
     </div>

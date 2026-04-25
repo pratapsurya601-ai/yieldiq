@@ -84,22 +84,22 @@ export default async function SegmentRevenueTable({ ticker, years = 5 }: Props) 
 
   return (
     <section
-      className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8"
+      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8"
       aria-label={`Segment revenue for ${ticker}`}
     >
-      <h2 className="text-lg font-bold text-gray-900 mb-1">Segment Revenue</h2>
-      <p className="text-xs text-gray-400 mb-4">
+      <h2 className="text-lg font-bold text-ink mb-1">Segment Revenue</h2>
+      <p className="text-xs text-caption mb-4">
         Business-segment revenue parsed from XBRL filings &middot; in &#8377; Cr
       </p>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-200">
-              <th className="text-left py-2 pr-4 font-semibold text-gray-600">Segment</th>
+            <tr className="border-b border-border">
+              <th className="text-left py-2 pr-4 font-semibold text-body">Segment</th>
               {periods.map(p => (
                 <th
                   key={p}
-                  className="text-right py-2 px-3 font-semibold text-gray-600 font-mono"
+                  className="text-right py-2 px-3 font-semibold text-body font-mono"
                 >
                   {fmtPeriod(p)}
                 </th>
@@ -108,14 +108,14 @@ export default async function SegmentRevenueTable({ ticker, years = 5 }: Props) 
           </thead>
           <tbody>
             {data.segments.map(seg => (
-              <tr key={seg.name} className="border-b border-gray-100">
-                <td className="py-2 pr-4 font-medium text-gray-900">{seg.name}</td>
+              <tr key={seg.name} className="border-b border-border">
+                <td className="py-2 pr-4 font-medium text-ink">{seg.name}</td>
                 {periods.map(p => {
                   const v = lookup.get(seg.name)?.get(p)
                   return (
                     <td
                       key={p}
-                      className="text-right py-2 px-3 text-gray-700 font-mono"
+                      className="text-right py-2 px-3 text-body font-mono"
                     >
                       {v == null ? "\u2014" : fmtCr(v)}
                     </td>
@@ -126,7 +126,7 @@ export default async function SegmentRevenueTable({ ticker, years = 5 }: Props) 
           </tbody>
         </table>
       </div>
-      <p className="text-[10px] text-gray-400 mt-3">
+      <p className="text-[10px] text-caption mt-3">
         Source: company XBRL filings (BSE). Segment definitions are
         company-defined and may change between years.
       </p>

@@ -109,14 +109,14 @@ export default function DCFSensitivityHeatmap({ ticker, summary }: Props) {
 
   return (
     <section
-      className="rounded-2xl border bg-white p-5 sm:p-6"
+      className="rounded-2xl border bg-bg dark:bg-surface p-5 sm:p-6"
       style={{ borderColor: "var(--color-border, #E2E8F0)" }}
     >
       <header className="mb-4">
         <h2 className="text-lg font-bold" style={{ color: "var(--color-ink, #0F172A)" }}>
           DCF Sensitivity — {ticker.toUpperCase()}
         </h2>
-        <p className="text-xs text-gray-500 mt-1">
+        <p className="text-xs text-caption mt-1">
           How the fair value (and margin of safety vs. current price{" "}
           <span className="font-mono">{fmtRupee(cmp)}</span>) shifts as you change
           WACC (cost of capital) and terminal growth. Click any cell to lock it
@@ -129,7 +129,7 @@ export default function DCFSensitivityHeatmap({ ticker, summary }: Props) {
           <thead>
             <tr>
               <th
-                className="sticky left-0 z-10 bg-white text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-2 py-2 text-left"
+                className="sticky left-0 z-10 bg-bg dark:bg-surface text-[10px] font-semibold text-caption uppercase tracking-wider px-2 py-2 text-left"
                 style={{ borderBottom: "1px solid var(--color-border, #E2E8F0)" }}
               >
                 TG ↓ \ WACC →
@@ -137,7 +137,7 @@ export default function DCFSensitivityHeatmap({ ticker, summary }: Props) {
               {WACC_VALUES.map(w => (
                 <th
                   key={w}
-                  className="text-[10px] font-mono text-gray-500 px-1 py-2 text-center"
+                  className="text-[10px] font-mono text-caption px-1 py-2 text-center"
                   style={{ borderBottom: "1px solid var(--color-border, #E2E8F0)" }}
                 >
                   {(w * 100).toFixed(1)}%
@@ -149,7 +149,7 @@ export default function DCFSensitivityHeatmap({ ticker, summary }: Props) {
             {grid.map((row, i) => (
               <tr key={TG_VALUES[i]}>
                 <td
-                  className="sticky left-0 z-10 bg-white text-[10px] font-mono text-gray-500 px-2 py-1 text-left"
+                  className="sticky left-0 z-10 bg-bg dark:bg-surface text-[10px] font-mono text-caption px-2 py-1 text-left"
                   style={{ borderRight: "1px solid var(--color-border, #E2E8F0)" }}
                 >
                   {(TG_VALUES[i] * 100).toFixed(1)}%
@@ -200,15 +200,15 @@ export default function DCFSensitivityHeatmap({ ticker, summary }: Props) {
           className="rounded-xl border p-3"
           style={{ borderColor: "var(--color-border, #E2E8F0)" }}
         >
-          <p className="text-[10px] uppercase tracking-wider text-gray-400">
+          <p className="text-[10px] uppercase tracking-wider text-caption">
             Anchor (published)
           </p>
           <p className="text-sm font-mono mt-1" style={{ color: "var(--color-ink, #0F172A)" }}>
             WACC {(baseWACC * 100).toFixed(1)}% · TG {(baseTG * 100).toFixed(1)}% → FV {fmtRupee(baseFV)}
           </p>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-caption mt-1">
             MoS{" "}
-            <span className={summary.mos >= 0 ? "text-green-600" : "text-red-600"}>
+            <span className={summary.mos >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
               {summary.mos >= 0 ? "+" : ""}{summary.mos.toFixed(1)}%
             </span>
           </p>
@@ -217,7 +217,7 @@ export default function DCFSensitivityHeatmap({ ticker, summary }: Props) {
           className="rounded-xl border p-3"
           style={{ borderColor: "var(--color-border, #E2E8F0)" }}
         >
-          <p className="text-[10px] uppercase tracking-wider text-gray-400">
+          <p className="text-[10px] uppercase tracking-wider text-caption">
             Selected scenario
           </p>
           {selected ? (
@@ -225,20 +225,20 @@ export default function DCFSensitivityHeatmap({ ticker, summary }: Props) {
               <p className="text-sm font-mono mt-1" style={{ color: "var(--color-ink, #0F172A)" }}>
                 WACC {(selected.wacc * 100).toFixed(1)}% · TG {(selected.tg * 100).toFixed(1)}% → FV {fmtRupee(selected.fv)}
               </p>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-caption mt-1">
                 MoS{" "}
-                <span className={selected.mos >= 0 ? "text-green-600" : "text-red-600"}>
+                <span className={selected.mos >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
                   {isFinite(selected.mos) ? `${selected.mos >= 0 ? "+" : ""}${selected.mos.toFixed(1)}%` : "—"}
                 </span>
               </p>
             </>
           ) : (
-            <p className="text-xs text-gray-400 mt-2">Click a cell to lock a “what-if”.</p>
+            <p className="text-xs text-caption mt-2">Click a cell to lock a “what-if”.</p>
           )}
         </div>
       </div>
 
-      <p className="mt-3 text-[10px] text-gray-400">
+      <p className="mt-3 text-[10px] text-caption">
         Mock recompute via Gordon-Growth extrapolation around the published
         anchor — exact figures will sync once the dedicated DCF-sensitivity
         endpoint ships.

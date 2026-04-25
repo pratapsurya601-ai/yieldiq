@@ -377,11 +377,11 @@ export default function InsightCards({ quality, insights, valuation, currency = 
 
       {/* Model / Data Warnings — separated from business red flags */}
       {modelWarnings.length > 0 && (
-        <div className="rounded-xl bg-amber-50 border border-amber-100 p-4">
-          <p className="text-xs font-semibold text-amber-700 mb-2">Data Notes</p>
+        <div className="rounded-xl bg-amber-50 border border-amber-100 dark:bg-amber-950/30 dark:border-amber-900 p-4">
+          <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-2">Data Notes</p>
           <ul className="space-y-1">
             {modelWarnings.map((w, i) => (
-              <li key={i} className="text-xs text-amber-600 flex items-start gap-1.5">
+              <li key={i} className="text-xs text-amber-600 dark:text-amber-400 flex items-start gap-1.5">
                 <span className="mt-0.5 flex-shrink-0">&#x26A0;</span>
                 <span>{w}</span>
               </li>

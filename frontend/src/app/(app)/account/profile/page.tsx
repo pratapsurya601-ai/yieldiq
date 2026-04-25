@@ -94,23 +94,23 @@ export default function AccountProfilePage() {
       <div className="flex items-center gap-3">
         <Link
           href="/account"
-          className="text-sm text-gray-500 hover:text-gray-900"
+          className="text-sm text-caption hover:text-ink"
         >
           ← Account
         </Link>
       </div>
-      <h1 className="text-xl font-bold text-gray-900">Display name</h1>
+      <h1 className="text-xl font-bold text-ink">Display name</h1>
 
-      <div className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-5 space-y-4">
         <div>
-          <p className="text-xs uppercase tracking-wide text-gray-500">Current</p>
-          <p className="text-base font-semibold text-gray-900 mt-0.5">
-            {displayName && displayName.trim() ? displayName : <span className="text-gray-400 font-normal">Not set</span>}
+          <p className="text-xs uppercase tracking-wide text-caption">Current</p>
+          <p className="text-base font-semibold text-ink mt-0.5">
+            {displayName && displayName.trim() ? displayName : <span className="text-caption font-normal">Not set</span>}
           </p>
         </div>
 
         <div>
-          <label htmlFor="display-name" className="block text-sm font-medium text-gray-900 mb-2">
+          <label htmlFor="display-name" className="block text-sm font-medium text-ink mb-2">
             New display name
           </label>
           <input
@@ -129,13 +129,13 @@ export default function AccountProfilePage() {
             aria-invalid={Boolean(error)}
             aria-describedby={error ? "display-name-error" : "display-name-hint"}
             className={
-              "w-full rounded-xl border px-4 py-3 text-sm text-gray-900 " +
+              "w-full rounded-xl border px-4 py-3 text-sm text-ink " +
               "focus:outline-none focus:ring-2 focus:ring-blue-500 " +
               (exhausted
-                ? "bg-gray-50 border-gray-200 cursor-not-allowed text-gray-500"
+                ? "bg-surface border-border cursor-not-allowed text-caption"
                 : error
-                  ? "border-red-400 bg-white"
-                  : "border-gray-200 bg-white")
+                  ? "border-red-400 bg-bg dark:bg-surface"
+                  : "border-border bg-bg dark:bg-surface")
             }
             placeholder="Your name"
             title={
@@ -146,17 +146,17 @@ export default function AccountProfilePage() {
           />
           <div className="flex items-center justify-between mt-2">
             {error ? (
-              <p id="display-name-error" className="text-xs text-red-600">
+              <p id="display-name-error" className="text-xs text-red-600 dark:text-red-400">
                 {error}
               </p>
             ) : (
-              <p id="display-name-hint" className="text-xs text-gray-500">
+              <p id="display-name-hint" className="text-xs text-caption">
                 {exhausted
                   ? "You've used all 3 display-name edits. Contact support to change it again."
                   : `${editsRemaining} edit${editsRemaining === 1 ? "" : "s"} remaining (lifetime).`}
               </p>
             )}
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-caption">
               {value.trim().length}/{MAX}
             </span>
           </div>
@@ -170,7 +170,7 @@ export default function AccountProfilePage() {
             "w-full py-3 rounded-xl text-sm font-semibold transition " +
             (canSave
               ? "bg-blue-600 text-white hover:bg-blue-700 active:scale-[0.99]"
-              : "bg-gray-100 text-gray-400 cursor-not-allowed")
+              : "bg-surface text-caption cursor-not-allowed")
           }
         >
           {saving ? "Saving..." : "Save"}

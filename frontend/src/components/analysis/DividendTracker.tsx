@@ -15,9 +15,9 @@ function currencySymbol(c: string): string {
 }
 
 const SUST_CARD: Record<string, string> = {
-  strong: "bg-green-50 text-green-700 border border-green-200",
-  moderate: "bg-yellow-50 text-yellow-700 border border-yellow-200",
-  at_risk: "bg-red-50 text-red-700 border border-red-200",
+  strong: "bg-green-50 text-green-700 border border-green-200 dark:bg-green-950/30 dark:text-green-300 dark:border-green-900",
+  moderate: "bg-yellow-50 text-yellow-700 border border-yellow-200 dark:bg-yellow-950/30 dark:text-yellow-300 dark:border-yellow-900",
+  at_risk: "bg-red-50 text-red-700 border border-red-200 dark:bg-red-950/30 dark:text-red-300 dark:border-red-900",
 }
 
 const SUST_LABEL: Record<string, string> = {
@@ -172,16 +172,16 @@ export default function DividendTracker({ dividend, currency = "INR" }: Props) {
 
           {/* Next ex-date */}
           {dividend.next_ex_date && (
-            <div className="rounded-xl bg-blue-50 border border-blue-100 p-3">
-              <p className="text-[11px] font-semibold text-blue-700 uppercase tracking-wide mb-0.5">
+            <div className="rounded-xl bg-blue-50 border border-blue-100 dark:bg-blue-950/30 dark:border-blue-900 p-3">
+              <p className="text-[11px] font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-0.5">
                 📅 Next Ex-Dividend Date
               </p>
-              <p className="text-sm text-blue-900">
+              <p className="text-sm text-blue-900 dark:text-blue-200">
                 {new Date(dividend.next_ex_date).toLocaleDateString("en-IN", {
                   day: "numeric", month: "short", year: "numeric",
                 })}
                 {dividend.next_ex_days !== null && dividend.next_ex_days !== undefined && (
-                  <span className="text-blue-700">
+                  <span className="text-blue-700 dark:text-blue-300">
                     {" "}
                     (in {dividend.next_ex_days} day{dividend.next_ex_days === 1 ? "" : "s"})
                   </span>
