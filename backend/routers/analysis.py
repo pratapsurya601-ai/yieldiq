@@ -110,6 +110,19 @@ async def get_analysis(
     # to response.ticker to show a "renamed to …" banner.
     ticker = TICKER_ALIASES.get(original_ticker, original_ticker)
 
+    # ── Nickname rewrite (HUL → HINDUNILVR, etc.) ───────────────────
+    # YAML `status: nickname` entries are colloquial aliases — rewrite
+    # to canonical here so cache keys, compute, and the corp-action
+    # gate below all see the real ticker. Caught in PR #83 health audit
+    # (`/analysis/preview/HUL` was 404-ing in prod).
+    try:
+        from data_pipeline import ticker_aliases as _aliases_mod
+        _canonical = _aliases_mod.resolve_nickname(original_ticker)
+        if _canonical:
+            ticker = _canonical if "." in _canonical else f"{_canonical}.NS"
+    except Exception:
+        pass
+
     # ── Corporate-action redirect gate ──────────────────────────────
     # If the ticker is in our alias YAML as demerged / demerged_pending
     # / delisted, return a SIBLING redirect payload (not the normal
@@ -117,6 +130,9 @@ async def get_analysis(
     # successor entity / show a delisting notice without us trying to
     # value a defunct ISIN. The active-ticker happy path is byte-
     # identical to before — this branch only fires for non-active.
+    # `nickname` is intentionally excluded — those are routing rewrites
+    # (handled above), NOT corporate actions, and must pass through to
+    # a normal analysis under the canonical ticker.
     try:
         from data_pipeline import ticker_aliases as _aliases
         _status = _aliases.get_status(original_ticker)
@@ -566,6 +582,18 @@ async def get_analysis_preview(ticker: str):
     """
     ticker = ticker.upper().strip()
 
+    # Apply alias rewrites (renames + nicknames) so colloquial requests
+    # like /analysis/preview/HUL resolve to HINDUNILVR.NS instead of
+    # 404-ing through TickerNotFoundError. Caught in PR #83 health audit.
+    ticker = TICKER_ALIASES.get(ticker, ticker)
+    try:
+        from data_pipeline import ticker_aliases as _aliases_mod
+        _canonical = _aliases_mod.resolve_nickname(ticker)
+        if _canonical:
+            ticker = _canonical if "." in _canonical else f"{_canonical}.NS"
+    except Exception:
+        pass
+
     # Check cache first
     _cache_key = f"preview:{ticker}"
     cached = cache.get(_cache_key)
@@ -848,10 +876,17 @@ async def _build_yieldiq50() -> ScreenerResponse:
                           ORDER BY ticker, date DESC
                         ),
                         latest_mm AS (
+                          -- 2026-04-25 fix: market_metrics' date column is
+                          -- `trade_date`, not `date`. Previously this CTE
+                          -- raised UndefinedColumn at runtime; the outer
+                          -- try/except swallowed it and the entire DB
+                          -- fallback returned zero rows, leaving Discover
+                          -- to render "YieldIQ 50 is warming up" whenever
+                          -- the in-process cache and CSV were empty.
                           SELECT DISTINCT ON (ticker)
                             ticker, market_cap_cr
                           FROM market_metrics
-                          ORDER BY ticker, date DESC
+                          ORDER BY ticker, trade_date DESC
                         )
                         SELECT
                           fv.ticker,
