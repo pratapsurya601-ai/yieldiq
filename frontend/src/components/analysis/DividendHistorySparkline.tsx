@@ -24,11 +24,11 @@ function fmtINR(n: number | null | undefined, maxFractionDigits = 2): string {
 function Placeholder({ ticker }: { ticker: string }) {
   return (
     <section
-      className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8"
+      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8"
       aria-label={`Dividend history for ${ticker}`}
     >
-      <h2 className="text-lg font-bold text-gray-900 mb-1">Dividend History</h2>
-      <p className="text-sm text-gray-500">
+      <h2 className="text-lg font-bold text-ink mb-1">Dividend History</h2>
+      <p className="text-sm text-caption">
         No dividend events recorded for {ticker} in the last 10 years.
       </p>
     </section>
@@ -90,20 +90,20 @@ export default function DividendHistorySparkline({ ticker, data, currentPrice }:
 
   return (
     <section
-      className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8"
+      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8"
       aria-label={`Dividend history for ${ticker}`}
     >
       <div className="flex items-start justify-between gap-4 mb-3">
         <div>
-          <h2 className="text-lg font-bold text-gray-900">Dividend History</h2>
-          <p className="text-xs text-gray-400">
+          <h2 className="text-lg font-bold text-ink">Dividend History</h2>
+          <p className="text-xs text-caption">
             {data.count} ex-dividend event{data.count === 1 ? "" : "s"} on file.
             Source: NSE corporate-actions feed.
           </p>
         </div>
         <div className="text-right">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider">Total paid (5Y)</p>
-          <p className="text-base font-bold text-gray-900 font-mono">
+          <p className="text-[10px] text-caption uppercase tracking-wider">Total paid (5Y)</p>
+          <p className="text-base font-bold text-ink font-mono">
             {data.total_paid_5y != null ? `${fmtINR(data.total_paid_5y)}/sh` : "\u2014"}
           </p>
         </div>
@@ -149,29 +149,29 @@ export default function DividendHistorySparkline({ ticker, data, currentPrice }:
 
       <div className="mt-3 grid grid-cols-3 gap-3 text-xs">
         <div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider">Last payout</p>
-          <p className="font-semibold text-gray-900">
+          <p className="text-[10px] text-caption uppercase tracking-wider">Last payout</p>
+          <p className="font-semibold text-ink">
             {lastEvent ? lastEvent.ex_date : "\u2014"}
           </p>
-          <p className="text-gray-500 font-mono">
+          <p className="text-caption font-mono">
             {lastEvent && lastEvent.amount != null ? fmtINR(lastEvent.amount) : "\u2014"}
           </p>
         </div>
         <div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider">Peak payout</p>
-          <p className="font-semibold text-gray-900 font-mono">
+          <p className="text-[10px] text-caption uppercase tracking-wider">Peak payout</p>
+          <p className="font-semibold text-ink font-mono">
             {maxAmt > 0 ? fmtINR(maxAmt) : "\u2014"}
           </p>
         </div>
         <div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider">Trailing yield</p>
-          <p className="font-semibold text-gray-900 font-mono">
+          <p className="text-[10px] text-caption uppercase tracking-wider">Trailing yield</p>
+          <p className="font-semibold text-ink font-mono">
             {trailingYield != null ? `${trailingYield.toFixed(2)}%` : "\u2014"}
           </p>
         </div>
       </div>
 
-      <p className="mt-3 text-[10px] text-gray-400">
+      <p className="mt-3 text-[10px] text-caption">
         Amounts parsed from NSE subject lines; percent-of-face-value declarations
         are not converted and shown as missing.
       </p>

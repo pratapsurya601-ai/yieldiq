@@ -84,11 +84,11 @@ function Sparkline({ points }: { points: number[] }) {
 function Placeholder({ ticker }: { ticker: string }) {
   return (
     <section
-      className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8"
+      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8"
       aria-label={`Ratio trends for ${ticker}`}
     >
-      <h2 className="text-lg font-bold text-gray-900 mb-1">Ratio Trends</h2>
-      <p className="text-sm text-gray-500">
+      <h2 className="text-lg font-bold text-ink mb-1">Ratio Trends</h2>
+      <p className="text-sm text-caption">
         Historical ratio trends for {ticker} are being prepared. Once ready, this section
         will show multi-year trajectories of ROE, ROCE, margins, leverage, and valuation
         multiples.
@@ -112,12 +112,12 @@ export default function RatioSparklines({ ticker, data }: Props) {
 
   return (
     <section
-      className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8"
+      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8"
       aria-label={`Ratio trends for ${ticker}`}
     >
       <div className="mb-4">
-        <h2 className="text-lg font-bold text-gray-900">Ratio Trends</h2>
-        <p className="text-xs text-gray-400">
+        <h2 className="text-lg font-bold text-ink">Ratio Trends</h2>
+        <p className="text-xs text-caption">
           {ticker.toUpperCase()} &middot; last {windowed.length} annual period{windowed.length === 1 ? "" : "s"}
         </p>
       </div>
@@ -132,18 +132,18 @@ export default function RatioSparklines({ ticker, data }: Props) {
           return (
             <div
               key={spec.label}
-              className="border border-gray-100 bg-gray-50 rounded-xl p-4"
+              className="border border-border bg-surface rounded-xl p-4"
             >
               <div className="flex items-baseline justify-between mb-2">
-                <p className="text-[10px] uppercase tracking-wider text-gray-500 font-semibold">
+                <p className="text-[10px] uppercase tracking-wider text-caption font-semibold">
                   {spec.label}
                 </p>
-                <p className="text-base font-bold font-mono text-gray-900 tabular-nums">
+                <p className="text-base font-bold font-mono text-ink tabular-nums">
                   {fmt(latest, spec.suffix, spec.decimals)}
                 </p>
               </div>
               <Sparkline points={raw} />
-              <div className="flex justify-between text-[10px] text-gray-400 mt-1 font-mono">
+              <div className="flex justify-between text-[10px] text-caption mt-1 font-mono">
                 <span>min {fmt(min, spec.suffix, spec.decimals)}</span>
                 <span>max {fmt(max, spec.suffix, spec.decimals)}</span>
               </div>

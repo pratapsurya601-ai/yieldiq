@@ -56,11 +56,11 @@ function cagr(first: number, last: number, years: number): number | null {
 function Placeholder({ ticker }: { ticker: string }) {
   return (
     <section
-      className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8"
+      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8"
       aria-label={`Historical financials for ${ticker}`}
     >
-      <h2 className="text-lg font-bold text-gray-900 mb-1">Historical Financials</h2>
-      <p className="text-sm text-gray-500">
+      <h2 className="text-lg font-bold text-ink mb-1">Historical Financials</h2>
+      <p className="text-sm text-caption">
         Historical financials for {ticker} are being prepared. Check back shortly for a
         5-year view of revenue, earnings, cash flow, and balance-sheet trends.
       </p>
@@ -85,19 +85,19 @@ export default function HistoricFinancialsTable({ ticker, data }: Props) {
 
   return (
     <section
-      className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8 overflow-hidden"
+      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8 overflow-hidden"
       aria-label={`Historical financials for ${ticker}`}
     >
       <div className="mb-4">
-        <h2 className="text-lg font-bold text-gray-900">Historical Financials</h2>
-        <p className="text-xs text-gray-400">
+        <h2 className="text-lg font-bold text-ink">Historical Financials</h2>
+        <p className="text-xs text-caption">
           {ticker.toUpperCase()} &middot; Annual, last {windowed.length} year{windowed.length === 1 ? "" : "s"} &middot; amounts in &#8377;Cr unless noted
         </p>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm border-collapse">
           <thead>
-            <tr className="text-[10px] uppercase tracking-wider text-gray-500 border-b border-gray-200">
+            <tr className="text-[10px] uppercase tracking-wider text-caption border-b border-border">
               <th className="text-left py-2 pr-3 font-semibold">Metric</th>
               {years.map((y, i) => (
                 <th key={`${y}-${i}`} className="text-right py-2 px-2 font-semibold font-mono">
@@ -115,10 +115,10 @@ export default function HistoricFinancialsTable({ ticker, data }: Props) {
               const spanYears = windowed.length - 1
               const g = first != null && last != null ? cagr(first, last, spanYears) : null
               return (
-                <tr key={row.label} className="border-b border-gray-100 last:border-0">
-                  <td className="py-2 pr-3 text-gray-700 font-medium">{row.label}</td>
+                <tr key={row.label} className="border-b border-border last:border-0">
+                  <td className="py-2 pr-3 text-body font-medium">{row.label}</td>
                   {values.map((v, i) => (
-                    <td key={i} className="py-2 px-2 text-right font-mono text-gray-900 tabular-nums">
+                    <td key={i} className="py-2 px-2 text-right font-mono text-ink tabular-nums">
                       {v != null ? row.fmt(v) : "\u2014"}
                     </td>
                   ))}
@@ -127,15 +127,15 @@ export default function HistoricFinancialsTable({ ticker, data }: Props) {
                       <span
                         className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold tabular-nums ${
                           g >= 0
-                            ? "bg-green-50 text-green-700 border border-green-100"
-                            : "bg-red-50 text-red-700 border border-red-100"
+                            ? "bg-green-50 text-green-700 border border-green-100 dark:bg-green-950/40 dark:text-green-300 dark:border-green-900"
+                            : "bg-red-50 text-red-700 border border-red-100 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900"
                         }`}
                       >
                         {g >= 0 ? "+" : ""}
                         {g.toFixed(1)}%
                       </span>
                     ) : (
-                      <span className="text-gray-300 text-xs">{"\u2014"}</span>
+                      <span className="text-caption text-xs">{"\u2014"}</span>
                     )}
                   </td>
                 </tr>
@@ -144,7 +144,7 @@ export default function HistoricFinancialsTable({ ticker, data }: Props) {
           </tbody>
         </table>
       </div>
-      <p className="mt-3 text-[10px] text-gray-400">
+      <p className="mt-3 text-[10px] text-caption">
         CAGR computed across the visible window. Signs reverse if start value is zero or negative.
       </p>
     </section>

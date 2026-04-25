@@ -143,7 +143,7 @@ export default function PortfolioHex({ holdings }: Props) {
         </h2>
         <div
           role="alert"
-          className="mt-2 text-sm text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2"
+          className="mt-2 text-sm text-amber-700 bg-amber-50 border border-amber-100 dark:text-amber-200 dark:bg-amber-950/30 dark:border-amber-900 rounded-lg px-3 py-2"
         >
           Couldn&apos;t compute your Portfolio Hex right now. Please try again in a moment.
         </div>

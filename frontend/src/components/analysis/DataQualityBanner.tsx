@@ -19,9 +19,9 @@ export default function DataQualityBanner({
   if (result.ok) return null
 
   const critical = result.severity === "critical"
-  const bg = critical ? "bg-red-50" : "bg-amber-50"
-  const border = critical ? "border-red-200" : "border-amber-200"
-  const text = critical ? "text-red-900" : "text-amber-900"
+  const bg = critical ? "bg-red-50 dark:bg-red-950/30" : "bg-amber-50 dark:bg-amber-950/30"
+  const border = critical ? "border-red-200 dark:border-red-900" : "border-amber-200 dark:border-amber-900"
+  const text = critical ? "text-red-900 dark:text-red-200" : "text-amber-900 dark:text-amber-200"
   const icon = critical ? "⚠" : "ⓘ"
 
   return (

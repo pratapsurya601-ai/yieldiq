@@ -52,7 +52,7 @@ export default function ExcelExportButton({ ticker, className }: Props) {
         type="button"
         onClick={handleClick}
         disabled={busy}
-        className="inline-flex items-center gap-2 rounded-xl border bg-white px-4 py-2 text-sm font-semibold transition hover:bg-gray-50 disabled:opacity-50"
+        className="inline-flex items-center gap-2 rounded-xl border bg-bg dark:bg-surface px-4 py-2 text-sm font-semibold transition hover:bg-surface dark:hover:bg-bg disabled:opacity-50"
         style={{
           borderColor: "var(--color-border, #E2E8F0)",
           color: "var(--color-ink, #0F172A)",

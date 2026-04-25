@@ -32,7 +32,7 @@ export default function LearnTip({ tipKey }: LearnTipProps) {
     <span className="inline-flex items-center">
       <button
         onClick={() => setOpen(!open)}
-        className="ml-1 w-4 h-4 rounded-full bg-blue-100 text-blue-500 inline-flex items-center justify-center hover:bg-blue-200 transition-colors flex-shrink-0"
+        className="ml-1 w-4 h-4 rounded-full bg-blue-100 text-blue-500 dark:bg-blue-900/50 dark:text-blue-300 inline-flex items-center justify-center hover:bg-blue-200 dark:hover:bg-blue-900 transition-colors flex-shrink-0"
         aria-label="Learn more"
       >
         <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -40,7 +40,7 @@ export default function LearnTip({ tipKey }: LearnTipProps) {
         </svg>
       </button>
       {open && (
-        <span className="ml-1.5 text-[10px] text-blue-600 leading-tight">{tip}</span>
+        <span className="ml-1.5 text-[10px] text-blue-600 dark:text-blue-300 leading-tight">{tip}</span>
       )}
     </span>
   )

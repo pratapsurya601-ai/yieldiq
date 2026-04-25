@@ -261,11 +261,11 @@ export default function FairValueHistory({ ticker, companyName, currency = "INR"
 
       {/* Tier upgrade CTA */}
       {data.tier_limited && (
-        <div className="border border-blue-100 bg-blue-50 rounded-xl p-3 flex items-center justify-between gap-3">
-          <p className="text-xs text-blue-700">🔒 Unlock 3-year history with Starter</p>
+        <div className="border border-blue-100 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30 rounded-xl p-3 flex items-center justify-between gap-3">
+          <p className="text-xs text-blue-700 dark:text-blue-300">🔒 Unlock 3-year history with Starter</p>
           <a
             href="/pricing"
-            className="text-xs font-semibold text-blue-600 whitespace-nowrap hover:underline"
+            className="text-xs font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap hover:underline"
           >
             Upgrade →
           </a>

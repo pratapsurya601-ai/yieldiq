@@ -198,7 +198,7 @@ export default function EditorialHero({
             <div
               role="note"
               aria-label="Possible value trap"
-              className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] leading-snug text-amber-900"
+              className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200 px-3 py-2 text-[12px] leading-snug text-amber-900"
             >
               <svg className="w-4 h-4 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 3.5h.01M10.29 3.86l-8.4 14.42A2 2 0 003.61 21h16.78a2 2 0 001.72-2.72L13.71 3.86a2 2 0 00-3.42 0z" />

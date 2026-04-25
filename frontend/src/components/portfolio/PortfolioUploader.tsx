@@ -122,13 +122,13 @@ export default function PortfolioUploader() {
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-2xl border bg-white p-5 sm:p-6"
+      className="rounded-2xl border bg-bg dark:bg-surface p-5 sm:p-6"
       style={{ borderColor: "var(--color-border, #E2E8F0)" }}
     >
       <h2 className="text-lg font-bold mb-1" style={{ color: "var(--color-ink, #0F172A)" }}>
         Upload your holdings (CSV)
       </h2>
-      <p className="text-xs text-gray-500 mb-4">
+      <p className="text-xs text-caption mb-4">
         Required columns:{" "}
         <code className="font-mono text-[11px]">ticker, quantity, buy_price, buy_date</code>{" "}
         (date format: <code className="font-mono text-[11px]">YYYY-MM-DD</code>).
@@ -136,7 +136,7 @@ export default function PortfolioUploader() {
 
       <div className="flex flex-wrap items-center gap-3 mb-3">
         <label
-          className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm cursor-pointer hover:bg-gray-50"
+          className="inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-sm cursor-pointer hover:bg-surface dark:hover:bg-bg"
           style={{ borderColor: "var(--color-border, #E2E8F0)" }}
         >
           <input
@@ -172,7 +172,7 @@ export default function PortfolioUploader() {
       {errors.length > 0 && (
         <ul
           role="alert"
-          className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 list-disc list-inside space-y-0.5"
+          className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300 list-disc list-inside space-y-0.5"
         >
           {errors.map((e, i) => (
             <li key={i}>{e}</li>
