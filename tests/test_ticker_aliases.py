@@ -240,3 +240,95 @@ def test_router_payload_contract_for_demerged(alias_yaml):
     assert isinstance(payload["successors"], list)
     for s in payload["successors"]:
         assert set(s.keys()) == {"ticker", "share_ratio", "fetch_symbol"}
+
+
+# ---------------------------------------------------------------------------
+# Nickname status (PR #83 — colloquial-alias resolution).
+# ---------------------------------------------------------------------------
+def test_nickname_resolves_to_canonical_via_resolve_for_fetch(alias_yaml):
+    """A `status: nickname` entry must rewrite the request to its canonical
+    ticker and use the canonical's default Yahoo symbol."""
+    alias_yaml("""
+        HUL:
+          status: nickname
+          canonical: HINDUNILVR
+          note: Colloquial Hindustan Unilever ticker.
+    """)
+    res = ta.resolve_for_fetch("HUL")
+    assert isinstance(res, ta.Fetch)
+    # The Fetch.ticker is the canonical name so cache keys, payloads, and
+    # analytics events all attribute against the real entity.
+    assert res.ticker == "HINDUNILVR"
+    assert res.symbol == "HINDUNILVR.NS"
+
+
+def test_nickname_helper_returns_canonical(alias_yaml):
+    """resolve_nickname is the dedicated read-path helper for the router."""
+    alias_yaml("""
+        HUL:
+          status: nickname
+          canonical: HINDUNILVR
+    """)
+    assert ta.resolve_nickname("HUL") == "HINDUNILVR"
+    # Lower-case and whitespace tolerated.
+    assert ta.resolve_nickname("  hul  ") == "HINDUNILVR"
+    # Non-nickname entries return None so the caller falls through.
+    assert ta.resolve_nickname("RELIANCE") is None
+    assert ta.resolve_nickname("") is None
+
+
+def test_nickname_does_not_emit_corp_action_payload(alias_yaml):
+    """get_successors_payload must return None for nicknames so the
+    router does NOT short-circuit them through the corp-action redirect
+    branch — they are pure routing rewrites, not corporate events."""
+    alias_yaml("""
+        HUL:
+          status: nickname
+          canonical: HINDUNILVR
+    """)
+    assert ta.get_successors_payload("HUL") is None
+
+
+def test_nickname_status_is_reported_via_get_status(alias_yaml):
+    alias_yaml("""
+        HUL:
+          status: nickname
+          canonical: HINDUNILVR
+    """)
+    assert ta.get_status("HUL") == "nickname"
+    # Importantly, `nickname` is NOT in the corp-action set the router
+    # gates on, so it should NEVER be confused for one.
+    assert "nickname" not in ta.CORPORATE_ACTION_STATUSES
+
+
+def test_nickname_missing_canonical_degrades_safely(alias_yaml):
+    """A misconfigured nickname (no `canonical:`) must not raise — it
+    falls back to the default fetch path so a YAML typo can never 500
+    a user request."""
+    alias_yaml("""
+        HUL:
+          status: nickname
+    """)
+    res = ta.resolve_for_fetch("HUL")
+    assert isinstance(res, ta.Fetch)
+    # Falls back to default <ticker>.NS for the nickname itself.
+    assert res.symbol == "HUL.NS"
+    assert res.ticker == "HUL"
+
+
+def test_nickname_chained_through_renamed_canonical(alias_yaml):
+    """If the canonical itself is a `renamed` entry, the nickname should
+    pick up the canonical's `fetch_symbol` (one hop of indirection)."""
+    alias_yaml("""
+        ZOMATO:
+          status: nickname
+          canonical: ETERNAL
+        ETERNAL:
+          status: renamed
+          former_symbol: ZOMATO
+          fetch_symbol: ETERNAL.NS
+    """)
+    res = ta.resolve_for_fetch("ZOMATO")
+    assert isinstance(res, ta.Fetch)
+    assert res.ticker == "ETERNAL"
+    assert res.symbol == "ETERNAL.NS"
