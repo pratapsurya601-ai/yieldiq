@@ -251,7 +251,15 @@ async def get_analysis(
 
     _compute_start = _time.monotonic()
     try:
-        result = service.get_full_analysis(ticker)
+        # PERF: get_full_analysis is a SYNC function that does blocking
+        # I/O (yfinance HTTP, Postgres queries, an internal time.sleep
+        # retry backoff). Calling it directly from this async handler
+        # blocks the event loop — every concurrent request gets
+        # serialized, killing throughput. Push it onto the thread-pool
+        # executor so the loop stays responsive. Caught in 2026-04-25
+        # health audit (PR #83).
+        import asyncio as _asyncio
+        result = await _asyncio.to_thread(service.get_full_analysis, ticker)
 
         # ── Output sanity gate ──────────────────────────────────
         # Two-layer defense:
@@ -498,7 +506,9 @@ async def get_og_data(ticker: str):
         if result is None or not hasattr(result, "valuation"):
             # Last resort: live compute. Any output zeros here will be
             # caught by the zero-poison guard below rather than cached.
-            result = service.get_full_analysis(ticker)
+            # PERF: blocking sync call → thread pool. See PR #83 note.
+            import asyncio as _asyncio
+            result = await _asyncio.to_thread(service.get_full_analysis, ticker)
         display_ticker = ticker.replace(".NS", "").replace(".BO", "")
 
         # ── Output sanity gate (router-level defense in depth) ──
@@ -601,7 +611,9 @@ async def get_analysis_preview(ticker: str):
         return cached
 
     try:
-        result = service.get_full_analysis(ticker)
+        # PERF: blocking sync call → thread pool. See PR #83 note.
+        import asyncio as _asyncio
+        result = await _asyncio.to_thread(service.get_full_analysis, ticker)
 
         # Output sanity gate — same as og-data and main /analysis
         _fv = float(result.valuation.fair_value or 0)
@@ -698,7 +710,8 @@ async def get_ai_summary(ticker: str, user: dict = Depends(get_current_user)):
     analysis = cache.get(_analysis_cache_key)
     if analysis is None:
         try:
-            analysis = service.get_full_analysis(ticker)
+            # PERF: blocking sync call → thread pool. See PR #83 note.
+            analysis = await asyncio.to_thread(service.get_full_analysis, ticker)
         except TickerNotFoundError:
             raise HTTPException(
                 status_code=404,
@@ -1653,9 +1666,13 @@ async def compare_stocks(
     ticker1 = ticker1.upper().strip()
     ticker2 = ticker2.upper().strip()
 
-    # Get both analyses (uses cache if available)
-    a1 = service.get_full_analysis(ticker1)
-    a2 = service.get_full_analysis(ticker2)
+    # Get both analyses (uses cache if available).
+    # PERF: blocking sync call → thread pool, run concurrently. See PR #83.
+    import asyncio as _asyncio
+    a1, a2 = await _asyncio.gather(
+        _asyncio.to_thread(service.get_full_analysis, ticker1),
+        _asyncio.to_thread(service.get_full_analysis, ticker2),
+    )
 
     return {
         "stock1": {
@@ -1755,7 +1772,9 @@ async def get_report(ticker: str, user: dict = Depends(get_current_user)):
     """Generate downloadable DCF report as text."""
     ticker = ticker.upper().strip()
     try:
-        analysis = service.get_full_analysis(ticker)
+        # PERF: blocking sync call → thread pool. See PR #83 note.
+        import asyncio as _asyncio
+        analysis = await _asyncio.to_thread(service.get_full_analysis, ticker)
         v = analysis.valuation
         q = analysis.quality
         s = analysis.scenarios
