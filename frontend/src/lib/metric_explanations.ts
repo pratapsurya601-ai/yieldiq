@@ -124,7 +124,7 @@ export const METRIC_EXPLANATIONS: Record<string, MetricExplanation> = {
     oneLine:
       "A 0-100 composite score that blends our valuation, quality, growth, and safety axes into a single descriptive number. Reflects the model's view of a business's fundamentals at a point in time. Not investment advice.",
     good:
-      "Above 75 = high across the board, 55-75 = mixed with trade-offs, 35-55 = several factors to consider, below 35 = multiple model concerns. The score rewards both below-fair-value AND high-quality fundamentals — a stock can score low simply by being priced above its model fair value.",
+      "Above 75 = high across the board, 55-75 = mixed with trade-offs, 35-55 = several factors to consider, below 35 = multiple model concerns. The score rewards both below-fair-value AND high-quality fundamentals — a stock can score low simply by being priced above its model fair value. Model-confidence adjustment: -8 pts when reported MoS exceeds ±50% on a liquid large-cap (>₹10,000 Cr / $1.2B market cap), since extreme MoS on well-followed names is more often a model artifact than a genuine opportunity.",
   },
   grade: {
     title: "Grade",
