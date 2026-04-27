@@ -237,23 +237,38 @@ def _start_pipeline_scheduler():
         replace_existing=True,
     )
 
-    # Weekly digest email — Monday 9am IST
-    scheduler.add_job(
-        _send_weekly_digests,
-        CronTrigger(day_of_week="mon", hour=9, minute=0, timezone="Asia/Kolkata"),
-        id="weekly_digest",
-        name="Weekly digest email",
-        replace_existing=True,
-    )
-
-    # Weekly newsletter — Sunday 8am IST
-    scheduler.add_job(
-        _send_newsletter,
-        CronTrigger(day_of_week="sun", hour=8, minute=0, timezone="Asia/Kolkata"),
-        id="weekly_newsletter",
-        name="Weekly newsletter email",
-        replace_existing=True,
-    )
+    # ── DISABLED 2026-04-27 — both jobs duplicated 4× per send because
+    # APScheduler runs in-process inside every uvicorn worker and Railway
+    # boots 4 workers. Last fire (Mon Apr 27 09:00 IST) sent 4 copies of
+    # a digest containing US OTC tickers (BATMF/SBBTF/etc.) and the
+    # banned phrase "Top Opportunities This Week" — SEBI risk + quality
+    # disaster. Do NOT re-enable until ALL of the following are true:
+    #   1. Send is moved out of in-process scheduler (GitHub Actions or
+    #      APScheduler with a Postgres jobstore + distributed lock).
+    #   2. Stock universe filter restricted to NSE/BSE only
+    #      (ticker LIKE '%.NS' OR ticker LIKE '%.BO').
+    #   3. value_score > 0 AND mos > 0 filter on the picks query.
+    #   4. Email copy reviewed for SEBI compliance — remove all
+    #      recommendation language ("Top Opportunities", "picks", etc.).
+    #      Replace with neutral factual framing.
+    #   5. Idempotency key per (user_id, send_date) so a re-fire can't
+    #      double-send.
+    # See backend/services/email_service.py:458 for the copy that needs
+    # the rewrite.
+    # scheduler.add_job(
+    #     _send_weekly_digests,
+    #     CronTrigger(day_of_week="mon", hour=9, minute=0, timezone="Asia/Kolkata"),
+    #     id="weekly_digest",
+    #     name="Weekly digest email",
+    #     replace_existing=True,
+    # )
+    # scheduler.add_job(
+    #     _send_newsletter,
+    #     CronTrigger(day_of_week="sun", hour=8, minute=0, timezone="Asia/Kolkata"),
+    #     id="weekly_newsletter",
+    #     name="Weekly newsletter email",
+    #     replace_existing=True,
+    # )
 
     # ── Market data refreshers ─────────────────────────────────
     # Live quotes: every 5 min during market hours (Mon-Fri, 09:15-15:30 IST).
@@ -298,7 +313,7 @@ def _start_pipeline_scheduler():
     scheduler.start()
     logger.info(
         "Pipeline scheduler started: daily 4:30pm IST, weekly Sun 11pm IST, "
-        "alerts every 3h, digest Mon 9am, newsletter Sun 8am IST, "
+        "alerts every 3h, weekly digest+newsletter DISABLED (see comment), "
         "live_quotes every 5m (mkt hrs), fx+indices every 15m"
     )
     return scheduler
