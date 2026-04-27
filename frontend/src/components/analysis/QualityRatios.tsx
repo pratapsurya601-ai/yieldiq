@@ -386,6 +386,19 @@ export default function QualityRatios({ quality, insights, ratioHistory }: Props
     [quality.promoter_pct, quality.fii_pct, quality.dii_pct].some(v => v !== null && v !== undefined)
   if (!anyRatio && !anyShareholding) return null
 
+  // fix/data-quality-gate (2026-04-27): when two or more of the four
+  // headline non-bank ratios are unreported the score card and ratio
+  // grid both render plausibly but are computed from a thin slice of
+  // data. Surface a discreet caption so the user reads the rest of
+  // the section in the right confidence band. Banks have their own
+  // "Why no ROCE / Debt-EBITDA / Int. Coverage" note already, so we
+  // only show this on the generic path.
+  const missingCoreCount = isBank
+    ? 0
+    : [roce, quality.roe, interest_coverage, currentRatio]
+        .filter(v => v === null || v === undefined).length
+  const limitedFinancialData = missingCoreCount >= 2
+
   return (
     <div className="bg-surface rounded-2xl border border-border p-5 space-y-4">
       <div className="flex items-baseline justify-between gap-3">
@@ -400,6 +413,17 @@ export default function QualityRatios({ quality, insights, ratioHistory }: Props
           prefix="Latest filing"
         />
       </div>
+
+      {limitedFinancialData && (
+        <p
+          className="text-[11px] text-caption leading-snug"
+          aria-label="Limited financial data warning"
+        >
+          Limited financial data — {missingCoreCount} of ROCE, ROE,
+          Interest Coverage, Current Ratio unreported. Score and ratios
+          below are computed from a partial filing set.
+        </p>
+      )}
 
       {/* Render bank-native cards for banks; generic cards otherwise.
           The generic set (ROCE / Debt/EBITDA / Int Coverage) does not

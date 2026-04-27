@@ -208,8 +208,25 @@ export default function InsightCards({ quality, insights, valuation, currency = 
       }
     })(),
     (() => {
+      // fix/data-quality-gate (2026-04-27): a 0.0% current yield is not
+      // a "Moderate" dividend \u2014 it is the absence of one. Likewise a
+      // last_ex_date older than 24 months means the company has stopped
+      // paying, regardless of whether the historical sustainability tag
+      // still says "moderate". In both cases we collapse the card to a
+      // "No recent dividends" state so the compact summary cannot
+      // contradict the expanded DividendTracker below it.
       const div = insights.dividend
-      if (div?.has_dividends && div.current_yield_pct !== null && div.current_yield_pct !== undefined) {
+      const TWENTY_FOUR_MONTHS_MS = 24 * 30 * 24 * 60 * 60 * 1000
+      const lastEx = div?.last_ex_date ? new Date(div.last_ex_date) : null
+      const lastExValid = lastEx !== null && Number.isFinite(lastEx.getTime())
+      const isStale =
+        lastExValid && (Date.now() - (lastEx as Date).getTime()) > TWENTY_FOUR_MONTHS_MS
+      const yieldNum =
+        div?.current_yield_pct !== null && div?.current_yield_pct !== undefined
+          ? div.current_yield_pct
+          : null
+      const hasLiveYield = yieldNum !== null && yieldNum > 0 && !isStale
+      if (div?.has_dividends && hasLiveYield) {
         const s = div.sustainability
         const sustLabel = s === "strong" ? "\u25cf High"
           : s === "at_risk" ? "\u25cf At Risk"
@@ -225,7 +242,7 @@ export default function InsightCards({ quality, insights, valuation, currency = 
           : "\u2014"
         const card: CardData = {
           title: "Dividends",
-          value: `${div.current_yield_pct.toFixed(1)}%`,
+          value: `${(yieldNum as number).toFixed(1)}%`,
           subtitle: `${sustLabel} \u00b7 Payout ${payoutLabel}`,
           subtitleColor: sustColor,
           color: "text-body",
@@ -233,6 +250,22 @@ export default function InsightCards({ quality, insights, valuation, currency = 
           borderColor,
         }
         return card
+      }
+      // Stale schedule branch: keep the historical context (last paid
+      // date) instead of pretending no dividend ever existed.
+      if (div?.has_dividends && isStale) {
+        const fmt = (lastEx as Date).toLocaleDateString("en-IN", {
+          month: "short", year: "numeric",
+        })
+        const lapsed: CardData = {
+          title: "Dividends",
+          value: "Lapsed",
+          subtitle: `No recent dividends (last paid ${fmt})`,
+          color: "text-caption",
+          icon: "\u{1f4b0}",
+          borderColor: "border-l-border",
+        }
+        return lapsed
       }
       const empty: CardData = {
         title: "Dividends",
