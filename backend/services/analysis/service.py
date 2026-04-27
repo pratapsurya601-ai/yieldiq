@@ -937,6 +937,47 @@ class AnalysisService(NarrativeMixin):
         # behaviour preserved a "pre-moat" MoS even though the
         # displayed FV reflected the moat delta — users saw e.g.
         # FV ₹3,223 with MoS −0.1% when the math demands +24.8%.
+        # ── Peer-multiple sanity gate (CACHE_VERSION 65) ──────
+        # Before deriving the final MoS, clamp `iv` against the peer
+        # P/E-implied FV. The clamp is down-only and preserves the
+        # raw DCF when peers are missing/sparse — see
+        # backend/services/peer_cap_service.py for the policy.
+        # Applied here (not at line ~743) so that any moat-delta
+        # adjustment to iv has already landed; the cap is the last
+        # gate before MoS / verdict / score are computed.
+        _peer_cap_source: str = "dcf"
+        _peer_cap_details: dict | None = None
+        try:
+            from backend.services.peer_cap_service import apply_peer_cap
+            _eps_for_cap = (
+                enriched.get("diluted_eps")
+                or enriched.get("eps_diluted")
+                or enriched.get("eps")
+                or raw.get("fh_eps_ttm")
+            )
+            _db_for_cap = _get_pipeline_session()
+            try:
+                _cap_result = apply_peer_cap(
+                    ticker=ticker,
+                    dcf_fv=float(iv) if iv else 0.0,
+                    eps_ttm=float(_eps_for_cap) if _eps_for_cap else None,
+                    industry=company.industry,
+                    sector=company.sector,
+                    db=_db_for_cap,
+                )
+            finally:
+                if _db_for_cap is not None:
+                    try:
+                        _db_for_cap.close()
+                    except Exception:
+                        pass
+            iv = _cap_result.capped_fv
+            _peer_cap_source = _cap_result.source
+            _peer_cap_details = _cap_result.details or None
+        except Exception as _pc_exc:
+            # Never let the peer cap break analysis. Failure → raw DCF.
+            _pt_logger.warning("peer_cap failed for %s: %s", ticker, _pc_exc)
+
         # Single source of truth: derive MoS from the SAME `iv`
         # field that is shown to the user. Covers both DCF and
         # financial-stock P/BV paths (financials skip the moat
@@ -1676,6 +1717,9 @@ class AnalysisService(NarrativeMixin):
                 # Parquet). Both are delayed — frontend renders as
                 # "Delayed", never "Live". See FreshnessStamp.tsx.
                 current_price_as_of=_ts,
+                # Peer-multiple sanity gate (CACHE_VERSION 65)
+                fair_value_source=_peer_cap_source,
+                peer_cap_details=_peer_cap_details,
             ),
             quality=QualityOutput(
                 yieldiq_score=yiq_score.get("score", 0),
