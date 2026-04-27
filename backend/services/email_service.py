@@ -350,47 +350,18 @@ def _get_top_undervalued_stocks(limit: int = 5) -> list[dict]:
     except Exception as e:
         logger.debug(f"DB query for top stocks failed: {e}")
 
-    # Fallback: screener CSV
-    try:
-        import pandas as pd
-        from pathlib import Path
-        csv_path = Path(__file__).resolve().parent.parent.parent / "data" / "screener_results.csv"
-        if csv_path.exists():
-            df = pd.read_csv(csv_path)
-            score_col = next((c for c in df.columns if c.lower() in ("score", "yieldiq_score")), None)
-            mos_col = next((c for c in df.columns if c.lower() in ("mos", "mos_pct")), None)
-            ticker_col = next((c for c in df.columns if c.lower() in ("ticker", "symbol")), df.columns[0])
-            name_col = next((c for c in df.columns if "name" in c.lower()), None)
-
-            if mos_col:
-                df = df.sort_values(mos_col, ascending=False)
-            elif score_col:
-                df = df.sort_values(score_col, ascending=False)
-
-            results = []
-            for _, row in df.head(limit).iterrows():
-                _mos = float(row.get(mos_col, 0)) if mos_col else 0
-                _score = int(row.get(score_col, 0)) if score_col else 0
-                # SEBI-safe verdicts: descriptive, model-relative, never imperative.
-                if _mos > 30:
-                    verdict = "Deeply Undervalued (vs model)"
-                elif _mos > 15:
-                    verdict = "Undervalued (vs model)"
-                elif _mos > 0:
-                    verdict = "Slightly Undervalued (vs model)"
-                else:
-                    verdict = "Fair Value (vs model)"
-                results.append({
-                    "ticker": str(row.get(ticker_col, "")),
-                    "company_name": str(row.get(name_col, row.get(ticker_col, ""))) if name_col else str(row.get(ticker_col, "")),
-                    "score": _score,
-                    "mos_pct": _mos,
-                    "verdict": verdict,
-                })
-            return results
-    except Exception as e:
-        logger.debug(f"CSV fallback for top stocks failed: {e}")
-
+    # CSV fallback DISABLED 2026-04-27. The Apr-3-stale data/screener_results.csv
+    # was polluted with US OTC pink-sheet tickers (BATMF/SBBTF/AMKBF/ABLGF/ALEGF)
+    # AND the column-name lookup didn't match the actual CSV schema
+    # (looked for `mos`/`score`, CSV has `margin_of_safety`/`fundamental_score`),
+    # so sorting was skipped and the first 5 rows shipped as-is — recommending
+    # foreign penny stocks to Indian retail users with SEBI-banned "Top
+    # Opportunities" framing. Loud-fail (return []) is safer than silent-success
+    # off month-old CSVs nobody notices.
+    logger.warning(
+        "_get_top_undervalued_stocks: DB path failed; CSV fallback is "
+        "intentionally disabled — returning empty list."
+    )
     return []
 
 
@@ -407,7 +378,23 @@ def _verdict_color(verdict: str) -> str:
 
 
 def send_weekly_digest(email: str) -> bool:
-    """Send weekly market digest email. Safe to call in background thread."""
+    """Send weekly market digest email. Safe to call in background thread.
+
+    DISABLED 2026-04-27 after the Apr-27 09:00 IST send shipped to users
+    with: (a) US OTC pink-sheet tickers from a stale CSV, (b) all scores
+    and MoS displayed as 0, (c) SEBI-banned "Top Opportunities" copy,
+    (d) 4× duplicate sends due to APScheduler-per-uvicorn-worker. Even
+    the manual /api/v1/admin/trigger-newsletter path is gated here so
+    the only way to re-enable is a code change with the 5 fixes listed
+    in backend/main.py near the disabled cron registration.
+    """
+    logger.warning(
+        "send_weekly_digest called for %s but the digest is disabled "
+        "pending the SEBI-compliant rebuild — no email sent.",
+        email,
+    )
+    return False
+    # ── Original implementation kept below, intentionally unreachable. ──
     if is_user_unsubscribed(email):
         return False
 
