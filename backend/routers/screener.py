@@ -201,9 +201,13 @@ def _query_preset_from_db(preset: str, page: int = 1,
                 # (router sets this whenever it clamps; see
                 # backend/routers/analysis.py around the FV-clamp block and
                 # backend/models/responses.py ValuationOutput.data_limited).
-                # Fallback: |mos| < 95 — this catches any pre-flag legacy
-                # cache rows that were clamped before the data_limited flag
-                # was wired but still carry the boundary-pinned MoS value.
+                # Fallback: |mos| < 50 (tightened from 95 to 50 — wide-moat
+                # preset shouldn't show MoS that high; real wide-moat names
+                # rarely sit in the 50–95% range, so values there are almost
+                # always DCF-calibration artifacts rather than genuine bargains).
+                # This also catches any pre-flag legacy cache rows that were
+                # clamped before the data_limited flag was wired but still
+                # carry the boundary-pinned MoS value.
                 # `_exclude_clamped` itself is hoisted to function scope so
                 # the tier-2 in-memory path below sees the same gate.
                 _rows = _sess.execute(_sql_text(
@@ -238,7 +242,7 @@ def _query_preset_from_db(preset: str, page: int = 1,
                 _data_limited = bool(_r[6]) if len(_r) > 6 else False
                 # Skip rows where MoS got clamped (data-quality issues)
                 # for the three opinionated presets. See block comment above.
-                if _exclude_clamped and (_data_limited or abs(mos) >= 95):
+                if _exclude_clamped and (_data_limited or abs(mos) >= 50):
                     continue
                 full_ticker = _ticker if "." in _ticker else f"{_ticker}.NS"
                 # Dedup by bare ticker (strip .NS/.BO) so NSE+BSE listings
@@ -276,7 +280,7 @@ def _query_preset_from_db(preset: str, page: int = 1,
             # Mirror the tier-1 clamp-exclusion for the named presets.
             # See block comment in the analysis_cache scan above.
             _dl = bool(getattr(v, "data_limited", False))
-            if _exclude_clamped and (_dl or abs(mos) >= 95):
+            if _exclude_clamped and (_dl or abs(mos) >= 50):
                 continue
 
             _dedup_key2 = val.ticker.split(".")[0]
