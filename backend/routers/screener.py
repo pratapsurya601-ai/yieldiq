@@ -165,6 +165,11 @@ def _query_preset_from_db(preset: str, page: int = 1,
             "custom": _is_custom,
         }.get(preset, _is_custom)
 
+        # Three opinionated presets exclude clamped rows; see block
+        # comment lower in this function for full reasoning.
+        _PRESET_EXCLUDE_CLAMPED = {"buffett", "deep_value", "growth_quality"}
+        _exclude_clamped = preset in _PRESET_EXCLUDE_CLAMPED
+
         candidates = []
         seen_tickers: set[str] = set()
 
@@ -182,6 +187,25 @@ def _query_preset_from_db(preset: str, page: int = 1,
                 # JSONB path operators instead of the whole payload (which
                 # can be 100KB+ per row x ~500-3000 rows = tens of MB on a
                 # cold scan). Same field semantics as the prior dict-walk.
+                # FIX-SCREENER-CLAMPED (2026-04-27): exclude rows where
+                # the router clamped FV/MoS to its sanity bounds (FV outside
+                # [0.1×price, 3×price] OR |MoS| >= 95%) for the three named
+                # presets. Pre-fix, buffett/deep-value/growth-quality were
+                # full of micro-caps where MoS got pinned at the ~±95-200%
+                # boundary because of FCF/EPS data-quality issues
+                # (AMJLAND +215%, NILAINFRA +198%, CAPITALSFB +289%, etc.).
+                # The custom screener intentionally still includes these so
+                # power users can see everything.
+                #
+                # Primary signal: payload->valuation->data_limited = true
+                # (router sets this whenever it clamps; see
+                # backend/routers/analysis.py around the FV-clamp block and
+                # backend/models/responses.py ValuationOutput.data_limited).
+                # Fallback: |mos| < 95 — this catches any pre-flag legacy
+                # cache rows that were clamped before the data_limited flag
+                # was wired but still carry the boundary-pinned MoS value.
+                # `_exclude_clamped` itself is hoisted to function scope so
+                # the tier-2 in-memory path below sees the same gate.
                 _rows = _sess.execute(_sql_text(
                     """
                     SELECT
@@ -190,7 +214,8 @@ def _query_preset_from_db(preset: str, page: int = 1,
                       (payload->'valuation'->>'margin_of_safety')::float AS mos,
                       (payload->'quality'->>'moat')                    AS moat,
                       (payload->'valuation'->>'eps_ttm')::float        AS eps_ttm,
-                      (payload->'valuation'->>'current_price')::float  AS current_price
+                      (payload->'valuation'->>'current_price')::float  AS current_price,
+                      COALESCE((payload->'valuation'->>'data_limited')::boolean, false) AS data_limited
                     FROM analysis_cache
                     WHERE computed_at > now() - interval '48 hours'
                     """
@@ -210,6 +235,11 @@ def _query_preset_from_db(preset: str, page: int = 1,
                         pe = cp / eps
                 except Exception:
                     pass
+                _data_limited = bool(_r[6]) if len(_r) > 6 else False
+                # Skip rows where MoS got clamped (data-quality issues)
+                # for the three opinionated presets. See block comment above.
+                if _exclude_clamped and (_data_limited or abs(mos) >= 95):
+                    continue
                 full_ticker = _ticker if "." in _ticker else f"{_ticker}.NS"
                 # Dedup by bare ticker (strip .NS/.BO) so NSE+BSE listings
                 # of the same company and raw-vs-suffixed cache entries
@@ -242,6 +272,12 @@ def _query_preset_from_db(preset: str, page: int = 1,
                     pe = v.current_price / eps
             except Exception:
                 pe = None
+
+            # Mirror the tier-1 clamp-exclusion for the named presets.
+            # See block comment in the analysis_cache scan above.
+            _dl = bool(getattr(v, "data_limited", False))
+            if _exclude_clamped and (_dl or abs(mos) >= 95):
+                continue
 
             _dedup_key2 = val.ticker.split(".")[0]
             if filter_fn(score, mos, moat, pe) and _dedup_key2 not in seen_tickers:
