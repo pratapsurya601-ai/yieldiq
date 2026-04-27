@@ -60,7 +60,7 @@ export default function DiscoverPage() {
           <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">YieldIQ 50</p>
           <p className="text-[10px] text-gray-500">Updated daily</p>
         </div>
-        {yiq50 && yiq50.results.length > 0 ? (
+        {yiq50 && yiq50.results.length >= 3 ? (
           <>
             <div className="grid grid-cols-3 gap-2 mb-3">
               {yiq50.results.slice(0, 3).map((s, i) => (
@@ -123,9 +123,9 @@ export default function DiscoverPage() {
               </svg>
             </div>
             <p className="text-sm font-semibold text-gray-900 mb-1">YieldIQ 50 is warming up</p>
-            <p className="text-xs text-gray-500 mb-4 max-w-xs mx-auto">The daily ranking rebuilds as stocks are analysed. Run an analysis to seed the index.</p>
-            <Link href="/search" className="inline-flex items-center justify-center min-h-[40px] px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:scale-[0.98] transition">
-              Analyse a stock
+            <p className="text-xs text-gray-500 mb-4 max-w-xs mx-auto">Daily shortlist refreshes overnight &mdash; check back tomorrow morning.</p>
+            <Link href="/discover/screener" className="inline-flex items-center justify-center min-h-[40px] px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:scale-[0.98] transition">
+              Browse Screener &rarr;
             </Link>
           </div>
         )}
