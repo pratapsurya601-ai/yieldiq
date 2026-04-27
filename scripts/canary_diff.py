@@ -811,6 +811,29 @@ def main(argv: list[str] | None = None) -> int:
             f"FAIL: {report['fetch_failures']} fetch failure(s) > budget "
             f"of {report['fetch_failure_budget']} — API likely unhealthy."
         )
+        # Surface a representative error so users don't have to grep
+        # the JSON report. The 49/50 incident on prod was diagnosed an
+        # hour late because the only signal was the bare summary line.
+        _err_samples = [
+            (s["symbol"], s.get("fetch_error"))
+            for s in report["per_stock"]
+            if s.get("fetch_error")
+        ][:3]
+        if _err_samples:
+            print("  Sample errors:")
+            for sym, err in _err_samples:
+                print(f"    {sym}: {err}")
+        # 401 on /analysis is the canonical local-mode footgun: harness
+        # default points at api.yieldiq.in which requires a Bearer token,
+        # so the public endpoint succeeds and the authed one returns
+        # empty data — gates trivially pass on null payloads.
+        if any("401" in (e or "") for _, e in _err_samples):
+            print(
+                "  Hint: HTTP 401 on /analysis means CANARY_AUTH_TOKEN is "
+                "unset or expired. For local validation use "
+                "`scripts/run_canary_local.ps1` (boots a local backend "
+                "with YIELDIQ_DEV_MODE=true) instead of pointing at prod."
+            )
     if drift_notes:
         print(f"Snapshot drift notes (advisory): {len(drift_notes)}")
     print(f"Reports: {args.report_json}, {args.report_md}")

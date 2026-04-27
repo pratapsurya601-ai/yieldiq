@@ -186,10 +186,44 @@ def create_access_token(user_id: str, email: str, tier: str = "free") -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
+def _dev_mode_user_or_none() -> dict | None:
+    """Local-only dev bypass for the canary-diff harness.
+
+    Returns a synthetic 'pro' user when YIELDIQ_DEV_MODE=true, but ONLY
+    when we are clearly NOT running on Railway production. Crashes loud
+    if both envs are set so an accidental Railway redeploy with this var
+    can never serve unauthenticated traffic.
+
+    Designed for `scripts/canary_diff.py` against a local uvicorn so the
+    authed `/api/v1/analysis/{ticker}` path returns real DCF data without
+    needing a real Supabase JWT. See scripts/run_canary_local.ps1.
+    """
+    if (os.environ.get("YIELDIQ_DEV_MODE") or "").strip().lower() != "true":
+        return None
+    rail = (os.environ.get("RAILWAY_ENVIRONMENT") or "").strip().lower()
+    if rail in ("production", "prod"):
+        # Defensive crash: refuse to run in prod with the bypass on.
+        raise RuntimeError(
+            "YIELDIQ_DEV_MODE=true is set in Railway production — refusing "
+            "to serve unauthenticated traffic. Unset YIELDIQ_DEV_MODE in "
+            "Railway dashboard immediately."
+        )
+    return {
+        "user_id": "dev-canary-bypass",
+        "email": "dev@localhost",
+        "tier": "pro",
+        "is_superuser": True,
+    }
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> dict:
     """Validate JWT and return user dict."""
+    # Local-only dev bypass for canary-diff harness. See _dev_mode_user_or_none.
+    _dev_user = _dev_mode_user_or_none()
+    if _dev_user is not None:
+        return _dev_user
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
