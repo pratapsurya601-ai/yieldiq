@@ -45,12 +45,35 @@ export default function DividendTracker({ dividend, currency = "INR" }: Props) {
   // Nothing to render — compact InsightCards card shows "None" for us
   if (!dividend || !dividend.has_dividends) return null
 
+  // fix/data-quality-gate (2026-04-27): a stock whose last ex-date is
+  // more than 24 months in the past has effectively stopped paying.
+  // Surfacing "5 consecutive years" / "0.0% yield" / "Moderate
+  // sustainability" present-tense for such a stock (e.g. NOIDATOLL.NS,
+  // last paid Sept 2016) is a flat contradiction. Treat the schedule
+  // as lapsed: collapse the streak/yield badge to a single "no recent
+  // dividends" caption and skip the sustainability tile.
+  const TWENTY_FOUR_MONTHS_MS = 24 * 30 * 24 * 60 * 60 * 1000
+  const lastExDate = dividend.last_ex_date ? new Date(dividend.last_ex_date) : null
+  const lastExValid = lastExDate !== null && Number.isFinite(lastExDate.getTime())
+  const isStale =
+    lastExValid && (Date.now() - (lastExDate as Date).getTime()) > TWENTY_FOUR_MONTHS_MS
+
   const summaryLine = (() => {
+    if (isStale) {
+      const fmt = (lastExDate as Date).toLocaleDateString("en-IN", {
+        month: "short", year: "numeric",
+      })
+      return `No recent dividends (last paid ${fmt})`
+    }
     const parts: string[] = []
     if (dividend.dividend_rate_per_share) {
       parts.push(`${sym}${dividend.dividend_rate_per_share.toFixed(2)}/share`)
     }
-    if (dividend.current_yield_pct !== null && dividend.current_yield_pct !== undefined) {
+    if (
+      dividend.current_yield_pct !== null
+      && dividend.current_yield_pct !== undefined
+      && dividend.current_yield_pct > 0
+    ) {
       parts.push(`${dividend.current_yield_pct.toFixed(1)}% yield`)
     }
     if (dividend.consecutive_years > 0) {
@@ -127,20 +150,25 @@ export default function DividendTracker({ dividend, currency = "INR" }: Props) {
             </div>
           </div>
 
-          {/* Sustainability */}
-          <div
-            className={cn(
-              "rounded-xl p-3 space-y-1",
-              SUST_CARD[dividend.sustainability] ?? SUST_CARD.moderate,
-            )}
-          >
-            <p className="text-[11px] font-bold uppercase tracking-wide">
-              {SUST_LABEL[dividend.sustainability] ?? "● —"}
-            </p>
-            {dividend.sustainability_reason && (
-              <p className="text-xs leading-relaxed">{dividend.sustainability_reason}</p>
-            )}
-          </div>
+          {/* Sustainability — suppressed when the schedule is lapsed.
+              "Moderate / High / At Risk" never applies once the company
+              has stopped paying; the FreshnessStamp + summary line tell
+              the user the truth without contradiction. */}
+          {!isStale && (
+            <div
+              className={cn(
+                "rounded-xl p-3 space-y-1",
+                SUST_CARD[dividend.sustainability] ?? SUST_CARD.moderate,
+              )}
+            >
+              <p className="text-[11px] font-bold uppercase tracking-wide">
+                {SUST_LABEL[dividend.sustainability] ?? "● —"}
+              </p>
+              {dividend.sustainability_reason && (
+                <p className="text-xs leading-relaxed">{dividend.sustainability_reason}</p>
+              )}
+            </div>
+          )}
 
           {/* FY history bars */}
           {dividend.fy_history.length > 0 && (
