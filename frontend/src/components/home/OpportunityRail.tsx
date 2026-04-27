@@ -4,6 +4,8 @@ import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { getYieldIQ50 } from "@/lib/api"
 
+const MIN_RAIL_ITEMS = 2;
+
 // Curated slice of YieldIQ 50 — Wide moat + MoS > 20%. Non-advisory framing:
 // we describe the filter, never say "buy" or "recommended".
 //
@@ -15,7 +17,15 @@ import { getYieldIQ50 } from "@/lib/api"
 // side fix (refilling the YieldIQ 50 cache when the wide-moat shortlist
 // runs dry) is owned by the Discover cron, NOT this component. This rail
 // is the user-facing fallback only.
-function FallbackCard({ message }: { message: string }) {
+function FallbackCard({
+  message,
+  ctaHref,
+  ctaLabel,
+}: {
+  message: string
+  ctaHref?: string
+  ctaLabel?: string
+}) {
   return (
     <section>
       <div className="px-4 mb-2">
@@ -26,12 +36,14 @@ function FallbackCard({ message }: { message: string }) {
       <div className="px-4">
         <div className="bg-bg rounded-2xl border border-border p-5">
           <p className="text-sm text-body">{message}</p>
-          <Link
-            href="/discover"
-            className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-brand"
-          >
-            Browse Discover →
-          </Link>
+          {ctaHref && ctaLabel && (
+            <Link
+              href={ctaHref}
+              className="mt-3 inline-flex items-center gap-1 text-sm font-semibold text-brand"
+            >
+              {ctaLabel}
+            </Link>
+          )}
         </div>
       </div>
     </section>
@@ -65,11 +77,17 @@ export default function OpportunityRail() {
     return <FallbackCard message="Shortlist temporarily unavailable" />
   }
 
-  if (count === 0) {
+  if (count < MIN_RAIL_ITEMS) {
     // Don't fabricate a count. Show a visible placeholder rather than
     // collapsing the section silently — see EMPTY-STATE POLICY above.
+    // Also avoids rendering a single awkward tile in a 2-up grid when
+    // only one wide-moat name clears the MoS filter.
     return (
-      <FallbackCard message="Refreshing the shortlist — check back shortly" />
+      <FallbackCard
+        message="Daily shortlist refreshes overnight — check back tomorrow morning."
+        ctaHref="/discover/screener"
+        ctaLabel="Browse Screener →"
+      />
     )
   }
 
