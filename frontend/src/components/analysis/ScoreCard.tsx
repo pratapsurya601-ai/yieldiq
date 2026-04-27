@@ -188,7 +188,7 @@ export default function ScoreCard({
           </span>
         </div>
         <p className="text-[10px] text-caption leading-tight">
-          Higher = pillars disagree more. The stock refracts light more sharply.
+          How much the underlying signals disagree. Low = consistent picture; high = mixed.
         </p>
       </div>
 
