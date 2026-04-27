@@ -397,7 +397,12 @@ def _rule_based_growth(enriched: dict) -> float:
     if sector in US_SECTORS:
         LONG_RUN_TARGET = US_LONG_RUN.get(sector, 0.035)   # default US: 3.5%
     else:
-        LONG_RUN_TARGET = 0.10                               # India nominal GDP anchor
+        # Audit 2026-04-27 (audit/dcf-terminal-growth-wacc-recalibration):
+        # Lowered India long-run anchor 10% -> 8%. Damodaran India real GDP
+        # ~6% + inflation ~4% nominal = 10% but earnings growth through-cycle
+        # for large-caps lands closer to 8%. The 10% anchor was systematically
+        # inflating 10y projections for IT/pharma/FMCG outliers (TCS 44% MoS).
+        LONG_RUN_TARGET = 0.08                               # India nominal GDP minus through-cycle discount
     # 60/40 blend: trust actual historical data more, mean-revert less aggressively
     mean_reverted   = 0.60 * blended_growth + 0.40 * LONG_RUN_TARGET
 
