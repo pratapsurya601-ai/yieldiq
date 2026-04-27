@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 import { useAuthStore } from "@/store/authStore"
 import AnalysisCounter from "@/components/layout/AnalysisCounter"
@@ -51,11 +52,38 @@ const TABS: NavTab[] = [
       </svg>
     ),
   },
+]
+
+interface MoreItem {
+  label: string
+  href: string
+  icon: React.ReactNode
+}
+
+const MORE_ITEMS: MoreItem[] = [
+  {
+    label: "Screener",
+    href: "/discover/screener",
+    icon: (
+      <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h18M6 12h12M10 19.5h4" />
+      </svg>
+    ),
+  },
+  {
+    label: "Compare",
+    href: "/compare",
+    icon: (
+      <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h13m0 0l-4-4m4 4l-4 4M16 17H3m0 0l4 4m-4-4l4-4" />
+      </svg>
+    ),
+  },
   {
     label: "Account",
     href: "/account",
-    icon: (active) => (
-      <svg className={cn("h-5 w-5", active ? "text-blue-600" : "text-gray-500")} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    icon: (
+      <svg className="h-5 w-5 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75a17.933 17.933 0 01-7.499-1.632z" />
       </svg>
     ),
@@ -65,6 +93,26 @@ const TABS: NavTab[] = [
 export default function Navbar() {
   const pathname = usePathname()
   const tier = useAuthStore((s) => s.tier)
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreRef = useRef<HTMLDivElement>(null)
+
+  // Close the More menu on outside click or route change
+  useEffect(() => {
+    setMoreOpen(false)
+  }, [pathname])
+
+  useEffect(() => {
+    if (!moreOpen) return
+    const handler = (e: MouseEvent) => {
+      if (moreRef.current && !moreRef.current.contains(e.target as Node)) {
+        setMoreOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handler)
+    return () => document.removeEventListener("mousedown", handler)
+  }, [moreOpen])
+
+  const moreActive = MORE_ITEMS.some((item) => pathname.startsWith(item.href))
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-gray-200 pb-[env(safe-area-inset-bottom)]" aria-label="Main navigation">
@@ -117,6 +165,68 @@ export default function Navbar() {
             </Link>
           )
         })}
+
+        {/* More menu — holds Screener, Compare, Account */}
+        <div ref={moreRef} className="relative">
+          <button
+            type="button"
+            aria-label="More"
+            aria-expanded={moreOpen}
+            aria-haspopup="menu"
+            onClick={() => setMoreOpen((v) => !v)}
+            className={cn(
+              "relative flex flex-col items-center justify-center gap-0.5 py-1 px-3 min-h-[44px] min-w-[44px]",
+              "transition-colors active:scale-95"
+            )}
+          >
+            {moreActive && !moreOpen && (
+              <span className="absolute top-0 left-1/2 -translate-x-1/2 w-6 h-[2px] bg-blue-500 rounded-full" />
+            )}
+            <svg
+              className={cn("h-5 w-5", moreActive ? "text-blue-600" : "text-gray-500")}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+            </svg>
+            <span
+              className={cn(
+                "text-[10px] font-medium",
+                moreActive ? "text-blue-600" : "text-gray-500"
+              )}
+            >
+              More
+            </span>
+          </button>
+
+          {moreOpen && (
+            <div
+              role="menu"
+              className="absolute bottom-full right-0 mb-2 w-44 rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden"
+            >
+              {MORE_ITEMS.map((item) => {
+                const isActive = pathname.startsWith(item.href)
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    role="menuitem"
+                    onClick={() => setMoreOpen(false)}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 text-sm",
+                      isActive ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-50"
+                    )}
+                  >
+                    {item.icon}
+                    <span className="font-medium">{item.label}</span>
+                  </Link>
+                )
+              })}
+            </div>
+          )}
+        </div>
       </div>
     </nav>
   )
