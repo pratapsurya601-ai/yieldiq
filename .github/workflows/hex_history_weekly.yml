@@ -79,27 +79,22 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install deps
+      - name: Install minimal deps (cache-only mode skips heavy chain)
         run: |
           python -m pip install --upgrade pip
-          # The "minimal deps" approach was a losing battle. The seeder's
-          # import chain (backfill_hex_history → hex_history_service →
-          # hex_service → analysis/__init__ → analysis/service →
-          # data/collector) transitively pulls in requests, yfinance,
-          # numpy, pandas, etc. before any --seed-from-cache flag is
-          # even checked. Five deploys (24928636557, 24931140894,
-          # 24931374708, 24964004770, 24979951050) wasted on whack-a-mole
-          # ModuleNotFoundError fixes (streamlit → utils.logger → requests
-          # → yfinance → ...).
+          # The seeder runs in --cache-only mode (see Run backfill step
+          # below). That code path goes through ONLY the pure
+          # backend.services.analysis.hex_axes module — it does NOT
+          # import hex_history_service, hex_service, analysis/service,
+          # or data/collector. So we don't need requests, yfinance, or
+          # any of the chain that those modules pull in.
           #
-          # Pragmatic fix: install the actual deps the import chain
-          # demands. The slim runner is still much smaller than full
-          # backend (no streamlit, no plotly, no scikit-learn) — just
-          # enough to let the pure compute_axes_from_payload path
-          # actually run.
+          # pydantic is still listed because the response models in the
+          # analysis stack use it, and Python evaluates imports eagerly
+          # — defense-in-depth against future code paths that might
+          # accidentally re-introduce a soft dependency.
           pip install "sqlalchemy>=2.0" "psycopg[binary]>=3.1" psycopg2-binary python-dateutil \
-                      "pydantic>=2.0" "fastapi>=0.100" numpy pandas \
-                      requests yfinance
+                      "pydantic>=2.0" numpy pandas
 
       - name: Pre-flight row counts
         # Instant visibility into the chosen DB. If these numbers don't
@@ -145,17 +140,19 @@ jobs:
           print("hex_history table ensured")
           PY
 
-      - name: Run backfill
+      - name: Run backfill (--cache-only, slim path)
         env:
           LIMIT: ${{ github.event.inputs.limit || '500' }}
-          QUARTERS: ${{ github.event.inputs.quarters || '12' }}
-          SEED_FROM_CACHE: ${{ github.event.inputs.seed_from_cache || 'false' }}
+          QUARTERS: ${{ github.event.inputs.quarters || '1' }}
         run: |
-          ARGS=("--limit" "$LIMIT" "--quarters" "$QUARTERS")
-          if [ "$SEED_FROM_CACHE" = "true" ]; then
-            ARGS+=("--seed-from-cache")
-          fi
-          python backend/scripts/backfill_hex_history.py "${ARGS[@]}"
+          # --cache-only is non-negotiable for this workflow. It uses
+          # ONLY the pure backend.services.analysis.hex_axes path, so
+          # the runner doesn't need streamlit/requests/yfinance/etc.
+          # --quarters is forced to 1 because cache-only synthesises
+          # only the current quarter from analysis_cache (no historical
+          # reconstruction is possible without the heavy import chain).
+          python backend/scripts/backfill_hex_history.py \
+            --limit "$LIMIT" --quarters 1 --cache-only
 
       - name: Post-flight hex_history row count (loud-fail if empty)
         run: |

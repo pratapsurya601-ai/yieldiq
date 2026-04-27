@@ -297,7 +297,9 @@ def main() -> int:
     parser.add_argument("--fail-if-zero-ok", action="store_true",
                         help="Exit 1 when no ticker produced a successful backfill")
     parser.add_argument("--seed-from-cache", action="store_true",
-                        help="Synthesise a current-quarter row per ticker via hex_axes.compute_axes_for_ticker (single source of truth)")
+                        help="(legacy) Fallback: when the heavy path produces 0 rows, synthesise a current-quarter row from analysis_cache.")
+    parser.add_argument("--cache-only", action="store_true",
+                        help="Skip the heavy hex_history_service path entirely. ONLY synthesise current-quarter rows from analysis_cache via the pure hex_axes.compute_axes_from_payload. Required for slim CI runners that don't install the full backend stack (no streamlit, no requests, no yfinance, etc.). Does NOT compute historical quarters — only the current one. Use --quarters 1 to be explicit.")
     args = parser.parse_args()
 
     # Refuse to run without a DSN — silently no-oping in CI is the
@@ -313,10 +315,18 @@ def main() -> int:
     # set, mirror it across so SQLAlchemy can connect.
     os.environ.setdefault("DATABASE_URL", dsn)
 
-    # Import here so path setup has taken effect
-    from backend.services.hex_history_service import (
-        compute_and_store_all_history,
-    )
+    # Heavy import only when needed. --cache-only mode runs in slim CI
+    # runners that have no streamlit / requests / yfinance / etc., so
+    # we MUST NOT import hex_history_service in that mode — it
+    # transitively pulls in the full backend stack via
+    # backend.services.analysis.__init__ → analysis/service.py →
+    # data/collector.py.
+    compute_and_store_all_history = None
+    if not args.cache_only:
+        from backend.services.hex_history_service import (
+            compute_and_store_all_history as _heavy_path,
+        )
+        compute_and_store_all_history = _heavy_path
 
     if args.ticker:
         tickers = [args.ticker]
@@ -326,8 +336,15 @@ def main() -> int:
         log.error("No tickers loaded. Exiting.")
         return 1
 
-    log.info("Backfilling %d tickers × %d quarters (throttle=%.2fs)",
-             len(tickers), args.quarters, args.throttle)
+    if args.cache_only:
+        log.info(
+            "Cache-only mode: %d tickers × current quarter (pure hex_axes; "
+            "no hex_history_service import).",
+            len(tickers),
+        )
+    else:
+        log.info("Backfilling %d tickers × %d quarters (throttle=%.2fs)",
+                 len(tickers), args.quarters, args.throttle)
 
     t0 = time.perf_counter()
     ok = 0
@@ -338,17 +355,26 @@ def main() -> int:
 
     for idx, tk in enumerate(tickers, start=1):
         try:
-            stored = compute_and_store_all_history(tk, quarters=args.quarters)
-            total_rows += stored
-            if stored > 0:
-                ok += 1
+            if args.cache_only:
+                s = _seed_one_from_cache(tk)
+                if s > 0:
+                    ok += 1
+                    seeded += s
+                    total_rows += s
+                else:
+                    empty += 1
             else:
-                empty += 1
-                if args.seed_from_cache:
-                    s = _seed_one_from_cache(tk)
-                    if s > 0:
-                        seeded += s
-                        total_rows += s
+                stored = compute_and_store_all_history(tk, quarters=args.quarters)
+                total_rows += stored
+                if stored > 0:
+                    ok += 1
+                else:
+                    empty += 1
+                    if args.seed_from_cache:
+                        s = _seed_one_from_cache(tk)
+                        if s > 0:
+                            seeded += s
+                            total_rows += s
         except Exception as exc:
             # Should never happen — service is never-raise — but guard anyway
             errors += 1
