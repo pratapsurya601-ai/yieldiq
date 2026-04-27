@@ -685,40 +685,74 @@ export default function AnalysisBody({ ticker, prism }: Props) {
 
         {/* Editorial hero — Prism-driven. Uses server-rendered prism payload
             when available; falls back to the legacy AnalysisHero when the
-            Prism endpoint is unreachable so users still see something. */}
-        {prismResolved ? (
-          <EditorialHero
-            data={prismResolved}
-            fairValue={valuation.fair_value}
-            currentPrice={valuation.current_price}
-            marginOfSafety={valuation.margin_of_safety}
-            moat={quality.moat}
-            currency={company.currency}
-            score100={quality.yieldiq_score}
-            grade={quality.grade}
-            sectorRank={null}
-            trend12m={prismResolved.score_history_12m ?? []}
-            marketCapCr={marketCapCr}
-            dataLimited={dataLimited}
-            redFlags={insights?.red_flags_structured ?? []}
-            valuationVerdict={valuation.verdict}
-          />
-        ) : (
-          <AnalysisHero
-            score={quality.yieldiq_score}
-            grade={quality.grade}
-            confidence={valuation.confidence_score}
-            verdict={valuation.verdict}
-            fairValue={valuation.fair_value}
-            currentPrice={valuation.current_price}
-            marginOfSafety={valuation.margin_of_safety}
-            moat={quality.moat}
-            currency={company.currency}
-            thesis={data.ai_summary}
-            dataLimited={dataLimited}
-            ticker={ticker}
-          />
-        )}
+            Prism endpoint is unreachable so users still see something.
+
+            FV-clamp consistency fix (NOIDATOLL-class bug, 2026-04-27): when
+            the backend router clamped fair_value to a plausible bound
+            (FV/PX outside [0.1, 3.0] OR |MoS| ≥ 95% — see
+            backend/routers/analysis.py FV bound-clamp block), it overwrites
+            valuation.fair_value / margin_of_safety with the clamped numbers
+            while leaving scenarios.base.iv / mos_pct untouched. The
+            ScenarioGrid, AI summary, and AnalyticalNotes panel then all
+            reference the unclamped base case (₹7.36 / +95.2% on NOIDATOLL),
+            but the headline FAIR VALUE card showed the clamped derivative
+            (₹11.31 / +200%). Three contradictory FVs on one screen.
+
+            Resolution: when the clamp marker is present in data_issues
+            (single source of truth — emitted by the same code path that
+            does the clamp), promote the base-case scenario's iv/mos_pct
+            to the headline so all four surfaces agree. The "Analytical
+            notes" caution chip already explains *why* the headline differs
+            from any naive (FV − P) / P arithmetic, so users aren't left
+            with an unexplained jump. */}
+        {(() => {
+          const fvClamped = (data.data_issues ?? []).some((s) =>
+            typeof s === "string" && s.includes("Fair value clamped"),
+          )
+          const baseScenario = data.scenarios?.base
+          const headlineFairValue =
+            fvClamped && baseScenario && baseScenario.iv > 0
+              ? baseScenario.iv
+              : valuation.fair_value
+          const headlineMos =
+            fvClamped && baseScenario && Number.isFinite(baseScenario.mos_pct)
+              ? baseScenario.mos_pct
+              : valuation.margin_of_safety
+
+          return prismResolved ? (
+            <EditorialHero
+              data={prismResolved}
+              fairValue={headlineFairValue}
+              currentPrice={valuation.current_price}
+              marginOfSafety={headlineMos}
+              moat={quality.moat}
+              currency={company.currency}
+              score100={quality.yieldiq_score}
+              grade={quality.grade}
+              sectorRank={null}
+              trend12m={prismResolved.score_history_12m ?? []}
+              marketCapCr={marketCapCr}
+              dataLimited={dataLimited}
+              redFlags={insights?.red_flags_structured ?? []}
+              valuationVerdict={valuation.verdict}
+            />
+          ) : (
+            <AnalysisHero
+              score={quality.yieldiq_score}
+              grade={quality.grade}
+              confidence={valuation.confidence_score}
+              verdict={valuation.verdict}
+              fairValue={headlineFairValue}
+              currentPrice={valuation.current_price}
+              marginOfSafety={headlineMos}
+              moat={quality.moat}
+              currency={company.currency}
+              thesis={data.ai_summary}
+              dataLimited={dataLimited}
+              ticker={ticker}
+            />
+          )
+        })()}
 
         {/* Analytical notes — backend-emitted contextual disclaimers
             (premium brand, conglomerate, regulated utility, etc.). Sits
