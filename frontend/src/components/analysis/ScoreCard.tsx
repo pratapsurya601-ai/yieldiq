@@ -36,6 +36,48 @@ interface ScoreCardProps {
   refractionIndex: number
   /** Market cap in crores (INR). */
   marketCapCr?: number | null
+  /**
+   * fix/data-quality-gate (2026-04-27): backend-authored structured
+   * red flags. Used purely as a presentation-layer cap on the grade
+   * pill — when financial-distress signals are present the displayed
+   * grade is clamped to "B" so the hero cannot show "Grade A" while
+   * RedFlagInsights below lists "Consecutive Losses" / declining
+   * revenue / debt spike / negative equity. Underlying score100 is
+   * untouched; this is a label-only correction so the page stops
+   * lying about itself while the score formula is retuned.
+   */
+  redFlags?: Array<{ flag: string; severity?: string }>
+}
+
+// Flags that are unambiguous financial-distress signals. Any one of
+// them present in the structured red-flag list is sufficient to clamp
+// the displayed grade. Ids mirror the canonical `flag=` strings emitted
+// by `backend/services/analysis/utils.py::_add_flags` —
+//   loss_making        → "Consecutive Losses" (≥2y net losses)
+//   negative_equity    → liabilities exceed assets (going-concern proxy)
+//   declining_revenue  → revenue down 3 consecutive years
+//   high_debt          → debt spike / over-leveraged balance sheet
+const DISTRESS_FLAGS: ReadonlySet<string> = new Set([
+  "loss_making",
+  "negative_equity",
+  "declining_revenue",
+  "high_debt",
+])
+
+function hasDistressFlag(
+  flags: ReadonlyArray<{ flag: string; severity?: string }> | undefined,
+): boolean {
+  if (!flags || flags.length === 0) return false
+  return flags.some(f => DISTRESS_FLAGS.has(f.flag))
+}
+
+/** Presentation-layer grade cap. Clamps "A" / "A+" / "A-" → "B" when
+ *  any financial-distress flag is present. Never raises a grade. */
+function capGrade(grade: string, distress: boolean): string {
+  if (!distress) return grade
+  const g = (grade || "").toUpperCase()
+  if (g.startsWith("A")) return "B"
+  return grade
 }
 
 function gradeGradient(grade: string): string {
@@ -106,10 +148,17 @@ export default function ScoreCard({
   sectorRank,
   refractionIndex,
   marketCapCr,
+  redFlags,
 }: ScoreCardProps) {
   const rankPct = sectorRank
     ? Math.max(0, Math.min(1, 1 - (sectorRank.rank - 1) / Math.max(1, sectorRank.total - 1)))
     : 0
+
+  const distress = hasDistressFlag(redFlags)
+  const displayGrade = capGrade(grade, distress)
+  const gradeAriaLabel = distress && displayGrade !== grade
+    ? `Grade ${displayGrade} (capped from ${grade} due to financial-distress flags)`
+    : `Grade ${displayGrade}`
 
   return (
     <aside
@@ -137,10 +186,15 @@ export default function ScoreCard({
         <MetricTooltip metricKey="grade">
           <span
             className="inline-flex items-center justify-center min-w-[42px] h-[28px] rounded-md px-2 text-sm font-bold text-white tracking-wide"
-            style={{ background: gradeGradient(grade) }}
-            aria-label={`Grade ${grade}`}
+            style={{ background: gradeGradient(displayGrade) }}
+            aria-label={gradeAriaLabel}
+            title={
+              distress && displayGrade !== grade
+                ? `Capped from ${grade} — financial-distress flags present`
+                : undefined
+            }
           >
-            {grade || "—"}
+            {displayGrade || "—"}
           </span>
         </MetricTooltip>
       </div>

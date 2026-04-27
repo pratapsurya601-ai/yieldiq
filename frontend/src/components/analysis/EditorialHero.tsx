@@ -320,6 +320,7 @@ export default function EditorialHero({
             sectorRank={sectorRank ?? null}
             refractionIndex={data.refraction_index}
             marketCapCr={marketCapCr ?? null}
+            redFlags={redFlags}
           />
         </div>
       </div>
