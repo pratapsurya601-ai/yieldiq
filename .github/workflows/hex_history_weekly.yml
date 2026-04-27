@@ -79,24 +79,27 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install minimal deps
+      - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          # Minimal: SQLAlchemy + psycopg for Aiven/Neon PG. yfinance/pandas
-          # not required for historical backfill (only point-in-time
-          # financials + stored fair_value).
-          # psycopg2-binary added because backfill_hex_history.py imports
-          # `psycopg2` directly via data_pipeline.db; without it the
-          # pure-psycopg3 install above raises ModuleNotFoundError.
-          # pydantic + fastapi added 2026-04-25 — PR #95's _seed_one_from_cache
-          # now delegates to backend.services.analysis.hex_axes which transitively
-          # imports the Pydantic response models. Without these, every seed call
-          # logs "No module named 'pydantic'" and returns 0 rows. Caught by the
-          # 24931140894 backfill run — 50/50 tickers errored on import.
-          # numpy/pandas required because compute_hex pulls in services that
-          # do trivial dataframe ops on cached metrics.
+          # The "minimal deps" approach was a losing battle. The seeder's
+          # import chain (backfill_hex_history → hex_history_service →
+          # hex_service → analysis/__init__ → analysis/service →
+          # data/collector) transitively pulls in requests, yfinance,
+          # numpy, pandas, etc. before any --seed-from-cache flag is
+          # even checked. Five deploys (24928636557, 24931140894,
+          # 24931374708, 24964004770, 24979951050) wasted on whack-a-mole
+          # ModuleNotFoundError fixes (streamlit → utils.logger → requests
+          # → yfinance → ...).
+          #
+          # Pragmatic fix: install the actual deps the import chain
+          # demands. The slim runner is still much smaller than full
+          # backend (no streamlit, no plotly, no scikit-learn) — just
+          # enough to let the pure compute_axes_from_payload path
+          # actually run.
           pip install "sqlalchemy>=2.0" "psycopg[binary]>=3.1" psycopg2-binary python-dateutil \
-                      "pydantic>=2.0" "fastapi>=0.100" numpy pandas
+                      "pydantic>=2.0" "fastapi>=0.100" numpy pandas \
+                      requests yfinance
 
       - name: Pre-flight row counts
         # Instant visibility into the chosen DB. If these numbers don't
