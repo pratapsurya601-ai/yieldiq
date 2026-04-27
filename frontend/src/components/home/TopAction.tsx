@@ -5,7 +5,9 @@ import { useQuery } from "@tanstack/react-query"
 import { getHoldingsLive, getWatchlist } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
 import { ArrowRight } from "lucide-react"
-import PreloadTicker from "@/components/PreloadTicker"
+// PreloadTicker removed 2026-04-27: speculative preload of
+// api.yieldiq.in/api/v1/prism/<ticker> (e.g. TITAN.NS) showed up as an
+// unused preload in DevTools because most users do not click the CTA.
 
 // Picks the single most important "your next action" card for the logged-in
 // user. Priority:
@@ -49,36 +51,28 @@ export default function TopAction() {
         ? `now trades ${Math.abs(mos).toFixed(0)}% above fair value — check whether to trim.`
         : `has drifted ${mos >= 0 ? mos.toFixed(0) : Math.abs(mos).toFixed(0)}% from fair value.`
     return (
-      <>
-        {/* Preload the prism response so clicking the CTA feels instant.
-            One preload per page — this is the fold-level card. */}
-        <PreloadTicker ticker={topHolding.display_ticker} />
-        <ActionCard
-          label="Your top action"
-          title={`Review ${topHolding.display_ticker}`}
-          body={`${topHolding.company_name} ${reason}`}
-          ctaLabel={`Open ${topHolding.display_ticker}`}
-          href={`/analysis/${topHolding.display_ticker}`}
-          footnote="Model estimate. Not investment advice."
-        />
-      </>
+      <ActionCard
+        label="Your top action"
+        title={`Review ${topHolding.display_ticker}`}
+        body={`${topHolding.company_name} ${reason}`}
+        ctaLabel={`Open ${topHolding.display_ticker}`}
+        href={`/analysis/${topHolding.display_ticker}`}
+        footnote="Model estimate. Not investment advice."
+      />
     )
   }
 
   const firstWatch = watchlist && watchlist.length > 0 ? watchlist[0] : null
   if (firstWatch) {
     return (
-      <>
-        <PreloadTicker ticker={firstWatch.ticker} />
-        <ActionCard
-          label="Your top action"
-          title={`Check in on ${firstWatch.ticker}`}
-          body={`You added ${firstWatch.company_name} to your watchlist. See where it stands today.`}
-          ctaLabel={`Open ${firstWatch.ticker}`}
-          href={`/analysis/${firstWatch.ticker}`}
-          footnote="Model estimate. Not investment advice."
-        />
-      </>
+      <ActionCard
+        label="Your top action"
+        title={`Check in on ${firstWatch.ticker}`}
+        body={`You added ${firstWatch.company_name} to your watchlist. See where it stands today.`}
+        ctaLabel={`Open ${firstWatch.ticker}`}
+        href={`/analysis/${firstWatch.ticker}`}
+        footnote="Model estimate. Not investment advice."
+      />
     )
   }
 

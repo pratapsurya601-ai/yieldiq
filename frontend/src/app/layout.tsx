@@ -55,7 +55,8 @@ const fontEditorial = Fraunces({
 
 // ── Analytics IDs (set in Vercel env vars for production) ──
 const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID || "";
-const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_ID || "";
+// TODO: re-enable once Clarity tag ID is regenerated
+// const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_ID || "";
 
 // Inline script string: reads the user's saved theme preference from
 // localStorage BEFORE React hydrates so we avoid a light-to-dark
@@ -110,10 +111,11 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
+  // Accessibility: do NOT set maximumScale or userScalable=false — that
+  // blocks pinch-to-zoom and trips a Lighthouse a11y audit violation.
+  // Keep the viewport minimal: device-width + initial-scale=1.
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
   themeColor: "#2563EB",
 };
 
@@ -154,6 +156,12 @@ export default function RootLayout({
         )}
 
         {/* Microsoft Clarity — heatmaps and session recordings */}
+        {/* TODO: re-enable once Clarity tag ID is regenerated */}
+        {/* Disabled 2026-04-27: tag returned HTTP 400 on every page load
+            (DevTools audit on yieldiq.in). Re-enable by uncommenting once
+            a fresh project is provisioned and NEXT_PUBLIC_CLARITY_ID is
+            updated in Vercel env vars. */}
+        {/*
         {CLARITY_ID && (
           <Script id="clarity-script" strategy="afterInteractive">
             {`
@@ -165,6 +173,7 @@ export default function RootLayout({
             `}
           </Script>
         )}
+        */}
       </head>
       <body className="min-h-full flex flex-col bg-bg text-body font-sans">
         <BetaBanner />
