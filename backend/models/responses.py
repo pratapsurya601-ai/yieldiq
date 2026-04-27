@@ -81,6 +81,20 @@ class ValuationOutput(BaseModel):
     # <FreshnessStamp prefix="Delayed" /> — never "Live" (SEBI).
     current_price_as_of: Optional[str] = None
 
+    # ── Peer-multiple sanity gate (CACHE_VERSION 65, 2026-04-28) ──
+    # When the DCF FV runs >1.5× peer-median P/E-implied FV, it is
+    # clamped down. Frontend should disclose the clamp via this field
+    # so users see "FV adjusted to align with peer multiples" rather
+    # than treating a clamped FV as a clean DCF signal.
+    #   - "dcf"               raw DCF FV; either no clamp triggered or
+    #                          DCF was already inside peer envelope.
+    #   - "peer_capped"       FV was lowered to 1.5× peer-median FV.
+    #   - "dcf_no_peer_data"  no peer baseline (loss-maker, sparse
+    #                          industry, or missing classification);
+    #                          raw DCF passes through unchanged.
+    fair_value_source: Literal["dcf", "peer_capped", "dcf_no_peer_data"] = "dcf"
+    peer_cap_details: Optional[dict] = None
+
     # ── JSON precision lock (DRREDDY drift fix, 2026-04-25) ────
     # Round monetary / scenario floats at serialization so the authed
     # endpoint (returns this Pydantic model directly) matches the
