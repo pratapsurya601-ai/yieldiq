@@ -162,32 +162,34 @@ def _seed_one_from_cache(ticker: str) -> int:
         from sqlalchemy import text  # type: ignore
         from data_pipeline.db import Session  # type: ignore
         from datetime import date
-
-        # IMPORTANT: load hex_axes.py BY FILE PATH, not via the package
-        # name `backend.services.analysis.hex_axes`. The package import
-        # would trigger `backend/services/analysis/__init__.py` which
-        # eagerly imports the full backend stack (db, narrative,
-        # service → data/collector → requests / yfinance / utils.*).
-        # That's how the entire whack-a-mole started — the slim runner
-        # never had those deps.
-        #
-        # hex_axes.py itself only imports stdlib (dataclass, typing),
-        # so loading it via importlib.util gives us the pure module
-        # surface without firing the package init.
-        import importlib.util as _ilu
         from pathlib import Path as _Path
 
-        _hex_axes_path = (
-            _Path(__file__).resolve().parents[1]
-            / "services" / "analysis" / "hex_axes.py"
+        # IMPORTANT: do NOT do `from backend.services.analysis.hex_axes
+        # import …`. That triggers `backend/services/analysis/__init__.py`
+        # which eagerly imports the full backend stack (db, narrative,
+        # service → data/collector → requests / yfinance / utils.*) —
+        # the entire reason this seeder kept failing in the slim runner.
+        #
+        # hex_axes.py itself only imports stdlib (dataclass, typing).
+        # We add its parent directory to sys.path and import it as a
+        # top-level module `hex_axes` — Python finds the .py file
+        # without ever entering the `analysis` package machinery.
+        _analysis_dir = str(
+            _Path(__file__).resolve().parents[1] / "services" / "analysis"
         )
-        _spec = _ilu.spec_from_file_location("_yiq_hex_axes_pure", _hex_axes_path)
-        _hex_axes = _ilu.module_from_spec(_spec)
-        _spec.loader.exec_module(_hex_axes)
-        compute_axes_from_payload = _hex_axes.compute_axes_from_payload
-        AXIS_WEIGHTS = _hex_axes.AXIS_WEIGHTS
+        if _analysis_dir not in sys.path:
+            sys.path.insert(0, _analysis_dir)
+        import hex_axes as _hex_axes_pure  # type: ignore
+        compute_axes_from_payload = _hex_axes_pure.compute_axes_from_payload
+        AXIS_WEIGHTS = _hex_axes_pure.AXIS_WEIGHTS
     except Exception as exc:
-        log.warning("seed: import failed for %s: %s", ticker, exc)
+        # Surface the exception type to make future debugging easier
+        # (this function used to silently log just str(exc) which
+        # masked one round of breakage as 'NoneType' surface error).
+        log.warning(
+            "seed: import failed for %s: %s: %s",
+            ticker, type(exc).__name__, exc,
+        )
         return 0
     sess = Session()
     try:
