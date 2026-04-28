@@ -22,7 +22,13 @@ import canary_diff as cd  # noqa: E402
 
 
 def _clean_fields(**overrides):
-    # MoS is in PERCENT (matches API contract), e.g. 20.0 = +20%.
+    # API contract:
+    #   roe / roce / mos -> PERCENT (e.g. 25.0 = 25%)
+    #   wacc / debt_to_equity / revenue_cagr_3y -> DECIMAL (e.g. 0.11)
+    # Gate 4 normalises percent fields via _to_decimal() before comparing
+    # to canary bounds (which are decimal). Gate 5 uses the raw API
+    # values. Fixtures must therefore reflect the API shape, not the
+    # bounds shape.
     base = {
         "cmp": 1000.0,
         "fair_value": 1200.0,
@@ -30,8 +36,8 @@ def _clean_fields(**overrides):
         "bear_case": 900.0,
         "base_case": 1200.0,
         "bull_case": 1500.0,
-        "roe": 0.25,
-        "roce": 0.30,
+        "roe": 25.0,    # percent — equiv decimal 0.25
+        "roce": 30.0,   # percent — equiv decimal 0.30
         "wacc": 0.11,
         "ev_ebitda": 18.0,
         "revenue_cagr_3y": 0.10,
@@ -112,22 +118,55 @@ def test_gate3_fails_when_bull_collapses_to_base():
 
 
 def test_gate4_passes_when_inside_bounds():
-    f = _clean_fields(roe=0.25, debt_to_equity=0.05, wacc=0.11,
+    # roe=25.0 (percent) -> 0.25 decimal — inside HCLTECH bounds [0.20, 0.30]
+    f = _clean_fields(roe=25.0, debt_to_equity=0.05, wacc=0.11,
                       market_cap_cr=420000, revenue_cagr_3y=0.10)
     assert cd.gate4_canary_bounds("HCLTECH", f, HCLTECH_BOUNDS) == []
 
 
 def test_gate4_fails_when_roe_outside_bounds():
-    # HCLTECH roe expected in [0.20, 0.30]; inject 0.02
-    f = _clean_fields(roe=0.02)
+    # HCLTECH roe expected in [0.20, 0.30] decimal. Inject percent=2.0
+    # (decimal 0.02) — well below the floor.
+    f = _clean_fields(roe=2.0)
     violations = cd.gate4_canary_bounds("HCLTECH", f, HCLTECH_BOUNDS)
-    assert any("roe" in v and "0.02" in v for v in violations)
+    assert any("roe" in v and "2.0" in v for v in violations)
 
 
 def test_gate4_skips_null_bounds():
     bounds = {"roe": None, "wacc": [0.09, 0.13]}
     f = _clean_fields(roe=99.0, wacc=0.11)  # roe is wild but bound is null
     assert cd.gate4_canary_bounds("HCLTECH", f, bounds) == []
+
+
+def test_gate4_catches_percent_vs_decimal_unit_bug():
+    """Regression guard for the silent-pass bug fixed in fix(canary): gate 4.
+
+    Before the fix, gate 4 compared API percent values (e.g. roe=350.0
+    for 350%) directly against decimal bounds (e.g. [0.20, 0.30]) — a
+    350% ROE compared as ``0.20 <= 350.0 <= 0.30`` simply failed silently
+    in the wrong direction depending on the bounds, OR (more commonly,
+    when bounds are sub-1.0 decimal) the comparison `350 > 0.30` did
+    fire — but a value like roe=0.45 (legitimately 0.45%, broken read)
+    would slip through ``0.20 <= 0.45 <= 0.30``? No — it'd fail too.
+    The truly silent path was sub-percent reads vs upper-bounded
+    decimals: e.g. roe=0.45 (raw 0.45 from a buggy double-divide)
+    against [0.20, 0.30] -> still flagged. The actual silent failure was
+    inverse: e.g. wacc was already decimal, so a 350% ROE returned as
+    `350.0` correctly fired — but a 35% ROE returned as `35.0` against
+    [0.20, 0.30] looked like 35.0 > 0.30 -> FAIL with a confusing
+    message, masking that the gate was right-for-the-wrong-reason. With
+    the fix, 35.0 percent correctly normalises to 0.35 -> still fails
+    [0.20, 0.30] but with a clear unit-aware message; an out-of-band
+    350.0 percent normalises to 3.5 -> still fails, also clearly.
+    """
+    bounds = {"roe": [0.20, 0.30]}
+    # roe = 350 (percent) -> decimal 3.5, way out of band; should fail
+    # AND the message should mention the converted decimal so the next
+    # debugger sees the units in play.
+    f = _clean_fields(roe=350.0)
+    violations = cd.gate4_canary_bounds("HCLTECH", f, bounds)
+    assert violations, "gate 4 must flag a 350% ROE as out-of-bound"
+    assert any("decimal=" in v or "3.5" in v for v in violations)
 
 
 # ---------------------------------------------------------------------------
