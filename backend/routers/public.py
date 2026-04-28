@@ -337,6 +337,18 @@ def _extract_analysis_summary(result) -> dict:
         "revenue_cagr_5y": getattr(q, "revenue_cagr_5y", None),
         "ev_ebitda": (getattr(result, "insights", None) and getattr(result.insights, "ev_ebitda", None)),
         "market_cap": c.market_cap,
+        # ── Peer-multiple sanity ceiling disclosure ───────────────
+        # Mirror the authed endpoint surface (PR #136) so the SEO
+        # frontend can render the same "FV capped at 1.5× peer median"
+        # explanatory tooltip without re-deriving anything. Always emit
+        # `fair_value_source` (defaults "dcf"); only emit
+        # `peer_cap_details` when the cap actually fired.
+        "fair_value_source": getattr(v, "fair_value_source", "dcf"),
+        "peer_cap_details": (
+            v.peer_cap_details.model_dump()
+            if getattr(v, "peer_cap_details", None) is not None
+            else None
+        ),
         "ai_summary_snippet": (
             result.ai_summary[:200] + "..." if result.ai_summary and len(result.ai_summary) > 200
             else result.ai_summary
