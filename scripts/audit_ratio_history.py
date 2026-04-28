@@ -302,6 +302,19 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Also audit canary_stocks_50 + canary_outliers_7 universe.",
     )
     p.add_argument(
+        "--all-active", action="store_true",
+        help=(
+            "Audit every active ticker (stocks WHERE is_active=TRUE). "
+            "Used by the weekly maintenance workflow to sweep the entire "
+            "universe; backward-compatible — the hardcoded outlier list "
+            "is the default when this flag is not passed."
+        ),
+    )
+    p.add_argument(
+        "--limit", type=int, default=0,
+        help="Limit the resolved ticker list to the first N entries (0=no limit).",
+    )
+    p.add_argument(
         "--out", default="ratio_history_audit.csv",
         help="CSV output path (default: ratio_history_audit.csv).",
     )
@@ -312,13 +325,47 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
+def fetch_active_tickers(dsn: str) -> list[str]:
+    """Return every ticker from ``stocks`` where ``is_active = TRUE``.
+
+    Lazy-imports psycopg2 so unit tests that monkeypatch this function
+    can run without a Postgres driver in the venv.
+    """
+    try:
+        import psycopg2  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise SystemExit(
+            "ERROR: psycopg2 not installed. `pip install psycopg2-binary`."
+        ) from exc
+
+    sql = "SELECT ticker FROM stocks WHERE is_active = TRUE ORDER BY ticker"
+    with psycopg2.connect(dsn) as conn:  # type: ignore[attr-defined]
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            rows = cur.fetchall()
+    return [str(r[0]).strip().upper() for r in rows if r and r[0]]
+
+
 def _resolve_tickers(args: argparse.Namespace, repo_root: Path) -> list[str]:
     if args.tickers:
         explicit = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
-        return explicit
-    out = list(KNOWN_OUTLIERS)
-    if args.include_canary:
-        out.extend(_load_canary_tickers(repo_root))
+        return _apply_limit(explicit, getattr(args, "limit", 0))
+    out: list[str] = []
+    if getattr(args, "all_active", False):
+        # Pulled from the live DB; fetch_active_tickers needs DATABASE_URL.
+        # Tests that don't want DB access either monkeypatch
+        # fetch_active_tickers or pass --tickers to short-circuit.
+        try:
+            dsn = _resolve_dsn()
+        except SystemExit:
+            if getattr(args, "dry_db", False):
+                return _apply_limit(list(KNOWN_OUTLIERS), getattr(args, "limit", 0))
+            raise
+        out.extend(fetch_active_tickers(dsn))
+    else:
+        out = list(KNOWN_OUTLIERS)
+        if args.include_canary:
+            out.extend(_load_canary_tickers(repo_root))
     # de-dupe but preserve insertion order
     seen: set[str] = set()
     deduped: list[str] = []
@@ -326,7 +373,13 @@ def _resolve_tickers(args: argparse.Namespace, repo_root: Path) -> list[str]:
         if t not in seen:
             deduped.append(t)
             seen.add(t)
-    return deduped
+    return _apply_limit(deduped, getattr(args, "limit", 0))
+
+
+def _apply_limit(tickers: list[str], limit: int) -> list[str]:
+    if limit and limit > 0:
+        return tickers[:limit]
+    return tickers
 
 
 def main(argv: list[str] | None = None) -> int:
