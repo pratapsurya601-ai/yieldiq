@@ -2904,54 +2904,128 @@ async def public_retrospective(
     Returns the summary payload defined in
     backend.services.retrospective_service.summarize_for_period.
 
-    SCAFFOLDING: returns sample fixture data so the frontend layout
-    can be reviewed end-to-end. Phase 2 wires this to the
-    model_predictions_history + prediction_outcomes tables.
+    Wiring (Phase 2):
+      • Resolve `period` label → (start_date, end_date).
+      • Call summarize_for_period(...) — DB-backed when
+        model_predictions_history has rows in the window.
+      • is_sample=False when n_predictions > 0; True (with sample
+        payload) when the table is empty (e.g. before backfill runs).
     """
-    # ── Sample payload — shape MUST match summarize_for_period ──
-    # When Phase 2 lands, replace this block with:
-    #   from backend.services.retrospective_service import summarize_for_period
-    #   start, end = _resolve_period_label(period)
-    #   payload = summarize_for_period(start, end, window=window)
-    sample = {
-        "period": {
-            "start": "2025-04-01",
-            "end":   "2025-06-30",
-            "label": period,
-        },
-        "window_days": window,
-        "mos_threshold": 30.0,
-        "n_predictions": 47,
-        "mean_return":   12.4,
-        "median_return": 9.8,
-        "hit_rate":         0.638,
-        "outperform_rate":  0.553,
-        "benchmark": {
-            "ticker": "NIFTY500.NS",
-            "return_pct": 6.2,
-        },
-        "winners": [
-            {"ticker": "POWERGRID.NS",   "return_pct": 38.2},
-            {"ticker": "BHARTIARTL.NS",  "return_pct": 31.7},
-            {"ticker": "SUNPHARMA.NS",   "return_pct": 27.4},
-            {"ticker": "ITC.NS",         "return_pct": 24.1},
-            {"ticker": "HDFCBANK.NS",    "return_pct": 21.8},
-        ],
-        "losers": [
-            {"ticker": "ZOMATO.NS",      "return_pct": -18.3},
-            {"ticker": "PAYTM.NS",       "return_pct": -14.2},
-            {"ticker": "VEDL.NS",        "return_pct":  -9.5},
-            {"ticker": "ADANIENT.NS",    "return_pct":  -6.8},
-            {"ticker": "TATASTEEL.NS",   "return_pct":  -3.1},
-        ],
-        "is_sample": True,   # Phase 2 will remove this flag.
-        "disclaimer": (
-            "Past results are not indicative of future returns. Sample "
-            "size and selection bias caveats apply. See methodology page "
-            "for full caveats. SEBI: descriptive only, not advisory."
-        ),
-    }
-    return _cached_json(sample, s_maxage=3600, swr=21600)
+    from datetime import date as _date, timedelta as _td
+    from backend.services.retrospective_service import summarize_for_period
+
+    # ── Period resolution: accept "QnFYyy" or "last90d" ─────────
+    start_d, end_d = _resolve_period_label(period)
+
+    disclaimer = (
+        "Past results are not indicative of future returns. Sample "
+        "size, survivorship-bias and look-ahead-bias caveats apply. "
+        "See /methodology/performance for the full methodology. "
+        "SEBI: descriptive only, not advisory."
+    )
+
+    try:
+        payload = summarize_for_period(
+            start_d, end_d, window=window,
+        )
+    except Exception as exc:
+        logger.warning("summarize_for_period failed: %s", exc)
+        payload = None
+
+    if payload is None or payload.get("n_predictions", 0) == 0:
+        # No real data yet — fall back to sample payload for layout
+        # preview, with is_sample=True so the frontend banner shows.
+        sample = {
+            "period": {
+                "start": start_d.isoformat(),
+                "end":   end_d.isoformat(),
+                "label": period,
+            },
+            "window_days": window,
+            "mos_threshold": 30.0,
+            "n_predictions": 47,
+            "mean_return":   12.4,
+            "median_return": 9.8,
+            "hit_rate":         0.638,
+            "outperform_rate":  0.553,
+            "benchmark": {"ticker": "NIFTY500.NS", "return_pct": 6.2},
+            "winners": [
+                {"ticker": "POWERGRID.NS",  "return_pct": 38.2},
+                {"ticker": "BHARTIARTL.NS", "return_pct": 31.7},
+                {"ticker": "SUNPHARMA.NS",  "return_pct": 27.4},
+                {"ticker": "ITC.NS",        "return_pct": 24.1},
+                {"ticker": "HDFCBANK.NS",   "return_pct": 21.8},
+            ],
+            "losers": [
+                {"ticker": "ZOMATO.NS",    "return_pct": -18.3},
+                {"ticker": "PAYTM.NS",     "return_pct": -14.2},
+                {"ticker": "VEDL.NS",      "return_pct":  -9.5},
+                {"ticker": "ADANIENT.NS",  "return_pct":  -6.8},
+                {"ticker": "TATASTEEL.NS", "return_pct":  -3.1},
+            ],
+            "is_sample": True,
+            "last_updated": None,
+            "disclaimer": disclaimer,
+        }
+        return _cached_json(sample, s_maxage=3600, swr=21600)
+
+    # Real data path
+    payload["is_sample"] = False
+    payload["disclaimer"] = disclaimer
+    # last_updated = max recorded_at in the window (best-effort)
+    try:
+        from sqlalchemy import text as _text
+        from backend.services.analysis.db import _get_pipeline_session
+        _s = _get_pipeline_session()
+        if _s is not None:
+            try:
+                row = _s.execute(
+                    _text(
+                        "SELECT MAX(recorded_at) FROM model_predictions_history "
+                        "WHERE prediction_date BETWEEN :a AND :b"
+                    ),
+                    {"a": start_d, "b": end_d},
+                ).fetchone()
+                payload["last_updated"] = (
+                    row[0].isoformat() if row and row[0] else None
+                )
+            finally:
+                _s.close()
+    except Exception:
+        payload["last_updated"] = None
+
+    return _cached_json(payload, s_maxage=3600, swr=21600)
+
+
+def _resolve_period_label(label: str):
+    """Map 'Q1FY26' / 'Q4FY25' / 'last30d' / 'last90d' to (start, end) dates."""
+    from datetime import date as _date, timedelta as _td
+    label = (label or "").strip()
+    if label.lower().startswith("last") and label.lower().endswith("d"):
+        try:
+            n = int(label[4:-1])
+            today = _date.today()
+            return today - _td(days=n), today
+        except Exception:
+            pass
+    # QnFYyy (Indian fiscal year, Apr-Mar; FY label = end calendar year mod 100)
+    import re
+    m = re.match(r"Q([1-4])FY(\d{2})$", label.upper())
+    if m:
+        q = int(m.group(1))
+        fy_end_yy = int(m.group(2))
+        fy_end_year = 2000 + fy_end_yy
+        # Q1: Apr-Jun of (fy_end_year - 1); Q4: Jan-Mar of fy_end_year
+        if q == 1:
+            return _date(fy_end_year - 1, 4, 1), _date(fy_end_year - 1, 6, 30)
+        if q == 2:
+            return _date(fy_end_year - 1, 7, 1), _date(fy_end_year - 1, 9, 30)
+        if q == 3:
+            return _date(fy_end_year - 1, 10, 1), _date(fy_end_year - 1, 12, 31)
+        return _date(fy_end_year, 1, 1), _date(fy_end_year, 3, 31)
+    # Default fallback: trailing 90 days
+    today = _date.today()
+    return today - _td(days=90), today
 
 
 
