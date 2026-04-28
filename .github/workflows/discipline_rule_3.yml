@@ -1,0 +1,191 @@
+name: Discipline Rule #3 — Nightly Canary Streak Tracker
+
+# Enforces CLAUDE.md rule #3:
+#   "Never declare a bug 'fixed' based on a single Chrome MCP test.
+#    The fix is fixed when canary-diff passes 5/5 gates on all 50 stocks
+#    AND 7 consecutive nightly canary runs are clean."
+#
+# Runs canary-diff against production every night at 02:00 IST
+# (20:30 UTC of the previous day), appends the result to an
+# append-only history log, computes the consecutive-clean streak,
+# and updates the README badge.
+
+on:
+  schedule:
+    # 02:00 IST == 20:30 UTC the previous day. Runs after the
+    # market-data backfill workflows, which conclude by ~20:00 UTC.
+    - cron: '30 20 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write   # to commit canary_history.jsonl + README badge update
+
+jobs:
+  nightly-canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      streak: ${{ steps.streak.outputs.streak }}
+      green_streak_reached: ${{ steps.streak.outputs.green_streak_reached }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Use a PAT-equivalent token so the streak commit can
+          # trigger downstream branch protection re-evaluation. The
+          # default GITHUB_TOKEN is fine for the contents:write scope
+          # we need.
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run canary-diff against production
+        id: canary
+        env:
+          CANARY_API_BASE: https://api.yieldiq.in
+          CANARY_AUTH_TOKEN: ${{ secrets.CANARY_AUTH_TOKEN }}
+        run: |
+          set +e
+          python scripts/canary_diff.py --quiet
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          set -e
+
+      - name: Append result to canary_history.jsonl
+        id: append
+        env:
+          CANARY_EXIT: ${{ steps.canary.outputs.exit_code }}
+        run: |
+          mkdir -p docs
+          python3 - <<'PY'
+          import json, os, datetime, pathlib, subprocess
+          exit_code = int(os.environ.get("CANARY_EXIT", "1"))
+          report_path = pathlib.Path("canary_report.json")
+          gate_violations = 0
+          fetch_failures = 0
+          if report_path.is_file():
+              try:
+                  data = json.loads(report_path.read_text())
+                  # canary_diff.py writes a summary block; tolerate
+                  # different shapes by counting common signals.
+                  gate_violations = int(data.get("gate_violations",
+                      data.get("violations", 0)))
+                  fetch_failures = int(data.get("fetch_failures",
+                      data.get("errors", 0)))
+              except Exception as e:
+                  print(f"WARN: could not parse canary_report.json: {e}")
+                  fetch_failures = 1
+          else:
+              fetch_failures = 1
+
+          entry = {
+              "timestamp": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
+              "commit": os.environ.get("GITHUB_SHA", ""),
+              "run_id": os.environ.get("GITHUB_RUN_ID", ""),
+              "exit_code": exit_code,
+              "gate_violations": gate_violations,
+              "fetch_failures": fetch_failures,
+              "clean": exit_code == 0 and gate_violations == 0 and fetch_failures == 0,
+          }
+          hist = pathlib.Path("docs/canary_history.jsonl")
+          hist.parent.mkdir(exist_ok=True)
+          with hist.open("a", encoding="utf-8") as f:
+              f.write(json.dumps(entry) + "\n")
+          print(json.dumps(entry, indent=2))
+          PY
+
+      - name: Compute consecutive-clean streak
+        id: streak
+        run: |
+          python3 - <<'PY'
+          import json, pathlib, os
+          hist = pathlib.Path("docs/canary_history.jsonl")
+          streak = 0
+          if hist.is_file():
+              for line in reversed(hist.read_text(encoding="utf-8").splitlines()):
+                  line = line.strip()
+                  if not line:
+                      continue
+                  try:
+                      entry = json.loads(line)
+                  except Exception:
+                      break
+                  if entry.get("clean"):
+                      streak += 1
+                  else:
+                      break
+          green = "true" if streak >= 7 else "false"
+          print(f"streak={streak} green_streak_reached={green}")
+          gh_out = os.environ.get("GITHUB_OUTPUT")
+          if gh_out:
+              with open(gh_out, "a") as f:
+                  f.write(f"streak={streak}\n")
+                  f.write(f"green_streak_reached={green}\n")
+          PY
+
+      - name: Update CANARY_STATUS badge in README
+        env:
+          STREAK: ${{ steps.streak.outputs.streak }}
+        run: |
+          python3 - <<'PY'
+          import os, re, pathlib
+          streak = int(os.environ.get("STREAK", "0"))
+          color = "brightgreen" if streak >= 7 else ("orange" if streak >= 1 else "red")
+          # shields.io static badge URL
+          badge_url = (f"https://img.shields.io/badge/canary%20streak-"
+                       f"{streak}%2F7%20nights-{color}")
+          badge_md = (f"![Canary streak]({badge_url}) "
+                      f"<!-- canary-streak-badge -->")
+          readme = pathlib.Path("README.md")
+          text = readme.read_text(encoding="utf-8")
+          marker = "<!-- canary-streak-badge -->"
+          if marker in text:
+              # Replace the existing badge line.
+              text = re.sub(
+                  r'!\[Canary streak\]\([^)]+\)\s*<!--\s*canary-streak-badge\s*-->',
+                  badge_md,
+                  text,
+              )
+          else:
+              # Insert below the H1 title line.
+              lines = text.splitlines()
+              for i, ln in enumerate(lines):
+                  if ln.startswith("# "):
+                      lines.insert(i + 1, "")
+                      lines.insert(i + 2, badge_md)
+                      break
+              text = "\n".join(lines) + ("\n" if not text.endswith("\n") else "")
+          readme.write_text(text, encoding="utf-8")
+          print(f"Badge updated: streak={streak} color={color}")
+          PY
+
+      - name: Commit history + badge
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/canary_history.jsonl README.md
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "chore(canary): nightly streak update (streak=${{ steps.streak.outputs.streak }})"
+            git push origin HEAD:main
+          fi
+
+      - name: Upload canary report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-canary-report
+          path: |
+            canary_report.json
+            canary_report.md
+          retention-days: 30
+
+      - name: Emit GREEN_STREAK_REACHED summary
+        if: steps.streak.outputs.green_streak_reached == 'true'
+        run: |
+          echo "GREEN_STREAK_REACHED=true" >> "$GITHUB_STEP_SUMMARY"
+          echo "Streak: ${{ steps.streak.outputs.streak }} consecutive clean nights." >> "$GITHUB_STEP_SUMMARY"
