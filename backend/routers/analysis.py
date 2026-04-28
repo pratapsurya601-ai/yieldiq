@@ -1843,9 +1843,12 @@ async def get_reverse_dcf_endpoint(
     # Resolve aliases
     ticker = TICKER_ALIASES.get(ticker, ticker)
 
-    # Cache key includes overrides
+    # Cache key includes overrides. version_keyed=True so a
+    # CACHE_VERSION bump (which by definition changes FV / MoS /
+    # implied-growth math) hard-retires the previous generation;
+    # see cache_service.py.
     _cache_key = f"reverse_dcf:{ticker}:{wacc}:{terminal_g}:{years}"
-    cached = cache.get(_cache_key)
+    cached = cache.get(_cache_key, version_keyed=True)
     if cached:
         return cached
 
@@ -1858,7 +1861,7 @@ async def get_reverse_dcf_endpoint(
         )
         if result.get("error"):
             raise HTTPException(status_code=400, detail=result["error"])
-        cache.set(_cache_key, result, ttl=3600)
+        cache.set(_cache_key, result, ttl=3600, version_keyed=True)
         return result
     except TickerNotFoundError as e:
         raise HTTPException(status_code=404, detail=str(e))
