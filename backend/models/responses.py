@@ -41,6 +41,31 @@ class CompanyInfo(BaseModel):
     employees: Optional[int] = None
 
 
+class PeerCapDetails(BaseModel):
+    """Audit trail for the peer-multiple sanity ceiling.
+
+    Populated only when `ValuationOutput.fair_value_source ==
+    "peer_capped"`. `uncapped_fv` is the raw DCF (or P/B financial)
+    FV the model would have surfaced; `ceiling_fv` is what the
+    frontend displays — equal to 1.5 × `peer_fv`.
+
+    `method` documents which peer multiple drove the ceiling:
+      * "min(pe,ev_ebitda)" — both available, lower-of selected
+      * "pe_only" / "ev_ebitda_only" — only one usable
+      * "pb"                — bank / financial-services path
+    """
+    uncapped_fv: float
+    peer_fv: float
+    ceiling_fv: float
+    method: Literal["min(pe,ev_ebitda)", "pe_only", "ev_ebitda_only", "pb"]
+    n_peers: int
+    median_pe: Optional[float] = None
+    median_ev_ebitda: Optional[float] = None
+    median_pb: Optional[float] = None
+    sector: Optional[str] = None
+    industry: Optional[str] = None
+
+
 class ValuationOutput(BaseModel):
     fair_value: float
     current_price: float
@@ -80,6 +105,17 @@ class ValuationOutput(BaseModel):
     # degraded fallbacks. Frontend renders via
     # <FreshnessStamp prefix="Delayed" /> — never "Live" (SEBI).
     current_price_as_of: Optional[str] = None
+
+    # ── Peer-multiple sanity ceiling (feat/peer-cap, 2026-04-27) ─
+    # When the DCF FV exceeds 1.5× peer-median multiples, the
+    # displayed `fair_value` is capped at 1.5× peer-implied and
+    # `fair_value_source` flips from "dcf" to "peer_capped".
+    # `peer_cap_details` carries the audit trail so the frontend
+    # can render an explanatory tooltip without re-deriving any of
+    # it. Both fields are purely additive — pre-PR clients ignore
+    # unknown fields and continue to render `fair_value` as before.
+    fair_value_source: Literal["dcf", "peer_capped"] = "dcf"
+    peer_cap_details: Optional[PeerCapDetails] = None
 
     # ── JSON precision lock (DRREDDY drift fix, 2026-04-25) ────
     # Round monetary / scenario floats at serialization so the authed
@@ -656,3 +692,54 @@ class DividendHistoryResponse(BaseModel):
     count: int = 0
     total_paid_5y: Optional[float] = None    # sum of `amount` within last 5Y
     dividends: list[DividendEvent] = []
+
+
+# ── Reverse-DCF (public endpoint, additive) ───────────────────
+# This is the NEW response shape backing
+# /api/v1/public/reverse-dcf/{ticker}. It is intentionally distinct
+# from the existing `ReverseDCFResponse` (used by the authed
+# /api/v1/analysis/{ticker}/reverse-dcf path) — that older shape
+# captures growth-only verdicts; this one carries both the
+# implied-growth and implied-margin axes plus the iso-FV curve.
+
+class IsoFvPoint(BaseModel):
+    """One (growth, margin) point on the iso-fair-value curve."""
+    growth: float                       # FCF growth, decimal (0.18 = 18%)
+    margin: float                       # FCF margin, decimal
+
+
+class ReverseDcfInputs(BaseModel):
+    """Snapshot of the exact inputs used to solve the reverse DCF."""
+    current_price: float
+    wacc: float
+    terminal_g: float
+    current_fcf: float
+    current_margin: float
+    current_revenue: float
+    consensus_growth: float
+    total_debt: float = 0.0
+    total_cash: float = 0.0
+    shares: float = 0.0
+    years: int = 10
+
+
+class ReverseDcfResponse(BaseModel):
+    """Public reverse-DCF response — what the market is pricing in.
+
+    Fields:
+      - implied_growth_pct: solve for FCF growth that makes DCF == price
+      - implied_margin_pct: solve for FCF margin at consensus growth
+      - iso_fv_curve: 3 (growth, margin) points along the iso-FV curve
+      - current_market_implied_summary: plain-English narration
+      - sanity_check_lines: optional comparisons vs trailing actuals
+      - converged: True iff both binary searches hit tolerance
+      - inputs: ReverseDcfInputs snapshot
+    """
+    ticker: str
+    implied_growth_pct: float
+    implied_margin_pct: float
+    iso_fv_curve: list[IsoFvPoint] = []
+    current_market_implied_summary: str = ""
+    sanity_check_lines: list[str] = []
+    converged: bool = False
+    inputs: ReverseDcfInputs

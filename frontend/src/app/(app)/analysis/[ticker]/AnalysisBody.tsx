@@ -25,6 +25,7 @@ import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
 import { FormulasProvider } from "@/components/analysis/MetricTooltip"
 import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
+import ReverseDcfPanel from "@/components/analysis/ReverseDcfPanel"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
@@ -32,6 +33,8 @@ import ShareReportCard from "@/components/analysis/ShareReportCard"
 import UnlockCTA from "@/components/payg/UnlockCTA"
 import UnlockBadge from "@/components/payg/UnlockBadge"
 import { usePaygStore } from "@/store/paygStore"
+import SensitivityPanel from "@/components/analysis/SensitivityPanel"
+import { useAuthStore } from "@/store/authStore"
 import {
   formatCurrency,
   formatPct,
@@ -457,6 +460,50 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       : null
   const marketCapBucket = bucketFromMarketCapCr(marketCapCr)
 
+  // Tier gate: paid plans (starter / pro / analyst) get the live
+  // sliders; free tier sees a static upgrade CTA so the value-prop
+  // is visible to non-payers without burning recompute requests.
+  const userTier = useAuthStore((s) => s.tier)
+  const canUseSliders = userTier === "starter" || userTier === "pro" || userTier === "analyst"
+  // Operating margin isn't exposed on the analysis payload yet;
+  // fall back to a sensible mid-cap default so the slider has a
+  // starting point. The user can drag it freely; the backend scales
+  // FCF off whatever current margin it derives from enriched data.
+  const sensitivityBlock =
+    valuation.dcf_reliable && valuation.fair_value > 0 ? (
+      canUseSliders ? (
+        <SensitivityPanel
+          ticker={data.ticker}
+          currency={company.currency}
+          defaultWacc={valuation.wacc > 0 ? valuation.wacc / 100 : 0.12}
+          defaultGrowth={
+            valuation.fcf_growth_rate !== 0
+              ? valuation.fcf_growth_rate / 100
+              : 0.08
+          }
+          defaultMargin={0.15}
+          baseFairValue={valuation.fair_value}
+          baseMosPct={valuation.margin_of_safety}
+        />
+      ) : (
+        <div className="bg-bg rounded-2xl border border-dashed border-border p-5 text-center">
+          <h2 className="text-sm font-semibold text-ink mb-1">
+            Play with the assumptions
+          </h2>
+          <p className="text-xs text-caption mb-4 max-w-md mx-auto">
+            Drag WACC, growth and margin sliders to see how fair value moves
+            with your assumptions. Available on Pro and Analyst plans.
+          </p>
+          <Link
+            href="/account?upgrade=true"
+            className="inline-flex items-center rounded-full px-5 py-2 text-sm font-medium bg-brand text-white hover:opacity-90 transition"
+          >
+            Upgrade to play with assumptions
+          </Link>
+        </div>
+      )
+    ) : null
+
   const scenarioBlock = data.scenarios ? (
     <div className="bg-bg rounded-2xl border border-border p-5">
       <h2 className="text-sm font-semibold text-ink mb-4">Scenario Analysis</h2>
@@ -495,6 +542,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           />
           <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
           {scenarioBlock}
+          <ReverseDcfPanel ticker={ticker} />
           <DividendTracker dividend={insights?.dividend ?? null} currency={company.currency} />
         </div>
       ),
@@ -505,6 +553,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       content: (
         <div className="space-y-5">
           {scenarioBlock}
+          {sensitivityBlock}
           <InsightCards
             quality={quality}
             insights={insights}
@@ -735,6 +784,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               dataLimited={dataLimited}
               redFlags={insights?.red_flags_structured ?? []}
               valuationVerdict={valuation.verdict}
+              confidence={valuation.confidence_score}
             />
           ) : (
             <AnalysisHero

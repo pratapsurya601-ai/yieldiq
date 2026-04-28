@@ -421,10 +421,75 @@ def gate3_dispersion(symbol: str, fields: dict[str, Any]) -> list[str]:
     return out
 
 
+# --- Gate-4 unit reconciliation -------------------------------------------
+#
+# Background: the YieldIQ public + analysis APIs return ratio fields in a
+# MIX of units. ``canary_stocks_50.json`` (see its ``_meta.fields`` block)
+# defines all bounds in DECIMAL form (e.g. roe ∈ [0.30, 0.55] meaning
+# 30% – 55%). Without conversion, the bounds were being compared against
+# the API's percent-formatted values (e.g. roe=45.89 for 45.89%) — every
+# non-null bound passed vacuously, even for absurd values like 350% ROE.
+# This silently disabled the entire gate.
+#
+# API unit reference (verified against backend/services/analysis/db.py
+# line 561 + backend/services/ratios_service.py compute_roce / compute_*):
+#
+#   PERCENT (e.g. 45.89 means 45.89%) — must divide by 100 for gate 4:
+#     - roe                  (db.py:561 "# percent")
+#     - roce                 (ratios_service.compute_roce → roce_pct = ... * 100)
+#     - roa                  (db.py:560 "# percent")
+#     - margin_of_safety/mos (gate2_mos_math docstring confirms percent)
+#
+#   DECIMAL (e.g. 0.124 means 12.4%) — pass through unchanged for gate 4:
+#     - wacc                 (round(v.wacc, 4); gate5 bounds [0.03, 0.25])
+#     - de_ratio /
+#       debt_to_equity       (typical values 0.0 – 1.5)
+#     - current_ratio        (a plain ratio, not a percent — e.g. 1.8x)
+#     - revenue_cagr_3y /
+#       revenue_cagr_5y      (compute_revenue_cagr returns DECIMAL CAGR
+#                             "0.124 = 12.4%"; gate5 bounds |g| > 0.40)
+#     - market_cap_cr        (absolute value in INR crore)
+#
+# If you add a new field to ``canary_bounds`` and don't see it converted
+# below, double-check the backend writer's unit comment before assuming
+# decimal. Mistaking percent for decimal makes the gate silently pass.
+
+# Fields the API returns as PERCENT — divide by 100 before comparing
+# against decimal bounds in canary_stocks_50.json.
+_GATE4_PERCENT_FIELDS = frozenset({
+    "roe",
+    "roce",
+    "roa",
+    "margin_of_safety",
+    "mos",
+    # NOTE: revenue_cagr_3y / revenue_cagr_5y are DECIMAL on this API
+    # (see compute_revenue_cagr docstring). Do NOT add them here.
+})
+
+
+def _to_decimal(metric_name: str, value: float) -> float:
+    """Normalise an API value to decimal form for gate-4 bounds checks.
+
+    See _GATE4_PERCENT_FIELDS for which metrics are percent-shaped on the
+    API and need scaling. Decimal-shaped fields are returned untouched.
+    """
+    if metric_name in _GATE4_PERCENT_FIELDS:
+        return value / 100.0
+    return value
+
+
 def gate4_canary_bounds(
     symbol: str, fields: dict[str, Any], bounds: dict[str, Any] | None
 ) -> list[str]:
-    """Every non-null bound must hold."""
+    """Every non-null bound must hold.
+
+    Bounds in ``canary_stocks_50.json`` are expressed in DECIMAL form
+    (e.g. roe ∈ [0.30, 0.55] means 30% – 55%). The API returns some
+    metrics in percent form (roe, roce, roa, mos) — those are converted
+    via ``_to_decimal`` before comparison so the comparison is units-
+    consistent. Decimal-shaped metrics (wacc, de_ratio, current_ratio,
+    revenue_cagr_*, market_cap_cr) are passed through unchanged.
+    """
     if not bounds:
         return []
     out: list[str] = []
@@ -435,8 +500,17 @@ def gate4_canary_bounds(
         if v is None or not _is_num(v):
             continue
         lo, hi = rng
-        if not (lo <= v <= hi):
-            out.append(f"{symbol}.{key}={v} outside [{lo}, {hi}]")
+        v_cmp = _to_decimal(key, float(v))
+        if not (lo <= v_cmp <= hi):
+            # Surface BOTH the raw API value and the converted comparand
+            # so a future debugger can see at a glance whether a unit
+            # mismatch (vs a real out-of-band reading) is in play.
+            if v_cmp != v:
+                out.append(
+                    f"{symbol}.{key}={v} (decimal={v_cmp:.4f}) outside [{lo}, {hi}]"
+                )
+            else:
+                out.append(f"{symbol}.{key}={v} outside [{lo}, {hi}]")
     return out
 
 

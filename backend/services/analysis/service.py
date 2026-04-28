@@ -25,7 +25,13 @@ from backend.models.responses import (
     AnalysisResponse, ValuationOutput, QualityOutput,
     InsightCards, BulkDealItem, CompanyInfo, ScenariosOutput, ScenarioCase,
     PriceLevels, ScreenerStock, RedFlag, AnalyticalNoteOutput,
+    PeerCapDetails,
 )
+# feat/peer-cap (2026-04-27): peer-multiple sanity ceiling.
+# Compares DCF FV against sector peer-median P/E + EV/EBITDA (P/B
+# for banks). When DCF > 1.5× peer-implied, cap at 1.5× peer-implied
+# and surface the audit trail via `peer_cap_details`.
+from backend.services.peer_cap_service import compute_peer_cap as _compute_peer_cap
 # PR #69: contextual disclaimer system — attaches 1–5 rule-based
 # notes (premium brand / conglomerate / regulated utility / etc.)
 # to every analysis payload. Purely additive, never influences FV.
@@ -931,17 +937,55 @@ class AnalysisService(NarrativeMixin):
             except Exception:
                 pass
 
+        # ── feat/peer-cap (2026-04-27): peer-multiple sanity ceiling ─
+        # If DCF FV is more than 1.5× the lower of peer-median
+        # P/E-implied / EV/EBITDA-implied (or P/B-implied for banks),
+        # cap the displayed FV at 1.5× peer-implied. Purely additive:
+        # leaves `iv` untouched when no peers are available, the
+        # multiple isn't tripped, or the DB is unreachable. Does NOT
+        # change wacc / scenarios / dcf_res — the cap is a render-time
+        # ceiling on the headline number, with the audit trail in
+        # `_peer_cap_details` for the frontend tooltip.
+        _fair_value_source: str = "dcf"
+        _peer_cap_details: PeerCapDetails | None = None
+        try:
+            if iv and iv > 0 and not is_financial:
+                _pc = _compute_peer_cap(ticker)
+            elif iv and iv > 0 and is_financial:
+                # Financials still get the peer-cap check, routed
+                # through the bank P/B path inside the service.
+                _pc = _compute_peer_cap(ticker)
+            else:
+                _pc = None
+            if _pc and _pc.get("peer_fv", 0) > 0:
+                _peer_fv = float(_pc["peer_fv"])
+                _ceiling = 1.5 * _peer_fv
+                if _ceiling < iv:
+                    _peer_cap_details = PeerCapDetails(
+                        uncapped_fv=round(float(iv), 2),
+                        peer_fv=round(_peer_fv, 2),
+                        ceiling_fv=round(_ceiling, 2),
+                        method=_pc["method"],
+                        n_peers=int(_pc["n_peers"]),
+                        median_pe=_pc.get("median_pe"),
+                        median_ev_ebitda=_pc.get("median_ev_ebitda"),
+                        median_pb=_pc.get("median_pb"),
+                        sector=_pc.get("sector"),
+                        industry=_pc.get("industry"),
+                    )
+                    iv = round(_ceiling, 2)
+                    _fair_value_source = "peer_capped"
+        except Exception:
+            # Cap failure must never break analysis. Leave FV as-is.
+            _peer_cap_details = None
+            _fair_value_source = "dcf"
+
         # CRITICAL FIX (FIX1): mos_pct MUST be recomputed from the
         # post-adjustment `iv` so that the displayed MoS reconciles
         # with the displayed `fair_value` via (FV-CMP)/CMP. Prior
         # behaviour preserved a "pre-moat" MoS even though the
         # displayed FV reflected the moat delta — users saw e.g.
         # FV ₹3,223 with MoS −0.1% when the math demands +24.8%.
-        # Single source of truth: derive MoS from the SAME `iv`
-        # field that is shown to the user. Covers both DCF and
-        # financial-stock P/BV paths (financials skip the moat
-        # adjustment block above, so this is a no-op for them but
-        # remains safe).
         # PR-DET-1: pinned price snapshot — do not recompute MoS on read.
         # `price` here is the snapshot taken at write-time (Step 3 above);
         # never substitute a freshly-fetched market price in this expression
@@ -1676,6 +1720,11 @@ class AnalysisService(NarrativeMixin):
                 # Parquet). Both are delayed — frontend renders as
                 # "Delayed", never "Live". See FreshnessStamp.tsx.
                 current_price_as_of=_ts,
+                # feat/peer-cap (2026-04-27): peer-multiple sanity
+                # ceiling. fair_value_source flips to "peer_capped"
+                # when the cap fires; details carry the audit trail.
+                fair_value_source=_fair_value_source,
+                peer_cap_details=_peer_cap_details,
             ),
             quality=QualityOutput(
                 yieldiq_score=yiq_score.get("score", 0),

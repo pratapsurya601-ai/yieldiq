@@ -2936,3 +2936,134 @@ async def public_retrospective(
         ),
     }
     return _cached_json(sample, s_maxage=3600, swr=21600)
+
+
+
+# ═══════════════════════════════════════════════════════════════
+# Reverse-DCF (public, anonymous-accessible)
+# ═══════════════════════════════════════════════════════════════
+# Given current price as the *target*, what implied growth / margin
+# is the market pricing in? Reads inputs (FCF, revenue, WACC, debt,
+# cash, shares) out of the existing analysis_cache payload — never
+# recomputes from raw data here, so it stays SoT-consistent with the
+# forward DCF without going through analysis/service.py.
+#
+# Returns null on cache miss / loss-makers (frontend hides the
+# panel) rather than 503'ing — this is purely additive UI.
+# ───────────────────────────────────────────────────────────────
+@router.get("/reverse-dcf/{ticker}")
+async def get_reverse_dcf_public(ticker: str):
+    ticker = ticker.upper().strip()
+    if not ticker.endswith(".NS") and not ticker.endswith(".BO"):
+        ticker = f"{ticker}.NS"
+
+    # Resolve aliases (ZOMATO.NS → ETERNAL.NS, etc.)
+    try:
+        from backend.routers.analysis import TICKER_ALIASES
+        ticker = TICKER_ALIASES.get(ticker, ticker)
+    except Exception:
+        pass
+
+    cache_key = f"public:reverse-dcf:{ticker}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return _cached_json(
+            cached, s_maxage=600, swr=3600,
+            extra_headers={"X-Source": "reverse_dcf_v1", "X-Cache": "HIT"},
+        )
+
+    # ── Pull AnalysisResponse from the SoT cache (tier-1, then DB) ─
+    analysis = cache.get(f"analysis:{ticker}")
+    if analysis is None or not hasattr(analysis, "valuation"):
+        try:
+            from backend.services import analysis_cache_service
+            from backend.models.responses import AnalysisResponse
+            payload = analysis_cache_service.get_cached(ticker)
+            if payload:
+                analysis = AnalysisResponse(**payload)
+        except Exception as exc:
+            logger.info(
+                "reverse-dcf: analysis_cache lookup failed for %s: %s",
+                ticker, exc,
+            )
+
+    if analysis is None or not hasattr(analysis, "valuation"):
+        # No cached analysis → no reverse DCF. Frontend hides panel.
+        return JSONResponse(
+            status_code=200,
+            content=None,
+            headers={
+                "Cache-Control": "public, s-maxage=120, stale-while-revalidate=600",
+                "X-Source": "reverse_dcf_v1",
+                "X-Cache": "MISS-NO-INPUTS",
+            },
+        )
+
+    # Inputs: prefer computation_inputs (fresh post-v35 cache) and
+    # fall back to ValuationOutput fields when the older cached
+    # payload doesn't carry it. Loss-makers / data-limited tickers
+    # silently degrade to None.
+    valuation = analysis.valuation
+    ci = getattr(analysis, "computation_inputs", None) or {}
+    current_price = float(getattr(valuation, "current_price", 0) or ci.get("current_price") or 0)
+    wacc = float(getattr(valuation, "wacc", 0) or ci.get("wacc") or 0)
+    current_fcf = float(ci.get("fcf_ttm") or 0)
+    current_revenue = float(ci.get("revenue_ttm") or 0)
+    total_debt = float(ci.get("total_debt") or 0)
+    total_cash = float(ci.get("total_cash") or 0)
+    shares = float(ci.get("shares_outstanding") or 0)
+    terminal_g = float(getattr(valuation, "terminal_growth", 0) or ci.get("terminal_growth") or 0.04)
+    current_margin = (current_fcf / current_revenue) if current_revenue > 0 else 0.0
+
+    historical_revenue_cagr = None
+    historical_fcf_margin = None
+    try:
+        q = analysis.quality
+        historical_revenue_cagr = (
+            getattr(q, "revenue_cagr_5y", None)
+            or getattr(q, "revenue_cagr_3y", None)
+        )
+        if historical_revenue_cagr is not None and historical_revenue_cagr > 1.0:
+            # Stored as percent on some legacy payloads (e.g. 12 not 0.12)
+            historical_revenue_cagr = historical_revenue_cagr / 100.0
+    except Exception:
+        pass
+
+    try:
+        from backend.services.reverse_dcf_service import compute_reverse_dcf
+        result = compute_reverse_dcf(
+            ticker=ticker,
+            current_price=current_price,
+            wacc=wacc,
+            current_fcf=current_fcf,
+            current_margin=current_margin,
+            current_revenue=current_revenue,
+            total_debt=total_debt,
+            total_cash=total_cash,
+            shares=shares,
+            terminal_g=terminal_g,
+            historical_revenue_cagr=historical_revenue_cagr,
+            historical_fcf_margin=historical_fcf_margin,
+        )
+    except Exception as exc:
+        logger.warning("reverse-dcf compute failed for %s: %s", ticker, exc)
+        result = None
+
+    if result is None:
+        return JSONResponse(
+            status_code=200,
+            content=None,
+            headers={
+                "Cache-Control": "public, s-maxage=120, stale-while-revalidate=600",
+                "X-Source": "reverse_dcf_v1",
+                "X-Cache": "MISS-INSUFFICIENT",
+            },
+        )
+
+    # Sanitize NaN / Inf and cache
+    safe = _nan_to_none(result)
+    cache.set(cache_key, safe, ttl=3600)
+    return _cached_json(
+        safe, s_maxage=600, swr=3600,
+        extra_headers={"X-Source": "reverse_dcf_v1", "X-Cache": "MISS"},
+    )

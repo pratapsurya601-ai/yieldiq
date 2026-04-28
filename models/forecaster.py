@@ -98,10 +98,42 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     # (≥ ₹100 Cr). Penny/shell stocks have tiny revenue but non-zero
     # op_margin which can produce a deceptively large NOPAT base.
     MIN_REVENUE_FOR_NOPAT = 1_000_000_000  # ₹100 Cr minimum
-    if op_margin > 0 and latest_revenue >= MIN_REVENUE_FOR_NOPAT:
-        nopat    = latest_revenue * op_margin * (1 - tax_rate)
-        # FCF conversion: 85% for high-margin (>15%), 70% for lower margin
-        fcf_conv = 0.85 if op_margin >= 0.15 else 0.70
+    # ── Margin normalisation: trailing 3-year average ──────────
+    # Anchor the NOPAT proxy on a trailing 3-year average operating
+    # margin instead of the (potentially peak) TTM margin. Mid-caps
+    # were systematically over-valued because a single TTM margin
+    # spike was being projected forward forever. Asymmetric guard:
+    # if TTM > 130% of the 3y avg, we treat the TTM as cyclical and
+    # fade the implied FCF base back toward the 3y-avg base over
+    # years 1-3 of the projection (handled in FCFForecaster.predict).
+    margin_3y_avg: float | None = None
+    margin_for_nopat = op_margin
+    fade_to_3y = False
+    try:
+        if not income_df.empty and "op_margin" in income_df.columns:
+            _om_hist = income_df["op_margin"].dropna()
+            # Use the most recent up-to-3 historical years
+            _om_recent = _om_hist.tail(3)
+            if len(_om_recent) >= 3:
+                margin_3y_avg = float(_om_recent.mean())
+                margin_for_nopat = margin_3y_avg
+                if op_margin > 0 and margin_3y_avg > 0 and op_margin > 1.30 * margin_3y_avg:
+                    fade_to_3y = True
+                    log.info(
+                        f"[{ticker}] TTM op_margin {op_margin:.1%} > 130% of 3y avg "
+                        f"{margin_3y_avg:.1%} — fading to 3y avg over years 1-3"
+                    )
+    except Exception:
+        pass
+    # Stash for predict() to apply the margin fade on the projection.
+    enriched["_margin_ttm"]    = float(op_margin or 0.0)
+    enriched["_margin_3y_avg"] = float(margin_3y_avg) if margin_3y_avg else 0.0
+    enriched["_margin_fade_to_3y"] = bool(fade_to_3y)
+
+    if margin_for_nopat > 0 and latest_revenue >= MIN_REVENUE_FOR_NOPAT:
+        nopat    = latest_revenue * margin_for_nopat * (1 - tax_rate)
+        # FCF conversion based on the margin we are using (3y avg or TTM fallback)
+        fcf_conv = 0.85 if margin_for_nopat >= 0.15 else 0.70
 
         # Fix 1: Use normalised capex if M&A spike was detected
         norm_capex_pct = enriched.get("norm_capex_pct", None)
@@ -397,7 +429,24 @@ def _rule_based_growth(enriched: dict) -> float:
     if sector in US_SECTORS:
         LONG_RUN_TARGET = US_LONG_RUN.get(sector, 0.035)   # default US: 3.5%
     else:
-        LONG_RUN_TARGET = 0.10                               # India nominal GDP anchor
+        # India sectors: size-tiered terminal growth. Mid/small caps were
+        # being over-valued by mean-reverting every name to a flat 10%
+        # long-run anchor. Larger companies have lower runway, so cap their
+        # terminal anchor accordingly. Bands (in INR):
+        #   mcap > ₹50,000 Cr  → 6%
+        #   ₹10,000-50,000 Cr  → 7%
+        #   < ₹10,000 Cr       → 8%
+        # 1 Cr = 1e7. Falls back to mid-tier 7% when mcap is unavailable.
+        _mcap_inr = float(enriched.get("market_cap", 0) or 0)
+        _mcap_cr = _mcap_inr / 1e7
+        if _mcap_cr <= 0:
+            LONG_RUN_TARGET = 0.07
+        elif _mcap_cr > 50_000:
+            LONG_RUN_TARGET = 0.06
+        elif _mcap_cr >= 10_000:
+            LONG_RUN_TARGET = 0.07
+        else:
+            LONG_RUN_TARGET = 0.08
     # 60/40 blend: trust actual historical data more, mean-revert less aggressively
     mean_reverted   = 0.60 * blended_growth + 0.40 * LONG_RUN_TARGET
 
@@ -783,9 +832,37 @@ class FCFForecaster:
         growth_schedule = []
         fcf = fcf_base
 
+        # ── Asymmetric margin-fade scaffold ───────────────────
+        # When TTM op_margin > 130% of trailing-3y avg, _compute_fcf_base
+        # already anchors NOPAT on the 3y-avg margin. But for non-NOPAT
+        # bases (latest_fcf, max_recent_fcf) the TTM peak may have leaked
+        # in. To compensate, we taper the projected FCF in years 1-3 by
+        # the ratio (3y_avg / TTM), interpolating linearly from a partial
+        # haircut in year 1 to the full 3y-avg level by year 3, then
+        # leaving years 4+ untouched. This is a one-sided guard — when
+        # TTM <= 1.3x 3y avg the multiplier is 1.0 throughout.
+        _fade = bool(enriched.get("_margin_fade_to_3y", False))
+        _ttm_m = float(enriched.get("_margin_ttm", 0) or 0)
+        _avg_m = float(enriched.get("_margin_3y_avg", 0) or 0)
+        if _fade and _ttm_m > 0 and _avg_m > 0 and _avg_m < _ttm_m:
+            _terminal_ratio = _avg_m / _ttm_m   # < 1.0
+        else:
+            _terminal_ratio = 1.0
+
+        # Per-year incremental fade multipliers. The cumulative product
+        # over years 1, 2, 3 must equal `_terminal_ratio` so that by year
+        # 3 the projection has fully migrated to the 3y-avg-margin level.
+        # Years 4+ get a multiplier of 1.0 (the year-3 haircut sticks).
+        if _terminal_ratio < 1.0:
+            _per_year_mult = _terminal_ratio ** (1.0 / 3.0)
+        else:
+            _per_year_mult = 1.0
+
         for yr in range(1, years + 1):
             g = _clamp(_exponential_fade(yr, base_growth))
             fcf = fcf * (1 + g)
+            if _terminal_ratio < 1.0 and yr <= 3:
+                fcf = fcf * _per_year_mult
             projections.append(fcf)
             growth_schedule.append(g)
 

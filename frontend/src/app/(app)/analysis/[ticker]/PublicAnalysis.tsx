@@ -28,6 +28,7 @@ import Prism from "@/components/prism/Prism"
 import PrismSkeleton from "@/components/prism/PrismSkeleton"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
+import FvConfidenceBand from "@/components/analysis/FvConfidenceBand"
 import {
   formatCurrency,
   formatPct,
@@ -58,6 +59,13 @@ interface PrismRaw {
   // bound; render the unclamped base-case scenario instead so the visitor
   // hero matches the logged-in EditorialHero fix and the AI summary.
   fv_clamped?: boolean
+  /**
+   * DCF model confidence (0–100) — mirrors ValuationOutput.confidence_score
+   * on the authenticated payload. Optional here because /api/v1/prism is a
+   * trimmed public payload and pre-PR backends omit it; when absent the
+   * ±confidence band silently doesn't render.
+   */
+  confidence?: number | null
   scenarios?: {
     bear?: number | null
     base?: number | null
@@ -160,6 +168,7 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
     grade,
     fv_clamped,
     scenarios,
+    confidence,
   } = raw
 
   // FV-clamp consistency (NOIDATOLL +200% bug — visitor view follow-up
@@ -252,6 +261,18 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
             <Stat
               label={<MetricTooltip metricKey="fair_value">Fair value</MetricTooltip>}
               value={fair_value ? formatCurrency(fair_value) : "—"}
+              // Confidence ±band beneath the headline FV — mirrors the
+              // logged-in EditorialHero so the visitor view doesn't silently
+              // drop a transparency cue. Renders nothing when the public
+              // payload omits `confidence` or FV is unavailable.
+              subtext={
+                fair_value && fair_value > 0 ? (
+                  <FvConfidenceBand
+                    fairValue={fair_value}
+                    confidence={confidence}
+                  />
+                ) : null
+              }
             />
             <Stat
               label={<MetricTooltip metricKey="mos">Margin of safety</MetricTooltip>}
@@ -374,6 +395,7 @@ function Stat({
   label,
   value,
   emphasis,
+  subtext,
 }: {
   // Accepts a plain string OR a ReactNode so we can wrap the label in
   // MetricTooltip for jargon terms (Fair value, Margin of safety,
@@ -381,6 +403,9 @@ function Stat({
   label: ReactNode
   value: string
   emphasis?: boolean
+  // Optional sub-line beneath the value — used by the Fair value cell
+  // to render the ±confidence band. Null/undefined renders nothing.
+  subtext?: ReactNode
 }) {
   return (
     <div className="flex flex-col gap-0.5">
@@ -394,6 +419,7 @@ function Stat({
       >
         {value}
       </dd>
+      {subtext}
     </div>
   )
 }
