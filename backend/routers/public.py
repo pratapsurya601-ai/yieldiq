@@ -660,6 +660,70 @@ async def get_stock_summary(ticker: str):
     )
 
 
+@router.get("/promoter-pledge/{ticker}")
+async def get_promoter_pledge(ticker: str):
+    """
+    Promoter pledge series + latest snapshot for a ticker.
+
+    Indian governance signal #1. Pledge data lives in ``promoter_pledges``
+    (populated by ``scripts/ingest_pledges.py``). Returned shape:
+
+      {
+        "ticker": "RCOM",
+        "latest": {
+          "as_of_date": "2026-01-31",
+          "pledged_pct": 80.0,
+          "promoter_group_pct": 21.97,
+          "pledged_shares": 4400000000,
+          "source_url": "https://www.bseindia.com/..."
+        } | null,
+        "history": [{"as_of_date": ..., "pledged_pct": ...}, ...],
+        "change_90d_pp": 15.0 | null
+      }
+
+    Additive surface — no CACHE_VERSION bump required. Public; no auth.
+    1-hour CDN cache (pledge filings are infrequent).
+    """
+    t = (ticker or "").strip().upper()
+    if not t:
+        raise HTTPException(status_code=400, detail="ticker required")
+
+    _cache_key = f"public:promoter-pledge:{t}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=3600, swr=7200)
+
+    try:
+        from backend.services.promoter_pledge_service import (
+            get_latest_pledge,
+            get_pledge_history,
+            compute_pledge_change_pp,
+        )
+    except Exception as exc:
+        logger.warning("promoter-pledge import failed: %s", exc)
+        raise HTTPException(status_code=503, detail="pledge service unavailable")
+
+    latest = get_latest_pledge(t)
+    history = get_pledge_history(t, months=24)
+    change_90d = compute_pledge_change_pp(t, lookback_days=90)
+
+    payload = {
+        "ticker": t,
+        "latest": (latest.to_dict() if latest else None),
+        "history": [
+            {
+                "as_of_date": r.as_of_date.isoformat(),
+                "pledged_pct": r.pledged_pct,
+                "promoter_group_pct": r.promoter_group_pct,
+            }
+            for r in history
+        ],
+        "change_90d_pp": (round(change_90d, 3) if change_90d is not None else None),
+    }
+    cache.set(_cache_key, payload, ttl=3600, version_keyed=False)
+    return _cached_json(payload, s_maxage=3600, swr=7200)
+
+
 @router.get("/all-tickers")
 async def get_all_tickers():
     """

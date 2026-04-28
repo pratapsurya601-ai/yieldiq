@@ -15,6 +15,7 @@ import AnalysisTabs, { type AnalysisTabDef } from "@/components/analysis/Analysi
 import InsightCards from "@/components/analysis/InsightCards"
 import RedFlagInsights from "@/components/analysis/RedFlagInsights"
 import QualityRatios from "@/components/analysis/QualityRatios"
+import PromoterPledgePanel from "@/components/analysis/PromoterPledgePanel"
 import DividendTracker from "@/components/analysis/DividendTracker"
 import LoadingSteps from "@/components/ui/LoadingSteps"
 import PriceChart from "@/components/analysis/PriceChart"
@@ -588,6 +589,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             insights={insights}
             ratioHistory={ratiosHistoryQuery.data ?? null}
           />
+          <PromoterPledgePanel ticker={ticker} />
           <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
         </div>
       ),
