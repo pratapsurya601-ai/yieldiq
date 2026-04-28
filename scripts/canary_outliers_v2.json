@@ -1,0 +1,372 @@
+{
+  "_meta": {
+    "version": 2,
+    "supersedes": "canary_outliers_7.json",
+    "description": "Expanded outlier universe for measuring DCF model recalibration impact AND peer-cap firing on mid-cap pharma / IT services / FMCG names. v1 (canary_outliers_7.json) was the launch-day audit snapshot — 7 tickers across mixed sectors. v2 adds ~20 mid-cap names where peer-cap is expected to be the binding constraint, so a regression in the peer-cap path (PR #136) is caught here before it shows up on the public stock pages. Keep canary_stocks_50.json untouched — that is the immutable regression baseline. canary_outliers_v2.json is the *drift* universe.",
+    "fields": {
+      "roe": "Return on equity (decimal)",
+      "debt_to_equity": "Total debt / equity (decimal)",
+      "wacc": "Weighted avg cost of capital (decimal)",
+      "market_cap_cr": "Market cap in INR crore",
+      "revenue_cagr_3y": "3y revenue CAGR (decimal)"
+    },
+    "rule": "null bound = harness skips that assertion for that stock. Bounds are intentionally wide — the value of this file is in DRIFT measurement (snapshot vs branch) AND in peer-cap-firing assertions, not strict gate assertions.",
+    "audit_2026_04_28": "All 7 v1 tickers showed MoS in 44-91% band on a 'wide moat / consistent earnings / fair price' preset, which is implausible for liquid names. Goal of any DCF recalibration: compress the displayed MoS toward 10-30%. Track per-ticker delta_pct in canary-diff output and document explanation per CLAUDE.md rule #2.",
+    "v2_additions_2026_04_28": "Added 20 mid-cap names across pharma (8), IT services (6), FMCG (6) where peer-cap should be the binding constraint. If peer-cap fails to fire on any of these, regression on PR #136 (peer-multiple FV ceiling) is the most likely cause."
+  },
+  "stocks": [
+    {
+      "symbol": "JUSTDIAL",
+      "sector": "Internet Services",
+      "mcap_tier": "small",
+      "audit_observed_mos_pct": 91,
+      "canary_bounds": {
+        "roe": [0.05, 0.30],
+        "debt_to_equity": [0.0, 0.5],
+        "wacc": [0.10, 0.16],
+        "market_cap_cr": [4000, 15000],
+        "revenue_cagr_3y": [0.0, 0.30]
+      }
+    },
+    {
+      "symbol": "EMAMILTD",
+      "sector": "FMCG",
+      "mcap_tier": "mid",
+      "audit_observed_mos_pct": 82,
+      "canary_bounds": {
+        "roe": [0.15, 0.40],
+        "debt_to_equity": [0.0, 0.30],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [15000, 40000],
+        "revenue_cagr_3y": [0.0, 0.20]
+      }
+    },
+    {
+      "symbol": "NATCOPHARM",
+      "sector": "Pharma",
+      "mcap_tier": "mid",
+      "audit_observed_mos_pct": 76,
+      "canary_bounds": {
+        "roe": [0.10, 0.45],
+        "debt_to_equity": [0.0, 0.30],
+        "wacc": [0.11, 0.15],
+        "market_cap_cr": [8000, 30000],
+        "revenue_cagr_3y": [0.0, 0.40]
+      }
+    },
+    {
+      "symbol": "TCS",
+      "sector": "IT Services",
+      "mcap_tier": "large",
+      "audit_observed_mos_pct": 44,
+      "_note": "Already in canary_stocks_50.json — included here for outlier-set drift comparison.",
+      "canary_bounds": {
+        "roe": [0.30, 0.55],
+        "debt_to_equity": [0.0, 0.10],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [1200000, 1800000],
+        "revenue_cagr_3y": [0.05, 0.20]
+      }
+    },
+    {
+      "symbol": "SANOFI",
+      "sector": "Pharma",
+      "mcap_tier": "mid",
+      "audit_observed_mos_pct": 70,
+      "canary_bounds": {
+        "roe": [0.15, 0.40],
+        "debt_to_equity": [0.0, 0.20],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [8000, 25000],
+        "revenue_cagr_3y": [-0.10, 0.20]
+      }
+    },
+    {
+      "symbol": "ZYDUSLIFE",
+      "sector": "Pharma",
+      "mcap_tier": "large",
+      "audit_observed_mos_pct": 66,
+      "canary_bounds": {
+        "roe": [0.10, 0.30],
+        "debt_to_equity": [0.0, 0.40],
+        "wacc": [0.11, 0.15],
+        "market_cap_cr": [50000, 150000],
+        "revenue_cagr_3y": [0.0, 0.25]
+      }
+    },
+    {
+      "symbol": "MAYURUNIQ",
+      "sector": "Auto Components",
+      "mcap_tier": "small",
+      "audit_observed_mos_pct": 64,
+      "canary_bounds": {
+        "roe": [0.08, 0.30],
+        "debt_to_equity": [0.0, 0.40],
+        "wacc": [0.11, 0.16],
+        "market_cap_cr": [1000, 5000],
+        "revenue_cagr_3y": [-0.10, 0.30]
+      }
+    },
+    {
+      "symbol": "AJANTPHARM",
+      "sector": "Pharma",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.15, 0.30],
+        "debt_to_equity": [0.0, 0.20],
+        "wacc": [0.11, 0.14],
+        "market_cap_cr": [15000, 40000],
+        "revenue_cagr_3y": [0.05, 0.25]
+      }
+    },
+    {
+      "symbol": "ALKEM",
+      "sector": "Pharma",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.15, 0.30],
+        "debt_to_equity": [0.0, 0.20],
+        "wacc": [0.11, 0.14],
+        "market_cap_cr": [40000, 80000],
+        "revenue_cagr_3y": [0.05, 0.20]
+      }
+    },
+    {
+      "symbol": "TORNTPHARM",
+      "sector": "Pharma",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.15, 0.35],
+        "debt_to_equity": [0.0, 0.40],
+        "wacc": [0.11, 0.14],
+        "market_cap_cr": [60000, 120000],
+        "revenue_cagr_3y": [0.05, 0.20]
+      }
+    },
+    {
+      "symbol": "GLENMARK",
+      "sector": "Pharma",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.05, 0.20],
+        "debt_to_equity": [0.0, 0.50],
+        "wacc": [0.11, 0.15],
+        "market_cap_cr": [10000, 35000],
+        "revenue_cagr_3y": [0.0, 0.20]
+      }
+    },
+    {
+      "symbol": "BIOCON",
+      "sector": "Pharma",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.0, 0.20],
+        "debt_to_equity": [0.0, 0.80],
+        "wacc": [0.11, 0.15],
+        "market_cap_cr": [25000, 60000],
+        "revenue_cagr_3y": [0.0, 0.25]
+      }
+    },
+    {
+      "symbol": "LAURUSLABS",
+      "sector": "Pharma",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.05, 0.30],
+        "debt_to_equity": [0.0, 0.60],
+        "wacc": [0.12, 0.16],
+        "market_cap_cr": [10000, 30000],
+        "revenue_cagr_3y": [-0.05, 0.40]
+      }
+    },
+    {
+      "symbol": "IPCALAB",
+      "sector": "Pharma",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.10, 0.25],
+        "debt_to_equity": [0.0, 0.30],
+        "wacc": [0.11, 0.14],
+        "market_cap_cr": [15000, 35000],
+        "revenue_cagr_3y": [0.0, 0.25]
+      }
+    },
+    {
+      "symbol": "GRANULES",
+      "sector": "Pharma",
+      "mcap_tier": "small",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.05, 0.25],
+        "debt_to_equity": [0.0, 0.50],
+        "wacc": [0.12, 0.16],
+        "market_cap_cr": [3000, 10000],
+        "revenue_cagr_3y": [-0.10, 0.30]
+      }
+    },
+    {
+      "symbol": "PERSISTENT",
+      "sector": "IT Services",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.20, 0.35],
+        "debt_to_equity": [0.0, 0.20],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [60000, 120000],
+        "revenue_cagr_3y": [0.10, 0.30]
+      }
+    },
+    {
+      "symbol": "COFORGE",
+      "sector": "IT Services",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.15, 0.30],
+        "debt_to_equity": [0.0, 0.30],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [30000, 70000],
+        "revenue_cagr_3y": [0.10, 0.30]
+      }
+    },
+    {
+      "symbol": "MPHASIS",
+      "sector": "IT Services",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.15, 0.30],
+        "debt_to_equity": [0.0, 0.20],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [40000, 80000],
+        "revenue_cagr_3y": [0.05, 0.25]
+      }
+    },
+    {
+      "symbol": "LTIM",
+      "sector": "IT Services",
+      "mcap_tier": "large",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.20, 0.35],
+        "debt_to_equity": [0.0, 0.20],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [120000, 200000],
+        "revenue_cagr_3y": [0.05, 0.25]
+      }
+    },
+    {
+      "symbol": "MINDTREE",
+      "sector": "IT Services",
+      "mcap_tier": "mid",
+      "_note": "Subsumed into LTIM post-merger; kept here for historical drift only.",
+      "expect_peer_cap": false,
+      "canary_bounds": {
+        "roe": null,
+        "debt_to_equity": null,
+        "wacc": null,
+        "market_cap_cr": null,
+        "revenue_cagr_3y": null
+      }
+    },
+    {
+      "symbol": "KPITTECH",
+      "sector": "IT Services",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.15, 0.30],
+        "debt_to_equity": [0.0, 0.30],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [30000, 70000],
+        "revenue_cagr_3y": [0.10, 0.40]
+      }
+    },
+    {
+      "symbol": "MARICO",
+      "sector": "FMCG",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.30, 0.50],
+        "debt_to_equity": [0.0, 0.20],
+        "wacc": [0.10, 0.13],
+        "market_cap_cr": [60000, 120000],
+        "revenue_cagr_3y": [0.05, 0.20]
+      }
+    },
+    {
+      "symbol": "GODREJCP",
+      "sector": "FMCG",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.10, 0.25],
+        "debt_to_equity": [0.0, 0.40],
+        "wacc": [0.10, 0.13],
+        "market_cap_cr": [80000, 150000],
+        "revenue_cagr_3y": [0.0, 0.15]
+      }
+    },
+    {
+      "symbol": "DABUR",
+      "sector": "FMCG",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.18, 0.30],
+        "debt_to_equity": [0.0, 0.20],
+        "wacc": [0.10, 0.13],
+        "market_cap_cr": [80000, 140000],
+        "revenue_cagr_3y": [0.05, 0.15]
+      }
+    },
+    {
+      "symbol": "COLPAL",
+      "sector": "FMCG",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.40, 0.80],
+        "debt_to_equity": [0.0, 0.10],
+        "wacc": [0.10, 0.13],
+        "market_cap_cr": [50000, 90000],
+        "revenue_cagr_3y": [0.05, 0.15]
+      }
+    },
+    {
+      "symbol": "VBL",
+      "sector": "FMCG",
+      "mcap_tier": "large",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.15, 0.30],
+        "debt_to_equity": [0.0, 0.50],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [120000, 200000],
+        "revenue_cagr_3y": [0.15, 0.40]
+      }
+    },
+    {
+      "symbol": "TATACONSUM",
+      "sector": "FMCG",
+      "mcap_tier": "mid",
+      "expect_peer_cap": true,
+      "canary_bounds": {
+        "roe": [0.05, 0.15],
+        "debt_to_equity": [0.0, 0.20],
+        "wacc": [0.10, 0.13],
+        "market_cap_cr": [80000, 130000],
+        "revenue_cagr_3y": [0.05, 0.20]
+      }
+    }
+  ]
+}
