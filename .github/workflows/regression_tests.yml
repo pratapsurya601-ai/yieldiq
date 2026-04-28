@@ -1,0 +1,60 @@
+name: Regression Tests
+
+# Runs the bug-specific regression suite under `tests/regression/`.
+# Every test in this suite corresponds to a single shipped bug —
+# they are the canary in the canary. A failure here means a previous
+# fix has been silently reverted.
+#
+# Loud-fail by design: no `continue-on-error`, no `|| true`, no
+# tolerance budgets. If you legitimately need to skip a test,
+# delete it (and the corresponding incident is back on the table)
+# rather than flagging it.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "backend/services/analysis/**/*.py"
+      - "backend/services/analysis_service.py"
+      - "scripts/canary_diff.py"
+      - "scripts/canary_outliers_v2.json"
+      - "tests/regression/**/*.py"
+      - ".github/workflows/regression_tests.yml"
+  push:
+    branches: [main]
+    paths:
+      - "backend/services/analysis/**/*.py"
+      - "backend/services/analysis_service.py"
+      - "scripts/canary_diff.py"
+      - "scripts/canary_outliers_v2.json"
+      - "tests/regression/**/*.py"
+  workflow_dispatch:
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install lightweight test deps
+        # The regression suite is intentionally self-contained: no
+        # pandas, no pydantic, no DB. ``_normalize_pct`` is sliced from
+        # source and exec'd standalone so we can exercise it without
+        # the heavy import chain.
+        run: pip install pytest requests
+
+      - name: Run regression suite
+        run: pytest tests/regression/ -v --tb=short
+
+      - name: Annotate failure
+        if: failure()
+        run: |
+          echo "::error::Regression suite failed — a previously-fixed bug has reappeared."
+          echo "Each test under tests/regression/ pins exactly one shipped fix."
+          echo "Identify the failing test, find its 'Reference: PR #...' docstring,"
+          echo "read the bug history, and DO NOT merge until the test passes again."

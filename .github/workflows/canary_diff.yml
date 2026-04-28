@@ -42,6 +42,13 @@ jobs:
       - name: Unit tests for the gates
         run: pytest tests/test_canary_diff.py -v
 
+      - name: Regression suite (bug-fix guards)
+        # The tests under tests/regression/ each pin exactly one
+        # shipped fix (see file-level docstrings for PR refs). They
+        # are the canary in the canary — a failure here means a
+        # previously-fixed bug has reappeared.
+        run: pytest tests/regression/ -v --tb=short
+
       - name: Run canary gate selftest
         # If the harness itself has a bug, abort BEFORE the network hop.
         # The selftest exercises every gate against fixture payloads
