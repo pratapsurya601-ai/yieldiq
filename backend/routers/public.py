@@ -2860,3 +2860,79 @@ async def tickers_index():
     # Long s-maxage: this list only changes on deploys. The frontend
     # build script bakes it into public/tickers.json anyway.
     return _cached_json(payload, s_maxage=3600, swr=86400)
+
+
+# ─────────────────────────────────────────────────────────────────
+# Performance Retrospective (Task 12) — SCAFFOLDING endpoint.
+#
+# Public, no-auth, edge-cached for 1h. Returns the summary dict
+# defined in retrospective_service.summarize_for_period.
+#
+# In the scaffolding PR this endpoint serves a HARDCODED sample
+# payload so the frontend can render the layout. Phase 2 will swap
+# the sample for a real DB-backed summary; the response shape is
+# stable and the frontend should not need changes.
+#
+# Why public/anonymous: the whole point of the retrospective is
+# radical transparency. Putting it behind auth defeats the trust-
+# building purpose. SEBI compliance is handled by the descriptive-
+# only framing + caveat, not by access control.
+# ─────────────────────────────────────────────────────────────────
+@router.get("/retrospective")
+async def public_retrospective(
+    period: str = Query("Q1FY26", description="Period label e.g. Q1FY26"),
+    window: int = Query(90, ge=30, le=365, description="Outcome window in days"),
+):
+    """Public Performance Retrospective summary.
+
+    Returns the summary payload defined in
+    backend.services.retrospective_service.summarize_for_period.
+
+    SCAFFOLDING: returns sample fixture data so the frontend layout
+    can be reviewed end-to-end. Phase 2 wires this to the
+    model_predictions_history + prediction_outcomes tables.
+    """
+    # ── Sample payload — shape MUST match summarize_for_period ──
+    # When Phase 2 lands, replace this block with:
+    #   from backend.services.retrospective_service import summarize_for_period
+    #   start, end = _resolve_period_label(period)
+    #   payload = summarize_for_period(start, end, window=window)
+    sample = {
+        "period": {
+            "start": "2025-04-01",
+            "end":   "2025-06-30",
+            "label": period,
+        },
+        "window_days": window,
+        "mos_threshold": 30.0,
+        "n_predictions": 47,
+        "mean_return":   12.4,
+        "median_return": 9.8,
+        "hit_rate":         0.638,
+        "outperform_rate":  0.553,
+        "benchmark": {
+            "ticker": "NIFTY500.NS",
+            "return_pct": 6.2,
+        },
+        "winners": [
+            {"ticker": "POWERGRID.NS",   "return_pct": 38.2},
+            {"ticker": "BHARTIARTL.NS",  "return_pct": 31.7},
+            {"ticker": "SUNPHARMA.NS",   "return_pct": 27.4},
+            {"ticker": "ITC.NS",         "return_pct": 24.1},
+            {"ticker": "HDFCBANK.NS",    "return_pct": 21.8},
+        ],
+        "losers": [
+            {"ticker": "ZOMATO.NS",      "return_pct": -18.3},
+            {"ticker": "PAYTM.NS",       "return_pct": -14.2},
+            {"ticker": "VEDL.NS",        "return_pct":  -9.5},
+            {"ticker": "ADANIENT.NS",    "return_pct":  -6.8},
+            {"ticker": "TATASTEEL.NS",   "return_pct":  -3.1},
+        ],
+        "is_sample": True,   # Phase 2 will remove this flag.
+        "disclaimer": (
+            "Past results are not indicative of future returns. Sample "
+            "size and selection bias caveats apply. See methodology page "
+            "for full caveats. SEBI: descriptive only, not advisory."
+        ),
+    }
+    return _cached_json(sample, s_maxage=3600, swr=21600)
