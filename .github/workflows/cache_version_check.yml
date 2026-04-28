@@ -1,0 +1,125 @@
+name: CACHE_VERSION bump check
+
+# PR-only gate. Fails when a PR touches analysis-affecting code without
+# bumping CACHE_VERSION in backend/services/cache_service.py and without
+# declaring `cache-version: skip|not-needed` in the PR body.
+#
+# Background: PRs #134 and #136 (2026-04-27) both required a bump but
+# nobody bumped on merge; production served stale cached values until
+# PR #137 retroactively bumped. This gate prevents that class of bug.
+#
+# See: docs/cache_version_discipline.md
+#      scripts/cache_version_check.py
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+
+permissions:
+  contents: read
+  pull-requests: write   # for the explanatory PR comment on failure
+
+jobs:
+  cache-version-bump:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # need full history for the diff vs base
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compute diff vs base
+        id: diff
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          mkdir -p .ci-tmp
+          git diff "${BASE_SHA}...${HEAD_SHA}" > .ci-tmp/pr.diff
+          wc -l .ci-tmp/pr.diff || true
+
+      - name: Write PR body to disk
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          mkdir -p .ci-tmp
+          # Use printf to preserve newlines without shell-interpreting the body.
+          printf '%s' "${PR_BODY}" > .ci-tmp/pr_body.txt
+          wc -c .ci-tmp/pr_body.txt || true
+
+      - name: Run cache_version_check
+        id: check
+        run: |
+          set +e
+          python scripts/cache_version_check.py \
+            --diff-file .ci-tmp/pr.diff \
+            --pr-body-file .ci-tmp/pr_body.txt \
+            --require-bump | tee .ci-tmp/check.out
+          rc=${PIPESTATUS[0]}
+          echo "rc=${rc}" >> "$GITHUB_OUTPUT"
+          # Capture stderr separately for the comment.
+          python scripts/cache_version_check.py \
+            --diff-file .ci-tmp/pr.diff \
+            --pr-body-file .ci-tmp/pr_body.txt \
+            --require-bump 2> .ci-tmp/check.err 1> /dev/null
+          exit ${rc}
+        continue-on-error: true
+
+      - name: Comment on PR (failure only)
+        if: steps.check.outputs.rc != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let err = '';
+            try { err = fs.readFileSync('.ci-tmp/check.err', 'utf8'); } catch (e) {}
+            const body = [
+              '### CACHE_VERSION bump check failed',
+              '',
+              'This PR touches analysis-affecting code but did not bump',
+              '`CACHE_VERSION` in `backend/services/cache_service.py`, and',
+              'the PR body does not declare a skip.',
+              '',
+              '**Fix one of:**',
+              '',
+              '1. **Bump.** Increment `CACHE_VERSION` by 1 and add a one-line',
+              '   comment describing what cached payloads need to recompute',
+              '   and why. Examples: see existing entries in `cache_service.py`.',
+              '',
+              '2. **Skip.** Add a line to this PR description like:',
+              '   ```',
+              '   cache-version: not-needed - frontend-only',
+              '   ```',
+              '   or',
+              '   ```',
+              '   cache-version: skip - logging additions only, no payload change',
+              '   ```',
+              '',
+              'See `docs/cache_version_discipline.md` for the full rationale.',
+              '',
+              '<details><summary>Check output</summary>',
+              '',
+              '```',
+              err.slice(0, 4000),
+              '```',
+              '',
+              '</details>',
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+
+      - name: Fail the job if the check failed
+        if: steps.check.outputs.rc != '0'
+        run: |
+          echo "cache_version_check.py exited ${{ steps.check.outputs.rc }}"
+          exit 1
