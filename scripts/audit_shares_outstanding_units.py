@@ -104,9 +104,14 @@ def _load_ticker_filter(path: str | None) -> set[str] | None:
 def audit(engine, tickers: set[str] | None) -> list[dict]:
     """Return one row dict per (ticker, period_end) audited."""
     # We pull the most-recent close from daily_prices and the most-recent
-    # market_cap_cr from stock_metrics. For pre-IPO/decade-old rows the
+    # market_cap_cr from market_metrics. For pre-IPO/decade-old rows the
     # market_cap won't match cleanly — that's fine, we just report
     # "unknown" and let ops triage.
+    #
+    # NOTE: PR #144 referenced `stock_metrics` (table doesn't exist in
+    # prod Neon DB); corrected to `market_metrics` per PR #150. Schema
+    # confirmed via backend/routers/screener.py — market_metrics has
+    # (ticker, market_cap_cr, trade_date) and is the canonical source.
     sql = text(
         """
         WITH latest_price AS (
@@ -119,7 +124,7 @@ def audit(engine, tickers: set[str] | None) -> list[dict]:
         latest_mcap AS (
             SELECT DISTINCT ON (ticker)
                    ticker, market_cap_cr, trade_date
-            FROM   stock_metrics
+            FROM   market_metrics
             WHERE  market_cap_cr IS NOT NULL AND market_cap_cr > 0
             ORDER  BY ticker, trade_date DESC
         )
