@@ -150,11 +150,17 @@ def test_compute_pledge_change_pp_unknown_ticker(patched_cursor):
     assert pps.compute_pledge_change_pp("NOPE", lookback_days=90) is None
 
 
-def test_fetch_from_bse_is_stubbed():
-    with pytest.raises(NotImplementedError):
-        pps.fetch_from_bse("RCOM")
+def test_fetch_from_bse_returns_empty_when_no_bse_code(monkeypatch):
+    """Real scraper landed; with no bse_code lookup it returns [] (not raises)."""
+    monkeypatch.setattr(pps, "_bse_code_for", lambda t: None)
+    assert pps.fetch_from_bse("UNKNOWN") == []
 
 
-def test_fetch_from_nse_is_stubbed():
-    with pytest.raises(NotImplementedError):
-        pps.fetch_from_nse("RCOM")
+def test_fetch_from_nse_returns_empty_on_test_seam_failure():
+    """``fetch_from_nse`` accepts a test seam via fetch_from_nse_bulk; with
+    no network and the bulk call returning {}, single-ticker returns []."""
+    # The default fetch_from_nse calls fetch_from_nse_bulk which without a
+    # test seam tries the real network; we patch it to short-circuit.
+    import unittest.mock as mock
+    with mock.patch.object(pps, "fetch_from_nse_bulk", return_value={}):
+        assert pps.fetch_from_nse("RCOM") == []
