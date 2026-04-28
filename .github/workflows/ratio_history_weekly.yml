@@ -1,0 +1,150 @@
+name: Ratio History — Weekly Maintenance
+
+# Universe-wide self-healing maintenance for ratio_history.
+#
+# Audits every active ticker, rebuilds rows flagged with NULL/sub-1 P/E,
+# hyper-percent ROE/ROCE, or stale period_end. Writes a per-run audit
+# CSV to docs/maintenance_history/ for the audit trail.
+#
+# Schedule: Sundays 02:00 IST (= Saturday 20:30 UTC). Low-traffic
+# window before Asia open. Runtime estimate: ~3000 active tickers
+# × 0.5s/ticker (with --rate 2 throttle) ≈ 25 minutes.
+#
+# Required secrets:
+#   - DATABASE_URL : Neon connection string (read+write)
+#
+# Manual first-run: trigger via workflow_dispatch from the Actions tab.
+
+on:
+  schedule:
+    # 20:30 UTC Saturday = 02:00 IST Sunday
+    - cron: "30 20 * * 6"
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Apply rebuilds (else dry-run)"
+        required: false
+        default: "true"
+      limit:
+        description: "Limit ticker count (0 = no limit)"
+        required: false
+        default: "0"
+      rate:
+        description: "Rebuilds per second (Neon throttle)"
+        required: false
+        default: "2"
+
+concurrency:
+  group: ratio-history-weekly
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  maintain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90  # capacity: 3000 tickers @ 0.5s = 25 min, 3.5x buffer
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install psycopg2-binary sqlalchemy python-dateutil
+
+      - name: Verify secret present
+        run: |
+          if [ -z "${{ secrets.DATABASE_URL }}" ]; then
+            echo "::error::DATABASE_URL secret missing"
+            exit 1
+          fi
+
+      - name: Run weekly maintenance
+        id: maintain
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          DATE=$(date -u +%Y-%m-%d)
+          OUT="weekly_ratio_maintenance_${DATE}.csv"
+          APPLY="${{ github.event.inputs.apply || 'true' }}"
+          LIMIT="${{ github.event.inputs.limit || '0' }}"
+          RATE="${{ github.event.inputs.rate || '2' }}"
+
+          ARGS="--all-active --rate $RATE --out $OUT"
+          if [ "$APPLY" = "true" ]; then
+            ARGS="$ARGS --apply"
+          fi
+          if [ "$LIMIT" != "0" ]; then
+            ARGS="$ARGS --limit $LIMIT"
+          fi
+
+          echo "Running: python scripts/weekly_ratio_history_maintenance.py $ARGS"
+          python scripts/weekly_ratio_history_maintenance.py $ARGS
+
+          echo "csv_path=$OUT" >> "$GITHUB_OUTPUT"
+          echo "run_date=$DATE" >> "$GITHUB_OUTPUT"
+
+      - name: Upload CSV artifact (always)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-ratio-maintenance-${{ steps.maintain.outputs.run_date }}
+          path: ${{ steps.maintain.outputs.csv_path }}
+          if-no-files-found: warn
+
+      - name: Commit CSV to maintenance_history (success only)
+        if: success() && github.event_name == 'schedule'
+        run: |
+          set -e
+          DATE="${{ steps.maintain.outputs.run_date }}"
+          SRC="${{ steps.maintain.outputs.csv_path }}"
+          DEST_DIR="docs/maintenance_history"
+          mkdir -p "$DEST_DIR"
+          DEST="$DEST_DIR/ratio_history_${DATE}.csv"
+          cp "$SRC" "$DEST"
+
+          git config user.name "yieldiq-bot"
+          git config user.email "bot@yieldiq.local"
+          git add "$DEST"
+          if git diff --cached --quiet; then
+            echo "No CSV changes to commit"
+            exit 0
+          fi
+          git commit -m "ops(ratio_history): weekly maintenance ${DATE}"
+          git push origin HEAD:main
+
+      - name: Open issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const date = '${{ steps.maintain.outputs.run_date }}' || new Date().toISOString().slice(0,10);
+            const title = `weekly ratio_history maintenance FAILED ${date}`;
+            const body = [
+              '## Weekly ratio_history maintenance failed',
+              '',
+              `Run: ${context.runId}  •  Date: ${date}`,
+              '',
+              '### Triage runbook',
+              '1. Pull the audit CSV from the workflow artifacts (uploaded above).',
+              '2. Inspect failures: `pre_flags` populated + `rebuilt=yes` + non-empty `post_flags` indicates rebuild did not clear the flag.',
+              '3. Run `python scripts/audit_ratio_history.py --all-active` locally with `DATABASE_URL` to confirm staleness state.',
+              '4. If <10% failures, ignore and let next week clear them.',
+              '5. If >10% failures, check Neon connection + financials freshness, then re-run via workflow_dispatch with `apply=true`.',
+              '',
+              `Workflow: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+            ].join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['ops', 'ratio-history', 'auto-opened'],
+            });
