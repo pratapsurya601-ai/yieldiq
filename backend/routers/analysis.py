@@ -1930,3 +1930,83 @@ async def get_report(ticker: str, user: dict = Depends(get_current_user)):
             f"Report generation failed for {ticker}: {e}", exc_info=True
         )
         raise HTTPException(status_code=500, detail=f"Report generation failed: {type(e).__name__}")
+
+
+# ── Sensitivity recompute (interactive sliders) ──────────────────
+# Powers SensitivityPanel on the analysis page. Paid tiers only —
+# free users see the upgrade CTA in the frontend and never call
+# this endpoint. Inputs are tight-bounded (matches frontend slider
+# ranges) so a high-growth + low-WACC pathological combo can't
+# blow up DCFEngine.
+from pydantic import BaseModel, Field
+
+
+class RecomputeRequest(BaseModel):
+    wacc: float = Field(..., ge=0.05, le=0.20, description="Discount rate (5%-20%)")
+    growth_5y_pct: float = Field(..., ge=-0.05, le=0.30, description="5y FCF growth (-5% .. 30%)")
+    margin_pct: float = Field(..., ge=0.0, le=0.60, description="Operating margin (0% .. 60%)")
+    terminal_growth: float = Field(default=0.03, ge=0.0, le=0.05)
+
+
+@router.post("/analysis/{ticker}/recompute")
+async def recompute_sensitivity(
+    ticker: str,
+    body: RecomputeRequest,
+    user: dict = Depends(get_current_user),
+):
+    """Recompute the DCF with user-supplied WACC / growth / margin
+    overrides. Tier-gated to paid plans (pro / analyst); free tier
+    receives 403 so the frontend can render the upgrade CTA."""
+    tier = (user.get("tier") or "free").lower()
+    if tier not in ("pro", "starter", "analyst"):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "tier_required",
+                "required_tier": "pro",
+                "message": "Interactive DCF sliders are a paid feature.",
+                "upgrade_link": "/pricing",
+            },
+        )
+
+    ticker = ticker.upper().strip()
+    if not ticker.endswith(".NS") and not ticker.endswith(".BO"):
+        ticker = f"{ticker}.NS"
+    ticker = TICKER_ALIASES.get(ticker, ticker)
+
+    # Cache key includes all overrides so identical slider positions
+    # short-circuit; 5-minute TTL is plenty since the underlying
+    # enriched data is stable on that horizon.
+    _key = (
+        f"recompute:{ticker}:{body.wacc:.4f}:{body.growth_5y_pct:.4f}:"
+        f"{body.margin_pct:.4f}:{body.terminal_growth:.4f}"
+    )
+    cached = cache.get(_key)
+    if cached:
+        return cached
+
+    try:
+        from backend.services.analysis.recompute import recompute_dcf
+        import asyncio as _asyncio
+        result = await _asyncio.to_thread(
+            recompute_dcf,
+            ticker=ticker,
+            wacc=body.wacc,
+            growth_5y_pct=body.growth_5y_pct,
+            margin_pct=body.margin_pct,
+            terminal_growth=body.terminal_growth,
+        )
+        if result.get("error"):
+            raise HTTPException(status_code=400, detail=result["error"])
+        cache.set(_key, result, ttl=300)
+        return result
+    except TickerNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.getLogger("yieldiq.recompute").error(
+            f"Recompute failed for {ticker}: {e}", exc_info=True
+        )
+        raise HTTPException(status_code=500, detail="DCF recompute failed")

@@ -144,6 +144,51 @@ export const getAnalysis = (ticker: string): Promise<AnalysisResponse> =>
 export const getAISummary = (ticker: string): Promise<{ summary: string }> =>
   api.get(`/api/v1/analysis/${ticker}/summary`).then(r => r.data)
 
+// Sensitivity recompute — POST overrides, get a fresh DCF back.
+// Powers the interactive sliders on /analysis/[ticker]; tier-gated
+// to paid plans on the backend (free tier receives 403).
+export interface RecomputeRequest {
+  wacc: number             // decimal, 0.05 .. 0.20
+  growth_5y_pct: number    // decimal, -0.05 .. 0.30
+  margin_pct: number       // decimal, 0.0 .. 0.60
+  terminal_growth?: number // decimal, default 0.03
+}
+
+export interface RecomputeScenarioCase {
+  iv: number
+  mos_pct: number
+  growth: number
+  wacc: number
+  term_g: number
+}
+
+export interface RecomputeResponse {
+  ticker: string
+  fair_value: number
+  current_price: number
+  margin_of_safety: number
+  verdict: string
+  wacc: number
+  fcf_growth_rate: number
+  operating_margin: number
+  terminal_growth: number
+  bear_case?: number
+  base_case?: number
+  bull_case?: number
+  scenarios?: {
+    bear: RecomputeScenarioCase
+    base: RecomputeScenarioCase
+    bull: RecomputeScenarioCase
+  }
+  warnings?: string[]
+}
+
+export const recomputeDcf = (
+  ticker: string,
+  body: RecomputeRequest,
+): Promise<RecomputeResponse> =>
+  api.post(`/api/v1/analysis/${ticker}/recompute`, body).then(r => r.data)
+
 export const getChartData = (ticker: string, period: string = "1m") =>
   api.get(`/api/v1/analysis/${ticker}/chart-data?period=${period}`).then(r => r.data)
 
