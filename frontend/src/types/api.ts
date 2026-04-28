@@ -230,6 +230,17 @@ export interface AnalysisResponse {
   scenarios: ScenariosOutput
   price_levels: PriceLevels
   ai_summary: string | null
+  /**
+   * Multilingual AI summary translations (Phase 0 — review-gated,
+   * dark-launched). Mirrors the backend's
+   * `AnalysisResponse.ai_summary_translations`. Keyed by ISO 639-1
+   * code: "hi" (Hindi), "ta" (Tamil), "mr" (Marathi). The English
+   * summary in `ai_summary` is the authoritative source; translations
+   * carry an in-string disclaimer noting this. Stays `null` until
+   * the `MULTILINGUAL_SUMMARIES_ENABLED` backend flag is flipped
+   * (post native-speaker review). UI toggle ships in a later PR.
+   */
+  ai_summary_translations?: Record<string, string> | null
   data_confidence: Confidence
   data_issues: string[]
   analytical_notes?: AnalyticalNoteOutput[]

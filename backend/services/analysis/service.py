@@ -209,6 +209,32 @@ class AnalysisService(NarrativeMixin):
                 f"narrative summary generation crashed for {ticker}: "
                 f"{type(_ne).__name__}: {_ne}"
             )
+
+        # ── Multilingual translations (Phase 0 — review-gated) ──────
+        # Dark-launched: only populates when MULTILINGUAL_SUMMARIES_ENABLED
+        # is set in the environment AND native-speaker review of the
+        # samples committed under docs/multilingual_samples_for_review.md
+        # has signed off. Default behaviour is unchanged.
+        try:
+            translations = self.get_ai_summary_translations(
+                ticker,
+                result,
+                english_summary=getattr(result, "ai_summary", None),
+            )
+            if translations:
+                try:
+                    result.ai_summary_translations = translations
+                except Exception:
+                    result = result.model_copy(
+                        update={"ai_summary_translations": translations}
+                    )
+        except Exception as _me:
+            import logging as _ml
+            _ml.getLogger("yieldiq.ai_summary").warning(
+                f"multilingual translation crashed for {ticker} "
+                f"(non-fatal, English summary intact): "
+                f"{type(_me).__name__}: {_me}"
+            )
         return result
 
     def _get_full_analysis_inner(self, ticker: str) -> AnalysisResponse:
