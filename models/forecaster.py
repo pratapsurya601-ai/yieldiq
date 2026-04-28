@@ -36,19 +36,6 @@ TERMINAL_FADE_G =  0.04   # 4% terminal growth (was 3% — India long-run ~4%)
 FADE_K          =  0.25   # slower fade (was 0.35 — high-growth cos punished too early)
 BLEND_WEIGHTS   = np.array([0.30, 0.30, 0.40])  # lr, rf, rule — less conservative bias
 
-# ── Operating-margin mean-reversion (post-COVID-spike fix) ─────
-# Window deliberately 7y, not 5y: a 5y lookback in 2026 still includes
-# the FY21/FY22 COVID-spike years for cohorts like NATCOPHARM/MARKSANS
-# /JUSTDIAL, so the "baseline" itself would be contaminated. 7y reaches
-# back into FY19 pre-COVID economics.
-MARGIN_REVERT_WINDOW_Y = 7
-MARGIN_REVERT_THRESHOLD = 0.30   # only fade if TTM margin > 130% of trailing avg
-MARGIN_REVERT_FADE_Y    = 3      # linear revert to avg over 3 years
-# Asymmetric by design: we cap inflated margins, but do NOT bump up
-# depressed margins. Trough-cycle businesses can be genuinely impaired,
-# and lifting their projection toward a higher historical mean would
-# produce false-positive FVs on structurally broken names.
-
 
 def _clamp(g: float) -> float:
     return float(np.clip(g, MIN_FCF_GROWTH, MAX_FCF_GROWTH))
@@ -293,73 +280,6 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
         pass
 
     return base, method
-
-
-def _compute_margin_reversion_schedule(
-    enriched: dict,
-    years: int,
-    *,
-    window: int = MARGIN_REVERT_WINDOW_Y,
-    threshold: float = MARGIN_REVERT_THRESHOLD,
-    fade_years: int = MARGIN_REVERT_FADE_Y,
-) -> Optional[dict]:
-    """
-    Build a per-year margin-reversion multiplier applied on top of the
-    growth-fade projection. Returns None when the gate doesn't trip or
-    when the data is too thin to compute a credible baseline.
-
-    Semantics: when TTM operating margin is more than `threshold` above
-    the trailing `window`-year average (excluding TTM itself), project
-    margin reverting linearly toward the average over `fade_years`,
-    then flat at the average thereafter. The returned `factors[t]` =
-    target_margin_t / current_margin, so the caller can multiply each
-    year's projected FCF by `factors[t-1]` to get the mean-reverted
-    cash-flow path. Mathematically equivalent to projecting
-    revenue_t × margin_t × (1-tax) × conv when revenue grows at the
-    shared growth-fade rate.
-
-    Asymmetric (cap-only): never bumps depressed margins upward.
-    """
-    income_df = enriched.get("income_df")
-    if income_df is None or income_df.empty:
-        return None
-    if "operating_income" not in income_df.columns or "revenue" not in income_df.columns:
-        return None
-
-    df = income_df.tail(window).copy()
-    df = df[df["revenue"] > 0]
-    # Need TTM + at least 3 prior years for a credible baseline
-    if len(df) < 4:
-        return None
-
-    margins = (df["operating_income"] / df["revenue"]).astype(float)
-    cur_margin = float(margins.iloc[-1])
-    baseline = margins.iloc[:-1]
-    avg_margin = float(baseline.mean())
-
-    if avg_margin <= 0 or cur_margin <= 0:
-        return None
-
-    deviation = (cur_margin - avg_margin) / avg_margin
-    if deviation <= threshold:
-        return None  # asymmetric: only fade when inflated
-
-    factors = []
-    for t in range(1, years + 1):
-        if t <= fade_years:
-            margin_t = cur_margin + (avg_margin - cur_margin) * (t / fade_years)
-        else:
-            margin_t = avg_margin
-        factors.append(margin_t / cur_margin)
-
-    return {
-        "factors": factors,
-        "cur_margin": cur_margin,
-        "avg_margin": avg_margin,
-        "deviation": deviation,
-        "window_years": int(len(baseline)),
-        "fade_years": fade_years,
-    }
 
 
 def _build_features(enriched: dict) -> np.ndarray:
@@ -859,7 +779,6 @@ class FCFForecaster:
             }
 
         base_growth     = self.predict_growth_rate(enriched)
-        mrev            = _compute_margin_reversion_schedule(enriched, years)
         projections     = []
         growth_schedule = []
         fcf = fcf_base
@@ -867,22 +786,14 @@ class FCFForecaster:
         for yr in range(1, years + 1):
             g = _clamp(_exponential_fade(yr, base_growth))
             fcf = fcf * (1 + g)
-            adj = fcf * mrev["factors"][yr - 1] if mrev is not None else fcf
-            projections.append(adj)
+            projections.append(fcf)
             growth_schedule.append(g)
 
         terminal_norm = float(np.mean(projections[-3:])) if len(projections) >= 3 else projections[-1]
 
-        if mrev is not None:
-            log.info(
-                f"[{ticker}] margin-revert ON: cur={mrev['cur_margin']:.1%} "
-                f"avg{mrev['window_years']}y={mrev['avg_margin']:.1%} "
-                f"dev={mrev['deviation']:+.0%} fade={mrev['fade_years']}y "
-                f"factor_t1={mrev['factors'][0]:.3f} factor_tN={mrev['factors'][-1]:.3f}"
-            )
         log.debug(f"[{ticker}] base={fcf_base/1e9:.2f}B ({method}) g0={base_growth:.2%} g10={growth_schedule[-1]:.2%}")
 
-        result = {
+        return {
             "projections":       projections,
             "base_growth":       base_growth,
             "terminal_fcf_norm": terminal_norm,
@@ -891,16 +802,6 @@ class FCFForecaster:
             "growth_schedule":   growth_schedule,
             "reliable":          True,
         }
-        if mrev is not None:
-            result["margin_reversion"] = {
-                "cur_margin":   mrev["cur_margin"],
-                "avg_margin":   mrev["avg_margin"],
-                "deviation":    mrev["deviation"],
-                "window_years": mrev["window_years"],
-                "fade_years":   mrev["fade_years"],
-                "factors":      mrev["factors"],
-            }
-        return result
 
     def save(self, path: str = MODEL_SAVE_PATH) -> None:
         Path(path).parent.mkdir(parents=True, exist_ok=True)
