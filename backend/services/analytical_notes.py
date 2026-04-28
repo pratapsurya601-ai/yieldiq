@@ -26,8 +26,11 @@
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, asdict
 from typing import Any, Literal
+
+_logger = logging.getLogger(__name__)
 
 
 NoteKind = Literal[
@@ -131,11 +134,35 @@ def _num(x: Any) -> float | None:
 
 
 def _normalize_pct(x: Any) -> float | None:
-    """Return a percent (e.g. 0.23 → 23.0, 23 → 23.0)."""
+    """Return a percent (e.g. 0.23 → 23.0, 23 → 23.0).
+
+    The threshold here (1.5) is intentionally looser than the analysis-
+    pipeline helper (1.0) because rule-engine inputs sometimes carry
+    legacy decimal-form ratios above 1.0 (e.g. 1.2 = 120% historical
+    growth). Boundary observability logging added 2026-04-27 to make
+    misclassifications visible.
+    """
     v = _num(x)
     if v is None:
         return None
-    return v * 100.0 if abs(v) < 1.5 else v
+    if abs(abs(v) - 1.5) <= 0.05:
+        _logger.warning(
+            "analytical_notes._normalize_pct: v=%g near boundary 1.5 — "
+            "classification may be unstable",
+            v,
+        )
+    if abs(v) < 1.5:
+        out = v * 100.0
+        _logger.debug(
+            "analytical_notes._normalize_pct: detected decimal v=%g -> %g%%",
+            v, out,
+        )
+        return out
+    _logger.debug(
+        "analytical_notes._normalize_pct: detected percent v=%g (passthrough)",
+        v,
+    )
+    return v
 
 
 def _sector_key(sector_name: Any) -> str:
