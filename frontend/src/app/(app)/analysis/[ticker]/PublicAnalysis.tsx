@@ -53,6 +53,17 @@ interface PrismRaw {
   yieldiq_score_100?: number | null
   grade?: string | null
   market_cap_cr?: number | null
+  // FV-clamp consistency (NOIDATOLL +200% bug — visitor follow-up to PR #108).
+  // When true, the backend has clamped fair_value/mos_pct to a plausible
+  // bound; render the unclamped base-case scenario instead so the visitor
+  // hero matches the logged-in EditorialHero fix and the AI summary.
+  fv_clamped?: boolean
+  scenarios?: {
+    bear?: number | null
+    base?: number | null
+    bull?: number | null
+    base_unclamped?: number | null
+  } | null
 }
 
 const GATED_SECTIONS: Array<{ title: string; blurb: string }> = [
@@ -142,12 +153,36 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
     sector,
     market_cap_cr,
     price,
-    fair_value,
-    mos_pct,
+    fair_value: rawFairValue,
+    mos_pct: rawMosPct,
     verdict_label,
     yieldiq_score_100,
     grade,
+    fv_clamped,
+    scenarios,
   } = raw
+
+  // FV-clamp consistency (NOIDATOLL +200% bug — visitor view follow-up
+  // to PR #108): when the backend clamped fair_value to a plausible
+  // bound (FV/PX outside [0.1, 3.0] OR |MoS| ≥ 95%), the headline
+  // fair_value/mos_pct on the prism payload reflect the clamp, while
+  // scenarios.base_unclamped retains the meaningful base-case IV. Promote
+  // base_unclamped to the headline so the visitor hero shows the same
+  // numbers the AI summary + scenario grid (gated, but referenced from
+  // the upsell copy) reason about. Mirrors the AnalysisBody logic added
+  // in PR #108. If the unclamped base is missing or non-positive, fall
+  // back to the clamped headline rather than render "—".
+  const baseUnclamped = scenarios?.base_unclamped
+  const useUnclamped =
+    !!fv_clamped &&
+    typeof baseUnclamped === "number" &&
+    Number.isFinite(baseUnclamped) &&
+    baseUnclamped > 0
+  const fair_value = useUnclamped ? (baseUnclamped as number) : rawFairValue
+  const mos_pct =
+    useUnclamped && typeof price === "number" && price > 0
+      ? Math.round((((baseUnclamped as number) - price) / price) * 100 * 100) / 100
+      : rawMosPct
 
   const displayTicker = tickerUpper.replace(/\.(NS|BO)$/i, "")
   const exchange = tickerUpper.endsWith(".BO") ? "BSE" : "NSE"

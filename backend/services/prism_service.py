@@ -416,12 +416,21 @@ def _fetch_company_sector(ticker: str) -> tuple[Optional[str], Optional[str]]:
 
 
 def _extract_scenarios(analysis: Optional[dict]) -> dict:
-    """Pull bear/base/bull scenario fair values from the analysis payload."""
+    """Pull bear/base/bull scenario fair values from the analysis payload.
+
+    `base_unclamped` is the base-case scenario IV taken straight from the
+    pre-clamp scenarios dict (not the post-clamp valuation.fair_value).
+    Used by the public Prism payload + visitor analysis hero to recover
+    the meaningful base-case FV when the headline has been clamped to a
+    plausible bound (see backend/routers/analysis.py FV clamp + the
+    NOIDATOLL +200% MoS bug fixed in PR #108 / its visitor follow-up).
+    """
+    out = {"bear": None, "base": None, "bull": None, "base_unclamped": None}
     if not isinstance(analysis, dict):
-        return {"bear": None, "base": None, "bull": None}
+        return out
     scen = analysis.get("scenarios") or {}
     if not isinstance(scen, dict):
-        return {"bear": None, "base": None, "bull": None}
+        return out
 
     def _val(*keys: str):
         for k in keys:
@@ -431,7 +440,7 @@ def _extract_scenarios(analysis: Optional[dict]) -> dict:
             if isinstance(node, (int, float)):
                 return float(node)
             if isinstance(node, dict):
-                for fk in ("fair_value", "value", "fv", "price"):
+                for fk in ("iv", "fair_value", "value", "fv", "price"):
                     if node.get(fk) is not None:
                         try:
                             return float(node[fk])
@@ -445,11 +454,14 @@ def _extract_scenarios(analysis: Optional[dict]) -> dict:
     except Exception:
         base_fallback = None
 
-    return {
-        "bear": _val("bear", "pessimistic", "downside"),
-        "base": _val("base", "baseline", "central") or base_fallback,
-        "bull": _val("bull", "optimistic", "upside"),
-    }
+    base_real = _val("base", "baseline", "central")
+    out["bear"] = _val("bear", "pessimistic", "downside")
+    out["base"] = base_real if base_real is not None else base_fallback
+    out["bull"] = _val("bull", "optimistic", "upside")
+    # base_unclamped: only set when the scenarios dict carried a real
+    # base value — never the post-clamp valuation.fair_value fallback.
+    out["base_unclamped"] = base_real
+    return out
 
 
 def _refraction_index(hex_payload: dict) -> float:
@@ -492,7 +504,8 @@ def _baseline_payload(ticker: str, compute_ms: float, error: str = "") -> dict:
         "grade": "C",
         "sector_rank": None,
         "market_cap_cr": None,
-        "scenarios": {"bear": None, "base": None, "bull": None},
+        "scenarios": {"bear": None, "base": None, "bull": None, "base_unclamped": None},
+        "fv_clamped": False,
         "score_history_12m": [],
         "computed_at": now,
         "compute_ms": round(compute_ms, 2),
@@ -629,6 +642,22 @@ def _build_prism(ticker: str, t0: float) -> dict:
     # 8. scenarios
     scenarios = _extract_scenarios(analysis)
 
+    # 8b. FV-clamp flag — surfaced to the visitor analysis hero so it can
+    # render the unclamped base-case scenario instead of the misleading
+    # clamped headline (NOIDATOLL +200% bug, follow-up to PR #108).
+    # Single source of truth: analysis_cache.payload.data_issues string
+    # emitted by the same code path that performs the clamp
+    # (backend/routers/analysis.py).
+    fv_clamped = False
+    try:
+        _issues = (analysis or {}).get("data_issues") or []
+        if isinstance(_issues, list):
+            fv_clamped = any(
+                isinstance(s, str) and "Fair value clamped" in s for s in _issues
+            )
+    except Exception:
+        fv_clamped = False
+
     # 9. score history
     try:
         score_history_12m = _score_history_12m(ticker)
@@ -668,6 +697,7 @@ def _build_prism(ticker: str, t0: float) -> dict:
         "sector_rank": sector_rank,
         "market_cap_cr": market_cap_cr,
         "scenarios": scenarios,
+        "fv_clamped": fv_clamped,
         "score_history_12m": score_history_12m,
         "computed_at": datetime.now(timezone.utc).isoformat(),
         "compute_ms": round(elapsed, 2),
