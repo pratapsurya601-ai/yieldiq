@@ -2904,15 +2904,46 @@ async def public_retrospective(
     Returns the summary payload defined in
     backend.services.retrospective_service.summarize_for_period.
 
-    SCAFFOLDING: returns sample fixture data so the frontend layout
-    can be reviewed end-to-end. Phase 2 wires this to the
-    model_predictions_history + prediction_outcomes tables.
+    Phase 2: Calls summarize_for_period which queries
+    model_predictions_history + prediction_outcomes. Falls back to
+    the sample payload only when the DB has no qualifying rows for
+    the requested period — keeps the page useful (and SEO-stable)
+    until the cron has been running long enough.
     """
-    # ── Sample payload — shape MUST match summarize_for_period ──
-    # When Phase 2 lands, replace this block with:
-    #   from backend.services.retrospective_service import summarize_for_period
-    #   start, end = _resolve_period_label(period)
-    #   payload = summarize_for_period(start, end, window=window)
+    # Try the real query first. Falls back to sample on any failure.
+    try:
+        from backend.services.retrospective_service import (
+            summarize_for_period,
+            _resolve_period_label,
+        )
+        from datetime import datetime as _dt
+        start, end = _resolve_period_label(period)
+        real = summarize_for_period(
+            start_date=start,
+            end_date=end,
+            window=window,
+        )
+        # If the period had at least 1 qualifying prediction, ship real data.
+        if real.get("n_predictions", 0) > 0:
+            real["is_sample"] = False
+            real["last_updated"] = _dt.utcnow().isoformat() + "Z"
+            real["disclaimer"] = (
+                "Past results are not indicative of future returns. Sample "
+                "size, survivorship-bias and look-ahead-bias caveats apply. "
+                "See /methodology/performance for the full methodology. "
+                "SEBI: descriptive only, not advisory."
+            )
+            return _cached_json(real, s_maxage=3600, swr=21600)
+        logger.info(
+            "retrospective: %s window=%d had 0 qualifying predictions; "
+            "serving sample payload", period, window,
+        )
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning(
+            "retrospective: real query failed, serving sample. err=%s", exc,
+        )
+
+    # ── Sample fallback — shape matches summarize_for_period contract ──
     sample = {
         "period": {
             "start": "2025-04-01",
@@ -2944,7 +2975,8 @@ async def public_retrospective(
             {"ticker": "ADANIENT.NS",    "return_pct":  -6.8},
             {"ticker": "TATASTEEL.NS",   "return_pct":  -3.1},
         ],
-        "is_sample": True,   # Phase 2 will remove this flag.
+        "is_sample": True,
+        "last_updated": None,
         "disclaimer": (
             "Past results are not indicative of future returns. Sample "
             "size and selection bias caveats apply. See methodology page "
