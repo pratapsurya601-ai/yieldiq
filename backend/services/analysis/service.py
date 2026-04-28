@@ -56,7 +56,17 @@ from screener.ev_ebitda import run_ev_ebitda_analysis
 from screener.momentum import calculate_momentum
 from config.countries import get_active_country
 
-from dashboard.utils.scoring import compute_yieldiq_score
+# Optional imports (may need streamlit mock)
+try:
+    from dashboard.utils.scoring import compute_yieldiq_score
+except Exception:
+    def compute_yieldiq_score(mos_pct, piotroski, moat_grade, rev_growth, analyst_upside=0):
+        _v = max(0, min(100, (mos_pct + 40) / 80 * 40))
+        _q = max(0, min(100, (piotroski / 9) * 30))
+        _g = max(0, min(100, (rev_growth * 100 + 20) / 60 * 20))
+        _s = max(0, min(100, analyst_upside * 10))
+        _total = int(_v + _q + _g + _s)
+        return {"score": max(0, min(100, _total)), "grade": "A" if _total >= 75 else "B" if _total >= 55 else "C" if _total >= 35 else "D" if _total >= 20 else "F"}
 
 
 # ── Subpackage siblings (constants/utils/db/narrative) ────
@@ -927,47 +937,6 @@ class AnalysisService(NarrativeMixin):
         # behaviour preserved a "pre-moat" MoS even though the
         # displayed FV reflected the moat delta — users saw e.g.
         # FV ₹3,223 with MoS −0.1% when the math demands +24.8%.
-        # ── Peer-multiple sanity gate (CACHE_VERSION 65) ──────
-        # Before deriving the final MoS, clamp `iv` against the peer
-        # P/E-implied FV. The clamp is down-only and preserves the
-        # raw DCF when peers are missing/sparse — see
-        # backend/services/peer_cap_service.py for the policy.
-        # Applied here (not at line ~743) so that any moat-delta
-        # adjustment to iv has already landed; the cap is the last
-        # gate before MoS / verdict / score are computed.
-        _peer_cap_source: str = "dcf"
-        _peer_cap_details: dict | None = None
-        try:
-            from backend.services.peer_cap_service import apply_peer_cap
-            _eps_for_cap = (
-                enriched.get("diluted_eps")
-                or enriched.get("eps_diluted")
-                or enriched.get("eps")
-                or raw.get("fh_eps_ttm")
-            )
-            _db_for_cap = _get_pipeline_session()
-            try:
-                _cap_result = apply_peer_cap(
-                    ticker=ticker,
-                    dcf_fv=float(iv) if iv else 0.0,
-                    eps_ttm=float(_eps_for_cap) if _eps_for_cap else None,
-                    industry=company.industry,
-                    sector=company.sector,
-                    db=_db_for_cap,
-                )
-            finally:
-                if _db_for_cap is not None:
-                    try:
-                        _db_for_cap.close()
-                    except Exception:
-                        pass
-            iv = _cap_result.capped_fv
-            _peer_cap_source = _cap_result.source
-            _peer_cap_details = _cap_result.details or None
-        except Exception as _pc_exc:
-            # Never let the peer cap break analysis. Failure → raw DCF.
-            _pt_logger.warning("peer_cap failed for %s: %s", ticker, _pc_exc)
-
         # Single source of truth: derive MoS from the SAME `iv`
         # field that is shown to the user. Covers both DCF and
         # financial-stock P/BV paths (financials skip the moat
@@ -983,26 +952,21 @@ class AnalysisService(NarrativeMixin):
         _analyst_target = (raw.get("finnhub_price_target") or {}).get("mean", 0) or 0
         _analyst_upside = ((_analyst_target - price) / price * 100) if price > 0 and _analyst_target > 0 else 0
 
-        # "Liquid large-cap" gate for the model-confidence deduction in
-        # compute_yieldiq_score. Mcap thresholds are currency-specific; we
-        # classify here (where currency context lives) so the scorer stays
-        # currency-agnostic. ₹10,000 Cr ≈ $1.2B; both pick out the
-        # well-followed names where ±50% MoS is implausible.
-        _shares = enriched.get("shares") or 0
-        _mcap_native = float(price) * float(_shares) if _shares else 0.0
-        if is_indian:
-            _is_liquid_largecap = (_mcap_native / 1e7) >= 10_000  # ₹ Cr
-        else:
-            _is_liquid_largecap = _mcap_native >= 1_200_000_000   # $1.2B
-
-        yiq_score = compute_yieldiq_score(
-            mos_pct=mos_pct,
-            piotroski=piotroski.get("score", 0),
-            moat_grade=moat_result.get("grade", "None"),
-            rev_growth=enriched.get("revenue_growth", 0),
-            analyst_upside=_analyst_upside,
-            is_liquid_largecap=_is_liquid_largecap,
-        )
+        try:
+            yiq_score = compute_yieldiq_score(
+                mos_pct=mos_pct,
+                piotroski=piotroski.get("score", 0),
+                moat_grade=moat_result.get("grade", "None"),
+                rev_growth=enriched.get("revenue_growth", 0),
+                analyst_upside=_analyst_upside,
+            )
+        except TypeError as _te:
+            # Fallback: calculate inline if function signature doesn't match
+            _v = max(0, min(40, int((mos_pct + 40) / 80 * 40)))
+            _q = max(0, min(30, int(piotroski.get("score", 0) / 9 * 20 + (10 if moat_result.get("grade") == "Wide" else 7 if moat_result.get("grade") == "Narrow" else 0))))
+            _g = max(0, min(20, int(enriched.get("revenue_growth", 0) * 100)))
+            _total = max(0, min(100, _v + _q + _g))
+            yiq_score = {"score": _total, "grade": "A" if _total >= 75 else "B" if _total >= 55 else "C" if _total >= 35 else "D" if _total >= 20 else "F"}
 
         # ── Step 8: Scenarios ─────────────────────────────────
         # `scenarios_raw` was computed in the parallel wave above
@@ -1712,9 +1676,6 @@ class AnalysisService(NarrativeMixin):
                 # Parquet). Both are delayed — frontend renders as
                 # "Delayed", never "Live". See FreshnessStamp.tsx.
                 current_price_as_of=_ts,
-                # Peer-multiple sanity gate (CACHE_VERSION 65)
-                fair_value_source=_peer_cap_source,
-                peer_cap_details=_peer_cap_details,
             ),
             quality=QualityOutput(
                 yieldiq_score=yiq_score.get("score", 0),

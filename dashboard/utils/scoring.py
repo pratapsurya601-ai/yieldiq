@@ -3,31 +3,21 @@ YieldIQ Composite Score calculation.
 Pure scoring function - no Streamlit dependencies.
 """
 
-MODEL_CONFIDENCE_PENALTY = 8
-MODEL_CONFIDENCE_MOS_THRESHOLD = 50.0   # |MoS%| above this is "implausible" for liquid large-caps
-
-
 def compute_yieldiq_score(
     mos_pct: float,
     piotroski: int,
     moat_grade: str,
     rev_growth: float,
     analyst_upside: float,
-    is_liquid_largecap: bool = False,
 ) -> dict:
     """
     Compute YieldIQ Composite Score (0-100).
-
+    
     Scoring breakdown (quality-focused, ~70% quality / ~30% value):
     - Business Quality: 50 points (Piotroski F-Score 25 + Economic Moat 25)
     - Growth: 20 points (Revenue growth trajectory)
     - Valuation: 20 points (Margin of safety)
     - Sentiment: 10 points (Analyst consensus upside)
-    - Model-confidence: -8 deduction when |MoS| > 50% on a liquid large-cap
-      (well-followed names rarely have ±50% MoS for legitimate reasons; treat
-      as model artifact rather than genuine opportunity). Liquidity/coverage
-      classification is the caller's responsibility — keeps this function
-      currency-agnostic.
 
     Rationale: MoS reflects *price*, not business quality. Over-weighting it
     penalizes premium-priced compounders (e.g. Nestle, Asian Paints, Titan)
@@ -102,17 +92,7 @@ def compute_yieldiq_score(
     elif analyst_upside >= 0:   sent_score = 4
     else:                       sent_score = 1
 
-    # Model-confidence deduction.
-    mc_penalty = 0
-    mc_reason = ""
-    if is_liquid_largecap and abs(float(mos_pct or 0)) > MODEL_CONFIDENCE_MOS_THRESHOLD:
-        mc_penalty = MODEL_CONFIDENCE_PENALTY
-        mc_reason = (
-            f"Reported MoS {float(mos_pct):+.0f}% exceeds expected range for "
-            f"liquid large-caps; -{mc_penalty} pts for model uncertainty."
-        )
-
-    total = max(0, min(100, int(val_score + qual_score + grw_score + sent_score - mc_penalty)))
+    total = max(0, min(100, int(val_score + qual_score + grw_score + sent_score)))
 
     # Letter grade assignment
     if total >= 85:   grade = "A+"
@@ -131,8 +111,5 @@ def compute_yieldiq_score(
             "Growth (20pts)":           int(grw_score),
             "Valuation (20pts)":        int(val_score),
             "Sentiment (10pts)":        int(sent_score),
-            "Model Confidence":         -int(mc_penalty),
         },
-        "model_confidence_penalty": int(mc_penalty),
-        "model_confidence_reason":  mc_reason,
     }

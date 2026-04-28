@@ -62,8 +62,7 @@ INDUSTRY_WACC = {
 
     # ── IT & Technology ───────────────────────────────────────
     "it_services": {
-        # Audit 2026-04-27: bumped wacc_default 11.0% -> 11.5% (India large-cap COE realism)
-        "wacc_min":         0.10, "wacc_max": 0.12, "wacc_default": 0.115,
+        "wacc_min":         0.10, "wacc_max": 0.12, "wacc_default": 0.11,
         "terminal_growth":  0.035,
         "beta_typical":     1.05,
         "capex_intensity":  0.02,    # 2% of revenue — very asset-light
@@ -120,8 +119,7 @@ INDUSTRY_WACC = {
 
     # ── FMCG & Consumer ───────────────────────────────────────
     "fmcg": {
-        # Audit 2026-04-27: bumped wacc_default 10.0% -> 10.5% (India large-cap COE realism)
-        "wacc_min":         0.09, "wacc_max": 0.11, "wacc_default": 0.105,
+        "wacc_min":         0.09, "wacc_max": 0.11, "wacc_default": 0.10,
         "terminal_growth":  0.04,
         "beta_typical":     0.75,
         "capex_intensity":  0.03,    # 3% of revenue — low capex
@@ -141,8 +139,7 @@ INDUSTRY_WACC = {
                              "jyothylab","emamiltd"],
     },
     "consumer_durable": {
-        # Audit 2026-04-27: bumped wacc_default 11.0% -> 11.5% (India large-cap COE realism)
-        "wacc_min":         0.10, "wacc_max": 0.12, "wacc_default": 0.115,
+        "wacc_min":         0.10, "wacc_max": 0.12, "wacc_default": 0.11,
         "terminal_growth":  0.035,
         "beta_typical":     0.95,
         "capex_intensity":  0.04,
@@ -162,8 +159,7 @@ INDUSTRY_WACC = {
 
     # ── Pharma & Healthcare ───────────────────────────────────
     "pharma": {
-        # Audit 2026-04-27: bumped wacc_default 11.5% -> 12.0% (India large-cap COE realism)
-        "wacc_min":         0.10, "wacc_max": 0.13, "wacc_default": 0.12,
+        "wacc_min":         0.10, "wacc_max": 0.13, "wacc_default": 0.115,
         "terminal_growth":  0.035,
         "beta_typical":     0.85,
         "capex_intensity":  0.07,    # 7% — API plants + formulation
@@ -532,8 +528,7 @@ INDUSTRY_WACC = {
 
     # ── General Fallback ─────────────────────────────────────
     "general": {
-        # Audit 2026-04-27: bumped wacc_default 11.5% -> 12.0% (India large-cap COE realism)
-        "wacc_min":         0.10, "wacc_max": 0.13, "wacc_default": 0.12,
+        "wacc_min":         0.10, "wacc_max": 0.13, "wacc_default": 0.115,
         "terminal_growth":  0.03,
         "beta_typical":     1.00,
         "capex_intensity":  0.05,
