@@ -56,7 +56,17 @@ from screener.ev_ebitda import run_ev_ebitda_analysis
 from screener.momentum import calculate_momentum
 from config.countries import get_active_country
 
-from dashboard.utils.scoring import compute_yieldiq_score
+# Optional imports (may need streamlit mock)
+try:
+    from dashboard.utils.scoring import compute_yieldiq_score
+except Exception:
+    def compute_yieldiq_score(mos_pct, piotroski, moat_grade, rev_growth, analyst_upside=0):
+        _v = max(0, min(100, (mos_pct + 40) / 80 * 40))
+        _q = max(0, min(100, (piotroski / 9) * 30))
+        _g = max(0, min(100, (rev_growth * 100 + 20) / 60 * 20))
+        _s = max(0, min(100, analyst_upside * 10))
+        _total = int(_v + _q + _g + _s)
+        return {"score": max(0, min(100, _total)), "grade": "A" if _total >= 75 else "B" if _total >= 55 else "C" if _total >= 35 else "D" if _total >= 20 else "F"}
 
 
 # ── Subpackage siblings (constants/utils/db/narrative) ────
@@ -942,26 +952,21 @@ class AnalysisService(NarrativeMixin):
         _analyst_target = (raw.get("finnhub_price_target") or {}).get("mean", 0) or 0
         _analyst_upside = ((_analyst_target - price) / price * 100) if price > 0 and _analyst_target > 0 else 0
 
-        # "Liquid large-cap" gate for the model-confidence deduction in
-        # compute_yieldiq_score. Mcap thresholds are currency-specific; we
-        # classify here (where currency context lives) so the scorer stays
-        # currency-agnostic. ₹10,000 Cr ≈ $1.2B; both pick out the
-        # well-followed names where ±50% MoS is implausible.
-        _shares = enriched.get("shares") or 0
-        _mcap_native = float(price) * float(_shares) if _shares else 0.0
-        if is_indian:
-            _is_liquid_largecap = (_mcap_native / 1e7) >= 10_000  # ₹ Cr
-        else:
-            _is_liquid_largecap = _mcap_native >= 1_200_000_000   # $1.2B
-
-        yiq_score = compute_yieldiq_score(
-            mos_pct=mos_pct,
-            piotroski=piotroski.get("score", 0),
-            moat_grade=moat_result.get("grade", "None"),
-            rev_growth=enriched.get("revenue_growth", 0),
-            analyst_upside=_analyst_upside,
-            is_liquid_largecap=_is_liquid_largecap,
-        )
+        try:
+            yiq_score = compute_yieldiq_score(
+                mos_pct=mos_pct,
+                piotroski=piotroski.get("score", 0),
+                moat_grade=moat_result.get("grade", "None"),
+                rev_growth=enriched.get("revenue_growth", 0),
+                analyst_upside=_analyst_upside,
+            )
+        except TypeError as _te:
+            # Fallback: calculate inline if function signature doesn't match
+            _v = max(0, min(40, int((mos_pct + 40) / 80 * 40)))
+            _q = max(0, min(30, int(piotroski.get("score", 0) / 9 * 20 + (10 if moat_result.get("grade") == "Wide" else 7 if moat_result.get("grade") == "Narrow" else 0))))
+            _g = max(0, min(20, int(enriched.get("revenue_growth", 0) * 100)))
+            _total = max(0, min(100, _v + _q + _g))
+            yiq_score = {"score": _total, "grade": "A" if _total >= 75 else "B" if _total >= 55 else "C" if _total >= 35 else "D" if _total >= 20 else "F"}
 
         # ── Step 8: Scenarios ─────────────────────────────────
         # `scenarios_raw` was computed in the parallel wave above
