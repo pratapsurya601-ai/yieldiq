@@ -57,3 +57,10 @@ from backend.services.analysis.constants import (
     USD_INR_RATE,
 )
 from backend.services.analysis.narrative import NarrativeMixin
+# Performance retrospective entry point — counterfactual reconstruction
+# of the current model's view at a historical date. See module docstring
+# for the (deliberately simpler) scope vs a strict point-in-time refit.
+from backend.services.analysis.compute_for_date import (
+    compute_for_date,
+    HistoricalPrediction,
+)

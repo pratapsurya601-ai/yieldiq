@@ -158,17 +158,19 @@ def test_winners_and_losers_ordering():
     assert loser_returns[0]  == round(worst, 2)
 
 
-def test_benchmark_required_when_predictions_supplied():
-    try:
-        summarize_for_period(
-            date(2025, 4, 1),
-            date(2025, 6, 30),
-            predictions=[],
-        )
-    except ValueError as e:
-        assert "benchmark" in str(e).lower()
-    else:
-        raise AssertionError("expected ValueError for missing benchmark")
+def test_benchmark_falls_back_when_missing():
+    """Phase 2: missing benchmark_return_pct no longer raises — it
+    falls back to 0.0 (with a None lookup) so the page still renders.
+    The frontend surfaces this with a 'benchmark unavailable' note."""
+    out = summarize_for_period(
+        date(2025, 4, 1),
+        date(2025, 6, 30),
+        predictions=[],
+    )
+    assert out["n_predictions"] == 0
+    # Benchmark falls back to 0.0 (or whatever DB returns; in tests
+    # _fetch_benchmark_return returns None → coerced to 0.0)
+    assert out["benchmark"]["return_pct"] in (0.0, None)
 
 
 def test_empty_predictions_returns_nulls_not_crash():

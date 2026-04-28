@@ -39,6 +39,7 @@ type Summary = {
   winners: Outcome[]
   losers: Outcome[]
   is_sample?: boolean
+  last_updated?: string | null
   disclaimer?: string
 }
 
@@ -68,11 +69,31 @@ async function fetchSummary(period: string, windowDays: number): Promise<Summary
   try {
     const res = await fetch(url, { next: { revalidate: 3600 } })
     if (!res.ok) throw new Error(`status ${res.status}`)
-    return (await res.json()) as Summary
+    const json = (await res.json()) as Summary
+    // Defensive: ensure required arrays exist so downstream renders
+    // never crash on partial DB responses.
+    return {
+      ...json,
+      winners: Array.isArray(json.winners) ? json.winners : [],
+      losers: Array.isArray(json.losers) ? json.losers : [],
+    }
   } catch {
     // Hard fallback — keeps the static build green even if the API
     // is down. Mirrors the SAMPLE the API itself currently returns.
     return SAMPLE_FALLBACK
+  }
+}
+
+function fmtLastUpdated(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  try {
+    const d = new Date(iso)
+    if (Number.isNaN(d.getTime())) return null
+    return d.toLocaleDateString("en-IN", {
+      year: "numeric", month: "short", day: "numeric",
+    })
+  } catch {
+    return null
   }
 }
 
@@ -141,7 +162,13 @@ export default async function PerformancePage() {
           the page layout. The first real retrospective publishes once the
           backfill in <code>scripts/backfill_predictions.py</code> completes.
         </aside>
-      ) : null}
+      ) : (
+        fmtLastUpdated(summary.last_updated) ? (
+          <p className="mb-8 text-xs text-neutral-500">
+            Last updated: {fmtLastUpdated(summary.last_updated)}
+          </p>
+        ) : null
+      )}
 
       {/* Hero */}
       <header className="mb-10 max-w-3xl">
