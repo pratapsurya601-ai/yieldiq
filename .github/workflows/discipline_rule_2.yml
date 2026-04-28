@@ -1,0 +1,111 @@
+name: Discipline Rule #2 — Snapshot Before CACHE_VERSION Bump
+
+# Enforces CLAUDE.md rule #2:
+#   "Never bump CACHE_VERSION without a before/after snapshot."
+#
+# Trigger: any PR that changes the CACHE_VERSION line in
+# backend/services/cache_service.py.
+#
+# Logic:
+#   1. Detect whether the diff actually touches the CACHE_VERSION =
+#      line (not just other parts of the file).
+#   2. If yes, require the PR body to declare a snapshot via a
+#      `snapshot-id: <filename>` line.
+#   3. Verify the declared snapshot file actually exists at
+#      scripts/snapshots/<id> on the PR branch.
+#
+# This is the automation gap that let PR #126 (CACHE_VERSION 64->65)
+# slip through without a pre-bump snapshot.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+    paths:
+      - 'backend/services/cache_service.py'
+
+jobs:
+  snapshot-required:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect CACHE_VERSION line change
+        id: detect
+        run: |
+          BASE_SHA="${{ github.event.pull_request.base.sha }}"
+          HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+          # Diff only the CACHE_VERSION = N assignment line.
+          if git diff "$BASE_SHA" "$HEAD_SHA" -- backend/services/cache_service.py \
+              | grep -E '^[+-]CACHE_VERSION\s*=' > /tmp/cv_diff.txt; then
+            echo "Detected CACHE_VERSION line change:"
+            cat /tmp/cv_diff.txt
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No CACHE_VERSION line change in this PR — skipping rule #2 check."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Require snapshot-id declaration in PR body
+        if: steps.detect.outputs.changed == 'true'
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          python3 - <<'PY'
+          import os, re, sys, pathlib
+          body = os.environ.get("PR_BODY") or ""
+          m = re.search(r'(?mi)^\s*snapshot-id:\s*([\w./-]+)\s*$', body)
+          if not m:
+              print("::error::Per CLAUDE.md rule #2, every CACHE_VERSION bump "
+                    "requires a snapshot taken BEFORE the bump. "
+                    "Run: `python scripts/snapshot_50_stocks.py` and paste "
+                    "the snapshot ID into the PR body as "
+                    "`snapshot-id: <filename>`.")
+              sys.exit(1)
+          sid = m.group(1).strip()
+          # Reject path traversal / absolute paths.
+          if sid.startswith("/") or ".." in sid:
+              print(f"::error::snapshot-id '{sid}' is not a valid relative filename.")
+              sys.exit(1)
+          path = pathlib.Path("scripts/snapshots") / sid
+          if not path.is_file():
+              print(f"::error::Declared snapshot-id '{sid}' does not exist at "
+                    f"{path}. Commit the snapshot file from "
+                    f"`python scripts/snapshot_50_stocks.py` into "
+                    f"scripts/snapshots/ before merging.")
+              sys.exit(1)
+          print(f"OK: snapshot {path} present ({path.stat().st_size} bytes).")
+          PY
+
+      - name: Comment on PR with rule explainer (failure only)
+        if: failure() && steps.detect.outputs.changed == 'true'
+        uses: mshick/add-pr-comment@v2
+        with:
+          message-id: discipline-rule-2
+          message: |
+            ### CLAUDE.md Rule #2 — Snapshot required before CACHE_VERSION bump
+
+            This PR changes `CACHE_VERSION` in `backend/services/cache_service.py`
+            but does not declare a pre-bump snapshot.
+
+            **To unblock this PR:**
+            1. Run `python scripts/snapshot_50_stocks.py` against production
+               BEFORE applying the bump.
+            2. Commit the resulting `scripts/snapshots/<id>.json` file.
+            3. Add the following line to the PR body (verbatim):
+
+               ```
+               snapshot-id: <filename>.json
+               ```
+
+            4. Run `python scripts/canary_diff.py --diff-against latest`
+               AFTER the bump and explain any FV move >15% on any canary
+               stock in the PR description.
+
+            See `docs/discipline_automation.md` for the full procedure.
