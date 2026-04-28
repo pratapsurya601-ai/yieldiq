@@ -366,6 +366,14 @@ class AnalysisResponse(BaseModel):
     scenarios: ScenariosOutput = ScenariosOutput()
     price_levels: PriceLevels = PriceLevels()
     ai_summary: Optional[str] = None
+    # Multilingual AI summary translations (Phase 0 — review-gated).
+    # Populated only when the MULTILINGUAL_SUMMARIES_ENABLED feature
+    # flag is on AND a native-speaker review has signed off on the
+    # prompt set. Keyed by ISO 639-1 code: "hi", "ta", "mr". The
+    # English summary remains the authoritative source in
+    # ``ai_summary``. Stays ``None`` for backward compatibility with
+    # clients that have not adopted the multilingual UI.
+    ai_summary_translations: Optional[dict[str, str]] = None
     data_confidence: Literal["high", "medium", "low", "unusable"] = "medium"
     data_issues: list[str] = []
     # Contextual disclaimers emitted by

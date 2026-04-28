@@ -14,6 +14,13 @@
 from __future__ import annotations
 
 from backend.models.responses import AnalysisResponse
+from backend.services.analysis.language_prompts import (
+    SUPPORTED_LANGUAGES,
+    get_disclaimer,
+    get_system_prompt,
+    is_multilingual_enabled,
+    is_supported,
+)
 from backend.services.analysis.sebi_filter import (
     SEBI_SYSTEM_PREAMBLE,
     deterministic_template,
@@ -478,3 +485,122 @@ class NarrativeMixin:
                 f"unchanged: {type(exc).__name__}: {exc}"
             )
             return analysis
+
+    # ── Multilingual translation (Phase 0 — review-gated) ────────
+    def translate_ai_summary(
+        self,
+        ticker: str,
+        english_summary: str,
+        analysis: AnalysisResponse,
+        *,
+        language: str = "en",
+    ) -> str:
+        """Translate an existing English AI summary into ``language``.
+
+        Phase 0 (review-gated, dark-launched):
+          - Returns the English string unchanged for language="en".
+          - For hi/ta/mr, calls Groq with a language-specific system
+            prompt that enforces formal financial register and a
+            mandatory native-language disclaimer suffix.
+          - Returns "" when GROQ_API_KEY is missing or the call fails.
+            Caller is responsible for graceful fallback to English.
+          - This method is NOT wired into the public read path until
+            MULTILINGUAL_SUMMARIES_ENABLED is set in the environment.
+
+        The translation is performed against the English summary plus
+        the underlying numeric data block, so the model can ground the
+        translation in facts rather than hallucinating numbers.
+        """
+        import logging
+        import os as _os
+        _log = logging.getLogger("yieldiq.ai_summary")
+
+        if not english_summary:
+            return ""
+        if language == "en":
+            return english_summary
+        if not is_supported(language):
+            _log.warning(
+                f"[{ticker}] translate_ai_summary: unsupported "
+                f"language={language!r}; returning English"
+            )
+            return english_summary
+
+        _groq_key = _os.environ.get("GROQ_API_KEY", "").strip()
+        if not _groq_key:
+            _log.info(
+                f"[{ticker}] translation skipped (lang={language}): "
+                f"GROQ_API_KEY not set"
+            )
+            return ""
+
+        _system_prompt = get_system_prompt(language)
+        _user_prompt = (
+            "Translate the following SEBI-compliant English stock "
+            "metric summary into the target language defined by your "
+            "system instructions. Preserve all numbers exactly. Do "
+            "NOT add a verdict. Do NOT use subjective words (buy, "
+            "sell, cheap, expensive, attractive, poor, strong, weak). "
+            "Append the mandatory native-language disclaimer at the "
+            "end on a new line.\n\n"
+            f"English summary:\n{english_summary}\n\nTranslation:"
+        )
+
+        try:
+            from groq import Groq as _Groq
+            _client = _Groq(api_key=_groq_key)
+            _resp = _client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {"role": "system", "content": _system_prompt},
+                    {"role": "user", "content": _user_prompt},
+                ],
+                max_tokens=400,
+                temperature=0.2,
+            )
+            _raw = (_resp.choices[0].message.content or "").strip()
+        except Exception as exc:
+            _log.warning(
+                f"[{ticker}] translation Groq call failed "
+                f"(lang={language}): {type(exc).__name__}: {exc}"
+            )
+            return ""
+
+        # Defensive: ensure the disclaimer is present. If the model
+        # forgot, append it ourselves so the safety guarantee holds
+        # unconditionally.
+        _disclaimer = get_disclaimer(language)
+        if _disclaimer not in _raw:
+            _raw = f"{_raw}\n\n{_disclaimer}"
+        return _raw
+
+    def get_ai_summary_translations(
+        self,
+        ticker: str,
+        analysis: AnalysisResponse,
+        *,
+        english_summary: str | None = None,
+    ) -> dict[str, str] | None:
+        """Return {language: summary} for all non-English supported
+        languages, or None if multilingual is disabled.
+
+        Phase 0: gated by MULTILINGUAL_SUMMARIES_ENABLED. When the
+        flag is off (default), returns None so AnalysisResponse
+        keeps ``ai_summary_translations`` as null and clients see no
+        behaviour change.
+        """
+        if not is_multilingual_enabled():
+            return None
+        _en = english_summary or getattr(analysis, "ai_summary", "") or ""
+        if not _en:
+            return None
+        out: dict[str, str] = {}
+        for lang in SUPPORTED_LANGUAGES:
+            if lang == "en":
+                continue
+            translated = self.translate_ai_summary(
+                ticker, _en, analysis, language=lang
+            )
+            if translated:
+                out[lang] = translated
+        return out or None
