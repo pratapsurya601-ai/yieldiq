@@ -73,15 +73,14 @@ export default function OpportunityRail() {
     )
   }
 
-  if (isError) {
-    return <FallbackCard message="Shortlist temporarily unavailable" />
-  }
-
-  if (count < MIN_RAIL_ITEMS) {
-    // Don't fabricate a count. Show a visible placeholder rather than
-    // collapsing the section silently — see EMPTY-STATE POLICY above.
-    // Also avoids rendering a single awkward tile in a 2-up grid when
-    // only one wide-moat name clears the MoS filter.
+  // Both the error path and the empty-shortlist path render the same
+  // friendly fallback. Previously isError showed "Shortlist temporarily
+  // unavailable" which leaked infra language to users and contradicted
+  // the PR #110 empty-state policy. The rail's API failing and the rail
+  // returning zero wide-moat names look identical from the user's POV —
+  // both mean "no shortlist to show right now" — so the copy should
+  // match. (See EMPTY-STATE POLICY comment above.)
+  if (isError || count < MIN_RAIL_ITEMS) {
     return (
       <FallbackCard
         message="Daily shortlist refreshes overnight — check back tomorrow morning."
