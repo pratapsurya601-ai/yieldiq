@@ -203,8 +203,10 @@ def _normalize_pct(val) -> float | None:
     - Aiven XBRL sometimes stores as percentage (23.5)
     - Some computed fields use decimals
 
-    Rule: if |val| < 5 we treat it as decimal (since real ROE/ROCE > 5%
-    wouldn't be expressed as a tiny decimal), else already percentage.
+    Rule: if |val| < 1 we treat it as decimal (yfinance bounds decimals
+    to [-1, 1]), else already percentage. Previously this window was ±5
+    which double-multiplied legitimate small percent values — see the
+    inline comment below for the bug history.
     """
     if val is None:
         return None
@@ -214,10 +216,13 @@ def _normalize_pct(val) -> float | None:
         return None
     if v == 0:
         return 0.0
-    # If absolute value is less than 5, assume decimal (0.23 → 23.0)
-    # Real-world ROE/ROCE of < 5% are rare; treating 0.05 as 5% is safer
-    # than treating 0.05 as 0.05%
-    if -5.0 < v < 5.0:
+    # yfinance returns ROE/ROCE/ROA as decimals bounded by [-1, 1]
+    # (e.g. 0.235 == 23.5%). Any |v| >= 1 is therefore already in
+    # percent form (e.g. 23.5 == 23.5%) and must NOT be re-multiplied.
+    # Bug history: this window was previously (-5, 5), which double-
+    # multiplied any percent value with |v| < 5 — corrupting ROE/ROCE/ROA
+    # for low-margin stocks (e.g. GRASIM ROE 2.35% → 235%, ROCE 3.5% → 350%).
+    if -1.0 < v < 1.0:
         return round(v * 100, 2)
     return round(v, 2)
 
