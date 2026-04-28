@@ -1,0 +1,178 @@
+{
+  "_comment": "Hand-crafted sample RPT data for tests/fixture-driven development. NOT AUTHORITATIVE: numbers are illustrative, picked to exercise the red-flag rule set. Do not surface in production. 5 tickers x 3 fiscal years (FY2023, FY2024, FY2025). RELIANCE: subsidiary loans + a royalty pattern. INFY: clean, mostly subsidiary services. TCS: very clean — negative-control case. ADANIENT: large intra-group transactions, asset sale below book — should fire multiple red flags. NIRMA: middling, vague consultancy fee row.",
+  "_context": {
+    "RELIANCE": {"net_worth_inr": 8500000000000, "revenue_inr": 9000000000000},
+    "INFY": {"net_worth_inr": 900000000000, "revenue_inr": 1500000000000},
+    "TCS": {"net_worth_inr": 1100000000000, "revenue_inr": 2400000000000},
+    "ADANIENT": {"net_worth_inr": 500000000000, "revenue_inr": 1200000000000, "book_value_lookup": {"Adani Infra LLP": 80000000000}},
+    "NIRMA": {"net_worth_inr": 80000000000, "revenue_inr": 120000000000}
+  },
+  "rows": [
+    {
+      "id": 1,
+      "ticker": "RELIANCE", "fiscal_year": 2025, "source_filing": "AOC-2",
+      "related_party_name": "Reliance Retail Ventures Ltd",
+      "related_party_type": "subsidiary", "txn_type": "loan_given",
+      "amount_inr": 25000000000, "is_arms_length": true,
+      "description": "Working capital loan to subsidiary at MCLR + 50bps",
+      "llm_confidence": 0.94
+    },
+    {
+      "id": 2,
+      "ticker": "RELIANCE", "fiscal_year": 2025, "source_filing": "AOC-2",
+      "related_party_name": "Dhirubhai Ambani Foundation",
+      "related_party_type": "promoter_entity", "txn_type": "royalty",
+      "amount_inr": 220000000000, "is_arms_length": true,
+      "description": "Brand-license royalty payment for use of group brand",
+      "llm_confidence": 0.91
+    },
+    {
+      "id": 3,
+      "ticker": "RELIANCE", "fiscal_year": 2025, "source_filing": "NoteN",
+      "related_party_name": "Jio Platforms Ltd",
+      "related_party_type": "subsidiary", "txn_type": "rendering_service",
+      "amount_inr": 5000000000, "is_arms_length": true,
+      "description": "Shared-services billing — IT and HR, scope per master agreement, lump sum",
+      "llm_confidence": 0.88
+    },
+    {
+      "id": 4,
+      "ticker": "RELIANCE", "fiscal_year": 2024, "source_filing": "AOC-2",
+      "related_party_name": "Reliance Retail Ventures Ltd",
+      "related_party_type": "subsidiary", "txn_type": "loan_given",
+      "amount_inr": 18000000000, "is_arms_length": true,
+      "description": "Working capital loan to subsidiary",
+      "llm_confidence": 0.93
+    },
+    {
+      "id": 5,
+      "ticker": "RELIANCE", "fiscal_year": 2023, "source_filing": "AOC-2",
+      "related_party_name": "Reliance Retail Ventures Ltd",
+      "related_party_type": "subsidiary", "txn_type": "loan_given",
+      "amount_inr": 14000000000, "is_arms_length": true,
+      "description": "Working capital loan to subsidiary",
+      "llm_confidence": 0.93
+    },
+
+    {
+      "id": 10,
+      "ticker": "INFY", "fiscal_year": 2025, "source_filing": "AOC-2",
+      "related_party_name": "Infosys BPM Ltd",
+      "related_party_type": "subsidiary", "txn_type": "rendering_service",
+      "amount_inr": 8000000000, "is_arms_length": true,
+      "description": "Inter-company services rendered, scope per MSA, rate per resource",
+      "llm_confidence": 0.95
+    },
+    {
+      "id": 11,
+      "ticker": "INFY", "fiscal_year": 2024, "source_filing": "AOC-2",
+      "related_party_name": "Infosys BPM Ltd",
+      "related_party_type": "subsidiary", "txn_type": "rendering_service",
+      "amount_inr": 7200000000, "is_arms_length": true,
+      "description": "Inter-company services rendered, scope per MSA, rate per resource",
+      "llm_confidence": 0.95
+    },
+    {
+      "id": 12,
+      "ticker": "INFY", "fiscal_year": 2023, "source_filing": "AOC-2",
+      "related_party_name": "Infosys BPM Ltd",
+      "related_party_type": "subsidiary", "txn_type": "rendering_service",
+      "amount_inr": 6500000000, "is_arms_length": true,
+      "description": "Inter-company services rendered, scope per MSA, rate per resource",
+      "llm_confidence": 0.95
+    },
+
+    {
+      "id": 20,
+      "ticker": "TCS", "fiscal_year": 2025, "source_filing": "AOC-2",
+      "related_party_name": "Tata Consultancy Services Asia Pacific Pte Ltd",
+      "related_party_type": "subsidiary", "txn_type": "rendering_service",
+      "amount_inr": 4000000000, "is_arms_length": true,
+      "description": "Sub-contracting fees, fixed-rate per deliverable scope",
+      "llm_confidence": 0.97
+    },
+    {
+      "id": 21,
+      "ticker": "TCS", "fiscal_year": 2024, "source_filing": "AOC-2",
+      "related_party_name": "Tata Consultancy Services Asia Pacific Pte Ltd",
+      "related_party_type": "subsidiary", "txn_type": "rendering_service",
+      "amount_inr": 3700000000, "is_arms_length": true,
+      "description": "Sub-contracting fees, fixed-rate per deliverable scope",
+      "llm_confidence": 0.97
+    },
+    {
+      "id": 22,
+      "ticker": "TCS", "fiscal_year": 2023, "source_filing": "AOC-2",
+      "related_party_name": "Tata Consultancy Services Asia Pacific Pte Ltd",
+      "related_party_type": "subsidiary", "txn_type": "rendering_service",
+      "amount_inr": 3500000000, "is_arms_length": true,
+      "description": "Sub-contracting fees, fixed-rate per deliverable scope",
+      "llm_confidence": 0.97
+    },
+
+    {
+      "id": 30,
+      "ticker": "ADANIENT", "fiscal_year": 2025, "source_filing": "AOC-2",
+      "related_party_name": "Adani Infra LLP",
+      "related_party_type": "promoter_entity", "txn_type": "loan_given",
+      "amount_inr": 60000000000, "is_arms_length": false,
+      "description": "Unsecured advance to promoter-controlled entity",
+      "llm_confidence": 0.82
+    },
+    {
+      "id": 31,
+      "ticker": "ADANIENT", "fiscal_year": 2025, "source_filing": "AOC-2",
+      "related_party_name": "Adani Infra LLP",
+      "related_party_type": "promoter_entity", "txn_type": "asset_sale",
+      "amount_inr": 50000000000, "is_arms_length": true,
+      "description": "Sale of port-handling equipment to group entity",
+      "llm_confidence": 0.78
+    },
+    {
+      "id": 32,
+      "ticker": "ADANIENT", "fiscal_year": 2025, "source_filing": "NoteN",
+      "related_party_name": "Adani Group Advisory Services",
+      "related_party_type": "promoter_entity", "txn_type": "rendering_service",
+      "amount_inr": 4000000000, "is_arms_length": false,
+      "description": "Strategic consultancy and advisory support",
+      "llm_confidence": 0.74
+    },
+    {
+      "id": 33,
+      "ticker": "ADANIENT", "fiscal_year": 2024, "source_filing": "AOC-2",
+      "related_party_name": "Adani Infra LLP",
+      "related_party_type": "promoter_entity", "txn_type": "loan_given",
+      "amount_inr": 30000000000, "is_arms_length": false,
+      "description": "Unsecured advance to promoter-controlled entity",
+      "llm_confidence": 0.83
+    },
+    {
+      "id": 34,
+      "ticker": "ADANIENT", "fiscal_year": 2023, "source_filing": "AOC-2",
+      "related_party_name": "Adani Infra LLP",
+      "related_party_type": "promoter_entity", "txn_type": "loan_given",
+      "amount_inr": 12000000000, "is_arms_length": false,
+      "description": "Unsecured advance to promoter-controlled entity",
+      "llm_confidence": 0.85
+    },
+
+    {
+      "id": 40,
+      "ticker": "NIRMA", "fiscal_year": 2025, "source_filing": "MGT-9",
+      "related_party_name": "Karsanbhai Patel Family Trust",
+      "related_party_type": "promoter_entity", "txn_type": "rent",
+      "amount_inr": 200000000, "is_arms_length": true,
+      "description": "Lease rent for HQ office space",
+      "llm_confidence": 0.9
+    },
+    {
+      "id": 41,
+      "ticker": "NIRMA", "fiscal_year": 2025, "source_filing": "AOC-2",
+      "related_party_name": "Patel Advisory Services LLP",
+      "related_party_type": "director_entity", "txn_type": "rendering_service",
+      "amount_inr": 80000000, "is_arms_length": true,
+      "description": "Strategic advisory services",
+      "llm_confidence": 0.7
+    }
+  ]
+}
