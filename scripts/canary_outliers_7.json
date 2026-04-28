@@ -1,0 +1,109 @@
+{
+  "_meta": {
+    "version": 1,
+    "description": "Outlier universe for measuring DCF model recalibration impact. These 7 tickers were flagged in the 2026-04-28 launch audit as showing implausibly high MoS values on the Buffett-style screener after PRs #109 + #113. They are NOT in canary_stocks_50.json (which skews large-cap + cyclical). Use this file alongside canary_stocks_50.json — pass via --stocks flag — to validate that DCF audit branches actually compress MoS where the user-visible problem lives, not just where the original canary universe happens to overlap.",
+    "fields": {
+      "roe": "Return on equity (decimal)",
+      "debt_to_equity": "Total debt / equity (decimal)",
+      "wacc": "Weighted avg cost of capital (decimal)",
+      "market_cap_cr": "Market cap in INR crore",
+      "revenue_cagr_3y": "3y revenue CAGR (decimal)"
+    },
+    "rule": "null bound = harness skips that assertion for that stock. Bounds are intentionally null/wide here — the value of this file is in DRIFT measurement (snapshot vs branch), not in gate assertions, since these mid-caps have less reliable reference data than the curated canary 50.",
+    "audit_2026_04_28": "All 7 showed MoS in 44-91% band on a 'wide moat / consistent earnings / fair price' preset, which is implausible for liquid names. Goal of any DCF recalibration: compress the displayed MoS toward 10-30%. Track per-ticker delta_pct in canary-diff output and document explanation per CLAUDE.md rule #2."
+  },
+  "stocks": [
+    {
+      "symbol": "JUSTDIAL",
+      "sector": "Internet Services",
+      "mcap_tier": "small",
+      "audit_observed_mos_pct": 91,
+      "canary_bounds": {
+        "roe": [0.05, 0.30],
+        "debt_to_equity": [0.0, 0.5],
+        "wacc": [0.10, 0.16],
+        "market_cap_cr": [4000, 15000],
+        "revenue_cagr_3y": [0.0, 0.30]
+      }
+    },
+    {
+      "symbol": "EMAMILTD",
+      "sector": "FMCG",
+      "mcap_tier": "mid",
+      "audit_observed_mos_pct": 82,
+      "canary_bounds": {
+        "roe": [0.15, 0.40],
+        "debt_to_equity": [0.0, 0.30],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [15000, 40000],
+        "revenue_cagr_3y": [0.0, 0.20]
+      }
+    },
+    {
+      "symbol": "NATCOPHARM",
+      "sector": "Pharma",
+      "mcap_tier": "mid",
+      "audit_observed_mos_pct": 76,
+      "canary_bounds": {
+        "roe": [0.10, 0.45],
+        "debt_to_equity": [0.0, 0.30],
+        "wacc": [0.11, 0.15],
+        "market_cap_cr": [8000, 30000],
+        "revenue_cagr_3y": [0.0, 0.40]
+      }
+    },
+    {
+      "symbol": "TCS",
+      "sector": "IT Services",
+      "mcap_tier": "large",
+      "audit_observed_mos_pct": 44,
+      "_note": "Already in canary_stocks_50.json — included here for outlier-set drift comparison.",
+      "canary_bounds": {
+        "roe": [0.30, 0.55],
+        "debt_to_equity": [0.0, 0.10],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [1200000, 1800000],
+        "revenue_cagr_3y": [0.05, 0.20]
+      }
+    },
+    {
+      "symbol": "SANOFI",
+      "sector": "Pharma",
+      "mcap_tier": "mid",
+      "audit_observed_mos_pct": 70,
+      "canary_bounds": {
+        "roe": [0.15, 0.40],
+        "debt_to_equity": [0.0, 0.20],
+        "wacc": [0.10, 0.14],
+        "market_cap_cr": [8000, 25000],
+        "revenue_cagr_3y": [-0.10, 0.20]
+      }
+    },
+    {
+      "symbol": "ZYDUSLIFE",
+      "sector": "Pharma",
+      "mcap_tier": "large",
+      "audit_observed_mos_pct": 66,
+      "canary_bounds": {
+        "roe": [0.10, 0.30],
+        "debt_to_equity": [0.0, 0.40],
+        "wacc": [0.11, 0.15],
+        "market_cap_cr": [50000, 150000],
+        "revenue_cagr_3y": [0.0, 0.25]
+      }
+    },
+    {
+      "symbol": "MAYURUNIQ",
+      "sector": "Auto Components",
+      "mcap_tier": "small",
+      "audit_observed_mos_pct": 64,
+      "canary_bounds": {
+        "roe": [0.08, 0.30],
+        "debt_to_equity": [0.0, 0.40],
+        "wacc": [0.11, 0.16],
+        "market_cap_cr": [1000, 5000],
+        "revenue_cagr_3y": [-0.10, 0.30]
+      }
+    }
+  ]
+}
