@@ -9,7 +9,7 @@ prior in the same browser session, real values were observed
 ## Conclusion
 
 **Operational, not a code regression.** No PR is required. The fix is a
-worker / data-pipeline action on Railway + Aiven Postgres.
+worker / data-pipeline action on Railway + Neon Postgres.
 
 ## Code path traced
 
@@ -56,7 +56,7 @@ narrows the root cause to one (or more) of:
 | **A. Refresher worker not firing** (APScheduler stuck / process restarted, last successful run fell off the 5-min in-process cache window) | **High** | Indices job is `*/15`, not gated by market hours, so a single missed tick leaves stale rows. If Railway recently restarted the API container, the in-process scheduler restarts cold; first tick on the `*/15` cron may not have fired yet at 05:00 IST. |
 | **B. yfinance fallback failing from Railway egress at 05:00 IST** | Medium | Yahoo Finance 429s/blocks Railway IP ranges intermittently, especially outside US market hours. Combined with (A), no data lands in either path. |
 | **C. `index_snapshots` row exists but `price IS NULL`** | Medium | `get_index_snapshot` returns the row even if `price` is null; `data_service` then keeps the `MarketIndex(name=...)` no-price fallback. Could happen if a refresher run hit yfinance, got a partial response, and wrote a null. |
-| **D. Aiven Postgres connection pool exhaustion / DB session refused** | Low | Other endpoints would also be degraded; user only reported indices. |
+| **D. Neon Postgres connection pool exhaustion / DB session refused** | Low | Other endpoints would also be degraded; user only reported indices. |
 | **E. Code regression** | **Excluded** | Last edit to relevant files: `0481cc2` (8 days ago, cosmetic). Today's only main commit `bc94632` disabled the digest/newsletter crons and **did not touch** `market_index_snapshots`, `data_service`, `market_data_service`, `market_data_refresher`, or `TickerStrip`. |
 
 There is also an **architectural concern** worth flagging (out of scope
@@ -77,7 +77,7 @@ the throttling worse.
    - Any "scheduler" startup messages indicating the API process was
      restarted recently.
 
-2. **Inspect `index_snapshots` table directly** via Aiven psql:
+2. **Inspect `index_snapshots` table directly** via the Neon SQL editor (https://console.neon.tech → your project → SQL Editor) or `psql` against your `DATABASE_URL`:
    ```sql
    SELECT symbol, name, price, change_pct, as_of
    FROM index_snapshots
