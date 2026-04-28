@@ -891,13 +891,24 @@ def _normalize_pct_to_decimal(val: float) -> float:
       0.0097 (decimal) or 0.97 (percentage) or 97 (percentage*100)
     This normalizes everything to decimal (0.0097).
     Rule: real dividend yields are almost always < 20%.
+
+    Boundary observability (added 2026-04-27): values right at the
+    0.20 / 1.0 thresholds log a DEBUG line so future shifts in the
+    upstream feeds are discoverable. Classification behaviour is
+    unchanged.
     """
     if val <= 0:
         return 0.0
     if val > 1.0:       # e.g. 97 or 2.5 — already percentage, divide by 100
+        log.debug("_normalize_pct_to_decimal: detected percent v=%g -> %g", val, val / 100)
         return val / 100
     if val > 0.20:       # e.g. 0.97 — percentage in decimal form
+        log.debug(
+            "_normalize_pct_to_decimal: detected percent-in-decimal v=%g -> %g",
+            val, val / 100,
+        )
         return val / 100
+    log.debug("_normalize_pct_to_decimal: detected already-decimal v=%g (passthrough)", val)
     return val           # e.g. 0.0097 — already decimal
 
 

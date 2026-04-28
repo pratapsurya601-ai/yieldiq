@@ -6,7 +6,17 @@
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 
+import logging
+
 from backend.models.responses import RedFlag
+
+_logger = logging.getLogger(__name__)
+
+# Boundary band for the decimal/percent heuristic. Values within this
+# many points of |1.0| log a WARNING so future threshold-window bugs
+# (see PR #126: window ±5 → ±1 silently corrupted ROE/ROCE/ROA for
+# ~100 stocks) are visible in observability before they corrupt data.
+_PCT_BOUNDARY_BAND = 0.05
 from screener.moat_engine import STRONG_BRAND_ALLOWLIST as _STRONG_BRAND_ALLOWLIST
 from backend.services.analysis.constants import (
     FINANCIAL_COMPANIES,  # noqa: F401  (kept for parity with the monolith)
@@ -222,8 +232,25 @@ def _normalize_pct(val) -> float | None:
     # Bug history: this window was previously (-5, 5), which double-
     # multiplied any percent value with |v| < 5 — corrupting ROE/ROCE/ROA
     # for low-margin stocks (e.g. GRASIM ROE 2.35% → 235%, ROCE 3.5% → 350%).
+    # Boundary observability: surface values that could flip class if
+    # the threshold window ever shifts again. This is purely additive
+    # logging — behaviour is unchanged.
+    if abs(abs(v) - 1.0) <= _PCT_BOUNDARY_BAND:
+        _logger.warning(
+            "_normalize_pct: v=%g within %g of decimal/percent boundary 1.0 "
+            "— classification may be wrong if upstream feed changed units",
+            v, _PCT_BOUNDARY_BAND,
+        )
     if -1.0 < v < 1.0:
-        return round(v * 100, 2)
+        out = round(v * 100, 2)
+        _logger.debug(
+            "_normalize_pct: detected decimal (v=%g) -> returning percent %g",
+            v, out,
+        )
+        return out
+    _logger.debug(
+        "_normalize_pct: detected percent (v=%g, passthrough)", v,
+    )
     return round(v, 2)
 
 
