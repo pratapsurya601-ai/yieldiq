@@ -212,6 +212,20 @@ export default function TrustFooter() {
                 Privacy
               </Link>
               <Link
+                href="/legal/sla"
+                className="hover:text-body transition-colors"
+              >
+                SLA
+              </Link>
+              <a
+                href="https://status.yieldiq.in"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-body transition-colors"
+              >
+                Status
+              </a>
+              <Link
                 href="/about"
                 className="hover:text-body transition-colors"
               >
