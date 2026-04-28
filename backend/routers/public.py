@@ -499,7 +499,11 @@ async def get_stock_summary(ticker: str):
         pass
 
     _cache_key = f"public:stock-summary:{ticker}"
-    _cached_summary = cache.get(_cache_key)
+    # version_keyed=True: prefix the storage key with v{CACHE_VERSION}
+    # so a CACHE_VERSION bump retires this entire generation of
+    # rendered summaries instead of leaving them shielded by their
+    # 1-hour TTL. See cache_service.py + docs/cache_layer_audit.md.
+    _cached_summary = cache.get(_cache_key, version_keyed=True)
     if _cached_summary is not None:
         return _cached_json(
             _cached_summary,
@@ -635,7 +639,7 @@ async def get_stock_summary(ticker: str):
         )
 
     summary = _extract_analysis_summary(analysis_cached)
-    cache.set(_cache_key, summary, ttl=3600)
+    cache.set(_cache_key, summary, ttl=3600, version_keyed=True)
     return _cached_json(
         summary,
         s_maxage=600,
