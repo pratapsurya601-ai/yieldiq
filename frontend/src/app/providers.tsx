@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { useState, useEffect } from "react"
 import InstallPrompt from "@/components/InstallPrompt"
 import PaygHydrator from "@/components/payg/PaygHydrator"
+import CookieAuthSync from "@/components/CookieAuthSync"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(
@@ -38,6 +39,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <QueryClientProvider client={queryClient}>
+      {/* Mirrors the Zustand auth-store token into the `yieldiq_token`
+          cookie with a sliding 30-day expiry. Without this, the cookie
+          (set with a fixed 7-day expiry at login) silently drops while
+          the persisted Zustand token survives — which made the SSR
+          cookie check on /analysis/[ticker] render the anon signup
+          wall to fully-paid users. Renders nothing. */}
+      <CookieAuthSync />
       {/* Seeds usePaygStore from /payg-unlocks whenever the user is
           authed. Renders nothing; kept inside QueryClientProvider so it
           can piggy-back on react-query's retry / caching. */}
