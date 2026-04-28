@@ -692,3 +692,54 @@ class DividendHistoryResponse(BaseModel):
     count: int = 0
     total_paid_5y: Optional[float] = None    # sum of `amount` within last 5Y
     dividends: list[DividendEvent] = []
+
+
+# ── Reverse-DCF (public endpoint, additive) ───────────────────
+# This is the NEW response shape backing
+# /api/v1/public/reverse-dcf/{ticker}. It is intentionally distinct
+# from the existing `ReverseDCFResponse` (used by the authed
+# /api/v1/analysis/{ticker}/reverse-dcf path) — that older shape
+# captures growth-only verdicts; this one carries both the
+# implied-growth and implied-margin axes plus the iso-FV curve.
+
+class IsoFvPoint(BaseModel):
+    """One (growth, margin) point on the iso-fair-value curve."""
+    growth: float                       # FCF growth, decimal (0.18 = 18%)
+    margin: float                       # FCF margin, decimal
+
+
+class ReverseDcfInputs(BaseModel):
+    """Snapshot of the exact inputs used to solve the reverse DCF."""
+    current_price: float
+    wacc: float
+    terminal_g: float
+    current_fcf: float
+    current_margin: float
+    current_revenue: float
+    consensus_growth: float
+    total_debt: float = 0.0
+    total_cash: float = 0.0
+    shares: float = 0.0
+    years: int = 10
+
+
+class ReverseDcfResponse(BaseModel):
+    """Public reverse-DCF response — what the market is pricing in.
+
+    Fields:
+      - implied_growth_pct: solve for FCF growth that makes DCF == price
+      - implied_margin_pct: solve for FCF margin at consensus growth
+      - iso_fv_curve: 3 (growth, margin) points along the iso-FV curve
+      - current_market_implied_summary: plain-English narration
+      - sanity_check_lines: optional comparisons vs trailing actuals
+      - converged: True iff both binary searches hit tolerance
+      - inputs: ReverseDcfInputs snapshot
+    """
+    ticker: str
+    implied_growth_pct: float
+    implied_margin_pct: float
+    iso_fv_curve: list[IsoFvPoint] = []
+    current_market_implied_summary: str = ""
+    sanity_check_lines: list[str] = []
+    converged: bool = False
+    inputs: ReverseDcfInputs

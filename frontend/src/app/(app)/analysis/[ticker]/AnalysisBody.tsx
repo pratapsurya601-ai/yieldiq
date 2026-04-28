@@ -25,6 +25,7 @@ import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
 import { FormulasProvider } from "@/components/analysis/MetricTooltip"
 import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
+import ReverseDcfPanel from "@/components/analysis/ReverseDcfPanel"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
@@ -541,6 +542,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           />
           <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
           {scenarioBlock}
+          <ReverseDcfPanel ticker={ticker} />
           <DividendTracker dividend={insights?.dividend ?? null} currency={company.currency} />
         </div>
       ),
