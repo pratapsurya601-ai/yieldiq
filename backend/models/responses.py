@@ -41,6 +41,31 @@ class CompanyInfo(BaseModel):
     employees: Optional[int] = None
 
 
+class PeerCapDetails(BaseModel):
+    """Audit trail for the peer-multiple sanity ceiling.
+
+    Populated only when `ValuationOutput.fair_value_source ==
+    "peer_capped"`. `uncapped_fv` is the raw DCF (or P/B financial)
+    FV the model would have surfaced; `ceiling_fv` is what the
+    frontend displays — equal to 1.5 × `peer_fv`.
+
+    `method` documents which peer multiple drove the ceiling:
+      * "min(pe,ev_ebitda)" — both available, lower-of selected
+      * "pe_only" / "ev_ebitda_only" — only one usable
+      * "pb"                — bank / financial-services path
+    """
+    uncapped_fv: float
+    peer_fv: float
+    ceiling_fv: float
+    method: Literal["min(pe,ev_ebitda)", "pe_only", "ev_ebitda_only", "pb"]
+    n_peers: int
+    median_pe: Optional[float] = None
+    median_ev_ebitda: Optional[float] = None
+    median_pb: Optional[float] = None
+    sector: Optional[str] = None
+    industry: Optional[str] = None
+
+
 class ValuationOutput(BaseModel):
     fair_value: float
     current_price: float
@@ -80,6 +105,17 @@ class ValuationOutput(BaseModel):
     # degraded fallbacks. Frontend renders via
     # <FreshnessStamp prefix="Delayed" /> — never "Live" (SEBI).
     current_price_as_of: Optional[str] = None
+
+    # ── Peer-multiple sanity ceiling (feat/peer-cap, 2026-04-27) ─
+    # When the DCF FV exceeds 1.5× peer-median multiples, the
+    # displayed `fair_value` is capped at 1.5× peer-implied and
+    # `fair_value_source` flips from "dcf" to "peer_capped".
+    # `peer_cap_details` carries the audit trail so the frontend
+    # can render an explanatory tooltip without re-deriving any of
+    # it. Both fields are purely additive — pre-PR clients ignore
+    # unknown fields and continue to render `fair_value` as before.
+    fair_value_source: Literal["dcf", "peer_capped"] = "dcf"
+    peer_cap_details: Optional[PeerCapDetails] = None
 
     # ── JSON precision lock (DRREDDY drift fix, 2026-04-25) ────
     # Round monetary / scenario floats at serialization so the authed
