@@ -735,6 +735,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               dataLimited={dataLimited}
               redFlags={insights?.red_flags_structured ?? []}
               valuationVerdict={valuation.verdict}
+              confidence={valuation.confidence_score}
             />
           ) : (
             <AnalysisHero

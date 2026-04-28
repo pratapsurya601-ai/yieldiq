@@ -24,6 +24,7 @@ import Prism from "@/components/prism/Prism"
 import PillarExplainer from "@/components/prism/PillarExplainer"
 import ScoreCard from "@/components/analysis/ScoreCard"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
+import FvConfidenceBand from "@/components/analysis/FvConfidenceBand"
 import { verdictColor } from "@/lib/prism"
 import { timeAgo } from "@/lib/dataFreshness"
 import type {
@@ -88,6 +89,14 @@ export interface EditorialHeroProps {
    * the external auditor flagged (B2 / P0-#8 follow-up, 2026-04-22).
    */
   redFlags?: Array<{ flag: string; severity?: string }>
+  /**
+   * DCF model confidence on a 0–100 scale (mirrors
+   * `ValuationOutput.confidence_score`). Drives the ±band rendered
+   * beneath the headline Fair Value. Null/undefined → band omitted.
+   * Suppressed entirely when `dataLimited === true`, since a model that
+   * failed its reliability gate has no meaningful confidence to report.
+   */
+  confidence?: number | null
 }
 
 // NOTE: bandCaption() and titleCase() were removed — both produced
@@ -138,6 +147,7 @@ export default function EditorialHero({
   dataLimited,
   redFlags,
   valuationVerdict,
+  confidence,
 }: EditorialHeroProps) {
   const defaultMode: PrismMode = "spectrum"
   const color = verdictColor(data.verdict_band)
@@ -223,11 +233,27 @@ export default function EditorialHero({
 
           {/* 2x2 metrics */}
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 mt-1">
-            <Stat
-              label="Fair Value"
-              value={fairValue > 0 ? formatCurrency(fairValue, currency) : "Not reported"}
-              metricKey="fair_value"
-            />
+            <div>
+              <MetricTooltip metricKey="fair_value">
+                <dt className="text-[10px] uppercase tracking-[0.15em] text-caption">
+                  Fair Value
+                </dt>
+              </MetricTooltip>
+              <dd className="font-mono tabular-nums text-lg font-semibold text-ink">
+                {fairValue > 0 ? formatCurrency(fairValue, currency) : "Not reported"}
+              </dd>
+              {/* Confidence ±band — only when the DCF reliability gate
+                  passed (dataLimited=false) and the backend supplied a
+                  confidence_score. See FvConfidenceBand for math + amber
+                  threshold. */}
+              {!dataLimited && fairValue > 0 && (
+                <FvConfidenceBand
+                  fairValue={fairValue}
+                  confidence={confidence}
+                  currency={currency}
+                />
+              )}
+            </div>
             <Stat
               label="Current Price"
               value={currentPrice > 0 ? formatCurrency(currentPrice, currency) : "Awaiting data"}
