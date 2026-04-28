@@ -1,0 +1,167 @@
+[
+  {
+    "ticker": "RELIANCE",
+    "filing_type": "quarterly_results",
+    "fiscal_period": "Q4FY25",
+    "filing_date": "2026-04-22",
+    "source_exchange": "NSE",
+    "source_url": "https://www.nseindia.com/api/corporates-financial-results?symbol=RELIANCE",
+    "pdf_url": null,
+    "xbrl_url": "https://nsearchives.nseindia.com/corporate/RELIANCE_Q4FY25.xml",
+    "status": "pending"
+  },
+  {
+    "ticker": "RELIANCE",
+    "filing_type": "quarterly_results",
+    "fiscal_period": "Q3FY25",
+    "filing_date": "2026-01-19",
+    "source_exchange": "NSE",
+    "source_url": "https://www.nseindia.com/api/corporates-financial-results?symbol=RELIANCE",
+    "pdf_url": null,
+    "xbrl_url": "https://nsearchives.nseindia.com/corporate/RELIANCE_Q3FY25.xml",
+    "status": "ingested"
+  },
+  {
+    "ticker": "TCS",
+    "filing_type": "quarterly_results",
+    "fiscal_period": "Q4FY25",
+    "filing_date": "2026-04-10",
+    "source_exchange": "BSE",
+    "source_url": "https://www.bseindia.com/corporates/anndet_new.aspx?newsid=TCS_Q4FY25",
+    "pdf_url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/TCS_Q4FY25.pdf",
+    "xbrl_url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/TCS_Q4FY25.xml",
+    "status": "parsed"
+  },
+  {
+    "ticker": "TCS",
+    "filing_type": "investor_presentation",
+    "fiscal_period": "Q4FY25",
+    "filing_date": "2026-04-10",
+    "source_exchange": "BSE",
+    "source_url": "https://www.bseindia.com/corporates/anndet_new.aspx?newsid=TCS_Q4FY25_PPT",
+    "pdf_url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/TCS_Q4FY25_PPT.pdf",
+    "xbrl_url": null,
+    "status": "pending"
+  },
+  {
+    "ticker": "TCS",
+    "filing_type": "quarterly_results",
+    "fiscal_period": "Q3FY25",
+    "filing_date": "2026-01-09",
+    "source_exchange": "BSE",
+    "source_url": "https://www.bseindia.com/corporates/anndet_new.aspx?newsid=TCS_Q3FY25",
+    "pdf_url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/TCS_Q3FY25.pdf",
+    "xbrl_url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/TCS_Q3FY25.xml",
+    "status": "ingested"
+  },
+  {
+    "ticker": "INFY",
+    "filing_type": "quarterly_results",
+    "fiscal_period": "Q4FY25",
+    "filing_date": "2026-04-15",
+    "source_exchange": "NSE",
+    "source_url": "https://www.nseindia.com/api/corporates-financial-results?symbol=INFY",
+    "pdf_url": null,
+    "xbrl_url": "https://nsearchives.nseindia.com/corporate/INFY_Q4FY25.xml",
+    "status": "pending"
+  },
+  {
+    "ticker": "INFY",
+    "filing_type": "press_release",
+    "fiscal_period": "Q4FY25",
+    "filing_date": "2026-04-15",
+    "source_exchange": "BSE",
+    "source_url": "https://www.bseindia.com/corporates/anndet_new.aspx?newsid=INFY_Q4FY25_PR",
+    "pdf_url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/INFY_Q4FY25_PR.pdf",
+    "xbrl_url": null,
+    "status": "skipped"
+  },
+  {
+    "ticker": "INFY",
+    "filing_type": "quarterly_results",
+    "fiscal_period": "Q2FY25",
+    "filing_date": "2025-10-12",
+    "source_exchange": "NSE",
+    "source_url": "https://www.nseindia.com/api/corporates-financial-results?symbol=INFY",
+    "pdf_url": null,
+    "xbrl_url": "https://nsearchives.nseindia.com/corporate/INFY_Q2FY25.xml",
+    "status": "failed"
+  },
+  {
+    "ticker": "HDFCBANK",
+    "filing_type": "quarterly_results",
+    "fiscal_period": "Q4FY25",
+    "filing_date": "2026-04-19",
+    "source_exchange": "BSE",
+    "source_url": "https://www.bseindia.com/corporates/anndet_new.aspx?newsid=HDFCBANK_Q4FY25",
+    "pdf_url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/HDFCBANK_Q4FY25.pdf",
+    "xbrl_url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/HDFCBANK_Q4FY25.xml",
+    "status": "pending"
+  },
+  {
+    "ticker": "HDFCBANK",
+    "filing_type": "quarterly_results",
+    "fiscal_period": "Q3FY25",
+    "filing_date": "2026-01-20",
+    "source_exchange": "BSE",
+    "source_url": "https://www.bseindia.com/corporates/anndet_new.aspx?newsid=HDFCBANK_Q3FY25",
+    "pdf_url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/HDFCBANK_Q3FY25.pdf",
+    "xbrl_url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/HDFCBANK_Q3FY25.xml",
+    "status": "ingested"
+  },
+  {
+    "ticker": "HDFCBANK",
+    "filing_type": "annual_report",
+    "fiscal_period": "FY24",
+    "filing_date": "2025-06-25",
+    "source_exchange": "BSE",
+    "source_url": "https://www.bseindia.com/corporates/anndet_new.aspx?newsid=HDFCBANK_FY24_AR",
+    "pdf_url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/HDFCBANK_FY24_AR.pdf",
+    "xbrl_url": null,
+    "status": "skipped"
+  },
+  {
+    "ticker": "ITC",
+    "filing_type": "quarterly_results",
+    "fiscal_period": "Q4FY25",
+    "filing_date": "2026-04-23",
+    "source_exchange": "NSE",
+    "source_url": "https://www.nseindia.com/api/corporates-financial-results?symbol=ITC",
+    "pdf_url": null,
+    "xbrl_url": "https://nsearchives.nseindia.com/corporate/ITC_Q4FY25.xml",
+    "status": "pending"
+  },
+  {
+    "ticker": "ITC",
+    "filing_type": "quarterly_results",
+    "fiscal_period": "Q3FY25",
+    "filing_date": "2026-01-23",
+    "source_exchange": "NSE",
+    "source_url": "https://www.nseindia.com/api/corporates-financial-results?symbol=ITC",
+    "pdf_url": null,
+    "xbrl_url": "https://nsearchives.nseindia.com/corporate/ITC_Q3FY25.xml",
+    "status": "ingested"
+  },
+  {
+    "ticker": "ITC",
+    "filing_type": "corporate_action",
+    "fiscal_period": null,
+    "filing_date": "2026-03-15",
+    "source_exchange": "BSE",
+    "source_url": "https://www.bseindia.com/corporates/anndet_new.aspx?newsid=ITC_DIV",
+    "pdf_url": "https://www.bseindia.com/xml-data/corpfiling/AttachLive/ITC_DIV.pdf",
+    "xbrl_url": null,
+    "status": "ingested"
+  },
+  {
+    "ticker": "ITC",
+    "filing_type": "quarterly_results",
+    "fiscal_period": "Q2FY25",
+    "filing_date": "2025-10-23",
+    "source_exchange": "NSE",
+    "source_url": "https://www.nseindia.com/api/corporates-financial-results?symbol=ITC",
+    "pdf_url": null,
+    "xbrl_url": "https://nsearchives.nseindia.com/corporate/ITC_Q2FY25.xml",
+    "status": "failed"
+  }
+]
