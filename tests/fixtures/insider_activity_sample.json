@@ -1,0 +1,25 @@
+{
+  "_note": "Sample fixture for backend/services/insider_activity_service.py. 5 tickers, 17 deals + insider filings. Dates are anchored to 2026-04-15 (pre-`today`-of-2026-04-27) so a 90/180-day window catches them.",
+  "today": "2026-04-27",
+  "bulk_block_deals": [
+    {"ticker": "RELIANCE", "deal_date": "2026-04-22", "deal_type": "bulk", "client_name": "MORGAN STANLEY ASIA SINGAPORE PTE", "buy_sell": "B", "quantity": 250000, "price": 2940.50, "exchange": "NSE"},
+    {"ticker": "RELIANCE", "deal_date": "2026-04-22", "deal_type": "bulk", "client_name": "GOLDMAN SACHS INVESTMENTS", "buy_sell": "S", "quantity": 180000, "price": 2941.10, "exchange": "NSE"},
+    {"ticker": "RELIANCE", "deal_date": "2026-03-15", "deal_type": "block", "client_name": "LIC OF INDIA", "buy_sell": "B", "quantity": 500000, "price": 2880.00, "exchange": "NSE"},
+    {"ticker": "TCS", "deal_date": "2026-04-10", "deal_type": "block", "client_name": "MIRAE ASSET MUTUAL FUND", "buy_sell": "B", "quantity": 95000, "price": 4120.75, "exchange": "NSE"},
+    {"ticker": "TCS", "deal_date": "2026-02-28", "deal_type": "bulk", "client_name": "HDFC MUTUAL FUND", "buy_sell": "S", "quantity": 60000, "price": 4090.00, "exchange": "BSE"},
+    {"ticker": "INFY", "deal_date": "2026-04-18", "deal_type": "bulk", "client_name": "NIPPON INDIA SMALL CAP", "buy_sell": "S", "quantity": 220000, "price": 1755.40, "exchange": "NSE"},
+    {"ticker": "INFY", "deal_date": "2026-04-05", "deal_type": "block", "client_name": "VANGUARD EMERGING MARKETS", "buy_sell": "B", "quantity": 310000, "price": 1748.00, "exchange": "NSE"},
+    {"ticker": "HDFCBANK", "deal_date": "2026-04-12", "deal_type": "bulk", "client_name": "BLACKROCK GLOBAL FUNDS", "buy_sell": "B", "quantity": 175000, "price": 1655.20, "exchange": "NSE"},
+    {"ticker": "HDFCBANK", "deal_date": "2026-01-30", "deal_type": "bulk", "client_name": "FIDELITY EM FUND", "buy_sell": "S", "quantity": 90000, "price": 1612.10, "exchange": "BSE"},
+    {"ticker": "ITC", "deal_date": "2026-04-25", "deal_type": "block", "client_name": "BRITISH AMERICAN TOBACCO", "buy_sell": "S", "quantity": 1200000, "price": 445.80, "exchange": "NSE"}
+  ],
+  "insider_transactions": [
+    {"ticker": "RELIANCE", "filing_date": "2026-04-23", "trade_date": "2026-04-21", "insider_name": "Mukesh D Ambani", "insider_role": "promoter", "buy_sell": "B", "quantity": 50000, "value_inr": 147000000.00, "post_holding_pct": 50.412, "source_url": "https://www.nseindia.com/companies-listing/corporate-filings-insider-trading"},
+    {"ticker": "RELIANCE", "filing_date": "2026-03-04", "trade_date": "2026-03-02", "insider_name": "Nita M Ambani", "insider_role": "director", "buy_sell": "S", "quantity": 12000, "value_inr": 34560000.00, "post_holding_pct": 0.118, "source_url": "https://www.nseindia.com/companies-listing/corporate-filings-insider-trading"},
+    {"ticker": "TCS", "filing_date": "2026-04-15", "trade_date": "2026-04-12", "insider_name": "K Krithivasan", "insider_role": "kmp", "buy_sell": "S", "quantity": 8000, "value_inr": 32960000.00, "post_holding_pct": 0.0042, "source_url": "https://www.nseindia.com/companies-listing/corporate-filings-insider-trading"},
+    {"ticker": "TCS", "filing_date": "2026-02-20", "trade_date": "2026-02-18", "insider_name": "Samir Seksaria", "insider_role": "kmp", "buy_sell": "S", "quantity": 4500, "value_inr": 18450000.00, "post_holding_pct": 0.0021, "source_url": "https://www.nseindia.com/companies-listing/corporate-filings-insider-trading"},
+    {"ticker": "INFY", "filing_date": "2026-04-08", "trade_date": "2026-04-04", "insider_name": "Salil Parekh", "insider_role": "kmp", "buy_sell": "S", "quantity": 25000, "value_inr": 43750000.00, "post_holding_pct": 0.0125, "source_url": "https://www.nseindia.com/companies-listing/corporate-filings-insider-trading"},
+    {"ticker": "INFY", "filing_date": "2026-01-12", "trade_date": "2026-01-10", "insider_name": "Nandan Nilekani", "insider_role": "promoter", "buy_sell": "B", "quantity": 100000, "value_inr": 169500000.00, "post_holding_pct": 1.412, "source_url": "https://www.nseindia.com/companies-listing/corporate-filings-insider-trading"},
+    {"ticker": "HDFCBANK", "filing_date": "2026-03-22", "trade_date": "2026-03-20", "insider_name": "Sashidhar Jagdishan", "insider_role": "kmp", "buy_sell": "B", "quantity": 5000, "value_inr": 8200000.00, "post_holding_pct": 0.0038, "source_url": "https://www.nseindia.com/companies-listing/corporate-filings-insider-trading"}
+  ]
+}
