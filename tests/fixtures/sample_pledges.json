@@ -1,0 +1,74 @@
+[
+  {
+    "ticker": "RCOM",
+    "as_of_date": "2026-01-31",
+    "promoter_group_pct": 21.970,
+    "pledged_pct": 80.000,
+    "pledged_shares": 4400000000,
+    "source_url": "https://www.bseindia.com/corporates/sastpledge.aspx?scripcode=532712"
+  },
+  {
+    "ticker": "RCOM",
+    "as_of_date": "2025-10-31",
+    "promoter_group_pct": 21.970,
+    "pledged_pct": 65.000,
+    "pledged_shares": 3575000000,
+    "source_url": "https://www.bseindia.com/corporates/sastpledge.aspx?scripcode=532712"
+  },
+  {
+    "ticker": "JINDALSTEL",
+    "as_of_date": "2026-01-31",
+    "promoter_group_pct": 60.450,
+    "pledged_pct": 20.000,
+    "pledged_shares": 122000000,
+    "source_url": "https://www.bseindia.com/corporates/sastpledge.aspx?scripcode=532286"
+  },
+  {
+    "ticker": "JINDALSTEL",
+    "as_of_date": "2025-10-31",
+    "promoter_group_pct": 60.450,
+    "pledged_pct": 22.500,
+    "pledged_shares": 137250000,
+    "source_url": "https://www.bseindia.com/corporates/sastpledge.aspx?scripcode=532286"
+  },
+  {
+    "ticker": "RELIANCE",
+    "as_of_date": "2026-01-31",
+    "promoter_group_pct": 50.330,
+    "pledged_pct": 0.000,
+    "pledged_shares": 0,
+    "source_url": "https://www.bseindia.com/corporates/sastpledge.aspx?scripcode=500325"
+  },
+  {
+    "ticker": "TATASTEEL",
+    "as_of_date": "2026-01-31",
+    "promoter_group_pct": 33.190,
+    "pledged_pct": 5.000,
+    "pledged_shares": 20300000,
+    "source_url": "https://www.bseindia.com/corporates/sastpledge.aspx?scripcode=500470"
+  },
+  {
+    "ticker": "TATASTEEL",
+    "as_of_date": "2025-10-31",
+    "promoter_group_pct": 33.190,
+    "pledged_pct": 5.000,
+    "pledged_shares": 20300000,
+    "source_url": "https://www.bseindia.com/corporates/sastpledge.aspx?scripcode=500470"
+  },
+  {
+    "ticker": "ADANIENT",
+    "as_of_date": "2026-01-31",
+    "promoter_group_pct": 72.640,
+    "pledged_pct": 15.000,
+    "pledged_shares": 124800000,
+    "source_url": "https://www.bseindia.com/corporates/sastpledge.aspx?scripcode=512599"
+  },
+  {
+    "ticker": "ADANIENT",
+    "as_of_date": "2025-10-31",
+    "promoter_group_pct": 72.640,
+    "pledged_pct": 12.000,
+    "pledged_shares": 99840000,
+    "source_url": "https://www.bseindia.com/corporates/sastpledge.aspx?scripcode=512599"
+  }
+]
