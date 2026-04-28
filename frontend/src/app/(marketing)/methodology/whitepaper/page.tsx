@@ -165,7 +165,6 @@ export default async function WhitepaperPage() {
                        prose-h3:text-lg prose-h3:font-semibold prose-h3:mt-8 prose-h3:mb-3
                        prose-p:text-body prose-p:leading-relaxed
                        prose-li:text-body prose-li:leading-relaxed
-                       prose-strong:text-ink prose-strong:font-semibold
                        prose-a:text-ink prose-a:underline hover:prose-a:opacity-80
                        prose-code:font-mono prose-code:text-xs prose-code:text-ink prose-code:bg-bg-subtle prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
                        prose-pre:bg-bg-subtle prose-pre:text-ink prose-pre:text-xs prose-pre:rounded-lg prose-pre:border prose-pre:border-border
