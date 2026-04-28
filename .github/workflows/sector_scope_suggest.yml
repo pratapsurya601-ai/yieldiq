@@ -1,0 +1,52 @@
+name: Sector-scope suggestion (advisory PR comment)
+
+# Posts a suggested `sector-scope:` line as a comment on every PR. The
+# author can paste this into the PR body to satisfy the sector-isolation
+# merge gate. Advisory only — never fails the build.
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  suggest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Compute changed files
+        id: diff
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          # Use the PR base SHA so we diff exactly the PR's changes,
+          # independent of how the local clone is set up.
+          git fetch origin "$BASE_SHA" --depth=1 || true
+          {
+            echo "files<<EOF"
+            git diff --name-only "$BASE_SHA...HEAD"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run sector-scope auto-detect
+        run: |
+          python scripts/sector_scope_suggest.py \
+            --base "${{ github.event.pull_request.base.sha }}" \
+            --gh-comment sector_scope_suggestion.md \
+            --verbose
+
+      - name: Post suggestion to PR
+        uses: mshick/add-pr-comment@v2
+        with:
+          message-path: sector_scope_suggestion.md
+          message-id: sector-scope-suggestion

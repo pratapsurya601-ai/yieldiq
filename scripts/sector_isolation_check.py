@@ -556,14 +556,58 @@ def main(argv: list[str] | None = None) -> int:
         print(f"scope: {sorted(scope) if scope else '(none declared)'}", flush=True)
 
     if scope is None and args.require_scope:
-        print(
-            "ERROR: no `sector-scope:` declaration found.\n"
-            "Every PR touching scoring code must declare:\n"
-            "  sector-scope: Cement, Banks        (sectors intentionally touched)\n"
-            "  sector-scope: *                    (intentionally-global change)\n"
+        # Best-effort: ask sector_scope_suggest.py what it would have
+        # recommended for the current diff, so the PR comment isn't just
+        # "you forgot the line" but "here is the line — paste it".
+        suggested_line = "sector-scope: <add sectors here, or `*` for global>"
+        try:
+            out = subprocess.check_output(
+                [sys.executable, str(REPO_ROOT / "scripts" / "sector_scope_suggest.py")],
+                stderr=subprocess.DEVNULL,
+                timeout=15,
+            ).decode("utf-8", errors="replace").strip()
+            if out.startswith("sector-scope:"):
+                suggested_line = out
+        except Exception:
+            pass
+
+        msg_lines = [
+            "ERROR: no `sector-scope:` declaration found.",
+            "Every PR touching scoring code must declare:",
+            "  sector-scope: Cement, Banks        (sectors intentionally touched)",
+            "  sector-scope: *                    (intentionally-global change)",
             "in the PR body. See docs/SECTOR_ISOLATION.md.",
-            file=sys.stderr,
-        )
+            "",
+            f"Suggested for this diff: {suggested_line}",
+        ]
+        for line in msg_lines:
+            print(line, file=sys.stderr)
+
+        # Write a Markdown report file that the workflow's
+        # mshick/add-pr-comment step posts back to the PR. This converts
+        # the failure from "just a red CI log" into "a comment with the
+        # exact line to paste".
+        try:
+            md = "\n".join([
+                "# Sector Isolation Report",
+                "",
+                "**STATUS: FAIL** — no `sector-scope:` declaration in PR body.",
+                "",
+                "Every PR touching scoring code must declare a `sector-scope:` "
+                "line in the body. Paste this into the PR body (top of the "
+                "template):",
+                "",
+                "```",
+                suggested_line,
+                "```",
+                "",
+                "Then push (or just edit the PR body — the gate re-runs).",
+                "",
+                "See `docs/SECTOR_ISOLATION.md` and `.github/pull_request_template.md`.",
+            ])
+            Path(args.report_md).write_text(md, encoding="utf-8")
+        except Exception:
+            pass
         return 2
 
     if args.state_from:
