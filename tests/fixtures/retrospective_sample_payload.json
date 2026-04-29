@@ -1,0 +1,32 @@
+{
+  "period": {
+    "label": "Q1FY27",
+    "start": "2026-04-01",
+    "end": "2026-06-30"
+  },
+  "window_days": 90,
+  "mos_threshold": 30.0,
+  "n_predictions": 47,
+  "mean_return": 12.4,
+  "median_return": 9.8,
+  "hit_rate": 0.638,
+  "outperform_rate": 0.553,
+  "benchmark": {"ticker": "NIFTY500.NS", "return_pct": 6.2},
+  "winners": [
+    {"ticker": "POWERGRID.NS",  "return_pct": 38.2},
+    {"ticker": "BHARTIARTL.NS", "return_pct": 31.7},
+    {"ticker": "SUNPHARMA.NS",  "return_pct": 27.4},
+    {"ticker": "ITC.NS",        "return_pct": 24.1},
+    {"ticker": "HDFCBANK.NS",   "return_pct": 21.8}
+  ],
+  "losers": [
+    {"ticker": "ZOMATO.NS",    "return_pct": -18.3},
+    {"ticker": "PAYTM.NS",     "return_pct": -14.2},
+    {"ticker": "VEDL.NS",      "return_pct": -9.5},
+    {"ticker": "ADANIENT.NS",  "return_pct": -6.8},
+    {"ticker": "TATASTEEL.NS", "return_pct": -3.1}
+  ],
+  "is_sample": false,
+  "last_updated": "2026-07-31T22:00:00+00:00",
+  "disclaimer": "Past results are not indicative of future returns. SEBI: descriptive only, not advisory."
+}

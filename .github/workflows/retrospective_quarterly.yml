@@ -1,0 +1,133 @@
+name: Quarterly Retrospective Publication
+
+# ─────────────────────────────────────────────────────────────────
+# Quarterly retrospective publication ritual.
+#
+# Fires on Aug 1 / Nov 1 / Feb 1 / May 1 at 09:00 IST (= 03:30 UTC),
+# one month after the close of each Indian fiscal quarter, by which
+# time the model has 90 days of realized outcome data.
+#
+# Pipeline:
+#   1. Resolve the just-closed Indian fiscal quarter.
+#   2. Hit the prod /api/v1/public/retrospective endpoint.
+#   3. Generate Markdown + Twitter + LinkedIn + email artifacts.
+#   4. Mode A (default, safe): commit artifacts to the repo as a
+#      reviewable artifact bundle. Founder previews and posts manually.
+#   5. Mode B (env-gated, RETROSPECTIVE_PUBLISH_MODE=auto): also
+#      attempt auto-post via Twitter / LinkedIn APIs. Currently STUBBED;
+#      see docs/publications/retrospective_publication_design.md.
+#
+# If the retrospective endpoint reports is_sample=true (insufficient
+# real prediction data), the workflow exits cleanly with a warning
+# and DOES NOT publish placeholder data.
+# ─────────────────────────────────────────────────────────────────
+
+on:
+  schedule:
+    # 03:30 UTC on the 1st of Aug, Nov, Feb, May = 09:00 IST
+    - cron: '30 3 1 8,11,2,5 *'
+  workflow_dispatch:
+    inputs:
+      quarter_override:
+        description: "Override resolved quarter (e.g. Q1FY27). Leave blank for auto-resolve."
+        required: false
+        default: ""
+      mode:
+        description: "Publication mode"
+        required: false
+        default: "review"
+        type: choice
+        options:
+          - review
+          - auto
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  publish-retrospective:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Resolve quarter
+        id: quarter
+        run: |
+          if [ -n "${{ github.event.inputs.quarter_override }}" ]; then
+            Q="${{ github.event.inputs.quarter_override }}"
+            echo "Using overridden quarter: $Q"
+            echo "quarter=$Q" >> "$GITHUB_OUTPUT"
+          else
+            python scripts/resolve_prev_quarter.py --format github >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate publication artifacts
+        id: gen
+        env:
+          RETRO_API_BASE: ${{ secrets.API_BASE_URL || 'https://yieldiq-production.up.railway.app' }}
+          RETROSPECTIVE_PUBLISH_MODE: ${{ github.event.inputs.mode || 'review' }}
+        run: |
+          set +e
+          python scripts/generate_retrospective_publication.py \
+            --quarter "${{ steps.quarter.outputs.quarter }}" \
+            --window 90 \
+            --api-base "$RETRO_API_BASE" \
+            --out-dir docs/publications
+          rc=$?
+          set -e
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          if [ "$rc" = "3" ]; then
+            echo "::warning::Retrospective payload reports is_sample=true. Skipping publication."
+            exit 0
+          fi
+          if [ "$rc" != "0" ]; then
+            echo "::error::Generator failed with exit $rc"
+            exit "$rc"
+          fi
+
+      - name: Upload artifacts
+        if: ${{ steps.gen.outputs.rc == '0' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: retrospective-${{ steps.quarter.outputs.quarter }}
+          path: docs/publications/retrospective_${{ steps.quarter.outputs.quarter }}.*
+
+      - name: Commit artifacts to repo (Mode A — review)
+        if: ${{ steps.gen.outputs.rc == '0' && (github.event.inputs.mode || 'review') == 'review' }}
+        run: |
+          git config user.name "yieldiq-bot"
+          git config user.email "bot@yieldiq.in"
+          BR="retro/${{ steps.quarter.outputs.quarter }}-$(date +%Y%m%d)"
+          git checkout -b "$BR"
+          git add docs/publications/retrospective_${{ steps.quarter.outputs.quarter }}.*
+          if git diff --cached --quiet; then
+            echo "No artifact changes to commit."
+            exit 0
+          fi
+          git commit -m "docs(retrospective): ${{ steps.quarter.outputs.quarter }} publication artifacts"
+          git push origin "$BR"
+
+      - name: Auto-post (Mode B — env-gated stub)
+        if: ${{ steps.gen.outputs.rc == '0' && github.event.inputs.mode == 'auto' }}
+        env:
+          TWITTER_API_KEY: ${{ secrets.TWITTER_API_KEY }}
+          TWITTER_API_SECRET: ${{ secrets.TWITTER_API_SECRET }}
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+        run: |
+          # Mode B is intentionally stubbed in this PR. Live posting
+          # requires explicit credentials review and is gated behind
+          # an additional env var. See docs/publications/
+          # retrospective_publication_design.md for the rollout plan.
+          if [ -z "$TWITTER_API_KEY" ] && [ -z "$LINKEDIN_ACCESS_TOKEN" ]; then
+            echo "::warning::Mode B requested but no Twitter / LinkedIn credentials configured. Falling back to artifact-only delivery."
+            exit 0
+          fi
+          echo "::warning::Mode B live-posting is not implemented in this PR — see design doc."
