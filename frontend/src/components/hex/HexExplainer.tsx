@@ -7,6 +7,7 @@ import {
   type HexAxisKey,
   type HexResponse,
 } from "@/lib/hex"
+import { ValueBandChip } from "@/components/hex/ValueBandChip"
 
 interface HexExplainerProps {
   open: boolean
@@ -136,32 +137,53 @@ export default function HexExplainer({
           </button>
         </div>
 
-        {/* Score + label */}
-        <div className="mt-4 flex items-baseline gap-3">
-          <span
-            className="font-mono tabular-nums font-bold"
-            style={{ fontSize: 40, color: "var(--color-ink)", lineHeight: 1 }}
-          >
-            {ax.score != null ? ax.score.toFixed(1) : "\u2014"}
-          </span>
-          <span
-            className="font-mono"
-            style={{ fontSize: 14, color: "var(--color-caption)" }}
-          >
-            /10
-          </span>
-          <span
-            className="inline-flex items-center rounded-full px-2.5 py-1"
-            style={{
-              fontSize: 12,
-              fontWeight: 600,
-              color: toneColor,
-              background: "var(--color-surface)",
-              border: `1px solid ${toneColor}33`,
-            }}
-          >
-            {ax.label}
-          </span>
+        {/* Score + label.
+         *
+         * Stage 2: when the axis is `value` and the backend has shipped
+         * the new sector-percentile fields (`band`), we render the
+         * <ValueBandChip /> in place of the bare numeric. We keep the
+         * legacy numeric for the other five axes and as a fallback for
+         * Value when the new fields are not yet present (e.g. a Vercel
+         * preview hitting an older backend during the rollout window).
+         */}
+        <div className="mt-4 flex items-baseline gap-3 flex-wrap">
+          {axis === "value" && ax.band ? (
+            <ValueBandChip
+              band={ax.band}
+              label={ax.label}
+              percentile={ax.percentile ?? null}
+              why={ax.why}
+              sectorPeers={ax.sector_peers}
+              sectorLabel={ax.sector_label}
+            />
+          ) : (
+            <>
+              <span
+                className="font-mono tabular-nums font-bold"
+                style={{ fontSize: 40, color: "var(--color-ink)", lineHeight: 1 }}
+              >
+                {ax.score != null ? ax.score.toFixed(1) : "\u2014"}
+              </span>
+              <span
+                className="font-mono"
+                style={{ fontSize: 14, color: "var(--color-caption)" }}
+              >
+                /10
+              </span>
+              <span
+                className="inline-flex items-center rounded-full px-2.5 py-1"
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: toneColor,
+                  background: "var(--color-surface)",
+                  border: `1px solid ${toneColor}33`,
+                }}
+              >
+                {ax.label}
+              </span>
+            </>
+          )}
         </div>
 
         {/* Why text */}

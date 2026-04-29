@@ -463,6 +463,8 @@ score  = 10 / (1 + exp(−0.08 × signal))
 
 Calibration points: MoS −50% → 0.18; MoS −33% → 0.67; MoS 0% → 5.00; MoS +33% → 9.34.
 
+**Sector-relative Value band (Stage 2).** Alongside the 0–10 sigmoid we now publish a sector-percentile band for the Value axis. Each stock's Value position is calculated relative to its sector peers, not an absolute scale. We rank by Margin of Safety for general stocks, by P/Book Value for banks, and by Revenue Multiple for IT services. A stock in the top 10% of MoS for its sector shows "Deep discount"; the bottom 10% shows "Notable premium to peers". Mid-range positions surface as "Below peers", "In range", or "Above peers". When fewer than 10 sector peers have valid data we mark the stock as "Insufficient peer data" rather than show a misleading score. The numeric sigmoid score continues to drive the central composite; the band is a peer-context overlay rendered by the `ValueBandChip` component on the analysis page.
+
 The full formula reference, with line numbers, is in `docs/audit/HEX_AXIS_SOURCE_MAP.md`.
 
 ### 4.3 Per-axis failure modes (and what we do about them)

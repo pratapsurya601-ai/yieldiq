@@ -16,11 +16,34 @@ export type HexAxisLabel =
   | "Neutral"
   | "Negative"
 
+/**
+ * Stage 2 (sector-percentile band) — see ValueBandChip.tsx.
+ *
+ * Backend computes the band per sector. These fields are present only
+ * on the Value axis (and only after the Stage 2 backend deploys); the
+ * UI must fall back to the legacy numeric score when `band` is absent.
+ */
+export type ValueBand =
+  | "strong_discount"
+  | "below_peers"
+  | "in_range"
+  | "above_peers"
+  | "notably_overvalued"
+  | "data_limited"
+
 export type HexAxis = {
   score: number // 0..10
-  label: HexAxisLabel
+  label: HexAxisLabel | string
   why: string
   data_limited: boolean
+  // NEW (Stage 2 — Value axis only, optional during rollout)
+  band?: ValueBand
+  percentile?: number | null
+  sector_peers?: number
+  sector_label?: string
+  sector_median_mos?: number | null
+  sector_median_pb?: number | null
+  sector_median_rev_multiple?: number | null
 }
 
 export type HexResponse = {
