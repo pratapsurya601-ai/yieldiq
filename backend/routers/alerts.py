@@ -238,3 +238,40 @@ async def delete_alert(
     db.delete(alert)
     db.commit()
     return {"ok": True, "id": alert_id}
+
+
+# ── Band-shift alerts (sector-percentile USP) ────────────────
+# These endpoints surface the side-channel `band_alerts` table. The
+# notifications drawer (NotificationsBell) already shows in-app
+# notifications via /api/v1/notifications/recent — these endpoints
+# are for the dedicated "band shifts only" view + dismiss UX on the
+# watchlist page badge.
+
+@router.get("/band-shifts")
+async def list_band_shifts(
+    limit: int = 50,
+    user: dict = Depends(get_current_user),
+):
+    """Return this user's recent sector-percentile band-shift alerts.
+
+    Schema mirrors backend/services/band_alert_service.list_recent_for_user.
+    No DB dependency injection — the service module owns its own cursor.
+    """
+    from backend.services import band_alert_service as bas
+    uid = _user_id(user)
+    items = bas.list_recent_for_user(uid, limit=limit)
+    return {"alerts": items}
+
+
+@router.post("/band-shifts/{alert_id}/dismiss")
+async def dismiss_band_shift(
+    alert_id: int,
+    user: dict = Depends(get_current_user),
+):
+    """Mark a band_alerts row as dismissed by the user."""
+    from backend.services import band_alert_service as bas
+    uid = _user_id(user)
+    ok = bas.dismiss_alert(uid, alert_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Band alert not found")
+    return {"ok": True, "id": alert_id}

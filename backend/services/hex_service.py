@@ -1601,6 +1601,28 @@ def compute_hex(ticker: str) -> dict:
         "pulse":   pulse_axis,
     }
 
+    # ── Side-channel: sector-percentile band-shift alerts ────────
+    # Record this ticker's current band and, if it differs from the
+    # previous record, fan a "band shift" alert out to every user
+    # watchlisting the ticker. Wrapped: failure here MUST NOT fail
+    # the analysis response. See backend/services/band_alert_service.py.
+    try:
+        from backend.services import band_alert_service as bas
+        _band = (value_axis or {}).get("band")
+        _percentile = (value_axis or {}).get("percentile")
+        _cohort_size = (value_axis or {}).get("sector_peers")
+        _sector_label = (value_axis or {}).get("sector_label") or ""
+        if _band and _band != "data_limited":
+            bas.record_and_maybe_fire(
+                ticker=t,
+                band=_band,
+                percentile=_percentile,
+                cohort_size=_cohort_size,
+                sector=_sector_label,
+            )
+    except Exception as _exc:  # pragma: no cover - best-effort side-channel
+        logger.info("hex: band_alert side-channel skipped for %s: %s", t, _exc)
+
     # Stage 2 (sector-percentile Value): an axis whose score is None
     # (data_limited) substitutes the neutral 5.0 anchor for the overall
     # weighted mean so we don't poison the composite.

@@ -1,0 +1,56 @@
+name: Daily Band-shift Digest
+
+# Sends one email per user summarizing the sector-percentile valuation
+# band shifts on their watchlist over the last 24 hours.
+#
+# Schedule: 03:30 UTC = 09:00 IST. Aligned with the existing morning
+# email envelope (welcome / weekly digest are sent in the same window).
+#
+# Env requirements (repo secrets):
+#   - DATABASE_URL     -- Aiven/Neon Postgres
+#   - SENDGRID_API_KEY -- for outbound email
+#
+# Cron format: "30 3 * * *" (UTC).
+
+on:
+  schedule:
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Log what would be sent; don't email or persist"
+        required: false
+        default: "false"
+
+jobs:
+  send-digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+      SENDGRID_FROM_EMAIL: ${{ secrets.SENDGRID_FROM_EMAIL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          # Same minimal set the alerts_evaluator uses — SQLAlchemy +
+          # psycopg2 + sendgrid. Supabase is included for is_user_unsubscribed.
+          pip install "SQLAlchemy>=2.0" "psycopg2-binary" sendgrid supabase python-dotenv
+
+      - name: Run digest
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            python scripts/band_alerts_digest.py --dry-run
+          else
+            python scripts/band_alerts_digest.py
+          fi
