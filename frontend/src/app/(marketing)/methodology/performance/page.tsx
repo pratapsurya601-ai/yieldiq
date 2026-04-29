@@ -283,7 +283,7 @@ function SectorBreakdown({ rows }: { rows: SectorRow[] | null }) {
             <th className="px-4 py-2 text-right">n</th>
             <th className="px-4 py-2 text-right">Mean return</th>
             <th className="px-4 py-2 text-right">Benchmark</th>
-            <th className="px-4 py-2 text-right">Outperform</th>
+            <th className="px-4 py-2 text-right">Beat rate</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
