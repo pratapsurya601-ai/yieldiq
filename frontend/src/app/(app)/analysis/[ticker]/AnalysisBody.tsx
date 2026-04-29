@@ -177,6 +177,17 @@ export default function AnalysisBody({ ticker, prism }: Props) {
   // "Unlock for ₹99" reappear after they already paid.
   const isPaygUnlockedForTicker = usePaygStore((s) => s.isUnlocked(ticker))
 
+  // Tier gate: paid plans (starter / pro / analyst) get the live
+  // sensitivity sliders; free tier sees a static upgrade CTA. This hook
+  // MUST stay above every early return below (loading / error / !data /
+  // verdict-unavailable) — otherwise the first render bails before the
+  // hook is called and the second render (after data lands) calls it,
+  // which trips React's hook-order check (#310). See PR #133 (sliders)
+  // + the fix in PR #fixme-react310 for the original regression.
+  const userTier = useAuthStore((s) => s.tier)
+  const canUseSliders =
+    userTier === "starter" || userTier === "pro" || userTier === "analyst"
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["analysis", ticker],
     queryFn: () => getAnalysis(ticker),
@@ -461,11 +472,6 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       : null
   const marketCapBucket = bucketFromMarketCapCr(marketCapCr)
 
-  // Tier gate: paid plans (starter / pro / analyst) get the live
-  // sliders; free tier sees a static upgrade CTA so the value-prop
-  // is visible to non-payers without burning recompute requests.
-  const userTier = useAuthStore((s) => s.tier)
-  const canUseSliders = userTier === "starter" || userTier === "pro" || userTier === "analyst"
   // Operating margin isn't exposed on the analysis payload yet;
   // fall back to a sensible mid-cap default so the slider has a
   // starting point. The user can drag it freely; the backend scales
