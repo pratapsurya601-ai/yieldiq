@@ -18,9 +18,15 @@ interface FinancialDataPoint {
 
 interface FinancialBarsProps {
   ticker: string
-  currency?: string
+  currency?: string | null
   revenue?: FinancialDataPoint[]
   fcf?: FinancialDataPoint[]
+}
+
+const FOREIGN_RE = /^(USD|EUR|GBP|JPY|CNY|SGD|HKD|AUD|CAD|CHF)$/i
+function isForeignCurrency(c?: string | null, ticker?: string): boolean {
+  if (ticker && (ticker.endsWith(".NS") || ticker.endsWith(".BO"))) return false
+  return !!c && FOREIGN_RE.test(c.trim())
 }
 
 interface YearlyData {
@@ -43,7 +49,7 @@ function formatUSD(value: number): string {
 
 export default function FinancialBars({
   ticker,
-  currency = "INR",
+  currency,
   revenue: revenueProp,
   fcf: fcfProp,
 }: FinancialBarsProps) {
@@ -70,7 +76,7 @@ export default function FinancialBars({
     )
   }, [revenueProp, fcfProp])
 
-  const yFormatter = currency === "INR" ? formatCrore : formatUSD
+  const yFormatter = isForeignCurrency(currency, ticker) ? formatUSD : formatCrore
 
   const hasData = data.length > 0 && data.some((d) => d.revenue !== 0 || d.fcf !== 0)
 

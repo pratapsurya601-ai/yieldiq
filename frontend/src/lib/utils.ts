@@ -5,13 +5,23 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatCurrency(value: number, currency: string = "INR"): string {
+// YieldIQ is India-only. Default to INR / \u20b9 for null, "", "inr",
+// and any unrecognised currency tag (incl. the v50 yfinance mis-tag
+// where Indian listings come through as "USD"). Only an explicit
+// foreign currency code falls into the non-INR branch.
+// See `lib/currency.ts` for the canonical symbol/locale helpers.
+const NON_INR_CURRENCIES = new Set(["USD", "EUR", "GBP", "JPY", "CNY", "SGD", "HKD", "AUD", "CAD", "CHF"])
+
+export function formatCurrency(value: number, currency?: string | null): string {
   const abs = Math.abs(value)
-  if (currency === "INR") {
+  const upper = currency ? currency.toUpperCase().trim() : ""
+  if (!NON_INR_CURRENCIES.has(upper)) {
+    // INR (default) \u2014 covers null, undefined, "", "inr", "INR", "Rs", junk
     if (abs >= 1e7) return `\u20b9${(value / 1e7).toFixed(1)}Cr`
     if (abs >= 1e5) return `\u20b9${(value / 1e5).toFixed(1)}L`
     return `\u20b9${value.toLocaleString("en-IN", { maximumFractionDigits: 2 })}`
   }
+  // Explicit non-INR (rare on YieldIQ \u2014 only ADR cross-listings, etc.)
   if (abs >= 1e9) return `$${(value / 1e9).toFixed(1)}B`
   if (abs >= 1e6) return `$${(value / 1e6).toFixed(1)}M`
   return `$${value.toLocaleString("en-US", { maximumFractionDigits: 2 })}`

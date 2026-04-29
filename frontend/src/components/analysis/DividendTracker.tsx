@@ -2,16 +2,14 @@
 
 import { useMemo, useState } from "react"
 import { cn } from "@/lib/utils"
+import { currencySymbol } from "@/lib/currency"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import type { DividendData } from "@/types/api"
 
 interface Props {
   dividend?: DividendData | null
-  currency?: string
-}
-
-function currencySymbol(c: string): string {
-  return c === "INR" ? "\u20b9" : "$"
+  currency?: string | null
+  ticker?: string | null
 }
 
 const SUST_CARD: Record<string, string> = {
@@ -33,9 +31,9 @@ function fmtCoverage(v: number | null): string {
   return `${v.toFixed(1)}× ✗`
 }
 
-export default function DividendTracker({ dividend, currency = "INR" }: Props) {
+export default function DividendTracker({ dividend, currency, ticker }: Props) {
   const [expanded, setExpanded] = useState(false)
-  const sym = currencySymbol(currency)
+  const sym = currencySymbol(currency, ticker)
 
   const maxBar = useMemo(() => {
     if (!dividend?.fy_history?.length) return 0
