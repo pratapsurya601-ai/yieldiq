@@ -162,6 +162,14 @@ export default function TrustFooter() {
               </li>
               <li>
                 <Link
+                  href="/how-it-works"
+                  className="text-body hover:text-ink transition-colors"
+                >
+                  How it works
+                </Link>
+              </li>
+              <li>
+                <Link
                   href="/methodology"
                   className="text-body hover:text-ink transition-colors"
                 >

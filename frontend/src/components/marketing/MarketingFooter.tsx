@@ -38,6 +38,7 @@ export default function MarketingFooter() {
               <li><Link href="/blog/what-is-dcf-valuation" className="hover:text-white transition">What is DCF?</Link></li>
               <li><Link href="/blog/piotroski-f-score-explained" className="hover:text-white transition">Piotroski F-Score</Link></li>
               <li><Link href="/blog/margin-of-safety-explained" className="hover:text-white transition">Margin of Safety</Link></li>
+              <li><Link href="/how-it-works" className="hover:text-white transition">How YieldIQ works</Link></li>
               <li><Link href="/blog/stcg-ltcg-tax-fy-2025-26" className="hover:text-white transition">Capital Gains Tax</Link></li>
             </ul>
           </div>
