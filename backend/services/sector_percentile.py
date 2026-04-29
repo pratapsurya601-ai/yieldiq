@@ -42,11 +42,11 @@ _cohort_cache_lock = threading.Lock()
 # Percentile thresholds (lower = cheaper). Callers passing PE/PB
 # should invert via 100 - pr before mapping.
 _BAND_THRESHOLDS = (
-    (10,  "strong_discount",     "Strong discount vs peers"),
+    (10,  "strong_discount",     "Notable discount to peers"),
     (30,  "below_peers",         "Below peer range"),
     (70,  "in_range",            "In peer range"),
     (90,  "above_peers",         "Above peer range"),
-    (101, "notably_overvalued",  "Notably overvalued vs peers"),
+    (101, "notably_overvalued",  "Notable premium to peers"),
 )
 
 
