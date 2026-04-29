@@ -1,6 +1,6 @@
 "use client"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { getHoldingsLive, getPortfolioHealth, getWatchlist, removeFromWatchlist, getAlerts, deleteAlert, resetHoldings } from "@/lib/api"
+import { getHoldingsLive, getPortfolioHealth, getWatchlist, removeFromWatchlist, getAlerts, deleteAlert, resetHoldings, getBandShifts } from "@/lib/api"
 import EmptyState from "@/components/common/EmptyState"
 import HealthScore from "@/components/portfolio/HealthScore"
 import PortfolioPrism from "@/components/portfolio/PortfolioPrism"
@@ -73,6 +73,20 @@ function PortfolioInner() {
   const { data: health } = useQuery({ queryKey: ["portfolio-health"], queryFn: getPortfolioHealth, retry: 1 })
   const { data: watchlist } = useQuery({ queryKey: ["watchlist"], queryFn: getWatchlist })
   const { data: alerts } = useQuery({ queryKey: ["alerts"], queryFn: getAlerts })
+
+  // Band-shift alerts — show a small badge next to any watchlisted
+  // ticker that has an undismissed band shift in the last 30 days.
+  // Cheap query: returns at most 50 rows, polled lazily on tab focus.
+  const { data: bandShifts } = useQuery({
+    queryKey: ["band-shifts"],
+    queryFn: () => getBandShifts(50),
+    staleTime: 60_000,
+  })
+  const tickersWithBandShift = new Set(
+    (bandShifts?.alerts ?? [])
+      .filter((a) => !a.user_dismissed)
+      .map((a) => a.ticker.toUpperCase()),
+  )
 
   const removeWatchlistMut = useMutation({
     mutationFn: (ticker: string) => removeFromWatchlist(ticker),
@@ -404,9 +418,17 @@ function PortfolioInner() {
               <div key={w.ticker} className="flex items-center bg-white rounded-xl border border-gray-100 hover:border-blue-200 transition">
                 <Link href={`/analysis/${w.ticker}`} className="flex-1 flex items-center justify-between p-4">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-medium text-gray-900">{w.ticker.replace(".NS", "")}</p>
                       <UnlockBadge ticker={w.ticker} size="sm" />
+                      {tickersWithBandShift.has(w.ticker.toUpperCase()) && (
+                        <span
+                          className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-200"
+                          title="Sector-percentile valuation band shifted recently"
+                        >
+                          New band shift
+                        </span>
+                      )}
                     </div>
                     <p className="text-xs text-gray-400">{w.company_name}</p>
                   </div>

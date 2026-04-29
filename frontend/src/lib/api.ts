@@ -431,6 +431,31 @@ export const createAlert = (data: { ticker: string; alert_type: string; target_p
 export const deleteAlert = (alertId: number): Promise<SuccessResponse> =>
   api.delete(`/api/v1/alerts/${alertId}`).then(r => r.data)
 
+// ── Band-shift alerts (sector-percentile USP) ───────────────
+// Surfaced as a focused list separate from the generic notifications
+// drawer. Each row is one sector-percentile band crossing on a
+// watchlisted ticker.
+export interface BandShiftAlert {
+  id: number
+  ticker: string
+  from_band: string | null
+  to_band: string | null
+  from_label: string | null
+  to_label: string | null
+  fired_at: string | null
+  delivered_email: boolean
+  delivered_push: boolean
+  user_dismissed: boolean
+}
+
+export const getBandShifts = (
+  limit = 50,
+): Promise<{ alerts: BandShiftAlert[] }> =>
+  api.get(`/api/v1/alerts/band-shifts?limit=${limit}`).then(r => r.data)
+
+export const dismissBandShift = (alertId: number): Promise<SuccessResponse> =>
+  api.post(`/api/v1/alerts/band-shifts/${alertId}/dismiss`).then(r => r.data)
+
 // ---------------------------------------------------------------------------
 // Public SEO-page fetch helpers
 // ---------------------------------------------------------------------------
