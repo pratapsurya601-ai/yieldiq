@@ -295,7 +295,11 @@ class AnalystConsensus(BaseModel):
     """
     coverage_count: int = 0
     rating_distribution: Optional[AnalystRatingDistribution] = None
-    consensus_rating: Optional[str] = None  # "Strong Buy".."Strong Sell"
+    # SEBI-compliant neutral label, sanitized at the boundary in
+    # finnhub_analyst_service._consensus_label(). One of:
+    #   "Highly Favorable" / "Favorable" / "Neutral" /
+    #   "Cautious" / "Highly Cautious".
+    consensus_rating: Optional[str] = None
     price_target: Optional[AnalystPriceTarget] = None
     eps_estimate: Optional[AnalystEpsEstimate] = None
     as_of: Optional[str] = None  # ISO date (YYYY-MM-DD)

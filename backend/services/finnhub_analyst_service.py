@@ -105,7 +105,25 @@ def _fetch_eps_estimates(ticker: str) -> list[dict]:
 # ── Normalization ───────────────────────────────────────────────
 
 def _consensus_label(rd: dict) -> str:
-    """Weighted majority label from a rating distribution dict."""
+    """Weighted majority label from a rating distribution dict.
+
+    Returns a SEBI-compliant neutral label rather than the raw Finnhub
+    Buy/Sell/Hold vocabulary. SEBI IA Regs 2013 prohibit advisory
+    language on user-facing surfaces; we sanitize at the source so the
+    wire format consumers (frontend, dashboard, downstream caches)
+    never carry advisory tokens. Mapping:
+
+        Strong Buy   -> Highly Favorable
+        Buy          -> Favorable
+        Hold         -> Neutral
+        Sell         -> Cautious
+        Strong Sell  -> Highly Cautious
+
+    Raw distribution keys (``strong_buy``, ``buy``, ``hold`` ...) on
+    ``rating_distribution`` remain in wire format — they are object
+    keys, not display strings, and are exempted by the SEBI lint's
+    ``WIRE_FORMAT_LITERALS`` set.
+    """
     sb = int(rd.get("strong_buy", 0))
     b = int(rd.get("buy", 0))
     h = int(rd.get("hold", 0))
@@ -118,14 +136,14 @@ def _consensus_label(rd: dict) -> str:
     #   strong_buy=5, buy=4, hold=3, sell=2, strong_sell=1
     score = (5 * sb + 4 * b + 3 * h + 2 * s + 1 * ss) / total
     if score >= 4.5:
-        return "Strong Buy"
+        return "Highly Favorable"
     if score >= 3.5:
-        return "Buy"
+        return "Favorable"
     if score >= 2.5:
-        return "Hold"
+        return "Neutral"
     if score >= 1.5:
-        return "Sell"
-    return "Strong Sell"
+        return "Cautious"
+    return "Highly Cautious"
 
 
 def _normalize(

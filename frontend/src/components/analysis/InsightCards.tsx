@@ -305,18 +305,23 @@ export default function InsightCards({ quality, insights, valuation, currency, t
       // to the legacy median-target rendering for old cached
       // payloads (no analyst_consensus field present).
       if (hasCoverage && analystConsensus) {
+        // Backend sanitizes raw Finnhub Buy/Sell/Hold to SEBI-compliant
+        // neutral labels at the boundary (see
+        // backend/services/finnhub_analyst_service._consensus_label).
+        // We match on those neutral tokens here so display strings on
+        // this surface never carry advisory vocabulary.
         const rating = analystConsensus.consensus_rating || "Coverage"
         const rl = rating.toLowerCase()
         const ratingColor =
-          rl.includes("buy") ? "text-blue-700"
-          : rl.includes("hold") ? "text-amber-700"
-          : rl.includes("sell") ? "text-red-700"
+          rl.includes("favorable") ? "text-blue-700"
+          : rl.includes("neutral")  ? "text-amber-700"
+          : rl.includes("cautious") ? "text-red-700"
           : "text-body"
         const ratingBorder =
-          rl.includes("strong buy") ? "border-l-blue-600"
-          : rl.includes("buy") ? "border-l-blue-500"
-          : rl.includes("hold") ? "border-l-amber-500"
-          : rl.includes("sell") ? "border-l-red-500"
+          rl.includes("highly favorable") ? "border-l-blue-600"
+          : rl.includes("favorable")      ? "border-l-blue-500"
+          : rl.includes("neutral")        ? "border-l-amber-500"
+          : rl.includes("cautious")       ? "border-l-red-500"
           : "border-l-border"
         const cnt = analystConsensus.coverage_count
         const tgt = analystConsensus.price_target?.median ?? analystConsensus.price_target?.mean ?? null
@@ -535,13 +540,18 @@ function AnalystConsensusPanel({ data, currency, ticker: _ticker }: AnalystConse
   const total = dist
     ? dist.strong_buy + dist.buy + dist.hold + dist.sell + dist.strong_sell
     : 0
+  // Display labels are SEBI-compliant neutral terms. The underlying
+  // ``dist`` keys (strong_buy / buy / hold / sell / strong_sell) are
+  // wire-format object keys mirroring the Finnhub API and are exempted
+  // by the SEBI lint's WIRE_FORMAT_LITERALS set — only the user-facing
+  // ``label`` strings need sanitizing.
   const segs: { label: string; n: number; cls: string }[] = dist && total > 0
     ? [
-        { label: "Strong Buy",  n: dist.strong_buy,  cls: "bg-blue-600" },
-        { label: "Buy",         n: dist.buy,         cls: "bg-blue-400" },
-        { label: "Hold",        n: dist.hold,        cls: "bg-amber-400" },
-        { label: "Sell",        n: dist.sell,        cls: "bg-red-400" },
-        { label: "Strong Sell", n: dist.strong_sell, cls: "bg-red-600" },
+        { label: "Highly Favorable", n: dist.strong_buy,  cls: "bg-blue-600" },
+        { label: "Favorable",        n: dist.buy,         cls: "bg-blue-400" },
+        { label: "Neutral",          n: dist.hold,        cls: "bg-amber-400" },
+        { label: "Cautious",         n: dist.sell,        cls: "bg-red-400" },
+        { label: "Highly Cautious",  n: dist.strong_sell, cls: "bg-red-600" },
       ]
     : []
 
@@ -551,11 +561,11 @@ function AnalystConsensusPanel({ data, currency, ticker: _ticker }: AnalystConse
 
   const consensusBadgeCls = (() => {
     const r = (consensus || "").toLowerCase()
-    if (r.includes("strong buy")) return "bg-blue-600 text-white"
-    if (r.includes("buy"))        return "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200"
-    if (r.includes("hold"))       return "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
-    if (r.includes("strong sell"))return "bg-red-600 text-white"
-    if (r.includes("sell"))       return "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200"
+    if (r.includes("highly favorable")) return "bg-blue-600 text-white"
+    if (r.includes("favorable"))        return "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200"
+    if (r.includes("neutral"))          return "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+    if (r.includes("highly cautious"))  return "bg-red-600 text-white"
+    if (r.includes("cautious"))         return "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200"
     return "bg-muted text-body"
   })()
 
