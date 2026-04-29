@@ -1,0 +1,26 @@
+Subject: YieldIQ Q1FY27 Retrospective — How our model did
+
+Hi there,
+
+This quarter, our model called 47 stocks "undervalued" (>30% margin of safety).
+Ninety days later: 55.3% beat Nifty 500. Mean return: +12.4%.
+
+Top 3 wins:
+  - POWERGRID.NS: +38.2%
+  - BHARTIARTL.NS: +31.7%
+  - SUNPHARMA.NS: +27.4%
+
+Top 3 misses:
+  - ZOMATO.NS: -18.3%
+  - PAYTM.NS: -14.2%
+  - VEDL.NS: -9.5%
+
+Full numbers, methodology, and the misses we'd love to learn from:
+  https://yieldiq.in/methodology/performance
+
+We publish this every quarter. Past results aren't future returns.
+
+— The YieldIQ team
+
+---
+Past results are not indicative of future returns. SEBI: descriptive only, not advisory. Sample size, survivorship-bias and look-ahead-bias caveats apply.
