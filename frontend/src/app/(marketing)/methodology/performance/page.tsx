@@ -7,10 +7,10 @@ import Link from "next/link"
  * Server-rendered page that hits the public retrospective endpoint
  * and renders the summary plus winners/losers + caveat header.
  *
- * SCAFFOLDING: in this PR the page renders against the SAMPLE
- * payload that the backend endpoint returns (is_sample=true). The
- * layout is the deliverable; numbers will be real once Phase 2
- * backfills model_predictions_history.
+ * Defaults to ``period=latest`` so the page always shows the most
+ * recent quarter with real data. Falls back to the SAMPLE payload
+ * only if the API is unreachable. The "Preview: sample data"
+ * banner only renders when the API itself flags is_sample=true.
  *
  * Voice: analyst appendix, plain. Same visual conventions as
  * /methodology — hero max-w-3xl, prose max-w-4xl, semantic tokens
@@ -148,8 +148,38 @@ function fmtRate(v: number | null | undefined): string {
   return `${(v * 100).toFixed(1)}%`
 }
 
+// Friendly display labels for sector benchmark tickers. The API
+// returns the raw Yahoo symbol (e.g. ^CNXIT) but those read like
+// internal plumbing in a public-facing table. Mirrors the canonical
+// mapping in backend/services/sector_benchmarks.py.
+const BENCHMARK_LABELS: Record<string, string> = {
+  "^CNXIT":       "Nifty IT",
+  "^NSEBANK":     "Nifty Bank",
+  "^CNXPHARMA":   "Nifty Pharma",
+  "^CNXFMCG":     "Nifty FMCG",
+  "^CNXAUTO":     "Nifty Auto",
+  "^CNXMETAL":    "Nifty Metal",
+  "^CNXENERGY":   "Nifty Energy",
+  "^CNXREALTY":   "Nifty Realty",
+  "^CNXMEDIA":    "Nifty Media",
+  "^CNXPSUBANK":  "Nifty PSU Bank",
+  "^CNXFIN":      "Nifty Financial Services",
+  "^CNXCONSUM":   "Nifty Consumer Durables",
+  "NIFTY500.NS":  "Nifty 500",
+  "^NSEI":        "Nifty 50",
+}
+
+function benchmarkLabel(ticker: string | undefined | null): string {
+  if (!ticker) return "—"
+  return BENCHMARK_LABELS[ticker] ?? ticker
+}
+
 export default async function PerformancePage() {
-  const summary = await fetchSummary("Q1FY26", 90)
+  // Default to ``latest`` so the page always shows the most recent
+  // real quarter (currently Q4FY26, n=247). Window=30 matches the
+  // shorter realised-return horizon used for the latest quarter
+  // before the 90-day window has elapsed.
+  const summary = await fetchSummary("latest", 30)
   const isSample = !!summary.is_sample
   const benchReturn = summary.benchmark?.return_pct ?? 0
 
@@ -192,13 +222,18 @@ export default async function PerformancePage() {
         <h1 className="font-serif text-4xl leading-tight tracking-tight">
           Of {summary.n_predictions} stocks called undervalued in {summary.period.label},{" "}
           {Math.round(((summary.outperform_rate ?? 0) * summary.n_predictions))}{" "}
-          ({fmtRate(summary.outperform_rate)}) outperformed the Nifty 500 over
-          the next {summary.window_days} days.
+          ({fmtRate(summary.outperform_rate)}) outperformed{" "}
+          {summary.benchmark.mode === "auto"
+            ? "their sector benchmark"
+            : benchmarkLabel(summary.benchmark.ticker)}{" "}
+          over the next {summary.window_days} days.
         </h1>
         <p className="mt-3 text-neutral-600 dark:text-neutral-400">
           Period: {summary.period.start} → {summary.period.end}. Margin-of-safety
           threshold: {summary.mos_threshold.toFixed(0)}%. Benchmark:{" "}
-          {summary.benchmark.ticker} ({fmtPct(benchReturn)} over the same window).
+          {summary.benchmark.mode === "auto"
+            ? "sector-relative (per-sector Nifty index)"
+            : `${benchmarkLabel(summary.benchmark.ticker)} (${fmtPct(benchReturn)} over the same window)`}.
         </p>
       </header>
 
@@ -255,7 +290,11 @@ export default async function PerformancePage() {
           days we read the realised price and compute return vs the price the
           model saw. We summarise across only the high-conviction subset
           (margin-of-safety ≥ {summary.mos_threshold.toFixed(0)}%). The
-          benchmark is {summary.benchmark.ticker} over the same window. Full
+          benchmark is{" "}
+          {summary.benchmark.mode === "auto"
+            ? "the per-sector Nifty index (sector-relative)"
+            : benchmarkLabel(summary.benchmark.ticker)}{" "}
+          over the same window. Full
           design notes — including survivorship-bias and look-ahead caveats —
           are in <Link href="/methodology">/methodology</Link> and the design
           doc shipped alongside this page.
@@ -292,7 +331,7 @@ function SectorBreakdown({ rows }: { rows: SectorRow[] | null }) {
               <td className="px-4 py-2">
                 <span className="font-medium">{r.sector}</span>{" "}
                 <span className="text-xs text-neutral-500">
-                  ({r.benchmark_ticker})
+                  (vs {benchmarkLabel(r.benchmark_ticker)})
                 </span>
               </td>
               <td className="px-4 py-2 text-right tabular-nums">{r.n}</td>
