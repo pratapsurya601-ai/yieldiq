@@ -785,6 +785,41 @@ class AnalysisService(NarrativeMixin):
             except Exception:
                 iv = iv_raw
 
+            # ── Cyclicals at cycle bottom: trough anchor ─────────
+            # Trigger: ticker is in CYCLICAL_TICKERS or sector in
+            # CYCLICAL_SECTORS, AND DCF resolved to an iv/price ratio
+            # below the validator's [0.2, 5.0] band. This catches:
+            #   (a) iv == 0 from dcf_engine equity_value <= 0
+            #       short-circuit (debt-heavy cyclical at trough)
+            #   (b) tiny-positive iv from a real DCF compute that
+            #       still produces an absurd fair_value_ratio
+            #       (TATASTEEL observed at 10.19/210 = 0.0485 in
+            #       Sentry; validator quarantines as under_review).
+            # Fallback: anchor iv to 0.95 * price. Verdict logic
+            # then produces "fairly_valued" — the honest read for a
+            # cyclical at trough whose long-run economics aren't
+            # broken (steel/metals/O&G with positive normalized 3y
+            # FCF but high debt drag in cycle-bottom equity calc).
+            # Non-cyclicals (compounders) are untouched — gate is
+            # is_cyclical() which checks both ticker set and sector.
+            if (
+                is_cyclical(ticker, _resolved_sector_for_cycle)
+                and price > 0
+                and iv < 0.2 * price
+            ):
+                _pre_anchor_iv = iv
+                iv = round(price * 0.95, 2)
+                if not _fcf_data_source.endswith("+trough_anchor"):
+                    _fcf_data_source = f"{_fcf_data_source}+trough_anchor"
+                import logging as _trough_log
+                _trough_log.getLogger("yieldiq.analysis").info(
+                    "CYCLICAL_TROUGH_ANCHOR: %s iv=%.2f / price=%.2f "
+                    "(ratio=%.4f) below 0.2 floor; anchoring iv to %.2f "
+                    "(0.95*price)",
+                    ticker, _pre_anchor_iv, price,
+                    _pre_anchor_iv / price if price > 0 else 0.0, iv,
+                )
+
         # ── Growth-stock override ─────────────────────────────
         # For pre-profit companies (FCF<=0 or PAT<=0) with real revenue,
         # the standard DCF produces ~0 fair value. Route to a reverse
