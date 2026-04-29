@@ -50,6 +50,8 @@ scripts/keep_awake.ps1
 _backfill*.log
 _full*.log
 dcf_full.txt
+scripts/data_patches/_backfill_pe_pb_progress.json
+scripts/data_patches/_backfill_pe_pb_untouchable.json
 sector_isolation_report.*
 canary_artifacts/
 dcf_artifacts/
