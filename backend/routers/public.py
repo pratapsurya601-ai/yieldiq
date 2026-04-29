@@ -1572,9 +1572,20 @@ async def backtest_screen_endpoint(
     if cached is not None:
         return cached
 
-    # Get current screen constituents
+    # Get current screen constituents.
+    #
+    # NOTE: get_screen() returns a JSONResponse on a cache miss (it wraps the
+    # dict via _cached_json for CDN headers) and a raw dict on a cache hit.
+    # Calling .get(...) on the JSONResponse was the actual root cause of the
+    # 500: 'JSONResponse' object has no attribute 'get'. Normalize here.
     screen_data = await get_screen(slug, limit=50)
-    stocks = screen_data.get("stocks", [])
+    if isinstance(screen_data, JSONResponse):
+        import json as _json
+        body = screen_data.body
+        if isinstance(body, (bytes, bytearray)):
+            body = body.decode("utf-8")
+        screen_data = _json.loads(body)
+    stocks = (screen_data or {}).get("stocks", [])
     if not stocks:
         raise HTTPException(status_code=503, detail="Screen has no current constituents (cache warming)")
 
@@ -1602,8 +1613,17 @@ async def backtest_screen_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        logger.warning(f"backtest failed for {slug}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Backtest computation failed")
+        # Log full traceback + exception type so future 500s show up as a real
+        # signal in Railway logs instead of an opaque "Backtest computation
+        # failed". Include slug + params so we can correlate with the URL.
+        logger.exception(
+            "backtest failed for slug=%s years=%s rebalance=%s tickers=%d: %s: %s",
+            slug, years, rebalance, len(tickers), type(e).__name__, e,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Backtest computation failed: {type(e).__name__}",
+        )
 
 
 @router.get("/technicals/{ticker}")
