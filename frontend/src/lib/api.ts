@@ -504,6 +504,9 @@ export interface RatioHistoryResponse {
 }
 
 export interface PublicPeerRow {
+  // Canonical (added 2026-04-29 alongside has_peers) — falls back to
+  // `peer_ticker` for older cached responses still in flight.
+  ticker?: string
   peer_ticker: string
   rank: number
   sector: string | null
@@ -522,6 +525,10 @@ export interface PublicPeerRow {
 
 export interface PublicPeersResponse {
   ticker: string
+  // Both fields optional — older cached responses (pre-2026-04-29) lack
+  // them. Consumers must default `has_peers` to `peers.length > 0`.
+  has_peers?: boolean
+  sector_label?: string | null
   peers: PublicPeerRow[]
 }
 

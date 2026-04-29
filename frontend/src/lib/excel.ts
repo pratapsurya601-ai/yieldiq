@@ -130,7 +130,7 @@ function buildPeersSheet(p: PublicPeersResponse | null): XLSX.WorkSheet {
   const rows: (string | number)[][] = [header]
   for (const peer of p.peers) {
     rows.push([
-      num(peer.rank), peer.peer_ticker, peer.company_name ?? "",
+      num(peer.rank), peer.ticker ?? peer.peer_ticker, peer.company_name ?? "",
       peer.sector ?? "", peer.sub_sector ?? "", num(peer.mcap_ratio),
       num(peer.fair_value), num(peer.current_price), num(peer.margin_of_safety),
       peer.verdict ?? "", num(peer.score), peer.moat ?? "", num(peer.roe), num(peer.pe_ratio),

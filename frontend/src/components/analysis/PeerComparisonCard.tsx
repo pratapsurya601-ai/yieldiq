@@ -61,7 +61,11 @@ function Placeholder({ ticker }: { ticker: string }) {
 }
 
 export default function PeerComparisonCard({ ticker, data }: Props) {
-  if (!data || !data.peers || data.peers.length === 0) {
+  // `has_peers` is the canonical signal but is optional for backward
+  // compat with cached responses that pre-date the 2026-04-29 fix.
+  // Fall back to a non-empty `peers` array.
+  const hasPeers = data?.has_peers ?? ((data?.peers?.length ?? 0) > 0)
+  if (!data || !hasPeers || !data.peers?.length) {
     return <Placeholder ticker={ticker} />
   }
 
@@ -109,17 +113,20 @@ export default function PeerComparisonCard({ ticker, data }: Props) {
           <tbody>
             {data.peers.map(peer => {
               const vc = verdictClasses(peer.verdict)
+              // Tolerate either field — backend now sends both `ticker`
+              // (canonical) and `peer_ticker` (legacy alias).
+              const peerTicker = peer.ticker ?? peer.peer_ticker
               return (
                 <tr
-                  key={peer.peer_ticker}
+                  key={peerTicker}
                   className="border-b border-border last:border-0 hover:bg-surface dark:hover:bg-bg transition"
                 >
                   <td className="py-2 pr-3">
                     <Link
-                      href={`/stocks/${peer.peer_ticker}/fair-value`}
+                      href={`/stocks/${peerTicker}/fair-value`}
                       className="text-blue-600 hover:text-blue-700 font-semibold font-mono"
                     >
-                      {peer.peer_ticker}
+                      {peerTicker}
                     </Link>
                     {peer.company_name ? (
                       <p className="text-[10px] text-caption truncate max-w-[200px]">
