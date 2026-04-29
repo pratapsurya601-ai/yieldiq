@@ -288,6 +288,107 @@ def _query_latest_annual_financials(ticker: str):
         db.close()
 
 
+def _query_normalized_fcf(ticker: str, years: int = 3) -> dict | None:
+    """
+    Average the last ``years`` annual FCF rows for cyclical tickers.
+
+    Cyclical / commodity names (Steel, O&G, Metals, Cement, RELIANCE,
+    COALINDIA…) routinely print near-zero or deeply negative TTM FCF
+    at cycle bottoms. The unsmoothed value drives DCF intrinsic value
+    to ~0 and the verdict logic flips to ``data_limited`` even when
+    the long-run business economics are perfectly fine. A 3-year
+    trailing average smooths the cycle bottom without burying real
+    structural degradation (5-year window kept as an explicit option
+    if the caller wants extra smoothing for super-cyclicals).
+
+    Returns
+    -------
+    dict | None
+        ``{"fcf", "revenue", "pat", "period_end", "currency",
+          "source", "years_used", "fcf_years": [...]}`` when at least
+        2 non-NULL annual FCF rows are available. Returns ``None``
+        when fewer than 2 rows have FCF — caller should fall back to
+        the TTM path.
+
+    Notes
+    -----
+    * Each row is FX-converted to INR via ``_convert_row_to_inr``
+      before averaging — same idempotency guard as the TTM path.
+    * Revenue / PAT are taken from the most-recent annual row, not
+      averaged. Smoothing FCF is the safety mechanism; revenue and
+      PAT are used as scalers elsewhere and should reflect current
+      scale of the business.
+    * Years with NULL FCF are skipped; ``years_used`` reports the
+      actual count consumed so callers can surface this in analyst
+      notes.
+    """
+    if years < 2:
+        years = 2
+    db = _get_pipeline_session()
+    if db is None:
+        return None
+    try:
+        from data_pipeline.models import Financials
+        from sqlalchemy import desc
+
+        db_ticker = ticker.replace(".NS", "").replace(".BO", "")
+        rows = (
+            db.query(Financials)
+            .filter(
+                Financials.ticker == db_ticker,
+                Financials.period_type == "annual",
+            )
+            .order_by(desc(Financials.period_end))
+            .limit(years)
+            .all()
+        )
+        if not rows:
+            return None
+
+        fcf_values: list[float] = []
+        fcf_years: list[str] = []
+        for r in rows:
+            if r.free_cash_flow is None:
+                continue
+            try:
+                fcf_inr, _rev, _pat = _convert_row_to_inr(ticker, r)
+            except Exception:
+                continue
+            if fcf_inr is None:
+                continue
+            fcf_values.append(float(fcf_inr))
+            if r.period_end is not None:
+                fcf_years.append(str(r.period_end))
+
+        # Need at least 2 years of real FCF data — anything less is
+        # noisier than a single TTM read, so signal "fall back".
+        if len(fcf_values) < 2:
+            return None
+
+        # Use the most-recent annual row for revenue / PAT scale.
+        latest = rows[0]
+        _, rev_inr, pat_inr = _convert_row_to_inr(ticker, latest)
+
+        normalized = sum(fcf_values) / len(fcf_values)
+        return {
+            "fcf": normalized,
+            "revenue": rev_inr,
+            "pat": pat_inr,
+            "period_end": str(latest.period_end) if latest.period_end else None,
+            "currency": getattr(latest, "currency", None) or "INR",
+            "source": f"normalized_{len(fcf_values)}y",
+            "years_used": len(fcf_values),
+            "fcf_years": fcf_years,
+        }
+    except Exception:
+        return None
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
 def _query_shareholding(ticker: str) -> dict | None:
     """
     Fetch the latest shareholding pattern (promoter / FII / DII /

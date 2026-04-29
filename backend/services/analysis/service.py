@@ -79,6 +79,7 @@ except Exception:
 from backend.services.analysis.constants import (
     FINANCIAL_COMPANIES,
     INVENTORY_HEAVY_TICKERS,
+    is_cyclical,
     COMPANY_NAME_OVERRIDES,
     _PB_MEDIANS,
     _NBFC_TICKERS,
@@ -116,6 +117,7 @@ from backend.services.analysis.db import (
     _get_pipeline_session,
     _query_ttm_financials,
     _query_latest_annual_financials,
+    _query_normalized_fcf,
     _query_shareholding,
     _query_promoter_pledge,
     _query_earnings_date,
@@ -431,21 +433,49 @@ class AnalysisService(NarrativeMixin):
         # _query_ttm_financials / _query_latest_annual_financials convert
         # USD rows to INR before returning.
         _fcf_data_source = "yfinance"
-        _ttm_data = _query_ttm_financials(ticker)
-        if _ttm_data:
-            _fcf_data_source = "ttm"
-            if _ttm_data.get("fcf") is not None:
-                enriched["latest_fcf"] = _ttm_data["fcf"]
-            if _ttm_data.get("revenue") is not None:
-                enriched["latest_revenue"] = _ttm_data["revenue"]
-            if _ttm_data.get("pat") is not None:
-                enriched["latest_pat"] = _ttm_data["pat"]
-        else:
-            _annual_data = _query_latest_annual_financials(ticker)
-            if _annual_data:
-                _fcf_data_source = "annual"
-                if _annual_data.get("fcf") is not None and not enriched.get("latest_fcf"):
-                    enriched["latest_fcf"] = _annual_data["fcf"]
+        _normalized_fcf_meta: dict | None = None
+        # ── Cyclical override: smooth FCF over 3 annual prints ───
+        # Steel / O&G / Metals / RELIANCE etc. routinely print a
+        # near-zero or deeply negative TTM FCF at cycle bottoms; the
+        # raw value drives DCF intrinsic value to ~0 and the verdict
+        # logic (service.py:1110-1134) flips to `data_limited`. For
+        # the names enumerated in CYCLICAL_TICKERS (or sectors in
+        # CYCLICAL_SECTORS) we substitute a 3y mean annual FCF.
+        # Non-cyclicals continue to use TTM — averaging there would
+        # mask real degradation in compounders.
+        _resolved_sector_for_cycle = _resolve_sector(
+            raw.get("sector"), clean_ticker,
+        )
+        if not is_financial and is_cyclical(ticker, _resolved_sector_for_cycle):
+            _norm = _query_normalized_fcf(ticker, years=3)
+            if _norm and _norm.get("fcf") is not None:
+                _fcf_data_source = _norm.get("source") or "normalized_3y"
+                enriched["latest_fcf"] = _norm["fcf"]
+                if _norm.get("revenue") is not None:
+                    enriched["latest_revenue"] = _norm["revenue"]
+                if _norm.get("pat") is not None:
+                    enriched["latest_pat"] = _norm["pat"]
+                _normalized_fcf_meta = {
+                    "years_used": _norm.get("years_used"),
+                    "fcf_years": _norm.get("fcf_years"),
+                }
+
+        if _normalized_fcf_meta is None:
+            _ttm_data = _query_ttm_financials(ticker)
+            if _ttm_data:
+                _fcf_data_source = "ttm"
+                if _ttm_data.get("fcf") is not None:
+                    enriched["latest_fcf"] = _ttm_data["fcf"]
+                if _ttm_data.get("revenue") is not None:
+                    enriched["latest_revenue"] = _ttm_data["revenue"]
+                if _ttm_data.get("pat") is not None:
+                    enriched["latest_pat"] = _ttm_data["pat"]
+            else:
+                _annual_data = _query_latest_annual_financials(ticker)
+                if _annual_data:
+                    _fcf_data_source = "annual"
+                    if _annual_data.get("fcf") is not None and not enriched.get("latest_fcf"):
+                        enriched["latest_fcf"] = _annual_data["fcf"]
 
         # Apply FCF floor for capex-heavy companies (e.g. RELIANCE, MARUTI, TITAN, HUL)
         _pat = None
@@ -727,6 +757,13 @@ class AnalysisService(NarrativeMixin):
                 from screener.dcf_engine import DCF_TRACES
                 if ticker in DCF_TRACES:
                     DCF_TRACES[ticker]["fcf_source"] = _fcf_data_source
+                    if _normalized_fcf_meta is not None:
+                        DCF_TRACES[ticker]["fcf_normalized_years_used"] = (
+                            _normalized_fcf_meta.get("years_used")
+                        )
+                        DCF_TRACES[ticker]["fcf_normalized_years"] = (
+                            _normalized_fcf_meta.get("fcf_years")
+                        )
                     DCF_TRACES[ticker]["enriched_latest_fcf"] = float(enriched.get("latest_fcf") or 0)
                     DCF_TRACES[ticker]["enriched_latest_revenue"] = float(enriched.get("latest_revenue") or 0)
                     DCF_TRACES[ticker]["enriched_latest_pat"] = float(enriched.get("latest_pat") or 0)

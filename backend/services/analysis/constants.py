@@ -66,6 +66,82 @@ INVENTORY_HEAVY_TICKERS = {
 }
 
 
+# ── Cyclical / commodity tickers ──────────────────────────────
+# These businesses have boom-bust earnings and FCF cycles tied to
+# commodity prices, capex super-cycles, or global demand. A single
+# TTM FCF read at a cycle bottom drives DCF intrinsic value to ~0
+# and the verdict logic flips to `data_limited` (see
+# service.py:1110-1134). The mitigation: average the last 3 (or 5)
+# annual FCF rows so the input reflects mid-cycle economics.
+#
+# Membership criteria:
+#   - Steel / Metals / Mining (cycle-bottom FCF often negative)
+#   - Oil & Gas E&P + Integrated (crude price exposure)
+#   - Cement / Aluminium (commodity passthrough)
+#   - Sugar, Fertilisers (govt-price cyclicality)
+#   - Conglomerates with majority-cyclical mix (RELIANCE — O2C)
+#
+# Conglomerates included on purpose: RELIANCE's O2C segment (~55%
+# of consolidated EBITDA) dominates the FCF print, and refining
+# margins are textbook cyclical. JIO/Retail are growthier but the
+# blended FCF still oscillates with crude.
+CYCLICAL_TICKERS: set[str] = {
+    # Steel
+    'TATASTEEL', 'JSWSTEEL', 'JINDALSTEL', 'SAIL', 'NMDC',
+    # Metals & Mining
+    'HINDALCO', 'VEDL', 'NATIONALUM', 'HINDZINC', 'HINDCOPPER',
+    # Oil & Gas
+    'ONGC', 'OIL', 'IOC', 'BPCL', 'HPCL', 'GAIL', 'MGL',
+    'IGL', 'PETRONET', 'GUJGASLTD',
+    # Cement (cyclical via housing/infra capex)
+    'ULTRACEMCO', 'AMBUJACEM', 'ACC', 'SHREECEM', 'DALBHARAT',
+    'JKCEMENT', 'RAMCOCEM',
+    # Coal
+    'COALINDIA',
+    # Conglomerates dominated by cyclical segments
+    'RELIANCE',
+    # Aluminium pure plays already covered above (HINDALCO, VEDL, NATIONALUM)
+    # Sugar / Agri-cyclical
+    'BALRAMCHIN', 'TRIVENI', 'DHAMPURSUG',
+    # Fertilisers (govt subsidy + commodity passthrough)
+    'CHAMBLFERT', 'COROMANDEL', 'GSFC', 'RCF', 'GNFC',
+    # Shipping (BDI cycle)
+    'GESHIP', 'SCI',
+}
+
+
+# Sector-level cyclical detection — used as a fallback when the
+# ticker isn't enumerated above but the resolved sector is plainly
+# cyclical. Keep the list narrow: false positives here will smooth
+# legitimate growth degradation in non-cyclical compounders.
+CYCLICAL_SECTORS: set[str] = {
+    'Metals & Mining',
+    'Oil & Gas',
+    'Steel',  # legacy label — survives via SECTOR_OVERRIDES too
+}
+
+
+def is_cyclical(ticker: str | None, sector: str | None = None) -> bool:
+    """Return True if the ticker (or its resolved sector) is cyclical.
+
+    Used by the DCF compute path to decide whether to substitute
+    a 3-year normalized FCF for the volatile single-year TTM FCF.
+    Non-cyclical names continue to use TTM — averaging there would
+    mask real degradation.
+    """
+    if ticker:
+        clean = (
+            ticker.replace(".NS", "")
+            .replace(".BO", "")
+            .upper()
+        )
+        if clean in CYCLICAL_TICKERS:
+            return True
+    if sector and sector in CYCLICAL_SECTORS:
+        return True
+    return False
+
+
 # ── Sector name overrides for cleaner display ─────────────────
 SECTOR_OVERRIDES: dict[str, str] = {
     "Financial Services": "Financial Services",
