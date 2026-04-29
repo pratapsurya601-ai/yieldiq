@@ -221,6 +221,44 @@ export interface AnalyticalNoteOutput {
   body: string
 }
 
+// ── Finnhub analyst consensus ───────────────────────────────
+// Third-party reference data, rendered alongside the existing
+// "Analyst Consensus (third-party)" card. Backend lives at
+// backend/services/finnhub_analyst_service.py — purely additive,
+// gracefully degrades to `coverage_count: 0` when Finnhub returns
+// no coverage for the ticker (typical for small-cap Indian listings).
+
+export interface AnalystRatingDistribution {
+  strong_buy: number
+  buy: number
+  hold: number
+  sell: number
+  strong_sell: number
+}
+
+export interface AnalystPriceTarget {
+  median: number | null
+  mean: number | null
+  high: number | null
+  low: number | null
+  vs_current_pct: number | null
+}
+
+export interface AnalystEpsEstimate {
+  fy_current: number | null
+  fy_next: number | null
+}
+
+export interface AnalystConsensus {
+  coverage_count: number
+  rating_distribution: AnalystRatingDistribution | null
+  consensus_rating: string | null
+  price_target: AnalystPriceTarget | null
+  eps_estimate: AnalystEpsEstimate | null
+  as_of: string | null
+  source: string
+}
+
 export interface AnalysisResponse {
   ticker: string
   company: CompanyInfo
@@ -244,6 +282,14 @@ export interface AnalysisResponse {
   data_confidence: Confidence
   data_issues: string[]
   analytical_notes?: AnalyticalNoteOutput[]
+  /**
+   * Third-party analyst data sourced from Finnhub (rating distribution,
+   * price targets, EPS consensus). Optional for backwards compatibility:
+   * existing cached payloads will lack this field, in which case the
+   * frontend falls back to the legacy "No coverage" rendering driven by
+   * `insights.wall_street_avg_target`.
+   */
+  analyst_consensus?: AnalystConsensus | null
   cached: boolean
   timestamp: string
   /**

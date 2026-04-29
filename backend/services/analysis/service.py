@@ -26,6 +26,8 @@ from backend.models.responses import (
     InsightCards, BulkDealItem, CompanyInfo, ScenariosOutput, ScenarioCase,
     PriceLevels, ScreenerStock, RedFlag, AnalyticalNoteOutput,
     PeerCapDetails,
+    AnalystConsensus, AnalystRatingDistribution, AnalystPriceTarget,
+    AnalystEpsEstimate,
 )
 # feat/peer-cap (2026-04-27): peer-multiple sanity ceiling.
 # Compares DCF FV against sector peer-median P/E + EV/EBITDA (P/B
@@ -1826,6 +1828,51 @@ class AnalysisService(NarrativeMixin):
         except Exception:
             _analytical_notes = []
 
+        # ── Finnhub analyst consensus (2026-04-29, feat/analyst) ─
+        # Additive third-party block: full rating distribution +
+        # price-target high/low/median + EPS consensus. Wraps in
+        # try/except so a Finnhub outage NEVER fails the analysis
+        # response — the worst case is coverage_count=0, which the
+        # frontend already handles. NOT cached in CACHE_VERSION;
+        # the underlying fetcher uses endpoint_cache (24h TTL) keyed
+        # by ticker so the live current price can still flow into
+        # vs_current_pct on every request.
+        _analyst_consensus: Optional[AnalystConsensus] = None
+        try:
+            from backend.services.finnhub_analyst_service import (
+                fetch_analyst_consensus as _fetch_consensus,
+            )
+            _consensus = _fetch_consensus(
+                ticker, current_price=price
+            )
+            if _consensus is not None:
+                _rd = _consensus.get("rating_distribution")
+                _pt_a = _consensus.get("price_target")
+                _eps_a = _consensus.get("eps_estimate")
+                _analyst_consensus = AnalystConsensus(
+                    coverage_count=int(
+                        _consensus.get("coverage_count", 0) or 0
+                    ),
+                    rating_distribution=(
+                        AnalystRatingDistribution(**_rd) if _rd else None
+                    ),
+                    consensus_rating=_consensus.get("consensus_rating"),
+                    price_target=(
+                        AnalystPriceTarget(**_pt_a) if _pt_a else None
+                    ),
+                    eps_estimate=(
+                        AnalystEpsEstimate(**_eps_a) if _eps_a else None
+                    ),
+                    as_of=_consensus.get("as_of"),
+                    source=_consensus.get("source", "Finnhub"),
+                )
+        except Exception as _exc:  # noqa: BLE001
+            import logging as _logging
+            _logging.getLogger("yieldiq.analysis").warning(
+                "analyst_consensus fetch failed for %s: %s", ticker, _exc
+            )
+            _analyst_consensus = None
+
         return AnalysisResponse(
             ticker=ticker,
             company=company,
@@ -1970,6 +2017,7 @@ class AnalysisService(NarrativeMixin):
             data_confidence=_confidence,
             data_issues=_data_issues,
             analytical_notes=_analytical_notes,
+            analyst_consensus=_analyst_consensus,
             timestamp=_ts,
             computation_inputs=_computation_inputs,
         )

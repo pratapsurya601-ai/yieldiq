@@ -4,7 +4,12 @@ import { useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/utils"
 import { currencySymbol, currencyLocale } from "@/lib/currency"
-import type { QualityOutput, InsightCards as InsightCardsType, ValuationOutput } from "@/types/api"
+import type {
+  QualityOutput,
+  InsightCards as InsightCardsType,
+  ValuationOutput,
+  AnalystConsensus,
+} from "@/types/api"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 
@@ -15,6 +20,16 @@ interface InsightCardsProps {
   currency?: string | null
   sector?: string
   ticker?: string
+  /**
+   * Finnhub analyst consensus block (additive, optional). When
+   * `coverage_count > 0` the component renders a dedicated
+   * <AnalystConsensusPanel> below the card grid AND a richer
+   * summary inside the existing "Analyst Consensus (third-party)"
+   * card. When null/undefined OR `coverage_count == 0` the card
+   * collapses to a small italic "No coverage" line — matching the
+   * legacy behavior so older cached payloads keep rendering.
+   */
+  analystConsensus?: AnalystConsensus | null
 }
 
 interface CardData {
@@ -87,7 +102,8 @@ function _promoterCard(
   }
 }
 
-export default function InsightCards({ quality, insights, valuation, currency, ticker }: InsightCardsProps) {
+export default function InsightCards({ quality, insights, valuation, currency, ticker, analystConsensus }: InsightCardsProps) {
+  const hasCoverage = !!analystConsensus && analystConsensus.coverage_count > 0
   // Single source of truth: red_flags_structured (backend-authored, severity-tagged).
   // Prior to 2026-04-23 this card read the legacy insights.red_flags string list,
   // which left it out of sync with RedFlagInsights (which always used structured).
@@ -278,15 +294,71 @@ export default function InsightCards({ quality, insights, valuation, currency, t
       }
       return empty
     })(),
-    {
+    (() => {
       // FIX-SEBI-COMPLIANCE (2026-04-23, Gap 3): renamed from
       // "Wall Street Target" -> "Analyst Consensus (third-party)".
-      // The old label implied a YieldIQ-produced price target, which
-      // we do not publish. This number is the mean of external sell-
-      // side analyst targets sourced from Finnhub (see backend
-      // services/analysis/service.py :: finnhub_price_target). The
-      // card now also surfaces the provenance caption so the user
-      // understands it is reference data, not our recommendation.
+      // 2026-04-29 (feat/analyst): when the backend returns a
+      // populated analyst_consensus block, surface the consensus
+      // RATING (Buy/Hold/Sell) on the card with a colored border;
+      // the dedicated <AnalystConsensusPanel/> below carries the
+      // full rating distribution + price-target detail. Falls back
+      // to the legacy median-target rendering for old cached
+      // payloads (no analyst_consensus field present).
+      if (hasCoverage && analystConsensus) {
+        const rating = analystConsensus.consensus_rating || "Coverage"
+        const rl = rating.toLowerCase()
+        const ratingColor =
+          rl.includes("buy") ? "text-blue-700"
+          : rl.includes("hold") ? "text-amber-700"
+          : rl.includes("sell") ? "text-red-700"
+          : "text-body"
+        const ratingBorder =
+          rl.includes("strong buy") ? "border-l-blue-600"
+          : rl.includes("buy") ? "border-l-blue-500"
+          : rl.includes("hold") ? "border-l-amber-500"
+          : rl.includes("sell") ? "border-l-red-500"
+          : "border-l-border"
+        const cnt = analystConsensus.coverage_count
+        const tgt = analystConsensus.price_target?.median ?? analystConsensus.price_target?.mean ?? null
+        const vsPct = analystConsensus.price_target?.vs_current_pct ?? null
+        const subBits: string[] = [`${cnt} analyst${cnt !== 1 ? "s" : ""}`]
+        if (tgt && tgt > 0) {
+          const pctSuffix = vsPct !== null
+            ? ` (${vsPct >= 0 ? "+" : ""}${vsPct.toFixed(1)}%)`
+            : ""
+          subBits.push(`Target ${formatCurrency(tgt, currency)}${pctSuffix}`)
+        }
+        return {
+          title: "Analyst Consensus (third-party)",
+          value: rating,
+          subtitle: subBits.join(" \u00b7 "),
+          source: "Source: Finnhub \u2014 reference data only, not investment advice.",
+          freshnessAt: analystConsensus.as_of ?? insights.analyst_target_as_of ?? null,
+          freshnessPrefix: "As of",
+          color: ratingColor,
+          icon: "\u{1f3af}",
+          borderColor: ratingBorder,
+        } as CardData
+      }
+      // Explicit "no coverage" branch (analyst_consensus present but
+      // coverage_count == 0): de-emphasize per spec \u2014 italic caption,
+      // no scary "No coverage" headline.
+      if (analystConsensus && analystConsensus.coverage_count === 0) {
+        return {
+          title: "Analyst Consensus (third-party)",
+          value: "\u2014",
+          subtitle: "No analyst coverage",
+          subtitleColor: "text-caption italic",
+          source: "Source: Finnhub \u2014 reference data only, not investment advice.",
+          color: "text-caption",
+          icon: "\u{1f3af}",
+          borderColor: "border-l-border",
+        } as CardData
+      }
+      // Legacy back-compat: pre-feat/analyst cached payloads have no
+      // analyst_consensus field; render off the historical
+      // wall_street_avg_target / wall_street_target_count fields.
+      return {
       title: "Analyst Consensus (third-party)",
       value: insights.wall_street_avg_target !== null && insights.wall_street_avg_target > 0
         ? formatCurrency(insights.wall_street_avg_target, currency)
@@ -305,7 +377,8 @@ export default function InsightCards({ quality, insights, valuation, currency, t
       color: "text-body",
       icon: "\u{1f3af}",
       borderColor: "border-l-border",
-    },
+      } as CardData
+    })(),
     (() => {
       const deals = insights.bulk_deals ?? []
       const latestDeal = deals.length > 0 ? deals[0] : null
@@ -336,7 +409,7 @@ export default function InsightCards({ quality, insights, valuation, currency, t
       }
     })(),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [quality, insights, valuation, currency, businessFlags.length])
+  ], [quality, insights, valuation, currency, businessFlags.length, analystConsensus, hasCoverage])
 
   return (
     <div className="space-y-3">
@@ -375,6 +448,21 @@ export default function InsightCards({ quality, insights, valuation, currency, t
           </div>
         ))}
       </div>
+
+      {/* Analyst Consensus panel (third-party, Finnhub).
+          Rendered only when coverage_count > 0. The single card above
+          carries the headline rating; this panel adds the rating
+          distribution bar, price-target range, and EPS consensus.
+          See backend/services/finnhub_analyst_service.py for the
+          source data and TTL. SEBI compliance: every figure is
+          sell-side analyst data, not a YieldIQ recommendation. */}
+      {hasCoverage && analystConsensus ? (
+        <AnalystConsensusPanel
+          data={analystConsensus}
+          currency={currency}
+          ticker={ticker}
+        />
+      ) : null}
 
       {/* Ownership — secondary strip. Originally held the four
           "financial ratios" (ROCE / Debt-EBITDA / Interest Coverage
@@ -423,6 +511,165 @@ export default function InsightCards({ quality, insights, valuation, currency, t
           </ul>
         </div>
       )}
+    </div>
+  )
+}
+
+
+// ── Analyst Consensus panel (Finnhub) ──────────────────────────
+// Renders rating distribution as a stacked horizontal bar, plus
+// the price-target range (low / median / high) and EPS consensus
+// for FY current + FY next. All values are third-party sell-side
+// data sourced from Finnhub via the backend's
+// finnhub_analyst_service. Reference data only — the disclaimer
+// at the bottom is SEBI-compliance copy and must not be removed.
+
+interface AnalystConsensusPanelProps {
+  data: import("@/types/api").AnalystConsensus
+  currency?: string | null
+  ticker?: string
+}
+
+function AnalystConsensusPanel({ data, currency, ticker: _ticker }: AnalystConsensusPanelProps) {
+  const dist = data.rating_distribution
+  const total = dist
+    ? dist.strong_buy + dist.buy + dist.hold + dist.sell + dist.strong_sell
+    : 0
+  const segs: { label: string; n: number; cls: string }[] = dist && total > 0
+    ? [
+        { label: "Strong Buy",  n: dist.strong_buy,  cls: "bg-blue-600" },
+        { label: "Buy",         n: dist.buy,         cls: "bg-blue-400" },
+        { label: "Hold",        n: dist.hold,        cls: "bg-amber-400" },
+        { label: "Sell",        n: dist.sell,        cls: "bg-red-400" },
+        { label: "Strong Sell", n: dist.strong_sell, cls: "bg-red-600" },
+      ]
+    : []
+
+  const pt = data.price_target
+  const eps = data.eps_estimate
+  const consensus = data.consensus_rating
+
+  const consensusBadgeCls = (() => {
+    const r = (consensus || "").toLowerCase()
+    if (r.includes("strong buy")) return "bg-blue-600 text-white"
+    if (r.includes("buy"))        return "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-200"
+    if (r.includes("hold"))       return "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200"
+    if (r.includes("strong sell"))return "bg-red-600 text-white"
+    if (r.includes("sell"))       return "bg-red-100 text-red-800 dark:bg-red-950/40 dark:text-red-200"
+    return "bg-muted text-body"
+  })()
+
+  return (
+    <div className="rounded-xl bg-surface border border-border p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="text-sm">{"\u{1f3af}"}</span>
+          <p className="text-xs font-semibold text-caption">
+            Analyst Consensus (third-party)
+          </p>
+        </div>
+        {consensus ? (
+          <span className={cn(
+            "text-xs font-semibold px-2 py-0.5 rounded-md uppercase tracking-wide",
+            consensusBadgeCls,
+          )}>
+            {consensus}
+          </span>
+        ) : null}
+      </div>
+
+      <p className="text-xs text-caption mb-3">
+        {data.coverage_count} analyst{data.coverage_count !== 1 ? "s" : ""} covering this stock
+      </p>
+
+      {/* Rating distribution bar */}
+      {segs.length > 0 && total > 0 ? (
+        <div className="mb-4">
+          <div className="flex h-2 rounded-full overflow-hidden bg-muted/40">
+            {segs.map((s) => s.n > 0 ? (
+              <div
+                key={s.label}
+                className={cn("h-full", s.cls)}
+                style={{ width: `${(s.n / total) * 100}%` }}
+                title={`${s.label}: ${s.n}`}
+              />
+            ) : null)}
+          </div>
+          <div className="grid grid-cols-5 gap-1 mt-2 text-[11px] text-caption">
+            {segs.map((s) => (
+              <div key={s.label} className="flex flex-col items-center">
+                <span className="font-semibold text-body">{s.n}</span>
+                <span className="leading-tight text-center">{s.label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Price target range */}
+      {pt && (pt.median || pt.mean || pt.high || pt.low) ? (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+          <div>
+            <p className="text-[11px] text-caption">Median Target</p>
+            <p className="text-sm font-semibold text-body">
+              {pt.median ? formatCurrency(pt.median, currency) : "—"}
+              {pt.vs_current_pct !== null && pt.vs_current_pct !== undefined ? (
+                <span className={cn(
+                  "ml-1 text-xs font-medium",
+                  pt.vs_current_pct >= 0 ? "text-blue-700" : "text-red-700",
+                )}>
+                  ({pt.vs_current_pct >= 0 ? "+" : ""}{pt.vs_current_pct.toFixed(1)}%)
+                </span>
+              ) : null}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] text-caption">Mean Target</p>
+            <p className="text-sm font-semibold text-body">
+              {pt.mean ? formatCurrency(pt.mean, currency) : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] text-caption">Range Low</p>
+            <p className="text-sm font-semibold text-body">
+              {pt.low ? formatCurrency(pt.low, currency) : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] text-caption">Range High</p>
+            <p className="text-sm font-semibold text-body">
+              {pt.high ? formatCurrency(pt.high, currency) : "—"}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {/* EPS estimates */}
+      {eps && (eps.fy_current !== null || eps.fy_next !== null) ? (
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <div>
+            <p className="text-[11px] text-caption">EPS — FY current</p>
+            <p className="text-sm font-semibold text-body">
+              {eps.fy_current !== null && eps.fy_current !== undefined
+                ? eps.fy_current.toFixed(2)
+                : "—"}
+            </p>
+          </div>
+          <div>
+            <p className="text-[11px] text-caption">EPS — FY next</p>
+            <p className="text-sm font-semibold text-body">
+              {eps.fy_next !== null && eps.fy_next !== undefined
+                ? eps.fy_next.toFixed(2)
+                : "—"}
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      <p className="text-[11px] text-caption leading-snug border-t border-border pt-2">
+        Source: {data.source || "Finnhub"} — reference data only, not investment advice.
+        {data.as_of ? ` As of ${data.as_of}.` : ""}
+      </p>
     </div>
   )
 }

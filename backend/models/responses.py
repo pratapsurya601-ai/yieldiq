@@ -259,6 +259,49 @@ class RedFlag(BaseModel):
     why_it_matters: str          # impact on valuation / decision
 
 
+class AnalystRatingDistribution(BaseModel):
+    strong_buy: int = 0
+    buy: int = 0
+    hold: int = 0
+    sell: int = 0
+    strong_sell: int = 0
+
+
+class AnalystPriceTarget(BaseModel):
+    median: Optional[float] = None
+    mean: Optional[float] = None
+    high: Optional[float] = None
+    low: Optional[float] = None
+    # (median / current_price - 1) * 100 — computed at request time
+    # against the live price, not cached.
+    vs_current_pct: Optional[float] = None
+
+
+class AnalystEpsEstimate(BaseModel):
+    fy_current: Optional[float] = None
+    fy_next: Optional[float] = None
+
+
+class AnalystConsensus(BaseModel):
+    """Third-party analyst-coverage block sourced from Finnhub.
+
+    Reference data only — the SEBI-compliance disclaimer is rendered
+    by the frontend. This object is purely additive on the analysis
+    response: it does not feed into FV / MoS / scoring math, and it
+    does not bump CACHE_VERSION. When Finnhub returns no coverage
+    for the symbol (typical for small/mid-cap Indian listings), the
+    backend emits ``coverage_count=0`` and the frontend renders a
+    minimal "No coverage" fallback.
+    """
+    coverage_count: int = 0
+    rating_distribution: Optional[AnalystRatingDistribution] = None
+    consensus_rating: Optional[str] = None  # "Strong Buy".."Strong Sell"
+    price_target: Optional[AnalystPriceTarget] = None
+    eps_estimate: Optional[AnalystEpsEstimate] = None
+    as_of: Optional[str] = None  # ISO date (YYYY-MM-DD)
+    source: str = "Finnhub"
+
+
 class InsightCards(BaseModel):
     patience_months: Optional[int] = None
     red_flag_count: int = 0
@@ -281,6 +324,13 @@ class InsightCards(BaseModel):
     # Finnhub/yfinance fallback don't surface it; analysis service
     # stamps with the compute time whenever target data is present.
     analyst_target_as_of: Optional[str] = None
+    # ── Finnhub analyst consensus (2026-04-29, feat/analyst) ──
+    # Full third-party analyst payload: rating distribution + price
+    # target high/low/median + EPS consensus. Additive — never
+    # influences FV or scoring; gracefully degrades to coverage_count=0
+    # when Finnhub returns no coverage. See
+    # backend/services/finnhub_analyst_service.py.
+    analyst_consensus: Optional[AnalystConsensus] = None
 
 
 # ── Reverse DCF detailed response ─────────────────────────────

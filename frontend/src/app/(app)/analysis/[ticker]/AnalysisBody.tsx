@@ -547,6 +547,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             currency={company.currency}
             sector={company.sector}
             ticker={company.ticker}
+            analystConsensus={data.analyst_consensus ?? null}
           />
           <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
           {scenarioBlock}
@@ -574,6 +575,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             currency={company.currency}
             sector={company.sector}
             ticker={company.ticker}
+            analystConsensus={data.analyst_consensus ?? null}
           />
           <QualityRatios
             quality={quality}
@@ -595,6 +597,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             currency={company.currency}
             sector={company.sector}
             ticker={company.ticker}
+            analystConsensus={data.analyst_consensus ?? null}
           />
           <QualityRatios
             quality={quality}
