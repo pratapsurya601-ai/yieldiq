@@ -559,9 +559,23 @@ def _axis_value_it(data: dict) -> dict:
         # Fall back to general P/E logic
         return _axis_value_general(data)
     try:
-        # Convert cr to same unit as revenue (revenue typically in abs rupees
-        # or cr depending on source). Use ratio rather than absolute.
-        rev_multiple = float(mcap_cr) / max(1.0, float(rev) / 1e7)
+        # Unit-detect revenue: the financials table column historically
+        # mixed crores (NSE_XBRL ingestion) and raw rupees (yfinance) for
+        # Indian tickers. Pre-fix the code unconditionally divided by 1e7
+        # which is correct for raw-rupee inputs but produces a 1e7-fold
+        # under-count when revenue is already in crores. The latter
+        # case fell through to `max(1.0, …)` and yielded
+        # `rev_multiple = mcap_cr / 1.0` — which surfaced as
+        # "Revenue multiple 467,224.91x vs cohort ~5x" on every IT
+        # ticker (INFY, TCS, WIPRO, HCLTECH, etc.) and floored the
+        # Value axis to 0.0/10.
+        #
+        # Heuristic: any revenue > 1e9 is raw rupees (smallest Indian
+        # listed IT-services co. has revenue >100 Cr ≈ 1e9 raw INR);
+        # anything ≤ 1e9 is already in crores (range 100–1,000,000 Cr).
+        rev_f = float(rev)
+        rev_cr = rev_f / 1e7 if rev_f > 1e9 else rev_f
+        rev_multiple = float(mcap_cr) / max(1.0, rev_cr)
         # IT cohort median EV/Rev ~4-5x; anchor 5.0 mid.
         score = 5.0 + (5.0 - rev_multiple) * 0.6
         return _axis(
