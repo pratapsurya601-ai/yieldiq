@@ -32,10 +32,16 @@ BENCHMARK_TICKERS = ["RELIANCE", "HDFCBANK", "TCS", "INFY", "ITC"]
 BENCHMARK_LABEL = "Nifty proxy (top 5)"
 
 
-def _load_prices_df(tickers: list[str], years: int) -> pd.DataFrame | None:
+def _load_prices_df(
+    tickers: list[str], years: int, dropped: list[str] | None = None
+) -> pd.DataFrame | None:
     """
     Load aligned daily close prices for multiple tickers from Parquet.
     Returns a DataFrame with date index, one column per ticker.
+
+    A single bad ticker (missing parquet, malformed history, duckdb hiccup)
+    must NOT kill the whole backtest — every per-ticker failure is logged
+    and the ticker is appended to ``dropped`` (if provided).
     """
     import duckdb
     from data_pipeline.nse_prices.db_integration import _parquet_path
@@ -48,6 +54,8 @@ def _load_prices_df(tickers: list[str], years: int) -> pd.DataFrame | None:
             clean = ticker.replace(".NS", "").replace(".BO", "").upper()
             path = _parquet_path(clean)
             if not path.exists():
+                if dropped is not None:
+                    dropped.append(clean)
                 continue
             try:
                 df = conn.execute(f"""
@@ -56,11 +64,23 @@ def _load_prices_df(tickers: list[str], years: int) -> pd.DataFrame | None:
                     WHERE date >= CURRENT_TIMESTAMP - INTERVAL '{days} days'
                     ORDER BY date ASC
                 """).df()
-                if df is not None and len(df) > 10:
-                    df["date"] = pd.to_datetime(df["date"])
-                    s = df.set_index("date")["close"].astype(float)
-                    frames[clean] = s
-            except Exception:
+                if df is None or len(df) <= 10:
+                    if dropped is not None:
+                        dropped.append(clean)
+                    continue
+                df["date"] = pd.to_datetime(df["date"])
+                s = df.set_index("date")["close"].astype(float)
+                # Skip series that are entirely NaN or constant-zero —
+                # they break pct_change and downstream metrics.
+                if s.dropna().empty or float(s.dropna().iloc[0]) <= 0:
+                    if dropped is not None:
+                        dropped.append(clean)
+                    continue
+                frames[clean] = s
+            except Exception as e:
+                logger.warning("backtest: skipping %s due to %s: %s", clean, type(e).__name__, e)
+                if dropped is not None:
+                    dropped.append(clean)
                 continue
     finally:
         conn.close()
@@ -199,13 +219,18 @@ def backtest_tickers(
     if not tickers:
         return {"error": "No tickers provided"}
 
-    prices_df = _load_prices_df(tickers, years)
+    dropped: list[str] = []
+    prices_df = _load_prices_df(tickers, years, dropped=dropped)
     if prices_df is None or prices_df.empty:
-        return {"error": f"No price history available for {len(tickers)} tickers"}
+        return {
+            "error": f"No price history available for {len(tickers)} tickers",
+            "tickers_dropped": len(dropped),
+            "tickers_dropped_sample": dropped[:10],
+        }
 
     equity = _compute_equity_curve(prices_df, rebalance_days=rebalance_days)
     if equity.empty:
-        return {"error": "Could not compute equity curve"}
+        return {"error": "Could not compute equity curve", "tickers_dropped": len(dropped)}
 
     # Benchmark (equal-weighted basket of Nifty top 5)
     benchmark_series = None
@@ -217,9 +242,15 @@ def backtest_tickers(
             bench_equity = _compute_equity_curve(bench_df, rebalance_days=rebalance_days)
             if not bench_equity.empty:
                 aligned_bench = bench_equity.reindex(equity.index, method="ffill")
-                if not aligned_bench.empty and float(aligned_bench.iloc[0]) > 0:
-                    benchmark_curve_series = aligned_bench / float(aligned_bench.iloc[0]) * 100
-                    benchmark_series = benchmark_curve_series
+                # iloc[0] can be NaN if the benchmark history starts AFTER
+                # the portfolio history (reindex+ffill leaves leading NaNs).
+                # Guard against NaN/None/zero before normalising.
+                if not aligned_bench.empty:
+                    first = aligned_bench.dropna()
+                    if not first.empty and float(first.iloc[0]) > 0:
+                        base = float(first.iloc[0])
+                        benchmark_curve_series = aligned_bench / base * 100
+                        benchmark_series = benchmark_curve_series
 
     metrics = _compute_metrics(equity, benchmark_series)
 
@@ -250,6 +281,8 @@ def backtest_tickers(
     return {
         "tickers_backtested": len(prices_df.columns),
         "tickers_requested": len(tickers),
+        "tickers_dropped": len(dropped),
+        "tickers_dropped_sample": dropped[:10],
         "benchmark": BENCHMARK_LABEL,
         "rebalance_days": rebalance_days,
         "years": years,
