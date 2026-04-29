@@ -1021,13 +1021,22 @@ async def _build_yieldiq50() -> ScreenerResponse:
                         if not (0 < mos <= 100):
                             continue
                         synth_score = min(95, max(35, int(50 + mos * 0.5)))
+                        # 2026-04-29 hotfix: ScreenerStock.moat / sector are
+                        # typed as `str` (non-Optional, default ""), so passing
+                        # `None` here raised a pydantic ValidationError on the
+                        # FIRST row and the outer `except Exception: pass`
+                        # below swallowed it — emptying `by_ticker` and
+                        # leaving the endpoint with 0 results. Pass empty
+                        # strings to match the schema. PR #181's ticker
+                        # normalisation was correct upstream; this is the
+                        # downstream construction bug that hid behind it.
                         by_ticker[t] = ScreenerStock(
                             ticker=t,
                             company_name=r[1] or t,
                             score=synth_score,
                             margin_of_safety=round(mos, 1),
-                            moat=None,
-                            sector=r[2] or None,
+                            moat="",
+                            sector=r[2] or "",
                             verdict=r[4] or (
                                 "undervalued" if mos > 10
                                 else "fairly_valued"
