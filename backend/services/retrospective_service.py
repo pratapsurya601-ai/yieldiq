@@ -301,6 +301,8 @@ def summarize_for_period(
     benchmark_ticker: str = DEFAULT_BENCHMARK_TICKER,
     predictions: Optional[Iterable[dict]] = None,
     benchmark_return_pct: Optional[float] = None,
+    benchmark: str = "nifty500",
+    sector_benchmark_returns: Optional[dict[str, float]] = None,
 ) -> dict:
     """Aggregate retrospective stats for a [start_date, end_date] period.
 
@@ -335,7 +337,43 @@ def summarize_for_period(
         Pre-computed Nifty (or whichever) return for the same window.
         Required when ``predictions`` is supplied; otherwise the
         function would compute it from daily_prices.
+    benchmark
+        Selector for the benchmark mode:
+          * ``"nifty500"`` (default) — legacy single-benchmark
+            behaviour. Output shape is unchanged from prior versions.
+          * ``"auto"`` — sector-aware. Each prediction is compared
+            against its sector's index (see
+            ``backend.services.sector_benchmarks``). The return dict
+            gains a ``sector_breakdown`` field. Aggregate fields
+            (``outperform_rate``, ``benchmark.return_pct``) are
+            computed sector-weighted: outperform_rate is the share of
+            qualifying predictions that beat *their own* sector
+            benchmark; benchmark.return_pct is the n-weighted mean of
+            per-sector benchmark returns.
+          * any other string — treated as an explicit ticker; the
+            same single-benchmark code path runs but with that
+            ticker. Useful for sector deep-dives
+            (``benchmark="^CNXIT"``).
+    sector_benchmark_returns
+        Optional pre-computed mapping ``{ticker → return_pct}`` for
+        each sector benchmark. Used by tests to avoid the DB hit.
+        Only consulted when ``benchmark='auto'``. Missing entries are
+        skipped with a logged warning (the sector is omitted from
+        ``sector_breakdown``).
     """
+    # Normalise the benchmark mode and derive the headline ticker for
+    # backward-compat fields.
+    bm_mode: str
+    if benchmark == "auto":
+        bm_mode = "auto"
+    elif benchmark == "nifty500":
+        bm_mode = "single"
+        benchmark_ticker = DEFAULT_BENCHMARK_TICKER
+    else:
+        # Treat any other value as an explicit ticker.
+        bm_mode = "single"
+        benchmark_ticker = benchmark
+
     if predictions is None:
         # DB-backed path. Joins model_predictions_history against
         # prediction_outcomes on the requested window. We tolerate
@@ -358,9 +396,13 @@ def summarize_for_period(
                 text(
                     """
                     SELECT h.ticker, h.prediction_date,
-                           h.margin_of_safety_pct, o.return_pct
+                           h.margin_of_safety_pct, o.return_pct,
+                           s.sector
                       FROM model_predictions_history h
                       JOIN prediction_outcomes o ON o.prediction_id = h.id
+                      LEFT JOIN stocks s
+                        ON UPPER(REPLACE(REPLACE(h.ticker, '.NS', ''), '.BO', ''))
+                         = UPPER(REPLACE(REPLACE(s.ticker,  '.NS', ''), '.BO', ''))
                      WHERE h.prediction_date BETWEEN :s AND :e
                        AND h.margin_of_safety_pct >= :mos
                        AND o.outcome_date BETWEEN
@@ -382,6 +424,7 @@ def summarize_for_period(
                 "prediction_date": r[1].isoformat() if hasattr(r[1], "isoformat") else r[1],
                 "margin_of_safety_pct": float(r[2]) if r[2] is not None else None,
                 "return_pct": float(r[3]) if r[3] is not None else None,
+                "sector": r[4] if len(r) > 4 else None,
             }
             for r in rows
         ]
@@ -431,7 +474,6 @@ def summarize_for_period(
 
     returns = [float(p["return_pct"]) for p in qualifying]
     hits = sum(1 for r in returns if r > 0)
-    outperformers = sum(1 for r in returns if r > benchmark_return_pct)
 
     # Sort once, slice from both ends.
     sorted_by_return = sorted(
@@ -446,7 +488,108 @@ def summarize_for_period(
         for p in sorted_by_return[-5:][::-1]
     ]
 
-    return {
+    # ── Benchmark resolution ────────────────────────────────────────
+    # Two paths:
+    #   * single — every prediction compared against benchmark_ticker
+    #   * auto   — each prediction compared against its sector index;
+    #              aggregate fields are sector-weighted.
+    sector_breakdown: Optional[list[dict]] = None
+    if bm_mode == "auto":
+        from backend.services.sector_benchmarks import (
+            SECTOR_BENCHMARK_MAP, resolve as _resolve_sector,
+        )
+
+        # Group qualifying predictions by sector benchmark ticker.
+        groups: dict[str, dict] = {}
+        for p in qualifying:
+            sector = p.get("sector")
+            bench_t = _resolve_sector(sector)
+            g = groups.setdefault(
+                bench_t,
+                {"sector": sector or "Unclassified",
+                 "benchmark_ticker": bench_t,
+                 "returns": []},
+            )
+            # Last-in wins for the display sector label, but if any
+            # row has a real sector keep that over "Unclassified".
+            if sector and g["sector"] in (None, "Unclassified"):
+                g["sector"] = sector
+            g["returns"].append(float(p["return_pct"]))
+
+        # Resolve benchmark return for each group. Prefer the
+        # caller-supplied dict (tests); otherwise fetch from DB.
+        breakdown: list[dict] = []
+        agg_outperformers = 0
+        weighted_bench_return_num = 0.0
+        weighted_bench_return_den = 0
+        for bench_t, g in groups.items():
+            br = None
+            if sector_benchmark_returns and bench_t in sector_benchmark_returns:
+                br = sector_benchmark_returns[bench_t]
+            else:
+                br = _fetch_benchmark_return(
+                    bench_t, start_date, end_date, window,
+                )
+            if br is None:
+                logger.warning(
+                    "sector benchmark unavailable for %s (sector=%s) — "
+                    "omitting from sector_breakdown",
+                    bench_t, g["sector"],
+                )
+                continue
+            br_f = float(br)
+            n_g = len(g["returns"])
+            outp = sum(1 for r in g["returns"] if r > br_f)
+            agg_outperformers += outp
+            weighted_bench_return_num += br_f * n_g
+            weighted_bench_return_den += n_g
+            breakdown.append({
+                "sector": g["sector"],
+                "benchmark_ticker": bench_t,
+                "n": n_g,
+                "mean_return":      round(statistics.fmean(g["returns"]), 2),
+                "benchmark_return": round(br_f, 2),
+                "outperform_rate":  round(outp / n_g, 4) if n_g else None,
+            })
+
+        # Sort by n descending — most-populated sectors first, the
+        # most informative slice for a reader.
+        breakdown.sort(key=lambda r: r["n"], reverse=True)
+        sector_breakdown = breakdown
+
+        # Aggregate (sector-weighted). Counts only predictions whose
+        # benchmark resolved — same denominator as the breakdown.
+        n_resolved = sum(r["n"] for r in breakdown)
+        if n_resolved > 0:
+            outperform_rate_val: Optional[float] = round(
+                agg_outperformers / n_resolved, 4
+            )
+            agg_bench_return = round(
+                weighted_bench_return_num / weighted_bench_return_den, 2
+            ) if weighted_bench_return_den else 0.0
+        else:
+            # All sector benchmarks missing — fall back to the
+            # legacy single-benchmark number so the headline still
+            # renders. The page surfaces this via empty breakdown.
+            outperform_rate_val = round(
+                sum(1 for r in returns if r > benchmark_return_pct) / n, 4
+            )
+            agg_bench_return = round(float(benchmark_return_pct), 2)
+
+        bench_block = {
+            "ticker": "auto",
+            "return_pct": agg_bench_return,
+            "mode": "auto",
+        }
+    else:
+        outperformers = sum(1 for r in returns if r > benchmark_return_pct)
+        outperform_rate_val = round(outperformers / n, 4)
+        bench_block = {
+            "ticker": benchmark_ticker,
+            "return_pct": round(float(benchmark_return_pct), 2),
+        }
+
+    out = {
         "period": {
             "start": start_date.isoformat(),
             "end":   end_date.isoformat(),
@@ -458,14 +601,14 @@ def summarize_for_period(
         "mean_return":   round(statistics.fmean(returns), 2),
         "median_return": round(statistics.median(returns), 2),
         "hit_rate":         round(hits / n, 4),
-        "outperform_rate":  round(outperformers / n, 4),
-        "benchmark": {
-            "ticker": benchmark_ticker,
-            "return_pct": round(float(benchmark_return_pct), 2),
-        },
+        "outperform_rate":  outperform_rate_val,
+        "benchmark": bench_block,
         "winners": winners,
         "losers": losers,
     }
+    if bm_mode == "auto":
+        out["sector_breakdown"] = sector_breakdown
+    return out
 
 
 # ─────────────────────────────────────────────────────────────────
