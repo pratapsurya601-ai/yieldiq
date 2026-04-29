@@ -17,6 +17,7 @@ import RedFlagInsights from "@/components/analysis/RedFlagInsights"
 import QualityRatios from "@/components/analysis/QualityRatios"
 import PromoterPledgePanel from "@/components/analysis/PromoterPledgePanel"
 import DividendTracker from "@/components/analysis/DividendTracker"
+import NewsWidget from "@/components/analysis/NewsWidget"
 import LoadingSteps from "@/components/ui/LoadingSteps"
 import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
@@ -551,6 +552,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           {scenarioBlock}
           <ReverseDcfPanel ticker={ticker} />
           <DividendTracker dividend={insights?.dividend ?? null} currency={company.currency} />
+          <NewsWidget ticker={ticker} />
         </div>
       ),
     },
