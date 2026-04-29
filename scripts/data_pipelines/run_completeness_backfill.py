@@ -28,13 +28,23 @@ if __package__ in (None, ""):
     from scripts.data_pipelines import _common as C
     from scripts.data_pipelines import fetch_industry, fetch_annual_financials
     from scripts.data_pipelines import fetch_market_metrics, fetch_corporate_actions
+    from scripts.data_pipelines import compute_derived_metrics
 else:
     from . import _common as C
     from . import fetch_industry, fetch_annual_financials
     from . import fetch_market_metrics, fetch_corporate_actions
+    from . import compute_derived_metrics
 
 
-# Map "field name in audit JSON" -> backfill module
+# Map "field name in audit JSON" -> backfill module.
+#
+# NSE-archive-first ordering when iterating reqs:
+#   1. industry / sector  → reads nse_sector_constituents (cheap, big coverage)
+#   2. annual_financials  → NSE XBRL primary, yfinance fallback
+#   3. corporate_actions  → NSE bulk endpoint (one call), yfinance fallback
+#   4. market_metrics     → derived first (compute_derived_metrics), yfinance
+#                           only fills the long-tail of tickers without
+#                           financials.
 DISPATCH = {
     "industry": fetch_industry,
     "sector": fetch_industry,                 # alias — same module fills both cols
@@ -42,6 +52,34 @@ DISPATCH = {
     "market_metrics_pe_pb": fetch_market_metrics,
     "corporate_actions": fetch_corporate_actions,
 }
+
+# Run order is significant — financials must land BEFORE compute_derived
+# so the derived-metric SQL can use the NSE XBRL rows.
+RUN_ORDER = [
+    "industry",
+    "sector",
+    "annual_financials",
+    "corporate_actions",
+    "market_metrics_pe_pb",
+]
+
+
+def refresh_sectoral_constituents(dry_run: bool) -> dict[str, int]:
+    """Step 0: refresh nse_sector_constituents from NSE archive.
+
+    This populates the table that ``fetch_industry`` reads. ~12 indices,
+    one HTTP call each, no per-ticker fan-out. Cheap enough to run on
+    every backfill pass.
+    """
+    from data_pipeline.sources import nse_sectoral_indices as nsi
+    constituents = nsi.fetch_sectoral_constituents()
+    if dry_run:
+        return {k: len(v) for k, v in constituents.items()}
+    sess = C.make_session()
+    try:
+        return nsi.upsert_to_neon(constituents, sess)
+    finally:
+        sess.close()
 
 
 # --------------------------------------------------------------------------- #
@@ -208,14 +246,31 @@ def main() -> int:
 
     session_factory = (lambda: C.make_session()) if not args.dry_run else (lambda: None)
 
+    # Step 0 (NSE-first): refresh sectoral-index constituents once. Cheap
+    # (12 HTTP calls). Done unconditionally — the table feeds fetch_industry.
+    try:
+        sect = refresh_sectoral_constituents(args.dry_run)
+        logging.info("nse_sectoral_indices refreshed: %s", sect)
+    except Exception as e:
+        logging.warning("nse_sectoral_indices refresh failed (continuing): %s", e)
+
     reports: dict[str, C.BackfillReport] = {}
-    for field_name, payload in reqs.items():
+    # Iterate in RUN_ORDER so financials land before derived metrics.
+    ordered_fields = [f for f in RUN_ORDER if f in reqs] + \
+        [f for f in reqs.keys() if f not in RUN_ORDER]
+    for field_name in ordered_fields:
+        payload = reqs[field_name]
         if field_name not in selected:
             continue
         if field_name not in DISPATCH:
             logging.warning("no fetch_* module for field=%s — skipping", field_name)
             continue
-        tickers = list(payload.get("tickers") or [])
+        # Audit JSON v1 uses 'tickers'; v2 (PR #193) uses 'tickers_top_by_mcap'.
+        tickers = list(
+            payload.get("tickers")
+            or payload.get("tickers_top_by_mcap")
+            or []
+        )
         if not tickers:
             logging.info("[%s] empty ticker list — skipping", field_name)
             continue
@@ -226,6 +281,24 @@ def main() -> int:
                      field_name, len(tickers), module.__name__)
         rep = module.backfill(tickers, session_factory, dry_run=args.dry_run)
         reports[field_name] = rep
+
+    # Step N+1: derive PE / PB / D-E / ROE from the financials we just
+    # ingested. Pure-SQL, no downloads — safe to always run.
+    if not args.dry_run:
+        try:
+            sess = C.make_session()
+            try:
+                stats = compute_derived_metrics.coverage_stats(sess)
+                n = compute_derived_metrics.compute(sess)
+                logging.info(
+                    "compute_derived_metrics: %d rows upserted "
+                    "(coverage: financials=%d, market_cap=%d, joined=%d)",
+                    n, stats["financials_n"], stats["market_cap_n"], stats["joined_n"],
+                )
+            finally:
+                sess.close()
+        except Exception as e:
+            logging.warning("compute_derived_metrics failed (non-fatal): %s", e)
 
     summary_path = write_summary(reports, req_path, run_id, args.dry_run)
     logging.info("summary written to %s", summary_path)
