@@ -61,7 +61,23 @@ def _load():
     )
     if not m:  # pragma: no cover
         pytest.skip("could not slice _normalize_pct from utils.py")
-    ns: dict = {}
+    # No-op logger stub so debug() calls inside _normalize_pct don't
+    # raise NameError when exec'd in isolation.
+    class _NullLogger:
+        def __getattr__(self, _name):
+            return lambda *a, **k: None
+
+    ns: dict = {"_logger": _NullLogger()}
+    # Also slice any module-level ``_PCT_*`` constants that the
+    # function body references (e.g. ``_PCT_BOUNDARY_BAND``). Without
+    # this, exec'ing the sliced function raises NameError.
+    for const_match in re.finditer(
+        r"^(_PCT_[A-Z_]+\s*=\s*[^\n]+)$", text, flags=re.MULTILINE
+    ):
+        try:
+            exec(const_match.group(1), ns)
+        except Exception:  # pragma: no cover
+            pass
     try:
         exec(m.group(0), ns)
     except Exception as exc:  # pragma: no cover
