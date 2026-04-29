@@ -5,11 +5,12 @@ import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { getPeers, type PeerRow, type PeersResponse } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { currencySymbol, currencyLocale } from "@/lib/currency"
 import { formatMarketCap } from "@/lib/formatters"
 
 interface Props {
   ticker: string
-  currency?: string
+  currency?: string | null
 }
 
 /* ------------------------------------------------------------------ */
@@ -53,23 +54,26 @@ function fmtMoS(v: number | null): string {
   return `${sign}${v.toFixed(1)}%`
 }
 
-function fmtMarketCap(cr: number | null, currency: string): string {
+function fmtMarketCap(cr: number | null, currency: string | null | undefined, ticker?: string): string {
   if (cr === null || cr === undefined) return "\u2014"
-  if (currency === "INR") {
-    // Canonical "Lakh Cr" formatter.
+  // YieldIQ is India-only — default to "Lakh Cr" unless explicit foreign listing.
+  const upper = (currency ?? "").toUpperCase().trim()
+  const isForeign = /^(USD|EUR|GBP|JPY|CNY|SGD|HKD|AUD|CAD|CHF)$/.test(upper)
+  const isIndian = !!ticker && (ticker.endsWith(".NS") || ticker.endsWith(".BO"))
+  if (!isForeign || isIndian) {
     return formatMarketCap(cr)
   }
-  // USD path — "market_cap_cr" is actually millions for US tickers
-  const sym = "$"
+  // Foreign path — "market_cap_cr" is millions for non-INR tickers
+  const sym = currencySymbol(currency, ticker)
   if (cr >= 1_000_000) return `${sym}${(cr / 1_000_000).toFixed(1)}T`
   if (cr >= 1_000) return `${sym}${(cr / 1_000).toFixed(1)}B`
   return `${sym}${cr.toFixed(0)}M`
 }
 
-function fmtFV(v: number | null, currency: string): string {
+function fmtFV(v: number | null, currency: string | null | undefined, ticker?: string): string {
   if (v === null || v === undefined) return "—"
-  const sym = currency === "INR" ? "\u20b9" : "$"
-  const locale = currency === "INR" ? "en-IN" : "en-US"
+  const sym = currencySymbol(currency, ticker)
+  const locale = currencyLocale(currency, ticker)
   return `${sym}${v.toLocaleString(locale, { maximumFractionDigits: 0 })}`
 }
 
@@ -124,7 +128,7 @@ type Column = {
   className?: string
 }
 
-const buildColumns = (currency: string): Column[] => [
+const buildColumns = (currency: string | null | undefined, ticker: string): Column[] => [
   {
     key: "company",
     label: "Company",
@@ -149,7 +153,7 @@ const buildColumns = (currency: string): Column[] => [
   {
     key: "fair_value",
     label: "Fair Val",
-    render: row => <span className="tabular-nums">{fmtFV(row.fair_value, currency)}</span>,
+    render: row => <span className="tabular-nums">{fmtFV(row.fair_value, currency, ticker)}</span>,
   },
   {
     key: "mos_pct",
@@ -189,18 +193,18 @@ const buildColumns = (currency: string): Column[] => [
   {
     key: "market_cap_cr",
     label: "Mkt Cap",
-    render: row => <span className="tabular-nums">{fmtMarketCap(row.market_cap_cr, currency)}</span>,
+    render: row => <span className="tabular-nums">{fmtMarketCap(row.market_cap_cr, currency, ticker)}</span>,
   },
 ]
 
 /* ------------------------------------------------------------------ */
 /* Main component                                                      */
 /* ------------------------------------------------------------------ */
-export default function PeerComparison({ ticker, currency = "INR" }: Props) {
+export default function PeerComparison({ ticker, currency }: Props) {
   const router = useRouter()
   const [visible, setVisible] = useState(false)
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const columns = useMemo(() => buildColumns(currency), [currency])
+  const columns = useMemo(() => buildColumns(currency, ticker), [currency, ticker])
 
   useEffect(() => {
     if (visible) return

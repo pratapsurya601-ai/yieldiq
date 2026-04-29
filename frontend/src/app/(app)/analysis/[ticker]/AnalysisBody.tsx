@@ -551,7 +551,11 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
           {scenarioBlock}
           <ReverseDcfPanel ticker={ticker} />
-          <DividendTracker dividend={insights?.dividend ?? null} currency={company.currency} />
+          <DividendTracker
+            dividend={insights?.dividend ?? null}
+            currency={company.currency}
+            ticker={company.ticker}
+          />
           <NewsWidget ticker={ticker} />
         </div>
       ),

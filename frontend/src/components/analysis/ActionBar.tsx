@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { cn } from "@/lib/utils"
+import { currencySymbol, currencyLocale } from "@/lib/currency"
 import { trackExportUsed } from "@/lib/analytics"
 import { checkInWatchlist, addToWatchlist, removeFromWatchlist, createAlert } from "@/lib/api"
 import type { Verdict, MoatGrade } from "@/types/api"
@@ -275,10 +276,13 @@ function buildWhatsAppText(p: ActionBarProps): string {
   const verdictTag = verdictLabel(p.verdict)
   const ve = verdictEmoji(p.verdict)
   const se = scoreEmoji(p.score)
-  const sym = p.currency === "INR" ? "\u20b9" : "$"
-  const loc = p.currency === "INR" ? "en-IN" : "en-US"
-  // Only append ".NS" in the share URL for Indian tickers
-  const suffix = p.currency === "INR" ? ".NS" : ""
+  const sym = currencySymbol(p.currency, p.ticker)
+  const loc = currencyLocale(p.currency, p.ticker)
+  // YieldIQ is India-only; `displayTicker` strips .NS/.BO so we re-append
+  // .NS here for the share URL. Previously gated on currency === "INR",
+  // which broke share links when the v50 mis-tag tagged Indian listings
+  // as USD (CAPLIPOINT.NS etc.).
+  const suffix = ".NS"
 
   // Attractive, clean format that makes people want to click the link
   return [
@@ -487,8 +491,8 @@ function printPdf(htmlContent: string) {
 
 export default function ActionBar(props: ActionBarProps) {
   const { ticker, currentPrice, currency } = props
-  const sym = currency === "INR" ? "\u20b9" : "$"
-  const loc = currency === "INR" ? "en-IN" : "en-US"
+  const sym = currencySymbol(currency, ticker)
+  const loc = currencyLocale(currency, ticker)
   const [toast, setToast] = useState<string | null>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
   const [showCopied, setShowCopied] = useState(false)

@@ -3,6 +3,7 @@
 import { useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/utils"
+import { currencySymbol, currencyLocale } from "@/lib/currency"
 import type { QualityOutput, InsightCards as InsightCardsType, ValuationOutput } from "@/types/api"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
@@ -11,7 +12,7 @@ interface InsightCardsProps {
   quality: QualityOutput
   insights: InsightCardsType
   valuation: ValuationOutput
-  currency?: string
+  currency?: string | null
   sector?: string
   ticker?: string
 }
@@ -86,7 +87,7 @@ function _promoterCard(
   }
 }
 
-export default function InsightCards({ quality, insights, valuation, currency = "INR" }: InsightCardsProps) {
+export default function InsightCards({ quality, insights, valuation, currency, ticker }: InsightCardsProps) {
   // Single source of truth: red_flags_structured (backend-authored, severity-tagged).
   // Prior to 2026-04-23 this card read the legacy insights.red_flags string list,
   // which left it out of sync with RedFlagInsights (which always used structured).
@@ -319,7 +320,7 @@ export default function InsightCards({ quality, insights, valuation, currency = 
           // "Deal:" so it's unambiguously reporting someone else's trade,
           // not advising the user to do the same.
           value: `Deal: ${latestDeal.deal_type === "BUY" ? "Buy-side" : "Sell-side"} (${latestDeal.category})`,
-          subtitle: `${clientShort} ${qtyLabel} @ ${currency === "INR" ? "\u20b9" : "$"}${Math.round(latestDeal.price).toLocaleString(currency === "INR" ? "en-IN" : "en-US")}`,
+          subtitle: `${clientShort} ${qtyLabel} @ ${currencySymbol(currency, ticker)}${Math.round(latestDeal.price).toLocaleString(currencyLocale(currency, ticker))}`,
           color: latestDeal.deal_type === "BUY" ? "text-blue-700" : "text-red-700",
           icon: "\u{1f465}",
           borderColor: latestDeal.deal_type === "BUY" ? "border-l-blue-500" : "border-l-red-500",

@@ -4,25 +4,26 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { getFinancials, type FinancialYear, type FinancialsResponse } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { currencySymbol, currencyLocale } from "@/lib/currency"
 
 type Period = "annual" | "quarterly"
 type Tab = "income" | "balance" | "cashflow"
 
 interface Props {
   ticker: string
-  currency?: string
+  currency?: string | null
 }
 
 /* ------------------------------------------------------------------ */
 /* Cell formatters                                                     */
 /* ------------------------------------------------------------------ */
-function fmtCurrency(v: number | null, currency: string): string {
+function fmtCurrency(v: number | null, currency: string | null | undefined): string {
   if (v === null || v === undefined) return "—"
   const abs = Math.abs(v)
   const sign = v < 0 ? "-" : ""
   // Values arrive in Cr (INR) or M (USD).
   if (abs >= 1000) return `${sign}${(abs / 1000).toFixed(2)}K`
-  if (abs >= 1) return `${sign}${abs.toLocaleString(currency === "INR" ? "en-IN" : "en-US", { maximumFractionDigits: 0 })}`
+  if (abs >= 1) return `${sign}${abs.toLocaleString(currencyLocale(currency), { maximumFractionDigits: 0 })}`
   return `${sign}${abs.toFixed(2)}`
 }
 
@@ -31,13 +32,12 @@ function fmtPct(v: number | null): string {
   return `${v.toFixed(1)}%`
 }
 
-function fmtPerShare(v: number | null, currency: string): string {
+function fmtPerShare(v: number | null, currency: string | null | undefined, ticker?: string): string {
   if (v === null || v === undefined) return "—"
-  const sym = currency === "INR" ? "₹" : "$"
-  return `${sym}${v.toFixed(2)}`
+  return `${currencySymbol(currency, ticker)}${v.toFixed(2)}`
 }
 
-function fmtCapex(v: number | null, currency: string): string {
+function fmtCapex(v: number | null, currency: string | null | undefined): string {
   if (v === null || v === undefined) return "—"
   // Capex is typically reported negative in cashflow stmt; show parens.
   const abs = Math.abs(v)
@@ -79,7 +79,7 @@ type RowDef = {
   emphasis?: boolean
 }
 
-function incomeRows(currency: string): RowDef[] {
+function incomeRows(currency: string | null | undefined, ticker?: string): RowDef[] {
   return [
     { label: "Revenue", emphasis: true, render: y => fmtCurrency(y.revenue, currency) },
     { label: "  YoY Growth", render: y => <GrowthArrow value={y.revenue_growth_pct} /> },
@@ -91,11 +91,11 @@ function incomeRows(currency: string): RowDef[] {
     { label: "Net Income", emphasis: true, render: y => fmtCurrency(y.net_income, currency) },
     { label: "  YoY Growth", render: y => <GrowthArrow value={y.net_income_growth_pct} /> },
     { label: "  Net Margin", render: y => fmtPct(y.net_margin_pct) },
-    { label: "EPS (Diluted)", render: y => fmtPerShare(y.eps_diluted, currency) },
+    { label: "EPS (Diluted)", render: y => fmtPerShare(y.eps_diluted, currency, ticker) },
   ]
 }
 
-function balanceRows(currency: string): RowDef[] {
+function balanceRows(currency: string | null | undefined, ticker?: string): RowDef[] {
   return [
     { label: "Total Assets", render: y => fmtCurrency(y.total_assets, currency) },
     { label: "Total Equity", emphasis: true, render: y => fmtCurrency(y.total_equity, currency) },
@@ -103,11 +103,11 @@ function balanceRows(currency: string): RowDef[] {
     { label: "Cash & Equivalents", render: y => fmtCurrency(y.cash, currency) },
     { label: "Net Debt", render: y => fmtCurrency(y.net_debt, currency) },
     { label: "Debt / Equity", render: y => fmtRatio(y.debt_to_equity) },
-    { label: "Book Value / Share", render: y => fmtPerShare(y.book_value_per_share, currency) },
+    { label: "Book Value / Share", render: y => fmtPerShare(y.book_value_per_share, currency, ticker) },
   ]
 }
 
-function cashflowRows(currency: string): RowDef[] {
+function cashflowRows(currency: string | null | undefined): RowDef[] {
   return [
     { label: "Operating Cash Flow", render: y => fmtCurrency(y.operating_cash_flow, currency) },
     { label: "Capital Expenditure",
@@ -140,7 +140,7 @@ function Skeleton() {
 /* ------------------------------------------------------------------ */
 /* Main component                                                      */
 /* ------------------------------------------------------------------ */
-export default function FinancialStatements({ ticker, currency = "INR" }: Props) {
+export default function FinancialStatements({ ticker, currency }: Props) {
   const [period, setPeriod] = useState<Period>("annual")
   const [tab, setTab] = useState<Tab>("income")
   const [visible, setVisible] = useState(false)
@@ -173,10 +173,10 @@ export default function FinancialStatements({ ticker, currency = "INR" }: Props)
 
   const years = data?.income ?? []
   const rows: RowDef[] = useMemo(() => {
-    if (tab === "income") return incomeRows(currency)
-    if (tab === "balance") return balanceRows(currency)
+    if (tab === "income") return incomeRows(currency, ticker)
+    if (tab === "balance") return balanceRows(currency, ticker)
     return cashflowRows(currency)
-  }, [tab, currency])
+  }, [tab, currency, ticker])
 
   /* ---------- Render states ---------- */
   if (!visible || isLoading) {
@@ -207,8 +207,12 @@ export default function FinancialStatements({ ticker, currency = "INR" }: Props)
   const emptyQuarterly = period === "quarterly" && years.length === 0
   const emptyAnnual = period === "annual" && years.length === 0
 
-  const unitLabel = data?.currency_unit ?? (currency === "INR" ? "Cr" : "M")
-  const currencySym = currency === "INR" ? "₹" : "$"
+  // Default to "Cr" since YieldIQ is India-only; only fall back to "M"
+  // if the API explicitly tags a foreign currency. This avoids the v50
+  // mis-tag bug surfacing as the wrong unit label.
+  const isForeign = !!currency && /^(USD|EUR|GBP|JPY|CNY|SGD|HKD|AUD|CAD|CHF)$/i.test(currency.trim())
+  const unitLabel = data?.currency_unit ?? (isForeign ? "M" : "Cr")
+  const currencySym = currencySymbol(currency, ticker)
 
   return (
     <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-5 space-y-3">
