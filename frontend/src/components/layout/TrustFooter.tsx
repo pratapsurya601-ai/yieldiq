@@ -225,14 +225,12 @@ export default function TrustFooter() {
               >
                 SLA
               </Link>
-              <a
-                href="https://status.yieldiq.in"
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                href="/status"
                 className="hover:text-body transition-colors"
               >
                 Status
-              </a>
+              </Link>
               <Link
                 href="/about"
                 className="hover:text-body transition-colors"

@@ -3402,3 +3402,179 @@ async def get_transcripts(ticker: str, limit: int = Query(default=8, ge=1, le=24
         return _cached_json(empty, s_maxage=60, swr=300)
     finally:
         _safe_close(sess)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Public uptime / status endpoint
+#
+# Backs the /status page on the marketing site. Read-only; queries
+# real signals from Aiven Postgres (analysis_cache, financials,
+# stocks). Sector-isolated — no impact on analysis_cache contents,
+# no CACHE_VERSION change required.
+#
+# Components:
+#   api               — endpoint reachable ⇒ "operational"
+#   database          — SELECT 1, time it (>100ms = degraded)
+#   analysis_pipeline — max(analysis_cache.computed_at); >24h stale = degraded
+#   data_freshness    — max(financials.period_end), count(stocks where active)
+#
+# incidents_30d is hardcoded for now (one entry: INFY 2026-04-29).
+# TODO: wire to a real `incidents` table once we have one.
+# ═══════════════════════════════════════════════════════════════
+@router.get("/status")
+async def get_public_status():
+    """Public uptime/status JSON for the /status page.
+
+    No auth, short edge cache (60s) so users see fresh signal but we
+    don't hammer the DB on every page-view spike.
+    """
+    from datetime import datetime, timezone
+
+    from sqlalchemy import text as _t
+
+    from backend.services.cache_service import CACHE_VERSION
+
+    def _worst(*statuses: str) -> str:
+        order = {"operational": 0, "degraded": 1, "down": 2}
+        worst = max(statuses, key=lambda s: order.get(s, 0))
+        return worst
+
+    # ── api: trivially "operational" — we're inside the handler.
+    api_component: dict[str, Any] = {"status": "operational", "latency_ms": 0}
+
+    # ── database: SELECT 1, time it.
+    db_component: dict[str, Any] = {"status": "down", "latency_ms": None}
+    db = _get_db_session()
+    try:
+        if db is None:
+            db_component = {"status": "down", "latency_ms": None, "error": "no session"}
+        else:
+            t0 = _time.perf_counter()
+            db.execute(_t("SELECT 1")).fetchone()
+            elapsed_ms = int((_time.perf_counter() - t0) * 1000)
+            db_status = "operational" if elapsed_ms <= 100 else "degraded"
+            db_component = {"status": db_status, "latency_ms": elapsed_ms}
+    except Exception as exc:
+        logger.warning("status: database probe failed: %s", exc)
+        db_component = {"status": "down", "latency_ms": None}
+
+    # ── analysis_pipeline: max(computed_at). >24h ⇒ degraded.
+    pipeline_component: dict[str, Any] = {"status": "down", "last_compute_ms": None}
+    try:
+        if db is not None and db_component["status"] != "down":
+            row = db.execute(_t(
+                "SELECT MAX(computed_at) AS last_at, "
+                "       (SELECT compute_ms FROM analysis_cache "
+                "        WHERE compute_ms IS NOT NULL "
+                "        ORDER BY computed_at DESC LIMIT 1) AS last_ms "
+                "FROM analysis_cache"
+            )).fetchone()
+            last_at = row[0] if row else None
+            last_ms = row[1] if row else None
+            if last_at is None:
+                pipeline_component = {
+                    "status": "degraded",
+                    "last_compute_ms": None,
+                    "last_computed_at": None,
+                }
+            else:
+                if last_at.tzinfo is None:
+                    last_at = last_at.replace(tzinfo=timezone.utc)
+                age_hours = (datetime.now(timezone.utc) - last_at).total_seconds() / 3600.0
+                p_status = "operational" if age_hours <= 24 else "degraded"
+                pipeline_component = {
+                    "status": p_status,
+                    "last_compute_ms": int(last_ms) if last_ms is not None else None,
+                    "last_computed_at": last_at.isoformat(),
+                }
+    except Exception as exc:
+        logger.warning("status: analysis_pipeline probe failed: %s", exc)
+        pipeline_component = {"status": "down", "last_compute_ms": None}
+
+    # ── data_freshness: max(financials.period_end), active ticker count.
+    freshness_component: dict[str, Any] = {
+        "status": "down",
+        "last_backfill": None,
+        "tickers_covered": None,
+    }
+    try:
+        if db is not None and db_component["status"] != "down":
+            row = db.execute(_t(
+                "SELECT MAX(period_end) FROM financials"
+            )).fetchone()
+            last_period_end = row[0] if row else None
+
+            row2 = db.execute(_t(
+                "SELECT COUNT(*) FROM stocks WHERE is_active = TRUE"
+            )).fetchone()
+            tickers_covered = int(row2[0]) if row2 and row2[0] is not None else 0
+
+            # Annual financials lag by ~quarter; treat <= 180 days as
+            # operational, <= 400 as degraded (annuals delayed), else down.
+            if last_period_end is None:
+                f_status = "down"
+                last_backfill_iso = None
+            else:
+                today = date.today()
+                age_days = (today - last_period_end).days
+                if age_days <= 180:
+                    f_status = "operational"
+                elif age_days <= 400:
+                    f_status = "degraded"
+                else:
+                    f_status = "down"
+                last_backfill_iso = last_period_end.isoformat()
+            freshness_component = {
+                "status": f_status,
+                "last_backfill": last_backfill_iso,
+                "tickers_covered": tickers_covered,
+            }
+    except Exception as exc:
+        logger.warning("status: data_freshness probe failed: %s", exc)
+        freshness_component = {
+            "status": "down",
+            "last_backfill": None,
+            "tickers_covered": None,
+        }
+    finally:
+        _safe_close(db)
+
+    overall = _worst(
+        api_component["status"],
+        db_component["status"],
+        pipeline_component["status"],
+        freshness_component["status"],
+    )
+
+    # TODO: replace with a real `incidents` table once we have one.
+    incidents_30d = [
+        {
+            "date": "2026-04-29",
+            "severity": "minor",
+            "title": "INFY DCF rendered incorrect FV; resolved",
+            "resolved": True,
+            "url": "/blog/infy-incident-2026-04-29",
+        },
+    ]
+
+    payload = {
+        "status": overall,
+        "version": f"v{CACHE_VERSION}",
+        "computed_at": datetime.now(timezone.utc).isoformat(),
+        "components": {
+            "api": api_component,
+            "database": db_component,
+            "analysis_pipeline": pipeline_component,
+            "data_freshness": freshness_component,
+        },
+        "incidents_30d": incidents_30d,
+    }
+
+    # Short edge cache: 60s fresh, 5 min stale-while-revalidate. The
+    # page itself uses Next.js revalidate=60 so this lines up.
+    return _cached_json(
+        _nan_to_none(payload),
+        s_maxage=60,
+        swr=300,
+        extra_headers={"X-Source": "public_status_v1"},
+    )
