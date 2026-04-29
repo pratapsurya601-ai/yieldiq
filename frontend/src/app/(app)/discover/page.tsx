@@ -71,11 +71,14 @@ export default function DiscoverPage() {
                     #{i + 1}
                   </span>
                   <p className="text-sm font-bold text-gray-900 truncate">{s.ticker.replace(".NS", "")}</p>
-                  <p className="text-lg font-bold text-blue-700 font-mono">{formatMoS(s.margin_of_safety)}</p>
+                  <div className="mt-1 flex items-baseline justify-center gap-1.5">
+                    <span className="text-base font-bold text-blue-700 font-mono">{formatMoS(s.margin_of_safety)}</span>
+                    <span className="text-xs text-gray-300">·</span>
+                    <span className="text-sm font-mono text-gray-700">{s.score}<span className="text-[10px] text-gray-400">/100</span></span>
+                  </div>
                   {Math.abs(s.margin_of_safety) >= 100 && (
-                    <p className="text-[9px] text-gray-400 leading-tight">uncertain on micro-caps</p>
+                    <p className="mt-1 text-[10px] text-gray-400 leading-tight">uncertain</p>
                   )}
-                  <p className="text-[10px] text-gray-500">Score: {s.score}</p>
                 </Link>
               ))}
             </div>
