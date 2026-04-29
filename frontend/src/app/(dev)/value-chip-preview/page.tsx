@@ -18,7 +18,7 @@ interface Fixture {
 const FIXTURES: Fixture[] = [
   {
     band: "strong_discount",
-    label: "Strong discount",
+    label: "Deep discount",
     percentile: 8,
     why: "Trades at a notable discount vs. sector peers.",
     sectorPeers: 42,
@@ -28,7 +28,7 @@ const FIXTURES: Fixture[] = [
     band: "below_peers",
     label: "Below peers",
     percentile: 28,
-    why: "Cheaper than most sector peers on blended multiples.",
+    why: "Lower multiples than most sector peers on blended ratios.",
     sectorPeers: 42,
     sectorLabel: "Information Technology",
   },
@@ -44,13 +44,13 @@ const FIXTURES: Fixture[] = [
     band: "above_peers",
     label: "Above peers",
     percentile: 74,
-    why: "Pricier than most sector peers on blended multiples.",
+    why: "Higher multiples than most sector peers on blended ratios.",
     sectorPeers: 42,
     sectorLabel: "Information Technology",
   },
   {
     band: "notably_overvalued",
-    label: "Notably overvalued",
+    label: "Notable premium to peers",
     percentile: 94,
     why: "Trades at a notable premium vs. sector peers.",
     sectorPeers: 42,
