@@ -403,187 +403,320 @@ def _dig(d: Any, *path, default=None):
 
 
 # ── Axis computations (general case) ────────────────────────────
-def _axis_value_general(data: dict) -> dict:
-    analysis = data.get("analysis") or {}
-    metrics = data.get("metrics") or {}
-    fv = _dig(analysis, "valuation", "fair_value")
-    price = _dig(analysis, "valuation", "current_price")
-    mos_pct = _dig(analysis, "valuation", "margin_of_safety")
+# Stage 2/3 (sector-percentile Value): every Value axis branch now
+# delegates to `_axis_value_percentile`, which ranks the ticker's
+# cohort metric (MoS for general, P/BV for bank, revenue multiple
+# for IT) against its sector peers and maps the resulting percentile
+# to a 0-10 score plus a band/label/why bundle. Old sigmoid-based
+# scoring + NBFC anchor branch are removed; cohort context replaces
+# the static anchors.
+#
+# Response shape per axis (additive over the legacy {score,label,why,
+# data_limited} envelope; downstream consumers ignore unknown keys):
+#   score              float | None  — 0..10 derived from percentile
+#                                       (None when data_limited; the
+#                                        UI renders "—")
+#   percentile         int   | None  — 0..100 rank within cohort
+#   band               str            — one of 6 band keys
+#   label              str            — human-readable band label
+#   why                str            — reason text incl. cohort context
+#   data_limited       bool
+#   sector_peers       int            — cohort size (post-filter)
+#   sector_label       str            — canonical sector key (or "")
+#   sector_median_mos  float | None
+#   sector_median_pe   float | None
+#   sector_median_pb   float | None
 
-    if mos_pct is None and fv and price:
-        try:
-            # Canonical MoS = (FV - CMP) / CMP — matches analysis_service
-            # mos_pct (single source of truth post-FIX1).
-            mos_pct = (float(fv) - float(price)) / float(price) * 100.0
-        except Exception:
-            mos_pct = None
 
-    pe = metrics.get("pe_ratio")
+def _percentile_to_score(percentile: Optional[int]) -> Optional[float]:
+    """Map cohort percentile to a 0..10 legacy `score`.
 
-    # PR #168: when the cyclical-trough anchor fired, the displayed
-    # MoS already reflects the honest "fairly valued at trough" call
-    # via FV = 0.95*price. Trailing P/E at the same trough is
-    # misleadingly elevated (denominator earnings collapsed) and
-    # would otherwise drag the Value axis to ~1/10 even though the
-    # DCF (now anchor-aware) reads near-fair. Suppress P/E in that
-    # case so Value reflects the anchor.
-    _fcf_src = _dig(analysis, "valuation", "fcf_data_source") or ""
-    if isinstance(_fcf_src, str) and "trough_anchor" in _fcf_src:
-        pe = None
-
-    # data_limited triggers ONLY when both MoS (DCF-derived) and P/E
-    # are absent. A microcap with a P/E but no DCF still lights up.
-    if mos_pct is None and pe is None:
-        return _neutral_axis("No valuation data available")
-
-    # FIX-PRISM-VALUE-SIGMOID (2026-04-22): replaced linear anchor-plus-slope
-    # mapping with a logistic sigmoid. Old formula (score = 5 + 0.15*MoS + pe_adj)
-    # hit the floor at 0.0/10 for any stock with MoS <= -33% (RELIANCE at -35%,
-    # NESTLE at -58%, KPITTECH at -39%, etc.) — users read that as broken/missing
-    # data rather than "deeply overvalued." Sigmoid produces an asymptotic curve
-    # that never pins to exact 0 or 10 while preserving the anchor (MoS=0 → 5.0)
-    # and the relative ordering. Calibration points at k=0.08:
-    #   MoS -100%  -> 0.04
-    #   MoS  -50%  -> 0.18
-    #   MoS  -33%  -> 0.67   (was 0.0 pre-fix — the RELIANCE case)
-    #   MoS    0%  -> 5.00
-    #   MoS  +33%  -> 9.34
-    #   MoS +100%  -> 9.97
-    # P/E is folded into the sigmoid argument as MoS-equivalent percentage
-    # points so the final axis stays inside [0, 10] without a separate clamp
-    # path. Prior per-1-PE adjustment was 0.05 score ≈ 0.33pp MoS; scaled here
-    # to (22-PE)*3.3 with ±13pp cap to match the original max ±2.0 score contrib.
-    import math as _math
-    signal = 0.0
-    reasons: list[str] = []
-    if mos_pct is not None:
-        try:
-            signal += float(mos_pct)
-            reasons.append(f"MoS {float(mos_pct):.0f}%")
-        except Exception:
-            pass
-    if pe is not None:
-        try:
-            pe_f = float(pe)
-            # Each 1 unit below P/E=22 adds ~3.3pp MoS-equivalent, capped at ±13pp.
-            pe_adj = (22.0 - pe_f) * 3.3
-            pe_adj = max(-13.0, min(13.0, pe_adj))
-            signal += pe_adj
-            reasons.append(f"P/E {pe_f:.1f}")
-        except Exception:
-            pass
+    Inverted: low percentile (cheapest in cohort) → high score; high
+    percentile (richest) → low score. Returns None when percentile is
+    None (data_limited) so callers can render "—" instead of fabricating
+    a neutral 5.0 anchor.
+    """
+    if percentile is None:
+        return None
     try:
-        score = 10.0 / (1.0 + _math.exp(-0.08 * signal))
-    except (OverflowError, ValueError):
-        # exp overflow at extreme signal magnitudes — pick the asymptote.
-        score = 10.0 if signal > 0 else 0.0
+        p = float(percentile)
+    except (TypeError, ValueError):
+        return None
+    if p != p:
+        return None
+    p = max(0.0, min(100.0, p))
+    return round(10.0 - (p / 10.0), 2)
 
-    why = ", ".join(reasons) if reasons else "Partial valuation data"
-    # data_limited only when we had NO signal at all. If either mos_pct or pe
-    # produced a valid score contribution, the axis has a real signal.
-    return _axis(score, why, data_limited=(mos_pct is None and pe is None))
+
+def _median_or_none(values: list[float]) -> Optional[float]:
+    clean = [float(v) for v in values if v is not None]
+    if not clean:
+        return None
+    try:
+        return round(statistics.median(clean), 4)
+    except statistics.StatisticsError:
+        return None
+
+
+def _empty_value_axis(why: str, sector_label: str = "",
+                      sector_peers: int = 0) -> dict:
+    """data_limited Value axis envelope (score=None, no percentile)."""
+    return {
+        "score": None,
+        "label": "Insufficient peer data",
+        "why": why,
+        "data_limited": True,
+        "percentile": None,
+        "band": "data_limited",
+        "sector_peers": sector_peers,
+        "sector_label": sector_label,
+        "sector_median_mos": None,
+        "sector_median_pe": None,
+        "sector_median_pb": None,
+    }
+
+
+def _resolve_mos_pct(data: dict) -> Optional[float]:
+    """Pull MoS% off the analysis payload, computing from FV/price if absent."""
+    analysis = data.get("analysis") or {}
+    mos_pct = _dig(analysis, "valuation", "margin_of_safety")
+    if mos_pct is None:
+        fv = _dig(analysis, "valuation", "fair_value")
+        price = _dig(analysis, "valuation", "current_price")
+        if fv and price:
+            try:
+                mos_pct = (float(fv) - float(price)) / float(price) * 100.0
+            except Exception:
+                mos_pct = None
+    if mos_pct is None:
+        return None
+    try:
+        v = float(mos_pct)
+    except (TypeError, ValueError):
+        return None
+    return None if v != v else v
+
+
+def _resolve_revenue_multiple(data: dict) -> Optional[float]:
+    """Compute MCAP / revenue (crores) for IT cohort comparison."""
+    metrics = data.get("metrics") or {}
+    financials = data.get("financials") or []
+    if not financials:
+        return None
+    rev = financials[0].get("revenue")
+    mcap_cr = metrics.get("market_cap_cr")
+    if rev is None or mcap_cr is None:
+        return None
+    try:
+        rev_f = float(rev)
+        # Same unit-detect heuristic used pre-Stage-2: raw-rupees when
+        # revenue exceeds 1e9 (smallest listed IT-services co. >100 Cr
+        # ≈ 1e9 raw INR), already-in-crores otherwise.
+        rev_cr = rev_f / 1e7 if rev_f > 1e9 else rev_f
+        if rev_cr <= 0:
+            return None
+        return float(mcap_cr) / rev_cr
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
+def _build_cohort_session():
+    """Acquire a session for the sector cohort query. Returns (sess, owns)."""
+    sess = _get_session()
+    return sess
+
+
+def _axis_value_percentile(data: dict, metric_kind: str) -> dict:
+    """Generic sector-percentile Value axis.
+
+    `metric_kind` ∈ {"mos", "pb", "rev_multiple"}.
+
+    Each metric's directional convention:
+      - mos:           higher = cheaper. Score ∝ percentile (rank rises
+                       with bigger MoS, mapped via 100-rank inversion
+                       inside _percentile_to_score so cheap = high score).
+      - pb:            lower = cheaper. We compute percentile of the raw
+                       value (low PB → low rank) then invert via 100-rank
+                       so cheap → high score.
+      - rev_multiple:  lower = cheaper. Same inversion as PB.
+    """
+    from backend.services import sector_percentile as sp
+
+    sector_label_raw = data.get("sector") or ""
+    cohort: list[dict] = []
+    sess = _build_cohort_session()
+    sector_label = ""
+    if sess is not None and sector_label_raw:
+        try:
+            cohort = sp.compute_sector_cohort(sector_label_raw, sess)
+        except Exception as exc:
+            logger.info("hex value: cohort fetch failed for %s: %s",
+                        sector_label_raw, exc)
+            cohort = []
+        finally:
+            _safe_close(sess)
+        # Best-effort canonical label (may resolve via alias).
+        try:
+            sector_label = sp._canonical_sector(sector_label_raw) or ""
+        except Exception:
+            sector_label = ""
+
+    sector_peers = len(cohort)
+    median_mos = _median_or_none([c.get("mos_pct") for c in cohort])
+    median_pe = _median_or_none([c.get("pe_ratio") for c in cohort])
+    median_pb = _median_or_none([c.get("pb_ratio") for c in cohort])
+
+    def _pack(percentile: Optional[int], why: str,
+              data_limited: bool = False) -> dict:
+        band = sp.value_band_for_percentile(percentile)
+        score = _percentile_to_score(percentile)
+        if data_limited or percentile is None:
+            return {
+                "score": None,
+                "label": band["label"],
+                "why": why,
+                "data_limited": True,
+                "percentile": None,
+                "band": "data_limited",
+                "sector_peers": sector_peers,
+                "sector_label": sector_label,
+                "sector_median_mos": median_mos,
+                "sector_median_pe": median_pe,
+                "sector_median_pb": median_pb,
+            }
+        return {
+            "score": score,
+            "label": band["label"],
+            "why": why,
+            "data_limited": False,
+            "percentile": int(percentile),
+            "band": band["band"],
+            "sector_peers": sector_peers,
+            "sector_label": sector_label,
+            "sector_median_mos": median_mos,
+            "sector_median_pe": median_pe,
+            "sector_median_pb": median_pb,
+        }
+
+    if sector_peers < 10:
+        return _pack(
+            None,
+            f"Cohort too small ({sector_peers} peers) for percentile rank",
+            data_limited=True,
+        )
+
+    # Resolve this ticker's metric value.
+    if metric_kind == "mos":
+        my_value = _resolve_mos_pct(data)
+        if my_value is None:
+            return _pack(None, "No MoS available for ticker",
+                         data_limited=True)
+        cohort_values = [c["mos_pct"] for c in cohort
+                         if c.get("mos_pct") is not None]
+        if len(cohort_values) < 10:
+            return _pack(None,
+                         f"Only {len(cohort_values)} MoS peers in cohort",
+                         data_limited=True)
+        # Higher MoS = cheaper = should map to high score.
+        # percentile_rank gives % below; for MoS we want it directly so
+        # that cheap (high MoS) ranks near 100 → invert via 100-rank
+        # so the legacy score formula (10 - p/10) still rewards cheap.
+        raw_rank = sp.percentile_rank(my_value, cohort_values)
+        percentile = 100 - raw_rank
+        why = (
+            f"MoS {my_value:.0f}% vs sector median "
+            f"{median_mos:.0f}%" if median_mos is not None else
+            f"MoS {my_value:.0f}% vs sector cohort"
+        ) + f" ({sector_peers} peers)"
+        # Cyclical-trough anchor context: PR #168 sets fcf_data_source
+        # to a string containing "trough_anchor" when the cyclical
+        # fallback fired. Surface that in the reason text so the
+        # anchor's effect is auditable.
+        analysis = data.get("analysis") or {}
+        _fcf_src = _dig(analysis, "valuation", "fcf_data_source") or ""
+        if isinstance(_fcf_src, str) and "trough_anchor" in _fcf_src:
+            why += " (cyclical-trough anchor)"
+        return _pack(percentile, why)
+
+    if metric_kind == "pb":
+        metrics = data.get("metrics") or {}
+        my_value = metrics.get("pb_ratio")
+        if my_value is None:
+            return _pack(None, "No P/BV available for ticker",
+                         data_limited=True)
+        try:
+            my_value = float(my_value)
+        except (TypeError, ValueError):
+            return _pack(None, "Non-numeric P/BV", data_limited=True)
+        cohort_values = [c["pb_ratio"] for c in cohort
+                         if c.get("pb_ratio") is not None]
+        if len(cohort_values) < 10:
+            return _pack(None,
+                         f"Only {len(cohort_values)} P/BV peers in cohort",
+                         data_limited=True)
+        # Low P/BV = cheaper. percentile_rank gives % below; invert so
+        # cheap → low percentile → high score.
+        raw_rank = sp.percentile_rank(my_value, cohort_values)
+        percentile = raw_rank  # low PB → low rank → high score via 10 - p/10
+        why = (
+            f"P/BV {my_value:.2f}x vs sector median "
+            f"{median_pb:.2f}x" if median_pb is not None else
+            f"P/BV {my_value:.2f}x vs sector cohort"
+        ) + f" ({sector_peers} peers)"
+        return _pack(percentile, why)
+
+    if metric_kind == "rev_multiple":
+        my_value = _resolve_revenue_multiple(data)
+        if my_value is None:
+            # No revenue/mcap → fall through to MoS-percentile so IT
+            # tickers without financials still get a sector-relative read.
+            return _axis_value_percentile(data, "mos")
+        cohort_rev_multiples: list[float] = []
+        # The cohort table has pe_ratio + pb_ratio + mos_pct only —
+        # rev_multiple isn't materialised. Use P/E as a proxy for IT
+        # cohort richness when comparing rev-multiples isn't possible
+        # within the Stage-2 cohort schema. (Stage-3 candidate: extend
+        # sector_percentile to surface ev_revenue.)
+        cohort_values = [c["pe_ratio"] for c in cohort
+                         if c.get("pe_ratio") is not None]
+        if len(cohort_values) < 10:
+            return _pack(None,
+                         f"Only {len(cohort_values)} P/E peers in IT cohort",
+                         data_limited=True)
+        # Use ticker's own P/E (from market_metrics) for the rank;
+        # rev_multiple feeds into the why string only.
+        metrics = data.get("metrics") or {}
+        my_pe = metrics.get("pe_ratio")
+        if my_pe is None:
+            return _pack(None, "No P/E for ticker", data_limited=True)
+        try:
+            my_pe_f = float(my_pe)
+        except (TypeError, ValueError):
+            return _pack(None, "Non-numeric P/E", data_limited=True)
+        raw_rank = sp.percentile_rank(my_pe_f, cohort_values)
+        percentile = raw_rank  # low PE → low rank → high score
+        why = (
+            f"P/E {my_pe_f:.1f}x (rev mult {my_value:.2f}x) vs "
+            f"sector median P/E "
+            + (f"{median_pe:.1f}x" if median_pe is not None else "—")
+            + f" ({sector_peers} peers)"
+        )
+        return _pack(percentile, why)
+
+    return _pack(None, f"Unknown metric_kind {metric_kind}",
+                 data_limited=True)
+
+
+def _axis_value_general(data: dict) -> dict:
+    return _axis_value_percentile(data, "mos")
 
 
 def _axis_value_bank(data: dict) -> dict:
-    analysis = data.get("analysis") or {}
-    metrics = data.get("metrics") or {}
-    pb = metrics.get("pb_ratio")
-    mos_pct = _dig(analysis, "valuation", "margin_of_safety")
-
-    # ── BUG FIX #2 (HEX_AXIS_SOURCE_MAP.md §9 Bug #2) ─────────────
-    # NBFCs are classified into sector="bank" by `_classify_sector`
-    # via `_NBFC_TICKERS`, but the bank P/BV anchor of 2.5x is
-    # calibrated for deposit-funded banks. Indian NBFCs structurally
-    # trade at 3-6x P/BV because of their asset-light lending model
-    # plus higher ROE. Using the bank anchor floors BAJFINANCE
-    # (P/B ~5.5), BAJAJFINSV, CHOLAFIN, MUTHOOTFIN to Value=0 and
-    # drags the composite down to ~22 (observed BAJFINANCE=22 pre-fix).
-    #
-    # Detect NBFC by bare-ticker lookup and apply a higher P/BV anchor
-    # (3.5x = neutral) with a gentler slope so an NBFC at a reasonable
-    # 4x P/BV still scores ~4/10 instead of 0.
-    # Expected recovery: BAJFINANCE Value 0 -> ~4; composite 22 -> 55-65.
-    ticker_raw = data.get("ticker") or ""
-    t_bare = (
-        ticker_raw.upper().replace(".NS", "").replace(".BO", "")
-        if isinstance(ticker_raw, str) else ""
-    )
-    is_nbfc = t_bare in _NBFC_TICKERS
-
-    if pb is None and mos_pct is None:
-        return _neutral_axis("No P/BV or MoS available")
-    score = 5.0
-    reasons: list[str] = []
-    if pb is not None:
-        try:
-            pb_f = float(pb)
-            if is_nbfc:
-                # NBFC band: anchor 3.5x (cohort neutral). Each 0.5 above
-                # -> -1.0 point; each 0.5 below -> +1.0. Capped so a
-                # single metric cannot pin to floor/ceiling.
-                adj = (3.5 - pb_f) * 2.0
-                adj = max(-2.5, min(2.5, adj))
-                score += adj
-                reasons.append(f"P/BV {pb_f:.2f} (NBFC cohort)")
-            else:
-                # Banking peer band centre ~2.5x; <1.5 cheap (+2), >4 rich (-2).
-                adj = (2.5 - pb_f) * 1.5
-                adj = max(-2.5, min(2.5, adj))
-                score += adj
-                reasons.append(f"P/BV {pb_f:.2f}")
-        except Exception:
-            pass
-    if mos_pct is not None:
-        try:
-            score += 0.10 * float(mos_pct)
-            reasons.append(f"MoS {float(mos_pct):.0f}%")
-        except Exception:
-            pass
-    return _axis(
-        score,
-        ", ".join(reasons) if reasons else "Bank valuation partial",
-        # Only data-limited when neither P/BV nor MoS contributed.
-        data_limited=(pb is None and mos_pct is None),
-    )
+    return _axis_value_percentile(data, "pb")
 
 
 def _axis_value_it(data: dict) -> dict:
-    analysis = data.get("analysis") or {}
-    metrics = data.get("metrics") or {}
-    financials = data.get("financials") or []
-    rev = None
-    if financials:
-        rev = financials[0].get("revenue")
-    mcap_cr = metrics.get("market_cap_cr")
-    if not (rev and mcap_cr):
-        # Fall back to general P/E logic
-        return _axis_value_general(data)
-    try:
-        # Unit-detect revenue: the financials table column historically
-        # mixed crores (NSE_XBRL ingestion) and raw rupees (yfinance) for
-        # Indian tickers. Pre-fix the code unconditionally divided by 1e7
-        # which is correct for raw-rupee inputs but produces a 1e7-fold
-        # under-count when revenue is already in crores. The latter
-        # case fell through to `max(1.0, …)` and yielded
-        # `rev_multiple = mcap_cr / 1.0` — which surfaced as
-        # "Revenue multiple 467,224.91x vs cohort ~5x" on every IT
-        # ticker (INFY, TCS, WIPRO, HCLTECH, etc.) and floored the
-        # Value axis to 0.0/10.
-        #
-        # Heuristic: any revenue > 1e9 is raw rupees (smallest Indian
-        # listed IT-services co. has revenue >100 Cr ≈ 1e9 raw INR);
-        # anything ≤ 1e9 is already in crores (range 100–1,000,000 Cr).
-        rev_f = float(rev)
-        rev_cr = rev_f / 1e7 if rev_f > 1e9 else rev_f
-        rev_multiple = float(mcap_cr) / max(1.0, rev_cr)
-        # IT cohort median EV/Rev ~4-5x; anchor 5.0 mid.
-        score = 5.0 + (5.0 - rev_multiple) * 0.6
-        return _axis(
-            score,
-            f"Revenue multiple {rev_multiple:.2f}x vs cohort ~5x",
-        )
-    except Exception:
-        return _axis_value_general(data)
+    return _axis_value_percentile(data, "rev_multiple")
 
 
 def _axis_quality(data: dict, sector: str) -> dict:
@@ -1457,7 +1590,13 @@ def compute_hex(ticker: str) -> dict:
         "pulse":   pulse_axis,
     }
 
-    overall = sum(axes[k]["score"] * w for k, w in AXIS_WEIGHTS.items())
+    # Stage 2 (sector-percentile Value): an axis whose score is None
+    # (data_limited) substitutes the neutral 5.0 anchor for the overall
+    # weighted mean so we don't poison the composite.
+    overall = sum(
+        ((axes[k].get("score") if axes[k].get("score") is not None else 5.0)) * w
+        for k, w in AXIS_WEIGHTS.items()
+    )
     overall = round(_clamp(overall), 2)
 
     return {
@@ -1593,7 +1732,10 @@ def compute_portfolio_hex(holdings: list[dict]) -> dict:
             axes_out[k] = out
 
     overall = round(
-        _clamp(sum(axes_out[k]["score"] * w for k, w in AXIS_WEIGHTS.items())),
+        _clamp(sum(
+            ((axes_out[k].get("score") if axes_out[k].get("score") is not None else 5.0)) * w
+            for k, w in AXIS_WEIGHTS.items()
+        )),
         2,
     )
 
