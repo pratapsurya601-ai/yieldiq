@@ -238,6 +238,79 @@ def _bse_attachment_url(row: dict) -> str:
     return ""
 
 
+# ── Aggregate: pan-market news feed (no per-stock scrip needed) ─
+
+# Sentinel basket — large, liquid, sectorally-diverse NIFTY tickers.
+# yfinance Ticker.news returns Yahoo's pan-market feed surfaced for
+# each symbol; aggregating across this basket and deduping by URL
+# yields ~30-60 unique stories spanning the whole market without
+# needing per-stock BSE scrip codes (the old aggregate path was
+# fundamentally broken — BSE's API rejects empty strScrip).
+_AGGREGATE_SENTINEL_TICKERS = (
+    "RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK",
+    "ITC", "SBIN", "BHARTIARTL", "LT", "HINDUNILVR",
+    "BAJFINANCE", "MARUTI", "AXISBANK", "KOTAKBANK", "SUNPHARMA",
+)
+
+
+def fetch_aggregate_news(days: int = 7, limit: int = 50) -> list[dict]:
+    """
+    Pan-market news feed built from yfinance across a sentinel basket.
+
+    Replaces the old fetch_bse_filings(ticker=None) path which was
+    broken (BSE API requires a scrip code; empty string returns 0).
+
+    Dedupes by URL, filters to last `days` days (best-effort — items
+    without a parseable date are kept), sorts by recency desc.
+    """
+    cutoff: Optional[datetime] = None
+    if days and days > 0:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    seen_urls: set[str] = set()
+    seen_titles: set[str] = set()
+    combined: list[dict] = []
+
+    for tkr in _AGGREGATE_SENTINEL_TICKERS:
+        try:
+            items = fetch_yfinance_news(tkr, limit=15)
+        except Exception as e:  # defensive — never let one bad ticker kill the feed
+            logger.warning(f"aggregate: yfinance fetch failed for {tkr}: {e}")
+            continue
+        for item in items:
+            url = item.get("url") or ""
+            title = (item.get("headline") or "").strip().lower()
+            if url and url in seen_urls:
+                continue
+            if title and title in seen_titles:
+                continue
+            if cutoff is not None:
+                pub = item.get("published_at") or ""
+                if isinstance(pub, str) and pub:
+                    try:
+                        pub_dt = datetime.fromisoformat(pub.replace("Z", "+00:00"))
+                        if pub_dt.tzinfo is None:
+                            pub_dt = pub_dt.replace(tzinfo=timezone.utc)
+                        if pub_dt < cutoff:
+                            continue
+                    except Exception:
+                        pass  # keep undated items
+            # Tag the originating ticker so the UI can show context.
+            item.setdefault("ticker", tkr)
+            if url:
+                seen_urls.add(url)
+            if title:
+                seen_titles.add(title)
+            combined.append(item)
+
+    def _sort_key(it: dict) -> str:
+        d = it.get("published_at", "")
+        return d if isinstance(d, str) else ""
+
+    combined.sort(key=_sort_key, reverse=True)
+    return combined[:limit]
+
+
 # ── Combined: fetch all news + filings for a ticker ────────────
 
 def fetch_all_news_for_ticker(ticker: str, days: int = 14) -> list[dict]:

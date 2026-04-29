@@ -82,7 +82,7 @@ export default async function NewsFeedPage() {
         {data.items.length === 0 && (
           <div className="text-center py-16 text-gray-400">
             <p className="text-lg font-semibold mb-1">Feed temporarily unavailable</p>
-            <p className="text-sm">BSE/NSE feeds are rate-limited. Check back soon.</p>
+            <p className="text-sm">News provider is rate-limited. Check back soon.</p>
           </div>
         )}
 

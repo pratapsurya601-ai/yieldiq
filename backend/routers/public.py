@@ -1531,8 +1531,12 @@ async def get_news_feed(days: int = Query(default=7, ge=1, le=30), limit: int = 
         return _cached_json(cached, s_maxage=900, swr=3600)
 
     try:
-        from backend.services.news_service import fetch_bse_filings
-        items = fetch_bse_filings(ticker=None, days=days, limit=limit)
+        # Aggregate path uses yfinance across a sentinel NIFTY basket — the
+        # old BSE-aggregate (fetch_bse_filings(ticker=None)) was broken
+        # because BSE's API requires a per-stock scrip code; empty string
+        # returns 0 rows.
+        from backend.services.news_service import fetch_aggregate_news
+        items = fetch_aggregate_news(days=days, limit=limit)
         result = {
             "count": len(items),
             "items": items,
