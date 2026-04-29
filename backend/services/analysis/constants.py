@@ -59,6 +59,107 @@ _INSURANCE_TICKERS = {
     'HDFCLIFE', 'SBILIFE', 'ICICIGI', 'NIACL', 'STARHEALTH',
 }
 
+# ── Unified bank-like classifier set (2026-04-29) ────────────────
+# Single source of truth for "treat this ticker as a bank/NBFC/
+# insurance/AMC for valuation + Piotroski + Hex + scoring".
+# Mirrors (and extends) the ad-hoc set previously kept inside
+# ``screener.piotroski`` so the analysis pipeline, Prism/Hex pipeline
+# and Piotroski engine all classify the same tickers identically.
+#
+# Includes:
+#   - core banks (FINANCIAL_COMPANIES already covers majors)
+#   - NBFCs / housing finance
+#   - life + general insurance
+#   - small-finance banks (CAPITALSFB & peers — added after
+#     CAPITALSFB.NS surfaced as sector="Chemicals" from yfinance,
+#     causing the analysis pipeline to run DCF and produce a
+#     headline +289% MoS vs the Prism hex composite of ~5/10).
+#   - PSU lender-NBFCs (PFC, RECLTD, IRFC) and AMCs/exchanges
+#     that also fail FCF-based DCF.
+_NBFC_INSURANCE_BANKLIKE: set[str] = {
+    # Banks (majors and tier-2)
+    'HDFCBANK', 'ICICIBANK', 'SBIN', 'KOTAKBANK', 'AXISBANK',
+    'BANKBARODA', 'PNB', 'CANBK', 'FEDERALBNK', 'IDFCFIRSTB',
+    'INDUSINDBK', 'BANDHANBNK', 'RBLBANK', 'YESBANK',
+    'IOB', 'UCOBANK', 'CENTRALBK', 'INDIANB', 'MAHABANK',
+    'KARURVYSYA', 'CUB', 'DCBBANK', 'SOUTHBANK', 'TMB',
+    # Small-Finance Banks (added 2026-04-29 — yfinance frequently
+    # mis-tags these with sector="Chemicals" / "Industrials").
+    'CAPITALSFB', 'ESAFSFB', 'EQUITASBNK', 'AUBANK',
+    'UJJIVANSFB', 'SURYODAY', 'FINOPB', 'JANASURF',
+    'UTKARSHBNK', 'FINCABK', 'SFBAJM',
+    # NBFCs / housing finance
+    'BAJFINANCE', 'BAJAJFINSV', 'CHOLAFIN', 'MUTHOOTFIN',
+    'MANAPPURAM', 'M&MFIN', 'SHRIRAMFIN', 'LICHSGFIN',
+    'LICHOUSFIN', 'POONAWALLA', 'AAVAS', 'HOMEFIRST',
+    'SBICARD', 'SUNDARMFIN', 'CREDITACC', 'BAJAJHLDNG',
+    # PSU lender-NBFCs (regulated utilities of credit)
+    'PFC', 'RECLTD', 'IRFC',
+    # Insurance
+    'HDFCLIFE', 'SBILIFE', 'ICICIPRULI', 'ICICIGI', 'NIACL',
+    'STARHEALTH',
+}
+
+
+def is_bank_like(
+    ticker: str | None,
+    sector: str | None = None,
+    industry: str | None = None,
+) -> bool:
+    """Return True if (ticker, sector, industry) describes a bank-
+    like business (commercial bank, SFB, NBFC, AMC, insurer).
+
+    Single source of truth shared by the analysis pipeline, Prism /
+    Hex, Piotroski and the YieldIQ score path. Three independent
+    signals — match on any:
+
+      1. Ticker membership in ``_NBFC_INSURANCE_BANKLIKE`` (extends
+         the legacy ``FINANCIAL_COMPANIES`` set; insulates against
+         yfinance sector mis-tags such as CAPITALSFB.NS surfacing as
+         "Chemicals").
+      2. Sector string contains a financial keyword.
+      3. Industry string ILIKE 'Bank%' / 'NBFC%' / 'Insurance%' /
+         'Asset Management%' / 'Capital Markets%'.
+      4. Ticker suffix 'BANK.NS' / 'BANK.BO' / 'FIN.NS' / 'FIN.BO'.
+
+    Returning True routes the ticker to the P/B-multiple valuation
+    path (banks have negative FCF by design; FCF-DCF is meaningless)
+    and to the bank-mode 4-signal Piotroski.
+    """
+    if ticker:
+        clean = (
+            ticker.replace('.NS', '')
+            .replace('.BO', '')
+            .upper()
+        )
+        if clean in _NBFC_INSURANCE_BANKLIKE or clean in FINANCIAL_COMPANIES:
+            return True
+        # Legacy convention: BANK.NS / FIN.NS suffix.
+        upper = ticker.upper()
+        if upper.endswith(('BANK.NS', 'BANK.BO', 'FIN.NS', 'FIN.BO')):
+            return True
+    if sector:
+        s = sector.strip().lower()
+        # Match the broad yfinance "Financial Services" bucket plus
+        # the canonical labels we override to in SECTOR_OVERRIDES.
+        if s in {
+            'banks', 'banking', 'financial services', 'financial',
+            'nbfc', 'insurance',
+        }:
+            return True
+        if 'bank' in s or 'nbfc' in s or 'insurance' in s:
+            return True
+    if industry:
+        i = industry.strip().lower()
+        for prefix in (
+            'bank', 'nbfc', 'insurance',
+            'asset management', 'capital markets',
+            'financial data', 'credit services',
+        ):
+            if i.startswith(prefix):
+                return True
+    return False
+
 # Inventory-heavy retail: negative CFO from working capital, not weakness
 INVENTORY_HEAVY_TICKERS = {
     'TITAN', 'TRENT', 'ABFRL', 'DMART', 'PAGEIND',

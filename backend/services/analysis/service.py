@@ -80,6 +80,7 @@ from backend.services.analysis.constants import (
     FINANCIAL_COMPANIES,
     INVENTORY_HEAVY_TICKERS,
     is_cyclical,
+    is_bank_like,
     COMPANY_NAME_OVERRIDES,
     _PB_MEDIANS,
     _NBFC_TICKERS,
@@ -401,9 +402,19 @@ class AnalysisService(NarrativeMixin):
                 timestamp=_ts,
             )
 
-        # Detect financial companies (NBFC/Bank/Insurance)
+        # Detect financial companies (NBFC/Bank/Insurance) via the
+        # unified is_bank_like classifier (constants.is_bank_like). It
+        # accepts ticker + sector + industry signals so yfinance sector
+        # mis-tags (e.g. CAPITALSFB.NS surfacing as "Chemicals") cannot
+        # smuggle a bank into the FCF-DCF path. Keeping clean_ticker as
+        # the legacy variable name because it threads through 30+ call
+        # sites; semantics now match Prism/Hex and Piotroski exactly.
         clean_ticker = ticker.replace('.NS', '').replace('.BO', '')
-        is_financial = clean_ticker in FINANCIAL_COMPANIES
+        _enriched_sector = enriched.get("sector_name") or raw.get("sector_name") or raw.get("sector")
+        _enriched_industry = raw.get("industry") or enriched.get("industry")
+        is_financial = is_bank_like(
+            ticker, _enriched_sector, _enriched_industry,
+        )
 
         # ── Step 4: Build company info ────────────────────────
         _raw_sector = enriched.get("sector_name", raw.get("sector_name", ""))
@@ -1458,12 +1469,11 @@ class AnalysisService(NarrativeMixin):
 
         # Sector-based "bank / NBFC / Financial" detection — leverage
         # and interest-coverage ratios are not meaningful for these.
-        _sector_str = (company.sector or "").lower()
+        # Delegates to the unified is_bank_like (constants.py) so this
+        # block agrees with `is_financial` above and with Prism/Hex.
         _is_bank_like = bool(
             is_financial
-            or "bank" in _sector_str
-            or "financial" in _sector_str
-            or ticker.upper().endswith(("BANK.NS", "BANK.BO"))
+            or is_bank_like(ticker, company.sector, _industry)
         )
 
         # ROCE uses the textbook capital-employed denominator:
