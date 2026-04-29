@@ -949,9 +949,27 @@ async def _build_yieldiq50() -> ScreenerResponse:
                 _db = _S()
                 try:
                     rows = _db.execute(_t("""
+                        -- 2026-04-29 fix: fair_value_history.ticker is mixed-form.
+                        -- The live analysis hot path (store_today_fair_value) writes
+                        -- canonical ".NS"-suffixed tickers; the monthly backfill
+                        -- script writes bare ones. stocks.ticker is always bare,
+                        -- so the previous JOIN s.ticker = fv.ticker silently
+                        -- dropped every row written by the live path — i.e. all
+                        -- recently-analysed stocks (the ones most likely to have
+                        -- a fresh, valid MoS). Result: the DB fallback returned
+                        -- few or zero rows and Discover rendered "warming up".
+                        -- Normalise fv.ticker to bare form on the JOIN so both
+                        -- writers' rows participate.
                         WITH latest_fv AS (
                           SELECT DISTINCT ON (ticker)
-                            ticker, fair_value, price, mos_pct, verdict
+                            ticker,
+                            -- bare form for joining to stocks/market_metrics
+                            CASE
+                              WHEN ticker LIKE '%.NS' OR ticker LIKE '%.BO'
+                                THEN split_part(ticker, '.', 1)
+                              ELSE ticker
+                            END AS ticker_bare,
+                            fair_value, price, mos_pct, verdict
                           FROM fair_value_history
                           ORDER BY ticker, date DESC
                         ),
@@ -969,15 +987,15 @@ async def _build_yieldiq50() -> ScreenerResponse:
                           ORDER BY ticker, trade_date DESC
                         )
                         SELECT
-                          fv.ticker,
+                          fv.ticker_bare AS ticker,
                           s.company_name,
                           s.sector,
                           fv.mos_pct,
                           fv.verdict,
                           mm.market_cap_cr
                         FROM latest_fv fv
-                        JOIN stocks s ON s.ticker = fv.ticker
-                        LEFT JOIN latest_mm mm ON mm.ticker = fv.ticker
+                        JOIN stocks s ON s.ticker = fv.ticker_bare
+                        LEFT JOIN latest_mm mm ON mm.ticker = fv.ticker_bare
                         WHERE fv.mos_pct IS NOT NULL
                           AND fv.mos_pct > 0
                           AND fv.mos_pct <= 100
