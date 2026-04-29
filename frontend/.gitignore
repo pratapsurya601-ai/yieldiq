@@ -12,6 +12,8 @@
 
 # testing
 /coverage
+/.vitest-cache
+/node_modules/.vitest
 
 # next.js
 /.next/

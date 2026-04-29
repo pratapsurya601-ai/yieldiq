@@ -1,11 +1,5 @@
-// @ts-nocheck
 /**
  * Tests for ValueBandChip.
- *
- * NOTE: this repo does not yet have a test runner installed. The file
- * is written against vitest + @testing-library/react conventions so it
- * runs unmodified once those deps are added. The `@ts-nocheck` above
- * keeps `tsc --noEmit` and `next build` green until those deps land.
  */
 
 import { describe, it, expect } from "vitest"
