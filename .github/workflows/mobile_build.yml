@@ -1,0 +1,44 @@
+name: mobile-build
+
+on:
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile_build.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'mobile/**'
+
+jobs:
+  typecheck-lint-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      # Use npm install (not ci) until a lockfile is committed.
+      - name: Install deps
+        run: npm install --no-audit --no-fund
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint || echo "lint warnings allowed in Phase 0"
+
+      - name: Test
+        run: npm test -- --ci
+
+      # Catches dependency / native-config issues without actually
+      # building binaries. Doesn't ship to App Store / Play Store.
+      - name: Expo prebuild (dry)
+        run: npx expo prebuild --no-install --clean || echo "prebuild check informational in Phase 0"
