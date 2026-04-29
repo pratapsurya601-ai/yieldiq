@@ -52,6 +52,11 @@ from dataclasses import dataclass, field
 
 logger = logging.getLogger("yieldiq.validators")
 
+# Process-local dedup set for VALIDATION CRITICAL log lines. Keyed on
+# (ticker, sorted-tuple-of-failed-fields) — a stable signature that
+# doesn't grow on every page-view. See log_validation() for usage.
+_LOGGED_CRITICAL_SIGS: set[tuple[str, tuple[str, ...]]] = set()
+
 
 @dataclass
 class ValidationResult:
@@ -464,10 +469,26 @@ def log_validation(ticker: str, result: ValidationResult) -> None:
 
     cap_applied = _dcf_was_capped(ticker)
     if result.severity == "critical" and not cap_applied:
-        logger.error(
-            "VALIDATION CRITICAL [%s]: %d issues, fields=%s | %s",
-            ticker, len(result.issues), result.failed_fields, "; ".join(result.issues)
-        )
+        # Dedup: same (ticker, failed-fields) signature only goes to
+        # Sentry once per process lifetime. A single bad row in the
+        # cache otherwise produces an event per page-view (12k+ for
+        # one ticker observed in prod). Subsequent occurrences log at
+        # WARNING so the line is still in app logs for forensics but
+        # doesn't page Sentry.
+        sig = (ticker, tuple(sorted(result.failed_fields or ())))
+        if sig in _LOGGED_CRITICAL_SIGS:
+            logger.warning(
+                "VALIDATION CRITICAL [%s] (deduped, already paged): "
+                "%d issues, fields=%s | %s",
+                ticker, len(result.issues), result.failed_fields,
+                "; ".join(result.issues),
+            )
+        else:
+            _LOGGED_CRITICAL_SIGS.add(sig)
+            logger.error(
+                "VALIDATION CRITICAL [%s]: %d issues, fields=%s | %s",
+                ticker, len(result.issues), result.failed_fields, "; ".join(result.issues)
+            )
     elif result.severity == "critical" and cap_applied:
         # Cap-driven "critical" signals are a known class of false
         # positive (FV/CMP overshoot after moat multiplier applied on
