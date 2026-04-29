@@ -3340,3 +3340,65 @@ async def get_reverse_dcf_public(ticker: str):
         safe, s_maxage=600, swr=3600,
         extra_headers={"X-Source": "reverse_dcf_v1", "X-Cache": "MISS"},
     )
+
+
+# ── Earnings call transcripts ─────────────────────────────────
+# Public read endpoint that surfaces rows from the existing
+# concall_transcripts table (populated by the weekly NSE
+# corporate-announcements cron — see
+# .github/workflows/concall_transcripts_weekly.yml). No fetcher
+# logic here; this is a thin DB read with edge caching.
+
+@router.get("/transcripts/{ticker}")
+async def get_transcripts(ticker: str, limit: int = Query(default=8, ge=1, le=24)):
+    """Most recent earnings call / analyst-meet filings for a ticker.
+
+    Public, no auth. Reads from the concall_transcripts table populated by
+    the weekly NSE corporate-announcements cron. Edge-cached for 1h with a
+    24h SWR window — these filings only update on quarterly cadence.
+    """
+    clean = ticker.upper().strip().replace(".NS", "").replace(".BO", "")
+    _cache_key = f"public:transcripts:{clean}:{limit}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=3600, swr=86400)
+
+    sess = _get_db_session()
+    if sess is None:
+        # Mirror the news endpoint posture: return an empty payload rather
+        # than 500 so the frontend can render its empty-state cleanly.
+        empty = {"ticker": ticker, "count": 0, "transcripts": []}
+        return _cached_json(empty, s_maxage=60, swr=300)
+
+    try:
+        from backend.models.concalls import ConcallTranscript
+        rows = (
+            sess.query(ConcallTranscript)
+            .filter(ConcallTranscript.ticker == clean)
+            .order_by(ConcallTranscript.filing_date.desc())
+            .limit(limit)
+            .all()
+        )
+        transcripts = [
+            {
+                "quarter_end": r.quarter_end.isoformat() if r.quarter_end else None,
+                "filing_date": r.filing_date.isoformat() if r.filing_date else None,
+                "pdf_url": r.pdf_url,
+                "title": r.subject,
+                "source": "NSE",
+            }
+            for r in rows
+        ]
+        result = {
+            "ticker": ticker,
+            "count": len(transcripts),
+            "transcripts": transcripts,
+        }
+        cache.set(_cache_key, result, ttl=3600)
+        return _cached_json(result, s_maxage=3600, swr=86400)
+    except Exception as exc:
+        logger.warning("transcripts fetch failed for %s: %s", clean, exc)
+        empty = {"ticker": ticker, "count": 0, "transcripts": []}
+        return _cached_json(empty, s_maxage=60, swr=300)
+    finally:
+        _safe_close(sess)

@@ -18,6 +18,7 @@ import QualityRatios from "@/components/analysis/QualityRatios"
 import PromoterPledgePanel from "@/components/analysis/PromoterPledgePanel"
 import DividendTracker from "@/components/analysis/DividendTracker"
 import NewsWidget from "@/components/analysis/NewsWidget"
+import EarningsCallsWidget from "@/components/analysis/EarningsCallsWidget"
 import LoadingSteps from "@/components/ui/LoadingSteps"
 import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
@@ -557,6 +558,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             ticker={company.ticker}
           />
           <NewsWidget ticker={ticker} />
+          <EarningsCallsWidget ticker={ticker} />
         </div>
       ),
     },
