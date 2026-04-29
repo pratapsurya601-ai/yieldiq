@@ -1113,6 +1113,51 @@ async def _build_yieldiq50() -> ScreenerResponse:
         return True
 
     _filtered = [s for s in by_ticker.values() if _ok_for_top50(s)]
+
+    # ── Foundation PR (2026-04-29): data-completeness gate ─────
+    # YieldIQ 50 must never surface tickers with sparse fundamentals.
+    # `data_completeness_score` is a 0-1 confidence aggregator over
+    # annual financials count, key-field population, classifier
+    # confidence, quality-metric computability, and market-cap
+    # presence. Threshold YIELDIQ50_MIN_COMPLETENESS (0.70) drops
+    # tickers like CAPLIPOINT (sector="General/Diversified",
+    # industry="") and CAPITALSFB (mis-tagged "Chemicals" sector)
+    # that previously slipped past the curated-set guards.
+    #
+    # Soft-fail: if the DB session is unavailable or the gate
+    # raises for any reason, keep the pre-gate list — never blank
+    # the rail. Logs every drop for the post-launch audit.
+    try:
+        from backend.services.data_quality import (
+            data_completeness_score,
+            YIELDIQ50_MIN_COMPLETENESS,
+        )
+        from data_pipeline.db import Session as _GateSession
+        _gated: list[ScreenerStock] = []
+        _gate_db = _GateSession() if _GateSession is not None else None
+        if _gate_db is not None:
+            try:
+                for s in _filtered:
+                    try:
+                        rep = data_completeness_score(s.ticker, _gate_db)
+                    except Exception:
+                        # Per-ticker failure: keep the row (don't punish
+                        # a transient DB hiccup by hiding good stocks).
+                        _gated.append(s)
+                        continue
+                    if rep.score >= YIELDIQ50_MIN_COMPLETENESS:
+                        _gated.append(s)
+                _filtered = _gated
+            finally:
+                try:
+                    _gate_db.close()
+                except Exception:
+                    pass
+    except Exception:
+        # Module import / global DB failure — fall through to the
+        # pre-gate list so the rail never blanks on a foundation bug.
+        pass
+
     # Sort by MoS descending — the user-facing rail is "top
     # undervalued" so MoS is the honest primary sort key. Tie-break
     # by score for stability. The previous sort by score alone was
