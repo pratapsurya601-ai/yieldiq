@@ -555,6 +555,12 @@ class AnalysisService(NarrativeMixin):
 
         forecast_yrs = 10
 
+        # PR #168: track whether the cyclical-trough anchor fires so
+        # downstream scenario assembly + (later) hex axes can react.
+        _trough_anchor_fired = False
+        _trough_anchor_bear_iv: float | None = None
+        _trough_anchor_bull_iv: float | None = None
+
         # ── Step 6: Valuation (P/B for financials, DCF for others) ──
         if is_financial:
             # Defaults — always defined regardless of which P/B path runs
@@ -811,13 +817,27 @@ class AnalysisService(NarrativeMixin):
                 iv = round(price * 0.95, 2)
                 if not _fcf_data_source.endswith("+trough_anchor"):
                     _fcf_data_source = f"{_fcf_data_source}+trough_anchor"
+                # PR #168: propagate the anchor to scenarios so the bear
+                # / bull cases don't render as ₹0 on the frontend (the
+                # raw cycle-bottom DCF that produced iv<0.2*price also
+                # produces bear≈0/bull≈0 from the same engine; without
+                # propagation _enforce_scenario_order leaves bear at 0
+                # because 0 <= base <= bull is technically "ordered").
+                # Anchor band: bear at 0.85*price (mid-cycle pessimism),
+                # base at 0.95*price (current anchor), bull at 1.10*price
+                # (mid-cycle recovery). These are honest "cycle has
+                # priced in" reads, not engine output.
+                _trough_anchor_fired = True
+                _trough_anchor_bear_iv = round(price * 0.85, 2)
+                _trough_anchor_bull_iv = round(price * 1.10, 2)
                 import logging as _trough_log
                 _trough_log.getLogger("yieldiq.analysis").info(
                     "CYCLICAL_TROUGH_ANCHOR: %s iv=%.2f / price=%.2f "
                     "(ratio=%.4f) below 0.2 floor; anchoring iv to %.2f "
-                    "(0.95*price)",
+                    "(0.95*price); scenarios anchored bear=%.2f bull=%.2f",
                     ticker, _pre_anchor_iv, price,
                     _pre_anchor_iv / price if price > 0 else 0.0, iv,
+                    _trough_anchor_bear_iv, _trough_anchor_bull_iv,
                 )
 
         # ── Growth-stock override ─────────────────────────────
@@ -1285,6 +1305,28 @@ class AnalysisService(NarrativeMixin):
         else:
             _sc_bear_pre = _sc("Bear case") if scenarios_raw.get("Bear case") else _sc("Bear 🐻")
             _sc_bull_pre = _sc("Bull case") if scenarios_raw.get("Bull case") else _sc("Bull 🐂")
+            # PR #168: when the cyclical-trough anchor fired, the raw
+            # scenario engine produced bear/bull from the same broken
+            # cycle-bottom DCF that triggered the anchor in the first
+            # place — values are typically 0/0 or a few rupees. Replace
+            # them with the anchored band so the frontend shows an
+            # honest "cycle has priced in" read instead of ₹0 and a
+            # stray bull-only number from _enforce_scenario_order.
+            if _trough_anchor_fired and _trough_anchor_bear_iv is not None:
+                _bear_iv_val = _trough_anchor_bear_iv
+                _bull_iv_val = _trough_anchor_bull_iv or round(price * 1.10, 2)
+                _sc_bear_pre = ScenarioCase(
+                    iv=_bear_iv_val,
+                    mos_pct=round((_bear_iv_val - price) / price * 100, 1) if price > 0 else 0,
+                    growth=round(base_growth, 4),
+                    wacc=round(wacc, 4), term_g=round(terminal_g, 4),
+                )
+                _sc_bull_pre = ScenarioCase(
+                    iv=_bull_iv_val,
+                    mos_pct=round((_bull_iv_val - price) / price * 100, 1) if price > 0 else 0,
+                    growth=round(base_growth, 4),
+                    wacc=round(wacc, 4), term_g=round(terminal_g, 4),
+                )
         _sc_base_pre = ScenarioCase(
             iv=round(iv, 2), mos_pct=round(mos_pct, 1),
             growth=round(base_growth, 4),

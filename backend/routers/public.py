@@ -3219,7 +3219,31 @@ async def get_reverse_dcf_public(ticker: str):
     total_cash = float(ci.get("total_cash") or 0)
     shares = float(ci.get("shares_outstanding") or 0)
     terminal_g = float(getattr(valuation, "terminal_growth", 0) or ci.get("terminal_growth") or 0.04)
-    current_margin = (current_fcf / current_revenue) if current_revenue > 0 else 0.0
+    # PR #168: unit-mismatch guard.
+    # `fcf_ttm` is stored in raw rupees (yfinance native unit, ~1e10
+    # for an Indian large-cap) while `revenue_ttm` reaches us via
+    # `enriched.latest_revenue` which the data pipeline normalises to
+    # ₹ Crores (~1e5 for the same large-cap). Dividing them directly
+    # produced absurd margin displays — TATASTEEL surfaced as
+    # "8,675,878.4% margins" pre-fix (18.8e9 / 216,840 = 86,758, ×100
+    # for percent rendering). Detection: a real FCF margin sits inside
+    # ±50%; if the raw ratio exceeds 100x that, we're in unit-mismatch
+    # territory and revenue needs the ₹Cr -> ₹ raw conversion (×1e7).
+    # Renormalising `current_revenue` (rather than just `current_margin`)
+    # also fixes the iso-FV margin solver inside compute_reverse_dcf
+    # which divides `current_fcf` by `current_revenue` internally.
+    if current_revenue > 0:
+        _raw_margin = current_fcf / current_revenue
+        if abs(_raw_margin) > 50.0:
+            current_revenue = current_revenue * 1e7
+            current_margin = current_fcf / current_revenue
+        elif current_fcf != 0 and abs(_raw_margin) < 1e-4:
+            current_revenue = current_revenue / 1e7
+            current_margin = current_fcf / current_revenue
+        else:
+            current_margin = _raw_margin
+    else:
+        current_margin = 0.0
 
     historical_revenue_cagr = None
     historical_fcf_margin = None

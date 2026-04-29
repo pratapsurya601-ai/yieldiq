@@ -420,6 +420,17 @@ def _axis_value_general(data: dict) -> dict:
 
     pe = metrics.get("pe_ratio")
 
+    # PR #168: when the cyclical-trough anchor fired, the displayed
+    # MoS already reflects the honest "fairly valued at trough" call
+    # via FV = 0.95*price. Trailing P/E at the same trough is
+    # misleadingly elevated (denominator earnings collapsed) and
+    # would otherwise drag the Value axis to ~1/10 even though the
+    # DCF (now anchor-aware) reads near-fair. Suppress P/E in that
+    # case so Value reflects the anchor.
+    _fcf_src = _dig(analysis, "valuation", "fcf_data_source") or ""
+    if isinstance(_fcf_src, str) and "trough_anchor" in _fcf_src:
+        pe = None
+
     # data_limited triggers ONLY when both MoS (DCF-derived) and P/E
     # are absent. A microcap with a P/E but no DCF still lights up.
     if mos_pct is None and pe is None:
@@ -819,17 +830,25 @@ def _axis_growth(data: dict, sector: str = "general") -> dict:
 
     score = 5.0
     reasons: list[str] = []
+    # PR #168: cap each component contribution to ±2.5 axis points so a
+    # single deeply-negative cycle-bottom CAGR can't single-handedly
+    # floor the whole axis to 0. Cyclicals at trough routinely produce
+    # EPS CAGR < -50% (TATASTEEL EPS collapsed from ~₹70 peak to ~₹3
+    # at trough -> 3y CAGR ≈ -60%). The honest score for "growth was
+    # cyclical and we're at the bottom" is ~3-4, not 0.
     if rev_cagr is not None:
         try:
             r = float(rev_cagr)
             # Anchor 10% -> 5.5; 20% -> 6.5. r is in PERCENT.
-            score += r * 0.10
+            contrib = max(-2.5, min(2.5, r * 0.10))
+            score += contrib
             reasons.append(f"Rev CAGR {r:.1f}%")
         except Exception:
             pass
     if eps_cagr is not None:
         try:
-            score += eps_cagr * 0.08
+            contrib = max(-2.5, min(2.5, eps_cagr * 0.08))
+            score += contrib
             reasons.append(f"EPS CAGR {eps_cagr:.1f}%")
         except Exception:
             pass
