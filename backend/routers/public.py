@@ -1619,7 +1619,10 @@ async def get_technicals_endpoint(ticker: str, days: int = Query(default=365, ge
     _cache_key = f"public:technicals:{clean}:{days}"
     cached = cache.get(_cache_key)
     if cached is not None:
-        return cached
+        # Existing cache entries populated before the NaN sanitization
+        # may still contain NaN/Inf — sanitize on read so a stale cache
+        # doesn't 500 the encoder.
+        return _nan_to_none(cached)
 
     try:
         from data_pipeline.nse_prices.db_integration import get_technical_indicators
@@ -1627,6 +1630,11 @@ async def get_technicals_endpoint(ticker: str, days: int = Query(default=365, ge
         if result is None:
             raise HTTPException(status_code=404, detail=f"No price history for {clean}")
         result["ticker"] = ticker
+        # NaN/Inf from pandas (insufficient history → SMA/RSI undefined,
+        # MACD div-by-zero on flat series, etc.) is not JSON-compliant
+        # and explodes Starlette's encoder. Coerce before caching so
+        # both fresh + cached responses are clean.
+        result = _nan_to_none(result)
         cache.set(_cache_key, result, ttl=3600)
         return result
     except HTTPException:
