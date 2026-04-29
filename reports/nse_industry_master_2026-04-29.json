@@ -1,0 +1,103 @@
+{
+  "run_id": "20260429T130044Z",
+  "timestamp": "2026-04-29T13:19:18.043935+00:00",
+  "force": false,
+  "dry_run": false,
+  "before": {
+    "total": 4550,
+    "with_industry": 2308,
+    "missing_industry": 2242
+  },
+  "after": {
+    "total": 4550,
+    "with_industry": 2735,
+    "missing_industry": 1815
+  },
+  "by_source": {
+    "Nifty Total Market": 1,
+    "quote_api": 435
+  },
+  "delta_filled": 427,
+  "still_missing_top_20": [
+    {
+      "ticker": "4THDIM",
+      "company_name": ""
+    },
+    {
+      "ticker": "AARVEEDEN",
+      "company_name": ""
+    },
+    {
+      "ticker": "ABSLNN50ET.BO",
+      "company_name": "Aditya Birla Sun Life Mutual F"
+    },
+    {
+      "ticker": "ABSLPSE.BO",
+      "company_name": "Aditya Birla Sun Life Mutual F"
+    },
+    {
+      "ticker": "ACRYSIL",
+      "company_name": ""
+    },
+    {
+      "ticker": "ADANITRANS",
+      "company_name": ""
+    },
+    {
+      "ticker": "ADHUNIKIND",
+      "company_name": ""
+    },
+    {
+      "ticker": "ADORWELD",
+      "company_name": ""
+    },
+    {
+      "ticker": "AEGISCHEM",
+      "company_name": ""
+    },
+    {
+      "ticker": "AGCNET",
+      "company_name": ""
+    },
+    {
+      "ticker": "AHL",
+      "company_name": ""
+    },
+    {
+      "ticker": "ALLSEC",
+      "company_name": ""
+    },
+    {
+      "ticker": "ALPHA.BO",
+      "company_name": "Kotak Mahindra Mutual Fund - P"
+    },
+    {
+      "ticker": "AMARAJABAT",
+      "company_name": ""
+    },
+    {
+      "ticker": "AMIORG",
+      "company_name": ""
+    },
+    {
+      "ticker": "ANDREWYU.BO",
+      "company_name": "ANDREW YULE & COMPANY LTD."
+    },
+    {
+      "ticker": "ANGELBRKG",
+      "company_name": ""
+    },
+    {
+      "ticker": "ANSALHSG.BO",
+      "company_name": "ANSAL HOUSING LIMITED"
+    },
+    {
+      "ticker": "ATFL",
+      "company_name": ""
+    },
+    {
+      "ticker": "ATLANTA",
+      "company_name": ""
+    }
+  ]
+}
