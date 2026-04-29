@@ -25,6 +25,7 @@ export default function MarketingTopNav() {
 
         <div className="hidden md:flex items-center gap-6 text-sm">
           <Link href="/blog" className="text-gray-600 hover:text-gray-900 transition">Blog</Link>
+          <Link href="/how-it-works" className="text-gray-600 hover:text-gray-900 transition">How it works</Link>
           <Link href="/nifty50" className="text-gray-600 hover:text-gray-900 transition">Nifty 50</Link>
           <Link href="/screens/high-roce" className="text-gray-600 hover:text-gray-900 transition">Screens</Link>
           <Link href="/earnings-calendar" className="text-gray-600 hover:text-gray-900 transition">Earnings</Link>
@@ -63,6 +64,7 @@ export default function MarketingTopNav() {
       {open && (
         <div className="md:hidden border-t border-gray-100 px-4 py-3 space-y-2 bg-white">
           <Link href="/blog" className="block text-sm py-2 text-gray-700">Blog</Link>
+          <Link href="/how-it-works" className="block text-sm py-2 text-gray-700">How it works</Link>
           <Link href="/nifty50" className="block text-sm py-2 text-gray-700">Nifty 50</Link>
           <Link href="/nifty-bank" className="block text-sm py-2 text-gray-700">Nifty Bank</Link>
           <Link href="/nifty-it" className="block text-sm py-2 text-gray-700">Nifty IT</Link>

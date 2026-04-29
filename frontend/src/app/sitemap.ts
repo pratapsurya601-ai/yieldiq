@@ -15,6 +15,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: "https://yieldiq.in/earnings-calendar", priority: 0.8, changeFrequency: "daily" },
     { url: "https://yieldiq.in/news", priority: 0.7, changeFrequency: "hourly" },
     { url: "https://yieldiq.in/blog", priority: 0.9, changeFrequency: "weekly" },
+    { url: "https://yieldiq.in/how-it-works", priority: 0.8, changeFrequency: "monthly" },
     { url: "https://yieldiq.in/methodology", priority: 0.6, changeFrequency: "monthly" },
     { url: "https://yieldiq.in/terms", priority: 0.3, changeFrequency: "monthly" },
     { url: "https://yieldiq.in/privacy", priority: 0.3, changeFrequency: "monthly" },
