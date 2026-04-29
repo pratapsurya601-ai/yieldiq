@@ -98,15 +98,34 @@ def value_band_for_percentile(percentile: Optional[int]) -> dict:
     return {"band": "data_limited", "label": "Insufficient peer data"}
 
 
-def _canonical_sector(sector_label: str) -> Optional[str]:
-    """Resolve free-form sector → canonical key, or None if unmapped.
+def _canonical_sector(
+    sector_label: str,
+    industry_label: Optional[str] = None,
+) -> Optional[str]:
+    """Resolve free-form (sector, industry) → canonical key, or None.
 
     We deliberately do NOT fall back to '_default' — mixing every
     unmapped ticker into one cohort produces noise, not signal.
+
+    The optional `industry_label` disambiguates yfinance's coarse
+    "Financial Services" sector: tickers whose industry starts with
+    "Banks " (e.g. "Banks - Regional") are routed to the Banks
+    canonical cohort; the rest stay in Financial Services. Without
+    this hint, HDFCBANK and an AMC end up in the same cohort, which
+    makes the percentile band useless for both.
     """
     if not sector_label:
         return None
     s = str(sector_label).strip()
+    ind = (industry_label or "").strip().lower()
+
+    # Industry-driven override for the Financial Services bucket.
+    if s.lower() == "financial services" or s == "Financial Services":
+        if ind.startswith("banks"):
+            return "Banks"
+        # Fall through to default canonical resolution below
+        # (which will land on "Financial Services").
+
     if s in sector_benchmarks.SECTOR_BENCHMARK_MAP and s != "_default":
         return s
     canonical = sector_benchmarks.SECTOR_ALIASES.get(s.lower())
@@ -156,10 +175,17 @@ def _coerce_float(x) -> Optional[float]:
     return None if v != v else v
 
 
-def _fetch_cohort_rows(canonical_sector: str, db_session) -> list[dict]:
-    """Run the cohort query. Latest market_metrics + latest analysis_cache per ticker."""
-    sql = text(
-        """
+def _build_cohort_query(canonical_sector: str) -> tuple[str, dict]:
+    """Resolve `canonical_sector` to (SQL, bind-params).
+
+    Looks up `SECTOR_COHORT_RULES` in sector_benchmarks. If the
+    canonical isn't registered there we fall back to legacy
+    exact-match on `s.sector` (preserves the historical, narrow
+    behaviour for unmapped canonicals — they will simply return
+    an empty cohort, which is what they did before this fix).
+    """
+    rule = sector_benchmarks.SECTOR_COHORT_RULES.get(canonical_sector)
+    base = """
         WITH latest_mm AS (
             SELECT DISTINCT ON (mm.ticker)
                 mm.ticker, mm.market_cap_cr, mm.pe_ratio, mm.pb_ratio
@@ -176,12 +202,42 @@ def _fetch_cohort_rows(canonical_sector: str, db_session) -> list[dict]:
         FROM stocks s
         LEFT JOIN latest_mm lm ON lm.ticker = s.ticker
         LEFT JOIN latest_ac la ON la.ticker = s.ticker
-        WHERE s.sector = :sector
-          AND COALESCE(s.is_active, TRUE) = TRUE
-        """
-    )
+        WHERE COALESCE(s.is_active, TRUE) = TRUE
+    """
+
+    if rule is None:
+        # Legacy path: exact-match on the canonical label. This will
+        # almost certainly return zero rows (canonical labels do not
+        # exist as stored values), but preserves backward-compatible
+        # behaviour for any caller still passing pre-canonicalised
+        # strings.
+        sql = base + "\n          AND s.sector = :sector"
+        return sql, {"sector": canonical_sector}
+
+    sectors: list[str] = list(rule.get("sectors") or [])
+    industry_like: Optional[str] = rule.get("industry_like")
+    params: dict = {"sectors": sectors}
+    sql = base + "\n          AND s.sector = ANY(:sectors)"
+
+    if industry_like:
+        sql += "\n          AND s.industry ILIKE :industry_like"
+        params["industry_like"] = industry_like
+
+    # Special-case: "Financial Services" canonical excludes banks,
+    # which live in their own canonical cohort.
+    if canonical_sector == "Financial Services":
+        sql += "\n          AND (s.industry IS NULL OR s.industry NOT ILIKE :exclude_banks)"
+        params["exclude_banks"] = sector_benchmarks.FINANCIAL_SERVICES_BANK_EXCLUDE_LIKE
+
+    return sql, params
+
+
+def _fetch_cohort_rows(canonical_sector: str, db_session) -> list[dict]:
+    """Run the cohort query. Latest market_metrics + latest analysis_cache per ticker."""
+    sql_str, params = _build_cohort_query(canonical_sector)
+    sql = text(sql_str)
     try:
-        rows = db_session.execute(sql, {"sector": canonical_sector}).fetchall()
+        rows = db_session.execute(sql, params).fetchall()
     except Exception as exc:  # pragma: no cover
         logger.warning(
             "sector_percentile: cohort query failed for %s: %s",
@@ -222,14 +278,23 @@ def _fetch_cohort_rows(canonical_sector: str, db_session) -> list[dict]:
     return out
 
 
-def compute_sector_cohort(sector_label: str, db_session) -> list[dict]:
+def compute_sector_cohort(
+    sector_label: str,
+    db_session,
+    industry_label: Optional[str] = None,
+) -> list[dict]:
     """Return [{ticker, mos_pct, pe_ratio, pb_ratio}] for the sector cohort.
 
     Filters to market_cap_cr > 100. Drops tickers with all three
     metrics None. Cached per canonical sector for 1 hour. Unmapped
     sector_label returns [] without touching the DB.
+
+    `industry_label` is an optional yfinance industry string used to
+    disambiguate the Financial Services bucket (banks vs NBFCs/AMCs/
+    insurers/exchanges). Callers that have it should pass it; callers
+    that don't will get the broader Financial Services cohort.
     """
-    canonical = _canonical_sector(sector_label)
+    canonical = _canonical_sector(sector_label, industry_label)
     if canonical is None:
         return []
 

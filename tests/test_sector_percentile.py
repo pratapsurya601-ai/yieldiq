@@ -188,8 +188,11 @@ def test_compute_sector_cohort_filters_micro_caps_and_extracts_mos(monkeypatch):
     assert "INFY" in tickers
     assert "TINYCO" not in tickers       # micro-cap filtered
     assert "EMPTY" not in tickers        # no metrics
-    # Sector parameter is the canonical key, not the user input.
-    assert sess.last_params == {"sector": "IT Services"}
+    # The cohort SQL now binds a sector list (driven by
+    # SECTOR_COHORT_RULES) rather than a single canonical string —
+    # this is what fixed the post-PR-#180 'data_limited' regression.
+    assert sess.last_params is not None
+    assert "Technology" in (sess.last_params.get("sectors") or [])
 
     tcs = next(c for c in cohort if c["ticker"] == "TCS")
     assert tcs["pe_ratio"] == 28.0
@@ -201,7 +204,58 @@ def test_compute_sector_cohort_resolves_alias():
     sp._clear_cohort_cache()
     sess = _FakeSession([])
     sp.compute_sector_cohort("software", sess)  # alias → IT Services
-    assert sess.last_params == {"sector": "IT Services"}
+    # Alias resolves to the IT Services cohort rule, which queries
+    # the yfinance "Technology" stored sector.
+    assert sess.last_params is not None
+    assert "Technology" in (sess.last_params.get("sectors") or [])
+
+
+def test_compute_sector_cohort_resolves_yfinance_top_level_sector():
+    """Regression test for post-PR-#180 cohort taxonomy mismatch.
+
+    `stocks.sector` holds yfinance top-level labels ("Technology",
+    "Healthcare", "Consumer Defensive", ...). The bug: the cohort
+    SQL filtered on the canonical label ("IT Services"), which is
+    never stored — every IT/FMCG/Pharma flagship fell to data_limited.
+    """
+    sp._clear_cohort_cache()
+    sess = _FakeSession([])
+    # User-facing free-text path: caller passes whatever yfinance
+    # gave us; the cohort builder must still find rows.
+    sp.compute_sector_cohort("Technology", sess)
+    assert sess.last_params is not None
+    assert "Technology" in (sess.last_params.get("sectors") or [])
+
+    sp._clear_cohort_cache()
+    sess2 = _FakeSession([])
+    sp.compute_sector_cohort("Healthcare", sess2)
+    assert "Healthcare" in (sess2.last_params.get("sectors") or [])
+
+    sp._clear_cohort_cache()
+    sess3 = _FakeSession([])
+    sp.compute_sector_cohort("Consumer Defensive", sess3)
+    assert "Consumer Defensive" in (sess3.last_params.get("sectors") or [])
+
+
+def test_compute_sector_cohort_banks_filters_by_industry():
+    """Banks share the 'Financial Services' yfinance sector with NBFCs,
+    insurers, AMCs, and stock exchanges. The cohort query must
+    apply an industry filter to keep the cohort actually banks-only.
+    """
+    sp._clear_cohort_cache()
+    sess = _FakeSession([])
+    sp.compute_sector_cohort("Banks", sess)
+    assert "Financial Services" in (sess.last_params.get("sectors") or [])
+    assert sess.last_params.get("industry_like") == "Banks%"
+
+
+def test_compute_sector_cohort_financial_services_excludes_banks():
+    """Symmetric to the Banks rule: the Financial Services canonical
+    cohort must NOT contain banks."""
+    sp._clear_cohort_cache()
+    sess = _FakeSession([])
+    sp.compute_sector_cohort("Financial Services", sess)
+    assert sess.last_params.get("exclude_banks") == "Banks%"
 
 
 def test_compute_sector_cohort_unmapped_returns_empty_without_db():

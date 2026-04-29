@@ -76,6 +76,7 @@ SECTOR_ALIASES: dict[str, str] = {
     "pharma & healthcare":               "Pharma",
     # FMCG
     "consumer staples":                  "FMCG",
+    "consumer defensive":                "FMCG",   # yfinance top-level
     "fmcg & consumer":                   "FMCG",
     # Auto
     "automobile":                        "Auto",
@@ -85,6 +86,7 @@ SECTOR_ALIASES: dict[str, str] = {
     "metal":                             "Metals",
     "metals & mining":                   "Metals",
     "mining":                            "Metals",
+    "basic materials":                   "Metals",  # yfinance top-level
     # Energy
     "oil & gas":                         "Energy",
     "oil and gas":                       "Energy",
@@ -93,6 +95,10 @@ SECTOR_ALIASES: dict[str, str] = {
     # Realty
     "real estate":                       "Realty",
     "realty & construction":             "Realty",
+    # Communication Services (yfinance lumps telecom + media + internet
+    # together; map to Media for the benchmark, but the percentile
+    # cohort rule handles the carve-out separately).
+    "communication services":            "Media",
     # Media
     "media & entertainment":             "Media",
     "entertainment":                     "Media",
@@ -111,6 +117,100 @@ SECTOR_ALIASES: dict[str, str] = {
 # symbol (no caret). The retrospective benchmark fetcher strips
 # ".NS"/".BO" already; this map is for callers that want the bare
 # form for SQL lookups.
+# Per-canonical cohort filter rules.
+#
+# Why this exists
+# ---------------
+# `SECTOR_BENCHMARK_MAP` keys are *canonical* labels we coined
+# (e.g. "IT Services", "Pharma", "FMCG"). The `stocks.sector`
+# column, however, holds yfinance top-level sectors like
+# "Technology", "Healthcare", "Consumer Defensive". Filtering
+# `WHERE s.sector = 'IT Services'` therefore returns zero rows
+# for every IT ticker — the cohort builder falls through to
+# `data_limited` and the percentile band collapses to "Insufficient
+# peer data". This was the root cause of the post-PR-#180 regression
+# where INFY/TCS/NESTLEIND/etc. all rendered without a Value band.
+#
+# Each rule lists the stored `stocks.sector` strings that belong to
+# the canonical cohort, plus an optional `industry_like` SQL pattern
+# applied with ILIKE. The pattern lets us split coarse yfinance
+# buckets — e.g. "Financial Services" stored sector contains both
+# regional banks (canonical: Banks) and NBFCs/insurers/AMCs
+# (canonical: Financial Services).
+#
+# Rules are intentionally inclusive: a missing canonical here means
+# `_canonical_sector` will resolve the alias but the SQL will fall
+# back to an exact-match on the canonical string (legacy behaviour),
+# which yields an empty cohort. Adding a sector here is the single
+# action that makes its tickers leave `data_limited`.
+SECTOR_COHORT_RULES: dict[str, dict] = {
+    "IT Services": {
+        # yfinance lumps Indian IT services under "Technology"
+        # (Information Technology Services / Software industries).
+        "sectors": ["Technology"],
+        "industry_like": None,
+    },
+    "Banks": {
+        "sectors": ["Financial Services"],
+        # Banks - Regional / Banks - Diversified / etc.
+        "industry_like": "Banks%",
+    },
+    "PSU Bank": {
+        # yfinance does not split PSU vs private — fall back to all
+        # banks. Callers that want a tighter cohort should pre-filter.
+        "sectors": ["Financial Services"],
+        "industry_like": "Banks%",
+    },
+    "Financial Services": {
+        "sectors": ["Financial Services"],
+        # Everything in Financial Services that isn't a bank.
+        # Bank exclusion is applied as a separate NOT ILIKE clause
+        # in sector_percentile._build_cohort_query.
+        "industry_like": None,
+    },
+    "Pharma": {
+        "sectors": ["Healthcare"],
+        "industry_like": None,
+    },
+    "FMCG": {
+        "sectors": ["Consumer Defensive"],
+        "industry_like": None,
+    },
+    "Auto": {
+        "sectors": ["Consumer Cyclical"],
+        # Auto Manufacturers, Auto Parts, Auto & Truck Dealerships.
+        "industry_like": "Auto%",
+    },
+    "Metals": {
+        "sectors": ["Basic Materials"],
+        "industry_like": None,
+    },
+    "Energy": {
+        "sectors": ["Energy", "Utilities"],
+        "industry_like": None,
+    },
+    "Realty": {
+        "sectors": ["Real Estate"],
+        "industry_like": None,
+    },
+    "Media": {
+        "sectors": ["Communication Services"],
+        "industry_like": None,
+    },
+    "Consumer Durables": {
+        "sectors": ["Consumer Cyclical"],
+        "industry_like": None,
+    },
+}
+
+
+# Industries we *exclude* from the "Financial Services" canonical
+# cohort because they live in their own (Banks) bucket. Used by
+# sector_percentile when SECTOR_COHORT_RULES['Financial Services']
+# is selected.
+FINANCIAL_SERVICES_BANK_EXCLUDE_LIKE: str = "Banks%"
+
+
 def to_bare_symbol(ticker: str) -> str:
     """Strip exchange suffixes for daily_prices lookups."""
     return ticker.replace(".NS", "").replace(".BO", "").lstrip("^").upper().strip()

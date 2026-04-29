@@ -79,8 +79,8 @@ def test_general_strong_discount(monkeypatch):
         [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40],
     )
     monkeypatch.setattr(sp, "compute_sector_cohort",
-                        lambda label, sess: cohort)
-    monkeypatch.setattr(sp, "_canonical_sector", lambda s: "FMCG")
+                        lambda label, sess, **kw: cohort)
+    monkeypatch.setattr(sp, "_canonical_sector", lambda s, *a, **kw: "FMCG")
 
     # MoS +50% — strictly greater than every cohort entry → raw_rank 100
     # → inverted percentile = 0 → strong_discount, score = 10.0.
@@ -100,8 +100,8 @@ def test_general_notably_overvalued(monkeypatch):
         [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40],
     )
     monkeypatch.setattr(sp, "compute_sector_cohort",
-                        lambda label, sess: cohort)
-    monkeypatch.setattr(sp, "_canonical_sector", lambda s: "FMCG")
+                        lambda label, sess, **kw: cohort)
+    monkeypatch.setattr(sp, "_canonical_sector", lambda s, *a, **kw: "FMCG")
 
     # MoS -90% — strictly less than every cohort entry → raw_rank 0
     # → inverted percentile = 100 → data_limited band (>=90 outer band).
@@ -119,8 +119,8 @@ def test_general_notably_overvalued(monkeypatch):
 def test_general_data_limited_when_cohort_too_small(monkeypatch):
     cohort = _make_cohort("mos_pct", [-10, 0, 10])  # only 3 peers
     monkeypatch.setattr(sp, "compute_sector_cohort",
-                        lambda label, sess: cohort)
-    monkeypatch.setattr(sp, "_canonical_sector", lambda s: "FMCG")
+                        lambda label, sess, **kw: cohort)
+    monkeypatch.setattr(sp, "_canonical_sector", lambda s, *a, **kw: "FMCG")
 
     out = hex_service._axis_value_general(
         _data("X.NS", "FMCG", mos=5.0)
@@ -137,8 +137,8 @@ def test_general_data_limited_when_ticker_metric_null(monkeypatch):
         [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40],
     )
     monkeypatch.setattr(sp, "compute_sector_cohort",
-                        lambda label, sess: cohort)
-    monkeypatch.setattr(sp, "_canonical_sector", lambda s: "FMCG")
+                        lambda label, sess, **kw: cohort)
+    monkeypatch.setattr(sp, "_canonical_sector", lambda s, *a, **kw: "FMCG")
 
     out = hex_service._axis_value_general(
         _data("UNKNOWN.NS", "FMCG", mos=None)
@@ -153,8 +153,8 @@ def test_general_trough_anchor_mentioned(monkeypatch):
         [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40],
     )
     monkeypatch.setattr(sp, "compute_sector_cohort",
-                        lambda label, sess: cohort)
-    monkeypatch.setattr(sp, "_canonical_sector", lambda s: "Metals")
+                        lambda label, sess, **kw: cohort)
+    monkeypatch.setattr(sp, "_canonical_sector", lambda s, *a, **kw: "Metals")
 
     out = hex_service._axis_value_general(
         _data(
@@ -171,8 +171,8 @@ def test_bank_low_pb_strong_discount(monkeypatch):
     pb_values = [1.5, 1.8, 2.1, 2.5, 3.0, 3.4, 3.8, 4.2, 5.0, 6.0]
     cohort = _make_cohort("pb_ratio", pb_values)
     monkeypatch.setattr(sp, "compute_sector_cohort",
-                        lambda label, sess: cohort)
-    monkeypatch.setattr(sp, "_canonical_sector", lambda s: "Banks")
+                        lambda label, sess, **kw: cohort)
+    monkeypatch.setattr(sp, "_canonical_sector", lambda s, *a, **kw: "Banks")
 
     out = hex_service._axis_value_bank(
         _data("HDFCBANK.NS", "Banks", pb=1.2)
@@ -186,8 +186,8 @@ def test_bank_high_pb_above_peers(monkeypatch):
     pb_values = [1.5, 1.8, 2.1, 2.5, 3.0, 3.4, 3.8, 4.2, 5.0, 6.0]
     cohort = _make_cohort("pb_ratio", pb_values)
     monkeypatch.setattr(sp, "compute_sector_cohort",
-                        lambda label, sess: cohort)
-    monkeypatch.setattr(sp, "_canonical_sector", lambda s: "Banks")
+                        lambda label, sess, **kw: cohort)
+    monkeypatch.setattr(sp, "_canonical_sector", lambda s, *a, **kw: "Banks")
 
     # PB 4.0 sits above 7 of 10 cohort entries (1.5..3.8) → raw_rank 70
     # → percentile (no inversion) = 70 → above_peers band, score 3.0.
@@ -203,8 +203,8 @@ def test_bank_data_limited_when_pb_null(monkeypatch):
     pb_values = [1.5, 1.8, 2.1, 2.5, 3.0, 3.4, 3.8, 4.2, 5.0, 6.0]
     cohort = _make_cohort("pb_ratio", pb_values)
     monkeypatch.setattr(sp, "compute_sector_cohort",
-                        lambda label, sess: cohort)
-    monkeypatch.setattr(sp, "_canonical_sector", lambda s: "Banks")
+                        lambda label, sess, **kw: cohort)
+    monkeypatch.setattr(sp, "_canonical_sector", lambda s, *a, **kw: "Banks")
 
     out = hex_service._axis_value_bank(
         _data("UNK.NS", "Banks", pb=None)
@@ -218,8 +218,8 @@ def test_it_low_pe_strong_discount(monkeypatch):
     pe_values = [18, 20, 22, 24, 26, 28, 30, 33, 36, 40]
     cohort = _make_cohort("pe_ratio", pe_values)
     monkeypatch.setattr(sp, "compute_sector_cohort",
-                        lambda label, sess: cohort)
-    monkeypatch.setattr(sp, "_canonical_sector", lambda s: "IT Services")
+                        lambda label, sess, **kw: cohort)
+    monkeypatch.setattr(sp, "_canonical_sector", lambda s, *a, **kw: "IT Services")
 
     out = hex_service._axis_value_it(
         _data(
@@ -239,8 +239,8 @@ def test_it_falls_back_to_mos_when_no_revenue(monkeypatch):
     mos_values = [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40]
     cohort = _make_cohort("mos_pct", mos_values)
     monkeypatch.setattr(sp, "compute_sector_cohort",
-                        lambda label, sess: cohort)
-    monkeypatch.setattr(sp, "_canonical_sector", lambda s: "IT Services")
+                        lambda label, sess, **kw: cohort)
+    monkeypatch.setattr(sp, "_canonical_sector", lambda s, *a, **kw: "IT Services")
 
     out = hex_service._axis_value_it(
         _data(
@@ -272,11 +272,11 @@ def test_blue_chip_synthetic_bands(monkeypatch):
         "Metals":      mos_cohort,
     }
 
-    def _fake_cohort(label, sess):
+    def _fake_cohort(label, sess, **kw):
         return cohorts.get(label, [])
 
     monkeypatch.setattr(sp, "compute_sector_cohort", _fake_cohort)
-    monkeypatch.setattr(sp, "_canonical_sector", lambda s: s)
+    monkeypatch.setattr(sp, "_canonical_sector", lambda s, *a, **kw: s)
 
     tcs = hex_service._axis_value_it(
         _data("TCS.NS", "IT Services",
