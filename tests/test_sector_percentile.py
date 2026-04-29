@@ -88,6 +88,34 @@ def test_band_out_of_range_is_data_limited():
     assert sp.value_band_for_percentile(101)["band"] == "data_limited"
 
 
+def test_band_labels_are_sebi_safe():
+    """Every label emitted by value_band_for_percentile must pass the SEBI
+    banned-word filter — the frontend SEBI lint only scans frontend files,
+    so backend-emitted labels would otherwise bypass it (see hotfix April 2026)."""
+    from backend.services.analysis.sebi_filter import find_banned
+
+    # Cover all bands by walking every percentile + the None / out-of-range arms.
+    seen_labels = {sp.value_band_for_percentile(None)["label"]}
+    for p in list(range(0, 101)) + [-1, 101]:
+        seen_labels.add(sp.value_band_for_percentile(p)["label"])
+
+    for label in seen_labels:
+        hit = find_banned(label)
+        assert hit is None, f"SEBI-banned word {hit!r} in band label {label!r}"
+
+
+def test_band_label_for_notably_overvalued_uses_premium_copy():
+    out = sp.value_band_for_percentile(95)
+    assert out["band"] == "notably_overvalued"
+    assert out["label"] == "Notable premium to peers"
+
+
+def test_band_label_for_strong_discount_uses_discount_copy():
+    out = sp.value_band_for_percentile(5)
+    assert out["band"] == "strong_discount"
+    assert out["label"] == "Notable discount to peers"
+
+
 # ─── compute_sector_cohort (mocked DB) ───────────────────────────
 class _FakeRow:
     """Mimics SQLAlchemy Row with ._mapping access."""
