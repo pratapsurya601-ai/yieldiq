@@ -227,8 +227,15 @@ export default function PeerComparison({ ticker, currency = "INR" }: Props) {
     retry: 1,
   })
 
+  // `has_peers` is the authoritative signal from /analysis/{t}/peers, but
+  // we fall back to `peers.length > 0` so an accidental backend drop of
+  // the field never silently empties this section again (see the
+  // 2026-04-29 hotfix on /public/peers/{t} for the regression we're
+  // hardening against).
+  const hasPeers = (data?.has_peers ?? ((data?.peers?.length ?? 0) > 0))
+
   const insight = useMemo(() => {
-    if (!data?.has_peers || !data.peers?.length) return null
+    if (!hasPeers || !data?.peers?.length) return null
     const scored = data.peers.filter(p => p.yieldiq_score !== null)
     if (scored.length < 2) return null
     const ranked = [...scored].sort(
@@ -243,7 +250,7 @@ export default function PeerComparison({ ticker, currency = "INR" }: Props) {
     const rank = ranked.findIndex(p => p.ticker === main.ticker) + 1
     if (rank === 0) return null
     return `${top.company_name} leads ${data.sector_label ?? "the sector"} with a score of ${top.yieldiq_score}. ${main.company_name} ranks #${rank}.`
-  }, [data])
+  }, [data, hasPeers])
 
   const anyMissingScore = data?.peers?.some(p => p.yieldiq_score === null) ?? false
 
@@ -273,7 +280,7 @@ export default function PeerComparison({ ticker, currency = "INR" }: Props) {
     )
   }
 
-  if (!data?.has_peers || !data.peers?.length) {
+  if (!hasPeers || !data?.peers?.length) {
     return (
       <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-5">
         <h2 className="text-sm font-semibold text-ink mb-2">Compare with Peers</h2>
@@ -338,7 +345,7 @@ export default function PeerComparison({ ticker, currency = "INR" }: Props) {
                   {columns.map((col, i) => {
                     const isBest =
                       col.metric !== undefined &&
-                      data.best_in_sector[col.metric as string] === row.ticker
+                      (data.best_in_sector?.[col.metric as string] ?? null) === row.ticker
                     return (
                       <td
                         key={col.key}

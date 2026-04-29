@@ -2580,6 +2580,11 @@ async def get_peers(
                     pass
 
             peers_out.append({
+                # Canonical field — matches the authenticated /api/v1/analysis/{t}/peers
+                # response shape used elsewhere in the app. Retain `peer_ticker`
+                # as a legacy alias so existing clients (Excel export, older
+                # cached frontends) keep working.
+                "ticker": peer.peer_ticker,
                 "peer_ticker": peer.peer_ticker,
                 "rank": peer.rank,
                 "sector": peer.sector,
@@ -2596,7 +2601,21 @@ async def get_peers(
                 "pe_ratio": pe_ratio,
             })
 
-        result = {"ticker": full_ticker, "peers": peers_out}
+        # Best-effort sector label — used by the "leads in sector" insight
+        # line on the SEO peer card. Failure is non-fatal.
+        sector_label_value: str | None = None
+        try:
+            from screener.sector_relative import get_sector_label_for_ticker
+            sector_label_value = get_sector_label_for_ticker(clean)
+        except Exception:
+            sector_label_value = None
+
+        result = {
+            "ticker": full_ticker,
+            "has_peers": len(peers_out) > 0,
+            "sector_label": sector_label_value,
+            "peers": peers_out,
+        }
         cache.set(_cache_key, result, ttl=1800)
         return _cached_json(result, s_maxage=900, swr=3600)
     except Exception as exc:
