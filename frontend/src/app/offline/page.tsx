@@ -19,9 +19,20 @@ export default function OfflinePage() {
       <div className="text-center max-w-md">
         <div className="flex items-center justify-center gap-2 mb-8">
           {/* eslint-disable-next-line @next/next/no-img-element */}
+          {/* loading="lazy" + decoding="async": this page is pre-cached by
+              the service worker (sw.js) at install time. Without these
+              hints the browser's HTML preload-scanner speculatively
+              fetches /logo-new.svg while parsing the cached /offline
+              document, then emits a "preloaded but not used within a few
+              seconds" devtools warning on every other route because the
+              user is never actually on /offline. The logo is well below
+              the fold for any visible variant of this page (only shown
+              when offline) so eager loading is unnecessary. */}
           <img
             src="/logo-new.svg"
             alt="YieldIQ"
+            loading="lazy"
+            decoding="async"
             className="w-10 h-10 rounded-lg"
           />
           <span className="text-xl font-bold text-gray-900">YieldIQ</span>
