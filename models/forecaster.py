@@ -78,7 +78,18 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
 
     # ── Candidate 1: Latest FCF (strongest signal if positive) ──
     if latest_fcf > 0:
-        candidates["latest_fcf"] = latest_fcf
+        # Sanity: FCF/revenue < 0.5% on a profitable large-cap (revenue > ₹1,000 Cr)
+        # is almost always a unit bug — e.g. raw-USD freeCashflow leaking through
+        # a NULL-annual-row merge in data_service.py. Reject and fall back to
+        # nopat_proxy / median_recent_fcf candidates.
+        if latest_revenue > 1e10 and (latest_fcf / latest_revenue) < 0.005:
+            log.warning(
+                "[%s] rejecting suspicious latest_fcf=%.2e vs revenue=%.2e "
+                "(ratio<0.5%% — likely USD-as-rupees unit leak)",
+                ticker, latest_fcf, latest_revenue,
+            )
+        else:
+            candidates["latest_fcf"] = latest_fcf
 
     # ── Candidate 2: Max of last 3 positive FCF years ──────────
     # MAX not median — a company's best recent FCF year reflects

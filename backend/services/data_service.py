@@ -130,6 +130,27 @@ class DataService:
         ]
 
 
+# Money-magnitude keys: an explicit NULL in DB means "we deliberately
+# don't have this; do NOT pull from yfinance" — yfinance returns ADR
+# values in raw USD for cross-listed Indian tickers (INFY/HCLTECH/WIPRO
+# etc.), which would leak through as USD-as-rupees and crash DCF FV.
+_MONEY_KEYS = {
+    "freeCashflow", "totalRevenue", "totalDebt", "totalCash",
+    "operatingCashflow", "capitalExpenditures", "ebitda",
+    "marketCap", "enterpriseValue", "totalAssets",
+    "netIncomeToCommon",
+}
+
+
+def _prefer_db(key: str, db_v, yf_v):
+    """For money-magnitude keys, an explicit NULL in DB means
+    'do not fall back to yfinance' (avoids USD-as-rupees leaks).
+    For all other keys, fall back to yfinance when DB is None."""
+    if key in _MONEY_KEYS:
+        return db_v  # NULL DB stays NULL; don't pull from yfinance
+    return db_v if db_v is not None else yf_v
+
+
 def get_stock_data(ticker: str) -> dict:
     """
     Primary data fetch function for YieldIQ.
@@ -158,7 +179,10 @@ def get_stock_data(ticker: str) -> dict:
             logger.warning(f"{ticker}: DB incomplete, falling back to yfinance")
             yf_data = _fetch_yfinance_direct(f"{ticker}.NS")
             if yf_data:
-                merged = {**yf_data, **{k: v for k, v in data.items() if v is not None}}
+                merged = {
+                    k: _prefer_db(k, data.get(k), yf_data.get(k))
+                    for k in set(yf_data) | set(data)
+                }
                 data = merged
             data["_source"] = "yfinance_fallback"
 
