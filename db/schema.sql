@@ -5,12 +5,15 @@
 
 -- 1. Users metadata (extends Supabase auth.users)
 CREATE TABLE IF NOT EXISTS users_meta (
-    id          UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-    email       TEXT UNIQUE NOT NULL,
-    tier        TEXT NOT NULL DEFAULT 'free',
-    is_active   BOOLEAN NOT NULL DEFAULT true,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    id              UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    email           TEXT UNIQUE NOT NULL,
+    tier            TEXT NOT NULL DEFAULT 'free',
+    is_active       BOOLEAN NOT NULL DEFAULT true,
+    -- NULL = treated as not opted out (default mailing-allowed). See
+    -- newsletter_service.get_weekly_pick_recipients for the OR clause.
+    email_opted_out BOOLEAN DEFAULT false,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- 2. Subscriptions (Razorpay)
