@@ -892,6 +892,8 @@ from backend.routers import hex as hex_router
 app.include_router(hex_router.router)
 from backend.routers import prism as prism_router
 app.include_router(prism_router.router)
+from backend.routers import strategies as strategies_router
+app.include_router(strategies_router.router)
 
 
 @app.get("/health")
