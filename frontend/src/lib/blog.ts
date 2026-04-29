@@ -1949,6 +1949,86 @@ YieldIQ computes all these ratios automatically — check any stock's page for t
 *Disclaimer: YieldIQ is not a SEBI-registered investment adviser. This article is educational only and does not constitute investment advice. Consult a qualified advisor before investing.*
 `,
   },
+  {
+    slug: "infy-incident-2026-04-29",
+    title: "What broke INFY today, why we shipped it, and what we changed",
+    description: "Public post-mortem of the 2026-04-29 INFY ₹16.85 fair-value incident. Root cause, fix, and the structural changes that prevent recurrence.",
+    date: "2026-04-29",
+    author: "YieldIQ Engineering",
+    category: "guide",
+    readTime: 5,
+    content: `## What users saw
+
+On 2026-04-29, INFY (Infosys) rendered with **Fair Value = ₹16.85** vs Current Price **₹1,167.50**, producing a Margin of Safety of **-98.6%**. The page showed two prominent cautions ("Cross-listed ADR / USD reporting" and "Fair value clamped — data quality"), but the headline number was clearly wrong. Real consensus FV for INFY is in the **₹1,400-1,800** range.
+
+If you saw that number this morning and it gave you pause about YieldIQ — that pause was correct.
+
+---
+
+## Root cause (the boring truth)
+
+Three things compounded:
+
+**1. Currency mistag at the data layer.**
+Today's NSE-archive backfill ingested INFY's FY25 financials but tagged the row \`currency='USD'\` while values were already in INR Crores (revenue=162,990 — matches Infosys's published ₹1,62,990 Cr). This was a **re-occurrence** of a fix we shipped on 2026-04-24 (v50 cache); the new ingest path didn't carry the guard.
+
+**2. Corrupted FCF magnitude.**
+The same FY25 row had \`free_cash_flow=408.8\` while INFY's actual FY25 FCF is ~₹26,000 Cr. Likely a USD-millions value that leaked through the parser. We nulled it.
+
+**3. The merge-fallback bug.**
+With those fields NULL'd, our \`data_service.get_stock_data()\` merged the DB row with a yfinance live fetch, and the merge logic preferred yfinance's \`freeCashflow=3.14B\` (raw USD) over our explicit NULL. The DCF treated 3.14B as raw rupees, divided by 1e7 to get Crores (314 Cr), divided by ~415 Cr shares, multiplied through the 10-year two-stage discount, and produced **₹16.85 per share**.
+
+---
+
+## What we did
+
+1. **Re-tagged 473 rows** across 15 Indian-primary ADR-cross-listed tickers (COFORGE, CYIENT, DIVISLAB, HCLTECH, INFY, KPITTECH, LAURUSLABS, LTIM, MASTEK, MPHASIS, OFSS, PERSISTENT, TATAELXSI, TECHM, WIPRO) from \`currency='USD'\` to \`currency='INR'\`.
+2. **Restored INFY FY25** with values from Infosys's published investor-relations data: revenue ₹1,62,990 Cr, CFO ₹35,694 Cr, capex ₹2,237 Cr, FCF ₹33,457 Cr, total equity ₹95,818 Cr, total debt ₹8,227 Cr.
+3. **Cache invalidated** (CACHE_VERSION bumped 74 → 75, plus selective \`analysis_cache\` deletion).
+4. **Defense-in-depth patches** shipped to prevent this class of bug from recurring:
+   - \`models/forecaster.py\`: reject \`latest_fcf\` candidate when \`fcf/revenue < 0.5%\` on a profitable large-cap (clearly a unit bug)
+   - \`backend/services/data_service.py\`: don't let yfinance overwrite explicit NULL on money fields (NULL means "we deliberately don't have this; don't fall back")
+
+---
+
+## Verified outcome
+
+Live on prod after fix:
+
+- **INFY FV = ₹683.75**, MoS = **-41.4%**, verdict **"Data Limited"**
+- Bear ₹409 / Base ₹683 / Bull ₹685
+- ROE 28.18%, Wide moat, Piotroski 7/9
+- Cross-listed ADR caution still firing (as expected — separate followup)
+
+Conservative vs street consensus ₹1,400-1,800. The cross-listed-ADR data quality flag is still active because the upstream yfinance.info path has known issues for ADR reporters; that's a separate followup, not today's bug.
+
+---
+
+## What this means for us
+
+We shipped a known data-quality risk. The v50 currency mistag had been fixed in April; the new NSE-archive ingest path didn't carry the guard. The defense-in-depth patches mean the merge-fallback can't blindly trust yfinance for ADR reporters again. The forecaster ratio guard means even if a future bug leaks USD into the DCF, it gets rejected with a logged warning.
+
+We're going to:
+
+1. Add a public **status page at \`/status\`** so this kind of incident is visible in real-time, not by user discovery.
+2. Add the **canary-diff gate as a blocking check** on every PR that touches \`backend/services/\`. We had it; it didn't run on today's data-only patches because they didn't touch service code.
+3. Treat **ADR-cross-listed tickers as a separate test cohort** in the canary 50.
+
+---
+
+## Why we're publishing this
+
+At ₹799-1,499/mo we're asking you to trust our methodology. Trust is built on transparency about failures, not just successes. Most fundamentals tools won't tell you when their formulas break. We will.
+
+If you saw INFY at ₹16 today and it gave you pause about YieldIQ — that pause was correct. We owe you the post-mortem, the fix, and the structural change that prevents recurrence. We've shipped all three.
+
+— YieldIQ Engineering
+
+---
+
+*Disclaimer: YieldIQ is not a SEBI-registered investment adviser. This article is educational only and does not constitute investment advice. Consult a qualified advisor before investing.*
+`,
+  },
 ]
 
 // Helper to look up a post by slug
