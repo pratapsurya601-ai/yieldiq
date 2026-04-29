@@ -54,8 +54,12 @@ def _fields(**overrides):
         "bear_case": 900.0,
         "base_case": 1200.0,
         "bull_case": 1500.0,
-        "roe": 0.25,
-        "roce": 0.30,
+        # roe/roce are PERCENT-shaped on the API (gate 4 divides by 100
+        # before comparing against decimal bounds). Fixture must mirror
+        # that — using decimal here would fail the [0.15, 0.35] band
+        # because 0.25/100 = 0.0025 is outside the band.
+        "roe": 25.0,
+        "roce": 30.0,
         "wacc": 0.11,
         "ev_ebitda": 18.0,
         "revenue_cagr_3y": 0.10,
