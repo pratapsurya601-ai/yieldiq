@@ -38,13 +38,29 @@ def compute_yieldiq_score(
         Dict with 'score' (0-100), 'grade' (A+ to D), and 'components' breakdown
     """
     # Valuation (20 pts) — reduced weight; MoS is a price signal, not quality
-    if mos_pct >= 40:    val_score = 20
-    elif mos_pct >= 25:  val_score = 16
-    elif mos_pct >= 10:  val_score = 12
-    elif mos_pct >= 0:   val_score = 8
-    elif mos_pct >= -15: val_score = 5
-    elif mos_pct >= -30: val_score = 3
-    else:                val_score = 0
+    #
+    # CAP (2026-04-29, fix/bank-classifier): clamp mos_pct to [-50, +50]
+    # before bucketing. Pre-cap, a misclassified bank (e.g. CAPITALSFB.NS
+    # surfaced via yfinance with sector="Chemicals" pre-fix) ran the
+    # FCF-DCF path and produced FV=999 vs price=257 → MoS=+289%, which
+    # bucketed into the top val=20 slot and lifted YieldIQ to 89 / A+
+    # despite the hex composite of ~5/10. The bank-classifier fix in
+    # this PR removes the root cause for CAPITALSFB, but a hard cap
+    # here is defence-in-depth: an extreme MoS reading is more likely
+    # a model failure than a 3-5x mispricing of a real business, so
+    # truncating to ±50% prevents any future classifier gap from
+    # producing a contradictory headline grade.
+    try:
+        _mos_for_score = max(-50.0, min(50.0, float(mos_pct)))
+    except (TypeError, ValueError):
+        _mos_for_score = 0.0
+    if _mos_for_score >= 40:    val_score = 20
+    elif _mos_for_score >= 25:  val_score = 16
+    elif _mos_for_score >= 10:  val_score = 12
+    elif _mos_for_score >= 0:   val_score = 8
+    elif _mos_for_score >= -15: val_score = 5
+    elif _mos_for_score >= -30: val_score = 3
+    else:                       val_score = 0
 
     # Business Quality (50 pts) — Piotroski (25) + Moat (25)
     pio_score = min(piotroski / 9 * 25, 25)

@@ -455,25 +455,18 @@ def compute_piotroski_fscore(enriched: dict) -> dict:
     #
     # Observed pre-fix: BAJFINANCE piotroski 3/9 (WEAK) → composite 57
     # capped. Bank-mode should lift it to 7/9 → composite ~65 (PASS).
-    sector_raw = (enriched.get("sector") or "").lower()
-    _bare = ticker.upper().replace(".NS", "").replace(".BO", "")
-    # NBFC + insurance tickers that structurally match bank piotroski.
-    # Keep lean — add new tickers as observed during launch monitoring.
-    _NBFC_INSURANCE_BANKLIKE = {
-        "BAJFINANCE", "BAJAJFINSV", "CHOLAFIN", "MUTHOOTFIN", "MANAPPURAM",
-        "SHRIRAMFIN", "LICHSGFIN", "LICHOUSFIN", "POONAWALLA", "AAVAS",
-        "HOMEFIRST", "SBICARD", "SUNDARMFIN", "CREDITACC",
-        "HDFCLIFE", "SBILIFE", "ICICIPRULI", "ICICIGI", "NIACL",
-        "STARHEALTH", "BAJAJHLDNG", "PFC", "RECLTD", "IRFC",
-    }
-    is_bank = (
+    sector_raw = enriched.get("sector") or ""
+    industry_raw = enriched.get("industry") or ""
+    # Unified bank classifier (2026-04-29 hotfix/bank-misclassify).
+    # Delegates to backend.services.analysis.constants.is_bank_like so
+    # the analysis pipeline, Prism/Hex and Piotroski all classify the
+    # same tickers as bank-like. Pre-fix the local set diverged from
+    # FINANCIAL_COMPANIES — CAPITALSFB and other small-finance-bank
+    # peers slipped through to the 9-signal classic Piotroski.
+    from backend.services.analysis.constants import is_bank_like as _is_bank_like_unified
+    is_bank = bool(
         enriched.get("is_bank")
-        or "bank" in sector_raw
-        or "financial" in sector_raw
-        or "nbfc" in sector_raw
-        or "insurance" in sector_raw
-        or _bare.endswith("BANK")
-        or _bare in _NBFC_INSURANCE_BANKLIKE
+        or _is_bank_like_unified(ticker, sector_raw, industry_raw)
     )
 
     if is_bank:
