@@ -33,6 +33,20 @@ INDEX_SYMBOLS: list[tuple[str, str]] = [
     ("GC=F",       "Gold Futures"),
     ("SI=F",       "Silver Futures"),
     ("^NSEMDCP50", "Nifty Midcap 50"),
+    # Sector benchmarks consumed by the per-sector retrospective.
+    # See backend/services/sector_benchmarks.py — the source of
+    # truth for sector → ticker mapping.
+    ("^CNXIT",       "Nifty IT"),
+    ("^CNXPHARMA",   "Nifty Pharma"),
+    ("^CNXFMCG",     "Nifty FMCG"),
+    ("^CNXAUTO",     "Nifty Auto"),
+    ("^CNXMETAL",    "Nifty Metal"),
+    ("^CNXENERGY",   "Nifty Energy"),
+    ("^CNXREALTY",   "Nifty Realty"),
+    ("^CNXMEDIA",    "Nifty Media"),
+    ("^CNXPSUBANK",  "Nifty PSU Bank"),
+    ("^CNXFIN",      "Nifty Financial Services"),
+    ("^CNXCONSUM",   "Nifty Consumer Durables"),
 ]
 
 FX_PAIRS: list[tuple[str, str]] = [

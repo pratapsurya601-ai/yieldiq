@@ -2962,11 +2962,30 @@ async def tickers_index():
 async def public_retrospective(
     period: str = Query("Q1FY26", description="Period label e.g. Q1FY26"),
     window: int = Query(90, ge=30, le=365, description="Outcome window in days"),
+    benchmark: str = Query(
+        "auto",
+        description=(
+            "Benchmark mode: 'auto' (sector-aware, default), "
+            "'nifty500' (legacy single-benchmark), or an explicit "
+            "Yahoo ticker like '^CNXIT' for a sector deep-dive."
+        ),
+    ),
 ):
     """Public Performance Retrospective summary.
 
     Returns the summary payload defined in
     backend.services.retrospective_service.summarize_for_period.
+
+    The ``benchmark`` query parameter selects how the model's picks
+    are compared:
+
+      * ``auto`` (default) — each prediction is compared against its
+        sector's index (Nifty IT for IT picks, Nifty Bank for banks,
+        etc.). Response gains a ``sector_breakdown`` field.
+      * ``nifty500`` — legacy single-benchmark behaviour. Response
+        shape is byte-identical to pre-sector versions.
+      * any other string — treated as an explicit ticker; useful for
+        sector deep-dives like ``?benchmark=^CNXIT``.
 
     Wiring (Phase 2):
       • Resolve `period` label → (start_date, end_date).
@@ -2990,7 +3009,7 @@ async def public_retrospective(
 
     try:
         payload = summarize_for_period(
-            start_d, end_d, window=window,
+            start_d, end_d, window=window, benchmark=benchmark,
         )
     except Exception as exc:
         logger.warning("summarize_for_period failed: %s", exc)
@@ -3012,7 +3031,32 @@ async def public_retrospective(
             "median_return": 9.8,
             "hit_rate":         0.638,
             "outperform_rate":  0.553,
-            "benchmark": {"ticker": "NIFTY500.NS", "return_pct": 6.2},
+            "benchmark": (
+                {"ticker": "auto", "return_pct": 6.2, "mode": "auto"}
+                if benchmark == "auto"
+                else {"ticker": "NIFTY500.NS", "return_pct": 6.2}
+            ),
+            "sector_breakdown": (
+                [
+                    {"sector": "IT Services", "benchmark_ticker": "^CNXIT",
+                     "n": 8, "mean_return": 14.2,
+                     "benchmark_return": 8.4, "outperform_rate": 0.625},
+                    {"sector": "Banks", "benchmark_ticker": "^NSEBANK",
+                     "n": 12, "mean_return": 11.0,
+                     "benchmark_return": 7.1, "outperform_rate": 0.583},
+                    {"sector": "Pharma", "benchmark_ticker": "^CNXPHARMA",
+                     "n": 7, "mean_return": 13.8,
+                     "benchmark_return": 9.5, "outperform_rate": 0.571},
+                    {"sector": "FMCG", "benchmark_ticker": "^CNXFMCG",
+                     "n": 6, "mean_return":  9.4,
+                     "benchmark_return": 5.8, "outperform_rate": 0.667},
+                    {"sector": "Auto", "benchmark_ticker": "^CNXAUTO",
+                     "n": 5, "mean_return":  6.1,
+                     "benchmark_return": 4.2, "outperform_rate": 0.600},
+                ]
+                if benchmark == "auto"
+                else None
+            ),
             "winners": [
                 {"ticker": "POWERGRID.NS",  "return_pct": 38.2},
                 {"ticker": "BHARTIARTL.NS", "return_pct": 31.7},

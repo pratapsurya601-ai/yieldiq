@@ -26,6 +26,15 @@ const API_BASE =
 
 type Outcome = { ticker: string; return_pct: number }
 
+type SectorRow = {
+  sector: string
+  benchmark_ticker: string
+  n: number
+  mean_return: number
+  benchmark_return: number
+  outperform_rate: number
+}
+
 type Summary = {
   period: { start: string; end: string; label: string }
   window_days: number
@@ -35,9 +44,10 @@ type Summary = {
   median_return: number | null
   hit_rate: number | null
   outperform_rate: number | null
-  benchmark: { ticker: string; return_pct: number }
+  benchmark: { ticker: string; return_pct: number; mode?: string }
   winners: Outcome[]
   losers: Outcome[]
+  sector_breakdown?: SectorRow[] | null
   is_sample?: boolean
   last_updated?: string | null
   disclaimer?: string
@@ -64,8 +74,12 @@ export function generateMetadata(): Metadata {
   }
 }
 
-async function fetchSummary(period: string, windowDays: number): Promise<Summary> {
-  const url = `${API_BASE}/api/v1/public/retrospective?period=${encodeURIComponent(period)}&window=${windowDays}`
+async function fetchSummary(
+  period: string,
+  windowDays: number,
+  benchmark: string = "auto",
+): Promise<Summary> {
+  const url = `${API_BASE}/api/v1/public/retrospective?period=${encodeURIComponent(period)}&window=${windowDays}&benchmark=${encodeURIComponent(benchmark)}`
   try {
     const res = await fetch(url, { next: { revalidate: 3600 } })
     if (!res.ok) throw new Error(`status ${res.status}`)
@@ -221,6 +235,17 @@ export default async function PerformancePage() {
         <OutcomeCard title="Top 5 losers" rows={summary.losers} kind="loser" />
       </section>
 
+      {/* Per-sector breakdown */}
+      <section className="mb-12">
+        <h2 className="mb-3 font-serif text-2xl">Per-sector breakdown</h2>
+        <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-400">
+          Sector-relative is the honest comparison: an IT pick should beat
+          Nifty IT, not the broad market. Aggregate outperform-rate above is
+          n-weighted across these sectors.
+        </p>
+        <SectorBreakdown rows={summary.sector_breakdown ?? null} />
+      </section>
+
       {/* Methodology link */}
       <section className="prose prose-neutral max-w-none dark:prose-invert">
         <h2>Methodology, in one paragraph</h2>
@@ -237,6 +262,54 @@ export default async function PerformancePage() {
         </p>
       </section>
     </main>
+  )
+}
+
+function SectorBreakdown({ rows }: { rows: SectorRow[] | null }) {
+  if (!rows || rows.length === 0) {
+    return (
+      <div className="rounded-md border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400">
+        Aggregate Nifty 500 only — sector breakdown will appear in the next
+        quarterly publication, once enough per-sector predictions accumulate.
+      </div>
+    )
+  }
+  return (
+    <div className="overflow-x-auto rounded-md border border-neutral-200 dark:border-neutral-800">
+      <table className="w-full text-sm">
+        <thead className="bg-neutral-50 text-left text-xs uppercase tracking-wider text-neutral-500 dark:bg-neutral-900">
+          <tr>
+            <th className="px-4 py-2">Sector</th>
+            <th className="px-4 py-2 text-right">n</th>
+            <th className="px-4 py-2 text-right">Mean return</th>
+            <th className="px-4 py-2 text-right">Benchmark</th>
+            <th className="px-4 py-2 text-right">Outperform</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-neutral-200 dark:divide-neutral-800">
+          {rows.map((r) => (
+            <tr key={`${r.sector}-${r.benchmark_ticker}`}>
+              <td className="px-4 py-2">
+                <span className="font-medium">{r.sector}</span>{" "}
+                <span className="text-xs text-neutral-500">
+                  ({r.benchmark_ticker})
+                </span>
+              </td>
+              <td className="px-4 py-2 text-right tabular-nums">{r.n}</td>
+              <td className="px-4 py-2 text-right tabular-nums">
+                {fmtPct(r.mean_return)}
+              </td>
+              <td className="px-4 py-2 text-right tabular-nums text-neutral-600 dark:text-neutral-400">
+                {fmtPct(r.benchmark_return)}
+              </td>
+              <td className="px-4 py-2 text-right tabular-nums">
+                {fmtRate(r.outperform_rate)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
