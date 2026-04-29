@@ -341,22 +341,7 @@ export default function PricingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] border-t border-white/5 py-12">
-        <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-2">
-            <img src="/logo-new.svg" alt="YieldIQ" className="w-6 h-6 rounded-md" />
-            <span className="text-gray-400 text-sm">&copy; 2026 YieldIQ. Made in India.</span>
-          </div>
-          <div className="flex items-center gap-4 text-xs">
-            <Link href="/terms" className="text-gray-500 hover:text-gray-300 transition">Terms</Link>
-            <Link href="/privacy" className="text-gray-500 hover:text-gray-300 transition">Privacy</Link>
-          </div>
-          <p className="text-gray-600 text-xs">
-            Model output only &mdash; not investment advice. YieldIQ is not registered with SEBI as an investment adviser.
-          </p>
-        </div>
-      </footer>
+      {/* Footer rendered by (marketing)/layout.tsx via <TrustFooter /> */}
     </div>
   )
 }
