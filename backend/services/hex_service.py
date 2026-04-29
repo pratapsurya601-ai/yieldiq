@@ -245,6 +245,7 @@ def _fetch_core_data(ticker: str) -> dict:
         "metrics": None,       # market_metrics row
         "financials": [],      # list of ttm/annual financials rows
         "sector": None,        # stocks.sector
+        "industry": None,      # stocks.industry (cohort disambiguator)
     }
     sess = _get_session()
     if sess is None:
@@ -344,14 +345,19 @@ def _fetch_core_data(ticker: str) -> dict:
             # class is visible in Railway logs without a log-level bump.
             logger.info("hex: financials fetch failed for %s: %s", ticker, exc)
 
-        # 4. stocks.sector
+        # 4. stocks.sector + stocks.industry
+        # `industry` is needed by sector_percentile.compute_sector_cohort
+        # to disambiguate banks from NBFCs/AMCs in the Financial
+        # Services bucket — without it HDFCBANK ends up in the same
+        # cohort as an asset manager.
         try:
             row = sess.execute(
-                text("SELECT sector FROM stocks WHERE ticker = :t LIMIT 1"),
+                text("SELECT sector, industry FROM stocks WHERE ticker = :t LIMIT 1"),
                 {"t": bare},
             ).fetchone()
             if row:
                 out["sector"] = row[0]
+                out["industry"] = row[1]
         except Exception as exc:
             logger.debug("hex: stocks.sector fetch failed for %s: %s", ticker, exc)
 
@@ -543,21 +549,26 @@ def _axis_value_percentile(data: dict, metric_kind: str) -> dict:
     from backend.services import sector_percentile as sp
 
     sector_label_raw = data.get("sector") or ""
+    industry_label_raw = data.get("industry") or ""
     cohort: list[dict] = []
     sess = _build_cohort_session()
     sector_label = ""
     if sess is not None and sector_label_raw:
         try:
-            cohort = sp.compute_sector_cohort(sector_label_raw, sess)
+            cohort = sp.compute_sector_cohort(
+                sector_label_raw, sess, industry_label=industry_label_raw,
+            )
         except Exception as exc:
             logger.info("hex value: cohort fetch failed for %s: %s",
                         sector_label_raw, exc)
             cohort = []
         finally:
             _safe_close(sess)
-        # Best-effort canonical label (may resolve via alias).
+        # Best-effort canonical label (may resolve via alias / industry).
         try:
-            sector_label = sp._canonical_sector(sector_label_raw) or ""
+            sector_label = sp._canonical_sector(
+                sector_label_raw, industry_label_raw,
+            ) or ""
         except Exception:
             sector_label = ""
 
