@@ -205,10 +205,36 @@ def get_stock_data_from_db(ticker: str, db: Session) -> dict:
         ticker=ticker,
     ).order_by(desc(DailyPrice.trade_date)).first()
 
-    # Latest 5 years of annual financials
-    financials = db.query(Financials).filter_by(
-        ticker=ticker, period_type="annual",
-    ).order_by(desc(Financials.period_end)).limit(5).all()
+    # Latest 5 years of annual financials.
+    #
+    # Use PostgreSQL DISTINCT ON to keep, for each period_end, only
+    # the highest-priority row (lowest data_quality_rank wins). This
+    # guards downstream consumers against the v74-class incident
+    # where multiple rows coexisted for the same (ticker, period_end)
+    # and the wrong (yfinance) one surfaced. Even though the unique
+    # constraint prevents true duplicates today, ranked dedupe means
+    # that if NSE_XBRL and yfinance ever both write the same period,
+    # NSE_XBRL is what reaches the analysis layer.
+    #
+    # Falls back to plain ORDER BY when data_quality_rank column is
+    # missing (e.g. before migration 006 has been applied).
+    try:
+        financials = (
+            db.query(Financials)
+              .filter_by(ticker=ticker, period_type="annual")
+              .distinct(Financials.period_end)
+              .order_by(
+                  desc(Financials.period_end),
+                  Financials.data_quality_rank.asc(),
+                  desc(Financials.id),
+              )
+              .limit(5)
+              .all()
+        )
+    except Exception:  # pragma: no cover — pre-migration safety net
+        financials = db.query(Financials).filter_by(
+            ticker=ticker, period_type="annual",
+        ).order_by(desc(Financials.period_end)).limit(5).all()
 
     # Latest shareholding
     shareholding = db.query(ShareholdingPattern).filter_by(

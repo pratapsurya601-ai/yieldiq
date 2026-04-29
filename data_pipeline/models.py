@@ -121,6 +121,13 @@ class Financials(Base):
     fcf_growth_yoy = Column(Float)
 
     data_source = Column(String(50))          # "BSE_XBRL" or "yfinance"
+    # Per-row source precedence; lower = higher quality. Populated by
+    # db/migrations/006_data_quality_rank.sql. Used by the UPSERT
+    # precedence guard (fetch_annual_financials.UPSERT_SQL,
+    # bse_xbrl.store_financials) and the read-path dedupe in
+    # pipeline.get_stock_data_from_db. Default 50 keeps existing
+    # writers safe if they don't pass an explicit value.
+    data_quality_rank = Column(Integer, default=50, server_default="50")
     raw_data = Column(Text)                   # JSON of original filing
 
     # Reporting currency of this filing. Most Indian issuers file in INR

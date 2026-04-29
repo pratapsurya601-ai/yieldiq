@@ -32,34 +32,90 @@ from . import _common as C
 logger = logging.getLogger(__name__)
 
 
+# ── per-row source precedence ────────────────────────────────────────
+# Lower rank = higher quality. Used by the UPSERT precedence guard
+# below so a later yfinance backfill can NEVER overwrite an existing
+# NSE_XBRL row for the same (ticker, period_end, period_type).
+# Mirrors db/migrations/006_data_quality_rank.sql.
+_RANK_BY_SOURCE = {
+    "NSE_XBRL":            10,
+    "NSE_XBRL_STANDALONE": 15,
+    "NSE_XBRL_SYNTH":      20,
+    "BSE_PEERCOMP":        30,
+    "BSE_API":             40,
+    "finnhub":             50,
+    "yfinance":            60,
+}
+
+
+def _rank_for(source: str | None) -> int:
+    """Return the precedence rank for a data_source label (default 70)."""
+    return _RANK_BY_SOURCE.get(source or "", 70)
+
+
+# Each updatable column uses the pattern:
+#   col = CASE WHEN EXCLUDED.data_quality_rank <= financials.data_quality_rank
+#               THEN COALESCE(EXCLUDED.col, financials.col)
+#               ELSE financials.col END
+# meaning a lower-or-equal rank can write (with COALESCE preserving
+# non-null), but a strictly higher (worse) rank can never displace
+# the existing value. data_quality_rank itself uses LEAST() so a row's
+# rank can only ever improve (decrease).
 UPSERT_SQL = text("""
     INSERT INTO financials (
         ticker, period_end, period_type,
         revenue, pat, ebit, cfo, capex, free_cash_flow,
         eps_diluted, total_debt, cash_and_equivalents,
         total_equity, total_assets, roe,
-        data_source, currency
+        data_source, data_quality_rank, currency
     ) VALUES (
         :ticker, :period_end, :period_type,
         :revenue, :pat, :ebit, :cfo, :capex, :fcf,
         :eps, :debt, :cash,
         :equity, :total_assets, :roe,
-        :data_source, 'INR'
+        :data_source, :data_quality_rank, 'INR'
     )
     ON CONFLICT (ticker, period_end, period_type) DO UPDATE SET
-        revenue              = COALESCE(EXCLUDED.revenue, financials.revenue),
-        pat                  = COALESCE(EXCLUDED.pat, financials.pat),
-        ebit                 = COALESCE(EXCLUDED.ebit, financials.ebit),
-        cfo                  = COALESCE(EXCLUDED.cfo, financials.cfo),
-        capex                = COALESCE(EXCLUDED.capex, financials.capex),
-        free_cash_flow       = COALESCE(EXCLUDED.free_cash_flow, financials.free_cash_flow),
-        eps_diluted          = COALESCE(EXCLUDED.eps_diluted, financials.eps_diluted),
-        total_debt           = COALESCE(EXCLUDED.total_debt, financials.total_debt),
-        cash_and_equivalents = COALESCE(EXCLUDED.cash_and_equivalents, financials.cash_and_equivalents),
-        total_equity         = COALESCE(EXCLUDED.total_equity, financials.total_equity),
-        total_assets         = COALESCE(EXCLUDED.total_assets, financials.total_assets),
-        roe                  = COALESCE(EXCLUDED.roe, financials.roe),
-        data_source          = COALESCE(EXCLUDED.data_source, financials.data_source)
+        revenue = CASE WHEN EXCLUDED.data_quality_rank <= financials.data_quality_rank
+                       THEN COALESCE(EXCLUDED.revenue, financials.revenue)
+                       ELSE financials.revenue END,
+        pat = CASE WHEN EXCLUDED.data_quality_rank <= financials.data_quality_rank
+                   THEN COALESCE(EXCLUDED.pat, financials.pat)
+                   ELSE financials.pat END,
+        ebit = CASE WHEN EXCLUDED.data_quality_rank <= financials.data_quality_rank
+                    THEN COALESCE(EXCLUDED.ebit, financials.ebit)
+                    ELSE financials.ebit END,
+        cfo = CASE WHEN EXCLUDED.data_quality_rank <= financials.data_quality_rank
+                   THEN COALESCE(EXCLUDED.cfo, financials.cfo)
+                   ELSE financials.cfo END,
+        capex = CASE WHEN EXCLUDED.data_quality_rank <= financials.data_quality_rank
+                     THEN COALESCE(EXCLUDED.capex, financials.capex)
+                     ELSE financials.capex END,
+        free_cash_flow = CASE WHEN EXCLUDED.data_quality_rank <= financials.data_quality_rank
+                              THEN COALESCE(EXCLUDED.free_cash_flow, financials.free_cash_flow)
+                              ELSE financials.free_cash_flow END,
+        eps_diluted = CASE WHEN EXCLUDED.data_quality_rank <= financials.data_quality_rank
+                           THEN COALESCE(EXCLUDED.eps_diluted, financials.eps_diluted)
+                           ELSE financials.eps_diluted END,
+        total_debt = CASE WHEN EXCLUDED.data_quality_rank <= financials.data_quality_rank
+                          THEN COALESCE(EXCLUDED.total_debt, financials.total_debt)
+                          ELSE financials.total_debt END,
+        cash_and_equivalents = CASE WHEN EXCLUDED.data_quality_rank <= financials.data_quality_rank
+                                    THEN COALESCE(EXCLUDED.cash_and_equivalents, financials.cash_and_equivalents)
+                                    ELSE financials.cash_and_equivalents END,
+        total_equity = CASE WHEN EXCLUDED.data_quality_rank <= financials.data_quality_rank
+                            THEN COALESCE(EXCLUDED.total_equity, financials.total_equity)
+                            ELSE financials.total_equity END,
+        total_assets = CASE WHEN EXCLUDED.data_quality_rank <= financials.data_quality_rank
+                            THEN COALESCE(EXCLUDED.total_assets, financials.total_assets)
+                            ELSE financials.total_assets END,
+        roe = CASE WHEN EXCLUDED.data_quality_rank <= financials.data_quality_rank
+                   THEN COALESCE(EXCLUDED.roe, financials.roe)
+                   ELSE financials.roe END,
+        data_source = CASE WHEN EXCLUDED.data_quality_rank <= financials.data_quality_rank
+                           THEN COALESCE(EXCLUDED.data_source, financials.data_source)
+                           ELSE financials.data_source END,
+        data_quality_rank = LEAST(EXCLUDED.data_quality_rank, financials.data_quality_rank)
 """)
 
 
@@ -206,6 +262,7 @@ def _fetch_one(session_factory):
         sess = session_factory()
         try:
             for r in rows:
+                ds = "NSE_XBRL" if source == "nse_xbrl" else "yfinance"
                 sess.execute(UPSERT_SQL, {
                     "ticker": bare,
                     "period_end": r["period_end"],
@@ -215,7 +272,8 @@ def _fetch_one(session_factory):
                     "eps": r["eps"], "debt": r["debt"], "cash": r["cash"],
                     "equity": r["equity"], "total_assets": r["total_assets"],
                     "roe": r["roe"],
-                    "data_source": "NSE_XBRL" if source == "nse_xbrl" else "yfinance",
+                    "data_source": ds,
+                    "data_quality_rank": _rank_for(ds),
                 })
             sess.commit()
         except Exception as e:
