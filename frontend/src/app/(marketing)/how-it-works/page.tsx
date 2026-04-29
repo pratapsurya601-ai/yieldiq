@@ -248,7 +248,7 @@ export default function HowItWorksPage() {
         >
           <Row
             label="Margin stability"
-            body="Standard deviation of operating margin across the cycle. A high score requires the margin to hold through input-cost shocks, not just average to a flattering mean."
+            body="Standard deviation of operating margin across the cycle. A high score requires the margin to remain stable through input-cost shocks, not just average to a flattering mean."
           />
           <Row
             label="ROIC vs WACC"
@@ -356,7 +356,7 @@ export default function HowItWorksPage() {
           />
           <Row
             label="Below peer range"
-            body="Below the cohort median but inside the normal range. Cheaper than peers, but not screaming cheap."
+            body="Below the cohort median but inside the normal range. Discounted versus peers, but not in a notable discount band."
           />
           <Row
             label="In peer range"
@@ -406,10 +406,10 @@ export default function HowItWorksPage() {
           className="rounded-2xl border border-border bg-surface px-5 mb-6"
           aria-label="Grade bands"
         >
-          <Row label="A+ / A" body="Top-tier composite. Strong scores on all axes; no single axis below the cohort median." />
-          <Row label="B+ / B" body="Solid. Strong on most axes with one or two soft spots that are usually known and disclosed." />
-          <Row label="C+ / C" body="Mixed. Real strengths offset by real weaknesses; the verdict is a thinking aid, not a green light." />
-          <Row label="D" body="Weak. Multiple axes below the cohort median or red-flagged on Safety. Read the report before reading the grade." />
+          <Row label="A+ / A" body="Top-tier composite. High scores on all axes; no single axis below the cohort median." />
+          <Row label="B+ / B" body="Solid. High on most axes with one or two soft spots that are usually known and disclosed." />
+          <Row label="C+ / C" body="Mixed. Real high points offset by real low points; the verdict is a thinking aid, not a green light." />
+          <Row label="D" body="Below median. Multiple axes below the cohort median or red-flagged on Safety. Read the report before reading the grade." />
         </ul>
 
         <PullQuote>
@@ -481,11 +481,9 @@ export default function HowItWorksPage() {
           </p>
           <ul className="list-disc pl-6 space-y-2">
             <li>
-              We don&rsquo;t say{" "}
-              <span className="text-ink font-semibold">Buy</span>,{" "}
-              <span className="text-ink font-semibold">Sell</span>,{" "}
-              <span className="text-ink font-semibold">Outperform</span>,{" "}
-              or <span className="text-ink font-semibold">Underperform</span>.
+              We don&rsquo;t issue directional recommendations &mdash; none
+              of the four rating words conventional sell-side analysts use
+              to flag relative or absolute performance appear in our copy.
             </li>
             <li>We don&rsquo;t issue price targets.</li>
             <li>
