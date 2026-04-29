@@ -1,0 +1,89 @@
+name: Data Completeness Weekly
+
+# Runs every Sunday at 06:00 UTC. Reads the latest
+# reports/download_requirements_<date>.json on main, dispatches the
+# unified backfill pipeline against Neon, and posts the markdown
+# summary as a GitHub issue body for review.
+
+on:
+  schedule:
+    - cron: "0 6 * * 0"
+  workflow_dispatch:
+    inputs:
+      fields:
+        description: "Comma-separated subset of fields (default: all)"
+        required: false
+        default: ""
+      top:
+        description: "Restrict to top-N by market cap (0 = all)"
+        required: false
+        default: "0"
+      dry_run:
+        description: "Dry-run only (no DB writes)"
+        required: false
+        default: "false"
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240   # 4-hour budget for large universes
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install yfinance pandas requests sqlalchemy psycopg2-binary curl_cffi
+
+      - name: Run completeness backfill
+        env:
+          DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+        run: |
+          python scripts/data_pipelines/run_completeness_backfill.py \
+            ${{ github.event.inputs.dry_run == 'true' && '--dry-run' || '' }} \
+            ${{ github.event.inputs.fields && format('--fields {0}', github.event.inputs.fields) || '' }} \
+            ${{ github.event.inputs.top && github.event.inputs.top != '0' && format('--top {0}', github.event.inputs.top) || '' }}
+
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backfill-${{ github.run_id }}
+          path: |
+            reports/backfill_log_*.jsonl
+            docs/ops/backfill_summary_*.md
+          retention-days: 30
+
+      - name: Post summary as GitHub issue
+        if: success()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const today = new Date().toISOString().slice(0, 10);
+            const summaryPath = `docs/ops/backfill_summary_${today}.md`;
+            if (!fs.existsSync(summaryPath)) {
+              core.warning(`No summary at ${summaryPath} — skipping issue.`);
+              return;
+            }
+            const body = fs.readFileSync(summaryPath, 'utf8');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Data completeness backfill — ${today}`,
+              body,
+              labels: ['data-pipeline', 'automated'],
+            });
