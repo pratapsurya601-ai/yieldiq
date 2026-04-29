@@ -1,5 +1,16 @@
 # Status Page Setup — Better Stack
 
+> **Moved.** The authoritative ops runbook now lives at
+> [`docs/ops/status_page_setup.md`](./ops/status_page_setup.md).
+> It reflects the current 4-monitor list (the public-API surface as of
+> 2026-04) and documents the temporary `/status` redirect route used
+> while DNS for `status.yieldiq.in` is being wired up.
+>
+> This file is kept so that older PR / commit links (e.g. PR #128) still
+> resolve. New edits should go to the file under `docs/ops/`.
+
+---
+
 This runbook walks through setting up the public YieldIQ status page at
 `status.yieldiq.in` using **Better Stack** (formerly Better Uptime). Free tier
 is sufficient: 10 monitors, 1 status page, 3-minute check intervals.
