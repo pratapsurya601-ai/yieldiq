@@ -22,8 +22,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-          cache-dependency-path: mobile/package-lock.json
+          # No npm cache yet — Phase 0 ships without a lockfile
+          # (deps churn while screens are scaffolded). Re-enable once
+          # `mobile/package-lock.json` is committed.
 
       # Use npm install (not ci) until a lockfile is committed.
       - name: Install deps
