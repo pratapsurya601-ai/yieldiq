@@ -1,0 +1,67 @@
+[
+  {
+    "ticker": "IDEA",
+    "trade_date": "2026-04-26",
+    "market_cap_cr": 103142.5753088,
+    "pe_old": null,
+    "pb_old": -1.2504927,
+    "pe_yf": null,
+    "pb_yf": -1.3516353,
+    "yf_status": "ok",
+    "applied": true,
+    "pe_after": null,
+    "pb_after": -1.2504927
+  },
+  {
+    "ticker": "GMRAIRPORT",
+    "trade_date": "2026-04-26",
+    "market_cap_cr": 99771.7639168,
+    "pe_old": null,
+    "pb_old": -32.05224,
+    "pe_yf": null,
+    "pb_yf": -32.71031,
+    "yf_status": "ok",
+    "applied": true,
+    "pe_after": null,
+    "pb_after": -32.05224
+  },
+  {
+    "ticker": "MEESHO",
+    "trade_date": "2026-04-26",
+    "market_cap_cr": 82639.1986176,
+    "pe_old": null,
+    "pb_old": 55.665436,
+    "pe_yf": null,
+    "pb_yf": 53.19778,
+    "yf_status": "ok",
+    "applied": true,
+    "pe_after": null,
+    "pb_after": 55.665436
+  },
+  {
+    "ticker": "SWIGGY",
+    "trade_date": "2026-04-26",
+    "market_cap_cr": 74545.102848,
+    "pe_old": null,
+    "pb_old": 6.8046074,
+    "pe_yf": null,
+    "pb_yf": 6.517823,
+    "yf_status": "ok",
+    "applied": true,
+    "pe_after": null,
+    "pb_after": 6.8046074
+  },
+  {
+    "ticker": "PAYTM",
+    "trade_date": "2026-04-26",
+    "market_cap_cr": 73442.983936,
+    "pe_old": null,
+    "pb_old": 4.7596626,
+    "pe_yf": null,
+    "pb_yf": 4.580659,
+    "yf_status": "ok",
+    "applied": true,
+    "pe_after": null,
+    "pb_after": 4.7596626
+  }
+]
