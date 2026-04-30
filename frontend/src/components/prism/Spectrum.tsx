@@ -164,7 +164,7 @@ export default function Spectrum({
               role="button"
               tabIndex={onPillarTap ? 0 : -1}
               aria-label={`${p.key} score ${
-                p.data_limited ? "not available" : s.toFixed(1)
+                p.data_limited ? "below cohort range" : s.toFixed(1)
               } out of 10`}
               onClick={() => onPillarTap?.(p.key)}
               onKeyDown={(e) => {
@@ -217,7 +217,20 @@ export default function Spectrum({
                     "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
                 }}
               >
-                {p.data_limited ? "n/a" : `${s.toFixed(1)} /10`}
+                {/* PR-prism-zero-fix: em-dash + "Below cohort range" tooltip
+                    instead of "n/a" or a misleading "0.0 /10". The placeholder
+                    communicates the value exists but sits outside the
+                    displayable cohort percentile range (e.g. TITAN's value
+                    axis when overvaluation pushes the percentile below the
+                    cohort floor). */}
+                {p.data_limited ? (
+                  <>
+                    <title>Below cohort range</title>
+                    {"—"}
+                  </>
+                ) : (
+                  `${s.toFixed(1)} /10`
+                )}
               </text>
             </motion.g>
           )

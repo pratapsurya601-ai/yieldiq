@@ -181,7 +181,12 @@ function CountUpText({
     return () => controls.stop()
   }, [enabled, target, mv])
 
-  if (label === "n/a") {
+  // PR-prism-zero-fix: render an em-dash placeholder (with a "Below cohort
+  // range" tooltip) instead of the developer-y "n/a" string. The product
+  // surface should never show "n/a" or "0.0" — both read as broken to a
+  // first-time visitor. The em-dash + <title> combo communicates "value
+  // exists but is outside the displayable cohort percentile range".
+  if (label === "n/a" || label === "—" || label === "•••") {
     return (
       <text
         x={x}
@@ -195,8 +200,10 @@ function CountUpText({
           fontFamily:
             "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
         }}
+        aria-label="Below cohort range"
       >
-        n/a
+        <title>Below cohort range</title>
+        {"—"}
       </text>
     )
   }
@@ -557,7 +564,7 @@ export default function Signature({
               role="button"
               tabIndex={onPillarTap ? 0 : -1}
               aria-label={`${p.key} score ${
-                p.data_limited ? "not available" : s.toFixed(1)
+                p.data_limited ? "below cohort range" : s.toFixed(1)
               } out of 10`}
               onClick={() => onPillarTap?.(p.key)}
               onKeyDown={(e) => {
@@ -609,7 +616,7 @@ export default function Signature({
                 color={color}
                 fontSize={Math.max(10, Math.round(size * 0.038))}
                 enabled={animationsEnabled && !p.data_limited}
-                label={p.data_limited ? "n/a" : s.toFixed(1)}
+                label={p.data_limited ? "—" : s.toFixed(1)}
               />
             </motion.g>
           )

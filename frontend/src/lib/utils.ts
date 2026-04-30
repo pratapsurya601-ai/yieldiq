@@ -67,6 +67,35 @@ export function formatPercentage(value: number | null | undefined, decimals = 1)
 }
 
 /**
+ * Canonical MoS → verdict label.
+ *
+ * Single source of truth for the user-facing valuation verdict on
+ * /analysis/[ticker]. Both the browser tab title (set in layout.tsx
+ * generateMetadata and AnalysisBody useEffect) AND the on-page hero
+ * headline / region caption MUST derive from this helper so the tab
+ * and body can never disagree.
+ *
+ * Launch-day fix (2026-04-30): HDFCBANK shipped with tab="Undervalued"
+ * but body="Above Fair Value" (MoS -12.3%) because the tab title was
+ * derived from the backend `verdict` STRING (which can lag MoS during
+ * cold-cache or stale-cache conditions) while the body was deriving
+ * its label by other means. Funnel everything through MoS — the number
+ * the user sees on screen — so sign-of-MoS and verdict can never
+ * contradict.
+ *
+ * MoS is the SIGNED percentage (e.g. -12.3 means price is 12.3% above
+ * fair value). NOT a decimal.
+ */
+export function verdictFromMos(mos: number | null | undefined): string {
+  if (mos == null || !Number.isFinite(mos)) return "Fairly Valued"
+  if (mos >= 25) return "Notably Undervalued"
+  if (mos >= 5) return "Undervalued"
+  if (mos > -5) return "Fairly Valued"
+  if (mos > -25) return "Above Fair Value"
+  return "Notably Above Fair Value"
+}
+
+/**
  * SEBI-safe verdict display label.
  * Maps internal verdict keys to user-facing text that is purely
  * descriptive (no imperative advice like "Avoid").

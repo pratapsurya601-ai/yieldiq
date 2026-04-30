@@ -45,16 +45,38 @@ export function adaptPrismResponse(raw: unknown, fallbackTicker = ""): PrismData
     const rawScore = a.score
     const score = typeof rawScore === "number" && !Number.isNaN(rawScore) ? rawScore : null
     const limitedFlag = a.data_limited === true
-    const isLimited = limitedFlag || score == null
+    // PR-prism-zero-fix: a backend payload that returns score=0 with no
+    // accompanying label/why is uncomputed/locked, not a real "0.0" axis.
+    // Treat it as data_limited so we render a placeholder ("•••") instead
+    // of six suspicious zeros on the anon /analysis page (launch blocker:
+    // logged-out RELIANCE rendered "0.0 / 0.0 / 0.0 / 0.0 / 0.0 / 0.0").
+    const hasLabel = typeof a.label === "string" && a.label.trim().length > 0
+    const hasWhy = typeof a.why === "string" && a.why.trim().length > 0
+    const looksUncomputed = score === 0 && !hasLabel && !hasWhy
+    const isLimited = limitedFlag || score == null || looksUncomputed
     return {
       key,
       score: isLimited ? null : score,
-      label: typeof a.label === "string" ? a.label : "Neutral",
-      why: typeof a.why === "string" ? a.why : "Data not available.",
+      label: hasLabel ? (a.label as string) : "Neutral",
+      why: hasWhy ? (a.why as string) : "Data not available.",
       data_limited: isLimited,
       weight: PILLAR_WEIGHTS[key],
     }
   })
+
+  // Stronger guard: if EVERY pillar collapsed to 0/null, force all six to
+  // data_limited regardless of label/why. This catches cohort-edge cases
+  // (TITAN deeply overvalued → value=0 with a stale label) where a single
+  // axis still has metadata but the overall set is clearly uncomputed.
+  const allZeroOrNull = pillars.every(
+    (p) => p.score == null || p.score === 0,
+  )
+  if (allZeroOrNull) {
+    for (const p of pillars) {
+      p.score = null
+      p.data_limited = true
+    }
+  }
 
   const overallRaw = typeof hex.overall === "number"
     ? hex.overall

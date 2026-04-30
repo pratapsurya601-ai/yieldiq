@@ -92,10 +92,13 @@ function PresetCard({ preset }: { preset: Preset }) {
       : `Run \u2014 ${count} match${count === 1 ? "" : "es"}`
 
   return (
-    <div
+    <Link
+      href={`/discover/screener?preset=${preset.query}`}
       className={cn(
         "rounded-xl border border-border shadow-sm",
         "border-l-4 p-3 flex flex-col justify-between",
+        "cursor-pointer hover:shadow-md hover:border-l-[6px] active:scale-[0.99] transition",
+        "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         preset.borderColor,
         preset.bgGradient
       )}
@@ -109,17 +112,15 @@ function PresetCard({ preset }: { preset: Preset }) {
             to the dark-mode gradient stops. */}
         <p className="text-xs text-body mt-1 line-clamp-2">{preset.description}</p>
       </div>
-      <Link
-        href={`/discover/screener?preset=${preset.query}`}
+      <span
         className={cn(
           "inline-flex items-center justify-center rounded-lg px-3 py-1.5 min-h-[36px]",
-          "text-xs font-medium bg-bg text-body",
-          "hover:bg-border active:bg-border active:scale-[0.98] transition"
+          "text-xs font-medium bg-bg text-body pointer-events-none"
         )}
       >
         {label}
-      </Link>
-    </div>
+      </span>
+    </Link>
   )
 }
 

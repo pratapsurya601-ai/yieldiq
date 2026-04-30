@@ -53,11 +53,14 @@ export default function ScreenerPresets() {
   return (
     <div className="grid grid-cols-2 gap-3">
       {PRESETS.map((preset) => (
-        <div
+        <Link
           key={preset.name}
+          href={`/discover/screener?preset=${preset.query}`}
           className={cn(
             "rounded-xl border border-border shadow-sm",
             "border-l-4 p-3 flex flex-col justify-between",
+            "cursor-pointer hover:shadow-md hover:border-l-[6px] active:scale-[0.99] transition",
+            "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             preset.borderColor,
             preset.bgGradient
           )}
@@ -69,17 +72,15 @@ export default function ScreenerPresets() {
                 BOTH light and dark mode. See sibling component comment. */}
             <p className="text-xs text-body mt-1 line-clamp-2">{preset.description}</p>
           </div>
-          <Link
-            href={`/discover/screener?preset=${preset.query}`}
+          <span
             className={cn(
               "inline-flex items-center justify-center rounded-lg px-3 py-1.5",
-              "text-xs font-medium bg-bg text-body",
-              "hover:bg-border active:bg-border transition-colors"
+              "text-xs font-medium bg-bg text-body pointer-events-none"
             )}
           >
             Run
-          </Link>
-        </div>
+          </span>
+        </Link>
       ))}
     </div>
   )

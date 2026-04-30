@@ -13,7 +13,7 @@
  */
 
 import { useQuery } from "@tanstack/react-query"
-import { getMarketPulse, getWatchlist } from "@/lib/api"
+import { getMarketPulse, getPublicIndices, getWatchlist } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
 import type { MarketIndex, WatchlistItemResponse } from "@/types/api"
 
@@ -67,6 +67,11 @@ export default function TickerStrip() {
     queryKey: ["market-pulse"],
     // No macro — we only need indices here. Keep the payload small.
     queryFn: () => getMarketPulse(false),
+    // Auth-gated — only fetch when we have a token, otherwise the
+    // request 401s and the strip fell back to em-dashes (the bug
+    // this fix addresses). Logged-out users get /api/v1/public/indices
+    // via the fallback query below.
+    enabled: !!token,
     // /market/pulse is currently 10s+ cold on Railway. Keep the result
     // stable for 5 min so sibling pages don't re-trigger compute. The
     // strip renders em-dashes while the fetch is in flight — cosmetic,
@@ -75,6 +80,18 @@ export default function TickerStrip() {
     gcTime: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnMount: false,
+    retry: 0,
+  })
+
+  // Logged-out fallback: hit the public indices endpoint so the strip
+  // shows real last-close numbers instead of em-dashes.
+  const { data: publicIndices } = useQuery({
+    queryKey: ["public-indices"],
+    queryFn: getPublicIndices,
+    enabled: !token,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
     retry: 0,
   })
 
@@ -89,13 +106,25 @@ export default function TickerStrip() {
   // Pick the three indices we care about, in order.
   const indexOrder = ["NIFTY 50", "SENSEX", "BANK NIFTY"]
   const byName = new Map<string, MarketIndex>()
-  for (const i of pulse?.indices ?? []) {
-    byName.set(i.name.toUpperCase(), i)
+  // Combine logged-in pulse (authoritative when present) and the
+  // logged-out public endpoint. Either source produces rows shaped
+  // {name, price, change_pct} which is the MarketIndex contract.
+  const sources: Array<{ name: string; price: number; change_pct: number | null }> = []
+  for (const i of pulse?.indices ?? []) sources.push(i)
+  for (const i of publicIndices?.indices ?? []) sources.push(i)
+  for (const i of sources) {
+    if (i.price == null) continue
+    const row: MarketIndex = {
+      name: i.name,
+      price: i.price,
+      change_pct: i.change_pct ?? 0,
+    }
+    byName.set(i.name.toUpperCase(), row)
     // Also index by short variants commonly returned by backend.
-    if (i.name.toLowerCase().includes("nifty bank")) byName.set("BANK NIFTY", i)
+    if (i.name.toLowerCase().includes("nifty bank")) byName.set("BANK NIFTY", row)
     if (i.name.toLowerCase().includes("nifty") && !i.name.toLowerCase().includes("bank"))
-      byName.set("NIFTY 50", i)
-    if (i.name.toLowerCase().includes("sensex")) byName.set("SENSEX", i)
+      byName.set("NIFTY 50", row)
+    if (i.name.toLowerCase().includes("sensex")) byName.set("SENSEX", row)
   }
 
   return (

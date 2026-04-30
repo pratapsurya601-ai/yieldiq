@@ -1908,7 +1908,25 @@ async def screener_query(
           ORDER BY mm.ticker, COALESCE(mm.data_quality_rank, 50) ASC, mm.trade_date DESC
         ),
         latest_fv AS (
-          SELECT DISTINCT ON (ticker) ticker, mos_pct, confidence, verdict, fair_value
+          -- LAUNCH-CREDIBILITY (2026-04-30): clamp mos_pct to ±100 and
+          -- flag |raw_mos| > 200 OR raw_mos < -90 as data_limited so the
+          -- screener never surfaces nonsense like BBTC +347 / ACC +296 /
+          -- CHAMBLFERT +271 at the top when sorted by MoS desc. The
+          -- analysis page route already does this clamp (see
+          -- backend/routers/analysis.py:990-1024 and the FV/MoS clamp
+          -- block around 355-397); we mirror it here so the screener
+          -- result table stays consistent. Raw mos_pct is preserved on
+          -- the underlying row — we only clamp at the read projection.
+          SELECT DISTINCT ON (ticker)
+                 ticker,
+                 LEAST(GREATEST(mos_pct, -100::numeric), 100::numeric) AS mos_pct,
+                 confidence,
+                 CASE
+                   WHEN mos_pct IS NULL                  THEN verdict
+                   WHEN mos_pct > 200 OR mos_pct < -90   THEN 'data_limited'
+                   ELSE verdict
+                 END                                                    AS verdict,
+                 fair_value
           FROM fair_value_history
           ORDER BY ticker, date DESC
         )
@@ -3774,6 +3792,43 @@ async def get_block_deals(
     payload = {"ticker": t, "count": len(deals), "deals": deals}
     cache.set(cache_key, payload, ttl=3600, version_keyed=False)
     return _cached_json(payload, s_maxage=3600, swr=7200)
+
+
+@router.get("/indices")
+async def get_public_indices():
+    """Public market indices snapshot (NIFTY 50, SENSEX, NIFTY Bank, etc.).
+
+    Sourced from ``index_snapshots`` (refreshed by the data pipeline).
+    Powers the logged-out TickerStrip on /analysis/* — indices are
+    public data and must not be auth-gated. 5-min CDN cache.
+    """
+    cache_key = "public:indices:v1"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=300, swr=900)
+
+    indices: list[dict] = []
+    try:
+        from backend.services import market_data_service as _mds
+        rows = _mds.get_all_index_snapshots() or []
+        for r in rows:
+            price = r.get("price")
+            if price is None:
+                continue
+            indices.append({
+                "name": r.get("name") or r.get("symbol"),
+                "symbol": r.get("symbol"),
+                "price": round(float(price), 2),
+                "change_pct": round(float(r["change_pct"]), 2)
+                    if r.get("change_pct") is not None else None,
+                "as_of": r["as_of"].isoformat() if r.get("as_of") else None,
+            })
+    except Exception as exc:
+        logger.warning("public/indices query failed: %s", exc)
+
+    payload = {"indices": indices, "count": len(indices)}
+    cache.set(cache_key, payload, ttl=300, version_keyed=False)
+    return _cached_json(payload, s_maxage=300, swr=900)
 
 
 @router.get("/market-flows")

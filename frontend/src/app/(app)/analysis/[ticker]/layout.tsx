@@ -1,4 +1,5 @@
 import type { Metadata } from "next"
+import { verdictFromMos } from "@/lib/utils"
 
 interface Props {
   params: Promise<{ ticker: string }>
@@ -65,9 +66,25 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     UNDER_REVIEW_VERDICTS.has(verdict) ||
     FORBIDDEN_TITLE_SUBSTRINGS.some((s) => backendTitle.includes(s))
 
+  // Derive the tab title's verdict from MoS (the same number rendered
+  // in the page body) rather than trusting the backend-supplied
+  // `title` string. Pre-launch we shipped HDFCBANK with tab=
+  // "Undervalued" but body="Above Fair Value" at MoS -12.3% because
+  // the og-data title was built from the verdict ENUM (which had
+  // drifted from MoS in cache). verdictFromMos() in lib/utils.ts is
+  // the single source of truth for both surfaces. See the helper's
+  // jsdoc for the canonical thresholds.
+  const mosNumber =
+    typeof ogData?.mos === "number" && Number.isFinite(ogData.mos)
+      ? (ogData.mos as number)
+      : null
+  const mosVerdict =
+    mosNumber == null ? "" : verdictFromMos(mosNumber)
   const title = isUnderReview
     ? neutralTitle(displayTicker)
-    : backendTitle || `${displayTicker} Stock Analysis | YieldIQ`
+    : mosVerdict
+      ? `${displayTicker} — ${mosVerdict} | YieldIQ`
+      : backendTitle || `${displayTicker} Stock Analysis | YieldIQ`
 
   const description = isUnderReview
     ? neutralDescription(displayTicker)

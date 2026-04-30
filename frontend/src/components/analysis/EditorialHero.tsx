@@ -36,6 +36,7 @@ import {
   formatCurrency,
   formatPct,
   verdictDisplayLabel,
+  verdictFromMos,
   verdictRegion,
 } from "@/lib/utils"
 import type { Verdict } from "@/types/api"
@@ -195,7 +196,9 @@ export default function EditorialHero({
             />
             <MetricTooltip metricKey="verdict">
               <span className="text-[11px] uppercase tracking-[0.15em] text-body">
-                {verdictRegion(valuationVerdict)}
+                {dataLimited
+                  ? verdictRegion(valuationVerdict)
+                  : verdictFromMos(marginOfSafety)}
               </span>
             </MetricTooltip>
           </div>
@@ -228,7 +231,9 @@ export default function EditorialHero({
             className="font-editorial text-3xl leading-tight text-ink font-semibold"
             style={{ fontVariationSettings: "'opsz' 48" }}
           >
-            {verdictDisplayLabel(valuationVerdict)}
+            {dataLimited
+              ? verdictDisplayLabel(valuationVerdict)
+              : verdictFromMos(marginOfSafety)}
           </h2>
 
           {/* 2x2 metrics */}

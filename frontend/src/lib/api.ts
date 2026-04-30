@@ -695,6 +695,32 @@ export const getMarketFlows = (
   )
 
 // ---------------------------------------------------------------------------
+// Public indices (NIFTY 50, SENSEX, NIFTY Bank, ...)
+// ---------------------------------------------------------------------------
+// Mirrors /api/v1/public/indices. Used by the logged-out TickerStrip so the
+// indices row populates without an auth token. The auth-gated /market/pulse
+// remains the source for logged-in users (richer payload, fear/greed, etc).
+
+export interface PublicIndexRow {
+  name: string
+  symbol: string | null
+  price: number
+  change_pct: number | null
+  as_of: string | null
+}
+
+export interface PublicIndicesResponse {
+  indices: PublicIndexRow[]
+  count: number
+}
+
+export const getPublicIndices = (): Promise<PublicIndicesResponse | null> =>
+  publicGet<PublicIndicesResponse>(
+    `/api/v1/public/indices`,
+    300,                                // 5 min, matches backend
+  )
+
+// ---------------------------------------------------------------------------
 // Stock summary (used by sensitivity heatmap, Excel export, portfolio tracker)
 // ---------------------------------------------------------------------------
 // Mirrors the StockSummary shape rendered on the fair-value page. Returns

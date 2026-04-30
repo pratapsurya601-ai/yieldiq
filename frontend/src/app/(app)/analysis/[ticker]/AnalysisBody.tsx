@@ -45,6 +45,7 @@ import {
   formatPct,
   formatCompanyName,
   verdictDisplayLabel,
+  verdictFromMos,
 } from "@/lib/utils"
 import { trackStockAnalysed } from "@/lib/analytics"
 import Link from "next/link"
@@ -265,7 +266,15 @@ export default function AnalysisBody({ ticker, prism }: Props) {
   useEffect(() => {
     if (data) {
       const displayTicker = data.ticker.replace(".NS", "").replace(".BO", "")
-      const verdict = verdictDisplayLabel(data.valuation.verdict)
+      // Tab title verdict is derived from MoS (the same number rendered
+      // in the hero) via verdictFromMos() so tab and body can never
+      // disagree. Falls back to the verdict-string label if MoS is
+      // missing/non-finite (e.g. data_limited / unavailable states).
+      const mos = data.valuation.margin_of_safety
+      const verdict =
+        mos != null && Number.isFinite(mos)
+          ? verdictFromMos(mos)
+          : verdictDisplayLabel(data.valuation.verdict)
       document.title = `${displayTicker} — ${verdict} | YieldIQ`
 
       const desc = `${data.company.company_name} (${data.ticker}) fair value ₹${data.valuation.fair_value.toFixed(0)} vs price ₹${data.valuation.current_price.toFixed(0)}. YieldIQ Score: ${data.quality.yieldiq_score}/100. ${data.quality.moat} moat.`
