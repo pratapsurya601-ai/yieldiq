@@ -34,6 +34,7 @@ import {
   formatPct,
   formatCompanyName,
   verdictDisplayLabel,
+  verdictFromMos,
 } from "@/lib/utils"
 
 /**
@@ -196,9 +197,18 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
   const displayTicker = tickerUpper.replace(/\.(NS|BO)$/i, "")
   const exchange = tickerUpper.endsWith(".BO") ? "BSE" : "NSE"
   const companyDisplay = formatCompanyName(company_name ?? "", tickerUpper)
-  const verdictText = verdict_label
-    ? verdictDisplayLabel(verdict_label)
-    : "Under Review"
+  // Single source of truth: derive verdict from MoS so the body pill,
+  // the tab title (set by layout.tsx generateMetadata via verdictFromMos)
+  // and the OG image all stay in lockstep. Backend `verdict_label` enum
+  // is only a fallback when MoS is null/non-finite — it can drift from
+  // MoS during cold-cache or stale-cache conditions and produced the
+  // SBIN/TCS tab-vs-body contradiction (P0, 2026-04-30).
+  const verdictText =
+    typeof mos_pct === "number" && Number.isFinite(mos_pct)
+      ? verdictFromMos(mos_pct)
+      : verdict_label
+        ? verdictDisplayLabel(verdict_label)
+        : "Under Review"
 
   // MoS sign determines the tint of the summary pill. Positive = undervalued.
   const mosTone =

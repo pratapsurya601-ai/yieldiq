@@ -196,9 +196,18 @@ export default function EditorialHero({
             />
             <MetricTooltip metricKey="verdict">
               <span className="text-[11px] uppercase tracking-[0.15em] text-body">
-                {dataLimited
-                  ? verdictRegion(valuationVerdict)
-                  : verdictFromMos(marginOfSafety)}
+                {/* Single source of truth: derive verdict from MoS (the
+                    same number rendered in the hero stats) via
+                    verdictFromMos(). The backend verdict ENUM is only a
+                    fallback when MoS is null/non-finite — it can drift
+                    from MoS during cold-cache or stale-cache conditions
+                    and produce SBIN/TCS-style tab-vs-body contradictions.
+                    Postmortem: 2026-04-30 P0 — body said "Fair Value
+                    Region" while tab said "Notably Above Fair Value"
+                    on SBIN MoS -39.5%. */}
+                {Number.isFinite(marginOfSafety) && marginOfSafety != null
+                  ? verdictFromMos(marginOfSafety)
+                  : verdictRegion(valuationVerdict)}
               </span>
             </MetricTooltip>
           </div>
@@ -231,9 +240,12 @@ export default function EditorialHero({
             className="font-editorial text-3xl leading-tight text-ink font-semibold"
             style={{ fontVariationSettings: "'opsz' 48" }}
           >
-            {dataLimited
-              ? verdictDisplayLabel(valuationVerdict)
-              : verdictFromMos(marginOfSafety)}
+            {/* Headline mirrors the small region caption above. Always
+                derive from MoS so tab title and hero headline cannot
+                disagree (see SBIN/TCS P0, 2026-04-30). */}
+            {Number.isFinite(marginOfSafety) && marginOfSafety != null
+              ? verdictFromMos(marginOfSafety)
+              : verdictDisplayLabel(valuationVerdict)}
           </h2>
 
           {/* 2x2 metrics */}
