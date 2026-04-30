@@ -40,8 +40,14 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.yieldiq.in"
   let ogData: Record<string, unknown> | null = null
   try {
+    // Cache for 60s only — og-data title is derived from MoS, which is
+    // recomputed by analysis_cache jobs throughout the day. A 1-hour
+    // revalidate window meant a ticker that flipped from MoS=null →
+    // MoS=+55.9% (INFY 2026-04-30) was stuck rendering the neutral
+    // "Stock Analysis" tab title for up to an hour after the cache
+    // recompute. 60s keeps SSR responsive without hammering the API.
     const res = await fetch(`${API_URL}/api/v1/analysis/${ticker}/og-data`, {
-      next: { revalidate: 3600 }, // Cache for 1 hour
+      next: { revalidate: 60 },
     })
     if (res.ok) ogData = await res.json()
   } catch {
