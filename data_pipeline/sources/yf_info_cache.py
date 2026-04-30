@@ -202,11 +202,14 @@ def _validate_info_for_write(ticker: str, info: dict) -> tuple[bool, str | None]
             if db is not None:
                 try:
                     from sqlalchemy import text
+                    # live_quotes has columns (ticker, price, change_pct,
+                    # volume, as_of) — there is exactly one row per ticker
+                    # (upsert), so no ORDER BY is required. We still LIMIT 1
+                    # defensively.
                     row = db.execute(
                         text(
                             "SELECT price FROM live_quotes "
-                            "WHERE ticker = :t "
-                            "ORDER BY trade_date DESC LIMIT 1"
+                            "WHERE ticker = :t LIMIT 1"
                         ),
                         {"t": ticker},
                     ).first()
