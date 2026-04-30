@@ -160,11 +160,64 @@ def is_bank_like(
                 return True
     return False
 
-# Inventory-heavy retail: negative CFO from working capital, not weakness
+# Inventory-heavy retail: negative CFO from working capital, not weakness.
+# Extended 2026-04-29 (PR working-capital-adjusted FCF): added jewellery
+# (KALYANKJIL, RAJESHEXPO, MUTHOOTGOLD, TBZ, PCJEWELLER, TRIBHOVANDAS),
+# beverages (VBL/VARUNBEV) and heavy-equipment dealerships (ESCORTS,
+# TIINDIA) which all show volatile WC swings during expansion cycles.
 INVENTORY_HEAVY_TICKERS = {
-    'TITAN', 'TRENT', 'ABFRL', 'DMART', 'PAGEIND',
-    'RAYMOND', 'VMART', 'MARUTI', 'SHOPERSTOP',
+    # Jewellery
+    'TITAN', 'KALYANKJIL', 'RAJESHEXPO', 'MUTHOOTGOLD', 'TBZ',
+    'PCJEWELLER', 'TRIBHOVANDAS',
+    # Retail (apparel + general merchandise)
+    'DMART', 'TRENT', 'ABFRL', 'VMART', 'SHOPERSTOP', 'VENKEYS',
+    'LIBERTSHOE', 'BATAINDIA', 'PAGEIND', 'RAYMOND',
+    # Beverages / consumer cyclic
+    'VBL', 'VARUNBEV',
+    # Heavy-equipment dealerships (high WC)
+    'ESCORTS', 'TIINDIA',
+    # Auto OEM with large dealer-network inventory
+    'MARUTI',
 }
+
+
+_INVENTORY_HEAVY_SECTORS = {"Retail", "Apparel"}
+_INVENTORY_HEAVY_INDUSTRY_KEYWORDS = (
+    "jewellery", "jewelry", "retail trade", "department stores",
+    "gems", "diamond",
+)
+
+
+def is_inventory_heavy(
+    ticker: str | None,
+    sector: str | None = None,
+    industry: str | None = None,
+) -> bool:
+    """Return True for inventory-heavy businesses where reported FCF
+    swings wildly year-to-year as inventory builds/depletes during
+    expansion (jewellery, retail, beverages, gem/diamond).
+
+    For these tickers the DCF should smooth working-capital deltas over
+    a 3y window when computing the FCF base — see
+    ``models/forecaster._compute_fcf_base``.
+
+    Three independent signals — match on any:
+      1. Ticker membership in :data:`INVENTORY_HEAVY_TICKERS`.
+      2. Industry string contains a known inventory-heavy keyword
+         (jewellery, retail trade, gems, diamond, ...).
+      3. Sector string equals one of the curated inventory-heavy sector
+         labels ("Retail", "Apparel").
+    """
+    bare = (ticker or "").upper().replace(".NS", "").replace(".BO", "")
+    if bare and bare in INVENTORY_HEAVY_TICKERS:
+        return True
+    i = (industry or "").lower()
+    if i and any(k in i for k in _INVENTORY_HEAVY_INDUSTRY_KEYWORDS):
+        return True
+    s = (sector or "").strip()
+    if s and any(s.lower() == k.lower() for k in _INVENTORY_HEAVY_SECTORS):
+        return True
+    return False
 
 
 # ── Cyclical / commodity tickers ──────────────────────────────
