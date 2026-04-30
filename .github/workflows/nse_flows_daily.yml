@@ -1,0 +1,81 @@
+name: NSE Flows + Deals Daily Archive
+
+# Self-archives NSE bulk deals, block deals, and FII/DII daily flows.
+# NSE exposes only a current-day snapshot for all three — there is no
+# historical endpoint, so we run shortly after market close to capture
+# the data while it's still live.
+#
+# 13:30 UTC = 19:00 IST (post-close, after T+0 deal reports settle).
+#
+# Tables written:
+#   - bulk_block_deals   (migration 016)
+#   - fii_dii_flows      (migration 022)
+#
+# Idempotent via UNIQUE constraints; re-running the same day is safe.
+
+on:
+  schedule:
+    - cron: "30 13 * * 1-5"   # Mon-Fri 13:30 UTC = 19:00 IST
+  workflow_dispatch: {}
+
+concurrency:
+  group: nse-flows-daily
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            "curl_cffi>=0.7" \
+            "pandas>=2.0" \
+            "psycopg2-binary>=2.9"
+
+      - name: Check DATABASE_URL
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is missing."
+            exit 1
+          fi
+
+      - name: Fetch + UPSERT bulk/block/FII-DII
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          python -m data_pipeline.sources.nse_flows_deals
+
+      - name: Coverage summary
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python - <<'PY'
+          import os, psycopg2
+          url = os.environ["DATABASE_URL"]
+          if url.startswith("postgres://"):
+              url = "postgresql://" + url[len("postgres://"):]
+          c = psycopg2.connect(url); cur = c.cursor()
+          for tbl, where in [
+              ("bulk_block_deals", "deal_date = CURRENT_DATE"),
+              ("fii_dii_flows",    "trade_date = CURRENT_DATE"),
+          ]:
+              cur.execute(f"SELECT COUNT(*) FROM {tbl} WHERE {where}")
+              print(f"{tbl} today={cur.fetchone()[0]}")
+              cur.execute(f"SELECT COUNT(*) FROM {tbl}")
+              print(f"{tbl} total={cur.fetchone()[0]}")
+          PY

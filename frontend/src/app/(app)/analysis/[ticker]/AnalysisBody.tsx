@@ -17,6 +17,7 @@ import RedFlagInsights from "@/components/analysis/RedFlagInsights"
 import QualityRatios from "@/components/analysis/QualityRatios"
 import PromoterPledgePanel from "@/components/analysis/PromoterPledgePanel"
 import InsiderTradingPanel from "@/components/analysis/InsiderTradingPanel"
+import BulkBlockDealsPanel from "@/components/analysis/BulkBlockDealsPanel"
 import DividendTracker from "@/components/analysis/DividendTracker"
 import NewsWidget from "@/components/analysis/NewsWidget"
 import EarningsCallsWidget from "@/components/analysis/EarningsCallsWidget"
@@ -609,6 +610,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           />
           <PromoterPledgePanel ticker={ticker} />
           <InsiderTradingPanel ticker={ticker} />
+          <BulkBlockDealsPanel ticker={ticker} />
           <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
         </div>
       ),
