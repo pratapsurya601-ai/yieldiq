@@ -143,8 +143,8 @@ export default function InsiderTradingPanel({ ticker }: { ticker: string }) {
               <th className="py-1 pr-3 font-medium">Side</th>
               <th className="py-1 pr-3 font-medium tabular-nums">Qty</th>
               <th className="py-1 pr-3 font-medium tabular-nums">Value</th>
-              <th className="py-1 pr-3 font-medium tabular-nums">Hold Before</th>
-              <th className="py-1 pr-0 font-medium tabular-nums">Hold After</th>
+              <th className="py-1 pr-3 font-medium tabular-nums">Holding Before</th>
+              <th className="py-1 pr-0 font-medium tabular-nums">Holding After</th>
             </tr>
           </thead>
           <tbody>
