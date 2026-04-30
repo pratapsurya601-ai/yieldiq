@@ -105,6 +105,95 @@ def _is_valid_info(info: dict | None) -> bool:
     )
 
 
+# ── Write-time validation guards (added 2026-04-30, mirrors PR #208) ───
+# The 2026-04-29 INFY ADR currency-mistag incident (fixed in
+# scripts/data_pipelines/fix_adr_indian_currency_mistag.py) showed that
+# yfinance occasionally returns financialCurrency='USD' for Indian-primary
+# tickers (it pulls the wrong filing from the ADR side). Caching that
+# blob means every downstream read is poisoned until the row expires.
+# Reject obviously-corrupt info dicts at write time.
+
+# Explicit US-primary ADRs we must NOT confuse with Indian primaries.
+# These legitimately report USD on yfinance and are NOT in our universe.
+_US_PRIMARY_ADRS: frozenset[str] = frozenset({
+    "SIFY", "MMYT", "WIT", "HDB", "IBN", "TTM", "RDY", "INFY-ADR",
+})
+
+
+def _is_indian_primary_ticker(ticker: str) -> bool:
+    """Return True if the ticker is in our Indian-primary universe.
+
+    Conservative: check the `stocks` table. If the table or DB is
+    unreachable, fall back to "not in the explicit ADR allow-list" —
+    YieldIQ's universe is Indian-only by construction.
+    """
+    if not ticker:
+        return False
+    bare = ticker.replace(".NS", "").replace(".BO", "").upper()
+    if bare in _US_PRIMARY_ADRS:
+        return False
+    db = _db_session()
+    if db is None:
+        return True  # universe is Indian-only; assume yes
+    try:
+        from sqlalchemy import text
+        row = db.execute(
+            text("SELECT 1 FROM stocks WHERE ticker = :t LIMIT 1"),
+            {"t": bare},
+        ).first()
+        return row is not None
+    except Exception:
+        return True
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
+def _validate_info_for_write(ticker: str, info: dict) -> tuple[bool, str | None]:
+    """Inspect a freshly-fetched info dict before caching it.
+
+    Returns (ok, reason). When ok is False, the caller must NOT write
+    the row to either the DB cache or the file cache, and should log
+    a WARNING (no `data_anomalies` table exists today).
+
+    Rejection rules (mirrors fix_adr_indian_currency_mistag.py guards):
+      1. financialCurrency='USD' on an Indian-primary ticker — the
+         classic ADR mistag pattern. Block.
+      2. marketCap < 0 or > 1e15 — overflow / unit bug.
+      3. trailingPE > 1000 — almost always a unit bug.
+    """
+    try:
+        # Rule 1: ADR currency mistag
+        fin_ccy = str(info.get("financialCurrency") or "").upper()
+        if fin_ccy == "USD" and _is_indian_primary_ticker(ticker):
+            return False, (
+                f"financialCurrency=USD on Indian-primary ticker {ticker} "
+                "(suspected ADR mistag — see PR #208 lineage)"
+            )
+
+        # Rule 2: marketCap range
+        mc = info.get("marketCap")
+        if isinstance(mc, (int, float)):
+            if mc < 0 or mc > 1e15:
+                return False, (
+                    f"marketCap out of plausible range: {mc} "
+                    f"(must be 0 <= x <= 1e15)"
+                )
+
+        # Rule 3: trailingPE sanity
+        pe = info.get("trailingPE")
+        if isinstance(pe, (int, float)) and pe > 1000:
+            return False, f"trailingPE={pe} > 1000 (suspected unit bug)"
+
+        return True, None
+    except Exception as exc:
+        # Defensive: never crash the writer over a guard failure.
+        log.debug("validate_info_for_write raised for %s: %s", ticker, exc)
+        return True, None
+
+
 def _serialize(info: dict) -> str:
     """JSON-encode with fallback to str() for non-JSON values (Timestamps etc)."""
     def _fallback(o: Any) -> str:
@@ -131,19 +220,47 @@ def _store(ticker: str, info: dict) -> None:
     if not _is_valid_info(info):
         log.info("YF_INFO_CACHE: skip-store %s (invalid info)", ticker)
         return
+    ok, reason = _validate_info_for_write(ticker, info)
+    if not ok:
+        # No data_anomalies table exists today — surface at WARNING so
+        # the rejection lands in Railway logs and is grep-able.
+        log.warning(
+            "YF_INFO_CACHE: REJECT write for %s — %s", ticker, reason,
+        )
+        return
     db = _db_session()
     if db is None:
         log.warning("YF_INFO_CACHE: store failed for %s — DATABASE_URL not set", ticker)
         return
     try:
         from sqlalchemy import text
-        db.execute(text("""
-            INSERT INTO yfinance_info_cache (ticker, info_json, updated_at)
-            VALUES (:t, :j, NOW())
-            ON CONFLICT (ticker) DO UPDATE
-                SET info_json = EXCLUDED.info_json,
-                    updated_at = NOW()
-        """), {"t": ticker, "j": _serialize(info)})
+        # data_quality_rank=50 (yfinance) — column added in migration 009/024
+        # for schema consistency with the wider source-precedence pattern
+        # (PR #208). Wrapped in try/except path: pre-migration the column
+        # is absent and we fall back to the 3-column INSERT.
+        try:
+            db.execute(text("""
+                INSERT INTO yfinance_info_cache
+                    (ticker, info_json, updated_at, data_quality_rank)
+                VALUES (:t, :j, NOW(), 50)
+                ON CONFLICT (ticker) DO UPDATE
+                    SET info_json = EXCLUDED.info_json,
+                        updated_at = NOW(),
+                        data_quality_rank = LEAST(
+                            COALESCE(yfinance_info_cache.data_quality_rank, 50),
+                            EXCLUDED.data_quality_rank
+                        )
+            """), {"t": ticker, "j": _serialize(info)})
+        except Exception:
+            # Pre-migration fallback — column may not exist yet.
+            db.rollback()
+            db.execute(text("""
+                INSERT INTO yfinance_info_cache (ticker, info_json, updated_at)
+                VALUES (:t, :j, NOW())
+                ON CONFLICT (ticker) DO UPDATE
+                    SET info_json = EXCLUDED.info_json,
+                        updated_at = NOW()
+            """), {"t": ticker, "j": _serialize(info)})
         db.commit()
         log.info("YF_INFO_CACHE: stored %s (%d bytes)", ticker, len(_serialize(info)))
     except Exception as exc:
@@ -233,6 +350,15 @@ def get_info(ticker: str, ttl_minutes: int = DEFAULT_TTL_MINUTES) -> tuple[dict,
     # ── Live fetch + write-through ───────────────────────────
     info = _fetch_live(ticker)
     if _is_valid_info(info):
+        ok, reason = _validate_info_for_write(ticker, info)
+        if not ok:
+            # Reject from BOTH DB and file cache — see _validate_info_for_write
+            # for rationale (PR #208 ADR currency-mistag guard).
+            log.warning(
+                "YF_INFO_CACHE: REJECT write-through for %s — %s",
+                ticker, reason,
+            )
+            return info, False
         _store(ticker, info)          # Postgres (if available)
         _file_write(ticker, info)     # File cache (always works)
     else:

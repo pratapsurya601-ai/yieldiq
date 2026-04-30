@@ -23,6 +23,39 @@ logger = logging.getLogger(__name__)
 
 NSE_BASE = "https://www.nseindia.com"
 
+# ── Source-precedence rank (mirrors PR #208 pattern, see migration 009)
+# Lower rank = higher priority on conflict. NSE shareholding is the
+# primary source for this table.
+_RANK_BY_SOURCE: dict[str, int] = {
+    "NSE_SHAREHOLDING": 10,
+    "AMFI":             25,
+    "BSE_SHAREHOLDING": 30,
+    "finnhub":          40,
+    "yfinance":         50,
+}
+
+
+def _rank_for(source: str | None) -> int:
+    """Lookup rank by source. Unknown sources get the default-fallback 60."""
+    return _RANK_BY_SOURCE.get(source or "", 60)
+
+
+_THIS_SOURCE = "NSE_SHAREHOLDING"
+_THIS_RANK = _rank_for(_THIS_SOURCE)
+
+
+def _should_overwrite(existing_rank: int | None, incoming_rank: int) -> bool:
+    """Return True if an incoming row with `incoming_rank` should
+    overwrite an existing row with `existing_rank`.
+
+    Lower rank wins. A NULL existing rank is treated as the worst-case
+    default (60) so any concrete rank can replace it. Equal ranks are
+    allowed to overwrite (re-running the same source must remain
+    idempotent / refresh values)."""
+    if existing_rank is None:
+        return incoming_rank <= 60
+    return incoming_rank <= existing_rank
+
 # NSE API: bulk shareholding master (latest quarter for all stocks)
 NSE_SHP_MASTER_URL = (
     "https://www.nseindia.com/api/corporate-share-holdings-master"
@@ -69,6 +102,8 @@ def _parse_master_item(item: dict) -> ShareholdingPattern | None:
             dii_pct=None,               # not in master API (requires XBRL)
             public_pct=_pct(item.get("public_val")),
             total_shares=None,          # not in master API
+            data_source=_THIS_SOURCE,
+            data_quality_rank=_THIS_RANK,
         )
         return sh
     except Exception as e:
@@ -118,12 +153,33 @@ def download_bulk_shareholding(year: int = None, quarter: int = None,
                     ticker=sh.ticker, quarter_end=sh.quarter_end
                 ).first()
                 if existing:
+                    # Source-precedence guard (PR #208 pattern): an
+                    # incoming row only overwrites if its rank is
+                    # better-or-equal. Prevents a future BSE/yfinance
+                    # writer from clobbering authoritative NSE rows.
+                    if not _should_overwrite(
+                        getattr(existing, "data_quality_rank", None),
+                        _THIS_RANK,
+                    ):
+                        logger.debug(
+                            "shareholding: skip overwrite for %s @ %s "
+                            "(existing rank=%s < incoming %s)",
+                            sh.ticker, sh.quarter_end,
+                            getattr(existing, "data_quality_rank", None),
+                            _THIS_RANK,
+                        )
+                        continue
                     existing.promoter_pct = sh.promoter_pct
                     existing.promoter_pledge_pct = sh.promoter_pledge_pct
                     existing.fii_pct = sh.fii_pct
                     existing.dii_pct = sh.dii_pct
                     existing.public_pct = sh.public_pct
                     existing.total_shares = sh.total_shares
+                    existing.data_source = _THIS_SOURCE
+                    # rank can only improve (LEAST semantics).
+                    existing.data_quality_rank = min(
+                        existing.data_quality_rank or 60, _THIS_RANK
+                    )
                 else:
                     db.add(sh)
                 stored += 1
@@ -195,10 +251,26 @@ def download_symbol_shareholding(symbol: str, db: Session) -> int:
                         ticker=sh.ticker, quarter_end=sh.quarter_end
                     ).first()
                     if existing:
+                        if not _should_overwrite(
+                            getattr(existing, "data_quality_rank", None),
+                            _THIS_RANK,
+                        ):
+                            logger.debug(
+                                "shareholding: skip overwrite for %s @ %s "
+                                "(existing rank=%s < incoming %s)",
+                                sh.ticker, sh.quarter_end,
+                                getattr(existing, "data_quality_rank", None),
+                                _THIS_RANK,
+                            )
+                            continue
                         existing.promoter_pct = sh.promoter_pct
                         existing.public_pct = sh.public_pct
                         if pledge_pct is not None:
                             existing.promoter_pledge_pct = pledge_pct
+                        existing.data_source = _THIS_SOURCE
+                        existing.data_quality_rank = min(
+                            existing.data_quality_rank or 60, _THIS_RANK
+                        )
                     else:
                         db.add(sh)
                     stored += 1
