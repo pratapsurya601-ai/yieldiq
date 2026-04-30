@@ -154,6 +154,10 @@ class ShareholdingPattern(Base):
     dii_pct = Column(Float)
     public_pct = Column(Float)
     total_shares = Column(Float)
+    # Source-precedence (PR #208 pattern). Lower rank = higher priority.
+    # Migration 009/024 backfills existing rows to NSE_SHAREHOLDING/10.
+    data_source = Column(String(40), nullable=True)
+    data_quality_rank = Column(Integer, server_default="50", nullable=True)
 
 
 class MarketMetrics(Base):
