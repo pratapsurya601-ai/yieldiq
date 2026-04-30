@@ -1,0 +1,85 @@
+name: Bulk Refresh Live Quotes
+
+# One-shot manual job to refresh live_quotes for every active ticker
+# in the `stocks` table. Use this after a long DB outage, after a
+# universe expansion, or when watchlists/Discover rails show stale
+# prices for tickers outside the Pulse top-N.
+#
+# To run:
+#   GitHub -> Actions -> "Bulk Refresh Live Quotes" -> Run workflow
+#   -> leave inputs blank -> Run.
+# Runtime: ~30 min for 2,293 tickers (0.4s throttle + yfinance latency).
+#
+# Manual dispatch only — never scheduled. Pulse Daily handles the
+# top-1500 covered universe twice a day.
+#
+# Secrets required:
+#   - DATABASE_URL : Aiven Postgres URL used by all YieldIQ data jobs.
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_tickers:
+        description: "Max tickers to process (blank = all)"
+        required: false
+        default: ""
+      offset:
+        description: "Skip the first N tickers (resume)"
+        required: false
+        default: "0"
+
+concurrency:
+  group: bulk-refresh-live-quotes
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install \
+            "yfinance>=0.2.40" \
+            "psycopg2-binary>=2.9" \
+            "requests>=2.31"
+
+      - name: Check DATABASE_URL
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret is missing."
+            exit 1
+          fi
+          echo "DATABASE_URL is set."
+
+      - name: Run bulk refresh
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          PYTHONUNBUFFERED: "1"
+        run: |
+          MAX_FLAG=""
+          if [ -n "${{ github.event.inputs.max_tickers }}" ]; then
+            MAX_FLAG="--max-tickers ${{ github.event.inputs.max_tickers }}"
+          fi
+          OFFSET_FLAG="--offset ${{ github.event.inputs.offset || '0' }}"
+          python scripts/data_pipelines/bulk_refresh_live_quotes.py \
+            $MAX_FLAG $OFFSET_FLAG
+
+      - name: Upload summary artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bulk-refresh-live-quotes-summary
+          path: reports/bulk_refresh_live_quotes_summary.json
+          if-no-files-found: warn
