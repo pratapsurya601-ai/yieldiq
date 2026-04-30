@@ -106,9 +106,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // with the stock's verdict, fair value, score, etc. baked in
   const ogImageUrl = `https://yieldiq.in/api/og/${ticker}`
 
+  // Stale-snippet defense: when the og-data endpoint reports a degraded
+  // state (verdict in the under-review family OR an explicit
+  // `data_limited` flag), tell crawlers not to index/follow this URL.
+  // Otherwise Google holds onto the previous snippet for days after a
+  // ticker flips into "Under Review" and users land on a degraded page
+  // from search with no warning.
+  const dataLimitedFlag =
+    typeof ogData?.data_limited === "boolean" ? (ogData.data_limited as boolean) : false
+  const noindex = isUnderReview || dataLimitedFlag
+
   return {
     title,
     description,
+    robots: noindex ? { index: false, follow: false } : undefined,
     openGraph: {
       title,
       description,

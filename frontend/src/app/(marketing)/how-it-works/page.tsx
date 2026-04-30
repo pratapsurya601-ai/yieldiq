@@ -106,17 +106,110 @@ function PillarCard({
 function Row({
   label,
   body,
+  status,
 }: {
   label: string
   body: React.ReactNode
+  status?: ClaimStatus
 }) {
   return (
     <li className="flex flex-col sm:flex-row sm:items-baseline sm:gap-6 py-3 border-b border-border last:border-b-0">
-      <span className="text-sm font-semibold text-ink sm:w-56 shrink-0">
+      <span className="text-sm font-semibold text-ink sm:w-56 shrink-0 flex items-center gap-2">
         {label}
+        {status ? <StatusBadge status={status} /> : null}
       </span>
       <span className="text-sm text-body leading-relaxed">{body}</span>
     </li>
+  )
+}
+
+/* ── Claim status badges ──────────────────────────────────────────── */
+
+type ClaimStatus =
+  | { kind: "shipped" }
+  | { kind: "roadmap"; eta?: string }
+  | { kind: "partial" }
+  | { kind: "verify" }
+
+function StatusBadge({ status }: { status: ClaimStatus }) {
+  if (status.kind === "shipped") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-full border border-emerald-600/30 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-emerald-700"
+        title="Shipped — currently live in production"
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 16 16"
+          className="h-3 w-3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M3 8.5l3 3 7-7" />
+        </svg>
+        Shipped
+      </span>
+    )
+  }
+  if (status.kind === "partial") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-full border border-amber-600/30 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700"
+        title="Partial — partially shipping; full enforcement still on the roadmap"
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 16 16"
+          className="h-3 w-3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M5 2.5l2 3-3 4 3 1 2 3M11 2.5l-2 3 3 4-3 1-2 3" />
+          <path d="M3.5 2.5h9M3.5 13.5h9" />
+        </svg>
+        Partial
+      </span>
+    )
+  }
+  if (status.kind === "roadmap") {
+    return (
+      <span
+        className="inline-flex items-center gap-1 rounded-full border border-sky-600/30 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sky-700"
+        title={
+          status.eta
+            ? `Roadmap — target ${status.eta}; not yet enforced`
+            : "Roadmap — not yet enforced"
+        }
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 16 16"
+          className="h-3 w-3"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M4 2h8M4 14h8M5 2v3l3 3-3 3v3M11 2v3l-3 3 3 3v3" />
+        </svg>
+        Roadmap{status.eta ? ` · ${status.eta}` : ""}
+      </span>
+    )
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full border border-zinc-400/40 bg-zinc-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-zinc-600"
+      title="Verify — claim not yet independently verified in this audit"
+    >
+      Verify
+    </span>
   )
 }
 
@@ -136,12 +229,34 @@ export default function HowItWorksPage() {
         >
           Three pillars behind every YieldIQ verdict
         </h1>
-        <p className="text-base text-body leading-relaxed max-w-2xl mb-10">
+        <p className="text-base text-body leading-relaxed max-w-2xl mb-6">
           Every stock on YieldIQ is scored against the same three
           questions: what is it actually worth, how durable is the
           business, and where does it sit against its peers? Below, in
           plain English, is exactly how we answer each one.
         </p>
+
+        {/* Honest-status banner */}
+        <div
+          className="mb-10 rounded-2xl border border-border bg-surface p-4 text-sm text-body leading-relaxed"
+          role="note"
+          aria-label="Claim-status legend"
+        >
+          <p className="mb-3">
+            <span className="font-semibold text-ink">
+              Last updated 30 April 2026.
+            </span>{" "}
+            Each methodology claim below carries a status badge. Claims
+            marked <span className="font-semibold text-ink">Roadmap</span>{" "}
+            have a target quarter and aren&rsquo;t yet enforced in
+            production &mdash; we log every change in the changelog.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <StatusBadge status={{ kind: "shipped" }} />
+            <StatusBadge status={{ kind: "partial" }} />
+            <StatusBadge status={{ kind: "roadmap", eta: "Q3 2026" }} />
+          </div>
+        </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <PillarCard
@@ -166,6 +281,13 @@ export default function HowItWorksPage() {
       <section className="max-w-3xl mx-auto px-4 sm:px-6 py-12 border-t border-border">
         <SectionHeading eyebrow="01 — Fair Value" title="The DCF, in detail" />
         <div className="space-y-4 text-sm text-body leading-relaxed">
+          <p className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={{ kind: "verify" }} />
+            <span className="text-caption text-xs">
+              Two-stage 5+5 fade structure &mdash; verifying surface
+              exposure on stock pages (TODO).
+            </span>
+          </p>
           <p>
             YieldIQ&rsquo;s fair-value engine is a two-stage discounted
             cash flow model: a five-year explicit projection, followed by
@@ -173,6 +295,13 @@ export default function HowItWorksPage() {
             doesn&rsquo;t snap to a single number on year 11 &mdash; it
             decays smoothly, so the path the market actually walks is
             modelled rather than caricatured.
+          </p>
+          <p className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={{ kind: "partial" }} />
+            <span className="text-caption text-xs">
+              Industry-tier WACC live for non-financial sectors; bank
+              equity-only path is on the roadmap (Q3 2026).
+            </span>
           </p>
           <p>
             <span className="text-ink font-semibold">WACC</span> is
@@ -217,6 +346,13 @@ export default function HowItWorksPage() {
             delivered, the model says so plainly. When it sits below
             management&rsquo;s own guidance, that&rsquo;s a setup the
             forward DCF would never tell you about on its own.
+          </p>
+          <p className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={{ kind: "roadmap", eta: "Q3 2026" }} />
+            <span className="text-caption text-xs">
+              Threshold tuning in progress &mdash; current 0.2 cut-off
+              misfires on cases like M&amp;M Bear (IV/price 0.50).
+            </span>
           </p>
           <p>
             <span className="text-ink font-semibold">Cyclical trough
@@ -278,6 +414,17 @@ export default function HowItWorksPage() {
           actively penalises it.
         </p>
 
+        <p className="flex flex-wrap items-center gap-2 mb-2">
+          <StatusBadge status={{ kind: "shipped" }} />
+          <span className="text-caption text-xs">
+            Bellwether allowlist enforced by{" "}
+            <code className="font-mono">
+              test_allowlist_floor_lands_in_moderate_band
+            </code>
+            .
+          </span>
+        </p>
+
         <PullQuote>
           The 18-stock bellwether allowlist &mdash; HDFCBANK, HUL, NESTLE,
           TITAN, ASIANPAINT, TCS, INFY, and others &mdash; floors at
@@ -313,6 +460,14 @@ export default function HowItWorksPage() {
             balance-sheet business. Running the classic 9-signal on a
             bank produces a stream of false WEAK ratings even on
             HDFC Bank or Kotak.
+          </p>
+          <p className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={{ kind: "roadmap", eta: "Q3 2026" }} />
+            <span className="text-caption text-xs">
+              Production banks (HDFCBANK, SBIN) currently display the
+              classic 9-signal Piotroski. The 4-signal bank mode lands in
+              Q3 2026.
+            </span>
           </p>
           <p>
             <span className="text-ink font-semibold">Bank mode</span>{" "}
@@ -412,6 +567,15 @@ export default function HowItWorksPage() {
           <Row label="D" body="Below median. Multiple axes below the cohort median or red-flagged on Safety. Read the report before reading the grade." />
         </ul>
 
+        <p className="flex flex-wrap items-center gap-2 mb-2">
+          <StatusBadge status={{ kind: "partial" }} />
+          <span className="text-caption text-xs">
+            Clamp is live on the screener cohort path. Single-stock
+            analysis pages still render unclamped MoS (e.g. &minus;100%,
+            &minus;180%) &mdash; full clamp parity targeted Q3 2026.
+          </span>
+        </p>
+
         <PullQuote>
           Defence-in-depth: margin-of-safety is clamped to
           [&minus;50%, +50%] before bucketing. A single classifier gap
@@ -489,9 +653,15 @@ export default function HowItWorksPage() {
             <li>
               All output is a model estimate, not investment advice.
             </li>
-            <li>
-              A vocabulary lint runs on every PR. Any forbidden term in
-              user-visible copy fails the build.
+            <li className="flex flex-wrap items-baseline gap-2">
+              <StatusBadge status={{ kind: "roadmap", eta: "Q2 2026" }} />
+              <span>
+                A vocabulary lint runs on every PR. Any forbidden term in
+                user-visible copy fails the build. (CI gate not yet
+                catching INR-only currency violations such as a stray
+                &ldquo;$&rdquo; symbol; the gate is being wired into the
+                PR workflow this quarter.)
+              </span>
             </li>
           </ul>
           <p>
@@ -551,6 +721,31 @@ export default function HowItWorksPage() {
           </Link>
           .
         </p>
+
+        <div className="mt-10 pt-8 border-t border-border">
+          <h3 className="font-editorial text-xl font-semibold text-ink mb-3">
+            Why are some features marked &ldquo;Roadmap&rdquo;?
+          </h3>
+          <p className="text-sm text-body leading-relaxed mb-3">
+            There&rsquo;s an honest tradeoff between marketing what&rsquo;s
+            shipped and shipping what&rsquo;s marketed. Most products
+            quietly choose the first &mdash; the page describes the
+            ambition, the production code lags by a quarter or two, and
+            sophisticated readers spot the gap immediately.
+          </p>
+          <p className="text-sm text-body leading-relaxed">
+            We&rsquo;d rather show the gap than hide it. A{" "}
+            <span className="font-semibold text-ink">Roadmap</span> badge
+            means the design is committed and dated, but the enforcement
+            isn&rsquo;t live in production yet. A{" "}
+            <span className="font-semibold text-ink">Partial</span> badge
+            means part of the system honours the rule and part
+            doesn&rsquo;t &mdash; usually because the screener path
+            shipped before the analysis-page path. When everything on
+            this page reads <span className="font-semibold text-ink">Shipped</span>,
+            we&rsquo;ll have done our job.
+          </p>
+        </div>
 
         <div className="mt-10 pt-6 border-t border-border flex flex-wrap gap-4 text-sm">
           <Link

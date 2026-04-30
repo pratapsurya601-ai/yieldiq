@@ -37,6 +37,7 @@
 import { cookies } from "next/headers"
 import AnalysisAuthGate from "./AnalysisAuthGate"
 import TickerStrip from "@/components/analysis/TickerStrip"
+import AdrCohortBanner from "@/components/analysis/AdrCohortBanner"
 
 export default async function AnalysisPage({
   params,
@@ -50,6 +51,7 @@ export default async function AnalysisPage({
   return (
     <>
       <TickerStrip />
+      <AdrCohortBanner ticker={ticker} />
       <AnalysisAuthGate ticker={ticker} ssrAuthenticated={ssrAuthenticated} />
     </>
   )

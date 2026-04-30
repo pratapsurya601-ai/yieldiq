@@ -3,6 +3,7 @@ import Link from "next/link"
 import { notFound } from "next/navigation"
 import { validateAnalysisData } from "@/lib/validators"
 import DataQualityBanner from "@/components/analysis/DataQualityBanner"
+import AdrCohortBanner, { isAdrAffected } from "@/components/analysis/AdrCohortBanner"
 import DataUnderReview from "@/components/DataUnderReview"
 import ValuationGrid from "@/components/analysis/ValuationGrid"
 import HistoricFinancialsTable from "@/components/analysis/HistoricFinancialsTable"
@@ -156,12 +157,22 @@ export async function generateMetadata(
   const display = ticker.toUpperCase()
 
   if (isUnderReview(data)) {
+    // Page is in a degraded state — keep stale Google snippets from
+    // resurfacing by telling crawlers not to index OR follow links here.
     return {
       title: `${display} — Data Under Review | YieldIQ`,
       description: `Analysis for ${display} is being recalibrated. Check back shortly.`,
-      robots: { index: false, follow: true },
+      robots: { index: false, follow: false },
     }
   }
+
+  // Defensive noindex for the data-limited verdict family — yfinance
+  // upstream brokenness on the ADR cohort can flip a ticker into
+  // verdict="data_limited" without tripping the under_review payload
+  // path. We still don't want those snippets in Google's cache.
+  const verdictLower = (data.verdict || "").toLowerCase()
+  const isDataLimited =
+    verdictLower === "data_limited" || verdictLower === "unavailable"
 
   const vText = verdictLabel(data.verdict)
   // SEO-2026-04-21: rewrite for "X share price" intent.
@@ -214,6 +225,7 @@ export async function generateMetadata(
       images: [`https://yieldiq.in/api/og/${data.ticker}`],
     },
     alternates: { canonical: `https://yieldiq.in/stocks/${display}/fair-value` },
+    robots: isDataLimited ? { index: false, follow: false } : undefined,
   }
 }
 
@@ -284,6 +296,8 @@ export default async function StockFairValuePage(
           <span>/</span>
           <span className="text-gray-600 font-medium">{display}</span>
         </nav>
+
+        <AdrCohortBanner ticker={display} />
 
         {/* Data quality gate — runs server-side */}
         {(() => {
