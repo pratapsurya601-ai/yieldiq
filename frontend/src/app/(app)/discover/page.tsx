@@ -19,6 +19,7 @@ import { formatMoS } from "@/lib/utils"
 import TopPickCard from "@/components/discover/TopPickCard"
 import ScreenerPresetsWithCounts from "@/components/discover/ScreenerPresetsWithCounts"
 import { SectorLeaders } from "@/components/discover/DiscoverRails"
+import MarketPulse from "@/components/discover/MarketPulse"
 // import { NearLowsRail, LowestPERail } from "@/components/discover/DiscoverRails"
 import { useAuthStore } from "@/store/authStore"
 import Link from "next/link"
@@ -144,6 +145,9 @@ export default function DiscoverPage() {
 
       {/* UNCOMMENT WHEN /api/v1/public/lowest-pe RETURNS DENSE DATA */}
       {/* {yiq50 && <LowestPERail stocks={yiq50.results} />} */}
+
+      {/* Market Pulse — FII vs DII daily flow */}
+      <MarketPulse days={30} />
 
       {/* Screener Presets */}
       <section>

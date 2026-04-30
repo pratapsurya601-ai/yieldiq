@@ -3673,3 +3673,147 @@ async def get_insider_trading(
         return _data_unavailable_payload(full_ticker, "query_failed")
     finally:
         _safe_close(db)
+
+
+# NSE flows + deals (added by feat/flows)
+#
+# Reads from canonical tables:
+#   - bulk_block_deals  (migration 016)  — bulk + block deals, NSE/BSE
+#   - fii_dii_flows     (migration 022)  — daily FII/DII buy/sell/net
+#
+# Both populated by .github/workflows/nse_flows_daily.yml at 19:00 IST.
+# Additive read-only endpoints; no CACHE_VERSION bump required.
+# ─────────────────────────────────────────────────────────────────
+
+
+def _query_deals(ticker: str, deal_type: str, limit: int) -> list[dict]:
+    db = _get_db_session()
+    if not db:
+        return []
+    try:
+        from sqlalchemy import text as _t
+        rows = db.execute(
+            _t(
+                """
+                SELECT ticker, deal_date, deal_type, client_name,
+                       buy_sell, quantity, price, exchange
+                FROM bulk_block_deals
+                WHERE ticker = :tkr AND deal_type = :dt
+                ORDER BY deal_date DESC, id DESC
+                LIMIT :lim
+                """
+            ),
+            {"tkr": ticker, "dt": deal_type, "lim": limit},
+        ).fetchall()
+        return [
+            {
+                "ticker": r[0],
+                "deal_date": r[1].isoformat() if r[1] else None,
+                "deal_type": r[2],
+                "client_name": r[3],
+                "buy_sell": r[4],
+                "quantity": int(r[5]) if r[5] is not None else None,
+                "price": float(r[6]) if r[6] is not None else None,
+                "exchange": r[7],
+            }
+            for r in rows
+        ]
+    except Exception as exc:
+        logger.warning("query_deals failed for %s/%s: %s", ticker, deal_type, exc)
+        return []
+    finally:
+        _safe_close(db)
+
+
+@router.get("/bulk-deals/{ticker}")
+async def get_bulk_deals(
+    ticker: str,
+    limit: int = Query(default=10, ge=1, le=50),
+):
+    """Last N bulk deals for a ticker. Public; 1-hour CDN cache."""
+    t = (ticker or "").strip().upper()
+    if not t:
+        raise HTTPException(status_code=400, detail="ticker required")
+
+    cache_key = f"public:bulk-deals:{t}:{limit}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=3600, swr=7200)
+
+    deals = _query_deals(t, "bulk", limit)
+    payload = {"ticker": t, "count": len(deals), "deals": deals}
+    cache.set(cache_key, payload, ttl=3600, version_keyed=False)
+    return _cached_json(payload, s_maxage=3600, swr=7200)
+
+
+@router.get("/block-deals/{ticker}")
+async def get_block_deals(
+    ticker: str,
+    limit: int = Query(default=10, ge=1, le=50),
+):
+    """Last N block deals for a ticker. Public; 1-hour CDN cache."""
+    t = (ticker or "").strip().upper()
+    if not t:
+        raise HTTPException(status_code=400, detail="ticker required")
+
+    cache_key = f"public:block-deals:{t}:{limit}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=3600, swr=7200)
+
+    deals = _query_deals(t, "block", limit)
+    payload = {"ticker": t, "count": len(deals), "deals": deals}
+    cache.set(cache_key, payload, ttl=3600, version_keyed=False)
+    return _cached_json(payload, s_maxage=3600, swr=7200)
+
+
+@router.get("/market-flows")
+async def get_market_flows(
+    days: int = Query(default=30, ge=1, le=365),
+):
+    """Daily FII/DII buy/sell/net for the last N trading days.
+
+    Returns paired FII + DII rows per date. Used by /discover Market
+    Pulse widget. Self-archived from NSE's live snapshot (no historical
+    endpoint available). 30-min CDN cache.
+    """
+    cache_key = f"public:market-flows:{days}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=1800, swr=3600)
+
+    db = _get_db_session()
+    flows: list[dict] = []
+    if db:
+        try:
+            from sqlalchemy import text as _t
+            rows = db.execute(
+                _t(
+                    """
+                    SELECT trade_date, category, buy_value_cr,
+                           sell_value_cr, net_value_cr
+                    FROM fii_dii_flows
+                    WHERE trade_date >= CURRENT_DATE - (:days || ' days')::INTERVAL
+                    ORDER BY trade_date DESC, category
+                    """
+                ),
+                {"days": days},
+            ).fetchall()
+            flows = [
+                {
+                    "trade_date": r[0].isoformat() if r[0] else None,
+                    "category": r[1],
+                    "buy_value_cr": float(r[2]) if r[2] is not None else None,
+                    "sell_value_cr": float(r[3]) if r[3] is not None else None,
+                    "net_value_cr": float(r[4]) if r[4] is not None else None,
+                }
+                for r in rows
+            ]
+        except Exception as exc:
+            logger.warning("market-flows query failed: %s", exc)
+        finally:
+            _safe_close(db)
+
+    payload = {"days": days, "count": len(flows), "flows": flows}
+    cache.set(cache_key, payload, ttl=1800, version_keyed=False)
+    return _cached_json(payload, s_maxage=1800, swr=3600)

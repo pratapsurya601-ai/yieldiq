@@ -623,6 +623,68 @@ export const getDividendHistory = (
     21600,                               // 6h — matches backend edge cache
   )
 
+// ── NSE bulk/block deals + FII/DII flows (feat/flows) ────────
+// All three feed off self-archived NSE snapshots ingested daily by
+// .github/workflows/nse_flows_daily.yml. NSE has no historical
+// endpoint for these, so coverage extends only as far back as the
+// cron has been running.
+export interface BulkBlockDeal {
+  ticker: string
+  deal_date: string                      // ISO YYYY-MM-DD
+  deal_type: "bulk" | "block" | string
+  client_name: string | null
+  buy_sell: "B" | "S" | string
+  quantity: number | null
+  price: number | null
+  exchange: string
+}
+
+export interface BulkBlockDealsResponse {
+  ticker: string
+  count: number
+  deals: BulkBlockDeal[]
+}
+
+export const getBulkDeals = (
+  ticker: string,
+  limit: number = 10,
+): Promise<BulkBlockDealsResponse | null> =>
+  publicGet<BulkBlockDealsResponse>(
+    `/api/v1/public/bulk-deals/${ticker}?limit=${limit}`,
+    3600,
+  )
+
+export const getBlockDeals = (
+  ticker: string,
+  limit: number = 10,
+): Promise<BulkBlockDealsResponse | null> =>
+  publicGet<BulkBlockDealsResponse>(
+    `/api/v1/public/block-deals/${ticker}?limit=${limit}`,
+    3600,
+  )
+
+export interface MarketFlowRow {
+  trade_date: string                     // ISO YYYY-MM-DD
+  category: "FII" | "DII" | string
+  buy_value_cr: number | null
+  sell_value_cr: number | null
+  net_value_cr: number | null
+}
+
+export interface MarketFlowsResponse {
+  days: number
+  count: number
+  flows: MarketFlowRow[]
+}
+
+export const getMarketFlows = (
+  days: number = 30,
+): Promise<MarketFlowsResponse | null> =>
+  publicGet<MarketFlowsResponse>(
+    `/api/v1/public/market-flows?days=${days}`,
+    1800,                                // 30 min, matches backend
+  )
+
 // ---------------------------------------------------------------------------
 // Stock summary (used by sensitivity heatmap, Excel export, portfolio tracker)
 // ---------------------------------------------------------------------------
