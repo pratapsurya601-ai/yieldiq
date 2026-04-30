@@ -99,7 +99,7 @@ const plans: Plan[] = [
       { text: "AI summaries (Groq, sub-second)", included: true },
       { text: "Concall AI transcript summaries", included: true },
       { text: "Full Time Machine (12-month score trend)", included: true },
-      { text: "Tax Report (capital gains calc)", included: true },
+      { text: "Tax Report (capital gains calc) — FY 2025-26 logic per Budget 2024", included: true },
       { text: "Compare up to 3 stocks side-by-side", included: true },
     ],
     ctaStyle: "bg-white text-blue-700 font-bold hover:bg-blue-50",

@@ -383,7 +383,9 @@ export default function TaxReportPage() {
 
           {/* Disclaimer */}
           <p className="text-[10px] text-gray-400 text-center mt-6 leading-relaxed">
-            Tax computation based on FY 2025-26 rules. This is an estimate &mdash; consult a CA for ITR filing.
+            Calculations apply post-Budget-2024 rules: LTCG threshold &#8377;1.25L, holding period changes,
+            and buyback-as-dividend treatment for trades on/after 1 Oct 2024.
+            This is an estimate &mdash; consult a CA for ITR filing.
             YieldIQ is not a tax advisor. Figures assume listed equity with STT paid.
           </p>
         </>
