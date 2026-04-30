@@ -121,10 +121,15 @@ export default function TickerStrip() {
     }
     byName.set(i.name.toUpperCase(), row)
     // Also index by short variants commonly returned by backend.
-    if (i.name.toLowerCase().includes("nifty bank")) byName.set("BANK NIFTY", row)
-    if (i.name.toLowerCase().includes("nifty") && !i.name.toLowerCase().includes("bank"))
-      byName.set("NIFTY 50", row)
-    if (i.name.toLowerCase().includes("sensex")) byName.set("SENSEX", row)
+    // Use exact-name matches only — substring matches like
+    // .includes("nifty") falsely match "Nifty Auto", "Nifty Consumer
+    // Durables", etc., causing the last sector index in the list to
+    // overwrite the real NIFTY 50 row (P0 bug fix 2026-04-30).
+    const lname = i.name.toLowerCase().trim()
+    if (lname === "nifty 50" || lname === "^nsei") byName.set("NIFTY 50", row)
+    if (lname === "nifty bank" || lname === "bank nifty" || lname === "^nsebank")
+      byName.set("BANK NIFTY", row)
+    if (lname === "sensex" || lname === "^bsesn") byName.set("SENSEX", row)
   }
 
   return (
