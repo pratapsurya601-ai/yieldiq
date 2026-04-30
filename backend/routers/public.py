@@ -1891,6 +1891,8 @@ async def screener_query(
           -- market_metrics owns market_cap_cr + pe/pb/ev-ebitda ratios.
           -- close_price lives on daily_prices. LATERAL-JOIN the latest
           -- price onto each ticker so the public contract keeps both.
+          -- PR #218 read-path fallback: skip NULL-mcap rows + prefer high-trust source.
+          -- Prevents 2026-04-30 yfinance-NULL incident class.
           SELECT DISTINCT ON (mm.ticker)
                  mm.ticker, mm.market_cap_cr,
                  mm.pe_ratio, mm.pb_ratio, mm.ev_ebitda,
@@ -1902,7 +1904,8 @@ async def screener_query(
             ORDER BY dp2.trade_date DESC
             LIMIT 1
           ) dp ON TRUE
-          ORDER BY mm.ticker, mm.trade_date DESC
+          WHERE mm.market_cap_cr IS NOT NULL AND mm.market_cap_cr > 0
+          ORDER BY mm.ticker, COALESCE(mm.data_quality_rank, 50) ASC, mm.trade_date DESC
         ),
         latest_fv AS (
           SELECT DISTINCT ON (ticker) ticker, mos_pct, confidence, verdict, fair_value
@@ -1981,10 +1984,13 @@ async def screener_query(
                 f"    FROM ratio_history WHERE period_type='annual' "
                 f"    ORDER BY ticker, period_end DESC"
                 f"  ),"
+                # PR #218 read-path fallback: skip NULL-mcap rows + prefer high-trust source.
+                # Prevents 2026-04-30 yfinance-NULL incident class.
                 f"  latest_mm AS ("
                 f"    SELECT DISTINCT ON (mm.ticker) mm.ticker, mm.market_cap_cr "
                 f"    FROM market_metrics mm "
-                f"    ORDER BY mm.ticker, mm.trade_date DESC"
+                f"    WHERE mm.market_cap_cr IS NOT NULL AND mm.market_cap_cr > 0 "
+                f"    ORDER BY mm.ticker, COALESCE(mm.data_quality_rank, 50) ASC, mm.trade_date DESC"
                 f"  ),"
                 f"  latest_fv AS ("
                 f"    SELECT DISTINCT ON (ticker) ticker, mos_pct, confidence, verdict, fair_value "
@@ -2080,11 +2086,14 @@ async def get_public_top_tickers(limit: int = 500):
             # DISTINCT ON dedupes cross-listing rows in market_metrics
             # (same ticker on NSE+BSE → two mm rows → duplicated output).
             # See design note in backend/routers/screener.py.
+            # PR #218 read-path fallback: skip NULL-mcap rows + prefer high-trust source.
+            # Prevents 2026-04-30 yfinance-NULL incident class.
             rows = sess.execute(_t(
                 "WITH mm_dedup AS ("
                 "  SELECT DISTINCT ON (ticker) ticker, market_cap_cr "
                 "  FROM market_metrics "
-                "  ORDER BY ticker, trade_date DESC"
+                "  WHERE market_cap_cr IS NOT NULL AND market_cap_cr > 0 "
+                "  ORDER BY ticker, COALESCE(data_quality_rank, 50) ASC, trade_date DESC"
                 ") "
                 "SELECT s.ticker "
                 "FROM stocks s "

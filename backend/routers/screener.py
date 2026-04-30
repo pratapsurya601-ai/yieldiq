@@ -47,13 +47,16 @@ def _query_stocks_from_db(min_score: int = 0, min_mos: float = -100,
             # market_metrics (NSE+BSE). See the module-level design note
             # at the top of this file. Without it, "2,907 stocks" in the
             # UI was ~1,700 real tickers counted twice.
+            # PR #218 read-path fallback: skip NULL-mcap rows + prefer high-trust source.
+            # Prevents 2026-04-30 yfinance-NULL incident class.
             query = text("""
                 WITH mm_dedup AS (
                     SELECT DISTINCT ON (ticker)
                         ticker, pe_ratio, pb_ratio, beta_1yr,
                         market_cap_cr, dividend_yield
                     FROM market_metrics
-                    ORDER BY ticker, trade_date DESC
+                    WHERE market_cap_cr IS NOT NULL AND market_cap_cr > 0
+                    ORDER BY ticker, COALESCE(data_quality_rank, 50) ASC, trade_date DESC
                 )
                 SELECT
                     s.ticker,
@@ -76,11 +79,14 @@ def _query_stocks_from_db(min_score: int = 0, min_mos: float = -100,
 
             # Count must ALSO dedupe — pre-fix this was returning ~2,900
             # for a true universe of ~1,700.
+            # PR #218 read-path fallback: skip NULL-mcap rows + prefer high-trust source.
+            # Prevents 2026-04-30 yfinance-NULL incident class.
             count_q = text("""
                 WITH mm_dedup AS (
                     SELECT DISTINCT ON (ticker) ticker, pe_ratio, market_cap_cr
                     FROM market_metrics
-                    ORDER BY ticker, trade_date DESC
+                    WHERE market_cap_cr IS NOT NULL AND market_cap_cr > 0
+                    ORDER BY ticker, COALESCE(data_quality_rank, 50) ASC, trade_date DESC
                 )
                 SELECT COUNT(*) FROM stocks s
                 JOIN mm_dedup mm ON mm.ticker = s.ticker

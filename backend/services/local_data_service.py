@@ -134,10 +134,14 @@ def assemble_local(ticker: str, db_session) -> dict | None:
     beta = 0.0
     try:
         from sqlalchemy import text
+        # PR #218 read-path fallback: skip NULL-mcap rows + prefer high-trust source.
+        # Prevents 2026-04-30 yfinance-NULL incident class.
         mm = db_session.execute(text(
             "SELECT market_cap_cr, pe_ratio, pb_ratio, ev_ebitda, "
             "dividend_yield, beta_1yr FROM market_metrics "
-            "WHERE ticker = :t ORDER BY trade_date DESC LIMIT 1"
+            "WHERE ticker = :t "
+            "AND market_cap_cr IS NOT NULL AND market_cap_cr > 0 "
+            "ORDER BY COALESCE(data_quality_rank, 50) ASC, trade_date DESC LIMIT 1"
         ), {"t": clean}).mappings().first()
         if mm:
             market_cap_cr = _safe(mm.get("market_cap_cr"))

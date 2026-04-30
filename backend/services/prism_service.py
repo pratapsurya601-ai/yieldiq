@@ -372,10 +372,14 @@ def _fetch_market_cap_cr(ticker: str) -> Optional[float]:
                 # ORDER BY trade_date DESC LIMIT 1 - dual-listed tickers
                 # (NSE+BSE) have two rows in market_metrics; pick the
                 # freshest. See design note in backend/routers/screener.py.
+                # PR #218 read-path fallback: skip NULL-mcap rows + prefer high-trust source.
+                # Prevents 2026-04-30 yfinance-NULL incident class.
                 row = sess.execute(
                     text(
                         "SELECT market_cap_cr FROM market_metrics "
-                        "WHERE ticker = :t ORDER BY trade_date DESC LIMIT 1"
+                        "WHERE ticker = :t "
+                        "AND market_cap_cr IS NOT NULL AND market_cap_cr > 0 "
+                        "ORDER BY COALESCE(data_quality_rank, 50) ASC, trade_date DESC LIMIT 1"
                     ),
                     {"t": cand},
                 ).fetchone()

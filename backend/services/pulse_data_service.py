@@ -512,11 +512,14 @@ def load_top_tickers(limit: int = 500) -> List[str]:
         # DISTINCT ON dedupes cross-listing rows in market_metrics
         # (same ticker on NSE+BSE). See design note in
         # backend/routers/screener.py.
+        # PR #218 read-path fallback: skip NULL-mcap rows + prefer high-trust source.
+        # Prevents 2026-04-30 yfinance-NULL incident class.
         rows = sess.execute(_t(
             "WITH mm_dedup AS ("
             "  SELECT DISTINCT ON (ticker) ticker, market_cap_cr "
             "  FROM market_metrics "
-            "  ORDER BY ticker, trade_date DESC"
+            "  WHERE market_cap_cr IS NOT NULL AND market_cap_cr > 0 "
+            "  ORDER BY ticker, COALESCE(data_quality_rank, 50) ASC, trade_date DESC"
             ") "
             "SELECT s.ticker "
             "FROM stocks s "

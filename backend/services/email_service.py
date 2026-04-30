@@ -310,11 +310,14 @@ def _get_top_undervalued_stocks(limit: int = 5) -> list[dict]:
                 # AND in daily_prices (same ticker, NSE+BSE -> two rows
                 # even on the same trade_date). See design note in
                 # backend/routers/screener.py.
+                # PR #218 read-path fallback: skip NULL-mcap rows + prefer high-trust source.
+                # Prevents 2026-04-30 yfinance-NULL incident class.
                 query = text("""
                     WITH mm_dedup AS (
                         SELECT DISTINCT ON (ticker) ticker, pe_ratio
                         FROM market_metrics
-                        ORDER BY ticker, trade_date DESC
+                        WHERE market_cap_cr IS NOT NULL AND market_cap_cr > 0
+                        ORDER BY ticker, COALESCE(data_quality_rank, 50) ASC, trade_date DESC
                     ),
                     dp_dedup AS (
                         SELECT DISTINCT ON (ticker) ticker, close_price

@@ -19,10 +19,18 @@ export default function PaygHydrator() {
   const setFromServer = usePaygStore((s) => s.setFromServer)
   const clear = usePaygStore((s) => s.clear)
 
+  // Belt-and-suspenders: never fire this query while sitting on an /auth/*
+  // route. If the token in the store is stale (rehydrated from localStorage)
+  // the request will 401, the axios interceptor will redirect to
+  // /auth/login, and we end up in a refresh loop on the login page itself.
+  const onAuthRoute =
+    typeof window !== "undefined" &&
+    window.location.pathname.startsWith("/auth/")
+
   const { data } = useQuery({
     queryKey: ["payg-unlocks", token],
     queryFn: listPaygUnlocks,
-    enabled: !!token,
+    enabled: !!token && !onAuthRoute,
     // Unlocks are 24 h-scoped — no reason to hammer this endpoint. 5 min
     // keeps the "hours remaining" badge fresh-ish if the user comes back
     // to a stale tab.

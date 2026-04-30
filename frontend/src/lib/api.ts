@@ -110,8 +110,17 @@ api.interceptors.response.use(
       // rather than hard-redirecting the whole browser to /auth/login.
       const hadToken = Cookies.get("yieldiq_token")
       if (hadToken) {
+        // Clear stale auth state BEFORE any navigation so the next page
+        // load (or post-redirect Zustand rehydration) doesn't reload the
+        // bad token and re-fire the same 401 → reload loop.
         Cookies.remove("yieldiq_token")
-        window.location.href = "/auth/login"
+        try { useAuthStore.getState().logout() } catch { /* best effort */ }
+        // If we are already on the login page, do NOT hard-reload — that
+        // is exactly what creates the refresh loop when a stale token
+        // is rehydrated from localStorage on /auth/login.
+        if (!window.location.pathname.startsWith("/auth/")) {
+          window.location.href = "/auth/login"
+        }
       }
     }
     if (err.response?.status === 429) {

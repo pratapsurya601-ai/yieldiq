@@ -981,10 +981,13 @@ async def _build_yieldiq50() -> ScreenerResponse:
                           -- fallback returned zero rows, leaving Discover
                           -- to render "YieldIQ 50 is warming up" whenever
                           -- the in-process cache and CSV were empty.
+                          -- PR #218 read-path fallback: skip NULL-mcap rows + prefer high-trust source.
+                          -- Prevents 2026-04-30 yfinance-NULL incident class.
                           SELECT DISTINCT ON (ticker)
                             ticker, market_cap_cr
                           FROM market_metrics
-                          ORDER BY ticker, trade_date DESC
+                          WHERE market_cap_cr IS NOT NULL AND market_cap_cr > 0
+                          ORDER BY ticker, COALESCE(data_quality_rank, 50) ASC, trade_date DESC
                         )
                         SELECT
                           fv.ticker_bare AS ticker,
