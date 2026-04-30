@@ -1,5 +1,6 @@
 "use client"
 import { Component, type ErrorInfo, type ReactNode } from "react"
+import * as Sentry from "@sentry/nextjs"
 
 interface Props {
   children: ReactNode
@@ -26,11 +27,10 @@ export default class ErrorBoundary extends Component<Props, State> {
     // Tag the line so it's grep-able in a noisy console — pairs with
     // the per-rail labels on the homepage.
     console.error(`${tag} caught error`, error, info?.componentStack)
-    // SENTRY-HOOK: when @sentry/nextjs is wired in, replace the
-    // console.error above with `Sentry.captureException(error, {
-    //   tags: { boundary: this.props.label ?? "unknown" },
-    //   extra: { componentStack: info?.componentStack },
-    // })`. Intentionally not adding the dep here.
+    Sentry.captureException(error, {
+      tags: { boundary: this.props.label ?? "unknown" },
+      extra: { componentStack: info?.componentStack },
+    })
   }
 
   render() {
