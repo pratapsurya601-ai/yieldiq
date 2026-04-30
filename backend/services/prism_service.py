@@ -595,6 +595,40 @@ def _build_prism(ticker: str, t0: float) -> dict:
     fair_value = _dig(analysis, "valuation", "fair_value")
     mos_pct = _dig(analysis, "valuation", "margin_of_safety")
 
+    # PR INFY-PRICE-CASCADE (2026-04-30): authoritative price comes
+    # from live_quotes → daily_prices → yfinance cascade, NOT from
+    # the analysis_cache snapshot which may have been computed when
+    # yfinance was returning poison values (INFY ₹0 / ₹1,09,652).
+    # Recomputing MoS here is intentional — the analysis snapshot's
+    # MoS would compound the bad price; using a fresh, trusted price
+    # against the cached fair_value gives the right verdict band.
+    try:
+        from backend.services.market_data_service import get_canonical_price
+        _canonical_px = get_canonical_price(ticker, yf_fallback=price)
+        if _canonical_px is not None and _canonical_px > 0:
+            try:
+                _stale = float(price) if price is not None else None
+            except Exception:
+                _stale = None
+            if _stale is None or abs(_stale - _canonical_px) > 0.01:
+                logger.info(
+                    "prism: %s price overridden by canonical cascade: "
+                    "cache=%s → canonical=%.2f",
+                    ticker, _stale, _canonical_px,
+                )
+                # Recompute MoS against the trusted price so the
+                # verdict band reflects reality, not the poisoned
+                # snapshot. Same canonical (FV-CMP)/CMP formula
+                # used elsewhere in this file.
+                if fair_value is not None and _canonical_px > 0:
+                    try:
+                        mos_pct = (float(fair_value) - _canonical_px) / _canonical_px * 100.0
+                    except Exception:
+                        pass
+            price = _canonical_px
+    except Exception as exc:
+        logger.warning("prism: canonical price cascade failed for %s: %s", ticker, exc)
+
     # Derive mos if missing — use the CANONICAL formula (FV-CMP)/CMP that
     # matches analysis_service's mos_pct (post-FIX1, single source of truth).
     # Was previously (FV-CMP)/FV — caused verdict band to mis-classify

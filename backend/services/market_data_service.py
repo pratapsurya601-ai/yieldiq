@@ -72,6 +72,131 @@ def get_live_quote(ticker: str) -> dict | None:
         sess.close()
 
 
+# ─────────────────────────────────────────────────────────────────
+# Canonical price cascade (PR INFY-PRICE-CASCADE, 2026-04-30)
+# ─────────────────────────────────────────────────────────────────
+#
+# yfinance .info `currentPrice` has caused multiple prod incidents:
+#   • INFY ₹0 (null), INFY ₹1,09,652 (92x unit bug), SBIN ₹1,069,
+#     TCS stale.
+# We have two higher-trust sources for "what is the price right now":
+#   1. live_quotes: refreshed every ~5m during market hours from
+#      bhavcopy + corporate actions. Survives yfinance outages.
+#   2. daily_prices: NSE EOD bhavcopy. Authoritative for trade-day
+#      close. Stale intraday but never wrong.
+#
+# This cascade is the SINGLE READ-PATH preference rule for the
+# `price` field served by the Prism endpoint and the Analysis
+# endpoint. Write-path validation lives in
+# data_pipeline/sources/yf_info_cache.py — DO NOT couple the two.
+
+def get_canonical_price(
+    ticker: str,
+    yf_fallback: float | None = None,
+) -> float | None:
+    """Resolve current price using the trusted cascade.
+
+    Priority:
+      1. live_quotes.price (latest by as_of, refreshed ~5m)
+      2. daily_prices.close_price (latest trade_date, NSE EOD)
+      3. ``yf_fallback`` (yfinance currentPrice already in-hand)
+      4. None — caller decides what to do (usually 'unavailable')
+
+    The yfinance value is passed in (not fetched here) so this helper
+    stays read-only against the DB and cheap (~1ms warm). Callers
+    that already loaded yfinance .info pass that price as the last-
+    resort fallback.
+
+    Logs a warning when both live_quotes and daily_prices miss so
+    prod gaps are visible without grepping yfinance fallback usage.
+
+    Accepts canonical (TICKER.NS / TICKER.BO) or bare (TICKER) form;
+    tries both since the two writers historically disagreed on suffix
+    handling (same class of bug as fair_value_history / market_metrics).
+    """
+    if not ticker:
+        return yf_fallback if (yf_fallback or 0) > 0 else None
+
+    bare = ticker.replace(".NS", "").replace(".BO", "")
+    canonical = ticker if ticker.endswith((".NS", ".BO")) else f"{bare}.NS"
+    candidates = [canonical, bare] if canonical != bare else [canonical]
+
+    sess = _get_session()
+    if sess is not None:
+        try:
+            # 1. live_quotes — preferred (intraday, bhavcopy-backed)
+            for cand in candidates:
+                try:
+                    row = sess.execute(
+                        text(
+                            "SELECT price FROM live_quotes "
+                            "WHERE ticker = :t "
+                            "AND price IS NOT NULL AND price > 0 "
+                            "ORDER BY as_of DESC LIMIT 1"
+                        ),
+                        {"t": cand},
+                    ).fetchone()
+                except Exception:
+                    row = None
+                if row and row[0] is not None:
+                    try:
+                        return float(row[0])
+                    except Exception:
+                        pass
+
+            # 2. daily_prices — NSE EOD fallback
+            for cand in candidates:
+                try:
+                    row = sess.execute(
+                        text(
+                            "SELECT close_price FROM daily_prices "
+                            "WHERE ticker = :t "
+                            "AND close_price IS NOT NULL AND close_price > 0 "
+                            "ORDER BY trade_date DESC LIMIT 1"
+                        ),
+                        {"t": cand},
+                    ).fetchone()
+                except Exception:
+                    row = None
+                if row and row[0] is not None:
+                    try:
+                        px = float(row[0])
+                        log.warning(
+                            "canonical_price: %s missing from live_quotes, "
+                            "fell through to daily_prices close=%.2f",
+                            canonical, px,
+                        )
+                        return px
+                    except Exception:
+                        pass
+        finally:
+            try:
+                sess.close()
+            except Exception:
+                pass
+
+    # 3. yfinance fallback — only when both DB sources missed
+    if yf_fallback is not None:
+        try:
+            yf_px = float(yf_fallback)
+        except Exception:
+            yf_px = 0.0
+        if yf_px > 0:
+            log.warning(
+                "canonical_price: %s missing from live_quotes AND "
+                "daily_prices, falling back to yfinance=%.2f (untrusted)",
+                canonical, yf_px,
+            )
+            return yf_px
+
+    log.warning(
+        "canonical_price: %s has NO price in any source "
+        "(live_quotes / daily_prices / yfinance)",
+        canonical,
+    )
+    return None
+
+
 def get_live_quotes_bulk(tickers: Iterable[str]) -> dict[str, dict]:
     """One-shot bulk read for portfolio pages. Missing tickers are
     simply absent from the returned mapping."""

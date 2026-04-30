@@ -366,6 +366,36 @@ class AnalysisService(NarrativeMixin):
         # local — never re-fetch from market_data, otherwise displayed
         # current_price and MoS will silently drift apart.
         price = enriched.get("price", 0) or 0
+        # PR INFY-PRICE-CASCADE (2026-04-30): override yfinance-sourced
+        # price with the canonical cascade (live_quotes → daily_prices →
+        # yfinance). yfinance .info `currentPrice` produced INFY ₹0,
+        # INFY ₹1,09,652, SBIN ₹1,069 in production; live_quotes for
+        # the same windows had ₹1,188 / ₹819. Single source of truth
+        # for the `price` snapshot used by both the response
+        # `current_price` AND the MoS denominator below.
+        try:
+            from backend.services.market_data_service import get_canonical_price
+            _canonical_px = get_canonical_price(ticker, yf_fallback=price)
+            if _canonical_px is not None and _canonical_px > 0:
+                if abs((_canonical_px or 0) - (price or 0)) > 0.01:
+                    import logging as _px_log
+                    _px_log.getLogger("yieldiq.analysis").info(
+                        "[%s] price overridden by canonical cascade: "
+                        "yf=%.2f → canonical=%.2f",
+                        ticker, float(price or 0), float(_canonical_px),
+                    )
+                price = _canonical_px
+                # Keep enriched in sync so downstream consumers
+                # (market_cap, ev/ebitda denominators) see the same
+                # value.
+                enriched["price"] = _canonical_px
+        except Exception as _px_exc:
+            import logging as _px_log
+            _px_log.getLogger("yieldiq.analysis").warning(
+                "[%s] canonical price cascade failed (using yfinance "
+                "fallback %.2f): %s",
+                ticker, float(price or 0), _px_exc,
+            )
         is_indian = ticker.endswith(".NS") or ticker.endswith(".BO")
 
         # ── Data-quality sanity checks ────────────────────────
