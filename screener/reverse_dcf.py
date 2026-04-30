@@ -464,7 +464,7 @@ def _build_summary(
     gdp_pct     = f"{long_run * 100:.1f}%"
 
     line1 = (
-        f"To justify today's price of ${current_price:.2f}, "
+        f"To justify today's price of ₹{current_price:.2f}, "
         f"{ticker} needs to grow its free cash flow at "
         f"{implied_pct} per year for the next 10 years."
     )
