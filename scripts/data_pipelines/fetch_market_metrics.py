@@ -18,16 +18,90 @@ from sqlalchemy import text
 from . import _common as C
 
 
+# Source ranks for market_metrics. Lower = higher trust. Mirrors PR #208's
+# financials precedence pattern. yfinance is the only source writing today;
+# the other ranks are pre-allocated for future ingest paths.
+_RANK_BY_SOURCE = {
+    "NSE_QUOTE_API": 10,
+    "NSE_BHAVCOPY":  20,
+    "BSE_QUOTE":     30,
+    "BSE_BHAVCOPY":  35,
+    "finnhub":       40,
+    "yfinance":      50,
+}
+
+
+def _rank_for(source: str | None) -> int:
+    return _RANK_BY_SOURCE.get(source or "", 60)
+
+
+# Source-precedence UPSERT (mirrors PR #208 / migration 021_data_quality_rank).
+# A lower-rank row CANNOT overwrite a higher-rank row's columns. Rank itself
+# only ever decreases (LEAST). Prevents the 2026-04-30 incident where yfinance
+# wrote NULL market_cap rows that displaced 2026-04-26's valid values.
 UPSERT_SQL = text("""
-    INSERT INTO market_metrics (ticker, trade_date, pe_ratio, pb_ratio,
-                                debt_equity, roe)
-    VALUES (:ticker, :trade_date, :pe, :pb, :de, :roe)
+    INSERT INTO market_metrics (
+        ticker, trade_date, pe_ratio, pb_ratio, debt_equity, roe,
+        data_source, data_quality_rank
+    )
+    VALUES (
+        :ticker, :trade_date, :pe, :pb, :de, :roe,
+        :data_source, :data_quality_rank
+    )
     ON CONFLICT (ticker, trade_date) DO UPDATE SET
-        pe_ratio    = COALESCE(EXCLUDED.pe_ratio, market_metrics.pe_ratio),
-        pb_ratio    = COALESCE(EXCLUDED.pb_ratio, market_metrics.pb_ratio),
-        debt_equity = COALESCE(EXCLUDED.debt_equity, market_metrics.debt_equity),
-        roe         = COALESCE(EXCLUDED.roe, market_metrics.roe)
+        pe_ratio = CASE
+            WHEN EXCLUDED.data_quality_rank <= market_metrics.data_quality_rank
+             AND EXCLUDED.pe_ratio IS NOT NULL
+            THEN EXCLUDED.pe_ratio
+            ELSE market_metrics.pe_ratio
+        END,
+        pb_ratio = CASE
+            WHEN EXCLUDED.data_quality_rank <= market_metrics.data_quality_rank
+             AND EXCLUDED.pb_ratio IS NOT NULL
+            THEN EXCLUDED.pb_ratio
+            ELSE market_metrics.pb_ratio
+        END,
+        debt_equity = CASE
+            WHEN EXCLUDED.data_quality_rank <= market_metrics.data_quality_rank
+             AND EXCLUDED.debt_equity IS NOT NULL
+            THEN EXCLUDED.debt_equity
+            ELSE market_metrics.debt_equity
+        END,
+        roe = CASE
+            WHEN EXCLUDED.data_quality_rank <= market_metrics.data_quality_rank
+             AND EXCLUDED.roe IS NOT NULL
+            THEN EXCLUDED.roe
+            ELSE market_metrics.roe
+        END,
+        data_source = CASE
+            WHEN EXCLUDED.data_quality_rank <= market_metrics.data_quality_rank
+            THEN EXCLUDED.data_source
+            ELSE market_metrics.data_source
+        END,
+        data_quality_rank = LEAST(EXCLUDED.data_quality_rank, market_metrics.data_quality_rank)
 """)
+
+
+def _row_is_writable(pe, pb, de, roe) -> tuple[bool, str]:
+    """Pre-write validation gate. Returns (is_writable, reason).
+
+    Rejects rows where the values are obviously broken (PE > 500, all NULL,
+    impossible ranges). Mirrors the validation pattern from data_quality
+    helper module (PR #217).
+    """
+    # All-null row provides no signal — skip
+    if pe is None and pb is None and de is None and roe is None:
+        return False, "all metrics NULL — no signal to record"
+    # PE outliers
+    if pe is not None and (pe < 0 or pe > 500):
+        return False, f"PE={pe} outside plausible range [0, 500]"
+    # PB outliers
+    if pb is not None and (pb < 0 or pb > 100):
+        return False, f"PB={pb} outside plausible range [0, 100]"
+    # ROE outliers (decimal form expected: 0.20 = 20%)
+    if roe is not None and (roe < -2 or roe > 5):
+        return False, f"ROE={roe} outside plausible range [-2, 5]"
+    return True, ""
 
 
 def _sane(v, lo: float, hi: float) -> float | None:
@@ -105,6 +179,15 @@ def _fetch_one(session_factory):
         if not any(merged.get(k) is not None for k in ("pe", "pb", "de", "roe")):
             return {"status": "skip", "source": "all", "error": "no metrics"}
 
+        # Pre-write validation gate (PR #218): reject rows whose values are
+        # obvious unit-bug signatures or all-null. Prevents the 2026-04-30
+        # incident class where yfinance writes NULL/junk over prior good data.
+        ok, reason = _row_is_writable(merged.get("pe"), merged.get("pb"),
+                                      merged.get("de"), merged.get("roe"))
+        if not ok:
+            return {"status": "skip", "source": source or "yfinance",
+                    "error": f"validation: {reason}"}
+
         sess = session_factory()
         try:
             sess.execute(UPSERT_SQL, {
@@ -112,6 +195,8 @@ def _fetch_one(session_factory):
                 "trade_date": date.today(),
                 "pe": merged.get("pe"), "pb": merged.get("pb"),
                 "de": merged.get("de"), "roe": merged.get("roe"),
+                "data_source": source or "yfinance",
+                "data_quality_rank": _rank_for(source or "yfinance"),
             })
             sess.commit()
         except Exception as e:
