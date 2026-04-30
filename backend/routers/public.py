@@ -3578,3 +3578,98 @@ async def get_public_status():
         swr=300,
         extra_headers={"X-Source": "public_status_v1"},
     )
+
+
+# ─────────────────────────────────────────────────────────────────
+# Insider trading — SEBI PIT Reg 7 disclosures (NSE corporates-pit).
+# Additive; reads ``insider_trading`` populated by
+# scripts/data_pipelines/backfill_insider_trading.py. No analysis math
+# touches this surface.
+# ─────────────────────────────────────────────────────────────────
+@router.get("/insider-trading/{ticker}")
+async def get_insider_trading(
+    ticker: str,
+    limit: int = Query(default=20, ge=1, le=200),
+):
+    """Most-recent insider-trading disclosures for a ticker.
+
+    Returns a list of acquirer transactions sourced from NSE's
+    ``corporates-pit`` endpoint (SEBI PIT Reg 7 — Form C, Form D,
+    etc). Includes a 5-year rolling count so the frontend can render
+    a "View all (N transactions in last 5y)" affordance.
+
+    No auth. Edge cache: 1h fresh / 2h stale-while-revalidate.
+    """
+    full_ticker = _normalize_ticker(ticker)
+    clean = full_ticker.replace(".NS", "").replace(".BO", "")
+    n = max(1, min(int(limit), 200))
+
+    _cache_key = f"public:insider-trading:{clean}:{n}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=3600, swr=7200)
+
+    db = _get_db_session()
+    if db is None:
+        return _data_unavailable_payload(full_ticker, "db_session_unavailable")
+
+    try:
+        from sqlalchemy import text
+
+        rows = db.execute(
+            text(
+                """
+                SELECT
+                    filing_date, acquirer_name, acquirer_category,
+                    transaction_type, buy_qty, sell_qty,
+                    transaction_value_cr, holding_before_pct,
+                    holding_after_pct, annex_type, pdf_url
+                FROM insider_trading
+                WHERE ticker = :tk
+                ORDER BY filing_date DESC NULLS LAST, id DESC
+                LIMIT :lim
+                """
+            ),
+            {"tk": clean, "lim": n},
+        ).fetchall()
+
+        five_y_cutoff = date.today() - timedelta(days=5 * 366)
+        five_y_count = db.execute(
+            text(
+                """
+                SELECT COUNT(*) FROM insider_trading
+                WHERE ticker = :tk AND filing_date >= :cutoff
+                """
+            ),
+            {"tk": clean, "cutoff": five_y_cutoff},
+        ).scalar() or 0
+
+        transactions: list[dict] = []
+        for r in rows:
+            transactions.append({
+                "filing_date": r[0].isoformat() if r[0] else None,
+                "acquirer_name": r[1],
+                "acquirer_category": r[2],
+                "transaction_type": r[3],
+                "buy_qty": int(r[4]) if r[4] is not None else 0,
+                "sell_qty": int(r[5]) if r[5] is not None else 0,
+                "transaction_value_cr": float(r[6]) if r[6] is not None else None,
+                "holding_before_pct": float(r[7]) if r[7] is not None else None,
+                "holding_after_pct": float(r[8]) if r[8] is not None else None,
+                "annex_type": r[9],
+                "pdf_url": r[10],
+            })
+
+        result = {
+            "ticker": full_ticker,
+            "count": len(transactions),
+            "count_5y": int(five_y_count),
+            "transactions": transactions,
+        }
+        cache.set(_cache_key, result, ttl=3600, version_keyed=False)
+        return _cached_json(result, s_maxage=3600, swr=7200)
+    except Exception as exc:
+        logger.warning("insider-trading failed for %s: %s", clean, exc, exc_info=True)
+        return _data_unavailable_payload(full_ticker, "query_failed")
+    finally:
+        _safe_close(db)

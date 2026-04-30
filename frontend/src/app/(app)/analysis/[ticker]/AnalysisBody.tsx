@@ -16,6 +16,7 @@ import InsightCards from "@/components/analysis/InsightCards"
 import RedFlagInsights from "@/components/analysis/RedFlagInsights"
 import QualityRatios from "@/components/analysis/QualityRatios"
 import PromoterPledgePanel from "@/components/analysis/PromoterPledgePanel"
+import InsiderTradingPanel from "@/components/analysis/InsiderTradingPanel"
 import DividendTracker from "@/components/analysis/DividendTracker"
 import NewsWidget from "@/components/analysis/NewsWidget"
 import EarningsCallsWidget from "@/components/analysis/EarningsCallsWidget"
@@ -607,6 +608,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             ratioHistory={ratiosHistoryQuery.data ?? null}
           />
           <PromoterPledgePanel ticker={ticker} />
+          <InsiderTradingPanel ticker={ticker} />
           <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
         </div>
       ),
