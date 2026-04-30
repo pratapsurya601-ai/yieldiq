@@ -1166,9 +1166,26 @@ class AnalysisService(NarrativeMixin):
                 analyst_upside=_analyst_upside,
             )
         except TypeError as _te:
-            # Fallback: calculate inline if function signature doesn't match
+            # Fallback: calculate inline if function signature doesn't match.
+            # Log so we can see in production whether this fallback fires for
+            # any tickers, and why — a recurrence of this path means the
+            # main scoring function (`compute_yieldiq_score`) is choking on
+            # a None / non-numeric input that needs an upstream guard.
+            import logging as _logging
+            _logging.getLogger("yieldiq.analysis").warning(
+                "scoring fallback for ticker=%s due to TypeError: %s — using inline scoring",
+                ticker, _te,
+            )
             _v = max(0, min(40, int((mos_pct + 40) / 80 * 40)))
-            _q = max(0, min(30, int(piotroski.get("score", 0) / 9 * 20 + (10 if moat_result.get("grade") == "Wide" else 7 if moat_result.get("grade") == "Narrow" else 0))))
+            # FIX (2026-04-30): align fallback moat awards with main scoring
+            # function (Wide=25, Moderate=15, Narrow=18 → proportional within
+            # the fallback's 10-pt cap: Wide=10, Moderate=8, Narrow=5). Prior
+            # version awarded 0 for Moderate, causing TCS-class moats to drop
+            # the score by ~10-15 pts whenever this fallback fired (e.g. TCS
+            # 78 A → 65 B regression observed between audits).
+            _moat_grade = moat_result.get("grade")
+            _moat_pts = {"Wide": 10, "Moderate": 8, "Narrow": 5}.get(_moat_grade, 0)
+            _q = max(0, min(30, int(piotroski.get("score", 0) / 9 * 20 + _moat_pts)))
             _g = max(0, min(20, int(enriched.get("revenue_growth", 0) * 100)))
             _total = max(0, min(100, _v + _q + _g))
             yiq_score = {"score": _total, "grade": "A" if _total >= 75 else "B" if _total >= 55 else "C" if _total >= 35 else "D" if _total >= 20 else "F"}

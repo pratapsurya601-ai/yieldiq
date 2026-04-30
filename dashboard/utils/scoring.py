@@ -103,10 +103,20 @@ def compute_yieldiq_score(
     else:            grw_score = 0
 
     # Sentiment (10 pts)
-    if analyst_upside >= 20:    sent_score = 10
-    elif analyst_upside >= 10:  sent_score = 7
-    elif analyst_upside >= 0:   sent_score = 4
-    else:                       sent_score = 1
+    # GUARD (2026-04-30): coerce analyst_upside to float defensively. If
+    # upstream passes None (Finnhub target absent) or a string, the bare
+    # comparisons below raise TypeError, which trips the fallback path in
+    # backend/services/analysis/service.py and silently re-scores the
+    # ticker without a moat-Moderate bucket. Treat unparseable as 0 (the
+    # neutral "no signal" bucket → sent_score=4).
+    try:
+        _au = float(analyst_upside) if analyst_upside is not None else 0.0
+    except (TypeError, ValueError):
+        _au = 0.0
+    if _au >= 20:    sent_score = 10
+    elif _au >= 10:  sent_score = 7
+    elif _au >= 0:   sent_score = 4
+    else:            sent_score = 1
 
     total = max(0, min(100, int(val_score + qual_score + grw_score + sent_score)))
 
