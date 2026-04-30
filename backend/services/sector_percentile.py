@@ -185,12 +185,26 @@ def _build_cohort_query(canonical_sector: str) -> tuple[str, dict]:
     an empty cohort, which is what they did before this fix).
     """
     rule = sector_benchmarks.SECTOR_COHORT_RULES.get(canonical_sector)
+    # Read-path fallback (PR #218 / migration 025):
+    #   1. WHERE market_cap_cr IS NOT NULL AND > 0  — skip broken rows so a
+    #      single yfinance NULL day cannot collapse the cohort. Today's
+    #      2026-04-30 incident: yfinance wrote 2,380 NULL-mcap rows for
+    #      2026-04-29 displacing 2026-04-26's valid values. With this
+    #      filter, the cohort builder skips the NULL row and falls back
+    #      to the prior valid trade_date organically.
+    #   2. ORDER BY data_quality_rank ASC, trade_date DESC — pick the
+    #      best-trust source for each ticker, not just the latest write.
+    #      Mirrors PR #208's financials precedence pattern.
     base = """
         WITH latest_mm AS (
             SELECT DISTINCT ON (mm.ticker)
                 mm.ticker, mm.market_cap_cr, mm.pe_ratio, mm.pb_ratio
             FROM market_metrics mm
-            ORDER BY mm.ticker, mm.trade_date DESC
+            WHERE mm.market_cap_cr IS NOT NULL
+              AND mm.market_cap_cr > 0
+            ORDER BY mm.ticker,
+                     COALESCE(mm.data_quality_rank, 50) ASC,
+                     mm.trade_date DESC
         ),
         latest_ac AS (
             SELECT DISTINCT ON (ac.ticker)
