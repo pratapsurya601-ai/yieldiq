@@ -251,18 +251,18 @@ def _build_hist_summary(
     if current_mos > 0.20:
         line2 = (
             f"Today the stock trades at a {current_mos*100:.0f}% discount to our fair value of "
-            f"${current_iv:.0f} — consistent with the historical pattern of "
+            f"₹{current_iv:.0f} — consistent with the historical pattern of "
             f"mean-reversion towards fair value."
         )
     elif current_mos < -0.20:
         line2 = (
             f"Today the stock trades at a {abs(current_mos)*100:.0f}% premium to our fair value of "
-            f"${current_iv:.0f}. Historically when the stock traded this far above fair value, "
+            f"₹{current_iv:.0f}. Historically when the stock traded this far above fair value, "
             f"it subsequently underperformed."
         )
     else:
         line2 = (
-            f"Today the stock trades close to our fair value of ${current_iv:.0f} "
+            f"Today the stock trades close to our fair value of ₹{current_iv:.0f} "
             f"— within the normal ±20% band. No strong directional signal."
         )
 

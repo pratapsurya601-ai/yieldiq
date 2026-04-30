@@ -286,7 +286,7 @@ def _yield_summary(
 
     line1 = (
         f"{ticker} generates a {fcf_yield*100:.1f}% FCF yield at today's price — "
-        f"meaning for every $100 you invest, the company earns ${fcf_yield*100:.1f} "
+        f"meaning for every ₹100 you invest, the company earns ₹{fcf_yield*100:.1f} "
         f"in free cash flow annually."
     )
 

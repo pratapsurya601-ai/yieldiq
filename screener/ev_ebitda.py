@@ -361,13 +361,13 @@ def compute_ev_ebitda_iv(
     equity_value   = implied_ev - net_debt
 
     if equity_value <= 0:
-        return 0.0, f"Net debt (${net_debt/1e9:.1f}B) exceeds implied EV — stock value = 0"
+        return 0.0, f"Net debt (₹{net_debt/1e9:.1f}B) exceeds implied EV — stock value = 0"
 
     iv_per_share = equity_value / shares
     detail = (
-        f"EBITDA ${ebitda/1e9:.1f}B × {multiple}x {scenario} multiple "
-        f"= EV ${implied_ev/1e9:.1f}B − net debt ${net_debt/1e9:.1f}B "
-        f"= equity ${equity_value/1e9:.1f}B ÷ {shares/1e9:.2f}B shares"
+        f"EBITDA ₹{ebitda/1e9:.1f}B × {multiple}x {scenario} multiple "
+        f"= EV ₹{implied_ev/1e9:.1f}B − net debt ₹{net_debt/1e9:.1f}B "
+        f"= equity ₹{equity_value/1e9:.1f}B ÷ {shares/1e9:.2f}B shares"
     )
     log.debug(f"[{ticker}] EV/EBITDA IV: {detail} = ${iv_per_share:.2f}")
     return iv_per_share, detail
@@ -601,22 +601,22 @@ def _ev_summary_v2(
         elif mult_pct < 0:
             line2 = (
                 f"Trading below the long-run median suggests potential upside "
-                f"if multiples mean-revert. Fair value at {damodaran_median:.0f}× = ${median_iv:.0f}."
+                f"if multiples mean-revert. Fair value at {damodaran_median:.0f}× = ₹{median_iv:.0f}."
             )
         else:
             line2 = (
                 f"The premium vs long-run median means the stock needs to grow into its multiple. "
-                f"Fair value at the long-run median = ${median_iv:.0f}."
+                f"Fair value at the long-run median = ₹{median_iv:.0f}."
             )
 
     # Line 3: The two IV reference points
     if live_peer_median and peer_iv > 0:
         line3 = (
-            f"Fair value at current peer multiple ({live_peer_median:.0f}×): ${peer_iv:.0f}. "
-            f"Fair value at long-run median ({damodaran_median:.0f}×): ${median_iv:.0f}."
+            f"Fair value at current peer multiple ({live_peer_median:.0f}×): ₹{peer_iv:.0f}. "
+            f"Fair value at long-run median ({damodaran_median:.0f}×): ₹{median_iv:.0f}."
         )
     else:
-        line3 = f"Fair value at long-run median ({damodaran_median:.0f}×): ${median_iv:.0f}."
+        line3 = f"Fair value at long-run median ({damodaran_median:.0f}×): ₹{median_iv:.0f}."
 
     return f"{line1} {line2} {line3}"
 
@@ -689,14 +689,14 @@ def _ev_summary(
         line2 = (
             f"This is essentially in line with sector peers — "
             f"no strong signal from multiples alone. "
-            f"At the sector median, fair value would be ${median_iv:.0f}."
+            f"At the sector median, fair value would be ₹{median_iv:.0f}."
         )
     elif pct < 0:
         # Trading BELOW sector median → cheap on this metric
         line2 = (
             f"Trading below the sector median suggests the stock may be "
             f"attractively valued on an EV/EBITDA basis. "
-            f"At the sector median of {median}×, fair value would be ${median_iv:.0f} — "
+            f"At the sector median of {median}×, fair value would be ₹{median_iv:.0f} — "
             f"implying {abs_pct:.0f}% upside from here."
         )
     else:
@@ -704,7 +704,7 @@ def _ev_summary(
         line2 = (
             f"The premium multiple suggests the market is paying up for "
             f"quality, growth, or competitive moat. "
-            f"At the sector median of {median}×, fair value would be ${median_iv:.0f}. "
+            f"At the sector median of {median}×, fair value would be ₹{median_iv:.0f}. "
             f"This stock needs to grow into its multiple."
         )
 

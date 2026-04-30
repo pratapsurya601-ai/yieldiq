@@ -294,7 +294,7 @@ class DCFEngine:
         """
         if total_cash < 0:
             self.edge_flags.add_flag(
-                f"⚠️ Negative Cash (${total_cash/1e9:.1f}B) - verify accounting", 
+                f"⚠️ Negative Cash (₹{total_cash/1e9:.1f}B) - verify accounting",
                 penalty=10
             )
             log.warning(f"[{ticker}] Negative cash position: ${total_cash/1e9:.1f}B")
@@ -443,7 +443,7 @@ class DCFEngine:
         if current_price > 0 and iv_per_share_raw > IV_HARD_CAP_MULT * current_price:
             suspicious = True
             self.edge_flags.add_flag(
-                f"⚠️ IV ${iv_per_share_raw:.2f} > {IV_HARD_CAP_MULT}× price ${current_price:.2f} (capped)",
+                f"⚠️ IV ₹{iv_per_share_raw:.2f} > {IV_HARD_CAP_MULT}× price ₹{current_price:.2f} (capped)",
                 penalty=25
             )
             iv_per_share = IV_HARD_CAP_MULT * current_price

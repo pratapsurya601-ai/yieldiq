@@ -421,7 +421,7 @@ def _build_summary(
     ddm_iv_d, blended_iv, price_d, mos_blend, mos_ddm, mos_dcf,
     ddm_weight, model_used, sustainable, sustain_msg, growth_method,
 ) -> str:
-    sym = "$"  # simplified — dashboard will format with actual sym
+    sym = "₹"  # simplified — dashboard will format with actual sym
 
     line1 = (
         f"{ticker} pays a {div_yield*100:.1f}% dividend yield "

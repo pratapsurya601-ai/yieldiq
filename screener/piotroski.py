@@ -135,7 +135,7 @@ def _f1_roa_positive(enriched: dict, income_df, cf_df) -> tuple[int, str, str]:
     if roa is None:
         net_income_raw = _safe(_series_last(income_df, "net_income"))
         score  = 1 if net_income_raw > 0 else 0
-        detail = f"Net income {'positive ✓' if score else 'negative ✗'} (${net_income_raw/1e9:.2f}B)"
+        detail = f"Net income {'positive ✓' if score else 'negative ✗'} (₹{net_income_raw/1e9:.2f}B)"
         # P5 FIX: roa IS None here — do NOT try to format it with :.1%
         return score, detail, "Proxy: net income sign (total_assets unavailable)"
 
@@ -150,7 +150,7 @@ def _f2_ocf_positive(enriched: dict, income_df, cf_df) -> tuple[int, str, str]:
         # Try FCF as proxy
         ocf = _safe(_series_last(cf_df, "fcf"))
     score = 1 if ocf > 0 else 0
-    detail = f"Operating CF = ${ocf/1e9:.2f}B {'✓' if score else '✗'}"
+    detail = f"Operating CF = ₹{ocf/1e9:.2f}B {'✓' if score else '✗'}"
     return score, detail, "Cash from operations"
 
 
@@ -173,7 +173,7 @@ def _f3_roa_improving(enriched: dict, income_df, cf_df) -> tuple[int, str, str]:
 
     change = (ni_curr - ni_prev) / abs(ni_prev)
     score  = 1 if ni_curr > ni_prev else 0
-    detail = f"{label}: {change:+.1%} YoY {'✓' if score else '✗'} (${ni_curr/1e9:.2f}B vs ${ni_prev/1e9:.2f}B)"
+    detail = f"{label}: {change:+.1%} YoY {'✓' if score else '✗'} (₹{ni_curr/1e9:.2f}B vs ₹{ni_prev/1e9:.2f}B)"
     return score, detail, "Year-over-year profitability trend"
 
 
@@ -191,7 +191,7 @@ def _f4_accruals(enriched: dict, income_df, cf_df) -> tuple[int, str, str]:
         ocf = _safe(_series_last(cf_df, "ocf"))
         if ocf > 0 and ni_curr > 0:
             score  = 1 if ocf >= ni_curr * 0.8 else 0
-            detail = f"OCF ${ocf/1e9:.2f}B vs NI ${ni_curr/1e9:.2f}B {'✓' if score else '✗ (accruals concern)'}"
+            detail = f"OCF ₹{ocf/1e9:.2f}B vs NI ₹{ni_curr/1e9:.2f}B {'✓' if score else '✗ (accruals concern)'}"
             return score, detail, "Operating cash flow vs net income"
         return 0, "Insufficient data", "FCF vs net income"
 
@@ -200,7 +200,7 @@ def _f4_accruals(enriched: dict, income_df, cf_df) -> tuple[int, str, str]:
     score  = 1 if fcf >= ni_curr * 0.8 else 0   # FCF at least 80% of NI
     detail = (
         f"FCF/NI ratio = {ratio:.2f}× {'✓' if score else '✗'} "
-        f"(FCF ${fcf/1e9:.1f}B vs NI ${ni_curr/1e9:.1f}B)"
+        f"(FCF ₹{fcf/1e9:.1f}B vs NI ₹{ni_curr/1e9:.1f}B)"
     )
     return score, detail, "FCF vs net income — earnings quality"
 
@@ -233,7 +233,7 @@ def _f5_leverage_falling(enriched: dict, income_df, cf_df) -> tuple[int, str, st
     if lt_debt > 0 and lt_debt_prev > 0:
         score  = 1 if lt_debt <= lt_debt_prev else 0
         change = (lt_debt - lt_debt_prev) / lt_debt_prev
-        detail = f"LT Debt: ${lt_debt/1e9:.2f}B vs ${lt_debt_prev/1e9:.2f}B prior ({change:+.1%} {'✓' if score else '✗'})"
+        detail = f"LT Debt: ₹{lt_debt/1e9:.2f}B vs ₹{lt_debt_prev/1e9:.2f}B prior ({change:+.1%} {'✓' if score else '✗'})"
         return score, detail, "Long-term debt absolute change YoY"
 
     # Tertiary: use D/E ratio as a level check
