@@ -46,6 +46,37 @@ def _exponential_fade(t: int, g0: float, g_terminal: float = TERMINAL_FADE_G) ->
     return g_terminal + (g0 - g_terminal) * np.exp(-FADE_K * t)
 
 
+def _projection_horizons(
+    ticker: str | None,
+    sector: str | None = None,
+    industry: str | None = None,
+    moat_grade: str | None = None,
+) -> tuple[int, int, float]:
+    """Return ``(explicit_years, fade_years, terminal_g_adjustment)``
+    for the DCF projection.
+
+    Default (10y total, 0bps terminal adjustment): 5y explicit growth
+    at base_growth held flat, then 5y exponential fade to terminal.
+
+    Wide-moat compounder (15y total, -50bps terminal): 10y explicit
+    growth at base_growth, then 5y fade to terminal_growth - 0.5%.
+    The longer explicit period reflects the durability of the moat
+    (brand / distribution / scale / IP); the 50bps terminal haircut
+    reflects that 15 years already captures more compounding so the
+    long-tail growth probability declines.
+    """
+    try:
+        from backend.services.analysis.constants import is_wide_moat_compounder
+    except Exception:
+        # Defensive: if constants module is unavailable for any reason
+        # (e.g. running forecaster.py in isolation in a test harness
+        # without the backend package on path) fall back to defaults.
+        return (5, 5, 0.0)
+    if is_wide_moat_compounder(ticker, sector, industry, moat_grade):
+        return (10, 5, -0.005)
+    return (5, 5, 0.0)
+
+
 def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     """
     Get the best FCF base estimate used as the anchor of the two-stage
@@ -888,6 +919,27 @@ class FCFForecaster:
         growth_schedule = []
         fcf = fcf_base
 
+        # ── Projection horizon (compounder vs default) ────────────
+        # Wide-moat compounders (HUL, NESTLEIND, ASIANPAINT, TITAN,
+        # PIDILITIND, TCS, INFY, HCLTECH, WIPRO, HDFCAMC, etc.) get a
+        # 15-year explicit+fade projection (10y explicit at base_growth,
+        # then 5y fade) plus a 50bps haircut on terminal growth. The
+        # default (10y total: 5y explicit + 5y fade) applies to every
+        # other ticker. Banks / NBFCs / capex super-cyclicals are
+        # explicitly excluded inside is_wide_moat_compounder().
+        _explicit_years, _fade_years, _terminal_g_adj = _projection_horizons(
+            ticker,
+            sector=enriched.get("sector_name") or enriched.get("sector"),
+            industry=enriched.get("industry_name") or enriched.get("industry"),
+            moat_grade=enriched.get("moat_grade"),
+        )
+        _g_terminal_eff = TERMINAL_FADE_G + _terminal_g_adj
+        _total_horizon = _explicit_years + _fade_years
+        # Use the compounder horizon when applicable, otherwise honour
+        # the caller-supplied ``years`` (default FORECAST_YEARS = 10).
+        if _total_horizon != 10:
+            years = _total_horizon
+
         # ── Asymmetric margin-fade scaffold ───────────────────
         # When TTM op_margin > 130% of trailing-3y avg, _compute_fcf_base
         # already anchors NOPAT on the 3y-avg margin. But for non-NOPAT
@@ -914,8 +966,21 @@ class FCFForecaster:
         else:
             _per_year_mult = 1.0
 
+        # Compounder path: longer horizon with explicit-flat growth
+        # for the explicit window, then exponential fade. Default path:
+        # preserves the legacy continuous exponential fade from yr=1
+        # (the projection-horizon work intentionally avoids changing
+        # FV for non-compounder tickers).
+        _is_compounder = (_total_horizon != 10) or (_terminal_g_adj != 0.0)
         for yr in range(1, years + 1):
-            g = _clamp(_exponential_fade(yr, base_growth))
+            if _is_compounder:
+                if yr <= _explicit_years:
+                    g = _clamp(base_growth)
+                else:
+                    fade_t = yr - _explicit_years
+                    g = _clamp(_exponential_fade(fade_t, base_growth, _g_terminal_eff))
+            else:
+                g = _clamp(_exponential_fade(yr, base_growth))
             fcf = fcf * (1 + g)
             if _terminal_ratio < 1.0 and yr <= 3:
                 fcf = fcf * _per_year_mult
