@@ -55,6 +55,10 @@ class DailyPrice(Base):
 class CorporateAction(Base):
     """Splits, bonuses, dividends from NSE."""
     __tablename__ = "corporate_actions"
+    __table_args__ = (
+        UniqueConstraint("ticker", "ex_date", "action_type",
+                         name="uq_corporate_actions_natural_key"),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     ticker = Column(String(20), index=True)
@@ -63,6 +67,16 @@ class CorporateAction(Base):
     ratio = Column(String(200))               # e.g. "1:2" for split
     remarks = Column(Text)
     adjustment_factor = Column(Float)
+
+    # Provenance label, populated by ingest scripts. NSE_CORP_ANN /
+    # NSE_ARCHIVE / BSE_CORP_FILE / finnhub / yfinance.
+    data_source = Column(String(50))
+    # Per-row source precedence; lower = higher quality. Populated by
+    # db/migrations/010_corporate_actions_quality_rank.sql. Used by the
+    # UPSERT precedence guard in fetch_corporate_actions.py and
+    # scripts/backfill_corporate_actions_yf.py. Default 50 keeps
+    # existing writers safe if they don't pass an explicit value.
+    data_quality_rank = Column(Integer, default=50, server_default="50")
 
 
 class Financials(Base):

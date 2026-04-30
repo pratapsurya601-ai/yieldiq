@@ -39,15 +39,58 @@ NSE_HISTORICAL_URL = (
 )
 
 
-# Rows keyed by (ticker, ex_date, action_type) — see migration notes.
-# We DELETE per-ticker before insert when running per-ticker mode so
-# stale yfinance rows can't shadow the NSE truth.
-DELETE_BY_TICKER = text("DELETE FROM corporate_actions WHERE ticker = :ticker")
+# ── per-row source precedence ────────────────────────────────────────
+# Lower rank = higher quality. Used by the UPSERT precedence guard
+# below so a later yfinance backfill can NEVER overwrite an existing
+# NSE row for the same (ticker, ex_date, action_type).
+# Mirrors db/migrations/010_corporate_actions_quality_rank.sql.
+_RANK_BY_SOURCE = {
+    "NSE_CORP_ANN":  10,
+    "NSE_ARCHIVE":   15,
+    "BSE_CORP_FILE": 30,
+    "finnhub":       40,
+    "yfinance":      50,
+}
+
+
+def _rank_for(source: str | None) -> int:
+    """Return the precedence rank for a data_source label (default 60)."""
+    return _RANK_BY_SOURCE.get(source or "", 60)
+
+
+# Rows keyed by (ticker, ex_date, action_type) — see migration
+# db/migrations/010_corporate_actions_quality_rank.sql which adds the
+# UNIQUE INDEX backing the ON CONFLICT clause below.
+#
+# Each updatable column uses the pattern:
+#   col = CASE WHEN EXCLUDED.data_quality_rank <= corporate_actions.data_quality_rank
+#               THEN COALESCE(EXCLUDED.col, corporate_actions.col)
+#               ELSE corporate_actions.col END
+# meaning a lower-or-equal rank can write (with COALESCE preserving
+# non-null), but a strictly higher (worse) rank can never displace
+# the existing value. data_quality_rank itself uses LEAST() so a row's
+# rank can only ever improve (decrease).
 INSERT_SQL = text("""
     INSERT INTO corporate_actions
-        (ticker, action_type, ex_date, ratio, remarks, adjustment_factor)
+        (ticker, action_type, ex_date, ratio, remarks, adjustment_factor,
+         data_source, data_quality_rank)
     VALUES
-        (:ticker, :action_type, :ex_date, :ratio, :remarks, :adjustment_factor)
+        (:ticker, :action_type, :ex_date, :ratio, :remarks, :adjustment_factor,
+         :data_source, :data_quality_rank)
+    ON CONFLICT (ticker, ex_date, action_type) DO UPDATE SET
+        ratio = CASE WHEN EXCLUDED.data_quality_rank <= corporate_actions.data_quality_rank
+                     THEN COALESCE(EXCLUDED.ratio, corporate_actions.ratio)
+                     ELSE corporate_actions.ratio END,
+        remarks = CASE WHEN EXCLUDED.data_quality_rank <= corporate_actions.data_quality_rank
+                       THEN COALESCE(EXCLUDED.remarks, corporate_actions.remarks)
+                       ELSE corporate_actions.remarks END,
+        adjustment_factor = CASE WHEN EXCLUDED.data_quality_rank <= corporate_actions.data_quality_rank
+                                 THEN COALESCE(EXCLUDED.adjustment_factor, corporate_actions.adjustment_factor)
+                                 ELSE corporate_actions.adjustment_factor END,
+        data_source = CASE WHEN EXCLUDED.data_quality_rank <= corporate_actions.data_quality_rank
+                           THEN COALESCE(EXCLUDED.data_source, corporate_actions.data_source)
+                           ELSE corporate_actions.data_source END,
+        data_quality_rank = LEAST(EXCLUDED.data_quality_rank, corporate_actions.data_quality_rank)
 """)
 
 
@@ -137,32 +180,29 @@ def fetch_bulk(session_http=None) -> list[dict]:
             "ratio": subject[:200],
             "remarks": subject,
             "adjustment_factor": 1.0,
+            "data_source": "NSE_CORP_ANN",
+            "data_quality_rank": _rank_for("NSE_CORP_ANN"),
         })
     return rows
 
 
 def upsert_bulk(rows: Iterable[dict], session) -> int:
-    """Insert NSE bulk rows. Returns count written.
+    """UPSERT NSE bulk rows. Returns count written.
 
-    Uses DB ``merge``-equivalent: deletes any existing rows for the
-    affected tickers in the rolling window, then re-inserts. Cheap on
-    a per-batch basis since the bulk API only returns ~6-12 months of
-    actions.
+    Uses real ON CONFLICT precedence (see migration 010): an existing
+    row with a lower (better) data_quality_rank is preserved; the
+    INSERT_SQL CASE-guards every updatable column. Replaces the old
+    DELETE-then-INSERT pattern which silently lost provenance whenever
+    two sources covered the same (ticker, ex_date, action_type).
     """
     rows = list(rows)
     if not rows:
         return 0
-    affected_tickers = sorted({r["ticker"] for r in rows})
-    # Wipe old rows ONLY for tickers we have fresh data for, ONLY in the
-    # date window the bulk feed covers (don't nuke 10-year history).
-    earliest = min(r["ex_date"] for r in rows)
-    session.execute(text("""
-        DELETE FROM corporate_actions
-         WHERE ticker = ANY(:tickers)
-           AND ex_date >= :earliest
-    """), {"tickers": affected_tickers, "earliest": earliest})
     n = 0
     for r in rows:
+        # Defensive: stamp source/rank if a caller forgot.
+        r.setdefault("data_source", "NSE_CORP_ANN")
+        r.setdefault("data_quality_rank", _rank_for(r.get("data_source")))
         try:
             session.execute(INSERT_SQL, r)
             n += 1
@@ -203,6 +243,8 @@ def _from_nse_per_symbol(symbol: str, http) -> list[dict]:
             "ratio": subject[:200],
             "remarks": subject,
             "adjustment_factor": 1.0,
+            "data_source": "NSE_ARCHIVE",
+            "data_quality_rank": _rank_for("NSE_ARCHIVE"),
         })
     return rows
 
@@ -230,6 +272,8 @@ def _from_yfinance(ticker_yf: str) -> list[dict]:
                 "ratio": f"factor={f:g}",
                 "remarks": f"yfinance splits: {f:g}",
                 "adjustment_factor": f,
+                "data_source": "yfinance",
+                "data_quality_rank": _rank_for("yfinance"),
             })
     if divs is not None and len(divs) > 0:
         for ex, amt in divs.items():
@@ -246,6 +290,8 @@ def _from_yfinance(ticker_yf: str) -> list[dict]:
                 "ratio": f"Rs {a:.4f}",
                 "remarks": f"yfinance dividend Rs {a:.4f}",
                 "adjustment_factor": 1.0,
+                "data_source": "yfinance",
+                "data_quality_rank": _rank_for("yfinance"),
             })
     return rows
 
@@ -281,12 +327,18 @@ def _fetch_one(session_factory):
         # 1. From the bulk pre-load.
         bulk_hit = bulk.get(bare) or []
         if bulk_hit:
+            # bulk_hit rows already carry data_source=NSE_CORP_ANN +
+            # data_quality_rank from fetch_bulk(); preserve those.
             rows = [{
                 "action_type": r["action_type"],
                 "ex_date": r["ex_date"],
                 "ratio": r["ratio"],
                 "remarks": r["remarks"],
                 "adjustment_factor": r["adjustment_factor"],
+                "data_source": r.get("data_source", "NSE_CORP_ANN"),
+                "data_quality_rank": r.get(
+                    "data_quality_rank", _rank_for("NSE_CORP_ANN")
+                ),
             } for r in bulk_hit]
             source = "nse_bulk"
 
@@ -316,11 +368,19 @@ def _fetch_one(session_factory):
         if not rows:
             return {"status": "skip", "source": "all", "error": "no actions"}
 
+        # ON CONFLICT precedence guard: a yfinance row (rank 50) cannot
+        # displace an existing NSE_CORP_ANN row (rank 10) for the same
+        # (ticker, ex_date, action_type). Replaces the old DELETE-then-
+        # INSERT which silently lost provenance.
         sess = session_factory()
         try:
-            sess.execute(DELETE_BY_TICKER, {"ticker": bare})
             for r in rows:
-                sess.execute(INSERT_SQL, {"ticker": bare, **r})
+                payload = {"ticker": bare, **r}
+                payload.setdefault(
+                    "data_quality_rank",
+                    _rank_for(payload.get("data_source")),
+                )
+                sess.execute(INSERT_SQL, payload)
             sess.commit()
         except Exception as e:
             sess.rollback()

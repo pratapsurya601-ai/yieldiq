@@ -9,6 +9,7 @@ import logging
 from datetime import date, datetime, timedelta
 
 import pandas as pd
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from data_pipeline.models import CorporateAction, DailyPrice, DataFreshness
@@ -245,8 +246,38 @@ def run_daily(db: Session):
     db.commit()
 
 
+_CORP_ACTIONS_UPSERT_SQL = text("""
+    INSERT INTO corporate_actions
+        (ticker, action_type, ex_date, ratio, remarks, adjustment_factor,
+         data_source, data_quality_rank)
+    VALUES
+        (:ticker, :action_type, :ex_date, :ratio, :remarks, :adjustment_factor,
+         :data_source, :data_quality_rank)
+    ON CONFLICT (ticker, ex_date, action_type) DO UPDATE SET
+        ratio = CASE WHEN EXCLUDED.data_quality_rank <= corporate_actions.data_quality_rank
+                     THEN COALESCE(EXCLUDED.ratio, corporate_actions.ratio)
+                     ELSE corporate_actions.ratio END,
+        remarks = CASE WHEN EXCLUDED.data_quality_rank <= corporate_actions.data_quality_rank
+                       THEN COALESCE(EXCLUDED.remarks, corporate_actions.remarks)
+                       ELSE corporate_actions.remarks END,
+        adjustment_factor = CASE WHEN EXCLUDED.data_quality_rank <= corporate_actions.data_quality_rank
+                                 THEN COALESCE(EXCLUDED.adjustment_factor, corporate_actions.adjustment_factor)
+                                 ELSE corporate_actions.adjustment_factor END,
+        data_source = CASE WHEN EXCLUDED.data_quality_rank <= corporate_actions.data_quality_rank
+                           THEN COALESCE(EXCLUDED.data_source, corporate_actions.data_source)
+                           ELSE corporate_actions.data_source END,
+        data_quality_rank = LEAST(EXCLUDED.data_quality_rank, corporate_actions.data_quality_rank)
+""")
+
+
 def download_corporate_actions(db: Session) -> int:
-    """Download official NSE corporate actions (splits, bonuses, dividends)."""
+    """Download official NSE corporate actions (splits, bonuses, dividends).
+
+    Writes via ON CONFLICT precedence guard (migration 010 adds the
+    unique key). The old `db.merge(CorporateAction(...))` would have
+    started failing post-migration because the natural-key constraint
+    rejects duplicates and merge() without a PK behaves as INSERT.
+    """
     try:
         session = _get_nse_session()
         url = "https://www.nseindia.com/api/corporates-corporateActions?index=equities"
@@ -270,15 +301,23 @@ def download_corporate_actions(db: Session) -> int:
                 action_type_val = action_type_raw[:500]
                 ratio_val = str(item.get("subject", ""))[:200]
 
-                action = CorporateAction(
-                    ticker=str(item.get("symbol", "")).strip(),
-                    action_type=action_type_val,
-                    ex_date=pd.to_datetime(ex_date_str).date(),
-                    ratio=ratio_val,
-                    remarks=str(item.get("subject", "")),
-                    adjustment_factor=1.0,
-                )
-                db.merge(action)
+                ticker_val = str(item.get("symbol", "")).strip()
+                if not ticker_val or not action_type_val:
+                    continue
+
+                # rank 10 — NSE_CORP_ANN is the highest-priority source
+                # for corporate_actions; keep aligned with
+                # scripts/data_pipelines/fetch_corporate_actions._RANK_BY_SOURCE.
+                db.execute(_CORP_ACTIONS_UPSERT_SQL, {
+                    "ticker": ticker_val,
+                    "action_type": action_type_val,
+                    "ex_date": pd.to_datetime(ex_date_str).date(),
+                    "ratio": ratio_val,
+                    "remarks": str(item.get("subject", "")),
+                    "adjustment_factor": 1.0,
+                    "data_source": "NSE_CORP_ANN",
+                    "data_quality_rank": 10,
+                })
                 stored += 1
             except Exception as e:
                 errors += 1
