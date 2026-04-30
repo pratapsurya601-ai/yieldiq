@@ -45,14 +45,17 @@ export function adaptPrismResponse(raw: unknown, fallbackTicker = ""): PrismData
     const rawScore = a.score
     const score = typeof rawScore === "number" && !Number.isNaN(rawScore) ? rawScore : null
     const limitedFlag = a.data_limited === true
-    // PR-prism-zero-fix: a backend payload that returns score=0 with no
-    // accompanying label/why is uncomputed/locked, not a real "0.0" axis.
-    // Treat it as data_limited so we render a placeholder ("•••") instead
-    // of six suspicious zeros on the anon /analysis page (launch blocker:
-    // logged-out RELIANCE rendered "0.0 / 0.0 / 0.0 / 0.0 / 0.0 / 0.0").
+    // PR-prism-zero-fix + cohort-floor: a backend payload that returns a
+    // score below 0.5 (on the 0-10 scale) carries no useful signal — even
+    // if a stale label is attached. ICICIBANK shipped with VALUE=0.0 +
+    // label set, which slipped past the original `score===0 && !label`
+    // guard and rendered a literal "0.0" on the launch page. Floor the
+    // rule at 0.5 so any sub-floor axis renders as "—" / "Below cohort
+    // floor" instead.
     const hasLabel = typeof a.label === "string" && a.label.trim().length > 0
     const hasWhy = typeof a.why === "string" && a.why.trim().length > 0
-    const looksUncomputed = score === 0 && !hasLabel && !hasWhy
+    const looksUncomputed =
+      score == null || (typeof score === "number" && score < 0.5)
     const isLimited = limitedFlag || score == null || looksUncomputed
     return {
       key,
