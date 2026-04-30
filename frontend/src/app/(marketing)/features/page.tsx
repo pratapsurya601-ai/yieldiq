@@ -1,42 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useState } from "react"
-
-function MarketingNav() {
-  const [mobileOpen, setMobileOpen] = useState(false)
-  return (
-    <nav className="sticky top-0 z-50 border-b border-white/5 bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B]">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          <img src="/logo-new.svg" alt="YieldIQ" className="w-8 h-8 rounded-lg" />
-          <span className="text-white font-bold text-lg">YieldIQ</span>
-        </Link>
-        <div className="hidden md:flex items-center gap-8 text-sm">
-          <Link href="/features" className="text-white font-semibold">Features</Link>
-          <Link href="/pricing" className="text-gray-400 hover:text-white transition">Pricing</Link>
-          <Link href="/auth/signup" className="bg-gradient-to-r from-blue-700 to-cyan-500 text-white font-semibold px-5 py-2 rounded-lg hover:opacity-90 transition">
-            Launch App &rarr;
-          </Link>
-        </div>
-        <button onClick={() => setMobileOpen(!mobileOpen)} className="md:hidden text-white">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
-      </div>
-      {mobileOpen && (
-        <div className="md:hidden px-4 pb-4 space-y-3">
-          <Link href="/features" className="block text-white font-semibold text-sm">Features</Link>
-          <Link href="/pricing" className="block text-gray-400 hover:text-white text-sm">Pricing</Link>
-          <Link href="/auth/signup" className="block bg-gradient-to-r from-blue-700 to-cyan-500 text-white font-semibold px-5 py-2 rounded-lg text-center text-sm">
-            Launch App &rarr;
-          </Link>
-        </div>
-      )}
-    </nav>
-  )
-}
+// Nav is now provided by (marketing)/layout.tsx via the unified MarketingTopNav
+// — see commit "feat(nav): unify navbar across marketing/app/stock pages".
 
 const detailedFeatures = [
   {
@@ -103,8 +69,6 @@ const featureGrid = [
 export default function FeaturesPage() {
   return (
     <div className="bg-white text-gray-900">
-      <MarketingNav />
-
       {/* Hero */}
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-20">
         <div className="max-w-4xl mx-auto px-4 text-center">

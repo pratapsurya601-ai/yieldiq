@@ -7,6 +7,7 @@ import { useAuthStore } from "@/store/authStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import Link from "next/link"
 import { ArrowRight, Play } from "lucide-react"
+import MarketingTopNav from "@/components/marketing/MarketingTopNav"
 
 /* ── Scroll animation hook ───────────────────────────── */
 function useInView(threshold = 0.15) {
@@ -40,46 +41,7 @@ function FadeIn({ children, delay = 0, className = "" }: {
   )
 }
 
-/* ── Nav ─────────────────────────────────────────────── */
-function MarketingNav() {
-  const [open, setOpen] = useState(false)
-  return (
-    <nav className="sticky top-0 z-50 bg-[#080E1A]/80 backdrop-blur-xl border-b border-white/5">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          <img src="/logo-new.svg" alt="YieldIQ" className="w-8 h-8 rounded-lg" />
-          <span className="text-white font-bold text-lg tracking-tight">YieldIQ</span>
-        </Link>
-        <div className="hidden md:flex items-center gap-8 text-sm">
-          <Link href="/features" className="text-gray-400 hover:text-white transition">Features</Link>
-          <Link href="/methodology" className="text-gray-400 hover:text-white transition">Methodology</Link>
-          <Link href="/pricing" className="text-gray-400 hover:text-white transition">Pricing</Link>
-          <Link href="/auth/login" className="text-gray-400 hover:text-white transition">Sign in</Link>
-          <Link href="/auth/signup" className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold px-5 py-2 rounded-lg hover:opacity-90 transition shadow-lg shadow-blue-500/20">
-            Start Free &rarr;
-          </Link>
-        </div>
-        <button onClick={() => setOpen(!open)} className="md:hidden text-white" aria-label="Menu">
-          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-          </svg>
-        </button>
-      </div>
-      {open && (
-        <div className="md:hidden px-4 pb-4 space-y-3 bg-[#080E1A]/95 backdrop-blur-xl">
-          <Link href="/features" className="block text-gray-400 text-sm py-1">Features</Link>
-          <Link href="/methodology" className="block text-gray-400 text-sm py-1">Methodology</Link>
-          <Link href="/pricing" className="block text-gray-400 text-sm py-1">Pricing</Link>
-          <Link href="/auth/login" className="block text-gray-400 text-sm py-1">Sign in</Link>
-          <Link href="/auth/signup" className="block bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold px-5 py-2 rounded-lg text-center text-sm">
-            Start Free &rarr;
-          </Link>
-        </div>
-      )}
-      <div className="h-px bg-gradient-to-r from-transparent via-blue-500/40 to-transparent" />
-    </nav>
-  )
-}
+/* ── Nav now provided by the unified MarketingTopNav component ─────── */
 
 /* ── Demo Card — rotates through real cached analyses ── */
 const FALLBACK_CARDS = [
@@ -208,7 +170,7 @@ const pricingPlans = [
 function LandingContent() {
   return (
     <div className="bg-white text-gray-900 overflow-x-hidden">
-      <MarketingNav />
+      <MarketingTopNav variant="dark" />
 
       {/* ── 1. Hero ────────────────────────────────────── */}
       <section className="relative overflow-hidden bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B]">
