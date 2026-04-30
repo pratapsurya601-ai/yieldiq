@@ -62,17 +62,49 @@ def _load_tickers(sess, args) -> list[str]:
     ).fetchall()]
 
 
+# ── per-row source precedence ────────────────────────────────────────
+# Mirrors scripts/data_pipelines/fetch_corporate_actions.py and
+# db/migrations/010_corporate_actions_quality_rank.sql. yfinance is
+# rank 50 — strictly worse than any NSE-sourced row, so this script
+# can no longer demote existing NSE rows even after the migration.
+_RANK_BY_SOURCE = {
+    "NSE_CORP_ANN":  10,
+    "NSE_ARCHIVE":   15,
+    "BSE_CORP_FILE": 30,
+    "finnhub":       40,
+    "yfinance":      50,
+}
+
+
+def _rank_for(source: str | None) -> int:
+    return _RANK_BY_SOURCE.get(source or "", 60)
+
+
+# UPSERT precedence guard: yfinance rows (rank 50) cannot overwrite
+# a lower-rank NSE row for the same (ticker, ex_date, action_type).
+# Backed by uq_corporate_actions_natural_key (migration 010).
 UPSERT_SQL = text("""
     INSERT INTO corporate_actions
-        (ticker, action_type, ex_date, ratio, remarks, adjustment_factor)
+        (ticker, action_type, ex_date, ratio, remarks, adjustment_factor,
+         data_source, data_quality_rank)
     VALUES
-        (:ticker, :action_type, :ex_date, :ratio, :remarks, :adjustment_factor)
+        (:ticker, :action_type, :ex_date, :ratio, :remarks, :adjustment_factor,
+         :data_source, :data_quality_rank)
+    ON CONFLICT (ticker, ex_date, action_type) DO UPDATE SET
+        ratio = CASE WHEN EXCLUDED.data_quality_rank <= corporate_actions.data_quality_rank
+                     THEN COALESCE(EXCLUDED.ratio, corporate_actions.ratio)
+                     ELSE corporate_actions.ratio END,
+        remarks = CASE WHEN EXCLUDED.data_quality_rank <= corporate_actions.data_quality_rank
+                       THEN COALESCE(EXCLUDED.remarks, corporate_actions.remarks)
+                       ELSE corporate_actions.remarks END,
+        adjustment_factor = CASE WHEN EXCLUDED.data_quality_rank <= corporate_actions.data_quality_rank
+                                 THEN COALESCE(EXCLUDED.adjustment_factor, corporate_actions.adjustment_factor)
+                                 ELSE corporate_actions.adjustment_factor END,
+        data_source = CASE WHEN EXCLUDED.data_quality_rank <= corporate_actions.data_quality_rank
+                           THEN COALESCE(EXCLUDED.data_source, corporate_actions.data_source)
+                           ELSE corporate_actions.data_source END,
+        data_quality_rank = LEAST(EXCLUDED.data_quality_rank, corporate_actions.data_quality_rank)
 """)
-
-# Clear any existing rows for this ticker before re-inserting — cleaner than
-# trying to dedupe on (ticker, ex_date, action_type) which isn't unique-
-# indexed. yfinance is authoritative.
-DELETE_TICKER_SQL = text("DELETE FROM corporate_actions WHERE ticker = :ticker")
 
 
 def process_ticker(sess, ticker: str) -> dict:
@@ -114,6 +146,8 @@ def process_ticker(sess, ticker: str) -> dict:
                     "ratio": f"factor={f:g}",
                     "remarks": f"yfinance splits: {f:g}",
                     "adjustment_factor": f,
+                    "data_source": "yfinance",
+                    "data_quality_rank": _rank_for("yfinance"),
                 })
             except Exception:
                 continue
@@ -133,6 +167,8 @@ def process_ticker(sess, ticker: str) -> dict:
                     "ratio": f"Rs {a:.4f}",
                     "remarks": f"yfinance dividend Rs {a:.4f}",
                     "adjustment_factor": 1.0,   # dividends don't adjust the share count
+                    "data_source": "yfinance",
+                    "data_quality_rank": _rank_for("yfinance"),
                 })
             except Exception:
                 continue
@@ -140,9 +176,11 @@ def process_ticker(sess, ticker: str) -> dict:
     if not rows_to_insert:
         return {"splits": 0, "dividends": 0, "errors": 0}
 
-    # Atomic: clear old rows for this ticker, insert fresh
+    # ON CONFLICT precedence guard (migration 010): yfinance rows
+    # (rank 50) can no longer demote an existing NSE_CORP_ANN row
+    # (rank 10) for the same (ticker, ex_date, action_type). Replaces
+    # the old DELETE-then-INSERT, which silently lost NSE provenance.
     try:
-        sess.execute(DELETE_TICKER_SQL, {"ticker": ticker})
         for r in rows_to_insert:
             sess.execute(UPSERT_SQL, r)
         sess.commit()
