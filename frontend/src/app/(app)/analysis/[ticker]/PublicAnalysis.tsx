@@ -117,7 +117,7 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
       )
       return res.data as PrismRaw
     },
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60_000,
     retry: 2,
   })
 

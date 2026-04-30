@@ -11,7 +11,7 @@
 // fold. Net positive (buy-side) is blue, net negative (sell-side)
 // is red. All values are in ₹ crore as published by NSE.
 import { useQuery } from "@tanstack/react-query"
-import { getMarketFlows, type MarketFlowRow } from "@/lib/api"
+import { getMarketFlows, BUILD_ID, type MarketFlowRow } from "@/lib/api"
 
 interface DayBar {
   date: string
@@ -41,10 +41,19 @@ function fmtCr(v: number | null): string {
 }
 
 export default function MarketPulse({ days = 30 }: { days?: number }) {
+  // P0 (2026-04-30): empty {flows: []} response was cached for 30min and,
+  // on the discover page, often persisted across the daily cron tick because
+  // refetchOnWindowFocus is off globally. Throw on empty so RQ retries.
   const { data, isLoading } = useQuery({
-    queryKey: ["market-flows", days],
-    queryFn: () => getMarketFlows(days),
-    staleTime: 1800_000,
+    queryKey: ["market-flows", days, BUILD_ID],
+    queryFn: async () => {
+      const d = await getMarketFlows(days)
+      if (!d?.flows?.length) throw new Error("cold-start: market-flows empty")
+      return d
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    retry: 2,
   })
 
   if (isLoading) {

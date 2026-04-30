@@ -214,7 +214,7 @@ export default function PortfolioPrism({ holdings }: Props) {
     ],
     queryFn: () => fetchPortfolioHex(payload),
     enabled,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60_000,
     retry: 1,
   })
 

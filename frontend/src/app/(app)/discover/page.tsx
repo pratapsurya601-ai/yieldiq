@@ -14,7 +14,7 @@
 // half-finished. Hide until the underlying data coverage is denser.
 // ─────────────────────────────────────────────────────────────────────
 import { useQuery } from "@tanstack/react-query"
-import { getYieldIQ50, getTopPick } from "@/lib/api"
+import { getYieldIQ50, getTopPick, BUILD_ID } from "@/lib/api"
 import { formatMoS } from "@/lib/utils"
 import TopPickCard from "@/components/discover/TopPickCard"
 import ScreenerPresetsWithCounts from "@/components/discover/ScreenerPresetsWithCounts"
@@ -34,8 +34,34 @@ const RANK_COLORS = ["bg-yellow-500", "bg-gray-400", "bg-amber-600"]
 
 export default function DiscoverPage() {
   const { tier } = useAuthStore()
-  const { data: topPick } = useQuery({ queryKey: ["top-pick"], queryFn: getTopPick, staleTime: 86400000 })
-  const { data: yiq50 } = useQuery({ queryKey: ["yieldiq50"], queryFn: getYieldIQ50, staleTime: 86400000 })
+  // P0 (2026-04-30): old staleTime=86_400_000 (24h) cached the empty
+  // "warming up" first-hit response for a full day after each deploy.
+  // New policy: 5min stale / 30min gc, retry twice, and THROW on empty
+  // payloads so React Query never memoizes a cold-start empty state.
+  // See lib/api.ts BUILD_ID — queryKey is suffixed so each Vercel
+  // deploy invalidates client caches automatically.
+  const { data: topPick } = useQuery({
+    queryKey: ["top-pick", BUILD_ID],
+    queryFn: async () => {
+      const d = await getTopPick()
+      if (!d || !d.ticker) throw new Error("cold-start: top-pick empty")
+      return d
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    retry: 2,
+  })
+  const { data: yiq50 } = useQuery({
+    queryKey: ["yieldiq50", BUILD_ID],
+    queryFn: async () => {
+      const d = await getYieldIQ50()
+      if (!d?.results?.length) throw new Error("cold-start: yieldiq50 empty")
+      return d
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    retry: 2,
+  })
 
   return (
     <div className="max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-4 py-6 space-y-8 pb-20">

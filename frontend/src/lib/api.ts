@@ -11,11 +11,31 @@ import { useAuthStore } from "@/store/authStore"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
+// Per-deploy cache buster. Vercel injects VERCEL_GIT_COMMIT_SHA at build
+// time; we expose it as NEXT_PUBLIC_BUILD_ID so it ends up in the client
+// bundle. Used as:
+//   1. queryKey suffix on every Discover/landing-page useQuery — each
+//      deploy is a new key, so React Query never serves a stale empty
+//      payload from a prior deploy's cache.
+//   2. ?v=<sha> query param appended to every axios request below — busts
+//      any HTTP-layer (browser/CDN) caches that key on full URL.
+// In dev (no env var) we fall back to the literal "dev", which means the
+// in-memory cache survives across HMR — desirable locally.
+export const BUILD_ID: string =
+  process.env.NEXT_PUBLIC_BUILD_ID ||
+  process.env.VERCEL_GIT_COMMIT_SHA ||
+  "dev"
+
 const api = axios.create({ baseURL: API_BASE, timeout: 20000 })  // 20s timeout
 
 api.interceptors.request.use((config) => {
   const token = Cookies.get("yieldiq_token")
   if (token) config.headers.Authorization = `Bearer ${token}`
+  // Append ?v=BUILD_ID to bust browser/CDN caches per deploy. Skip when
+  // a `v` param is already present (caller-supplied) so we don't clobber.
+  if (BUILD_ID && BUILD_ID !== "dev") {
+    config.params = { v: BUILD_ID, ...(config.params || {}) }
+  }
   return config
 })
 
@@ -571,8 +591,14 @@ export interface PublicPeersResponse {
 // caching / `next: { revalidate }` extension.
 async function publicGet<T>(path: string, revalidateSec: number): Promise<T | null> {
   const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+  // Per-deploy cache buster — same rationale as the axios interceptor above.
+  // Without this, the Next.js fetch cache at /discover/market-flows could
+  // hold an empty `{flows: []}` for the full revalidate window across deploys.
+  const sep = path.includes("?") ? "&" : "?"
+  const bustedPath =
+    BUILD_ID && BUILD_ID !== "dev" ? `${path}${sep}v=${BUILD_ID}` : path
   try {
-    const res = await fetch(`${base}${path}`, { next: { revalidate: revalidateSec } })
+    const res = await fetch(`${base}${bustedPath}`, { next: { revalidate: revalidateSec } })
     if (res.status === 503) return null  // under_review sentinel
     if (!res.ok) return null
     return (await res.json()) as T

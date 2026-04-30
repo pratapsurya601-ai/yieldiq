@@ -193,11 +193,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
   const canUseSliders =
     userTier === "starter" || userTier === "pro" || userTier === "analyst"
 
+  // P0 (2026-04-30): analysis cache + chart + prism all surface live price.
+  // Stale prices are the worst UX on this page — drop to 60s so a page that
+  // sits open through a price tick re-fetches on the next interaction.
   const { data, isLoading, error } = useQuery({
     queryKey: ["analysis", ticker],
     queryFn: () => getAnalysis(ticker),
     enabled: !!ticker,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60_000,
     retry: (failureCount, err) => {
       const status = (err as { response?: { status?: number } })?.response?.status
       if (status === 404 || status === 429) return false
@@ -209,7 +212,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     queryKey: ["chart-data", ticker, "1m"],
     queryFn: () => getChartData(ticker, "1m"),
     enabled: !!ticker,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60_000,
   })
 
   // PR1 SSR fix (Option C): Prism is now hydrated client-side instead of
@@ -220,7 +223,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     queryKey: ["prism", ticker],
     queryFn: () => fetchPrism(ticker),
     enabled: !!ticker,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60_000,
     retry: 1,
   })
   // Prefer the freshest source: SSR-passed prop (legacy callers) → live

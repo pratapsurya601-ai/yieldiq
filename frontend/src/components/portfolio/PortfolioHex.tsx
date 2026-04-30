@@ -83,7 +83,7 @@ export default function PortfolioHex({ holdings }: Props) {
     queryKey: ["portfolio-hex", payload.map((p) => `${p.ticker}:${p.weight.toFixed(2)}`).join("|")],
     queryFn: () => fetchPortfolioHex(payload),
     enabled,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60_000,
     retry: 1,
   })
 
