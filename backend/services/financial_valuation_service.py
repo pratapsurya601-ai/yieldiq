@@ -294,6 +294,28 @@ def _compute_pbv_path(
         adj = 1.0
 
     fair_pb = median_pb * adj
+
+    # ── Top private banks COE bump (P1 launch-aftermath, 2026-04-30) ──
+    # HDFCBANK / ICICIBANK / KOTAKBANK / AXISBANK have cost of equity
+    # ~10.5-11.5% (mature deposit franchise) vs generic 12.5% used in
+    # the peer-median P/BV. Lower COE → higher justified P/BV via
+    # Gordon: P/B = (ROE - g) / (COE - g). A 150bps COE compression
+    # for top private banks lifts justified P/BV ≈ 15%, which we
+    # apply directly here. PSU banks deliberately not bumped (higher
+    # asset-quality + governance risk → COE stays ~12.5%).
+    try:
+        from backend.services.analysis.constants import (
+            is_top_private_bank,
+            TOP_PRIVATE_BANK_PB_BUMP,
+        )
+        if is_top_private_bank(ticker):
+            fair_pb = fair_pb * TOP_PRIVATE_BANK_PB_BUMP
+            logger.info(
+                "TOP_PRIVATE_BANK_PB_BUMP applied: %s fair_pb x %.3f",
+                ticker, TOP_PRIVATE_BANK_PB_BUMP,
+            )
+    except Exception as _coe_exc:  # pragma: no cover — defensive
+        logger.debug("top-private-bank P/BV bump skipped %s: %s", ticker, _coe_exc)
     base = round(bvps * fair_pb, 2)
     # PR-BANKSC-2: bear/bull must scale off the SAME fair_pb that base
     # uses, otherwise when `adj` hits the 0.7/1.4 clamp, base lands

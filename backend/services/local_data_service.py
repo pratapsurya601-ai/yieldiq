@@ -342,6 +342,26 @@ def assemble_local(ticker: str, db_session) -> dict | None:
     # Convert shares: Aiven stores in Lakhs, pipeline expects raw count
     shares_raw = shares * 1e5 if shares else 0
 
+    # ── Shares-outstanding overrides (P1 launch-aftermath, 2026-04-30) ──
+    # yfinance / DB-stored share counts can be stale after large corporate
+    # actions (e.g. POWERINDIA post-Hitachi acquisition). Apply curated
+    # overrides here so every downstream consumer (DCFEngine, peer-cap,
+    # valuation, hex axes) sees the corrected count.
+    try:
+        from backend.services.analysis.constants import (
+            SHARES_OUTSTANDING_OVERRIDES,
+        )
+        _bare = (ticker or "").upper().replace(".NS", "").replace(".BO", "")
+        if _bare in SHARES_OUTSTANDING_OVERRIDES:
+            _override = float(SHARES_OUTSTANDING_OVERRIDES[_bare])
+            log.warning(
+                "SHARES_OVERRIDE: %s shares_raw %.0f -> %.0f (P1 override)",
+                ticker, shares_raw, _override,
+            )
+            shares_raw = _override
+    except Exception as _so_exc:  # pragma: no cover — defensive
+        log.debug("shares override skipped for %s: %s", ticker, _so_exc)
+
     # ── 5. Derived fields ────────────────────────────────────────
     # total_debt/cash are now in raw INR (after CR multiplication above)
     enterprise_value = (market_cap_cr * CR) + total_debt - total_cash \

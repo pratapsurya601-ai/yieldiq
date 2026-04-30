@@ -86,6 +86,8 @@ from backend.services.analysis.constants import (
     COMPANY_NAME_OVERRIDES,
     _PB_MEDIANS,
     _NBFC_TICKERS,
+    is_top_private_bank,
+    TOP_PRIVATE_BANK_COE,
 )
 
 # ── NBFC WACC floor ─────────────────────────────────────────────
@@ -590,6 +592,25 @@ class AnalysisService(NarrativeMixin):
             if isinstance(wacc_data, dict):
                 wacc_data["wacc"] = NBFC_WACC_FLOOR
                 wacc_data["wacc_floor_applied"] = True
+
+        # ── Top private banks COE cap (P1, 2026-04-30) ──────────
+        # HDFCBANK / ICICIBANK / KOTAKBANK / AXISBANK have lower
+        # cost of equity than the generic CAPM 12-13% landing
+        # (mature deposit franchise). Cap surfaced WACC at 11%.
+        # Banks route through compute_financial_fair_value (P/BV
+        # peer median), so the cap is surface-only here; the
+        # fair-value lift is applied separately in
+        # financial_valuation_service via TOP_PRIVATE_BANK_PB_BUMP.
+        if is_top_private_bank(clean_ticker) and wacc > TOP_PRIVATE_BANK_COE:
+            import logging as _tpb_log
+            _tpb_log.getLogger("yieldiq.analysis").info(
+                "Top private bank COE cap: %s %.4f -> %.4f",
+                clean_ticker, wacc, TOP_PRIVATE_BANK_COE,
+            )
+            wacc = TOP_PRIVATE_BANK_COE
+            if isinstance(wacc_data, dict):
+                wacc_data["wacc"] = TOP_PRIVATE_BANK_COE
+                wacc_data["top_private_bank_coe_applied"] = True
 
         country = get_active_country()
         terminal_g = country.get("default_terminal_growth", 0.025)

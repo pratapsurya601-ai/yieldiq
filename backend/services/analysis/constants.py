@@ -305,6 +305,21 @@ _CAPEX_SUPER_CYCLICAL_TICKERS: set[str] = {
 }
 
 
+# Wide-moat compounders that the sector-keyword fallback in
+# is_capex_super_cyclical() would otherwise wrongly bucket as
+# super-cyclical (TITAN got flagged via signed-median FCF on a 10y
+# window, crushing FV to ~₹1,079 vs current price ~₹3,200). These
+# are explicit "never treat as super-cyclical" overrides.
+NEVER_SUPER_CYCLICAL: set[str] = {
+    "TITAN",        # wide-moat consumer durables (jewellery + watches)
+    "ASIANPAINT",   # paints, distribution moat
+    "NESTLEIND",    # FMCG
+    "HINDUNILVR",   # FMCG
+    "BRITANNIA",    # FMCG
+    "TATACONSUM",   # FMCG
+}
+
+
 def is_capex_super_cyclical(
     ticker: str,
     sector: str | None = None,
@@ -313,10 +328,17 @@ def is_capex_super_cyclical(
     """Return True if the ticker has a multi-year capex super-cycle
     that breaks the 5y-positive-FCF-only normalisation.
 
-    Decision = (curated ticker allow-list) OR (sector keyword match).
+    Decision = (curated ticker allow-list) OR (sector keyword match),
+    with NEVER_SUPER_CYCLICAL acting as an early-exit veto for
+    wide-moat compounders the keyword fallback would otherwise
+    misclassify.
     Cement is NOT in this set (see comment above).
     """
     bare = (ticker or "").upper().replace(".NS", "").replace(".BO", "")
+    # Veto: wide-moat compounders never go down the super-cyclical
+    # path even if a future sector-keyword match triggers.
+    if bare in NEVER_SUPER_CYCLICAL:
+        return False
     if bare in _CAPEX_SUPER_CYCLICAL_TICKERS:
         return True
     s = (sector or "").lower()
@@ -327,6 +349,70 @@ def is_capex_super_cyclical(
     )):
         return True
     return False
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Shares-outstanding overrides (added 2026-04-30 P1 launch-aftermath)
+#
+# yfinance's `sharesOutstanding` field can be stale or wrong after
+# corporate actions (mergers, demergers, large QIPs). When it is, the
+# entire DCF equity-value-per-share calculation is off by the same
+# multiple, giving us garbage FV (POWERINDIA: yfinance returns
+# 44.57M which is the pre-Hitachi-acquisition free float; the actual
+# post-merger count is ~423M). Override here, before the value flows
+# into local_data_service.py / compute_metrics / DCFEngine.
+#
+# Keys are clean tickers (no .NS/.BO). Values are RAW share counts
+# (not lakhs). Applied in local_data_service.py right after
+# `shares_raw` is computed from the lakh-stored DB value.
+# ─────────────────────────────────────────────────────────────────────
+SHARES_OUTSTANDING_OVERRIDES: dict[str, float] = {
+    # Hitachi Energy India (post-Hitachi acquisition: yfinance returns
+    # the old free-float ~44.57M, actual ~423M shares).
+    "POWERINDIA": 423_000_000.0,
+}
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Top private banks — bank COE adjustment (added 2026-04-30 P1)
+#
+# Mature, deposit-franchise-led private banks have lower cost of
+# equity than the generic 12.5% the CAPM path lands at for India
+# (Re ≈ rf + β·MRP ≈ 7% + 1.0·6% = 13%, floored to 12% under the NBFC
+# floor for some). Industry standard for top private banks is
+# 10.5–11.5%. Lowering COE has two effects in our pipeline:
+#
+#   1. Surface `wacc` field reads ≤11% (matches sell-side reports).
+#   2. In the P/BV justified-multiple path
+#      (financial_valuation_service._compute_pbv_path), fair_pb is
+#      bumped by a COE-implied factor: lower COE → higher justified
+#      P/BV via Gordon (P/B = (ROE-g)/(COE-g)).
+#
+# PSU banks (SBIN, BANKBARODA, PNB, etc.) deliberately stay on the
+# higher 12.5% path — higher governance/asset-quality risk.
+# ─────────────────────────────────────────────────────────────────────
+TOP_PRIVATE_BANKS: set[str] = {
+    "HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK",
+}
+
+# Target COE for top private banks (mid-point of the 10.5-11.5% band).
+TOP_PRIVATE_BANK_COE = 0.11
+
+# Bump factor applied to peer-median P/BV for top private banks.
+# Calibrated so HDFCBANK (current P/BV ≈ 2.7, peer-median ≈ 2.4)
+# moves FV from ~₹676 toward ~₹780, closing the spurious -12% MoS
+# gap surfaced on Reddit. Equivalent to a ~150bps COE compression.
+TOP_PRIVATE_BANK_PB_BUMP = 1.15
+
+
+def is_top_private_bank(ticker: str | None) -> bool:
+    """Return True if the ticker is in the curated top-private-banks
+    set (HDFCBANK / ICICIBANK / KOTAKBANK / AXISBANK).
+    """
+    if not ticker:
+        return False
+    bare = ticker.upper().replace(".NS", "").replace(".BO", "")
+    return bare in TOP_PRIVATE_BANKS
 
 
 def is_cyclical(ticker: str | None, sector: str | None = None) -> bool:
