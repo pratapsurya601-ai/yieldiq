@@ -163,7 +163,7 @@ export default async function BlogPostPage(
         {/* CTA */}
         <section className="mt-12 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl p-6 text-center text-white">
           <h2 className="text-xl font-bold mb-2">Apply this on YieldIQ</h2>
-          <p className="text-blue-100 text-sm mb-4">Free DCF analysis, screeners, portfolio import, tax reports for 6,000+ Indian stocks.</p>
+          <p className="text-blue-100 text-sm mb-4">Free DCF analysis, screeners, portfolio import, tax reports for 2,300+ Indian stocks.</p>
           <Link href="/auth/signup" className="inline-block bg-white text-blue-700 font-bold px-6 py-3 rounded-xl hover:bg-blue-50 transition text-sm">
             Start Free &rarr;
           </Link>

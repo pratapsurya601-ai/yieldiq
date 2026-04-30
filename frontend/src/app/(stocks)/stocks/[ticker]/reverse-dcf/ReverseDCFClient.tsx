@@ -254,7 +254,7 @@ export default function ReverseDCFClient({ initialData, ticker }: { initialData:
       {/* CTA */}
       <div className="bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl p-6 text-center text-white mb-8">
         <h2 className="text-lg font-bold mb-1">See full DCF analysis</h2>
-        <p className="text-blue-100 text-sm mb-4">Bear/base/bull scenarios, sensitivity heatmap, Monte Carlo, and more.</p>
+        <p className="text-blue-100 text-sm mb-4">Bear/base/bull scenarios, sensitivity heatmap, reverse DCF, and more.</p>
         <Link
           href={`/analysis/${ticker}`}
           className="inline-block bg-white text-blue-700 font-bold px-6 py-2.5 rounded-xl hover:bg-blue-50 transition text-sm"

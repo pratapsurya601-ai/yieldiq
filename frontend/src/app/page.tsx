@@ -197,7 +197,7 @@ function DemoCard() {
 
 /* ── Pricing teaser data ──────────────────────────────── */
 const pricingPlans = [
-  { name: "Free",    price: "\u20B90",     period: "/forever", tagline: "5 analyses a day. All core features." },
+  { name: "Free",    price: "\u20B90",     period: "/forever", tagline: "5 deep analyses per day. All core features." },
   { name: "Analyst", price: "\u20B9799",   period: "/month",   tagline: "Unlimited analyses, Portfolio Prism, AI summaries.", highlight: true },
   { name: "Pro",     price: "\u20B91,499", period: "/month",   tagline: "CSV/PDF export, API access, priority compute." },
 ]
@@ -246,7 +246,7 @@ function LandingContent() {
 
               {/* Stats strip */}
               <p className="text-gray-400 text-sm">
-                <span className="text-white font-semibold">2,900 stocks</span>
+                <span className="text-white font-semibold">2,300+ NSE &amp; BSE stocks</span>
                 <span className="mx-2 text-gray-600">&middot;</span>
                 <span className="text-white font-semibold">Source-linked</span>
                 <span className="mx-2 text-gray-600">&middot;</span>
@@ -275,7 +275,7 @@ function LandingContent() {
               <div className="inline-flex items-center gap-2 bg-green-50 border border-green-200 rounded-full px-3 py-1 mb-4">
                 <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
                 <span className="text-[10px] font-bold text-green-700 tracking-[0.2em] uppercase">
-                  No sign-up needed
+                  No sign-up to browse
                 </span>
               </div>
               <h2 className="font-display text-3xl sm:text-4xl font-black text-gray-900 mb-3">
@@ -285,6 +285,10 @@ function LandingContent() {
                 Every Indian stock on YieldIQ is analysed through this same lens &mdash;
                 live prices, 3-scenario DCF, quality scores, and plain-English AI
                 commentary. This is a real card, rotating through real tickers.
+              </p>
+              <p className="text-gray-500 text-xs mt-3 max-w-2xl mx-auto">
+                Browse and analyse any stock without signing up. A free account
+                (5 deep analyses per day) unlocks watchlists, portfolios, and saved screens.
               </p>
             </div>
           </FadeIn>

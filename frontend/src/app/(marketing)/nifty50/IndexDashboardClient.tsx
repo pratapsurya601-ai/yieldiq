@@ -205,7 +205,7 @@ export default function IndexDashboardClient({ data }: { data: DashboardData }) 
       <section className="bg-gray-50 border-t border-gray-100 py-12">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h2 className="text-2xl font-black text-gray-900 mb-3">Want full DCF analysis for any stock?</h2>
-          <p className="text-gray-500 mb-6">YieldIQ analyses 2,900+ Indian stocks with interactive DCF, sensitivity heatmap, and AI insights.</p>
+          <p className="text-gray-500 mb-6">YieldIQ analyses 2,300+ Indian stocks with interactive DCF, sensitivity heatmap, and AI insights.</p>
           <Link href="/auth/signup" className="inline-block bg-blue-600 text-white font-bold px-8 py-4 rounded-xl text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/20">
             Start Free &rarr;
           </Link>

@@ -392,7 +392,7 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
         </ul>
 
         <p className="text-xs text-caption mt-5">
-          Free tier: one deep analysis per day. No card required. Cancel anytime.
+          Free tier: 5 deep analyses per day. No card required. Cancel anytime.
         </p>
       </section>
     </main>

@@ -114,12 +114,12 @@ export default function LandingPage() {
               Start Valuing Stocks &mdash; Free &rarr;
             </Link>
           </div>
-          <p className="text-gray-500 text-sm">Works for 6,000+ NSE/BSE stocks.</p>
+          <p className="text-gray-500 text-sm">Works for 2,300+ NSE &amp; BSE stocks.</p>
 
           {/* Stats */}
           <div className="flex justify-center gap-12 mt-16 flex-wrap">
             <div className="text-center">
-              <div className="text-3xl font-black text-white">6,000+</div>
+              <div className="text-3xl font-black text-white">2,300+</div>
               <div className="text-gray-500 text-xs mt-1">Stocks Covered</div>
             </div>
             <div className="text-center">
@@ -128,7 +128,7 @@ export default function LandingPage() {
             </div>
             <div className="text-center">
               <div className="text-3xl font-black text-white">Free</div>
-              <div className="text-gray-500 text-xs mt-1">5 Analyses/Day</div>
+              <div className="text-gray-500 text-xs mt-1">5 Deep Analyses/Day</div>
             </div>
           </div>
         </div>
@@ -202,7 +202,7 @@ export default function LandingPage() {
           </h2>
           <div className="grid md:grid-cols-2 gap-6">
             {[
-              { icon: "\u{1F1EE}\u{1F1F3}", title: "Indian Market Data", desc: "Covers 6,000+ NSE/BSE stocks with India-specific WACC, risk-free rates calibrated to RBI benchmarks." },
+              { icon: "\u{1F1EE}\u{1F1F3}", title: "Indian Market Data", desc: "Covers 2,300+ NSE & BSE stocks with India-specific WACC, risk-free rates calibrated to RBI benchmarks." },
               { icon: "\u{1F393}", title: "No Finance Degree Needed", desc: "Assumptions pre-filled with sensible defaults. Understand the output even if you\u2019ve never built a DCF before." },
               { icon: "\u{1F50D}", title: "Transparent Models", desc: "Every assumption is visible and adjustable. No black box. See exactly how the fair value is calculated." },
               { icon: "\u26A1", title: "Free to Start", desc: "Core valuation is free. No credit card. No signup wall. Start using it in 10 seconds." },
@@ -227,7 +227,7 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-3 gap-6">
             {[
               { icon: "\u{1F4CA}", title: "Valuation Hero", desc: "Fair value, implied upside/downside, Bear/Base/Bull scenarios \u2014 all at a glance." },
-              { icon: "\u2744\uFE0F", title: "Quality Snowflake", desc: "5-axis radar chart scoring Value, Quality, Growth, Health, and Moat." },
+              { icon: "\u{1F537}", title: "Prism Score", desc: "6-pillar score (Pulse, Quality, Moat, Safety, Growth, Value) blended into a single 0\u2013100 number with a letter grade." },
               { icon: "\u{1F527}", title: "Interactive DCF", desc: "Adjust WACC, growth rate, terminal value \u2014 see fair value change in real-time." },
               { icon: "\u{1F3AF}", title: "Sensitivity Heatmap", desc: "See how fair value changes across different WACC and growth assumptions." },
               { icon: "\u{1F3DB}\uFE0F", title: "Banking & NBFC Support", desc: "Relative valuation (P/B, P/E vs sector) for stocks where DCF doesn\u2019t apply." },

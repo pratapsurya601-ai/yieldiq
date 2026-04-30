@@ -108,7 +108,7 @@ export default function BlogIndexPage() {
       <section className="bg-gray-50 border-t border-gray-100 py-12">
         <div className="max-w-3xl mx-auto px-4 text-center">
           <h2 className="text-2xl font-black text-gray-900 mb-3">Apply this to real stocks</h2>
-          <p className="text-gray-500 mb-6">Use YieldIQ\u2019s DCF, screeners, and analysis tools on 6,000+ Indian stocks. Free.</p>
+          <p className="text-gray-500 mb-6">Use YieldIQ\u2019s DCF, screeners, and analysis tools on 2,300+ Indian stocks. Free.</p>
           <Link href="/auth/signup" className="inline-block bg-blue-600 text-white font-bold px-8 py-4 rounded-xl text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/20">
             Start Free &rarr;
           </Link>

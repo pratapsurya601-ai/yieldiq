@@ -73,8 +73,8 @@ const plans: Plan[] = [
     highlighted: false,
     badge: null,
     features: [
-      { text: "5 full analyses per day", included: true },
-      { text: "All 4,500+ NSE/BSE stocks searchable", included: true },
+      { text: "5 deep analyses per day", included: true },
+      { text: "All 2,300+ NSE & BSE stocks searchable", included: true },
       { text: "DCF Fair Value + Margin of Safety", included: true },
       { text: "YieldIQ Prism (Signature mode)", included: true },
       { text: "10-stock watchlist", included: true },

@@ -66,7 +66,7 @@ const themeInitScript = `(function(){try{var s=localStorage.getItem('yieldiq_the
 export const metadata: Metadata = {
   title: "YieldIQ — Fair-value estimates for Indian stocks",
   description:
-    "Free DCF valuation for 2,900+ NSE/BSE stocks. Instant fair value, margin of safety, and quality scores.",
+    "Free DCF valuation for 2,300+ NSE & BSE stocks. Instant fair value, margin of safety, and quality scores.",
   manifest: "/manifest.json",
   icons: {
     icon: [
@@ -88,7 +88,7 @@ export const metadata: Metadata = {
   },
   openGraph: {
     title: "YieldIQ — Fair-value estimates for Indian stocks",
-    description: "Free DCF valuation for 2,900+ NSE/BSE stocks. Instant fair value, margin of safety, and quality scores.",
+    description: "Free DCF valuation for 2,300+ NSE & BSE stocks. Instant fair value, margin of safety, and quality scores.",
     url: "https://yieldiq.in",
     siteName: "YieldIQ",
     type: "website",

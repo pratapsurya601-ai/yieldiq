@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   description: "Free earnings calendar for NSE/BSE stocks. See upcoming quarterly results, AGMs, and corporate announcements. Updated daily from NSE.",
   openGraph: {
     title: "Earnings Calendar — Indian Stocks | YieldIQ",
-    description: "Track upcoming quarterly results for 2,900+ Indian stocks. Free, no signup required.",
+    description: "Track upcoming quarterly results for 2,300+ Indian stocks. Free, no signup required.",
     url: "https://yieldiq.in/earnings-calendar",
   },
   alternates: { canonical: "https://yieldiq.in/earnings-calendar" },

@@ -53,14 +53,14 @@ const detailedFeatures = [
   },
   {
     tag: "Quality Analysis",
-    title: "Snowflake Quality Score",
-    desc: "5-axis radar chart scoring every stock on Value, Quality, Growth, Health, and Moat. See the full picture at a glance \u2014 a full snowflake means an exceptional stock.",
+    title: "Prism Score (6 pillars)",
+    desc: "A single 0\u2013100 score blended from six pillars \u2014 Pulse, Quality, Moat, Safety, Growth, Value. Each pillar is computed from audited fundamentals with sector-aware percentile bands, so comparisons are like-for-like.",
     bullets: [
-      "Piotroski F-Score (9-factor)",
-      "Economic moat analysis",
-      "Balance sheet health check",
+      "Bank-aware Piotroski (4-signal scaled to /9)",
+      "Economic moat classification (Wide / Narrow / None)",
+      "Sector-percentile valuation bands",
     ],
-    visual: { icon: "\u2744\uFE0F", line1: "57/100 \u2014 Good", line2: "Moat: 88 | Health: 94 | Quality: 56", note: null },
+    visual: { icon: "\u{1F537}", line1: "Prism: 72/100 \u2014 B+", line2: "Moat 88 | Safety 81 | Quality 74", note: null },
     reversed: true,
   },
   {
@@ -93,9 +93,9 @@ const featureGrid = [
   { icon: "\u{1F4CA}", title: "DCF Engine", desc: "Automated 10-year discounted cash flow model with India-calibrated WACC and terminal value." },
   { icon: "\u{1F3AF}", title: "Piotroski F-Score", desc: "9-factor scoring system that measures financial health based on profitability, leverage, and efficiency." },
   { icon: "\u{1F6E1}\uFE0F", title: "Moat Analysis", desc: "Quantitative assessment of competitive advantages \u2014 pricing power, switching costs, network effects." },
-  { icon: "\u{1F3B2}", title: "Monte Carlo Simulation", desc: "Run thousands of scenarios with randomized inputs to see the probability distribution of fair values." },
-  { icon: "\u{1F4C8}", title: "Bear / Base / Bull Scenarios", desc: "Three pre-built scenarios with adjustable assumptions so you can see the range of outcomes." },
-  { icon: "\u{1F50D}", title: "Screener", desc: "Filter 6,000+ stocks by valuation, quality score, moat, sector, and more." },
+  { icon: "\u{1F504}", title: "Reverse DCF", desc: "Solve for the growth rate the market is pricing in today — then judge whether that’s realistic given the company’s history and sector." },
+  { icon: "\u{1F4C8}", title: "Bear / Base / Bull Scenarios", desc: "Sector-aware DCF with three explicit scenarios and a weighted fair value — no single-point estimate hiding the uncertainty." },
+  { icon: "\u{1F50D}", title: "Screener", desc: "Filter 2,300+ NSE & BSE stocks by valuation, Prism score, moat, sector, and more." },
   { icon: "\u{1FA7A}", title: "Portfolio Health", desc: "Upload your portfolio and see aggregate health, diversification, and valuation metrics." },
   { icon: "\u2728", title: "AI Summary", desc: "LLM-powered plain-English summary of the valuation, risks, and key drivers for any stock." },
 ]
