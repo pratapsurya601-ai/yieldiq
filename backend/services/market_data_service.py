@@ -14,6 +14,7 @@ path and log a warning so production gaps are visible.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, time, timedelta, timezone
 from typing import Iterable
 
 from sqlalchemy import text
@@ -35,6 +36,49 @@ def _get_session():
     except Exception as exc:
         log.warning("market_data_service: could not open session: %s", exc)
         return None
+
+
+# ─────────────────────────────────────────────────────────────────
+# Freshness alert (non-blocking)
+# ─────────────────────────────────────────────────────────────────
+
+# NSE trading hours: 09:15–15:30 IST (Mon-Fri). IST = UTC+5:30.
+# Translated to UTC: 03:45–10:00.
+_MKT_OPEN_UTC = time(3, 45)
+_MKT_CLOSE_UTC = time(10, 0)
+_FRESHNESS_THRESHOLD = timedelta(hours=4)
+
+
+def _is_market_hours_utc(now_utc: datetime) -> bool:
+    """True if `now_utc` falls inside NSE trading hours (Mon-Fri)."""
+    if now_utc.weekday() >= 5:  # 5=Sat, 6=Sun
+        return False
+    t = now_utc.timetz().replace(tzinfo=None)
+    return _MKT_OPEN_UTC <= t <= _MKT_CLOSE_UTC
+
+
+def _warn_if_stale(ticker: str, as_of) -> None:
+    """Log a warning if `as_of` is older than 4h during NSE market hours.
+    Non-blocking — never raises. Helps surface silent pulse_daily failures
+    without grepping cron logs."""
+    if as_of is None:
+        return
+    try:
+        if as_of.tzinfo is None:
+            as_of = as_of.replace(tzinfo=timezone.utc)
+        now = datetime.now(timezone.utc)
+        if not _is_market_hours_utc(now):
+            return
+        age = now - as_of
+        if age > _FRESHNESS_THRESHOLD:
+            log.warning(
+                "canonical_price: live_quotes for %s is stale during "
+                "market hours (age=%s, as_of=%s) — pulse_daily may have "
+                "skipped this ticker",
+                ticker, age, as_of.isoformat(),
+            )
+    except Exception:
+        pass
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -129,7 +173,7 @@ def get_canonical_price(
                 try:
                     row = sess.execute(
                         text(
-                            "SELECT price FROM live_quotes "
+                            "SELECT price, as_of FROM live_quotes "
                             "WHERE ticker = :t "
                             "AND price IS NOT NULL AND price > 0 "
                             "ORDER BY as_of DESC LIMIT 1"
@@ -140,6 +184,7 @@ def get_canonical_price(
                     row = None
                 if row and row[0] is not None:
                     try:
+                        _warn_if_stale(canonical, row[1])
                         return float(row[0])
                     except Exception:
                         pass
