@@ -234,18 +234,56 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
         "oil_gas", "metals", "chemicals", "auto", "sugar", "airlines",
     }
     sector_tag = (enriched.get("sector") or "").lower()
+    industry_tag = enriched.get("industry") or ""
     cyc_norm = None
-    if sector_tag in _CYCLICAL_SECTORS and not cf_df.empty and "fcf" in cf_df.columns:
+
+    # ── Capex super-cyclical branch (added 2026-04-30, PR A) ─────────
+    # For aluminium / steel / GRASIM-like multi-segment capex super-
+    # cyclicals, the 5y positive-only filter excludes every realistic
+    # data point because the cycle bottom + capex peak straddle the
+    # window. Use a SIGNED median over a 10y window (negative years
+    # INCLUDED) to capture mid-cycle FCF. If that median is itself
+    # negative (deep super-capex like GRASIM holdco), anchor the base
+    # to revenue × 5% so nopat_proxy can't over-project from the
+    # peak EBIT.
+    from backend.services.analysis.constants import is_capex_super_cyclical
+    is_super_cyc = is_capex_super_cyclical(
+        ticker, enriched.get("sector"), industry_tag,
+    )
+    if is_super_cyc and not cf_df.empty and "fcf" in cf_df.columns:
+        recent_fcfs = cf_df["fcf"].tail(10).dropna()
+        if len(recent_fcfs) >= 3:
+            cyc_norm_signed = float(recent_fcfs.median())
+            if cyc_norm_signed > 0:
+                candidates["cyc_10y_median"] = cyc_norm_signed
+                cyc_norm = cyc_norm_signed
+            else:
+                # All-negative signed median → use revenue × 5% as a
+                # mid-cycle FCF anchor.
+                if latest_revenue and latest_revenue > 1e10:
+                    candidates["cyc_revenue_x_5pct"] = float(latest_revenue) * 0.05
+                    cyc_norm = float(latest_revenue) * 0.05
+    elif sector_tag in _CYCLICAL_SECTORS and not cf_df.empty and "fcf" in cf_df.columns:
         _pos5 = cf_df["fcf"][cf_df["fcf"] > 0].tail(5)
         if len(_pos5) >= 3:
             cyc_norm = float(_pos5.median())
+            candidates["cyc_5y_median"] = cyc_norm
         elif len(_pos5) >= 2:
             # trimmed-mean fallback: drop the max, average the rest
             _trim = _pos5.sort_values().iloc[:-1]
             cyc_norm = float(_trim.mean()) if len(_trim) > 0 else None
+            if cyc_norm is not None:
+                candidates["cyc_5y_median"] = cyc_norm
         if cyc_norm is not None and cyc_norm > 0:
             # Override max_val so it cannot drag the selection upward
             max_val = min(max_val, cyc_norm) if max_val > 0 else cyc_norm
+
+    # Super-cyclical names: pin max_val to cyc_norm so the
+    # median(latest, nopat, max) selection cannot drag in a peak year,
+    # and the cap below (`base > cyc_norm → base = cyc_norm`) acts as
+    # a hard ceiling against nopat_floor smuggling peak-EBIT back in.
+    if is_super_cyc and cyc_norm is not None and cyc_norm > 0:
+        max_val = cyc_norm
 
     # Primary: median of latest_fcf, nopat_proxy, and max_recent_fcf
     # Using median instead of max prevents one outlier year from inflating the base
@@ -264,11 +302,18 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
 
     method = "median(latest_fcf, nopat_proxy, max_recent_fcf)"
 
-    # Cap cyclicals to the 5y-median normalised FCF so the nopat_floor
-    # (60% of peak-cycle EBIT) cannot smuggle the outlier back in.
+    # Cap cyclicals to the normalised FCF so the nopat_floor (60% of
+    # peak-cycle EBIT) cannot smuggle the outlier back in.
     if cyc_norm is not None and cyc_norm > 0 and base > cyc_norm:
         base = cyc_norm
-        method = f"cyclical_5y_median({sector_tag})"
+        if is_super_cyc:
+            method = (
+                "capex_super_cyclical_revenue_x_5pct"
+                if "cyc_revenue_x_5pct" in candidates
+                else "capex_super_cyclical_10y_median"
+            )
+        else:
+            method = f"cyclical_5y_median({sector_tag})"
 
     # ── Hysteresis: resist flip-flopping between close candidates ──
     # When candidates are within ~10% of each other, small yfinance

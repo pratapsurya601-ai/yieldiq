@@ -222,6 +222,60 @@ CYCLICAL_SECTORS: set[str] = {
 }
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Capex super-cyclical classifier (added 2026-04-30, PR A)
+#
+# These tickers/sectors have multi-year capex super-cycles where pure
+# 5y "positive FCF only" filters in forecaster.py:_compute_fcf_base
+# exclude every realistic data point. The right answer is a SIGNED
+# median over a 10y window (negative years included) for the cyclical
+# normalisation candidate.
+#
+# GRASIM is the strongest case (holdco: cement + viscose + paints, all
+# capex-heavy; multi-year negative FCF). HINDALCO/VEDL/NALCO are
+# aluminium (super-capex). TATASTEEL/JSWSTEEL/JINDALSTEL/SAIL are
+# integrated steel (super-cyclic capex).
+#
+# Cement is INTENTIONALLY EXCLUDED — was removed from _CYCLICAL_SECTORS
+# on 2026-04-24 (hotfix/cement-cyclical-cap) because the 5y window
+# crushed SHREECEM/ULTRACEMCO during India's current infrastructure
+# super-cycle. Cement stays on the normal path.
+# ─────────────────────────────────────────────────────────────────────
+
+_CAPEX_SUPER_CYCLICAL_TICKERS: set[str] = {
+    # Aluminium / non-ferrous metals
+    "HINDALCO", "VEDL", "NALCO",
+    # Integrated steel
+    "TATASTEEL", "JSWSTEEL", "JINDALSTEL", "SAIL",
+    # Diversified holdco with multi-segment super-capex
+    "GRASIM",
+}
+
+
+def is_capex_super_cyclical(
+    ticker: str,
+    sector: str | None = None,
+    industry: str | None = None,
+) -> bool:
+    """Return True if the ticker has a multi-year capex super-cycle
+    that breaks the 5y-positive-FCF-only normalisation.
+
+    Decision = (curated ticker allow-list) OR (sector keyword match).
+    Cement is NOT in this set (see comment above).
+    """
+    bare = (ticker or "").upper().replace(".NS", "").replace(".BO", "")
+    if bare in _CAPEX_SUPER_CYCLICAL_TICKERS:
+        return True
+    s = (sector or "").lower()
+    i = (industry or "").lower()
+    blob = s + " " + i
+    if any(token in blob for token in (
+        "aluminium", "non-ferrous", "diversified metal",
+    )):
+        return True
+    return False
+
+
 def is_cyclical(ticker: str | None, sector: str | None = None) -> bool:
     """Return True if the ticker (or its resolved sector) is cyclical.
 
