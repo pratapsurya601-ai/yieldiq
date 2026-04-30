@@ -141,18 +141,62 @@ _KNOWN_INDIAN_BARE: frozenset[str] | None = None
 
 
 def _known_indian_bare() -> frozenset[str]:
+    """Cached set of bare tickers known to be Indian.
+
+    Sources, in order:
+      1. Static `ticker_search.INDIAN_STOCKS` list (fast, ships with code).
+      2. Live `stocks` table on Neon — adds every active bare row whose
+         `ticker_ns` resolves to an `.NS` symbol. This catches stocks not
+         in the curated INDIAN_STOCKS list (e.g. CAPLIPOINT, mid/small caps
+         added via the BSE/NSE listing import) which were silently routed
+         to the US pipeline because the static list was the only source.
+         See P0 bug 2026-04-30: /analysis/CAPLIPOINT served USD prices and
+         "US General" sector tag because CAPLIPOINT existed in `stocks` but
+         not in INDIAN_STOCKS, so canonicalization fell through.
+
+    DB lookup runs once per process (cached in module-level frozenset).
+    Failures degrade gracefully — we keep whatever sources succeeded.
+    """
     global _KNOWN_INDIAN_BARE
-    if _KNOWN_INDIAN_BARE is None:
-        try:
-            from backend.services.ticker_search import INDIAN_STOCKS
-            bare = {
-                d["ticker"].replace(".NS", "").replace(".BO", "").upper()
-                for d in INDIAN_STOCKS
-                if d.get("ticker")
-            }
-            _KNOWN_INDIAN_BARE = frozenset(bare)
-        except Exception:
-            _KNOWN_INDIAN_BARE = frozenset()
+    if _KNOWN_INDIAN_BARE is not None:
+        return _KNOWN_INDIAN_BARE
+    bare: set[str] = set()
+    # Source 1: static curated list
+    try:
+        from backend.services.ticker_search import INDIAN_STOCKS
+        for d in INDIAN_STOCKS:
+            t = d.get("ticker") if isinstance(d, dict) else None
+            if t:
+                bare.add(t.replace(".NS", "").replace(".BO", "").upper())
+    except Exception as exc:
+        _logger.warning("ticker_search load failed for canonicalize: %s", exc)
+    # Source 2: live `stocks` table on Neon. The schema uses bare PK with
+    # a separate `ticker_ns` column for the NSE-suffixed variant. Pull all
+    # active rows.
+    try:
+        from backend.services.analysis.db import _get_pipeline_session
+        from sqlalchemy import text
+        sess = _get_pipeline_session()
+        if sess is not None:
+            try:
+                rows = sess.execute(
+                    text(
+                        "SELECT ticker FROM stocks "
+                        "WHERE ticker_ns IS NOT NULL AND is_active = true"
+                    )
+                ).fetchall()
+                for r in rows:
+                    if r and r[0]:
+                        bare.add(str(r[0]).upper())
+            finally:
+                try:
+                    sess.close()
+                except Exception:
+                    pass
+    except Exception as exc:
+        _logger.warning("stocks-table load failed for canonicalize: %s", exc)
+    _KNOWN_INDIAN_BARE = frozenset(bare)
+    _logger.info("canonicalize: loaded %d known Indian bare tickers", len(_KNOWN_INDIAN_BARE))
     return _KNOWN_INDIAN_BARE
 
 
