@@ -163,6 +163,10 @@ def _validate_info_for_write(ticker: str, info: dict) -> tuple[bool, str | None]
          classic ADR mistag pattern. Block.
       2. marketCap < 0 or > 1e15 — overflow / unit bug.
       3. trailingPE > 1000 — almost always a unit bug.
+      4. currentPrice disagrees with live_quotes by >50% — catches
+         the 2026-04-30 INFY 92x unit bug where ratios were
+         internally consistent but the absolute price was poisoned.
+      5. enterpriseToEbitda > 200 — unit bug (real-world cap ~150).
     """
     try:
         # Rule 1: ADR currency mistag
@@ -186,6 +190,46 @@ def _validate_info_for_write(ticker: str, info: dict) -> tuple[bool, str | None]
         pe = info.get("trailingPE")
         if isinstance(pe, (int, float)) and pe > 1000:
             return False, f"trailingPE={pe} > 1000 (suspected unit bug)"
+
+        # Rule 4: cross-check currentPrice vs live_quotes table (within 50%).
+        # Catches the 2026-04-30 INFY incident where yfinance returned
+        # 109652 but live_quotes had 1188 — 92x divergence. Per-ratio
+        # guards (PE 18.4, PB 6.16) passed because the bad blob was
+        # internally consistent, so we need an external anchor.
+        px = info.get("currentPrice") or info.get("regularMarketPrice")
+        if px is not None:
+            db = _db_session()
+            if db is not None:
+                try:
+                    from sqlalchemy import text
+                    row = db.execute(
+                        text(
+                            "SELECT price FROM live_quotes "
+                            "WHERE ticker = :t "
+                            "ORDER BY trade_date DESC LIMIT 1"
+                        ),
+                        {"t": ticker},
+                    ).first()
+                    if row and row[0]:
+                        lq = float(row[0])
+                        if lq > 0 and abs(float(px) - lq) / lq > 0.5:
+                            return False, (
+                                f"currentPrice={px} disagrees with "
+                                f"live_quotes={lq} by >50% (suspected unit bug)"
+                            )
+                except Exception:
+                    # Don't block writes if live_quotes is unreachable.
+                    pass
+                finally:
+                    try:
+                        db.close()
+                    except Exception:
+                        pass
+
+        # Rule 5: enterpriseToEbitda sanity (real-world cap ~150).
+        ev_ebitda = info.get("enterpriseToEbitda")
+        if isinstance(ev_ebitda, (int, float)) and ev_ebitda > 200:
+            return False, f"enterpriseToEbitda={ev_ebitda} > 200 (suspected unit bug)"
 
         return True, None
     except Exception as exc:
