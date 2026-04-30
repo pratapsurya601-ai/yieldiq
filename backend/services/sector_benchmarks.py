@@ -147,18 +147,33 @@ SECTOR_COHORT_RULES: dict[str, dict] = {
     "IT Services": {
         # yfinance lumps Indian IT services under "Technology"
         # (Information Technology Services / Software industries).
-        "sectors": ["Technology"],
+        # Post-PR #196 NSE-canonical labels: "IT Services",
+        # "Information Technology".
+        "sectors": [
+            "Technology",                # yfinance legacy
+            "IT Services",               # NSE canonical (post-PR #196)
+            "Information Technology",    # alt NSE variant
+        ],
         "industry_like": None,
     },
     "Banks": {
-        "sectors": ["Financial Services"],
+        # yfinance stores banks under "Financial Services" with
+        # industry "Banks - Regional"/"Banks - Diversified". Post-PR
+        # #196, NSE-canonical "Banks" lands directly in stocks.sector.
+        "sectors": [
+            "Financial Services",        # yfinance legacy (filtered by industry_like)
+            "Banks",                     # NSE canonical (post-PR #196)
+        ],
         # Banks - Regional / Banks - Diversified / etc.
         "industry_like": "Banks%",
     },
     "PSU Bank": {
         # yfinance does not split PSU vs private — fall back to all
         # banks. Callers that want a tighter cohort should pre-filter.
-        "sectors": ["Financial Services"],
+        "sectors": [
+            "Financial Services",        # yfinance legacy
+            "Banks",                     # NSE canonical (post-PR #196)
+        ],
         "industry_like": "Banks%",
     },
     "Financial Services": {
@@ -169,36 +184,89 @@ SECTOR_COHORT_RULES: dict[str, dict] = {
         "industry_like": None,
     },
     "Pharma": {
-        "sectors": ["Healthcare"],
+        "sectors": [
+            "Healthcare",                # yfinance legacy
+            "Pharmaceuticals",           # NSE canonical (post-PR #196)
+        ],
         "industry_like": None,
     },
     "FMCG": {
-        "sectors": ["Consumer Defensive"],
+        "sectors": [
+            "Consumer Defensive",            # yfinance legacy
+            "FMCG",                          # NSE canonical (post-PR #196)
+            "Fast Moving Consumer Goods",    # alt NSE variant
+        ],
         "industry_like": None,
     },
     "Auto": {
-        "sectors": ["Consumer Cyclical"],
+        "sectors": [
+            "Consumer Cyclical",                 # yfinance legacy (filtered by industry_like)
+            "Automobiles",                       # NSE canonical (post-PR #196)
+            "Automobile and Auto Components",    # alt NSE variant
+        ],
         # Auto Manufacturers, Auto Parts, Auto & Truck Dealerships.
         "industry_like": "Auto%",
     },
     "Metals": {
-        "sectors": ["Basic Materials"],
+        "sectors": [
+            "Basic Materials",           # yfinance legacy
+            "Metals & Mining",           # NSE canonical (post-PR #196)
+        ],
         "industry_like": None,
     },
     "Energy": {
+        # No NSE-canonical change needed — both yfinance "Energy" and
+        # NSE "Energy" land on the same string. "Utilities" kept for
+        # the power-gen subset (RELIANCE/POWERGRID/NTPC).
         "sectors": ["Energy", "Utilities"],
         "industry_like": None,
     },
     "Realty": {
-        "sectors": ["Real Estate"],
+        "sectors": [
+            "Real Estate",               # yfinance legacy
+            "Realty",                    # NSE canonical (post-PR #196)
+        ],
         "industry_like": None,
     },
     "Media": {
-        "sectors": ["Communication Services"],
+        "sectors": [
+            "Communication Services",                    # yfinance legacy
+            "Media",                                     # NSE canonical (post-PR #196)
+            "Media Entertainment & Publication",         # alt NSE variant
+        ],
         "industry_like": None,
     },
     "Consumer Durables": {
         "sectors": ["Consumer Cyclical"],
+        "industry_like": None,
+    },
+    "Infrastructure": {
+        # yfinance stores L&T-style conglomerates / capital-goods names
+        # under "Industrials". Post-PR #196, NSE-canonical labels
+        # "Capital Goods" / "Construction" land in stocks.sector.
+        "sectors": [
+            "Industrials",               # yfinance legacy
+            "Capital Goods",             # NSE canonical (post-PR #196)
+            "Construction",              # alt NSE variant
+        ],
+        "industry_like": None,
+    },
+    "Chemicals": {
+        # Specialty chemicals overlap with Basic Materials in yfinance.
+        # NSE-canonical "Chemicals" lands directly in stocks.sector.
+        "sectors": [
+            "Basic Materials",           # yfinance legacy overlap
+            "Chemicals",                 # NSE canonical (post-PR #196)
+        ],
+        "industry_like": None,
+    },
+    "Textiles": {
+        # Textiles roll up under Consumer Cyclical in yfinance.
+        # NSE-canonical "Textiles" lands directly in stocks.sector.
+        "sectors": [
+            "Consumer Cyclical",         # yfinance legacy overlap
+            "Textiles",                  # NSE canonical (post-PR #196)
+        ],
         "industry_like": None,
     },
 }
