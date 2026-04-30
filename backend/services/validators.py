@@ -68,6 +68,39 @@ class ValidationResult:
 
 # ── HARD BOUNDS ───────────────────────────────────────────────
 
+# ── QUARANTINED TICKERS ───────────────────────────────────────
+# Tickers where the DCF/IV pipeline is known to misbehave and we don't
+# want to page Sentry on every page-view until the underlying data
+# pipeline issue is fixed. Bypass the bounds check entirely (don't even
+# emit a warning) — the ticker should also be flagged is_active=FALSE
+# in the `stocks` table so it doesn't appear in screens at all. This
+# list is the second line of defense for the rare case the row is
+# served from a still-warm cache after deactivation.
+#
+# REFRACTORY/REFRACTORY.NS — Sentry PYTHON-FASTAPI-3 (13.4k events/24h
+# on 2026-04-30). DCF IV collapsed to ~0.02× CMP, hitting the lower
+# fair_value_ratio bound on every request. Deactivated in DB; gating
+# re-activation on a real fix to the IV computation for this ticker.
+QUARANTINED_TICKERS: set[str] = {
+    "REFRACTORY",
+    "REFRACTORY.NS",
+}
+
+
+def _is_quarantined(ticker: str | None) -> bool:
+    if not ticker:
+        return False
+    t = str(ticker).upper().strip()
+    if t in QUARANTINED_TICKERS:
+        return True
+    # Allow either bare or .NS form to match.
+    if t.endswith(".NS") and t[:-3] in QUARANTINED_TICKERS:
+        return True
+    if (t + ".NS") in QUARANTINED_TICKERS:
+        return True
+    return False
+
+
 BOUNDS = {
     # field: (min, max, severity)
     "wacc":              (0.02, 0.30, "critical"),    # 2%-30%
@@ -141,6 +174,19 @@ def validate_analysis(response) -> ValidationResult:
         result.ok = False
         result.severity = "critical"
         result.issues.append("Response is empty")
+        return result
+
+    # Quarantined tickers: skip bounds + cross-field checks entirely.
+    # These are tickers with a known upstream data-pipeline defect that
+    # would otherwise spam Sentry with the same validation issue on
+    # every page-view (REFRACTORY.NS — DCF IV collapse — was 99% of
+    # error volume on 2026-04-30 before quarantine). Returning ok=True
+    # here means callers won't quarantine into under_review either; the
+    # stock should be flagged is_active=FALSE upstream so it never
+    # reaches a user. This is the second line of defense for warm-cache
+    # rows served right after deactivation.
+    _q_ticker = getattr(response, "ticker", None)
+    if _is_quarantined(_q_ticker):
         return result
 
     # Extract fields

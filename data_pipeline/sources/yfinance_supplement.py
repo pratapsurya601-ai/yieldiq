@@ -447,13 +447,15 @@ def fetch_price_history(ticker_ns: str, ticker: str, db: Session,
                 if close is None or close <= 0:
                     continue
 
-                existing = db.query(DailyPrice).filter_by(
-                    ticker=ticker, trade_date=trade_date,
-                ).first()
-                if existing:
-                    continue
-
-                price = DailyPrice(
+                # Race-safe upsert: the check-then-insert pattern that
+                # used to live here raced against the bhavcopy ETL on
+                # the same (ticker, trade_date) and triggered
+                # IntegrityError uq_price_date in production (Sentry
+                # PYTHON-FASTAPI-GH, NMDC.NS the worst offender). Use
+                # PG INSERT ... ON CONFLICT DO NOTHING so concurrent
+                # writers settle deterministically without raising.
+                from sqlalchemy.dialects.postgresql import insert as pg_insert
+                stmt = pg_insert(DailyPrice.__table__).values(
                     ticker=ticker,
                     trade_date=trade_date,
                     open_price=_safe_float(row.get("Open") or row.get("open")),
@@ -462,9 +464,12 @@ def fetch_price_history(ticker_ns: str, ticker: str, db: Session,
                     close_price=close,
                     volume=int(row.get("Volume") or row.get("volume") or 0),
                     adj_close=close,
+                ).on_conflict_do_nothing(
+                    constraint="uq_price_date",
                 )
-                db.add(price)
-                stored += 1
+                res = db.execute(stmt)
+                if res.rowcount:
+                    stored += 1
             except Exception as row_exc:
                 # A single malformed row must not poison the session for
                 # the remaining rows of THIS ticker. If the exception came
