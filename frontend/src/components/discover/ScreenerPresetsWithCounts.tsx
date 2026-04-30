@@ -1,99 +1,74 @@
 "use client"
 
 import Link from "next/link"
-import { useQuery } from "@tanstack/react-query"
-import api from "@/lib/api"
 import { cn } from "@/lib/utils"
-import type { ScreenerResponse } from "@/types/api"
 
-// Composed wrapper around the preset grid. Shows the match count on each
-// card so users get a feel for the result size before running the
-// screener. Counts are fetched with page_size=1 (cheap) and kept in React
-// Query cache for an hour — presets don't change mid-session.
+// 2026-04-30 P0 fix: preset cards used to point at
+// `/discover/screener?preset=<key>`, which calls the auth-gated
+// `/api/v1/screener/preset/<key>` endpoint. For free-tier (and logged-out)
+// users that endpoint 401s, so the destination page rendered the
+// "Screener requires Starter plan" upsell instead of results — making the
+// preset cards feel completely broken on the public landing surface.
+//
+// The DSL screener at `/screener?filters=...` is public (uses
+// `/api/v1/public/screener/query`) and renders for everyone. We rewrite
+// each preset card's href to the equivalent DSL filter set so a click
+// from /discover always lands on a real results table.
+//
+// The legacy `/discover/screener` route still exists for the Starter+
+// preset experience (linked from elsewhere), so we don't remove it.
 
 interface Preset {
   name: string
   description: string
   borderColor: string
   bgGradient: string
-  query: string
-  // "custom" has no canonical count; skip the fetch.
-  countable: boolean
+  // /screener?filters=... target — public, unauth-friendly.
+  href: string
 }
 
-// 2026-04-25 dark-mode fix: the original gradients used Tailwind palette
-// colors (blue-50 / emerald-50 / violet-50 / amber-50 -> white) that do
-// NOT respond to the dark-mode class. In dark mode the cards rendered as
-// near-black with the description text invisible. Each preset now carries
-// both light AND dark gradient stops, and the description renders in
-// `text-body` (one tier brighter than `text-caption`) for legible contrast
-// on either background.
 const PRESETS: Preset[] = [
   {
     name: "Buffett Style",
-    description: "Wide moat, consistent earnings, fair price",
+    description: "High return on equity, low leverage",
     borderColor: "border-l-blue-600",
     bgGradient:
       "bg-gradient-to-br from-blue-50/50 to-white dark:from-blue-950/30 dark:to-slate-900",
-    query: "buffett",
-    countable: true,
+    // High Quality DSL preset: ROE > 18, D/E < 1, sort by ROE.
+    href: "/screener?filters=roe%3E18%2Cde_ratio%3C1&sort=roe",
   },
   {
     name: "Deep Value",
-    description: "High margin of safety, low P/E, high FCF yield",
+    description: "High margin of safety with low P/E",
     borderColor: "border-l-emerald-600",
     bgGradient:
       "bg-gradient-to-br from-emerald-50/50 to-white dark:from-emerald-950/30 dark:to-slate-900",
-    query: "deep-value",
-    countable: true,
+    // Deep Value DSL preset: MoS > 30, P/E < 15, sort by MoS.
+    href: "/screener?filters=mos%3E30%2Cpe_ratio%3C15&sort=mos",
   },
   {
     name: "Growth Quality",
-    description: "High growth with quality fundamentals",
+    description: "Reasonable P/E with high return on capital",
     borderColor: "border-l-violet-600",
     bgGradient:
       "bg-gradient-to-br from-violet-50/50 to-white dark:from-violet-950/30 dark:to-slate-900",
-    query: "growth-quality",
-    countable: true,
+    // Value + Quality DSL preset: P/E < 20, ROCE > 15, sort by MoS.
+    href: "/screener?filters=pe_ratio%3C20%2Croce%3E15&sort=mos",
   },
   {
     name: "Custom",
-    description: "Set your own filters and criteria",
+    description: "Build your own filters and criteria",
     borderColor: "border-l-amber-500",
     bgGradient:
       "bg-gradient-to-br from-amber-50/50 to-white dark:from-amber-950/30 dark:to-slate-900",
-    query: "custom",
-    countable: false,
+    href: "/screener",
   },
 ]
 
-async function fetchPresetCount(preset: string): Promise<number | null> {
-  try {
-    const res = await api.get<ScreenerResponse>(`/api/v1/screener/preset/${preset}`, { params: { page_size: 1 } })
-    return res.data.total
-  } catch {
-    // Silent failure — the button still works, just without a count.
-    return null
-  }
-}
-
 function PresetCard({ preset }: { preset: Preset }) {
-  const { data: count } = useQuery({
-    queryKey: ["preset-count", preset.query],
-    queryFn: () => fetchPresetCount(preset.query),
-    enabled: preset.countable,
-    staleTime: 3_600_000, // 1h
-  })
-
-  const label = !preset.countable
-    ? "Run"
-    : count == null
-      ? "Run"
-      : `Run \u2014 ${count} match${count === 1 ? "" : "es"}`
-
   return (
     <Link
-      href={`/discover/screener?preset=${preset.query}`}
+      href={preset.href}
       className={cn(
         "rounded-xl border border-border shadow-sm",
         "border-l-4 p-3 flex flex-col justify-between",
@@ -118,7 +93,7 @@ function PresetCard({ preset }: { preset: Preset }) {
           "text-xs font-medium bg-bg text-body pointer-events-none"
         )}
       >
-        {label}
+        Run
       </span>
     </Link>
   )
