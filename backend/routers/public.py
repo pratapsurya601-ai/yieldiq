@@ -1121,37 +1121,63 @@ async def public_compare(
 
 @router.get("/earnings-calendar")
 async def get_earnings_calendar(
-    days: int = Query(default=14, le=60),
+    days: int = Query(default=7, le=60),
     limit: int = Query(default=100, le=500),
 ):
     """
     Upcoming earnings announcements from NSE event calendar.
     No auth required. 1-hour cache.
+
+    Notes on date handling:
+      * "today" is computed in IST (Asia/Kolkata) so that the window does
+        not roll forward at 00:00 UTC (=05:30 IST), which previously caused
+        Friday-evening filings to land on a "Saturday" page early in the
+        IST morning.
+      * Dedup: the (ticker, event_date) UNIQUE constraint already prevents
+        same-day duplicates, but a ticker can legitimately have two
+        different events (e.g. Board Meeting + Financial Results) on
+        different days within the window. We collapse those to the
+        EARLIEST upcoming event per ticker so the calendar shows each
+        company exactly once.
     """
-    _cache_key = f"public:earnings:{days}:{limit}"
+    from datetime import datetime as _dt, timezone as _tz
+    _cache_key = f"public:earnings:v2:{days}:{limit}"
     cached = cache.get(_cache_key)
     if cached is not None:
         return cached
+
+    # IST = UTC+5:30. Compute "today" in IST so the calendar window
+    # aligns with the Indian trading day, not UTC midnight.
+    _IST = _tz(timedelta(hours=5, minutes=30))
+    today = _dt.now(_IST).date()
 
     events = []
     db = _get_db_session()
     if db:
         try:
             from data_pipeline.models import UpcomingEarnings, Stock
-            cutoff = date.today() + timedelta(days=days)
-            today = date.today()
+            cutoff = today + timedelta(days=days)
 
+            # Pull a generous slice; we'll dedup per-ticker below before
+            # honoring `limit`.
             rows = (
                 db.query(UpcomingEarnings, Stock)
                 .outerjoin(Stock, UpcomingEarnings.ticker == Stock.ticker)
                 .filter(UpcomingEarnings.event_date >= today)
                 .filter(UpcomingEarnings.event_date <= cutoff)
                 .order_by(UpcomingEarnings.event_date.asc())
-                .limit(limit)
+                .limit(max(limit * 3, limit + 100))
                 .all()
             )
 
+            seen_tickers: set[str] = set()
             for ue, stock in rows:
+                if ue.ticker in seen_tickers:
+                    # Same ticker already represented by an earlier event
+                    # in this window — skip the later filing.
+                    continue
+                seen_tickers.add(ue.ticker)
+
                 display = ue.ticker.replace(".NS", "").replace(".BO", "")
                 days_away = (ue.event_date - today).days
                 events.append({
@@ -1164,6 +1190,8 @@ async def get_earnings_calendar(
                     "purpose": ue.purpose or "",
                     "days_away": days_away,
                 })
+                if len(events) >= limit:
+                    break
         except Exception as e:
             logger.warning(f"earnings-calendar query failed: {e}")
         finally:

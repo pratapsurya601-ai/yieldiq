@@ -17,14 +17,17 @@ export const metadata: Metadata = {
 export default async function EarningsCalendarPage() {
   let data = null
   try {
-    const res = await fetch(`${API_BASE}/api/v1/public/earnings-calendar?days=14&limit=200`, {
+    // Window matches what we actually render below (next 7 days).
+    // Previously requested 14 but the page only showed 7, leaving the
+    // header copy "next 14 days" out of sync with the UI.
+    const res = await fetch(`${API_BASE}/api/v1/public/earnings-calendar?days=7&limit=200`, {
       next: { revalidate: 3600 },
     })
     if (res.ok) data = await res.json()
   } catch {}
 
   if (!data) {
-    data = { total: 0, window_days: 14, by_date: [], events: [] }
+    data = { total: 0, window_days: 7, by_date: [], events: [] }
   }
 
   return <EarningsCalendarClient data={data} />
