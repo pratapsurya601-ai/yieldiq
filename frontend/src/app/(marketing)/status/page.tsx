@@ -231,20 +231,27 @@ export default async function StatusPage() {
   const banner = statusClasses(payload.status)
 
   // ── Per-component metric strings ────────────────────────────────
+  // Sub-millisecond round-trips (backend reports an int 0 when the
+  // ping is faster than 1 ms — e.g. cached / colocated) used to render
+  // as the impossible-looking "Round-trip 0 ms". Show "<1 ms" instead.
+  const formatMs = (ms: number): string => (ms <= 0 ? "<1" : `${ms}`)
+
+  const apiLatency = payload.components.api.latency_ms
   const apiMetric =
-    payload.components.api.latency_ms !== null
-      ? `Endpoint reachable. Round-trip ${payload.components.api.latency_ms} ms.`
+    apiLatency !== null
+      ? `Endpoint reachable. Round-trip ${formatMs(apiLatency)} ms.`
       : "Endpoint reachable."
 
+  const dbLatency = payload.components.database.latency_ms
   const dbMetric =
-    payload.components.database.latency_ms !== null
-      ? `Aiven Postgres ping: ${payload.components.database.latency_ms} ms.`
+    dbLatency !== null
+      ? `Aiven Postgres ping: ${formatMs(dbLatency)} ms.`
       : "Aiven Postgres unreachable."
 
   const pipeMs = payload.components.analysis_pipeline.last_compute_ms
   const pipeAt = payload.components.analysis_pipeline.last_computed_at
   const pipelineMetric = pipeAt
-    ? `Last compute ${pipeMs ?? "—"} ms, ${formatTimestamp(pipeAt)}.`
+    ? `Last compute ${pipeMs !== null ? formatMs(pipeMs) : "—"} ms, ${formatTimestamp(pipeAt)}.`
     : "No recent compute recorded in the last 24 h."
 
   const fresh = payload.components.data_freshness
@@ -330,7 +337,15 @@ export default async function StatusPage() {
 
         {payload.incidents_30d.length === 0 ? (
           <p className="text-sm text-body">
-            No incidents reported in the last 30 days.
+            No incidents reported in the last 30 days.{" "}
+            <a
+              href="https://status.yieldiq.in"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-brand hover:underline underline-offset-4"
+            >
+              Detailed history at status.yieldiq.in &rarr;
+            </a>
           </p>
         ) : (
           <ul
@@ -369,6 +384,19 @@ export default async function StatusPage() {
               </li>
             ))}
           </ul>
+        )}
+
+        {payload.incidents_30d.length > 0 && (
+          <p className="text-sm text-caption mt-4">
+            <a
+              href="https://status.yieldiq.in"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-brand hover:underline underline-offset-4"
+            >
+              Detailed history at status.yieldiq.in &rarr;
+            </a>
+          </p>
         )}
       </section>
 

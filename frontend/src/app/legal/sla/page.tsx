@@ -147,9 +147,9 @@ export default function SLAPage() {
           <p>The SLA does not cover downtime caused by:</p>
           <ul>
             <li>
-              <strong>Third-party providers</strong> (Vercel, Railway, Neon,
-              Cloudflare, payment gateways). We report these on the status
-              page but cannot refund for them.
+              <strong>Third-party providers</strong> (Vercel, Railway, Aiven
+              Postgres, Cloudflare, payment gateways). We report these on the
+              status page but cannot refund for them.
             </li>
             <li>
               <strong>Force majeure</strong> — natural disasters, internet
