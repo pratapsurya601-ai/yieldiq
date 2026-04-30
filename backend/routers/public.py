@@ -1908,18 +1908,22 @@ async def screener_query(
           ORDER BY mm.ticker, COALESCE(mm.data_quality_rank, 50) ASC, mm.trade_date DESC
         ),
         latest_fv AS (
-          -- LAUNCH-CREDIBILITY (2026-04-30): clamp mos_pct to ±100 and
-          -- flag |raw_mos| > 200 OR raw_mos < -90 as data_limited so the
-          -- screener never surfaces nonsense like BBTC +347 / ACC +296 /
-          -- CHAMBLFERT +271 at the top when sorted by MoS desc. The
-          -- analysis page route already does this clamp (see
-          -- backend/routers/analysis.py:990-1024 and the FV/MoS clamp
-          -- block around 355-397); we mirror it here so the screener
-          -- result table stays consistent. Raw mos_pct is preserved on
-          -- the underlying row — we only clamp at the read projection.
+          -- LAUNCH-CREDIBILITY (2026-04-30, revised): the previous
+          -- version of this CTE *clamped* mos_pct to ±100 to hide
+          -- nonsense like BBTC +347 / ACC +296 / CHAMBLFERT +271. That
+          -- worked for individual analysis pages, but on the screener
+          -- it produced a wall of ~50 rows all reading "100.00" when
+          -- sorted by MoS desc — which looked even faker than the raw
+          -- garbage. New approach: keep raw mos_pct, flag the same
+          -- |raw_mos| > 200 OR raw_mos < -90 rows as data_limited, and
+          -- have the OUTER query exclude data_limited rows whose
+          -- |mos| >= 100 from the screener result set entirely. They
+          -- still exist in fair_value_history; they just don't pollute
+          -- the screener top-of-list. Analysis page clamp is unchanged
+          -- (see backend/routers/analysis.py:990-1024 and 355-397).
           SELECT DISTINCT ON (ticker)
                  ticker,
-                 LEAST(GREATEST(mos_pct, -100::numeric), 100::numeric) AS mos_pct,
+                 mos_pct,
                  confidence,
                  CASE
                    WHEN mos_pct IS NULL                  THEN verdict
@@ -1940,6 +1944,7 @@ async def screener_query(
         LEFT JOIN latest_mm mm    ON mm.ticker = s.ticker
         LEFT JOIN latest_fv fv    ON fv.ticker = s.ticker
         WHERE {' AND '.join(where_clauses)}
+          AND NOT (fv.verdict = 'data_limited' AND ABS(fv.mos_pct) >= 100)
         ORDER BY {order_by}
         LIMIT %s OFFSET %s
     """
@@ -2011,7 +2016,10 @@ async def screener_query(
                 f"    ORDER BY mm.ticker, COALESCE(mm.data_quality_rank, 50) ASC, mm.trade_date DESC"
                 f"  ),"
                 f"  latest_fv AS ("
-                f"    SELECT DISTINCT ON (ticker) ticker, mos_pct, confidence, verdict, fair_value "
+                f"    SELECT DISTINCT ON (ticker) ticker, mos_pct, confidence, "
+                f"           CASE WHEN mos_pct IS NULL THEN verdict "
+                f"                WHEN mos_pct > 200 OR mos_pct < -90 THEN 'data_limited' "
+                f"                ELSE verdict END AS verdict, fair_value "
                 f"    FROM fair_value_history ORDER BY ticker, date DESC"
                 f"  )"
                 f"  SELECT 1 FROM stocks s "
@@ -2019,6 +2027,7 @@ async def screener_query(
                 f"  LEFT JOIN latest_mm mm    ON mm.ticker = s.ticker "
                 f"  LEFT JOIN latest_fv fv    ON fv.ticker = s.ticker "
                 f"  WHERE {' AND '.join(where_clauses)}"
+                f"    AND NOT (fv.verdict = 'data_limited' AND ABS(fv.mos_pct) >= 100)"
                 f") _sub",
                 where_params,
             )
