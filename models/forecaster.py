@@ -27,6 +27,12 @@ from sklearn.preprocessing import StandardScaler
 from utils.config import FORECAST_YEARS, MODEL_SAVE_PATH
 from utils.logger import get_logger
 
+try:
+    from backend.services.analysis.constants import is_inventory_heavy
+except Exception:  # pragma: no cover — keep forecaster importable in slim builds
+    def is_inventory_heavy(ticker, sector=None, industry=None):  # type: ignore
+        return False
+
 log = get_logger(__name__)
 
 # ── Growth constraints ─────────────────────────────────────────
@@ -131,6 +137,43 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
             candidates["max_recent_fcf"] = float(pos_fcfs.max())
         if len(pos_fcfs) >= 2:
             candidates["median_recent_fcf"] = float(pos_fcfs.median())
+
+    # ── Candidate 2b: Working-capital-smoothed 3y FCF (inventory-heavy) ──
+    # For jewellery / retail / beverages (TITAN, DMART, VBL, etc.) reported
+    # FCF can swing wildly year-to-year as inventory builds/depletes during
+    # expansion. A single bad WC year drags the DCF base far below true cash
+    # generation. Use the 3y median of (CFO - |CapEx|) as a smoothed base
+    # (Damodaran-style WC normalisation). Only fires when the ticker is
+    # classified inventory-heavy AND the smoothed value is positive — never
+    # anchor the DCF on a 3y average of losses.
+    sector_arg   = enriched.get("sector")
+    industry_arg = enriched.get("industry")
+    _inv_heavy = False
+    try:
+        _inv_heavy = is_inventory_heavy(ticker, sector_arg, industry_arg)
+    except Exception:
+        _inv_heavy = False
+    if _inv_heavy and not cf_df.empty:
+        # Accept either canonical "cfo" column or its "ocf" alias
+        # (collector.py emits both — `cfo` is added at the data layer
+        # for table configs that expect it; `ocf` is the underlying
+        # field). Either is fine here.
+        _cfo_col = None
+        if "cfo" in cf_df.columns:
+            _cfo_col = "cfo"
+        elif "ocf" in cf_df.columns:
+            _cfo_col = "ocf"
+        if _cfo_col is not None and "capex" in cf_df.columns:
+            _wc_series = (cf_df[_cfo_col] - cf_df["capex"].abs()).tail(3).dropna()
+            if len(_wc_series) >= 2:
+                wc_adj_fcf = float(_wc_series.median())
+                if wc_adj_fcf > 0:
+                    candidates["wc_adjusted_3y"] = wc_adj_fcf
+                    log.info(
+                        "[%s] inventory-heavy WC-smoothed FCF: ₹%.0fCr "
+                        "(3y median of CFO-|CapEx|)",
+                        ticker, wc_adj_fcf / 1e7,
+                    )
 
     # ── Candidate 3: NOPAT proxy — THE MOST RELIABLE FOR PHARMA ─
     # NOPAT = EBIT × (1 - tax). FCF ≈ NOPAT for asset-light businesses
@@ -242,6 +285,17 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     max_val    = candidates.get("max_recent_fcf", 0)
     median_val = candidates.get("median_recent_fcf", 0)
     p75_val    = candidates.get("hist_p75_margin", 0)
+    wc_adj_val = candidates.get("wc_adjusted_3y", 0)
+
+    # ── Inventory-heavy override: prioritise wc_adjusted_3y over latest_fcf ──
+    # When the ticker is inventory-heavy and the 3y WC-smoothed FCF candidate
+    # is available, substitute it for `latest_val` in the median selection.
+    # Pure CFO-Capex swings wildly during inventory build/depletion cycles
+    # (TITAN: post-COVID gold-stock build crushed FY23 FCF to ~Rs.200 Cr from
+    # a normal Rs.1,500-2,000 Cr; DMART: store-rollout WC drag distorts every
+    # other year). The 3y median is closer to mid-cycle cash generation.
+    if _inv_heavy and wc_adj_val > 0:
+        latest_val = wc_adj_val
 
     # ── Cyclical normalisation (option (a) — sector-gated 5y median) ─
     # Ref: BPCL FY24 DCF returned FV Rs.716 vs consensus Rs.400-500. The
@@ -366,6 +420,7 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
                 "max_recent_fcf": max_val,
                 "median_recent_fcf": median_val,
                 "hist_p75_margin": p75_val,
+                "wc_adjusted_3y": wc_adj_val,
             }
             if _prev_src in _slot_map and _slot_map[_prev_src] > 0:
                 incumbent = _slot_map[_prev_src]
