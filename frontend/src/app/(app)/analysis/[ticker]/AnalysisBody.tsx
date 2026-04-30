@@ -271,10 +271,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       // disagree. Falls back to the verdict-string label if MoS is
       // missing/non-finite (e.g. data_limited / unavailable states).
       const mos = data.valuation.margin_of_safety
-      const verdict =
-        mos != null && Number.isFinite(mos)
-          ? verdictFromMos(mos)
-          : verdictDisplayLabel(data.valuation.verdict)
+      // Fallback chain: MoS-derived verdict > backend verdict label >
+      // neutral "Stock Analysis". The neutral form catches tickers
+      // where price / FV / verdict are all null (e.g. data outage on
+      // INFY 2026-04-30) so we never render "INFY —  | YieldIQ".
+      const mosVerdict =
+        mos != null && Number.isFinite(mos) ? verdictFromMos(mos) : ""
+      const fallbackVerdict = verdictDisplayLabel(data.valuation.verdict)
+      const verdict = mosVerdict || fallbackVerdict || "Stock Analysis"
       document.title = `${displayTicker} — ${verdict} | YieldIQ`
 
       const desc = `${data.company.company_name} (${data.ticker}) fair value ₹${data.valuation.fair_value.toFixed(0)} vs price ₹${data.valuation.current_price.toFixed(0)}. YieldIQ Score: ${data.quality.yieldiq_score}/100. ${data.quality.moat} moat.`

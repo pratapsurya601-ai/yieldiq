@@ -80,11 +80,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       : null
   const mosVerdict =
     mosNumber == null ? "" : verdictFromMos(mosNumber)
+  // When MoS is missing we cannot trust the backend-supplied title:
+  // og-data has historically returned strings like "INFY.NS Stock
+  // Analysis | YieldIQ" (raw ticker, no verdict). Always rebuild from
+  // displayTicker (which has .NS / .BO stripped) so the tab title is
+  // clean even for tickers in a degraded data state.
   const title = isUnderReview
     ? neutralTitle(displayTicker)
     : mosVerdict
       ? `${displayTicker} — ${mosVerdict} | YieldIQ`
-      : backendTitle || `${displayTicker} Stock Analysis | YieldIQ`
+      : `${displayTicker} — Stock Analysis | YieldIQ`
 
   const description = isUnderReview
     ? neutralDescription(displayTicker)
