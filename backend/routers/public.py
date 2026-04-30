@@ -294,6 +294,17 @@ def _extract_analysis_summary(result) -> dict:
     v = result.valuation
     q = result.quality
     c = result.company
+    # FIX-CONTRACT-ALIASES (2026-04-30): public-API consumers (SEO renderer,
+    # newsletter, third-party probes) and our own /recent-activity endpoint
+    # use the canonical short names `price`, `mos_pct`, `score_100`. The
+    # prism endpoint also exposes `price` and `yieldiq_score_100`. Earlier
+    # audits flagged these as null on /stock-summary because the route only
+    # exposed the long-form `current_price`, `mos`, `score`. Emit BOTH names
+    # so the contract is consistent across endpoints; legacy long-forms stay
+    # for back-compat until callers migrate.
+    _price = round(v.current_price, 2)
+    _mos = round(v.margin_of_safety, 1)
+    _score = q.yieldiq_score
     return {
         "ticker": result.ticker,
         "company_name": c.company_name,
@@ -302,10 +313,13 @@ def _extract_analysis_summary(result) -> dict:
         "exchange": getattr(c, "exchange", "NSE"),
         "currency": getattr(c, "currency", "INR"),
         "fair_value": round(v.fair_value, 2),
-        "current_price": round(v.current_price, 2),
-        "mos": round(v.margin_of_safety, 1),
+        "current_price": _price,
+        "price": _price,
+        "mos": _mos,
+        "mos_pct": _mos,
         "verdict": v.verdict,
-        "score": q.yieldiq_score,
+        "score": _score,
+        "score_100": _score,
         "grade": q.grade,
         "moat": q.moat,
         "piotroski": q.piotroski_score,
