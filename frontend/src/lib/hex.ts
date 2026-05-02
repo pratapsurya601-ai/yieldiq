@@ -31,6 +31,23 @@ export type ValueBand =
   | "notably_overvalued"
   | "data_limited"
 
+/**
+ * Provenance of the Value pillar's peer cohort.
+ *
+ * - "tight": canonical sector cohort (e.g. INFY → IT Services, n=167).
+ *            The default; matches behaviour before the thin-cohort fallback.
+ * - "national_fallback": the canonical sector cohort had < 3 peers (or
+ *            the sector did not canonicalise — e.g. RELAXO under
+ *            "Consumer Cyclical" / "Footwear & Accessories"), so the
+ *            backend swapped in the broad-market cohort. The chip should
+ *            disclose this so the band isn't read as a strict peer
+ *            comparison.
+ *
+ * Optional during rollout — older backends omit the field entirely; the
+ * UI must treat absence as "tight".
+ */
+export type ValuePillarSource = "tight" | "national_fallback"
+
 export type HexAxis = {
   score: number // 0..10
   label: HexAxisLabel | string
@@ -44,6 +61,7 @@ export type HexAxis = {
   sector_median_mos?: number | null
   sector_median_pb?: number | null
   sector_median_rev_multiple?: number | null
+  value_pillar_source?: ValuePillarSource
 }
 
 export type HexResponse = {

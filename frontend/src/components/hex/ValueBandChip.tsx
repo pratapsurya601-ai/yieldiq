@@ -20,6 +20,8 @@ export type ValueBand =
   | "notably_overvalued"
   | "data_limited"
 
+export type ValuePillarSource = "tight" | "national_fallback"
+
 export interface ValueBandChipProps {
   band: ValueBand
   label: string
@@ -27,6 +29,14 @@ export interface ValueBandChipProps {
   why?: string
   sectorPeers?: number
   sectorLabel?: string
+  /**
+   * Provenance of the cohort the band was computed against. When
+   * "national_fallback", we render a small "Broad market" badge next
+   * to the chip so the user sees the band wasn't computed against a
+   * tight sector peer set. Defaults to "tight" when omitted (older
+   * backends that don't ship this field).
+   */
+  valuePillarSource?: ValuePillarSource
 }
 
 // Band -> visual treatment. Tailwind utility classes only; no new
@@ -60,10 +70,12 @@ export function ValueBandChip({
   why,
   sectorPeers,
   sectorLabel,
+  valuePillarSource,
 }: ValueBandChipProps) {
   const isDataLimited = band === "data_limited"
   const text = isDataLimited ? "—" : label
   const pctText = isDataLimited ? null : formatPercentile(percentile)
+  const isNationalFallback = valuePillarSource === "national_fallback"
 
   // Tooltip content — surfaced as the native title for now. Stage 2
   // may upgrade to a click-to-open popover; keep behavior minimal here.
@@ -76,27 +88,51 @@ export function ValueBandChip({
   }
   const tooltip = tooltipParts.join(" · ") || undefined
 
+  // Tooltip for the fallback badge — verbose enough that a hover
+  // reveals why the chip is showing a broad-market band rather than a
+  // sector-specific one.
+  const fallbackTooltip =
+    "Sector cohort too small (<3 peers) — this band is computed " +
+    "against the broad listed market instead of a tight sector peer set."
+
   return (
-    <span
-      role="status"
-      aria-label={`Value band: ${text}${pctText ? `, ${pctText} percentile` : ""}`}
-      title={tooltip}
-      data-band={band}
-      data-testid="value-band-chip"
-      className={[
-        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1",
-        "text-xs font-medium tabular-nums",
-        BAND_STYLE[band],
-      ].join(" ")}
-    >
-      <span data-testid="value-band-chip-label">{text}</span>
-      {pctText ? (
+    <span className="inline-flex items-center gap-1.5 flex-wrap">
+      <span
+        role="status"
+        aria-label={`Value band: ${text}${pctText ? `, ${pctText} percentile` : ""}`}
+        title={tooltip}
+        data-band={band}
+        data-testid="value-band-chip"
+        className={[
+          "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1",
+          "text-xs font-medium tabular-nums",
+          BAND_STYLE[band],
+        ].join(" ")}
+      >
+        <span data-testid="value-band-chip-label">{text}</span>
+        {pctText ? (
+          <span
+            aria-hidden="true"
+            className="opacity-80"
+            data-testid="value-band-chip-percentile"
+          >
+            {pctText}
+          </span>
+        ) : null}
+      </span>
+      {isNationalFallback ? (
         <span
-          aria-hidden="true"
-          className="opacity-80"
-          data-testid="value-band-chip-percentile"
+          role="note"
+          title={fallbackTooltip}
+          aria-label="Broad market fallback — sector cohort too small"
+          data-testid="value-band-chip-fallback-badge"
+          className={[
+            "inline-flex items-center rounded-full px-2 py-0.5",
+            "text-[10px] font-semibold uppercase tracking-wide",
+            "bg-transparent text-amber-700 border border-dashed border-amber-500",
+          ].join(" ")}
         >
-          {pctText}
+          Broad market
         </span>
       ) : null}
     </span>
