@@ -221,7 +221,14 @@ def _synthesize_annual(q4_row: dict) -> dict:
     Mutates nothing. Returns a new dict safe to pass to store_financials.
     """
     out = dict(q4_row)
-    out["period_type"] = "annual"
+    # Synthesized FY rows are tagged 'annual_synth' (not 'annual') so that
+    # CAGR/growth consumers — which key off period_type='annual' — exclude
+    # them by default and don't mix true filed annuals with Q4-promoted
+    # ones (the standalone/consolidated mismatch was poisoning mid-cap
+    # CAGRs; see DB-side reclassification of 422 rows on 2026-05-02).
+    # backend/services/data_quality.py opts in via IN ('annual',
+    # 'annual_synth') where the synth value IS desired.
+    out["period_type"] = "annual_synth"
     # Re-derive FCF defensively — store_financials also does this but
     # surfacing it here keeps the row self-consistent for any caller
     # that reads free_cash_flow directly.
@@ -376,7 +383,10 @@ def _process_ticker(
                 continue
             annual = _synthesize_annual(q4_annual)
             try:
-                if _dual_write(annual, db_session, q4_annual["period_end"], "annual"):
+                # period_type='annual_synth' (not 'annual') — see
+                # _synthesize_annual() docstring; matches the DB-side
+                # reclassification of 422 legacy synth rows on 2026-05-02.
+                if _dual_write(annual, db_session, q4_annual["period_end"], "annual_synth"):
                     stats["stored_annual_synth"] += 1
             except Exception as exc:
                 logger.debug("store annual %s FY%d: %s", ticker, fy, exc)
