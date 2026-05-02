@@ -70,6 +70,15 @@ export const METRIC_EXPLANATIONS: Record<string, MetricExplanation> = {
     good:
       "Compare to current price: fair value well above price = below fair value, fair value well below price = above fair value. A DCF is only as good as its assumptions — treat it as a centre of gravity, not a precise number.",
   },
+  confidence: {
+    title: "Confidence Score",
+    oneLine:
+      "A weighted score of input completeness (financials, peers, freshness) and model fit. Higher = more inputs available. NOT a probability that the fair value is correct.",
+    formula:
+      "weighted(financials_completeness, peer_cohort_size, data_freshness, model_fit)",
+    good:
+      "Above 70 means most inputs are present and the DCF converged cleanly. 40-70 means partial data or a thin peer cohort — treat the fair value as directional. Below 40 surfaces an Under Review banner instead of a fair value. Confidence reflects what we know about the inputs, not how likely the price is to converge to fair value.",
+  },
   current_price: {
     title: "Current Price",
     oneLine:

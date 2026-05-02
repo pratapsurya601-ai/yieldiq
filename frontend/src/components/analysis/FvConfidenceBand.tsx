@@ -22,6 +22,7 @@
  */
 
 import { formatCurrency } from "@/lib/utils"
+import MetricTooltip from "@/components/analysis/MetricTooltip"
 
 export interface FvConfidenceBandProps {
   /** Fair value in company currency. Must be > 0 to render. */
@@ -53,6 +54,12 @@ export default function FvConfidenceBand({
   const delta = fairValue * (1 - conf / 100) * 0.5
   const lowConfidence = conf < 30
 
+  // Wrap the "confidence" label in a MetricTooltip so retail readers
+  // can hover/tap the "?" to learn what the score actually represents.
+  // Auditor 2026-05-02: "Confidence: 90%" on broken HDFCBANK actively
+  // misleads when no definition is shown anywhere on the stock page.
+  // The tooltip explains it's an input-completeness weighted score —
+  // NOT a probability the FV is correct.
   return (
     <p
       className={`mt-1 text-[11px] font-mono tabular-nums leading-snug ${
@@ -63,7 +70,11 @@ export default function FvConfidenceBand({
         currency,
       )} at ${Math.round(conf)} percent confidence`}
     >
-      &plusmn; {formatCurrency(delta, currency)} ({Math.round(conf)}% confidence)
+      &plusmn; {formatCurrency(delta, currency)} ({Math.round(conf)}%{" "}
+      <MetricTooltip metricKey="confidence">
+        <span>confidence</span>
+      </MetricTooltip>
+      )
     </p>
   )
 }

@@ -22,6 +22,58 @@ interface CalendarData {
   events: EarningsEvent[]
 }
 
+/**
+ * Normalize calendar sector strings to the NSE-canonical taxonomy used
+ * on stock pages. Backend-supplied raw labels drift between yfinance,
+ * NSE corporate-event feed, and screener — auditor 2026-05-02 found
+ * "Automobiles" / "Realty" / "Healthcare|Pharmaceuticals" on the
+ * calendar while stock pages render "Auto OEM" / "Real Estate" / "Pharma".
+ * Frontend-only normalization keeps backend untouched (no canary needed).
+ *
+ * Map kept lowercase-keyed for case-insensitive matching. Unknown
+ * sectors fall through unchanged so we don't accidentally erase any
+ * sector we haven't explicitly mapped.
+ */
+const SECTOR_ALIAS_MAP: Record<string, string> = {
+  // Auto family
+  "auto": "Auto",
+  "auto oem": "Auto",
+  "automobile": "Auto",
+  "automobiles": "Auto",
+  "auto components": "Auto",
+  // IT / tech
+  "it": "IT Services",
+  "it services": "IT Services",
+  "technology": "IT Services",
+  "information technology": "IT Services",
+  // Pharma / healthcare
+  "pharma": "Pharma",
+  "pharmaceuticals": "Pharma",
+  "healthcare": "Pharma",
+  "health care": "Pharma",
+  // Realty
+  "realty": "Real Estate",
+  "real estate": "Real Estate",
+  // Banks
+  "bank": "Bank",
+  "banks": "Bank",
+  "private bank": "Private Bank",
+  "psu bank": "PSU Bank",
+  // Other NSE sectorals — pass-throughs with consistent casing
+  "fmcg": "FMCG",
+  "energy": "Energy",
+  "metal": "Metal",
+  "metals": "Metal",
+  "media": "Media",
+  "financial services": "Financial Services",
+}
+
+function normalizeSector(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const key = raw.trim().toLowerCase()
+  return SECTOR_ALIAS_MAP[key] ?? raw
+}
+
 function fmtDate(iso: string): string {
   try {
     const d = new Date(iso)
@@ -49,14 +101,21 @@ export default function EarningsCalendarClient({ data }: { data: CalendarData })
   const [sectorFilter, setSectorFilter] = useState("")
   const [search, setSearch] = useState("")
 
+  // Build the dropdown from NORMALIZED sector names so the user sees
+  // one entry per canonical sector (e.g. "Auto" — not separate
+  // "Automobiles" / "Auto OEM" rows). See SECTOR_ALIAS_MAP above.
   const sectors = useMemo(() => {
-    const s = new Set(data.events.map(e => e.sector).filter((x): x is string => Boolean(x)))
+    const s = new Set(
+      data.events
+        .map(e => normalizeSector(e.sector))
+        .filter((x): x is string => Boolean(x)),
+    )
     return Array.from(s).sort()
   }, [data.events])
 
   const filtered = useMemo(() => {
     return data.events.filter(e => {
-      if (sectorFilter && e.sector !== sectorFilter) return false
+      if (sectorFilter && normalizeSector(e.sector) !== sectorFilter) return false
       if (search) {
         const q = search.toLowerCase()
         if (!e.display_ticker.toLowerCase().includes(q) &&
@@ -153,7 +212,7 @@ export default function EarningsCalendarClient({ data }: { data: CalendarData })
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-gray-900">{e.display_ticker}</p>
                       <p className="text-xs text-gray-500 truncate">{e.company_name}</p>
-                      {e.sector && <p className="text-[10px] text-gray-400 mt-0.5">{e.sector}</p>}
+                      {e.sector && <p className="text-[10px] text-gray-400 mt-0.5">{normalizeSector(e.sector)}</p>}
                     </div>
                     <div className="text-right">
                       <p className="text-[10px] text-gray-400 uppercase tracking-wider">{e.event_type}</p>
