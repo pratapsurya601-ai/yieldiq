@@ -1332,9 +1332,12 @@ class AnalysisService(NarrativeMixin):
         if _promoter_pledge is None:
             # Try fetching from enriched data or shareholding
             _promoter_pledge = enriched.get("promoter_pledge_pct")
+        # Fetch shareholding once and reuse below (perf: avoids a 2nd
+        # DB roundtrip at the shareholding-breakdown block ~line 1995).
+        _sh_data = _query_shareholding(ticker)
         if _promoter_pledge is None:
             # Fall back to ShareholdingPattern DB table
-            _promoter_pledge = _query_promoter_pledge(ticker)
+            _promoter_pledge = _sh_data.get("promoter_pledge_pct") if _sh_data else None
         if _promoter_pledge is not None:
             try:
                 _pledge_val = float(_promoter_pledge)
@@ -1992,7 +1995,9 @@ class AnalysisService(NarrativeMixin):
         # for Indian listings (not a perfect match — US-registered
         # names may report SEC-defined insiders, so only use when the
         # primary source is empty).
-        _sh = _query_shareholding(ticker) or {}
+        # Reuse the shareholding dict fetched earlier in the red-flag
+        # block (perf: dedupe — avoids a 2nd identical DB roundtrip).
+        _sh = _sh_data or {}
         if _sh.get("promoter_pct") is None:
             try:
                 _yf_insiders = None

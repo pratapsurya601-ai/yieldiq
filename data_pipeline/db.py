@@ -32,7 +32,7 @@ engine = create_engine(
     # sub-computes don't touch DB; those that do (TTM financials,
     # promoter pledge, earnings date, bulk deals, shareholding,
     # EBIT/interest) are staggered across the request lifecycle.
-    pool_size=3,
+    pool_size=8,
     max_overflow=2,
     # If the pool is exhausted, fail in 10s instead of hanging 30+s.
     pool_timeout=10,
