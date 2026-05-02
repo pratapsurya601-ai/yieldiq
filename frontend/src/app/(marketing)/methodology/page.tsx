@@ -11,7 +11,7 @@ import Link from "next/link"
  *   2. The DCF          — inputs, three-scenario output, reverse DCF
  *   3. The 6-pillar Prism — Pulse / Quality / Moat / Safety / Growth / Value
  *   4. Verdict bands    — the six descriptive labels, including "Under Review"
- *   5. Data sources     — Finnhub, yfinance, Postgres, DuckDB, XBRL
+ *   5. Data sources     — quotes, fundamentals, Postgres, analytical store, XBRL
  *   6. Known limitations — IPO thinness, unit-change handling, bucketing
  *   7. SEBI posture     — regulatory stance + CTA
  *
@@ -266,10 +266,11 @@ export default function MethodologyPage() {
         />
         <div className="space-y-4 text-sm text-body leading-relaxed">
           <p>
-            <span className="text-ink font-semibold">Finnhub</span>{" "}
-            provides real-time and delayed quotes, analyst estimates, and
-            corporate-event metadata. It is the source of record for live
-            prices on the site.
+            <span className="text-ink font-semibold">Live quotes</span>{" "}
+            come from a supplementary global market data API for
+            real-time and delayed prices, with a secondary feed for
+            analyst estimates and corporate-event metadata. Quotes are
+            cross-validated against NSE bhavcopy daily close.
           </p>
           <p>
             <span className="text-ink font-semibold">yfinance</span> is
@@ -280,21 +281,21 @@ export default function MethodologyPage() {
             reject unit-jump corruption before it reaches the model.
           </p>
           <p>
-            <span className="text-ink font-semibold">Aiven Postgres</span>{" "}
+            <span className="text-ink font-semibold">Managed Postgres</span>{" "}
             is the canonical store for cleaned financials, computed fair
             values, and Prism scores. Everything on the site reads
             through this layer.
           </p>
           <p>
-            <span className="text-ink font-semibold">DuckDB on Parquet</span>{" "}
+            <span className="text-ink font-semibold">In-process analytical engine on Parquet</span>{" "}
             backs the ten-year history surfaces — price panels and the
             aggregated fundamental history used for CAGR and stability
             calculations. It is fast enough for ad-hoc analytical
             queries and immutable enough to rely on.
           </p>
           <p>
-            <span className="text-ink font-semibold">XBRL filings</span>{" "}
-            from the exchanges are progressively replacing yfinance for
+            <span className="text-ink font-semibold">NSE/BSE XBRL filings</span>{" "}
+            are progressively replacing the yfinance fallback for
             fields that are reliably tagged. The rollout is
             line-item-by-line-item rather than a cutover, because any
             given filing&rsquo;s quality varies by filer.

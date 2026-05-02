@@ -606,8 +606,8 @@ export default function HowItWorksPage() {
             body="Primary source for fundamentals. Approximately eight years of structured filings, FY18 through FY25, parsed line-item by line-item with validators in front of every field."
           />
           <Row
-            label="yfinance fallback"
-            body="Used only for tickers and fields where NSE XBRL has gaps. Cached aggressively, gated by a process-wide circuit breaker, and validator-checked for unit-jump corruption."
+            label="Yahoo Finance fallback"
+            body="Used only for tickers and fields where NSE XBRL has gaps, cross-validated against NSE bhavcopy daily close. Cached aggressively, gated by a process-wide circuit breaker, and validator-checked for unit-jump corruption."
           />
           <Row
             label="NSE corporate actions API"

@@ -161,7 +161,7 @@ export default function AboutPage() {
             cadence="Refreshed monthly"
           />
           <DataRow
-            source="Company financials (yfinance + XBRL)"
+            source="Company financials (NSE/BSE XBRL filings, with Yahoo Finance fallback cross-validated against NSE bhavcopy)"
             cadence="Refreshed weekly"
           />
           <DataRow
