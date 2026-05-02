@@ -146,6 +146,22 @@ export default function TrustFooter() {
               </li>
               <li>
                 <Link
+                  href="/team"
+                  className="text-body hover:text-ink transition-colors"
+                >
+                  Team
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/errata"
+                  className="text-body hover:text-ink transition-colors"
+                >
+                  Errata
+                </Link>
+              </li>
+              <li>
+                <Link
                   href="/pricing"
                   className="text-body hover:text-ink transition-colors"
                 >
