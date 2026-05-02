@@ -511,6 +511,14 @@ class AnalysisService(NarrativeMixin):
             country=_country,
             currency="INR" if is_indian else "USD",
             market_cap=price * enriched.get("shares", 0),
+            # feat/transparency (2026-05-02): provenance for the
+            # market-cap hero number / freshness widget. Market cap is
+            # derived live as `price × shares`, so its as-of timestamp
+            # matches the price pull. Source surfaces which data path
+            # provided the share count.
+            market_cap_as_of=_ts,
+            market_cap_source="live_price_x_shares",
+            shares_outstanding_source=_data_source,
         )
 
         # ── Step 5: WACC + Forecast ───────────────────────────
@@ -2208,6 +2216,16 @@ class AnalysisService(NarrativeMixin):
                 # Parquet). Both are delayed — frontend renders as
                 # "Delayed", never "Live". See FreshnessStamp.tsx.
                 current_price_as_of=_ts,
+                # feat/transparency (2026-05-02): per-number provenance.
+                # Additive only — does NOT influence FV/MoS/scoring math.
+                # Surfaced in hero tooltips + freshness widget.
+                current_price_source=_data_source,
+                fair_value_computed_at=_ts,
+                valuation_engine_used=(
+                    "peer_capped"
+                    if _fair_value_source == "peer_capped"
+                    else ("pb_residual_income" if is_financial else "dcf")
+                ),
                 # feat/peer-cap (2026-04-27): peer-multiple sanity
                 # ceiling. fair_value_source flips to "peer_capped"
                 # when the cap fires; details carry the audit trail.
@@ -2267,6 +2285,15 @@ class AnalysisService(NarrativeMixin):
                     or enriched.get("latest_filing_period_end")
                     or None
                 ),
+                # feat/transparency (2026-05-02): provenance for the
+                # revenue-CAGR hero metric. Window prefers the 5y view
+                # when present, else 3y, else None. Source mirrors the
+                # upstream data path used by the analysis pipeline.
+                revenue_cagr_window=(
+                    "5y" if _rev_cagr_5y is not None
+                    else ("3y" if _rev_cagr_3y is not None else None)
+                ),
+                revenue_source=_data_source,
             ),
             insights=InsightCards(
                 patience_months=hp.get("min_months"),

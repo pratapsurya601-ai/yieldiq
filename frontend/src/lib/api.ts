@@ -542,6 +542,10 @@ export interface HistoricalFinancialsPeriod {
   fcf_margin: number | null
   revenue_growth_yoy: number | null
   pat_growth_yoy: number | null
+  // feat/transparency (2026-05-02) — per-row source badge from
+  // `financials.data_source` ("BSE_XBRL", "yfinance", …). Optional
+  // for back-compat with cached payloads pre-PR.
+  data_source?: string | null
 }
 
 export interface HistoricalFinancialsResponse {

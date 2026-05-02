@@ -22,6 +22,57 @@ interface AnalysisHeroProps {
   thesis: string | null
   dataLimited: boolean
   ticker?: string
+  // feat/transparency (2026-05-02) — optional per-number provenance
+  // surfaced as small "source · as-of" captions under each hero metric.
+  // All optional and additive; legacy callers continue to render the
+  // hero unchanged.
+  fairValueComputedAt?: string | null
+  valuationEngineUsed?: string | null
+  currentPriceAsOf?: string | null
+  currentPriceSource?: string | null
+}
+
+/**
+ * Render a tiny "source · as-of (relative)" caption used beneath each
+ * hero metric so users can see provenance without leaving the page.
+ * Hover surfaces the full ISO via the `title` attribute. Returns null
+ * when there's nothing to show — keeps the hero compact for legacy
+ * cached payloads that lack the new fields.
+ */
+function ProvenanceCaption({
+  source,
+  asOf,
+  label,
+}: {
+  source?: string | null
+  asOf?: string | null
+  label?: string
+}) {
+  if (!source && !asOf) return null
+  const d = asOf ? new Date(asOf) : null
+  const ago = d && Number.isFinite(d.getTime())
+    ? (() => {
+        const diffMin = Math.max(0, Math.round((Date.now() - d.getTime()) / 60000))
+        if (diffMin < 1) return "just now"
+        if (diffMin < 60) return `${diffMin}m ago`
+        const h = Math.round(diffMin / 60)
+        if (h < 24) return `${h}h ago`
+        const days = Math.round(h / 24)
+        return `${days}d ago`
+      })()
+    : null
+  const parts: string[] = []
+  if (label) parts.push(label)
+  if (source) parts.push(source.replace(/_/g, " "))
+  if (ago) parts.push(ago)
+  return (
+    <p
+      className="text-[10px] text-caption mt-0.5 truncate"
+      title={asOf ?? undefined}
+    >
+      {parts.join(" · ")}
+    </p>
+  )
 }
 
 /**
@@ -116,6 +167,10 @@ export default function AnalysisHero({
   thesis,
   dataLimited,
   ticker,
+  fairValueComputedAt,
+  valuationEngineUsed,
+  currentPriceAsOf,
+  currentPriceSource,
 }: AnalysisHeroProps) {
   const effectiveVerdict: Verdict = dataLimited ? "data_limited" : verdict
   const thesisLine =
@@ -209,12 +264,22 @@ export default function AnalysisHero({
               <dd className="font-mono tabular-nums text-lg font-semibold text-ink">
                 {fairValue > 0 ? formatCurrency(fairValue, currency) : "Not reported"}
               </dd>
+              <ProvenanceCaption
+                source={valuationEngineUsed}
+                asOf={fairValueComputedAt}
+                label="Engine"
+              />
             </div>
             <div>
               <dt className="text-xs text-caption">Current</dt>
               <dd className="font-mono tabular-nums text-lg font-semibold text-ink">
                 {currentPrice > 0 ? formatCurrency(currentPrice, currency) : "Awaiting data"}
               </dd>
+              <ProvenanceCaption
+                source={currentPriceSource}
+                asOf={currentPriceAsOf}
+                label="Delayed"
+              />
             </div>
 
             {!dataLimited && (

@@ -39,6 +39,12 @@ class CompanyInfo(BaseModel):
     description: Optional[str] = None
     market_cap: float = 0
     employees: Optional[int] = None
+    # ── Per-number transparency (feat/transparency, 2026-05-02) ──
+    # Purely additive provenance for the market-cap hero number /
+    # freshness widget. None on legacy cached payloads.
+    market_cap_as_of: Optional[str] = None    # ISO-8601 timestamp
+    market_cap_source: Optional[str] = None   # "live_price_x_shares" | "market_metrics" | …
+    shares_outstanding_source: Optional[str] = None  # "financials" | "yfinance" | "bse_xbrl" | …
 
 
 class PeerCapDetails(BaseModel):
@@ -115,6 +121,14 @@ class ValuationOutput(BaseModel):
     # degraded fallbacks. Frontend renders via
     # <FreshnessStamp prefix="Delayed" /> — never "Live" (SEBI).
     current_price_as_of: Optional[str] = None
+    # ── Per-number transparency (feat/transparency, 2026-05-02) ──
+    # Purely additive provenance fields surfaced for the hero stats
+    # and the freshness widget. None on legacy cached payloads.
+    # Frontend renders inside <MetricTooltip> popovers; backend never
+    # branches valuation/scoring math on these.
+    current_price_source: Optional[str] = None  # "nse_parquet" | "yfinance" | "local_db" | etc.
+    fair_value_computed_at: Optional[str] = None  # ISO-8601 of compute time
+    valuation_engine_used: Optional[str] = None  # "dcf" | "pb_residual_income" | "peer_capped" | …
 
     # ── Peer-multiple sanity ceiling (feat/peer-cap, 2026-04-27) ─
     # When the DCF FV exceeds 1.5× peer-median multiples, the
@@ -219,6 +233,13 @@ class QualityOutput(BaseModel):
     # it (yfinance-only fallback). Surfaced as
     # "Latest filing: Mar 2024" via <FreshnessStamp />.
     latest_filing_period_end: Optional[str] = None
+    # ── Per-number transparency (feat/transparency, 2026-05-02) ──
+    # Provenance for the revenue-CAGR hero metric. None on legacy
+    # payloads. `revenue_cagr_window` is the human label for the
+    # window used (e.g. "3y", "5y"); `revenue_source` reports the
+    # upstream data origin ("financials", "yfinance", …).
+    revenue_cagr_window: Optional[str] = None
+    revenue_source: Optional[str] = None
 
 
 class BulkDealItem(BaseModel):

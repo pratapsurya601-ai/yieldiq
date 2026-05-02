@@ -24,6 +24,11 @@ export interface CompanyInfo {
   description: string | null
   market_cap: number
   employees: number | null
+  // feat/transparency (2026-05-02) — provenance for the market-cap
+  // hero number / freshness widget. Optional for back-compat.
+  market_cap_as_of?: string | null
+  market_cap_source?: string | null
+  shares_outstanding_source?: string | null
 }
 
 export interface ValuationOutput {
@@ -56,6 +61,12 @@ export interface ValuationOutput {
   // legacy/degraded payloads. Render via <FreshnessStamp prefix="Delayed" />;
   // never "Live" (SEBI discipline, prices are always delayed).
   current_price_as_of?: string | null
+  // feat/transparency (2026-05-02) — per-number provenance surfaced
+  // in hero tooltips + freshness widget. Optional for back-compat with
+  // pre-PR cached payloads.
+  current_price_source?: string | null
+  fair_value_computed_at?: string | null
+  valuation_engine_used?: string | null
 }
 
 export interface QualityOutput {
@@ -107,6 +118,10 @@ export interface QualityOutput {
   // feat/freshness-stamps — period_end (YYYY-MM-DD) of the latest
   // filing feeding these ratios. Null on yfinance-only paths.
   latest_filing_period_end?: string | null
+  // feat/transparency (2026-05-02) — provenance for the revenue-CAGR
+  // metric. Window is "3y" / "5y"; source is the data path used.
+  revenue_cagr_window?: string | null
+  revenue_source?: string | null
 }
 
 export interface BulkDealItem {

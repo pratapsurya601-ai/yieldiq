@@ -82,6 +82,13 @@ export default function HistoricFinancialsTable({ ticker, data }: Props) {
   })
   const windowed = sorted.slice(-5)
   const years = windowed.map(p => (p.period_end || "").slice(0, 4) || "—")
+  // feat/transparency (2026-05-02): per-column source badge derived
+  // from financials.data_source (e.g. "BSE_XBRL", "yfinance"). Renders
+  // a tiny chip beneath each year header so hybrid-source windows are
+  // visible at a glance. Falls back to the empty string when the column
+  // doesn't carry the new field (legacy cached payloads).
+  const sources = windowed.map(p => (p.data_source || "").trim())
+  const hasAnySource = sources.some(s => s.length > 0)
 
   return (
     <section
@@ -100,11 +107,19 @@ export default function HistoricFinancialsTable({ ticker, data }: Props) {
             <tr className="text-[10px] uppercase tracking-wider text-caption border-b border-border">
               <th className="text-left py-2 pr-3 font-semibold">Metric</th>
               {years.map((y, i) => (
-                <th key={`${y}-${i}`} className="text-right py-2 px-2 font-semibold font-mono">
-                  {y}
+                <th key={`${y}-${i}`} className="text-right py-2 px-2 font-semibold font-mono align-bottom">
+                  <div>{y}</div>
+                  {hasAnySource && (
+                    <div
+                      className="mt-0.5 text-[9px] font-normal normal-case tracking-normal text-caption"
+                      title={sources[i] ? `Source: ${sources[i]}` : "Source unknown"}
+                    >
+                      {sources[i] || "—"}
+                    </div>
+                  )}
                 </th>
               ))}
-              <th className="text-right py-2 pl-3 font-semibold">CAGR</th>
+              <th className="text-right py-2 pl-3 font-semibold align-bottom">CAGR</th>
             </tr>
           </thead>
           <tbody>

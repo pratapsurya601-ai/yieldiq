@@ -52,6 +52,7 @@ import { trackStockAnalysed } from "@/lib/analytics"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import type { PrismData } from "@/components/prism/types"
+import type { AnalysisResponse } from "@/types/api"
 
 // Code-split the Time Machine modal — ~12kb of scrubber + capture code that
 // only loads when the user actually clicks the ⏱ button.
@@ -149,6 +150,76 @@ function EmptyFinancials({ onRefresh }: { onRefresh?: () => void }) {
         Request refresh
       </button>
     </div>
+  )
+}
+
+/**
+ * Data Freshness widget — feat/transparency (2026-05-02).
+ *
+ * Sits at the bottom of the analysis page summarising every per-number
+ * provenance / freshness field surfaced elsewhere in tooltips. Gives
+ * users one place to audit data lineage for the entire view. Purely
+ * additive — renders only the rows we actually have data for, returns
+ * null when nothing is available (legacy cached payloads pre-PR).
+ */
+function DataFreshnessWidget({ data }: { data: AnalysisResponse }) {
+  const v = data.valuation
+  const c = data.company
+  const q = data.quality
+  const rows: { label: string; value: string; title?: string }[] = []
+  const push = (label: string, value: string | null | undefined, title?: string) => {
+    if (!value) return
+    rows.push({ label, value: String(value), title })
+  }
+  push("Recomputed", data.timestamp || null, data.timestamp ?? undefined)
+  push(
+    "Current price",
+    [v.current_price_source, v.current_price_as_of].filter(Boolean).join(" · ") || null,
+    v.current_price_as_of ?? undefined,
+  )
+  push(
+    "Fair value",
+    [v.valuation_engine_used, v.fair_value_computed_at]
+      .filter(Boolean)
+      .join(" · ") || null,
+    v.fair_value_computed_at ?? undefined,
+  )
+  push(
+    "Market cap",
+    [c.market_cap_source, c.market_cap_as_of].filter(Boolean).join(" · ") || null,
+    c.market_cap_as_of ?? undefined,
+  )
+  push("Shares outstanding", c.shares_outstanding_source ?? null)
+  push("Latest filing", q.latest_filing_period_end ?? null)
+  push(
+    "Revenue CAGR",
+    [q.revenue_cagr_window, q.revenue_source].filter(Boolean).join(" · ") || null,
+  )
+  if (rows.length === 0) return null
+  return (
+    <section
+      className="rounded-2xl border border-border bg-bg dark:bg-surface p-4"
+      aria-label="Data freshness summary"
+    >
+      <h2 className="text-sm font-semibold text-ink mb-2">Data freshness</h2>
+      <p className="text-[11px] text-caption mb-3 leading-snug">
+        Provenance and as-of timestamps for every key number on this page.
+        Hover any value to see the full ISO timestamp.
+      </p>
+      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
+        {rows.map((r) => (
+          <div key={r.label} className="flex justify-between gap-3 border-b border-border last:border-0 py-1">
+            <dt className="text-caption shrink-0">{r.label}</dt>
+            <dd
+              className="text-ink text-right truncate font-mono tabular-nums"
+              title={r.title}
+            >
+              {r.value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </section>
   )
 }
 
@@ -888,6 +959,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               thesis={data.ai_summary}
               dataLimited={dataLimited}
               ticker={ticker}
+              fairValueComputedAt={valuation.fair_value_computed_at ?? data.timestamp}
+              valuationEngineUsed={valuation.valuation_engine_used}
+              currentPriceAsOf={valuation.current_price_as_of}
+              currentPriceSource={valuation.current_price_source}
             />
           )
         })()}
@@ -920,6 +995,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             </a>
           </div>
         </div>
+
+        {/* feat/transparency (2026-05-02): "Data Freshness" widget.
+            Summarises every per-number provenance / freshness field
+            surfaced elsewhere on the page in one place so users can
+            audit data lineage without hunting through tooltips. Purely
+            additive — renders any non-null subset, hides itself when
+            nothing is available (legacy cached payloads). */}
+        <DataFreshnessWidget data={data} />
 
         <p className="text-xs text-caption text-center leading-relaxed px-4">
           Model estimates using publicly available data. Not investment advice.
