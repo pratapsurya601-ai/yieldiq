@@ -1964,6 +1964,42 @@ async def get_reverse_dcf_endpoint(
         )
         if result.get("error"):
             raise HTTPException(status_code=400, detail=result["error"])
+
+        # CONSISTENCY FIX (single price snapshot per ticker): the prism
+        # endpoint already overrides its `price` via the canonical cascade
+        # (live_quotes → daily_prices → yfinance). The reverse-dcf path
+        # historically used the cached AnalysisResponse.valuation.current_price
+        # which can drift up to a TTL behind the prism number. SBIN was the
+        # canary — fair-value page showed ₹1,068, reverse-dcf ₹1,101 (3% gap).
+        # Re-pin reverse-dcf's surfaced `current_price` to the same canonical
+        # cascade and stamp `price_snapshot_at` so the UI can render
+        # "captured Nh ago" prominently. Implied-growth math uses whatever
+        # price was passed into the solver — we don't recompute it here
+        # (that would require re-solving and changing user-visible numbers
+        # mid-render); instead, we surface the snapshot timestamp so a stale
+        # implied growth is honestly labelled.
+        try:
+            from datetime import datetime, timezone
+            from backend.services.market_data_service import get_canonical_price
+            _solver_px = result.get("current_price")
+            _canonical_px = get_canonical_price(ticker, yf_fallback=_solver_px)
+            if _canonical_px is not None and _canonical_px > 0:
+                # Surface the canonical price for display, alongside the
+                # solver's price (kept under `solver_price` for transparency).
+                result["solver_price"] = _solver_px
+                result["current_price"] = float(_canonical_px)
+                result["price_source"] = "canonical_cascade"
+            else:
+                result["price_source"] = "solver_input"
+            result["price_snapshot_at"] = datetime.now(timezone.utc).isoformat()
+        except Exception as _exc:
+            # Snapshot timestamp is additive — never fail the endpoint over it.
+            import logging as _ll
+            _ll.getLogger("yieldiq.reverse_dcf").warning(
+                "reverse_dcf: price_snapshot_at stamping failed for %s: %s",
+                ticker, _exc,
+            )
+
         cache.set(_cache_key, result, ttl=3600, version_keyed=True)
         return result
     except TickerNotFoundError as e:

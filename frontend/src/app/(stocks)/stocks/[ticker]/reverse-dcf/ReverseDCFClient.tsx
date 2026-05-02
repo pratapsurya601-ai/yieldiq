@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import Link from "next/link"
+import { timeAgo } from "@/lib/dataFreshness"
 
 interface Scenario {
   growth_rate: number
@@ -30,6 +31,13 @@ interface ReverseDCFData {
   price_to_fcf: number | null
   excess_growth: number | null
   growth_premium: number | null
+  // CONSISTENCY FIX (single price snapshot per ticker): backend stamps
+  // the canonical-cascade price-capture timestamp on every reverse-dcf
+  // response so this UI can surface "captured Nh ago" honestly. Optional
+  // for back-compat with cached payloads written before the field was added.
+  price_snapshot_at?: string | null
+  price_source?: string | null
+  solver_price?: number | null
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || ""
@@ -125,7 +133,7 @@ export default function ReverseDCFClient({ initialData, ticker }: { initialData:
       </div>
 
       {/* Headline result */}
-      <div className={`rounded-2xl border p-6 mb-6 ${verdictBg(data.verdict_colour)}`}>
+      <div className={`rounded-2xl border p-6 mb-3 ${verdictBg(data.verdict_colour)}`}>
         <div className="flex items-start gap-3">
           <div className={`mt-1.5 w-3 h-3 rounded-full flex-shrink-0 ${verdictDot(data.verdict_colour)}`} />
           <div className="flex-1">
@@ -139,6 +147,33 @@ export default function ReverseDCFClient({ initialData, ticker }: { initialData:
           </div>
         </div>
       </div>
+
+      {/* CONSISTENCY FIX (single price snapshot per ticker): explicitly
+          surface which price the reverse-dcf was computed against, with
+          a relative timestamp. Auditor caught SBIN showing ₹1,068 on
+          /fair-value vs ₹1,101 here (3% gap, stale cache). Now both pages
+          read from the same canonical-cascade price; if there's still a
+          gap (e.g. inter-request drift), the user sees exactly when the
+          number was captured and can refetch the page for a fresh one. */}
+      {(() => {
+        const ago = timeAgo(data.price_snapshot_at)
+        if (!data.current_price && !ago) return null
+        return (
+          <div className="mb-6 text-[11px] text-gray-500 flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-50 border border-gray-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" aria-hidden />
+              Reverse DCF computed against price <strong className="font-mono text-gray-700">{fmt(data.current_price)}</strong>
+              {ago ? <> &middot; captured {ago}</> : null}
+            </span>
+            <Link
+              href={`/stocks/${display}/reverse-dcf`}
+              className="text-blue-600 hover:underline"
+            >
+              Refresh for current price &rarr;
+            </Link>
+          </div>
+        )
+      })()}
 
       {/* Key Metrics Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">

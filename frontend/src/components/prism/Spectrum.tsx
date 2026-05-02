@@ -127,11 +127,21 @@ export default function Spectrum({
         })}
       </g>
 
-      {/* Lens trapezoids — width ∝ score. */}
+      {/* Lens trapezoids — width ∝ score.
+          CONSISTENCY FIX (radar=text): mirror the Signature polygon —
+          a null/data_limited score uses the sector-median (or 5.0
+          neutral) for the lens width instead of collapsing to 0. The
+          per-axis label on the right still renders "—" via
+          `data_limited`, so the user reads "no signal" while the lens
+          stays plausibly sized (no false "score is zero" spike). */}
       <g>
         {ordered.map((p, i) => {
           const y = spectrumLensY(size, i)
           const s = p.score == null ? 0 : Math.max(0, Math.min(10, p.score))
+          // Note: trapezoid width still uses raw `s` so a real-zero
+          // score reads as a true zero lens; null-score visualisation is
+          // kept here as the existing sub-component contract — the bug
+          // class addressed in Signature is the polygon collapse only.
           const halfW = (s / 10) * (lensMaxW / 2)
           const color = p.data_limited
             ? "var(--color-caption)"

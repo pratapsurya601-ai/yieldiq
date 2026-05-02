@@ -337,9 +337,24 @@ export default function Signature({
   const ordered = PRISM_PILLAR_ORDER.map(
     (k) => pillars.find((p) => p.key === k)!,
   )
-  const scores = ordered.map((p) =>
-    p.score == null ? 0 : Math.max(0, Math.min(10, p.score)),
-  )
+  // CONSISTENCY FIX (radar=text): for the polygon we must use the SAME
+  // value the per-pillar text breakdown shows for that axis. Previously
+  // any axis with `score == null` (data_limited) was coerced to 0, which
+  // collapsed the vertex to (cx, cy) — reading visually as "0.0" even
+  // though the vertex pill correctly showed "—" and the breakdown card
+  // beneath the radar showed the real score (or "—"). Pin the polygon to
+  // a sector-median fallback (or 5.0 neutral) so a null axis is rendered
+  // at the cohort-neutral mid-ring instead of the deceptive zero spike.
+  // The vertex pill label still shows "—" via `data_limited`, so the
+  // user sees "no signal" while the polygon shape stays plausible.
+  const scores = ordered.map((p) => {
+    if (p.score == null) {
+      const med = sectorMedians?.[p.key]
+      const fallback = typeof med === "number" ? med : 5
+      return Math.max(0, Math.min(10, fallback))
+    }
+    return Math.max(0, Math.min(10, p.score))
+  })
 
   // Per-axis animated radii. Only the main polygon's radii animate; the
   // grid rings and spokes are static (they're background chrome).

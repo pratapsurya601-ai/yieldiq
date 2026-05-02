@@ -17,13 +17,23 @@ interface PillarPayload {
   data_limited?: boolean
 }
 
+interface HexAxesPayload {
+  // Backend canonical shape: { hex: { axes: { quality: {score, ...}, ... }, overall } }
+  axes?: Record<string, PillarPayload>
+  overall?: number
+}
+
 interface PrismPayload {
   ticker?: string
   company_name?: string
   verdict_label?: string
   verdict_band?: string
   overall?: number
+  // Legacy/optional flattened pillars list. Modern backend ships scores
+  // under `hex.axes[key].score`; keep `pillars` as a fallback for any
+  // future flattened shape.
   pillars?: PillarPayload[]
+  hex?: HexAxesPayload
 }
 
 // Canonical order — matches `PRISM_PILLAR_ORDER` in @/lib/prism.
@@ -76,16 +86,39 @@ export async function GET(
     // fall through to fallback layout
   }
 
-  const overall = Math.max(0, Math.min(10, Number(data.overall ?? 0)))
+  // CONSISTENCY FIX (radar=text on Prism pillars): the live page reads
+  // `hex.axes[key].score` via adaptPrismResponse(); the OG card was
+  // reading a non-existent `data.pillars[].score` and so every score
+  // collapsed to 0 in the radar geometry. Pin both paths to the
+  // canonical `hex.axes[k].score` field so the OG image matches the
+  // live page (and the per-pillar text breakdown).
+  const overallRaw = data.hex?.overall ?? data.overall ?? 0
+  const overall = Math.max(0, Math.min(10, Number(overallRaw)))
   const company = (data.company_name || cleanTicker).toString().slice(0, 60)
   const verdictLabel = (data.verdict_label || "Analysis unavailable").slice(0, 40)
 
-  // Build score map keyed by pillar key.
+  // Build score map keyed by pillar key. Prefer the canonical `hex.axes`
+  // shape; fall back to a flattened `pillars[]` for forward-compat.
   const scoreByKey: Record<string, number | null> = {}
-  for (const p of data.pillars || []) {
-    if (!p.key) continue
-    scoreByKey[p.key] =
-      typeof p.score === "number" ? Math.max(0, Math.min(10, p.score)) : null
+  const axesPayload = data.hex?.axes
+  if (axesPayload && typeof axesPayload === "object") {
+    for (const k of Object.keys(axesPayload)) {
+      const a = axesPayload[k]
+      const s = a?.score
+      const limited = a?.data_limited === true
+      scoreByKey[k] =
+        typeof s === "number" && !limited
+          ? Math.max(0, Math.min(10, s))
+          : null
+    }
+  } else {
+    for (const p of data.pillars || []) {
+      if (!p.key) continue
+      scoreByKey[p.key] =
+        typeof p.score === "number" && p.data_limited !== true
+          ? Math.max(0, Math.min(10, p.score))
+          : null
+    }
   }
   const scores = PILLAR_ORDER.map((k) => {
     const v = scoreByKey[k]
@@ -306,10 +339,14 @@ export async function GET(
           )
         })}
 
-        {/* Vertex score numbers */}
+        {/* Vertex score numbers — pinned to the same `scoreByKey` source
+            the radar polygon uses, so the number under each vertex always
+            matches the polygon's reach. Renders "—" for axes with no
+            score (data_limited or missing) instead of a misleading "0.0". */}
         {fetchOk &&
           PILLAR_ORDER.map((k, i) => {
             const [x, y] = vertex(i, scores[i])
+            const hasScore = scoreByKey[k] !== null && scoreByKey[k] !== undefined
             return (
               <div
                 key={`num-${k}`}
@@ -326,7 +363,7 @@ export async function GET(
                   fontWeight: 800,
                 }}
               >
-                {scores[i].toFixed(1)}
+                {hasScore ? scores[i].toFixed(1) : "—"}
               </div>
             )
           })}

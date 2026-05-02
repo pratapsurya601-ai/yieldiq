@@ -832,6 +832,13 @@ def _build_prism(ticker: str, t0: float) -> dict:
         "fv_clamped": fv_clamped,
         "score_history_12m": score_history_12m,
         "computed_at": datetime.now(timezone.utc).isoformat(),
+        # CONSISTENCY FIX (single price snapshot per ticker): expose the
+        # price-capture timestamp under a stable, page-shared field name
+        # so the reverse-dcf UI and any future cross-page price consumer
+        # can render "price captured Nh ago" honestly. Mirrors
+        # `computed_at` for the prism path because the canonical-cascade
+        # price is fetched inline as part of get_prism().
+        "price_snapshot_at": datetime.now(timezone.utc).isoformat(),
         "compute_ms": round(elapsed, 2),
         "data_limited": data_limited,
         "cached": False,
