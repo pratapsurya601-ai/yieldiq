@@ -262,7 +262,11 @@ export default function MetricTooltip({
         }}
         className={cn(
           "inline-flex items-center justify-center",
+          // Visible glyph stays 14px, but the tap area is enlarged to
+          // ~28px via padding so mobile users can actually hit it. The
+          // a11y baseline (44px) is met together with adjacent label.
           "w-3.5 h-3.5 rounded-full text-[9px] font-bold leading-none",
+          "p-2 sm:p-0 box-content sm:box-border",
           "border border-current",
           "text-caption hover:text-brand focus-visible:text-brand",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1",

@@ -161,10 +161,11 @@ export default function ShareReportCard({
     }
   }, [fetchBlob, ticker])
 
+  // Mobile: enlarge tap target and bump min-height to 44px (a11y baseline).
   const buttonClass =
     variant === "compact"
-      ? "inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] text-xs font-semibold text-brand bg-brand-50 hover:bg-brand/10 rounded-lg transition"
-      : "inline-flex items-center gap-2 px-4 py-2 min-h-[40px] text-sm font-semibold text-white bg-brand hover:opacity-90 active:scale-[0.97] rounded-lg transition"
+      ? "inline-flex items-center gap-1.5 px-3 py-2 min-h-[44px] text-xs font-semibold text-brand bg-brand-50 hover:bg-brand/10 rounded-lg transition"
+      : "inline-flex items-center gap-2 px-4 py-2 min-h-[44px] text-sm font-semibold text-white bg-brand hover:opacity-90 active:scale-[0.97] rounded-lg transition"
 
   return (
     <>
@@ -175,7 +176,10 @@ export default function ShareReportCard({
         aria-label="Share report card"
       >
         <ShareIcon />
-        <span>Share Report Card</span>
+        {/* Hide long label on mobile — icon + aria-label still convey
+            intent and tap target stays >= 44px. Show full text from sm. */}
+        <span className="hidden sm:inline">Share Report Card</span>
+        <span className="sm:hidden">Share</span>
       </button>
 
       {open && (

@@ -762,10 +762,13 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           </div>
         )}
 
-        {/* Company name + breadcrumb header */}
-        <div className="flex items-start justify-between gap-3">
+        {/* Company name + breadcrumb header.
+            Mobile fix: stack vertically so the H1 gets full width and
+            doesn't truncate to "Relian..." when the action row competes
+            for space. From sm: revert to side-by-side layout. */}
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="min-w-0 space-y-1.5">
-            <h1 className="font-editorial text-2xl md:text-3xl font-semibold text-ink truncate leading-tight">
+            <h1 className="font-editorial text-2xl md:text-3xl font-semibold text-ink leading-tight">
               {formatCompanyName(company.company_name)}
             </h1>
             <p className="text-xs text-caption truncate flex items-center gap-2 flex-wrap">
@@ -779,9 +782,9 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               indices={[]}
             />
           </div>
-          <div className="shrink-0 flex items-center gap-3">
+          <div className="shrink-0 flex items-center gap-3 sm:self-start">
             <ShareReportCard ticker={ticker} variant="compact" />
-            <Link href={`/compare?stock1=${ticker}`} className="text-xs text-brand hover:underline whitespace-nowrap">
+            <Link href={`/compare?stock1=${ticker}`} className="text-sm sm:text-xs text-brand hover:underline whitespace-nowrap py-2 sm:py-0">
               Compare →
             </Link>
           </div>

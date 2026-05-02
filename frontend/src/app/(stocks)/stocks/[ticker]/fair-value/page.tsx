@@ -385,7 +385,10 @@ export default async function StockFairValuePage(
                 <span className={`px-4 py-2 rounded-full text-sm font-bold capitalize ${vc.bg} ${vc.text} ${vc.border} border`}>
                   {verdictLabel(data.verdict)}
                 </span>
-                <div className="flex gap-6">
+                {/* Mobile fix: allow FV + MoS to wrap if the verdict pill
+                    pushes them off the row (e.g. "Notably Above Fair
+                    Value" on a 360px viewport). */}
+                <div className="flex flex-wrap gap-x-6 gap-y-3">
                   <div>
                     <p className="text-xs text-gray-400">Fair Value ({isBankModel(data) ? ENGINE_LABEL.pb_ratio : ENGINE_LABEL.dcf})</p>
                     <p className="text-xl font-bold text-gray-900 font-mono">{fmt(data.fair_value)}</p>
@@ -464,7 +467,11 @@ export default async function StockFairValuePage(
             { label: "Market Cap", value: data.market_cap ? formatMarketCap(data.market_cap / 1e7) : "\u2014", color: "text-gray-900" },
           ].map(m => (
             <div key={m.label} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">{m.label}</p>
+              {/* Mobile fix: 10px label is below the 11px iOS Safari min
+                  for accessible body copy. Bump to 11px on mobile, keep
+                  the original 10px on >= sm so the desktop card density
+                  is unchanged. */}
+              <p className="text-[11px] sm:text-[10px] text-gray-500 sm:text-gray-400 uppercase tracking-wider mb-1">{m.label}</p>
               <p className={`text-lg font-bold ${m.color}`}>{m.value}</p>
             </div>
           ))}
