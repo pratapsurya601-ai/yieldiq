@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react"
 import Link from "next/link"
 import MarketingTopNav from "@/components/marketing/MarketingTopNav"
+import { normalizeSector } from "@/lib/sector-taxonomy"
 
 interface EarningsEvent {
   ticker: string
@@ -22,57 +23,8 @@ interface CalendarData {
   events: EarningsEvent[]
 }
 
-/**
- * Normalize calendar sector strings to the NSE-canonical taxonomy used
- * on stock pages. Backend-supplied raw labels drift between yfinance,
- * NSE corporate-event feed, and screener — auditor 2026-05-02 found
- * "Automobiles" / "Realty" / "Healthcare|Pharmaceuticals" on the
- * calendar while stock pages render "Auto OEM" / "Real Estate" / "Pharma".
- * Frontend-only normalization keeps backend untouched (no canary needed).
- *
- * Map kept lowercase-keyed for case-insensitive matching. Unknown
- * sectors fall through unchanged so we don't accidentally erase any
- * sector we haven't explicitly mapped.
- */
-const SECTOR_ALIAS_MAP: Record<string, string> = {
-  // Auto family
-  "auto": "Auto",
-  "auto oem": "Auto",
-  "automobile": "Auto",
-  "automobiles": "Auto",
-  "auto components": "Auto",
-  // IT / tech
-  "it": "IT Services",
-  "it services": "IT Services",
-  "technology": "IT Services",
-  "information technology": "IT Services",
-  // Pharma / healthcare
-  "pharma": "Pharma",
-  "pharmaceuticals": "Pharma",
-  "healthcare": "Pharma",
-  "health care": "Pharma",
-  // Realty
-  "realty": "Real Estate",
-  "real estate": "Real Estate",
-  // Banks
-  "bank": "Bank",
-  "banks": "Bank",
-  "private bank": "Private Bank",
-  "psu bank": "PSU Bank",
-  // Other NSE sectorals — pass-throughs with consistent casing
-  "fmcg": "FMCG",
-  "energy": "Energy",
-  "metal": "Metal",
-  "metals": "Metal",
-  "media": "Media",
-  "financial services": "Financial Services",
-}
-
-function normalizeSector(raw: string | null | undefined): string | null {
-  if (!raw) return null
-  const key = raw.trim().toLowerCase()
-  return SECTOR_ALIAS_MAP[key] ?? raw
-}
+// Sector normalization moved to @/lib/sector-taxonomy (PR feat/sector-prism-deepdive).
+// Backend mirror: backend/services/sector_taxonomy.py.
 
 function fmtDate(iso: string): string {
   try {
