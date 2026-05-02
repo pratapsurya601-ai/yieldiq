@@ -256,6 +256,16 @@ def run_reverse_dcf(
     ]:
         iv = _dcf_iv_for_growth(fcf_base, rate, wacc, terminal_g, years, debt, cash, shares)
         mos = (iv - current_price) / current_price if current_price > 0 else 0
+        # The "Implied" row is *definitionally* the price at which MoS=0 —
+        # it's the inverted-DCF answer. Bisection in compute_implied_growth
+        # converges to within SEARCH_TOL (~1e-3) which can leak through as a
+        # 0.1–0.3% residual MoS in the UI ("Implied: +0.2%"), confusing users
+        # into thinking there's a tiny edge at the implied growth rate.
+        # Pin both iv and mos to their definitional values so the row reads
+        # "+0.0%" regardless of solver residual.
+        if label == "Implied":
+            iv = current_price
+            mos = 0.0
         scenarios[label] = {
             "growth_rate": rate,
             "implied_iv":  iv,
