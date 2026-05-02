@@ -2469,6 +2469,11 @@ async def get_historical_financials(
                 "fcf_margin": r.fcf_margin,
                 "revenue_growth_yoy": r.revenue_growth_yoy,
                 "pat_growth_yoy": r.pat_growth_yoy,
+                # feat/transparency (2026-05-02): per-row source badge.
+                # Sourced from financials.data_source (e.g. "BSE_XBRL"
+                # vs "yfinance"). Frontend renders inline near the period
+                # header to make hybrid-source rows visible.
+                "data_source": getattr(r, "data_source", None),
             })
 
         result = {
@@ -3937,3 +3942,214 @@ async def get_market_flows(
     payload = {"days": days, "count": len(flows), "flows": flows}
     cache.set(cache_key, payload, ttl=1800, version_keyed=False)
     return _cached_json(payload, s_maxage=1800, swr=3600)
+
+
+# ─────────────────────────────────────────────────────────────────
+# /accuracy — backtested fair-value accuracy dashboard.
+#
+# Reads fair_value_history and asks, for every ticker that has a row
+# from ~12 months ago: how close was the FV to the *actual* current
+# price? This is the credibility-anchor endpoint for
+# /methodology/accuracy.
+#
+# Important: until ~Q3 2026 the dataset will be too thin to produce a
+# meaningful hit rate (we started nightly snapshots in May 2026). The
+# endpoint returns nulls in that window with an explicit data_caveat
+# string the frontend renders verbatim.
+#
+# Definitions
+#   FV error %       = |FV_then - Price_now| / Price_now × 100
+#   Hit rate (20%)   = % of tickers where FV_then was within 20% of
+#                      Price_now (12 months later).
+#   Directional      = % where the verdict at FV_then matched the
+#     accuracy        actual 12-mo price direction:
+#                        undervalued  → return  >  +5 %
+#                        overvalued   → return  <  −5 %
+#                        fairly_valued → |return| <= 10 %
+# ─────────────────────────────────────────────────────────────────
+@router.get("/accuracy")
+async def get_fv_accuracy(
+    lookback_months: int = Query(12, ge=1, le=36),
+):
+    """Aggregate backtested fair-value accuracy across all tickers.
+
+    Cached 6h on the edge — recomputing nightly is more than enough
+    given the dataset only refreshes once a day.
+    """
+    from datetime import datetime, timezone
+
+    from sqlalchemy import text as _t
+
+    cache_key = f"public:accuracy:lookback={lookback_months}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=21600, swr=86400)
+
+    caveat = (
+        "Backtest requires 12+ months of FV history. We began nightly "
+        "snapshots in May 2026; meaningful results expected after "
+        "2026-Q3. Until then most numeric fields are null and counts "
+        "will be small."
+    )
+
+    payload: dict[str, Any] = {
+        "computed_at": datetime.now(timezone.utc).isoformat(),
+        "lookback_months": lookback_months,
+        "tickers_evaluated": 0,
+        "median_fv_error_pct": None,
+        "hit_rate_within_20pct": None,
+        "hit_rate_within_50pct": None,
+        "directional_accuracy": None,
+        "by_verdict": {
+            "undervalued":   {"count": 0, "median_return_12mo": None},
+            "overvalued":    {"count": 0, "median_return_12mo": None},
+            "fairly_valued": {"count": 0, "median_return_12mo": None},
+        },
+        "data_caveat": caveat,
+    }
+
+    db = _get_db_session()
+    if db is None:
+        cache.set(cache_key, payload, ttl=300, version_keyed=False)
+        return _cached_json(payload, s_maxage=300, swr=600)
+
+    try:
+        # For each ticker, take the OLDEST fair_value_history row inside
+        # the [lookback_months ± 30d] window as the "then" snapshot, and
+        # the latest available close from daily_prices as the "now"
+        # price. We deliberately tolerate ±30d slack so we don't drop
+        # tickers just because they have no row on the exact anniversary.
+        rows = db.execute(
+            _t(
+                """
+                WITH then_pts AS (
+                    SELECT DISTINCT ON (ticker)
+                           ticker, date, fair_value, price, verdict
+                    FROM fair_value_history
+                    WHERE date BETWEEN
+                          (CURRENT_DATE - ((:m + 1) || ' months')::interval)::date
+                      AND (CURRENT_DATE - ((:m - 1) || ' months')::interval)::date
+                      AND fair_value IS NOT NULL
+                      AND price IS NOT NULL
+                      AND price > 0
+                    ORDER BY ticker, date ASC
+                ),
+                now_pts AS (
+                    SELECT DISTINCT ON (ticker)
+                           ticker, close_price AS price_now
+                    FROM daily_prices
+                    WHERE close_price IS NOT NULL AND close_price > 0
+                      AND trade_date >= CURRENT_DATE - INTERVAL '14 days'
+                    ORDER BY ticker, trade_date DESC
+                )
+                SELECT t.ticker, t.fair_value, t.price, t.verdict, n.price_now
+                FROM then_pts t
+                JOIN now_pts n
+                  ON n.ticker = t.ticker
+                  OR n.ticker = t.ticker || '.NS'
+                  OR t.ticker = n.ticker || '.NS'
+                """
+            ),
+            {"m": lookback_months},
+        ).fetchall()
+    except Exception as exc:
+        logger.warning("accuracy query failed: %s", exc)
+        rows = []
+    finally:
+        _safe_close(db)
+
+    if not rows:
+        cache.set(cache_key, payload, ttl=21600, version_keyed=False)
+        return _cached_json(payload, s_maxage=21600, swr=86400)
+
+    errors_pct: list[float] = []
+    returns_12mo: list[float] = []
+    by_verdict_returns: dict[str, list[float]] = {
+        "undervalued": [], "overvalued": [], "fairly_valued": [],
+    }
+    directional_hits = 0
+    directional_total = 0
+    within_20 = 0
+    within_50 = 0
+
+    for _ticker, fv_then, price_then, verdict, price_now in rows:
+        try:
+            fv_f = float(fv_then)
+            pn_f = float(price_now)
+            pt_f = float(price_then) if price_then is not None else None
+        except (TypeError, ValueError):
+            continue
+        if pn_f <= 0 or fv_f <= 0:
+            continue
+
+        err = abs(fv_f - pn_f) / pn_f * 100.0
+        # Drop pathological outliers (mostly bad price data) so the
+        # median isn't yanked around by a handful of stale rows.
+        if not math.isfinite(err) or err > 10000:
+            continue
+        errors_pct.append(err)
+        if err <= 20.0:
+            within_20 += 1
+        if err <= 50.0:
+            within_50 += 1
+
+        if pt_f and pt_f > 0:
+            ret = (pn_f - pt_f) / pt_f * 100.0
+            if math.isfinite(ret):
+                returns_12mo.append(ret)
+                v = (verdict or "").strip().lower()
+                if v in by_verdict_returns:
+                    by_verdict_returns[v].append(ret)
+                # Directional accuracy
+                if v in ("undervalued", "overvalued", "fairly_valued"):
+                    directional_total += 1
+                    if v == "undervalued" and ret > 5:
+                        directional_hits += 1
+                    elif v == "overvalued" and ret < -5:
+                        directional_hits += 1
+                    elif v == "fairly_valued" and abs(ret) <= 10:
+                        directional_hits += 1
+
+    def _median(xs: list[float]) -> float | None:
+        if not xs:
+            return None
+        s = sorted(xs)
+        n = len(s)
+        mid = n // 2
+        if n % 2 == 1:
+            return round(s[mid], 4)
+        return round((s[mid - 1] + s[mid]) / 2.0, 4)
+
+    n = len(errors_pct)
+    payload["tickers_evaluated"] = n
+    payload["median_fv_error_pct"] = _median(errors_pct)
+    payload["hit_rate_within_20pct"] = (
+        round(within_20 / n * 100.0, 2) if n else None
+    )
+    payload["hit_rate_within_50pct"] = (
+        round(within_50 / n * 100.0, 2) if n else None
+    )
+    payload["directional_accuracy"] = (
+        round(directional_hits / directional_total * 100.0, 2)
+        if directional_total else None
+    )
+    for v_name, vs in by_verdict_returns.items():
+        payload["by_verdict"][v_name] = {
+            "count": len(vs),
+            "median_return_12mo": _median(vs),
+        }
+
+    # Drop the caveat once we've crossed a meaningful sample threshold.
+    # 100 tickers + 6+ months of accumulation is the rough cutoff; until
+    # then the numbers are interesting but not statistically defensible.
+    if n >= 100:
+        payload["data_caveat"] = (
+            f"Computed across {n} tickers with FV snapshots from "
+            f"~{lookback_months} months ago. Hit-rate definitions: "
+            "20% = |FV − Price_now| / Price_now ≤ 20%; directional = "
+            "verdict matched 12-mo price direction (undervalued > +5%, "
+            "overvalued < −5%, fairly_valued |Δ| ≤ 10%)."
+        )
+
+    cache.set(cache_key, payload, ttl=21600, version_keyed=False)
+    return _cached_json(payload, s_maxage=21600, swr=86400)

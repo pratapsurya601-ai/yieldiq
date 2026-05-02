@@ -1,0 +1,90 @@
+name: Fair Value History — Nightly Snapshot
+
+# Replays the last 24h of analysis_cache writes into fair_value_history.
+#
+# Purpose: build the *backtested fair-value accuracy* dataset that
+# powers /methodology/accuracy. After 12 months of nightly snapshots,
+# we can answer "our FV in May 2026 for Stock X was ₹Y, actual price
+# in May 2027 is ₹Z, hit rate N%".
+#
+# This complements:
+#   - fv_history_nightly.yml     — re-warms 100 tickers via the live
+#                                  analysis endpoint (writes via
+#                                  store_today_fair_value).
+#   - fair_value_history_monthly.yml — backfills monthly anchors for
+#                                  the 12M sparkline (ScoreCard).
+#
+# This snapshot job is the BACKTEST primary feed: every analysis_cache
+# row from bulk warmers, pulse jobs, and user requests gets a per-day
+# point. Idempotent — ON CONFLICT (ticker, date) DO UPDATE.
+#
+# Schedule: 21:00 UTC daily = 02:30 IST next day (well after Indian
+# market close at 15:30 IST so prices are settled).
+#
+# Connects directly to Postgres via DATABASE_URL — does NOT hit
+# Railway. If DATABASE_URL is missing, skip cleanly.
+
+on:
+  schedule:
+    - cron: "0 21 * * *"
+  workflow_dispatch:
+    inputs:
+      hours:
+        description: "Lookback window in hours (default 24)"
+        required: false
+        default: "24"
+      dry_run:
+        description: "Read-only summary (true/false)"
+        required: false
+        default: "false"
+
+concurrency:
+  group: snapshot-fv-history-nightly
+  cancel-in-progress: false
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check for DATABASE_URL
+        id: env_check
+        env:
+          DB: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DB" ]; then
+            echo "::warning::DATABASE_URL missing — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        if: steps.env_check.outputs.skip == 'false'
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        if: steps.env_check.outputs.skip == 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install minimal deps
+        if: steps.env_check.outputs.skip == 'false'
+        run: |
+          python -m pip install --upgrade pip
+          pip install "sqlalchemy>=2.0" psycopg2-binary
+
+      - name: Run nightly fair_value_history snapshot
+        if: steps.env_check.outputs.skip == 'false'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          HOURS: ${{ github.event.inputs.hours || '24' }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+        run: |
+          ARGS="--hours $HOURS"
+          if [ "$DRY_RUN" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          python scripts/data_pipelines/snapshot_fv_history.py $ARGS
