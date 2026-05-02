@@ -121,6 +121,9 @@ def test_general_data_limited_when_cohort_too_small(monkeypatch):
     monkeypatch.setattr(sp, "compute_sector_cohort",
                         lambda label, sess, **kw: cohort)
     monkeypatch.setattr(sp, "_canonical_sector", lambda s, *a, **kw: "FMCG")
+    # Force the national fallback to also be empty so we exercise the
+    # < 10 data_limited guard rather than the new fallback path.
+    monkeypatch.setattr(sp, "compute_national_cohort", lambda sess: [])
 
     out = hex_service._axis_value_general(
         _data("X.NS", "FMCG", mos=5.0)
@@ -129,6 +132,58 @@ def test_general_data_limited_when_cohort_too_small(monkeypatch):
     assert out["score"] is None
     assert out["percentile"] is None
     assert out["band"] == "data_limited"
+    assert out["value_pillar_source"] == "tight"
+
+
+def test_general_national_fallback_when_tight_cohort_thin(monkeypatch):
+    """RELAXO regression: when the canonical sector cohort is < 3
+    peers (Footwear & Accessories, no canonical mapping), we fall back
+    to the broad-market national cohort and expose the source."""
+    monkeypatch.setattr(sp, "compute_sector_cohort",
+                        lambda label, sess, **kw: [])
+    monkeypatch.setattr(sp, "_canonical_sector", lambda s, *a, **kw: "")
+    national = _make_cohort(
+        "mos_pct",
+        [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40],
+        peers_prefix="NAT",
+    )
+    monkeypatch.setattr(sp, "compute_national_cohort",
+                        lambda sess: national)
+
+    out = hex_service._axis_value_general(
+        _data("RELAXO.NS", "Consumer Cyclical", mos=5.0)
+    )
+    assert out["value_pillar_source"] == "national_fallback"
+    assert out["data_limited"] is False
+    assert out["score"] is not None
+    assert out["percentile"] is not None
+    assert out["sector_peers"] == 10
+    # Why-text should disclose this is broad-market, not sector.
+    assert "broad market" in out["why"].lower()
+
+
+def test_general_tight_cohort_marks_source_as_tight(monkeypatch):
+    """Sanity: when the tight cohort is healthy, source stays 'tight'
+    and we never reach the national fallback (and don't need to)."""
+    cohort = _make_cohort(
+        "mos_pct",
+        [-50, -40, -30, -20, -10, 0, 10, 20, 30, 40],
+    )
+    monkeypatch.setattr(sp, "compute_sector_cohort",
+                        lambda label, sess, **kw: cohort)
+    monkeypatch.setattr(sp, "_canonical_sector", lambda s, *a, **kw: "FMCG")
+
+    def _no_national(sess):  # pragma: no cover
+        raise AssertionError("national cohort fetched despite healthy tight cohort")
+
+    monkeypatch.setattr(sp, "compute_national_cohort", _no_national)
+
+    out = hex_service._axis_value_general(
+        _data("NESTLEIND.NS", "Consumer Defensive", mos=5.0)
+    )
+    assert out["value_pillar_source"] == "tight"
+    assert out["why"].lower().startswith("mos")
+    assert "sector" in out["why"].lower()
 
 
 def test_general_data_limited_when_ticker_metric_null(monkeypatch):
