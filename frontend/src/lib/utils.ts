@@ -12,9 +12,27 @@ export function cn(...inputs: ClassValue[]) {
 // See `lib/currency.ts` for the canonical symbol/locale helpers.
 const NON_INR_CURRENCIES = new Set(["USD", "EUR", "GBP", "JPY", "CNY", "SGD", "HKD", "AUD", "CAD", "CHF"])
 
-export function formatCurrency(value: number, currency?: string | null): string {
+// Defense in depth (2026-05-02): even after backend fix 9093652
+// (CAPLIPOINT bare-ticker → currency='USD'), the frontend should
+// never render '$' on a ticker that's clearly an Indian listing.
+// The bare-ticker bug class can re-emerge from any new backend code
+// path that constructs a Stock without consulting the canonical
+// ticker_classifier. Force INR when the ticker suffix says so.
+const INDIAN_SUFFIXES = [".NS", ".BO", ".IN"]
+
+function isIndianTicker(ticker?: string | null): boolean {
+  if (!ticker) return false
+  const upper = ticker.toUpperCase()
+  return INDIAN_SUFFIXES.some(s => upper.endsWith(s))
+}
+
+export function formatCurrency(value: number, currency?: string | null, ticker?: string | null): string {
   const abs = Math.abs(value)
-  const upper = currency ? currency.toUpperCase().trim() : ""
+  // Ticker-based override wins over backend currency tag.
+  const effectiveCurrency = isIndianTicker(ticker)
+    ? "INR"
+    : (currency || "INR")
+  const upper = effectiveCurrency.toUpperCase().trim()
   if (!NON_INR_CURRENCIES.has(upper)) {
     // INR (default) \u2014 covers null, undefined, "", "inr", "INR", "Rs", junk
     if (abs >= 1e7) return `\u20b9${(value / 1e7).toFixed(1)}Cr`

@@ -87,7 +87,7 @@ function StickyHeader({ ticker, price, currency, onSave, onAlert, onShare, onTim
           {display}
         </span>
         <span className="font-mono tabular-nums text-sm text-body truncate">
-          {price > 0 ? formatCurrency(price, currency) : "—"}
+          {price > 0 ? formatCurrency(price, currency, ticker) : "—"}
         </span>
       </div>
       <div className="flex items-center gap-1">
@@ -630,7 +630,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             <div key={key} className="text-center p-3 rounded-xl border border-border bg-surface">
               <p className="text-xs text-caption mb-1">{label} case</p>
               <p className={`text-lg font-bold font-mono tabular-nums ${color}`}>
-                {formatCurrency(sc.iv, company.currency)}
+                {formatCurrency(sc.iv, company.currency, ticker)}
               </p>
               <p className="text-xs text-caption">MoS: {formatPct(sc.mos_pct)}</p>
             </div>

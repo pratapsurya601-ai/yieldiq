@@ -63,7 +63,7 @@ export default function ReportPage() {
                 <p className="text-blue-100 text-xs">{displayTicker} &middot; {company.sector}</p>
               </div>
               <div className="text-right">
-                <p className="text-2xl font-bold font-mono">{formatCurrency(valuation.current_price, company.currency)}</p>
+                <p className="text-2xl font-bold font-mono">{formatCurrency(valuation.current_price, company.currency, ticker)}</p>
               </div>
             </div>
           </div>
@@ -83,7 +83,7 @@ export default function ReportPage() {
               <div className="mt-2 flex gap-4 text-xs text-gray-600">
                 <div>
                   <span className="text-gray-400">Fair Value</span>
-                  <p className="font-semibold font-mono">{formatCurrency(valuation.fair_value, company.currency)}</p>
+                  <p className="font-semibold font-mono">{formatCurrency(valuation.fair_value, company.currency, ticker)}</p>
                 </div>
                 <div>
                   <span className="text-gray-400">MoS</span>
@@ -122,7 +122,7 @@ export default function ReportPage() {
                   <div key={key} className="px-3 py-2 text-center">
                     <p className="text-[10px] text-gray-400">{label} case</p>
                     <p className={`text-sm font-bold font-mono ${color}`}>
-                      {formatCurrency(sc.iv, company.currency)}
+                      {formatCurrency(sc.iv, company.currency, ticker)}
                     </p>
                   </div>
                 )
@@ -157,7 +157,7 @@ export default function ReportPage() {
         {/* Share buttons */}
         <div className="mt-6 flex gap-3 justify-center">
           <a
-            href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`${formatCompanyName(company.company_name)} (${displayTicker}) — ${verdict}\n\nFair Value: ${formatCurrency(valuation.fair_value, company.currency)} vs Price: ${formatCurrency(valuation.current_price, company.currency)}\nYieldIQ Score: ${quality.yieldiq_score}/100\n\nFree analysis at yieldiq.in/analysis/${ticker}`)}`}
+            href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`${formatCompanyName(company.company_name)} (${displayTicker}) — ${verdict}\n\nFair Value: ${formatCurrency(valuation.fair_value, company.currency, ticker)} vs Price: ${formatCurrency(valuation.current_price, company.currency, ticker)}\nYieldIQ Score: ${quality.yieldiq_score}/100\n\nFree analysis at yieldiq.in/analysis/${ticker}`)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 bg-black text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-gray-800 transition"
@@ -165,7 +165,7 @@ export default function ReportPage() {
             Share on X
           </a>
           <a
-            href={`https://wa.me/?text=${encodeURIComponent(`${formatCompanyName(company.company_name)} — ${verdict}\n\nPrice: ${formatCurrency(valuation.current_price, company.currency)}\nFair Value: ${formatCurrency(valuation.fair_value, company.currency)}\nMoS: ${mosSign}${valuation.margin_of_safety.toFixed(1)}%\nScore: ${quality.yieldiq_score}/100\n\nSee full analysis: https://yieldiq.in/analysis/${ticker}`)}`}
+            href={`https://wa.me/?text=${encodeURIComponent(`${formatCompanyName(company.company_name)} — ${verdict}\n\nPrice: ${formatCurrency(valuation.current_price, company.currency, ticker)}\nFair Value: ${formatCurrency(valuation.fair_value, company.currency, ticker)}\nMoS: ${mosSign}${valuation.margin_of_safety.toFixed(1)}%\nScore: ${quality.yieldiq_score}/100\n\nSee full analysis: https://yieldiq.in/analysis/${ticker}`)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 bg-green-600 text-white text-xs font-semibold px-4 py-2 rounded-lg hover:bg-green-700 transition"

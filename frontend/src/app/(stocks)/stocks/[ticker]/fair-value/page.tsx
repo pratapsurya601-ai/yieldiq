@@ -116,11 +116,17 @@ async function getStockData(ticker: string): Promise<StockResponse | null> {
   }
 }
 
-function fmt(n: number | null | undefined, currency = "INR"): string {
+// Local SSR-only currency formatter for the page hero (CMP, FV).
+// Mirrors the formatCurrency safeguard: any .NS / .BO / .IN ticker
+// is forced to INR regardless of the backend currency tag.
+const _INDIAN_SUFFIXES = [".NS", ".BO", ".IN"]
+function fmt(n: number | null | undefined, currency = "INR", ticker?: string): string {
   if (n == null || isNaN(n)) return "\u2014"
+  const isIndian = !!ticker && _INDIAN_SUFFIXES.some(s => ticker.toUpperCase().endsWith(s))
+  const safeCurrency = isIndian ? "INR" : currency
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency,
+    currency: safeCurrency,
     maximumFractionDigits: 0,
   }).format(n)
 }
@@ -198,8 +204,8 @@ export async function generateMetadata(
   // New title leads with "Share Price <price>" so the SERP snippet
   // hits the keyword users actually type, then differentiates with
   // fair value (our moat).
-  const priceText = data.current_price ? fmt(data.current_price) : ""
-  const fvText = data.fair_value ? fmt(data.fair_value) : ""
+  const priceText = data.current_price ? fmt(data.current_price, data.currency, ticker) : ""
+  const fvText = data.fair_value ? fmt(data.fair_value, data.currency, ticker) : ""
   const mosText = data.mos != null
     ? `${data.mos > 0 ? "+" : ""}${data.mos.toFixed(1)}% MoS`
     : ""
@@ -282,6 +288,55 @@ export default async function StockFairValuePage(
   const vc = verdictColor(data.verdict)
   const mosSign = data.mos >= 0 ? "+" : ""
 
+  // M&M-class fix (2026-05-02): the header KPI tiles previously read
+  // ROE / D/E / ROCE off `data` (the /public/stock-summary payload,
+  // which derives them from enriched["debt_equity"] / "roe_ttm" /
+  // computed `net_debt / equity`), while the Ratio Trends mini directly
+  // below renders the ratio-history series (BSE_XBRL totals straight
+  // from the financials table — gross debt / book equity). The two
+  // sources disagreed visibly on M&M (header D/E 0.00 vs trends 1.03×)
+  // and HDFCBANK (header ROE 8.8% vs trends 8.8%–17%). Reconcile by
+  // using the SAME source the trends mini uses for the headline tiles
+  // (latest non-null point in the sorted ratios series), and where the
+  // net-vs-gross distinction matters (D/E specifically) render BOTH
+  // values with explicit "Net" / "Total" labels so the auditor sees
+  // why the numbers differ instead of assuming one is wrong.
+  const latestRatio = (() => {
+    if (!ratios?.periods?.length) return null
+    const sorted = [...ratios.periods].sort((a, b) => {
+      const ax = a.period_end || ""
+      const bx = b.period_end || ""
+      return ax.localeCompare(bx)
+    })
+    return sorted[sorted.length - 1] || null
+  })()
+  // Pull the trends-source latest. Falls back to the header source
+  // when the ratios payload is missing or the field is null — never
+  // worse than the pre-fix behaviour.
+  const trendsRoe = latestRatio?.roe ?? null
+  const trendsRoce = latestRatio?.roce ?? null
+  const trendsDe = latestRatio?.de_ratio ?? null
+  const trendsEvEbitda = latestRatio?.ev_ebitda ?? null
+  // Header value (net D/E or summary computation) — always shown.
+  // Trends value (gross/total D/E) — surfaced separately when it
+  // diverges from the header by more than 0.05 (covers HDFCBANK 0.00
+  // vs 1.03 and similar) so we don't add noise when both agree.
+  const headerDeDisplay = data.de_ratio != null ? data.de_ratio.toFixed(2) : "—"
+  const trendsDeDisplay = trendsDe != null ? trendsDe.toFixed(2) : null
+  const showBothDe =
+    trendsDeDisplay != null &&
+    data.de_ratio != null &&
+    Math.abs((trendsDe ?? 0) - data.de_ratio) > 0.05
+  const deDisplay = showBothDe
+    ? `Net ${headerDeDisplay} / Total ${trendsDeDisplay}`
+    : headerDeDisplay
+  // ROE / ROCE / EV-EBITDA: prefer the trends source when present so
+  // the header and the table cannot disagree. Header source remains
+  // the fallback for stocks without a ratios-history payload.
+  const reconciledRoe = trendsRoe ?? data.roe
+  const reconciledRoce = trendsRoce ?? data.roce
+  const reconciledEvEbitda = trendsEvEbitda ?? data.ev_ebitda
+
   // P0 frontend gate (2026-05-02): when the backend tags the ticker
   // verdict=data_limited (yfinance brokenness on the ADR cohort) or
   // verdict_label="Under Review" (null-pillar gate, d7c1165), suppress
@@ -362,7 +417,7 @@ export default async function StockFairValuePage(
               </div>
               <div className="text-left sm:text-right">
                 <p className="text-3xl font-black text-gray-900 font-mono">
-                  {fmt(data.current_price)}
+                  {fmt(data.current_price, data.currency, display)}
                 </p>
                 <p className="text-sm text-gray-400">Current Market Price</p>
               </div>
@@ -391,7 +446,7 @@ export default async function StockFairValuePage(
                 <div className="flex flex-wrap gap-x-6 gap-y-3">
                   <div>
                     <p className="text-xs text-gray-400">Fair Value ({isBankModel(data) ? ENGINE_LABEL.pb_ratio : ENGINE_LABEL.dcf})</p>
-                    <p className="text-xl font-bold text-gray-900 font-mono">{fmt(data.fair_value)}</p>
+                    <p className="text-xl font-bold text-gray-900 font-mono">{fmt(data.fair_value, data.currency, display)}</p>
                   </div>
                   <div>
                     <p className="text-xs text-gray-400">Margin of Safety</p>
@@ -457,8 +512,12 @@ export default async function StockFairValuePage(
             { label: "Piotroski F-Score", value: `${data.piotroski}/9`, color: data.piotroski >= 7 ? "text-green-600" : data.piotroski >= 4 ? "text-blue-600" : "text-red-600" },
             { label: "Economic Moat", value: data.moat, color: data.moat === "Wide" ? "text-green-600" : data.moat === "Narrow" ? "text-blue-600" : "text-gray-600" },
             { label: "Confidence", value: `${data.confidence}%`, color: data.confidence >= 70 ? "text-green-600" : "text-amber-600" },
-            { label: "ROE", value: data.roe != null ? `${data.roe.toFixed(1)}%` : "\u2014", color: "text-gray-900" },
-            { label: "Debt/Equity", value: data.de_ratio != null ? data.de_ratio.toFixed(2) : "\u2014", color: "text-gray-900" },
+            { label: "ROE", value: reconciledRoe != null ? `${reconciledRoe.toFixed(1)}%` : "\u2014", color: "text-gray-900" },
+            // D/E: when net (header source) and total (trends source)
+            // disagree by > 0.05, render both with labels so the user
+            // can see WHY the table below shows a different number
+            // instead of assuming one is wrong.
+            { label: showBothDe ? "Net / Total D/E" : "Debt/Equity", value: deDisplay, color: "text-gray-900" },
             // For the bank model the surfaced rate is the cost of equity
             // (capped at 11% in the COE policy), not WACC — relabel so
             // the auditor isn't misled into thinking we discounted FCF.
@@ -488,13 +547,13 @@ export default async function StockFairValuePage(
             <p className="text-xs text-gray-400 mb-4">Neutral model outputs &mdash; no recommendations.</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {[
-                { label: "ROCE", value: data.roce != null ? `${data.roce.toFixed(1)}%` : "\u2014", note: "Return on capital employed" },
+                { label: "ROCE", value: reconciledRoce != null ? `${reconciledRoce.toFixed(1)}%` : "\u2014", note: "Return on capital employed" },
                 // EBITDA-family + working-capital ratios are not meaningful
                 // for banks (no operating EBITDA, no current ratio convention,
                 // asset turnover is dominated by the loan book). Hide them
                 // when the bank model is in play instead of rendering "\u2014".
                 ...(isBankModel(data) ? [] : [
-                  { label: "EV / EBITDA", value: data.ev_ebitda != null ? `${data.ev_ebitda.toFixed(1)}\u00D7` : "\u2014", note: "Enterprise multiple" },
+                  { label: "EV / EBITDA", value: reconciledEvEbitda != null ? `${reconciledEvEbitda.toFixed(1)}\u00D7` : "\u2014", note: "Enterprise multiple" },
                   { label: "Debt / EBITDA", value: data.debt_ebitda != null ? `${data.debt_ebitda.toFixed(1)}\u00D7` : "\u2014", note: "Leverage vs earnings" },
                   { label: "Interest Coverage", value: data.interest_coverage != null ? `${data.interest_coverage.toFixed(1)}\u00D7` : "\u2014", note: "EBIT covers interest" },
                   { label: "Current Ratio", value: data.current_ratio != null ? `${data.current_ratio.toFixed(2)}\u00D7` : "\u2014", note: "Short-term liquidity" },
@@ -541,6 +600,7 @@ export default async function StockFairValuePage(
             }}
             currentPrice={data.current_price}
             currency={data.currency}
+            ticker={display}
           />
         </div>
         )}

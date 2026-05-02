@@ -267,10 +267,10 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
                endpoint includes `as_of` on the returned payload (the
                underlying market_data_service row already has it). */}
           <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
-            <Stat label="Current price" value={formatCurrency(price ?? 0)} />
+            <Stat label="Current price" value={formatCurrency(price ?? 0, undefined, tickerUpper)} />
             <Stat
               label={<MetricTooltip metricKey="fair_value">Fair value</MetricTooltip>}
-              value={fair_value ? formatCurrency(fair_value) : "—"}
+              value={fair_value ? formatCurrency(fair_value, undefined, tickerUpper) : "—"}
               // Confidence ±band beneath the headline FV — mirrors the
               // logged-in EditorialHero so the visitor view doesn't silently
               // drop a transparency cue. Renders nothing when the public

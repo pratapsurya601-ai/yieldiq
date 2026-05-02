@@ -40,6 +40,10 @@ export interface ValuationGridProps {
   bull: ScenarioCase
   currentPrice: number
   currency?: string
+  // Optional ticker — when present, formatCurrency forces INR for any
+  // .NS / .BO / .IN suffix regardless of the currency tag (defense in
+  // depth against bare-ticker USD-tag bugs, e.g. CAPLIPOINT).
+  ticker?: string
 }
 
 type CaseKey = "bear" | "base" | "bull"
@@ -85,6 +89,7 @@ export default function ValuationGrid({
   bull,
   currentPrice,
   currency = "INR",
+  ticker,
 }: ValuationGridProps) {
   const cases: Array<{ key: CaseKey; data: ScenarioCase }> = [
     { key: "bear", data: bear },
@@ -97,7 +102,7 @@ export default function ValuationGrid({
       <div className="flex items-baseline justify-between mb-4">
         <h2 className="text-lg font-bold text-ink">DCF Scenario Analysis</h2>
         <p className="text-xs text-caption">
-          vs CMP {formatCurrency(currentPrice, currency)}
+          vs CMP {formatCurrency(currentPrice, currency, ticker)}
         </p>
       </div>
       <div className="grid grid-cols-3 gap-4">
@@ -112,7 +117,7 @@ export default function ValuationGrid({
                 {CASE_LABEL[key]}
               </p>
               <p className={`text-xl font-bold font-mono tabular-nums ${palette.value}`}>
-                {formatCurrency(data.fair_value, currency)}
+                {formatCurrency(data.fair_value, currency, ticker)}
               </p>
               <p className={`text-xs font-mono mt-1 ${mosTone(data.mos_pct)}`}>
                 MoS {fmtMos(data.mos_pct)}
