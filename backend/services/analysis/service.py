@@ -112,6 +112,7 @@ from backend.services.analysis.utils import (
     _get_financial_sub_type,
     _clamp_ev_ebitda,
     _enforce_scenario_order,
+    display_mos,
     _yf_compute_roe_from_statements,
     _normalize_pct,
     _compute_roe_fallback,
@@ -1217,8 +1218,12 @@ class AnalysisService(NarrativeMixin):
 
         def _sc(key):
             d = scenarios_raw.get(key, {})
+            _raw = d.get("mos_pct", 0)
+            _disp, _clamp = display_mos(_raw)
             return ScenarioCase(
-                iv=d.get("iv", 0), mos_pct=d.get("mos_pct", 0),
+                iv=d.get("iv", 0),
+                mos_pct=(_disp if _disp is not None else 0),
+                mos_clamped=_clamp,
                 growth=d.get("growth", 0), wacc=d.get("wacc", wacc),
                 term_g=d.get("term_g", terminal_g),
             )
@@ -1373,14 +1378,20 @@ class AnalysisService(NarrativeMixin):
         # bull >= base * 1.05. Canary gate 1 (single_source_of_truth)
         # + gate 3 (dispersion) both fired for that one row.
         if is_financial:
+            _bear_raw = ((bear_iv - price) / price * 100) if price > 0 else 0
+            _bull_raw = ((bull_iv - price) / price * 100) if price > 0 else 0
+            _bear_d, _bear_c = display_mos(_bear_raw)
+            _bull_d, _bull_c = display_mos(_bull_raw)
             _sc_bear_pre = ScenarioCase(
                 iv=bear_iv,
-                mos_pct=round((bear_iv - price) / price * 100, 1) if price > 0 else 0,
+                mos_pct=round(_bear_d if _bear_d is not None else 0, 1),
+                mos_clamped=_bear_c,
                 growth=0, wacc=round(wacc, 4), term_g=round(terminal_g, 4),
             )
             _sc_bull_pre = ScenarioCase(
                 iv=bull_iv,
-                mos_pct=round((bull_iv - price) / price * 100, 1) if price > 0 else 0,
+                mos_pct=round(_bull_d if _bull_d is not None else 0, 1),
+                mos_clamped=_bull_c,
                 growth=0, wacc=round(wacc, 4), term_g=round(terminal_g, 4),
             )
         else:
@@ -1396,20 +1407,29 @@ class AnalysisService(NarrativeMixin):
             if _trough_anchor_fired and _trough_anchor_bear_iv is not None:
                 _bear_iv_val = _trough_anchor_bear_iv
                 _bull_iv_val = _trough_anchor_bull_iv or round(price * 1.10, 2)
+                _t_bear_raw = ((_bear_iv_val - price) / price * 100) if price > 0 else 0
+                _t_bull_raw = ((_bull_iv_val - price) / price * 100) if price > 0 else 0
+                _t_bear_d, _t_bear_c = display_mos(_t_bear_raw)
+                _t_bull_d, _t_bull_c = display_mos(_t_bull_raw)
                 _sc_bear_pre = ScenarioCase(
                     iv=_bear_iv_val,
-                    mos_pct=round((_bear_iv_val - price) / price * 100, 1) if price > 0 else 0,
+                    mos_pct=round(_t_bear_d if _t_bear_d is not None else 0, 1),
+                    mos_clamped=_t_bear_c,
                     growth=round(base_growth, 4),
                     wacc=round(wacc, 4), term_g=round(terminal_g, 4),
                 )
                 _sc_bull_pre = ScenarioCase(
                     iv=_bull_iv_val,
-                    mos_pct=round((_bull_iv_val - price) / price * 100, 1) if price > 0 else 0,
+                    mos_pct=round(_t_bull_d if _t_bull_d is not None else 0, 1),
+                    mos_clamped=_t_bull_c,
                     growth=round(base_growth, 4),
                     wacc=round(wacc, 4), term_g=round(terminal_g, 4),
                 )
+        _base_d, _base_c = display_mos(mos_pct)
         _sc_base_pre = ScenarioCase(
-            iv=round(iv, 2), mos_pct=round(mos_pct, 1),
+            iv=round(iv, 2),
+            mos_pct=round(_base_d if _base_d is not None else 0, 1),
+            mos_clamped=_base_c,
             growth=round(base_growth, 4),
             wacc=round(wacc, 4), term_g=round(terminal_g, 4),
         )
@@ -1941,6 +1961,13 @@ class AnalysisService(NarrativeMixin):
             )
             _analyst_consensus = None
 
+        # P0 MoS standardization (2026-05-02): clamp the displayed MoS
+        # to [-100, +200]. Raw mos_pct stays in `margin_of_safety` for
+        # canary-diff / alerts; display fields use the clamped value.
+        _mos_display, _mos_was_clamped = display_mos(mos_pct)
+        if _mos_display is None:
+            _mos_display = 0.0
+
         return AnalysisResponse(
             ticker=ticker,
             company=company,
@@ -1948,8 +1975,9 @@ class AnalysisService(NarrativeMixin):
                 fair_value=round(iv, 2),
                 current_price=round(price, 2),
                 margin_of_safety=round(mos_pct, 1),
-                margin_of_safety_display=round(min(mos_pct, 80), 1),
+                margin_of_safety_display=round(min(_mos_display, 80), 1),
                 mos_is_extreme=mos_pct > 80,
+                mos_clamped=_mos_was_clamped,
                 mos_extreme_note=(
                     "Model shows significant undervaluation. "
                     "This may reflect sector-specific factors. "

@@ -12,6 +12,29 @@ from backend.models.responses import RedFlag
 
 _logger = logging.getLogger(__name__)
 
+# ── MoS display clamp (P0 standardization, 2026-05-02) ─────────
+# Single source of truth for clamping the displayed margin-of-safety
+# percentage. The underlying raw mos_pct (always (FV-CMP)/CMP * 100)
+# is preserved on the response in `margin_of_safety` for downstream
+# consumers (canary-diff, alerts, fair-value history). The display
+# value is bounded to [-100, +200]:
+#   * -100 floor: with the CMP denominator, the worst case is FV=0
+#     which gives -100%. Anything more negative is upstream noise.
+#   * +200 ceiling: allow a 3x FV/CMP signal through so genuine deep
+#     value names (FV ≈ 3×CMP) still surface; beyond that we clamp.
+# Returns (display_value, was_clamped). Pass None through unchanged.
+def display_mos(raw_mos):  # type: ignore[no-untyped-def]
+    if raw_mos is None:
+        return None, False
+    try:
+        v = float(raw_mos)
+    except (TypeError, ValueError):
+        return None, False
+    clamped = max(-100.0, min(200.0, v))
+    # Use a small epsilon so floating-point round-trips don't
+    # spuriously flip mos_clamped to True for in-range values.
+    return clamped, abs(clamped - v) > 1e-6
+
 # Boundary band for the decimal/percent heuristic. Values within this
 # many points of |1.0| log a WARNING so future threshold-window bugs
 # (see PR #126: window ±5 → ±1 silently corrupted ROE/ROCE/ROA for
@@ -109,18 +132,22 @@ def _enforce_scenario_order(bear, base, bull, price: float):
     fixed_bear_iv = min(bear_iv, base_iv * 0.925) if base_iv > 0 else bear_iv
     fixed_bull_iv = max(bull_iv, base_iv * 1.075) if base_iv > 0 else bull_iv
 
-    def _mos(iv):
+    def _mos_pair(iv):
         if price and price > 0 and iv > 0:
-            return round((iv - price) / price * 100, 1)
-        return 0.0
+            raw = (iv - price) / price * 100
+            d, c = display_mos(raw)
+            return round(d if d is not None else 0.0, 1), c
+        return 0.0, False
 
+    _fb_mos, _fb_clamped = _mos_pair(fixed_bear_iv)
     fixed_bear = ScenarioCase(
-        iv=round(fixed_bear_iv, 2), mos_pct=_mos(fixed_bear_iv),
+        iv=round(fixed_bear_iv, 2), mos_pct=_fb_mos, mos_clamped=_fb_clamped,
         growth=bear.growth, wacc=bear.wacc, term_g=bear.term_g,
     ) if fixed_bear_iv != bear_iv else bear
 
+    _fl_mos, _fl_clamped = _mos_pair(fixed_bull_iv)
     fixed_bull = ScenarioCase(
-        iv=round(fixed_bull_iv, 2), mos_pct=_mos(fixed_bull_iv),
+        iv=round(fixed_bull_iv, 2), mos_pct=_fl_mos, mos_clamped=_fl_clamped,
         growth=bull.growth, wacc=bull.wacc, term_g=bull.term_g,
     ) if fixed_bull_iv != bull_iv else bull
 

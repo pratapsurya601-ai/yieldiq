@@ -358,6 +358,11 @@ def _extract_analysis_summary(result) -> dict:
         # `fair_value_source` (defaults "dcf"); only emit
         # `peer_cap_details` when the cap actually fired.
         "fair_value_source": getattr(v, "fair_value_source", "dcf"),
+        # P/B + Residual Income engine for banks/financials; "dcf" otherwise.
+        # External auditor (2026-05-02) flagged HDFCBANK/SBIN/KOTAK pages
+        # showing "Fair Value (DCF)" + Reverse DCF blocks even though the
+        # backend was running the bank model. Frontend now branches on this.
+        "valuation_model": getattr(v, "valuation_model", "dcf"),
         "peer_cap_details": (
             v.peer_cap_details.model_dump()
             if getattr(v, "peer_cap_details", None) is not None

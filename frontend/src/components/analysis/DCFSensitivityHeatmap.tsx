@@ -99,7 +99,11 @@ export default function DCFSensitivityHeatmap({ ticker, summary }: Props) {
     return TG_VALUES.map(tg =>
       WACC_VALUES.map(wacc => {
         const fv = compute(wacc, tg)
-        const mos = cmp > 0 && isFinite(fv) ? ((fv - cmp) / fv) * 100 : NaN
+        // P0 MoS standardization (2026-05-02): denominator is CMP, not
+        // FV. Heatmap cell values clamped to [-100, +200] for display
+        // parity with the backend response contract.
+        const mosRaw = cmp > 0 && isFinite(fv) ? ((fv - cmp) / cmp) * 100 : NaN
+        const mos = isFinite(mosRaw) ? Math.max(-100, Math.min(200, mosRaw)) : NaN
         return { wacc, tg, fv, mos }
       }),
     )

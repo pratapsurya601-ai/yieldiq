@@ -141,7 +141,14 @@ function buildPeersSheet(p: PublicPeersResponse | null): XLSX.WorkSheet {
 
 function buildScenariosSheet(s: StockSummary): XLSX.WorkSheet {
   const cmp = s.current_price
-  const mos = (fv: number) => (cmp > 0 && fv > 0 ? ((fv - cmp) / fv) * 100 : "")
+  // P0 MoS standardization (2026-05-02): denominator is CMP (industry
+  // standard), not FV. Display clamped to [-100, +200] to match the
+  // backend display contract.
+  const mos = (fv: number) => {
+    if (!(cmp > 0) || !(fv > 0)) return ""
+    const raw = ((fv - cmp) / cmp) * 100
+    return Math.max(-100, Math.min(200, raw))
+  }
   const rows: (string | number)[][] = [
     ["Scenario", "Fair Value", "Current Price", "MoS (%)"],
     ["Bear", num(s.bear_case), num(cmp), mos(s.bear_case)],

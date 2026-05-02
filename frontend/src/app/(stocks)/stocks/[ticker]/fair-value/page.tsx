@@ -53,7 +53,22 @@ interface StockSummary {
   market_cap: number
   ai_summary_snippet: string | null
   last_updated: string | null
+  // Backend valuation engine selector. "pb_ratio" for banks/financials
+  // (P/B + Residual Income), "dcf" for everything else. Optional for
+  // back-compat with cached payloads pre-dating the public.py addition.
+  valuation_model?: "pb_ratio" | "dcf"
 }
+
+// True when backend ran the bank model. Banks get different label copy
+// (no "DCF" anywhere) and we hide the EBITDA-family ratio tiles + the
+// Reverse DCF / DCF Sensitivity affordances since none apply.
+function isBankModel(d: { valuation_model?: string }): boolean {
+  return d.valuation_model === "pb_ratio"
+}
+const ENGINE_LABEL = {
+  pb_ratio: "P/B + Residual Income",
+  dcf: "DCF",
+} as const
 
 interface UnderReviewPayload {
   status: "under_review"
@@ -202,7 +217,7 @@ export async function generateMetadata(
 
   return {
     title,
-    description: `${data.company_name} share price ${priceText || "live"}. DCF fair value ${fvText || "n/a"}, margin of safety ${pct(data.mos)}, YieldIQ Score ${data.score}/100. Free DCF analysis on YieldIQ.`,
+    description: `${data.company_name} share price ${priceText || "live"}. ${isBankModel(data) ? "P/B" : "DCF"} fair value ${fvText || "n/a"}, margin of safety ${pct(data.mos)}, YieldIQ Score ${data.score}/100. Free ${isBankModel(data) ? "P/B + Residual Income" : "DCF"} analysis on YieldIQ.`,
     openGraph: {
       title: `${display} Share Price ${priceText} \u2014 Fair Value ${fvText} | YieldIQ`,
       description: `${data.company_name} fair value ${fvText} vs ${priceText}. Score: ${data.score}/100. Moat: ${data.moat}.`,
@@ -272,7 +287,7 @@ export default async function StockFairValuePage(
     "@context": "https://schema.org",
     "@type": "FinancialProduct",
     name: `${data.company_name} (${display})`,
-    description: `DCF fair value analysis of ${data.company_name}`,
+    description: `${isBankModel(data) ? "P/B + Residual Income" : "DCF"} fair value analysis of ${data.company_name}`,
     provider: {
       "@type": "Organization",
       name: "YieldIQ",
@@ -347,7 +362,7 @@ export default async function StockFairValuePage(
               </span>
               <div className="flex gap-6">
                 <div>
-                  <p className="text-xs text-gray-400">Fair Value (DCF)</p>
+                  <p className="text-xs text-gray-400">Fair Value ({isBankModel(data) ? ENGINE_LABEL.pb_ratio : ENGINE_LABEL.dcf})</p>
                   <p className="text-xl font-bold text-gray-900 font-mono">{fmt(data.fair_value)}</p>
                 </div>
                 <div>
@@ -357,6 +372,16 @@ export default async function StockFairValuePage(
                   </p>
                 </div>
               </div>
+            </div>
+            {/* Valuation engine badge — appears on every page so the
+                external auditor / power user can see at a glance which
+                model produced the FV. Bank tickers (HDFCBANK, SBIN, …)
+                run P/B + Residual Income; everything else is DCF. */}
+            <div className="mt-3">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-slate-50 text-slate-700 border border-slate-200">
+                <span className="w-1.5 h-1.5 rounded-full bg-slate-500" aria-hidden />
+                Valuation engine: {isBankModel(data) ? ENGINE_LABEL.pb_ratio : ENGINE_LABEL.dcf}
+              </span>
             </div>
             {/* Freshness badge — server-rendered "Updated N ago" relative
                 to the cached AnalysisResponse.timestamp. Omitted when the
@@ -379,13 +404,17 @@ export default async function StockFairValuePage(
                 Kept in the hero so they're discoverable without competing with
                 the primary verdict copy. */}
             <div className="mt-5 flex flex-wrap items-center gap-3">
-              <Link
-                href={`/stocks/${display}/fair-value/sensitivity`}
-                className="inline-flex items-center gap-1.5 rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 transition"
-                style={{ borderColor: "var(--color-border, #E2E8F0)" }}
-              >
-                DCF Sensitivity →
-              </Link>
+              {/* DCF Sensitivity heatmap is meaningless for the bank model
+                  (no WACC/g sensitivity surface). Hide for pb_ratio. */}
+              {!isBankModel(data) && (
+                <Link
+                  href={`/stocks/${display}/fair-value/sensitivity`}
+                  className="inline-flex items-center gap-1.5 rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 transition"
+                  style={{ borderColor: "var(--color-border, #E2E8F0)" }}
+                >
+                  DCF Sensitivity →
+                </Link>
+              )}
               <ExcelExportButton ticker={display} />
               <ShareReportCard ticker={data.ticker} variant="compact" />
             </div>
@@ -401,7 +430,10 @@ export default async function StockFairValuePage(
             { label: "Confidence", value: `${data.confidence}%`, color: data.confidence >= 70 ? "text-green-600" : "text-amber-600" },
             { label: "ROE", value: data.roe != null ? `${data.roe.toFixed(1)}%` : "\u2014", color: "text-gray-900" },
             { label: "Debt/Equity", value: data.de_ratio != null ? data.de_ratio.toFixed(2) : "\u2014", color: "text-gray-900" },
-            { label: "WACC", value: `${(data.wacc * 100).toFixed(1)}%`, color: "text-gray-900" },
+            // For the bank model the surfaced rate is the cost of equity
+            // (capped at 11% in the COE policy), not WACC — relabel so
+            // the auditor isn't misled into thinking we discounted FCF.
+            { label: isBankModel(data) ? "Cost of Equity" : "WACC", value: `${(data.wacc * 100).toFixed(1)}%`, color: "text-gray-900" },
             // Backend returns market_cap in INR (not Cr). /1e7 → Cr.
             { label: "Market Cap", value: data.market_cap ? formatMarketCap(data.market_cap / 1e7) : "\u2014", color: "text-gray-900" },
           ].map(m => (
@@ -424,11 +456,17 @@ export default async function StockFairValuePage(
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {[
                 { label: "ROCE", value: data.roce != null ? `${data.roce.toFixed(1)}%` : "\u2014", note: "Return on capital employed" },
-                { label: "EV / EBITDA", value: data.ev_ebitda != null ? `${data.ev_ebitda.toFixed(1)}\u00D7` : "\u2014", note: "Enterprise multiple" },
-                { label: "Debt / EBITDA", value: data.debt_ebitda != null ? `${data.debt_ebitda.toFixed(1)}\u00D7` : "\u2014", note: "Leverage vs earnings" },
-                { label: "Interest Coverage", value: data.interest_coverage != null ? `${data.interest_coverage.toFixed(1)}\u00D7` : "\u2014", note: "EBIT covers interest" },
-                { label: "Current Ratio", value: data.current_ratio != null ? `${data.current_ratio.toFixed(2)}\u00D7` : "\u2014", note: "Short-term liquidity" },
-                { label: "Asset Turnover", value: data.asset_turnover != null ? `${data.asset_turnover.toFixed(2)}\u00D7` : "\u2014", note: "Revenue per \u20B9 of assets" },
+                // EBITDA-family + working-capital ratios are not meaningful
+                // for banks (no operating EBITDA, no current ratio convention,
+                // asset turnover is dominated by the loan book). Hide them
+                // when the bank model is in play instead of rendering "\u2014".
+                ...(isBankModel(data) ? [] : [
+                  { label: "EV / EBITDA", value: data.ev_ebitda != null ? `${data.ev_ebitda.toFixed(1)}\u00D7` : "\u2014", note: "Enterprise multiple" },
+                  { label: "Debt / EBITDA", value: data.debt_ebitda != null ? `${data.debt_ebitda.toFixed(1)}\u00D7` : "\u2014", note: "Leverage vs earnings" },
+                  { label: "Interest Coverage", value: data.interest_coverage != null ? `${data.interest_coverage.toFixed(1)}\u00D7` : "\u2014", note: "EBIT covers interest" },
+                  { label: "Current Ratio", value: data.current_ratio != null ? `${data.current_ratio.toFixed(2)}\u00D7` : "\u2014", note: "Short-term liquidity" },
+                  { label: "Asset Turnover", value: data.asset_turnover != null ? `${data.asset_turnover.toFixed(2)}\u00D7` : "\u2014", note: "Revenue per \u20B9 of assets" },
+                ]),
                 { label: "Revenue CAGR (3Y)", value: data.revenue_cagr_3y != null ? `${(data.revenue_cagr_3y * 100).toFixed(1)}%` : "\u2014", note: "3-year revenue growth" },
                 { label: "Revenue CAGR (5Y)", value: data.revenue_cagr_5y != null ? `${(data.revenue_cagr_5y * 100).toFixed(1)}%` : "\u2014", note: "5-year revenue growth" },
               ].map(r => (
@@ -504,14 +542,19 @@ export default async function StockFairValuePage(
 
         {/* Related tools */}
         <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Link
-            href={`/stocks/${display}/reverse-dcf`}
-            className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
-          >
-            <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Reverse DCF</p>
-            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-700 transition">Market-implied growth</h3>
-            <p className="text-xs text-gray-500">What FCF growth is priced in &rarr;</p>
-          </Link>
+          {/* Reverse DCF inverts the FCF-discount engine; for banks the
+              valuation comes from P/B + Residual Income on equity, so
+              "what FCF growth is priced in" is meaningless. Hide for bank model. */}
+          {!isBankModel(data) && (
+            <Link
+              href={`/stocks/${display}/reverse-dcf`}
+              className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+            >
+              <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Reverse DCF</p>
+              <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-700 transition">Market-implied growth</h3>
+              <p className="text-xs text-gray-500">What FCF growth is priced in &rarr;</p>
+            </Link>
+          )}
           <Link
             href={`/stocks/${display}/risk-analysis`}
             className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
@@ -560,7 +603,7 @@ export default async function StockFairValuePage(
         <div className="bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl p-8 text-center text-white mb-8">
           <h2 className="text-xl font-bold mb-2">Run Full Interactive Analysis</h2>
           <p className="text-blue-100 text-sm mb-4">
-            Interactive DCF sliders, sensitivity heatmap, peer comparison, and more.
+            {isBankModel(data) ? "P/B + Residual Income breakdown, peer comparison, and more." : "Interactive DCF sliders, sensitivity heatmap, peer comparison, and more."}
           </p>
           <Link
             href={`/analysis/${data.ticker}`}

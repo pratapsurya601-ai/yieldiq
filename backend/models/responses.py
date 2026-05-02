@@ -91,6 +91,16 @@ class ValuationOutput(BaseModel):
     margin_of_safety_display: float = 0
     mos_is_extreme: bool = False
     mos_extreme_note: str | None = None
+    # ── MoS standardization (P0, 2026-05-02) ───────────────────
+    # All MoS values use the canonical (FV-CMP)/CMP denominator
+    # (was inconsistent — main fair-value page used /FV which
+    # produced impossible values like -100.6%, -182.1%). The
+    # display value above is also clamped at the response layer
+    # to [-100, +200]; `mos_clamped` is True when that clamp
+    # actually changed the value (frontend may render a caveat).
+    # The raw, unclamped value is preserved in
+    # `margin_of_safety` for downstream / canary-diff visibility.
+    mos_clamped: bool = False
     fcf_data_source: str = ""  # "ttm", "annual", or "yfinance"
     valuation_model: str = "dcf"  # "dcf" or "pb_ratio" for financials
     # Set when the router clamps an out-of-bounds FV (FV outside
@@ -374,6 +384,10 @@ class ScenarioCase(BaseModel):
     growth: float = 0
     wacc: float = 0
     term_g: float = 0
+    # True when mos_pct above was clamped to [-100, +200] at the
+    # response layer (P0 MoS standardization, 2026-05-02). The
+    # underlying iv is unchanged; only the displayed mos is bounded.
+    mos_clamped: bool = False
 
 
 class ScenariosOutput(BaseModel):
