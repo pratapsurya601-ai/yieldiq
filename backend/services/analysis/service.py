@@ -667,6 +667,21 @@ class AnalysisService(NarrativeMixin):
         if terminal_g >= wacc:
             terminal_g = wacc - 0.02
 
+        # Per-ticker terminal_growth override (e.g. TITAN wide-moat compounder
+        # at 6% vs 4% default). See ticker_overrides.py. Bounded below WACC
+        # to keep DCF math sane.
+        try:
+            _tg_override_entry = _get_ticker_override(ticker)
+        except Exception:
+            _tg_override_entry = None
+        if _tg_override_entry:
+            _tg_val = _tg_override_entry.get("terminal_growth_override")
+            if _tg_val is not None:
+                _tg_val = float(_tg_val)
+                if _tg_val >= wacc:
+                    _tg_val = wacc - 0.02
+                terminal_g = _tg_val
+
         forecast_yrs = 10
 
         # PR #168: track whether the cyclical-trough anchor fires so

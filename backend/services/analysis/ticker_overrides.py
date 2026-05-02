@@ -6,6 +6,7 @@ Each entry can specify:
 - excluded_pillars: pillars that don't apply
 - override_fv: hardcoded fair value if model can't run
 - verdict_label_prefix: optional prefix for the verdict label
+- terminal_growth_override: float, override DCF terminal growth (e.g. 0.06 for wide-moat compounders)
 
 ROADMAP: build sum-of-parts engine for RELIANCE/ITC/holdcos.
 Currently surfaces caveat banner. See: ticker_overrides.py.
@@ -78,6 +79,47 @@ TICKER_OVERRIDES: dict[str, dict] = {
             "(IPO 2024). DCF exploratory at best."
         ),
     },
+
+    # Sector-methodology gaps — surgical caveats + (TITAN) terminal-growth fix
+    # Long-standing followups; real engine work is on the Q3 roadmap.
+    "TITAN": {
+        "model_caveat": (
+            "Wide-moat consumer durables compounder — using 6% terminal "
+            "growth (vs 4% default) to reflect durable jewelry-led pricing "
+            "power. Generic DCF was producing FV/CMP ≈ 0.25 historically."
+        ),
+        "terminal_growth_override": 0.06,
+    },
+    "TITAN.NS": {"_alias_to": "TITAN"},
+
+    "ULTRACEMCO": {
+        "model_caveat": (
+            "Cement super-cyclical — FCF anchor uses 10y signed-median "
+            "which can over-correct in upcycles, widening bear/base/bull "
+            "spread. Half-weight signed-median fix is on Q3 roadmap."
+        ),
+    },
+    "ULTRACEMCO.NS": {"_alias_to": "ULTRACEMCO"},
+    "SHREECEM": {"_alias_to": "ULTRACEMCO"},
+    "SHREECEM.NS": {"_alias_to": "ULTRACEMCO"},
+
+    "HINDALCO": {
+        "model_caveat": (
+            "Metals stocks need debt-aware DCF — current WACC under-weights "
+            "cost of debt by D/(D+E). HINDALCO carries heavy debt, so FV "
+            "is conservative. Debt-weighted WACC fix is on Q3 roadmap."
+        ),
+    },
+    "HINDALCO.NS": {"_alias_to": "HINDALCO"},
+
+    "SUNPHARMA": {
+        "model_caveat": (
+            "Pharma R&D treatment is approximate. R&D is currently treated "
+            "as opex; capitalize-and-amortize (correct for pharma) would "
+            "raise FV ~15–20%. USFDA risk is also not modeled."
+        ),
+    },
+    "SUNPHARMA.NS": {"_alias_to": "SUNPHARMA"},
 }
 
 
