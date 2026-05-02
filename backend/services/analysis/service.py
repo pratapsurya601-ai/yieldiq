@@ -41,6 +41,11 @@ from backend.services.analytical_notes import compute_notes as _compute_analytic
 # CACHE_VERSION is stamped into the computation_inputs snapshot so the
 # audit trail records exactly which code generation produced an FV.
 from backend.services.cache_service import CACHE_VERSION
+# Per-ticker overrides for unusual businesses (conglomerates, holdcos,
+# turnarounds, pre-profit names). Surfaces honest "model approximate"
+# caveats. ROADMAP: build sum-of-parts engine for RELIANCE/ITC/holdcos.
+# Currently surfaces caveat banner. See: ticker_overrides.py.
+from backend.services.analysis.ticker_overrides import get_override as _get_ticker_override
 
 # ── Import existing engines (NO rewrites) ─────────────────────
 from data.collector import StockDataCollector
@@ -2118,6 +2123,45 @@ class AnalysisService(NarrativeMixin):
         _mos_display, _mos_was_clamped = display_mos(mos_pct)
         if _mos_display is None:
             _mos_display = 0.0
+
+        # ── Per-ticker overrides for unusual businesses ──────────
+        # Conglomerates (RELIANCE, ITC), holding cos (BAJAJHLDNG,
+        # TATAINVEST), turnarounds (VEDL), and pre-profit names
+        # (ETERNAL, PAYTM, POLICYBZR, NYKAA, OLAELEC) surface honest
+        # "model approximate" caveats. The BAJAJHLDNG class skips DCF
+        # entirely (pure holdco — DCF on holdco itself is meaningless).
+        # ROADMAP: build SOTP engine for the conglomerates. Caveat
+        # banner is the bridge. See ticker_overrides.py.
+        try:
+            _override = _get_ticker_override(ticker)
+        except Exception:
+            _override = None
+        if _override:
+            _caveat_msg = _override.get("model_caveat")
+            if _override.get("model") == "skip":
+                # Don't emit FV — model isn't appropriate for this business.
+                # Use the existing `data_limited` verdict (the frontend
+                # already suppresses FV/MoS/score-derived UI for it; see
+                # AnalysisBody.tsx verdictDataLimited gate). The caveat
+                # banner explains *why* the model is skipped.
+                verdict = "data_limited"
+                iv = 0.0
+                mos_pct = 0.0
+                _mos_display = 0.0
+                if _caveat_msg:
+                    _data_issues = list(_data_issues) + [
+                        f"[model_caveat] {_caveat_msg}"
+                    ]
+            elif _caveat_msg:
+                # Compute FV but tag with caveat + lower confidence ceiling
+                _data_issues = list(_data_issues) + [
+                    f"[model_caveat] {_caveat_msg}"
+                ]
+                try:
+                    _conf_now = int(confidence.get("score", 50))
+                    confidence["score"] = min(_conf_now, 50)
+                except Exception:
+                    pass
 
         return AnalysisResponse(
             ticker=ticker,

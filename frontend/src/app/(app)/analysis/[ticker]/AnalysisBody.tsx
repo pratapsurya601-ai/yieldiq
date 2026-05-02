@@ -780,6 +780,30 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           </div>
         </div>
 
+        {/* Per-ticker model caveat banner — surfaced for conglomerates,
+            holdcos, turnarounds, and pre-profit names where the generic
+            DCF doesn't apply. Backend tags these with a "[model_caveat]"
+            prefix in data_issues (see backend/services/analysis/
+            ticker_overrides.py). Amber, rendered ABOVE the FV display so
+            users see the limitation before the number. */}
+        {(() => {
+          const caveatPrefix = "[model_caveat] "
+          const caveat = (data.data_issues ?? []).find(
+            (s) => typeof s === "string" && s.startsWith(caveatPrefix),
+          )
+          if (!caveat) return null
+          const message = caveat.slice(caveatPrefix.length)
+          return (
+            <div
+              role="note"
+              className="text-xs md:text-sm text-warning bg-[color:var(--color-warning)]/10 border border-[color:var(--color-warning)]/40 rounded-lg px-3 py-2"
+            >
+              <p className="font-semibold mb-0.5">Model caveat</p>
+              <p className="text-ink/80 leading-snug">{message}</p>
+            </div>
+          )
+        })()}
+
         {/* AI narrative summary — one-sentence conclusion rendered above
             the Prism hex so users can grasp the verdict in ~2 seconds
             without decoding the full card array. Component returns null
