@@ -253,20 +253,32 @@ class DividendService:
     def _parse_dividend_amount(self, blob: str) -> float | None:
         """Extract rupee amount from a corporate-actions remarks blob.
 
-        Common formats: "DIVIDEND RS 10", "INT DIV 7/-", "DIVIDEND - 25.00 PER SHARE".
+        Delegates to the canonical parser in backend.routers.public so
+        both the public /dividends endpoint and AnalysisService agree
+        on which amounts are parseable. Critically: handles the
+        percent-of-face-value form ("200% OF FACE VALUE OF RS 10")
+        which the old "first number anywhere" regex misparsed as the
+        bare percentage (200.0).
         """
-        import re
-        # Match a decimal number anywhere in the blob
-        m = re.search(r"(\d+(?:\.\d+)?)", blob)
-        if not m:
-            return None
         try:
-            v = float(m.group(1))
-            # Sanity band: anything > 5000 is almost certainly not a
-            # per-share dividend amount (face value or lot size noise).
-            return v if 0 < v < 5000 else None
-        except ValueError:
-            return None
+            from backend.routers.public import _parse_dividend_amount as _canonical
+        except Exception:
+            # Defensive fallback if routers haven't been imported yet —
+            # use a minimal Rs-amount-only parser. Never raises.
+            import re
+            m = re.search(
+                r"(?:RS|INR|RE|₹)\.?\s*([0-9]+(?:\.[0-9]+)?)",
+                blob,
+                re.IGNORECASE,
+            )
+            if not m:
+                return None
+            try:
+                v = float(m.group(1))
+            except ValueError:
+                return None
+            return v if 0 < v <= 2000 else None
+        return _canonical(blob)
 
     def _build_from_series(
         self,

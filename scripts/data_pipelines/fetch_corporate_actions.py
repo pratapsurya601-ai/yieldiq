@@ -216,8 +216,17 @@ def upsert_bulk(rows: Iterable[dict], session) -> int:
 # ── Per-symbol historical (deeper backfill) ──────────────────────────
 
 def _from_nse_per_symbol(symbol: str, http) -> list[dict]:
+    # 2026-05-02: window widened from 10y to 25y after auditor flagged
+    # SBIN showing 7 dividend events vs 25+ in reality. NSE's per-symbol
+    # historical endpoint will return whatever it has within the window
+    # (silently truncates if the underlying archive is shorter), so
+    # asking for 25y is safe — for tickers with shorter NSE histories
+    # the response just stops earlier. Note: HDFCBANK still shows few
+    # events because the post-merger ticker (Jul 2023) has limited
+    # standalone history; pre-merger HDFC (now-delisted) carried the
+    # bulk of payments and is not auto-merged into HDFCBANK by NSE.
     today = date.today()
-    from_d = today.replace(year=today.year - 10).strftime("%d-%m-%Y")
+    from_d = today.replace(year=today.year - 25).strftime("%d-%m-%Y")
     to_d = today.strftime("%d-%m-%Y")
     url = NSE_HISTORICAL_URL.format(symbol=symbol, from_d=from_d, to_d=to_d)
     try:

@@ -2941,32 +2941,97 @@ async def get_segment_revenue(ticker: str, years: int = Query(default=5, ge=1, l
 import re as _re  # noqa: E402  (kept local — only used by this endpoint)
 
 # Parses "DIVIDEND - RS 5 PER SHARE", "FINAL DIVIDEND RS.2.50/-",
-# "INTERIM DIVIDEND - RE 1/-", "DIVIDEND-12.50%" etc. Captures the
-# first numeric amount; percentage forms are ignored (face-value
-# dependent, not safe to assume ₹10).
+# "INTERIM DIVIDEND - RE 1/-", and percent-of-face-value forms like
+# "FINAL DIVIDEND 200% OF FACE VALUE OF RS 10".
+#
+# Pattern order: try explicit Rs/INR/Re/\u20B9 amounts first, then fall
+# back to "<n>% of face value" — converted using the FV parsed from
+# the same string when present, else the per-ticker fallback.
 _DIV_AMOUNT_RE = _re.compile(
     r"(?:RS|INR|RE|\u20B9)\.?\s*([0-9]+(?:\.[0-9]+)?)",
     _re.IGNORECASE,
 )
+_DIV_PCT_FV_RE = _re.compile(
+    r"([0-9]+(?:\.[0-9]+)?)\s*%\s*(?:OF\s*)?(?:FACE\s*VALUE|FV|F\.?V\.?)",
+    _re.IGNORECASE,
+)
+# Optional inline FV hint: "...FACE VALUE OF RS 10", "...FV RE 1".
+_FV_INLINE_RE = _re.compile(
+    r"(?:FACE\s*VALUE|FV|F\.?V\.?)\s*(?:OF)?\s*(?:RS|INR|RE|\u20B9)\.?\s*"
+    r"([0-9]+(?:\.[0-9]+)?)",
+    _re.IGNORECASE,
+)
+# TODO: backfill `stocks.face_value` from NSE listing data so we stop
+# assuming ₹10 for the ~5% of equities with non-default FVs (ITC ₹1,
+# many banks ₹2, etc). Default chosen because >90% of NSE equities
+# carry a ₹10 face value.
+DEFAULT_INDIAN_FACE_VALUE = 10.0
 
 
-def _parse_dividend_amount(text_blob: str | None) -> float | None:
+def _parse_dividend_amount(
+    text_blob: str | None,
+    *,
+    face_value: float | None = None,
+) -> float | None:
     """Extract the per-share dividend amount from an NSE corporate-action
-    subject line. Returns None if no rupee amount can be parsed."""
+    subject line. Returns None if nothing parseable.
+
+    Handles three families:
+      1. Explicit rupee amount: "DIVIDEND RS 15.90"          -> 15.90
+      2. Percent of FV with inline FV:
+         "FINAL DIVIDEND 200% OF FACE VALUE OF RS 10"        -> 20.00
+      3. Percent of FV without inline FV:
+         "INTERIM DIVIDEND 150% OF FACE VALUE"               -> 1.5 * FV
+         (uses ``face_value`` arg, else the ₹10 default)
+    """
     if not text_blob:
         return None
+
+    # 1. Percent-of-face-value path FIRST. Order matters because the
+    # FV-amount form ("200% OF FACE VALUE OF RS 10") embeds an Rs
+    # amount that is the *face value*, NOT the dividend — running the
+    # explicit Rs path first would mis-return ₹10 as the dividend.
+    m_pct = _DIV_PCT_FV_RE.search(text_blob)
+    if m_pct:
+        try:
+            pct = float(m_pct.group(1))
+        except (TypeError, ValueError):
+            pct = -1.0
+        if pct > 0:
+            fv_inline = _FV_INLINE_RE.search(text_blob)
+            fv: float | None = None
+            if fv_inline:
+                try:
+                    fv = float(fv_inline.group(1))
+                except (TypeError, ValueError):
+                    fv = None
+            if fv is None:
+                fv = face_value if (face_value and face_value > 0) else DEFAULT_INDIAN_FACE_VALUE
+            v = pct / 100.0 * fv
+            if 0 < v <= 2000:
+                return v
+
+    # 2. Explicit rupee amount (dominant in modern NSE filings, and
+    # the right path when no %-of-FV clause is present).
     m = _DIV_AMOUNT_RE.search(text_blob)
-    if not m:
-        return None
-    try:
-        v = float(m.group(1))
-    except (TypeError, ValueError):
-        return None
-    # Sanity bound — Indian per-share dividends rarely exceed ₹2000;
-    # anything above that is almost always a misparse.
-    if v <= 0 or v > 2000:
-        return None
-    return v
+    if m:
+        try:
+            v = float(m.group(1))
+        except (TypeError, ValueError):
+            v = -1.0
+        if 0 < v <= 2000:
+            return v
+
+    return None
+
+
+def _is_percent_of_fv(text_blob: str | None) -> bool:
+    """True when the declaration is the %-of-FV form. Used to flag
+    rows whose amount came from the heuristic FV path so the UI can
+    surface a "X events derived from %-of-face-value" badge."""
+    if not text_blob:
+        return False
+    return bool(_DIV_PCT_FV_RE.search(text_blob))
 
 
 @router.get("/dividends/{ticker}")
@@ -3004,7 +3069,12 @@ async def get_dividend_history(
         )
 
         # Filter for dividend rows (NSE puts type in action_type / remarks).
+        # Track which were parsed via the %-of-face-value heuristic so
+        # the UI can surface a "X of Y events parsed; M may be %-of-FV
+        # format pending FV backfill" badge.
         dividends: list[dict] = []
+        pct_fv_count = 0
+        unparsed_count = 0
         for r in rows:
             blob = " ".join(filter(None, [
                 (r.action_type or ""),
@@ -3013,9 +3083,15 @@ async def get_dividend_history(
             if "DIVIDEND" not in blob:
                 continue
             amount = _parse_dividend_amount(blob)
+            is_pct_fv = _is_percent_of_fv(blob)
+            if amount is None:
+                unparsed_count += 1
+            elif is_pct_fv:
+                pct_fv_count += 1
             dividends.append({
                 "ex_date": r.ex_date.isoformat(),
                 "amount": amount,
+                "source_format": "pct_of_fv" if is_pct_fv else "rupee_amount",
             })
 
         # Total paid over last 5 calendar years (sum of parseable amounts).
@@ -3034,6 +3110,8 @@ async def get_dividend_history(
         result = {
             "ticker": full_ticker,
             "count": len(dividends),
+            "pct_fv_parsed_count": pct_fv_count,
+            "unparsed_count": unparsed_count,
             "total_paid_5y": round(total_5y, 2) if any_5y else None,
             "dividends": dividends,
         }

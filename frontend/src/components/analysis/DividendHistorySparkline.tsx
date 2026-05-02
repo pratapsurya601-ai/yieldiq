@@ -171,10 +171,23 @@ export default function DividendHistorySparkline({ ticker, data, currentPrice }:
         </div>
       </div>
 
-      <p className="mt-3 text-[10px] text-caption">
-        Amounts parsed from NSE subject lines; percent-of-face-value declarations
-        are not converted and shown as missing.
-      </p>
+      {(data.pct_fv_parsed_count != null && data.pct_fv_parsed_count > 0) ||
+       (data.unparsed_count != null && data.unparsed_count > 0) ? (
+        <p className="mt-3 text-[10px] text-caption">
+          {data.count} dividend event{data.count === 1 ? "" : "s"} parsed
+          {data.pct_fv_parsed_count && data.pct_fv_parsed_count > 0
+            ? `; ${data.pct_fv_parsed_count} converted from %-of-face-value (assumes ₹10 FV where not stated, pending backfill)`
+            : ""}
+          {data.unparsed_count && data.unparsed_count > 0
+            ? `; ${data.unparsed_count} unparseable subject line${data.unparsed_count === 1 ? "" : "s"}`
+            : ""}.
+        </p>
+      ) : (
+        <p className="mt-3 text-[10px] text-caption">
+          Amounts parsed from NSE subject lines. Percent-of-face-value declarations
+          are converted using the per-ticker face value (defaults to ₹10).
+        </p>
+      )}
     </section>
   )
 }

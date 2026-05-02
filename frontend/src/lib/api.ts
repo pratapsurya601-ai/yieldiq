@@ -668,12 +668,18 @@ export const getPublicPeers = (
 export interface DividendEvent {
   ex_date: string                        // ISO YYYY-MM-DD
   amount: number | null                  // ₹ per share, null when un-parseable
+  source_format?: "rupee_amount" | "pct_of_fv"
 }
 
 export interface DividendHistoryResponse {
   ticker: string
   count: number
   total_paid_5y: number | null
+  // Counts of how amounts were derived — populated since the
+  // %-of-face-value parser landed (2026-05-02). Optional for
+  // backwards compatibility with cached responses pre-cutover.
+  pct_fv_parsed_count?: number
+  unparsed_count?: number
   dividends: DividendEvent[]
 }
 
