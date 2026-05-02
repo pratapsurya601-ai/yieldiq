@@ -413,6 +413,40 @@ class AnalysisService(NarrativeMixin):
         _has_any_fundamentals = (
             _latest_revenue > 0 or _latest_pat != 0 or _shares > 0
         )
+        # PR P1-COVERAGE (2026-05-02): recently-IPO'd tickers (e.g.
+        # INDIANHUME, CELLO) carry valid market_metrics rows (mcap > 0,
+        # live price) but have ZERO annual_financials rows. Pre-fix
+        # they tripped the gate above and 404'd. Rescue them by
+        # consulting market_metrics directly: if a non-zero market cap
+        # exists we know the instrument is live & investable, even
+        # without 5-year fundamentals. Downstream renders as
+        # "Under review — limited data" instead of unavailable.
+        if not _has_any_fundamentals:
+            try:
+                from backend.services.analysis.db import _get_pipeline_session
+                from sqlalchemy import text as _text
+                _bare = ticker.replace(".NS", "").replace(".BO", "")
+                _sess = _get_pipeline_session()
+                if _sess is not None:
+                    try:
+                        _row = _sess.execute(_text(
+                            "SELECT market_cap_cr FROM market_metrics "
+                            "WHERE ticker = :t AND market_cap_cr > 0 LIMIT 1"
+                        ), {"t": _bare}).first()
+                        if _row and _row[0] and float(_row[0]) > 0:
+                            _has_any_fundamentals = True
+                            _data_issues = list(_data_issues) + [
+                                "Limited financial history — recently listed; "
+                                "showing market data only."
+                            ]
+                    finally:
+                        try:
+                            _sess.close()
+                        except Exception:
+                            pass
+            except Exception:
+                # Defensive: never block the response over a fallback DB hit.
+                pass
         if not price or price < 1 or not _has_any_fundamentals:
             _issue = (
                 "Price data unavailable \u2014 try again in 60 seconds."

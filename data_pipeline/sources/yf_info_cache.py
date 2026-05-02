@@ -151,6 +151,42 @@ def _is_indian_primary_ticker(ticker: str) -> bool:
             pass
 
 
+def _sanitize_quote_type(ticker: str, info: dict) -> dict:
+    """Rewrite spurious ``quoteType=MUTUALFUND`` for active equity tickers.
+
+    yfinance occasionally tags Indian equity tickers as ``MUTUALFUND``
+    (audit 2026-05-02 found 36 active universe tickers misclassified
+    this way: ADL, AYE, BBOX, BIRLATYRE, BRFL, CELLO/INDIANHUME-like
+    edge cases, RELCAPITAL, SEL, etc.). When that flag leaks into
+    downstream consumers it suppresses analysis, screener inclusion,
+    and live-quote refresh.
+
+    Heuristic: trust our universe over yfinance. If the ticker is
+    flagged ``is_active=TRUE`` in ``stocks`` AND yfinance returned a
+    non-null ``regularMarketPrice``, override the tag to ``EQUITY``
+    and stamp ``_yieldiq_quote_type_overridden=True`` for traceability.
+    Mutates and returns ``info`` in place.
+    """
+    try:
+        if str(info.get("quoteType") or "").upper() != "MUTUALFUND":
+            return info
+        if info.get("regularMarketPrice") is None and info.get("currentPrice") is None:
+            return info
+        if not _is_indian_primary_ticker(ticker):
+            return info
+        info["_yieldiq_quote_type_original"] = info.get("quoteType")
+        info["quoteType"] = "EQUITY"
+        info["_yieldiq_quote_type_overridden"] = True
+        log.warning(
+            "YF_INFO_CACHE: quoteType OVERRIDE for %s — yfinance returned "
+            "MUTUALFUND but ticker is active equity with regularMarketPrice=%s",
+            ticker, info.get("regularMarketPrice"),
+        )
+    except Exception as exc:
+        log.debug("sanitize_quote_type raised for %s: %s", ticker, exc)
+    return info
+
+
 def _validate_info_for_write(ticker: str, info: dict) -> tuple[bool, str | None]:
     """Inspect a freshly-fetched info dict before caching it.
 
@@ -267,6 +303,7 @@ def _store(ticker: str, info: dict) -> None:
     if not _is_valid_info(info):
         log.info("YF_INFO_CACHE: skip-store %s (invalid info)", ticker)
         return
+    info = _sanitize_quote_type(ticker, info)
     ok, reason = _validate_info_for_write(ticker, info)
     if not ok:
         # No data_anomalies table exists today — surface at WARNING so
@@ -352,7 +389,7 @@ def get_info(ticker: str, ttl_minutes: int = DEFAULT_TTL_MINUTES) -> tuple[dict,
     file_cached = _file_read(ticker, ttl_minutes)
     if file_cached:
         log.info("YF_INFO_CACHE: FILE HIT %s", ticker)
-        return file_cached, True
+        return _sanitize_quote_type(ticker, file_cached), True
 
     # ── DB lookup (if Postgres is available) ──────────────────
     db = _db_session()
@@ -378,10 +415,10 @@ def get_info(ticker: str, ttl_minutes: int = DEFAULT_TTL_MINUTES) -> tuple[dict,
                     )
                     if age < timedelta(minutes=ttl_minutes):
                         log.info("YF_INFO_CACHE: HIT %s (age=%ds)", ticker, int(age.total_seconds()))
-                        return info, True
+                        return _sanitize_quote_type(ticker, info), True
                     log.info("YF_INFO_CACHE: STALE %s (age=%ds) → bg refresh", ticker, int(age.total_seconds()))
                     _refresh_async(ticker)
-                    return info, True
+                    return _sanitize_quote_type(ticker, info), True
                 else:
                     log.warning("YF_INFO_CACHE: row for %s had unparseable JSON", ticker)
             else:
