@@ -88,6 +88,8 @@ from backend.services.analysis.constants import (
     _NBFC_TICKERS,
     is_top_private_bank,
     TOP_PRIVATE_BANK_COE,
+    TOP_PRIVATE_BANKS,
+    NEVER_SUPER_CYCLICAL,
 )
 
 # ── NBFC WACC floor ─────────────────────────────────────────────
@@ -1322,21 +1324,13 @@ class AnalysisService(NarrativeMixin):
         # ── Step 10: Verdict ──────────────────────────────────
         _conf_score = confidence.get("score", 50)
 
-        # ── Null-CAGR data-limited gate DISABLED 2026-05-03 ──
-        # REVERTED — gate over-fired for bellwethers with full CAGR
-        # data (HDFCBANK/TCS/NESTLEIND/TITAN/ICICIBANK/KOTAKBANK/
-        # AXISBANK/ASIANPAINT/POWERINDIA all returned FV=0.0
-        # verdict=data_limited in production). The early _rcagr call
-        # against enriched["income_df"] at this pipeline stage returns
-        # None even when income_df has data — the existing CAGR calc
-        # at lines 1726-1752 handles it correctly later. Needs a proper
-        # fix that reuses the downstream computed CAGR rather than
-        # recomputing here. Peer_cap bypass from 49e5add is RETAINED.
-        _null_cagr_gate_tripped = False  # was: both early CAGRs None
-        if False:  # gate disabled — see comment above
-            verdict = "data_limited"
-            iv = 0
-            mos_pct = 0
+        # ── Null-CAGR data-limited gate v2 (deferred) ────────────
+        # The proper gate runs AFTER `_rev_cagr_3y` / `_rev_cagr_5y`
+        # are computed at ~line 1782. Prior in-place gate (49e5add)
+        # over-fired because it tried to recompute CAGR from
+        # `enriched["income_df"]` too early in the pipeline. See the
+        # post-CAGR override block below for the v2 implementation.
+        _null_cagr_gate_tripped = False
         if is_financial:
             # Financial companies: simple MoS verdict, NEVER "avoid"
             if iv <= 0:
@@ -1799,6 +1793,114 @@ class AnalysisService(NarrativeMixin):
                 return None
         _rev_cagr_3y = _sanitize_cagr(_rev_cagr_3y)
         _rev_cagr_5y = _sanitize_cagr(_rev_cagr_5y)
+
+        # ── P0 BATCH A1 (2026-05-02) ─────────────────────────────
+        # Three verdict-logic fixes that need post-CAGR / post-ROCE
+        # context: (1) null-CAGR gate v2, (2) cross-pillar moat
+        # sanity, (3) score-MoS dominance. Bellwether allowlist
+        # exempts top private banks + never-super-cyclical names.
+        _bare_ticker_p0 = (ticker or "").upper().replace(".NS", "").replace(".BO", "")
+        _is_bellwether_p0 = (
+            _bare_ticker_p0 in TOP_PRIVATE_BANKS
+            or _bare_ticker_p0 in NEVER_SUPER_CYCLICAL
+        )
+        import logging as _p0_logging
+        _p0_log = _p0_logging.getLogger("yieldiq.analysis")
+
+        # FIX 1 — Null-CAGR gate v2. When BOTH revenue_cagr_3y and
+        # revenue_cagr_5y are None the model has no growth signal at
+        # all; force data_limited regardless of where the verdict
+        # block above landed. Peer-cap / DCF outputs are retained for
+        # the audit trail; the response just suppresses fair_value.
+        if (
+            not is_financial
+            and not _is_bellwether_p0
+            and _rev_cagr_3y is None
+            and _rev_cagr_5y is None
+        ):
+            verdict = "data_limited"
+            _null_cagr_gate_tripped = True
+            iv = 0
+            mos_pct = 0
+            _p0_log.info("null_cagr_gate.tripped ticker=%s", ticker)
+
+        # FIX 2 — Cross-pillar moat sanity. Declining 5y revenue (CAGR
+        # < 0) overrides any moat to None. ROCE < WACC downgrades the
+        # moat one level (Wide -> Moderate -> Narrow -> None). The
+        # bellwether allowlist is exempt — explicit ratings stand.
+        if not _is_bellwether_p0:
+            try:
+                _moat_pre = moat_result.get("grade")
+                _roce_dec = (
+                    (_roce_val / 100.0)
+                    if (_roce_val is not None and _roce_val > 1.5)
+                    else _roce_val
+                )
+                if _moat_pre in ("Wide", "Moderate", "Narrow"):
+                    if _rev_cagr_5y is not None and _rev_cagr_5y < 0:
+                        moat_result["grade"] = "None"
+                        moat_result["downgrade_reason"] = (
+                            f"5y revenue CAGR {_rev_cagr_5y:.1%} (declining business)"
+                        )
+                        _p0_log.info(
+                            "moat_sanity.downgraded ticker=%s reason=rev_cagr_neg",
+                            ticker,
+                        )
+                    elif (
+                        _roce_dec is not None
+                        and wacc is not None
+                        and _roce_dec < wacc
+                    ):
+                        if _moat_pre == "Wide":
+                            moat_result["grade"] = "Moderate"
+                        elif _moat_pre == "Moderate":
+                            moat_result["grade"] = "Narrow"
+                        elif _moat_pre == "Narrow":
+                            moat_result["grade"] = "None"
+                        moat_result["downgrade_reason"] = (
+                            f"ROCE {_roce_dec * 100:.1f}% < WACC {wacc * 100:.1f}% "
+                            f"(no economic moat)"
+                        )
+                        _p0_log.info(
+                            "moat_sanity.downgraded ticker=%s reason=roce_lt_wacc",
+                            ticker,
+                        )
+            except Exception:
+                pass
+
+        # FIX 3 — Score-MoS dominance. Per the methodology page, the
+        # composite score must track the model rather than the screen.
+        # Cap composite based on |MoS| magnitude so a deeply overvalued
+        # name cannot ride moat/Piotroski to a misleading score.
+        try:
+            if mos_pct is not None and yiq_score and "score" in yiq_score:
+                _mos_abs = abs(mos_pct)
+                if _mos_abs > 50:
+                    _composite_max = 40
+                elif _mos_abs > 30:
+                    _composite_max = 50
+                elif _mos_abs > 15:
+                    _composite_max = 65
+                else:
+                    _composite_max = 100
+                _orig_score = int(yiq_score.get("score", 0) or 0)
+                if _orig_score > _composite_max:
+                    yiq_score["score"] = _composite_max
+                    # Re-derive grade band from capped score.
+                    _cap = _composite_max
+                    yiq_score["grade"] = (
+                        "A" if _cap >= 75
+                        else "B" if _cap >= 55
+                        else "C" if _cap >= 35
+                        else "D" if _cap >= 20
+                        else "F"
+                    )
+                    _p0_log.info(
+                        "score_mos_dominance.capped ticker=%s mos=%.1f orig=%d cap=%d",
+                        ticker, mos_pct, _orig_score, _composite_max,
+                    )
+        except Exception:
+            pass
 
         # ── DEFERRED STRUCTURED FLAG BUILD (FIX-DAY3-STRENGTHS) ──
         # Inject newly-computed ratios into ``enriched`` so the
