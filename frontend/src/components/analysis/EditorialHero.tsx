@@ -248,7 +248,31 @@ export default function EditorialHero({
               : verdictDisplayLabel(valuationVerdict)}
           </h2>
 
-          {/* 2x2 metrics */}
+          {/* When dataLimited, FV/MoS are unreliable — replace the headline
+              metrics with an Under Review banner. Stale FV next to a tiny
+              "Data Limited" chip reads as a real fair value. P0 fix
+              2026-05-02 (ONGC canary). */}
+          {dataLimited && (
+            <div
+              role="note"
+              aria-label="Under Review"
+              className="mt-1 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200 px-3 py-2 text-[12px] leading-snug text-amber-900"
+            >
+              <span className="font-semibold">Under Review</span> &mdash; not enough
+              reliable data to publish a fair value, margin of safety, or composite
+              score for this ticker yet. Current price below for reference only.
+              <dl className="mt-2 grid grid-cols-1 gap-y-1">
+                <Stat
+                  label="Current Price"
+                  value={currentPrice > 0 ? formatCurrency(currentPrice, currency) : "Awaiting data"}
+                  metricKey="current_price"
+                />
+              </dl>
+            </div>
+          )}
+
+          {/* 2x2 metrics — only when we actually have a fair value to show. */}
+          {!dataLimited && (
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3 mt-1">
             <div>
               <MetricTooltip metricKey="fair_value">
@@ -263,7 +287,7 @@ export default function EditorialHero({
                   passed (dataLimited=false) and the backend supplied a
                   confidence_score. See FvConfidenceBand for math + amber
                   threshold. */}
-              {!dataLimited && fairValue > 0 && (
+              {fairValue > 0 && (
                 <FvConfidenceBand
                   fairValue={fairValue}
                   confidence={confidence}
@@ -276,34 +300,33 @@ export default function EditorialHero({
               value={currentPrice > 0 ? formatCurrency(currentPrice, currency) : "Awaiting data"}
               metricKey="current_price"
             />
-            {!dataLimited && (
-              <div>
-                <MetricTooltip metricKey="mos">
-                  <dt className="text-[10px] uppercase tracking-[0.15em] text-caption">
-                    Margin of Safety
-                  </dt>
-                </MetricTooltip>
-                <dd
-                  className={`font-mono tabular-nums text-lg font-semibold ${
-                    marginOfSafety >= 0 ? "text-success" : "text-danger"
-                  }`}
-                >
-                  {
-                    // Previous copy was "+80%+" which reads like a broken
-                    // render. Show the real signed number; only if it's
-                    // truly enormous (>200%) do we collapse to ">+200%"
-                    // so the layout doesn't overflow.
-                    marginOfSafety > 200
-                      ? ">+200%"
-                      : marginOfSafety < -200
-                      ? "<-200%"
-                      : formatPct(marginOfSafety)
-                  }
-                </dd>
-              </div>
-            )}
+            <div>
+              <MetricTooltip metricKey="mos">
+                <dt className="text-[10px] uppercase tracking-[0.15em] text-caption">
+                  Margin of Safety
+                </dt>
+              </MetricTooltip>
+              <dd
+                className={`font-mono tabular-nums text-lg font-semibold ${
+                  marginOfSafety >= 0 ? "text-success" : "text-danger"
+                }`}
+              >
+                {
+                  // Previous copy was "+80%+" which reads like a broken
+                  // render. Show the real signed number; only if it's
+                  // truly enormous (>200%) do we collapse to ">+200%"
+                  // so the layout doesn't overflow.
+                  marginOfSafety > 200
+                    ? ">+200%"
+                    : marginOfSafety < -200
+                    ? "<-200%"
+                    : formatPct(marginOfSafety)
+                }
+              </dd>
+            </div>
             <Stat label="Moat" value={moat || "Not rated"} metricKey="moat" />
           </dl>
+          )}
 
           <p className="text-[11px] text-caption leading-relaxed mt-2">
             {data.disclaimer}

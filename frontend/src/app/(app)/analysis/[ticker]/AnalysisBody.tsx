@@ -458,8 +458,23 @@ export default function AnalysisBody({ ticker, prism }: Props) {
 
   const { company, valuation, quality, insights } = data
 
+  // P0 frontend gate (2026-05-02): broaden the dataLimited trigger to
+  // include the canonical verdict enum. Previously dataLimited fired only
+  // when score==0 OR fv==0, so a ticker like ONGC (verdict=data_limited
+  // but with stale non-zero FV/score still in the cache) rendered the
+  // headline FV ₹X next to a tiny "Data Limited" chip — read as a real
+  // FV by users. Now any verdict in {data_limited, under_review,
+  // unavailable} suppresses every FV/MoS/score-derived UI element.
+  const verdictLower = (valuation.verdict || "").toString().toLowerCase()
+  const verdictDataLimited =
+    verdictLower === "data_limited" ||
+    verdictLower === "under_review" ||
+    verdictLower === "under review" ||
+    verdictLower === "unavailable"
   const dataLimited =
-    (quality.yieldiq_score ?? 0) <= 0 || valuation.fair_value === 0
+    verdictDataLimited ||
+    (quality.yieldiq_score ?? 0) <= 0 ||
+    valuation.fair_value === 0
 
   const requestedTicker = ticker.toUpperCase()
   const canonicalTicker = data.ticker.toUpperCase()
@@ -531,7 +546,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       )
     ) : null
 
-  const scenarioBlock = data.scenarios ? (
+  const scenarioBlock = data.scenarios && !dataLimited ? (
     <div className="bg-bg rounded-2xl border border-border p-5">
       <h2 className="text-sm font-semibold text-ink mb-4">Scenario Analysis</h2>
       <div className="grid grid-cols-3 gap-3">
@@ -570,7 +585,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           />
           <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
           {scenarioBlock}
-          <ReverseDcfPanel ticker={ticker} />
+          {!dataLimited && <ReverseDcfPanel ticker={ticker} />}
           <DividendTracker
             dividend={insights?.dividend ?? null}
             currency={company.currency}

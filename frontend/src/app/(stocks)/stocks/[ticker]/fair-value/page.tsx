@@ -282,6 +282,19 @@ export default async function StockFairValuePage(
   const vc = verdictColor(data.verdict)
   const mosSign = data.mos >= 0 ? "+" : ""
 
+  // P0 frontend gate (2026-05-02): when the backend tags the ticker
+  // verdict=data_limited (yfinance brokenness on the ADR cohort) or
+  // verdict_label="Under Review" (null-pillar gate, d7c1165), suppress
+  // every FV-derived UI element — headline FV/MoS, YieldIQ score,
+  // scenarios, DCF Sensitivity, Reverse DCF — and replace the hero
+  // valuation block with an amber "Under Review" banner. Without this
+  // ONGC's stale FV (₹X) was rendering prominently next to a tiny
+  // "Data Limited" chip, which read as "Fair value ₹X" to the user.
+  const verdictLower = (data.verdict || "").toLowerCase()
+  const isFVSuppressed =
+    verdictLower === "data_limited" || verdictLower === "under_review" ||
+    verdictLower === "unavailable" || verdictLower === "under review"
+
   // JSON-LD structured data
   const jsonLd = {
     "@context": "https://schema.org",
@@ -355,24 +368,37 @@ export default async function StockFairValuePage(
               </div>
             </div>
 
-            {/* Verdict + Fair Value + MoS */}
-            <div className="flex flex-wrap gap-4 items-center">
-              <span className={`px-4 py-2 rounded-full text-sm font-bold capitalize ${vc.bg} ${vc.text} ${vc.border} border`}>
-                {verdictLabel(data.verdict)}
-              </span>
-              <div className="flex gap-6">
-                <div>
-                  <p className="text-xs text-gray-400">Fair Value ({isBankModel(data) ? ENGINE_LABEL.pb_ratio : ENGINE_LABEL.dcf})</p>
-                  <p className="text-xl font-bold text-gray-900 font-mono">{fmt(data.fair_value)}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-400">Margin of Safety</p>
-                  <p className={`text-xl font-bold font-mono ${data.mos >= 0 ? "text-green-600" : "text-red-600"}`}>
-                    {mosSign}{data.mos.toFixed(1)}%
-                  </p>
+            {/* Verdict + Fair Value + MoS — suppressed entirely when the
+                backend says we don't have enough data to publish a fair
+                value. Showing the stale numbers next to a "Data Limited"
+                chip reads as a real FV to most users. */}
+            {isFVSuppressed ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-amber-900 dark:bg-amber-900/20 dark:text-amber-100">
+                <p className="text-sm">
+                  <strong>Under Review</strong> &mdash; We don&rsquo;t have enough data
+                  to publish a fair value estimate for {display} yet.
+                  Reason: {verdictLabel(data.verdict) || "Insufficient inputs"}.
+                </p>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-4 items-center">
+                <span className={`px-4 py-2 rounded-full text-sm font-bold capitalize ${vc.bg} ${vc.text} ${vc.border} border`}>
+                  {verdictLabel(data.verdict)}
+                </span>
+                <div className="flex gap-6">
+                  <div>
+                    <p className="text-xs text-gray-400">Fair Value ({isBankModel(data) ? ENGINE_LABEL.pb_ratio : ENGINE_LABEL.dcf})</p>
+                    <p className="text-xl font-bold text-gray-900 font-mono">{fmt(data.fair_value)}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-400">Margin of Safety</p>
+                    <p className={`text-xl font-bold font-mono ${data.mos >= 0 ? "text-green-600" : "text-red-600"}`}>
+                      {mosSign}{data.mos.toFixed(1)}%
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
             {/* Valuation engine badge — appears on every page so the
                 external auditor / power user can see at a glance which
                 model produced the FV. Bank tickers (HDFCBANK, SBIN, …)
@@ -406,7 +432,7 @@ export default async function StockFairValuePage(
             <div className="mt-5 flex flex-wrap items-center gap-3">
               {/* DCF Sensitivity heatmap is meaningless for the bank model
                   (no WACC/g sensitivity surface). Hide for pb_ratio. */}
-              {!isBankModel(data) && (
+              {!isBankModel(data) && !isFVSuppressed && (
                 <Link
                   href={`/stocks/${display}/fair-value/sensitivity`}
                   className="inline-flex items-center gap-1.5 rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 transition"
@@ -424,7 +450,7 @@ export default async function StockFairValuePage(
         {/* Key Metrics Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           {[
-            { label: "YieldIQ Score", value: `${data.score}/100`, color: scoreColor(data.score) },
+            { label: "YieldIQ Score", value: isFVSuppressed ? "—" : `${data.score}/100`, color: isFVSuppressed ? "text-gray-400" : scoreColor(data.score) },
             { label: "Piotroski F-Score", value: `${data.piotroski}/9`, color: data.piotroski >= 7 ? "text-green-600" : data.piotroski >= 4 ? "text-blue-600" : "text-red-600" },
             { label: "Economic Moat", value: data.moat, color: data.moat === "Wide" ? "text-green-600" : data.moat === "Narrow" ? "text-blue-600" : "text-gray-600" },
             { label: "Confidence", value: `${data.confidence}%`, color: data.confidence >= 70 ? "text-green-600" : "text-amber-600" },
@@ -485,6 +511,7 @@ export default async function StockFairValuePage(
             the public stock-summary payload only carries the raw bear/
             base/bull fair-value figures (the canonical AnalysisResponse
             ScenariosOutput is not yet exposed on this endpoint). */}
+        {!isFVSuppressed && (
         <div className="mb-8">
           <ValuationGrid
             bear={{
@@ -509,6 +536,7 @@ export default async function StockFairValuePage(
             currency={data.currency}
           />
         </div>
+        )}
 
         {/* SEO blocks — each renders a graceful placeholder on null payload
             (503 under_review / network error). Order is ratio-trends first
@@ -545,7 +573,7 @@ export default async function StockFairValuePage(
           {/* Reverse DCF inverts the FCF-discount engine; for banks the
               valuation comes from P/B + Residual Income on equity, so
               "what FCF growth is priced in" is meaningless. Hide for bank model. */}
-          {!isBankModel(data) && (
+          {!isBankModel(data) && !isFVSuppressed && (
             <Link
               href={`/stocks/${display}/reverse-dcf`}
               className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
