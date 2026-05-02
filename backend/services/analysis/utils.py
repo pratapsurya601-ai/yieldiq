@@ -123,14 +123,50 @@ def _enforce_scenario_order(bear, base, bull, price: float):
     bear_iv = bear.iv or 0.0
     bull_iv = bull.iv or 0.0
 
-    # If ordering is intact, return as-is.
-    if bear_iv <= base_iv <= bull_iv:
+    # P0 BATCH A2 (2026-05-02): bull spread sanity gate.
+    # Ordering check alone (`bear <= base <= bull`) was passing for cases
+    # where the bull leg sat just barely above base — e.g. INFY had
+    # bear=409 / base=683 / bull=685 (bull only +0.3% above base) and
+    # FOSECOIND had bear=1647 / base=2997 / bull=3404 (+13.6%). Root
+    # cause: scenarios.py computes bull off its own scenarios-base DCF
+    # while service.py uses the main blended `iv` as the displayed base,
+    # so the asymmetric flex collapsed when the main IV was already on
+    # the optimistic side of the scenarios DCF. Enforce a minimum +20%
+    # bull spread (and -20% bear floor) below — pushes the clamped
+    # ordering branch whenever the natural spread is too tight, not
+    # just when ordering is broken.
+    _MIN_BULL_SPREAD = 1.20   # bull must be >= base * 1.20
+    _MAX_BEAR_SPREAD = 0.80   # bear must be <= base * 0.80
+    # Trigger clamp if natural bull spread is < +15% (FOSECOIND audit
+    # showed +13% bull spread looking flat to users) or natural bear
+    # spread is < -15%. The asymmetry between trigger (15%) and floor
+    # (20%) gives a small hysteresis margin.
+    _too_tight = base_iv > 0 and (
+        bull_iv < base_iv * 1.15 or bear_iv > base_iv * 0.85
+    )
+
+    # If ordering is intact AND spread is meaningful, return as-is.
+    if bear_iv <= base_iv <= bull_iv and not _too_tight:
         return ScenariosOutput(bear=bear, base=base, bull=bull)
 
-    # Otherwise clamp. Bear can't exceed 92.5% of base; bull can't drop
-    # below 107.5% of base. Recompute mos_pct from clamped iv.
-    fixed_bear_iv = min(bear_iv, base_iv * 0.925) if base_iv > 0 else bear_iv
-    fixed_bull_iv = max(bull_iv, base_iv * 1.075) if base_iv > 0 else bull_iv
+    if _too_tight and bear_iv <= base_iv <= bull_iv:
+        # Ordering OK but spread too tight — log so it's visible in obs.
+        import logging
+        logging.getLogger("yieldiq.scenarios").warning(
+            "bull_flex.too_tight bear=%.2f base=%.2f bull=%.2f "
+            "(bull/base=%.3f, bear/base=%.3f) — forcing min ±20%% spread",
+            bear_iv, base_iv, bull_iv,
+            (bull_iv / base_iv) if base_iv > 0 else 0,
+            (bear_iv / base_iv) if base_iv > 0 else 0,
+        )
+
+    # Otherwise clamp. Bear can't exceed 80% of base; bull can't drop
+    # below 120% of base. Recompute mos_pct from clamped iv.
+    # (Was 92.5% / 107.5% — too tight; the +/-7.5% band silently
+    # accepted near-equal scenarios that confused users about the
+    # range of outcomes.)
+    fixed_bear_iv = min(bear_iv, base_iv * _MAX_BEAR_SPREAD) if base_iv > 0 else bear_iv
+    fixed_bull_iv = max(bull_iv, base_iv * _MIN_BULL_SPREAD) if base_iv > 0 else bull_iv
 
     def _mos_pair(iv):
         if price and price > 0 and iv > 0:
@@ -153,7 +189,7 @@ def _enforce_scenario_order(bear, base, bull, price: float):
 
     import logging
     logging.getLogger("yieldiq.scenarios").warning(
-        "scenario_clamp: bear/bull clamped to base ±7.5%% — investigate "
+        "scenario_clamp: bear/bull clamped to base ±20%% — investigate "
         "(orig bear=%s base=%s bull=%s -> bear=%s base=%s bull=%s)",
         bear_iv, base_iv, bull_iv,
         fixed_bear.iv, base.iv, fixed_bull.iv,
