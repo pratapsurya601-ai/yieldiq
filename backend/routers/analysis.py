@@ -2074,6 +2074,118 @@ async def get_report(ticker: str, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Report generation failed: {type(e).__name__}")
 
 
+# ── Excel export (Pro-tier) ──────────────────────────────────────
+# Multi-sheet workbook: Inputs (editable WACC/g/years), DCF (formula-
+# driven), Scenarios (Bear/Base/Bull snapshot), Source Data (raw
+# inputs). Free-tier users get a 402 Payment Required so the frontend
+# can render an upgrade CTA without leaking the workbook bytes.
+@router.get("/analysis/{ticker}/export.xlsx")
+async def export_analysis_xlsx(
+    ticker: str,
+    user: dict = Depends(get_current_user),
+):
+    """Download a formula-driven DCF workbook for ``ticker``.
+
+    Pro-tier (or analyst / starter) only. Free-tier users receive
+    HTTP 402 Payment Required with a JSON detail payload pointing at
+    the upgrade page — frontend uses this to swap the button for an
+    "Upgrade to Pro" CTA.
+
+    Reuses the cached AnalysisResponse so the generated workbook
+    matches what the user sees on the /analysis page.
+    """
+    tier = (user.get("tier") or "free").lower()
+    # Superusers (effective tier set by check_analysis_limit) and any
+    # paid tier may export. The analyst > pro > starter > free order
+    # mirrors require_tier in middleware/auth.py.
+    if tier not in ("pro", "starter", "analyst") and not user.get("is_superuser"):
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "upgrade_required",
+                "message": (
+                    "Excel export is a Pro-tier feature. Upgrade to "
+                    "download a formula-driven DCF workbook."
+                ),
+                "upgrade_url": "/pricing",
+            },
+        )
+
+    ticker = ticker.upper().strip()
+    ticker = TICKER_ALIASES.get(ticker, ticker)
+
+    # Reuse the analysis cache: tier-1 in-memory raw → tier-2 DB cache
+    # → compute. Mirrors the pattern in /analysis/{ticker} above so a
+    # warm-cache export costs ~10ms instead of a full recompute.
+    analysis_obj = None
+    try:
+        _raw = cache.get(f"analysis:{ticker}:raw")
+        if _raw:
+            analysis_obj = _raw
+        else:
+            try:
+                _db_cached = analysis_cache_service.get_cached(ticker)
+            except Exception:
+                _db_cached = None
+            if _db_cached:
+                analysis_obj = _db_cached
+    except Exception:
+        analysis_obj = None
+
+    if analysis_obj is None:
+        # Fall back to a fresh compute. Pushed onto the thread pool
+        # because get_full_analysis is sync + does blocking I/O.
+        import asyncio as _asyncio
+        try:
+            analysis_obj = await _asyncio.to_thread(
+                service.get_full_analysis, ticker,
+            )
+        except TickerNotFoundError:
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "Ticker not found", "ticker": ticker},
+            )
+        except Exception as exc:
+            import logging
+            logging.getLogger("yieldiq.analysis").error(
+                "xlsx export compute failed for %s: %s", ticker, exc,
+                exc_info=True,
+            )
+            raise HTTPException(
+                status_code=500, detail="Excel export unavailable",
+            )
+
+    try:
+        from backend.services.excel_export_service import build_workbook
+        # build_workbook is CPU-bound (openpyxl serialisation) — push
+        # onto the threadpool so the event loop stays responsive when
+        # multiple Pro users export concurrently.
+        import asyncio as _asyncio
+        xlsx_bytes = await _asyncio.to_thread(build_workbook, analysis_obj)
+    except Exception as exc:
+        import logging
+        logging.getLogger("yieldiq.analysis").error(
+            "xlsx export build failed for %s: %s", ticker, exc, exc_info=True,
+        )
+        raise HTTPException(
+            status_code=500, detail="Excel workbook generation failed",
+        )
+
+    safe_name = ticker.replace(".", "_")
+    filename = f"YieldIQ_{safe_name}_DCF.xlsx"
+    return Response(
+        content=xlsx_bytes,
+        media_type=(
+            "application/vnd.openxmlformats-officedocument."
+            "spreadsheetml.sheet"
+        ),
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            "Cache-Control": "private, max-age=300",
+        },
+    )
+
+
 # ── Sensitivity recompute (interactive sliders) ──────────────────
 # Powers SensitivityPanel on the analysis page. Paid tiers only —
 # free users see the upgrade CTA in the frontend and never call

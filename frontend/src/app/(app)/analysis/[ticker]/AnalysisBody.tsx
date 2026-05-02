@@ -35,6 +35,7 @@ import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
 import ShareReportCard from "@/components/analysis/ShareReportCard"
+import ProExcelExportButton from "@/components/analysis/ProExcelExportButton"
 import UnlockCTA from "@/components/payg/UnlockCTA"
 import UnlockBadge from "@/components/payg/UnlockBadge"
 import { usePaygStore } from "@/store/paygStore"
@@ -993,6 +994,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             >
               Text-only report →
             </a>
+            {/* Pro-tier formula-driven DCF workbook. The component
+                returns null for free / unauthenticated users so the
+                button is invisible to them — matches PR_LADDER spec. */}
+            <ProExcelExportButton ticker={ticker} />
           </div>
         </div>
 
