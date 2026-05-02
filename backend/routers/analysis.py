@@ -2152,3 +2152,86 @@ async def recompute_sensitivity(
             f"Recompute failed for {ticker}: {e}", exc_info=True
         )
         raise HTTPException(status_code=500, detail="DCF recompute failed")
+
+
+# ── Sensitivity tornado ─────────────────────────────────────────
+# Per-stock ranking of which model input moves FV the most. Re-runs
+# the DCF 7-10× with each input perturbed ±X (200bps for rates,
+# ±20% for relative inputs). Cached 24h per ticker — sensitivity is
+# expensive but stable on a daily horizon (the underlying enriched
+# data updates nightly via the data pipeline). Open to all auth'd
+# users (no tier gate) since the value here is educational: it
+# teaches users which assumption is worth the most scrutiny.
+@router.get("/analysis/{ticker}/sensitivity")
+async def analysis_sensitivity(
+    ticker: str,
+    user: dict = Depends(get_current_user_optional),
+):
+    """Return tornado-chart data: per-input FV sensitivity, sorted
+    most-impactful first. See backend/services/analysis/sensitivity.py
+    for the perturbation grid (DCF stocks vs financials)."""
+    ticker = ticker.upper().strip()
+    if not ticker.endswith(".NS") and not ticker.endswith(".BO"):
+        ticker = f"{ticker}.NS"
+    ticker = TICKER_ALIASES.get(ticker, ticker)
+
+    cache_key = f"sensitivity:{ticker}:v1"
+    cached = cache.get(cache_key)
+    if cached:
+        return cached
+
+    # Pull the canonical analysis once so we can seed the perturbation
+    # grid from the model's actual WACC / growth / margin instead of
+    # generic defaults — sensitivity around the wrong base value would
+    # mis-rank inputs (e.g. a stock priced at 6% WACC ranks WACC much
+    # higher than one priced at 14%).
+    base_wacc: Optional[float] = None
+    base_growth: Optional[float] = None
+    base_margin: Optional[float] = None
+    try:
+        import asyncio as _asyncio_seed
+        analysis = await _asyncio_seed.to_thread(service.get_full_analysis, ticker)
+        # AnalysisResponse is a pydantic model; valuation is a sub-model
+        v = getattr(analysis, "valuation", None)
+        if v is not None:
+            wacc_val = getattr(v, "wacc", 0) or 0
+            if wacc_val:
+                base_wacc = float(wacc_val) / 100.0
+            g_val = getattr(v, "fcf_growth_rate", 0) or 0
+            if g_val:
+                base_growth = float(g_val) / 100.0
+        # Operating margin isn't on AnalysisResponse yet; sensitivity
+        # service falls back to 0.15 which matches SensitivityPanel's
+        # default seed — keeps the two features in sync.
+    except Exception:
+        # Non-fatal — sensitivity will use built-in defaults.
+        pass
+
+    try:
+        from backend.services.analysis.sensitivity import compute_sensitivity
+        import asyncio as _asyncio
+        result = await _asyncio.to_thread(
+            compute_sensitivity,
+            ticker=ticker,
+            base_wacc=base_wacc,
+            base_growth=base_growth,
+            base_margin=base_margin,
+        )
+        if result.get("error"):
+            # Surface as 200 with empty list + error key so the frontend
+            # can show "sensitivity unavailable" without an error toast.
+            return result
+        # 24h cache — sensitivity ranking is stable day-to-day; only the
+        # nightly data pipeline can shift the underlying inputs.
+        cache.set(cache_key, result, ttl=86400)
+        return result
+    except TickerNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.getLogger("yieldiq.sensitivity").error(
+            f"Sensitivity failed for {ticker}: {e}", exc_info=True
+        )
+        raise HTTPException(status_code=500, detail="Sensitivity computation failed")

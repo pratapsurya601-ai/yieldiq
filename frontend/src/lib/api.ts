@@ -218,6 +218,30 @@ export const recomputeDcf = (
 ): Promise<RecomputeResponse> =>
   api.post(`/api/v1/analysis/${ticker}/recompute`, body).then(r => r.data)
 
+// Sensitivity tornado — per-input ranking of which assumption moves
+// FV the most for THIS specific stock. Cached 24h server-side; the
+// component should also let react-query cache for the page lifetime.
+export interface SensitivityRow {
+  input: string
+  unit: "bps" | "pct"
+  delta_low: number
+  delta_high: number
+  fv_low: number
+  fv_high: number
+  swing_pct: number
+}
+
+export interface SensitivityResponse {
+  ticker: string
+  base_fair_value: number
+  is_financial: boolean
+  sensitivities: SensitivityRow[]
+  error?: string
+}
+
+export const getSensitivity = (ticker: string): Promise<SensitivityResponse> =>
+  api.get(`/api/v1/analysis/${ticker}/sensitivity`).then(r => r.data)
+
 export const getChartData = (ticker: string, period: string = "1m") =>
   api.get(`/api/v1/analysis/${ticker}/chart-data?period=${period}`).then(r => r.data)
 

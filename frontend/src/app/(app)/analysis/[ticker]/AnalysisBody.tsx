@@ -39,6 +39,7 @@ import UnlockCTA from "@/components/payg/UnlockCTA"
 import UnlockBadge from "@/components/payg/UnlockBadge"
 import { usePaygStore } from "@/store/paygStore"
 import SensitivityPanel from "@/components/analysis/SensitivityPanel"
+import SensitivityTornado from "@/components/analysis/SensitivityTornado"
 import { useAuthStore } from "@/store/authStore"
 import {
   formatCurrency,
@@ -603,6 +604,12 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         <div className="space-y-5">
           {scenarioBlock}
           {sensitivityBlock}
+          {valuation.dcf_reliable && valuation.fair_value > 0 ? (
+            <SensitivityTornado
+              ticker={data.ticker}
+              currency={company.currency}
+            />
+          ) : null}
           <InsightCards
             quality={quality}
             insights={insights}
