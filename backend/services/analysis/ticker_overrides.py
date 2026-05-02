@@ -25,10 +25,22 @@ TICKER_OVERRIDES: dict[str, dict] = {
     "ITC": {
         "model_caveat": (
             "ITC operates 5 distinct segments (cigarettes, FMCG, hotels, "
-            "agri, paperboards). Generic DCF blends them. Each deserves "
-            "its own model."
+            "agri, paperboards). Generic DCF blends them and routinely "
+            "lands in `data_limited` despite ITC being a high-ROCE / "
+            "low-debt / consistent-dividend compounder with a regulated "
+            "tobacco-leaf moat. Until the SoP engine ships, terminal "
+            "growth is bumped to 5% to reflect FMCG re-rating + tobacco "
+            "pricing power. Each segment still deserves its own model."
         ),
         "verdict_label_prefix": "Multi-segment — model approximate",
+        # 5% (vs 4% default) — between the FMCG mature compounder
+        # baseline and TITAN's 6% wide-moat slot. Reflects: (a) tobacco
+        # cigarette pricing power that legislatively passes through tax
+        # hikes, (b) FMCG segment mid-teens revenue growth, (c) hotels +
+        # paperboards cyclical-but-positive tail. Not a score floor —
+        # the override system has no clean score-floor field today; the
+        # terminal bump is the cleanest available lever.
+        "terminal_growth_override": 0.05,
     },
     "ITC.NS": {"_alias_to": "ITC"},
     "RELIANCE.NS": {"_alias_to": "RELIANCE"},

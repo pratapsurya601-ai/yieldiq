@@ -305,6 +305,19 @@ _CAPEX_SUPER_CYCLICAL_TICKERS: set[str] = {
 }
 
 
+# Window length (years) for the super-cyclical signed-median FCF
+# anchor in models/forecaster.py:_compute_fcf_base. Extended from
+# 10 → 15 on 2026-05-03 because a 10y look in 2026 sits entirely
+# inside India's 2015-2024 metals/cement/auto upcycle and over-
+# anchors the "mid-cycle" median ABOVE true mid-cycle, producing
+# bear/base FVs that under-shoot the trough-to-peak spread. 15y
+# pulls in 2010-2014 (thinner FCF) so the median is honestly
+# mid-cycle. Cement is NOT routed here (see comment block above
+# _CAPEX_SUPER_CYCLICAL_TICKERS) — cement keeps the normal 5y
+# positive-only path per the 2026-04-24 hotfix.
+SUPER_CYCLICAL_WINDOW_YEARS: int = 15
+
+
 # Wide-moat compounders that the sector-keyword fallback in
 # is_capex_super_cyclical() would otherwise wrongly bucket as
 # super-cyclical (TITAN got flagged via signed-median FCF on a 10y

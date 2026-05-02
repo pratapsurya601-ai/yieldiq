@@ -326,17 +326,29 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     # For aluminium / steel / GRASIM-like multi-segment capex super-
     # cyclicals, the 5y positive-only filter excludes every realistic
     # data point because the cycle bottom + capex peak straddle the
-    # window. Use a SIGNED median over a 10y window (negative years
+    # window. Use a SIGNED median over a long window (negative years
     # INCLUDED) to capture mid-cycle FCF. If that median is itself
     # negative (deep super-capex like GRASIM holdco), anchor the base
     # to revenue × 5% so nopat_proxy can't over-project from the
     # peak EBIT.
-    from backend.services.analysis.constants import is_capex_super_cyclical
+    #
+    # Window length (2026-05-03 followup): the original 10y window
+    # over-corrects in upcycles for metals/auto super-cyclicals — a
+    # 10y look in 2026 captures India's 2015-2024 commodity upcycle
+    # at the peak end, which biases the "mid-cycle" median ABOVE true
+    # mid-cycle. Extending to 15y (SUPER_CYCLICAL_WINDOW_YEARS) pulls
+    # in 2010-2014, smoothing the upcycle bias while staying signed
+    # so cycle-bottom years still vote. The candidate key
+    # `cyc_10y_median` is preserved for log/trace continuity.
+    from backend.services.analysis.constants import (
+        is_capex_super_cyclical,
+        SUPER_CYCLICAL_WINDOW_YEARS,
+    )
     is_super_cyc = is_capex_super_cyclical(
         ticker, enriched.get("sector"), industry_tag,
     )
     if is_super_cyc and not cf_df.empty and "fcf" in cf_df.columns:
-        recent_fcfs = cf_df["fcf"].tail(10).dropna()
+        recent_fcfs = cf_df["fcf"].tail(SUPER_CYCLICAL_WINDOW_YEARS).dropna()
         if len(recent_fcfs) >= 3:
             cyc_norm_signed = float(recent_fcfs.median())
             if cyc_norm_signed > 0:
