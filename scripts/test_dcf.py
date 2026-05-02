@@ -58,10 +58,20 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import json
+import os
 import sys
 import time
 import urllib.request
 from pathlib import Path
+
+
+# Optional admin token for the auth-gated /api/v1/debug/dcf-trace endpoint.
+# When unset (the common CI case) we skip the trace fetch entirely instead of
+# spamming 401s to stderr — the golden snapshot was captured without trace
+# data anyway (all iv_ratio=0.0, capped=False), so the comparison is a no-op
+# for those fields. If a developer wants iv_ratio/capped/wacc coverage,
+# export ADMIN_TOKEN=<JWT for an ADMIN_EMAILS user> before invoking.
+ADMIN_TOKEN: str = (os.environ.get("ADMIN_TOKEN") or "").strip()
 
 
 # ── Golden ticker list ────────────────────────────────────────────
@@ -107,9 +117,12 @@ TOLERANCES = {
 }
 
 
-def fetch(url: str, timeout: int = 30) -> dict | None:
+def fetch(url: str, timeout: int = 30, auth: bool = False) -> dict | None:
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "YIQTestDCF/1.0"})
+        headers = {"User-Agent": "YIQTestDCF/1.0"}
+        if auth and ADMIN_TOKEN:
+            headers["Authorization"] = f"Bearer {ADMIN_TOKEN}"
+        req = urllib.request.Request(url, headers=headers)
         with urllib.request.urlopen(req, timeout=timeout) as r:
             return json.loads(r.read().decode("utf-8"))
     except Exception as e:
@@ -123,7 +136,14 @@ def capture(ticker: str, api_base: str) -> dict | None:
     og = fetch(f"{api_base}/api/v1/analysis/{ticker}/og-data")
     if not og or "fair_value" not in og:
         return None
-    trace = fetch(f"{api_base}/api/v1/debug/dcf-trace/{ticker}") or {}
+    # Trace endpoint is admin-only. Skip silently in CI (no ADMIN_TOKEN) to
+    # avoid 401 noise — the golden snapshot has no trace data either, so this
+    # is information-preserving. Fetch only when ADMIN_TOKEN is provided.
+    trace: dict = {}
+    if ADMIN_TOKEN:
+        trace = fetch(
+            f"{api_base}/api/v1/debug/dcf-trace/{ticker}", auth=True
+        ) or {}
     return {
         "ticker": ticker,
         "fair_value": round(float(og.get("fair_value") or 0), 2),

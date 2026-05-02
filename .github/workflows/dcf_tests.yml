@@ -60,6 +60,19 @@ jobs:
           python-version: "3.12"
 
       - name: Run DCF regression tests
+        # ADMIN_TOKEN is OPTIONAL. When unset, scripts/test_dcf.py skips the
+        # admin-only /api/v1/debug/dcf-trace fetch (the golden snapshot has
+        # no trace data either, so the comparison still succeeds). When set
+        # to a JWT for one of the ADMIN_EMAILS users, iv_ratio/capped/wacc
+        # are also exercised.
+        #
+        # USER ACTION (optional): to enable trace coverage in CI, add
+        # `ADMIN_TOKEN` to the repo's GitHub Actions secrets — value is a
+        # JWT minted for an admin email (see backend/middleware/auth.py
+        # `create_access_token`). Without it, CI still gates FV/MoS/score/
+        # verdict drift, which is the load-bearing part of the harness.
+        env:
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
         run: |
           MAX="${{ github.event.inputs.max_regressions || '3' }}"
           python scripts/test_dcf.py \
