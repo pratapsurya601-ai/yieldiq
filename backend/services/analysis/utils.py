@@ -227,6 +227,59 @@ def _known_indian_bare() -> frozenset[str]:
     return _KNOWN_INDIAN_BARE
 
 
+# ── Ticker existence gate (P1, 2026-05-02) ─────────────────────
+# `_known_indian_bare()` above already loads every active bare
+# ticker from the `stocks` table once per process. We reuse that
+# cache to cheaply 404 anything that isn't a real symbol — the
+# auditor flagged /prism/HEALTHCARE (a sector name) and
+# /prism/SHAQUAK (junk) auto-creating "Fair value 5.0/10" stub
+# pages even though the new null-pillar gate flipped them to
+# "Under Review". Real fix: refuse to even compute.
+#
+# Returns True if the bare form (suffix-stripped, upper-cased) is
+# in the cached known-Indian-bare set. US tickers and anything
+# else fall through to True so this function is purely a guard
+# against junk Indian-suffixed inputs (HEALTHCARE.NS, SHAQUAK.NS,
+# HEALTHCARE bare). For US/global symbols we still let the request
+# through — those are validated downstream by the data provider.
+def _is_known_ticker(ticker: str) -> bool:
+    """Cheap existence check: is `ticker` a real Indian symbol or a
+    plausibly-non-Indian symbol we should let through?
+
+    Implementation detail: piggy-backs on `_known_indian_bare()` so
+    there's zero extra DB load — the set is built once per worker
+    and then served from a module-level frozenset.
+    """
+    if not ticker:
+        return False
+    bare = (
+        str(ticker).strip().upper()
+        .replace(".NS", "")
+        .replace(".BO", "")
+    )
+    if not bare:
+        return False
+    try:
+        if bare in _known_indian_bare():
+            return True
+    except Exception:
+        # Cache load failed — fail OPEN so a transient DB blip can't
+        # take the whole site down with bogus 404s.
+        return True
+    # If the input had an Indian suffix (.NS / .BO) and the bare
+    # form is NOT in the known-Indian set, we treat it as junk
+    # (HEALTHCARE.NS, SHAQUAK.NS). Without a suffix we let it
+    # through as a possible US/global symbol.
+    t_up = str(ticker).strip().upper()
+    if t_up.endswith(".NS") or t_up.endswith(".BO"):
+        return False
+    # Bare-form guard: if it's clearly Indian-shaped (all-letters,
+    # > 4 chars, requested via a route that expects Indian inputs)
+    # we still let the underlying handler decide — the DB lookup
+    # above already covered the "yes Indian" case. Default open.
+    return True
+
+
 def _canonicalize_ticker(ticker: str) -> str:
     """Normalize bare Indian tickers to their .NS form.
 

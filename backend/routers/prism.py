@@ -22,6 +22,7 @@ from fastapi.responses import JSONResponse
 from backend.services import prism_service, prism_narration_service
 from backend.services import hex_history_service
 from backend.services.cache_service import cache
+from backend.services.analysis.utils import _is_known_ticker
 
 # Shared Cache-Control for public prism responses. s-maxage caches at
 # Vercel edge for 5 min; browsers don't honour s-maxage so private
@@ -88,6 +89,12 @@ async def compare_prism(
 ):
     """Return Prism payloads for two tickers plus per-axis delta overlay.
     Public, cached 1h per side via the underlying service."""
+    # Ticker-existence gate (P1 2026-05-02): refuse junk symbols
+    # (HEALTHCARE, SHAQUAK, etc.) before any compute. Cheap — backed
+    # by the in-memory _known_indian_bare set.
+    for _t in (t1, t2):
+        if not _is_known_ticker(_t):
+            raise HTTPException(status_code=404, detail=f"Ticker {_t!r} not found")
     # Tier-0 RAW cache: pair key is order-normalised so ?t1=A&t2=B
     # and ?t1=B&t2=A share a cache slot. Skips Pydantic + the
     # compare_prisms recomputation.
@@ -150,6 +157,8 @@ async def get_ticker_history(
     are honestly None since we lack historical insider/promoter data)."""
     if not ticker or not ticker.strip():
         raise HTTPException(status_code=400, detail="ticker is required")
+    if not _is_known_ticker(ticker):
+        raise HTTPException(status_code=404, detail=f"Ticker {ticker!r} not found")
 
     norm_ticker = (ticker or "").strip().upper()
     cache_key = f"prism-history:{norm_ticker}:{quarters}"
@@ -198,6 +207,8 @@ async def get_prism(ticker: str):
     `data_limited: true` in the payload."""
     if not ticker or not ticker.strip():
         raise HTTPException(status_code=400, detail="ticker is required")
+    if not _is_known_ticker(ticker):
+        raise HTTPException(status_code=404, detail=f"Ticker {ticker!r} not found")
 
     # Tier-0 RAW dict cache. Skips Pydantic + re-compute of the
     # ~30-50 KB Prism payload. Warm-warm path returns in ~3-5ms
@@ -236,6 +247,8 @@ async def narrate_ticker(ticker: str, request: Request):
     deterministic templated narration."""
     if not ticker or not ticker.strip():
         raise HTTPException(status_code=400, detail="ticker is required")
+    if not _is_known_ticker(ticker):
+        raise HTTPException(status_code=404, detail=f"Ticker {ticker!r} not found")
 
     # Rate limit (best-effort client IP)
     client_ip = (

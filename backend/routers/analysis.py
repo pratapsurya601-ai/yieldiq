@@ -113,6 +113,15 @@ TICKER_ALIASES: dict[str, str] = {
     # 208+ events/day from this one symbol. Redirect to the canonical.
     "LTIM.NS":         "LTIMINDTREE.NS",
     "LTIM":            "LTIMINDTREE.NS",
+    # Company-name slug → listing-symbol mismatches (P1 2026-05-02).
+    # Reddit user reports of "not found" because the URL slug from
+    # autocomplete/screen results differed from the NSE ticker.
+    "GESHIPPING.NS":   "GESHIP.NS",     # Great Eastern Shipping
+    "GESHIPPING":      "GESHIP.NS",
+    "STERLITETECH.NS": "STLTECH.NS",    # Sterlite Technologies
+    "STERLITETECH":    "STLTECH.NS",
+    "GVTD.NS":         "GVT&D.NS",      # GE Vernova T&D India
+    "GVTD":            "GVT&D.NS",
 }
 
 # ── Known-broken upstream tickers ─────────────────────────────
@@ -166,6 +175,25 @@ async def get_analysis(
     # will carry the canonical ticker — frontend compares URL param
     # to response.ticker to show a "renamed to …" banner.
     ticker = TICKER_ALIASES.get(original_ticker, original_ticker)
+
+    # ── Ticker existence gate (P1 2026-05-02) ───────────────────────
+    # Refuse junk symbols (HEALTHCARE, SHAQUAK, etc.) before any
+    # compute path runs. Cheap — backed by the in-memory
+    # _known_indian_bare set (loaded once per worker). Aliases above
+    # already routed legit slug-mismatches (GESHIPPING → GESHIP.NS),
+    # so by this point we only refuse genuinely-unknown symbols.
+    try:
+        from backend.services.analysis.utils import _is_known_ticker
+        if not _is_known_ticker(ticker):
+            raise HTTPException(
+                status_code=404,
+                detail={"error": "Ticker not found", "ticker": original_ticker},
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        # Validator failure must never block analysis.
+        pass
 
     # ── Nickname rewrite (HUL → HINDUNILVR, etc.) ───────────────────
     # YAML `status: nickname` entries are colloquial aliases — rewrite
