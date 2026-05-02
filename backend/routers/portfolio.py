@@ -32,6 +32,73 @@ class ImportCSVRequest(BaseModel):
     broker: str = "zerodha"  # zerodha, groww, upstox, icici, custom
 
 
+# ── Portfolio Prism aggregator (Phase 1, 2026-05-03) ───────────
+# Stateless analysis endpoint. NO persistence (no user_portfolios
+# table this PR), NO tier gating (any signed-in user). Phase 2 will
+# add persistence, tier caps, and substitution suggestions.
+
+class PrismHolding(BaseModel):
+    ticker: str
+    shares: float
+
+
+class PrismAnalyzeRequest(BaseModel):
+    holdings: list[PrismHolding]
+
+
+@router.post("/analyze")
+async def analyze_portfolio(
+    req: PrismAnalyzeRequest,
+    user: dict = Depends(get_current_user),
+):
+    """Aggregate Prism scores, sector concentration, valuation skew,
+    and Piotroski distribution across the supplied holdings.
+
+    Stateless — nothing is written. Reads cached single-ticker
+    analyses only (`analysis_cache_service.get_cached`); never
+    triggers a fresh compute. Hard caps: 25 holdings per request,
+    2s per-ticker timeout, 30s total request budget.
+    """
+    from backend.services.portfolio_aggregator import (
+        aggregate_portfolio,
+        MAX_HOLDINGS,
+        PER_TICKER_TIMEOUT_S,
+        TOTAL_BUDGET_S,
+    )
+
+    holdings = req.holdings or []
+    if not holdings:
+        raise HTTPException(status_code=400, detail="At least one holding required")
+    if len(holdings) > MAX_HOLDINGS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Portfolio analyzer accepts up to {MAX_HOLDINGS} holdings "
+                f"per request (got {len(holdings)})."
+            ),
+        )
+
+    # Validate shares > 0 (silently dropping rows would surprise users).
+    for h in holdings:
+        if h.shares is None or h.shares <= 0:
+            raise HTTPException(
+                status_code=400,
+                detail=f"shares must be > 0 (ticker={h.ticker!r})",
+            )
+
+    import asyncio as _asyncio
+    payload = [{"ticker": h.ticker, "shares": h.shares} for h in holdings]
+    # Run the (sync, thread-pool internally) aggregator off the event
+    # loop so concurrent requests don't serialise.
+    result = await _asyncio.to_thread(
+        aggregate_portfolio,
+        payload,
+        deadline_s=TOTAL_BUDGET_S,
+        per_ticker_timeout_s=PER_TICKER_TIMEOUT_S,
+    )
+    return result
+
+
 @router.get("/holdings", response_model=list[HoldingResponse])
 async def get_holdings(user: dict = Depends(get_current_user)):
     """Get all portfolio holdings for the authenticated user (raw, no live data)."""
