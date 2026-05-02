@@ -12,6 +12,10 @@ export type VerdictBand =
   | "fair"
   | "overvalued"
   | "expensive"
+  // P0 null-pillar gate: emitted when ≥3 of 6 pillars are unscored.
+  // UI must render verdict_label "Under Review" with a neutral-grey
+  // chip and suppress the composite score (show "—" instead of 5.0).
+  | "data_limited"
 
 export type PrismMode = "signature" | "spectrum"
 

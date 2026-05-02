@@ -109,8 +109,12 @@ export function adaptPrismResponse(raw: unknown, fallbackTicker = ""): PrismData
   return {
     ticker: String(r.ticker ?? fallbackTicker),
     company_name: String(r.company_name ?? fallbackTicker),
-    verdict_band: (r.verdict_band as VerdictBand) ?? "fair",
-    verdict_label: String(r.verdict_label ?? "Fair value region"),
+    // P0 null-pillar gate: when the backend can't score a stock it
+    // sends verdict_band="data_limited"/verdict_label="Under Review".
+    // Default to that here too — never silently default to "fair" /
+    // "Fair value region" (the bug behind /prism/HEALTHCARE etc.).
+    verdict_band: (r.verdict_band as VerdictBand) ?? "data_limited",
+    verdict_label: String(r.verdict_label ?? "Under Review"),
     pillars,
     overall,
     refraction_index: typeof r.refraction_index === "number" ? r.refraction_index : computeRefraction(pillars),
@@ -162,6 +166,9 @@ export function verdictColor(band: VerdictBand): string {
     case "overvalued":
     case "expensive":
       return "var(--color-danger)"
+    case "data_limited":
+      // Neutral grey — communicates "no signal" rather than "fair".
+      return "var(--color-muted, #9ca3af)"
     case "fair":
     default:
       return "var(--color-warning)"

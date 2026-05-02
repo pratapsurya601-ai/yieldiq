@@ -46,18 +46,71 @@ _VERDICT_BANDS = [
 
 
 def _verdict_from_mos(mos_pct: Optional[float]) -> tuple[str, str]:
+    # P0 null-pillar gate (2026-05-02): when mos_pct is missing the
+    # caller (or `assign_verdict`) is expected to surface "Under
+    # Review" — never silently default to "Fair value region". The
+    # methodology page promises an explicit "Under Review" verdict
+    # for insufficient data; the previous `"fair" / "Fair value
+    # region"` fallback violated that promise (audit hits on
+    # /prism/HEALTHCARE, /prism/SHAQUAK, /prism/TRL).
     if mos_pct is None:
-        return "fair", "Fair value region"
+        return "data_limited", "Under Review"
     try:
         m = float(mos_pct)
     except (TypeError, ValueError):
-        return "fair", "Fair value region"
+        return "data_limited", "Under Review"
     if math.isnan(m) or math.isinf(m):
-        return "fair", "Fair value region"
+        return "data_limited", "Under Review"
     for threshold, key, label in _VERDICT_BANDS:
         if m >= threshold:
             return key, label
     return "expensive", "Notably above fair value"
+
+
+def _count_null_pillars(hex_payload: Optional[dict]) -> int:
+    """Count pillars (axes) that lack a real score.
+
+    A pillar is "null" if its dict is missing, its `score` key is
+    None, OR `data_limited` is True (the latter is how
+    `hex_service._neutral_axis` flags placeholder 5.0 fills).
+    """
+    axes = (hex_payload or {}).get("axes") or {}
+    if not isinstance(axes, dict) or not axes:
+        # No axes at all = every pillar is null.
+        return 6
+    null_count = 0
+    for _key, node in axes.items():
+        if not isinstance(node, dict):
+            null_count += 1
+            continue
+        if node.get("score") is None:
+            null_count += 1
+            continue
+        if node.get("data_limited") is True:
+            null_count += 1
+    return null_count
+
+
+def assign_verdict(
+    hex_payload: Optional[dict],
+    mos_pct: Optional[float],
+) -> tuple[str, str, Optional[float], Optional[str]]:
+    """Return (verdict_band, verdict_label, composite_score, reason).
+
+    P0 null-pillar gate: when 3 or more of the 6 pillars have no
+    real score, force "Under Review" instead of letting MoS drive a
+    misleading "Fair value region · 5.0/10" composite.
+    """
+    null_count = _count_null_pillars(hex_payload)
+    if null_count >= 3:
+        return (
+            "data_limited",
+            "Under Review",
+            None,
+            f"Insufficient data — {6 - null_count} of 6 pillars scored",
+        )
+    band, label = _verdict_from_mos(mos_pct)
+    return band, label, None, None
 
 
 def _grade_from_score(score_100: Optional[float]) -> str:
@@ -499,8 +552,15 @@ def _baseline_payload(ticker: str, compute_ms: float, error: str = "") -> dict:
         "price": None,
         "fair_value": None,
         "mos_pct": None,
-        "verdict_band": "fair",
-        "verdict_label": "Fair value region",
+        # P0 null-pillar gate: the baseline payload is returned when
+        # the entire compute path errors out — by definition we have
+        # zero pillar scores, so the verdict is "Under Review", not
+        # "Fair value region". (Previous default silently shipped a
+        # 5.0/10 composite for tickers like /prism/HEALTHCARE.)
+        "verdict_band": "data_limited",
+        "verdict_label": "Under Review",
+        "composite_score": None,
+        "verdict_reason": "Insufficient data — fewer than 4 pillars scored",
         "hex": None,
         "refraction_index": 0.0,
         "pulse_velocity_hz": 0.33,
@@ -655,7 +715,24 @@ def _build_prism(ticker: str, t0: float) -> dict:
     except Exception:
         mos_pct = None
 
-    verdict_band, verdict_label = _verdict_from_mos(mos_pct)
+    # P0 MoS standardization (2026-05-02): clamp the displayed MoS to
+    # [-100, +200]. Raw value is preserved in `mos_pct_raw`; clamped
+    # value replaces `mos_pct`; `mos_clamped` flags whether the clamp
+    # actually changed the number.
+    mos_pct_raw = mos_pct
+    mos_clamped = False
+    if mos_pct is not None:
+        from backend.services.analysis.utils import display_mos as _display_mos
+        _d, _c = _display_mos(mos_pct)
+        if _d is not None:
+            mos_pct = round(_d, 2)
+            mos_clamped = _c
+
+    # P0 null-pillar gate: when ≥3 pillars are unscored, surface
+    # "Under Review" instead of the misleading MoS-based default.
+    verdict_band, verdict_label, _composite_override, verdict_reason = (
+        assign_verdict(hex_payload, mos_pct)
+    )
 
     # 5. yieldiq_score_100 from hex overall
     overall = _dig(hex_payload, "overall")
@@ -666,6 +743,14 @@ def _build_prism(ticker: str, t0: float) -> dict:
     except Exception:
         yieldiq_score_100 = None
     grade = _grade_from_score(yieldiq_score_100)
+
+    # P0 null-pillar gate: if the verdict is "Under Review" the
+    # composite score is meaningless (it would have averaged to ~5.0
+    # via the neutral-axis fallback). Null it out so the UI shows
+    # "—" instead of a confident-looking 5.0/10.
+    if verdict_band == "data_limited" and verdict_label == "Under Review":
+        yieldiq_score_100 = None
+        grade = None  # downstream renderers must handle None grade
 
     # 6. Refraction index + pulse velocity
     refraction_index = _refraction_index(hex_payload or {})
@@ -713,6 +798,7 @@ def _build_prism(ticker: str, t0: float) -> dict:
         or price is None
         or fair_value is None
         or mos_pct is None
+        or verdict_band == "data_limited"
     )
 
     elapsed = (time.perf_counter() - t0) * 1000.0
@@ -725,8 +811,16 @@ def _build_prism(ticker: str, t0: float) -> dict:
         "price": price,
         "fair_value": fair_value,
         "mos_pct": mos_pct,
+        "mos_pct_raw": mos_pct_raw,
+        "mos_clamped": mos_clamped,
         "verdict_band": verdict_band,
         "verdict_label": verdict_label,
+        # P0 null-pillar gate: composite_score mirrors yieldiq_score_100
+        # but is None when the gate fires — surfaced separately so any
+        # downstream caller looking for "the headline number" gets a
+        # null instead of falling back to the score field.
+        "composite_score": yieldiq_score_100,
+        "verdict_reason": verdict_reason,
         "hex": hex_payload,
         "refraction_index": refraction_index,
         "pulse_velocity_hz": pulse_hz,

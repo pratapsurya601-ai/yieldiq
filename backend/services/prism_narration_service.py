@@ -120,8 +120,13 @@ def _groq_narration(prism: dict) -> Optional[dict]:
     company = prism.get("company_name") or prism.get("ticker")
     overall = _safe_float(prism.get("yieldiq_score_100") or
                           (_dig(prism, "hex", "overall") or 0) * 10)
-    verdict_band = prism.get("verdict_band") or "fair"
-    verdict_label = prism.get("verdict_label") or "Fair value region"
+    # P0 null-pillar gate: never default to "fair" / "Fair value
+    # region" here — that masked the upstream null-pillar bug for
+    # tickers like /prism/HEALTHCARE and /prism/SHAQUAK. When the
+    # prism payload genuinely has no verdict, narrate it as
+    # "Under Review" so downstream copy stays honest.
+    verdict_band = prism.get("verdict_band") or "data_limited"
+    verdict_label = prism.get("verdict_label") or "Under Review"
     mos = prism.get("mos_pct")
     price = prism.get("price")
     fv = prism.get("fair_value")
@@ -273,7 +278,9 @@ def _templated_narration(prism: dict) -> dict:
     """
     ticker = prism.get("ticker") or ""
     company = prism.get("company_name") or ticker
-    verdict_label = str(prism.get("verdict_label") or "Fair value region")
+    # P0 null-pillar gate: same fix as `_groq_narration` — no silent
+    # "Fair value region" fallback. If the prism is unscored, say so.
+    verdict_label = str(prism.get("verdict_label") or "Under Review")
     overall_100 = prism.get("yieldiq_score_100")
     overall_10 = None
     try:
@@ -291,7 +298,16 @@ def _templated_narration(prism: dict) -> dict:
     fv = prism.get("fair_value")
 
     # Intro
-    if overall_10 is not None:
+    # P0 null-pillar gate: when the verdict is "Under Review" the
+    # composite score is suppressed upstream — narrate the dimmed
+    # state honestly instead of pretending it sits in any region.
+    if verdict_label == "Under Review":
+        intro = (
+            f"{company} is currently Under Review on the YieldIQ Prism — "
+            f"too few of the six pillars have enough data to score "
+            f"a confident composite. The lit pillars below show what we do know."
+        )
+    elif overall_10 is not None:
         intro = (
             f"{company} scores {overall_10} on the YieldIQ Prism, "
             f"sitting in the {verdict_label.lower()}. "
