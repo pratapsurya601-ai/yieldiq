@@ -52,6 +52,36 @@ from typing import Optional
 
 logger = logging.getLogger("yieldiq.peer_cap")
 
+
+def should_skip_peer_cap(ticker: str) -> bool:
+    """Bellwether allowlist: trust the explicit model, not the peer
+    cohort ceiling. For these tickers the DCF / RIM / bank-P/B
+    model already encodes the right narrative (super-stable consumer
+    bellwethers, tier-1 private banks with reset COE) and the peer
+    cohort median tends to under-price them due to the long tail
+    of weaker comps. Empirically, applying peer_cap to TITAN /
+    HDFCBANK was overriding the bcc591d super-cyclical exclusion
+    and bank COE reset — so the explicit model wins here.
+
+    Imports deferred to avoid a circular import:
+    backend.services.analysis.__init__ imports service.py, which
+    imports this module at top level."""
+    if not ticker:
+        return False
+    try:
+        from backend.services.analysis.constants import (
+            NEVER_SUPER_CYCLICAL,
+            is_top_private_bank,
+        )
+    except Exception:
+        return False
+    bare = ticker.replace(".NS", "").replace(".BO", "").upper()
+    if bare in NEVER_SUPER_CYCLICAL:
+        return True
+    if is_top_private_bank(bare):
+        return True
+    return False
+
 # Threshold: peers must have market_cap_cr above this floor (in ₹ crore)
 # to be considered "liquid". Smaller names have noisier multiples and
 # thinner public data, which would defeat the purpose of the cap.
@@ -268,6 +298,14 @@ def compute_peer_cap(ticker: str) -> Optional[dict]:
           "is_bank": bool,
         }
     """
+    # Bellwether allowlist: skip peer-cap entirely so the explicit
+    # DCF / RIM / bank-P/B model wins. Returning None here means the
+    # caller leaves `iv` untouched (no ceiling applied).
+    if should_skip_peer_cap(ticker):
+        logger.info(
+            "peer_cap.bypass ticker=%s reason=bellwether_allowlist", ticker,
+        )
+        return None
     db_ticker = ticker.replace(".NS", "").replace(".BO", "")
     session = _get_session()
     if session is None:
