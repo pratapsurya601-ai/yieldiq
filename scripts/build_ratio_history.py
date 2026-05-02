@@ -24,6 +24,10 @@ Flags
 -----
     --all                    process every is_active=true stock
     --tickers T1,T2,...      process only the given tickers
+    --rebuild-stale          process only tickers whose ratio_history is stale
+                             relative to financials (financials.roe IS NOT NULL
+                             AND ratio_history.roe IS NULL for at least one
+                             period). Mutually exclusive with --all/--tickers.
     --since YYYY-MM-DD       only recompute periods with period_end >= this date
     --period-types a,b,...   restrict to given period_types
                              (default: annual,quarterly)
@@ -727,7 +731,36 @@ def process_ticker(
 # ──────────────────────────────────────────────────────────────────────
 # Ticker selection
 # ──────────────────────────────────────────────────────────────────────
+_STALE_TICKERS_SQL = text("""
+    SELECT DISTINCT f.ticker
+    FROM financials f
+    JOIN stocks s ON s.ticker = f.ticker AND s.is_active = TRUE
+    LEFT JOIN ratio_history rh
+      ON rh.ticker = f.ticker
+     AND rh.period_end = f.period_end
+     AND rh.period_type = f.period_type
+    WHERE f.roe IS NOT NULL
+      AND rh.roe IS NULL
+    ORDER BY f.ticker
+""")
+
+
+def _load_stale_tickers(db: OrmSession) -> list[str]:
+    """Tickers where financials has data but ratio_history is missing/stale.
+
+    Selection rule: any (ticker, period_end, period_type) where
+    ``financials.roe IS NOT NULL`` but the matching ``ratio_history.roe``
+    is NULL (either the row is absent, or the row exists but was
+    written before the financials backfill landed). One distinct ticker
+    per match.
+    """
+    rows = db.execute(_STALE_TICKERS_SQL).fetchall()
+    return [r[0] for r in rows]
+
+
 def _load_tickers(db: OrmSession, args: argparse.Namespace) -> list[str]:
+    if args.rebuild_stale:
+        return _load_stale_tickers(db)
     if args.tickers:
         return [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
     if args.all:
@@ -738,7 +771,7 @@ def _load_tickers(db: OrmSession, args: argparse.Namespace) -> list[str]:
             )
         ).fetchall()
         return [r[0] for r in rows]
-    raise SystemExit("Must pass --all or --tickers")
+    raise SystemExit("Must pass --all, --tickers, or --rebuild-stale")
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -754,6 +787,14 @@ def main() -> int:
                         help="Comma-separated list of tickers.")
     parser.add_argument("--all", action="store_true",
                         help="Process all is_active=true stocks.")
+    parser.add_argument(
+        "--rebuild-stale", action="store_true",
+        help=(
+            "Process only tickers where ratio_history is stale relative to "
+            "financials (financials.roe NOT NULL but ratio_history.roe IS "
+            "NULL for some period). Mutually exclusive with --all/--tickers."
+        ),
+    )
     parser.add_argument("--since", type=str, default=None,
                         help="Only recompute period_end >= this YYYY-MM-DD.")
     parser.add_argument(
@@ -762,6 +803,17 @@ def main() -> int:
         help="Comma-separated period_types (default: annual,quarterly).",
     )
     args = parser.parse_args()
+
+    # Mutual exclusion: --rebuild-stale runs its own selection query.
+    _selectors = sum(bool(x) for x in (args.all, args.tickers, args.rebuild_stale))
+    if _selectors > 1:
+        logger.error(
+            "--all, --tickers, and --rebuild-stale are mutually exclusive"
+        )
+        return 2
+    if _selectors == 0:
+        logger.error("Must pass one of --all, --tickers, --rebuild-stale")
+        return 2
 
     if not os.environ.get("DATABASE_URL"):
         logger.error("DATABASE_URL not set")
@@ -786,10 +838,19 @@ def main() -> int:
         db.close()
 
     total = len(tickers)
-    logger.info(
-        "starting build_ratio_history: %d tickers, period_types=%s, since=%s",
-        total, period_types, since.isoformat() if since else "all",
+    _selector = (
+        "rebuild-stale" if args.rebuild_stale
+        else ("all" if args.all else "tickers")
     )
+    logger.info(
+        "starting build_ratio_history: selector=%s, %d tickers, "
+        "period_types=%s, since=%s",
+        _selector, total, period_types,
+        since.isoformat() if since else "all",
+    )
+    if total == 0:
+        logger.info("no tickers to process — exiting cleanly")
+        return 0
 
     any_failure = False
     for i, ticker in enumerate(tickers, start=1):

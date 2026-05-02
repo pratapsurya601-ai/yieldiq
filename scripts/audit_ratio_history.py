@@ -325,6 +325,51 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
+def fetch_stale_rows(
+    dsn: str, tickers: Iterable[str] | None = None,
+) -> list[tuple[str, date, str]]:
+    """Return (ticker, period_end, period_type) rows where ``financials``
+    has a populated ``roe`` but ``ratio_history.roe`` is NULL.
+
+    These are the rows that ``build_ratio_history.py --rebuild-stale``
+    would target — surfacing them in the audit gives operators a
+    deterministic count of what's left to rebuild after a financials
+    backfill, separate from the heuristic ``stale`` flag (which only
+    looks at the latest-row period_end age).
+    """
+    try:
+        import psycopg2  # type: ignore[import-not-found]
+    except ImportError as exc:
+        raise SystemExit(
+            "ERROR: psycopg2 not installed. `pip install psycopg2-binary`."
+        ) from exc
+
+    base_sql = """
+        SELECT f.ticker, f.period_end, f.period_type
+        FROM financials f
+        JOIN stocks s ON s.ticker = f.ticker AND s.is_active = TRUE
+        LEFT JOIN ratio_history rh
+          ON rh.ticker = f.ticker
+         AND rh.period_end = f.period_end
+         AND rh.period_type = f.period_type
+        WHERE f.roe IS NOT NULL
+          AND rh.roe IS NULL
+    """
+    params: tuple = ()
+    if tickers is not None:
+        tlist = sorted({t.strip().upper() for t in tickers if t})
+        if not tlist:
+            return []
+        base_sql += " AND f.ticker = ANY(%s)"
+        params = (tlist,)
+    base_sql += " ORDER BY f.ticker, f.period_end DESC"
+
+    with psycopg2.connect(dsn) as conn:  # type: ignore[attr-defined]
+        with conn.cursor() as cur:
+            cur.execute(base_sql, params)
+            return [(str(r[0]), r[1], str(r[2])) for r in cur.fetchall()]
+
+
 def fetch_active_tickers(dsn: str) -> list[str]:
     """Return every ticker from ``stocks`` where ``is_active = TRUE``.
 
@@ -451,6 +496,33 @@ def main(argv: list[str] | None = None) -> int:
                   f"PE={_fmt(r.pe_ratio):>10s}  ROE={_fmt(r.roe):>10s}  "
                   f"ROCE={_fmt(r.roce):>10s}")
     print()
+
+    # ── Stale rows section ──
+    # Counts (ticker, period_end) pairs where financials has roe but
+    # ratio_history doesn't — the exact set --rebuild-stale targets.
+    if not args.dry_db:
+        try:
+            stale_rows = fetch_stale_rows(dsn, tickers)
+        except Exception as exc:
+            logger.warning("stale-rows query failed: %s", exc)
+            stale_rows = []
+        stale_tickers = sorted({r[0] for r in stale_rows})
+        print("=" * 70)
+        print(
+            f"stale rows (financials.roe NOT NULL, ratio_history.roe NULL): "
+            f"{len(stale_rows)} rows across {len(stale_tickers)} tickers"
+        )
+        print("=" * 70)
+        if stale_tickers:
+            print("Stale tickers (first 20):")
+            for t in stale_tickers[:20]:
+                n = sum(1 for r in stale_rows if r[0] == t)
+                print(f"  {t:14s}  {n} stale period(s)")
+            print()
+            print(
+                "Remediation: scripts/build_ratio_history.py --rebuild-stale"
+            )
+        print()
     return 0
 
 

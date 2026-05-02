@@ -212,6 +212,46 @@ def run(
         if sleep_s > 0 and idx < len(flagged):
             time.sleep(sleep_s)
 
+    # ── Universe-wide stale sweep ──
+    # Per-ticker rebuild above only catches tickers flagged by the audit
+    # heuristics (null_pe / sub_one_pe / hyper_pct / stale latest_period_end).
+    # It does NOT catch the "financials backfilled AFTER ratio_history was
+    # last computed" failure mode that hit PNB/RBLBANK/UCOBANK/PSB/SOUTHBANK
+    # in the 2026-05 hotfix. Shell out to build_ratio_history --rebuild-stale
+    # here so future financials backfills auto-trigger ratio rebuilds.
+    if apply and not dry_db:
+        builder = REPO_ROOT / "scripts" / "build_ratio_history.py"
+        if builder.exists() and dsn:
+            logger.info("running build_ratio_history.py --rebuild-stale")
+            env = os.environ.copy()
+            env["DATABASE_URL"] = dsn
+            try:
+                proc = subprocess.run(
+                    [sys.executable, str(builder), "--rebuild-stale"],
+                    env=env, capture_output=True, text=True, timeout=3600,
+                )
+                if proc.returncode != 0:
+                    logger.warning(
+                        "build_ratio_history --rebuild-stale exited rc=%d: %s",
+                        proc.returncode,
+                        (proc.stderr or proc.stdout or "")[-200:],
+                    )
+                else:
+                    logger.info("build_ratio_history --rebuild-stale OK")
+            except subprocess.TimeoutExpired:
+                logger.warning(
+                    "build_ratio_history --rebuild-stale timed out (>3600s)"
+                )
+            except Exception as exc:  # pragma: no cover — defensive
+                logger.warning(
+                    "build_ratio_history --rebuild-stale errored: %s", exc,
+                )
+        else:
+            logger.warning(
+                "skipping --rebuild-stale sweep: builder=%s exists=%s dsn=%s",
+                builder, builder.exists(), bool(dsn),
+            )
+
     # Post-audit only if we actually applied; in dry-run the second pass
     # would just show identical state.
     post_by_ticker: dict[str, ara.AuditRow] = {}
