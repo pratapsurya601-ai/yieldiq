@@ -1288,63 +1288,22 @@ class AnalysisService(NarrativeMixin):
         # ── Step 10: Verdict ──────────────────────────────────
         _conf_score = confidence.get("score", 50)
 
-        # ── Null-CAGR data-limited gate (2026-05-02) ─────────
-        # Complements the null-pillar gate (d7c1165). NESTLEIND
-        # surfaced as overvalued (FV ₹764 vs CMP ₹1459) despite
-        # both 3y and 5y revenue CAGR being null — the DCF still
-        # ran on a fallback growth, producing a misleading verdict.
-        # When we have NO usable historical revenue trajectory we
-        # cannot fairly call a stock cheap/expensive — flag it as
-        # data_limited and suppress the FV so the UI does not emit
-        # garbage. CAGR computation is duplicated from the block
-        # below (lines 1726-1752); cheap because income_df is
-        # already in memory on `enriched`.
-        _early_cagr_3y = None
-        _early_cagr_5y = None
-        try:
-            _inc_early = enriched.get("income_df")
-            if _inc_early is not None and hasattr(_inc_early, "empty") \
-                    and not _inc_early.empty and "revenue" in _inc_early.columns:
-                _rev_series_early = _inc_early["revenue"].dropna().tolist()
-                _early_cagr_3y = _rcagr(_rev_series_early, 3)
-                _early_cagr_5y = _rcagr(_rev_series_early, 5)
-                # Apply the same ±50% sanity clamp used downstream.
-                for _name in ("_early_cagr_3y", "_early_cagr_5y"):
-                    _v = locals()[_name]
-                    if _v is not None:
-                        try:
-                            if abs(float(_v)) > 0.50:
-                                if _name == "_early_cagr_3y":
-                                    _early_cagr_3y = None
-                                else:
-                                    _early_cagr_5y = None
-                        except (TypeError, ValueError):
-                            if _name == "_early_cagr_3y":
-                                _early_cagr_3y = None
-                            else:
-                                _early_cagr_5y = None
-        except Exception:
-            _early_cagr_3y = None
-            _early_cagr_5y = None
-
-        _null_cagr_gate_tripped = (
-            _early_cagr_3y is None and _early_cagr_5y is None
-        )
-        if _null_cagr_gate_tripped:
-            import logging as _lg
-            _lg.getLogger("yieldiq.analysis").info(
-                "null_cagr_gate.tripped ticker=%s — both 3y and 5y CAGR null, "
-                "verdict forced to data_limited",
-                ticker,
-            )
-            # Suppress FV so we don't emit a garbage number alongside
-            # an Under Review verdict.
+        # ── Null-CAGR data-limited gate DISABLED 2026-05-03 ──
+        # REVERTED — gate over-fired for bellwethers with full CAGR
+        # data (HDFCBANK/TCS/NESTLEIND/TITAN/ICICIBANK/KOTAKBANK/
+        # AXISBANK/ASIANPAINT/POWERINDIA all returned FV=0.0
+        # verdict=data_limited in production). The early _rcagr call
+        # against enriched["income_df"] at this pipeline stage returns
+        # None even when income_df has data — the existing CAGR calc
+        # at lines 1726-1752 handles it correctly later. Needs a proper
+        # fix that reuses the downstream computed CAGR rather than
+        # recomputing here. Peer_cap bypass from 49e5add is RETAINED.
+        _null_cagr_gate_tripped = False  # was: both early CAGRs None
+        if False:  # gate disabled — see comment above
+            verdict = "data_limited"
             iv = 0
             mos_pct = 0
-
-        if _null_cagr_gate_tripped:
-            verdict = "data_limited"
-        elif is_financial:
+        if is_financial:
             # Financial companies: simple MoS verdict, NEVER "avoid"
             if iv <= 0:
                 verdict = "data_limited"
