@@ -7,9 +7,15 @@ Each entry can specify:
 - override_fv: hardcoded fair value if model can't run
 - verdict_label_prefix: optional prefix for the verdict label
 - terminal_growth_override: float, override DCF terminal growth (e.g. 0.06 for wide-moat compounders)
+- ipo_framework: bool, if true, route through IPO-specific DCF (recent listing,
+  elevated WACC, prospectus-anchored projections). See: ipo_framework.py.
+- ipo_listing_date: str, ISO date (YYYY-MM-DD) of NSE/BSE listing — used by
+  ipo_framework.is_recent_ipo() to decide whether IPO routing still applies.
 
 ROADMAP: build sum-of-parts engine for RELIANCE/ITC/holdcos.
 Currently surfaces caveat banner. See: ticker_overrides.py.
+IPO framework scaffold lives in ipo_framework.py (Phase 0 — schema + helpers,
+no DCF routing wired yet; real prospectus financials populated in a later session).
 """
 
 TICKER_OVERRIDES: dict[str, dict] = {
