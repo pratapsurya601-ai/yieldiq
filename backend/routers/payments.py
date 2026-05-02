@@ -29,11 +29,26 @@ if not RAZORPAY_KEY_ID:
 #
 # If any of these are missing, create-subscription returns 503 for
 # that specific (tier, billing) pair — other tiers still work.
+# TODO: create these plans in Razorpay dashboard before flipping the toggle live
+#   - analyst_annual   → ₹4,999/year   (49,900 paise) — recurring, yearly
+#   - pro_annual       → ₹9,999/year   (99,900 paise) — recurring, yearly
+#   - student_monthly  → ₹199/month    (19,900 paise) — recurring, monthly,
+#                         gated by manual /CA verification (hello@yieldiq.in)
+# Until the dashboard plans exist, the env vars below stay empty and
+# create-subscription returns 503 for those tuples (other tiers unaffected).
+ANALYST_ANNUAL_PLAN_ID = "plan_annual_analyst_TBD"
+PRO_ANNUAL_PLAN_ID = "plan_annual_pro_TBD"
+STUDENT_MONTHLY_PLAN_ID = "plan_student_monthly_TBD"
+
 RAZORPAY_PLAN_IDS: dict[str, str] = {
     "analyst_monthly": os.environ.get("RAZORPAY_PLAN_ANALYST_MONTHLY", "").strip(),
-    "analyst_annual":  os.environ.get("RAZORPAY_PLAN_ANALYST_ANNUAL", "").strip(),
+    "analyst_annual":  os.environ.get("RAZORPAY_PLAN_ANALYST_ANNUAL", "").strip() or "",
     "pro_monthly":     os.environ.get("RAZORPAY_PLAN_PRO_MONTHLY", "").strip(),
-    "pro_annual":      os.environ.get("RAZORPAY_PLAN_PRO_ANNUAL", "").strip(),
+    "pro_annual":      os.environ.get("RAZORPAY_PLAN_PRO_ANNUAL", "").strip() or "",
+    # Student tier: manual approval gate, not self-serve. Webhook /
+    # subscription create paths still require the env var to be set
+    # AFTER the user is approved out-of-band via email.
+    "student_monthly": os.environ.get("RAZORPAY_PLAN_STUDENT_MONTHLY", "").strip() or "",
 }
 _missing_plan_ids = [k for k, v in RAZORPAY_PLAN_IDS.items() if not v]
 if _missing_plan_ids:
@@ -61,11 +76,11 @@ PLANS = {
     },
     "analyst_annual": {
         "name": "Analyst (Annual)",
-        "amount": 699900,  # ₹6,999 in paise — 27% off monthly × 12
+        "amount": 499900,  # ₹4,999 in paise — ~48% off monthly × 12
         "currency": "INR",
         "interval": "annual",
         "description": (
-            "All Analyst features, billed yearly. Save ₹2,589/yr (~27%) vs monthly."
+            "All Analyst features, billed yearly. Save ₹4,589/yr (~48%) vs monthly."
         ),
     },
     "pro": {
@@ -80,11 +95,22 @@ PLANS = {
     },
     "pro_annual": {
         "name": "Pro (Annual)",
-        "amount": 1399900,  # ₹13,999 in paise — 22% off monthly × 12
+        "amount": 999900,  # ₹9,999 in paise — ~44% off monthly × 12
         "currency": "INR",
         "interval": "annual",
         "description": (
-            "All Pro features, billed yearly. Save ₹3,989/yr (~22%) vs monthly."
+            "All Pro features, billed yearly. Save ₹7,989/yr (~44%) vs monthly."
+        ),
+    },
+    "student_monthly": {
+        "name": "Student / CA articleship",
+        "amount": 19900,  # ₹199 in paise — ~75% off Analyst monthly
+        "currency": "INR",
+        "interval": "monthly",
+        "description": (
+            "Verified students + CA articleship trainees only. 5 deep "
+            "analyses/day, watchlist, portfolio. No Pro tier features. "
+            "Auto-expires when graduation/articleship completion date passes."
         ),
     },
     # One-time pay-as-you-go — casual visitor who wants ONE analysis.
@@ -115,9 +141,10 @@ async def get_plans():
     return {
         "plans": [
             {"id": "analyst", **PLANS["analyst"], "display_price": "₹799/mo"},
-            {"id": "analyst_annual", **PLANS["analyst_annual"], "display_price": "₹6,999/yr"},
+            {"id": "analyst_annual", **PLANS["analyst_annual"], "display_price": "₹4,999/yr"},
             {"id": "pro", **PLANS["pro"], "display_price": "₹1,499/mo"},
-            {"id": "pro_annual", **PLANS["pro_annual"], "display_price": "₹13,999/yr"},
+            {"id": "pro_annual", **PLANS["pro_annual"], "display_price": "₹9,999/yr"},
+            {"id": "student_monthly", **PLANS["student_monthly"], "display_price": "₹199/mo (verified)"},
             {"id": "single_analysis", **PLANS["single_analysis"], "display_price": "₹99 / analysis"},
         ],
         "free_tier_limit": FREE_TIER_MONTHLY_ANALYSIS_LIMIT,
