@@ -7,7 +7,7 @@ import Link from "next/link"
  * Companion page to /methodology. Tells the user what Tier A / B / C
  * mean, what the seven rubric criteria are, and roughly how the
  * universe distributes across them today. Honest framing is the whole
- * point of the feature — this page should NOT minimise the existence
+ * point of the feature — this page must NOT minimise the existence
  * of Tier C.
  *
  * Server Component (no "use client"): zero client JS. The expected
@@ -23,7 +23,7 @@ import Link from "next/link"
 export function generateMetadata(): Metadata {
   const title = "Coverage Tiers — A, B, and C in YieldIQ"
   const description =
-    "How YieldIQ assigns A/B/C coverage tiers per stock. The seven-criterion rubric, why we publish lower-tier names anyway, and what each tier should mean to you when you read an analysis."
+    "How YieldIQ assigns A/B/C coverage tiers per stock. The seven-criterion rubric, why we publish lower-tier names anyway, and what each tier we honestly disclose to you when you read an analysis."
   return {
     title,
     description,
@@ -175,7 +175,7 @@ export default function CoverageMethodologyPage() {
         <p className="mb-6 text-sm text-body leading-relaxed">
           A ticker is evaluated against seven binary criteria. Tier A
           requires all seven. Tier B requires five or six AND that the
-          looser floors below hold. Everything else is Tier C.
+          looser floors below apply. Everything else is Tier C.
         </p>
         <ul className="space-y-0">
           <Criterion

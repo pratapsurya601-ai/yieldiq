@@ -13,11 +13,10 @@
  *     payload (e.g. og-data hands `{tier, criteria_met}` for free).
  *   * On first expand we lazy-fetch the full rubric from
  *     /api/v1/coverage/{ticker}. Server caches it for 6h so this is
- *     cheap on repeat opens.
+ *     low-cost on repeat opens.
  *
- * SEBI vocabulary: "Modeled", "Coverage", "Limited" — never buy/sell,
- * never strong/weak. The whole point is honest framing about *our*
- * model quality, not advisory language.
+ * SEBI vocabulary: see scripts/check_sebi_words.py for the canonical banned-word list.
+ * Use descriptive labels ("Modeled", "Coverage", "Limited"), not advisory or directional terms.
  *
  * Renders nothing if both `summary` and `ticker` are missing — keeps
  * the hero compact for legacy cached payloads predating the feature.
