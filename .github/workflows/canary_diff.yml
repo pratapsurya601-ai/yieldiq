@@ -60,6 +60,11 @@ jobs:
         env:
           CANARY_API_BASE: https://api.yieldiq.in
           CANARY_AUTH_TOKEN: ${{ secrets.CANARY_AUTH_TOKEN }}
+          # Pass the PR number so canary_diff.py can pull the
+          # `intentional-fv-deltas:` block from the PR body via `gh pr view`
+          # and exempt declared tickers from gate-failure totals.
+          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python scripts/canary_diff.py --quiet
 
       - name: Upload canary report
