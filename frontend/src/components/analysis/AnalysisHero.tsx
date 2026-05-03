@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import ConvictionRing from "@/components/analysis/ConvictionRing"
 import VerdictChip from "@/components/analysis/VerdictChip"
+import CoverageTierBadge from "@/components/analysis/CoverageTierBadge"
 import Hex from "@/components/hex/Hex"
 import HexExplainer from "@/components/hex/HexExplainer"
 import { fetchHex, type HexAxisKey, type HexResponse } from "@/lib/hex"
@@ -255,7 +256,15 @@ export default function AnalysisHero({
 
         {/* Right — verdict, metrics, thesis */}
         <div className="flex-1 min-w-0 space-y-3">
-          <VerdictChip verdict={effectiveVerdict} size="lg" />
+          {/* Verdict + coverage tier sit on the same row so users see
+              the model output and our honest framing of how confident
+              we are in that output side by side. The CoverageTierBadge
+              lazy-fetches its own rubric on first expand — it has no
+              impact on the hero's first paint. */}
+          <div className="flex flex-wrap items-center gap-2">
+            <VerdictChip verdict={effectiveVerdict} size="lg" />
+            {ticker && <CoverageTierBadge ticker={ticker} size="md" />}
+          </div>
 
           {/* Metric block — 2x2 on md+, 2 rows of 2 on mobile */}
           <dl className="grid grid-cols-2 gap-x-6 gap-y-3">
