@@ -43,9 +43,9 @@ const BAND_LABELS: Record<string, string> = {
 // Semantic-ish palette. Greens/reds carry direction; we deliberately
 // use muted tones rather than saturated alarm colours.
 const BAND_COLOR: Record<string, string> = {
-  below_fair_value: "#16a34a", // green-600 — model says "should rise"
+  below_fair_value: "#16a34a", // green-600 — model expects to rise
   near_fair_value: "#64748b",  // slate-500
-  above_fair_value: "#dc2626", // red-600 — model says "should fall"
+  above_fair_value: "#dc2626", // red-600 — model expects to fall
 }
 
 export type ReturnAttributionDatum = {
@@ -102,9 +102,9 @@ export function ReturnAttributionBars({
           />
           <ReferenceLine y={0} stroke="#9ca3af" />
           <Tooltip
-            formatter={(value: number, name: string) => [
-              `${value.toFixed(1)}%`,
-              name === "mean" ? "Mean 12mo return" : name,
+            formatter={(value: any, name: any) => [
+              typeof value === "number" ? `${value.toFixed(1)}%` : String(value),
+              name === "mean" ? "Mean 12mo return" : String(name),
             ]}
             labelFormatter={(label, payload) => {
               const n = payload?.[0]?.payload?.count
@@ -183,10 +183,11 @@ export function CalibrationScatter({ data }: { data: CalibrationBucket[] }) {
           <ReferenceLine x={0} stroke="#9ca3af" />
           <Tooltip
             cursor={{ strokeDasharray: "3 3" }}
-            formatter={(value: number, name: string) => {
+            formatter={(value: any, name: any) => {
+              if (typeof value !== "number") return [String(value), String(name)]
               if (name === "y") return [`${value.toFixed(1)}%`, "Mean return"]
               if (name === "x") return [`${value.toFixed(0)}%`, "MoS midpoint"]
-              return [value, name]
+              return [value, String(name)]
             }}
             labelFormatter={() => ""}
             content={({ payload }) => {

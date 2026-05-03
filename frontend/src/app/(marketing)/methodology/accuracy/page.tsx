@@ -222,9 +222,9 @@ function InsufficientHistory({
         Insufficient history
       </div>
       <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
-        We have <strong>{daysCollected}</strong> day
+        We have <span className="font-semibold">{daysCollected}</span> day
         {daysCollected === 1 ? "" : "s"} of fair-value snapshots so far —
-        we need at least <strong>{MIN_DAYS_FOR_DASHBOARD}</strong> distinct
+        we need at least <span className="font-semibold">{MIN_DAYS_FOR_DASHBOARD}</span> distinct
         snapshot days before publishing aggregate accuracy. The first
         meaningful 12-month evaluation lands once the snapshots that
         began in May 2026 mature in May 2027.
@@ -326,7 +326,7 @@ export default async function AccuracyPage() {
       {/* Caveat */}
       {data?.data_caveat ? (
         <div className="mx-auto mt-8 max-w-3xl rounded-md border border-border bg-amber-50 p-4 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-          <strong className="font-semibold">Caveat: </strong>
+          <span className="font-semibold">Caveat: </span>
           {data.data_caveat}
         </div>
       ) : null}
@@ -339,7 +339,7 @@ export default async function AccuracyPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           Lookback window: {data?.lookback_months ?? 12} months. Tickers
           with both a T-12mo snapshot and a current price:{" "}
-          <strong>{data?.tickers_evaluated ?? 0}</strong>.
+          <span className="font-semibold">{data?.tickers_evaluated ?? 0}</span>.
         </p>
 
         {meaningful ? (
@@ -472,15 +472,15 @@ export default async function AccuracyPage() {
         </h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Mean 12-month price return per verdict band. A model that adds
-          value should show below-FV &gt; near-FV &gt; above-FV.
+          value is expected to show below-FV &gt; near-FV &gt; above-FV.
         </p>
         <div className="mt-5 rounded-lg border border-border bg-card p-4">
           <ReturnAttributionBars data={attributionData} />
         </div>
         {attribution?.monotonic === false ? (
           <p className="mt-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-            <strong>Honesty note:</strong> the expected ordering
-            (below-FV &gt; near-FV &gt; above-FV) does <em>not</em> hold
+            <span className="font-semibold">Honesty note:</span> the expected ordering
+            (below-FV &gt; near-FV &gt; above-FV) does <em>not</em> apply
             in the current sample. We publish that as-is.
           </p>
         ) : attribution?.monotonic === true ? (
@@ -519,7 +519,7 @@ export default async function AccuracyPage() {
         </h2>
         <ul className="mt-3 list-disc space-y-2 pl-5 text-sm text-muted-foreground">
           <li>
-            <strong>FV error</strong> is{" "}
+            <span className="font-semibold">FV error</span> is{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-[0.85em]">
               |FV_then − Price_now| / Price_now
             </code>
@@ -527,14 +527,14 @@ export default async function AccuracyPage() {
             headline.
           </li>
           <li>
-            <strong>Hit rate (±20%)</strong> is the share of tickers
+            <span className="font-semibold">Hit rate (±20%)</span> is the share of tickers
             where the FV we computed 12 months ago landed within 20%
             of the actual current price. A passive null model (FV =
             price) would score 100% on this metric — so we also
             publish &hellip;
           </li>
           <li>
-            <strong>Directional accuracy.</strong> A stock we called
+            <span className="font-semibold">Directional accuracy.</span> A stock we called
             below fair value tends to deliver positive 12-month
             return (return &gt; +5%); an above-fair-value call tends
             to deliver negative return (return &lt; &minus;5%); a
@@ -543,7 +543,7 @@ export default async function AccuracyPage() {
             skill.
           </li>
           <li>
-            <strong>Calibration.</strong> If our model says 30% MoS
+            <span className="font-semibold">Calibration.</span> If our model says 30% MoS
             and the realized 12mo return averages 30% across that
             bucket, the model is well-calibrated. If 30% MoS averages
             5%, the model is over-confident. Either way, we plot it.
