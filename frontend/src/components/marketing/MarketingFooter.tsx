@@ -65,6 +65,9 @@ export default function MarketingFooter() {
           <div className="flex items-center gap-4">
             <Link href="/terms" className="hover:text-gray-300 transition">Terms</Link>
             <Link href="/privacy" className="hover:text-gray-300 transition">Privacy</Link>
+            <Link href="/methodology" className="hover:text-gray-300 transition">Methodology</Link>
+            <Link href="/errata" className="hover:text-gray-300 transition">Errata</Link>
+            <Link href="/status" className="hover:text-gray-300 transition">Status</Link>
           </div>
           <p className="text-[10px] text-gray-600 max-w-md text-center sm:text-right">
             Model output only &mdash; not investment advice. YieldIQ is not registered with SEBI as an investment adviser.
