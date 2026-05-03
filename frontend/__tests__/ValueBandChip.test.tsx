@@ -60,4 +60,39 @@ describe("ValueBandChip", () => {
     render(<ValueBandChip band="in_range" label="In range" />)
     expect(screen.queryByTestId("value-band-chip-percentile")).toBeNull()
   })
+
+  it("renders the broad-market badge when valuePillarSource is national_fallback", () => {
+    render(
+      <ValueBandChip
+        band="below_peers"
+        label="Below peers"
+        percentile={20}
+        valuePillarSource="national_fallback"
+      />,
+    )
+    const badge = screen.getByTestId("value-band-chip-fallback-badge")
+    expect(badge.textContent?.toLowerCase()).toContain("broad market")
+    expect(badge.getAttribute("title")?.toLowerCase()).toContain("sector cohort")
+  })
+
+  it("does not render the broad-market badge for tight cohorts", () => {
+    render(
+      <ValueBandChip
+        band="below_peers"
+        label="Below peers"
+        percentile={20}
+        valuePillarSource="tight"
+      />,
+    )
+    expect(
+      screen.queryByTestId("value-band-chip-fallback-badge"),
+    ).toBeNull()
+  })
+
+  it("treats omitted valuePillarSource as tight (no badge)", () => {
+    render(<ValueBandChip band="in_range" label="In range" percentile={50} />)
+    expect(
+      screen.queryByTestId("value-band-chip-fallback-badge"),
+    ).toBeNull()
+  })
 })

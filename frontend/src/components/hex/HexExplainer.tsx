@@ -155,6 +155,7 @@ export default function HexExplainer({
               why={ax.why}
               sectorPeers={ax.sector_peers}
               sectorLabel={ax.sector_label}
+              valuePillarSource={ax.value_pillar_source}
             />
           ) : (
             <>

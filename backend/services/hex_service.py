@@ -468,7 +468,8 @@ def _median_or_none(values: list[float]) -> Optional[float]:
 
 
 def _empty_value_axis(why: str, sector_label: str = "",
-                      sector_peers: int = 0) -> dict:
+                      sector_peers: int = 0,
+                      value_pillar_source: str = "tight") -> dict:
     """data_limited Value axis envelope (score=None, no percentile)."""
     return {
         "score": None,
@@ -482,6 +483,7 @@ def _empty_value_axis(why: str, sector_label: str = "",
         "sector_median_mos": None,
         "sector_median_pe": None,
         "sector_median_pb": None,
+        "value_pillar_source": value_pillar_source,
     }
 
 
@@ -556,24 +558,49 @@ def _axis_value_percentile(data: dict, metric_kind: str) -> dict:
     cohort: list[dict] = []
     sess = _build_cohort_session()
     sector_label = ""
-    if sess is not None and sector_label_raw:
-        try:
-            cohort = sp.compute_sector_cohort(
-                sector_label_raw, sess, industry_label=industry_label_raw,
-            )
-        except Exception as exc:
-            logger.info("hex value: cohort fetch failed for %s: %s",
-                        sector_label_raw, exc)
-            cohort = []
-        finally:
-            _safe_close(sess)
-        # Best-effort canonical label (may resolve via alias / industry).
-        try:
-            sector_label = sp._canonical_sector(
-                sector_label_raw, industry_label_raw,
-            ) or ""
-        except Exception:
-            sector_label = ""
+    # Source provenance: "tight" when the cohort came from the canonical
+    # sector cohort; "national_fallback" when we degraded to the broad-
+    # market cohort because the tight cohort had < 3 peers (e.g. RELAXO
+    # — Footwear & Accessories, no canonical sector mapping). Frontend
+    # surfaces this as a small badge on the Value pillar so the user
+    # knows the band is not strictly peer-based.
+    value_pillar_source = "tight"
+    if sess is not None:
+        if sector_label_raw:
+            try:
+                cohort = sp.compute_sector_cohort(
+                    sector_label_raw, sess, industry_label=industry_label_raw,
+                )
+            except Exception as exc:
+                logger.info("hex value: cohort fetch failed for %s: %s",
+                            sector_label_raw, exc)
+                cohort = []
+            # Best-effort canonical label (may resolve via alias / industry).
+            try:
+                sector_label = sp._canonical_sector(
+                    sector_label_raw, industry_label_raw,
+                ) or ""
+            except Exception:
+                sector_label = ""
+
+        # Thin-cohort fallback: when the tight sector cohort yields
+        # fewer than 3 peers (or canonicalisation failed entirely),
+        # fall back to the broad-market national cohort so the Value
+        # pillar renders something useful instead of "—". Flagged via
+        # `value_pillar_source` so the UI can disclose it.
+        if len(cohort) < 3:
+            try:
+                national = sp.compute_national_cohort(sess)
+            except Exception as exc:
+                logger.info("hex value: national cohort fetch failed: %s", exc)
+                national = []
+            if len(national) >= 3:
+                cohort = national
+                value_pillar_source = "national_fallback"
+                # Keep `sector_label` empty in the fallback — the chip
+                # tooltip relies on its absence to render "Broad market"
+                # instead of a sector name.
+        _safe_close(sess)
 
     sector_peers = len(cohort)
     median_mos = _median_or_none([c.get("mos_pct") for c in cohort])
@@ -597,6 +624,7 @@ def _axis_value_percentile(data: dict, metric_kind: str) -> dict:
                 "sector_median_mos": median_mos,
                 "sector_median_pe": median_pe,
                 "sector_median_pb": median_pb,
+                "value_pillar_source": value_pillar_source,
             }
         return {
             "score": score,
@@ -610,7 +638,17 @@ def _axis_value_percentile(data: dict, metric_kind: str) -> dict:
             "sector_median_mos": median_mos,
             "sector_median_pe": median_pe,
             "sector_median_pb": median_pb,
+            "value_pillar_source": value_pillar_source,
         }
+
+    # Honest provenance label for the why-text. When we degraded to the
+    # broad-market cohort the comparison is no longer "sector median" —
+    # call it "broad market" so the user can read the chip without
+    # being misled.
+    _peer_word = (
+        "broad market" if value_pillar_source == "national_fallback"
+        else "sector"
+    )
 
     if sector_peers < 10:
         return _pack(
@@ -638,9 +676,9 @@ def _axis_value_percentile(data: dict, metric_kind: str) -> dict:
         raw_rank = sp.percentile_rank(my_value, cohort_values)
         percentile = 100 - raw_rank
         why = (
-            f"MoS {my_value:.0f}% vs sector median "
+            f"MoS {my_value:.0f}% vs {_peer_word} median "
             f"{median_mos:.0f}%" if median_mos is not None else
-            f"MoS {my_value:.0f}% vs sector cohort"
+            f"MoS {my_value:.0f}% vs {_peer_word} cohort"
         ) + f" ({sector_peers} peers)"
         # Cyclical-trough anchor context: PR #168 sets fcf_data_source
         # to a string containing "trough_anchor" when the cyclical
@@ -673,9 +711,9 @@ def _axis_value_percentile(data: dict, metric_kind: str) -> dict:
         raw_rank = sp.percentile_rank(my_value, cohort_values)
         percentile = raw_rank  # low PB → low rank → high score via 10 - p/10
         why = (
-            f"P/BV {my_value:.2f}x vs sector median "
+            f"P/BV {my_value:.2f}x vs {_peer_word} median "
             f"{median_pb:.2f}x" if median_pb is not None else
-            f"P/BV {my_value:.2f}x vs sector cohort"
+            f"P/BV {my_value:.2f}x vs {_peer_word} cohort"
         ) + f" ({sector_peers} peers)"
         return _pack(percentile, why)
 
@@ -711,7 +749,7 @@ def _axis_value_percentile(data: dict, metric_kind: str) -> dict:
         percentile = raw_rank  # low PE → low rank → high score
         why = (
             f"P/E {my_pe_f:.1f}x (rev mult {my_value:.2f}x) vs "
-            f"sector median P/E "
+            f"{_peer_word} median P/E "
             + (f"{median_pe:.1f}x" if median_pe is not None else "—")
             + f" ({sector_peers} peers)"
         )

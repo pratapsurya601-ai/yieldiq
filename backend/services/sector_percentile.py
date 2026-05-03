@@ -39,6 +39,12 @@ _MIN_MARKET_CAP_CR = 100.0
 _cohort_cache: dict[str, tuple[float, list[dict]]] = {}
 _cohort_cache_lock = threading.Lock()
 
+# Sentinel cache key for the broad-market national cohort (all listed
+# tickers with mcap > 100Cr, irrespective of sector). Used by callers
+# as a thin-cohort fallback when a tight sector cohort yields fewer
+# than 3 peers — see hex_service._axis_value_percentile.
+_NATIONAL_COHORT_KEY = "__national__"
+
 # Percentile thresholds (lower = cheaper). Callers passing PE/PB
 # should invert via 100 - pr before mapping.
 _BAND_THRESHOLDS = (
@@ -322,6 +328,93 @@ def compute_sector_cohort(
     with _cohort_cache_lock:
         _cohort_cache[canonical] = (now, list(cohort))
     return cohort
+
+
+def compute_national_cohort(db_session) -> list[dict]:
+    """Return the broad-market cohort: every active ticker with
+    market_cap_cr > 100, irrespective of sector.
+
+    Used as the thin-cohort fallback for the Value pillar when the
+    canonical sector cohort yields fewer than 3 peers (e.g. RELAXO,
+    whose yfinance sector "Consumer Cyclical" / industry "Footwear &
+    Accessories" does not canonicalise to any tracked sector).
+
+    Cached in-process for 1h under a sentinel key. Same row shape as
+    `compute_sector_cohort` so callers can swap the cohort transparently.
+    """
+    now = time.time()
+    with _cohort_cache_lock:
+        hit = _cohort_cache.get(_NATIONAL_COHORT_KEY)
+        if hit is not None and now - hit[0] < _COHORT_TTL_SECONDS:
+            return list(hit[1])
+
+    # Inlined SQL (rather than refactoring _build_cohort_query) so the
+    # tight-cohort path is not perturbed by this read-only fallback.
+    sql = text(
+        """
+        WITH latest_mm AS (
+            SELECT DISTINCT ON (mm.ticker)
+                mm.ticker, mm.market_cap_cr, mm.pe_ratio, mm.pb_ratio
+            FROM market_metrics mm
+            WHERE mm.market_cap_cr IS NOT NULL
+              AND mm.market_cap_cr > 0
+            ORDER BY mm.ticker,
+                     COALESCE(mm.data_quality_rank, 50) ASC,
+                     mm.trade_date DESC
+        ),
+        latest_ac AS (
+            SELECT DISTINCT ON (ac.ticker)
+                ac.ticker, ac.payload
+            FROM analysis_cache ac
+            ORDER BY ac.ticker, ac.computed_at DESC
+        )
+        SELECT s.ticker, lm.market_cap_cr, lm.pe_ratio, lm.pb_ratio, la.payload
+        FROM stocks s
+        LEFT JOIN latest_mm lm ON lm.ticker = s.ticker
+        LEFT JOIN latest_ac la ON la.ticker = s.ticker
+        WHERE COALESCE(s.is_active, TRUE) = TRUE
+        """
+    )
+    try:
+        rows = db_session.execute(sql).fetchall()
+    except Exception as exc:  # pragma: no cover
+        logger.warning("sector_percentile: national cohort query failed: %s", exc)
+        return []
+
+    out: list[dict] = []
+    for row in rows:
+        try:
+            m = row._mapping
+            ticker = m["ticker"]
+            market_cap_cr = m["market_cap_cr"]
+            pe_ratio = m["pe_ratio"]
+            pb_ratio = m["pb_ratio"]
+            payload = m["payload"]
+        except Exception:
+            ticker, market_cap_cr, pe_ratio, pb_ratio, payload = row
+
+        if not ticker:
+            continue
+        mc = _coerce_float(market_cap_cr)
+        if mc is None or mc <= _MIN_MARKET_CAP_CR:
+            continue
+
+        pe = _coerce_float(pe_ratio)
+        pb = _coerce_float(pb_ratio)
+        mos = _extract_mos_pct(payload)
+        if mos is None and pe is None and pb is None:
+            continue
+
+        out.append({
+            "ticker":   str(ticker),
+            "mos_pct":  mos,
+            "pe_ratio": pe,
+            "pb_ratio": pb,
+        })
+
+    with _cohort_cache_lock:
+        _cohort_cache[_NATIONAL_COHORT_KEY] = (now, list(out))
+    return out
 
 
 def _clear_cohort_cache() -> None:
