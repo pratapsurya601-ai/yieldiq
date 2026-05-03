@@ -34,6 +34,7 @@ import argparse
 import datetime as _dt
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -595,6 +596,109 @@ def load_stocks(path: Path = DEFAULT_STOCKS) -> list[dict]:
     return data["stocks"]
 
 
+# ---------------------------------------------------------------------------
+# Intentional-FV-deltas parsing
+# ---------------------------------------------------------------------------
+#
+# When a PR intentionally moves fair-value/score for specific tickers, the
+# author declares them under an `intentional-fv-deltas:` block in the PR
+# body. The canary gate treats listed tickers as expected-to-move: their
+# violations are surfaced as EXEMPTED log lines (visible in the report)
+# but do NOT count against the gate-failure totals. The post-merge
+# auto-snapshot workflow rebaselines those tickers on merge.
+#
+# Parsing is intentionally tolerant of YAML-ish, list-ish, and bare-line
+# forms. We accept any of:
+#
+#     intentional-fv-deltas:
+#       TCS: client-mix shift
+#       INFY: margin reset
+#
+#     intentional-fv-deltas: TCS, INFY
+#
+#     intentional-fv-deltas:
+#       - TCS  (reason)
+#       - INFY
+#
+# Source priority (first non-empty wins):
+#   1. PR body via `gh pr view $GITHUB_PR_NUMBER --json body -q .body`
+#   2. INTENTIONAL_DELTAS.txt at REPO_ROOT
+#   3. empty set
+
+_INTENTIONAL_BLOCK_RE = re.compile(
+    r"intentional-fv-deltas\s*:\s*(.*?)(?=\n##|\n\n[A-Z]|\Z)",
+    re.IGNORECASE | re.DOTALL,
+)
+_TICKER_LINE_RE = re.compile(r"^\s*(?:[-*]\s*)?([A-Z][A-Z0-9_&-]{1,20})\s*[:\(\-,]?", re.MULTILINE)
+
+
+def _parse_intentional_deltas_text(text: str) -> set[str]:
+    """Pull a set of tickers out of an `intentional-fv-deltas:` block.
+
+    Returns an empty set if the block is missing, empty, or only contains
+    placeholder text from the PR template.
+    """
+    if not text:
+        return set()
+    m = _INTENTIONAL_BLOCK_RE.search(text)
+    if not m:
+        return set()
+    body = m.group(1).strip()
+    # Strip code-fences so the parser sees the inner content.
+    body = re.sub(r"^```[a-zA-Z]*\s*", "", body, flags=re.MULTILINE)
+    body = body.replace("```", "")
+    if not body.strip():
+        return set()
+    tickers: set[str] = set()
+    # Inline comma-separated form on the same line.
+    if "\n" not in body and "," in body:
+        for tok in body.split(","):
+            tok = tok.strip().split(":", 1)[0].strip()
+            if tok and tok.isupper() and tok.replace("_", "").replace("-", "").isalnum():
+                tickers.add(tok)
+        if tickers:
+            return tickers
+    # Block / list form.
+    for m2 in _TICKER_LINE_RE.finditer(body):
+        tok = m2.group(1).strip()
+        # Drop the literal placeholder from the PR template.
+        if tok in {"TICKER"}:
+            continue
+        tickers.add(tok)
+    return tickers
+
+
+def load_intentional_deltas() -> set[str]:
+    """Resolve the intentional-fv-deltas list from PR body or local file.
+
+    Looks up the PR body via the `gh` CLI when GITHUB_PR_NUMBER is set
+    (CI path), otherwise falls back to `INTENTIONAL_DELTAS.txt` at the
+    repo root (developer path). Never raises — any failure returns the
+    empty set so the canary gate degrades gracefully.
+    """
+    pr_num = os.environ.get("GITHUB_PR_NUMBER", "").strip()
+    if pr_num and pr_num.isdigit():
+        try:
+            out = subprocess.check_output(
+                ["gh", "pr", "view", pr_num, "--json", "body", "-q", ".body"],
+                stderr=subprocess.DEVNULL,
+                timeout=10,
+            )
+            tickers = _parse_intentional_deltas_text(out.decode("utf-8", "replace"))
+            if tickers:
+                return tickers
+        except Exception:
+            pass
+    # File fallback (developer / local override).
+    fpath = REPO_ROOT / "INTENTIONAL_DELTAS.txt"
+    if fpath.exists():
+        try:
+            return _parse_intentional_deltas_text(fpath.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    return set()
+
+
 def collect_state(
     stocks: list[dict], api_base: str = API_BASE, token: str = AUTH_TOKEN, verbose: bool = True
 ) -> dict[str, dict]:
@@ -645,7 +749,11 @@ def evaluate_result_dict(
     return {f"gate{n}": v for n, v in results.items()}
 
 
-def evaluate(state: dict[str, dict], stocks: list[dict]) -> dict:
+def evaluate(
+    state: dict[str, dict],
+    stocks: list[dict],
+    intentional_deltas: set[str] | None = None,
+) -> dict:
     """Run all gates; produce a structured report.
 
     Distinguishes three failure modes so a network flake doesn't masquerade
@@ -662,10 +770,17 @@ def evaluate(state: dict[str, dict], stocks: list[dict]) -> dict:
     Railway cold-start no longer looks like a five-gate regression.
     """
     bounds_map = {s["symbol"]: s.get("canary_bounds") for s in stocks}
+    intentional = {t.upper() for t in (intentional_deltas or set())}
     per_stock: list[dict] = []
     gate_totals = {n: 0 for n in GATE_NAMES}
     fetch_failures = 0
     excluded = 0
+    # EXEMPT counters: violations on tickers the PR author flagged as
+    # intentional-fv-deltas. Surfaced in the report but excluded from
+    # gate_violations so the canary doesn't punish authors for moves
+    # they declared on purpose.
+    exempted_violations = 0
+    exempted_tickers_hit: set[str] = set()
 
     for spec in stocks:
         sym = spec["symbol"]
@@ -694,9 +809,16 @@ def evaluate(state: dict[str, dict], stocks: list[dict]) -> dict:
             continue
 
         results = run_all_gates(sym, st["public"], st["authed"], bounds_map.get(sym))
+        is_exempt = sym.upper() in intentional
         for n, vs in results.items():
             entry["violations"][str(n)] = vs
-            gate_totals[n] += len(vs)
+            if vs and is_exempt:
+                exempted_violations += len(vs)
+                exempted_tickers_hit.add(sym)
+            elif vs:
+                gate_totals[n] += len(vs)
+        if is_exempt and any(entry["violations"].values()):
+            entry["exempted"] = "intentional"
         per_stock.append(entry)
 
     gate_violations = sum(gate_totals.values())
@@ -714,6 +836,9 @@ def evaluate(state: dict[str, dict], stocks: list[dict]) -> dict:
         "gate_violations": gate_violations,
         # Legacy alias — older tests / dashboards still read this name.
         "total_violations": gate_violations,
+        "exempted_violations": exempted_violations,
+        "exempted_tickers": sorted(exempted_tickers_hit),
+        "intentional_deltas_declared": sorted(intentional),
         "passed": passed,
         "per_stock": per_stock,
     }
@@ -803,6 +928,11 @@ def render_markdown(report: dict, drift_notes: list[str] | None = None) -> str:
     else:
         lines.append(f"Fetch failures: **{fetch_n}** (FAIL — over budget {budget})")
     lines.append(f"Gate violations: **{report['gate_violations']}**")
+    if report.get("exempted_violations"):
+        lines.append(
+            f"Exempted (intentional-fv-deltas): **{report['exempted_violations']}** "
+            f"on tickers {', '.join(report.get('exempted_tickers', []))}"
+        )
     lines.append("")
     lines.append("## Gate totals")
     for name, n in report["gate_totals"].items():
@@ -861,7 +991,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.diff_against:
         drift_notes = diff_snapshot(state, Path(args.diff_against))
 
-    report = evaluate(state, stocks)
+    intentional = load_intentional_deltas()
+    if intentional:
+        print(f"Intentional FV deltas declared: {sorted(intentional)}")
+    report = evaluate(state, stocks, intentional_deltas=intentional)
     Path(args.report_json).write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     Path(args.report_md).write_text(render_markdown(report, drift_notes), encoding="utf-8")
 
@@ -874,6 +1007,15 @@ def main(argv: list[str] | None = None) -> int:
     for name, n in report["gate_totals"].items():
         flag = "ok" if n == 0 else "FAIL"
         print(f"  {flag:4s} {name}: {n}")
+    print(
+        f"Exempted: {report['exempted_violations']}, "
+        f"Real violations: {report['gate_violations']}"
+    )
+    if report["exempted_tickers"]:
+        print(
+            "  EXEMPTED (intentional) tickers: "
+            + ", ".join(report["exempted_tickers"])
+        )
     # Distinguish WARN (fetch flake within budget) from FAIL.
     if report["fetch_failures"] > 0 and report["fetch_failures"] <= report["fetch_failure_budget"]:
         print(
