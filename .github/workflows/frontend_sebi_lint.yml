@@ -32,11 +32,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # need history so --diff-only can resolve origin/<base_ref>
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
-      - name: Run SEBI vocabulary lint
+      - name: Run SEBI vocabulary lint (diff-only on PRs)
+        if: github.event_name == 'pull_request'
+        run: |
+          python scripts/check_sebi_words.py \
+            --diff-only --base "origin/${{ github.base_ref }}"
+
+      - name: Run SEBI vocabulary lint (full tree on push/manual)
+        if: github.event_name != 'pull_request'
         run: python scripts/check_sebi_words.py
