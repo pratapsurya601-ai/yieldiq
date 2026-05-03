@@ -44,6 +44,17 @@ sector-scope: *
   CACHE_VERSION casually — it invalidates every cached analysis.
 -->
 
+## Intentional FV deltas
+
+If this PR intentionally changes fair-value or score for specific tickers, list them here. The canary gate will treat listed tickers as expected-to-move and only fail on UNlisted ticker movements. The post-merge auto-snapshot job will rebaseline these tickers on merge.
+
+```
+intentional-fv-deltas:
+  TICKER: brief reason (e.g. "cement supercycle anchor adjustment")
+```
+
+Leave empty if no intentional deltas.
+
 ## Discipline checklist
 
 - [ ] `sector-scope:` declared at top of this body (REQUIRED)
