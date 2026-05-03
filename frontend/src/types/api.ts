@@ -321,6 +321,40 @@ export interface AnalysisResponse {
 }
 
 /**
+ * Coverage Tier (feat/coverage-tier-system).
+ *
+ * Mirrors backend/services/coverage_tier_service.py. A 7-criteria rubric
+ * collapses to a single A/B/C label so users can tell at a glance whether
+ * we model a stock with full confidence (A), partial confidence (B), or
+ * limited coverage (C). Labeling-only — never modifies FV or score.
+ *
+ * The full breakdown comes from GET /api/v1/coverage/{ticker}; the og-data
+ * endpoint emits only the compact summary `{tier, criteria_met}`.
+ */
+export interface CoverageTierRubricItem {
+  key: string
+  label: string
+  value: number | null
+  threshold: number
+  passed: boolean
+}
+
+export interface CoverageTier {
+  tier: "A" | "B" | "C"
+  criteria_met: string         // e.g. "5/7"
+  criteria_passed?: number
+  criteria_total?: number
+  reasons?: string[]
+  rubric?: CoverageTierRubricItem[]
+  ticker?: string
+}
+
+export interface CoverageTierSummary {
+  tier: "A" | "B" | "C"
+  criteria_met: string
+}
+
+/**
  * Per-metric metadata block emitted by the backend on every
  * AnalysisResponse. Mirrors `backend/models/responses.py::FormulaInfo`.
  */

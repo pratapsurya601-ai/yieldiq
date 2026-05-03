@@ -173,6 +173,13 @@ export const getAnalysis = (ticker: string): Promise<AnalysisResponse> =>
 export const getAISummary = (ticker: string): Promise<{ summary: string }> =>
   api.get(`/api/v1/analysis/${ticker}/summary`).then(r => r.data)
 
+// Coverage Tier (feat/coverage-tier-system) — returns the full A/B/C
+// rubric breakdown. Backed by a 6h server cache; pass refresh=true only
+// for admin/methodology tooling.
+import type { CoverageTier } from "@/types/api"
+export const getCoverageTier = (ticker: string, refresh = false): Promise<CoverageTier> =>
+  api.get(`/api/v1/coverage/${ticker}${refresh ? "?refresh=1" : ""}`).then(r => r.data)
+
 // Sensitivity recompute — POST overrides, get a fresh DCF back.
 // Powers the interactive sliders on /analysis/[ticker]; tier-gated
 // to paid plans on the backend (free tier receives 403).

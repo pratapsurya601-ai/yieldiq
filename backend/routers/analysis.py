@@ -650,6 +650,19 @@ async def get_og_data(ticker: str):
             "price": _px,
             "mos": _mos,
         }
+
+        # ── Coverage tier (feat/coverage-tier-system) ──
+        # Additive labeling only — tells the user how confident we are in
+        # the modeled output. Never modifies FV/score/verdict. Returns
+        # None on failure so a tier-service hiccup can't break og-data.
+        # See backend/services/coverage_tier_service.py for the rubric.
+        try:
+            from backend.services import coverage_tier_service as _cts
+            _ct = _cts.summary_for_og(ticker)
+            if _ct:
+                og["coverage_tier"] = _ct
+        except Exception:
+            pass
         # Zero-poison guard: if both fv and price ended up 0 (cold compute
         # failure, upstream data gap, etc.), skip the cache write so the
         # next request gets a fresh attempt. Previously the 1-hour TTL
@@ -2347,3 +2360,42 @@ async def analysis_sensitivity(
             f"Sensitivity failed for {ticker}: {e}", exc_info=True
         )
         raise HTTPException(status_code=500, detail="Sensitivity computation failed")
+
+
+# ── Coverage Tier (feat/coverage-tier-system) ───────────────────
+# Public endpoint exposing the A/B/C tier rubric for a ticker. Used by
+# the methodology page + the CoverageTierBadge tooltip. Labeling-only:
+# returning C does NOT change anything about the underlying analysis.
+@router.get("/coverage/{ticker}")
+async def get_coverage_tier(ticker: str, refresh: int = 0):
+    """Return the full coverage-tier breakdown for a ticker.
+
+    Response shape::
+
+        {
+            "ticker": "RELIANCE.NS",
+            "tier": "A" | "B" | "C",
+            "criteria_met": "5/7",
+            "criteria_passed": 5,
+            "criteria_total": 7,
+            "reasons": [...],
+            "rubric": [
+                {key, label, value, threshold, passed}, ...
+            ]
+        }
+
+    Pass ``?refresh=1`` to bypass the 6h cache (used by the admin
+    methodology explorer when verifying recent data-pipeline updates).
+    """
+    ticker = ticker.upper().strip()
+    try:
+        from backend.services import coverage_tier_service as _cts
+        result = _cts.compute_coverage_tier(ticker, refresh=bool(refresh))
+        result["ticker"] = ticker
+        return result
+    except Exception as e:
+        import logging
+        logging.getLogger("yieldiq.coverage_tier").error(
+            f"Coverage tier failed for {ticker}: {e}", exc_info=True
+        )
+        raise HTTPException(status_code=500, detail="Coverage tier computation failed")
