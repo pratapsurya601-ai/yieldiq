@@ -567,7 +567,15 @@ async def get_og_data(ticker: str):
         we do NOT write it into the og: cache — a fresh compute gets
         to try again on the next request.
     """
-    ticker = ticker.upper().strip()
+    original_ticker = ticker.upper().strip()
+    # Route renamed/rebranded symbols to the canonical equivalent BEFORE
+    # any cache lookup or compute. Without this, /og-data/LTIM.NS bypasses
+    # the LTIM.NS → LTIMINDTREE.NS alias the other endpoints honor and
+    # cold-computes against the stale yfinance row, producing fv=0/px=0
+    # and tripping VALIDATION CRITICAL on every page-view (Sentry flood
+    # 2026-05-03: 13,964 events/24h on LTIM alone). Mirrors the rewrite
+    # that GET /analysis/{ticker} and /analysis/preview/{ticker} apply.
+    ticker = TICKER_ALIASES.get(original_ticker, original_ticker)
     _cache_key = f"og:{ticker}"
     cached = cache.get(_cache_key)
     if cached:
