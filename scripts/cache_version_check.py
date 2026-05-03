@@ -42,6 +42,7 @@ bumped. This script makes that class of mistake un-mergeable.
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import re
 import sys
 from pathlib import Path
@@ -65,6 +66,41 @@ TRIGGER_EXACT: tuple[str, ...] = (
 
 # The file that, when changed, counts as "the bump landed".
 CACHE_FILE = "backend/services/cache_service.py"
+
+# Path-glob patterns that are exempt from the bump check even when they
+# fall under a TRIGGER_PREFIX. Matched via fnmatch on POSIX-style paths.
+#
+# The "pure-additive" rule below (handled separately in
+# diff_requires_bump): files that don't exist in the base branch (i.e.
+# only have a `+++ b/<path>` and a `--- /dev/null` header) cannot
+# invalidate any existing cached payload by definition.
+EXEMPT_PATTERNS: tuple[str, ...] = (
+    "**/scaffolds/**",
+    "**/*_scaffold.py",
+)
+
+# Path prefixes / exact files that genuinely affect analysis output —
+# the narrow whitelist for the "outside this is exempt" rule. Anything
+# outside these can't change cached fair-value/score payloads, so an
+# exempt-pattern PR (or a PR that only touches non-analysis backend
+# code) doesn't need a CACHE_VERSION bump.
+#
+# These mirror the GLOBAL_PREFIXES list in sector_scope_suggest.py.
+ANALYSIS_PATHS: tuple[str, ...] = (
+    "backend/services/analysis/",
+    "backend/services/analysis_service.py",
+    "backend/services/financial_valuation_service.py",
+    "backend/services/ratios_service.py",
+    "backend/services/financials_service.py",
+    "backend/services/cache_service.py",
+)
+
+
+def _path_in_analysis(path: str) -> bool:
+    p = path.replace("\\", "/")
+    return any(p == ap or p.startswith(ap) for ap in ANALYSIS_PATHS if ap.endswith("/")) or any(
+        p == ap for ap in ANALYSIS_PATHS if not ap.endswith("/")
+    )
 
 # Regex: matches the CACHE_VERSION literal-assignment line in a unified diff.
 # We want to see at least one *added* line (``+CACHE_VERSION = N``) and the
@@ -117,9 +153,92 @@ def _path_triggers(path: str) -> bool:
     return any(path.startswith(p) for p in TRIGGER_PREFIXES)
 
 
+def _path_matches_exempt(path: str) -> bool:
+    """Match POSIX-style ``path`` against EXEMPT_PATTERNS via fnmatch."""
+    p = path.replace("\\", "/")
+    for pat in EXEMPT_PATTERNS:
+        if fnmatch.fnmatch(p, pat):
+            return True
+    return False
+
+
+def _new_files_in_diff(diff_text: str) -> set[str]:
+    """Return the set of files added (didn't exist in base branch).
+
+    Detection signals (any one is sufficient):
+      * ``new file mode <octal>`` line in the file's diff header
+      * ``--- /dev/null`` pre-image followed by ``+++ b/<path>`` post-image
+
+    We sweep file-section by file-section using ``diff --git`` headers
+    as boundaries.
+    """
+    new_files: set[str] = set()
+    cur_b: str | None = None
+    saw_dev_null_pre = False
+    saw_new_file_marker = False
+
+    def _flush() -> None:
+        if cur_b and (saw_dev_null_pre or saw_new_file_marker):
+            new_files.add(cur_b)
+
+    for line in diff_text.splitlines():
+        if line.startswith("diff --git "):
+            _flush()
+            cur_b = None
+            saw_dev_null_pre = False
+            saw_new_file_marker = False
+            # Try to capture path from the header itself for completeness.
+            parts = line.split()
+            if len(parts) >= 4 and parts[3].startswith("b/"):
+                cur_b = parts[3][2:]
+        elif line.startswith("new file mode"):
+            saw_new_file_marker = True
+        elif line.startswith("--- "):
+            if line[4:].strip() == "/dev/null":
+                saw_dev_null_pre = True
+        elif line.startswith("+++ b/"):
+            cur_b = line[len("+++ b/"):].strip()
+    _flush()
+    return new_files
+
+
 def diff_touches_trigger(diff_text: str) -> tuple[bool, list[str]]:
-    """Return (touched, [matching paths])."""
-    matched = sorted(p for p in _changed_paths(diff_text) if _path_triggers(p))
+    """Return (touched, [matching paths]).
+
+    Adds an exemption layer for the parallel-PR friction case:
+
+      * Brand-new files (no pre-image in base branch) cannot invalidate
+        any existing cached payload by definition — exempt.
+      * Files matching EXEMPT_PATTERNS (scaffolds) — exempt.
+      * Files OUTSIDE ``backend/services/analysis/`` AND not in
+        TRIGGER_EXACT — exempt. Only the analysis subdirectory writes
+        to analysis_cache; other backend trees can't invalidate cached
+        fair-value payloads even if they share a TRIGGER_PREFIX root.
+
+    A path is "matched" (gate fires for it) only when it satisfies a
+    TRIGGER and survives all three exemption layers.
+    """
+    new_files = _new_files_in_diff(diff_text)
+    matched: list[str] = []
+    for p in sorted(_changed_paths(diff_text)):
+        if not _path_triggers(p):
+            continue
+        if p in new_files:
+            continue
+        if _path_matches_exempt(p):
+            continue
+        # TRIGGER_EXACT entries (forecaster.py, industry_wacc.py)
+        # always count — they're explicitly listed for a reason.
+        if p in TRIGGER_EXACT:
+            matched.append(p)
+            continue
+        # For TRIGGER_PREFIX matches, narrow to the analysis area.
+        if _path_in_analysis(p):
+            matched.append(p)
+            continue
+        # Otherwise: trigger-prefix hit but outside analysis area —
+        # exempt. Routers / validators / models that don't write to
+        # analysis_cache can't invalidate cached fair-value payloads.
     return (bool(matched), matched)
 
 

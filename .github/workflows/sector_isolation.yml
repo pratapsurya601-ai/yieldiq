@@ -48,13 +48,39 @@ jobs:
       - name: Install dependencies
         run: pip install requests
 
+      - name: Auto-apply suggested sector-scope (label-gated)
+        # Opt-in via the `auto-sector-scope` label to avoid surprise
+        # mutations of PR bodies. Without the label, the suggester still
+        # runs and posts a comment via the separate sector_scope_suggest
+        # workflow, but no body edit happens.
+        if: |
+          github.event_name == 'pull_request' &&
+          contains(github.event.pull_request.labels.*.name, 'auto-sector-scope')
+        env:
+          GITHUB_PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # `git fetch origin main` so the suggester can diff vs origin/main.
+          git fetch origin main --depth=50 || true
+          python scripts/sector_scope_suggest.py --auto-commit --verbose
+
       - name: Extract PR body into a file
         if: github.event_name == 'pull_request'
         env:
+          # Re-read the body — it may have been mutated by the auto-commit
+          # step above. Pull it fresh from the API rather than re-using
+          # the workflow-trigger payload.
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_BODY: ${{ github.event.pull_request.body }}
         run: |
-          # GH injects the body via env; write to file for the script.
-          printf '%s' "$PR_BODY" > /tmp/pr_body.md
+          # Try the fresh fetch first; fall back to the workflow payload.
+          if command -v gh >/dev/null 2>&1; then
+            gh pr view "$PR_NUMBER" --json body -q .body > /tmp/pr_body.md || \
+              printf '%s' "$PR_BODY" > /tmp/pr_body.md
+          else
+            printf '%s' "$PR_BODY" > /tmp/pr_body.md
+          fi
           echo "---- PR body (first 40 lines) ----"
           head -n 40 /tmp/pr_body.md || true
 

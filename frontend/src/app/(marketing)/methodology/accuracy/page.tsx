@@ -295,9 +295,9 @@ export default async function AccuracyPage() {
           </li>
           <li>
             <strong>Directional accuracy.</strong> A stock we called{" "}
-            <em>undervalued</em> should outperform (return &gt; +5%);
-            an <em>overvalued</em> call should under-perform (return
-            &lt; &minus;5%); a <em>fairly valued</em> call should drift
+            <em>below-fair-value</em> tends to deliver positive 12-month return (return &gt; +5%);
+            an <em>above-fair-value</em> call tends to deliver negative return (return
+            &lt; &minus;5%); a <em>fairly valued</em> call tends to drift
             (|return| &le; 10%). The directional metric is the only
             one that genuinely tests stock-picking skill.
           </li>
