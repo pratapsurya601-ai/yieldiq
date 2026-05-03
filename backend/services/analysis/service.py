@@ -1903,8 +1903,29 @@ class AnalysisService(NarrativeMixin):
         # composite score must track the model rather than the screen.
         # Cap composite based on |MoS| magnitude so a deeply overvalued
         # name cannot ride moat/Piotroski to a misleading score.
+        #
+        # EXEMPTION (2026-05-03): tickers with an explicit
+        # ``model_caveat`` override (conglomerates like ITC/RELIANCE,
+        # holdcos, turnarounds) are bypassed. We've already declared the
+        # DCF approximate for these names — the cap-vs-screen dominance
+        # argument doesn't apply when the model itself is acknowledged
+        # as a poor fit. Resolve the override here (it is also resolved
+        # again later for the caveat banner; both call sites are cheap
+        # dict lookups).
         try:
-            if mos_pct is not None and yiq_score and "score" in yiq_score:
+            _override = _get_ticker_override(ticker)
+        except Exception:
+            _override = None
+        _skip_dominance_cap = bool(
+            _override and _override.get("model_caveat")
+        )
+        try:
+            if (
+                mos_pct is not None
+                and yiq_score
+                and "score" in yiq_score
+                and not _skip_dominance_cap
+            ):
                 _mos_abs = abs(mos_pct)
                 if _mos_abs > 50:
                     _composite_max = 40
@@ -2160,10 +2181,9 @@ class AnalysisService(NarrativeMixin):
         # entirely (pure holdco — DCF on holdco itself is meaningless).
         # ROADMAP: build SOTP engine for the conglomerates. Caveat
         # banner is the bridge. See ticker_overrides.py.
-        try:
-            _override = _get_ticker_override(ticker)
-        except Exception:
-            _override = None
+        # NOTE: _override was resolved earlier (before the Score-MoS
+        # dominance cap) so the cap can be exempted for caveated names.
+        # Reuse that result here.
         if _override:
             _caveat_msg = _override.get("model_caveat")
             if _override.get("model") == "skip":
