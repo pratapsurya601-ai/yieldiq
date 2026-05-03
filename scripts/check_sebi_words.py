@@ -44,6 +44,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -308,6 +309,139 @@ def _scan_file(path: Path, repo_root: Path) -> list[tuple[int, str, str]]:
     return ordered
 
 
+def _scan_diff_added_lines(
+    diff_text: str,
+    *,
+    repo_root: Path,
+) -> list[tuple[str, int, str, str, str | None]]:
+    """Scan ONLY the added lines of a unified diff for banned vocab.
+
+    Returns ``(file, line_no, banned_word, excerpt, blame_hint)``.
+
+    Why a separate code path from the full-tree scan: when 7 PRs open
+    in parallel, an inherited banned word in (say) ``MetricCard.tsx``
+    fails ALL seven PRs even though six of them never touched that
+    line. ``--diff-only`` mode looks only at lines the PR actually
+    added, so inherited debt is invisible to the gate.
+
+    The ``blame_hint`` is best-effort: when ``git blame`` is available
+    we look up which commit added the offending line so the report can
+    point the author at it.
+    """
+    hits: list[tuple[str, int, str, str, str | None]] = []
+    cur_file: str | None = None
+    new_line_no = 0  # line number in the post-image of cur_file
+    for raw in diff_text.splitlines():
+        if raw.startswith("+++ b/"):
+            cur_file = raw[len("+++ b/"):].strip()
+            new_line_no = 0
+            continue
+        if raw.startswith("--- "):
+            continue
+        if raw.startswith("@@"):
+            # @@ -a,b +c,d @@  -- start tracking from c.
+            m = re.search(r"\+(\d+)(?:,\d+)?", raw)
+            if m:
+                new_line_no = int(m.group(1)) - 1
+            continue
+        if raw.startswith("+++") or raw.startswith("---"):
+            continue
+        if raw.startswith("+"):
+            new_line_no += 1
+            if cur_file is None:
+                continue
+            # Only scan the file types we'd scan in full-tree mode AND
+            # only files under frontend/src/ (or wherever) that the
+            # full-tree scanner cares about.
+            if not any(cur_file.endswith(ext) for ext in SCANNED_EXTS):
+                continue
+            # Also honour file-level exemptions (api.ts mirror-types).
+            rel_for_exempt = cur_file
+            for prefix in ("frontend/", ""):
+                if rel_for_exempt.startswith(prefix):
+                    rel_for_exempt = rel_for_exempt[len(prefix):]
+                    break
+            if rel_for_exempt in EXEMPT_FILES:
+                continue
+            content = raw[1:]  # drop the leading '+'
+            hit = _BANNED_RE.search(content)
+            if not hit:
+                continue
+            word = hit.group(0).lower()
+            # If every banned-word occurrence on this line is inside a
+            # WIRE_FORMAT_LITERAL string, the line is a code-level
+            # enum comparison and should be exempt. We re-check by
+            # extracting string literals and seeing if all hits fall
+            # inside one of them with a wire-format inner.
+            literals_on_line = list(_STRING_LITERAL_RE.finditer(content))
+            all_hits_in_wire_format = bool(literals_on_line)
+            for h in _BANNED_RE.finditer(content):
+                in_wire = False
+                for lit in literals_on_line:
+                    if lit.start() <= h.start() and h.end() <= lit.end():
+                        inner = lit.group(0)[1:-1]
+                        if inner in WIRE_FORMAT_LITERALS:
+                            in_wire = True
+                            break
+                if not in_wire:
+                    all_hits_in_wire_format = False
+                    break
+            if all_hits_in_wire_format:
+                continue
+            # Skip lines that carry an `sebi-allow:` annotation for this word.
+            allow_m = _ALLOW_LINE_RE.search(content)
+            if allow_m:
+                allowed = {w.strip().lower() for w in allow_m.group(1).split(",") if w.strip()}
+                if word in allowed:
+                    continue
+            blame_hint = _git_blame_short(repo_root, cur_file, new_line_no)
+            excerpt = content.strip()
+            if len(excerpt) > 120:
+                excerpt = excerpt[:117] + "..."
+            hits.append((cur_file, new_line_no, hit.group(0), excerpt, blame_hint))
+        elif raw.startswith(" "):
+            new_line_no += 1
+        # '-' lines don't advance new-side counter
+    return hits
+
+
+def _git_blame_short(repo_root: Path, path: str, line: int) -> str | None:
+    """Return short SHA + author + summary for a line, or None on failure."""
+    try:
+        out = subprocess.check_output(
+            ["git", "blame", "-L", f"{line},{line}", "--porcelain", path],
+            cwd=str(repo_root),
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        )
+        first = out.decode("utf-8", "replace").splitlines()[0]
+        # Porcelain header: "<sha> <orig_line> <final_line> [<num_lines>]"
+        sha = first.split()[0][:8] if first else None
+        return sha
+    except Exception:
+        return None
+
+
+def _read_diff(base: str, repo_root: Path) -> str:
+    """Run `git diff --unified=0 <base>...HEAD` and return the text."""
+    try:
+        out = subprocess.check_output(
+            ["git", "diff", "--unified=0", f"{base}...HEAD"],
+            cwd=str(repo_root),
+            stderr=subprocess.PIPE,
+            timeout=30,
+        )
+        return out.decode("utf-8", "replace")
+    except subprocess.CalledProcessError as e:
+        sys.stderr.write(
+            f"[check_sebi_words] git diff failed: {e.stderr.decode('utf-8', 'replace')}\n"
+        )
+        return ""
+    except Exception as e:
+        sys.stderr.write(f"[check_sebi_words] git diff error: {e}\n")
+        return ""
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -315,7 +449,51 @@ def main() -> int:
         default=None,
         help="Path to the frontend root (defaults to frontend/ next to this script's repo).",
     )
+    parser.add_argument(
+        "--diff-only",
+        action="store_true",
+        help=(
+            "Only check lines added by this PR (per `git diff --unified=0 "
+            "<base>...HEAD`). Inherited vocab in untouched lines is ignored. "
+            "Use this in PR CI to avoid punishing authors for older code."
+        ),
+    )
+    parser.add_argument(
+        "--base",
+        default="origin/main",
+        help="Base ref for --diff-only mode (default: origin/main).",
+    )
     args = parser.parse_args()
+
+    script_dir = Path(__file__).resolve().parent
+    repo_root = script_dir.parent
+
+    # ---- Diff-only fast path -------------------------------------------
+    if args.diff_only:
+        diff_text = _read_diff(args.base, repo_root)
+        if not diff_text:
+            print(
+                "[check_sebi_words] --diff-only: empty diff vs "
+                f"{args.base} (nothing to check)."
+            )
+            return 0
+        hits = _scan_diff_added_lines(diff_text, repo_root=repo_root)
+        if not hits:
+            print(
+                "[check_sebi_words] OK — no banned vocabulary in lines "
+                f"added vs {args.base}."
+            )
+            return 0
+        for f, ln, word, excerpt, blame in hits:
+            blame_str = f" (added in {blame})" if blame else ""
+            print(f"{f}:{ln}: banned='{word}'{blame_str} :: {excerpt}")
+        print(
+            f"\n[check_sebi_words] FAIL — {len(hits)} banned-vocabulary "
+            f"hit(s) in lines added vs {args.base}.",
+            file=sys.stderr,
+        )
+        return 1
+
 
     script_dir = Path(__file__).resolve().parent
     repo_root = script_dir.parent

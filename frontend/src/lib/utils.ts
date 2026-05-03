@@ -106,8 +106,8 @@ export function formatPercentage(value: number | null | undefined, decimals = 1)
  */
 export function verdictFromMos(mos: number | null | undefined): string {
   if (mos == null || !Number.isFinite(mos)) return "Fairly Valued"
-  if (mos >= 25) return "Notably Undervalued"
-  if (mos >= 5) return "Undervalued"
+  if (mos >= 25) return "Notably Below Fair Value"
+  if (mos >= 5) return "Below Fair Value"
   if (mos > -5) return "Fairly Valued"
   if (mos > -25) return "Above Fair Value"
   return "Notably Above Fair Value"
