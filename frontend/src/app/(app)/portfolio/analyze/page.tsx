@@ -380,7 +380,7 @@ function Results({ data }: { data: AnalyzeResponse }) {
                     <Cell key={i} fill={s.fill} />
                   ))}
                 </Pie>
-                <RTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />
+                <RTooltip formatter={(v: any) => typeof v === "number" ? `${v.toFixed(1)}%` : String(v)} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -394,7 +394,7 @@ function Results({ data }: { data: AnalyzeResponse }) {
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis type="number" domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
                 <YAxis type="category" dataKey="name" hide />
-                <RTooltip formatter={(v: number) => `${v.toFixed(1)}%`} />
+                <RTooltip formatter={(v: any) => typeof v === "number" ? `${v.toFixed(1)}%` : String(v)} />
                 <Legend />
                 <Bar dataKey="undervalued" stackId="a" fill={SKEW_COLORS.undervalued} />
                 <Bar dataKey="fairly_valued" stackId="a" fill={SKEW_COLORS.fairly_valued} />
@@ -410,7 +410,7 @@ function Results({ data }: { data: AnalyzeResponse }) {
       <Panel title="Piotroski F-score distribution">
         <div className="grid grid-cols-3 gap-3">
           <PiotroskiCard
-            label="Strong (≥7)"
+            label="High (≥7)"
             count={piotroski.strong}
             color="bg-green-50 text-green-800 border-green-200"
           />
@@ -420,7 +420,7 @@ function Results({ data }: { data: AnalyzeResponse }) {
             color="bg-amber-50 text-amber-800 border-amber-200"
           />
           <PiotroskiCard
-            label="Weak (<4)"
+            label="Low (<4)"
             count={piotroski.weak}
             color="bg-red-50 text-red-800 border-red-200"
           />
