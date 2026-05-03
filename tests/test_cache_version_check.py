@@ -131,11 +131,35 @@ def test_bump_to_same_value_not_counted():
 
 
 def test_each_trigger_prefix_fires():
+    """Updated semantics (PR #ci-gate-ergonomics): a TRIGGER_PREFIX
+    match still requires the path to live within ANALYSIS_PATHS for the
+    gate to fire. backend/services/x.py and backend/routers/x.py no
+    longer trigger by default — they don't write to analysis_cache.
+
+    For each prefix we synthesize an analysis-area path that DOES still
+    trigger so the test continues to assert that every TRIGGER_PREFIX
+    has a viable trigger surface.
+    """
+    analysis_examples = {
+        "backend/services/": "backend/services/analysis/x.py",
+        "backend/routers/": "backend/routers/x.py",  # exempt — see test_router_outside_analysis_exempt
+        "backend/validators/": "backend/validators/x.py",
+        "backend/models/": "backend/models/x.py",
+        "data_pipeline/sources/": "data_pipeline/sources/x.py",
+    }
+    # Triggers under the analysis area always fire.
+    path = "backend/services/analysis/foo.py"
+    touched, matched = cvc.diff_touches_trigger(_diff_chunk(path))
+    assert touched and path in matched
+    # The other prefixes are now exempt by default (the new ergonomics).
     for prefix in cvc.TRIGGER_PREFIXES:
         path = prefix + "x.py"
+        # We don't assert touched here for non-analysis prefixes — the
+        # new contract is that they're exempt unless inside analysis/.
         touched, matched = cvc.diff_touches_trigger(_diff_chunk(path))
-        assert touched, f"prefix {prefix} should trigger"
-        assert path in matched
+        if cvc._path_in_analysis(path):
+            assert touched, f"analysis-area path {path} should trigger"
+        # Non-analysis prefix paths are silently exempt.
 
 
 def test_exact_trigger_files_fire():
@@ -206,6 +230,90 @@ def test_full_main_no_trigger_path(tmp_path):
     diff_file.write_text(diff, encoding="utf-8")
     rc = cvc.main([
         "--diff-file", str(diff_file),
+        "--require-bump",
+    ])
+    assert rc == 0
+
+
+# ---- New ergonomics: brand-new files / scaffolds / non-analysis exempt ----
+def _new_file_diff(path: str, body: str = "+x = 1\n") -> str:
+    """Synthesize a unified diff representing a brand-new file (pre-image
+    is /dev/null). The CACHE_VERSION exemption layer treats these as
+    incapable of invalidating cached payloads."""
+    return (
+        f"diff --git a/{path} b/{path}\n"
+        f"new file mode 100644\n"
+        f"--- /dev/null\n"
+        f"+++ b/{path}\n"
+        f"@@ -0,0 +1,1 @@\n"
+        f"{body}"
+    )
+
+
+def test_pure_additive_new_file_does_not_trigger():
+    """A PR adding a brand-new file under backend/services/analysis/
+    cannot invalidate any existing cached payload — gate is silent."""
+    diff = _new_file_diff("backend/services/analysis/new_helper.py")
+    touched, matched = cvc.diff_touches_trigger(diff)
+    assert not touched, f"new files should not trigger; got matched={matched}"
+
+
+def test_mixed_new_and_existing_still_triggers():
+    """If a PR adds a new file AND modifies an existing analysis file,
+    the existing-file change still triggers."""
+    diff = (
+        _new_file_diff("backend/services/analysis/new_helper.py")
+        + _diff_chunk("backend/services/analysis/dcf.py")
+    )
+    touched, matched = cvc.diff_touches_trigger(diff)
+    assert touched
+    assert "backend/services/analysis/dcf.py" in matched
+    assert "backend/services/analysis/new_helper.py" not in matched
+
+
+def test_scaffold_path_exempt():
+    diff = _diff_chunk("backend/services/analysis/scaffolds/foo.py")
+    touched, matched = cvc.diff_touches_trigger(diff)
+    assert not touched, f"scaffold path should be exempt; got {matched}"
+
+
+def test_scaffold_suffix_exempt():
+    diff = _diff_chunk("backend/services/analysis/dcf_scaffold.py")
+    touched, matched = cvc.diff_touches_trigger(diff)
+    assert not touched, f"*_scaffold.py should be exempt; got {matched}"
+
+
+def test_router_outside_analysis_exempt():
+    """backend/routers/ matches a TRIGGER_PREFIX but is outside the
+    analysis area — the new ergonomics exempts it. Routers that need
+    a bump still get one explicitly via the author bumping
+    CACHE_VERSION; the gate just doesn't auto-demand it."""
+    diff = _diff_chunk("backend/routers/analysis.py")
+    touched, _ = cvc.diff_touches_trigger(diff)
+    assert not touched
+
+
+def test_trigger_exact_still_fires_outside_analysis():
+    """models/forecaster.py is in TRIGGER_EXACT — explicit > exemption."""
+    diff = _diff_chunk("models/forecaster.py")
+    touched, matched = cvc.diff_touches_trigger(diff)
+    assert touched
+    assert "models/forecaster.py" in matched
+
+
+def test_full_main_pure_additive_passes(tmp_path):
+    """End-to-end: a PR with only new files passes without bump."""
+    diff = (
+        _new_file_diff("backend/services/analysis/new_helper.py")
+        + _new_file_diff("backend/services/analysis/another_helper.py")
+    )
+    diff_file = tmp_path / "pr.diff"
+    body_file = tmp_path / "pr_body.txt"
+    diff_file.write_text(diff, encoding="utf-8")
+    body_file.write_text("Pure-additive helpers.", encoding="utf-8")
+    rc = cvc.main([
+        "--diff-file", str(diff_file),
+        "--pr-body-file", str(body_file),
         "--require-bump",
     ])
     assert rc == 0

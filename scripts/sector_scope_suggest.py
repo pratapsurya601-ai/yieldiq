@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
@@ -226,6 +227,17 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--gh-comment", default=None,
                    help="write a Markdown comment for posting to the PR "
                         "(path, e.g. sector_scope_suggestion.md)")
+    p.add_argument(
+        "--auto-commit",
+        action="store_true",
+        help=(
+            "When run on a PR (GITHUB_PR_NUMBER set) with no sector-scope "
+            "line in body, prepend the suggested scope to the PR body via "
+            "`gh pr edit` and post a comment explaining what was added. "
+            "No-op when sector-scope is already present, when there's no "
+            "actionable suggestion, or when GITHUB_PR_NUMBER is unset."
+        ),
+    )
     p.add_argument("--verbose", action="store_true")
     args = p.parse_args(argv)
 
@@ -249,6 +261,76 @@ def main(argv: list[str] | None = None) -> int:
         Path(args.gh_comment).write_text(
             _render_comment(scope_line, info), encoding="utf-8"
         )
+
+    if args.auto_commit:
+        # Best-effort: a failure here NEVER fails the script — the
+        # caller (sector_isolation workflow) still runs the gate after.
+        rc = _maybe_auto_commit_scope(scope_line, info)
+        if args.verbose:
+            print(f"# auto-commit rc: {rc}", file=sys.stderr)
+    return 0
+
+
+_SCOPE_LINE_RE = re.compile(r"^\s*sector-scope\s*:", re.IGNORECASE | re.MULTILINE)
+
+
+def _maybe_auto_commit_scope(scope_line: str, info: dict) -> int:
+    """If on a PR and no sector-scope is set, prepend the suggestion.
+
+    Conditions for actually editing the PR body:
+      * ``GITHUB_PR_NUMBER`` is set in env (running inside CI)
+      * The suggestion is actionable (not the ``<none — ...>`` form)
+      * The PR body does NOT already contain a ``sector-scope:`` line
+      * ``gh`` CLI is on PATH and authenticated
+
+    On all other paths this is a no-op (returns 0). Failures during
+    ``gh pr edit`` are logged but never propagate.
+    """
+    pr_num = os.environ.get("GITHUB_PR_NUMBER", "").strip()
+    if not pr_num or not pr_num.isdigit():
+        return 0
+    if "<none" in scope_line:
+        return 0
+    try:
+        body_out = subprocess.check_output(
+            ["gh", "pr", "view", pr_num, "--json", "body", "-q", ".body"],
+            stderr=subprocess.DEVNULL,
+            timeout=10,
+        )
+        body = body_out.decode("utf-8", "replace")
+    except Exception as e:
+        print(f"# auto-commit: gh pr view failed: {e}", file=sys.stderr)
+        return 1
+    if _SCOPE_LINE_RE.search(body):
+        # Author already declared a scope — respect it.
+        return 0
+    new_body = f"{scope_line}\n\n{body}"
+    try:
+        subprocess.check_call(
+            ["gh", "pr", "edit", pr_num, "--body", new_body],
+            stderr=subprocess.STDOUT,
+            timeout=15,
+        )
+    except Exception as e:
+        print(f"# auto-commit: gh pr edit failed: {e}", file=sys.stderr)
+        return 1
+    # Post an explanatory comment so the human sees what changed and why.
+    comment_body = (
+        "Auto-applied `" + scope_line + "` to the top of this PR body "
+        "(opt-in via the `auto-sector-scope` label).\n\n"
+        "Heuristic source: `scripts/sector_scope_suggest.py`. "
+        "Edit the line if the suggestion is wrong — the gate parses "
+        "your final body, not this comment."
+    )
+    try:
+        subprocess.check_call(
+            ["gh", "pr", "comment", pr_num, "--body", comment_body],
+            stderr=subprocess.STDOUT,
+            timeout=15,
+        )
+    except Exception as e:
+        print(f"# auto-commit: gh pr comment failed: {e}", file=sys.stderr)
+        # Body edit already succeeded — don't propagate.
     return 0
 
 
