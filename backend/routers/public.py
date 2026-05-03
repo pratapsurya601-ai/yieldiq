@@ -4070,19 +4070,47 @@ async def get_fv_accuracy(
         "will be small."
     )
 
+    # SEBI-safe verdict band names (kept in sync with
+    # backend.services.fv_accuracy_service).
+    from backend.services.fv_accuracy_service import (
+        ALL_BANDS,
+        compute_calibration_curve,
+        compute_directional_accuracy,
+        compute_return_attribution,
+    )
+
+    empty_band = {"count": 0, "median_return_12mo": None}
     payload: dict[str, Any] = {
         "computed_at": datetime.now(timezone.utc).isoformat(),
         "lookback_months": lookback_months,
         "tickers_evaluated": 0,
+        "snapshots_collected": 0,
+        "window_start": None,
+        "window_end": None,
         "median_fv_error_pct": None,
         "hit_rate_within_20pct": None,
         "hit_rate_within_50pct": None,
         "directional_accuracy": None,
+        # Legacy field names — kept so the existing scaffold keeps
+        # rendering during deploy; new dashboard reads `directional`.
         "by_verdict": {
-            "undervalued":   {"count": 0, "median_return_12mo": None},
-            "overvalued":    {"count": 0, "median_return_12mo": None},
-            "fairly_valued": {"count": 0, "median_return_12mo": None},
+            "undervalued":   dict(empty_band),
+            "overvalued":    dict(empty_band),
+            "fairly_valued": dict(empty_band),
         },
+        # SEBI-vocabulary datasets (the dashboard reads these).
+        "directional": {
+            "total": 0,
+            "directional_correct": 0,
+            "hit_rate": None,
+            "by_band": {b: {"total": 0, "correct": 0, "hit_rate": None} for b in ALL_BANDS},
+        },
+        "return_attribution": {
+            "by_band": {b: {"count": 0, "mean_return_pct": None, "median_return_pct": None} for b in ALL_BANDS},
+            "overall": {"count": 0, "mean_return_pct": None, "median_return_pct": None},
+            "monotonic": None,
+        },
+        "calibration": {"buckets": [], "monotonic": None},
         "data_caveat": caveat,
     }
 
@@ -4102,7 +4130,7 @@ async def get_fv_accuracy(
                 """
                 WITH then_pts AS (
                     SELECT DISTINCT ON (ticker)
-                           ticker, date, fair_value, price, verdict
+                           ticker, date, fair_value, price, verdict, mos_pct
                     FROM fair_value_history
                     WHERE date BETWEEN
                           (CURRENT_DATE - ((:m + 1) || ' months')::interval)::date
@@ -4120,7 +4148,8 @@ async def get_fv_accuracy(
                       AND trade_date >= CURRENT_DATE - INTERVAL '14 days'
                     ORDER BY ticker, trade_date DESC
                 )
-                SELECT t.ticker, t.fair_value, t.price, t.verdict, n.price_now
+                SELECT t.ticker, t.fair_value, t.price, t.verdict,
+                       t.mos_pct, t.date, n.price_now
                 FROM then_pts t
                 JOIN now_pts n
                   ON n.ticker = t.ticker
@@ -4133,8 +4162,37 @@ async def get_fv_accuracy(
     except Exception as exc:
         logger.warning("accuracy query failed: %s", exc)
         rows = []
-    finally:
-        _safe_close(db)
+
+    # Independent query: total snapshots collected + data window. Used
+    # for the "N days collected" / "Insufficient history" UI gate.
+    snapshot_meta = {"count": 0, "min_date": None, "max_date": None}
+    if db is not None:
+        try:
+            meta_row = db.execute(
+                _t(
+                    """
+                    SELECT COUNT(*) AS n,
+                           MIN(date) AS d_min,
+                           MAX(date) AS d_max
+                    FROM fair_value_history
+                    WHERE fair_value IS NOT NULL
+                    """
+                )
+            ).fetchone()
+            if meta_row is not None:
+                snapshot_meta["count"] = int(meta_row[0] or 0)
+                snapshot_meta["min_date"] = meta_row[1]
+                snapshot_meta["max_date"] = meta_row[2]
+        except Exception as exc:
+            logger.warning("accuracy snapshot meta query failed: %s", exc)
+
+    _safe_close(db)
+
+    payload["snapshots_collected"] = snapshot_meta["count"]
+    if snapshot_meta["min_date"] is not None:
+        payload["window_start"] = str(snapshot_meta["min_date"])
+    if snapshot_meta["max_date"] is not None:
+        payload["window_end"] = str(snapshot_meta["max_date"])
 
     if not rows:
         cache.set(cache_key, payload, ttl=21600, version_keyed=False)
@@ -4149,8 +4207,10 @@ async def get_fv_accuracy(
     directional_total = 0
     within_20 = 0
     within_50 = 0
+    # Row dicts fed to the SEBI-vocabulary compute functions.
+    sebi_rows: list[dict] = []
 
-    for _ticker, fv_then, price_then, verdict, price_now in rows:
+    for _ticker, fv_then, price_then, verdict, mos_then, _then_date, price_now in rows:
         try:
             fv_f = float(fv_then)
             pn_f = float(price_now)
@@ -4188,6 +4248,18 @@ async def get_fv_accuracy(
                     elif v == "fairly_valued" and abs(ret) <= 10:
                         directional_hits += 1
 
+                # Build SEBI-vocab row for the new compute functions.
+                try:
+                    mos_f = float(mos_then) if mos_then is not None else None
+                except (TypeError, ValueError):
+                    mos_f = None
+                sebi_rows.append({
+                    "verdict": verdict,
+                    "price_then": pt_f,
+                    "price_now": pn_f,
+                    "mos_pct": mos_f,
+                })
+
     def _median(xs: list[float]) -> float | None:
         if not xs:
             return None
@@ -4216,6 +4288,12 @@ async def get_fv_accuracy(
             "count": len(vs),
             "median_return_12mo": _median(vs),
         }
+
+    # SEBI-vocabulary datasets — feed the same rows to the pure
+    # compute functions exposed by fv_accuracy_service.
+    payload["directional"] = compute_directional_accuracy(sebi_rows)
+    payload["return_attribution"] = compute_return_attribution(sebi_rows)
+    payload["calibration"] = compute_calibration_curve(sebi_rows)
 
     # Drop the caveat once we've crossed a meaningful sample threshold.
     # 100 tickers + 6+ months of accumulation is the rough cutoff; until
