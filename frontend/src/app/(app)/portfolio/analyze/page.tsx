@@ -410,7 +410,7 @@ function Results({ data }: { data: AnalyzeResponse }) {
       <Panel title="Piotroski F-score distribution">
         <div className="grid grid-cols-3 gap-3">
           <PiotroskiCard
-            label="Strong (≥7)"
+            label="High (≥7)"
             count={piotroski.strong}
             color="bg-green-50 text-green-800 border-green-200"
           />
@@ -420,7 +420,7 @@ function Results({ data }: { data: AnalyzeResponse }) {
             color="bg-amber-50 text-amber-800 border-amber-200"
           />
           <PiotroskiCard
-            label="Weak (<4)"
+            label="Low (<4)"
             count={piotroski.weak}
             color="bg-red-50 text-red-800 border-red-200"
           />
