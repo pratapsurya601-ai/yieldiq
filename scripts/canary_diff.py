@@ -166,6 +166,10 @@ DEFAULT_STOCKS = REPO_ROOT / "scripts" / "canary_stocks_50.json"
 SNAPSHOT_DIR = REPO_ROOT / "scripts" / "snapshots"
 
 API_BASE = os.environ.get("CANARY_API_BASE", "https://api.yieldiq.in").rstrip("/")
+# Retained for backward-compat with callers that still pass a token,
+# but the harness no longer requires it. The canary hits the unauth
+# ``/og-data`` endpoint — Supabase admin JWTs (which expired hourly
+# and silently broke this gate) are no longer in the loop.
 AUTH_TOKEN = os.environ.get("CANARY_AUTH_TOKEN", "")
 
 # Fields compared between public and authed endpoints in Gate 1.
@@ -233,10 +237,25 @@ def fetch_public(symbol: str, api_base: str = API_BASE) -> tuple[dict | None, st
 def fetch_authed(
     symbol: str, token: str = AUTH_TOKEN, api_base: str = API_BASE
 ) -> tuple[dict | None, str | None]:
-    headers = {"Authorization": f"Bearer {token}"} if token else {}
+    """Fetch the public OG-data payload for a ticker.
+
+    Historically this hit the admin-gated ``/api/v1/analysis/{T}.NS``
+    endpoint, which required a Supabase admin JWT. Those tokens expire
+    in ~1 hour, so the canary silently broke every hour with HTTP 401
+    once ``CANARY_AUTH_TOKEN`` went stale. We now hit the unauth
+    ``/og-data`` endpoint, which exposes the same canonical
+    ``fair_value`` / ``price`` / ``mos`` / ``verdict`` / ``score``
+    values (see backend/routers/analysis.py::get_og_data — it resolves
+    from the same ``analysis:{ticker}`` cache key as the admin route).
+
+    ``token`` is accepted for backward-compat with the env var and
+    older test signatures, but is intentionally NOT sent. The endpoint
+    is unauthenticated.
+    """
+    # Bearer auth deliberately omitted — og-data is public.
+    _ = token  # silence unused-arg checkers; kept for back-compat.
     return _http_get(
-        f"{api_base}/api/v1/analysis/{symbol}.NS?include_summary=false",
-        headers=headers,
+        f"{api_base}/api/v1/analysis/{symbol}.NS/og-data",
     )
 
 
@@ -267,12 +286,18 @@ def extract_fields(payload: dict | None) -> dict[str, Any]:
     scenarios = payload.get("scenarios") if isinstance(payload.get("scenarios"), dict) else {}
 
     return {
+        # og-data uses ``price``; admin /analysis uses ``cmp`` /
+        # ``current_price``. _get walks the list in order until it
+        # finds a non-None value, so both shapes resolve to ``cmp``.
         "cmp": _get(payload, "cmp", "current_price", "price")
         or _get(val, "cmp", "current_price"),
         "fair_value": _get(payload, "fair_value", "fv", "intrinsic_value")
         or _get(val, "fair_value", "fv", "intrinsic_value"),
+        # og-data uses ``mos``; admin /analysis uses ``margin_of_safety``.
         "margin_of_safety": _get(payload, "margin_of_safety", "mos", "mos_pct")
         or _get(val, "margin_of_safety", "mos", "mos_pct"),
+        # og-data exposes the YieldIQ score at the top level.
+        "score": _get(payload, "score", "yieldiq_score"),
         "bear_case": _get(payload, "bear_case") or _get(scenarios, "bear", "bear_case"),
         "base_case": _get(payload, "base_case") or _get(scenarios, "base", "base_case"),
         "bull_case": _get(payload, "bull_case") or _get(scenarios, "bull", "bull_case"),
@@ -1039,16 +1064,15 @@ def main(argv: list[str] | None = None) -> int:
             print("  Sample errors:")
             for sym, err in _err_samples:
                 print(f"    {sym}: {err}")
-        # 401 on /analysis is the canonical local-mode footgun: harness
-        # default points at api.yieldiq.in which requires a Bearer token,
-        # so the public endpoint succeeds and the authed one returns
-        # empty data — gates trivially pass on null payloads.
-        if any("401" in (e or "") for _, e in _err_samples):
+        # The canary now hits the unauth /og-data endpoint, so 401s
+        # should never appear. A 5xx burst usually means the API is
+        # unhealthy (Railway worker pool starved, Neon failover, etc.).
+        if any("5" in (e or "")[:6] for _, e in _err_samples):
             print(
-                "  Hint: HTTP 401 on /analysis means CANARY_AUTH_TOKEN is "
-                "unset or expired. For local validation use "
-                "`scripts/run_canary_local.ps1` (boots a local backend "
-                "with YIELDIQ_DEV_MODE=true) instead of pointing at prod."
+                "  Hint: HTTP 5xx from /og-data means the API is "
+                "unhealthy. Check `curl https://api.yieldiq.in/health` "
+                "and Railway logs. The canary no longer requires "
+                "CANARY_AUTH_TOKEN — it uses the public og-data path."
             )
     if drift_notes:
         print(f"Snapshot drift notes (advisory): {len(drift_notes)}")
