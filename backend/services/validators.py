@@ -253,7 +253,14 @@ def validate_analysis(response) -> ValidationResult:
             result.ok = False
             result.severity = "critical"
             result.issues.append(f"WACC {wacc*100:.2f}% below risk-free rate")
-            result.failed_fields.append("wacc")
+            # Don't double-add 'wacc' if _check_bound already flagged it
+            # (wacc < 0.02 trips the lower BOUNDS bound AND this RFR check).
+            # Without this guard, failed_fields ends up ['wacc', 'wacc', ...]
+            # which produces two distinct dedup signatures depending on
+            # whether the lower bound also fired — defeating the dedup and
+            # flooding Sentry (2026-05-03: LTIM 13,964 events/24h).
+            if "wacc" not in result.failed_fields:
+                result.failed_fields.append("wacc")
 
     if q:
         _check_bound("roe_pct", getattr(q, "roe", None), result)
@@ -521,7 +528,12 @@ def log_validation(ticker: str, result: ValidationResult) -> None:
         # one ticker observed in prod). Subsequent occurrences log at
         # WARNING so the line is still in app logs for forensics but
         # doesn't page Sentry.
-        sig = (ticker, tuple(sorted(result.failed_fields or ())))
+        # Dedup failed_fields so 'wacc' appearing twice (lower-BOUNDS +
+        # RFR-floor check) collapses to a single signature. Otherwise
+        # the two natural orderings ('wacc','wacc','market_cap_inr' vs
+        # 'wacc','market_cap_inr') hash differently and bypass dedup.
+        _unique_fields = tuple(sorted(set(result.failed_fields or ())))
+        sig = (ticker, _unique_fields)
         if sig in _LOGGED_CRITICAL_SIGS:
             logger.warning(
                 "VALIDATION CRITICAL [%s] (deduped, already paged): "

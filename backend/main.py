@@ -96,6 +96,36 @@ if _SENTRY_DSN:
         _boot_log.getLogger("yieldiq.sentry").warning("Sentry init failed: %s", exc)
 
 
+def _init_yfinance_tz_cache() -> None:
+    """Move yfinance's peewee SQLite tz cache to a per-worker directory.
+
+    yfinance ships a process-shared SQLite cache at ``~/.cache/py-yfinance/``
+    for timezone metadata. When Railway runs N uvicorn workers all hitting
+    yf.Ticker() concurrently (HDFCBANK is the hot path — ~150 RPS at peak),
+    they race on the same file and emit ``OperationalError: database is
+    locked``. yfinance/base.py:190 then logs ERROR which Sentry escalates
+    to an issue (27 events/24h observed 2026-05-03).
+
+    Fix: point each worker at its own cache dir under /tmp keyed by PID.
+    Cheap (the cache rebuilds in ms on first .info call) and removes the
+    contention entirely. Safe no-op if yfinance isn't installed yet.
+    """
+    try:
+        import tempfile
+        import yfinance as _yf
+        _per_worker = os.path.join(tempfile.gettempdir(), f"yf-tz-{os.getpid()}")
+        os.makedirs(_per_worker, exist_ok=True)
+        _yf.set_tz_cache_location(_per_worker)
+    except Exception:
+        # yfinance not importable, or set_tz_cache_location unavailable on
+        # this version — both fine. We still have the Sentry noise filter
+        # for "reason: database is locked" as a safety net.
+        pass
+
+
+_init_yfinance_tz_cache()
+
+
 # Known-benign event signatures that should NEVER hit Sentry. Every
 # pattern here represents a class of "expected noise" we explicitly
 # chose to swallow — not a bug class we're hiding. If a real regression
@@ -113,6 +143,15 @@ _SENTRY_NOISE_PATTERNS = (
     # yfinance curl_cffi cookie jar race — concurrent requests writing to
     # the same _cookieschema.strategy row. Harmless; retry succeeds.
     "UNIQUE constraint failed: _cookieschema.strategy",
+    # yfinance internal SQLite tz-cache lock. yfinance/base.py:190 logs
+    # `Failed to get ticker '<TKR>' reason: database is locked` at ERROR
+    # whenever multiple workers race on the shared peewee tz cache file
+    # (~/.cache/py-yfinance/tkr-tz.db). 27 events/24h on HDFCBANK alone
+    # in prod 2026-05-03. We've also moved the tz cache to a per-worker
+    # path below (_init_yfinance_tz_cache) so this race shouldn't happen,
+    # but keep the noise filter as belt-and-suspenders for any path that
+    # still imports yfinance before that init runs.
+    "reason: database is locked",
     # holdings lives in Supabase, migration 011 targets Neon pipeline DB
     # and always fails cleanly (ALTER on non-existent table). The portfolio
     # feature uses Supabase directly; this ALTER is a no-op that should
