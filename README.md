@@ -1,6 +1,6 @@
 # YieldIQ --- Institutional-Grade Stock Valuation
 
-![Canary streak](https://img.shields.io/badge/canary%20streak-0%2F7%20nights-red) <!-- canary-streak-badge -->
+![Canary streak](https://img.shields.io/badge/canary%20streak-1%2F7%20nights-orange) <!-- canary-streak-badge -->
 
 An AI-powered stock valuation platform for US and Indian equities.
 Identifies undervalued stocks using DCF modelling, ML forecasting,
