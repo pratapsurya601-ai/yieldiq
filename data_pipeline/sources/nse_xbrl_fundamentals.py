@@ -57,10 +57,17 @@ def _get_session():
 
 def fetch_filings_list(
     symbol: str, period: str = "Annual", session=None,
+    index: str = "equities",
 ) -> list[dict[str, Any]]:
     """Return list of filing metadata dicts.
 
-    period: 'Annual' or 'Quarterly'
+    period: 'Annual' | 'Quarterly' | 'Half-Yearly'
+    index:  'equities' (default — main-board) | 'sme' | 'insurance' | 'debt'
+
+    The `index` parameter selects the NSE listing channel. SMEs file
+    under `index=sme` and frequently report on a Half-Yearly cadence
+    instead of Quarterly. Same XBRL schema either way, so the parser
+    downstream is unchanged.
     """
     if session is None:
         session = _get_session()
@@ -71,7 +78,7 @@ def fetch_filings_list(
         pass
     url = (
         f"{NSE_API_BASE}/corporates-financial-results"
-        f"?index=equities&symbol={symbol}&period={period}"
+        f"?index={index}&symbol={symbol}&period={period}"
     )
     try:
         r = session.get(url, timeout=20, headers={"Accept": "application/json"})
