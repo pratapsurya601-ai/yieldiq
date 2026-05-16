@@ -1,0 +1,92 @@
+name: Weekly Digest (Thursday IST)
+
+# Sends the personalized weekly digest to all eligible users every
+# Thursday morning IST. Replaces the in-process APScheduler entry
+# that was disabled 2026-04-27 after duplicating sends 4x (one per
+# uvicorn worker). GitHub Actions fires exactly once.
+#
+# Schedule rationale:
+#   - 09:00 IST = 03:30 UTC
+#   - Thursday gets read before the weekend, when retail investors
+#     in India have time to actually act on what they read. Sunday
+#     IST sends underperform on open-rate (anecdata from v3 sends).
+#
+# Required secrets (already set for retention_emails.yml):
+#   DATABASE_URL          — Aiven Postgres (for movers query)
+#   SENDGRID_API_KEY      — set in Railway, mirror into GH secrets
+#   SUPABASE_URL          — already in use elsewhere
+#   SUPABASE_SERVICE_KEY  — already in use elsewhere
+#   JWT_SECRET            — used by unsubscribe-link HMAC
+
+on:
+  schedule:
+    - cron: "30 3 * * 4"   # Thursday 03:30 UTC = 09:00 IST
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Render only, do not send"
+        required: false
+        default: "false"
+      test_email:
+        description: "Send only to this address (skips eligibility filter)"
+        required: false
+        default: ""
+
+# Single concurrent run — if a manual dispatch overlaps the scheduled
+# fire we cancel the older one rather than double-send.
+concurrency:
+  group: weekly-digest
+  cancel-in-progress: false
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Verify secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          missing=""
+          [ -z "$DATABASE_URL" ] && missing="$missing DATABASE_URL"
+          [ -z "$SENDGRID_API_KEY" ] && missing="$missing SENDGRID_API_KEY"
+          [ -z "$SUPABASE_URL" ] && missing="$missing SUPABASE_URL"
+          [ -z "$SUPABASE_SERVICE_KEY" ] && missing="$missing SUPABASE_SERVICE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::warning::Missing secrets:$missing — weekly digest will skip"
+            echo "skip=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Send weekly digest
+        if: env.skip != 'true'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          SITE_URL: "https://yieldiq.in"
+          PYTHONUNBUFFERED: "1"
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          TEST_EMAIL: ${{ github.event.inputs.test_email || '' }}
+        run: |
+          args="--send"
+          if [ "$DRY_RUN" = "true" ]; then args="--dry-run"; fi
+          if [ -n "$TEST_EMAIL" ]; then args="$args --test-email=$TEST_EMAIL"; fi
+          echo "Running: python scripts/send_weekly_digest.py $args"
+          python scripts/send_weekly_digest.py $args
