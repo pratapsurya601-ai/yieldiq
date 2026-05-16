@@ -74,6 +74,8 @@ INSERT INTO company_quarterly_results (
     operating_profit_cr, provisions_cr,
     schema_type,
     segment, report_period_type,
+    cfo_cr, cfi_cr, cff_cr, capex_cr,
+    cashflow_period_months, has_cashflow_statement,
     xbrl_url, xbrl_sha256, filed_at
 ) VALUES (
     %(ticker)s, %(fiscal_quarter)s, %(period_start)s, %(period_end)s,
@@ -87,6 +89,8 @@ INSERT INTO company_quarterly_results (
     %(operating_profit_cr)s, %(provisions_cr)s,
     %(schema_type)s,
     %(segment)s, %(report_period_type)s,
+    %(cfo_cr)s, %(cfi_cr)s, %(cff_cr)s, %(capex_cr)s,
+    %(cashflow_period_months)s, %(has_cashflow_statement)s,
     %(xbrl_url)s, %(xbrl_sha256)s, %(filed_at)s
 )
 ON CONFLICT (ticker, fiscal_quarter, is_consolidated) DO UPDATE SET
@@ -116,6 +120,12 @@ ON CONFLICT (ticker, fiscal_quarter, is_consolidated) DO UPDATE SET
     schema_type = EXCLUDED.schema_type,
     segment = EXCLUDED.segment,
     report_period_type = EXCLUDED.report_period_type,
+    cfo_cr = EXCLUDED.cfo_cr,
+    cfi_cr = EXCLUDED.cfi_cr,
+    cff_cr = EXCLUDED.cff_cr,
+    capex_cr = EXCLUDED.capex_cr,
+    cashflow_period_months = EXCLUDED.cashflow_period_months,
+    has_cashflow_statement = EXCLUDED.has_cashflow_statement,
     xbrl_url = EXCLUDED.xbrl_url,
     xbrl_sha256 = EXCLUDED.xbrl_sha256,
     filed_at = EXCLUDED.filed_at,
@@ -201,6 +211,10 @@ def upsert(conn, rows: list[dict[str, Any]]) -> tuple[int, Any]:
             "finance_costs_cr", "depreciation_cr", "other_expenses_cr",
             "employee_benefit_cr", "total_expenses_cr",
             "report_period_type",
+            # Cash flow (PR #XXX — migration 034). Populated only on
+            # H1 (Sep) and Q4 (Mar) filings.
+            "cfo_cr", "cfi_cr", "cff_cr", "capex_cr",
+            "cashflow_period_months", "has_cashflow_statement",
         ):
             payload.setdefault(key, None)
         # `segment` has a server-side default of 'equities' but the

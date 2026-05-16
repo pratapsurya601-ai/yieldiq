@@ -318,6 +318,74 @@ META_TAGS: dict[str, list[str]] = {
     "nature_str": ["NatureOfReportStandaloneConsolidated"],
     "segment_str": ["IsCompanyReportingMultisegmentOrSingleSegment"],
     "rounding": ["LevelOfRoundingUsedInFinancialStatements"],
+    "has_cashflow_str": ["WhetherCashFlowStatementIsApplicableOnCompany"],
+}
+
+
+# ───────────────────────────────────────────────────────────────────────
+# Cash-flow tags — present only on H1 (Q2/Sep) and H2 (Q4/Mar) filings.
+#
+# Under SEBI LODR Reg 33, listed entities must publish a cash-flow
+# statement only half-yearly. Q1 (Jun) and Q3 (Dec) quarterly XBRL
+# filings carry `WhetherCashFlowStatementIsApplicableOnCompany=false`
+# and zero cash-flow facts.
+#
+# The values are YTD cumulative (Apr→period_end) and live in the
+# `FourD` context (Ind-AS year-to-date convention — see
+# `_detect_period_type_from_contexts` in nse_xbrl_fundamentals.py).
+# A Q2 filing's FourD CFO is H1 YTD (6 months). A Q4 filing's FourD
+# CFO is the FULL FY YTD (12 months). The caller stores both alongside
+# `cashflow_period_months` ∈ {6, 12} so the TTM aggregator can stitch
+# H1 + previous-FY-H2 = trailing twelve months.
+#
+# Tag spellings observed in production NSE quarterly filings
+# (verified against INFY Q2/Q4 FY24-FY25, RELIANCE Q2 FY25,
+# HDFCBANK Q2 FY25, HINDUNILVR Q4 FY24). The
+# `*ClassifiedAsInvestingActivities` suffix on capex is specific to
+# the quarterly schema — the annual XBRL uses the shorter form, hence
+# the dual mapping in nse_xbrl_fundamentals.py::_FIELD_TAGS["capex"].
+# ───────────────────────────────────────────────────────────────────────
+
+QUARTERLY_CASHFLOW_TAGS: dict[str, list[str]] = {
+    "cfo_cr": [
+        "CashFlowsFromUsedInOperatingActivities",
+        "NetCashFlowFromOperatingActivities",
+        "NetCashGeneratedFromOperatingActivities",
+        "CashFlowsFromUsedInOperatingActivitiesTotal",
+        "NetCashFlowsFromUsedInOperatingActivities",
+        "CashFlowsFromUsedInOperations",
+        "NetCashFromUsedInOperatingActivities",
+    ],
+    "cfi_cr": [
+        "CashFlowsFromUsedInInvestingActivities",
+        "NetCashFlowFromInvestingActivities",
+        "CashFlowsFromUsedInInvestingActivitiesTotal",
+        "NetCashUsedInInvestingActivities",
+        "NetCashFromUsedInInvestingActivities",
+    ],
+    "cff_cr": [
+        "CashFlowsFromUsedInFinancingActivities",
+        "NetCashFlowFromFinancingActivities",
+        "CashFlowsFromUsedInFinancingActivitiesTotal",
+        "NetCashUsedInFinancingActivities",
+        "NetCashFromUsedInFinancingActivities",
+    ],
+    "capex_cr": [
+        # Quarterly schema spelling (the `ClassifiedAs...` suffix is
+        # added to disambiguate investing-section facts from
+        # balance-sheet PP&E movement).
+        "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+        "PurchaseOfPropertyPlantAndEquipmentAndIntangibleAssetsClassifiedAsInvestingActivities",
+        "PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities",
+        # Annual-style fallbacks for cross-schema robustness
+        "PurchaseOfPropertyPlantAndEquipment",
+        "PurchaseOfPropertyPlantAndEquipmentAndIntangibleAssets",
+        "PurchaseOfFixedAssets",
+        "PaymentsToAcquirePropertyPlantAndEquipment",
+        "PaymentsForPropertyPlantAndEquipment",
+        "AdditionsToPropertyPlantAndEquipment",
+        "CapitalExpenditure",
+    ],
 }
 
 
@@ -546,6 +614,75 @@ def _pick_quarter_fact(
     return None
 
 
+def _pick_ytd_cashflow_fact(
+    facts: dict[str, list[tuple[float, str]]],
+    contexts: dict[str, dict[str, Any]],
+    local_names: list[str],
+    period_end: date,
+) -> float | None:
+    """Pick a YTD cumulative cash-flow fact ending on `period_end`.
+
+    Cash-flow values in NSE quarterly XBRL live in a `Four`-prefixed
+    duration context (Ind-AS YTD convention). The context's printed
+    <startDate>/<endDate> can be misleading — it sometimes spans only
+    the final quarter even when the value is the full YTD cumulative
+    (this is the same OneD/FourD quirk that motivated the annual
+    period-detection fix in `_detect_period_type_from_contexts`).
+
+    Resolution order:
+      1. A context whose ID starts with "Four" AND whose endDate
+         matches `period_end` (the canonical YTD context).
+      2. Any context whose endDate matches `period_end` and whose
+         duration is >= 60 days (covers companies whose template
+         puts cash flow into the OneD = quarter context, with the
+         YTD cumulative still inside it — observed on a handful
+         of PSU filings).
+      3. None — fact is genuinely absent.
+    """
+    period_end_s = period_end.isoformat()
+    for ln in local_names:
+        candidates = facts.get(ln, [])
+        if not candidates:
+            continue
+        # Prefer Four-prefixed (canonical YTD)
+        for val, ctx in candidates:
+            ci = contexts.get(ctx, {})
+            if ci.get("end") != period_end_s:
+                continue
+            if isinstance(ctx, str) and ctx.startswith("Four"):
+                return val
+        # Fallback: any duration context ending on period_end
+        for val, ctx in candidates:
+            ci = contexts.get(ctx, {})
+            if ci.get("end") != period_end_s:
+                continue
+            start_s = ci.get("start")
+            if not start_s:
+                continue
+            try:
+                start_d = datetime.strptime(start_s, "%Y-%m-%d").date()
+            except Exception:
+                continue
+            if (period_end - start_d).days >= 60:
+                return val
+    return None
+
+
+def _cashflow_period_months(period_end: date) -> int:
+    """Return 6 for H1 (Q2/Sep), 12 for H2/FY (Q4/Mar), else 0.
+
+    SEBI LODR cash flow is published only at H1 (Sep) and Q4 (Mar).
+    A Q4 (Mar) filing's FourD context carries the FULL FY YTD value
+    (12 months), not just H2 — so 12 is correct, not 6.
+    """
+    m = period_end.month
+    if m == 9:
+        return 6
+    if m == 3:
+        return 12
+    return 0
+
+
 def _resolve_period_start(
     contexts: dict[str, dict[str, Any]], period_end: date
 ) -> date:
@@ -622,6 +759,35 @@ def parse_quarter_xml(
     def per_share(name: str) -> float | None:
         return _pick_quarter_fact(facts, contexts, per_share_tags.get(name, []), period_end)
 
+    # Cash-flow extraction — only populated on H1 (Sep) and FY (Mar)
+    # period_ends per SEBI LODR Reg 33. We still attempt the parse on
+    # Q1/Q3 in case a filer included it voluntarily; the values will
+    # simply come back None and the row carries cfo_cr = None.
+    has_cf_str = (_pick_string(sfacts, META_TAGS["has_cashflow_str"]) or "").strip().lower()
+    has_cashflow_statement: bool | None
+    if has_cf_str in ("true", "yes", "1"):
+        has_cashflow_statement = True
+    elif has_cf_str in ("false", "no", "0"):
+        has_cashflow_statement = False
+    else:
+        has_cashflow_statement = None
+
+    def cf_num(name: str) -> float | None:
+        tag_list = QUARTERLY_CASHFLOW_TAGS.get(name) or []
+        v = _pick_ytd_cashflow_fact(facts, contexts, tag_list, period_end)
+        return None if v is None else round(v / scale, 2)
+
+    cfo_cr = cf_num("cfo_cr")
+    cfi_cr = cf_num("cfi_cr")
+    cff_cr = cf_num("cff_cr")
+    capex_cr = cf_num("capex_cr")
+    # If any cash-flow value parsed, record the YTD period length so
+    # the TTM aggregator downstream can stitch H1 + previous-FY-H2.
+    if cfo_cr is not None or cfi_cr is not None or cff_cr is not None:
+        cashflow_period_months: int | None = _cashflow_period_months(period_end) or None
+    else:
+        cashflow_period_months = None
+
     nature = _pick_string(sfacts, META_TAGS["nature_str"]) or ""
     is_consol = "Consolidated" in nature and "Standalone" not in nature
     is_audited_str = (_pick_string(sfacts, META_TAGS["is_audited_str"]) or "").strip()
@@ -663,6 +829,16 @@ def parse_quarter_xml(
         "interest_expended_cr": num("interest_expended_cr") if schema == "banking" else None,
         "operating_profit_cr": num("operating_profit_cr") if schema == "banking" else None,
         "provisions_cr": num("provisions_cr") if schema == "banking" else None,
+        # Cash flow (H1/H2 YTD cumulative — see QUARTERLY_CASHFLOW_TAGS
+        # docstring and migration 034 for unit / period semantics).
+        # NULL on Q1/Q3 filings; capex omitted on services-heavy filers
+        # whose investing section is dominated by financial-asset moves.
+        "cfo_cr": cfo_cr,
+        "cfi_cr": cfi_cr,
+        "cff_cr": cff_cr,
+        "capex_cr": capex_cr,
+        "cashflow_period_months": cashflow_period_months,
+        "has_cashflow_statement": has_cashflow_statement,
         # Provenance
         "xbrl_url": xbrl_url,
         "xbrl_sha256": hashlib.sha256(xml_bytes).hexdigest(),
