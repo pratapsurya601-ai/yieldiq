@@ -108,6 +108,14 @@ class ValuationOutput(BaseModel):
     # `margin_of_safety` for downstream / canary-diff visibility.
     mos_clamped: bool = False
     fcf_data_source: str = ""  # "ttm", "annual", or "yfinance"
+    # ── TTM source provenance (feat/wire-quarterly-xbrl-to-analysis) ──
+    # Which path produced TTM revenue + PAT. "nse_xbrl" means the
+    # audited Ind-AS quarterly filing pipeline; "yfinance" is the
+    # legacy noisy fallback. Additive — additive — pre-PR clients ignore.
+    ttm_source: str = "yfinance"  # "nse_xbrl" | "yfinance"
+    # period_end of the latest quarterly XBRL row used. None when
+    # ttm_source != "nse_xbrl". ISO-8601 date string.
+    quarterly_last_filed_at: Optional[str] = None
     valuation_model: str = "dcf"  # "dcf" or "pb_ratio" for financials
     # Set when the router clamps an out-of-bounds FV (FV outside
     # [0.1×price, 3×price] or |MoS| >= 95%). When True, the frontend

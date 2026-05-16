@@ -555,22 +555,45 @@ class AnalysisService(NarrativeMixin):
                     "fcf_years": _norm.get("fcf_years"),
                 }
 
+        # ── NSE XBRL TTM preference (feat/wire-quarterly-xbrl-to-analysis) ──
+        # For the 41 NIFTY-50 tickers whose Ind-AS quarterly P&L is
+        # in `company_quarterly_results`, prefer the audited XBRL TTM
+        # for revenue + PAT over yfinance's noisy series (yfinance
+        # fires ttm_fcf=0 on ~77% of cache). Only swap in when we have
+        # a full 4-quarter window — partial windows would understate
+        # TTM and trip the canary FV-stability gates.
+        #
+        # FCF is NOT taken from XBRL (the quarterly filing doesn't
+        # carry a cash-flow statement) — the existing yfinance /
+        # annual-fallback FCF path below still runs. Follow-up PR
+        # will parse the cash-flow XBRL and add ttm_fcf here.
+        _ttm_source = "yfinance"
+        _quarterly_last_filed_at: str | None = None
         if _normalized_fcf_meta is None:
-            _ttm_data = _query_ttm_financials(ticker)
-            if _ttm_data:
-                _fcf_data_source = "ttm"
-                if _ttm_data.get("fcf") is not None:
-                    enriched["latest_fcf"] = _ttm_data["fcf"]
-                if _ttm_data.get("revenue") is not None:
-                    enriched["latest_revenue"] = _ttm_data["revenue"]
-                if _ttm_data.get("pat") is not None:
-                    enriched["latest_pat"] = _ttm_data["pat"]
-            else:
-                _annual_data = _query_latest_annual_financials(ticker)
-                if _annual_data:
-                    _fcf_data_source = "annual"
-                    if _annual_data.get("fcf") is not None and not enriched.get("latest_fcf"):
-                        enriched["latest_fcf"] = _annual_data["fcf"]
+            from backend.services.quarterly_results_service import (
+                resolve_ttm_for_analysis as _resolve_ttm_for_analysis,
+            )
+            _ttm_resolution = _resolve_ttm_for_analysis(
+                ticker,
+                query_ttm_financials=_query_ttm_financials,
+                query_latest_annual_financials=_query_latest_annual_financials,
+            )
+            _ttm_source = _ttm_resolution["ttm_source"]
+            _quarterly_last_filed_at = _ttm_resolution["quarterly_last_filed_at"]
+            _fcf_data_source = _ttm_resolution["fcf_data_source"]
+            for _k, _v in _ttm_resolution["enriched_updates"].items():
+                enriched[_k] = _v
+            # When XBRL TTM owns revenue+PAT, the FCF leg is still
+            # filled from the latest annual row (XBRL doesn't carry
+            # a cash-flow statement). TODO(follow-up PR): parse
+            # cash-flow XBRL and surface ttm_fcf from filings.
+            _annual_fcf_fallback = _ttm_resolution.get("annual_fcf_fallback")
+            if (
+                _annual_fcf_fallback
+                and _annual_fcf_fallback.get("fcf") is not None
+                and not enriched.get("latest_fcf")
+            ):
+                enriched["latest_fcf"] = _annual_fcf_fallback["fcf"]
 
         # Apply FCF floor for capex-heavy companies (e.g. RELIANCE, MARUTI, TITAN, HUL)
         _pat = None
@@ -2251,6 +2274,8 @@ class AnalysisService(NarrativeMixin):
                 enterprise_value=round(dcf_res.get("enterprise_value", 0), 0),
                 equity_value=round(dcf_res.get("equity_value", 0), 0),
                 fcf_data_source=_fcf_data_source,
+                ttm_source=_ttm_source,
+                quarterly_last_filed_at=_quarterly_last_filed_at,
                 # feat/freshness-stamps: compute timestamp marks when
                 # the price was pulled from upstream (yfinance/NSE
                 # Parquet). Both are delayed — frontend renders as
