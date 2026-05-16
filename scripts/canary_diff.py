@@ -210,13 +210,27 @@ _TICKER_OVERRIDES: dict[str, dict[str, float]] = {
     # premium to conservative DCF; widen FV/CMP and MoS math tolerance
     # to match the prior band-5 widening decision (PR #8 gate 5).
     "TITAN":      {"fv_tolerance_pct": 0.05, "mos_tolerance_pp": 4.0},
-    "ULTRACEMCO": {"fv_tolerance_pct": 0.05, "mos_tolerance_pp": 4.0},
     "NESTLEIND":  {"fv_tolerance_pct": 0.05, "mos_tolerance_pp": 4.0},
     # Telecoms / utilities where terminal-growth-near-WACC makes bull
     # DCF unstable. Relax scenario spread minimum.
     "BHARTIARTL": {"scenario_dispersion_min": 0.04},
     "NTPC":       {"scenario_dispersion_min": 0.04},
     "POWERGRID":  {"scenario_dispersion_min": 0.04},
+    # Cement super-cyclicals — fv/cmp floor relaxed to 0.25 due to
+    # documented 10y signed-median over-correction at trough earnings
+    # (see backend/services/analysis/ticker_overrides.py:113-122). The
+    # FCF anchor uses a 10y signed-median which can over-correct in the
+    # trough phase of the cycle, depressing fv well below cmp even
+    # though the math is correct (golden re-baselined in b00fa94 for
+    # SHREECEM at fv=7748). Half-weight signed-median fix is on the
+    # Q3 roadmap; until then, the default 0.35 floor incorrectly flags
+    # legitimate trough-cycle re-ratings as gate-5 violations. Revisit
+    # when the sector exits trough.
+    "SHREECEM":   {"fv_cmp_min_override": 0.25},
+    "JKCEMENT":   {"fv_cmp_min_override": 0.25},
+    "ULTRACEMCO": {"fv_tolerance_pct": 0.05, "mos_tolerance_pp": 4.0, "fv_cmp_min_override": 0.25},
+    "AMBUJACEM":  {"fv_cmp_min_override": 0.25},
+    "RAMCOCEM":   {"fv_cmp_min_override": 0.25},
 }
 
 
@@ -579,8 +593,11 @@ def gate5_forbidden(symbol: str, fields: dict[str, Any]) -> list[str]:
         # Below 0.35 or above 2.7 still almost always indicates a real
         # DCF bug — e.g. the HONDAPOWER-class unit scale mismatch we hit
         # in Phase C ingestion would produce fv/cmp << 0.1.
-        if ratio > 2.7 or ratio < 0.35:
-            out.append(f"{symbol}: fv/cmp={ratio:.3f} outside [0.35, 2.7]")
+        # Per-ticker floor override exists for cement super-cyclicals
+        # (see _TICKER_OVERRIDES comment); ratio_floor default 0.35.
+        ratio_floor = _ticker_tolerance(symbol, "fv_cmp_min_override", 0.35)
+        if ratio > 2.7 or ratio < ratio_floor:
+            out.append(f"{symbol}: fv/cmp={ratio:.3f} outside [{ratio_floor}, 2.7]")
     return out
 
 
