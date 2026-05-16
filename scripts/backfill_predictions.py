@@ -58,6 +58,13 @@ logger = logging.getLogger("yieldiq.backfill_predictions")
 
 CANARY_FILE = _HERE / "canary_stocks_50.json"
 
+# Shared bare→.NS/.BO normalizer. Every offline writer to analysis_cache
+# must funnel tickers through this before compute, or risk the
+# 2026-05-17 MPHASIS-class cache poisoning (yfinance returns
+# market_cap=0 for bare Indian symbols, which then overwrites the
+# healthy .NS-keyed cache row).
+from _ticker_normalize import normalize_for_compute  # noqa: E402
+
 
 # ─────────────────────────────────────────────────────────────────
 # Universe resolution
@@ -66,7 +73,7 @@ CANARY_FILE = _HERE / "canary_stocks_50.json"
 def _load_canary50() -> list[str]:
     with open(CANARY_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
-    return [f"{s['symbol']}.NS" for s in data["stocks"]]
+    return [normalize_for_compute(s["symbol"]) for s in data["stocks"]]
 
 
 def _load_all() -> list[str]:
@@ -80,7 +87,7 @@ def _load_all() -> list[str]:
         rows = sess.execute(
             text("SELECT ticker FROM stocks WHERE is_active = TRUE ORDER BY ticker")
         ).fetchall()
-        return [f"{r[0]}.NS" for r in rows]
+        return [normalize_for_compute(r[0]) for r in rows]
     finally:
         sess.close()
 
@@ -99,9 +106,7 @@ def resolve_universe(spec: str) -> list[str]:
             line = line.strip()
             if not line or line.startswith("#"):
                 continue
-            if not line.endswith(".NS") and not line.endswith(".BO"):
-                line = f"{line}.NS"
-            out.append(line)
+            out.append(normalize_for_compute(line))
     return out
 
 
