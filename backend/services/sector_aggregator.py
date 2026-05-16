@@ -173,7 +173,14 @@ def build_sector_prism(
     for c in constituents or []:
         if not isinstance(c, dict):
             continue
-        if normalize_sector(c.get("sector")) == sector:
+        # Prefer the migration 035 canonical_sector column when the
+        # caller passed it through; fall back to normalize_sector() on
+        # the raw label for legacy callers / older cache payloads that
+        # predate the canonical backfill.
+        canon = c.get("canonical_sector")
+        if not canon:
+            canon = normalize_sector(c.get("sector"))
+        if canon == sector:
             matched.append(c)
 
     pillars: dict[str, dict] = {}

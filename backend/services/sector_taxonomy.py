@@ -138,6 +138,254 @@ def normalize_sector(raw: Optional[str]) -> Optional[str]:
     return SECTOR_ALIAS_MAP.get(stripped.lower(), stripped)
 
 
+# ════════════════════════════════════════════════════════════════
+# Industry-aware canonical mapping (2026-05-16 audit follow-up)
+#
+# The plain alias map can't disambiguate yfinance broad labels like
+# "Basic Materials" / "Industrials" / "Consumer Cyclical" /
+# "Communication Services" / "Financial Services" — these each fan
+# out into ~10 NSE-level industries that belong in different YieldIQ
+# canonical buckets (e.g. "Consumer Cyclical / Apparel Retail" is
+# Consumer Durables for our purposes; "Consumer Cyclical / Auto
+# Parts" is Auto). The (raw_sector, industry_substring) → canonical
+# table below is consulted BEFORE the plain alias map.
+#
+# Ordering inside each list matters: the first substring whose
+# lowercase form appears in the lowercase industry wins.
+# ════════════════════════════════════════════════════════════════
+INDUSTRY_CANONICAL_RULES: dict[str, list[tuple[str, str]]] = {
+    # raw sector -> list of (industry substring, canonical sector)
+    "basic materials": [
+        ("steel", "Metal"),
+        ("aluminum", "Metal"),
+        ("copper", "Metal"),
+        ("metals", "Metal"),
+        ("mining", "Metal"),
+        ("coking coal", "Energy"),
+        ("specialty chemicals", "Energy"),  # bucket as Energy/Chem-adjacent
+        ("chemicals", "Energy"),
+        ("agricultural inputs", "FMCG"),
+        ("building materials", "Real Estate"),
+        ("paper", "Metal"),  # fallback bucket for forest/paper
+        ("lumber", "Metal"),
+    ],
+    "consumer cyclical": [
+        ("auto parts", "Auto"),
+        ("auto manufacturers", "Auto"),
+        ("auto & truck", "Auto"),
+        ("apparel", "Consumer Durables"),
+        ("textile", "Consumer Durables"),
+        ("footwear", "Consumer Durables"),
+        ("luxury", "Consumer Durables"),
+        ("furnishings", "Consumer Durables"),
+        ("packaging", "Consumer Durables"),
+        ("lodging", "Consumer Durables"),
+        ("travel", "Consumer Durables"),
+        ("restaurants", "Consumer Durables"),
+        ("leisure", "Consumer Durables"),
+        ("resorts", "Consumer Durables"),
+        ("retail", "Consumer Durables"),
+        ("stores", "Consumer Durables"),
+        ("home improvement", "Consumer Durables"),
+    ],
+    "consumer defensive": [
+        ("tobacco", "FMCG"),
+        ("packaged foods", "FMCG"),
+        ("confectioners", "FMCG"),
+        ("farm products", "FMCG"),
+        ("beverages", "FMCG"),
+        ("household", "FMCG"),
+        ("personal products", "FMCG"),
+        ("food distribution", "FMCG"),
+        ("grocery", "FMCG"),
+        ("discount stores", "FMCG"),
+        ("education", "Media"),  # ed-tech reads closer to Media than FMCG
+    ],
+    "consumer services": [
+        ("leisure", "Consumer Durables"),
+        ("retailing", "Consumer Durables"),
+        ("", "Consumer Durables"),
+    ],
+    "communication services": [
+        ("telecom", "Media"),
+        ("broadcasting", "Media"),
+        ("publishing", "Media"),
+        ("entertainment", "Media"),
+        ("advertising", "Media"),
+        ("internet content", "Media"),
+    ],
+    "industrials": [
+        ("aerospace", "Auto"),  # defence/aerospace tracks with auto cohort
+        ("airlines", "Auto"),
+        ("freight", "Auto"),
+        ("trucking", "Auto"),
+        ("railroads", "Auto"),
+        ("marine", "Auto"),
+        ("airports", "Auto"),
+        # Everything else industrial reads as Metal-cohort heavy capex
+        ("engineering", "Metal"),
+        ("construction", "Metal"),
+        ("machinery", "Metal"),
+        ("electrical", "Metal"),
+        ("building products", "Real Estate"),
+        ("metal fabrication", "Metal"),
+        ("conglomerates", "Metal"),
+        ("infrastructure", "Energy"),
+        ("waste management", "Energy"),
+        ("business services", "Media"),
+        ("staffing", "Media"),
+        ("consulting", "Media"),
+        ("rental", "Media"),
+        ("distribution", "Media"),
+        ("tools", "Metal"),
+        ("equipment & supplies", "Metal"),
+        ("pollution", "Energy"),
+        ("security", "Media"),
+        # Catch-all: anything else industrial buckets as Metal-cohort.
+        ("", "Metal"),
+    ],
+    "financial services": [
+        # Banking sub-types — only when industry hints at it
+        ("private bank", "Private Bank"),
+        ("psu bank", "PSU Bank"),
+        ("banks - regional", "Bank"),
+        # Everything else inside "Financial Services" stays as the
+        # canonical "Financial Services" bucket (NBFC, AMC, insurance,
+        # credit, capital markets).
+    ],
+    "utilities": [
+        ("renewable", "Energy"),
+        ("electric", "Energy"),
+        ("gas", "Energy"),
+        ("water", "Energy"),
+        ("power", "Energy"),
+    ],
+    "energy": [
+        ("oil", "Energy"),
+        ("gas", "Energy"),
+        ("coal", "Energy"),
+    ],
+    "pharma": [
+        # All pharma sub-industries roll up to Pharma.
+        ("", "Pharma"),
+    ],
+    "real estate": [
+        ("", "Real Estate"),
+    ],
+    "forest materials": [
+        ("", "Metal"),
+    ],
+    "textiles": [
+        ("", "Consumer Durables"),
+    ],
+    "services": [
+        ("", "Media"),
+    ],
+    "diversified": [
+        ("", "Financial Services"),
+    ],
+    "oil gas & consumable fuels": [
+        ("", "Energy"),
+    ],
+    "media entertainment & publication": [
+        ("", "Media"),
+    ],
+    "construction": [
+        ("", "Real Estate"),
+    ],
+    "automobile and auto components": [
+        ("", "Auto"),
+    ],
+    "capital goods": [
+        ("", "Metal"),
+    ],
+    "chemicals": [
+        ("", "Energy"),
+    ],
+}
+
+
+# ════════════════════════════════════════════════════════════════
+# Per-ticker overrides — the truth source for mis-tagged names the
+# 2026-05-16 audit caught (and any future hand-resolved cases).
+# Wins over both INDUSTRY_CANONICAL_RULES and SECTOR_ALIAS_MAP.
+# ════════════════════════════════════════════════════════════════
+TICKER_CANONICAL_OVERRIDES: dict[str, tuple[str, str]] = {
+    # (canonical_sector, canonical_industry)
+    # Insurance aggregator listed under Financial Services / Insurance Brokers
+    "POLICYBZR": ("Financial Services", "Insurance"),
+    # Diversified financial holdco — was tagged Insurance - Life by mistake
+    "RELIGARE":  ("Financial Services", "NBFC"),
+    # Life / general insurers — industry was set to "Nifty Financial Services"
+    "HDFCLIFE":  ("Financial Services", "Insurance"),
+    "ICICIGI":   ("Financial Services", "Insurance"),
+    "SBILIFE":   ("Financial Services", "Insurance"),
+    "ICICIPRULI": ("Financial Services", "Insurance"),
+    "LICI":      ("Financial Services", "Insurance"),
+    "MAXLIFE":   ("Financial Services", "Insurance"),
+    "STARHEALTH": ("Financial Services", "Insurance"),
+    "GICRE":     ("Financial Services", "Insurance"),
+    "NIACL":     ("Financial Services", "Insurance"),
+    # Specialty retailers/services that read better as Consumer Durables / Pharma
+    "GOCOLORS":  ("Consumer Durables", "Apparel Retail"),
+    "MEDPLUS":   ("Pharma", "Pharmaceutical Retailers"),
+    # Credit cards roll into NBFC under Financial Services
+    "SBICARD":   ("Financial Services", "NBFC"),
+}
+
+
+def to_canonical(
+    raw_sector: Optional[str],
+    raw_industry: Optional[str] = None,
+    ticker: Optional[str] = None,
+) -> tuple[str, Optional[str]]:
+    """Return (canonical_sector, canonical_industry) for a row.
+
+    Resolution order:
+      1. Per-ticker override (TICKER_CANONICAL_OVERRIDES).
+      2. Industry-aware rule (INDUSTRY_CANONICAL_RULES[sector_lc]).
+      3. Plain alias map (SECTOR_ALIAS_MAP).
+      4. Fallback to "Unknown" canonical so cohort queries never break.
+
+    canonical_industry is the raw industry by default (preserving the
+    finer-grained NSE/yfinance label) unless an override supplies one.
+    """
+    # 1. Ticker override wins.
+    if ticker:
+        tkr = ticker.strip().upper()
+        if tkr in TICKER_CANONICAL_OVERRIDES:
+            canon_sec, canon_ind = TICKER_CANONICAL_OVERRIDES[tkr]
+            return canon_sec, canon_ind
+
+    canon_industry = (raw_industry or "").strip() or None
+
+    if not raw_sector:
+        return "Unknown", canon_industry
+
+    sector_lc = raw_sector.strip().lower()
+    industry_lc = (raw_industry or "").strip().lower()
+
+    # 2. Industry-aware rule.
+    rules = INDUSTRY_CANONICAL_RULES.get(sector_lc)
+    if rules:
+        for ind_sub, canon in rules:
+            if ind_sub == "" or (industry_lc and ind_sub in industry_lc):
+                return canon, canon_industry
+
+    # 3. Plain alias map (handles "Banks" / "FMCG" / "IT Services" etc.).
+    aliased = SECTOR_ALIAS_MAP.get(sector_lc)
+    if aliased:
+        return aliased, canon_industry
+
+    # 4. Last-ditch: if the raw sector is already a canonical name,
+    #    return it verbatim. Otherwise bucket as Unknown rather than
+    #    leaking a one-off NSE label into cohort SQL.
+    if raw_sector.strip() in CANONICAL_SECTORS:
+        return raw_sector.strip(), canon_industry
+
+    return "Unknown", canon_industry
+
+
 def sector_slug(sector: str) -> str:
     """Canonical sector → URL slug.
 
