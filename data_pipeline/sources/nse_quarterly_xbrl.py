@@ -544,6 +544,31 @@ def detect_unit_scale(
         # Lakhs declared but values look like raw INR.
         if declared == 1e-2 and revenue_raw is not None and abs(revenue_raw) > 1e8:
             return 1e7
+        # Millions declared but values look like raw INR. Affects
+        # BHARTIARTL / MARUTI / SUNPHARMA Q2 FY25 among others: declared
+        # 'Millions' (divisor=10) but rev_raw is in raw rupees, producing
+        # cfo_cr off by 1e6. Same ₹10-trillion sanity threshold as the
+        # 'Crores' bypass above (raw/10 > 1e10 => declared Mn cannot be
+        # right; treat as raw INR).
+        if declared == 0.1 and revenue_raw is not None and abs(revenue_raw) > 1e10:
+            return 1e7
+        # General post-compute sanity guard: regardless of declared scale,
+        # if the resulting value_in_cr would exceed ₹10 trillion (1e6 Cr)
+        # the file is almost certainly a raw-INR template mis-tag — no
+        # Indian filer reports a quarter that large. Fall back to raw-INR
+        # divisor 1e7.
+        if revenue_raw is not None:
+            divisor_candidate = {
+                "crores": 1.0,
+                "lakhs": 100.0,
+                "millions": 10.0,
+                "thousands": 1e5,
+                "hundreds": 1e6,
+                "actual": 1e7,
+            }.get(rounding)
+            if divisor_candidate is not None and divisor_candidate < 1e7:
+                if abs(revenue_raw) / divisor_candidate > 1e6:
+                    return 1e7
         # Use the declared scale interpreted as a divisor:
         #   value_in_cr = raw / divisor
         # For 'Crores': divisor = 1 → value already in Cr
