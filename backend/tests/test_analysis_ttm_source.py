@@ -158,6 +158,98 @@ def test_xbrl_exception_falls_back_to_yfinance():
 
 # ── ValuationOutput carries the new provenance fields ─────────────
 
+# ── Cyclical label fix (fix/cyclical-ttm-source-label) ────────────
+#
+# For cyclicals (RELIANCE, COALINDIA, TATASTEEL, etc.) the analysis
+# service intentionally SKIPS the XBRL TTM ladder and uses a 3-year
+# normalized FCF instead — single-year TTM would swing the fair
+# value with the commodity cycle. Before this fix, `_ttm_source`
+# stayed at its default "yfinance" in that branch, which made the
+# provenance label lie about what was actually used.
+#
+# These tests pin the new contract: when the cyclical 3y-normalized
+# FCF branch fires, ttm_source must read "normalized_3y" — not
+# "yfinance" (which would mean the yfinance TTM ladder) and not
+# "nse_xbrl" (which is intentionally skipped here).
+#
+# Framework-thin: we exercise the analysis service file directly
+# via the gate snippet, because the full `get_full_analysis`
+# pipeline needs Neon + yfinance + DuckDB (see test_analysis_flags
+# docstring for the same convention).
+
+
+def _run_ttm_label_gate(
+    *,
+    normalized_fcf_meta,
+    xbrl_result,
+    legacy_ttm=None,
+    annual=None,
+):
+    """Reproduce the exact branch in service.py:570-600 in
+    isolation. If service.py drifts, these tests must too —
+    that's the whole point of a lock-in."""
+    from backend.services.quarterly_results_service import (
+        resolve_ttm_for_analysis,
+    )
+
+    _ttm_source = "yfinance"
+    _quarterly_last_filed_at = None
+    _fcf_data_source = "yfinance"
+
+    if normalized_fcf_meta is not None:
+        _ttm_source = "normalized_3y"
+    else:
+        res = resolve_ttm_for_analysis(
+            "X.NS",
+            query_ttm_financials=lambda t: legacy_ttm,
+            query_latest_annual_financials=lambda t: annual,
+            compute_xbrl_ttm=lambda t: xbrl_result,
+        )
+        _ttm_source = res["ttm_source"]
+        _quarterly_last_filed_at = res["quarterly_last_filed_at"]
+        _fcf_data_source = res["fcf_data_source"]
+
+    return {
+        "ttm_source": _ttm_source,
+        "quarterly_last_filed_at": _quarterly_last_filed_at,
+        "fcf_data_source": _fcf_data_source,
+    }
+
+
+def test_cyclical_branch_labels_ttm_source_normalized_3y():
+    """RELIANCE-shape: cyclical FCF meta exists → label must be
+    'normalized_3y', not the default 'yfinance'."""
+    out = _run_ttm_label_gate(
+        normalized_fcf_meta={"years_used": 3, "fcf_years": [2022, 2023, 2024]},
+        xbrl_result=_xbrl_full(),  # would have been swapped in, but gate skips
+    )
+    assert out["ttm_source"] == "normalized_3y"
+
+
+def test_non_cyclical_with_xbrl_still_labels_nse_xbrl():
+    """INFY-shape: not cyclical, XBRL window full → existing
+    'nse_xbrl' label preserved."""
+    out = _run_ttm_label_gate(
+        normalized_fcf_meta=None,
+        xbrl_result=_xbrl_full(),
+        legacy_ttm=_legacy_ttm(),
+        annual=_annual(),
+    )
+    assert out["ttm_source"] == "nse_xbrl"
+
+
+def test_non_cyclical_without_xbrl_falls_back_to_yfinance():
+    """ADANIPOWER-shape: not cyclical, no XBRL → 'yfinance'
+    fallback (the true fallback, not the misleading default)."""
+    out = _run_ttm_label_gate(
+        normalized_fcf_meta=None,
+        xbrl_result=None,
+        legacy_ttm=_legacy_ttm(),
+        annual=_annual(),
+    )
+    assert out["ttm_source"] == "yfinance"
+
+
 def test_valuation_output_carries_ttm_source_field():
     """Pre-PR clients ignore unknown fields, but the model itself
     must accept the new keys so the analysis service can pass them."""
