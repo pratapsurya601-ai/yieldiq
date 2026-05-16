@@ -5,7 +5,7 @@ import csv
 import io
 import logging
 from pathlib import Path
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, UploadFile, File, Form
 from pydantic import BaseModel
 
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
@@ -49,8 +49,26 @@ class PrismAnalyzeRequest(BaseModel):
 @router.post("/analyze")
 async def analyze_portfolio(
     req: PrismAnalyzeRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
     user: dict = Depends(get_current_user),
 ):
+    # ── Telemetry (additive, never blocks) ──
+    try:
+        from backend.services.page_view_service import record_page_view as _rpv
+        _email = (user or {}).get("email") if isinstance(user, dict) else None
+        if _email:
+            background_tasks.add_task(
+                _rpv,
+                user_email=_email,
+                page_kind="portfolio_analyze",
+                ticker=None,
+                path=str(request.url.path),
+                user_agent=request.headers.get("user-agent"),
+                referrer=request.headers.get("referer"),
+            )
+    except Exception:
+        pass
     """Aggregate Prism scores, sector concentration, valuation skew,
     and Piotroski distribution across the supplied holdings.
 

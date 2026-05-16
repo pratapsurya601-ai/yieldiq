@@ -1,0 +1,48 @@
+name: Prune user_page_views daily
+
+# Trims the user_page_views table to a 30-day rolling window.
+# Cheap DELETE, append-only schema. Runs at 02:00 UTC (low-traffic
+# window for India users — 07:30 IST).
+#
+# Env requirements (repo secrets):
+#   - DATABASE_URL  -- Neon Postgres (same one used by Railway backend)
+#
+# Manual trigger supports a --dry-run mode for safe verification.
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Count rows that would be deleted without deleting"
+        required: false
+        default: "false"
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          # Minimal — service module needs SQLAlchemy + psycopg2 only.
+          pip install "SQLAlchemy>=2.0" "psycopg2-binary" python-dotenv
+
+      - name: Run prune
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            python scripts/prune_page_views.py --dry-run
+          else
+            python scripts/prune_page_views.py
+          fi

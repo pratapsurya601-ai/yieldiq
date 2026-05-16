@@ -100,13 +100,23 @@ def _call_og(fake) -> dict:
             return fake
         return None
 
+    # PR #236 added `request` and `background_tasks` params for
+    # signed-in page-view telemetry. Pass stand-ins; user defaults to
+    # None so the telemetry branch short-circuits and these mocks are
+    # never actually exercised.
+    fake_request = SimpleNamespace(
+        url=SimpleNamespace(path="/api/v1/analysis/RELIANCE.NS/og-data"),
+        headers={},
+    )
+    fake_bg = SimpleNamespace(add_task=lambda *a, **kw: None)
+
     with patch("backend.routers.analysis.cache.get", side_effect=_cache_get), \
          patch("backend.routers.analysis.cache.set", return_value=None), \
          patch(
              "backend.services.coverage_tier_service.summary_for_og",
              return_value=None,
          ):
-        return _run(get_og_data("RELIANCE.NS"))
+        return _run(get_og_data("RELIANCE.NS", fake_request, fake_bg))
 
 
 # ── Test 1: happy path — all 7 new fields present ───────────────
