@@ -569,7 +569,16 @@ class AnalysisService(NarrativeMixin):
         # will parse the cash-flow XBRL and add ttm_fcf here.
         _ttm_source = "yfinance"
         _quarterly_last_filed_at: str | None = None
-        if _normalized_fcf_meta is None:
+        if _normalized_fcf_meta is not None:
+            # Cyclical path already populated revenue/PAT/FCF from the
+            # normalized 3y FCF helper above. Reflect that in the
+            # provenance label instead of leaving the default "yfinance",
+            # which misleadingly suggests the noisy yfinance TTM ladder
+            # was used (it wasn't — XBRL TTM is intentionally skipped
+            # for cyclicals because normalized 3y avoids single-year
+            # spikes/troughs that distort the cycle).
+            _ttm_source = "normalized_3y"
+        else:
             from backend.services.quarterly_results_service import (
                 resolve_ttm_for_analysis as _resolve_ttm_for_analysis,
             )
