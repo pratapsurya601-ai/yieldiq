@@ -4,7 +4,12 @@ name: Canary Diff (merge gate)
 # production. Required status check on every PR that touches the
 # computation surface, plus a daily 08:00 IST cron baseline.
 #
-# Required secret: CANARY_AUTH_TOKEN  (admin-account JWT for /analysis)
+# No secret required — the harness hits the unauth `/og-data` endpoint.
+# Historical note: this previously required CANARY_AUTH_TOKEN (Supabase
+# admin JWT for /analysis). Those tokens expire in ~1h, so the canary
+# silently broke every hour with HTTP 401. Switched to og-data on the
+# fix/canary-use-public-ogdata branch — the CANARY_AUTH_TOKEN secret
+# is safe to delete from repo Settings → Secrets → Actions.
 
 on:
   pull_request:
@@ -59,7 +64,11 @@ jobs:
       - name: Run canary-diff against production
         env:
           CANARY_API_BASE: https://api.yieldiq.in
-          CANARY_AUTH_TOKEN: ${{ secrets.CANARY_AUTH_TOKEN }}
+          # CANARY_AUTH_TOKEN intentionally removed — canary now uses
+          # the public /og-data endpoint and needs no Bearer token.
+          # Re-add this env var only if a future change reintroduces a
+          # gated endpoint:
+          #   CANARY_AUTH_TOKEN: ${{ secrets.CANARY_AUTH_TOKEN }}
           # Pass the PR number so canary_diff.py can pull the
           # `intentional-fv-deltas:` block from the PR body via `gh pr view`
           # and exempt declared tickers from gate-failure totals.
