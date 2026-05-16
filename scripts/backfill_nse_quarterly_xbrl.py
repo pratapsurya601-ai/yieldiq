@@ -123,6 +123,35 @@ def get_db_url() -> str | None:
     return os.environ.get("DATABASE_URL")
 
 
+def get_db_connection(max_retries: int = 3):
+    """Open a fresh Neon connection with exponential-backoff retry.
+
+    Used at script start AND on reconnect after a Neon idle-timeout drop
+    (psycopg2.InterfaceError / OperationalError) during long backfills.
+    """
+    import psycopg2
+    last_exc: Exception | None = None
+    for attempt in range(max_retries):
+        try:
+            db_url = get_db_url()
+            if not db_url:
+                raise RuntimeError("DATABASE_URL not set")
+            conn = psycopg2.connect(db_url)
+            conn.autocommit = False
+            return conn
+        except psycopg2.OperationalError as e:
+            last_exc = e
+            if attempt == max_retries - 1:
+                raise
+            wait = 2 ** attempt
+            log.warning("DB connect attempt %d failed: %s (retry in %ds)",
+                        attempt + 1, str(e)[:120], wait)
+            time.sleep(wait)
+    if last_exc:
+        raise last_exc
+    raise RuntimeError("get_db_connection: unreachable")
+
+
 def _strip_internal(row: dict[str, Any]) -> dict[str, Any]:
     """Drop keys not present in the UPSERT SQL (internal markers like _resolved_symbol)."""
     return {k: v for k, v in row.items() if not k.startswith("_")}
@@ -148,7 +177,14 @@ def dry_run_summary(ticker: str, rows: list[dict[str, Any]]) -> None:
         log.info("  ...(+%d more)", len(rows) - 8)
 
 
-def upsert(conn, rows: list[dict[str, Any]]) -> int:
+def upsert(conn, rows: list[dict[str, Any]]) -> tuple[int, Any]:
+    """Upsert rows, returning (n_inserted, possibly_new_conn).
+
+    If Neon drops the connection mid-loop (InterfaceError/OperationalError),
+    reconnect via get_db_connection() and retry the failing row up to 2 times
+    before giving up on it.
+    """
+    import psycopg2
     n = 0
     for row in rows:
         payload = _strip_internal(row)
@@ -161,16 +197,42 @@ def upsert(conn, rows: list[dict[str, Any]]) -> int:
             "employee_benefit_cr", "total_expenses_cr",
         ):
             payload.setdefault(key, None)
-        try:
-            with conn.cursor() as cur:
-                cur.execute(UPSERT_SQL, payload)
-            conn.commit()
-            n += 1
-        except Exception as exc:
-            conn.rollback()
-            log.warning("upsert fail %s %s: %s",
-                        row.get("ticker"), row.get("fiscal_quarter"), exc)
-    return n
+
+        max_retries = 2
+        for attempt in range(max_retries + 1):
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(UPSERT_SQL, payload)
+                conn.commit()
+                n += 1
+                break
+            except (psycopg2.InterfaceError, psycopg2.OperationalError) as exc:
+                if attempt == max_retries:
+                    log.warning("upsert give-up %s %s after %d reconnects: %s",
+                                row.get("ticker"), row.get("fiscal_quarter"),
+                                max_retries, str(exc)[:120])
+                    break
+                log.info("  [reconnect after %s: %s]",
+                         type(exc).__name__, str(exc)[:80])
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+                conn = get_db_connection()
+            except Exception as exc:
+                try:
+                    conn.rollback()
+                except Exception:
+                    # rollback itself may fail if conn died
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                    conn = get_db_connection()
+                log.warning("upsert fail %s %s: %s",
+                            row.get("ticker"), row.get("fiscal_quarter"), exc)
+                break
+    return n, conn
 
 
 def main() -> int:
@@ -178,6 +240,11 @@ def main() -> int:
     ap.add_argument(
         "--tickers", nargs="+",
         help="Explicit list of NSE tickers (overrides --batch)",
+    )
+    ap.add_argument(
+        "--tickers-file", type=Path,
+        help="Path to a file with tickers (one per line, or comma-separated). "
+             "Blank lines and lines starting with '#' are ignored.",
     )
     ap.add_argument(
         "--batch", choices=list(BATCHES.keys()),
@@ -198,10 +265,25 @@ def main() -> int:
 
     if args.tickers:
         tickers = args.tickers
+    elif args.tickers_file:
+        raw = args.tickers_file.read_text(encoding="utf-8")
+        tickers = []
+        for line in raw.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            # support comma-separated too
+            for tok in line.split(","):
+                tok = tok.strip()
+                if tok:
+                    tickers.append(tok)
+        if not tickers:
+            log.error("--tickers-file %s is empty", args.tickers_file)
+            return 2
     elif args.batch:
         tickers = BATCHES[args.batch]
     else:
-        log.error("must specify --tickers or --batch")
+        log.error("must specify --tickers, --tickers-file, or --batch")
         return 2
 
     log.info("mode=%s  tickers=%s  limit=%d/ticker",
@@ -214,14 +296,14 @@ def main() -> int:
         if not db_url:
             log.error("--apply requires DATABASE_URL")
             return 2
-        import psycopg2
-        conn = psycopg2.connect(db_url)
-        conn.autocommit = False
+        conn = get_db_connection()
 
     session = _get_session()
     t0 = time.time()
     grand_total = 0
     all_rows: dict[str, list[dict[str, Any]]] = {}
+    per_ticker_stats: dict[str, dict[str, Any]] = {}
+    failed_tickers: list[dict[str, str]] = []
 
     for tk in tickers:
         log.info("=== %s ===", tk)
@@ -231,32 +313,54 @@ def main() -> int:
             )
         except Exception as exc:
             log.error("%s failed: %s", tk, exc)
+            failed_tickers.append({"ticker": tk, "stage": "fetch_and_parse",
+                                   "error": str(exc)[:240]})
+            per_ticker_stats[tk] = {"fetched": 0, "upserted": 0,
+                                    "error": str(exc)[:240]}
             continue
         all_rows[tk] = rows
         grand_total += len(rows)
         if args.dry_run:
             dry_run_summary(tk, rows)
+            per_ticker_stats[tk] = {"fetched": len(rows), "upserted": 0}
         elif conn is not None:
-            n = upsert(conn, rows)
+            n, conn = upsert(conn, rows)
             log.info("[%s] upserted %d/%d rows", tk, n, len(rows))
+            per_ticker_stats[tk] = {"fetched": len(rows), "upserted": n}
 
     elapsed = time.time() - t0
     log.info("=" * 60)
     log.info("DONE  tickers=%d  rows=%d  wall=%.1fs",
              len(tickers), grand_total, elapsed)
 
-    if args.json_out and args.dry_run:
+    if args.json_out:
         # Serialize dates as ISO strings
         def _enc(o):
             if hasattr(o, "isoformat"):
                 return o.isoformat()
             raise TypeError(f"unserializable {type(o)}")
+        if args.dry_run:
+            payload = {tk: [_strip_internal(r) for r in rows]
+                       for tk, rows in all_rows.items()}
+        else:
+            # apply mode: write summary stats, not full row dump
+            payload = {
+                "mode": "apply",
+                "tickers_total": len(tickers),
+                "tickers_with_rows": sum(
+                    1 for s in per_ticker_stats.values() if s.get("upserted", 0) > 0
+                ),
+                "rows_fetched_total": grand_total,
+                "rows_upserted_total": sum(
+                    s.get("upserted", 0) for s in per_ticker_stats.values()
+                ),
+                "wall_seconds": round(elapsed, 1),
+                "per_ticker": per_ticker_stats,
+                "failed": failed_tickers,
+            }
+        args.json_out.parent.mkdir(parents=True, exist_ok=True)
         args.json_out.write_text(
-            json.dumps(
-                {tk: [_strip_internal(r) for r in rows]
-                 for tk, rows in all_rows.items()},
-                indent=2, default=_enc,
-            ),
+            json.dumps(payload, indent=2, default=_enc),
             encoding="utf-8",
         )
         log.info("wrote %s", args.json_out)
