@@ -9,6 +9,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: "https://yieldiq.in", lastModified: new Date(), priority: 1.0, changeFrequency: "daily" },
     { url: "https://yieldiq.in/features", priority: 0.7, changeFrequency: "weekly" },
     { url: "https://yieldiq.in/pricing", priority: 0.8, changeFrequency: "weekly" },
+    { url: "https://yieldiq.in/stocks", priority: 0.9, changeFrequency: "daily" },
     { url: "https://yieldiq.in/nifty50", priority: 0.9, changeFrequency: "daily" },
     { url: "https://yieldiq.in/nifty-bank", priority: 0.8, changeFrequency: "daily" },
     { url: "https://yieldiq.in/nifty-it", priority: 0.8, changeFrequency: "daily" },
