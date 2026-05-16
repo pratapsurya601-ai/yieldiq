@@ -208,13 +208,23 @@ def _neutral_axis(why: str = "Insufficient data", labeler=_label_general) -> dic
 
 # ── Sector classification ────────────────────────────────────────
 def _classify_sector(ticker_bare: str, sector_str: Optional[str]) -> str:
-    """Return 'bank', 'it', or 'general'."""
+    """Return 'bank', 'it', or 'general'.
+
+    `sector_str` accepts either the canonical_sector (post migration 035
+    backfill, 2026-05-17 — preferred) or the raw stocks.sector label
+    (fallback for rows whose backfill is still NULL). Hard-coded ticker
+    sets remain as the highest-priority override for the small set of
+    bellwether names whose classification we will not let drift if the
+    upstream label is briefly wrong.
+    """
     t = (ticker_bare or "").upper().replace(".NS", "").replace(".BO", "")
     if t in _BANK_TICKERS or t in _NBFC_TICKERS:
         return "bank"
     if t in _IT_TICKERS:
         return "it"
     s = (sector_str or "").lower()
+    # Canonical bucket names land here directly (e.g. "Bank",
+    # "Private Bank", "PSU Bank", "Financial Services", "IT Services").
     if any(k in s for k in ("bank", "financial services", "nbfc", "lending")):
         return "bank"
     if any(k in s for k in (
@@ -355,12 +365,19 @@ def _fetch_core_data(ticker: str) -> dict:
         # cohort as an asset manager.
         try:
             row = sess.execute(
-                text("SELECT sector, industry FROM stocks WHERE ticker = :t LIMIT 1"),
+                text(
+                    "SELECT sector, industry, canonical_sector "
+                    "FROM stocks WHERE ticker = :t LIMIT 1"
+                ),
                 {"t": bare},
             ).fetchone()
             if row:
                 out["sector"] = row[0]
                 out["industry"] = row[1]
+                # Migration 035 backfill (2026-05-17): prefer stored
+                # canonical_sector for cohort routing. Falls back to raw
+                # sector in _classify_sector when this is NULL.
+                out["canonical_sector"] = row[2]
         except Exception as exc:
             logger.debug("hex: stocks.sector fetch failed for %s: %s", ticker, exc)
 
@@ -1598,7 +1615,12 @@ def compute_hex(ticker: str) -> dict:
         logger.warning("hex: fetch_core_data failed for %s: %s", t, exc)
         data = {"ticker": t}
 
-    sector = _classify_sector(t, data.get("sector"))
+    # Prefer the stored canonical_sector (migration 035 backfill,
+    # 2026-05-17). Fall back to the raw provider sector for rows where
+    # backfill is missing — never block on missing data.
+    sector = _classify_sector(
+        t, data.get("canonical_sector") or data.get("sector")
+    )
 
     # Axis dispatch
     try:

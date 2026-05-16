@@ -53,11 +53,12 @@ def _fetch_constituents(canonical_sector: str) -> list[dict]:
     """Pull all stocks whose sector matches `canonical_sector`,
     along with their latest analysis_cache payload.
 
-    Returns a list of {"ticker", "sector", "analysis"} dicts. The
-    aggregator does the actual normalize_sector match — we pull a
-    superset (any stock whose raw sector lowercases to a known alias)
-    rather than relying on stored canonical labels (which generally
-    do NOT exist in prod data, see sector_percentile.py:222 note).
+    Returns a list of {"ticker", "sector", "canonical_sector",
+    "analysis"} dicts. Post-migration 035 + canonical backfill
+    (2026-05-17) the canonical column is populated for ~99.9% of
+    active rows, so we trust it as the primary match key and only
+    fall back to live normalize_sector() for the (rare) rows where
+    canonical_sector is NULL.
     """
     try:
         from data_pipeline.db import Session
@@ -79,11 +80,11 @@ def _fetch_constituents(canonical_sector: str) -> list[dict]:
                 FROM analysis_cache
                 ORDER BY ticker, computed_at DESC
             )
-            SELECT s.ticker, s.sector, la.payload
+            SELECT s.ticker, s.sector, s.canonical_sector, la.payload
             FROM stocks s
             LEFT JOIN latest_ac la ON la.ticker = s.ticker
             WHERE COALESCE(s.is_active, TRUE) = TRUE
-              AND s.sector IS NOT NULL
+              AND (s.canonical_sector IS NOT NULL OR s.sector IS NOT NULL)
             """
         )
         rows = db.execute(sql).fetchall()
@@ -103,10 +104,15 @@ def _fetch_constituents(canonical_sector: str) -> list[dict]:
         try:
             ticker = row[0]
             raw_sector = row[1]
-            payload = row[2]
+            stored_canon = row[2]
+            payload = row[3]
         except Exception:
             continue
-        if normalize_sector(raw_sector) != canonical_sector:
+        # Prefer stored canonical_sector (migration 035 backfill, 2026-05-17).
+        # Fall back to live normalize_sector() so a missing backfill row
+        # never blocks the cohort — never block on missing data.
+        canon = stored_canon or normalize_sector(raw_sector)
+        if canon != canonical_sector:
             continue
         analysis: dict = {}
         if isinstance(payload, dict):
@@ -116,7 +122,12 @@ def _fetch_constituents(canonical_sector: str) -> list[dict]:
                 analysis = json.loads(payload)
             except Exception:
                 analysis = {}
-        out.append({"ticker": ticker, "sector": raw_sector, "analysis": analysis})
+        out.append({
+            "ticker": ticker,
+            "sector": raw_sector,
+            "canonical_sector": stored_canon,
+            "analysis": analysis,
+        })
     return out
 
 
