@@ -49,6 +49,15 @@ _REPO = Path(__file__).resolve().parent.parent
 if str(_REPO) not in sys.path:
     sys.path.insert(0, str(_REPO))
 
+# Make sibling scripts importable for the shared normalizer below.
+_SCRIPTS = Path(__file__).resolve().parent
+if str(_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(_SCRIPTS))
+
+# Shared bare→.NS/.BO normalizer. Every offline writer to analysis_cache
+# must normalize tickers before compute (see 2026-05-17 MPHASIS incident).
+from _ticker_normalize import normalize_for_compute  # noqa: E402
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -180,13 +189,13 @@ def main() -> int:
         return 2
 
     if args.tickers:
-        tickers = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
         tickers = [
-            t if t.endswith(".NS") or t.endswith(".BO") else f"{t}.NS"
-            for t in tickers
+            normalize_for_compute(t)
+            for t in args.tickers.split(",")
+            if t.strip()
         ]
     else:
-        tickers = FLAGSHIP_TICKERS[: args.limit]
+        tickers = [normalize_for_compute(t) for t in FLAGSHIP_TICKERS[: args.limit]]
 
     logger.info(f"Warming AI summaries for {len(tickers)} tickers (force={args.force})")
     ok = 0

@@ -39,6 +39,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from sqlalchemy import text  # noqa: E402
 
 from data_pipeline.db import Session  # noqa: E402
+from _ticker_normalize import normalize_for_compute  # noqa: E402
 
 # 20 from the existing Phase-2.0 canary set (preserve order so the
 # coordinated review with Agent B's canary diff is easy to eyeball)
@@ -66,9 +67,13 @@ def main() -> int:
         print("ERROR: DATABASE_URL not set. Point at the Aiven prod replica.", file=sys.stderr)
         return 2
 
+    # Defense-in-depth: every ticker funnels through the bare→.NS/.BO
+    # normalizer before any DB or compute call. Prevents the
+    # 2026-05-17 MPHASIS regression where a bare ticker leaked through
+    # and poisoned the cache with a yfinance market_cap=0 payload.
     rows: list[dict] = []
     with Session() as s:
-        for tk in TICKERS:
+        for tk in (normalize_for_compute(t) for t in TICKERS):
             r = s.execute(
                 text(
                     """

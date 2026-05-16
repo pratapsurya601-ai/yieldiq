@@ -193,16 +193,127 @@ def get_cached(ticker: str, max_age_hours: int = 24) -> Optional[dict]:
             pass
 
 
+def _is_poisoned_payload(payload: dict) -> bool:
+    """Heuristic: does this payload look like the 2026-05-17 MPHASIS junk?
+
+    The incident: a snapshot-refresh script passed BARE Indian tickers
+    (no .NS suffix) into compute. yfinance routed them through the US
+    path, returned market_cap=0, and the resulting "data_limited"
+    payload UPSERTed over the healthy .NS-keyed cache row.
+
+    Definition of "poisoned" used here (intentionally narrow — false
+    positives would skip legitimate writes for genuinely tiny companies,
+    which we never want):
+
+      * payload['data_issues'] is a non-empty list/iterable, AND
+      * EITHER market_cap_inr == 0 OR market_cap == 0 anywhere in the
+        common locations (payload root, ``valuation`` sub-dict, or
+        ``insights`` sub-dict).
+
+    The two-condition requirement (data_issues present AND market_cap=0)
+    keeps the guard tight: a genuine micro-cap with low market_cap but
+    no data_issues passes through; a clean payload missing market_cap
+    metadata passes through; only the specific failure-mode pattern is
+    rejected.
+    """
+    if not isinstance(payload, dict):
+        return False
+    issues = payload.get("data_issues")
+    if not issues:
+        return False
+    # market_cap can live in a few places depending on which compute
+    # path produced the payload. Walk the common spots.
+    candidates: list = []
+    for key in ("market_cap_inr", "market_cap"):
+        if key in payload:
+            candidates.append(payload.get(key))
+    for sub_key in ("valuation", "insights", "quality"):
+        sub = payload.get(sub_key)
+        if isinstance(sub, dict):
+            for key in ("market_cap_inr", "market_cap"):
+                if key in sub:
+                    candidates.append(sub.get(key))
+    for val in candidates:
+        try:
+            if val is not None and float(val) == 0.0:
+                return True
+        except (TypeError, ValueError):
+            continue
+    return False
+
+
+def _existing_row_is_healthy(sess, ticker: str) -> bool:
+    """Return True iff an analysis_cache row exists for ``ticker`` and
+    that row's payload is NOT itself poisoned. Used by save_cached to
+    decide whether to refuse an overwrite by a poisoned payload."""
+    try:
+        row = sess.execute(
+            text("SELECT payload FROM analysis_cache WHERE ticker = :t"),
+            {"t": ticker},
+        ).fetchone()
+    except Exception:
+        return False
+    if not row:
+        return False
+    payload = row[0]
+    if isinstance(payload, (bytes, bytearray)):
+        try:
+            payload = payload.decode("utf-8")
+        except Exception:
+            return False
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except Exception:
+            return False
+    if not isinstance(payload, dict):
+        return False
+    return not _is_poisoned_payload(payload)
+
+
 def save_cached(ticker: str, payload: dict, compute_ms: int) -> None:
     """
     UPSERT a cache row. Swallows any DB error — a failed write must not
     break the request (the user already has their computed result).
+
+    Seatbelt: refuses to overwrite an EXISTING healthy row with a
+    POISONED payload (market_cap=0 + data_issues). See the
+    ``_is_poisoned_payload`` docstring for the exact criteria; this
+    catches the 2026-05-17 MPHASIS/COFORGE/PERSISTENT cache-poisoning
+    regression at the write boundary.
     """
     sess = _get_session()
     if sess is None:
         return
     # Normalize so two callers passing FOO vs FOO.NS UPSERT the same row.
     ticker = _canonical_cache_key(ticker)
+    # Seatbelt: never replace a healthy row with a poisoned payload.
+    if _is_poisoned_payload(payload):
+        try:
+            if _existing_row_is_healthy(sess, ticker):
+                logger.warning(
+                    "analysis_cache.save_cached: refusing to overwrite "
+                    "healthy row for %s with poisoned payload "
+                    "(market_cap=0 + data_issues); keeping existing row.",
+                    ticker,
+                )
+                return
+            # No healthy prior row — allow the write so a genuine
+            # data_limited compute can land for first-time tickers.
+            logger.warning(
+                "analysis_cache.save_cached: poisoned payload for %s but "
+                "no healthy prior row; allowing first-time write.",
+                ticker,
+            )
+        except Exception as exc:
+            # If the guard check itself fails, fall through to the
+            # normal write — availability of the write path matters
+            # more than the guard for pre-existing rows.
+            logger.warning(
+                "analysis_cache.save_cached: poison guard check failed "
+                "for %s: %s; proceeding with write.",
+                ticker, exc,
+            )
     try:
         # default=str handles datetime/Decimal/etc. that may sneak
         # through from the analysis layer.
