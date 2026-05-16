@@ -683,3 +683,40 @@ async def refresh_ticker_cache(
             "cleared": cleared,
             "error": f"{type(e).__name__}: {e}",
         }
+
+
+# ─────────────────────────────────────────────────────────────────
+# Activation telemetry — per-user page-view summary.
+#
+# Motivation (2026-05-16): 5/5 organic signups in 16 days produced
+# 0 watchlist/portfolio writes. Without page-view telemetry we can't
+# tell "signed up, viewed nothing" from "signed up, viewed 50 stocks
+# but never clicked add". This endpoint answers the activation
+# question: did user X actually look at any analysis page?
+#
+# Data source: ``user_page_views`` (30-day retention). Schema in
+# data_pipeline/migrations/027_user_page_views.sql.
+# ─────────────────────────────────────────────────────────────────
+@router.get("/user-activity/{email}")
+async def get_user_activity(
+    email: str,
+    days: int = 30,
+    user: dict = Depends(require_admin),
+):
+    """Admin-only: return a user's last-N-days of page-view activity.
+
+    Returns ``{user_email, days, total_views, by_page_kind,
+    by_ticker, first_view, last_view, views[]}``. ``views`` is capped
+    at 1000 newest rows. Anonymous traffic is never recorded, so a
+    zero total_views answer means "signed-in user never opened any
+    instrumented page in the window".
+    """
+    from backend.services import page_view_service as _pvs
+    email = (email or "").strip().lower()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Valid email required")
+    try:
+        days_i = max(1, min(int(days or 30), 30))
+    except (TypeError, ValueError):
+        days_i = 30
+    return _pvs.activity_summary(email, days=days_i)

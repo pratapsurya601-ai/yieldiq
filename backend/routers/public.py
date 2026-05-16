@@ -11,11 +11,11 @@ import time as _time
 from datetime import date, timedelta
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from backend.services.cache_service import cache
-from backend.middleware.auth import get_current_user, is_superuser
+from backend.middleware.auth import get_current_user, get_current_user_optional, is_superuser
 
 logger = logging.getLogger("yieldiq.public")
 
@@ -500,7 +500,12 @@ async def get_demo_cards():
 # ═══════════════════════════════════════════════════════════════
 
 @router.get("/stock-summary/{ticker}")
-async def get_stock_summary(ticker: str):
+async def get_stock_summary(
+    ticker: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: Optional[dict] = Depends(get_current_user_optional),
+):
     """
     Public stock summary for SEO pages. No auth required.
 
@@ -526,6 +531,23 @@ async def get_stock_summary(ticker: str):
     try:
         from backend.routers.analysis import TICKER_ALIASES
         ticker = TICKER_ALIASES.get(ticker, ticker)
+    except Exception:
+        pass
+
+    # ── Telemetry (additive) ── only fires for signed-in callers.
+    try:
+        from backend.services.page_view_service import record_page_view as _rpv
+        _email = (user or {}).get("email") if isinstance(user, dict) else None
+        if _email:
+            background_tasks.add_task(
+                _rpv,
+                user_email=_email,
+                page_kind="analysis",
+                ticker=ticker,
+                path=str(request.url.path),
+                user_agent=request.headers.get("user-agent"),
+                referrer=request.headers.get("referer"),
+            )
     except Exception:
         pass
 

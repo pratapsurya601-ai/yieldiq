@@ -11,7 +11,7 @@ if _PROJECT_ROOT not in sys.path:
 if _DASHBOARD_ROOT not in sys.path:
     sys.path.insert(0, _DASHBOARD_ROOT)
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response
 from backend.models.responses import AnalysisResponse, ScreenerResponse, ScreenerStock
 from backend.services.analysis_service import AnalysisService, TickerNotFoundError
 from backend.services.cache_service import cache
@@ -136,6 +136,8 @@ KNOWN_BROKEN_TICKERS: dict[str, str] = {
 @router.get("/analysis/{ticker}", response_model=AnalysisResponse)
 async def get_analysis(
     ticker: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
     include_summary: bool = Query(
         True,
         description=(
@@ -147,6 +149,24 @@ async def get_analysis(
     ),
     user: dict = Depends(_auth_jwt_or_api_key),
 ):
+    # ── Telemetry (additive, never blocks) ──
+    # Record signed-in page view so admin/user-activity can answer
+    # "did user X view any analysis page after signup?". Fire-and-forget.
+    try:
+        from backend.services.page_view_service import record_page_view as _rpv
+        _email = (user or {}).get("email") if isinstance(user, dict) else None
+        if _email:
+            background_tasks.add_task(
+                _rpv,
+                user_email=_email,
+                page_kind="analysis",
+                ticker=ticker.upper().strip(),
+                path=str(request.url.path),
+                user_agent=request.headers.get("user-agent"),
+                referrer=request.headers.get("referer"),
+            )
+    except Exception:
+        pass
     """
     Full stock analysis with DCF, quality scores, scenarios, and insights.
     Rate limited by tier: Free=5/day, Starter=50/day, Pro=unlimited.
@@ -539,7 +559,12 @@ async def get_analysis(
 
 
 @router.get("/analysis/{ticker}/og-data")
-async def get_og_data(ticker: str):
+async def get_og_data(
+    ticker: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    user: Optional[dict] = Depends(get_current_user_optional),
+):
     """Return Open Graph data for social sharing. No auth required.
 
     Cache-source unification (2026-04-22):
@@ -568,6 +593,22 @@ async def get_og_data(ticker: str):
         to try again on the next request.
     """
     ticker = ticker.upper().strip()
+    # ── Telemetry (additive) ── only fires for signed-in callers.
+    try:
+        from backend.services.page_view_service import record_page_view as _rpv
+        _email = (user or {}).get("email") if isinstance(user, dict) else None
+        if _email:
+            background_tasks.add_task(
+                _rpv,
+                user_email=_email,
+                page_kind="analysis",
+                ticker=ticker,
+                path=str(request.url.path),
+                user_agent=request.headers.get("user-agent"),
+                referrer=request.headers.get("referer"),
+            )
+    except Exception:
+        pass
     _cache_key = f"og:{ticker}"
     cached = cache.get(_cache_key)
     if cached:
