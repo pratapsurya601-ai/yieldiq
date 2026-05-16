@@ -22,7 +22,7 @@ from backend.services import api_keys_service as _api_keys_svc
 from backend.services.ticker_search import search_tickers
 from backend.services.tier_caps import cap_for
 from datetime import date
-from typing import Optional
+from typing import Any, Optional
 from fastapi import Header
 
 
@@ -650,6 +650,39 @@ async def get_og_data(ticker: str):
             "price": _px,
             "mos": _mos,
         }
+
+        # ── Scenario + ratio fields (feat/ogdata-add-scenarios-ratios) ──
+        # Additive plumbing only — these values are already computed and
+        # cached as part of the AnalysisResponse. Exposing them here lets
+        # the canary harness exercise Gates 3 (scenario_dispersion) and
+        # 4 (canary_bounds) against the unauth /og-data endpoint after
+        # PR #243 switched canary off the admin-gated /analysis path.
+        #
+        # When `_suspicious` zero-clamped the headline FV/MoS above, also
+        # suppress scenario IVs so we don't surface DCF outputs that the
+        # router just declared unreliable. Ratios (roe/roce/ev_ebitda)
+        # come from non-DCF paths and stay valid even in data_limited.
+        # All getters are guarded; None is returned for any missing field
+        # (e.g. banks legitimately have no ev_ebitda).
+        def _safe_attr(obj: Any, *path: str) -> Any:
+            for p in path:
+                if obj is None:
+                    return None
+                obj = getattr(obj, p, None)
+            return obj
+
+        if _suspicious:
+            og["bear_case"] = None
+            og["base_case"] = None
+            og["bull_case"] = None
+        else:
+            og["bear_case"] = _safe_attr(result, "valuation", "bear_case")
+            og["base_case"] = _safe_attr(result, "valuation", "base_case")
+            og["bull_case"] = _safe_attr(result, "valuation", "bull_case")
+        og["roe"] = _safe_attr(result, "quality", "roe")
+        og["roce"] = _safe_attr(result, "quality", "roce")
+        og["wacc"] = _safe_attr(result, "valuation", "wacc")
+        og["ev_ebitda"] = _safe_attr(result, "insights", "ev_ebitda")
 
         # ── Coverage tier (feat/coverage-tier-system) ──
         # Additive labeling only — tells the user how confident we are in
