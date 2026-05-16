@@ -145,6 +145,25 @@ ETERNAL:
     historical ZOMATO rows should resolve under ETERNAL.
 
 # ---------------------------------------------------------------------------
+# Adani Transmission -> Adani Energy Solutions (2024 rename)
+# ---------------------------------------------------------------------------
+# Adani Transmission Ltd. expanded scope (transmission + distribution +
+# smart-metering) and rebranded to Adani Energy Solutions Ltd; NSE symbol
+# ADANITRANS -> ADANIENSOL. Same legal entity, same ISIN. yfinance no longer
+# serves ADANITRANS; audits show empty/timeout payloads on the legacy ticker.
+# Pair with migration 031_deactivate_renamed_tickers.sql which flips
+# stocks.is_active=FALSE for ADANITRANS and inserts ADANIENSOL.
+ADANIENSOL:
+  status: renamed
+  former_symbol: ADANITRANS
+  effective_date: 2024-07-01
+  fetch_symbol: ADANIENSOL.NS
+  note: >
+    Adani Transmission Ltd. rebranded to Adani Energy Solutions Ltd.
+    Single-entity rename; all historical ADANITRANS rows should resolve
+    under ADANIENSOL. Legacy symbol returns empty from yfinance.
+
+# ---------------------------------------------------------------------------
 # Colloquial / nickname aliases — NOT corporate actions
 # ---------------------------------------------------------------------------
 # Indian retail investors and the financial press routinely refer to
