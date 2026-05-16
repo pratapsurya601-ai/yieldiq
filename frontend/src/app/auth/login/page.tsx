@@ -7,6 +7,7 @@ import { useSettingsStore } from "@/store/settingsStore"
 import { markCompleted } from "@/lib/onboardingPreferences"
 import Cookies from "js-cookie"
 import Link from "next/link"
+import { GoogleSignInButton, OAuthDivider } from "@/components/GoogleSignInButton"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -121,6 +122,11 @@ export default function LoginPage() {
           <h2 className="text-lg font-semibold text-gray-900">Sign in</h2>
 
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+
+          {/* Google OAuth above the email form (Google's recommended
+              placement + UX audit recommendation). */}
+          <GoogleSignInButton label="Continue with Google" />
+          <OAuthDivider />
 
           {/* Belt-and-braces: explicit text/bg/placeholder colors on the
               inputs so even if [color-scheme:light] above is ignored by an
