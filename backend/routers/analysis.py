@@ -91,6 +91,8 @@ TICKER_ALIASES: dict[str, str] = {
     # Renames / rebrands
     "ZOMATO.NS":       "ETERNAL.NS",    # Zomato → Eternal Ltd (Nov 2024 rebrand)
     "ZOMATO":          "ETERNAL.NS",
+    "ADANITRANS.NS":   "ADANIENSOL.NS", # Adani Transmission → Adani Energy Solutions (2024 rename)
+    "ADANITRANS":      "ADANIENSOL.NS",
     # Demerger successors (redirect to primary business post-split)
     "TATAMOTORS.NS":   "TMPV.NS",       # Tata Motors → TMPV (passenger vehicles, post-demerger)
     "TATAMOTORS":      "TMPV.NS",
@@ -620,7 +622,14 @@ async def get_og_data(
     except Exception:
         pass
     _cache_key = f"og:{ticker}"
-    cached = cache.get(_cache_key)
+    # version_keyed=True (2026-05-16): the og cache previously poisoned ITC.NS
+    # with fv=0/data_limited because the mos-suspicion gate below was tripping
+    # on legitimate deep-value FMCG MoS (~107%), and a CACHE_VERSION bump had
+    # no way to flush this projection — the 1h TTL kept re-poisoning. Making
+    # og: version-keyed means a CACHE_VERSION bump (or this PR's deploy, since
+    # the unversioned `og:ITC.NS` entry becomes unreachable on read) moves us
+    # into a fresh key namespace and stale entries TTL-reap in the background.
+    cached = cache.get(_cache_key, version_keyed=True)
     if cached:
         return cached
 
@@ -667,8 +676,17 @@ async def get_og_data(
                 _r = _fv / _px
                 if _r > 3.0 or _r < 0.1:
                     _suspicious = True
-            # Tightened from |mos|>200 → ≥95 to catch the -100% case.
-            if abs(_mos) >= 95:
+            # Reverted from |mos|>=95 → >200 on 2026-05-16. The tighter
+            # threshold was added to catch a -100% case, but that case is
+            # already covered by the explicit `_px > 0 and _fv <= 0` guard
+            # above, and the FV/price ratio bounds (0.1/3.0) catch real
+            # outliers symmetrically. The 95% threshold false-positived on
+            # legitimate deep-value FMCG (ITC.NS: mos=107%, fv=640, px=309,
+            # ratio=2.07 — well inside the ratio gate). Public stock-summary
+            # never applied this gate and was already serving the correct
+            # value, so divergence between og-data and stock-summary was
+            # entirely produced by this single line.
+            if abs(_mos) > 200:
                 _suspicious = True
         except Exception:
             pass
@@ -763,7 +781,7 @@ async def get_og_data(
         # they have a valid price and are legitimately labeled.
         if _fv == 0 and _px == 0:
             return og
-        cache.set(_cache_key, og, ttl=3600)
+        cache.set(_cache_key, og, ttl=3600, version_keyed=True)
         return og
     except Exception:
         return {
