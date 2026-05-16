@@ -10,7 +10,7 @@ from backend.models.requests import LoginRequest, RegisterRequest
 from backend.models.responses import TokenResponse, UserResponse
 from backend.middleware.auth import (
     get_current_user, login_user_and_get_token, register_user_and_get_token,
-    is_superuser,
+    is_superuser, google_oauth_login_or_register, build_google_oauth_url,
 )
 from backend.middleware.rate_limit import rate_limiter, clamped_used
 from backend.services.feature_flags import list_enabled_for
@@ -108,6 +108,138 @@ async def register(req: RegisterRequest):
         display_name=None,
         display_name_edits_remaining=3,
         feature_flags=list_enabled_for(result["user_id"], "free"),
+    )
+
+
+# ═════════════════════════════════════════════════════════════════
+# Google OAuth (feat/google-oauth-signup)
+#
+# Two endpoints back the "Continue with Google" button on
+# /auth/signup and /auth/login:
+#
+#   GET  /api/v1/auth/google/url     → returns the Supabase-hosted
+#                                       Google OAuth consent URL
+#   POST /api/v1/auth/google         → exchanges a verified Google
+#                                       ID token for a YieldIQ JWT
+#
+# The actual Google client secret lives ONLY in the Supabase project
+# config — we never see it. See PR body for the operator checklist.
+# ═════════════════════════════════════════════════════════════════
+
+
+class GoogleAuthRequest(BaseModel):
+    id_token: str = Field(min_length=10, max_length=8192)
+    # Optional referral pass-through for new-user signups.
+    referral_code: Optional[str] = Field(default=None, max_length=64)
+
+
+class GoogleAuthResponse(TokenResponse):
+    is_new_user: bool = False
+
+
+@router.get("/google/url")
+async def google_oauth_consent_url(redirect_to: Optional[str] = None):
+    """Return the Supabase-hosted Google OAuth consent URL.
+
+    The frontend redirects the browser to `url` in the response;
+    Supabase handles the Google round-trip and bounces back to
+    `redirect_to` (defaulting to the production callback) with the
+    access/id tokens in the URL hash fragment.
+    """
+    # Allow an env override so staging can point at preview URLs
+    # without a code change.
+    import os as _os
+    default_cb = (
+        _os.environ.get("GOOGLE_OAUTH_REDIRECT_URL")
+        or "https://www.yieldiq.in/auth/callback"
+    )
+    target = (redirect_to or default_cb).strip()
+    # Soft allowlist — only YieldIQ + localhost may be passed in. Prevents
+    # the endpoint from being used as an open redirector.
+    _ok = (
+        target.startswith("https://www.yieldiq.in/")
+        or target.startswith("https://yieldiq.in/")
+        or target.startswith("http://localhost:")
+        or target.startswith("http://127.0.0.1:")
+    )
+    if not _ok:
+        target = default_cb
+    try:
+        return {"url": build_google_oauth_url(target)}
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+
+
+@router.post("/google", response_model=GoogleAuthResponse)
+async def google_oauth_exchange(req: GoogleAuthRequest):
+    """Exchange a verified Google ID token for a YieldIQ JWT.
+
+    Returning users: matched on email and logged in.
+    New users: created via Supabase admin with provider=google in
+    user_metadata so future analytics can split conversion by channel.
+    """
+    result = google_oauth_login_or_register(req.id_token)
+    if not result.get("ok"):
+        raise HTTPException(status_code=401, detail=result.get("error", "Google sign-in failed."))
+
+    is_new = bool(result.get("is_new_user"))
+
+    # New-user side effects (welcome email + referral credit) — mirror
+    # the email/password /register flow so the two paths stay symmetric.
+    if is_new:
+        try:
+            from backend.services.email_service import send_welcome_email
+            threading.Thread(
+                target=send_welcome_email,
+                args=(result["email"],),
+                daemon=True,
+            ).start()
+        except Exception:
+            pass
+        if req.referral_code:
+            try:
+                from backend.routers.referral import _ensure_user, _find_user_by_code
+                new_user_record = _ensure_user(result["user_id"])
+                code = req.referral_code.strip().lower()
+                referrer_id = _find_user_by_code(code)
+                if referrer_id and referrer_id != result["user_id"]:
+                    new_user_record["referred_by"] = code
+                    referrer = _ensure_user(referrer_id)
+                    referrer["referral_count"] += 1
+                    referrer["bonus_analyses"] += 5
+            except Exception:
+                pass
+
+    # Mirror the login flow's superuser promotion + usage clamp so the
+    # response carries the same shape as POST /auth/login.
+    _effective_tier = result["tier"]
+    _effective_limit = None
+    if is_superuser({"email": result["email"]}):
+        _effective_tier = "analyst"
+        _effective_limit = 999999
+
+    used, limit = rate_limiter.get_usage(result["user_id"], _effective_tier)
+    if _effective_limit is not None:
+        limit = _effective_limit
+    used = clamped_used(used, limit)
+
+    try:
+        from backend.routers.account import get_display_name_state
+        _dn, _dn_remaining = get_display_name_state(result["user_id"])
+    except Exception:
+        _dn, _dn_remaining = None, 3
+
+    return GoogleAuthResponse(
+        access_token=result["token"],
+        user_id=result["user_id"],
+        email=result["email"],
+        tier=_effective_tier,
+        analyses_today=used,
+        analysis_limit=limit,
+        display_name=_dn,
+        display_name_edits_remaining=_dn_remaining,
+        feature_flags=list_enabled_for(result["user_id"], _effective_tier),
+        is_new_user=is_new,
     )
 
 

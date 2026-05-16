@@ -534,3 +534,186 @@ def register_user_and_get_token(email: str, password: str) -> dict:
     except Exception as exc:
         _log().error("SQLite signup failed for %s: %s", email, exc)
         return {"ok": False, "error": "Auth backend error — please try again."}
+
+
+# ─────────────────────────────────────────────────────────────────
+# Google OAuth (feat/google-oauth-signup)
+#
+# The frontend signs in with Google via Supabase's hosted OAuth flow
+# (so we never see the client secret). Supabase redirects back to
+# /auth/callback with an `access_token` + `id_token` in the URL hash.
+# The callback POSTs the id_token here; we verify with Google's
+# tokeninfo endpoint, then mint a YieldIQ JWT.
+#
+# Returning users: looked up by email via Supabase admin.list_users.
+# New users: created via admin.create_user with email_confirm=True
+# and user_metadata={provider: "google", signup_source: "google"}.
+# The `provider` field lets future analytics split conversion by
+# signup channel without a separate column.
+# ─────────────────────────────────────────────────────────────────
+
+_GOOGLE_TOKENINFO_URL = "https://oauth2.googleapis.com/tokeninfo"
+
+
+def verify_google_id_token(id_token: str, timeout: float = 8.0) -> dict:
+    """Verify a Google ID token via the tokeninfo REST endpoint.
+
+    Returns a dict {ok, email, sub, name, picture, error}. Network
+    failures and invalid tokens both return ok=False with a safe
+    user-facing error string.
+
+    We use the REST endpoint (vs google-auth library) to avoid pulling
+    in a new dependency — `requests` is already in requirements.
+    """
+    if not id_token or not isinstance(id_token, str):
+        return {"ok": False, "error": "Missing Google token."}
+    try:
+        import requests as _r
+        resp = _r.get(_GOOGLE_TOKENINFO_URL, params={"id_token": id_token}, timeout=timeout)
+    except Exception as exc:
+        _log().warning("Google tokeninfo network error: %s", exc)
+        return {"ok": False, "error": "Could not reach Google — please retry."}
+
+    if resp.status_code != 200:
+        return {"ok": False, "error": "Google rejected the sign-in token. Please try again."}
+
+    try:
+        body = resp.json()
+    except Exception:
+        return {"ok": False, "error": "Unexpected response from Google."}
+
+    email = (body.get("email") or "").strip().lower()
+    sub = body.get("sub") or ""
+    if not email or not sub:
+        return {"ok": False, "error": "Google did not return a verified email."}
+
+    # email_verified comes back as the string "true" / "false" from tokeninfo.
+    email_verified = str(body.get("email_verified", "")).lower() in ("true", "1")
+    if not email_verified:
+        return {"ok": False, "error": "Your Google account email is not verified."}
+
+    # Optional audience pin — if GOOGLE_OAUTH_CLIENT_ID is set, require the
+    # token was minted for our client (defence in depth against token reuse).
+    expected_aud = (os.environ.get("GOOGLE_OAUTH_CLIENT_ID") or "").strip()
+    if expected_aud and body.get("aud") != expected_aud:
+        return {"ok": False, "error": "Sign-in token was not issued for this app."}
+
+    return {
+        "ok": True,
+        "email": email,
+        "sub": sub,
+        "name": body.get("name") or "",
+        "picture": body.get("picture") or "",
+    }
+
+
+def google_oauth_login_or_register(id_token: str) -> dict:
+    """Verify a Google ID token and return a YieldIQ JWT.
+
+    If the email already exists in Supabase, we log them in.
+    Otherwise we create the account with provider=google + signup_source=google
+    in user_metadata (purely additive — existing email/password users keep
+    their metadata untouched).
+
+    Returns {ok, token, user_id, email, tier, is_new_user, error}.
+    """
+    verified = verify_google_id_token(id_token)
+    if not verified.get("ok"):
+        return {"ok": False, "error": verified.get("error", "Google sign-in failed.")}
+
+    email = verified["email"]
+    google_sub = verified["sub"]
+    name = verified["name"]
+
+    backend = _auth_backend()
+    if backend != "supabase":
+        # SQLite path is local-dev only; not wiring Google there.
+        return {"ok": False, "error": "Google sign-in is not available in this environment."}
+
+    try:
+        from db.supabase_client import get_admin_client
+        admin = get_admin_client()
+    except Exception as exc:
+        _log().error("Google OAuth: admin client unavailable: %s", exc)
+        return {"ok": False, "error": "Auth backend unavailable — please retry."}
+
+    # Look up existing user by email. supabase-py exposes
+    # admin.list_users() but no direct get-by-email; we filter client-side.
+    existing_user = None
+    try:
+        resp = admin.auth.admin.list_users()
+        # supabase-py returns either a list of users or an object with .users
+        candidates = getattr(resp, "users", None) or (resp if isinstance(resp, list) else [])
+        for u in candidates:
+            u_email = (getattr(u, "email", None) or "").strip().lower()
+            if u_email == email:
+                existing_user = u
+                break
+    except Exception as exc:
+        _log().warning("Google OAuth: list_users failed: %s", exc)
+        # Fall through — we'll try to create; if it already exists Supabase
+        # will tell us and we can fall back to a sign-in attempt.
+
+    if existing_user is not None:
+        uid = str(getattr(existing_user, "id", "") or "")
+        meta = getattr(existing_user, "user_metadata", None) or {}
+        tier = meta.get("tier", "free")
+        # Best-effort backfill of provider linkage so analytics can see
+        # this user has Google linked (idempotent — only adds keys).
+        try:
+            if not meta.get("google_sub"):
+                merged = dict(meta)
+                merged.setdefault("provider", meta.get("provider") or "google")
+                merged["google_sub"] = google_sub
+                if name and not merged.get("name"):
+                    merged["name"] = name
+                admin.auth.admin.update_user_by_id(uid, {"user_metadata": merged})
+        except Exception as exc:
+            _log().info("Google OAuth: metadata backfill failed for %s: %s", email, exc)
+
+        token = create_access_token(uid, email, tier)
+        return {
+            "ok": True, "token": token, "user_id": uid,
+            "email": email, "tier": tier, "is_new_user": False,
+        }
+
+    # New user — create with auto-confirmed email + provider metadata.
+    try:
+        result = admin.auth.admin.create_user({
+            "email": email,
+            "email_confirm": True,
+            "user_metadata": {
+                "tier": "free",
+                "provider": "google",
+                "signup_source": "google",
+                "google_sub": google_sub,
+                "name": name,
+            },
+        })
+        if not result or not getattr(result, "user", None):
+            return {"ok": False, "error": "Could not create account. Try again."}
+        uid = str(result.user.id)
+        token = create_access_token(uid, email, "free")
+        return {
+            "ok": True, "token": token, "user_id": uid,
+            "email": email, "tier": "free", "is_new_user": True,
+        }
+    except Exception as exc:
+        _log().warning("Google OAuth: create_user failed for %s: %s", email, exc)
+        return {"ok": False, "error": _extract_supabase_error(exc)}
+
+
+def build_google_oauth_url(redirect_to: str) -> str:
+    """Return the Supabase-hosted Google OAuth consent URL.
+
+    Frontend redirects the browser here; Supabase handles the Google
+    round-trip and bounces back to `redirect_to` with the tokens in
+    the URL hash. This keeps the Google client secret out of YieldIQ
+    entirely — it lives only in the Supabase project config.
+    """
+    supabase_url = (os.environ.get("SUPABASE_URL") or "").rstrip("/")
+    if not supabase_url:
+        raise RuntimeError("SUPABASE_URL not configured")
+    from urllib.parse import urlencode
+    qs = urlencode({"provider": "google", "redirect_to": redirect_to})
+    return f"{supabase_url}/auth/v1/authorize?{qs}"
