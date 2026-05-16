@@ -140,7 +140,7 @@ def apply_cache(engine, alias_map) -> int:
                 text(
                     """
                     UPDATE analysis_cache
-                    SET payload = jsonb_set(payload, '{sector}', to_jsonb(:canon::text))
+                    SET payload = jsonb_set(payload, '{sector}', to_jsonb(CAST(:canon AS text)))
                     WHERE LOWER(TRIM(payload->>'sector')) = :raw
                       AND payload->>'sector' <> :canon
                     """
