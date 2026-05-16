@@ -1,0 +1,86 @@
+{
+  "_comment": "INVENTED sample of what the Claude Sonnet extractor would return for ZOMATO's FY24 annual report. Numbers are illustrative only -- no real PDF was parsed for this fixture. Used to lock the JSON shape contract between the (Phase-2) extractor and the (Phase-3) analysis consumers.",
+  "ticker": "ZOMATO",
+  "fiscal_year": 2024,
+  "segment_data": [
+    {
+      "segment": "Food Delivery",
+      "revenue_cr": 12345,
+      "ebitda_cr": 678,
+      "fy": "2024"
+    },
+    {
+      "segment": "Quick Commerce (Blinkit)",
+      "revenue_cr": 5678,
+      "ebitda_cr": -890,
+      "fy": "2024"
+    },
+    {
+      "segment": "Hyperpure (B2B supplies)",
+      "revenue_cr": 3210,
+      "ebitda_cr": -120,
+      "fy": "2024"
+    },
+    {
+      "segment": "Going-out (Dining)",
+      "revenue_cr": 450,
+      "ebitda_cr": 35,
+      "fy": "2024"
+    }
+  ],
+  "capex_commitments": [
+    {
+      "amount_cr": 800,
+      "fy": "2025",
+      "project": "Blinkit dark store expansion"
+    },
+    {
+      "amount_cr": 250,
+      "fy": "2025",
+      "project": "Hyperpure cold-chain warehouses"
+    },
+    {
+      "amount_cr": 120,
+      "fy": "2026",
+      "project": "Technology platform modernization"
+    }
+  ],
+  "auditor_flags": [],
+  "contingent_liabilities": [
+    {
+      "description": "Tax disputes (income tax + GST) pending at various appellate levels",
+      "amount_cr": 234,
+      "as_of": "2024-03-31"
+    },
+    {
+      "description": "Claims by ex-delivery partners on employment status (sub-judice)",
+      "amount_cr": 56,
+      "as_of": "2024-03-31"
+    }
+  ],
+  "related_party_transactions": [
+    {
+      "counterparty": "Blink Commerce Pvt Ltd (subsidiary)",
+      "relationship": "subsidiary",
+      "nature": "loans_and_advances",
+      "amount_cr": 3500,
+      "fy": "2024"
+    },
+    {
+      "counterparty": "Hyperpure Pvt Ltd (subsidiary)",
+      "relationship": "subsidiary",
+      "nature": "sales_of_services",
+      "amount_cr": 215,
+      "fy": "2024"
+    },
+    {
+      "counterparty": "Key Managerial Personnel",
+      "relationship": "kmp",
+      "nature": "managerial_remuneration",
+      "amount_cr": 18.5,
+      "fy": "2024"
+    }
+  ],
+  "mda_summary": "Management is focused on Blinkit profitability inflection by FY26, with adjusted EBITDA breakeven targeted by Q4FY25. Food Delivery has reached steady-state contribution margins; growth is now coming from order frequency rather than user acquisition. Hyperpure continues to scale but at thinner margins; the path to profitability there is FY27+. Capital allocation priority: 1) Blinkit dark stores, 2) Hyperpure cold-chain, 3) selective bolt-on M&A. No equity raise contemplated for FY25.",
+  "extractor_version": "ar-extractor-v0-scaffold"
+}
