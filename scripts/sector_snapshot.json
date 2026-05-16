@@ -1,7 +1,7 @@
 {
-  "taken_at": "2026-05-03T04:50:04.258878+00:00",
-  "cache_version": 81,
-  "commit_sha": "5470095286bc",
+  "taken_at": "2026-05-16T10:06:43.905972+00:00",
+  "cache_version": 82,
+  "commit_sha": "0bcbac45cb38",
   "changelog": [
     {
       "at": "2026-04-24T21:16:30.548103+00:00",
@@ -22,6 +22,11 @@
       "at": "2026-05-03T04:50:04.258878+00:00",
       "reason": "absorb cafc463 cement + 1988fa4 super-cyclical + #222 dominance-cap exemption + #226 national-fallback + 82a1e6d bull-flex (9 sectors moved: Auto Banks Cement FMCG Insurance IT Services Metals Oil&Gas Utilities)",
       "commit": "5470095286bc"
+    },
+    {
+      "at": "2026-05-16T10:06:43.905972+00:00",
+      "reason": "absorb subsequent drift on Auto/Banks/Cement/Insurance + 21-ticker DCF drift after main-branch merges throughout the day",
+      "commit": "0bcbac45cb38"
     }
   ],
   "sectors": {
@@ -33,9 +38,9 @@
         "RELIANCE"
       ],
       "median_fv": 1062.57,
-      "median_score": 61.0,
-      "median_mos_pct": -26.0,
-      "median_iv_px_ratio": 0.7399512534818941,
+      "median_score": 64.0,
+      "median_mos_pct": -20.6,
+      "median_iv_px_ratio": 0.7935548917102314,
       "n_with_data": 1
     },
     "IT Services": {
@@ -53,10 +58,10 @@
         "WIPRO",
         "TECHM"
       ],
-      "median_fv": 1841.64,
+      "median_fv": 1842.33,
       "median_score": 50.0,
-      "median_mos_pct": 47.6,
-      "median_iv_px_ratio": 1.4756541240966856,
+      "median_mos_pct": 49.6,
+      "median_iv_px_ratio": 1.4963108954922175,
       "n_with_data": 5
     },
     "Banks": {
@@ -74,10 +79,10 @@
         "KOTAKBANK",
         "AXISBANK"
       ],
-      "median_fv": 776.26,
-      "median_score": 83.0,
-      "median_mos_pct": 2.9,
-      "median_iv_px_ratio": 1.028560260586319,
+      "median_fv": 753.32,
+      "median_score": 69.0,
+      "median_mos_pct": -2.2,
+      "median_iv_px_ratio": 0.9783376623376624,
       "n_with_data": 5
     },
     "FMCG": {
@@ -100,9 +105,9 @@
         "TATACONSUM"
       ],
       "median_fv": 808.88,
-      "median_score": 58.0,
-      "median_mos_pct": -13.0,
-      "median_iv_px_ratio": 0.8701996064098961,
+      "median_score": 56.0,
+      "median_mos_pct": -17.3,
+      "median_iv_px_ratio": 0.8274846894138234,
       "n_with_data": 7
     },
     "Telecom": {
@@ -125,10 +130,10 @@
       "tickers_with_data": [
         "LT"
       ],
-      "median_fv": 2887.69,
-      "median_score": 56.0,
-      "median_mos_pct": -28.2,
-      "median_iv_px_ratio": 0.7181522009450385,
+      "median_fv": 2896.13,
+      "median_score": 59.0,
+      "median_mos_pct": -27.2,
+      "median_iv_px_ratio": 0.7280367018602313,
       "n_with_data": 1
     },
     "NBFC": {
@@ -138,10 +143,10 @@
       "tickers_with_data": [
         "BAJFINANCE"
       ],
-      "median_fv": 918.81,
+      "median_fv": 897.69,
       "median_score": 76.0,
-      "median_mos_pct": -1.9,
-      "median_iv_px_ratio": 0.9805869797225186,
+      "median_mos_pct": -4.2,
+      "median_iv_px_ratio": 0.9580469583778015,
       "n_with_data": 1
     },
     "Auto": {
@@ -156,16 +161,15 @@
       "tickers_with_data": [
         "MARUTI",
         "TATAMOTORS",
-        "M&M",
         "HEROMOTOCO",
         "BAJAJ-AUTO",
         "EICHERMOT"
       ],
-      "median_fv": 5070.955,
-      "median_score": 57.0,
-      "median_mos_pct": -5.4,
-      "median_iv_px_ratio": 0.9458454082058962,
-      "n_with_data": 6
+      "median_fv": 6840.3,
+      "median_score": 50.0,
+      "median_mos_pct": -30.0,
+      "median_iv_px_ratio": 0.700490310359901,
+      "n_with_data": 5
     },
     "Pharma": {
       "tickers": [
@@ -180,10 +184,10 @@
         "DIVISLAB",
         "CIPLA"
       ],
-      "median_fv": 1811.12,
+      "median_fv": 1735.85,
       "median_score": 57.5,
-      "median_mos_pct": 15.450000000000001,
-      "median_iv_px_ratio": 1.1548803479769911,
+      "median_mos_pct": 8.05,
+      "median_iv_px_ratio": 1.0808453483182763,
       "n_with_data": 4
     },
     "Consumer Discretionary": {
@@ -193,10 +197,10 @@
       "tickers_with_data": [
         "TITAN"
       ],
-      "median_fv": 1840.99,
-      "median_score": 40.0,
-      "median_mos_pct": -58.0,
-      "median_iv_px_ratio": 0.4198189364225121,
+      "median_fv": 2029.56,
+      "median_score": 63.0,
+      "median_mos_pct": -53.7,
+      "median_iv_px_ratio": 0.46282039587704094,
       "n_with_data": 1
     },
     "Cement": {
@@ -211,9 +215,9 @@
         "SHREECEM"
       ],
       "median_fv": 4282.13,
-      "median_score": 40.0,
-      "median_mos_pct": -63.0,
-      "median_iv_px_ratio": 0.36959520110478167,
+      "median_score": 51.0,
+      "median_mos_pct": -62.8,
+      "median_iv_px_ratio": 0.37213261493004257,
       "n_with_data": 3
     },
     "Utilities": {
@@ -226,9 +230,9 @@
         "NTPC"
       ],
       "median_fv": 249.445,
-      "median_score": 44.5,
-      "median_mos_pct": -30.75,
-      "median_iv_px_ratio": 0.6926647884541669,
+      "median_score": 46.0,
+      "median_mos_pct": -28.85,
+      "median_iv_px_ratio": 0.7114065464380648,
       "n_with_data": 2
     },
     "Oil & Gas": {
@@ -243,8 +247,8 @@
       ],
       "median_fv": 250.57,
       "median_score": 38.5,
-      "median_mos_pct": -16.25,
-      "median_iv_px_ratio": 0.83752434434025,
+      "median_mos_pct": -16.599999999999998,
+      "median_iv_px_ratio": 0.8340556317834509,
       "n_with_data": 2
     },
     "Mining": {
@@ -271,21 +275,23 @@
         "HINDALCO"
       ],
       "median_fv": 326.65,
-      "median_score": 32.5,
-      "median_mos_pct": -45.599999999999994,
-      "median_iv_px_ratio": 0.5441551840069778,
+      "median_score": 31.0,
+      "median_mos_pct": -47.0,
+      "median_iv_px_ratio": 0.5301756777222475,
       "n_with_data": 2
     },
     "Infrastructure": {
       "tickers": [
         "ADANIPORTS"
       ],
-      "tickers_with_data": [],
-      "median_fv": null,
-      "median_score": null,
-      "median_mos_pct": null,
-      "median_iv_px_ratio": null,
-      "n_with_data": 0
+      "tickers_with_data": [
+        "ADANIPORTS"
+      ],
+      "median_fv": 1076.52,
+      "median_score": 50.0,
+      "median_mos_pct": -35.0,
+      "median_iv_px_ratio": 0.6495625414831352,
+      "n_with_data": 1
     },
     "Paints": {
       "tickers": [
@@ -296,8 +302,8 @@
       ],
       "median_fv": 1603.67,
       "median_score": 47.0,
-      "median_mos_pct": -34.4,
-      "median_iv_px_ratio": 0.656031908365719,
+      "median_mos_pct": -38.5,
+      "median_iv_px_ratio": 0.6146684553468762,
       "n_with_data": 1
     },
     "Chemicals": {
@@ -307,10 +313,10 @@
       "tickers_with_data": [
         "PIDILITIND"
       ],
-      "median_fv": 833.05,
+      "median_fv": 877.57,
       "median_score": 50.0,
-      "median_mos_pct": -39.4,
-      "median_iv_px_ratio": 0.6055462673548011,
+      "median_mos_pct": -40.4,
+      "median_iv_px_ratio": 0.5961752717391304,
       "n_with_data": 1
     },
     "Insurance": {
@@ -324,10 +330,10 @@
         "SBILIFE",
         "ICICIPRULI"
       ],
-      "median_fv": 586.42,
-      "median_score": 41.0,
-      "median_mos_pct": -0.1,
-      "median_iv_px_ratio": 0.9985687510649173,
+      "median_fv": 607.9,
+      "median_score": 32.0,
+      "median_mos_pct": -21.4,
+      "median_iv_px_ratio": 0.7861290322580645,
       "n_with_data": 3
     }
   }

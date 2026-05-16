@@ -13,6 +13,7 @@ import { Analytics } from "@vercel/analytics/next";
 // re-add `@vercel/speed-insights` to package.json, and mount
 // `<SpeedInsights />` next to `<Analytics />` below.
 import BetaBanner from "@/components/marketing/BetaBanner";
+import IncidentBanner from "@/components/IncidentBanner";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 // ── Typography (next/font, self-hosted, no FOUT) ──
@@ -176,6 +177,8 @@ export default function RootLayout({
         */}
       </head>
       <body className="min-h-full flex flex-col bg-bg text-body font-sans">
+        {/* Recent-incident notice (dismissible, surfaces for 7 days post-incident) */}
+        <IncidentBanner />
         <BetaBanner />
         <Providers>{children}</Providers>
         <ServiceWorkerRegister />

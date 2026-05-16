@@ -918,6 +918,30 @@ export const login = (email: string, password: string): Promise<TokenResponse> =
 export const signup = (email: string, password: string, referralCode?: string | null): Promise<TokenResponse> =>
   api.post("/api/v1/auth/register", { email, password, ...(referralCode ? { referral_code: referralCode } : {}) }).then(r => r.data)
 
+// Google OAuth (feat/google-oauth-signup)
+// Flow: button → GET /auth/google/url → browser redirect to Supabase →
+// Google consent → Supabase callback to /auth/callback with #access_token=…
+// & #id_token=… in the URL hash → callback page POSTs id_token back here.
+export interface GoogleAuthResponse extends TokenResponse {
+  is_new_user: boolean
+}
+
+export const getGoogleOAuthUrl = (redirectTo?: string): Promise<{ url: string }> =>
+  api
+    .get("/api/v1/auth/google/url", { params: redirectTo ? { redirect_to: redirectTo } : {} })
+    .then((r) => r.data)
+
+export const exchangeGoogleIdToken = (
+  idToken: string,
+  referralCode?: string | null,
+): Promise<GoogleAuthResponse> =>
+  api
+    .post("/api/v1/auth/google", {
+      id_token: idToken,
+      ...(referralCode ? { referral_code: referralCode } : {}),
+    })
+    .then((r) => r.data)
+
 export const getMe = () =>
   api.get("/api/v1/auth/me").then(r => r.data)
 

@@ -5,11 +5,17 @@ import Prism from "@/components/prism/Prism"
 import { fetchPrism } from "@/lib/prism"
 import type { PrismData } from "@/components/prism/types"
 
+// First-impression chips. INFY was previously here but the analysis
+// page currently flags it with the "Data Limited: Fair value may be
+// conservative" banner (ADR cohort + data-quality clamps), which makes
+// it a sub-par first-touch demo. Swapped to HDFCBANK — clean Indian-listed
+// private bank with a well-modeled DCF. Sector mix kept (energy / IT /
+// banking / FMCG).
 const SUGGESTIONS = [
   { ticker: "RELIANCE.NS", label: "RELIANCE" },
   { ticker: "TCS.NS", label: "TCS" },
-  { ticker: "INFY.NS", label: "INFY" },
   { ticker: "HDFCBANK.NS", label: "HDFCBANK" },
+  { ticker: "KOTAKBANK.NS", label: "KOTAKBANK" },
   { ticker: "ITC.NS", label: "ITC" },
 ]
 
@@ -155,7 +161,7 @@ export default function StepFirstStock({ onNext }: StepFirstStockProps) {
                 spellCheck={false}
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="Try RELIANCE, TCS, INFY…"
+                placeholder="Try RELIANCE, TCS, HDFCBANK…"
                 className="w-full min-h-[52px] rounded-full border border-border bg-surface px-5 pr-14 text-base text-ink placeholder:text-caption focus:outline-none focus:ring-2 focus:ring-brand/60 focus:border-brand"
               />
               <button

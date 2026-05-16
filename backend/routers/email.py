@@ -1,12 +1,74 @@
 # backend/routers/email.py
 # ═══════════════════════════════════════════════════════════════
-# Email management endpoints: unsubscribe.
+# Email management endpoints: unsubscribe + notification preferences.
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
-from fastapi import APIRouter, Query
+
+import logging
+
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+
+from backend.middleware.auth import get_current_user
+
+_log = logging.getLogger("yieldiq.email")
 
 router = APIRouter(prefix="/api/v1/email", tags=["email"])
+
+
+class NotificationPrefs(BaseModel):
+    """Per-channel email opt-in flags. Defaults are opt-in (true)."""
+    weekly_digest: bool = True
+    band_alerts: bool = True       # placeholder for the next PR
+    product_updates: bool = True
+
+
+@router.get("/preferences", response_model=NotificationPrefs)
+async def get_preferences(user: dict = Depends(get_current_user)) -> NotificationPrefs:
+    """Read the current user's notification preferences from Supabase
+    user_metadata. Missing keys default to True (opted-in)."""
+    try:
+        from db.supabase_client import get_admin_client
+        client = get_admin_client()
+        if client is None:
+            return NotificationPrefs()
+        u = client.auth.admin.get_user_by_id(user["user_id"])
+        meta = getattr(u.user, "user_metadata", {}) or {}
+        return NotificationPrefs(
+            weekly_digest=not bool(meta.get("weekly_digest_unsubscribed", False)),
+            band_alerts=not bool(meta.get("band_alerts_unsubscribed", False)),
+            product_updates=not bool(meta.get("product_updates_unsubscribed", False)),
+        )
+    except Exception as exc:
+        _log.warning("get_preferences failed for %s: %s", user.get("user_id"), exc)
+        return NotificationPrefs()
+
+
+@router.put("/preferences", response_model=NotificationPrefs)
+async def set_preferences(
+    prefs: NotificationPrefs,
+    user: dict = Depends(get_current_user),
+) -> NotificationPrefs:
+    """Update notification preferences. Stored on auth.users.user_metadata
+    as `*_unsubscribed` flags (inverted) so a missing key naturally
+    means opted-in."""
+    try:
+        from db.supabase_client import get_admin_client
+        client = get_admin_client()
+        if client is None:
+            return prefs
+        client.auth.admin.update_user_by_id(user["user_id"], {
+            "user_metadata": {
+                "weekly_digest_unsubscribed": not prefs.weekly_digest,
+                "band_alerts_unsubscribed": not prefs.band_alerts,
+                "product_updates_unsubscribed": not prefs.product_updates,
+            },
+        })
+        return prefs
+    except Exception as exc:
+        _log.warning("set_preferences failed for %s: %s", user.get("user_id"), exc)
+        return prefs
 
 
     # Test endpoint removed — emails verified and working

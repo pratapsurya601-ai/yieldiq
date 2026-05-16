@@ -695,7 +695,7 @@ async def refresh_ticker_cache(
 # question: did user X actually look at any analysis page?
 #
 # Data source: ``user_page_views`` (30-day retention). Schema in
-# data_pipeline/migrations/027_user_page_views.sql.
+# data_pipeline/migrations/029_user_page_views.sql.
 # ─────────────────────────────────────────────────────────────────
 @router.get("/user-activity/{email}")
 async def get_user_activity(

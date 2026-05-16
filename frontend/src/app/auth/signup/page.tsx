@@ -6,6 +6,7 @@ import { useAuthStore } from "@/store/authStore"
 import { trackSignupCompleted } from "@/lib/analytics"
 import Cookies from "js-cookie"
 import Link from "next/link"
+import { GoogleSignInButton, OAuthDivider } from "@/components/GoogleSignInButton"
 
 function SignupContent() {
   const [email, setEmail] = useState("")
@@ -92,6 +93,11 @@ function SignupContent() {
             </p>
           )}
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          {/* Google OAuth above the email form — per Google's guidance and
+              the UX audit that flagged email/password-only as the single
+              biggest signup conversion gap. */}
+          <GoogleSignInButton label="Sign up with Google" />
+          <OAuthDivider />
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
             placeholder="Email" className="w-full px-4 py-3 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}

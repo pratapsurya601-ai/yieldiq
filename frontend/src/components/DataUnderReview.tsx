@@ -56,7 +56,7 @@ export default function DataUnderReview({
             While you wait, explore other validated stocks:
           </p>
           <div className="flex flex-wrap gap-2">
-            {["TCS", "INFY", "HDFCBANK", "RELIANCE", "ITC"]
+            {["TCS", "KOTAKBANK", "HDFCBANK", "RELIANCE", "ITC"]
               .filter((t) => t !== display)
               .map((t) => (
                 <Link

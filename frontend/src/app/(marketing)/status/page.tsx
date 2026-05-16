@@ -63,6 +63,22 @@ interface StatusPayload {
   incidents_30d: Incident[]
 }
 
+// ── Public-incidents endpoint (DB-backed, last 90 days) ───────────
+interface PublicIncident {
+  id: number
+  started_at: string
+  ended_at: string | null
+  severity: "major" | "minor" | "partial" | string
+  surface: "frontend" | "backend" | "data_pipeline" | "auth" | "payments" | string
+  title: string
+  description: string
+  resolution: string | null
+}
+interface PublicIncidentsPayload {
+  incidents: PublicIncident[]
+  current_status: "operational" | "degraded" | "outage" | string
+}
+
 // ── Next.js page-level config ─────────────────────────────────────
 // Server-side ISR: each edge node refreshes once a minute, so users
 // see fresh signal without us hammering the backend on every hit.
@@ -112,6 +128,50 @@ async function fetchStatus(): Promise<StatusPayload | null> {
   } catch {
     return null
   }
+}
+
+async function fetchPublicIncidents(): Promise<PublicIncidentsPayload | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/public/incidents`, {
+      // Endpoint already sets s-maxage=300; mirror that on the page.
+      next: { revalidate: 300 },
+    })
+    if (!res.ok) return null
+    return (await res.json()) as PublicIncidentsPayload
+  } catch {
+    return null
+  }
+}
+
+function severityBadgeClasses(sev: string): string {
+  switch (sev) {
+    case "major":
+      return "bg-red-50 text-red-700 border-red-200"
+    case "minor":
+      return "bg-amber-50 text-amber-700 border-amber-200"
+    case "partial":
+      return "bg-blue-50 text-blue-700 border-blue-200"
+    default:
+      return "bg-gray-50 text-gray-700 border-gray-200"
+  }
+}
+
+function surfaceBadgeClasses(): string {
+  return "bg-surface text-caption border-border"
+}
+
+function formatIncidentDateRange(startedAt: string, endedAt: string | null): string {
+  const start = new Date(startedAt)
+  const startStr = Number.isNaN(start.getTime())
+    ? startedAt
+    : start.toISOString().slice(0, 10)
+  if (!endedAt) return `${startStr} — ongoing`
+  const end = new Date(endedAt)
+  const endStr = Number.isNaN(end.getTime())
+    ? endedAt
+    : end.toISOString().slice(0, 10)
+  if (startStr === endStr) return startStr
+  return `${startStr} → ${endStr}`
 }
 
 // ── Visual helpers ────────────────────────────────────────────────
@@ -207,7 +267,11 @@ function ComponentCard({
 
 // ── Page ──────────────────────────────────────────────────────────
 export default async function StatusPage() {
-  const data = await fetchStatus()
+  const [data, incidentsData] = await Promise.all([
+    fetchStatus(),
+    fetchPublicIncidents(),
+  ])
+  const publicIncidents: PublicIncident[] = incidentsData?.incidents ?? []
 
   // If the backend itself can't be reached, render a "down" banner so
   // the page is still useful (and accurate).
@@ -324,6 +388,135 @@ export default async function StatusPage() {
           />
         </div>
       </section>
+
+      {/* ── Past 90 days (DB-backed incidents) ────────────────────── */}
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 py-8 border-t border-border">
+        <h2 className="font-editorial text-2xl sm:text-3xl font-semibold text-ink mb-2">
+          Past 90 days
+        </h2>
+        <p className="text-sm text-caption mb-6">
+          Every user-visible incident in the last 90 days, with date,
+          severity, surface, what happened, and how it was resolved.
+        </p>
+
+        {publicIncidents.length === 0 ? (
+          <p className="text-sm text-body">
+            No incidents recorded in the last 90 days.
+          </p>
+        ) : (
+          <div className="rounded-2xl border border-border bg-surface divide-y divide-border">
+            {publicIncidents.map((inc) => (
+              <article key={inc.id} className="p-5">
+                <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <time className="font-mono text-xs text-caption">
+                    {formatIncidentDateRange(inc.started_at, inc.ended_at)}
+                  </time>
+                  <span
+                    className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded border ${severityBadgeClasses(
+                      inc.severity,
+                    )}`}
+                  >
+                    {inc.severity}
+                  </span>
+                  <span
+                    className={`text-[10px] font-medium uppercase tracking-wider px-2 py-0.5 rounded border ${surfaceBadgeClasses()}`}
+                  >
+                    {inc.surface.replace("_", " ")}
+                  </span>
+                  {inc.ended_at === null && (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-red-700">
+                      ongoing
+                    </span>
+                  )}
+                </div>
+                <h3 className="text-sm font-semibold text-ink mb-2 leading-snug">
+                  {inc.title}
+                </h3>
+                <p className="text-sm text-body leading-relaxed mb-2">
+                  {inc.description}
+                </p>
+                {inc.resolution && (
+                  <p className="text-xs text-caption">
+                    <span className="font-semibold uppercase tracking-wider mr-1">
+                      Resolution:
+                    </span>
+                    {inc.resolution}
+                  </p>
+                )}
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ── What we monitor ───────────────────────────────────────── */}
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 py-8 border-t border-border">
+        <h2 className="font-editorial text-2xl sm:text-3xl font-semibold text-ink mb-2">
+          What we monitor
+        </h2>
+        <p className="text-sm text-caption mb-6">
+          The five surfaces an incident can land on, and how we detect
+          something is wrong.
+        </p>
+        <ul className="space-y-3 text-sm text-body">
+          <li>
+            <span className="font-semibold text-ink">Frontend</span> — the
+            yieldiq.in pages, marketing site, and app shell. Detected via
+            Vercel build/deploy alerts and synthetic uptime probes.
+          </li>
+          <li>
+            <span className="font-semibold text-ink">Backend</span> — the
+            FastAPI service on Railway that powers analysis, screener, and
+            portfolio. Detected via Sentry server-side errors and the
+            /health endpoint.
+          </li>
+          <li>
+            <span className="font-semibold text-ink">Data pipeline</span> —
+            the nightly snapshot, ingest, and fair-value compute jobs.
+            Detected via canary-diff, the data_anomalies log, and nightly
+            GH Actions runs.
+          </li>
+          <li>
+            <span className="font-semibold text-ink">Auth</span> — login,
+            signup, JWT issuance, session refresh. Detected via Sentry
+            auth-error fingerprints and a synthetic login probe.
+          </li>
+          <li>
+            <span className="font-semibold text-ink">Payments</span> —
+            Razorpay webhook delivery, plan upgrades, subscription state.
+            Detected via webhook delivery logs and Sentry payment-error
+            fingerprints.
+          </li>
+        </ul>
+        <p className="text-sm text-caption mt-6">
+          Incidents are filed manually by the on-call once a user-visible
+          regression is confirmed. The full log lives in this page.
+        </p>
+      </section>
+
+      {/* ── Structured data — schema.org ──────────────────────────── */}
+      {/* No formal "StatusPage" schema exists; we expose the page as a
+          WebPage with the current_status surfaced as a description so
+          search results show fresh signal. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "WebPage",
+            name: "YieldIQ status",
+            url: "https://yieldiq.in/status",
+            description: `Public status page for YieldIQ. Current status: ${overallHeadline(
+              payload.status,
+            )}. Past 90 days of incidents with full descriptions and resolutions.`,
+            isPartOf: {
+              "@type": "WebSite",
+              name: "YieldIQ",
+              url: "https://yieldiq.in",
+            },
+          }),
+        }}
+      />
 
       {/* ── Incidents (30d) ───────────────────────────────────────── */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 py-8 border-t border-border">

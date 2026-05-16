@@ -19,7 +19,7 @@ Design constraints (deliberately narrow):
     * 30-day rolling retention via ``scripts/prune_page_views.py``
       (daily cron) — we never need older data for activation.
 
-Schema lives in ``data_pipeline/migrations/027_user_page_views.sql``.
+Schema lives in ``data_pipeline/migrations/029_user_page_views.sql``.
 """
 from __future__ import annotations
 
