@@ -897,6 +897,11 @@ app.include_router(strategies_router.router)
 from backend.routers import sectors as sectors_router
 app.include_router(sectors_router.router)
 
+# Public incident log — backs /status incidents table + recent-incident
+# banner. Additive transparency surface; no analysis-math touch.
+from backend.routers import incidents as incidents_router
+app.include_router(incidents_router.router)
+
 
 @app.get("/health")
 async def health_check():
