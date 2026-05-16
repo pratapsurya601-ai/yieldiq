@@ -8,7 +8,7 @@ import type { PrismData } from "@/components/prism/types"
 // First-impression chips. INFY was previously here but the analysis
 // page currently flags it with the "Data Limited: Fair value may be
 // conservative" banner (ADR cohort + data-quality clamps), which makes
-// it a poor first-touch demo. Swapped to HDFCBANK — clean Indian-listed
+// it a weak first-touch demo. Swapped to HDFCBANK — clean Indian-listed
 // private bank with a well-modeled DCF. Sector mix kept (energy / IT /
 // banking / FMCG).
 const SUGGESTIONS = [

@@ -160,7 +160,7 @@ function HexSkeleton({ size }: { size: number }) {
  * grade while the verdict still reads "Below Fair Value". Without this,
  * new users see "Wide moat + Below fair value" next to a "C" and read
  * it as an internal contradiction. The tooltip names the cause — model-
- * confidence and validator findings vs. the buy signal — and points at
+ * confidence and validator findings vs. the verdict band — and points at
  * the score breakdown for the per-pillar story.
  *
  * Self-contained tooltip (no Radix dep) — mirrors the open/close pattern

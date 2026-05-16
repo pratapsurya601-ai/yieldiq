@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
-// Picks for first-time users — every ticker here should render a clean
+// Picks for first-time users — every ticker here must render a clean
 // analysis page (no "Data Limited" banner, no ADR cohort flag). INFY was
 // dropped 2026-05 because the analysis page currently shows a data-
 // quality caution; replaced with KOTAKBANK + TITAN for sector balance.
