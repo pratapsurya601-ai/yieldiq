@@ -734,6 +734,13 @@ async def get_og_data(
         og["roce"] = _safe_attr(result, "quality", "roce")
         og["wacc"] = _safe_attr(result, "valuation", "wacc")
         og["ev_ebitda"] = _safe_attr(result, "insights", "ev_ebitda")
+        # feat/wire-quarterly-xbrl-to-analysis: TTM source provenance.
+        # Lets the canary harness verify nse_xbrl fires for the 41
+        # NIFTY-50 tickers and yfinance fires for everything else.
+        og["ttm_source"] = _safe_attr(result, "valuation", "ttm_source")
+        og["quarterly_last_filed_at"] = _safe_attr(
+            result, "valuation", "quarterly_last_filed_at",
+        )
 
         # ── Coverage tier (feat/coverage-tier-system) ──
         # Additive labeling only — tells the user how confident we are in
