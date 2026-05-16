@@ -64,8 +64,14 @@ NSE_SYMBOL_ALIASES: dict[str, list[str]] = {
 }
 
 
-def _fetch_filings_index(symbol: str, index: str, session) -> list[dict[str, Any]]:
-    """Listing fetch with a custom ?index= value (insurance / debt / equities)."""
+def _fetch_filings_index(
+    symbol: str, index: str, session, period: str = "Quarterly",
+) -> list[dict[str, Any]]:
+    """Listing fetch with a custom ?index= and ?period= value.
+
+    Supports `period='Half-Yearly'` for the SME cohort (many SMEs file
+    on a half-yearly cadence rather than quarterly).
+    """
     from data_pipeline.sources.nse_xbrl_fundamentals import NSE_API_BASE, NSE_WARMUP
     try:
         session.get(NSE_WARMUP.format(symbol=symbol), timeout=10)
@@ -73,12 +79,15 @@ def _fetch_filings_index(symbol: str, index: str, session) -> list[dict[str, Any
         pass
     url = (
         f"{NSE_API_BASE}/corporates-financial-results"
-        f"?index={index}&symbol={symbol}&period=Quarterly"
+        f"?index={index}&symbol={symbol}&period={period}"
     )
     try:
         r = session.get(url, timeout=20, headers={"Accept": "application/json"})
     except Exception as exc:
-        logger.info("listing fetch error index=%s symbol=%s: %s", index, symbol, exc)
+        logger.info(
+            "listing fetch error index=%s period=%s symbol=%s: %s",
+            index, period, symbol, exc,
+        )
         return []
     if r.status_code != 200:
         return []
@@ -89,20 +98,62 @@ def _fetch_filings_index(symbol: str, index: str, session) -> list[dict[str, Any
     return data if isinstance(data, list) else []
 
 
-def resolve_symbol_filings(symbol: str, session=None) -> tuple[str, list[dict[str, Any]]]:
-    """Try each alias (and known fallback indexes) until one returns >0 filings.
+def resolve_symbol_filings(
+    symbol: str, session=None, segment: str = "equities",
+) -> tuple[str, list[tuple[str, dict[str, Any]]]]:
+    """Try each alias / index / period combo until filings are found.
 
-    Returns (used_symbol, filings). If none yield filings, returns
-    (symbol, []) so callers can no-op uniformly.
+    Returns (used_symbol, [(report_period_type, filing), ...]).
 
-    Index search order per alias:
-        1. equities  (standard — covers industrial + banking)
-        2. insurance (for HDFCLIFE / SBILIFE / ICICIPRULI etc.)
-        3. debt      (some NBFCs file here historically)
+    Each returned filing is paired with the `report_period_type` label
+    ('Quarterly' or 'Half-Yearly') used to fetch it, so the caller can
+    persist it alongside the row without re-deriving from the URL.
+
+    Search strategy by `segment`:
+
+      segment='equities' (default — main-board):
+        Try aliases × ('equities', 'insurance', 'debt') × Quarterly only.
+        This preserves the prior contract exactly.
+
+      segment='sme':
+        Try aliases × index='sme' × ('Quarterly', 'Half-Yearly').
+        SMEs split between the two cadences; we collect from BOTH so a
+        ticker that filed quarterly for FY24 and switched to half-yearly
+        for FY25 lands both vintages.
     """
     aliases = NSE_SYMBOL_ALIASES.get(symbol, [symbol])
     if session is None:
         session = _get_session()
+
+    if segment == "sme":
+        collected: list[tuple[str, dict[str, Any]]] = []
+        used: str | None = None
+        for alias in aliases:
+            for period in ("Quarterly", "Half-Yearly"):
+                try:
+                    filings = _fetch_filings_index(
+                        alias, "sme", session=session, period=period,
+                    )
+                except Exception as exc:
+                    logger.info(
+                        "sme alias=%s period=%s fetch failed: %s",
+                        alias, period, exc,
+                    )
+                    continue
+                if filings:
+                    if used is None:
+                        used = alias
+                    collected.extend((period, f) for f in filings)
+            if collected:
+                if (used or symbol) != symbol:
+                    logger.info(
+                        "resolved %s via SME alias=%s (%d filings)",
+                        symbol, used, len(collected),
+                    )
+                return used or symbol, collected
+        return symbol, []
+
+    # Default: equities / main-board (unchanged behaviour).
     for alias in aliases:
         for index in ("equities", "insurance", "debt"):
             try:
@@ -119,7 +170,7 @@ def resolve_symbol_filings(symbol: str, session=None) -> tuple[str, list[dict[st
                         "resolved %s via alias=%s index=%s (%d filings)",
                         symbol, alias, index, len(filings),
                     )
-                return alias, filings
+                return alias, [("Quarterly", f) for f in filings]
     return symbol, []
 
 
@@ -630,21 +681,31 @@ def fetch_and_parse(
     limit: int = N_QUARTERS,
     session=None,
     sleep_between: float = 0.4,
+    segment: str = "equities",
 ) -> list[dict[str, Any]]:
-    """Fetch + download + parse up to `limit` quarterly filings for `symbol`.
+    """Fetch + download + parse up to `limit` filings for `symbol`.
 
     Symbol aliases are tried automatically. Failures are logged & skipped;
     only successfully-parsed rows are returned.
+
+    `segment`:
+        'equities' (default) — main-board, Quarterly cadence
+        'sme'                — SME EMERGE, Quarterly + Half-Yearly cadence
+
+    Each emitted row carries `segment` and `report_period_type` so the
+    upsert layer can persist them into columns added by migration 032.
     """
     import time
 
     if session is None:
         session = _get_session()
 
-    used_symbol, filings = resolve_symbol_filings(symbol, session=session)
-    filings = filings[:limit]
+    used_symbol, paired = resolve_symbol_filings(
+        symbol, session=session, segment=segment,
+    )
+    paired = paired[:limit]
     rows: list[dict[str, Any]] = []
-    for f in filings:
+    for report_period_type, f in paired:
         xbrl_url = f.get("xbrl")
         # Industrial/banking listings use 'toDate'; insurance listings
         # use 'periodEnd'. Try both.
@@ -671,6 +732,8 @@ def fetch_and_parse(
             continue
         if row:
             row["_resolved_symbol"] = used_symbol
+            row["segment"] = segment
+            row["report_period_type"] = report_period_type
             rows.append(row)
         time.sleep(sleep_between)
     return rows

@@ -73,6 +73,7 @@ INSERT INTO company_quarterly_results (
     interest_earned_cr, interest_expended_cr,
     operating_profit_cr, provisions_cr,
     schema_type,
+    segment, report_period_type,
     xbrl_url, xbrl_sha256, filed_at
 ) VALUES (
     %(ticker)s, %(fiscal_quarter)s, %(period_start)s, %(period_end)s,
@@ -85,6 +86,7 @@ INSERT INTO company_quarterly_results (
     %(interest_earned_cr)s, %(interest_expended_cr)s,
     %(operating_profit_cr)s, %(provisions_cr)s,
     %(schema_type)s,
+    %(segment)s, %(report_period_type)s,
     %(xbrl_url)s, %(xbrl_sha256)s, %(filed_at)s
 )
 ON CONFLICT (ticker, fiscal_quarter, is_consolidated) DO UPDATE SET
@@ -112,6 +114,8 @@ ON CONFLICT (ticker, fiscal_quarter, is_consolidated) DO UPDATE SET
     operating_profit_cr = EXCLUDED.operating_profit_cr,
     provisions_cr = EXCLUDED.provisions_cr,
     schema_type = EXCLUDED.schema_type,
+    segment = EXCLUDED.segment,
+    report_period_type = EXCLUDED.report_period_type,
     xbrl_url = EXCLUDED.xbrl_url,
     xbrl_sha256 = EXCLUDED.xbrl_sha256,
     filed_at = EXCLUDED.filed_at,
@@ -159,18 +163,19 @@ def _strip_internal(row: dict[str, Any]) -> dict[str, Any]:
 
 def dry_run_summary(ticker: str, rows: list[dict[str, Any]]) -> None:
     log.info("---- DRY-RUN [%s] %d rows would be upserted ----", ticker, len(rows))
-    log.info("%-10s %-6s %-7s %-12s %-12s %-10s %-8s",
-             "fq", "consol", "schema", "revenue_cr", "net_profit_cr",
-             "op_profit", "eps")
+    log.info("%-10s %-6s %-7s %-8s %-11s %-12s %-12s %-8s",
+             "fq", "consol", "schema", "segment", "report_pt",
+             "revenue_cr", "net_profit_cr", "eps")
     for r in rows[:8]:
         log.info(
-            "%-10s %-6s %-7s %-12s %-12s %-10s %-8s",
+            "%-10s %-6s %-7s %-8s %-11s %-12s %-12s %-8s",
             r.get("fiscal_quarter"),
             "Y" if r.get("is_consolidated") else "N",
-            r.get("schema_type", "?")[:7],
+            (r.get("schema_type") or "?")[:7],
+            (r.get("segment") or "?")[:8],
+            (r.get("report_period_type") or "?")[:11],
             r.get("revenue_cr"),
             r.get("net_profit_cr"),
-            r.get("operating_profit_cr"),
             r.get("basic_eps"),
         )
     if len(rows) > 8:
@@ -195,8 +200,12 @@ def upsert(conn, rows: list[dict[str, Any]]) -> tuple[int, Any]:
             "operating_profit_cr", "provisions_cr",
             "finance_costs_cr", "depreciation_cr", "other_expenses_cr",
             "employee_benefit_cr", "total_expenses_cr",
+            "report_period_type",
         ):
             payload.setdefault(key, None)
+        # `segment` has a server-side default of 'equities' but the
+        # NOT-NULL safe payload contract is to always send a value.
+        payload.setdefault("segment", "equities")
 
         max_retries = 2
         for attempt in range(max_retries + 1):
@@ -247,8 +256,15 @@ def main() -> int:
              "Blank lines and lines starting with '#' are ignored.",
     )
     ap.add_argument(
-        "--batch", choices=list(BATCHES.keys()),
-        help="Named ticker batch",
+        "--batch", choices=list(BATCHES.keys()) + ["sme_all"],
+        help="Named ticker batch. 'sme_all' loads the cached NSE SME "
+             "EMERGE constituent list from data_pipeline/data/nse_sme_tickers.txt.",
+    )
+    ap.add_argument(
+        "--segment", choices=["equities", "sme"], default="equities",
+        help="Listing channel: 'equities' (main-board, Quarterly only) or "
+             "'sme' (NSE EMERGE — Quarterly + Half-Yearly cadence). "
+             "Rows are tagged with this value in `company_quarterly_results.segment`.",
     )
     ap.add_argument("--limit", type=int, default=N_QUARTERS,
                     help=f"Max quarterly filings per ticker (default {N_QUARTERS})")
@@ -280,15 +296,39 @@ def main() -> int:
         if not tickers:
             log.error("--tickers-file %s is empty", args.tickers_file)
             return 2
+    elif args.batch == "sme_all":
+        sme_path = ROOT / "data_pipeline" / "data" / "nse_sme_tickers.txt"
+        if not sme_path.exists():
+            log.error(
+                "--batch sme_all requires %s — run "
+                "`python scripts/fetch_nse_sme_tickers.py` first",
+                sme_path,
+            )
+            return 2
+        tickers = [
+            line.strip() for line in sme_path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.startswith("#")
+        ]
+        # sme_all only makes sense with --segment sme
+        if args.segment != "sme":
+            log.warning(
+                "--batch sme_all auto-sets --segment sme (was %s)", args.segment,
+            )
+            args.segment = "sme"
     elif args.batch:
         tickers = BATCHES[args.batch]
     else:
         log.error("must specify --tickers, --tickers-file, or --batch")
         return 2
 
-    log.info("mode=%s  tickers=%s  limit=%d/ticker",
+    log.info("mode=%s  segment=%s  tickers=%d  limit=%d/ticker",
              "DRY-RUN" if args.dry_run else "APPLY",
-             ",".join(tickers), args.limit)
+             args.segment, len(tickers), args.limit)
+    # Log the first ~10 to keep CI logs readable when --batch sme_all
+    # passes 514 tickers in.
+    log.info("tickers[:10]=%s%s",
+             ",".join(tickers[:10]),
+             " ..." if len(tickers) > 10 else "")
 
     conn = None
     if args.apply:
@@ -310,6 +350,7 @@ def main() -> int:
         try:
             rows = fetch_and_parse(
                 tk, limit=args.limit, session=session, sleep_between=args.sleep,
+                segment=args.segment,
             )
         except Exception as exc:
             log.error("%s failed: %s", tk, exc)
