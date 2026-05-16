@@ -23,11 +23,20 @@
 # 2024-09-30 is tagged "Q2 FY24" but should be "Q2 FY25"). Always
 # sort by `period_end` here — never trust the label string.
 #
-# FCF: quarterly XBRL does NOT carry a cash-flow statement, so this
-# module deliberately does not produce a TTM FCF. Callers that want
-# to swap the XBRL TTM into the DCF path must keep yfinance's FCF
-# (or fall back to annual FCF) for the FCF leg. A follow-up PR will
-# parse the cash-flow XBRL and add `ttm_fcf` here.
+# FCF (since PR #XXX / migration 034): SEBI LODR Reg 33 lets listed
+# entities publish cash flow only HALF-YEARLY (Sep + Mar). The
+# parser at data_pipeline/sources/nse_quarterly_xbrl.py extracts
+# CFO / CapEx / FCF from those H1 + Q4 filings (Q1 / Q3 still carry
+# no cash flow). `compute_ttm_from_xbrl` stitches the latest two
+# half-year prints into a 12-month FCF:
+#
+#   * Latest = Q4 (Mar)            → fcf_ttm := Q4.fcf_cr  (full FY)
+#   * Latest = Q2 (Sep)            → fcf_ttm := Q2.fcf_cr + (PrevQ4.fcf_cr - PrevQ2.fcf_cr)
+#   * Latest = Q1/Q3 (no CF)       → fcf_ttm := latest Q4 row (full FY, possibly stale)
+#
+# `fcf_ttm` is None when the two half-year rows needed for the
+# stitched window are missing — callers should fall back to the
+# existing annual / yfinance path.
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 
@@ -51,6 +60,8 @@ _SELECT_COLS = (
     "comprehensive_income_cr, employee_benefit_cr, "
     "finance_costs_cr, depreciation_cr, other_expenses_cr, "
     "basic_eps, diluted_eps, face_value, paid_up_capital_cr, "
+    "cfo_cr, cfi_cr, cff_cr, capex_cr, fcf_cr, "
+    "cashflow_period_months, has_cashflow_statement, "
     "xbrl_url, filed_at, ingested_at"
 )
 
@@ -141,6 +152,135 @@ def get_quarterly_results(
             pass
 
 
+def _get_latest_cashflow_rows(
+    ticker: str, n: int = 4, consolidated: bool = True,
+) -> Optional[list[dict]]:
+    """Fetch latest `n` rows that carry cash-flow data (cfo_cr IS NOT NULL).
+
+    Used by the FCF TTM aggregator. Mirrors `get_quarterly_results`'s
+    consolidated-preferred-with-standalone-fallback strategy so the
+    FCF leg comes from the same filing series as the P&L leg.
+    """
+    db = _get_pipeline_session()
+    if db is None:
+        return None
+    db_ticker = _strip_suffix(ticker)
+    try:
+        from sqlalchemy import text
+
+        def _fetch(is_consolidated: bool) -> list[dict]:
+            rows = db.execute(
+                text(
+                    "SELECT period_end, cfo_cr, capex_cr, fcf_cr, "
+                    "cashflow_period_months "
+                    "FROM company_quarterly_results "
+                    "WHERE ticker = :t AND is_consolidated = :c "
+                    "  AND cfo_cr IS NOT NULL "
+                    "ORDER BY period_end DESC "
+                    "LIMIT :n"
+                ),
+                {"t": db_ticker, "c": is_consolidated, "n": n},
+            ).mappings().all()
+            return [dict(r) for r in rows]
+
+        if consolidated:
+            rows = _fetch(True) or _fetch(False)
+        else:
+            rows = _fetch(False)
+        return rows or None
+    except Exception as exc:
+        _logger.warning(
+            "cashflow rows query failed for %s (%s)",
+            db_ticker, str(exc)[:120],
+        )
+        return None
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
+def _compute_fcf_ttm_from_halfyear(
+    cf_rows: list[dict],
+) -> tuple[Optional[float], Optional[str], int]:
+    """Stitch the latest half-year prints into a 12-month FCF.
+
+    Inputs: rows ordered period_end DESC, each carrying
+        period_end, cfo_cr, capex_cr, fcf_cr, cashflow_period_months
+    where cashflow_period_months ∈ {6, 12}:
+       * 6  → H1 print (Apr-Sep YTD)
+       * 12 → Q4/FY print (Apr-Mar YTD = full FY)
+
+    Returns (fcf_ttm_in_inr, basis_label, rows_used).
+
+    Stitching rules (period_end month):
+      - Latest = Q4 (Mar):
+            fcf_ttm = latest.fcf_cr               (full FY, 12 months)
+            basis   = 'fy_q4'
+      - Latest = Q2 (Sep):
+            fcf_ttm = latest.fcf_cr
+                      + (prev_Q4.fcf_cr - prev_Q2.fcf_cr)
+            basis   = 'h1_plus_prev_h2'
+            (Requires the previous-FY Q4 and Q2 prints; if either
+            absent, falls back to most recent Q4 row → 'fy_q4_stale')
+      - Else (no Q2/Q4 row in window): None.
+
+    fcf_cr is in Cr; output is INR (× 1e7) to match the convention
+    `enriched["latest_fcf"]` / `_query_ttm_financials`.
+    """
+    if not cf_rows:
+        return None, None, 0
+
+    def _is_q2(r: dict) -> bool:
+        pe = r.get("period_end")
+        return pe is not None and getattr(pe, "month", None) == 9
+    def _is_q4(r: dict) -> bool:
+        pe = r.get("period_end")
+        return pe is not None and getattr(pe, "month", None) == 3
+    def _f(r: dict, key: str) -> Optional[float]:
+        v = r.get(key)
+        try:
+            return float(v) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    latest = cf_rows[0]
+    # Case A: latest is FY-Q4 print — fcf is already 12-month YTD.
+    if _is_q4(latest):
+        fcf = _f(latest, "fcf_cr")
+        if fcf is None:
+            return None, None, 0
+        return fcf * 1e7, "fy_q4", 1
+
+    # Case B: latest is H1 (Sep). Need previous-FY Q4 + previous-FY Q2.
+    if _is_q2(latest):
+        h1_fcf = _f(latest, "fcf_cr")
+        prev_q4 = next((r for r in cf_rows[1:] if _is_q4(r)), None)
+        prev_q2 = next((r for r in cf_rows[1:] if _is_q2(r)), None)
+        if h1_fcf is not None and prev_q4 is not None and prev_q2 is not None:
+            pq4 = _f(prev_q4, "fcf_cr")
+            pq2 = _f(prev_q2, "fcf_cr")
+            if pq4 is not None and pq2 is not None:
+                h2_prev_fcf = pq4 - pq2   # H2 of previous FY
+                return (h1_fcf + h2_prev_fcf) * 1e7, "h1_plus_prev_h2", 3
+        # Fall back to the latest Q4 we have (stale by up to 6 months).
+        if prev_q4 is not None:
+            pq4_fcf = _f(prev_q4, "fcf_cr")
+            if pq4_fcf is not None:
+                return pq4_fcf * 1e7, "fy_q4_stale", 1
+        return None, None, 0
+
+    # Case C: latest is a Q1/Q3 row that carried cash flow (rare —
+    # voluntary disclosure). Fall back to latest Q4.
+    q4 = next((r for r in cf_rows if _is_q4(r)), None)
+    if q4 is not None:
+        v = _f(q4, "fcf_cr")
+        if v is not None:
+            return v * 1e7, "fy_q4_stale", 1
+    return None, None, 0
+
+
 def compute_ttm_from_xbrl(ticker: str) -> Optional[dict]:
     """
     Aggregate the latest 4 quarters into a TTM dict.
@@ -195,11 +335,30 @@ def compute_ttm_from_xbrl(ticker: str) -> Optional[dict]:
         else str(latest_period_end) if latest_period_end else None
     )
 
+    # FCF TTM (since migration 034): stitch latest two H1/Q4 prints.
+    # Decoupled from the 4-quarter P&L window since cash flow lives
+    # only on H1 (Sep) and Q4 (Mar) filings. We query up to 4 cash-
+    # flow rows so we always cover (latest, prev_Q4, prev_Q2).
+    fcf_ttm: Optional[float] = None
+    fcf_basis: Optional[str] = None
+    fcf_rows_used: int = 0
+    try:
+        cf_rows = _get_latest_cashflow_rows(ticker, n=4, consolidated=True)
+        if cf_rows:
+            fcf_ttm, fcf_basis, fcf_rows_used = _compute_fcf_ttm_from_halfyear(cf_rows)
+    except Exception as exc:
+        _logger.info("fcf ttm compute skipped for %s: %s", ticker, str(exc)[:120])
+
     return {
         "revenue_ttm":       _sum("revenue_cr"),
         "net_profit_ttm":    _sum("net_profit_cr"),
         "employee_cost_ttm": _sum("employee_benefit_cr"),
         "depreciation_ttm":  _sum("depreciation_cr"),
+        # FCF TTM in raw INR; basis records which stitching path was
+        # taken so the surface layer can label the source precisely.
+        "fcf_ttm":           fcf_ttm,
+        "fcf_ttm_basis":     fcf_basis,
+        "fcf_ttm_rows_used": fcf_rows_used,
         "quarters_used":     quarters_used,
         "partial":           partial,
         "period_end":        period_end_str,
@@ -264,12 +423,21 @@ def resolve_ttm_for_analysis(
             out["enriched_updates"]["latest_revenue"] = xbrl_ttm["revenue_ttm"]
         if xbrl_ttm.get("net_profit_ttm") is not None:
             out["enriched_updates"]["latest_pat"] = xbrl_ttm["net_profit_ttm"]
-        # FCF leg: best-effort annual fallback. TODO(follow-up PR):
-        # parse cash-flow XBRL so we can produce ttm_fcf here too.
-        try:
-            out["annual_fcf_fallback"] = query_latest_annual_financials(ticker)
-        except Exception:
+        # FCF leg: prefer XBRL TTM (migration 034 — stitched H1+H2
+        # half-year prints). Fall back to the latest annual row when
+        # the half-year window is incomplete (e.g. company that has
+        # only one half-year filing in our table so far).
+        fcf_from_xbrl = xbrl_ttm.get("fcf_ttm")
+        if fcf_from_xbrl is not None:
+            out["enriched_updates"]["latest_fcf"] = fcf_from_xbrl
+            basis = xbrl_ttm.get("fcf_ttm_basis") or "xbrl"
+            out["fcf_data_source"] = f"ttm+nse_xbrl_cf_{basis}"
             out["annual_fcf_fallback"] = None
+        else:
+            try:
+                out["annual_fcf_fallback"] = query_latest_annual_financials(ticker)
+            except Exception:
+                out["annual_fcf_fallback"] = None
         return out
 
     # XBRL absent or partial → existing TTM/annual ladder.
