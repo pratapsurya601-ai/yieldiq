@@ -946,7 +946,8 @@ REGULATED_UTILITY_TICKERS = {
     "RECLTD",      # Rural Electrification, regulated NBFC
     "GAIL",        # Natural gas transmission, PNGRB-regulated
     "TORNTPOWER",  # Distribution, state-regulated
-    "ADANITRANS",  # Transmission, CERC-regulated
+    "ADANITRANS",  # Transmission, CERC-regulated (legacy ticker, pre-2024 rename)
+    "ADANIENSOL",  # Adani Energy Solutions — post-2024-rename canonical symbol
 }
 
 

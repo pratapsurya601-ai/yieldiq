@@ -90,7 +90,11 @@ _CONGLOMERATE_SEGMENTS = {
 #         REGULATED_UTILITY_TICKERS as _REGULATED_UTILITIES
 _REGULATED_UTILITIES = {
     "POWERGRID", "NTPC", "NHPC", "PFC", "RECLTD",
-    "GAIL", "TORNTPOWER", "ADANITRANS",
+    "GAIL", "TORNTPOWER",
+    # ADANITRANS retained for legacy cached payloads / historical rows;
+    # ADANIENSOL is the post-2024-rename canonical symbol (Adani Energy
+    # Solutions Ltd). See data_pipeline/migrations/031_deactivate_renamed_tickers.sql.
+    "ADANITRANS", "ADANIENSOL",
 }
 
 # ─── Rule 7: ADR / USD-primary-listing tickers ──────────────────
