@@ -3,13 +3,17 @@
 import Link from "next/link"
 import { cn } from "@/lib/utils"
 
+// Picks for first-time users — every ticker here should render a clean
+// analysis page (no "Data Limited" banner, no ADR cohort flag). INFY was
+// dropped 2026-05 because the analysis page currently shows a data-
+// quality caution; replaced with KOTAKBANK + TITAN for sector balance.
 const POPULAR_TICKERS = [
   { ticker: "RELIANCE.NS", label: "Reliance" },
   { ticker: "TCS.NS", label: "TCS" },
-  { ticker: "INFY.NS", label: "Infosys" },
   { ticker: "HDFCBANK.NS", label: "HDFC Bank" },
+  { ticker: "KOTAKBANK.NS", label: "Kotak Bank" },
+  { ticker: "TITAN.NS", label: "Titan" },
   { ticker: "ITC.NS", label: "ITC" },
-  { ticker: "SBIN.NS", label: "SBI" },
 ]
 
 export default function HomeEmpty() {
