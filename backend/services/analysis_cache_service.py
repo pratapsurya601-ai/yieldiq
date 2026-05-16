@@ -38,6 +38,43 @@ from backend.services.cache_service import CACHE_VERSION
 logger = logging.getLogger("yieldiq.analysis_cache")
 
 
+def _canonical_cache_key(ticker: str) -> str:
+    """
+    Canonicalize the ticker BEFORE it is used as a cache row key.
+
+    Why this exists
+    ---------------
+    The 2026-05-16 data audit flagged that `analysis_cache` had 5,062
+    rows but only 3,141 unique tickers — every Indian symbol was
+    stored twice, once as `FOO` and once as `FOO.NS`. Two different
+    callers (router vs background warmer; HEX vs analysis) each
+    passed a different surface form, the table PK is just `ticker`,
+    so two rows were UPSERTed against two different keys for what is
+    semantically the same security. Dashboard counts were inflated
+    by ~60% and stale halves of pairs masked fresh data on the other.
+
+    Fix: every read/write/invalidate funnels through this normalizer
+    and reuses the existing `_canonicalize_ticker` from
+    `backend/services/analysis/utils.py` which already encodes the
+    "bare Indian → .NS" rule (and leaves US/global symbols alone).
+
+    Failures degrade open: if the canonicalize import or the
+    known-Indian-bare cache fails, we fall back to the upper-cased
+    raw ticker so cache traffic never breaks the request path.
+    """
+    if not ticker:
+        return ticker
+    try:
+        from backend.services.analysis.utils import _canonicalize_ticker
+        return _canonicalize_ticker(ticker)
+    except Exception as exc:  # pragma: no cover - import/cache rare failure
+        logger.warning(
+            "analysis_cache: canonicalize failed for %s (%s); falling back to upper",
+            ticker, exc,
+        )
+        return str(ticker).strip().upper()
+
+
 def _fire_revalidate(ticker: str) -> None:
     """
     Fire-and-forget POST to the Next.js on-demand revalidation endpoint
@@ -111,6 +148,8 @@ def get_cached(ticker: str, max_age_hours: int = 24) -> Optional[dict]:
     sess = _get_session()
     if sess is None:
         return None
+    # Normalize before key lookup so FOO and FOO.NS hit the same row.
+    ticker = _canonical_cache_key(ticker)
     try:
         row = sess.execute(
             text(
@@ -162,6 +201,8 @@ def save_cached(ticker: str, payload: dict, compute_ms: int) -> None:
     sess = _get_session()
     if sess is None:
         return
+    # Normalize so two callers passing FOO vs FOO.NS UPSERT the same row.
+    ticker = _canonical_cache_key(ticker)
     try:
         # default=str handles datetime/Decimal/etc. that may sneak
         # through from the analysis layer.
@@ -216,10 +257,16 @@ def invalidate(ticker: str) -> None:
     sess = _get_session()
     if sess is None:
         return
+    # Delete BOTH the canonical row and any leftover legacy variant
+    # (bare/.NS) so a stale ghost row can't survive an explicit
+    # invalidate. Pre-2026-05-16 writes may have produced both forms.
+    canonical = _canonical_cache_key(ticker)
+    raw = str(ticker).strip().upper() if ticker else ticker
+    keys = list({k for k in (canonical, raw) if k})
     try:
         sess.execute(
-            text("DELETE FROM analysis_cache WHERE ticker = :ticker"),
-            {"ticker": ticker},
+            text("DELETE FROM analysis_cache WHERE ticker = ANY(:tickers)"),
+            {"tickers": keys},
         )
         sess.commit()
     except Exception as exc:
