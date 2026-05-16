@@ -314,3 +314,41 @@ def test_compute_sector_cohort_handles_dict_payload():
     cohort = sp.compute_sector_cohort("Banks", sess)
     assert len(cohort) == 1
     assert abs(cohort[0]["mos_pct"] - 0.25) < 1e-9
+
+
+# ─── canonical_sector read-path (2026-05-17, migration 035) ──────
+def test_cohort_query_prefers_canonical_sector_when_populated():
+    """The cohort SQL must use s.canonical_sector as the primary
+    match key (post migration 035 backfill, 2026-05-17). The raw
+    s.sector column is retained ONLY as a fallback for rows where
+    canonical_sector IS NULL — never block on missing backfill.
+
+    Regression guard: a previous iteration of this SQL filtered
+    only on s.sector and missed rows whose stored label didn't
+    lowercase-match the alias map (NBFC/insurance/SFB tickers).
+    """
+    # Rule-mapped path (e.g. "Banks" → Financial Services + Banks%).
+    sql, params = sp._build_cohort_query("Banks")
+    assert "s.canonical_sector = :canonical" in sql
+    assert params.get("canonical") == "Banks"
+    # Fallback to raw-sector ANY-list is present, gated on canonical IS NULL.
+    assert "s.canonical_sector IS NULL" in sql
+    assert "s.sector = ANY(:sectors)" in sql
+    assert "Financial Services" in (params.get("sectors") or [])
+    # IT Services: same pattern, no industry filter required.
+    sql_it, params_it = sp._build_cohort_query("IT Services")
+    assert "s.canonical_sector = :canonical" in sql_it
+    assert params_it.get("canonical") == "IT Services"
+    assert "Technology" in (params_it.get("sectors") or [])
+
+
+def test_cohort_query_unmapped_canonical_uses_canonical_with_raw_fallback():
+    """For a canonical label NOT registered in SECTOR_COHORT_RULES,
+    the SQL still prefers s.canonical_sector but falls back to
+    s.sector = :canonical when canonical_sector IS NULL. This is the
+    safety net for any future canonical bucket that ships before its
+    cohort rule is wired."""
+    sql, params = sp._build_cohort_query("Asteroid Mining")
+    assert "s.canonical_sector = :canonical" in sql
+    assert "s.canonical_sector IS NULL AND s.sector = :canonical" in sql
+    assert params == {"canonical": "Asteroid Mining"}

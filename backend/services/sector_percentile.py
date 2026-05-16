@@ -226,25 +226,36 @@ def _build_cohort_query(canonical_sector: str) -> tuple[str, dict]:
     """
 
     if rule is None:
-        # Legacy path: exact-match on the canonical label. This will
-        # almost certainly return zero rows (canonical labels do not
-        # exist as stored values), but preserves backward-compatible
-        # behaviour for any caller still passing pre-canonicalised
-        # strings.
-        sql = base + "\n          AND s.sector = :sector"
-        return sql, {"sector": canonical_sector}
+        # Post-backfill (2026-05-17, migration 035): canonical_sector is
+        # populated on stocks. Primary match is on the canonical column;
+        # raw-sector exact-match retained as a fallback for rows whose
+        # backfill is missing (canonical_sector IS NULL) — never block
+        # on missing data.
+        sql = base + (
+            "\n          AND (s.canonical_sector = :canonical "
+            "OR (s.canonical_sector IS NULL AND s.sector = :canonical))"
+        )
+        return sql, {"canonical": canonical_sector}
 
     sectors: list[str] = list(rule.get("sectors") or [])
     industry_like: Optional[str] = rule.get("industry_like")
-    params: dict = {"sectors": sectors}
-    sql = base + "\n          AND s.sector = ANY(:sectors)"
+    params: dict = {"sectors": sectors, "canonical": canonical_sector}
+    # Primary: stored canonical_sector. Fallback: raw-sector ANY-list
+    # for rows where the backfill hasn't reached yet (canonical IS NULL).
+    sql = base + (
+        "\n          AND (s.canonical_sector = :canonical "
+        "OR (s.canonical_sector IS NULL AND s.sector = ANY(:sectors)))"
+    )
 
     if industry_like:
         sql += "\n          AND s.industry ILIKE :industry_like"
         params["industry_like"] = industry_like
 
     # Special-case: "Financial Services" canonical excludes banks,
-    # which live in their own canonical cohort.
+    # which live in their own canonical cohort. The canonical backfill
+    # already routes banks to Bank/Private Bank/PSU Bank, so this
+    # exclude is now belt-and-suspenders for the legacy raw-sector
+    # fallback branch.
     if canonical_sector == "Financial Services":
         sql += "\n          AND (s.industry IS NULL OR s.industry NOT ILIKE :exclude_banks)"
         params["exclude_banks"] = sector_benchmarks.FINANCIAL_SERVICES_BANK_EXCLUDE_LIKE
