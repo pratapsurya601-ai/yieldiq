@@ -323,3 +323,35 @@ def test_evaluate_real_violation_still_fails_with_fetch_failures_under_budget():
     assert report["fetch_failures"] == 1  # within budget
     assert report["gate_violations"] >= 1
     assert report["passed"] is False  # real violation always fails
+
+
+# ---------------------------------------------------------------------------
+# Ticker-suffix normalisation for per-ticker overrides
+# ---------------------------------------------------------------------------
+#
+# Regression for the post-PR #258 lookup miss: symbols enter
+# ``_ticker_tolerance`` as ``SHREECEM.NS`` but ``_TICKER_OVERRIDES`` is
+# keyed on the bare ``SHREECEM``. Without suffix-stripping the override
+# silently no-ops and SHREECEM continues to fail gate 5 at the default
+# 0.35 fv/cmp floor.
+
+
+def test_ticker_tolerance_strips_ns_suffix():
+    assert (
+        cd._ticker_tolerance("SHREECEM.NS", "fv_cmp_min_override", 0.35)
+        == 0.25
+    )
+
+
+def test_ticker_tolerance_accepts_bare_ticker():
+    assert (
+        cd._ticker_tolerance("SHREECEM", "fv_cmp_min_override", 0.35)
+        == 0.25
+    )
+
+
+def test_ticker_tolerance_default_when_no_override():
+    assert (
+        cd._ticker_tolerance("RELIANCE.NS", "fv_cmp_min_override", 0.35)
+        == 0.35
+    )
