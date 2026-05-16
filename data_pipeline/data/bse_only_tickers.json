@@ -1,0 +1,21 @@
+{
+  "_meta": {
+    "description": "BSE-only Group A+B legit tickers (single-listed on BSE, not NSE). Source: NSE recon agent findings (May 2026). Excludes ETFs, MFs, REITs, InvITs.",
+    "schema": "Each entry: ticker (uppercase trading symbol on BSE), bse_code (6-digit BSE Scripcode), name (display, optional), group (A/B, optional)",
+    "ingest_path": "data_pipeline.sources.bse_quarterly_xbrl (Playwright + real Chrome channel + Akamai cookie warmup)",
+    "consumer": "scripts/backfill_bse_only_quarterly_xbrl.py",
+    "schema_version": 1,
+    "expected_total": 96,
+    "note": "Confirmed names from the recon are listed first. The remaining ~88 names from the Group B tail need to be backfilled by re-running the NSE recon agent and merging its output before the live ingest run. The Playwright pipeline itself is ticker-agnostic — adding more rows here is purely additive."
+  },
+  "tickers": [
+    {"ticker": "SPICEJET",    "bse_code": "500285", "name": "SpiceJet Ltd",                        "group": "B"},
+    {"ticker": "TANFAC",      "bse_code": "506854", "name": "Tanfac Industries Ltd",               "group": "B"},
+    {"ticker": "JYOTIRES",    "bse_code": "513250", "name": "Jyoti Resins And Adhesives Ltd",      "group": "B"},
+    {"ticker": "SEKURITIND",  "bse_code": "517569", "name": "Sekurit India Ltd",                   "group": "B"},
+    {"ticker": "BENARAS",     "bse_code": "509055", "name": "Benares Hotels Ltd",                  "group": "B"},
+    {"ticker": "HOCL",        "bse_code": "500449", "name": "Hindustan Organic Chemicals Ltd",     "group": "B"},
+    {"ticker": "ACGL",        "bse_code": "533573", "name": "AGI Greenpac Ltd (formerly ACGL)",    "group": "B"},
+    {"ticker": "RIRPOWER",    "bse_code": "532486", "name": "RIR Power Electronics Ltd",           "group": "B"}
+  ]
+}
