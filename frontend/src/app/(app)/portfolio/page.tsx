@@ -217,7 +217,7 @@ function PortfolioInner() {
       )}
       {tab === "holdings" && !holdingsError && !holdingsLoading && (
         holdings && holdings.length > 0 ? (
-          <div className="space-y-3">
+          <section aria-label="Holdings" data-testid="holdings-list" className="space-y-3">
             {/* Warn when any holding is trading >15% below our model fair value */}
             <BelowFairValueBanner holdings={holdings} />
             {/* Portfolio Summary */}
@@ -313,18 +313,23 @@ function PortfolioInner() {
                 )}
               </Link>
             ))}
-          </div>
+          </section>
         ) : (
-          <>
+          // UX activation fix (2026-05): explicit section + label so the
+          // Holdings empty state can never be mistaken for the Watchlist
+          // empty state — both were rendering similar-looking generic
+          // cards, which the May audit flagged as "Holdings tab shows
+          // watchlist content".
+          <section aria-label="Holdings (none yet)" data-testid="holdings-empty">
             <EmptyState
               illustration="/illustrations/empty-portfolio.svg"
               illustrationAlt="Illustration of a rising portfolio chart with a plus badge"
-              title="Track what you own"
-              description="Import your Zerodha or Groww holdings in seconds, or explore stocks one at a time."
-              actionLabel="Import CSV"
+              title="No holdings yet"
+              description="Holdings are the actual shares you own — track P&L, fair-value gap, and portfolio-level signals once added. Import your broker CSV or add a single position manually."
+              actionLabel="Import broker CSV"
               actionHref="/portfolio/import"
-              secondaryLabel="Explore stocks"
-              secondaryHref="/search"
+              secondaryLabel="Add holding manually"
+              secondaryHref="/portfolio/import"
             />
             <div className="mt-4 pt-4 text-center">
               <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-2 font-semibold">Want to see it first?</p>
@@ -335,7 +340,7 @@ function PortfolioInner() {
                 Explore a sample analysis (Reliance) &rarr;
               </Link>
             </div>
-          </>
+          </section>
         )
       )}
       {tab === "holdings" && !holdingsError && holdings && holdings.length > 0 && (
@@ -413,7 +418,7 @@ function PortfolioInner() {
       {/* Watchlist tab */}
       {tab === "watchlist" && (
         watchlist && watchlist.length > 0 ? (
-          <div className="space-y-2">
+          <section aria-label="Watchlist" data-testid="watchlist-list" className="space-y-2">
             {watchlist.map((w: { ticker: string; company_name: string; target_price: number; added_price: number }) => (
               <div key={w.ticker} className="flex items-center bg-white rounded-xl border border-gray-100 hover:border-blue-200 transition">
                 <Link href={`/analysis/${w.ticker}`} className="flex-1 flex items-center justify-between p-4">
@@ -454,7 +459,7 @@ function PortfolioInner() {
                 </button>
               </div>
             ))}
-          </div>
+          </section>
         ) : (
           <EmptyState
             illustration="/illustrations/empty-watchlist.svg"

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import ConvictionRing from "@/components/analysis/ConvictionRing"
 import VerdictChip from "@/components/analysis/VerdictChip"
 import CoverageTierBadge from "@/components/analysis/CoverageTierBadge"
@@ -155,6 +155,119 @@ function HexSkeleton({ size }: { size: number }) {
   )
 }
 
+/**
+ * Inline "?" tooltip explaining why a stock can carry a C/D composite
+ * grade while the verdict still reads "Below Fair Value". Without this,
+ * new users see "Wide moat + Below fair value" next to a "C" and read
+ * it as an internal contradiction. The tooltip names the cause — model-
+ * confidence and validator findings vs. the verdict band — and points at
+ * the score breakdown for the per-pillar story.
+ *
+ * Self-contained tooltip (no Radix dep) — mirrors the open/close pattern
+ * used by MetricTooltip without requiring a registered metric key.
+ */
+function GradeContradictionTip() {
+  const [open, setOpen] = useState(false)
+  const wrapperRef = useRef<HTMLSpanElement | null>(null)
+  const [alignRight, setAlignRight] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const trigger = triggerRef.current
+    if (!trigger) return
+    const rect = trigger.getBoundingClientRect()
+    const POPOVER_WIDTH = 300
+    const viewportW = typeof window !== "undefined" ? window.innerWidth : 1024
+    setAlignRight(rect.left + POPOVER_WIDTH > viewportW)
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false)
+    }
+    function onDocClick(e: MouseEvent) {
+      const node = wrapperRef.current
+      if (!node) return
+      if (!node.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("keydown", onKey)
+    document.addEventListener("mousedown", onDocClick)
+    return () => {
+      document.removeEventListener("keydown", onKey)
+      document.removeEventListener("mousedown", onDocClick)
+    }
+  }, [open])
+
+  return (
+    <span
+      ref={wrapperRef}
+      className="relative inline-flex items-center ml-1 align-middle"
+    >
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label="Why is the grade lower than the verdict suggests?"
+        aria-expanded={open}
+        onClick={(e) => {
+          e.stopPropagation()
+          setOpen((v) => !v)
+        }}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={(e) => {
+          const next = e.relatedTarget as Node | null
+          if (next && wrapperRef.current?.contains(next)) return
+          setOpen(false)
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={(e) => {
+          const next = e.relatedTarget as Node | null
+          if (next && wrapperRef.current?.contains(next)) return
+          setOpen(false)
+        }}
+        className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full text-[9px] font-bold leading-none p-2 sm:p-0 box-content sm:box-border border border-current text-caption hover:text-brand focus-visible:text-brand focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1 transition-colors"
+      >
+        ?
+      </button>
+      {open && (
+        <div
+          role="tooltip"
+          className={`absolute top-full mt-2 z-50 w-72 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface shadow-lg p-3 text-left text-ink ${alignRight ? "right-0" : "left-0"}`}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-caption mb-1">
+            Why the grade vs. verdict differ
+          </p>
+          <p className="text-[12px] leading-snug text-body">
+            Score reflects model confidence and validator findings, not the
+            fair-value gap. A &lsquo;C&rsquo; grade with a high MoS means: the
+            model believes this stock is below fair value, but data-quality
+            flags or pillar weaknesses prevented a higher composite score.
+            Open the score breakdown for the per-pillar details.
+          </p>
+        </div>
+      )}
+    </span>
+  )
+}
+
+/**
+ * True when the composite grade reads as low-quality (C/D/F) yet the
+ * model's verdict still says the stock is below fair value. This is the
+ * exact combination that read as an internal contradiction during the
+ * 2026-05 UX audit.
+ */
+function shouldShowGradeContradictionTip(
+  grade: string | undefined | null,
+  verdict: Verdict,
+): boolean {
+  if (!grade) return false
+  const first = grade.trim().charAt(0).toUpperCase()
+  if (first !== "C" && first !== "D" && first !== "F") return false
+  return verdict === "undervalued"
+}
+
 export default function AnalysisHero({
   score,
   grade,
@@ -250,6 +363,9 @@ export default function AnalysisHero({
               <span className="ml-2 text-sm font-bold text-brand">
                 {grade}
               </span>
+              {shouldShowGradeContradictionTip(grade, effectiveVerdict) && (
+                <GradeContradictionTip />
+              )}
             </p>
           </div>
         </div>

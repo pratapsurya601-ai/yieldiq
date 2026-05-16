@@ -140,7 +140,7 @@ export default function LandingPage() {
           </h2>
           <div className="grid md:grid-cols-3 gap-8">
             {[
-              { step: "1", title: "Enter a Ticker", desc: "Type any NSE/BSE stock ticker \u2014 RELIANCE, TCS, INFY" },
+              { step: "1", title: "Enter a Ticker", desc: "Type any NSE/BSE stock ticker \u2014 RELIANCE, TCS, HDFCBANK" },
               { step: "2", title: "Automatic DCF Analysis", desc: "YieldIQ pulls financials and runs a DCF model with India-calibrated WACC automatically." },
               { step: "3", title: "Get Fair Value", desc: "See the estimated fair value with adjustable assumptions \u2014 change WACC, growth, terminal rate instantly." },
             ].map((item) => (
