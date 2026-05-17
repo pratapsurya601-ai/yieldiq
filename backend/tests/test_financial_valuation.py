@@ -44,7 +44,7 @@ def patch_medians(monkeypatch):
 
 def test_peer_groups_expected_keys():
     assert set(FINANCIAL_PEER_GROUPS.keys()) == {
-        "psu_banks", "private_banks", "growth_nbfc", "govt_nbfc",
+        "psu_banks", "private_banks", "lending_nbfc", "govt_nbfc",
         "life_insurance", "general_insurance", "housing_finance",
         "asset_mgmt",
     }
@@ -53,10 +53,15 @@ def test_peer_groups_expected_keys():
 def test_get_peer_group_handles_suffix():
     assert get_peer_group("SBIN.NS") == "psu_banks"
     assert get_peer_group("HDFCBANK.NS") == "private_banks"
-    assert get_peer_group("BAJFINANCE") == "growth_nbfc"
+    # BAJFINANCE / MUTHOOTFIN are lenders → P/BV cohort, not P/E
+    assert get_peer_group("BAJFINANCE") == "lending_nbfc"
+    assert get_peer_group("MUTHOOTFIN.NS") == "lending_nbfc"
+    assert get_peer_group("SHRIRAMFIN") == "lending_nbfc"
     assert get_peer_group("PFC.NS") == "govt_nbfc"
     assert get_peer_group("ICICIGI") == "general_insurance"
     assert get_peer_group("LICI") == "life_insurance"
+    assert get_peer_group("HDFCLIFE") == "life_insurance"
+    assert get_peer_group("HDFCAMC") == "asset_mgmt"
 
 
 def test_get_peer_group_returns_none_for_non_financial():
@@ -115,19 +120,21 @@ def test_hdfcbank_pbv_with_roe_premium(patch_medians):
     )
     assert result is not None
     assert result["method"] == "p_bv_peer"
-    # Fair P/BV ≈ 2.4 × (0.17/0.16) = 2.55. IV ≈ 600 × 2.55 ≈ 1530.
-    assert 1400 <= result["fair_value"] <= 1700
+    # Fair P/BV ≈ 2.4 × (0.17/0.16) = 2.55. IV ≈ 600 × 2.55 ≈ 1530,
+    # then × TOP_PRIVATE_BANK_PB_BUMP (1.15) ≈ 1759.
+    assert 1400 <= result["fair_value"] <= 1850
     # Within ±15% of CMP → fairly valued
     assert result["verdict"] == "fairly_valued"
 
 
-# ── BAJFINANCE — growth NBFC, P/E path ───────────────────────────
+# ── BAJFINANCE — lending NBFC, now P/BV path ─────────────────────
+# Before fix: routed to P/E (growth_nbfc) which gave EPS×25 ≈ 7000
+# regardless of book value. After fix: P/BV peer median.
 
-def test_bajfinance_pe_peer_valuation(patch_medians):
+def test_bajfinance_pbv_peer_valuation(patch_medians):
     patch_medians({
-        "growth_nbfc": {
+        "lending_nbfc": {
             "median_pb": 4.0, "median_roe": 0.20,
-            "median_pe": 25.0,
             "n_pb": 5, "n_pe": 5, "n_roe": 5,
         }
     })
@@ -135,16 +142,74 @@ def test_bajfinance_pe_peer_valuation(patch_medians):
         ticker="BAJFINANCE.NS",
         company_info={"current_price": 7500.0, "shares": 6.2e8},
         financials={
-            "trailingEps": 280.0,
+            "priceToBook": 5.0,  # → BVPS ≈ 1500
             "roe": 0.22,
         },
         shareholding=None,
     )
     assert result is not None
+    assert result["method"] == "p_bv_peer"
+    assert result["valuation_method"] == "pb_ratio"
+    # BVPS=1500, fair P/BV ≈ 4.0 × (0.22/0.20)=4.4. IV ≈ 6600.
+    assert 5500 <= result["fair_value"] <= 7500
+
+
+# ── MUTHOOTFIN — gold-loan lender, MUST route P/B not P/E ────────
+# Pre-fix produced EPS×25 ≈ 3×CMP. Post-fix: BVPS×peer_pb is sane.
+
+def test_muthootfin_routes_to_pbv_not_pe(patch_medians):
+    patch_medians({
+        "lending_nbfc": {
+            "median_pb": 3.0, "median_roe": 0.20,
+            "n_pb": 5, "n_pe": 5, "n_roe": 5,
+        }
+    })
+    # MUTHOOTFIN: CMP ~₹2200, BVPS ~₹820, ROE ~17-20%.
+    result = compute_financial_fair_value(
+        ticker="MUTHOOTFIN.NS",
+        company_info={"current_price": 2200.0, "shares": 4.01e8},
+        financials={
+            "priceToBook": 2.68,  # → BVPS ≈ 820
+            "trailingEps": 95.0,  # high EPS that previously caused the 3x clamp
+            "roe": 0.18,
+        },
+        shareholding=None,
+    )
+    assert result is not None
+    assert result["method"] == "p_bv_peer", (
+        "MUTHOOTFIN must use P/BV — P/E produced ~3x CMP FVs"
+    )
+    assert result["valuation_method"] == "pb_ratio"
+    # BVPS=820, fair P/BV ≈ 3.0 × clamp(0.18/0.20)≈2.85. IV ≈ 2340.
+    # Critically NOT a 3× CMP (would be ~6600) and not 0.
+    assert 1800 <= result["fair_value"] <= 3000
+    # Must be within a believable band of CMP, not 3× clamp.
+    assert result["fair_value"] / 2200.0 < 1.6
+
+
+def test_hdfcamc_still_routes_to_pe(patch_medians):
+    # AMCs are capital-light fee businesses — P/E is the right frame.
+    patch_medians({
+        "asset_mgmt": {
+            "median_pb": 8.0, "median_roe": 0.25,
+            "median_pe": 30.0,
+            "n_pb": 3, "n_pe": 3, "n_roe": 3,
+        }
+    })
+    result = compute_financial_fair_value(
+        ticker="HDFCAMC.NS",
+        company_info={"current_price": 4000.0, "shares": 2.13e8},
+        financials={
+            "trailingEps": 120.0,
+            "roe": 0.28,
+        },
+        shareholding=None,
+    )
+    assert result is not None
     assert result["method"] == "p_e_peer"
-    # IV ≈ 280 × 25 = 7000
-    assert 6500 <= result["fair_value"] <= 7500
-    assert result["verdict"] in ("fairly_valued", "overvalued")
+    assert result["valuation_method"] == "pe_ratio"
+    # 120 × 30 = 3600
+    assert 3200 <= result["fair_value"] <= 4000
 
 
 # ── PFC — govt NBFC, P/BV path (the key bug fix) ────────────────
@@ -224,6 +289,62 @@ def test_returns_none_for_non_financial_ticker():
         financials={"total_equity": 1e13, "shares": 6.8e9},
         shareholding=None,
     ) is None
+
+
+def test_tcs_still_returns_none_so_dcf_path_runs():
+    # Non-financial → caller (analysis.service) keeps DCF path.
+    assert compute_financial_fair_value(
+        ticker="TCS.NS",
+        company_info={"current_price": 4000.0},
+        financials={"total_equity": 1e12, "shares": 3.6e9, "trailingEps": 130.0},
+        shareholding=None,
+    ) is None
+
+
+def test_hdfclife_routes_to_pbv_path(patch_medians):
+    # HDFCLIFE is life insurance — uses P/BV (we proxy P/EV via P/BV
+    # because EV reporting is sparse). Must NOT use the lending NBFC
+    # cohort or the AMC P/E cohort.
+    patch_medians({
+        "life_insurance": {
+            "median_pb": 2.0, "median_roe": 0.14,
+            "n_pb": 3, "n_pe": 0, "n_roe": 3,
+        }
+    })
+    result = compute_financial_fair_value(
+        ticker="HDFCLIFE.NS",
+        company_info={"current_price": 700.0, "shares": 2.15e9},
+        financials={
+            "priceToBook": 7.5,  # → BVPS ≈ 93
+            "roe": 0.12,
+        },
+        shareholding=None,
+    )
+    assert result is not None
+    assert result["method"] == "p_bv_peer"
+    assert result["valuation_method"] == "pb_ratio"
+
+
+def test_bank_with_no_bvps_returns_none_not_pe_fallback(patch_medians):
+    # Banks must NOT silently fall through to a P/E calc when BVPS
+    # is missing — caller surfaces this as data_limited.
+    patch_medians({
+        "private_banks": {
+            "median_pb": 2.4, "median_roe": 0.16,
+            "median_pe": 18.0,  # peer P/E available but must be ignored
+            "n_pb": 0, "n_pe": 5, "n_roe": 0,
+        }
+    })
+    result = compute_financial_fair_value(
+        ticker="HDFCBANK.NS",
+        company_info={"current_price": 1600.0},
+        financials={
+            # No equity / shares / priceToBook — BVPS cannot be derived.
+            "trailingEps": 90.0,  # EPS present but must not be used.
+        },
+        shareholding=None,
+    )
+    assert result is None
 
 
 def test_returns_none_when_price_is_zero(patch_medians):
