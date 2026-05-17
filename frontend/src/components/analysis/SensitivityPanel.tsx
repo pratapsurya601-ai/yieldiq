@@ -141,7 +141,7 @@ export default function SensitivityPanel({
   // Apply a saved scenario: jump sliders to the stored assumptions
   // and seed the headline with the stored result so the user sees
   // the numbers immediately. The debounced effect above will then
-  // re-issue a fresh recompute (cheap — 5-min server cache, slider
+  // re-issue a fresh recompute (low-cost — 5-min server cache, slider
   // values will hash to the same key) which keeps the FV honest if
   // the underlying enriched data has moved since the save.
   const loadScenario = (s: SavedScenario) => {
