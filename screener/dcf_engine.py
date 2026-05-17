@@ -483,14 +483,35 @@ class DCFEngine:
 
 
 # ══════════════════════════════════════════════════════════════
-# MARGIN OF SAFETY (unchanged from v3)
+# UPSIDE % (formerly mis-named "margin_of_safety")
 # ══════════════════════════════════════════════════════════════
+#
+# Semantic note (Step A of MoS formula fix, 2026-05-17):
+# This helper has ALWAYS computed (IV - Price) / Price, which is
+# the upside fraction relative to current price -- NOT Buffett's
+# margin of safety (which would be (IV - Price) / IV, the discount
+# relative to intrinsic value). The function has been renamed to
+# `upside_pct` to match the math it performs. `margin_of_safety`
+# remains as a deprecated alias for backward compatibility with
+# external imports; Step B will introduce a separate, correct
+# Buffett-MoS field. Behavior is unchanged.
 
-def margin_of_safety(intrinsic_value: float, current_price: float) -> float:
-    """MoS = (IV - Price) / Price"""
+def upside_pct(intrinsic_value: float, current_price: float) -> float:
+    """Upside fraction = (IV - Price) / Price.
+
+    Returned as a fraction (e.g. 0.20 for +20%); callers multiply
+    by 100 to render as a percentage. Historically called
+    `margin_of_safety` -- see module-level note above.
+    """
     if current_price <= 0:
         return 0.0
     return (intrinsic_value - current_price) / current_price
+
+
+# Deprecated alias kept so external/legacy imports do not break.
+# Prefer `upside_pct` in new code. Will be removed once all call
+# sites have migrated and Step B lands a real Buffett-MoS helper.
+margin_of_safety = upside_pct
 
 
 def assign_signal(

@@ -33,9 +33,19 @@ import math
 import pytest
 
 
-def _mos_from(fv: float, cmp_: float) -> float:
-    """Mirror the API contract: MoS in percent, formula (fv-cmp)/cmp*100."""
+def _upside_pct_from(fv: float, cmp_: float) -> float:
+    """Mirror the API contract: upside % (formula (fv-cmp)/cmp*100).
+
+    Note: the JSON field is still named ``margin_of_safety`` for
+    backward compatibility, but the formula is upside %, NOT Buffett's
+    margin of safety. See Step A of the MoS-formula rename.
+    """
     return (fv - cmp_) / cmp_ * 100.0
+
+
+# Deprecated alias kept so other regression modules importing the old
+# helper name keep working until they migrate.
+_mos_from = _upside_pct_from
 
 
 def _check_clamp_consistency(payload: dict) -> list[str]:
@@ -57,12 +67,13 @@ def _check_clamp_consistency(payload: dict) -> list[str]:
     # Headline FV must equal base-case FV within 0.01 (rupee).
     if abs(fv - base) > 0.01:
         out.append(f"fair_value={fv} != base_case={base}")
-    # Headline MoS must equal (base - cmp)/cmp * 100 within 0.05 pp.
-    expected_mos = _mos_from(base, cmp_)
-    if abs(mos - expected_mos) > 0.05:
+    # Headline upside_pct must equal (base - cmp)/cmp * 100 within 0.05 pp.
+    # (Field is exposed as ``margin_of_safety`` for backcompat.)
+    expected_upside = _upside_pct_from(base, cmp_)
+    if abs(mos - expected_upside) > 0.05:
         out.append(
             f"margin_of_safety={mos:.2f}% but base-derived "
-            f"={expected_mos:.2f}%"
+            f"upside={expected_upside:.2f}%"
         )
     return out
 
@@ -147,7 +158,7 @@ def test_headline_must_track_base_case(fv, base, should_violate):
     payload = {
         "cmp": 100.0,
         "fair_value": fv,
-        "margin_of_safety": _mos_from(fv, 100.0),
+        "margin_of_safety": _upside_pct_from(fv, 100.0),
         "scenarios": {
             "bear_case": base * 0.7,
             "base_case": base,

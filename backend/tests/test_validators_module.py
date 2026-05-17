@@ -138,7 +138,14 @@ def test_mos_inconsistent_with_fv_cmp():
         "current_price": 1000.0,
         "margin_of_safety": -5.0,
     })
-    assert any("MoS" in e and "inconsistent" in e for e in errs)
+    # Step A rename: error wording moved from "MoS=..." to
+    # "upside_pct=..." while the JSON key stayed `margin_of_safety`.
+    # Accept either label so a future rollback or alternative phrasing
+    # doesn't silently bypass the invariant.
+    assert any(
+        ("MoS" in e or "upside_pct" in e) and "inconsistent" in e
+        for e in errs
+    )
 
 
 def test_mos_consistent_with_fv_cmp_passes():
