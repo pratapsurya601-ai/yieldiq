@@ -775,9 +775,10 @@ def detect_unit_scale(
 ) -> float:
     """Return the divisor to convert raw XBRL number → ₹ Crores.
 
-    Reads <in-bse-fin:LevelOfRoundingUsedInFinancialStatements> first. The
-    string values observed in production are 'Lakhs', 'Crores', 'Millions',
-    'Thousands', 'Hundreds', 'Actual'.
+    Reads <in-bse-fin:LevelOfRoundingUsedInFinancialStatements> first
+    (legacy), then <in-capmkt:LevelOfRounding> (SEBI 2025 integrated-filing
+    schema). The string values observed in production are 'Lakhs', 'Crores',
+    'Millions', 'Thousands', 'Hundreds', 'Actual'.
 
     The XBRL "rounding" tag describes the *unit* the company reports values
     in (most are 'Crores' = values written as e.g. 34,915 mean ₹34,915 Cr),
@@ -785,12 +786,22 @@ def detect_unit_scale(
     of the declared rounding (legacy template upload behaviour). So:
 
       1. Read the declared rounding.
-      2. Cross-check with the magnitude of revenue. If revenue would
-         resolve to an absurd Cr value (> 1e7 Cr ≈ ₹100 trillion), assume
-         the file is actually raw rupees and divide by 1e7 regardless.
+      2. Cross-check with the magnitude of the probe value (typically
+         revenue, but the caller may supply max(|revenue|, |total_income|,
+         |total_expenses|, |net_profit|, |cfo|, |cff|) when revenue is
+         zero — e.g. holdco / SPV filings such as GAYAHWS Q2 FY26). If
+         the declared scale would resolve the probe to an absurd Cr value
+         (> ₹10 trillion / 1e6 Cr quarterly), assume the file is raw
+         rupees and divide by 1e7 regardless.
 
     Fallback to pure magnitude heuristic when the tag is absent
     (older filings sometimes omit it).
+
+    NOTE: ``revenue_raw`` is the historical parameter name kept for
+    backward compatibility — it is treated as a generic "magnitude probe"
+    by the sanity bypasses below. Callers that have access to a richer
+    set of facts (CFO, CFF, net_profit, etc.) should pass the maximum
+    absolute value across those facts when revenue is zero or missing.
     """
     rounding = (_pick_string(sfacts, META_TAGS["rounding"]) or "").strip().lower()
 
@@ -1045,14 +1056,56 @@ def parse_quarter_xml(
     # for the magnitude check whether industrial or bank (for banks
     # 'revenue_cr' maps to InterestEarned, which is on the same scale).
     rev_raw = _pick_quarter_fact(facts, contexts, tags.get("revenue_cr", []), period_end)
-    scale = detect_unit_scale(sfacts, rev_raw)
+    # Holdco / SPV filings (e.g. GAYAHWS Q2 FY26) carry RevenueFromOperations=0
+    # because they have no operating revenue — only "Other Income" / investment
+    # income on the P&L and cash moves only in the CF statement. Revenue alone
+    # is therefore a poor magnitude probe for those filings; the sanity bypass
+    # in detect_unit_scale() would never trigger and a mis-declared 'Lakhs'
+    # tag would scale raw rupees by 100 (cfo_cr in millions of Cr).
+    #
+    # We compute a "fattest probe" across the rest of the P&L + cash-flow
+    # facts and pick the strongest magnitude signal. This is purely a
+    # magnitude probe — the parsed values still divide by the detected scale.
+    _probe_tag_lists: list[list[str]] = [
+        tags.get("revenue_cr", []),
+        tags.get("other_income_cr", []),
+        tags.get("total_expenses_cr", []),
+        tags.get("net_profit_cr", []),
+        tags.get("interest_earned_cr", []),
+    ]
+    probe_raw: float | None = abs(rev_raw) if rev_raw is not None else None
+    for tl in _probe_tag_lists:
+        v = _pick_quarter_fact(facts, contexts, tl, period_end)
+        if v is not None and (probe_raw is None or abs(v) > probe_raw):
+            probe_raw = abs(v)
+    # YTD cashflow facts can dwarf P&L for SPV/holdcos and are also valid
+    # raw-rupee probes (they carry decimals="-3" on values like
+    # -7,375,888,000 → ₹737 Cr in raw rupees).
+    for cf_name in ("cfo_cr", "cfi_cr", "cff_cr"):
+        v = _pick_ytd_cashflow_fact(
+            facts, contexts, QUARTERLY_CASHFLOW_TAGS.get(cf_name, []), period_end
+        )
+        if v is not None and (probe_raw is None or abs(v) > probe_raw):
+            probe_raw = abs(v)
+    scale = detect_unit_scale(sfacts, probe_raw)
+
+    def _post_guard(value_cr: float | None) -> float | None:
+        # Last-resort safety net: any quarterly P&L / CF value > ₹10 trillion
+        # (1e6 Cr) is unambiguously a raw-rupee template mis-tag (no Indian
+        # filer reports a quarter that large; the entire NSE market cap is
+        # ~₹450 lakh Cr ≈ 4.5e6 Cr). Re-divide as if file were raw INR.
+        if value_cr is None:
+            return None
+        if abs(value_cr) > 1e6:
+            return round(value_cr * scale / 1e7, 2)
+        return value_cr
 
     def num(name: str) -> float | None:
         tag_list = tags.get(name)
         if not tag_list:
             return None
         v = _pick_quarter_fact(facts, contexts, tag_list, period_end)
-        return None if v is None else round(v / scale, 2)
+        return None if v is None else _post_guard(round(v / scale, 2))
 
     def per_share(name: str) -> float | None:
         return _pick_quarter_fact(facts, contexts, per_share_tags.get(name, []), period_end)
@@ -1073,7 +1126,7 @@ def parse_quarter_xml(
     def cf_num(name: str) -> float | None:
         tag_list = QUARTERLY_CASHFLOW_TAGS.get(name) or []
         v = _pick_ytd_cashflow_fact(facts, contexts, tag_list, period_end)
-        return None if v is None else round(v / scale, 2)
+        return None if v is None else _post_guard(round(v / scale, 2))
 
     cfo_cr = cf_num("cfo_cr")
     cfi_cr = cf_num("cfi_cr")
