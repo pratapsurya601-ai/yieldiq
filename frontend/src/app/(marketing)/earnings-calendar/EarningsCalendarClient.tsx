@@ -2,7 +2,8 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import MarketingTopNav from "@/components/marketing/MarketingTopNav"
+// Nav is provided by (marketing)/layout.tsx via the unified MarketingTopNav.
+// Do NOT import it here — doing so renders the header twice on this route.
 import { normalizeSector } from "@/lib/sector-taxonomy"
 
 interface EarningsEvent {
@@ -89,8 +90,6 @@ export default function EarningsCalendarClient({ data }: { data: CalendarData })
 
   return (
     <div className="min-h-screen bg-white">
-      <MarketingTopNav />
-
       {/* Header */}
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-12 sm:py-16">
         <div className="max-w-4xl mx-auto px-4 text-center">
