@@ -216,8 +216,8 @@ export default function EditorialHero({
   // directly above the yellow "Under Review — not enough reliable data"
   // banner and the "Fair value clamped" caution. Three contradictory
   // signals on one page = user confusion + SEBI risk (the positive
-  // label could be construed as a soft recommendation on a ticker the
-  // model itself flags as unreliable).
+  // label reads as endorsement on a ticker the model itself flags as
+  // unreliable).
   //
   // The fix collapses any of six unreliability signals into a single
   // "Under Review" headline that uses the warning tone. The existing
