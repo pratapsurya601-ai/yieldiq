@@ -430,6 +430,10 @@ export interface TokenResponse {
   // pre-PR backends omit the field; useFeatureFlag() treats absence as
   // all-disabled.
   feature_flags?: Record<string, boolean>
+  // Soft email-verify flag (feat/soft-email-verify-gates). Optional —
+  // pre-PR backends omit it and the auth store defaults to true so the
+  // banner doesn't pop spuriously.
+  email_verified?: boolean
 }
 
 export interface UserResponse {
@@ -443,6 +447,8 @@ export interface UserResponse {
   display_name_edits_remaining: number
   // See TokenResponse.feature_flags above.
   feature_flags?: Record<string, boolean>
+  // See TokenResponse.email_verified above.
+  email_verified?: boolean
 }
 
 // PATCH /api/v1/account/profile response shape.

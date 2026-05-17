@@ -91,6 +91,7 @@ export default function LoginPage() {
         res.display_name ?? null,
         res.display_name_edits_remaining ?? 3,
         res.feature_flags ?? {},
+        res.email_verified ?? true,
       )
 
       const onboardingDone = await resolveOnboardingDone()

@@ -76,6 +76,9 @@ function CallbackInner() {
           res.display_name ?? null,
           res.display_name_edits_remaining ?? 3,
           res.feature_flags ?? {},
+          // Google OAuth users are always verified — backend sets
+          // email_verified=true in google_oauth_login_or_register.
+          res.email_verified ?? true,
         )
 
         // Clear the hash so a refresh on /home doesn't re-trigger this page.

@@ -3,10 +3,16 @@ import Navbar from "@/components/layout/Navbar"
 import ErrorBoundary from "@/components/ErrorBoundary"
 import PWAInstallBanner from "@/components/PWAInstallBanner"
 import BackButton from "@/components/layout/BackButton"
+import EmailVerifyBanner from "@/components/EmailVerifyBanner"
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Soft email-verify nudge — hidden when logged-out or verified.
+          Mounted above all in-app pages so users see the prompt on
+          home / analysis / portfolio / account / etc., but not on the
+          marketing tree. */}
+      <EmailVerifyBanner />
       {/* Desktop: unified top nav (same items as marketing/stocks) */}
       <div className="hidden md:block">
         <MarketingTopNav />

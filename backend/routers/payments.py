@@ -5,7 +5,11 @@ import os
 import sys
 from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Request
-from backend.middleware.auth import get_current_user, invalidate_tier_cache
+from backend.middleware.auth import (
+    get_current_user,
+    invalidate_tier_cache,
+    require_email_verified,
+)
 
 RAZORPAY_WEBHOOK_SECRET = os.environ.get("RAZORPAY_WEBHOOK_SECRET", "").strip()
 
@@ -226,7 +230,7 @@ async def create_order(
 async def create_subscription(
     plan_id: str,
     billing: str = "monthly",
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_email_verified),
 ):
     """Create a Razorpay Subscription for analyst/pro at monthly/annual.
 
