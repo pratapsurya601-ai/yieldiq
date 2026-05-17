@@ -818,16 +818,35 @@ def _oauth_login_or_register_from_verified(verified: dict) -> dict:
 
     # Look up existing user by email. supabase-py exposes
     # admin.list_users() but no direct get-by-email; we filter client-side.
+    # The endpoint paginates (default 50/page) so we walk pages until we
+    # find the match or run out of users. Without this, the 51st user
+    # onwards silently failed lookup and got pushed onto the create path
+    # (which then 422'd on the duplicate-email check).
     existing_user = None
     try:
-        resp = admin.auth.admin.list_users()
-        # supabase-py returns either a list of users or an object with .users
-        candidates = getattr(resp, "users", None) or (resp if isinstance(resp, list) else [])
-        for u in candidates:
-            u_email = (getattr(u, "email", None) or "").strip().lower()
-            if u_email == email:
-                existing_user = u
+        page = 1
+        per_page = 200
+        max_pages = 50  # hard stop: 10,000 users
+        while page <= max_pages and existing_user is None:
+            try:
+                resp = admin.auth.admin.list_users(page=page, per_page=per_page)
+            except TypeError:
+                # Older supabase-py builds don't accept kwargs — fall back
+                # to a single un-paginated call (matches prior behaviour).
+                resp = admin.auth.admin.list_users()
+            # supabase-py returns either a list of users or an object with .users
+            candidates = getattr(resp, "users", None) or (resp if isinstance(resp, list) else [])
+            if not candidates:
                 break
+            for u in candidates:
+                u_email = (getattr(u, "email", None) or "").strip().lower()
+                if u_email == email:
+                    existing_user = u
+                    break
+            # Stop when the page came back short — no more rows.
+            if len(candidates) < per_page:
+                break
+            page += 1
     except Exception as exc:
         _log().warning("Google OAuth: list_users failed: %s", exc)
         # Fall through — we'll try to create; if it already exists Supabase
