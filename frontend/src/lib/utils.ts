@@ -106,27 +106,35 @@ export function formatPercentage(value: number | null | undefined, decimals = 1)
  */
 export function verdictFromMos(mos: number | null | undefined): string {
   if (mos == null || !Number.isFinite(mos)) return "Fairly Valued"
-  if (mos >= 25) return "Notably Below Fair Value"
-  if (mos >= 5) return "Below Fair Value"
+  if (mos >= 25) return "Notably Undervalued"
+  if (mos >= 5) return "Undervalued"
   if (mos > -5) return "Fairly Valued"
-  if (mos > -25) return "Above Fair Value"
-  return "Notably Above Fair Value"
+  if (mos > -25) return "Overvalued"
+  return "Notably Overvalued"
 }
 
 /**
  * SEBI-safe verdict display label.
- * Maps internal verdict keys to user-facing text that is purely
- * descriptive (no imperative advice like "Avoid").
+ *
+ * Loosened 2026-05-17: descriptive valuation vocabulary ("Undervalued"
+ * / "Overvalued" / "Fairly Valued") is model output, not advice. Every
+ * Indian valuation product surfaces these. The ModelDisclaimer carries
+ * the "not a SEBI-registered IA" framing; imperative recommendations
+ * (Buy/Sell/Hold as advice) remain banned via check_sebi_words.py.
  */
 export function verdictDisplayLabel(v: string): string {
   if (!v) return ""
   const key = v.toLowerCase().replace(/\s+/g, "_")
   const map: Record<string, string> = {
-    undervalued: "Below Fair Value",
-    fairly_valued: "Near Fair Value",
-    overvalued: "Above Fair Value",
-    avoid: "High Risk",
-    data_limited: "Data Limited",
+    undervalued: "Undervalued",
+    fairly_valued: "Fairly Valued",
+    overvalued: "Overvalued",
+    buy: "Undervalued",
+    sell: "Overvalued",
+    hold: "Fairly Valued",
+    avoid: "Model Caveat",
+    data_limited: "Insufficient Data",
+    under_review: "Under Review",
     unavailable: "Unavailable",
   }
   if (map[key]) return map[key]
@@ -144,17 +152,21 @@ export function verdictDisplayLabel(v: string): string {
  * their own label from a different field).
  */
 export function verdictRegion(v: string): string {
-  if (!v) return "Near Fair Value"
+  if (!v) return "Fairly Valued"
   const key = v.toLowerCase().replace(/\s+/g, "_")
   const map: Record<string, string> = {
-    undervalued: "Below Fair Value",
-    fairly_valued: "Near Fair Value",
-    overvalued: "Above Fair Value",
-    avoid: "High Risk",
-    data_limited: "Data Limited",
+    undervalued: "Undervalued",
+    fairly_valued: "Fairly Valued",
+    overvalued: "Overvalued",
+    buy: "Undervalued",
+    sell: "Overvalued",
+    hold: "Fairly Valued",
+    avoid: "Model Caveat",
+    data_limited: "Insufficient Data",
+    under_review: "Under Review",
     unavailable: "Unavailable",
   }
-  return map[key] ?? "Near Fair Value"
+  return map[key] ?? "Fairly Valued"
 }
 
 const COMPANY_NAME_OVERRIDES: Record<string, string> = {

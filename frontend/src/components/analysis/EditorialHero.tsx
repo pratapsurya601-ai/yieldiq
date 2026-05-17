@@ -55,13 +55,13 @@ export interface EditorialHeroProps {
   fairValue: number
   /** Current price in company currency. */
   currentPrice: number
-  /** Upside %: (FV-CP)/CP*100, signed. Legacy field still labelled MoS for back-compat. */
+  /** Signed (FV-CP)/CP*100. Label renders as "Discount to FV" when >= 0, "Premium to FV" when < 0. */
   marginOfSafety: number
   /**
    * Step B (2026-05-17): true Buffett margin of safety = (FV-CP)/FV*100.
-   * Optional/nullable for pre-PR cached payloads. When present, render
-   * as a separate "Margin of Safety (Buffett)" stat next to the legacy
-   * upside-% chip; the legacy chip is relabelled to "Upside" in the UI.
+   * Optional/nullable for pre-PR cached payloads. When present AND
+   * non-negative, render as a separate "Margin of Safety (Buffett)"
+   * stat. Hidden for overvalued names (negative MoS confuses in chip form).
    */
   buffettMosPct?: number | null
   /** Moat tier — "Wide" | "Narrow" | "None". */
@@ -310,17 +310,20 @@ export default function EditorialHero({
             />
             <div>
               {/*
-                Step B (2026-05-17): the legacy chip stays as "Upside"
-                (the math is upside %, not Buffett's MoS) and a new
-                separate "Margin of Safety (Buffett)" chip renders next
-                to it when the backend has supplied buffett_mos_pct.
+                Step C (2026-05-17): drop the "Upside / Downside" framing
+                entirely. Label switches dynamically based on sign:
+                  marginOfSafety >= 0  →  "Discount to FV"  (FV > price)
+                  marginOfSafety  < 0  →  "Premium to FV"   (price > FV)
+                The Buffett MoS chip below stays separate and is hidden
+                for overvalued names (negative Buffett MoS is confusing
+                in chip form — cleaner UX to just omit it).
               */}
               <MetricTooltip metricKey="mos">
                 <dt
                   className="text-[10px] uppercase tracking-[0.15em] text-caption"
-                  title="Price increase needed to reach fair value. Computed as (Fair Value - Price) / Price × 100."
+                  title="Discount or premium of current price relative to fair value. Computed as (Fair Value - Price) / Price × 100."
                 >
-                  Upside
+                  {marginOfSafety >= 0 ? "Discount to FV" : "Premium to FV"}
                 </dt>
               </MetricTooltip>
               <dd
@@ -329,30 +332,28 @@ export default function EditorialHero({
                 }`}
               >
                 {
-                  // Previous copy was "+80%+" which reads like a broken
-                  // render. Show the real signed number; only if it's
-                  // truly enormous (>200%) do we collapse to ">+200%"
-                  // so the layout doesn't overflow.
-                  marginOfSafety > 200
-                    ? ">+200%"
-                    : marginOfSafety < -200
-                    ? "<-200%"
-                    : formatPct(marginOfSafety)
+                  // Show the magnitude as a positive number; the label
+                  // ("Discount" vs "Premium") conveys direction. Caps at
+                  // ±200% so the layout doesn't overflow.
+                  (() => {
+                    const mag = Math.abs(marginOfSafety)
+                    if (marginOfSafety > 200) return ">200%"
+                    if (marginOfSafety < -200) return ">200%"
+                    return formatPct(mag)
+                  })()
                 }
               </dd>
             </div>
-            {buffettMosPct != null && Number.isFinite(buffettMosPct) && (
+            {buffettMosPct != null && Number.isFinite(buffettMosPct) && buffettMosPct >= 0 && (
               <div>
                 <dt
                   className="text-[10px] uppercase tracking-[0.15em] text-caption"
-                  title="Discount to fair value. Higher = greater margin of safety. Computed as (Fair Value - Price) / Fair Value × 100."
+                  title="How much room below current price the model says exists. Buffett-style: (Fair Value - Price) / Fair Value."
                 >
                   Margin of Safety (Buffett)
                 </dt>
                 <dd
-                  className={`font-mono tabular-nums text-lg font-semibold ${
-                    buffettMosPct >= 0 ? "text-success" : "text-danger"
-                  }`}
+                  className="font-mono tabular-nums text-lg font-semibold text-success"
                 >
                   {formatPct(buffettMosPct)}
                 </dd>
