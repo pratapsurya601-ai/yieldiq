@@ -15,6 +15,22 @@
  *
  * Error states (user cancelled, token missing, backend rejection) drop
  * the user back on /auth/login with a friendly message.
+ *
+ * Two subtle bugs this file guards against (fix/oauth-cookie-domain-and-hash-timing):
+ *
+ *   1. Cookie domain mismatch — if the user starts on `yieldiq.in` and the
+ *      OAuth round-trip bounces them to `www.yieldiq.in` (or vice versa),
+ *      a host-only cookie won't follow. We set `domain=.yieldiq.in` so the
+ *      cookie spans apex + www. Skipped on localhost.
+ *
+ *   2. Hash-cleared-too-early remount — the previous code wiped the URL
+ *      hash BEFORE the auth POST resolved. Any remount (StrictMode, Next
+ *      prefetch warm-up, hot nav) would re-run the effect, find no hash,
+ *      and bounce the user to /auth/login?error=… We now: (a) write a
+ *      sessionStorage idempotency key keyed on the token fingerprint
+ *      before consuming, (b) skip the POST on remount if the same token
+ *      has already been consumed, (c) only replaceState-clear the hash
+ *      AFTER the auth POST resolves successfully.
  */
 import { Suspense, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
@@ -23,6 +39,13 @@ import { loginWithSupabaseSession, getOnboardingStatus } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
 import { trackSignupCompleted } from "@/lib/analytics"
 import { pickSupabaseAccessToken } from "./pickSupabaseAccessToken"
+import {
+  tokenFingerprint,
+  isLocalHost,
+  cookieDomainForHost,
+} from "./oauthCallbackHelpers"
+
+const CONSUMED_KEY = "yieldiq_oauth_consumed"
 
 function CallbackInner() {
   const router = useRouter()
@@ -47,10 +70,59 @@ function CallbackInner() {
         }
 
         const picked = pickSupabaseAccessToken(params)
+
+        // Idempotency: if this exact token has already been consumed by a
+        // prior mount (StrictMode / prefetch / hot-nav), skip the POST and
+        // route based on existing auth state instead of bouncing to login.
+        let consumedToken: string | null = null
+        try {
+          consumedToken = sessionStorage.getItem(CONSUMED_KEY)
+        } catch {
+          /* sessionStorage disabled */
+        }
+
         if (!picked.accessToken) {
+          // No hash token. If we already consumed one this session and the
+          // auth store has a token, route the user instead of erroring.
+          const existingToken =
+            useAuthStore.getState().token || Cookies.get("yieldiq_token") || null
+          if (consumedToken && existingToken) {
+            router.push("/home")
+            return
+          }
           throw new Error("Sign-in didn't return a session token. Please try again.")
         }
+
         const accessToken = picked.accessToken
+        const fp = tokenFingerprint(accessToken)
+
+        if (consumedToken === fp) {
+          // Same token already exchanged — don't double-POST. Route based
+          // on whatever auth state already exists.
+          const existingToken =
+            useAuthStore.getState().token || Cookies.get("yieldiq_token") || null
+          if (existingToken) {
+            // Clear the hash now that we know the prior consumption stuck.
+            try {
+              if (typeof window !== "undefined") {
+                window.history.replaceState({}, document.title, window.location.pathname)
+              }
+            } catch { /* ignore */ }
+            router.push("/home")
+            return
+          }
+          // Fall through — prior consumption never persisted, retry below.
+        }
+
+        // Mark as in-flight BEFORE the POST so a concurrent remount sees
+        // the fingerprint and bails out. We accept the (tiny) risk that a
+        // failed POST leaves the key set — the next sign-in attempt will
+        // generate a different fingerprint.
+        try {
+          sessionStorage.setItem(CONSUMED_KEY, fp)
+        } catch {
+          /* sessionStorage disabled */
+        }
 
         // Carry through ?next= and ref code stashed by GoogleSignInButton.
         let next: string | null = null
@@ -66,7 +138,18 @@ function CallbackInner() {
 
         const res = await loginWithSupabaseSession(accessToken, referralCode)
 
-        Cookies.set("yieldiq_token", res.access_token, { expires: 7 })
+        // Cookie domain fix: scope to `.yieldiq.in` so the cookie survives
+        // an apex↔www bounce on the return trip. Localhost stays host-only.
+        const host = typeof window !== "undefined" ? window.location.hostname : ""
+        const cookieOpts: Cookies.CookieAttributes = {
+          expires: 7,
+          sameSite: "lax",
+          secure: !isLocalHost(host),
+        }
+        const domain = cookieDomainForHost(host)
+        if (domain) cookieOpts.domain = domain
+        Cookies.set("yieldiq_token", res.access_token, cookieOpts)
+
         setAuth(
           res.access_token,
           res.user_id,
@@ -82,7 +165,9 @@ function CallbackInner() {
           res.email_verified ?? true,
         )
 
-        // Clear the hash so a refresh on /home doesn't re-trigger this page.
+        // Clear the hash ONLY after the auth POST succeeded and we have a
+        // token in the store. If we cleared earlier, a remount would lose
+        // the hash and bounce the user to /auth/login.
         try {
           if (typeof window !== "undefined") {
             window.history.replaceState({}, document.title, window.location.pathname)
