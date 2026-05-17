@@ -157,12 +157,15 @@ const buildColumns = (currency: string | null | undefined, ticker: string): Colu
   },
   {
     key: "mos_pct",
-    label: "MoS",
+    label: "vs FV",
     metric: "mos_pct",
     render: row => {
       const v = row.mos_pct
       if (v === null || v === undefined) return <span className="text-caption">—</span>
       const cls = v > 0 ? "text-green-600" : v < 0 ? "text-red-500" : "text-caption"
+      // Sign-aware label: "+12% disc" (discount) when undervalued,
+      // "-8% prem" (premium) when overvalued. Drops the "MoS" abbrev
+      // in favor of Discount/Premium to FV framing.
       return <span className={cn("tabular-nums font-medium", cls)}>{fmtMoS(v)}</span>
     },
   },

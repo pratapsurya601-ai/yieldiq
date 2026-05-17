@@ -55,13 +55,13 @@ export interface EditorialHeroProps {
   fairValue: number
   /** Current price in company currency. */
   currentPrice: number
-  /** Upside %: (FV-CP)/CP*100, signed. Legacy field still labelled MoS for back-compat. */
+  /** Signed (FV-CP)/CP*100. Label renders as "Discount to FV" when >= 0, "Premium to FV" when < 0. */
   marginOfSafety: number
   /**
    * Step B (2026-05-17): true Buffett margin of safety = (FV-CP)/FV*100.
-   * Optional/nullable for pre-PR cached payloads. When present, render
-   * as a separate "Margin of Safety (Buffett)" stat next to the legacy
-   * upside-% chip; the legacy chip is relabelled to "Upside" in the UI.
+   * Optional/nullable for pre-PR cached payloads. When present AND
+   * non-negative, render as a separate "Margin of Safety (Buffett)"
+   * stat. Hidden for overvalued names (negative MoS confuses in chip form).
    */
   buffettMosPct?: number | null
   /** Moat tier — "Wide" | "Narrow" | "None". */
@@ -105,6 +105,27 @@ export interface EditorialHeroProps {
    * failed its reliability gate has no meaningful confidence to report.
    */
   confidence?: number | null
+  /**
+   * True when backend clamped fair_value to a plausible bound (e.g.
+   * computed FV > 3x current price). Headline verdict must NOT read as
+   * positive "Notably Below Fair Value" when the underlying FV is
+   * clamped — see MUTHOOTFIN P0 (2026-05-17): yellow "Under Review"
+   * banner sat directly under a huge "Notably Below Fair Value" header
+   * because the hero derived its label from MoS only, ignoring the
+   * clamp + reliability signals.
+   */
+  fvClamped?: boolean
+  /**
+   * DCF reliability gate (mirrors ValuationOutput.dcf_reliable). When
+   * false, the fair_value/MoS in the payload failed the backend's
+   * reliability check and the hero must not present a positive verdict.
+   */
+  dcfReliable?: boolean
+  /**
+   * Backend data_confidence band ("high" | "medium" | "low" | "unusable").
+   * "low" / "unusable" suppress positive verdict labels in the hero.
+   */
+  dataConfidence?: string | null
 }
 
 // NOTE: bandCaption() and titleCase() were removed — both produced
@@ -157,6 +178,9 @@ export default function EditorialHero({
   redFlags,
   valuationVerdict,
   confidence,
+  fvClamped,
+  dcfReliable,
+  dataConfidence,
 }: EditorialHeroProps) {
   const defaultMode: PrismMode = "spectrum"
   const color = verdictColor(data.verdict_band)
@@ -182,6 +206,50 @@ export default function EditorialHero({
     [redFlags],
   )
 
+  // ─────────────────────────────────────────────────────────────────
+  // "Under Review" guard — MUTHOOTFIN P0 (2026-05-17).
+  //
+  // Before this guard, the headline was derived purely from MoS via
+  // verdictFromMos(), so a ticker with a clamped FV (FV > 3x price),
+  // a failed DCF reliability gate, OR a "low/unusable" data-confidence
+  // band could still render a giant "Notably Below Fair Value" title —
+  // directly above the yellow "Under Review — not enough reliable data"
+  // banner and the "Fair value clamped" caution. Three contradictory
+  // signals on one page = user confusion + SEBI risk (the positive
+  // label reads as endorsement on a ticker the model itself flags as
+  // unreliable).
+  //
+  // The fix collapses any of six unreliability signals into a single
+  // "Under Review" headline that uses the warning tone. The existing
+  // yellow banner + clamp caution stay as-is; they now reinforce the
+  // header instead of contradicting it.
+  //
+  // Triggers (any one):
+  //   1. valuationVerdict ∈ {data_limited, under_review, unavailable, avoid}
+  //   2. dcfReliable === false  (backend reliability gate failed)
+  //   3. dataConfidence ∈ {low, unusable}
+  //   4. fvClamped === true  (FV clamped to plausible bound)
+  //   5. dataLimited === true (parent's existing aggregate flag)
+  //   6. score100 < 50  (composite below the unreliable-floor)
+  // ─────────────────────────────────────────────────────────────────
+  const verdictKey = String(valuationVerdict ?? "").toLowerCase().replace(/\s+/g, "_")
+  const verdictUnreliable =
+    verdictKey === "data_limited" ||
+    verdictKey === "under_review" ||
+    verdictKey === "unavailable" ||
+    verdictKey === "avoid"
+  const confidenceUnreliable =
+    typeof dataConfidence === "string" &&
+    (dataConfidence.toLowerCase() === "low" ||
+      dataConfidence.toLowerCase() === "unusable")
+  const isUnreliable =
+    !!dataLimited ||
+    verdictUnreliable ||
+    dcfReliable === false ||
+    confidenceUnreliable ||
+    fvClamped === true ||
+    (typeof score100 === "number" && Number.isFinite(score100) && score100 < 50)
+
   return (
     <section
       className="bg-bg rounded-2xl border border-border p-5 md:p-6"
@@ -203,7 +271,12 @@ export default function EditorialHero({
               style={{ background: color }}
             />
             <MetricTooltip metricKey="verdict">
-              <span className="text-[11px] uppercase tracking-[0.15em] text-body">
+              <span
+                data-testid="editorial-hero-region"
+                className={`text-[11px] uppercase tracking-[0.15em] ${
+                  isUnreliable ? "text-amber-700 dark:text-amber-300" : "text-body"
+                }`}
+              >
                 {/* Single source of truth: derive verdict from MoS (the
                     same number rendered in the hero stats) via
                     verdictFromMos(). The backend verdict ENUM is only a
@@ -212,8 +285,12 @@ export default function EditorialHero({
                     and produce SBIN/TCS-style tab-vs-body contradictions.
                     Postmortem: 2026-04-30 P0 — body said "Fair Value
                     Region" while tab said "Notably Above Fair Value"
-                    on SBIN MoS -39.5%. */}
-                {Number.isFinite(marginOfSafety) && marginOfSafety != null
+                    on SBIN MoS -39.5%. When isUnreliable fires the
+                    label collapses to "Under Review" (MUTHOOTFIN P0
+                    2026-05-17) — see guard above. */}
+                {isUnreliable
+                  ? "Under Review"
+                  : Number.isFinite(marginOfSafety) && marginOfSafety != null
                   ? verdictFromMos(marginOfSafety)
                   : verdictRegion(valuationVerdict)}
               </span>
@@ -245,13 +322,26 @@ export default function EditorialHero({
               fabricate longer prose here (SEBI). The verdict label from the
               Prism payload is the canonical display string. */}
           <h2
-            className="font-editorial text-3xl leading-tight text-ink font-semibold"
+            data-testid="editorial-hero-headline"
+            className={`font-editorial text-3xl leading-tight font-semibold ${
+              isUnreliable ? "text-amber-800 dark:text-amber-200" : "text-ink"
+            }`}
             style={{ fontVariationSettings: "'opsz' 48" }}
           >
             {/* Headline mirrors the small region caption above. Always
                 derive from MoS so tab title and hero headline cannot
-                disagree (see SBIN/TCS P0, 2026-04-30). */}
-            {Number.isFinite(marginOfSafety) && marginOfSafety != null
+                disagree (see SBIN/TCS P0, 2026-04-30).
+
+                When isUnreliable fires (clamped FV, failed DCF gate,
+                low/unusable data_confidence, score < 50, or backend
+                verdict ∈ {data_limited, under_review, unavailable,
+                avoid}) the headline collapses to "Under Review" — no
+                positive "Notably Below Fair Value" can sit above the
+                yellow caution banner on tickers the model itself
+                flags as unreliable. MUTHOOTFIN P0 (2026-05-17). */}
+            {isUnreliable
+              ? "Under Review"
+              : Number.isFinite(marginOfSafety) && marginOfSafety != null
               ? verdictFromMos(marginOfSafety)
               : verdictDisplayLabel(valuationVerdict)}
           </h2>
@@ -310,17 +400,20 @@ export default function EditorialHero({
             />
             <div>
               {/*
-                Step B (2026-05-17): the legacy chip stays as "Upside"
-                (the math is upside %, not Buffett's MoS) and a new
-                separate "Margin of Safety (Buffett)" chip renders next
-                to it when the backend has supplied buffett_mos_pct.
+                Step C (2026-05-17): drop the "Upside / Downside" framing
+                entirely. Label switches dynamically based on sign:
+                  marginOfSafety >= 0  →  "Discount to FV"  (FV > price)
+                  marginOfSafety  < 0  →  "Premium to FV"   (price > FV)
+                The Buffett MoS chip below stays separate and is hidden
+                for overvalued names (negative Buffett MoS is confusing
+                in chip form — cleaner UX to just omit it).
               */}
               <MetricTooltip metricKey="mos">
                 <dt
                   className="text-[10px] uppercase tracking-[0.15em] text-caption"
-                  title="Price increase needed to reach fair value. Computed as (Fair Value - Price) / Price × 100."
+                  title="Discount or premium of current price relative to fair value. Computed as (Fair Value - Price) / Price × 100."
                 >
-                  Upside
+                  {marginOfSafety >= 0 ? "Discount to FV" : "Premium to FV"}
                 </dt>
               </MetricTooltip>
               <dd
@@ -329,30 +422,28 @@ export default function EditorialHero({
                 }`}
               >
                 {
-                  // Previous copy was "+80%+" which reads like a broken
-                  // render. Show the real signed number; only if it's
-                  // truly enormous (>200%) do we collapse to ">+200%"
-                  // so the layout doesn't overflow.
-                  marginOfSafety > 200
-                    ? ">+200%"
-                    : marginOfSafety < -200
-                    ? "<-200%"
-                    : formatPct(marginOfSafety)
+                  // Show the magnitude as a positive number; the label
+                  // ("Discount" vs "Premium") conveys direction. Caps at
+                  // ±200% so the layout doesn't overflow.
+                  (() => {
+                    const mag = Math.abs(marginOfSafety)
+                    if (marginOfSafety > 200) return ">200%"
+                    if (marginOfSafety < -200) return ">200%"
+                    return formatPct(mag)
+                  })()
                 }
               </dd>
             </div>
-            {buffettMosPct != null && Number.isFinite(buffettMosPct) && (
+            {buffettMosPct != null && Number.isFinite(buffettMosPct) && buffettMosPct >= 0 && (
               <div>
                 <dt
                   className="text-[10px] uppercase tracking-[0.15em] text-caption"
-                  title="Discount to fair value. Higher = greater margin of safety. Computed as (Fair Value - Price) / Fair Value × 100."
+                  title="How much room below current price the model says exists. Buffett-style: (Fair Value - Price) / Fair Value."
                 >
                   Margin of Safety (Buffett)
                 </dt>
                 <dd
-                  className={`font-mono tabular-nums text-lg font-semibold ${
-                    buffettMosPct >= 0 ? "text-success" : "text-danger"
-                  }`}
+                  className="font-mono tabular-nums text-lg font-semibold text-success"
                 >
                   {formatPct(buffettMosPct)}
                 </dd>

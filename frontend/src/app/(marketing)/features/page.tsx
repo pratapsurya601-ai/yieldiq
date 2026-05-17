@@ -14,7 +14,7 @@ const detailedFeatures = [
       "India-calibrated WACC (RBI benchmarks)",
       "Terminal value with Gordon Growth Model",
     ],
-    visual: { icon: "\u{1F4CA}", line1: "Fair Value: \u20B92,450", line2: "+18% Implied Upside", note: "Model output \u00B7 Not investment advice" },
+    visual: { icon: "\u{1F4CA}", line1: "Fair Value: \u20B92,450", line2: "+18% Discount to FV", note: "Model output \u00B7 Not investment advice" },
     reversed: false,
   },
   {

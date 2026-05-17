@@ -79,6 +79,7 @@ INSERT INTO company_quarterly_results (
     operating_profit_cr, provisions_cr,
     schema_type,
     segment, report_period_type,
+    insurance_metrics,
     xbrl_url, xbrl_sha256, filed_at, source
 ) VALUES (
     %(ticker)s, %(fiscal_quarter)s, %(period_start)s, %(period_end)s,
@@ -92,6 +93,7 @@ INSERT INTO company_quarterly_results (
     %(operating_profit_cr)s, %(provisions_cr)s,
     %(schema_type)s,
     %(segment)s, %(report_period_type)s,
+    %(insurance_metrics)s,
     %(xbrl_url)s, %(xbrl_sha256)s, %(filed_at)s, %(source)s
 )
 ON CONFLICT (ticker, fiscal_quarter, is_consolidated) DO UPDATE SET
@@ -125,6 +127,7 @@ ON CONFLICT (ticker, fiscal_quarter, is_consolidated) DO UPDATE SET
     xbrl_sha256 = EXCLUDED.xbrl_sha256,
     filed_at = EXCLUDED.filed_at,
     source = EXCLUDED.source,
+    insurance_metrics = EXCLUDED.insurance_metrics,
     ingested_at = now();
 """
 
@@ -193,6 +196,7 @@ def dry_run_summary(ticker: str, rows: list[dict[str, Any]]) -> None:
 
 def upsert(conn, rows: list[dict[str, Any]]) -> tuple[int, Any]:
     import psycopg2
+    import psycopg2.extras  # noqa: F401  (Json adapter for insurance_metrics JSONB)
     n = 0
     for row in rows:
         payload = _strip_internal(row)
@@ -203,10 +207,17 @@ def upsert(conn, rows: list[dict[str, Any]]) -> tuple[int, Any]:
             "finance_costs_cr", "depreciation_cr", "other_expenses_cr",
             "employee_benefit_cr", "total_expenses_cr",
             "report_period_type",
+            "insurance_metrics",
         ):
             payload.setdefault(key, None)
         payload.setdefault("segment", "equities")
         payload.setdefault("source", "bse")
+        if payload.get("insurance_metrics") is not None and not isinstance(
+            payload["insurance_metrics"], psycopg2.extras.Json
+        ):
+            payload["insurance_metrics"] = psycopg2.extras.Json(
+                payload["insurance_metrics"]
+            )
 
         max_retries = 2
         for attempt in range(max_retries + 1):
