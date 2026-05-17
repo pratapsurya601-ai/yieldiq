@@ -48,6 +48,7 @@ import {
   formatCompanyName,
   verdictDisplayLabel,
   verdictFromMos,
+  formatRelativeTime,
 } from "@/lib/utils"
 import { trackStockAnalysed } from "@/lib/analytics"
 import Link from "next/link"
@@ -155,71 +156,127 @@ function EmptyFinancials({ onRefresh }: { onRefresh?: () => void }) {
 }
 
 /**
- * Data Freshness widget — feat/transparency (2026-05-02).
+ * Data Freshness widget — feat/transparency (2026-05-02),
+ * simplified 2026-05-17 (fix/simplify-data-freshness).
  *
- * Sits at the bottom of the analysis page summarising every per-number
- * provenance / freshness field surfaced elsewhere in tooltips. Gives
- * users one place to audit data lineage for the entire view. Purely
- * additive — renders only the rows we actually have data for, returns
- * null when nothing is available (legacy cached payloads pre-PR).
+ * Default: one compact line — "Last updated 14 hours ago · Sources: …".
+ * Power users can expand a <details> panel for per-number provenance.
+ *
+ * Design goals after user feedback ("WHY WE ARE TELLING THE WHOLE
+ * DATA FRESHNESS?"): no ISO timestamps in default view, no internal
+ * field names ("live_price_x_shares", "dcf"), humanise sources.
+ * Underlying provenance is preserved — just hidden by default.
  */
+
+// Humanise internal provenance tokens to user-facing labels.
+function humaniseSource(raw: string | null | undefined): string | null {
+  if (!raw) return null
+  const s = String(raw).trim()
+  if (!s) return null
+  const lower = s.toLowerCase()
+  if (lower === "live_price_x_shares") return "Derived (price × shares)"
+  if (lower === "dcf") return "DCF model"
+  if (lower === "nse" || lower === "nse_live") return "Live (NSE)"
+  if (lower === "bse" || lower === "bse_live") return "Live (BSE)"
+  if (lower === "nse_xbrl") return "NSE XBRL"
+  if (lower === "yfinance") return "yfinance"
+  return s
+}
+
 function DataFreshnessWidget({ data }: { data: AnalysisResponse }) {
   const v = data.valuation
   const c = data.company
   const q = data.quality
-  const rows: { label: string; value: string; title?: string }[] = []
-  const push = (label: string, value: string | null | undefined, title?: string) => {
-    if (!value) return
-    rows.push({ label, value: String(value), title })
+
+  // Collect unique humanised sources for the compact summary line.
+  const sourceSet = new Set<string>()
+  const addSource = (raw: string | null | undefined) => {
+    const h = humaniseSource(raw)
+    if (h && !/^derived/i.test(h) && !/model$/i.test(h)) sourceSet.add(h)
   }
-  push("Recomputed", data.timestamp || null, data.timestamp ?? undefined)
-  push(
-    "Current price",
-    [v.current_price_source, v.current_price_as_of].filter(Boolean).join(" · ") || null,
-    v.current_price_as_of ?? undefined,
-  )
-  push(
-    "Fair value",
-    [v.valuation_engine_used, v.fair_value_computed_at]
-      .filter(Boolean)
-      .join(" · ") || null,
-    v.fair_value_computed_at ?? undefined,
-  )
-  push(
-    "Market cap",
-    [c.market_cap_source, c.market_cap_as_of].filter(Boolean).join(" · ") || null,
-    c.market_cap_as_of ?? undefined,
-  )
-  push("Shares outstanding", c.shares_outstanding_source ?? null)
-  push("Latest filing", q.latest_filing_period_end ?? null)
-  push(
-    "Revenue CAGR",
-    [q.revenue_cagr_window, q.revenue_source].filter(Boolean).join(" · ") || null,
-  )
-  if (rows.length === 0) return null
+  addSource(v.current_price_source)
+  addSource(c.market_cap_source)
+  addSource(c.shares_outstanding_source)
+  addSource(q.revenue_source)
+  const sources = Array.from(sourceSet)
+
+  // Build the expandable rows (humanised, relative time, no ISO in body).
+  type Row = { label: string; value: string; title?: string }
+  const rows: Row[] = []
+  const pushRow = (
+    label: string,
+    sourceRaw: string | null | undefined,
+    when: string | null | undefined,
+  ) => {
+    const src = humaniseSource(sourceRaw)
+    const rel = when ? formatRelativeTime(when) : null
+    const parts = [src, rel].filter(Boolean) as string[]
+    if (parts.length === 0) return
+    rows.push({ label, value: parts.join(" · "), title: when ?? undefined })
+  }
+
+  if (data.timestamp) {
+    rows.push({
+      label: "Recomputed",
+      value: formatRelativeTime(data.timestamp),
+      title: data.timestamp,
+    })
+  }
+  pushRow("Current price", v.current_price_source, v.current_price_as_of)
+  pushRow("Fair value", v.valuation_engine_used, v.fair_value_computed_at)
+  pushRow("Market cap", c.market_cap_source, c.market_cap_as_of)
+  pushRow("Shares", c.shares_outstanding_source, null)
+  if (q.latest_filing_period_end) {
+    rows.push({ label: "Latest filing", value: q.latest_filing_period_end })
+  }
+  pushRow("Revenue history", q.revenue_source, null)
+
+  if (rows.length === 0 && !data.timestamp) return null
+
+  const summaryTime = data.timestamp ? formatRelativeTime(data.timestamp) : null
+  const summaryBits: string[] = []
+  if (summaryTime) summaryBits.push(`Last updated ${summaryTime}`)
+  if (sources.length > 0) summaryBits.push(`Sources: ${sources.join(", ")}`)
+
   return (
     <section
       className="rounded-2xl border border-border bg-bg dark:bg-surface p-4"
       aria-label="Data freshness summary"
     >
-      <h2 className="text-sm font-semibold text-ink mb-2">Data freshness</h2>
-      <p className="text-[11px] text-caption mb-3 leading-snug">
-        Provenance and as-of timestamps for every key number on this page.
-        Hover any value to see the full ISO timestamp.
-      </p>
-      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
-        {rows.map((r) => (
-          <div key={r.label} className="flex justify-between gap-3 border-b border-border last:border-0 py-1">
-            <dt className="text-caption shrink-0">{r.label}</dt>
-            <dd
-              className="text-ink text-right truncate font-mono tabular-nums"
-              title={r.title}
-            >
-              {r.value}
-            </dd>
-          </div>
-        ))}
-      </dl>
+      <details className="group">
+        <summary
+          className="flex items-center justify-between gap-3 cursor-pointer list-none text-[12px] text-caption leading-snug [&::-webkit-details-marker]:hidden"
+          title={data.timestamp ?? undefined}
+        >
+          <span className="truncate">
+            {summaryBits.join(" · ")}
+          </span>
+          <span className="shrink-0 text-[11px] text-caption underline decoration-dotted underline-offset-2 group-open:hidden">
+            View details
+          </span>
+          <span className="shrink-0 text-[11px] text-caption underline decoration-dotted underline-offset-2 hidden group-open:inline">
+            Hide details
+          </span>
+        </summary>
+        {rows.length > 0 && (
+          <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
+            {rows.map((r) => (
+              <div
+                key={r.label}
+                className="flex justify-between gap-3 border-b border-border last:border-0 py-1"
+              >
+                <dt className="text-caption shrink-0">{r.label}</dt>
+                <dd
+                  className="text-ink text-right truncate"
+                  title={r.title}
+                >
+                  {r.value}
+                </dd>
+              </div>
+            ))}
+          </dl>
+        )}
+      </details>
     </section>
   )
 }
