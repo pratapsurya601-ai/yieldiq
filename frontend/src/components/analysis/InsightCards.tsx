@@ -131,7 +131,7 @@ export default function InsightCards({ quality, insights, valuation, currency, t
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [quality.promoter_pct, quality.promoter_pledge_pct])
 
-  const cards: CardData[] = useMemo(() => [
+  const cards: CardData[] = useMemo(() => ([
     {
       title: "Piotroski F-Score",
       value: `${quality.piotroski_score}/9`,
@@ -198,30 +198,52 @@ export default function InsightCards({ quality, insights, valuation, currency, t
         borderColor: n > 0 ? "border-l-green-500" : "border-l-border",
       }
     })(),
+    // feat/earnings-calendar-unification:
+    //   • If no date → return null and filter the card out below.
+    //     The prior "Not scheduled" placeholder was misleading — it
+    //     looked like an authoritative answer when in reality the
+    //     NSE feed had simply blanked.
+    //   • If days_until ≤ 7 → amber "Reports in Nd"
+    //   • If days_until ≤ 14 → neutral "Reports next week"
+    //   • confirmed=false → "Expected <date>" tentative
     (() => {
-      if (insights.earnings_date) {
-        const formatted = new Date(insights.earnings_date).toLocaleDateString("en-IN", {
-          day: "numeric", month: "short", year: "numeric",
-        })
-        const daysLabel = insights.earnings_days_until !== null ? ` (in ${insights.earnings_days_until}d)` : ""
-        return {
-          title: "Earnings",
-          value: formatted,
-          subtitle: insights.earnings_est_eps !== null
-            ? `Est. EPS: ${insights.earnings_est_eps.toFixed(2)}${daysLabel}`
-            : `Upcoming earnings${daysLabel}`,
-          color: "text-body",
-          icon: "\u{1f4c5}",
-          borderColor: "border-l-border",
-        }
+      const d = insights.earnings_date
+      if (!d) return null
+      const dt = new Date(d)
+      const formatted = dt.toLocaleDateString("en-IN", {
+        day: "numeric", month: "short", year: "numeric",
+      })
+      const du = insights.earnings_days_until
+      const confirmed = insights.earnings_confirmed !== false  // legacy rows default true
+      const fp = insights.earnings_fiscal_period
+      let value = formatted
+      let borderColor = "border-l-border"
+      let color = "text-body"
+      let subtitle: string
+      if (!confirmed) {
+        value = `Expected ${formatted}`
+        subtitle = fp ? `Tentative · ${fp}` : "Tentative · not yet filed"
+      } else if (du !== null && du !== undefined && du <= 7) {
+        value = `Reports in ${du}d`
+        color = "text-amber-700"
+        borderColor = "border-l-amber-500"
+        subtitle = `${formatted}${fp ? ` · ${fp}` : ""}`
+      } else if (du !== null && du !== undefined && du <= 14) {
+        value = "Reports next week"
+        subtitle = `${formatted}${fp ? ` · ${fp}` : ""}`
+      } else {
+        const daysLabel = du !== null && du !== undefined ? ` (in ${du}d)` : ""
+        subtitle = insights.earnings_est_eps !== null && insights.earnings_est_eps !== undefined
+          ? `Est. EPS: ${insights.earnings_est_eps.toFixed(2)}${daysLabel}`
+          : `Upcoming earnings${daysLabel}`
       }
       return {
         title: "Earnings",
-        value: "Not scheduled",
-        subtitle: "No confirmed earnings date yet",
-        color: "text-body",
+        value,
+        subtitle,
+        color,
         icon: "\u{1f4c5}",
-        borderColor: "border-l-border",
+        borderColor,
       }
     })(),
     (() => {
@@ -414,7 +436,7 @@ export default function InsightCards({ quality, insights, valuation, currency, t
       }
     })(),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [quality, insights, valuation, currency, businessFlags.length, analystConsensus, hasCoverage])
+  ] as (CardData | null)[]).filter((c): c is CardData => c !== null), [quality, insights, valuation, currency, businessFlags.length, analystConsensus, hasCoverage])
 
   return (
     <div className="space-y-3">
