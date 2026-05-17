@@ -18,7 +18,11 @@ from __future__ import annotations
 
 import pytest
 
-from data_pipeline.sources.nse_quarterly_xbrl import detect_unit_scale
+from pathlib import Path
+
+from data_pipeline.sources.nse_quarterly_xbrl import _string_facts, detect_unit_scale
+
+_FIXTURES = Path(__file__).parent / "fixtures" / "xbrl"
 
 
 def _sfacts(rounding: str) -> dict[str, list[tuple[str, str]]]:
@@ -127,6 +131,47 @@ def test_actual_tag():
     rev_raw = 5e10
     divisor = detect_unit_scale(_sfacts("Actual"), rev_raw)
     assert divisor == 1e7
+
+
+# ── SEBI 2025 in-capmkt integrated-filing schema (new tag name) ────────
+
+
+def test_gayahws_new_schema_rounding_tag_recognized():
+    """GAYAHWS Q2 FY26 integrated filing uses the SEBI 2025 in-capmkt
+    schema which declares rounding via <in-capmkt:LevelOfRounding> (the
+    legacy tag <in-bse-fin:LevelOfRoundingUsedInFinancialStatements> is
+    absent). Before the fix, detect_unit_scale missed the tag entirely
+    and fell through to the magnitude heuristic — for tickers with
+    revenue_raw=0 that returns divisor=1.0, causing raw rupees to be
+    stored as Crores. After the fix the new tag name is in the lookup
+    list and the declared 'Lakhs' value is honoured.
+    """
+    xml_bytes = (_FIXTURES / "gayahws_integrated_q2_fy26.xml").read_bytes()
+    sfacts = _string_facts(xml_bytes)
+    # Sanity: the new tag is present, the legacy tag is not.
+    assert "LevelOfRounding" in sfacts
+    assert "LevelOfRoundingUsedInFinancialStatements" not in sfacts
+    # With revenue_raw=0 the magnitude fallback would return 1.0; the
+    # declared 'Lakhs' tag must now win → divisor=100.0.
+    divisor = detect_unit_scale(sfacts, 0.0)
+    assert divisor != 1.0, (
+        "new in-capmkt:LevelOfRounding tag must be recognized; got "
+        "magnitude-fallback divisor 1.0 (raw rupees would be stored as Cr)"
+    )
+    assert divisor == 100.0, (
+        f"GAYAHWS declares 'Lakhs' → expected divisor 100.0, got {divisor}"
+    )
+
+
+def test_legacy_rounding_tag_still_recognized():
+    """Regression guard: the legacy
+    LevelOfRoundingUsedInFinancialStatements tag (used by every
+    pre-SEBI-2025 NSE filing) must still drive the divisor after we
+    extended the lookup list."""
+    sfacts = {"LevelOfRoundingUsedInFinancialStatements": [("Crores", "OneD")]}
+    assert detect_unit_scale(sfacts, 1_000.0) == 1.0
+    sfacts = {"LevelOfRoundingUsedInFinancialStatements": [("Lakhs", "OneD")]}
+    assert detect_unit_scale(sfacts, 1_000.0) == 100.0
 
 
 def test_no_rounding_tag_magnitude_fallback():
