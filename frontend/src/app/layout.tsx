@@ -62,7 +62,13 @@ const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID || "";
 // Inline script string: reads the user's saved theme preference from
 // localStorage BEFORE React hydrates so we avoid a light-to-dark
 // flash on first paint. Standard anti-FOUC pattern.
-const themeInitScript = `(function(){try{var s=localStorage.getItem('yieldiq_theme');var m=window.matchMedia('(prefers-color-scheme: dark)').matches;var d=s==='dark'||((s==='system'||!s)&&m);var e=document.documentElement;if(d){e.classList.add('dark');}else{e.classList.remove('dark');}}catch(e){}})();`;
+//
+// Migration (2026-05): the legacy "system" option was removed and
+// "light" is now the only default. Anything other than "dark" — old
+// "system" sentinel, missing key, garbage — resolves to light, and
+// non-canonical values are rewritten to "light" so the migration only
+// runs once per browser.
+const themeInitScript = `(function(){try{var s=localStorage.getItem('yieldiq_theme');if(s!=='dark'&&s!=='light'){try{localStorage.setItem('yieldiq_theme','light');}catch(e){}}var e=document.documentElement;if(s==='dark'){e.classList.add('dark');}else{e.classList.remove('dark');}}catch(e){}})();`;
 
 export const metadata: Metadata = {
   title: "YieldIQ — Fair-value estimates for Indian stocks",
