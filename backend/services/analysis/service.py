@@ -2273,6 +2273,32 @@ class AnalysisService(NarrativeMixin):
             except Exception:
                 pass
 
+        # ── Promoter-holding override (fix/promoter-extractor) ──
+        # The NSE master API reports a single `pr_and_prgrp` figure.
+        # Foreign promoters (BAT in ITC, Unilever in HUL, Suzuki in
+        # MARUTI) file under "Public" / "FPI" categories on Indian
+        # filings, so the API returns ~0% and the UI mislabels the
+        # stock as "Low stake". Indian private banks (HDFCBANK,
+        # ICICIBANK, AXISBANK) have no designated promoter under RBI
+        # norms — the same 0% surfaces as "Low stake" instead of the
+        # correct "No promoter (RBI norms)" label.
+        # Hand-curated overrides in data_pipeline/data/promoter_overrides.json
+        # patch both cases: they overwrite promoter_pct and attach a
+        # `promoter_holding_type` / `promoter_entity` pair the frontend
+        # uses to render the right label. Override is intentionally
+        # applied LAST so it wins over both the NSE feed and the
+        # yfinance fallback.
+        try:
+            from data_pipeline.sources.promoter_overrides import (
+                apply_promoter_override,
+            )
+            apply_promoter_override(ticker, _sh)
+        except Exception as _po_exc:
+            logger.debug(
+                "promoter-override merge failed for %s: %s",
+                ticker, _po_exc,
+            )
+
         # Inform downstream consumers that a financial was valued via
         # the peer-band path — helps users interpret the fair value
         # (and disables some FCF-based red flags in the UI).
@@ -2577,6 +2603,8 @@ class AnalysisService(NarrativeMixin):
                 revenue_cagr_5y=_rev_cagr_5y,
                 promoter_pct=_sh.get("promoter_pct"),
                 promoter_pledge_pct=_sh.get("promoter_pledge_pct"),
+                promoter_holding_type=_sh.get("promoter_holding_type"),
+                promoter_entity=_sh.get("promoter_entity"),
                 fii_pct=_sh.get("fii_pct"),
                 dii_pct=_sh.get("dii_pct"),
                 public_pct=_sh.get("public_pct"),

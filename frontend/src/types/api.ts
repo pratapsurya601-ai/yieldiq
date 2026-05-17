@@ -104,6 +104,10 @@ export interface QualityOutput {
   revenue_cagr_5y?: number | null   // DECIMAL
   promoter_pct?: number | null
   promoter_pledge_pct?: number | null
+  // Override metadata from data_pipeline/data/promoter_overrides.json.
+  // type: "foreign_promoter" | "no_promoter_bank" | "govt_promoter" | "domestic_promoter"
+  promoter_holding_type?: string | null
+  promoter_entity?: string | null
   fii_pct?: number | null
   dii_pct?: number | null
   public_pct?: number | null
