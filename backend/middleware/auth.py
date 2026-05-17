@@ -693,27 +693,120 @@ def verify_google_id_token(id_token: str, timeout: float = 8.0) -> dict:
     }
 
 
-def google_oauth_login_or_register(id_token: str) -> dict:
-    """Verify a Google ID token and return a YieldIQ JWT.
+def verify_supabase_session_token(access_token: str) -> dict:
+    """Verify a Supabase session JWT via the admin SDK.
 
-    If the email already exists in Supabase, we log them in.
-    Otherwise we create the account with provider=google + signup_source=google
-    in user_metadata (purely additive — existing email/password users keep
-    their metadata untouched).
+    This is the modern OAuth path: Supabase performs the Google round-trip
+    server-side (response_type=code), so the browser only ever sees
+    Supabase's OWN session access_token in the URL hash — Google's id_token
+    never reaches the client unless "Skip nonce checks" is enabled in the
+    Supabase dashboard. We validate that Supabase JWT here by asking
+    Supabase to resolve it to a user.
+
+    Returns {ok, email, sub, provider, name, picture, error}. Network /
+    invalid-token failures both return ok=False with a safe user-facing
+    message; underlying cause is logged for ops.
+
+    Why the admin SDK (not jose.jwt.decode):
+      Supabase signs session JWTs with the project's JWT_SECRET — which we
+      don't (and shouldn't) hold in this service. The admin client uses the
+      service-role key to call /auth/v1/user, which validates the token
+      server-side against Supabase's own copy. That's the supported path.
+    """
+    if not access_token or not isinstance(access_token, str):
+        return {"ok": False, "error": "Missing Supabase session token."}
+
+    # Cheap pre-flight: Supabase JWTs are 3-segment. If we got something
+    # opaque (e.g. provider_token, which is Google's access_token) we
+    # surface a clearer error than waiting for Supabase to 401.
+    _segments = access_token.count(".") + 1
+    if _segments != 3:
+        _log().warning(
+            "Supabase session token: bad shape segments=%s len=%s prefix=%r",
+            _segments, len(access_token), access_token[:20],
+        )
+        return {"ok": False, "error": "Sign-in token has unexpected shape — please retry."}
+
+    try:
+        from db.supabase_client import get_admin_client
+        admin = get_admin_client()
+    except Exception as exc:
+        _log().error("Supabase session verify: admin client unavailable: %s", exc)
+        return {"ok": False, "error": "Auth backend unavailable — please retry."}
+
+    try:
+        # supabase-py 2.x exposes auth.get_user(jwt) — returns a UserResponse
+        # whose .user is the resolved auth.user row. The call wraps
+        # GET /auth/v1/user with the JWT as the bearer.
+        result = admin.auth.get_user(access_token)
+    except Exception as exc:
+        # AuthApiError on invalid/expired tokens. Diagnostic logging so ops
+        # can tell network errors from genuine rejections.
+        _log().warning(
+            "Supabase session verify: get_user raised: %s (token len=%s prefix=%r)",
+            exc, len(access_token), access_token[:20],
+        )
+        return {"ok": False, "error": "Supabase rejected the sign-in token. Please try again."}
+
+    user = getattr(result, "user", None) if result is not None else None
+    if user is None:
+        _log().warning("Supabase session verify: get_user returned no user")
+        return {"ok": False, "error": "Sign-in session not recognised. Please try again."}
+
+    email = (getattr(user, "email", None) or "").strip().lower()
+    sub = str(getattr(user, "id", "") or "")
+    if not email or not sub:
+        _log().warning(
+            "Supabase session verify: missing email/sub on user (email=%r sub=%r)",
+            email, sub,
+        )
+        return {"ok": False, "error": "Supabase did not return a verified email."}
+
+    # Pull provider hints from app_metadata / user_metadata. For Google
+    # we expect app_metadata.provider == "google".
+    app_meta = getattr(user, "app_metadata", None) or {}
+    user_meta = getattr(user, "user_metadata", None) or {}
+    provider = (
+        (app_meta.get("provider") if isinstance(app_meta, dict) else None)
+        or (user_meta.get("provider") if isinstance(user_meta, dict) else None)
+        or "google"
+    )
+    name = ""
+    picture = ""
+    if isinstance(user_meta, dict):
+        name = user_meta.get("name") or user_meta.get("full_name") or ""
+        picture = user_meta.get("picture") or user_meta.get("avatar_url") or ""
+
+    return {
+        "ok": True,
+        "email": email,
+        "sub": sub,
+        "provider": provider,
+        "name": name,
+        "picture": picture,
+    }
+
+
+def _oauth_login_or_register_from_verified(verified: dict) -> dict:
+    """Shared upsert path for any verified OAuth identity.
+
+    Both verify_google_id_token (deprecated) and verify_supabase_session_token
+    produce a {ok, email, sub, name, ...} dict; this helper consumes that
+    and:
+      - looks up the user by email in Supabase
+      - creates the row if absent (with provider/signup_source metadata)
+      - mints a YieldIQ JWT
+      - syncs users_meta.email_verified=true (OAuth providers vouch for email)
 
     Returns {ok, token, user_id, email, tier, is_new_user, error}.
     """
-    verified = verify_google_id_token(id_token)
-    if not verified.get("ok"):
-        return {"ok": False, "error": verified.get("error", "Google sign-in failed.")}
-
     email = verified["email"]
-    google_sub = verified["sub"]
-    name = verified["name"]
+    google_sub = verified.get("sub", "")
+    name = verified.get("name", "")
 
     backend = _auth_backend()
     if backend != "supabase":
-        # SQLite path is local-dev only; not wiring Google there.
+        # SQLite path is local-dev only; not wiring OAuth there.
         return {"ok": False, "error": "Google sign-in is not available in this environment."}
 
     try:
@@ -805,6 +898,37 @@ def google_oauth_login_or_register(id_token: str) -> dict:
     except Exception as exc:
         _log().warning("Google OAuth: create_user failed for %s: %s", email, exc)
         return {"ok": False, "error": _extract_supabase_error(exc)}
+
+
+def google_oauth_login_or_register(id_token: str) -> dict:
+    """DEPRECATED: verify a Google ID token directly and mint a YieldIQ JWT.
+
+    This path only works when the Supabase project has "Skip nonce checks"
+    enabled, because otherwise Supabase strips the Google id_token from the
+    callback hash and the browser never sees it. Prefer
+    supabase_session_login_or_register, which validates Supabase's own
+    session JWT instead.
+
+    Kept as a backward-compat alias for older frontends still POSTing
+    {id_token} to /api/v1/auth/google.
+    """
+    verified = verify_google_id_token(id_token)
+    if not verified.get("ok"):
+        return {"ok": False, "error": verified.get("error", "Google sign-in failed.")}
+    return _oauth_login_or_register_from_verified(verified)
+
+
+def supabase_session_login_or_register(access_token: str) -> dict:
+    """Verify a Supabase session JWT and mint a YieldIQ JWT.
+
+    This is the supported OAuth path (see verify_supabase_session_token
+    docstring). The frontend extracts Supabase's `access_token` from the
+    /auth/callback hash and POSTs it to /api/v1/auth/supabase.
+    """
+    verified = verify_supabase_session_token(access_token)
+    if not verified.get("ok"):
+        return {"ok": False, "error": verified.get("error", "Google sign-in failed.")}
+    return _oauth_login_or_register_from_verified(verified)
 
 
 def build_google_oauth_url(redirect_to: str) -> str:

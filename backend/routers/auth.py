@@ -11,6 +11,7 @@ from backend.models.responses import TokenResponse, UserResponse
 from backend.middleware.auth import (
     get_current_user, login_user_and_get_token, register_user_and_get_token,
     is_superuser, google_oauth_login_or_register, build_google_oauth_url,
+    supabase_session_login_or_register,
 )
 from backend.middleware.rate_limit import rate_limiter, clamped_used
 from backend.services.feature_flags import list_enabled_for
@@ -149,8 +150,87 @@ class GoogleAuthRequest(BaseModel):
     referral_code: Optional[str] = Field(default=None, max_length=64)
 
 
+class SupabaseSessionLoginRequest(BaseModel):
+    """New OAuth shape: Supabase's session JWT (not Google's id_token).
+
+    Frontend extracts this from the /auth/callback URL hash. See
+    backend.middleware.auth.verify_supabase_session_token for why this
+    replaces the old id_token path.
+    """
+    access_token: str = Field(min_length=10, max_length=8192)
+    referral_code: Optional[str] = Field(default=None, max_length=64)
+
+
 class GoogleAuthResponse(TokenResponse):
     is_new_user: bool = False
+
+
+def _finalise_oauth_login(result: dict, referral_code: Optional[str]) -> GoogleAuthResponse:
+    """Build the GoogleAuthResponse + fire new-user side effects.
+
+    Shared by /auth/google (deprecated) and /auth/supabase so the two
+    endpoints stay byte-identical from the frontend's perspective —
+    same response shape, same referral handling, same superuser promotion.
+    """
+    is_new = bool(result.get("is_new_user"))
+
+    if is_new:
+        try:
+            from backend.services.email_service import send_welcome_email
+            threading.Thread(
+                target=send_welcome_email,
+                args=(result["email"],),
+                daemon=True,
+            ).start()
+        except Exception:
+            pass
+        if referral_code:
+            try:
+                from backend.routers.referral import _ensure_user, _find_user_by_code
+                new_user_record = _ensure_user(result["user_id"])
+                code = referral_code.strip().lower()
+                referrer_id = _find_user_by_code(code)
+                if referrer_id and referrer_id != result["user_id"]:
+                    new_user_record["referred_by"] = code
+                    referrer = _ensure_user(referrer_id)
+                    referrer["referral_count"] += 1
+                    referrer["bonus_analyses"] += 5
+            except Exception:
+                pass
+
+    _effective_tier = result["tier"]
+    _effective_limit = None
+    if is_superuser({"email": result["email"]}):
+        _effective_tier = "analyst"
+        _effective_limit = 999999
+
+    used, limit = rate_limiter.get_usage(result["user_id"], _effective_tier)
+    if _effective_limit is not None:
+        limit = _effective_limit
+    used = clamped_used(used, limit)
+
+    try:
+        from backend.routers.account import get_display_name_state
+        _dn, _dn_remaining = get_display_name_state(result["user_id"])
+    except Exception:
+        _dn, _dn_remaining = None, 3
+
+    return GoogleAuthResponse(
+        access_token=result["token"],
+        user_id=result["user_id"],
+        email=result["email"],
+        tier=_effective_tier,
+        analyses_today=used,
+        analysis_limit=limit,
+        display_name=_dn,
+        display_name_edits_remaining=_dn_remaining,
+        feature_flags=list_enabled_for(result["user_id"], _effective_tier),
+        # OAuth providers (Google via Supabase) vouch for the email — the
+        # backend also seeds users_meta.email_verified=true so the soft
+        # gates open immediately.
+        email_verified=True,
+        is_new_user=is_new,
+    )
 
 
 @router.get("/google/url")
@@ -186,80 +266,46 @@ async def google_oauth_consent_url(redirect_to: Optional[str] = None):
         raise HTTPException(status_code=503, detail=str(exc))
 
 
-@router.post("/google", response_model=GoogleAuthResponse)
+@router.post("/google", response_model=GoogleAuthResponse, deprecated=True)
 async def google_oauth_exchange(req: GoogleAuthRequest):
-    """Exchange a verified Google ID token for a YieldIQ JWT.
+    """DEPRECATED: exchange a Google ID token for a YieldIQ JWT.
 
-    Returning users: matched on email and logged in.
-    New users: created via Supabase admin with provider=google in
-    user_metadata so future analytics can split conversion by channel.
+    Only works when the Supabase project has "Skip nonce checks" enabled —
+    otherwise Google's id_token never reaches the browser, so the frontend
+    has nothing to POST here. Use POST /api/v1/auth/supabase instead, which
+    validates Supabase's own session JWT (always available in the callback
+    hash regardless of the nonce setting).
+
+    Kept as a transitional alias for any clients still on the old code path.
     """
     result = google_oauth_login_or_register(req.id_token)
     if not result.get("ok"):
         raise HTTPException(status_code=401, detail=result.get("error", "Google sign-in failed."))
+    return _finalise_oauth_login(result, req.referral_code)
 
-    is_new = bool(result.get("is_new_user"))
 
-    # New-user side effects (welcome email + referral credit) — mirror
-    # the email/password /register flow so the two paths stay symmetric.
-    if is_new:
-        try:
-            from backend.services.email_service import send_welcome_email
-            threading.Thread(
-                target=send_welcome_email,
-                args=(result["email"],),
-                daemon=True,
-            ).start()
-        except Exception:
-            pass
-        if req.referral_code:
-            try:
-                from backend.routers.referral import _ensure_user, _find_user_by_code
-                new_user_record = _ensure_user(result["user_id"])
-                code = req.referral_code.strip().lower()
-                referrer_id = _find_user_by_code(code)
-                if referrer_id and referrer_id != result["user_id"]:
-                    new_user_record["referred_by"] = code
-                    referrer = _ensure_user(referrer_id)
-                    referrer["referral_count"] += 1
-                    referrer["bonus_analyses"] += 5
-            except Exception:
-                pass
+@router.post("/supabase", response_model=GoogleAuthResponse)
+async def supabase_session_exchange(req: SupabaseSessionLoginRequest):
+    """Exchange a Supabase session JWT for a YieldIQ JWT.
 
-    # Mirror the login flow's superuser promotion + usage clamp so the
-    # response carries the same shape as POST /auth/login.
-    _effective_tier = result["tier"]
-    _effective_limit = None
-    if is_superuser({"email": result["email"]}):
-        _effective_tier = "analyst"
-        _effective_limit = 999999
+    Modern OAuth flow:
+      1. Frontend hits GET /auth/google/url → redirects browser to Supabase
+      2. Supabase → Google → Supabase callback (server-side code exchange)
+      3. Supabase bounces back to /auth/callback with `access_token` in the
+         URL hash. This `access_token` IS the Supabase session JWT (signed
+         by Supabase, 3-segment).
+      4. Frontend POSTs that JWT here.
+      5. We call Supabase admin.auth.get_user(jwt) to validate, then mint
+         a YieldIQ JWT keyed on the resolved email.
 
-    used, limit = rate_limiter.get_usage(result["user_id"], _effective_tier)
-    if _effective_limit is not None:
-        limit = _effective_limit
-    used = clamped_used(used, limit)
-
-    try:
-        from backend.routers.account import get_display_name_state
-        _dn, _dn_remaining = get_display_name_state(result["user_id"])
-    except Exception:
-        _dn, _dn_remaining = None, 3
-
-    return GoogleAuthResponse(
-        access_token=result["token"],
-        user_id=result["user_id"],
-        email=result["email"],
-        tier=_effective_tier,
-        analyses_today=used,
-        analysis_limit=limit,
-        display_name=_dn,
-        display_name_edits_remaining=_dn_remaining,
-        feature_flags=list_enabled_for(result["user_id"], _effective_tier),
-        # Google has already verified the email; google_oauth_login_or_register
-        # also seeds users_meta.email_verified=true so the gates open immediately.
-        email_verified=True,
-        is_new_user=is_new,
-    )
+    Response shape is identical to the deprecated /auth/google endpoint
+    so the frontend store/auth callback handler doesn't care which path
+    was used.
+    """
+    result = supabase_session_login_or_register(req.access_token)
+    if not result.get("ok"):
+        raise HTTPException(status_code=401, detail=result.get("error", "Google sign-in failed."))
+    return _finalise_oauth_login(result, req.referral_code)
 
 
 class ForgotPasswordRequest(BaseModel):
