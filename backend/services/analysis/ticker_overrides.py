@@ -51,9 +51,14 @@ TICKER_OVERRIDES: dict[str, dict] = {
     "ITC.NS": {"_alias_to": "ITC"},
     "RELIANCE.NS": {"_alias_to": "RELIANCE"},
 
-    # Holding companies — value driven by underlying holdings, not own cash flow
+    # Holding companies — value driven by underlying holdings, not own cash flow.
+    # Curated entries here keep their richer caveat copy; the auto-detect
+    # path in service.py covers anything not enumerated. See also
+    # backend/services/analysis/constants.py::HOLDING_COMPANIES /
+    # is_holding_company() for the detection logic.
     "BAJAJHLDNG": {
         "model": "skip",
+        "valuation_method": "holding_company_sotp_required",
         "model_caveat": (
             "Bajaj Holdings is a pure holding company. Its fair value is "
             "driven by stakes in Bajaj Auto, Bajaj Finance, Bajaj Finserv, "
