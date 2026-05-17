@@ -120,7 +120,8 @@ export function verdictFromMos(mos: number | null | undefined): string {
  * / "Overvalued" / "Fairly Valued") is model output, not advice. Every
  * Indian valuation product surfaces these. The ModelDisclaimer carries
  * the "not a SEBI-registered IA" framing; imperative recommendations
- * (Buy/Sell/Hold as advice) remain banned via check_sebi_words.py.
+ * remain banned via check_sebi_words.py. Legacy advisory wire-format
+ * aliases are handled by lib/verdict.ts::verdictLabel.
  */
 export function verdictDisplayLabel(v: string): string {
   if (!v) return ""
@@ -129,9 +130,6 @@ export function verdictDisplayLabel(v: string): string {
     undervalued: "Undervalued",
     fairly_valued: "Fairly Valued",
     overvalued: "Overvalued",
-    buy: "Undervalued",
-    sell: "Overvalued",
-    hold: "Fairly Valued",
     avoid: "Model Caveat",
     data_limited: "Insufficient Data",
     under_review: "Under Review",
@@ -158,9 +156,6 @@ export function verdictRegion(v: string): string {
     undervalued: "Undervalued",
     fairly_valued: "Fairly Valued",
     overvalued: "Overvalued",
-    buy: "Undervalued",
-    sell: "Overvalued",
-    hold: "Fairly Valued",
     avoid: "Model Caveat",
     data_limited: "Insufficient Data",
     under_review: "Under Review",
