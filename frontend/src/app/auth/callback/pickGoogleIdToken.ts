@@ -30,7 +30,7 @@ export interface PickResult {
   source: "provider_id_token" | "id_token" | null
   /**
    * True when we fell back from the preferred `provider_id_token` to
-   * Supabase's own `id_token`. Caller should console.warn in this case.
+   * Supabase's own `id_token`. Caller emits a console.warn in this case.
    */
   fellBack: boolean
 }
