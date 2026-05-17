@@ -12,6 +12,7 @@ import { useAuthStore } from "@/store/authStore"
 import { TIER_LIMITS } from "@/lib/constants"
 import PersonalHeader from "@/components/home/PersonalHeader"
 import ErrorBoundary from "@/components/ErrorBoundary"
+import ModelDisclaimer from "@/components/ModelDisclaimer"
 import MarketsStrip from "@/components/home/v2/MarketsStrip"
 import PortfolioPanel from "@/components/home/v2/PortfolioPanel"
 import WatchlistPanel from "@/components/home/v2/WatchlistPanel"
@@ -137,6 +138,8 @@ export default function HomePage() {
           </div>
         </div>
       </div>
+
+      <ModelDisclaimer compact className="text-center mt-6 px-4" />
     </div>
   )
 }

@@ -35,6 +35,7 @@ import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
 import ShareReportCard from "@/components/analysis/ShareReportCard"
+import ModelDisclaimer from "@/components/ModelDisclaimer"
 import ProExcelExportButton from "@/components/analysis/ProExcelExportButton"
 import UnlockCTA from "@/components/payg/UnlockCTA"
 import UnlockBadge from "@/components/payg/UnlockBadge"
@@ -1066,10 +1067,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             nothing is available (legacy cached payloads). */}
         <DataFreshnessWidget data={data} />
 
-        <p className="text-xs text-caption text-center leading-relaxed px-4">
-          Model estimates using publicly available data. Not investment advice.
-          YieldIQ is not registered with SEBI as an investment adviser.
-        </p>
+        <ModelDisclaimer className="mx-4" />
       </div>
 
       {timeMachineOpen && (

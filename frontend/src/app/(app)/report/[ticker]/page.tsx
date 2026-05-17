@@ -3,6 +3,7 @@ import { useParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import { getAnalysis } from "@/lib/api"
 import { formatCurrency, formatCompanyName, verdictDisplayLabel } from "@/lib/utils"
+import ModelDisclaimer from "@/components/ModelDisclaimer"
 import Link from "next/link"
 
 function gradeColor(grade: string) {
@@ -175,10 +176,7 @@ export default function ReportPage() {
         </div>
 
         {/* Disclaimer */}
-        <p className="text-[10px] text-gray-400 text-center mt-6 px-4">
-          Model estimate using publicly available data. Not investment advice.
-          YieldIQ is not registered with SEBI as an investment adviser.
-        </p>
+        <ModelDisclaimer className="mt-6" />
       </div>
     </div>
   )

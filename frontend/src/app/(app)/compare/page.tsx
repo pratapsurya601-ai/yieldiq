@@ -39,6 +39,7 @@ import {
 } from "@/lib/utils"
 import { SCORE_COLOR, VERDICT_COLORS } from "@/lib/constants"
 import type { Verdict } from "@/types/api"
+import ModelDisclaimer from "@/components/ModelDisclaimer"
 
 const MAX_STOCKS = 5
 const MIN_STOCKS = 2
@@ -744,9 +745,7 @@ function CompareContent() {
         </>
       )}
 
-      <p className="text-xs text-gray-600 text-center leading-relaxed px-4">
-        All outputs are model estimates using publicly available data. Not investment advice.
-      </p>
+      <ModelDisclaimer className="mx-4" />
     </div>
   )
 }

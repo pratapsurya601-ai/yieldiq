@@ -6,6 +6,7 @@ import { Suspense, useCallback } from "react"
 import api from "@/lib/api"
 import Link from "next/link"
 import { useAuthStore } from "@/store/authStore"
+import ModelDisclaimer from "@/components/ModelDisclaimer"
 
 interface ScreenerStock {
   ticker: string
@@ -120,6 +121,11 @@ function ScreenerContent() {
             Upgrade
           </Link>
         </div>
+      )}
+
+      {/* SEBI-compliance disclaimer above results */}
+      {data && data.results && data.results.length > 0 && (
+        <ModelDisclaimer compact className="px-1" />
       )}
 
       {/* Results */}

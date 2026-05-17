@@ -10,6 +10,7 @@ import PortfolioPrism from "@/components/portfolio/PortfolioPrism"
 import { BelowFairValueBanner } from "@/components/portfolio/HealthDashboard"
 import UnlockBadge from "@/components/payg/UnlockBadge"
 import { formatCurrency } from "@/lib/utils"
+import ModelDisclaimer from "@/components/ModelDisclaimer"
 import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
@@ -516,6 +517,8 @@ function PortfolioInner() {
           </div>
         )
       )}
+
+      <ModelDisclaimer compact className="text-center pt-4" />
     </div>
   )
 }

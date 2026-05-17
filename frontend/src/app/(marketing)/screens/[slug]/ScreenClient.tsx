@@ -5,6 +5,7 @@ import { useState, useMemo, useEffect } from "react"
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from "recharts"
+import { verdictLabel } from "@/lib/verdict"
 // Nav is now provided by (marketing)/layout.tsx
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || ""
@@ -84,11 +85,12 @@ function fmt(n: number | null | undefined): string {
 }
 
 function verdictBadge(v: string) {
-  // SEBI-safe: "avoid" → "High Risk"
-  const label = v === "avoid" ? "High Risk" : (v || "").replace(/_/g, " ")
-  if (v === "undervalued") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 capitalize">{label}</span>
-  if (v === "overvalued" || v === "avoid") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 capitalize">{label}</span>
-  return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 capitalize">{label}</span>
+  // SEBI-safe: route through verdictLabel() so the displayed text is
+  // descriptive and never imperative.
+  const label = verdictLabel(v)
+  if (v === "undervalued") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700">{label}</span>
+  if (v === "overvalued" || v === "avoid") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700">{label}</span>
+  return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700">{label}</span>
 }
 
 type SortKey = "score" | "mos" | "current_price" | "roe" | "roce" | "piotroski" | "de_ratio" | "pe_ratio"
