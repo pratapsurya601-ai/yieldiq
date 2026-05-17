@@ -1961,6 +1961,62 @@ class AnalysisService(NarrativeMixin):
             _override = _get_ticker_override(ticker)
         except Exception:
             _override = None
+
+        # Auto-detect holding companies / SPVs / pure investment vehicles
+        # (structural data-quality fix #4, 2026-05-17). When no explicit
+        # override is set but the ticker pattern-matches a holdco (curated
+        # set or revenue/industry/market-cap heuristics), synthesise a
+        # skip-style override so the existing skip codepath below sets
+        # verdict=data_limited, zeroes FV, and surfaces the SOTP caveat.
+        # Curated entries in ticker_overrides.py (e.g. BAJAJHLDNG) keep
+        # their richer caveat copy — auto-detect only fires when no
+        # explicit override is present.
+        if not _override:
+            try:
+                from backend.services.analysis.constants import (
+                    is_holding_company as _is_holding_co,
+                )
+                _holdco_rev = enriched.get("latest_revenue", 0) or 0
+                _holdco_shares = enriched.get("shares", 0) or 0
+                _holdco_mcap = float(price or 0) * float(_holdco_shares)
+                _holdco_sector = (
+                    enriched.get("sector_name")
+                    or enriched.get("sector")
+                    or raw.get("sector_name")
+                    or raw.get("sector")
+                )
+                _holdco_industry = (
+                    raw.get("industry") or enriched.get("industry")
+                )
+                _holdco_nic = (
+                    raw.get("nic_code") or enriched.get("nic_code")
+                )
+                if _is_holding_co(
+                    ticker,
+                    sector=_holdco_sector,
+                    industry=_holdco_industry,
+                    revenue_cr=float(_holdco_rev),
+                    market_cap_cr=float(_holdco_mcap),
+                    nic_code=_holdco_nic,
+                ):
+                    _override = {
+                        "model": "skip",
+                        "model_caveat": (
+                            "This is a holding company / SPV. Its value "
+                            "is driven by stakes in underlying operating "
+                            "businesses, not by its own cash flow. "
+                            "Standard DCF does not apply — use a "
+                            "sum-of-parts (SOTP) analyst report."
+                        ),
+                        "valuation_method": "holding_company_sotp_required",
+                        "auto_detected": True,
+                    }
+            except Exception as _exc_holdco:
+                logger.warning(
+                    "holding-co auto-detect failed for %s: %s",
+                    ticker, _exc_holdco,
+                )
+
         _skip_dominance_cap = bool(
             _override and _override.get("model_caveat")
         )
@@ -2229,6 +2285,9 @@ class AnalysisService(NarrativeMixin):
         # NOTE: _override was resolved earlier (before the Score-MoS
         # dominance cap) so the cap can be exempted for caveated names.
         # Reuse that result here.
+        # Track whether the override marks this as a holding-co skip so
+        # we can surface the SOTP-required valuation_method on the wire.
+        _holdco_skip = False
         if _override:
             _caveat_msg = _override.get("model_caveat")
             if _override.get("model") == "skip":
@@ -2241,6 +2300,8 @@ class AnalysisService(NarrativeMixin):
                 iv = 0.0
                 mos_pct = 0.0
                 _mos_display = 0.0
+                if _override.get("valuation_method") == "holding_company_sotp_required":
+                    _holdco_skip = True
                 if _caveat_msg:
                     _data_issues = list(_data_issues) + [
                         f"[model_caveat] {_caveat_msg}"
@@ -2294,7 +2355,10 @@ class AnalysisService(NarrativeMixin):
                 fcf_growth_historical_avg=round(enriched.get("fcf_growth", 0) * 0.9, 4),
                 tv_pct_of_ev=round(dcf_res.get("tv_pct_of_ev", 0) * 100, 1),
                 dcf_reliable=False if is_financial else enriched.get("dcf_reliable", True),
-                valuation_model="pb_ratio" if is_financial else "dcf",
+                valuation_model=(
+                    "holding_company_sotp_required" if _holdco_skip
+                    else ("pb_ratio" if is_financial else "dcf")
+                ),
                 reliability_score=dcf_res.get("reliability_score", 100),
                 pv_fcfs=round(dcf_res.get("sum_pv_fcfs", 0), 0),
                 pv_terminal=round(dcf_res.get("pv_tv", 0), 0),
