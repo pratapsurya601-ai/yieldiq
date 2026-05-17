@@ -1673,6 +1673,23 @@ class StockDataCollector:
                          info.get("sector", ""))
         company_name  = (fh_profile.get("company_name") or
                          info.get("shortName", self.ticker))
+        # ── Listing date (feat/recent-ipo-sector-relative-valuation) ──
+        # yfinance `firstTradeDateEpochUtc` is a UTC epoch (seconds).
+        # Normalise to ISO YYYY-MM-DD so downstream consumers
+        # (ipo_framework.is_recent_ipo, frontend badge) get a single
+        # canonical shape. Returns None when the field is missing or
+        # cannot be parsed — is_recent_ipo() treats None as "not a
+        # recent IPO" so the DCF path remains the default.
+        listing_date: str | None = None
+        try:
+            _ftd = info.get("firstTradeDateEpochUtc")
+            if _ftd:
+                from datetime import datetime as _dt, timezone as _tz
+                listing_date = _dt.fromtimestamp(
+                    float(_ftd), tz=_tz.utc,
+                ).strftime("%Y-%m-%d")
+        except Exception:
+            listing_date = None
         dividend_yield   = _normalize_pct_to_decimal(_safe_float(
             info.get("dividendYield") or
             info.get("trailingAnnualDividendYield") or 0
@@ -1751,6 +1768,7 @@ class StockDataCollector:
             "five_yr_avg_div_yield": five_yr_avg_div,
             # ── NEW Finnhub fields ───────────────────────────────
             "company_name":         company_name,
+            "listing_date":         listing_date,  # ISO YYYY-MM-DD or None
             "price_change_pct":     price_change_pct,
             "day_high":             fh_quote_data.get("day_high", 0),
             "day_low":              fh_quote_data.get("day_low",  0),

@@ -380,6 +380,14 @@ export default function AnalysisHero({
           <div className="flex flex-wrap items-center gap-2">
             <VerdictChip verdict={effectiveVerdict} size="lg" />
             {ticker && <CoverageTierBadge ticker={ticker} size="md" />}
+            {valuationEngineUsed === "sector_relative_recent_ipo" && (
+              <span
+                className="inline-flex items-center rounded-full border border-border bg-surface px-2 py-0.5 text-[11px] font-medium text-caption"
+                title="Recent IPO — sector-relative valuation, no DCF available."
+              >
+                Recent IPO — sector-relative valuation, no DCF available.
+              </span>
+            )}
           </div>
 
           {/* Metric block — 2x2 on md+, 2 rows of 2 on mobile */}
