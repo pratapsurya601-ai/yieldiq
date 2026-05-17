@@ -2,7 +2,7 @@
 // Quant Picks grid — 4 tiles backed by existing screener presets +
 // custom screener queries. Each tile fetches independently.
 // Presets supported by /api/v1/screener/preset/{name}:
-//   - buffett        (score >= 60, mos >= 0, wide moat)  → Wide-Moat Undervalued
+//   - buffett        (score >= 60, mos >= 0, wide moat)  → Wide-Moat at Discount
 //   - deep_value     (mos >= 30)                          → Deep Value
 //   - growth_quality (revenue growth + margins)           → High-Margin Growers
 // 4th tile: custom screener via /api/v1/screener/run?min_mos=15&min_score=50
@@ -26,7 +26,7 @@ type TileConfig = {
 const TILES: TileConfig[] = [
   {
     key: "buffett",
-    title: "Wide-Moat Undervalued",
+    title: "Wide-Moat at Discount",
     blurb: "Score ≥ 60 · Wide moat · MoS ≥ 0",
     icon: Shield,
     fetcher: () => runPreset("buffett"),

@@ -5,8 +5,9 @@
 // would require per-ticker /analysis lookups, which would be slow on
 // the home page. v1 renders the symbol list and links to the full
 // watchlist page where each row already enriches with FV/MoS.
-// TODO: backend should expose a /watchlist/enriched endpoint that
-// joins against analysis_cache, mirroring portfolio/holdings-live.
+// Follow-up: a /watchlist/enriched endpoint that joins against
+// analysis_cache (mirroring portfolio/holdings-live) would let us
+// show FV/MoS inline here without per-row fetches.
 
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"

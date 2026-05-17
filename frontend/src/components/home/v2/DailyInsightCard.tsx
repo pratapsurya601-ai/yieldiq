@@ -1,10 +1,10 @@
 "use client"
 // Daily Insight — placeholder for v1.
 // TODO: build a nightly rule engine (backend cron) that scans analysis_cache
-// and emits 1-3 insights, e.g. "3 IT names now in Buy band after correction",
-// "Cement sector MoS widened to 25% on weak Q4 results". Expose via
-// /api/v1/insights/daily. Until that exists, we render an educational
-// nudge so the slot is not visually empty.
+// and emits 1-3 factual deltas, e.g. count of IT names that crossed into
+// a higher MoS band, sector MoS shifts on latest quarterly results.
+// Expose via /api/v1/insights/daily. Until that exists, we render an
+// educational nudge so the slot is not visually empty.
 
 import Link from "next/link"
 import { Sparkles } from "lucide-react"

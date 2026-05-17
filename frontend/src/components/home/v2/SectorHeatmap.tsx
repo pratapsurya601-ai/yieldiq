@@ -2,8 +2,8 @@
 // Sector heatmap — 13 canonical sectors as tiles, color by avg_score.
 // Data: /api/v1/market/sectors → [{name, avg_score, pct_undervalued, trend}]
 // Limitation: no market-cap weighting on this endpoint yet, so all tiles
-// are equal-sized. TODO: backend /market/sectors should add total_mcap_cr
-// so we can size tiles proportionally (treemap layout).
+// are equal-sized. Follow-up: backend /market/sectors could add a
+// total_mcap_cr field so tiles can be sized proportionally (treemap layout).
 
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
@@ -57,14 +57,14 @@ export default function SectorHeatmap() {
               key={s.name}
               href={`/screener?sector=${encodeURIComponent(s.name)}`}
               className={`${colorFor(s.avg_score)} rounded-lg p-3 hover:opacity-90 transition flex flex-col justify-between min-h-[80px]`}
-              title={`${s.name}: score ${s.avg_score.toFixed(0)}, ${s.pct_undervalued.toFixed(0)}% undervalued · trend ${s.trend}`}
+              title={`${s.name}: score ${s.avg_score.toFixed(0)} · ${s.pct_undervalued.toFixed(0)}% below fair value · trend ${s.trend}`}
             >
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-wider truncate">
                   {s.name}
                 </p>
                 <p className="text-[9px] opacity-80 mt-0.5">
-                  {s.pct_undervalued.toFixed(0)}% undervalued
+                  {s.pct_undervalued.toFixed(0)}% below FV
                 </p>
               </div>
               <p className="text-xl font-mono font-bold tabular-nums">
