@@ -2,10 +2,14 @@
 /**
  * OAuth callback — lands here after Supabase finishes the Google round-trip.
  *
- * Supabase returns the Supabase access_token + id_token in the URL HASH
- * (not query string — hash fragments never hit the server). We parse the
- * Google id_token out of the hash, POST it to /api/v1/auth/google to
- * exchange for a YieldIQ JWT, then route the user:
+ * Supabase returns its OWN session `access_token` (a 3-segment JWT signed
+ * by Supabase) in the URL HASH alongside refresh_token / expires_in.
+ * Google's `id_token` is NOT in the hash unless the Supabase project has
+ * "Skip nonce checks" enabled — we don't rely on that toggle.
+ *
+ * We POST the Supabase session JWT to /api/v1/auth/supabase, which
+ * validates it via the Supabase admin SDK (`auth.get_user`) and mints a
+ * YieldIQ JWT. Then route the user:
  *   - new user           → /onboarding
  *   - returning user     → /home  (or the stashed ?next= if present)
  *
@@ -15,10 +19,10 @@
 import { Suspense, useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Cookies from "js-cookie"
-import { exchangeGoogleIdToken, getOnboardingStatus } from "@/lib/api"
+import { loginWithSupabaseSession, getOnboardingStatus } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
 import { trackSignupCompleted } from "@/lib/analytics"
-import { pickGoogleIdToken } from "./pickGoogleIdToken"
+import { pickSupabaseAccessToken } from "./pickSupabaseAccessToken"
 
 function CallbackInner() {
   const router = useRouter()
@@ -29,8 +33,9 @@ function CallbackInner() {
     const run = async () => {
       try {
         // Supabase returns tokens in the URL hash, e.g.
-        //   #access_token=…&expires_in=…&provider_token=…&id_token=…
-        // For provider=google the Google ID token is the one we care about.
+        //   #access_token=…&refresh_token=…&expires_in=…&token_type=bearer
+        // The `access_token` IS Supabase's own session JWT, signed by Supabase.
+        // We send it to the backend, which validates it via the admin SDK.
         const hash = (typeof window !== "undefined" ? window.location.hash : "") || ""
         const cleaned = hash.startsWith("#") ? hash.slice(1) : hash
         const params = new URLSearchParams(cleaned)
@@ -41,21 +46,11 @@ function CallbackInner() {
           throw new Error(errDesc)
         }
 
-        // Prefer `provider_id_token` (Google's id_token JWT — verifiable via
-        // tokeninfo). Fall back to Supabase's own `id_token` only when it is a
-        // real 3-segment JWT. NEVER use `provider_token`: that's Google's
-        // OPAQUE OAuth access_token, which tokeninfo rejects with HTTP 400
-        // and surfaces as "Google rejected the sign-in token."
-        const picked = pickGoogleIdToken(params)
-        if (picked.fellBack) {
-          console.warn(
-            "[auth/callback] provider_id_token missing — falling back to Supabase id_token",
-          )
+        const picked = pickSupabaseAccessToken(params)
+        if (!picked.accessToken) {
+          throw new Error("Sign-in didn't return a session token. Please try again.")
         }
-        if (!picked.idToken) {
-          throw new Error("Google sign-in didn't return an ID token. Please try again.")
-        }
-        const idToken = picked.idToken
+        const accessToken = picked.accessToken
 
         // Carry through ?next= and ref code stashed by GoogleSignInButton.
         let next: string | null = null
@@ -69,7 +64,7 @@ function CallbackInner() {
           /* sessionStorage disabled */
         }
 
-        const res = await exchangeGoogleIdToken(idToken, referralCode)
+        const res = await loginWithSupabaseSession(accessToken, referralCode)
 
         Cookies.set("yieldiq_token", res.access_token, { expires: 7 })
         setAuth(
@@ -82,8 +77,8 @@ function CallbackInner() {
           res.display_name ?? null,
           res.display_name_edits_remaining ?? 3,
           res.feature_flags ?? {},
-          // Google OAuth users are always verified — backend sets
-          // email_verified=true in google_oauth_login_or_register.
+          // OAuth users are always verified — backend sets
+          // email_verified=true in _oauth_login_or_register_from_verified.
           res.email_verified ?? true,
         )
 

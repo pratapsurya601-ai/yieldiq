@@ -942,6 +942,21 @@ export const exchangeGoogleIdToken = (
     })
     .then((r) => r.data)
 
+// Modern OAuth path — POSTs the Supabase session JWT (not Google's id_token).
+// Backend validates it via admin.auth.get_user(jwt). See
+// backend.middleware.auth.verify_supabase_session_token for why this
+// replaces exchangeGoogleIdToken.
+export const loginWithSupabaseSession = (
+  accessToken: string,
+  referralCode?: string | null,
+): Promise<GoogleAuthResponse> =>
+  api
+    .post("/api/v1/auth/supabase", {
+      access_token: accessToken,
+      ...(referralCode ? { referral_code: referralCode } : {}),
+    })
+    .then((r) => r.data)
+
 export const getMe = () =>
   api.get("/api/v1/auth/me").then(r => r.data)
 
