@@ -77,7 +77,16 @@ export const useAuthStore = create<AuthState>()(
         set({ displayName: name, displayNameEditsRemaining: editsRemaining }),
       logout: () => set({
         token: null, userId: null, email: null, tier: "free",
-        analysesToday: 0,
+        // Reset BOTH counter fields on logout. Previously analysisLimit
+        // was omitted here, so a user who logged out from a paid tier
+        // (limit=999999) left the persisted Zustand state with tier
+        // "free" + analysisLimit 999999. Account page header reads
+        // `analysisLimit >= 999999 ? "Unlimited"` and rendered
+        // "Unlimited analyses" while the nav AnalysisCounter (which
+        // derives its limit from TIER_LIMITS[tier]) correctly showed
+        // "0/5 analyses today" — a visible contradiction on the
+        // anon/Account screen reported 2026-05-17.
+        analysesToday: 0, analysisLimit: 5,
         displayName: null, displayNameEditsRemaining: 3,
         featureFlags: {},
       }),
