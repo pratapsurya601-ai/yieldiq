@@ -76,6 +76,7 @@ INSERT INTO company_quarterly_results (
     segment, report_period_type,
     cfo_cr, cfi_cr, cff_cr, capex_cr,
     cashflow_period_months, has_cashflow_statement,
+    insurance_metrics,
     xbrl_url, xbrl_sha256, filed_at
 ) VALUES (
     %(ticker)s, %(fiscal_quarter)s, %(period_start)s, %(period_end)s,
@@ -91,6 +92,7 @@ INSERT INTO company_quarterly_results (
     %(segment)s, %(report_period_type)s,
     %(cfo_cr)s, %(cfi_cr)s, %(cff_cr)s, %(capex_cr)s,
     %(cashflow_period_months)s, %(has_cashflow_statement)s,
+    %(insurance_metrics)s,
     %(xbrl_url)s, %(xbrl_sha256)s, %(filed_at)s
 )
 ON CONFLICT (ticker, fiscal_quarter, is_consolidated) DO UPDATE SET
@@ -126,6 +128,7 @@ ON CONFLICT (ticker, fiscal_quarter, is_consolidated) DO UPDATE SET
     capex_cr = EXCLUDED.capex_cr,
     cashflow_period_months = EXCLUDED.cashflow_period_months,
     has_cashflow_statement = EXCLUDED.has_cashflow_statement,
+    insurance_metrics = EXCLUDED.insurance_metrics,
     xbrl_url = EXCLUDED.xbrl_url,
     xbrl_sha256 = EXCLUDED.xbrl_sha256,
     filed_at = EXCLUDED.filed_at,
@@ -200,6 +203,7 @@ def upsert(conn, rows: list[dict[str, Any]]) -> tuple[int, Any]:
     before giving up on it.
     """
     import psycopg2
+    import psycopg2.extras  # noqa: F401  (Json adapter for insurance_metrics JSONB)
     n = 0
     for row in rows:
         payload = _strip_internal(row)
@@ -215,8 +219,20 @@ def upsert(conn, rows: list[dict[str, Any]]) -> tuple[int, Any]:
             # H1 (Sep) and Q4 (Mar) filings.
             "cfo_cr", "cfi_cr", "cff_cr", "capex_cr",
             "cashflow_period_months", "has_cashflow_statement",
+            # Insurance-native JSONB (migration 038). NULL for
+            # non-insurance schemas; psycopg2 Json-wrapping below.
+            "insurance_metrics",
         ):
             payload.setdefault(key, None)
+        # JSONB payloads must be wrapped via psycopg2.extras.Json so the
+        # adapter writes them as a JSONB literal rather than relying on
+        # PG's implicit text->jsonb cast (which would reject dicts).
+        if payload.get("insurance_metrics") is not None and not isinstance(
+            payload["insurance_metrics"], psycopg2.extras.Json
+        ):
+            payload["insurance_metrics"] = psycopg2.extras.Json(
+                payload["insurance_metrics"]
+            )
         # `segment` has a server-side default of 'equities' but the
         # NOT-NULL safe payload contract is to always send a value.
         payload.setdefault("segment", "equities")
