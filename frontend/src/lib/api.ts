@@ -225,6 +225,43 @@ export const recomputeDcf = (
 ): Promise<RecomputeResponse> =>
   api.post(`/api/v1/analysis/${ticker}/recompute`, body).then(r => r.data)
 
+// Saved scenarios (Phase-2 of editable-assumptions). Per-user named
+// bundles of {assumptions, result} scoped to a ticker. Read is open
+// to all auth'd users (free tier just sees an empty list); save is
+// paid-only on the backend.
+export interface SavedScenario {
+  id: number
+  ticker: string
+  name: string
+  assumptions: Record<string, number | string | null>
+  result: Record<string, unknown>
+  created_at?: string | null
+  updated_at?: string | null
+}
+
+export interface ListScenariosResponse {
+  scenarios: SavedScenario[]
+  cap: number
+}
+
+export const listScenarios = (
+  ticker?: string,
+): Promise<ListScenariosResponse> =>
+  api
+    .get(`/api/v1/scenarios/`, { params: ticker ? { ticker } : undefined })
+    .then(r => r.data)
+
+export const saveScenario = (body: {
+  ticker: string
+  name: string
+  assumptions: Record<string, number | string | null>
+  result: Record<string, unknown>
+}): Promise<SavedScenario> =>
+  api.post(`/api/v1/scenarios/`, body).then(r => r.data)
+
+export const deleteScenario = (id: number): Promise<{ ok: boolean }> =>
+  api.delete(`/api/v1/scenarios/${id}`).then(r => r.data)
+
 // Sensitivity tornado — per-input ranking of which assumption moves
 // FV the most for THIS specific stock. Cached 24h server-side; the
 // component should also let react-query cache for the page lifetime.
