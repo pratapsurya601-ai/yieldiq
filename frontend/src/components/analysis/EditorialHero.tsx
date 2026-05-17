@@ -55,8 +55,15 @@ export interface EditorialHeroProps {
   fairValue: number
   /** Current price in company currency. */
   currentPrice: number
-  /** Margin of safety (0-100, signed). */
+  /** Upside %: (FV-CP)/CP*100, signed. Legacy field still labelled MoS for back-compat. */
   marginOfSafety: number
+  /**
+   * Step B (2026-05-17): true Buffett margin of safety = (FV-CP)/FV*100.
+   * Optional/nullable for pre-PR cached payloads. When present, render
+   * as a separate "Margin of Safety (Buffett)" stat next to the legacy
+   * upside-% chip; the legacy chip is relabelled to "Upside" in the UI.
+   */
+  buffettMosPct?: number | null
   /** Moat tier — "Wide" | "Narrow" | "None". */
   moat: string
   currency: string
@@ -138,6 +145,7 @@ export default function EditorialHero({
   fairValue,
   currentPrice,
   marginOfSafety,
+  buffettMosPct,
   moat,
   currency,
   score100,
@@ -301,9 +309,18 @@ export default function EditorialHero({
               metricKey="current_price"
             />
             <div>
+              {/*
+                Step B (2026-05-17): the legacy chip stays as "Upside"
+                (the math is upside %, not Buffett's MoS) and a new
+                separate "Margin of Safety (Buffett)" chip renders next
+                to it when the backend has supplied buffett_mos_pct.
+              */}
               <MetricTooltip metricKey="mos">
-                <dt className="text-[10px] uppercase tracking-[0.15em] text-caption">
-                  Margin of Safety
+                <dt
+                  className="text-[10px] uppercase tracking-[0.15em] text-caption"
+                  title="Price increase needed to reach fair value. Computed as (Fair Value - Price) / Price × 100."
+                >
+                  Upside
                 </dt>
               </MetricTooltip>
               <dd
@@ -324,6 +341,23 @@ export default function EditorialHero({
                 }
               </dd>
             </div>
+            {buffettMosPct != null && Number.isFinite(buffettMosPct) && (
+              <div>
+                <dt
+                  className="text-[10px] uppercase tracking-[0.15em] text-caption"
+                  title="Discount to fair value. Higher = greater margin of safety. Computed as (Fair Value - Price) / Fair Value × 100."
+                >
+                  Margin of Safety (Buffett)
+                </dt>
+                <dd
+                  className={`font-mono tabular-nums text-lg font-semibold ${
+                    buffettMosPct >= 0 ? "text-success" : "text-danger"
+                  }`}
+                >
+                  {formatPct(buffettMosPct)}
+                </dd>
+              </div>
+            )}
             <Stat label="Moat" value={moat || "Not rated"} metricKey="moat" />
           </dl>
           )}

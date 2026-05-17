@@ -168,6 +168,9 @@ def _enforce_scenario_order(bear, base, bull, price: float):
     fixed_bear_iv = min(bear_iv, base_iv * _MAX_BEAR_SPREAD) if base_iv > 0 else bear_iv
     fixed_bull_iv = max(bull_iv, base_iv * _MIN_BULL_SPREAD) if base_iv > 0 else bull_iv
 
+    # Step B: also compute Buffett MoS = (IV - Price) / IV * 100 for
+    # the clamped scenarios so the additive field stays consistent.
+    from screener.dcf_engine import buffett_mos_pct as _bm
     def _mos_pair(iv):
         if price and price > 0 and iv > 0:
             raw = (iv - price) / price * 100
@@ -175,15 +178,23 @@ def _enforce_scenario_order(bear, base, bull, price: float):
             return round(d if d is not None else 0.0, 1), c
         return 0.0, False
 
+    def _bmos(iv):
+        v = _bm(iv, price)
+        return round(v, 1) if v is not None else None
+
     _fb_mos, _fb_clamped = _mos_pair(fixed_bear_iv)
     fixed_bear = ScenarioCase(
-        iv=round(fixed_bear_iv, 2), mos_pct=_fb_mos, mos_clamped=_fb_clamped,
+        iv=round(fixed_bear_iv, 2), mos_pct=_fb_mos,
+        buffett_mos_pct=_bmos(fixed_bear_iv),
+        mos_clamped=_fb_clamped,
         growth=bear.growth, wacc=bear.wacc, term_g=bear.term_g,
     ) if fixed_bear_iv != bear_iv else bear
 
     _fl_mos, _fl_clamped = _mos_pair(fixed_bull_iv)
     fixed_bull = ScenarioCase(
-        iv=round(fixed_bull_iv, 2), mos_pct=_fl_mos, mos_clamped=_fl_clamped,
+        iv=round(fixed_bull_iv, 2), mos_pct=_fl_mos,
+        buffett_mos_pct=_bmos(fixed_bull_iv),
+        mos_clamped=_fl_clamped,
         growth=bull.growth, wacc=bull.wacc, term_g=bull.term_g,
     ) if fixed_bull_iv != bull_iv else bull
 

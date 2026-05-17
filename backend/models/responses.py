@@ -76,6 +76,12 @@ class ValuationOutput(BaseModel):
     fair_value: float
     current_price: float
     margin_of_safety: float
+    # ── Buffett MoS (Step B, 2026-05-17) ──────────────────────
+    # True Buffett margin of safety = (FV - Price) / FV * 100.
+    # Distinct from `margin_of_safety` above which uses Price as
+    # the denominator (upside %). None when FV is non-positive.
+    # Purely additive — pre-PR clients ignore unknown fields.
+    buffett_mos_pct: Optional[float] = None
     verdict: Literal["undervalued", "fairly_valued", "overvalued", "avoid", "data_limited", "unavailable"]
     bear_case: float = 0
     base_case: float = 0
@@ -410,6 +416,8 @@ class ReverseDCFResponse(BaseModel):
 class ScenarioCase(BaseModel):
     iv: float = 0
     mos_pct: float = 0
+    # Buffett MoS (Step B): (iv - price) / iv * 100. None when iv<=0.
+    buffett_mos_pct: Optional[float] = None
     growth: float = 0
     wacc: float = 0
     term_g: float = 0
@@ -498,6 +506,8 @@ class ScreenerStock(BaseModel):
     fair_value: float = 0
     current_price: float = 0
     margin_of_safety: float = 0
+    # Buffett MoS (Step B): (fv - cp) / fv * 100. None when fv<=0.
+    buffett_mos_pct: Optional[float] = None
     verdict: str = ""
     moat: str = ""
     confidence: str = ""
@@ -533,6 +543,8 @@ class HoldingResponse(BaseModel):
     current_price: float = 0
     iv: float = 0
     mos_pct: float = 0
+    # Buffett MoS (Step B): (iv - current_price) / iv * 100. None when iv<=0.
+    buffett_mos_pct: Optional[float] = None
     signal: str = ""
     sector: str = ""
     notes: str = ""
@@ -738,6 +750,8 @@ class PeerInfo(BaseModel):
     fair_value: Optional[float] = None
     current_price: Optional[float] = None
     margin_of_safety: Optional[float] = None
+    # Buffett MoS (Step B): (fv - cp) / fv * 100. None when fv<=0.
+    buffett_mos_pct: Optional[float] = None
     verdict: Optional[str] = None
     score: Optional[float] = None
     moat: Optional[str] = None
