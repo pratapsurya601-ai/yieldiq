@@ -609,9 +609,13 @@ export default function AnalysisBody({ ticker, prism }: Props) {
 
   const requestedTicker = ticker.toUpperCase()
   const canonicalTicker = data.ticker.toUpperCase()
-  const wasAliased = requestedTicker !== canonicalTicker
   const requestedDisplay = requestedTicker.replace(".NS", "").replace(".BO", "")
   const canonicalDisplay = canonicalTicker.replace(".NS", "").replace(".BO", "")
+  // Only show the rename banner when the user-visible symbols actually differ.
+  // Previously compared raw tickers ("INFY" vs "INFY.NS"), which fired on
+  // every page with a suffix mismatch even though the displayed names matched.
+  const wasAliased =
+    requestedDisplay.toUpperCase() !== canonicalDisplay.toUpperCase()
 
   // FIX Day-3 #4 (2026-04-22): the prior guard looked for a nested
   // `statements.income_statement` shape that the backend has never emitted —

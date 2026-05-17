@@ -21,7 +21,7 @@ export default function DailyInsightCard() {
             Daily insight
           </p>
           <p className="text-sm font-semibold text-ink leading-snug">
-            Use the screener to find stocks with MoS &gt; 20% and Hex score ≥ 70.
+            Use the screener to find stocks with MoS &gt; 20% and YieldIQ Score ≥ 70.
           </p>
           <p className="text-xs text-body mt-1">
             Automated daily market insights coming soon.

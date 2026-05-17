@@ -80,7 +80,7 @@ export default function RedFlagInsights({ flags }: Props) {
       >
         <div>
           <p className="text-sm font-semibold text-ink">
-            🔍 Risk &amp; Quality Deep Dive
+            Risk &amp; Quality Deep Dive
           </p>
           <p className="text-xs text-caption mt-0.5">{summaryLine}</p>
         </div>

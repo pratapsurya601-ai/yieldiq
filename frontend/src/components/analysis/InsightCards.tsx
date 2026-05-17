@@ -131,7 +131,7 @@ export default function InsightCards({ quality, insights, valuation, currency, t
   // eslint-disable-next-line react-hooks/exhaustive-deps
   ], [quality.promoter_pct, quality.promoter_pledge_pct])
 
-  const cards: CardData[] = useMemo(() => [
+  const cards: CardData[] = useMemo(() => ([
     {
       title: "Piotroski F-Score",
       value: `${quality.piotroski_score}/9`,
@@ -199,6 +199,9 @@ export default function InsightCards({ quality, insights, valuation, currency, t
       }
     })(),
     (() => {
+      // Hide the entire card when there is no confirmed earnings date.
+      // Hidden state > empty state — a "Not scheduled" placeholder reads
+      // like missing data, not like an intentional UI choice.
       if (insights.earnings_date) {
         const formatted = new Date(insights.earnings_date).toLocaleDateString("en-IN", {
           day: "numeric", month: "short", year: "numeric",
@@ -215,14 +218,7 @@ export default function InsightCards({ quality, insights, valuation, currency, t
           borderColor: "border-l-border",
         }
       }
-      return {
-        title: "Earnings",
-        value: "Not scheduled",
-        subtitle: "No confirmed earnings date yet",
-        color: "text-body",
-        icon: "\u{1f4c5}",
-        borderColor: "border-l-border",
-      }
+      return null
     })(),
     (() => {
       // fix/data-quality-gate (2026-04-27): a 0.0% current yield is not
@@ -413,8 +409,9 @@ export default function InsightCards({ quality, insights, valuation, currency, t
         borderColor: "border-l-border" as const,
       }
     })(),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [quality, insights, valuation, currency, businessFlags.length, analystConsensus, hasCoverage])
+  ] as (CardData | null)[]).filter((c): c is CardData => c !== null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [quality, insights, valuation, currency, businessFlags.length, analystConsensus, hasCoverage])
 
   return (
     <div className="space-y-3">
