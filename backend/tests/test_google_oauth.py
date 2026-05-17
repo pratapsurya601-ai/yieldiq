@@ -76,6 +76,26 @@ def test_verify_google_id_token_non_200():
     assert result["ok"] is False
 
 
+def test_verify_google_id_token_non_200_logs_diagnostics(caplog):
+    """Non-200 from Google must emit a WARNING with status_code + truncated
+    body so we can debug rejection reasons in Railway logs (previously
+    swallowed — see fix/log-google-oauth-rejection-reason)."""
+    google_err = '{"error":"invalid_token","error_description":"Invalid Value"}'
+    bad = SimpleNamespace(status_code=400, text=google_err, json=lambda: {})
+    fake_token = "header-segment.payload-segment.signature-segment-tail"
+    with caplog.at_level("WARNING", logger="yieldiq.auth"):
+        with patch("requests.get", return_value=bad):
+            result = mw_auth.verify_google_id_token(fake_token)
+    assert result["ok"] is False
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert warnings, "expected a WARNING log on non-200 from Google tokeninfo"
+    msg = warnings[0].getMessage()
+    assert "status=400" in msg
+    assert "invalid_token" in msg  # Google's body got logged
+    assert "shape=jwt-3seg" in msg  # shape check captured
+    assert fake_token not in msg  # full token must NOT be logged
+
+
 def test_verify_google_id_token_unverified_email():
     resp = _ok_tokeninfo(verified="false")
     with patch("requests.get", return_value=resp):
