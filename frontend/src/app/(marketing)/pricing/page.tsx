@@ -65,7 +65,7 @@ const plans: Plan[] = [
       { text: "Unlimited watchlist & alerts", included: true },
       { text: "5 broker accounts / multi-account portfolio", included: true },
       { text: "Portfolio Prism + Portfolio Health score", included: true },
-      { text: "AI summaries (Groq, sub-second)", included: true },
+      { text: "AI summaries (sub-second)", included: true },
       { text: "Concall AI transcript summaries", included: true },
       { text: "Full Time Machine (12-month score trend)", included: true },
       { text: "Tax Report (capital gains calc) — FY 2025-26 logic per Budget 2024", included: true },

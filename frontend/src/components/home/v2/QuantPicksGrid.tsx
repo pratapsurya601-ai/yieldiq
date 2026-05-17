@@ -97,6 +97,13 @@ function Tile({ cfg }: { cfg: TileConfig }) {
         ) : (
           top.map(s => {
             const display = s.ticker.replace(/\.(NS|BO)$/, "")
+            // Suppress MoS for tickers without a published fair value.
+            // Showing "+49% MoS" on a stock whose analysis page admits
+            // "no FV available — under review" is the kind of internal
+            // contradiction the audit flagged. Badge instead.
+            const v = (s.verdict || "").toLowerCase()
+            const underReview =
+              v === "data_limited" || v === "under_review" || v === "unavailable"
             return (
               <Link
                 key={s.ticker}
@@ -104,10 +111,14 @@ function Tile({ cfg }: { cfg: TileConfig }) {
                 className="flex items-center justify-between text-[11px] font-mono py-0.5 hover:text-brand"
               >
                 <span className="font-semibold text-ink truncate">{display}</span>
-                <span className="text-green-600 dark:text-green-400">
-                  {s.margin_of_safety >= 0 ? "+" : ""}
-                  {s.margin_of_safety.toFixed(0)}%
-                </span>
+                {underReview ? (
+                  <span className="text-caption italic">Under Review</span>
+                ) : (
+                  <span className="text-green-600 dark:text-green-400">
+                    {s.margin_of_safety >= 0 ? "+" : ""}
+                    {s.margin_of_safety.toFixed(0)}%
+                  </span>
+                )}
               </Link>
             )
           })
