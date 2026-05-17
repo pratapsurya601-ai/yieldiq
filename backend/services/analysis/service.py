@@ -51,7 +51,12 @@ from backend.services.analysis.ticker_overrides import get_override as _get_tick
 from data.collector import StockDataCollector
 from data.processor import compute_metrics
 from data.validator import validate_stock_data
-from models.forecaster import FCFForecaster, compute_confidence_score
+from models.forecaster import (
+    FCFForecaster,
+    compute_confidence_score,
+    compute_confidence_score_v2,
+    confidence_v2_enabled,
+)
 from screener.dcf_engine import (
     DCFEngine, margin_of_safety, assign_signal, buffett_mos_pct,
 )
@@ -1136,7 +1141,21 @@ class AnalysisService(NarrativeMixin):
                 return {"score": 0, "grade": "N/A"}
 
         def _run_confidence():
+            # Confidence v2 Phase 1 is gated behind CONFIDENCE_V2=1
+            # (see docs/design/confidence-metric-v2.md §8 — rollback is
+            # an env-flag flip, no redeploy). Default OFF preserves v1
+            # behavior exactly; canary is a no-op with the flag unset.
             try:
+                if confidence_v2_enabled():
+                    # Tag the engine the rest of the pipeline picked so
+                    # sector_engine_match can score it. is_financial is
+                    # the only branch decided this far up; downstream
+                    # paths override `valuation_model` later. Keep both.
+                    if not enriched.get("primary_engine"):
+                        enriched["primary_engine"] = (
+                            "pb_ratio" if is_financial else "dcf"
+                        )
+                    return compute_confidence_score_v2(enriched)
                 return compute_confidence_score(enriched)
             except Exception:
                 return {"score": 50}
