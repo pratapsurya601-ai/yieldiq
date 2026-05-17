@@ -1,21 +1,224 @@
 {
   "_meta": {
-    "description": "BSE-only Group A+B legit tickers (single-listed on BSE, not NSE). Source: NSE recon agent findings (May 2026). Excludes ETFs, MFs, REITs, InvITs.",
-    "schema": "Each entry: ticker (uppercase trading symbol on BSE), bse_code (6-digit BSE Scripcode), name (display, optional), group (A/B, optional)",
-    "ingest_path": "data_pipeline.sources.bse_quarterly_xbrl (Playwright + real Chrome channel + Akamai cookie warmup)",
+    "description": "BSE-only Group A/B candidate universe regenerated from bhavcopy + reconciled against existing seed list. Each candidate carries pending_xbrl_verification=true; Phase 3 smoke test verifies XBRL availability before Phase 4 backfill writes rows.",
+    "bhavcopy_date": "2026-05-15",
+    "generated_at": "2026-05-17T04:06:02.000895Z",
+    "generator": "scripts/recon_bse_only_universe.py",
+    "filter_funnel": {
+      "raw": 4765,
+      "after_stk": 4765,
+      "after_group_AB": 2252,
+      "group_A": 725,
+      "group_B": 1527,
+      "after_volume_gt_0": 2252,
+      "after_name_filter": 2064,
+      "excluded_by_name_regex": 188,
+      "after_isin_valid": 2064,
+      "after_isin_dedup": 1,
+      "after_cap": 1,
+      "cap": 200
+    },
+    "reconciliation_log": [
+      {
+        "ticker": "SPICEJET",
+        "bse_code": "500285",
+        "outcome": "match",
+        "seed_name": "SpiceJet Ltd",
+        "bhav_name": "SPICEJET LTD.",
+        "bhav_ticker": "SPICEJET",
+        "bhav_group": "A"
+      },
+      {
+        "ticker": "TANFAC",
+        "bse_code": "506854",
+        "outcome": "match",
+        "seed_name": "Tanfac Industries Ltd",
+        "bhav_name": "TANFAC INDUSTRIES LTD.",
+        "bhav_ticker": "TANFACIND",
+        "bhav_group": "B"
+      },
+      {
+        "ticker": "JYOTIRES",
+        "bse_code": "513250",
+        "outcome": "match",
+        "seed_name": "Jyoti Resins And Adhesives Ltd",
+        "bhav_name": "JYOTI STRUCTURES LTD.",
+        "bhav_ticker": "JYOTISTRUC",
+        "bhav_group": "A"
+      },
+      {
+        "ticker": "SEKURITIND",
+        "bse_code": "517569",
+        "outcome": "mismatch_use_bhavcopy",
+        "seed_name": "Sekurit India Ltd",
+        "bhav_name": "KEI INDUSTRIES LTD.",
+        "bhav_ticker": "KEI",
+        "bhav_group": "A"
+      },
+      {
+        "ticker": "BENARAS",
+        "bse_code": "509055",
+        "outcome": "mismatch_use_bhavcopy",
+        "seed_name": "Benares Hotels Ltd",
+        "bhav_name": "VISAKA INDUSTRIES LTD.",
+        "bhav_ticker": "VISAKAIND",
+        "bhav_group": "B"
+      },
+      {
+        "ticker": "HOCL",
+        "bse_code": "500449",
+        "outcome": "match",
+        "seed_name": "Hindustan Organic Chemicals Ltd",
+        "bhav_name": "HINDUSTAN ORGANIC CHEMICALS LT",
+        "bhav_ticker": "HOCL",
+        "bhav_group": "B"
+      },
+      {
+        "ticker": "ACGL",
+        "bse_code": "533573",
+        "outcome": "mismatch_use_bhavcopy",
+        "seed_name": "AGI Greenpac Ltd (formerly ACGL)",
+        "bhav_name": "ALEMBIC PHARMACEUTICALS LTD.",
+        "bhav_ticker": "APLLTD",
+        "bhav_group": "A"
+      },
+      {
+        "ticker": "RIRPOWER",
+        "bse_code": "532486",
+        "outcome": "mismatch_use_bhavcopy",
+        "seed_name": "RIR Power Electronics Ltd",
+        "bhav_name": "POKARNA LTD.",
+        "bhav_ticker": "POKARNA",
+        "bhav_group": "B"
+      }
+    ],
+    "candidate_count": 1,
+    "seed_count": 8,
+    "merged_total": 9,
+    "schema_version": 2,
+    "ingest_path": "data_pipeline.sources.bse_quarterly_xbrl",
     "consumer": "scripts/backfill_bse_only_quarterly_xbrl.py",
-    "schema_version": 1,
-    "expected_total": 96,
-    "note": "Confirmed names from the recon are listed first. The remaining ~88 names from the Group B tail need to be backfilled by re-running the NSE recon agent and merging its output before the live ingest run. The Playwright pipeline itself is ticker-agnostic — adding more rows here is purely additive."
+    "next_steps": [
+      "Phase 3: Playwright XBRL pre-flight smoke test on 5 tickers",
+      "Phase 4: full backfill via scripts/backfill_bse_only_quarterly_xbrl.py",
+      "Phase 5: verify rows landed in quarterly_financials / shares_outstanding"
+    ]
   },
   "tickers": [
-    {"ticker": "SPICEJET",    "bse_code": "500285", "name": "SpiceJet Ltd",                        "group": "B"},
-    {"ticker": "TANFAC",      "bse_code": "506854", "name": "Tanfac Industries Ltd",               "group": "B"},
-    {"ticker": "JYOTIRES",    "bse_code": "513250", "name": "Jyoti Resins And Adhesives Ltd",      "group": "B"},
-    {"ticker": "SEKURITIND",  "bse_code": "517569", "name": "Sekurit India Ltd",                   "group": "B"},
-    {"ticker": "BENARAS",     "bse_code": "509055", "name": "Benares Hotels Ltd",                  "group": "B"},
-    {"ticker": "HOCL",        "bse_code": "500449", "name": "Hindustan Organic Chemicals Ltd",     "group": "B"},
-    {"ticker": "ACGL",        "bse_code": "533573", "name": "AGI Greenpac Ltd (formerly ACGL)",    "group": "B"},
-    {"ticker": "RIRPOWER",    "bse_code": "532486", "name": "RIR Power Electronics Ltd",           "group": "B"}
+    {
+      "ticker": "VIVIDM",
+      "bse_code": "542046",
+      "name": "VIVID MERCANTILE LIMITED",
+      "group": "B",
+      "isin": "INE647Z01025",
+      "close": 7.33,
+      "turnover": 687546.0,
+      "volume": 93317,
+      "pending_xbrl_verification": true
+    },
+    {
+      "ticker": "SPICEJET",
+      "bse_code": "500285",
+      "name": "SPICEJET LTD.",
+      "group": "A",
+      "isin": "INE285B01017",
+      "close": 12.51,
+      "turnover": 73829795.0,
+      "volume": 5882238,
+      "pending_xbrl_verification": true,
+      "_seed": true,
+      "_recon_outcome": "match"
+    },
+    {
+      "ticker": "TANFACIND",
+      "bse_code": "506854",
+      "name": "TANFAC INDUSTRIES LTD.",
+      "group": "B",
+      "isin": "INE639B01023",
+      "close": 2182.2,
+      "turnover": 22389768.0,
+      "volume": 10282,
+      "pending_xbrl_verification": true,
+      "_seed": true,
+      "_recon_outcome": "match"
+    },
+    {
+      "ticker": "JYOTISTRUC",
+      "bse_code": "513250",
+      "name": "JYOTI STRUCTURES LTD.",
+      "group": "A",
+      "isin": "INE197A01024",
+      "close": 12.48,
+      "turnover": 5309022.0,
+      "volume": 426166,
+      "pending_xbrl_verification": true,
+      "_seed": true,
+      "_recon_outcome": "match"
+    },
+    {
+      "ticker": "KEI",
+      "bse_code": "517569",
+      "name": "KEI INDUSTRIES LTD.",
+      "group": "A",
+      "isin": "INE878B01027",
+      "close": 5117.2,
+      "turnover": 109434936.0,
+      "volume": 21320,
+      "pending_xbrl_verification": true,
+      "_seed": true,
+      "_recon_outcome": "mismatch_use_bhavcopy"
+    },
+    {
+      "ticker": "VISAKAIND",
+      "bse_code": "509055",
+      "name": "VISAKA INDUSTRIES LTD.",
+      "group": "B",
+      "isin": "INE392A01021",
+      "close": 75.74,
+      "turnover": 854716.0,
+      "volume": 11280,
+      "pending_xbrl_verification": true,
+      "_seed": true,
+      "_recon_outcome": "mismatch_use_bhavcopy"
+    },
+    {
+      "ticker": "HOCL",
+      "bse_code": "500449",
+      "name": "HINDUSTAN ORGANIC CHEMICALS LT",
+      "group": "B",
+      "isin": "INE048A01011",
+      "close": 33.86,
+      "turnover": 1623015.0,
+      "volume": 48199,
+      "pending_xbrl_verification": true,
+      "_seed": true,
+      "_recon_outcome": "match"
+    },
+    {
+      "ticker": "APLLTD",
+      "bse_code": "533573",
+      "name": "ALEMBIC PHARMACEUTICALS LTD.",
+      "group": "A",
+      "isin": "INE901L01018",
+      "close": 784.7,
+      "turnover": 17265859.0,
+      "volume": 21934,
+      "pending_xbrl_verification": true,
+      "_seed": true,
+      "_recon_outcome": "mismatch_use_bhavcopy"
+    },
+    {
+      "ticker": "POKARNA",
+      "bse_code": "532486",
+      "name": "POKARNA LTD.",
+      "group": "B",
+      "isin": "INE637C01025",
+      "close": 837.65,
+      "turnover": 893660.0,
+      "volume": 1055,
+      "pending_xbrl_verification": true,
+      "_seed": true,
+      "_recon_outcome": "mismatch_use_bhavcopy"
+    }
   ]
 }
