@@ -425,6 +425,43 @@ def _normalize_pct(val) -> float | None:
     return round(v, 2)
 
 
+def _safe_float(val) -> float | None:
+    """
+    Coerce arbitrary upstream value to a finite float, or None.
+
+    Used by the reverse-DCF normalisation path (v2 of the patch that
+    reverted as PR #305 → #308) to guarantee that whatever lands on
+    enriched["normalized_fcf_margin"] never raises inside the
+    QualityOutput constructor. Accepts numpy scalars, Decimal, str
+    digits, etc.; rejects NaN/inf.
+    """
+    if val is None:
+        return None
+    try:
+        v = float(val)
+    except (TypeError, ValueError):
+        return None
+    if v != v or v in (float("inf"), float("-inf")):  # NaN/Inf
+        return None
+    return v
+
+
+def _safe_div_1e7(val) -> float | None:
+    """
+    Coerce val to a finite float and divide by 1e7 (rupees → ₹ Cr).
+    Returns None on any failure. Used by service.py to convert the
+    raw-rupee `normalized_fcf_base` (computed in
+    models/forecaster._compute_fcf_base) into the ₹ Crore convention
+    used by QualityOutput. Centralised so the unit conversion lives
+    next to _safe_float and the failure mode is identical (None,
+    never raise).
+    """
+    v = _safe_float(val)
+    if v is None:
+        return None
+    return v / 1e7
+
+
 def _compute_roe_fallback(enriched: dict):
     """Compute ROE from net_income / total_equity when yfinance doesn't provide it.
 

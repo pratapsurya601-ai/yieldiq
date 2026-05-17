@@ -882,11 +882,33 @@ async def get_analysis_preview(ticker: str):
         return _JSONResponse(content=preview, headers={"Cache-Control": _CC})
     except Exception as e:
         import logging
-        logging.getLogger("yieldiq.analysis").error(
-            f"og-data failed for {ticker}: {type(e).__name__}", exc_info=True
+        import traceback as _tb
+        # Full traceback to console + Sentry so diagnosis isn't lost.
+        # PR #305 was reverted partly because the masked "(details
+        # suppressed)" response in the client made it impossible to
+        # tell whether the failure was UnboundLocalError vs Pydantic
+        # validation vs upstream data. exc_info=True hands the full
+        # exception chain to the configured logging handlers (Sentry
+        # picks it up via the LoggingIntegration breadcrumbs already
+        # wired in backend/observability/sentry.py).
+        _log = logging.getLogger("yieldiq.analysis")
+        _log.error(
+            "og-data failed for %s: %s", ticker, type(e).__name__,
+            exc_info=True,
         )
-        # Never return raw str(e) — can leak env-var values (DATABASE_URL,
-        # JWT_SECRET, etc.) embedded in upstream exception messages.
+        # Explicit Sentry capture in case the LoggingIntegration is
+        # downgraded (we have seen breadcrumb-only mode in staging).
+        try:
+            import sentry_sdk
+            sentry_sdk.capture_exception(e)
+        except Exception:  # noqa: BLE001
+            pass
+        # Defence-in-depth: also dump to stderr so docker/Railway logs
+        # capture the trace even if the Python logger is misconfigured.
+        _tb.print_exc()
+        # Never return raw str(e) — can leak env-var values
+        # (DATABASE_URL, JWT_SECRET, etc.) embedded in upstream
+        # exception messages.
         return {"error": f"{type(e).__name__} (details suppressed)", "ticker": ticker}
 
 

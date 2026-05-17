@@ -130,6 +130,8 @@ from backend.services.analysis.utils import (
     _compute_roe_fallback,
     _build_structured_flags,
     _debt_ebitda_label,
+    _safe_float,
+    _safe_div_1e7,
 )
 from backend.services.analysis.ipo_framework import (
     MIN_ANNUAL_REPORTS_FOR_DCF as _IPO_MIN_ANNUAL_REPORTS,
@@ -2685,6 +2687,23 @@ class AnalysisService(NarrativeMixin):
                     else ("3y" if _rev_cagr_3y is not None else None)
                 ),
                 revenue_source=_data_source,
+                # Reverse-DCF upstream normalisation (Option B per
+                # docs/design/reverse-dcf-normalization.md, v2 2026-05-18).
+                # Read from enriched stashes populated by
+                # models/forecaster._compute_fcf_base during predict().
+                # normalized_fcf_cr converts the raw-rupee anchor
+                # (1e7 rupees = 1 Cr) into the ₹ Crore convention used
+                # by the rest of QualityOutput. Both reads are
+                # wrapped via _safe_float so any non-finite / non-
+                # coercible value degrades to None instead of raising
+                # inside QualityOutput construction (the failure mode
+                # that took down PR #305).
+                fcf_margin_5y=_safe_float(
+                    enriched.get("normalized_fcf_margin")
+                ),
+                normalized_fcf_cr=_safe_div_1e7(
+                    enriched.get("normalized_fcf_base")
+                ),
             ),
             insights=InsightCards(
                 patience_months=hp.get("min_months"),
