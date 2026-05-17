@@ -819,5 +819,15 @@ def build_google_oauth_url(redirect_to: str) -> str:
     if not supabase_url:
         raise RuntimeError("SUPABASE_URL not configured")
     from urllib.parse import urlencode
-    qs = urlencode({"provider": "google", "redirect_to": redirect_to})
+    # CRITICAL: include `openid` in scopes so Google returns an id_token JWT
+    # (not just the opaque OAuth access_token). Without `openid` Supabase
+    # passes `email profile` to Google → Google omits id_token → the
+    # frontend hash never carries `provider_id_token` → backend tokeninfo
+    # rejects the opaque access_token with 400. Confirmed via live trace
+    # 2026-05-17 (Chrome MCP) — Google redirect URL showed scope=email+profile.
+    qs = urlencode({
+        "provider": "google",
+        "redirect_to": redirect_to,
+        "scopes": "openid email profile",
+    })
     return f"{supabase_url}/auth/v1/authorize?{qs}"
