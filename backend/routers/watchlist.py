@@ -42,6 +42,7 @@ async def get_watchlist(user: dict = Depends(get_current_user)):
     if not email:
         raise HTTPException(status_code=401, detail="Email not found in token")
 
+    rows: list[dict] = []
     client = _get_supabase()
     if client:
         try:
@@ -51,31 +52,69 @@ async def get_watchlist(user: dict = Depends(get_current_user)):
                 .eq("user_email", email)
                 .execute()
             )
-            return [
-                WatchlistItemResponse(ticker=row.get("ticker", ""))
-                for row in (result.data or [])
-            ]
+            rows = [{"ticker": r.get("ticker", "")} for r in (result.data or [])]
         except Exception as e:
             logger.warning(f"Supabase watchlist read failed: {e}")
+            rows = []
+    else:
+        # Fallback to dashboard SQLite
+        try:
+            from portfolio import get_watchlist as _sqlite_get
+            rows = [
+                {
+                    "ticker": w.get("ticker", ""),
+                    "company_name": w.get("company_name", ""),
+                    "added_price": w.get("added_price", 0),
+                    "target_price": w.get("target_price", 0),
+                    "alert_mos_threshold": w.get("alert_mos_threshold", 0),
+                    "notes": w.get("notes", ""),
+                    "added_at": str(w.get("added_at", "")),
+                }
+                for w in _sqlite_get()
+            ]
+        except Exception:
+            rows = []
 
-    # Fallback to dashboard SQLite
-    try:
-        from portfolio import get_watchlist as _sqlite_get
-        items = _sqlite_get()
-        return [
+    # Bulk valuation enrichment — one SQL JOIN against analysis_cache.
+    # Missing tickers leave fair_value/mos as None → frontend shows "—".
+    tickers = [r["ticker"] for r in rows if r.get("ticker")]
+    bulk_valuation: dict[str, dict] = {}
+    if tickers:
+        try:
+            from backend.services.analysis_cache_service import get_valuation_bulk
+            bulk_valuation = get_valuation_bulk(tickers) or {}
+        except Exception as e:
+            logger.warning(f"watchlist bulk_valuation fetch failed: {e}")
+
+    def _val(ticker: str) -> dict:
+        bv = bulk_valuation.get(ticker)
+        if bv is None:
+            try:
+                from backend.services.analysis.utils import _canonicalize_ticker
+                bv = bulk_valuation.get(_canonicalize_ticker(ticker))
+            except Exception:
+                bv = None
+        return bv or {}
+
+    out: list[WatchlistItemResponse] = []
+    for r in rows:
+        v = _val(r.get("ticker", ""))
+        out.append(
             WatchlistItemResponse(
-                ticker=w.get("ticker", ""),
-                company_name=w.get("company_name", ""),
-                added_price=w.get("added_price", 0),
-                target_price=w.get("target_price", 0),
-                alert_mos_threshold=w.get("alert_mos_threshold", 0),
-                notes=w.get("notes", ""),
-                added_at=str(w.get("added_at", "")),
+                ticker=r.get("ticker", ""),
+                company_name=r.get("company_name", ""),
+                added_price=r.get("added_price", 0),
+                target_price=r.get("target_price", 0),
+                alert_mos_threshold=r.get("alert_mos_threshold", 0),
+                notes=r.get("notes", ""),
+                added_at=str(r.get("added_at", "")),
+                fair_value=v.get("fair_value"),
+                mos_pct=v.get("mos_pct"),
+                buffett_mos_pct=v.get("buffett_mos_pct"),
+                verdict=v.get("verdict") or None,
             )
-            for w in items
-        ]
-    except Exception:
-        return []
+        )
+    return out
 
 
 # ── POST /api/v1/watchlist — add ticker ───────────────────────

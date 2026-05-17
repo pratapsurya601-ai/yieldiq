@@ -193,6 +193,115 @@ def get_cached(ticker: str, max_age_hours: int = 24) -> Optional[dict]:
             pass
 
 
+def get_valuation_bulk(
+    tickers: list[str],
+    max_age_hours: int = 168,
+) -> dict[str, dict]:
+    """
+    Bulk-fetch the lightweight valuation slice
+    (``fair_value``, ``mos_pct``, ``buffett_mos_pct``, ``verdict``,
+    ``current_price``) for every ticker in ``tickers`` using a
+    single SQL JOIN. Designed for list endpoints that render
+    inline FV/MoS — portfolio holdings, watchlist — where calling
+    ``get_cached`` per row would be N round-trips.
+
+    Returns a dict keyed by the canonicalized ticker. Missing
+    tickers are simply omitted (callers render dashes). Cache
+    version is NOT enforced here: even an older-version row is
+    useful for "show me the last computed FV" display, and the
+    fresh recompute happens through the analysis endpoint, not
+    through this list view.
+
+    Never raises: DB issues degrade to an empty dict so the
+    portfolio/watchlist endpoint still serves prices + holdings.
+
+    Default ``max_age_hours=168`` (7 days) is intentionally
+    looser than the 24h ``get_cached`` window — a slightly stale
+    FV displayed inline is far better UX than a dash. Anything
+    older than a week is suppressed because the underlying
+    fundamentals likely shifted.
+    """
+    if not tickers:
+        return {}
+    sess = _get_session()
+    if sess is None:
+        return {}
+    # Canonicalize and dedupe; preserve the mapping back to caller form
+    # so callers passing FOO and FOO.NS both find the same row.
+    canon_map: dict[str, str] = {}
+    canon_set: set[str] = set()
+    for t in tickers:
+        if not t:
+            continue
+        c = _canonical_cache_key(t)
+        canon_map[t] = c
+        canon_set.add(c)
+    if not canon_set:
+        return {}
+    try:
+        rows = sess.execute(
+            text(
+                """
+                SELECT ticker,
+                       (payload->'valuation'->>'fair_value')::float    AS fair_value,
+                       (payload->'valuation'->>'mos_pct')::float       AS mos_pct,
+                       (payload->'valuation'->>'current_price')::float AS current_price,
+                       payload->'valuation'->>'verdict'                AS verdict
+                FROM analysis_cache
+                WHERE ticker = ANY(:tickers)
+                  AND computed_at > now() - (:hours || ' hours')::interval
+                """
+            ),
+            {
+                "tickers": list(canon_set),
+                "hours": str(max_age_hours),
+            },
+        ).fetchall()
+    except Exception as exc:
+        logger.warning(
+            "analysis_cache.get_valuation_bulk failed (%d tickers): %s",
+            len(canon_set), exc,
+        )
+        return {}
+    finally:
+        try:
+            sess.close()
+        except Exception:
+            pass
+
+    out: dict[str, dict] = {}
+    for row in rows or []:
+        ticker = row[0]
+        try:
+            fair_value = float(row[1]) if row[1] is not None else None
+        except (TypeError, ValueError):
+            fair_value = None
+        try:
+            mos_pct = float(row[2]) if row[2] is not None else None
+        except (TypeError, ValueError):
+            mos_pct = None
+        try:
+            cached_price = float(row[3]) if row[3] is not None else None
+        except (TypeError, ValueError):
+            cached_price = None
+        verdict = row[4] or ""
+        # Buffett MoS = (FV - CP) / FV * 100 — computed from the
+        # cached current_price at compute time. If the caller has
+        # a live price it can recompute; we expose the cached form
+        # here so the table renders something immediately.
+        buffett_mos_pct = None
+        if fair_value and fair_value > 0 and cached_price and cached_price > 0:
+            buffett_mos_pct = round((fair_value - cached_price) / fair_value * 100, 2)
+        out[ticker] = {
+            "fair_value": fair_value,
+            "mos_pct": mos_pct,
+            "buffett_mos_pct": buffett_mos_pct,
+            "verdict": verdict,
+            "cached_current_price": cached_price,
+        }
+    return out
+
+
 def _is_poisoned_payload(payload: dict) -> bool:
     """Heuristic: does this payload look like the 2026-05-17 MPHASIS junk?
 

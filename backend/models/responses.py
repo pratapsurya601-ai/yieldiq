@@ -561,6 +561,14 @@ class WatchlistItemResponse(BaseModel):
     alert_mos_threshold: float = 0
     notes: str = ""
     added_at: str = ""
+    # ── Inline valuation snapshot for the home dashboard rail ──
+    # All four are nullable: missing analysis_cache row → frontend
+    # renders the "—" dash. Populated by a single bulk JOIN against
+    # analysis_cache.payload->valuation in the GET endpoint.
+    fair_value: Optional[float] = None
+    mos_pct: Optional[float] = None
+    buffett_mos_pct: Optional[float] = None
+    verdict: Optional[str] = None
 
 
 # ── Market data response ──────────────────────────────────────
