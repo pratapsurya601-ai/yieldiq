@@ -2685,6 +2685,26 @@ class AnalysisService(NarrativeMixin):
                     else ("3y" if _rev_cagr_3y is not None else None)
                 ),
                 revenue_source=_data_source,
+                # Reverse-DCF upstream normalisation (Option B per
+                # docs/design/reverse-dcf-normalization.md, 2026-05-17).
+                # Read from enriched stashes populated by
+                # models/forecaster._compute_fcf_base during predict().
+                # normalized_fcf_cr converts the raw-rupee anchor (1e7
+                # rupees = 1 Cr) into the ₹ Crore convention used by
+                # the rest of QualityOutput / ratios. These two fields
+                # become the single source of truth for the reverse-
+                # DCF growth-axis anchor — eliminating the cyclical-
+                # trough distortion (RELIANCE 48.6% implied growth).
+                fcf_margin_5y=(
+                    float(enriched.get("normalized_fcf_margin"))
+                    if enriched.get("normalized_fcf_margin") is not None
+                    else None
+                ),
+                normalized_fcf_cr=(
+                    float(enriched.get("normalized_fcf_base")) / 1e7
+                    if enriched.get("normalized_fcf_base") is not None
+                    else None
+                ),
             ),
             insights=InsightCards(
                 patience_months=hp.get("min_months"),
