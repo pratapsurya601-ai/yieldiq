@@ -465,6 +465,36 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     except Exception:
         pass
 
+    # ── Reverse-DCF upstream normalisation (Option B per
+    # docs/design/reverse-dcf-normalization.md) ─────────────────
+    # Compute the 5y median historical FCF margin from positive
+    # (revenue, fcf) pairs and expose both that ratio and the
+    # already-normalised `base` value to downstream consumers
+    # (responses.QualityOutput → reverse_dcf_service). This is the
+    # single source of truth for "what FCF should the reverse-DCF
+    # solver anchor on?" — eliminating the cyclical-trough
+    # distortion that produced RELIANCE implied_growth = 48.6% on
+    # current_fcf. Forward-DCF behaviour is unchanged (it already
+    # uses `base`); we are only serialising an existing value.
+    try:
+        _hist_fcf_margin_5y: Optional[float] = None
+        if not cf_df.empty and not income_df.empty and "fcf" in cf_df.columns:
+            _merged = pd.merge(
+                cf_df[["year", "fcf"]],
+                income_df[["year", "revenue"]],
+                on="year", how="inner",
+            )
+            _merged = _merged[(_merged["revenue"] > 0) & (_merged["fcf"] > 0)].tail(5)
+            if len(_merged) >= 3:
+                _margins = _merged["fcf"] / _merged["revenue"]
+                _hist_fcf_margin_5y = float(np.median(_margins))
+        enriched["normalized_fcf_base"] = float(base) if base and base > 0 else None
+        enriched["normalized_fcf_margin"] = _hist_fcf_margin_5y
+    except Exception:
+        # Defensive — never block forward-DCF on the serialisation hook.
+        enriched.setdefault("normalized_fcf_base", float(base) if base and base > 0 else None)
+        enriched.setdefault("normalized_fcf_margin", None)
+
     return base, method
 
 
