@@ -1,6 +1,6 @@
 import type { Metadata } from "next"
 import Link from "next/link"
-import MarketingTopNav from "@/components/marketing/MarketingTopNav"
+// Nav is now provided by (marketing)/layout.tsx
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -67,8 +67,6 @@ export default async function NewsFeedPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <MarketingTopNav />
-
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-12">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-2">Corporate Filings Feed</h1>

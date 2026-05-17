@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react"
 import Link from "next/link"
-import MarketingTopNav from "@/components/marketing/MarketingTopNav"
+// Nav is now provided by (marketing)/layout.tsx
 
 interface Stock {
   ticker: string
@@ -90,8 +90,6 @@ export default function IndexDashboardClient({ data }: { data: DashboardData }) 
 
   return (
     <div className="min-h-screen bg-white">
-      <MarketingTopNav />
-
       {/* Header */}
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-12 sm:py-16">
         <div className="max-w-6xl mx-auto px-4 text-center">
