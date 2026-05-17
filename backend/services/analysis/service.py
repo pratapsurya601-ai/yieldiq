@@ -763,12 +763,21 @@ class AnalysisService(NarrativeMixin):
                 iv = 0
 
             # Method 3: PE-based fallback if P/B gave 0
-            if iv <= 0:
+            #
+            # SKIPPED for lenders (Banking, NBFC) — for balance-sheet
+            # lenders EPS is net-interest-income on the loan book, not
+            # free cash to equity, and EPS×fixed-multiple produced
+            # absurd FVs (e.g. MUTHOOTFIN ≈ 3×CMP). When P/BV cannot
+            # be computed we surface this as `data_limited` rather
+            # than emitting a misleading P/E-derived FV.
+            # Kept for Insurance because P/EV reporting is sparse and
+            # P/E is a reasonable secondary anchor for insurers.
+            if iv <= 0 and _sub_type == "Insurance":
                 _eps = (enriched.get("diluted_eps")
                         or raw.get("trailingEps")
                         or enriched.get("eps")
                         or raw.get("fh_eps_ttm") or 0)
-                _sector_pe = {"Banking": 15, "NBFC": 20, "Insurance": 18}.get(_sub_type, 15)
+                _sector_pe = 18
                 if _eps and _eps > 0:
                     iv = round(_eps * _sector_pe, 2)
                     bear_iv = round(_eps * (_sector_pe * 0.7), 2)
@@ -867,6 +876,24 @@ class AnalysisService(NarrativeMixin):
                 _val_method = (
                     f"{_financial_val_result.get('method', 'p_bv_peer')} "
                     f"(peer median)"
+                )
+
+            # Lender-only data_limited tag (feat/route-banks-nbfcs-to-pb-always):
+            # If every P/B path failed for a Banking / NBFC ticker and we
+            # are about to fall through to method 5 ("Insufficient data"
+            # → iv=price, fairly_valued), surface this as data_limited so
+            # downstream verdict logic does NOT call it "fairly_valued".
+            # This guarantees a bank/NBFC without BVPS is honestly
+            # flagged rather than mis-rated.
+            if (
+                _sub_type in ("Banking", "NBFC")
+                and (not _financial_val_result or
+                     _financial_val_result.get("fair_value", 0) <= 0)
+                and _val_method in ("", "Insufficient data")
+            ):
+                _data_issues.append(
+                    "[data_limited] No book value per share available "
+                    f"for {_sub_type} — P/B valuation not possible."
                 )
 
             iv_raw = iv
