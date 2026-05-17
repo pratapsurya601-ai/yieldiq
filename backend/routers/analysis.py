@@ -1153,18 +1153,38 @@ async def _build_yieldiq50() -> ScreenerResponse:
                           s.sector,
                           fv.mos_pct,
                           fv.verdict,
-                          mm.market_cap_cr
+                          mm.market_cap_cr,
+                          fv.fair_value,
+                          fv.price
                         FROM latest_fv fv
                         JOIN stocks s ON s.ticker = fv.ticker_bare
                         LEFT JOIN latest_mm mm ON mm.ticker = fv.ticker_bare
                         WHERE fv.mos_pct IS NOT NULL
                           AND fv.mos_pct > 0
-                          AND fv.mos_pct <= 100
+                          -- 2026-05-17 tighten: cap MoS at 50% (was 100).
+                          -- |mos|>50 implies tiny FV/price denominators —
+                          -- HUHTAMAKI surfaced at +99% under the old cap.
+                          AND fv.mos_pct <= 50
+                          -- Positive fair value required — fv=0 means the
+                          -- DCF blew up / IPO row with no model output.
+                          AND fv.fair_value > 0
                           AND s.is_active = TRUE
                           AND (fv.verdict IS NULL OR fv.verdict NOT IN (
                             'avoid','under_review','data_limited','overvalued'
                           ))
                           AND COALESCE(mm.market_cap_cr, 0) >= 1000
+                          -- Stale fair_value_history rows must not surface
+                          -- when the live analysis_cache verdict has since
+                          -- flipped to a bad bucket. YESBANK was the case
+                          -- in point (overvalued in cache, "undervalued"
+                          -- in the day-old fair_value_history row).
+                          AND EXISTS (
+                            SELECT 1 FROM analysis_cache ac
+                            WHERE ac.ticker = fv.ticker_bare
+                              AND (ac.payload->'valuation'->>'verdict') NOT IN (
+                                'avoid','under_review','data_limited','overvalued'
+                              )
+                          )
                         ORDER BY fv.mos_pct DESC NULLS LAST
                         LIMIT 80
                     """)).fetchall()
@@ -1176,12 +1196,18 @@ async def _build_yieldiq50() -> ScreenerResponse:
                         # synthesize a reasonable proxy from MoS so the
                         # row renders without "—".
                         mos = float(r[3]) if r[3] is not None else 0.0
-                        # Defensive clamp — SQL already filters |mos|<=100
-                        # but belt-and-braces for any historical row that
-                        # slipped through with a stale unclamped value.
-                        if not (0 < mos <= 100):
+                        # Defensive clamp — SQL already filters mos<=50
+                        # (2026-05-17 tighten) but belt-and-braces for any
+                        # historical row that slipped through with stale value.
+                        if not (0 < mos <= 50):
                             continue
-                        synth_score = min(95, max(35, int(50 + mos * 0.5)))
+                        # synth_score capped at 50 floor so the downstream
+                        # `_ok_for_top50(score>=50)` gate never drops a
+                        # row purely on the synthesised proxy. Real cache
+                        # override (below) replaces with live score.
+                        synth_score = min(95, max(50, int(50 + mos * 0.5)))
+                        _row_fv = float(r[6]) if len(r) > 6 and r[6] is not None else 0.0
+                        _row_cp = float(r[7]) if len(r) > 7 and r[7] is not None else 0.0
                         # 2026-04-29 hotfix: ScreenerStock.moat / sector are
                         # typed as `str` (non-Optional, default ""), so passing
                         # `None` here raised a pydantic ValidationError on the
@@ -1202,6 +1228,8 @@ async def _build_yieldiq50() -> ScreenerResponse:
                             ticker=t,
                             company_name=r[1] or t,
                             score=synth_score,
+                            fair_value=_row_fv,
+                            current_price=_row_cp,
                             margin_of_safety=round(mos, 1),
                             buffett_mos_pct=_buffett,
                             moat="",
@@ -1247,10 +1275,18 @@ async def _build_yieldiq50() -> ScreenerResponse:
                     _live_buffett = round(_u_dec / (1 + _u_dec) * 100.0, 1) if (1 + _u_dec) > 0 else None
                 except Exception:
                     _live_buffett = None
+            # 2026-05-17: surface fair_value + current_price from the
+            # cached payload so the downstream `_ok_for_top50` integrity
+            # filter can enforce fv>0 (rejects DCF blow-ups / IPO rows
+            # like WAAREEINDO that pass score/MoS but have no real FV).
+            _live_fv = v.get("fair_value") or 0
+            _live_cp = v.get("current_price") or v.get("price") or 0
             by_ticker[t] = ScreenerStock(
                 ticker=t,
                 company_name=c.get("company_name") or prev.company_name,
                 score=int(live_score),
+                fair_value=float(_live_fv) if _live_fv is not None else 0,
+                current_price=float(_live_cp) if _live_cp is not None else 0,
                 margin_of_safety=round(float(live_mos), 1),
                 buffett_mos_pct=_live_buffett,
                 moat=q.get("moat") or prev.moat,
@@ -1285,9 +1321,34 @@ async def _build_yieldiq50() -> ScreenerResponse:
             mos = float(s.margin_of_safety)
         except Exception:
             return False
-        if not (0 < mos <= 100):
+        # 2026-05-17 tighten: cap MoS at 50% (was 100). HUHTAMAKI was
+        # surfacing at the +99% clamp ceiling — implausible for a mid-
+        # cap consumer name and a clear signal of FV/price-denominator
+        # blow-up rather than a genuine bargain.
+        if not (0 < mos <= 50):
             return False
         if (s.verdict or "").lower() in _BAD_VERDICTS:
+            return False
+        # Score floor: anything below 50 is below the "quality" line
+        # of the YieldIQ score (a 0-100 composite). COALINDIA/ORBTEXP/
+        # EMBDL were surfacing at score=40 with 40-70% MoS.
+        if (getattr(s, "score", None) or 0) < 50:
+            return False
+        # Positive fair value required — fv<0 is always a broken DCF run
+        # (recent IPOs / data-sparse names like WAAREEINDO). We allow
+        # fv==0 to mean "source didn't set the field" (CSV / pre-cache-
+        # merge rows) so we don't blank the rail; upstream SQL + the
+        # cache-merge path explicitly enforce fv>0 when they touch the row.
+        try:
+            fv = float(getattr(s, "fair_value", 0) or 0)
+        except Exception:
+            fv = 0.0
+        if fv < 0:
+            return False
+        # dcf_reliable check when the field exists on the row (analysis
+        # cache merge path attaches it; the fair_value_history fallback
+        # path does not — it'll just no-op via the hasattr guard).
+        if hasattr(s, "dcf_reliable") and getattr(s, "dcf_reliable") is False:
             return False
         return True
 
@@ -1406,10 +1467,16 @@ async def get_top_pick(user: dict = Depends(get_current_user)):
     if not results:
         return None
 
-    # Filter for valid high-conviction stocks
+    # Filter for valid high-conviction stocks.
+    # 2026-05-17 tighten: the headline "top pick" card on the home
+    # dashboard needs a higher bar than the rail. Require score >= 60
+    # and 10% <= MoS <= 40% so we never surface either low-quality
+    # names or implausibly-large discounts (typical signal of a stale
+    # FV or DCF blow-up).
     valid = [
         r for r in results
-        if getattr(r, "score", 0) > 50 and getattr(r, "margin_of_safety", 0) > 5
+        if getattr(r, "score", 0) >= 60
+        and 10 <= getattr(r, "margin_of_safety", 0) <= 40
     ]
 
     if valid:

@@ -126,6 +126,12 @@ from backend.services.analysis.utils import (
     _build_structured_flags,
     _debt_ebitda_label,
 )
+from backend.services.analysis.ipo_framework import (
+    MIN_ANNUAL_REPORTS_FOR_DCF as _IPO_MIN_ANNUAL_REPORTS,
+    compute_sector_relative_fv as _ipo_compute_sector_relative_fv,
+    is_recent_ipo as _ipo_is_recent_ipo,
+    ipo_caveat as _ipo_caveat,
+)
 from backend.services.analysis.db import (
     _get_pipeline_session,
     _query_ttm_financials,
@@ -763,12 +769,21 @@ class AnalysisService(NarrativeMixin):
                 iv = 0
 
             # Method 3: PE-based fallback if P/B gave 0
-            if iv <= 0:
+            #
+            # SKIPPED for lenders (Banking, NBFC) — for balance-sheet
+            # lenders EPS is net-interest-income on the loan book, not
+            # free cash to equity, and EPS×fixed-multiple produced
+            # absurd FVs (e.g. MUTHOOTFIN ≈ 3×CMP). When P/BV cannot
+            # be computed we surface this as `data_limited` rather
+            # than emitting a misleading P/E-derived FV.
+            # Kept for Insurance because P/EV reporting is sparse and
+            # P/E is a reasonable secondary anchor for insurers.
+            if iv <= 0 and _sub_type == "Insurance":
                 _eps = (enriched.get("diluted_eps")
                         or raw.get("trailingEps")
                         or enriched.get("eps")
                         or raw.get("fh_eps_ttm") or 0)
-                _sector_pe = {"Banking": 15, "NBFC": 20, "Insurance": 18}.get(_sub_type, 15)
+                _sector_pe = 18
                 if _eps and _eps > 0:
                     iv = round(_eps * _sector_pe, 2)
                     bear_iv = round(_eps * (_sector_pe * 0.7), 2)
@@ -867,6 +882,24 @@ class AnalysisService(NarrativeMixin):
                 _val_method = (
                     f"{_financial_val_result.get('method', 'p_bv_peer')} "
                     f"(peer median)"
+                )
+
+            # Lender-only data_limited tag (feat/route-banks-nbfcs-to-pb-always):
+            # If every P/B path failed for a Banking / NBFC ticker and we
+            # are about to fall through to method 5 ("Insufficient data"
+            # → iv=price, fairly_valued), surface this as data_limited so
+            # downstream verdict logic does NOT call it "fairly_valued".
+            # This guarantees a bank/NBFC without BVPS is honestly
+            # flagged rather than mis-rated.
+            if (
+                _sub_type in ("Banking", "NBFC")
+                and (not _financial_val_result or
+                     _financial_val_result.get("fair_value", 0) <= 0)
+                and _val_method in ("", "Insufficient data")
+            ):
+                _data_issues.append(
+                    "[data_limited] No book value per share available "
+                    f"for {_sub_type} — P/B valuation not possible."
                 )
 
             iv_raw = iv
@@ -1216,6 +1249,97 @@ class AnalysisService(NarrativeMixin):
             except Exception:
                 pass
 
+        # ── feat/recent-ipo-sector-relative-valuation (2026-05-17) ───
+        # Recent IPOs (<3 years listed, or <3 annual reports on file)
+        # don't have enough audited FCF history for the generic DCF to
+        # produce a defensible FV. WAAREEINDO (listed 2024) and ETERNAL
+        # (Zomato, listed 2021) were the canonical garbage-FV cases.
+        # When detected, we replace the DCF FV with a sector-relative
+        # FV derived from cohort P/E (or a coarse P/S fallback when the
+        # ticker is pre-profit). The verdict is capped at `data_limited`
+        # unless the deviation from price is >30% in either direction
+        # (clear-signal threshold). Non-IPO tickers (RELIANCE, INFY,
+        # everything else on the canary list) skip this block entirely.
+        _is_recent_ipo = False
+        _ipo_listing_date: str | None = None
+        _ipo_sector_rel: dict | None = None
+        try:
+            _listing_date_raw = (
+                raw.get("listing_date") if isinstance(raw, dict) else None
+            )
+            # Data-side fallback: count annual rows already in `enriched`.
+            _income_df_for_ipo = enriched.get("income_df")
+            _n_annual = 0
+            if _income_df_for_ipo is not None and hasattr(
+                _income_df_for_ipo, "shape"
+            ):
+                try:
+                    _n_annual = int(_income_df_for_ipo.shape[0])
+                except Exception:
+                    _n_annual = 0
+            _data_side_recent = _n_annual > 0 and _n_annual < _IPO_MIN_ANNUAL_REPORTS
+            if _ipo_is_recent_ipo(ticker, _listing_date_raw) or _data_side_recent:
+                _is_recent_ipo = True
+                _ipo_listing_date = _listing_date_raw
+        except Exception:
+            _is_recent_ipo = False
+
+        if _is_recent_ipo and not is_financial and price and price > 0:
+            try:
+                from backend.services.sector_percentile import (
+                    compute_sector_cohort as _ipo_cohort_fn,
+                )
+                _sess_ipo = _get_pipeline_session()
+                _cohort_rows: list[dict] = []
+                if _sess_ipo is not None:
+                    try:
+                        _cohort_rows = _ipo_cohort_fn(
+                            sector_label=enriched.get("sector_name")
+                            or raw.get("sector_name")
+                            or raw.get("sector")
+                            or "",
+                            db_session=_sess_ipo,
+                            industry_label=raw.get("industry")
+                            or enriched.get("industry"),
+                        ) or []
+                    finally:
+                        try:
+                            _sess_ipo.close()
+                        except Exception:
+                            pass
+                # Derive eps_ttm + revenue_per_share from enriched.
+                _shares_ipo = float(enriched.get("shares") or 0) or 0
+                _eps_ttm = None
+                _rev_ps = None
+                if _shares_ipo > 0:
+                    _pat_ipo = enriched.get("latest_pat")
+                    _rev_ipo = enriched.get("latest_revenue")
+                    if _pat_ipo is not None:
+                        try:
+                            _eps_ttm = float(_pat_ipo) / _shares_ipo
+                        except Exception:
+                            _eps_ttm = None
+                    if _rev_ipo is not None:
+                        try:
+                            _rev_ps = float(_rev_ipo) / _shares_ipo
+                        except Exception:
+                            _rev_ps = None
+                _ipo_sector_rel = _ipo_compute_sector_relative_fv(
+                    eps_ttm=_eps_ttm,
+                    revenue_per_share=_rev_ps,
+                    cohort=_cohort_rows,
+                    price=float(price),
+                )
+                # Substitute FV when the helper produced one. Otherwise
+                # leave the DCF iv as-is and let the downstream verdict
+                # logic flip to data_limited via the IPO note.
+                if _ipo_sector_rel.get("fair_value"):
+                    iv = float(_ipo_sector_rel["fair_value"])
+                    iv_raw = iv
+            except Exception:
+                # Recent-IPO override must never break analysis.
+                _ipo_sector_rel = None
+
         # ── feat/peer-cap (2026-04-27): peer-multiple sanity ceiling ─
         # If DCF FV is more than 1.5× the lower of peer-median
         # P/E-implied / EV/EBITDA-implied (or P/B-implied for banks),
@@ -1228,7 +1352,12 @@ class AnalysisService(NarrativeMixin):
         _fair_value_source: str = "dcf"
         _peer_cap_details: PeerCapDetails | None = None
         try:
-            if iv and iv > 0 and not is_financial:
+            if _is_recent_ipo:
+                # Recent IPOs are valued sector-relative, not via DCF —
+                # the peer-cap (which assumes a DCF FV needs taming)
+                # would be a category error.
+                _pc = None
+            elif iv and iv > 0 and not is_financial:
                 _pc = _compute_peer_cap(ticker)
             elif iv and iv > 0 and is_financial:
                 # Financials still get the peer-cap check, routed
@@ -2282,6 +2411,28 @@ class AnalysisService(NarrativeMixin):
         # entirely (pure holdco — DCF on holdco itself is meaningless).
         # ROADMAP: build SOTP engine for the conglomerates. Caveat
         # banner is the bridge. See ticker_overrides.py.
+        # ── Recent-IPO verdict cap (feat/recent-ipo-sector-relative) ─
+        # When the IPO override fired, cap the verdict at `data_limited`
+        # unless the sector-relative deviation produced a clear signal
+        # (>30% above/below cohort-implied FV). Surface a caveat note
+        # so the frontend renders the "Recent IPO" badge + tooltip.
+        if _is_recent_ipo:
+            _hint = (
+                _ipo_sector_rel.get("verdict_hint") if _ipo_sector_rel else None
+            )
+            if _hint in ("undervalued", "overvalued"):
+                verdict = _hint
+            else:
+                verdict = "data_limited"
+            _fair_value_source = "sector_relative_recent_ipo"
+            try:
+                _ipo_msg = _ipo_caveat(ticker, _ipo_listing_date or "")
+                _data_issues = list(_data_issues) + [
+                    f"[recent_ipo] {_ipo_msg}"
+                ]
+            except Exception:
+                pass
+
         # NOTE: _override was resolved earlier (before the Score-MoS
         # dominance cap) so the cap can be exempted for caveated names.
         # Reuse that result here.
@@ -2378,14 +2529,24 @@ class AnalysisService(NarrativeMixin):
                 current_price_source=_data_source,
                 fair_value_computed_at=_ts,
                 valuation_engine_used=(
-                    "peer_capped"
-                    if _fair_value_source == "peer_capped"
-                    else ("pb_residual_income" if is_financial else "dcf")
+                    "sector_relative_recent_ipo"
+                    if _fair_value_source == "sector_relative_recent_ipo"
+                    else (
+                        "peer_capped"
+                        if _fair_value_source == "peer_capped"
+                        else ("pb_residual_income" if is_financial else "dcf")
+                    )
                 ),
                 # feat/peer-cap (2026-04-27): peer-multiple sanity
                 # ceiling. fair_value_source flips to "peer_capped"
                 # when the cap fires; details carry the audit trail.
-                fair_value_source=_fair_value_source,
+                # IPO override surfaces via `valuation_engine_used`;
+                # `fair_value_source` stays inside its Literal contract.
+                fair_value_source=(
+                    "dcf"
+                    if _fair_value_source == "sector_relative_recent_ipo"
+                    else _fair_value_source
+                ),
                 peer_cap_details=_peer_cap_details,
             ),
             quality=QualityOutput(

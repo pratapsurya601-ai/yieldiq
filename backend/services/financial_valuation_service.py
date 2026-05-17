@@ -31,22 +31,45 @@ logger = logging.getLogger("yieldiq.financial_valuation")
 
 
 # ── Peer groups (clean tickers, no .NS/.BO) ─────────────────────
+#
+# 2026-05-17 (feat/route-banks-nbfcs-to-pb-always): split the old
+# `growth_nbfc` (which routed to P/E and produced absurd FVs for
+# pure lenders like MUTHOOTFIN — EPS×25 ≈ 3× CMP) into:
+#
+#   * lending_nbfc — gold-loan, consumer-credit, vehicle-finance
+#     and other balance-sheet lenders. Their economics are book-
+#     value-driven exactly like banks; P/BV is the correct frame.
+#   * asset_mgmt   — capital-light AMCs/exchanges. P/E continues
+#     to work here (no loan book, fees scale with AUM).
+#
+# Anything that *lends* — bank, NBFC, HFC, govt-NBFC, gold-loan,
+# SFB — MUST be on a P/BV path. Insurance keeps P/BV / P/EV.
+# AMCs / brokers / exchanges keep P/E.
 FINANCIAL_PEER_GROUPS: dict[str, list[str]] = {
     "psu_banks":         ["SBIN", "BANKBARODA", "PNB", "CANBK", "UNIONBANK", "INDIANB"],
     "private_banks":     ["HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK", "INDUSINDBK", "FEDERALBNK"],
-    "growth_nbfc":       ["BAJFINANCE", "BAJAJFINSV", "CHOLAFIN", "MUTHOOTFIN", "MANAPPURAM", "SBICARD"],
-    "govt_nbfc":         ["PFC", "REC", "IRFC", "HUDCO"],
-    "life_insurance":    ["LICI", "HDFCLIFE", "SBILIFE"],
-    "general_insurance": ["ICICIGI", "STARHEALTH"],
-    "housing_finance":   ["LICHSGFIN", "CANFINHOME", "PNBHOUSING", "AAVAS", "HOMEFIRST"],
-    "asset_mgmt":        ["HDFCAMC", "ICICIAMC"],
+    # Lending NBFCs — balance-sheet lenders, P/BV always.
+    "lending_nbfc":      [
+        "BAJFINANCE", "BAJAJFINSV", "CHOLAFIN",
+        "MUTHOOTFIN", "MANAPPURAM",
+        "SHRIRAMFIN", "SUNDARMFIN",
+        "M&MFIN", "SBICARD", "POONAWALLA",
+        "BAJAJHLDNG", "CREDITACC",
+    ],
+    "govt_nbfc":         ["PFC", "REC", "RECLTD", "IRFC", "HUDCO"],
+    "life_insurance":    ["LICI", "HDFCLIFE", "SBILIFE", "ICICIPRULI"],
+    "general_insurance": ["ICICIGI", "STARHEALTH", "NIACL"],
+    "housing_finance":   ["LICHSGFIN", "LICHOUSFIN", "CANFINHOME", "PNBHOUSING", "AAVAS", "HOMEFIRST"],
+    # Capital-light: AMCs, exchanges, brokers. P/E works here.
+    "asset_mgmt":        ["HDFCAMC", "ICICIAMC", "NIPPONLIFE", "UTIAMC"],
 }
 
-# Which valuation method each group uses
+# Which valuation method each group uses.
+# Every lender (bank, NBFC, HFC, govt-NBFC) → P/BV. AMCs → P/E.
 _GROUP_METHOD = {
     "psu_banks":         "p_bv_peer",
     "private_banks":     "p_bv_peer",
-    "growth_nbfc":       "p_e_peer",
+    "lending_nbfc":      "p_bv_peer",
     "govt_nbfc":         "p_bv_peer",
     "life_insurance":    "p_ev_peer",
     "general_insurance": "p_bv_peer",
@@ -59,7 +82,7 @@ _GROUP_METHOD = {
 _FALLBACK_PB = {
     "psu_banks":         (0.9, 0.14),   # (median P/BV, median ROE as decimal)
     "private_banks":     (2.4, 0.16),
-    "growth_nbfc":       (4.0, 0.20),
+    "lending_nbfc":      (4.0, 0.20),
     "govt_nbfc":         (1.2, 0.18),
     "life_insurance":    (2.0, 0.14),   # P/EV approximated via P/BV
     "general_insurance": (3.0, 0.15),
@@ -68,7 +91,6 @@ _FALLBACK_PB = {
 }
 
 _FALLBACK_PE = {
-    "growth_nbfc":       (25.0, 0.20),
     "asset_mgmt":        (30.0, 0.25),
 }
 
@@ -346,6 +368,10 @@ def _compute_pbv_path(
         "base_case": base,
         "bull_case": bull,
         "method": "p_bv_peer",
+        # Stable, machine-readable tag for downstream consumers
+        # (canary harness, badge labels, analytics). Mirrors `method`
+        # but never changes shape — `method` is human-facing string.
+        "valuation_method": "pb_ratio",
         "confidence_score": conf,
         "_meta": {
             "peer_median_pb": round(median_pb, 2),
@@ -387,6 +413,7 @@ def _compute_pe_path(
         "base_case": base,
         "bull_case": bull,
         "method": "p_e_peer",
+        "valuation_method": "pe_ratio",
         "confidence_score": conf,
         "_meta": {
             "peer_median_pe": round(median_pe, 2),
@@ -427,27 +454,36 @@ def compute_financial_fair_value(
     method = _GROUP_METHOD.get(group, "p_bv_peer")
     roe = _extract_roe(company_info, financials)
 
-    # Try P/E first for growth NBFCs / AMCs
+    # AMCs / brokers / exchanges → P/E first. These are capital-light
+    # fee businesses; book value is uninformative. Fall back to P/BV
+    # only if EPS is missing (better than nothing for an AMC).
     if method == "p_e_peer":
         eps = _extract_eps(company_info, financials)
         if eps and eps > 0:
             result = _compute_pe_path(ticker, price, eps, medians)
             if result:
                 return result
-        # Fall through to P/BV as backup
+        bvps = _extract_bvps(company_info, financials)
+        if bvps and bvps > 0:
+            return _compute_pbv_path(ticker, price, bvps, roe, medians)
+        return None
 
-    # P/BV path (default for banks, govt NBFCs, insurers, HFCs)
+    # All lenders (banks / NBFCs / HFCs / govt-NBFCs) and insurers
+    # are P/BV-only. EPS for a bank is not a meaningful fair-value
+    # anchor (it's net interest income on the loan book, not free
+    # cash to equity), and using it produced absurd FVs for gold-
+    # loan NBFCs like MUTHOOTFIN (EPS×25 ≈ 3× CMP).
+    #
+    # If BVPS is missing we explicitly return None — the caller
+    # surfaces this as `data_limited` rather than silently falling
+    # through to a P/E or DCF path that would mis-state the FV.
     bvps = _extract_bvps(company_info, financials)
     if bvps and bvps > 0:
-        result = _compute_pbv_path(ticker, price, bvps, roe, medians)
-        if result:
-            return result
+        return _compute_pbv_path(ticker, price, bvps, roe, medians)
 
-    # P/E fallback if P/BV unavailable
-    eps = _extract_eps(company_info, financials)
-    if eps and eps > 0 and medians.get("median_pe"):
-        result = _compute_pe_path(ticker, price, eps, medians)
-        if result:
-            return result
-
+    logger.info(
+        "financial_valuation: no BVPS for %s (group=%s) — returning "
+        "None so caller can mark data_limited.",
+        ticker, group,
+    )
     return None
