@@ -128,11 +128,22 @@ DIRECT_PEERS: dict[str, list[str]] = {
 
 # ── Public helpers for peer lookup ───────────────────────────────
 def get_peers_for_ticker(ticker: str) -> list[str]:
-    """Return peer list (excluding the ticker itself) or [] if not grouped."""
-    t = (ticker or "").upper()
-    for group_peers in DIRECT_PEERS.values():
-        if t in group_peers:
-            return [p for p in group_peers if p != t]
+    """Return peer list (excluding the ticker itself) or [] if not grouped.
+
+    Normalizes ticker suffix: peer groups store NSE tickers as ``SYMBOL.NS``
+    (and BSE as ``SYMBOL.BO``) but callers commonly pass the bare symbol.
+    Try the input as-is, then ``.NS``, then ``.BO`` before giving up.
+    """
+    base = (ticker or "").upper().strip()
+    if not base:
+        return []
+    candidates = [base]
+    if not base.endswith(".NS") and not base.endswith(".BO"):
+        candidates.extend([base + ".NS", base + ".BO"])
+    for t in candidates:
+        for group_peers in DIRECT_PEERS.values():
+            if t in group_peers:
+                return [p for p in group_peers if p != t]
     return []
 
 
