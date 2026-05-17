@@ -18,6 +18,7 @@ import Cookies from "js-cookie"
 import { exchangeGoogleIdToken, getOnboardingStatus } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
 import { trackSignupCompleted } from "@/lib/analytics"
+import { pickGoogleIdToken } from "./pickGoogleIdToken"
 
 function CallbackInner() {
   const router = useRouter()
@@ -40,16 +41,21 @@ function CallbackInner() {
           throw new Error(errDesc)
         }
 
-        // Prefer Google's id_token (verifiable via tokeninfo). Fall back to
-        // provider_id_token (newer supabase-js naming) just in case.
-        const idToken =
-          params.get("provider_token") ||
-          params.get("id_token") ||
-          params.get("provider_id_token") ||
-          ""
-        if (!idToken) {
-          throw new Error("Google sign-in did not return a verifiable token. Please try again.")
+        // Prefer `provider_id_token` (Google's id_token JWT — verifiable via
+        // tokeninfo). Fall back to Supabase's own `id_token` only when it is a
+        // real 3-segment JWT. NEVER use `provider_token`: that's Google's
+        // OPAQUE OAuth access_token, which tokeninfo rejects with HTTP 400
+        // and surfaces as "Google rejected the sign-in token."
+        const picked = pickGoogleIdToken(params)
+        if (picked.fellBack) {
+          console.warn(
+            "[auth/callback] provider_id_token missing — falling back to Supabase id_token",
+          )
         }
+        if (!picked.idToken) {
+          throw new Error("Google sign-in didn't return an ID token. Please try again.")
+        }
+        const idToken = picked.idToken
 
         // Carry through ?next= and ref code stashed by GoogleSignInButton.
         let next: string | null = null
