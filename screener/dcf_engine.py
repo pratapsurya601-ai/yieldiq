@@ -514,6 +514,41 @@ def upside_pct(intrinsic_value: float, current_price: float) -> float:
 margin_of_safety = upside_pct
 
 
+# ══════════════════════════════════════════════════════════════
+# BUFFETT MARGIN OF SAFETY (Step B, 2026-05-17)
+# ══════════════════════════════════════════════════════════════
+#
+# Real Buffett MoS = (FV - Price) / FV — the *discount to fair
+# value*. Higher = larger cushion. Distinct from `upside_pct`
+# above which uses price as the denominator. Returned as a
+# percentage already (callers do NOT multiply by 100).
+#
+# Edge cases:
+#   * FV <= 0  → return None (no fair value, MoS undefined)
+#   * FV == CP → 0.0
+#   * FV  < CP → negative (correct: stock trades above FV, no MoS)
+#
+# Example (HUHTAMAKI): FV=357.35, CP=179.36
+#   upside_pct      = (357.35-179.36)/179.36*100 = +99.2%
+#   buffett_mos_pct = (357.35-179.36)/357.35*100 = +49.8%
+
+def buffett_mos_pct(fair_value: float, current_price: float) -> float | None:
+    """Buffett margin of safety as a percentage = (FV-Price)/FV * 100.
+
+    Returns ``None`` when fair_value is non-positive (MoS undefined).
+    Negative values indicate the stock is priced ABOVE the model's
+    fair value (no margin of safety).
+    """
+    try:
+        fv = float(fair_value)
+        cp = float(current_price)
+    except (TypeError, ValueError):
+        return None
+    if fv <= 0:
+        return None
+    return (fv - cp) / fv * 100.0
+
+
 def assign_signal(
     mos: float,
     suspicious: bool = False,

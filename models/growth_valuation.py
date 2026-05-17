@@ -121,6 +121,11 @@ def compute_growth_valuation(
         verdict, fv_mult, reasoning = _classify_valuation(implied_g, rev_growth)
         fair_value = round(price * fv_mult, 2)
         mos_pct = round((fair_value - price) / price * 100, 1) if price > 0 else 0.0
+        # Step B (2026-05-17): true Buffett MoS = (FV - Price) / FV * 100.
+        buffett_mos = (
+            round((fair_value - price) / fair_value * 100, 1)
+            if fair_value > 0 else None
+        )
 
         log.info(
             "[%s] growth path: implied_g=%.1f%% hist_g=%.1f%% -> FV=%.2f (%s)",
@@ -131,6 +136,7 @@ def compute_growth_valuation(
             "fair_value": fair_value,
             "verdict": verdict,
             "margin_of_safety": mos_pct,
+            "buffett_mos_pct": buffett_mos,
             "implied_growth_rate": round(implied_g, 4),
             "historical_growth_rate": round(rev_growth, 4),
             "terminal_ps": terminal_ps,

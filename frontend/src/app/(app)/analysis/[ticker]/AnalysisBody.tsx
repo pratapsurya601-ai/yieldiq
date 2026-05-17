@@ -986,12 +986,19 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               ? baseScenario.mos_pct
               : valuation.margin_of_safety
 
+          // Step B (2026-05-17): pass through the new buffett_mos_pct
+          // field so the hero can render the "Margin of Safety (Buffett)"
+          // chip alongside the legacy upside-% chip. Pre-PR cached
+          // payloads lack the field; EditorialHero skips the chip then.
+          const headlineBuffettMos =
+            valuation.buffett_mos_pct ?? null
           return prismResolved ? (
             <EditorialHero
               data={prismResolved}
               fairValue={headlineFairValue}
               currentPrice={valuation.current_price}
               marginOfSafety={headlineMos}
+              buffettMosPct={headlineBuffettMos}
               moat={quality.moat}
               currency={company.currency}
               score100={quality.yieldiq_score}

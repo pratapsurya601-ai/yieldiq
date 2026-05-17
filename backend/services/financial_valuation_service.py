@@ -328,6 +328,8 @@ def _compute_pbv_path(
     bull = round(bvps * fair_pb * 1.3, 2)
 
     mos_pct = ((base - price) / price * 100.0) if price > 0 else 0.0
+    # Step B (2026-05-17): true Buffett MoS = (FV - Price) / FV * 100.
+    _buffett_mos = ((base - price) / base * 100.0) if base > 0 else None
 
     # Confidence: more peers with real data = higher confidence.
     n_pb = medians.get("n_pb", 0) or 0
@@ -338,6 +340,7 @@ def _compute_pbv_path(
     return {
         "fair_value": base,
         "margin_of_safety": round(mos_pct, 1),
+        "buffett_mos_pct": round(_buffett_mos, 1) if _buffett_mos is not None else None,
         "verdict": _verdict_from_mos(mos_pct),
         "bear_case": bear,
         "base_case": base,
@@ -368,6 +371,8 @@ def _compute_pe_path(
     bull = round(eps * median_pe * 1.3, 2)
 
     mos_pct = ((base - price) / price * 100.0) if price > 0 else 0.0
+    # Step B (2026-05-17): true Buffett MoS = (FV - Price) / FV * 100.
+    _buffett_mos = ((base - price) / base * 100.0) if base > 0 else None
 
     n_pe = medians.get("n_pe", 0) or 0
     conf = 50 + min(25, n_pe * 5)
@@ -376,6 +381,7 @@ def _compute_pe_path(
     return {
         "fair_value": base,
         "margin_of_safety": round(mos_pct, 1),
+        "buffett_mos_pct": round(_buffett_mos, 1) if _buffett_mos is not None else None,
         "verdict": _verdict_from_mos(mos_pct),
         "bear_case": bear,
         "base_case": base,

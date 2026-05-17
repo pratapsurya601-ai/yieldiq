@@ -66,6 +66,21 @@ def check_consistency(r: dict) -> list[str]:
                 f"upside_pct={mos:.1f}% inconsistent with (FV-CMP)/CMP={expected_upside_pct:.1f}%"
             )
 
+    # Step B (2026-05-17): Buffett MoS = (fv-cmp)/fv*100 invariant.
+    # Only checked when the field is populated AND fv>0. None means
+    # the writer couldn't compute it (FV<=0); not an error.
+    buffett = _f(r.get("buffett_mos_pct"))
+    if (
+        fv is not None and cmp_price is not None and fv > 0
+        and cmp_price > 0 and buffett is not None
+    ):
+        expected_buffett = (fv - cmp_price) / fv * 100.0
+        if abs(expected_buffett - buffett) > 2.0:
+            errors.append(
+                f"buffett_mos_pct={buffett:.1f}% inconsistent with "
+                f"(FV-CMP)/FV={expected_buffett:.1f}%"
+            )
+
     # WACC must exceed risk-free rate (India RFR ~6.5%, so wacc >= 0.04 floor)
     if wacc is not None:
         if wacc < 0.04:

@@ -53,7 +53,7 @@ from data.processor import compute_metrics
 from data.validator import validate_stock_data
 from models.forecaster import FCFForecaster, compute_confidence_score
 from screener.dcf_engine import (
-    DCFEngine, margin_of_safety, assign_signal,
+    DCFEngine, margin_of_safety, assign_signal, buffett_mos_pct,
 )
 from screener.piotroski import compute_piotroski_fscore
 from screener.moat_engine import compute_moat_score, apply_moat_adjustments
@@ -1316,9 +1316,12 @@ class AnalysisService(NarrativeMixin):
             d = scenarios_raw.get(key, {})
             _raw = d.get("mos_pct", 0)
             _disp, _clamp = display_mos(_raw)
+            _iv = d.get("iv", 0) or 0
+            _bmos = buffett_mos_pct(_iv, price)
             return ScenarioCase(
-                iv=d.get("iv", 0),
+                iv=_iv,
                 mos_pct=(_disp if _disp is not None else 0),
+                buffett_mos_pct=round(_bmos, 1) if _bmos is not None else None,
                 mos_clamped=_clamp,
                 growth=d.get("growth", 0), wacc=d.get("wacc", wacc),
                 term_g=d.get("term_g", terminal_g),
@@ -1488,15 +1491,19 @@ class AnalysisService(NarrativeMixin):
             _bull_raw = ((bull_iv - price) / price * 100) if price > 0 else 0
             _bear_d, _bear_c = display_mos(_bear_raw)
             _bull_d, _bull_c = display_mos(_bull_raw)
+            _bear_bmos = buffett_mos_pct(bear_iv, price)
+            _bull_bmos = buffett_mos_pct(bull_iv, price)
             _sc_bear_pre = ScenarioCase(
                 iv=bear_iv,
                 mos_pct=round(_bear_d if _bear_d is not None else 0, 1),
+                buffett_mos_pct=round(_bear_bmos, 1) if _bear_bmos is not None else None,
                 mos_clamped=_bear_c,
                 growth=0, wacc=round(wacc, 4), term_g=round(terminal_g, 4),
             )
             _sc_bull_pre = ScenarioCase(
                 iv=bull_iv,
                 mos_pct=round(_bull_d if _bull_d is not None else 0, 1),
+                buffett_mos_pct=round(_bull_bmos, 1) if _bull_bmos is not None else None,
                 mos_clamped=_bull_c,
                 growth=0, wacc=round(wacc, 4), term_g=round(terminal_g, 4),
             )
@@ -1517,9 +1524,12 @@ class AnalysisService(NarrativeMixin):
                 _t_bull_raw = ((_bull_iv_val - price) / price * 100) if price > 0 else 0
                 _t_bear_d, _t_bear_c = display_mos(_t_bear_raw)
                 _t_bull_d, _t_bull_c = display_mos(_t_bull_raw)
+                _t_bear_bmos = buffett_mos_pct(_bear_iv_val, price)
+                _t_bull_bmos = buffett_mos_pct(_bull_iv_val, price)
                 _sc_bear_pre = ScenarioCase(
                     iv=_bear_iv_val,
                     mos_pct=round(_t_bear_d if _t_bear_d is not None else 0, 1),
+                    buffett_mos_pct=round(_t_bear_bmos, 1) if _t_bear_bmos is not None else None,
                     mos_clamped=_t_bear_c,
                     growth=round(base_growth, 4),
                     wacc=round(wacc, 4), term_g=round(terminal_g, 4),
@@ -1527,14 +1537,17 @@ class AnalysisService(NarrativeMixin):
                 _sc_bull_pre = ScenarioCase(
                     iv=_bull_iv_val,
                     mos_pct=round(_t_bull_d if _t_bull_d is not None else 0, 1),
+                    buffett_mos_pct=round(_t_bull_bmos, 1) if _t_bull_bmos is not None else None,
                     mos_clamped=_t_bull_c,
                     growth=round(base_growth, 4),
                     wacc=round(wacc, 4), term_g=round(terminal_g, 4),
                 )
         _base_d, _base_c = display_mos(mos_pct)
+        _base_bmos = buffett_mos_pct(iv, price)
         _sc_base_pre = ScenarioCase(
             iv=round(iv, 2),
             mos_pct=round(_base_d if _base_d is not None else 0, 1),
+            buffett_mos_pct=round(_base_bmos, 1) if _base_bmos is not None else None,
             mos_clamped=_base_c,
             growth=round(base_growth, 4),
             wacc=round(wacc, 4), term_g=round(terminal_g, 4),
@@ -2250,6 +2263,11 @@ class AnalysisService(NarrativeMixin):
                 fair_value=round(iv, 2),
                 current_price=round(price, 2),
                 margin_of_safety=round(mos_pct, 1),
+                # Step B: true Buffett MoS = (FV - CP) / FV * 100.
+                # Additive alongside the legacy upside-% field above.
+                buffett_mos_pct=(
+                    round(_b, 1) if (_b := buffett_mos_pct(iv, price)) is not None else None
+                ),
                 margin_of_safety_display=round(min(_mos_display, 80), 1),
                 mos_is_extreme=mos_pct > 80,
                 mos_clamped=_mos_was_clamped,

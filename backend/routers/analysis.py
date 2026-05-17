@@ -1034,6 +1034,9 @@ def _load_cached_analyses() -> list[ScreenerStock]:
                         company_name=val.company.company_name,
                         score=val.quality.yieldiq_score,
                         margin_of_safety=round(val.valuation.margin_of_safety, 1),
+                        # Step B (2026-05-17): surface true Buffett MoS so
+                        # leaderboard sort + UI labels can use the right field.
+                        buffett_mos_pct=getattr(val.valuation, "buffett_mos_pct", None),
                         moat=val.quality.moat,
                         sector=val.company.sector,
                         verdict=val.valuation.verdict,
@@ -1188,11 +1191,19 @@ async def _build_yieldiq50() -> ScreenerResponse:
                         # strings to match the schema. PR #181's ticker
                         # normalisation was correct upstream; this is the
                         # downstream construction bug that hid behind it.
+                        # Step B (2026-05-17): derive Buffett MoS from upside.
+                        # upside = (fv-cp)/cp; buffett = (fv-cp)/fv = upside/(1+upside).
+                        _u_dec = mos / 100.0
+                        _buffett = (
+                            round(_u_dec / (1 + _u_dec) * 100.0, 1)
+                            if (1 + _u_dec) > 0 else None
+                        )
                         by_ticker[t] = ScreenerStock(
                             ticker=t,
                             company_name=r[1] or t,
                             score=synth_score,
                             margin_of_safety=round(mos, 1),
+                            buffett_mos_pct=_buffett,
                             moat="",
                             sector=r[2] or "",
                             verdict=r[4] or (
@@ -1227,11 +1238,21 @@ async def _build_yieldiq50() -> ScreenerResponse:
             if live_mos is None or live_score is None:
                 continue
             prev = by_ticker[t]
+            # Step B (2026-05-17): pull buffett_mos_pct from the cached
+            # payload when present; otherwise derive from upside (live_mos).
+            _live_buffett = v.get("buffett_mos_pct")
+            if _live_buffett is None:
+                try:
+                    _u_dec = float(live_mos) / 100.0
+                    _live_buffett = round(_u_dec / (1 + _u_dec) * 100.0, 1) if (1 + _u_dec) > 0 else None
+                except Exception:
+                    _live_buffett = None
             by_ticker[t] = ScreenerStock(
                 ticker=t,
                 company_name=c.get("company_name") or prev.company_name,
                 score=int(live_score),
                 margin_of_safety=round(float(live_mos), 1),
+                buffett_mos_pct=_live_buffett,
                 moat=q.get("moat") or prev.moat,
                 sector=c.get("sector") or prev.sector,
                 verdict=v.get("verdict") or (
@@ -1316,15 +1337,16 @@ async def _build_yieldiq50() -> ScreenerResponse:
         # pre-gate list so the rail never blanks on a foundation bug.
         pass
 
-    # Sort by MoS descending — the user-facing rail is "top
-    # undervalued" so MoS is the honest primary sort key. Tie-break
-    # by score for stability. The previous sort by score alone was
-    # the sort-key bug that surfaced -50%/-73% MoS stocks at #2/#3.
-    stocks = sorted(
-        _filtered,
-        key=lambda x: (x.margin_of_safety, x.score),
-        reverse=True,
-    )[:50]
+    # Step B (2026-05-17): sort by `buffett_mos_pct` (the true discount
+    # to fair value) when present, falling back to legacy `margin_of_safety`
+    # (upside %) for rows that pre-date the field. Both sorts produce the
+    # same ordering when FV > CP (monotone transform), so the change is
+    # cosmetically additive — but Buffett MoS is the honest leaderboard
+    # key going forward. Tie-break by score for stability.
+    def _sort_key(s):
+        b = getattr(s, "buffett_mos_pct", None)
+        return (b if b is not None else s.margin_of_safety, s.score)
+    stocks = sorted(_filtered, key=_sort_key, reverse=True)[:50]
     result = ScreenerResponse(results=stocks, total=len(stocks))
     if stocks:
         # PR-DISCOVER-CONSISTENCY: TTL was 24h. Audit found Discover

@@ -15,7 +15,7 @@ _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent.parent)
 if _PROJECT_ROOT not in sys.path:
     sys.path.insert(0, _PROJECT_ROOT)
 
-from screener.dcf_engine import DCFEngine, margin_of_safety, assign_signal
+from screener.dcf_engine import DCFEngine, margin_of_safety, assign_signal, buffett_mos_pct
 from data.processor import compute_metrics
 from backend.services.analysis.utils import _canonicalize_ticker
 
@@ -223,19 +223,24 @@ def recompute_dcf(
             ticker=ticker,
         )
         civ = _safe_float(cr.get("intrinsic_value_per_share"), 0.0)
+        _civ_bmos = buffett_mos_pct(civ, price)
         return {
             "iv": civ,
             "mos_pct": (margin_of_safety(civ, price) * 100) if price > 0 else 0.0,
+            # Step B: true Buffett MoS alongside upside %.
+            "buffett_mos_pct": round(_civ_bmos, 1) if _civ_bmos is not None else None,
             "growth": cg5,
             "wacc": cw,
             "term_g": terminal_growth,
         }
 
+    _base_bmos = buffett_mos_pct(iv, price)
     scenarios = {
         "bear": _case(growth_delta=-0.03, wacc_delta=+0.01),
         "base": {
             "iv": iv,
             "mos_pct": mos_pct,
+            "buffett_mos_pct": round(_base_bmos, 1) if _base_bmos is not None else None,
             "growth": growth_5y_pct,
             "wacc": wacc,
             "term_g": terminal_growth,
@@ -257,6 +262,10 @@ def recompute_dcf(
         "fair_value": iv,
         "current_price": price,
         "margin_of_safety": mos_pct,
+        # Step B: true Buffett MoS = (FV - Price) / FV * 100. None when FV<=0.
+        "buffett_mos_pct": (
+            round(_b, 1) if (_b := buffett_mos_pct(iv, price)) is not None else None
+        ),
         "verdict": verdict,
         "wacc": wacc,
         "fcf_growth_rate": growth_5y_pct,

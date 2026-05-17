@@ -35,6 +35,11 @@ export interface ValuationOutput {
   fair_value: number
   current_price: number
   margin_of_safety: number
+  // Step B (2026-05-17): true Buffett margin of safety = (FV-CP)/FV*100.
+  // Distinct from `margin_of_safety` above which is upside % (denominator
+  // is current price). Optional + nullable for back-compat with cached
+  // payloads that pre-date the field.
+  buffett_mos_pct?: number | null
   verdict: Verdict
   bear_case: number
   base_case: number
@@ -374,6 +379,8 @@ export interface ScreenerStock {
   fair_value: number
   current_price: number
   margin_of_safety: number
+  // Step B (2026-05-17): true Buffett MoS — see ValuationOutput note.
+  buffett_mos_pct?: number | null
   verdict: string
   moat: string
   confidence: string

@@ -364,6 +364,12 @@ def get_holdings_with_live_data(user_email: str) -> dict:
             ) else None,
             "fair_value": round(fair_value, 2) if fair_value else None,
             "mos_pct": round(mos_pct, 2) if mos_pct is not None else None,
+            # Step B (2026-05-17): true Buffett MoS = (FV - CP) / FV * 100.
+            "buffett_mos_pct": (
+                round((fair_value - current_price) / fair_value * 100, 2)
+                if (fair_value and fair_value > 0 and current_price > 0)
+                else None
+            ),
             "verdict": verdict,
             "score": score,
             "saved_at": h.get("saved_at", ""),

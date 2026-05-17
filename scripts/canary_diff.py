@@ -322,6 +322,10 @@ def extract_fields(payload: dict | None) -> dict[str, Any]:
         # og-data uses ``mos``; admin /analysis uses ``margin_of_safety``.
         "margin_of_safety": _get(payload, "margin_of_safety", "mos", "mos_pct")
         or _get(val, "margin_of_safety", "mos", "mos_pct"),
+        # Step B (2026-05-17): true Buffett MoS = (FV-CMP)/FV*100. Pulled
+        # from the valuation block. Pre-PR cached payloads lack it (None).
+        "buffett_mos_pct": _get(payload, "buffett_mos_pct")
+        or _get(val, "buffett_mos_pct"),
         # og-data exposes the YieldIQ score at the top level.
         "score": _get(payload, "score", "yieldiq_score"),
         "bear_case": _get(payload, "bear_case") or _get(scenarios, "bear", "bear_case"),
@@ -453,6 +457,51 @@ def gate2_upside_math(symbol: str, fields: dict[str, Any]) -> list[str]:
 # Deprecated alias for backward compatibility with any external callers
 # that imported the old gate name (e.g. ad-hoc scripts, notebooks).
 gate2_mos_math = gate2_upside_math
+
+
+# Step B (2026-05-17, gate 6): true Buffett MoS math.
+# Additive — runs alongside (not instead of) gate2_upside_math so the
+# legacy upside-% invariant keeps gating regressions in the existing
+# field. Skipped when the API hasn't populated the new field yet (None)
+# or when no DCF was possible.
+BUFFETT_MOS_MATH_TOL = float(os.environ.get("BUFFETT_MOS_MATH_TOL", "2.0"))
+
+
+def gate3_buffett_mos_math(symbol: str, fields: dict[str, Any]) -> list[str]:
+    """``buffett_mos_pct`` must equal ``(fv - cmp) / fv * 100`` within tol.
+
+    Distinct from gate2 which checks the legacy `margin_of_safety`
+    field (== upside %, denominator = cmp). This gate checks the
+    Step B field (denominator = fv). Naming kept as `gate3_*` per the
+    PR spec; registered as numeric gate 6 in `GATE_NAMES` so existing
+    gate-3 (scenario dispersion) stays put.
+
+    Skipped when:
+      * `_has_no_dcf` (sentinel state — fv=0)
+      * `buffett_mos_pct` is None (pre-Step-B cached payload or
+        legitimate fv<=0 case)
+      * fv <= 0 (would divide by zero)
+    """
+    if _has_no_dcf(fields):
+        return []
+    fv = fields.get("fair_value")
+    cmp_ = fields.get("cmp")
+    buffett = fields.get("buffett_mos_pct")
+    if buffett is None:
+        return []  # field absent on pre-PR payloads — additive
+    if not (_is_num(fv) and _is_num(cmp_) and _is_num(buffett)):
+        return []
+    if fv <= 0:
+        return []  # MoS undefined when FV<=0
+    if cmp_ <= 0:
+        return [f"{symbol}: cmp={cmp_} non-positive"]
+    expected_pct = (fv - cmp_) / fv * 100.0
+    if abs(buffett - expected_pct) > BUFFETT_MOS_MATH_TOL:
+        return [
+            f"{symbol}: buffett_mos_pct={buffett:.2f}% but "
+            f"(fv-cmp)/fv={expected_pct:.2f}%"
+        ]
+    return []
 
 
 def gate3_dispersion(symbol: str, fields: dict[str, Any]) -> list[str]:
@@ -633,6 +682,10 @@ GATE_NAMES = {
     3: "scenario_dispersion",
     4: "canary_bounds",
     5: "forbidden_values",
+    # Step B (2026-05-17): true Buffett MoS invariant. Function is
+    # `gate3_buffett_mos_math` per the PR spec; numbered 6 here so the
+    # existing gate-3 (scenario dispersion) is not renumbered.
+    6: "buffett_mos_math",
 }
 
 
@@ -651,6 +704,7 @@ def run_all_gates(
         3: gate3_dispersion(symbol, authed_fields),
         4: gate4_canary_bounds(symbol, authed_fields, bounds),
         5: gate5_forbidden(symbol, authed_fields),
+        6: gate3_buffett_mos_math(symbol, authed_fields),
     }
 
 

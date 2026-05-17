@@ -189,6 +189,13 @@ def get_fv_history(
             "fair_value": r.fair_value,
             "price": r.price,
             "mos_pct": r.mos_pct,
+            # Step B (2026-05-17): derived true Buffett MoS from stored
+            # FV/price; the FV history table itself stores upside % only.
+            "buffett_mos_pct": (
+                round((r.fair_value - r.price) / r.fair_value * 100.0, 2)
+                if (r.fair_value and r.fair_value > 0 and r.price and r.price > 0)
+                else None
+            ),
             "verdict": r.verdict,
         }
         for r in rows
