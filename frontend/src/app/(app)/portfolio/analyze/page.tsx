@@ -16,6 +16,8 @@
 
 import { useState, useEffect, useRef, useCallback } from "react"
 import api from "@/lib/api"
+import { verdictLabel } from "@/lib/verdict"
+import ModelDisclaimer from "@/components/ModelDisclaimer"
 import {
   PieChart, Pie, Cell, Tooltip as RTooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
@@ -468,7 +470,7 @@ function Results({ data }: { data: AnalyzeResponse }) {
                   </td>
                   <td className="text-right py-2 px-2">{h.weight_pct.toFixed(1)}%</td>
                   <td className="py-2 px-2 text-gray-700">{h.sector || "—"}</td>
-                  <td className="py-2 px-2 text-gray-700">{h.verdict_band || "—"}</td>
+                  <td className="py-2 px-2 text-gray-700">{h.verdict_band ? verdictLabel(h.verdict_band) : "—"}</td>
                   <td className="text-right py-2 px-2">{h.piotroski_score ?? "—"}</td>
                   <td className="text-right py-2 px-2">{h.composite_score ?? "—"}</td>
                 </tr>
@@ -482,6 +484,8 @@ function Results({ data }: { data: AnalyzeResponse }) {
         Phase 1 — analysis only. Persistence, tier-aware caps, and substitution
         suggestions ship in the next release.
       </p>
+
+      <ModelDisclaimer />
     </div>
   )
 }

@@ -26,6 +26,7 @@ import {
   type ScreenerFieldsResponse,
   type ScreenerQueryResponse,
 } from "@/lib/screenerFilters"
+import ModelDisclaimer from "@/components/ModelDisclaimer"
 
 const DEFAULT_LIMIT = 50
 
@@ -252,6 +253,10 @@ function ScreenerInner() {
                   {extractScreenerError(error)}
                 </p>
               </div>
+            )}
+
+            {hasRun && (
+              <ModelDisclaimer compact className="mb-2" />
             )}
 
             {hasRun && (

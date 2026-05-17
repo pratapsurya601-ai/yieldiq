@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react"
 import Link from "next/link"
 import MarketingTopNav from "@/components/marketing/MarketingTopNav"
+import { verdictLabel } from "@/lib/verdict"
 
 interface Stock {
   ticker: string
@@ -43,11 +44,11 @@ function fmt(n: number): string {
 }
 
 function verdictBadge(v: string) {
-  // SEBI-safe: "avoid" → "High Risk" (descriptive, not advice)
-  const label = v === "avoid" ? "High Risk" : v.replace(/_/g, " ")
-  if (v === "undervalued") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700 capitalize">{label}</span>
-  if (v === "overvalued" || v === "avoid") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700 capitalize">{label}</span>
-  return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 capitalize">{label}</span>
+  // SEBI-safe: route raw backend verdict through verdictLabel().
+  const label = verdictLabel(v)
+  if (v === "undervalued") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-50 text-green-700">{label}</span>
+  if (v === "overvalued" || v === "avoid") return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700">{label}</span>
+  return <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700">{label}</span>
 }
 
 function rowBg(mos: number): string {

@@ -10,6 +10,7 @@ import MoversRail from "@/components/home/MoversRail"
 import OpportunityRail from "@/components/home/OpportunityRail"
 import MarketAccordion from "@/components/home/MarketAccordion"
 import ErrorBoundary from "@/components/ErrorBoundary"
+import ModelDisclaimer from "@/components/ModelDisclaimer"
 import { useEffect, useState } from "react"
 
 export default function HomePage() {
@@ -137,6 +138,8 @@ export default function HomePage() {
           <MarketAccordion />
         </ErrorBoundary>
       </div>
+
+      <ModelDisclaimer compact className="text-center mt-6 px-4" />
     </div>
   )
 }
