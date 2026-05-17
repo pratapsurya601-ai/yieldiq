@@ -568,7 +568,7 @@ META_TAGS: dict[str, list[str]] = {
     "is_audited_str": ["WhetherResultsAreAuditedOrUnaudited"],
     "nature_str": ["NatureOfReportStandaloneConsolidated"],
     "segment_str": ["IsCompanyReportingMultisegmentOrSingleSegment"],
-    "rounding": ["LevelOfRoundingUsedInFinancialStatements"],
+    "rounding": ["LevelOfRoundingUsedInFinancialStatements", "LevelOfRounding"],
     "has_cashflow_str": ["WhetherCashFlowStatementIsApplicableOnCompany"],
 }
 
