@@ -32,17 +32,23 @@ export type RawVerdict =
 export type VerdictTone = "positive" | "negative" | "neutral" | "warn"
 
 /**
- * Map backend verdict → user-facing label. Purely descriptive — never
- * imperative (no "Buy" / "Sell"), as YieldIQ is not a SEBI-registered
- * investment adviser.
+ * Map backend verdict → user-facing label. Descriptive valuation
+ * vocabulary — "Undervalued" / "Overvalued" / "Fairly Valued" — is
+ * model output, not advice (Tickertape / Trendlyne / Morningstar /
+ * Bloomberg all use these freely with the same SEBI exposure). What's
+ * still banned is imperative ADVICE ("Buy" / "Sell" / "Hold" as
+ * recommendations); the ModelDisclaimer carries the legal framing.
  */
 export function verdictLabel(v: RawVerdict | null | undefined): string {
   if (!v) return ""
   const key = String(v).toLowerCase().replace(/\s+/g, "_")
   switch (key) {
-    case "undervalued":   return "Below Fair Value"
-    case "overvalued":    return "Above Fair Value"
-    case "fairly_valued": return "At Fair Value"
+    case "undervalued":   return "Undervalued"
+    case "overvalued":    return "Overvalued"
+    case "fairly_valued": return "Fairly Valued"
+    case "hold":          return "Fairly Valued"
+    case "buy":           return "Undervalued"
+    case "sell":          return "Overvalued"
     case "data_limited":  return "Insufficient Data"
     case "under_review":  return "Under Review"
     case "unavailable":   return "Unavailable"
@@ -61,9 +67,12 @@ export function verdictTone(v: RawVerdict | null | undefined): VerdictTone {
   if (!v) return "neutral"
   const key = String(v).toLowerCase().replace(/\s+/g, "_")
   switch (key) {
-    case "undervalued":   return "positive"
-    case "overvalued":    return "negative"
-    case "fairly_valued": return "neutral"
+    case "undervalued":
+    case "buy":           return "positive"
+    case "overvalued":
+    case "sell":          return "negative"
+    case "fairly_valued":
+    case "hold":          return "neutral"
     case "data_limited":
     case "under_review":
     case "unavailable":

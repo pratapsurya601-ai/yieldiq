@@ -189,7 +189,7 @@ export default function LandingPage() {
           </h2>
           <div className="grid md:grid-cols-3 gap-6">
             {[
-              { icon: "\u{1F4CA}", title: "Valuation Hero", desc: "Fair value, implied upside/downside, Bear/Base/Bull scenarios \u2014 all at a glance." },
+              { icon: "\u{1F4CA}", title: "Valuation Hero", desc: "Fair value, discount or premium to FV, Bear/Base/Bull scenarios \u2014 all at a glance." },
               { icon: "\u{1F537}", title: "Prism Score", desc: "6-pillar score (Pulse, Quality, Moat, Safety, Growth, Value) blended into a single 0\u2013100 number with a letter grade." },
               { icon: "\u{1F527}", title: "Interactive DCF", desc: "Adjust WACC, growth rate, terminal value \u2014 see fair value change in real-time." },
               { icon: "\u{1F3AF}", title: "Sensitivity Heatmap", desc: "See how fair value changes across different WACC and growth assumptions." },

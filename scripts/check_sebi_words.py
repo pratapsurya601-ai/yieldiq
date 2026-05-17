@@ -56,6 +56,35 @@ except Exception:
     pass
 
 # ─── Vocabulary — keep in sync with backend/services/analysis/sebi_filter.py ──
+#
+# Allowlist rationale (loosened 2026-05-17):
+#   SEBI IA Regs 2013 prohibit direct buy/sell/hold ADVICE without
+#   registration. Descriptive valuation metrics — "Undervalued",
+#   "Overvalued", "Fairly Valued", "Margin of Safety", "Discount to FV",
+#   "Premium to FV" — are NOT advice when framed as model output with
+#   the standard ModelDisclaimer. Every Indian valuation product
+#   (Tickertape, Trendlyne, Morningstar, Bloomberg) uses these terms
+#   freely with the same SEBI exposure. The previous policy that banned
+#   "undervalued"/"overvalued" forced awkward "Below/Above Fair Value"
+#   labels that read worse without reducing legal exposure.
+#
+#   DESCRIPTIVE METRICS OK — allowed:
+#       Undervalued, Overvalued, Fairly Valued
+#       Margin of Safety
+#       Discount to FV, Premium to FV
+#   RECOMMENDATIONS BANNED — still hard-fail:
+#       Buy / Sell / Hold (as recommendations; wire-format BUY/SELL
+#         from SEBI bulk-deal feeds is still exempt via WIRE_FORMAT_LITERALS)
+#       Recommend / Recommendation
+#       Outperform / Underperform / Accumulate
+#       Cheap / Expensive / Attractive / Poor (subjective, advisory tone)
+#       Strong / Weak in standalone form (too easy to misuse).
+#         A specific-metric prefix like "strong margin of safety" can be
+#         exempted per-line with `// sebi-allow: strong`. Wire-format
+#         strings ("strong"/"Weak" for Prism pillars and dividend health)
+#         remain exempt via WIRE_FORMAT_LITERALS.
+#       Should / Appears / Concern / Strength / Weakness (opinion verbs)
+#       Investable / Investability (reads as a should-you-invest verdict)
 BANNED_WORDS: tuple[str, ...] = (
     "appears",
     "should",
@@ -69,8 +98,6 @@ BANNED_WORDS: tuple[str, ...] = (
     "underperform",
     "expensive",
     "cheap",
-    "undervalued",
-    "overvalued",
     "attractive",
     "poor",
     "strong",
@@ -131,6 +158,13 @@ WIRE_FORMAT_LITERALS: frozenset[str] = frozenset({
     "SELL",
     "Buy",
     "Sell",
+    # Legacy backend verdict wire-format aliases used in switch/case
+    # comparisons in lib/verdict.ts and lib/utils.ts. Never rendered to
+    # the DOM — they map to descriptive labels ("Undervalued" etc).
+    "buy",
+    "sell",
+    "hold",
+    "Hold",
     # Finance column names recorded by the user's own broker transactions
     # (their transaction log, not an advisory label).
     "Buy Date",
