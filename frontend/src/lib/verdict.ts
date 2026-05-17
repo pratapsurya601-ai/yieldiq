@@ -38,9 +38,9 @@ export function verdictLabel(v: RawVerdict | null | undefined): string {
   if (!v) return ""
   const key = String(v).toLowerCase().replace(/\s+/g, "_")
   switch (key) {
-    case "undervalued":   return "Undervalued"
-    case "overvalued":    return "Overvalued"
-    case "fairly_valued": return "Fairly Valued"
+    case "undervalued":   return "Below Fair Value"
+    case "overvalued":    return "Above Fair Value"
+    case "fairly_valued": return "At Fair Value"
     case "data_limited":  return "Insufficient Data"
     case "under_review":  return "Under Review"
     case "unavailable":   return "Unavailable"
