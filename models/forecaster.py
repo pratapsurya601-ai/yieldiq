@@ -14,6 +14,7 @@
 # ═══════════════════════════════════════════════════════════════
 
 from __future__ import annotations
+import os
 import pickle, requests
 from pathlib import Path
 from typing import Optional
@@ -913,6 +914,199 @@ def compute_confidence_score(enriched: dict) -> dict:
         "factors":  factors,
         "warnings": warnings,
     }
+
+
+# ════════════════════════════════════════════════════════════════
+# Confidence v2 (Phase 1) — design doc: docs/design/confidence-metric-v2.md
+# Behind env flag CONFIDENCE_V2=1. Phase 1 ships 2 components whose inputs
+# exist today: data_completeness and sector_engine_match. model_fit_quality
+# is also derivable from the existing v1 inputs and is included so weights
+# can be renormalized over present components (per §3 of the doc).
+#
+# Phase 2 (cross_engine_consistency) and Phase 3 (structural_break_clean)
+# require upstream PRs (engine FV normalizer, corporate-actions overlay)
+# and are intentionally NOT implemented here. Rollback = unset CONFIDENCE_V2.
+# ════════════════════════════════════════════════════════════════
+
+# Sector → preferred valuation engine. Used by sector_engine_match.
+# Match value 1.0 if `primary_engine` is in the preferred list for the
+# sector, 0.5 if the generic DCF fallback was used on a sector that has
+# a specific engine, else 1.0 (no opinion).
+SECTOR_ENGINE_MAP: dict[str, list[str]] = {
+    "Financial Services": ["pb_ratio", "ddm", "excess_return", "pb_residual_income"],
+    "Financials":         ["pb_ratio", "ddm", "excess_return", "pb_residual_income"],
+    "Banks":              ["pb_ratio", "ddm", "excess_return", "pb_residual_income"],
+    "Insurance":          ["pb_ratio", "embedded_value", "excess_return"],
+    "Real Estate":        ["nav", "sotp"],
+    "Energy":             ["sotp", "ev_ebitda", "dcf"],
+    "Utilities":          ["dcf", "ddm"],
+    "Basic Materials":    ["ev_ebitda", "dcf"],
+    "Industrials":        ["dcf", "ev_ebitda"],
+    "Technology":         ["dcf", "fcf_yield"],
+    "Communication Services": ["dcf", "ev_ebitda"],
+    "Consumer Cyclical":  ["dcf", "ev_ebitda"],
+    "Consumer Defensive": ["dcf", "fcf_yield"],
+    "Healthcare":         ["dcf", "fcf_yield"],
+}
+
+# Critical fields used by data_completeness. Each entry is
+# (key_on_enriched, predicate_returning_bool_when_present_and_usable).
+def _completeness_fields(enriched: dict) -> list[tuple[str, bool]]:
+    income_df = enriched.get("income_df")
+    cf_df     = enriched.get("cf_df")
+    bs_df     = enriched.get("balance_df")
+    def _df_ok(df, col=None) -> bool:
+        try:
+            if df is None or getattr(df, "empty", True):
+                return False
+            if col is not None and col not in df.columns:
+                return False
+            return True
+        except Exception:
+            return False
+    return [
+        ("income_df.revenue", _df_ok(income_df, "revenue")),
+        ("cf_df.fcf",         _df_ok(cf_df, "fcf")),
+        ("balance_df",        _df_ok(bs_df)),
+        ("shares",            bool(enriched.get("shares", 0))),
+        ("price",             bool(enriched.get("price", 0))),
+        ("latest_fcf",        enriched.get("latest_fcf", None) not in (None, 0)),
+        ("revenue_growth",    enriched.get("revenue_growth", None) is not None),
+        ("op_margin",         enriched.get("op_margin", None) is not None),
+    ]
+
+
+def _component_data_completeness(enriched: dict) -> dict:
+    fields = _completeness_fields(enriched)
+    total  = len(fields)
+    have   = sum(1 for _, ok in fields if ok)
+    score  = int(round(100.0 * have / total)) if total else 0
+    missing = [name for name, ok in fields if not ok]
+    return {
+        "score":           score,
+        "inputs_present":  True,  # always derivable
+        "reason":          f"{have}/{total} critical fields present"
+                           + (f"; missing: {', '.join(missing)}" if missing else ""),
+    }
+
+
+def _component_sector_engine_match(enriched: dict) -> dict:
+    sector = (enriched.get("sector") or enriched.get("sector_name") or "").strip()
+    engine = (enriched.get("primary_engine") or enriched.get("valuation_model")
+              or enriched.get("engine") or "").strip().lower()
+    if not sector or not engine:
+        return {"score": 0, "inputs_present": False,
+                "reason": "missing sector or primary_engine"}
+    preferred = [e.lower() for e in SECTOR_ENGINE_MAP.get(sector, [])]
+    if not preferred:
+        # No opinion for this sector — neutral full match.
+        return {"score": 100, "inputs_present": True,
+                "reason": f"no sector preference for '{sector}'; engine={engine}"}
+    if engine in preferred:
+        return {"score": 100, "inputs_present": True,
+                "reason": f"engine '{engine}' matches sector '{sector}'"}
+    # Generic DCF fallback used on sector that needed a specific engine.
+    if engine in ("dcf", "fcf_dcf"):
+        return {"score": 50, "inputs_present": True,
+                "reason": f"generic DCF fallback on '{sector}' "
+                          f"(prefers {preferred[0]})"}
+    return {"score": 25, "inputs_present": True,
+            "reason": f"engine '{engine}' mismatched for '{sector}' "
+                      f"(prefers {preferred[0]})"}
+
+
+def _component_model_fit_quality(enriched: dict) -> dict:
+    """Refactor of v1 Revenue+FCF Stability + FCF Positivity into one number.
+
+    Shipped in Phase 1 so renormalization has a third anchor; v1 logic
+    is preserved verbatim inside this helper.
+    """
+    income_df = enriched.get("income_df", pd.DataFrame())
+    cf_df     = enriched.get("cf_df",     pd.DataFrame())
+    parts: list[float] = []
+    try:
+        if not income_df.empty and "revenue" in income_df.columns:
+            rev = income_df["revenue"].replace(0, np.nan).dropna()
+            if len(rev) >= 2 and rev.mean() != 0:
+                cv = rev.std() / rev.mean()
+                parts.append(max(0.0, 100.0 - float(cv) * 400.0))
+        if not cf_df.empty and "fcf" in cf_df.columns:
+            fcf = cf_df["fcf"].dropna()
+            if len(fcf) >= 2 and fcf.mean() != 0:
+                cv = fcf.std() / abs(fcf.mean())
+                parts.append(max(0.0, 100.0 - float(cv) * 200.0))
+            if len(fcf) > 0:
+                pct_pos = float((fcf > 0).mean())
+                parts.append(pct_pos * 100.0)
+    except Exception:
+        pass
+    if not parts:
+        return {"score": 0, "inputs_present": False,
+                "reason": "income/cf dataframes absent"}
+    score = int(round(sum(parts) / len(parts)))
+    return {"score": score, "inputs_present": True,
+            "reason": f"avg of {len(parts)} fit sub-scores"}
+
+
+# Phase-1 weights per design doc §5 (renormalized over 3 available comps).
+_V2_WEIGHTS_PHASE1: dict[str, float] = {
+    "data_completeness":   0.40,
+    "model_fit_quality":   0.35,
+    "sector_engine_match": 0.25,
+}
+
+
+def compute_confidence_score_v2(enriched: dict) -> dict:
+    """Confidence v2 — Phase 1. See docs/design/confidence-metric-v2.md.
+
+    Returns the same top-level keys as v1 (`score`, `grade`, `color`,
+    `factors`, `warnings`) plus a `components` sub-dict and a
+    `version: "v2"` marker so downstream readers can branch.
+    """
+    components: dict[str, dict] = {
+        "data_completeness":   _component_data_completeness(enriched),
+        "model_fit_quality":   _component_model_fit_quality(enriched),
+        "sector_engine_match": _component_sector_engine_match(enriched),
+    }
+    # Renormalize weights over components whose inputs are present.
+    present = {k: v for k, v in components.items() if v.get("inputs_present")}
+    if not present:
+        score = 0
+    else:
+        w_sum = sum(_V2_WEIGHTS_PHASE1[k] for k in present)
+        score = int(round(
+            sum(_V2_WEIGHTS_PHASE1[k] * present[k]["score"] for k in present) / w_sum
+        ))
+
+    grade = "HIGH" if score >= 75 else "MEDIUM" if score >= 50 else "LOW"
+    color = "#10b981" if grade == "HIGH" else "#f59e0b" if grade == "MEDIUM" else "#ef4444"
+
+    # Mirror the v1 `factors` dict shape so the existing frontend keeps
+    # rendering something readable even before the v2-aware UI ships.
+    factors = {
+        "Data Completeness":   f"{components['data_completeness']['score']}/100",
+        "Model Fit Quality":   f"{components['model_fit_quality']['score']}/100",
+        "Sector–Engine Match": f"{components['sector_engine_match']['score']}/100",
+    }
+    warnings: list[str] = []
+    for name, comp in components.items():
+        if comp.get("inputs_present") and comp.get("score", 100) < 50:
+            warnings.append(f"{name}: {comp.get('reason', 'low score')}")
+
+    return {
+        "score":      score,
+        "grade":      grade,
+        "color":      color,
+        "factors":    factors,
+        "warnings":   warnings,
+        "components": components,
+        "version":    "v2",
+    }
+
+
+def confidence_v2_enabled() -> bool:
+    """Single source of truth for the v2 rollout flag."""
+    return os.environ.get("CONFIDENCE_V2", "0") == "1"
 
 
 class FCFForecaster:
