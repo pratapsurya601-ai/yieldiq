@@ -1,6 +1,6 @@
 "use client"
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { Suspense, useEffect, useState } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { login, getOnboardingStatus, completeOnboardingRemote } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
 import { useSettingsStore } from "@/store/settingsStore"
@@ -9,12 +9,22 @@ import Cookies from "js-cookie"
 import Link from "next/link"
 import { GoogleSignInButton, OAuthDivider } from "@/components/GoogleSignInButton"
 
-export default function LoginPage() {
+function LoginContent() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  // Surface ?error= set by the OAuth callback when sign-in fails
+  // (user denied consent, token verification failed, etc.). Without this,
+  // /auth/callback bounces back here silently and the user sees a fresh
+  // login form with no explanation of why Google didn't work.
+  useEffect(() => {
+    const err = searchParams.get("error")
+    if (err) setError(err)
+  }, [searchParams])
   const { setAuth } = useAuthStore()
   const completeOnboardingStore = useSettingsStore((s) => s.completeOnboarding)
 
@@ -91,6 +101,7 @@ export default function LoginPage() {
         res.display_name ?? null,
         res.display_name_edits_remaining ?? 3,
         res.feature_flags ?? {},
+        res.email_verified ?? true,
       )
 
       const onboardingDone = await resolveOnboardingDone()
@@ -152,5 +163,19 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  // Suspense wrapper required for useSearchParams() in this Next build —
+  // matches the pattern used on /auth/signup.
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
+      </div>
+    }>
+      <LoginContent />
+    </Suspense>
   )
 }

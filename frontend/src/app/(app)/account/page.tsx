@@ -119,6 +119,20 @@ function AccountInner() {
     // see which surface converts better.
     const hintedBilling = (searchParams.get("billing") === "annual" ? "annual" : "monthly") as "monthly" | "annual"
     trackUpgradeClicked(planId, `account:${hintedBilling}`)
+
+    // Soft email-verify gate (feat/soft-email-verify-gates). Don't
+    // even open Razorpay if the email isn't verified — backend would
+    // 403 the create-subscription call and the user would see a
+    // generic toast. Surface the requirement up-front instead.
+    const verified = useAuthStore.getState().emailVerified
+    if (!verified) {
+      showToast(
+        "Verify your email before upgrading — check your inbox or use the banner at the top of the page.",
+        "err",
+      )
+      return
+    }
+
     setUpgrading(true)
     try {
       // 2026-04-21: switched from one-time Orders API (/create-order)

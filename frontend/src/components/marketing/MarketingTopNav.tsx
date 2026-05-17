@@ -23,13 +23,27 @@ import { cn } from "@/lib/utils"
 
 type Variant = "light" | "dark"
 
-const NAV_ITEMS: { label: string; href: string }[] = [
+const ANON_NAV_ITEMS: { label: string; href: string }[] = [
   { label: "Discover", href: "/discover" },
   { label: "Screener", href: "/discover/screener" },
   { label: "Earnings", href: "/earnings-calendar" },
   { label: "Blog", href: "/blog" },
   { label: "Methodology", href: "/methodology" },
   { label: "Pricing", href: "/pricing" },
+]
+
+// Authenticated users see their workspace destinations as the primary
+// nav (Search / Watchlist / Portfolio are what they came back for) with
+// Discover + Screener kept for cross-browsing. Marketing-only surfaces
+// (Blog / Methodology / Pricing) remain reachable via the footer and the
+// account dropdown's "Account" link, not as primary nav noise.
+const AUTH_NAV_ITEMS: { label: string; href: string }[] = [
+  { label: "Home", href: "/home" },
+  { label: "Search", href: "/search" },
+  { label: "Watchlist", href: "/watchlist" },
+  { label: "Portfolio", href: "/portfolio" },
+  { label: "Discover", href: "/discover" },
+  { label: "Screener", href: "/discover/screener" },
 ]
 
 interface Props {
@@ -50,6 +64,11 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
 
   const rawLimit = TIER_LIMITS[tier]
   const dailyLimit = typeof rawLimit === "number" ? rawLimit : null
+
+  // Swap the primary nav items based on auth state so logged-in users
+  // see their workspace (Search/Watchlist/Portfolio) instead of the
+  // marketing surfaces (Blog/Methodology/Pricing).
+  const navItems = token ? AUTH_NAV_ITEMS : ANON_NAV_ITEMS
 
   useEffect(() => {
     setOpen(false)
@@ -98,7 +117,7 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
 
         {/* Desktop nav items */}
         <div className="hidden md:flex items-center gap-6 text-sm">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/")
             return (
               <Link
@@ -198,7 +217,7 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
           "md:hidden border-t px-4 py-3 space-y-1",
           isDark ? "border-white/5 bg-[#0F172A]" : "border-gray-100 bg-white"
         )}>
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}

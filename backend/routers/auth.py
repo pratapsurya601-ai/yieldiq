@@ -14,6 +14,17 @@ from backend.middleware.auth import (
 )
 from backend.middleware.rate_limit import rate_limiter, clamped_used
 from backend.services.feature_flags import list_enabled_for
+from backend.services import verification_service as _verify_svc
+
+
+def _safe_is_verified(user_id: str, email: str | None) -> bool:
+    """Wrapper that never raises — used in the auth response builders
+    so a broken verification lookup can't break login. Defaults True
+    (fail-open) for parity with require_email_verified."""
+    try:
+        return _verify_svc.is_email_verified(user_id, email)
+    except Exception:
+        return True
 
 _log = logging.getLogger("yieldiq.auth.onboarding")
 
@@ -62,6 +73,7 @@ async def login(req: LoginRequest):
         display_name=_dn,
         display_name_edits_remaining=_dn_remaining,
         feature_flags=list_enabled_for(result["user_id"], _effective_tier),
+        email_verified=_safe_is_verified(result["user_id"], result["email"]),
     )
 
 
@@ -108,6 +120,10 @@ async def register(req: RegisterRequest):
         display_name=None,
         display_name_edits_remaining=3,
         feature_flags=list_enabled_for(result["user_id"], "free"),
+        # New email/password signups land unverified — see
+        # register_user_and_get_token, which seeds users_meta with
+        # email_verified=false and fires the verification email.
+        email_verified=False,
     )
 
 
@@ -239,6 +255,9 @@ async def google_oauth_exchange(req: GoogleAuthRequest):
         display_name=_dn,
         display_name_edits_remaining=_dn_remaining,
         feature_flags=list_enabled_for(result["user_id"], _effective_tier),
+        # Google has already verified the email; google_oauth_login_or_register
+        # also seeds users_meta.email_verified=true so the gates open immediately.
+        email_verified=True,
         is_new_user=is_new,
     )
 
@@ -398,6 +417,7 @@ async def get_me(user: dict = Depends(get_current_user)):
         display_name=_dn,
         display_name_edits_remaining=_dn_remaining,
         feature_flags=list_enabled_for(user["user_id"], _effective_tier),
+        email_verified=_safe_is_verified(user["user_id"], user.get("email")),
     )
 
 
@@ -554,3 +574,85 @@ async def complete_onboarding(
         # Don't 500 — the user already completed the wizard client-side;
         # localStorage will carry them through, and next login will retry.
         return CompleteOnboardingResponse(completed=True, completed_at=now_iso)
+
+
+# ═════════════════════════════════════════════════════════════════
+# Soft email verification — send + confirm (feat/soft-email-verify-gates)
+#
+# Pair of endpoints behind the EmailVerifyBanner. /verify/send mints a
+# 24h HMAC token and emails a link; /verify/confirm validates the token
+# and flips users_meta.email_verified=true. No DB rows for tokens —
+# verification is stateless via verification_service.make/verify_token.
+#
+# Throttle: max 3 sends per user per rolling hour. SendGrid not
+# configured → 503 with a "try again later" so we never crash on a
+# missing env var.
+# ═════════════════════════════════════════════════════════════════
+
+
+@router.post("/verify/send")
+async def verify_send(user: dict = Depends(get_current_user)):
+    """Send (or resend) the verification email.
+
+    Soft-rate-limited at 3/hour per user. Already-verified users get
+    a no-op 200 (so a stale frontend that calls this after the user
+    already verified doesn't error). SendGrid misconfiguration returns
+    503 with a graceful message — never crashes.
+    """
+    uid = user["user_id"]
+    email = (user.get("email") or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="No email on this account.")
+
+    # Already verified? No-op success.
+    try:
+        if _verify_svc.is_email_verified(uid, email):
+            return {"ok": True, "already_verified": True}
+    except Exception:
+        pass  # fall through and attempt the send
+
+    allowed, retry_in = _verify_svc.can_send_verification(uid)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"Too many verification emails requested. "
+                f"Try again in {retry_in // 60 + 1} min."
+            ),
+        )
+
+    token = _verify_svc.make_verification_token(uid, email)
+    ok = _verify_svc.send_verification_email(email, token)
+    if not ok:
+        # SendGrid not configured / install missing / API failure. We
+        # don't tell the user "your env vars are broken" — just ask
+        # them to try later. Operators see the underlying cause in
+        # the email_service logger.
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Couldn't send the verification email right now. "
+                "Please try again in a few minutes."
+            ),
+        )
+    _verify_svc.record_send_attempt(uid)
+    return {"ok": True}
+
+
+@router.get("/verify/confirm")
+async def verify_confirm(token: str):
+    """Confirm a verification token. Flips users_meta.email_verified=true.
+
+    Unauthenticated by design — the user clicks the link from their
+    inbox; we shouldn't require them to log in first.
+
+    On success returns {ok, email} and the frontend /auth/verify page
+    can show "Verified — return to YieldIQ". On failure returns 400
+    with a user-readable error so the page can render it inline.
+    """
+    if not token:
+        raise HTTPException(status_code=400, detail="Missing token.")
+    result = _verify_svc.confirm_verification(token)
+    if not result.get("ok"):
+        raise HTTPException(status_code=400, detail=result.get("error", "Invalid token."))
+    return {"ok": True, "email": result.get("email")}

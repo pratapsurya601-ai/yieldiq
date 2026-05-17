@@ -5,8 +5,8 @@ import { useState, useMemo, useEffect } from "react"
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend,
 } from "recharts"
-import MarketingTopNav from "@/components/marketing/MarketingTopNav"
 import { verdictLabel } from "@/lib/verdict"
+// Nav is now provided by (marketing)/layout.tsx
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || ""
 
@@ -123,8 +123,6 @@ export default function ScreenClient({ data, slug }: { data: ScreenData; slug: s
 
   return (
     <div className="min-h-screen bg-white">
-      <MarketingTopNav />
-
       {/* Header */}
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-12">
         <div className="max-w-4xl mx-auto px-4 text-center">

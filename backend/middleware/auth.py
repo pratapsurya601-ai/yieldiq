@@ -339,6 +339,42 @@ def check_analysis_limit(
     return user
 
 
+def require_email_verified(user: dict = Depends(get_current_user)):
+    """Dependency for soft email-verify gates.
+
+    Allowed through:
+      * Superusers (SUPERUSER_EMAILS env)
+      * Users with users_meta.email_verified = true
+
+    Blocked with 403 + structured detail so the frontend can render a
+    "Verify your email" modal pointing at /auth/verify/send.
+
+    Fail-open in verification_service.is_email_verified() — any
+    Supabase / DB lookup error treats the user as verified. We never
+    want a transient infra hiccup to block a paid upgrade or API key
+    creation mid-flow; the inverse failure mode is worse than the
+    abuse risk this gate exists to mitigate.
+    """
+    from backend.services.verification_service import is_email_verified
+    if is_superuser(user):
+        return user
+    if is_email_verified(user["user_id"], user.get("email")):
+        user["email_verified"] = True
+        return user
+    raise HTTPException(
+        status_code=403,
+        detail={
+            "error": "email_verification_required",
+            "message": (
+                "Verify your email before continuing. We sent a confirmation "
+                "link when you signed up — check your inbox, or request a "
+                "new one from your account page."
+            ),
+            "resend_url": "/api/v1/auth/verify/send",
+        },
+    )
+
+
 def require_tier(min_tier: str):
     """Factory: returns dependency that requires minimum tier."""
     _tier_order = {"free": 0, "starter": 1, "pro": 1, "analyst": 2}
@@ -480,12 +516,44 @@ def register_user_and_get_token(email: str, password: str) -> dict:
             result = admin.auth.admin.create_user({
                 "email": email,
                 "password": password,
-                "email_confirm": True,           # skip email confirmation
+                "email_confirm": True,           # skip Supabase email confirmation
                 "user_metadata": {"tier": "free"},
             })
             if not result or not result.user:
                 return {"ok": False, "error": "Could not create account. Try again."}
             _uid = str(result.user.id)
+            # Seed users_meta with email_verified=false. The Supabase
+            # auth row is auto-confirmed (so the user can log in
+            # immediately) but our soft gates read from users_meta —
+            # they must verify before paid upgrade / API-key / export.
+            # Best-effort: if users_meta seeding fails the user can
+            # still log in; the read path defaults to True for missing
+            # rows (legacy grandfathering) so the gate fails-open.
+            try:
+                from backend.services.verification_service import send_verification_email, make_verification_token
+                from db.supabase_client import get_admin_client as _gac
+                _c = _gac()
+                if _c is not None:
+                    _c.table("users_meta").upsert(
+                        {"id": _uid, "email": email, "email_verified": False,
+                         "tier": "free"},
+                        on_conflict="id",
+                    ).execute()
+                # Fire-and-forget the verification email. The signup
+                # response doesn't block on this — frontend shows the
+                # banner regardless, with a "resend" button.
+                import threading as _th
+                _vtok = make_verification_token(_uid, email)
+                _th.Thread(
+                    target=send_verification_email,
+                    args=(email, _vtok),
+                    daemon=True,
+                ).start()
+            except Exception as _vexc:
+                _log().info(
+                    "signup: verification seed/send soft-failed for %s: %s",
+                    email, _vexc,
+                )
             token = create_access_token(_uid, email, "free")
             return {"ok": True, "token": token, "user_id": _uid,
                     "email": email, "tier": "free"}
@@ -671,6 +739,13 @@ def google_oauth_login_or_register(id_token: str) -> dict:
         except Exception as exc:
             _log().info("Google OAuth: metadata backfill failed for %s: %s", email, exc)
 
+        # Google has already verified the email — keep users_meta in
+        # sync so the soft-verify gates let them straight through.
+        try:
+            from backend.services.verification_service import _set_meta_verified
+            _set_meta_verified(uid, email)
+        except Exception as _vexc:
+            _log().info("google oauth: meta verify backfill failed for %s: %s", email, _vexc)
         token = create_access_token(uid, email, tier)
         return {
             "ok": True, "token": token, "user_id": uid,
@@ -693,6 +768,17 @@ def google_oauth_login_or_register(id_token: str) -> dict:
         if not result or not getattr(result, "user", None):
             return {"ok": False, "error": "Could not create account. Try again."}
         uid = str(result.user.id)
+        # New Google user — seed users_meta with email_verified=true
+        # so the soft-verify gates open immediately (Google has already
+        # verified the email; no need to make them click a second link).
+        try:
+            from backend.services.verification_service import _set_meta_verified
+            _set_meta_verified(uid, email)
+        except Exception as _vexc:
+            _log().info(
+                "google oauth: new-user meta verify seed failed for %s: %s",
+                email, _vexc,
+            )
         token = create_access_token(uid, email, "free")
         return {
             "ok": True, "token": token, "user_id": uid,

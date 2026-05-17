@@ -71,6 +71,7 @@ function fmtRelative(iso: string | null): string {
 
 export default function ApiKeysPage() {
   const tier = useAuthStore((s) => s.tier)
+  const emailVerified = useAuthStore((s) => s.emailVerified)
   const [keys, setKeys] = useState<ApiKeySummary[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -110,6 +111,15 @@ export default function ApiKeysPage() {
   }, [isPro])
 
   const handleCreate = async () => {
+    // Soft email-verify gate (feat/soft-email-verify-gates). Backend
+    // 403s if email_verified=false; pre-empt that here so the user
+    // gets a clear message instead of a generic toast.
+    if (!emailVerified) {
+      setError(
+        "Verify your email before generating API keys — use the banner at the top of the page to resend the verification link.",
+      )
+      return
+    }
     setCreating(true)
     setError(null)
     try {
@@ -306,8 +316,23 @@ export default function ApiKeysPage() {
       {/* New key button */}
       {!showCreate && keys.length < 5 && (
         <button
-          onClick={() => setShowCreate(true)}
-          className="w-full py-3 border-2 border-dashed border-border rounded-xl text-sm font-medium text-body hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-300 transition"
+          onClick={() => {
+            if (!emailVerified) {
+              setError(
+                "Verify your email before generating API keys — use the banner at the top of the page to resend the verification link.",
+              )
+              return
+            }
+            setShowCreate(true)
+          }}
+          className={
+            "w-full py-3 border-2 border-dashed rounded-xl text-sm font-medium transition " +
+            (emailVerified
+              ? "border-border text-body hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-300"
+              : "border-border text-caption cursor-not-allowed opacity-70")
+          }
+          aria-disabled={!emailVerified}
+          title={emailVerified ? undefined : "Verify your email first"}
         >
           + Create new key
         </button>

@@ -235,8 +235,19 @@ _TICKER_OVERRIDES: dict[str, dict[str, float]] = {
 
 
 def _ticker_tolerance(symbol: str, field: str, default: float) -> float:
-    """Return the per-ticker override for a field, or the default."""
-    return _TICKER_OVERRIDES.get(symbol, {}).get(field, default)
+    """Return the per-ticker override for a field, or the default.
+
+    Symbols flow through the canary as exchange-suffixed (e.g.
+    ``SHREECEM.NS``) but ``_TICKER_OVERRIDES`` is keyed on the bare
+    ticker. Strip the known NSE/BSE suffixes before lookup so per-ticker
+    overrides actually fire (see PR #258 SHREECEM regression).
+    """
+    bare = symbol
+    for suffix in (".NS", ".BO", ".BSE", ".NSE"):
+        if bare.endswith(suffix):
+            bare = bare[: -len(suffix)]
+            break
+    return _TICKER_OVERRIDES.get(bare, {}).get(field, default)
 
 
 # ---------------------------------------------------------------------------

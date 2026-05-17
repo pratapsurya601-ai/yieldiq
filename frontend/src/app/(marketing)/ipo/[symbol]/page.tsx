@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { notFound } from "next/navigation"
-import MarketingTopNav from "@/components/marketing/MarketingTopNav"
+// Nav is now provided by (marketing)/layout.tsx
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -111,8 +111,6 @@ export default async function IPODetailPage(
 
   return (
     <div className="min-h-screen bg-white">
-      <MarketingTopNav />
-
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
