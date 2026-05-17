@@ -1010,6 +1010,13 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               redFlags={insights?.red_flags_structured ?? []}
               valuationVerdict={valuation.verdict}
               confidence={valuation.confidence_score}
+              // MUTHOOTFIN P0 (2026-05-17): plumb through the reliability
+              // signals so the hero can collapse to "Under Review" instead
+              // of rendering "Notably Below Fair Value" above the yellow
+              // caution banner. See EditorialHero `isUnreliable` guard.
+              fvClamped={fvClamped}
+              dcfReliable={valuation.dcf_reliable}
+              dataConfidence={data.data_confidence}
             />
           ) : (
             <AnalysisHero
