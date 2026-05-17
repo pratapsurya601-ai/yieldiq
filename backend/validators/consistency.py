@@ -53,13 +53,17 @@ def check_consistency(r: dict) -> list[str]:
                 f"FV/CMP ratio={ratio:.2f} at {confidence:.0f}% confidence — review"
             )
 
-    # MoS must reconcile with FV and CMP (MoS is percent, (fv-cmp)/cmp*100)
+    # Upside % must reconcile with FV and CMP: upside = (fv-cmp)/cmp*100.
+    # Historical note: this field is exposed as `margin_of_safety` /
+    # `mos_pct` in the API & DB for backward compatibility, but the
+    # formula has always been upside %, NOT Buffett's MoS. The Step A
+    # rename clarifies the intent; the wire format is unchanged.
     if fv is not None and cmp_price is not None and cmp_price > 0 and mos is not None:
-        expected_pct = (fv - cmp_price) / cmp_price * 100.0
+        expected_upside_pct = (fv - cmp_price) / cmp_price * 100.0
         # 2 percentage-points slack for rounding + moat IV adjustments
-        if abs(expected_pct - mos) > 2.0:
+        if abs(expected_upside_pct - mos) > 2.0:
             errors.append(
-                f"MoS={mos:.1f}% inconsistent with (FV-CMP)/CMP={expected_pct:.1f}%"
+                f"upside_pct={mos:.1f}% inconsistent with (FV-CMP)/CMP={expected_upside_pct:.1f}%"
             )
 
     # WACC must exceed risk-free rate (India RFR ~6.5%, so wacc >= 0.04 floor)

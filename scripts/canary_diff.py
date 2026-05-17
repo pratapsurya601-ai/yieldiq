@@ -187,7 +187,8 @@ SHARED_FIELDS = (
 )
 
 FLOAT_TOL = 0.01  # Gate 1 absolute tolerance for float equality (rounding noise)
-MOS_MATH_TOL = 2.0  # Gate 2 tolerance — 2 percentage points (MoS is percent, not decimal)
+UPSIDE_MATH_TOL = 2.0  # Gate 2 tolerance — 2 percentage points (upside is percent, not decimal)
+MOS_MATH_TOL = UPSIDE_MATH_TOL  # Deprecated alias; the field has always been upside %, not Buffett MoS.
 DISPERSION_MIN = 0.05  # Gate 3 minimum spread (decimal — 5%)
 DRIFT_FV_PCT = 0.15  # snapshot drift threshold for FV
 DRIFT_MOS_PP = 0.10  # snapshot drift threshold for MoS (absolute)
@@ -419,25 +420,39 @@ def gate1_single_source(
     return violations
 
 
-def gate2_mos_math(symbol: str, fields: dict[str, Any]) -> list[str]:
-    """``mos`` must equal ``(fv - cmp) / cmp * 100`` within ``MOS_MATH_TOL`` pp.
-    YieldIQ's API returns MoS as percent (e.g. 34.8 means +34.8%), not
-    decimal — so the expected formula multiplies by 100 to match units.
-    Tolerance is ``MOS_MATH_TOL`` percentage points (default 2.0).
+def gate2_upside_math(symbol: str, fields: dict[str, Any]) -> list[str]:
+    """``margin_of_safety`` (actually upside %) must equal ``(fv - cmp) / cmp * 100``
+    within ``UPSIDE_MATH_TOL`` pp.
+
+    Note: the API field name is ``margin_of_safety`` for backward
+    compatibility, but the math is ``(FV - CMP) / CMP * 100`` — i.e.
+    upside %, NOT Buffett's true margin of safety. This gate verifies
+    the rename (Step A): the formula is unchanged. Step B will add a
+    distinct, correctly-computed Buffett-MoS field.
+
+    YieldIQ's API returns the value as percent (e.g. 34.8 means +34.8%),
+    not decimal — so the expected formula multiplies by 100 to match
+    units. Tolerance is ``UPSIDE_MATH_TOL`` percentage points
+    (default 2.0).
 
     Skipped when verdict indicates no DCF was possible (stock is in a
-    sentinel state — fv=0, mos=0 are placeholders, not real values)."""
+    sentinel state — fv=0, upside=0 are placeholders, not real values)."""
     if _has_no_dcf(fields):
         return []
-    fv, cmp_, mos = fields.get("fair_value"), fields.get("cmp"), fields.get("margin_of_safety")
-    if not (_is_num(fv) and _is_num(cmp_) and _is_num(mos)):
+    fv, cmp_, upside = fields.get("fair_value"), fields.get("cmp"), fields.get("margin_of_safety")
+    if not (_is_num(fv) and _is_num(cmp_) and _is_num(upside)):
         return []
     if cmp_ <= 0:
         return [f"{symbol}: cmp={cmp_} non-positive"]
     expected_pct = (fv - cmp_) / cmp_ * 100.0
-    if abs(mos - expected_pct) > MOS_MATH_TOL:
-        return [f"{symbol}: mos={mos:.2f}% but (fv-cmp)/cmp={expected_pct:.2f}%"]
+    if abs(upside - expected_pct) > UPSIDE_MATH_TOL:
+        return [f"{symbol}: upside_pct={upside:.2f}% but (fv-cmp)/cmp={expected_pct:.2f}%"]
     return []
+
+
+# Deprecated alias for backward compatibility with any external callers
+# that imported the old gate name (e.g. ad-hoc scripts, notebooks).
+gate2_mos_math = gate2_upside_math
 
 
 def gate3_dispersion(symbol: str, fields: dict[str, Any]) -> list[str]:
@@ -632,7 +647,7 @@ def run_all_gates(
     # gate 1 compares public vs authed directly.
     return {
         1: gate1_single_source(symbol, public_fields, authed_fields),
-        2: gate2_mos_math(symbol, authed_fields),
+        2: gate2_upside_math(symbol, authed_fields),
         3: gate3_dispersion(symbol, authed_fields),
         4: gate4_canary_bounds(symbol, authed_fields, bounds),
         5: gate5_forbidden(symbol, authed_fields),
