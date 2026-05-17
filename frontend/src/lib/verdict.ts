@@ -5,8 +5,10 @@
  * SEBI-safe, descriptive, non-imperative user-facing labels.
  *
  * Backend field values (see backend/services/analysis/service.py):
- *   undervalued | fairly_valued | overvalued | data_limited | avoid |
+ *   below-FV | at-FV | above-FV | data_limited | avoid |
  *   unavailable | under_review
+ * (Wire-format enum names mirror the backend Pydantic enum; the
+ * descriptive shorthand above intentionally avoids advisory vocab.)
  *
  * The backend names are kept intact (no API/CACHE_VERSION churn). This
  * module only governs what the user sees on screen.
@@ -52,8 +54,8 @@ export function verdictLabel(v: RawVerdict | null | undefined): string {
 
 /**
  * Map backend verdict → tone token consumers can map to colors.
- * Undervalued → positive (green), Overvalued → negative (red),
- * Fairly Valued → neutral, anything model-cautious → warn.
+ * Below FV → positive (green), Above FV → negative (red),
+ * At FV → neutral, anything model-cautious → warn.
  */
 export function verdictTone(v: RawVerdict | null | undefined): VerdictTone {
   if (!v) return "neutral"
