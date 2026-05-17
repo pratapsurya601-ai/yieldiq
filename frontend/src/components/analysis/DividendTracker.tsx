@@ -91,7 +91,7 @@ export default function DividendTracker({ dividend, currency, ticker }: Props) {
         aria-expanded={expanded}
       >
         <div>
-          <p className="text-sm font-semibold text-ink">💰 Dividend History</p>
+          <p className="text-sm font-semibold text-ink">Dividend History</p>
           <p className="text-xs text-caption mt-0.5">{summaryLine}</p>
           {/* feat/freshness-stamps: most recent ex-date anchors the
               card so a lapsed dividend schedule is immediately visible. */}
@@ -200,7 +200,7 @@ export default function DividendTracker({ dividend, currency, ticker }: Props) {
           {dividend.next_ex_date && (
             <div className="rounded-xl bg-blue-50 border border-blue-100 dark:bg-blue-950/30 dark:border-blue-900 p-3">
               <p className="text-[11px] font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-0.5">
-                📅 Next Ex-Dividend Date
+                Next Ex-Dividend Date
               </p>
               <p className="text-sm text-blue-900 dark:text-blue-200">
                 {new Date(dividend.next_ex_date).toLocaleDateString("en-IN", {

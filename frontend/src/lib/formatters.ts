@@ -21,8 +21,11 @@
  */
 export function formatMarketCap(cr: number): string {
   if (!Number.isFinite(cr) || cr <= 0) return "\u2014"
-  if (cr >= 10_000) {
-    // 1 Lakh Cr = 100,000 Cr. Two decimals so "1.44" doesn't round to "1.4".
+  if (cr >= 100_000) {
+    // 1 Lakh Cr = 1,00,000 Cr. Two decimals so "1.44" doesn't round to "1.4".
+    // Threshold guarantees the unit always sits at >= 1.00 \u2014 earlier
+    // versions tripped at 10,000 Cr and rendered ~13,000 Cr mid-caps
+    // (e.g. PARADEEP) as "\u20b90.13 Lakh Cr", which reads as broken.
     return `\u20b9${(cr / 100_000).toFixed(2)} Lakh Cr`
   }
   if (cr >= 1_000) {
@@ -30,5 +33,5 @@ export function formatMarketCap(cr: number): string {
     const whole = Math.round(cr)
     return `\u20b9${whole.toLocaleString("en-IN")} Cr`
   }
-  return `\u20b9${cr.toFixed(0)} Cr`
+  return `\u20b9${cr.toFixed(2)} Cr`
 }

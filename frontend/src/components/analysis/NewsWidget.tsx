@@ -16,6 +16,11 @@ interface NewsItem {
   published_at: string
   category: string
   importance: string
+  // Added by backend/services/news_filters.py — present on every
+  // item once the filter overhaul ships. Optional here so the
+  // widget keeps rendering against an older API rollout window.
+  topic?: string
+  tier?: number
 }
 
 interface TickerNewsResponse {
@@ -114,7 +119,15 @@ export default function NewsWidget({ ticker }: Props) {
                 </p>
                 <div className="mt-1 flex items-center gap-2 flex-wrap text-[10px] text-caption">
                   <span>{item.source}</span>
-                  {item.category && (
+                  {item.topic && item.topic !== "general" && (
+                    <>
+                      <span aria-hidden="true">·</span>
+                      <span className="capitalize px-1.5 py-0.5 rounded-full bg-surface text-ink/80 border border-border">
+                        {item.topic.replace("-", " ")}
+                      </span>
+                    </>
+                  )}
+                  {item.category && !item.topic && (
                     <>
                       <span aria-hidden="true">·</span>
                       <span className="capitalize">{item.category}</span>

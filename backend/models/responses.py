@@ -222,6 +222,16 @@ class QualityOutput(BaseModel):
     # Shareholding breakdown from ShareholdingPattern table
     promoter_pct: Optional[float] = None
     promoter_pledge_pct: Optional[float] = None
+    # Manual override metadata (fix/promoter-extractor, 2026-05-17).
+    # `promoter_holding_type` is one of:
+    #   "foreign_promoter" — BAT in ITC, Unilever in HUL, etc.
+    #   "no_promoter_bank" — RBI norms, private banks
+    #   "govt_promoter"    — GOI-controlled PSU bank / oil major
+    #   "domestic_promoter"— override needed despite domestic promoter
+    # The frontend uses this to pick the right pill label and avoid
+    # the misleading "0.0% — Low stake" fallback.
+    promoter_holding_type: Optional[str] = None
+    promoter_entity: Optional[str] = None
     fii_pct: Optional[float] = None
     dii_pct: Optional[float] = None
     public_pct: Optional[float] = None

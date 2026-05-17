@@ -20,6 +20,8 @@ import re
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
+from backend.services.news_filters import filter_and_rank, annotate
+
 logger = logging.getLogger("yieldiq.news")
 
 
@@ -308,7 +310,10 @@ def fetch_aggregate_news(days: int = 7, limit: int = 50) -> list[dict]:
         return d if isinstance(d, str) else ""
 
     combined.sort(key=_sort_key, reverse=True)
-    return combined[:limit]
+    # Annotate with tier/topic and drop pure regulatory boilerplate
+    # so the aggregate feed isn't polluted by newspaper ads etc.
+    annotated = filter_and_rank(combined, ticker=None)
+    return annotated[:limit]
 
 
 # ── Combined: fetch all news + filings for a ticker ────────────
@@ -316,27 +321,53 @@ def fetch_aggregate_news(days: int = 7, limit: int = 50) -> list[dict]:
 def fetch_all_news_for_ticker(ticker: str, days: int = 14) -> list[dict]:
     """
     Combine yfinance news + BSE filings for a single ticker.
-    Sorted by published_at descending. Deduplicated by URL.
-    """
-    yf = fetch_yfinance_news(ticker, limit=15)
-    bse = fetch_bse_filings(ticker=ticker, days=days, limit=15)
 
-    seen_urls = set()
-    combined = []
-    for item in (bse + yf):  # BSE first (more important)
+    Applied filters (see backend/services/news_filters.py):
+      - ticker-exact: item must mention the symbol or a canonical
+        company-name alias (drops bleed-through like CMS Info on
+        an HDFCBANK page).
+      - source tier ranking (Tier 1 newswire/Indian press first,
+        Tier 3 generic aggregators last).
+      - boilerplate drop (newspaper ad / e-voting / form 8-K /
+        secretarial compliance noise).
+      - recency window cut-off (`days`, default 14).
+
+    Sorted by (tier asc, published_at desc). Deduplicated by URL.
+    """
+    yf = fetch_yfinance_news(ticker, limit=25)
+    bse = fetch_bse_filings(ticker=ticker, days=days, limit=25)
+
+    cutoff: Optional[datetime] = None
+    if days and days > 0:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    def _within_window(it: dict) -> bool:
+        if cutoff is None:
+            return True
+        pub = it.get("published_at") or ""
+        if not isinstance(pub, str) or not pub:
+            return True
+        try:
+            dt = datetime.fromisoformat(pub.replace("Z", "+00:00"))
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt >= cutoff
+        except Exception:
+            return True
+
+    seen_urls: set[str] = set()
+    pre_filter: list[dict] = []
+    for item in (bse + yf):
         u = item.get("url", "")
         if u and u in seen_urls:
             continue
+        if not _within_window(item):
+            continue
         if u:
             seen_urls.add(u)
-        combined.append(item)
+        pre_filter.append(item)
 
-    # Sort by published_at descending (recent first)
-    def _sort_key(it):
-        d = it.get("published_at", "")
-        return d if isinstance(d, str) else ""
-    combined.sort(key=_sort_key, reverse=True)
-    return combined
+    return filter_and_rank(pre_filter, ticker=ticker)
 
 
 # ── AI summary of a filing/news headline ───────────────────────

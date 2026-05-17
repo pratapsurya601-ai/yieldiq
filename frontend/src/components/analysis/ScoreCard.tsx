@@ -231,20 +231,28 @@ export default function ScoreCard({
         </div>
       )}
 
-      {/* Refraction Index — signature YieldIQ metric */}
-      <div className="space-y-0.5">
-        <div className="flex items-baseline justify-between">
-          <span className="text-[10px] uppercase tracking-[0.18em] text-caption">
-            Refraction
-          </span>
-          <span className="font-editorial text-xl tabular-nums text-bg">
-            {refractionIndex.toFixed(1)}
-          </span>
+      {/* Refraction Index — temporarily hidden from the user-facing
+          Score card. Audit found the value sits flat at 0.3–0.4 across
+          every stock, so it has no discriminating power and just adds
+          chrome. Kept in the payload (`refractionIndex` prop) for
+          internal use until we make it actually informative.
+          TODO(yieldiq-ux): restore once Refraction has been recalibrated
+          to spread across its 0–1 range. Tracking issue: fix-refraction-flatness. */}
+      {false && (
+        <div className="space-y-0.5">
+          <div className="flex items-baseline justify-between">
+            <span className="text-[10px] uppercase tracking-[0.18em] text-caption">
+              Refraction
+            </span>
+            <span className="font-editorial text-xl tabular-nums text-bg">
+              {refractionIndex.toFixed(1)}
+            </span>
+          </div>
+          <p className="text-[10px] text-caption leading-tight">
+            How much the underlying signals disagree. Low = consistent picture; high = mixed.
+          </p>
         </div>
-        <p className="text-[10px] text-caption leading-tight">
-          How much the underlying signals disagree. Low = consistent picture; high = mixed.
-        </p>
-      </div>
+      )}
 
       {/* Market cap footer */}
       {marketCapCr && marketCapCr > 0 && (

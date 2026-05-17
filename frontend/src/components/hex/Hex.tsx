@@ -143,11 +143,11 @@ export default function Hex({
         height={size}
         viewBox={`0 0 ${size} ${size}`}
         role="img"
-        aria-label={`Hex score for ${data.ticker}: ${overall.toFixed(1)}/10`}
+        aria-label={`YieldIQ Score for ${data.ticker}: ${overall.toFixed(1)}/10`}
         style={{ overflow: "visible" }}
       >
         <title>
-          Hex score for {data.ticker}: {overall.toFixed(1)}/10
+          YieldIQ Score for {data.ticker}: {overall.toFixed(1)}/10
         </title>
 
         <defs>

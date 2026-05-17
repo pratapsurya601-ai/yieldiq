@@ -11,8 +11,10 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useMutation } from "@tanstack/react-query"
-import { recomputeDcf, type RecomputeResponse } from "@/lib/api"
+import { recomputeDcf, type RecomputeResponse, type SavedScenario } from "@/lib/api"
 import { formatCurrency, formatPct } from "@/lib/utils"
+import SavedScenarios from "@/components/analysis/SavedScenarios"
+import { useAuthStore } from "@/store/authStore"
 
 interface Props {
   ticker: string
@@ -136,6 +138,48 @@ export default function SensitivityPanel({
     setResult(null)
   }
 
+  // Apply a saved scenario: jump sliders to the stored assumptions
+  // and seed the headline with the stored result so the user sees
+  // the numbers immediately. The debounced effect above will then
+  // re-issue a fresh recompute (low-cost — 5-min server cache, slider
+  // values will hash to the same key) which keeps the FV honest if
+  // the underlying enriched data has moved since the save.
+  const loadScenario = (s: SavedScenario) => {
+    const a = s.assumptions ?? {}
+    const w = Number(a.wacc)
+    const g = Number(a.growth_5y_pct)
+    const m = Number(a.margin_pct)
+    if (Number.isFinite(w)) setWacc(clamp(w, 0.05, 0.20))
+    if (Number.isFinite(g)) setGrowth(clamp(g, -0.05, 0.30))
+    if (Number.isFinite(m)) setMargin(clamp(m, 0.0, 0.60))
+    // Seed headline values from the saved snapshot
+    const r = s.result ?? {}
+    const fv = Number(r.fair_value)
+    const mos = Number(r.margin_of_safety)
+    if (Number.isFinite(fv) && Number.isFinite(mos)) {
+      setResult({
+        ticker,
+        fair_value: fv,
+        current_price: 0,
+        margin_of_safety: mos,
+        verdict: typeof r.verdict === "string" ? r.verdict : "",
+        wacc: Number.isFinite(w) ? w : wacc,
+        fcf_growth_rate: Number.isFinite(g) ? g : growth,
+        operating_margin: Number.isFinite(m) ? m : margin,
+        terminal_growth: 0.03,
+      } as RecomputeResponse)
+    }
+  }
+
+  // Paid-tier gate for the "Save" button. The recompute endpoint
+  // ALREADY tier-gates this panel's parent (<ProGate>), so most
+  // users hitting render here can save. We re-check the auth store
+  // anyway because a freshly-downgraded user might have a stale JWT
+  // — backend will still 403, but disabling the button keeps the UX
+  // honest.
+  const tier = useAuthStore(s => s.tier)
+  const canSave = tier === "pro" || tier === "starter" || tier === "analyst"
+
   const dirty =
     wacc !== initialWacc || growth !== initialGrowth || margin !== initialMargin
 
@@ -252,6 +296,29 @@ export default function SensitivityPanel({
           </div>
         ) : null}
       </div>
+
+      <SavedScenarios
+        ticker={ticker}
+        currency={currency}
+        current={{ wacc, growth, margin, terminal_growth: 0.03 }}
+        currentResult={
+          result
+            ? {
+                fair_value: result.fair_value,
+                margin_of_safety: result.margin_of_safety,
+                verdict: result.verdict,
+              }
+            : baseFairValue > 0
+              ? {
+                  fair_value: baseFairValue,
+                  margin_of_safety: baseMosPct,
+                  verdict: "",
+                }
+              : null
+        }
+        onLoad={loadScenario}
+        canSave={canSave}
+      />
     </div>
   )
 }
