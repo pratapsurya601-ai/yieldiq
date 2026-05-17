@@ -10,6 +10,7 @@ import {
   Tooltip,
 } from "recharts"
 import { formatCurrency } from "@/lib/utils"
+import CashflowStalenessBadge from "@/components/analysis/CashflowStalenessBadge"
 
 interface FinancialDataPoint {
   year: string
@@ -21,6 +22,15 @@ interface FinancialBarsProps {
   currency?: string | null
   revenue?: FinancialDataPoint[]
   fcf?: FinancialDataPoint[]
+  /**
+   * Backend signal (from valuation.fcf_data_source) describing the
+   * freshness of TTM cashflow. Used to render a staleness badge next
+   * to the "Free Cash Flow" header during Q1/Q3 windows when SEBI
+   * does not require a fresh CFS filing.
+   */
+  fcfDataSource?: string | null
+  /** Explicit basis token, takes precedence over fcfDataSource parsing. */
+  fcfTtmBasis?: string | null
 }
 
 const FOREIGN_RE = /^(USD|EUR|GBP|JPY|CNY|SGD|HKD|AUD|CAD|CHF)$/i
@@ -52,6 +62,8 @@ export default function FinancialBars({
   currency,
   revenue: revenueProp,
   fcf: fcfProp,
+  fcfDataSource,
+  fcfTtmBasis,
 }: FinancialBarsProps) {
   const data: YearlyData[] = useMemo(() => {
     // Merge revenue + FCF by year. No synthetic fallback — if the
@@ -129,7 +141,13 @@ export default function FinancialBars({
 
       {/* FCF chart */}
       <div className="rounded-xl bg-surface border border-border p-3 shadow-sm">
-        <p className="text-xs font-medium text-caption mb-2">Free Cash Flow</p>
+        <div className="mb-2 flex items-center gap-2 flex-wrap">
+          <p className="text-xs font-medium text-caption">Free Cash Flow</p>
+          <CashflowStalenessBadge
+            basis={fcfTtmBasis}
+            dataSource={fcfDataSource}
+          />
+        </div>
         <div className="h-[180px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
