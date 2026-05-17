@@ -621,6 +621,13 @@ class TokenResponse(BaseModel):
     # ability to branch on staged-rollout / Pro-only beta features
     # without a separate round-trip per flag.
     feature_flags: dict[str, bool] = Field(default_factory=dict)
+    # Soft email-verify gates (feat/soft-email-verify-gates). True when
+    # users_meta.email_verified is true OR the user is a superuser /
+    # legacy (pre-migration) account. Frontend uses this to render the
+    # EmailVerifyBanner and to gate the paid-upgrade / API-key /
+    # export buttons. Defaults to True so pre-migration clients never
+    # see the banner spuriously.
+    email_verified: bool = True
 
 
 class UserResponse(BaseModel):
@@ -634,6 +641,8 @@ class UserResponse(BaseModel):
     display_name_edits_remaining: int = 3
     # See TokenResponse.feature_flags above.
     feature_flags: dict[str, bool] = Field(default_factory=dict)
+    # See TokenResponse.email_verified.
+    email_verified: bool = True
 
 
 # ── Generic responses ─────────────────────────────────────────

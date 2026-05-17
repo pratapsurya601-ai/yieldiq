@@ -8,6 +8,7 @@ import {
   getPublicPeers,
 } from "@/lib/api"
 import { downloadWorkbook } from "@/lib/excel"
+import { useAuthStore } from "@/store/authStore"
 
 interface Props {
   ticker: string
@@ -23,8 +24,21 @@ interface Props {
 export default function ExcelExportButton({ ticker, className }: Props) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const token = useAuthStore((s) => s.token)
+  const emailVerified = useAuthStore((s) => s.emailVerified)
 
   const handleClick = async () => {
+    // Soft email-verify gate (feat/soft-email-verify-gates). Even
+    // though this button builds the workbook in-browser from public
+    // payloads, exports are a value-add Pro/Account feature — we keep
+    // the gate consistent with ProExcelExportButton so abusers can't
+    // signup-spam to scrape institutional-formatted workbooks.
+    if (token && !emailVerified) {
+      setError(
+        "Verify your email before exporting — use the banner at the top of the page to resend the verification link.",
+      )
+      return
+    }
     setBusy(true)
     setError(null)
     try {

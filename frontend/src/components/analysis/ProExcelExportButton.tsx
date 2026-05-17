@@ -22,6 +22,7 @@ interface Props {
 export default function ProExcelExportButton({ ticker, className }: Props) {
   const tier = useAuthStore((s) => s.tier)
   const token = useAuthStore((s) => s.token)
+  const emailVerified = useAuthStore((s) => s.emailVerified)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -32,6 +33,15 @@ export default function ProExcelExportButton({ ticker, className }: Props) {
   }
 
   const handleClick = async () => {
+    // Soft email-verify gate (feat/soft-email-verify-gates). Backend
+    // gates the export endpoint with require_email_verified — pre-empt
+    // here for a clearer message.
+    if (!emailVerified) {
+      setError(
+        "Verify your email before exporting — use the banner at the top of the page to resend the verification link.",
+      )
+      return
+    }
     setBusy(true)
     setError(null)
     try {

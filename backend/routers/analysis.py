@@ -16,7 +16,12 @@ from backend.models.responses import AnalysisResponse, ScreenerResponse, Screene
 from backend.services.analysis_service import AnalysisService, TickerNotFoundError
 from backend.services.cache_service import cache
 from backend.services import analysis_cache_service
-from backend.middleware.auth import get_current_user, get_current_user_optional, check_analysis_limit
+from backend.middleware.auth import (
+    get_current_user,
+    get_current_user_optional,
+    check_analysis_limit,
+    require_email_verified,
+)
 from backend.middleware.api_auth import get_user_from_api_key
 from backend.services import api_keys_service as _api_keys_svc
 from backend.services.ticker_search import search_tickers
@@ -2205,6 +2210,7 @@ async def get_report(ticker: str, user: dict = Depends(get_current_user)):
 async def export_analysis_xlsx(
     ticker: str,
     user: dict = Depends(get_current_user),
+    _verified: dict = Depends(require_email_verified),
 ):
     """Download a formula-driven DCF workbook for ``ticker``.
 

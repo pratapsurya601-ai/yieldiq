@@ -24,7 +24,7 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from backend.middleware.auth import get_current_user
+from backend.middleware.auth import get_current_user, require_email_verified
 from backend.services import api_keys_service as svc
 
 logger = logging.getLogger("yieldiq.api_keys.router")
@@ -82,7 +82,7 @@ async def list_my_keys(user: dict = Depends(get_current_user)):
 @router.post("/", response_model=CreateKeyResponse)
 async def create_my_key(
     body: CreateKeyRequest,
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_email_verified),
 ):
     """Create a new key. Pro-only. Returns the RAW key in the response —
     only opportunity to capture it. Frontend MUST show with a copy

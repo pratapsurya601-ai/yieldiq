@@ -20,6 +20,13 @@ interface AuthState {
   // keys as disabled (mirrors the backend's "unknown flag = False"
   // safe default).
   featureFlags: Record<string, boolean>
+  // Soft email-verify state (feat/soft-email-verify-gates). True when
+  // backend reports users_meta.email_verified=true, the user is a
+  // superuser, or the user is a legacy (pre-migration) account.
+  // EmailVerifyBanner + the gated buttons read this. Defaults true so
+  // a pre-PR backend that doesn't send the field doesn't spuriously
+  // pop the banner.
+  emailVerified: boolean
   setAuth: (
     token: string,
     userId: string,
@@ -30,8 +37,10 @@ interface AuthState {
     displayName?: string | null,
     displayNameEditsRemaining?: number,
     featureFlags?: Record<string, boolean>,
+    emailVerified?: boolean,
   ) => void
   setDisplayName: (name: string | null, editsRemaining: number) => void
+  setEmailVerified: (verified: boolean) => void
   logout: () => void
   incrementAnalyses: () => void
 }
@@ -43,6 +52,7 @@ export const useAuthStore = create<AuthState>()(
       analysesToday: 0, analysisLimit: 5,
       displayName: null, displayNameEditsRemaining: 3,
       featureFlags: {},
+      emailVerified: true,
       setAuth: (
         token,
         userId,
@@ -53,6 +63,7 @@ export const useAuthStore = create<AuthState>()(
         displayName,
         displayNameEditsRemaining,
         featureFlags,
+        emailVerified,
       ) =>
         set((s) => ({
           token,
@@ -72,9 +83,14 @@ export const useAuthStore = create<AuthState>()(
           // send the field, so undefined leaves prior state intact.
           featureFlags:
             featureFlags === undefined ? s.featureFlags : featureFlags,
+          // Same pattern for emailVerified — undefined means a
+          // pre-PR backend response; leave the prior value alone.
+          emailVerified:
+            emailVerified === undefined ? s.emailVerified : emailVerified,
         })),
       setDisplayName: (name, editsRemaining) =>
         set({ displayName: name, displayNameEditsRemaining: editsRemaining }),
+      setEmailVerified: (verified) => set({ emailVerified: verified }),
       logout: () => set({
         token: null, userId: null, email: null, tier: "free",
         // Reset BOTH counter fields on logout. Previously analysisLimit
@@ -89,6 +105,7 @@ export const useAuthStore = create<AuthState>()(
         analysesToday: 0, analysisLimit: 5,
         displayName: null, displayNameEditsRemaining: 3,
         featureFlags: {},
+        emailVerified: true,
       }),
       incrementAnalyses: () => set((s) => ({ analysesToday: s.analysesToday + 1 })),
     }),
