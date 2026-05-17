@@ -280,12 +280,24 @@ def get_holdings_with_live_data(user_email: str) -> dict:
     # One bulk SELECT instead of N round-trips; missing tickers just get
     # `None` on the response, which the frontend already handles.
     day_quotes: dict[str, dict] = {}
+    all_tickers = [h.get("ticker") for h in holdings if h.get("ticker")]
     try:
         from backend.services import market_data_service as _mds
-        all_tickers = [h.get("ticker") for h in holdings if h.get("ticker")]
         day_quotes = _mds.get_live_quotes_bulk(all_tickers) or {}
     except Exception as e:
         logger.warning(f"day_quotes bulk fetch failed: {e}")
+
+    # Bulk-fetch valuation (FV / MoS / verdict) from analysis_cache so
+    # the holdings table can render FV + MoS inline even when the
+    # per-process in-memory cache is cold (Railway worker restarts,
+    # first request after deploy). One SELECT for every holding —
+    # replaces what used to be an N+1 _c.get() loop below.
+    bulk_valuation: dict[str, dict] = {}
+    try:
+        from backend.services.analysis_cache_service import get_valuation_bulk
+        bulk_valuation = get_valuation_bulk(all_tickers) or {}
+    except Exception as e:
+        logger.warning(f"bulk_valuation fetch failed: {e}")
 
     enriched = []
     total_invested = 0.0
@@ -322,7 +334,11 @@ def get_holdings_with_live_data(user_email: str) -> dict:
         elif pnl_pct < 0:
             losers += 1
 
-        # Get fair value from cache (don't refetch)
+        # Get fair value from cache (don't refetch).
+        # Tier 1: in-process cache_service (fastest, also has score).
+        # Tier 2: bulk analysis_cache DB result (fetched above in ONE
+        # query). Without this fallback the holdings table renders
+        # all dashes on a cold Railway worker — see PR for /home v2.
         from backend.services.cache_service import cache as _c
         cached = _c.get(f"analysis:{ticker}")
         fair_value = None
@@ -335,6 +351,24 @@ def get_holdings_with_live_data(user_email: str) -> dict:
             score = cached.quality.yieldiq_score
             # MoS = (fair_value - current_price) / current_price (forward-looking)
             mos_pct = ((fair_value - current_price) / current_price * 100) if current_price > 0 else None
+        else:
+            # Look up by both the raw and canonicalized ticker key —
+            # `get_valuation_bulk` returns canonical keys, but the
+            # holdings table can store either form depending on import era.
+            bv = bulk_valuation.get(ticker)
+            if bv is None:
+                try:
+                    from backend.services.analysis.utils import _canonicalize_ticker
+                    bv = bulk_valuation.get(_canonicalize_ticker(ticker))
+                except Exception:
+                    bv = None
+            if bv:
+                fair_value = bv.get("fair_value")
+                verdict = bv.get("verdict") or ""
+                if fair_value is not None and current_price > 0:
+                    mos_pct = (fair_value - current_price) / current_price * 100
+                else:
+                    mos_pct = bv.get("mos_pct")
 
         enriched.append({
             "ticker": ticker,
