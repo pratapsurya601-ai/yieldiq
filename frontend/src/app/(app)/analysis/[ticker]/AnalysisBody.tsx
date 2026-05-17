@@ -798,6 +798,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               currency={company.currency}
               revenue={chartData?.financials?.revenue}
               fcf={chartData?.financials?.fcf}
+              fcfDataSource={valuation.fcf_data_source}
             />
           </div>
         </div>
