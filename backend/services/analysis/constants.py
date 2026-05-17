@@ -502,3 +502,118 @@ for _t in (FINANCIAL_COMPANIES - _NBFC_TICKERS - _INSURANCE_TICKERS):
 # USD → INR conversion rate for Financials rows tagged `currency = 'USD'`.
 # TODO: source from a forex feed (RBI reference rate) rather than a constant.
 USD_INR_RATE = 83.5
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Holding companies / SPVs / pure investment vehicles
+# (added 2026-05-17, structural data-quality fix #4)
+#
+# These businesses have no operating revenue — they own equity stakes
+# in subsidiaries and collect dividends. Their reported revenue_cr is
+# typically <100 Cr and their CFO/FCF is dominated by dividend receipts
+# and stake monetisations, both of which are intermittent and bear no
+# relation to intrinsic value. Running DCF on these names produces
+# absurd FVs in both directions (GAYAHWS surfaced as cfo_cr=7.37 bn
+# pre-fix, which the DCF engine then projected forward as steady-state
+# cash generation).
+#
+# The right valuation framework is Sum-Of-The-Parts (SOTP) over the
+# underlying stakes — that engine is on the Q3 roadmap. Until it
+# ships, we detect these names and short-circuit the DCF entirely:
+# verdict = data_limited, valuation_model = holding_company_sotp_required,
+# no FV emitted. The frontend renders an SOTP caveat banner.
+#
+# Detection = (curated allow-list) OR (auto-detect on revenue/industry/
+# market-cap signals). Auto-detect is intentionally conservative —
+# revenue must be near-zero AND industry/sector keyword must match AND
+# market-cap must be material (so we don't tag defunct shells with
+# revenue=0 just because they're inactive).
+# ─────────────────────────────────────────────────────────────────────
+
+HOLDING_COMPANIES: set[str] = {
+    # Pure holding companies (own stakes in operating subsidiaries,
+    # collect dividends, no operating business of their own).
+    "BAJAJHLDNG",       # Bajaj Holdings & Investment
+    "TATAINVEST",       # Tata Investment Corporation
+    "MCLEODRUSS",       # McLeod Russel India (tea estate holdco)
+    "NDTV",             # New Delhi Television (holdco for media stakes)
+    "NETWORK18",        # Network18 Media (Reliance media holdco)
+    "GAYAHWS",          # Gayatri Highways (toll-road SPV)
+    "MOIL",             # MOIL Limited (manganese holding/leasing)
+    "PILANIINVS",       # Pilani Investment & Industries
+    "WILLIAMAGR",       # Williamson Magor & Co (Eveready / McLeod holdco)
+    "SUMMITSEC",        # Summit Securities
+    "KAMAHOLD",         # Kama Holdings (SRF promoter holdco)
+    "MAHSCOOTER",       # Maharashtra Scooters (Bajaj group holdco)
+}
+
+
+# Sector / industry keyword fragments that mark a ticker as a holding
+# company candidate for auto-detection. Matched case-insensitively as
+# substrings of the resolved sector or industry label.
+_HOLDING_INDUSTRY_KEYWORDS = (
+    "holding",
+    "investment",      # "Investment Holdings", "Investment Trust"
+    "diversified",     # NIC 64200 maps here in NSE classifications
+    "spv",
+    "special purpose",
+)
+
+# NIC industrial classification code 64200 = "Activities of holding
+# companies". Stored as a string in some upstream feeds.
+_HOLDING_NIC_CODES = {"64200", "64201", "64202"}
+
+
+def is_holding_company(
+    ticker: str | None,
+    sector: str | None = None,
+    industry: str | None = None,
+    revenue_cr: float | None = None,
+    market_cap_cr: float | None = None,
+    nic_code: str | None = None,
+) -> bool:
+    """Return True if the ticker is a holding company / SPV / pure
+    investment vehicle for which DCF is structurally inappropriate.
+
+    Two independent signals — match on either:
+
+      1. Ticker membership in :data:`HOLDING_COMPANIES` (curated
+         allow-list, highest priority; bypasses every gate).
+      2. Auto-detect: ALL THREE must be true —
+           - revenue_cr < 100 (near-zero operating revenue)
+           - sector OR industry OR NIC code matches a holding-co
+             keyword (so dormant operating businesses aren't tagged)
+           - market_cap_cr > 100 (so defunct shells aren't tagged)
+
+    The auto-detect path is conservative on purpose: a false positive
+    here means we silently drop the DCF for a real operating company.
+    The curated allow-list is the primary defence; auto-detect is the
+    safety net for names we haven't enumerated yet.
+    """
+    if ticker:
+        bare = (
+            ticker.replace(".NS", "")
+            .replace(".BO", "")
+            .upper()
+        )
+        if bare in HOLDING_COMPANIES:
+            return True
+
+    # Auto-detect requires all three signals.
+    if revenue_cr is None or market_cap_cr is None:
+        return False
+    try:
+        if float(revenue_cr) >= 100.0:
+            return False
+        if float(market_cap_cr) <= 100.0:
+            return False
+    except (TypeError, ValueError):
+        return False
+
+    blob = " ".join(
+        (sector or "").lower().strip().split() +
+        (industry or "").lower().strip().split()
+    )
+    keyword_hit = any(k in blob for k in _HOLDING_INDUSTRY_KEYWORDS)
+    nic_hit = bool(nic_code) and str(nic_code).strip() in _HOLDING_NIC_CODES
+    return keyword_hit or nic_hit
