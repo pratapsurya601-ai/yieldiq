@@ -1,7 +1,7 @@
 import type { Metadata } from "next"
 import Link from "next/link"
 import { getAllBlogPosts, type BlogPost } from "@/lib/blog"
-import MarketingTopNav from "@/components/marketing/MarketingTopNav"
+// Nav is now provided by (marketing)/layout.tsx
 
 export const metadata: Metadata = {
   title: "YieldIQ Blog \u2014 Investing Guides for Indian Stock Market | YieldIQ",
@@ -37,8 +37,6 @@ export default function BlogIndexPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      <MarketingTopNav />
-
       {/* Header */}
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-16">
         <div className="max-w-3xl mx-auto px-4 text-center">
