@@ -498,39 +498,144 @@ BANK_QUARTERLY_TAGS: dict[str, list[str]] = {
     "paid_up_capital_cr": ["PaidUpValueOfEquityShareCapital"],
 }
 
-# Insurance schema — discovered via ?index=insurance listing endpoint
-# (HDFCLIFE Q3 FY25, URL pattern `LI_<seq>_<id>_<ts>.xml`). Namespace
-# uses `in-capmkt` (Insurance role variant) instead of in-bse-fin-bnk,
-# so detection is URL-prefix-driven for this schema.
+# Insurance schema — discovered via ?index=equities|insurance listing
+# endpoint (Integrated Filing URL prefix INTEGRATED_FILING_LI_ for life
+# insurers, INTEGRATED_FILING_GI_ for general; legacy LI_/GI_ also).
+# Namespace uses `in-capmkt` (Insurance role variant), detection is
+# URL-prefix-driven (see detect_schema).
 #
-# Coverage is INTENTIONALLY PARTIAL. The insurance P&L has two ledgers
-# (Policyholders' Account + Shareholders' Account), per-line-of-business
-# splits, and IRDAI-specific metrics (solvency ratio, persistency, NBP)
-# that don't map onto the industrial schema columns. This map covers
-# the headline P&L only — enough for `revenue_cr` / `net_profit_cr`
-# population. Full insurance-native columns are deferred to a follow-up
-# PR (insurance recon task `aecc0764eeae0e4b7`).
+# This map now covers the full insurance P&L surface needed for valuation
+# routing (P/EV for life via embedded value disclosed annually + book
+# value here; P/B for general using premium-earned-weighted equity).
+# Coverage is split across two dicts:
+#
+#   INSURANCE_QUARTERLY_TAGS         — money-magnitude facts in Cr that
+#                                      flow through the standard scale
+#                                      divisor (num() helper).
+#   INSURANCE_QUARTERLY_RATIO_TAGS   — unitless % / ratio facts that
+#                                      MUST NOT be divided by the Cr
+#                                      scale (would silently shift a
+#                                      87% persistency to 87/1e7).
+#
+# Life vs general split:
+#   * Life     (HDFCLIFE, SBILIFE, ICICIPRULI, LICI, MAXFIN, etc.):
+#     uses NetPremiumIncome / GrossPremiumIncome, BenefitsPaidNet,
+#     persistency ratios, NBP via first-year + single-premium income.
+#   * General  (ICICIGI, NIACL, STARHEALTH, NEWINDIA, etc.):
+#     uses NetPremium / GrossPremiumsWritten / NetPremiumWritten /
+#     PremiumEarned, ClaimsPaid, CombinedRatio, UnderwritingProfitOrLoss,
+#     OperatingProfitOrLoss. PBT tag spelling differs (ProfitOrLossBeforeTax
+#     vs life's ProfitLossBeforeTax) and PAT tag is ProfitLossAfterTax
+#     (no Extraordinary suffix on general).
+#
+# Tag spellings verified against live integrated-filing XBRLs:
+#   tests/fixtures/xbrl/hdfclife_integrated_q4_fy26.xml   (life)
+#   tests/fixtures/xbrl/sbilife_integrated_q4_fy26.xml    (life)
+#   tests/fixtures/xbrl/icicigi_integrated_q4_fy26.xml    (general)
 INSURANCE_QUARTERLY_TAGS: dict[str, list[str]] = {
-    # Use NetPremiumIncome as the canonical revenue proxy (matches what
-    # peers report as "topline" for life insurers).
-    "revenue_cr": ["NetPremiumIncome", "GrossPremiumIncome"],
-    "other_income_cr": ["OtherIncome", "PolicyholdersAccountOtherIncome"],
-    "total_income_cr": ["Income"],
-    "total_expenses_cr": ["Expenses", "ExpensesOfManagement"],
+    # Use NetPremiumIncome (life) / NetPremium / PremiumEarned (general)
+    # as the canonical revenue proxy. Order matters — observed-first.
+    "revenue_cr": [
+        # Life
+        "NetPremiumIncome", "GrossPremiumIncome",
+        # General
+        "PremiumEarned", "NetPremium", "NetPremiumWritten",
+        "GrossPremiumsWritten",
+    ],
+    "other_income_cr": [
+        "OtherIncome",
+        "PolicyholdersAccountOtherIncome",
+        "ShareholdersAccountIncomeFromInvestments",
+    ],
+    "total_income_cr": ["Income", "OperatingIncome"],
+    "total_expenses_cr": [
+        "Expenses", "ExpensesOfManagement",
+        "OperatingExpenses",
+        "OperatingExpensesRelatedToInsuranceBusiness",
+    ],
     "employee_benefit_cr": ["EmployeesRemunerationAndWelfareExpenses"],
-    "profit_before_tax_cr": ["ProfitLossBeforeTax"],
-    "tax_expense_cr": ["ProvisionsForTax", "ProvisionsForTaxes", "CurrentTax"],
+    "profit_before_tax_cr": [
+        "ProfitLossBeforeTax",        # life
+        "ProfitOrLossBeforeTax",      # general
+        "ProfitOrLossBeforeExtraordinaryItems",
+    ],
+    "tax_expense_cr": [
+        "ProvisionsForTax", "ProvisionsForTaxes",
+        "CurrentTax", "CurrentTaxes",
+    ],
     "net_profit_cr": [
+        # Life
         "ProfitLossAfterTaxAndExtraordinaryItems",
         "ProfitLossAfterTaxBeforeExtraordinaryItems",
+        # General — no Extraordinary suffix
+        "ProfitLossAfterTax",
     ],
     "paid_up_capital_cr": ["PaidUpValueOfEquityShareCapital"],
-    # Insurance-native (not stored in current schema; reserved for
-    # future insurance-specific columns).
-    "_gross_premium_cr": ["GrossPremiumIncome"],
-    "_benefits_paid_cr": ["BenefitsPaidNet"],
-    "_commission_cr": ["NetCommission", "Commission"],
-    "_surplus_cr": ["SurplusDeficit"],
+}
+
+# ─────────────────────────────────────────────────────────────────
+# Insurance-native metrics — surfaced into the row's `insurance_metrics`
+# JSONB blob (migration 038). Two flavours:
+#
+#   _MONEY: ₹Cr facts — divided by `scale` like the standard columns.
+#   _RATIO: unitless % / ratio facts — divided by 1.0 (left as-is).
+#
+# Keys are snake_case of the XBRL local-name and form the canonical
+# downstream API. New tags are appended-only — never rename.
+# ─────────────────────────────────────────────────────────────────
+INSURANCE_QUARTERLY_MONEY_TAGS: dict[str, list[str]] = {
+    # ── Life-specific premium splits ──
+    "gross_premium_income_cr":  ["GrossPremiumIncome"],
+    "net_premium_income_cr":    ["NetPremiumIncome", "NetPremium"],
+    "first_year_premium_cr":    ["IncomeFirstYearPremium"],
+    "renewal_premium_cr":       ["IncomeRenewalPremium"],
+    "single_premium_cr":        ["IncomeSinglePremium"],
+    # Approximate New Business Premium (NBP) = first_year + single
+    # (computed downstream from these two fields, not parsed directly).
+    "benefits_paid_net_cr":     ["BenefitsPaidNet"],
+    "commission_net_cr":        ["NetCommission", "Commission", "CommissionsAndBrokerageNet"],
+    "first_year_commission_cr": ["CommissionFirstYearPremium"],
+    "renewal_commission_cr":    ["CommissionRenewalPremium"],
+    "single_premium_commission_cr": ["CommissionSinglePremium"],
+    "surplus_deficit_cr":       ["SurplusDeficit", "NetSurplusDeficit"],
+    "investment_income_cr":     [
+        "IncomeFromInvestmentsNet",
+        "InvestmentIncome",
+        "IncomeFormInvestments",  # (sic — observed misspelling in NSE schema)
+    ],
+    "investments_policyholders_cr": [
+        "InvestmentsPolicyholders",
+        "InvestmentsPolicyholdersFund",
+        "InvestmentsPolicyholdersFundExcludingLinkedAssets",
+    ],
+    "investments_shareholders_cr": [
+        "InvestmentsShareholders",
+        "InvestmentsShareholdersFund",
+        "InvestmentsShareholderFund",  # (sic — general schema variant)
+    ],
+    "reserves_and_surplus_cr":  ["ReservesAndSurplus", "ReservesAndSurplusExcludingRevaluationReserve"],
+    # ── General-insurance specific ──
+    "gross_premiums_written_cr":["GrossPremiumsWritten"],
+    "net_premiums_written_cr":  ["NetPremiumWritten"],
+    "premium_earned_cr":        ["PremiumEarned"],
+    "claims_paid_cr":           ["ClaimsPaid"],
+    "operating_profit_cr":      ["OperatingProfitOrLoss"],
+    "underwriting_profit_cr":   ["UnderwritingProfitOrLoss"],
+    "premium_deficiency_cr":    ["PremiumDeficiency"],
+}
+
+INSURANCE_QUARTERLY_RATIO_TAGS: dict[str, list[str]] = {
+    # ── Solvency (both life & general; IRDAI floor 1.50) ──
+    "solvency_ratio":      ["SolvencyRatio"],
+    # ── Life persistency (% of policies in force after N months) ──
+    "persistency_13":      ["PersistencyRatio13ThMonth"],
+    "persistency_25":      ["PersistencyRatio25ThMonth"],
+    "persistency_37":      ["PersistencyRatio37ThMonth"],
+    "persistency_49":      ["PersistencyRatio49ThMonth"],
+    "persistency_61":      ["PersistencyRatio61ThMonth"],
+    # ── General-insurance ratios ──
+    "combined_ratio":      ["CombinedRatio"],
+    "conservation_ratio":  ["ConservationRatio"],
 }
 
 
@@ -672,9 +777,16 @@ def detect_schema(xbrl_url: str | None, xml_bytes: bytes | None) -> str:
         # prefixes. Match on the filename segment so we don't false-positive
         # on '/LI/' in other path components.
         last = u.rsplit("/", 1)[-1]
+        # Legacy filename prefixes (LI_/GI_) AND new SEBI Integrated
+        # Filing prefixes (INTEGRATED_FILING_LI_/INTEGRATED_FILING_GI_).
+        # The legacy startswith checks would miss the INTEGRATED_FILING_
+        # rollout (2026 onward) so we widen with substring matches on
+        # the wrapped tokens.
         if (
             last.startswith("LI_")
             or last.startswith("GI_")
+            or "INTEGRATED_FILING_LI_" in last
+            or "INTEGRATED_FILING_GI_" in last
             or "INSURANCE_" in u
         ):
             return "insurance"
@@ -1148,6 +1260,74 @@ def parse_quarter_xml(
 
     period_start = _resolve_period_start(contexts, period_end)
 
+    # ── Insurance-native metrics ──
+    # Only populated for schema == 'insurance'. Persisted into JSONB
+    # column `insurance_metrics` (migration 038). Keys are stable
+    # snake_case names; values are either ₹Cr (scaled) or unitless
+    # ratios (raw, no scale division).
+    insurance_metrics: dict[str, float] | None = None
+    if schema == "insurance":
+        insurance_metrics = {}
+        # Money facts share the same scale as the headline P&L columns.
+        for key, tag_list in INSURANCE_QUARTERLY_MONEY_TAGS.items():
+            v = _pick_quarter_fact(facts, contexts, tag_list, period_end)
+            if v is None:
+                continue
+            cr = _post_guard(round(v / scale, 2))
+            if cr is not None:
+                insurance_metrics[key] = cr
+        # Ratio facts are unitless — never divide by `scale`.
+        # Filer inconsistency: a subset of insurers report ratios as
+        # decimal (0.85 = 85%, 0.0267 = 2.67x solvency) instead of
+        # percent / multiple. Observed pre-fix:
+        #   HDFCLIFE solvency 1.77 (correct), persistency_13 0.8163 (decimal)
+        #   SBILIFE  solvency 0.019 (decimal of 1.9x), persistency_13 0.0088
+        #   ICICIGI  solvency 0.0267 (decimal of 2.67x), combined 1.0122
+        # Normalisation rules per metric family:
+        #   solvency_ratio (typical 1.0-3.0): if 0<v<0.5 then v*=100
+        #   combined_ratio (typical 70-150%): if 0<v<2  then v*=100
+        #   persistency_*   (typical 50-100%): if 0<v<2  then v*=100
+        for key, tag_list in INSURANCE_QUARTERLY_RATIO_TAGS.items():
+            v = _pick_quarter_fact(facts, contexts, tag_list, period_end)
+            if v is None:
+                continue
+            v = float(v)
+            if key == "solvency_ratio":
+                # Solvency reported either as multiple (1.77x) or in
+                # decimal forms 0.0177 (× 100 mis-scale) — never seen
+                # double-mis-scaled in production. IRDAI floor 1.5; cap
+                # the upscale rescue at one step.
+                if 0 < abs(v) < 0.5:
+                    v = v * 100.0
+            elif (
+                key.startswith("persistency_")
+                or key == "combined_ratio"
+                or key == "conservation_ratio"
+            ):
+                # Persistency / combined / conservation: target unit %.
+                # Observed filer variants in production:
+                #   HDFCLIFE persistency_13 = 0.8163  (×100 once = 81.63%)
+                #   SBILIFE  persistency_13 = 0.0088  (×100 twice = 88.0%)
+                #   ICICIGI  combined_ratio = 1.0122  (×100 once = 101.22%)
+                # Iteratively upscale by 100 until the value lands in
+                # the realistic 30-200 percent band. Bounded at 3 steps
+                # to avoid runaway on a genuinely tiny ratio.
+                for _ in range(3):
+                    if 0 < abs(v) < 1.5:
+                        v = v * 100.0
+                    else:
+                        break
+            insurance_metrics[key] = round(v, 2)
+        # Derived: approximate quarterly New Business Premium (NBP) =
+        # first-year + single. Both are already in Cr and on the
+        # right scale. Skip if either is missing.
+        _fy = insurance_metrics.get("first_year_premium_cr")
+        _sp = insurance_metrics.get("single_premium_cr")
+        if _fy is not None and _sp is not None:
+            insurance_metrics["new_business_premium_cr"] = round(_fy + _sp, 2)
+        if not insurance_metrics:
+            insurance_metrics = None
+
     row: dict[str, Any] = {
         "ticker": ticker,
         "schema_type": schema,
@@ -1194,6 +1374,9 @@ def parse_quarter_xml(
         "xbrl_url": xbrl_url,
         "xbrl_sha256": hashlib.sha256(xml_bytes).hexdigest(),
         "filed_at": filed_at,
+        # Insurance-native sector-specific metrics (JSONB, migration 038).
+        # None for non-insurance schemas (industrial/banking).
+        "insurance_metrics": insurance_metrics,
     }
     return row
 
