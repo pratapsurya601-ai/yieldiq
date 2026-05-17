@@ -206,12 +206,25 @@ def _validate_info_for_write(ticker: str, info: dict) -> tuple[bool, str | None]
     """
     try:
         # Rule 1: ADR currency mistag
+        # Carve-out (2026-05-17, feat/detect-usd-reporters-convert-to-inr):
+        # a small allow-list of Indian IT-services issuers (MPHASIS, COFORGE,
+        # PERSISTENT, KPITTECH) legitimately file in USD. For those, we
+        # convert downstream rather than reject — keep the info row so the
+        # converter can read financialCurrency='USD' as its trigger.
         fin_ccy = str(info.get("financialCurrency") or "").upper()
         if fin_ccy == "USD" and _is_indian_primary_ticker(ticker):
-            return False, (
-                f"financialCurrency=USD on Indian-primary ticker {ticker} "
-                "(suspected ADR mistag — see PR #208 lineage)"
-            )
+            try:
+                from backend.services.currency_conversion_service import (
+                    is_usd_reporter as _is_usd_reporter,
+                )
+                _legit = _is_usd_reporter(ticker, info)
+            except Exception:
+                _legit = False
+            if not _legit:
+                return False, (
+                    f"financialCurrency=USD on Indian-primary ticker {ticker} "
+                    "(suspected ADR mistag — see PR #208 lineage)"
+                )
 
         # Rule 2: marketCap range
         mc = info.get("marketCap")
