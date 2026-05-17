@@ -1,0 +1,65 @@
+name: Cron — Refresh live_quotes (market hours)
+
+# Replaces the in-process APScheduler "market_live_quotes" job that
+# previously ran inside every uvicorn worker (N× duplication on Railway).
+#
+# Refreshes live_quotes for the union of {Supabase holdings, top-200
+# fair_value_history tickers} via yfinance fast_info. UPSERT-only, safe
+# to re-run.
+#
+# Schedule: every 5 minutes during NSE market hours (Mon-Fri,
+# 09:15-15:30 IST = 03:45-10:00 UTC). The wrapper inside
+# market_data_refresher.refresh_live_quotes is itself idempotent, so a
+# duplicate fire from a late cron tick is harmless.
+#
+# Secrets required:
+#   - DATABASE_URL          : Neon/Aiven Postgres URL
+#   - SUPABASE_URL          : holdings lookup
+#   - SUPABASE_SERVICE_KEY  : holdings lookup
+
+on:
+  schedule:
+    # */5 between 03:45-10:00 UTC, Mon-Fri. Cron can't express :45 offsets
+    # cleanly, so we run */5 from 03..10 UTC and rely on the function's
+    # own no-op guard (collect_refresh_tickers returns [] off-hours-safe).
+    - cron: "*/5 3-10 * * 1-5"
+  workflow_dispatch:
+
+concurrency:
+  group: cron-market-live-quotes
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install minimal deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install "SQLAlchemy>=2.0" "psycopg2-binary" "yfinance>=0.2.40" supabase
+
+      - name: Refresh live_quotes
+        run: |
+          python -c "
+          from backend.workers.market_data_refresher import collect_refresh_tickers, refresh_live_quotes
+          tickers = collect_refresh_tickers(limit_fv=200)
+          print(f'collected {len(tickers)} tickers')
+          if tickers:
+              stats = refresh_live_quotes(tickers)
+              print(f'stats: {stats}')
+          else:
+              print('no tickers — no-op')
+          "
