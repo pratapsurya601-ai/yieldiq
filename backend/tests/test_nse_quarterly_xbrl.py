@@ -286,3 +286,163 @@ def test_parse_hdfclife_q3_fy25():
     # Net premium income for HDFCLIFE Q3 FY25 ~ ₹15-20K Cr
     assert row["revenue_cr"] is not None
     assert 10_000 <= row["revenue_cr"] <= 25_000
+
+
+# ───────────────────────────────────────────────────────────────────────
+# 2026-05 — Integrated Filing migration
+# ───────────────────────────────────────────────────────────────────────
+
+import json  # noqa: E402
+
+from data_pipeline.sources.nse_quarterly_xbrl import (  # noqa: E402
+    _adapt_integrated_filing,
+    _fetch_integrated_filings,
+)
+
+INTEGRATED_FIXTURES = (
+    Path(__file__).resolve().parent.parent.parent / "tests" / "fixtures"
+)
+
+
+def test_detect_schema_integrated_filing_urls():
+    # New URL prefixes — INTEGRATED_FILING_BANKING_ must route to 'banking'
+    assert detect_schema(
+        "https://nsearchives.nseindia.com/corporate/xbrl/"
+        "INTEGRATED_FILING_BANKING_1654391_18042026073048_WEB.xml",
+        None,
+    ) == "banking"
+    # INTEGRATED_FILING_INDAS_ must route to 'industrial' (default — it
+    # contains neither BANKING_ nor INSURANCE_ tokens)
+    assert detect_schema(
+        "https://nsearchives.nseindia.com/corporate/xbrl/"
+        "INTEGRATED_FILING_INDAS_1658776_24042026105714_WEB.xml",
+        None,
+    ) == "industrial"
+
+
+def test_detect_schema_integrated_uri_fallback():
+    """If URL is missing, namespace URI substring must resolve schema."""
+    hdfc = (FIXTURES / "hdfcbank_integrated_q4_fy26.xml").read_bytes()
+    rel = (FIXTURES / "reliance_integrated_q4_fy26.xml").read_bytes()
+    # Pass None as URL → must fall back to URI inspection.
+    assert detect_schema(None, hdfc) == "banking"
+    assert detect_schema(None, rel) == "industrial"
+
+
+def test_adapt_integrated_filing_normalizes_keys():
+    rec = {
+        "seq_Id": "152826",
+        "symbol": "RELIANCE",
+        "type": "Integrated Filing- Financials",
+        "qe_Date": "31-MAR-2026",
+        "xbrl": "https://x/INTEGRATED_FILING_INDAS_x.xml",
+        "broadcast_Date": "24-Apr-2026 22:57:12",
+        "audited": "Audited",
+        "consolidated": "Consolidated",
+    }
+    adapted = _adapt_integrated_filing(rec)
+    assert adapted["toDate"] == "31-MAR-2026"
+    assert adapted["broadcastDate"] == "24-Apr-2026 22:57:12"
+    assert adapted["xbrl"] == rec["xbrl"]
+    assert adapted["consolidated"] is True
+    assert adapted["audited"] is True
+
+    rec2 = dict(rec, consolidated="Standalone", audited="Unaudited")
+    adapted2 = _adapt_integrated_filing(rec2)
+    assert adapted2["consolidated"] is False
+    assert adapted2["audited"] is False
+
+
+def test_fetch_integrated_filings_uses_fixture(monkeypatch):
+    """Drive _fetch_integrated_filings off the saved JSON envelope.
+
+    We monkeypatch the session.get to return the fixture payload, then
+    assert pagination terminates and Governance rows are filtered out.
+    """
+    payload = json.loads(
+        (INTEGRATED_FIXTURES / "nse_integrated_filings_reliance.json").read_text()
+    )
+    assert payload["totalCount"] == len(payload["data"])
+
+    class FakeResp:
+        status_code = 200
+        def __init__(self, p): self._p = p
+        def json(self): return self._p
+
+    class FakeSession:
+        def __init__(self): self.calls = []
+        def get(self, url, **kw):
+            self.calls.append(url)
+            # Return the full envelope on the first listing call; empty
+            # rows on subsequent pages so pagination terminates.
+            if "integrated-filing-results" in url:
+                if "page=1" in url or "page=" not in url:
+                    return FakeResp(payload)
+                return FakeResp({"data": [], "totalCount": payload["totalCount"]})
+            return FakeResp({})
+
+    fake = FakeSession()
+    out = _fetch_integrated_filings("RELIANCE", session=fake)
+    # All financial filings retained, all governance filtered.
+    fin_count = sum(
+        1 for r in payload["data"]
+        if r.get("type") == "Integrated Filing- Financials"
+    )
+    gov_count = sum(
+        1 for r in payload["data"]
+        if r.get("type") == "Integrated Filing- Governance"
+    )
+    assert gov_count > 0  # sanity — fixture must contain some
+    assert len(out) == fin_count
+    # All returned rows are adapted (have legacy keys).
+    for r in out:
+        assert "toDate" in r and "broadcastDate" in r and "xbrl" in r
+        assert r["type"] == "Integrated Filing- Financials"
+
+
+def test_parse_reliance_integrated_q4_fy26():
+    xml = (FIXTURES / "reliance_integrated_q4_fy26.xml").read_bytes()
+    url = (
+        "https://nsearchives.nseindia.com/corporate/xbrl/"
+        "INTEGRATED_FILING_INDAS_1658776_24042026105714_WEB.xml"
+    )
+    row = parse_quarter_xml(
+        xml, ticker="RELIANCE", period_end=date(2026, 3, 31), xbrl_url=url,
+    )
+    assert row is not None
+    assert row["schema_type"] == "industrial"
+    assert row["fiscal_quarter"] == "Q4 FY26"
+    # Reliance Q4 FY26 consolidated revenue ~ ₹2.5-3.0 lakh Cr
+    assert row["revenue_cr"] is not None
+    assert 200_000 <= row["revenue_cr"] <= 350_000
+    # Net profit ~ ₹18-22K Cr
+    assert row["net_profit_cr"] is not None
+    assert 15_000 <= row["net_profit_cr"] <= 25_000
+    assert row["basic_eps"] is not None
+    # Bank-only fields stay None
+    assert row["interest_earned_cr"] is None
+    assert row["is_consolidated"] is True
+
+
+def test_parse_hdfcbank_integrated_q4_fy26():
+    xml = (FIXTURES / "hdfcbank_integrated_q4_fy26.xml").read_bytes()
+    url = (
+        "https://nsearchives.nseindia.com/corporate/xbrl/"
+        "INTEGRATED_FILING_BANKING_1654391_18042026073048_WEB.xml"
+    )
+    row = parse_quarter_xml(
+        xml, ticker="HDFCBANK", period_end=date(2026, 3, 31), xbrl_url=url,
+    )
+    assert row is not None
+    assert row["schema_type"] == "banking"
+    assert row["fiscal_quarter"] == "Q4 FY26"
+    # Interest earned ~ ₹80-95K Cr for the quarter (consolidated)
+    assert row["interest_earned_cr"] is not None
+    assert 70_000 <= row["interest_earned_cr"] <= 100_000
+    assert row["revenue_cr"] == row["interest_earned_cr"]
+    assert row["interest_expended_cr"] is not None
+    assert row["operating_profit_cr"] is not None
+    assert row["provisions_cr"] is not None
+    # Net profit ~ ₹16-25K Cr range
+    assert row["net_profit_cr"] is not None
+    assert 14_000 <= row["net_profit_cr"] <= 28_000

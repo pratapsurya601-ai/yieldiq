@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 from datetime import date, datetime
 from typing import Any
 
@@ -98,6 +99,205 @@ def _fetch_filings_index(
     return data if isinstance(data, list) else []
 
 
+# ───────────────────────────────────────────────────────────────────────
+# NEW (2026-05): integrated-filing-results endpoint
+#
+# NSE replaced /api/corporates-financial-results with /api/integrated-
+# filing-results during the SEBI Integrated Filing (Financials +
+# Governance) rollout (effective from quarters ending 31-MAR-2025
+# onwards). The legacy endpoint still serves historical filings but no
+# longer publishes the newest XBRLs. Schema changes:
+#
+#   * Listing shape:   list[filing]  ->  {"data": [...], "size", "page",
+#                                          "totalCount"}
+#   * Field names:     toDate -> qe_Date,  broadcastDate -> broadcast_Date,
+#                      xbrl URL prefix changed:
+#                          BANKING_<seq>_<ts>.xml     -> INTEGRATED_FILING_BANKING_<seq>_<ts>.xml
+#                          NBFC_INDAS_<seq>_<ts>.xml  -> INTEGRATED_FILING_INDAS_<seq>_<ts>.xml
+#                          INSURANCE listings still under LI_/GI_ prefix
+#                          (handled by existing detect_schema).
+#   * `type` discriminator: each filing is now one of
+#         "Integrated Filing- Financials"  (carries the financial XBRL)
+#         "Integrated Filing- Governance"  (carries the GCG XBRL — not
+#                                            for our pipeline)
+#     We filter to *Financials* before yielding to the parser.
+#   * `consolidated` field is a STRING ("Consolidated"/"Standalone")
+#     instead of a bool.
+#
+# Taxonomy (the XBRL itself):
+#   The financial XBRL now uses the unified `in-capmkt:` namespace for
+#   ALL schemas (industrial, banking, insurance). The tag *local names*
+#   are unchanged from the legacy `in-bse-fin:` / `in-bse-fin-bnk:`
+#   schemas, so INDUSTRIAL_QUARTERLY_TAGS / BANK_QUARTERLY_TAGS resolve
+#   100% against the integrated XBRL with no edits. Schema detection
+#   keys off the URL prefix (`INTEGRATED_FILING_BANKING_*`) plus a new
+#   namespace-URI fallback (the URI now contains the substring
+#   `IntegratedFinance_Banking` instead of the `-bnk` suffix).
+# ───────────────────────────────────────────────────────────────────────
+
+USE_INTEGRATED_FILING_API = os.getenv(
+    "USE_INTEGRATED_FILING_API", "1"
+).strip().lower() not in ("0", "false", "no", "off", "")
+
+
+def _adapt_integrated_filing(rec: dict[str, Any]) -> dict[str, Any]:
+    """Adapt one /integrated-filing-results record to the legacy shape.
+
+    Legacy keys the downstream code reads:
+        toDate, broadcastDate, xbrl, consolidated (bool), audited (bool),
+        symbol, type
+    Integrated-filing keys: qe_Date, broadcast_Date, xbrl, consolidated
+        (str), audited (str), symbol, type.
+
+    The original record is kept under "_raw_integrated" so debug
+    logging / provenance can recover the full row.
+    """
+    cons_raw = (rec.get("consolidated") or "").strip()
+    if cons_raw.lower() == "consolidated":
+        cons_bool: bool | None = True
+    elif cons_raw.lower() == "standalone":
+        cons_bool = False
+    else:
+        cons_bool = None
+    aud_raw = (rec.get("audited") or "").strip().lower()
+    aud_bool = aud_raw.startswith("audited") if aud_raw else None
+    return {
+        # Legacy aliases (read by fetch_and_parse and parsers)
+        "toDate": rec.get("qe_Date"),
+        "broadcastDate": rec.get("broadcast_Date"),
+        "xbrl": rec.get("xbrl"),
+        "consolidated": cons_bool,
+        "audited": aud_bool,
+        "symbol": rec.get("symbol"),
+        "type": rec.get("type"),
+        # New keys kept verbatim for any caller that wants them
+        "qe_Date": rec.get("qe_Date"),
+        "broadcast_Date": rec.get("broadcast_Date"),
+        "audited_str": rec.get("audited"),
+        "consolidated_str": rec.get("consolidated"),
+        "type_Sub": rec.get("type_Sub"),
+        "_raw_integrated": rec,
+    }
+
+
+def _fetch_integrated_filings(
+    symbol: str,
+    index: str = "equities",
+    session=None,
+    period: str = "Quarterly",
+    page_size: int = 20,
+    max_pages: int = 20,
+) -> list[dict[str, Any]]:
+    """Fetch + paginate the /api/integrated-filing-results endpoint.
+
+    Returns a list of *adapted* filing dicts (legacy shape) FILTERED to
+    `type == "Integrated Filing- Financials"`. Governance XBRLs are
+    dropped because they don't carry P&L / balance-sheet facts.
+
+    Pagination: continues while `len(collected) < totalCount` and the
+    response has at least one row, capped at `max_pages` for safety.
+    """
+    from data_pipeline.sources.nse_xbrl_fundamentals import (
+        NSE_API_BASE, NSE_WARMUP,
+    )
+
+    if session is None:
+        session = _get_session()
+
+    # Per-symbol cookie warmup (same pattern as _fetch_filings_index).
+    try:
+        session.get(NSE_WARMUP.format(symbol=symbol), timeout=10)
+    except Exception:
+        pass
+
+    collected: list[dict[str, Any]] = []
+    seen_seq: set[str] = set()
+    total: int | None = None
+
+    for page_idx in range(max_pages):
+        url = (
+            f"{NSE_API_BASE}/integrated-filing-results"
+            f"?index={index}&symbol={symbol}&period={period}"
+            f"&size={page_size}&page={page_idx + 1}"
+        )
+        try:
+            r = session.get(
+                url, timeout=20, headers={"Accept": "application/json"},
+            )
+        except Exception as exc:
+            logger.info(
+                "integrated-filing fetch error page=%d index=%s symbol=%s: %s",
+                page_idx, index, symbol, exc,
+            )
+            break
+        if r.status_code != 200:
+            # 404 on unknown symbol is expected; only log other codes.
+            if r.status_code not in (404, 400):
+                logger.info(
+                    "integrated-filing HTTP %d page=%d symbol=%s",
+                    r.status_code, page_idx, symbol,
+                )
+            break
+        try:
+            payload = r.json()
+        except Exception:
+            break
+
+        # Endpoint returns either a dict envelope or a bare list. Handle both.
+        if isinstance(payload, dict):
+            rows = payload.get("data") or []
+            if total is None:
+                tc = payload.get("totalCount")
+                total = int(tc) if isinstance(tc, (int, str)) and str(tc).isdigit() else None
+        elif isinstance(payload, list):
+            rows = payload
+        else:
+            rows = []
+
+        if not rows:
+            break
+
+        new_added = 0
+        for rec in rows:
+            if not isinstance(rec, dict):
+                continue
+            seq = str(rec.get("seq_Id") or rec.get("seq_id") or "")
+            if seq and seq in seen_seq:
+                continue
+            if seq:
+                seen_seq.add(seq)
+            collected.append(rec)
+            new_added += 1
+
+        if new_added == 0:
+            break
+        if total is not None and len(collected) >= total:
+            break
+        # If we got fewer than page_size rows on a page, assume last page.
+        if len(rows) < page_size:
+            break
+
+    # Filter to Financials only; adapt to legacy shape.
+    out: list[dict[str, Any]] = []
+    for rec in collected:
+        ftype = (rec.get("type") or "").strip()
+        if ftype != "Integrated Filing- Financials":
+            continue
+        out.append(_adapt_integrated_filing(rec))
+    return out
+
+
+def _legacy_fetch_filings_index(
+    symbol: str, index: str, session, period: str = "Quarterly",
+) -> list[dict[str, Any]]:
+    """Alias of _fetch_filings_index kept for clarity in the new flow.
+
+    The legacy endpoint still serves historical (pre-FY26) filings, so we
+    keep it as a fallback when the integrated API returns zero rows.
+    """
+    return _fetch_filings_index(symbol, index, session=session, period=period)
+
+
 def resolve_symbol_filings(
     symbol: str, session=None, segment: str = "equities",
 ) -> tuple[str, list[tuple[str, dict[str, Any]]]]:
@@ -153,24 +353,75 @@ def resolve_symbol_filings(
                 return used or symbol, collected
         return symbol, []
 
-    # Default: equities / main-board (unchanged behaviour).
+    # Default: equities / main-board.
+    #
+    # Strategy (post-2026-05 integrated-filing rollout):
+    #   1. If USE_INTEGRATED_FILING_API is on (default), prefer the new
+    #      endpoint. It returns the newest FY26 + Q4 FY25 filings the
+    #      legacy endpoint no longer publishes.
+    #   2. Merge with legacy listing results to cover historical (pre-
+    #      FY25) filings — the new endpoint does NOT serve them. Dedup
+    #      by xbrl URL.
+    #   3. If the integrated endpoint is disabled or both empty, fall
+    #      through with the legacy-only result (prior behaviour).
     for alias in aliases:
         for index in ("equities", "insurance", "debt"):
+            integrated_rows: list[dict[str, Any]] = []
+            legacy_rows: list[dict[str, Any]] = []
+
+            if USE_INTEGRATED_FILING_API and index == "equities":
+                try:
+                    integrated_rows = _fetch_integrated_filings(
+                        alias, index=index, session=session, period="Quarterly",
+                    )
+                except Exception as exc:
+                    logger.info(
+                        "integrated fetch failed alias=%s index=%s: %s",
+                        alias, index, exc,
+                    )
+
             try:
                 if index == "equities":
-                    filings = fetch_filings_list(alias, "Quarterly", session=session)
+                    legacy_rows = fetch_filings_list(
+                        alias, "Quarterly", session=session,
+                    )
                 else:
-                    filings = _fetch_filings_index(alias, index, session=session)
+                    legacy_rows = _legacy_fetch_filings_index(
+                        alias, index, session=session,
+                    )
             except Exception as exc:
-                logger.info("alias %s index=%s fetch failed: %s", alias, index, exc)
-                continue
-            if filings:
+                logger.info(
+                    "legacy fetch failed alias=%s index=%s: %s",
+                    alias, index, exc,
+                )
+
+            # Merge: integrated first (newest), then legacy fallbacks not
+            # already covered by xbrl URL.
+            seen_urls: set[str] = set()
+            merged: list[dict[str, Any]] = []
+            for f in integrated_rows:
+                u = (f.get("xbrl") or "").strip()
+                if u and u in seen_urls:
+                    continue
+                if u:
+                    seen_urls.add(u)
+                merged.append(f)
+            for f in legacy_rows:
+                u = (f.get("xbrl") or "").strip()
+                if u and u in seen_urls:
+                    continue
+                if u:
+                    seen_urls.add(u)
+                merged.append(f)
+
+            if merged:
                 if alias != symbol or index != "equities":
                     logger.info(
-                        "resolved %s via alias=%s index=%s (%d filings)",
-                        symbol, alias, index, len(filings),
+                        "resolved %s via alias=%s index=%s (%d integrated + %d legacy)",
+                        symbol, alias, index,
+                        len(integrated_rows), len(legacy_rows),
                     )
-                return alias, [("Quarterly", f) for f in filings]
+                return alias, [("Quarterly", f) for f in merged]
     return symbol, []
 
 
@@ -397,19 +648,35 @@ def detect_schema(xbrl_url: str | None, xml_bytes: bytes | None) -> str:
     """Return one of 'banking' | 'insurance' | 'industrial'.
 
     Priority:
-      1. URL keyword (BANKING_, INSURANCE_) — cheap, no XML parse needed
-      2. XML namespace map (suffix '-bnk' / '-ins')
+      1. URL keyword (BANKING_, INSURANCE_, INTEGRATED_FILING_BANKING_,
+         INTEGRATED_FILING_INSURANCE_) — cheap, no XML parse needed
+      2. XML namespace map (suffix '-bnk' / '-ins' OR new integrated-
+         filing URI substrings `IntegratedFinance_Banking` /
+         `IntegratedFinance_Insurance`)
       3. Default: 'industrial'
+
+    The `INTEGRATED_FILING_*` URL prefixes were introduced by NSE in
+    the SEBI Integrated Filing rollout (2026). The financial XBRL now
+    uses the unified `in-capmkt:` namespace for all schemas, with the
+    industry split encoded in the namespace *URI* path (e.g.
+    `http://.../IntegratedFinance_Banking/.../in-capmkt/in-capmkt-ent`).
+    Both filename and URI matches are needed because we sometimes hold
+    the bytes without the URL (parser unit-tests) or vice versa.
     """
     if xbrl_url:
         u = xbrl_url.upper()
+        # The "BANKING_" check naturally subsumes "INTEGRATED_FILING_BANKING_".
         if "BANKING_" in u or "/BANK/" in u:
             return "banking"
-        # NSE insurance URL pattern: LI_<seq>_<id>_<ts>.xml (Life)
-        # or GI_<seq>_<id>_<ts>.xml (General). Match on the filename
-        # segment so we don't false-positive on '/LI/' in other paths.
+        # Insurance — INTEGRATED_FILING_INSURANCE_ + legacy LI_/GI_ filename
+        # prefixes. Match on the filename segment so we don't false-positive
+        # on '/LI/' in other path components.
         last = u.rsplit("/", 1)[-1]
-        if last.startswith("LI_") or last.startswith("GI_") or "INSURANCE_" in u:
+        if (
+            last.startswith("LI_")
+            or last.startswith("GI_")
+            or "INSURANCE_" in u
+        ):
             return "insurance"
 
     if xml_bytes:
@@ -421,11 +688,17 @@ def detect_schema(xbrl_url: str | None, xml_bytes: bytes | None) -> str:
                 if not uri:
                     continue
                 low = uri.lower()
+                # Legacy in-bse-fin-bnk / -ins suffixes.
                 if low.endswith("-bnk") or "-bnk/" in low or "-bnk-" in low:
                     return "banking"
                 if low.endswith("-ins") or "-ins/" in low or "-ins-" in low:
                     return "insurance"
                 if "/insurance/" in low:
+                    return "insurance"
+                # New 2026 integrated-filing URI segments.
+                if "integratedfinance_banking" in low:
+                    return "banking"
+                if "integratedfinance_insurance" in low:
                     return "insurance"
         except Exception:
             pass
