@@ -81,6 +81,128 @@ def _as_float(v) -> Optional[float]:
         return None
 
 
+# ── TTM scale-sanity guard (2026-05-17) ────────────────────────────
+# Background: the legacy XBRL parser misses some old templates and
+# writes scale-corrupt values (e.g. NESTLEIND revenue_cr = 4.78e9
+# crores = 47 quadrillion INR) into company_quarterly_results. A
+# 2026-05-17 audit of `company_quarterly_results` found 6,996
+# corrupt rows across 840 tickers. Even after re-ingest the parser
+# misses some templates, so the bug recurs.
+#
+# This guard runs at the TTM aggregator boundary -- it cannot fix
+# the underlying parser, but it stops poisoned rows from leaking
+# into TTM sums (which then drive absurd FVs, e.g. NESTLEIND MoS
+# +285%). The guard is intentionally generous (10x median); we'd
+# rather miss a true 11x outlier than false-positive a real growth
+# event. Tighten later if the audit data justifies it.
+#
+# Fields guarded independently (a row may have correct revenue but
+# corrupt cashflow): revenue_cr, net_profit_cr, cfo_cr, fcf_cr.
+
+# Absolute cap (Cr) used when median is unavailable (<2 rows).
+# Rs.1e6 Cr = Rs.10 trillion -- larger than any Indian listed company's
+# annual revenue, so anything above this is provably corrupt.
+_ABS_SCALE_CAP_CR = 1e6
+_MEDIAN_MULTIPLE = 10.0
+_SCALE_GUARD_FIELDS = ("revenue_cr", "net_profit_cr", "cfo_cr", "fcf_cr")
+
+
+def _ticker_field_median(rows: list[dict], field: str) -> Optional[float]:
+    """Median absolute value of `field` across `rows`; None if <2 non-null."""
+    vals = [
+        abs(float(r[field]))
+        for r in rows
+        if r.get(field) is not None
+        and isinstance(r.get(field), (int, float))
+    ]
+    if len(vals) < 2:
+        return None
+    vals_sorted = sorted(vals)
+    mid = len(vals_sorted) // 2
+    if len(vals_sorted) % 2 == 1:
+        return vals_sorted[mid]
+    return 0.5 * (vals_sorted[mid - 1] + vals_sorted[mid])
+
+
+def _row_is_scale_corrupt(
+    row: dict, field: str, median: Optional[float],
+) -> bool:
+    """True iff `row[field]` is a scale outlier and should be skipped.
+
+    Rules (in order):
+      * value is None / non-numeric -> not corrupt (aggregator handles
+        NULL separately).
+      * value < 0 for revenue_cr -> corrupt (revenue can't be negative;
+        net profit / cashflow may legitimately be negative).
+      * |value| > 10 x ticker_median (when median known) -> corrupt.
+      * |value| > 1e6 Cr absolute fallback (always applied) -> corrupt.
+    """
+    v = row.get(field)
+    if v is None or not isinstance(v, (int, float)):
+        return False
+    try:
+        fv = float(v)
+    except (TypeError, ValueError):
+        return False
+    av = abs(fv)
+    # Revenue cannot be negative.
+    if field == "revenue_cr" and fv < 0:
+        return True
+    # Absolute cap (always applied; catches the new-ticker <2-quarter case).
+    if av > _ABS_SCALE_CAP_CR:
+        return True
+    # Median-relative cap (generous 10x).
+    if median is not None and av > _MEDIAN_MULTIPLE * median:
+        return True
+    return False
+
+
+def _apply_scale_guard(
+    rows: list[dict], ticker: str,
+) -> tuple[list[dict], list[dict]]:
+    """Return (clean_rows, skipped_log).
+
+    Per-row, per-field check: if ANY guarded field on a row is
+    corrupt, the whole row is skipped (a row with a corrupt cashflow
+    can't be trusted for revenue either -- it came from the same
+    broken filing parse). `skipped_log` is a list of dicts with
+    {period_end, field, value, median, reason} for observability.
+
+    Median is computed once per field over the input rows so the
+    guard fires symmetrically (skipping a row doesn't shift the
+    median for the next row's check).
+    """
+    if not rows:
+        return rows, []
+    medians = {f: _ticker_field_median(rows, f) for f in _SCALE_GUARD_FIELDS}
+    clean: list[dict] = []
+    skipped: list[dict] = []
+    for r in rows:
+        bad_field = None
+        for f in _SCALE_GUARD_FIELDS:
+            if _row_is_scale_corrupt(r, f, medians[f]):
+                bad_field = f
+                break
+        if bad_field is None:
+            clean.append(r)
+            continue
+        pe = r.get("period_end")
+        skipped.append({
+            "period_end": pe.isoformat() if hasattr(pe, "isoformat") else str(pe),
+            "field": bad_field,
+            "value": r.get(bad_field),
+            "median": medians[bad_field],
+            "reason": "scale_outlier_skipped",
+        })
+        _logger.warning(
+            "ttm_scale_guard: skipped %s row period_end=%s field=%s "
+            "value=%s median=%s (scale_outlier_skipped)",
+            ticker, skipped[-1]["period_end"], bad_field,
+            r.get(bad_field), medians[bad_field],
+        )
+    return clean, skipped
+
+
 def get_quarterly_results(
     ticker: str,
     n_quarters: int = 4,
@@ -312,21 +434,55 @@ def compute_ttm_from_xbrl(ticker: str) -> Optional[dict]:
     silently treats NULL as 0 would understate the metric — better
     to surface the gap and let the caller decide.)
     """
-    rows = get_quarterly_results(ticker, n_quarters=4, consolidated=True)
-    if not rows:
+    # Fetch up to 8 quarters so the scale-sanity guard has a wider
+    # median window. We still aggregate over only the latest 4 clean
+    # rows (TTM = trailing twelve months), but a wider median makes
+    # the 10x cap less likely to false-positive a 2-quarter spike.
+    rows_window = get_quarterly_results(ticker, n_quarters=8, consolidated=True)
+    if not rows_window:
         return None
+
+    # ── Scale-sanity guard (2026-05-17, defends against parser bugs).
+    clean_window, scale_skipped = _apply_scale_guard(rows_window, ticker)
+    rows = clean_window[:4]
+    data_issues: list[str] = []
+    if scale_skipped:
+        data_issues.append("scale_outlier_skipped")
+
+    if not rows:
+        # All rows were corrupt -- caller should fall back to annual.
+        return {
+            "revenue_ttm":       None,
+            "net_profit_ttm":    None,
+            "employee_cost_ttm": None,
+            "depreciation_ttm":  None,
+            "fcf_ttm":           None,
+            "fcf_ttm_basis":     None,
+            "fcf_ttm_rows_used": 0,
+            "quarters_used":     0,
+            "partial":           True,
+            "period_end":        None,
+            "source":            "nse_xbrl",
+            "data_issues":       data_issues + ["incomplete_due_to_scale_anomalies"],
+            "scale_skipped":     scale_skipped,
+        }
 
     def _sum(field: str) -> Optional[float]:
         vals = [_as_float(r.get(field)) for r in rows]
         if any(v is None for v in vals):
             return None
-        # Convert crore → INR at the boundary so downstream code
+        # Convert crore -> INR at the boundary so downstream code
         # (which speaks raw INR) doesn't need to know we came from
         # a `*_cr` source.
         return sum(vals) * 1e7
 
     quarters_used = len(rows)
+    # If guard left fewer than 4 quarters, mark TTM as incomplete so
+    # the caller falls back to annual data (matches existing
+    # `partial=True` semantics in resolve_ttm_for_analysis).
     partial = quarters_used < 4
+    if partial and scale_skipped:
+        data_issues.append("incomplete_due_to_scale_anomalies")
 
     latest_period_end = rows[0].get("period_end")
     period_end_str = (
@@ -345,6 +501,12 @@ def compute_ttm_from_xbrl(ticker: str) -> Optional[dict]:
     try:
         cf_rows = _get_latest_cashflow_rows(ticker, n=4, consolidated=True)
         if cf_rows:
+            # Apply scale guard on cashflow window too -- a poisoned
+            # cfo_cr / fcf_cr value would otherwise flow straight into
+            # the H1+H2 stitched FCF and produce an absurd terminal.
+            cf_rows, cf_skipped = _apply_scale_guard(cf_rows, ticker)
+            if cf_skipped and "scale_outlier_skipped" not in data_issues:
+                data_issues.append("scale_outlier_skipped")
             fcf_ttm, fcf_basis, fcf_rows_used = _compute_fcf_ttm_from_halfyear(cf_rows)
     except Exception as exc:
         _logger.info("fcf ttm compute skipped for %s: %s", ticker, str(exc)[:120])
@@ -363,6 +525,8 @@ def compute_ttm_from_xbrl(ticker: str) -> Optional[dict]:
         "partial":           partial,
         "period_end":        period_end_str,
         "source":            "nse_xbrl",
+        "data_issues":       data_issues,
+        "scale_skipped":     scale_skipped,
     }
 
 

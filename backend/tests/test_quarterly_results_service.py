@@ -141,6 +141,166 @@ def test_compute_ttm_returns_none_when_db_unavailable():
         assert qrs.compute_ttm_from_xbrl("INFY.NS") is None
 
 
+def test_scale_guard_skips_nestleind_style_poisoned_rows():
+    """NESTLEIND fixture: 4 clean rows (~6,747 Cr) + 2 corrupt rows
+    (revenue_cr = 4.78e9). Guard must skip the corrupt rows; TTM
+    sums only the clean ones.
+    """
+    from backend.services import quarterly_results_service as qrs
+
+    # 8-row window (compute_ttm now fetches 8 for the median context):
+    #   - 6 clean rows at ~6,747 Cr
+    #   - 2 poisoned rows at 4.78e9 Cr (NESTLEIND audit case)
+    rows = [
+        _row(date(2025, 12, 31), 6747.0, 850.0),  # clean (latest)
+        _row(date(2025, 9, 30),  6800.0, 870.0),  # clean
+        _row(date(2025, 6, 30),  4.78e9, 880.0),  # POISONED
+        _row(date(2025, 3, 31),  6650.0, 800.0),  # clean
+        _row(date(2024, 12, 31), 4.78e9, 820.0),  # POISONED
+        _row(date(2024, 9, 30),  6500.0, 810.0),  # clean
+        _row(date(2024, 6, 30),  6400.0, 790.0),  # clean
+        _row(date(2024, 3, 31),  6300.0, 780.0),  # clean
+    ]
+    session = _mock_session({True: rows})
+    with patch.object(qrs, "_get_pipeline_session", return_value=session):
+        ttm = qrs.compute_ttm_from_xbrl("NESTLEIND.NS")
+
+    assert ttm is not None
+    assert "scale_outlier_skipped" in ttm["data_issues"]
+    # 2 rows skipped (the 4.78e9 ones) -- check they are logged.
+    assert len(ttm["scale_skipped"]) == 2
+    for skip in ttm["scale_skipped"]:
+        assert skip["field"] == "revenue_cr"
+        assert skip["reason"] == "scale_outlier_skipped"
+    # Latest 4 clean rows are: Dec'25, Sep'25, Mar'25, Sep'24
+    # (Jun'25 and Dec'24 skipped).
+    expected = (6747.0 + 6800.0 + 6650.0 + 6500.0) * 1e7
+    assert ttm["revenue_ttm"] == expected
+    assert ttm["quarters_used"] == 4
+    assert ttm["partial"] is False
+
+
+def test_scale_guard_huhtamaki_pattern():
+    """HUHTAMAKI fixture: same 4.78e9 vs ~600 Cr pattern at a
+    smaller scale. Guard must still fire on the 10x rule.
+    """
+    from backend.services import quarterly_results_service as qrs
+
+    rows = [
+        _row(date(2025, 12, 31), 600.0, 50.0),
+        _row(date(2025, 9, 30),  610.0, 55.0),
+        _row(date(2025, 6, 30),  4.78e9, 60.0),  # POISONED
+        _row(date(2025, 3, 31),  605.0, 52.0),
+        _row(date(2024, 12, 31), 590.0, 48.0),
+        _row(date(2024, 9, 30),  580.0, 47.0),
+        _row(date(2024, 6, 30),  570.0, 46.0),
+        _row(date(2024, 3, 31),  560.0, 45.0),
+    ]
+    session = _mock_session({True: rows})
+    with patch.object(qrs, "_get_pipeline_session", return_value=session):
+        ttm = qrs.compute_ttm_from_xbrl("HUHTAMAKI.NS")
+
+    assert "scale_outlier_skipped" in ttm["data_issues"]
+    assert len(ttm["scale_skipped"]) == 1
+    # Aggregate is over the 4 latest clean rows.
+    expected = (600.0 + 610.0 + 605.0 + 590.0) * 1e7
+    assert ttm["revenue_ttm"] == expected
+
+
+def test_scale_guard_does_not_fire_on_normal_ticker():
+    """Negative case: TCS-style consistent ~63k Cr quarters. Guard
+    must NOT fire; all rows included.
+    """
+    from backend.services import quarterly_results_service as qrs
+
+    rows = [
+        _row(date(2025, 12, 31), 64259.0, 12380.0),
+        _row(date(2025, 9, 30),  64988.0, 11909.0),
+        _row(date(2025, 6, 30),  62613.0, 12040.0),
+        _row(date(2025, 3, 31),  64479.0, 12434.0),
+        _row(date(2024, 12, 31), 62885.0, 12380.0),
+        _row(date(2024, 9, 30),  62613.0, 11909.0),
+        _row(date(2024, 6, 30),  62613.0, 11762.0),
+        _row(date(2024, 3, 31),  61237.0, 12502.0),
+    ]
+    session = _mock_session({True: rows})
+    with patch.object(qrs, "_get_pipeline_session", return_value=session):
+        ttm = qrs.compute_ttm_from_xbrl("TCS.NS")
+
+    assert ttm["data_issues"] == []
+    assert ttm["scale_skipped"] == []
+    assert ttm["quarters_used"] == 4
+    assert ttm["partial"] is False
+    expected = (64259.0 + 64988.0 + 62613.0 + 64479.0) * 1e7
+    assert ttm["revenue_ttm"] == expected
+
+
+def test_scale_guard_does_not_false_positive_legitimate_growth():
+    """A ticker that genuinely scaled (e.g. WAAREEENERGIES post-IPO
+    ramp -- ~2x q-o-q growth): guard must NOT fire. 10x threshold is
+    generous enough to tolerate doubling.
+    """
+    from backend.services import quarterly_results_service as qrs
+
+    # Steady ramp from ~500 Cr to ~3000 Cr (6x over 8 quarters).
+    rows = [
+        _row(date(2025, 12, 31), 3000.0, 300.0),
+        _row(date(2025, 9, 30),  2500.0, 250.0),
+        _row(date(2025, 6, 30),  2000.0, 200.0),
+        _row(date(2025, 3, 31),  1600.0, 160.0),
+        _row(date(2024, 12, 31), 1200.0, 120.0),
+        _row(date(2024, 9, 30),  900.0,  90.0),
+        _row(date(2024, 6, 30),  700.0,  70.0),
+        _row(date(2024, 3, 31),  500.0,  50.0),
+    ]
+    session = _mock_session({True: rows})
+    with patch.object(qrs, "_get_pipeline_session", return_value=session):
+        ttm = qrs.compute_ttm_from_xbrl("WAAREEENERGIES.NS")
+
+    assert ttm["data_issues"] == []
+    assert ttm["scale_skipped"] == []
+    assert ttm["quarters_used"] == 4
+
+
+def test_scale_guard_skips_negative_revenue():
+    """Negative revenue is impossible; guard must flag it as corrupt."""
+    from backend.services import quarterly_results_service as qrs
+
+    rows = [
+        _row(date(2025, 12, 31), 6747.0, 850.0),
+        _row(date(2025, 9, 30),  6800.0, 870.0),
+        _row(date(2025, 6, 30),  -500.0, 880.0),  # NEGATIVE revenue -> corrupt
+        _row(date(2025, 3, 31),  6650.0, 800.0),
+        _row(date(2024, 12, 31), 6600.0, 820.0),
+        _row(date(2024, 9, 30),  6500.0, 810.0),
+    ]
+    session = _mock_session({True: rows})
+    with patch.object(qrs, "_get_pipeline_session", return_value=session):
+        ttm = qrs.compute_ttm_from_xbrl("FOO.NS")
+
+    assert "scale_outlier_skipped" in ttm["data_issues"]
+    assert len(ttm["scale_skipped"]) == 1
+    assert ttm["scale_skipped"][0]["field"] == "revenue_cr"
+
+
+def test_scale_guard_absolute_cap_fires_when_median_unavailable():
+    """Single-row ticker (no median context): only the absolute Rs.10T
+    cap can catch corruption. Verify it does.
+    """
+    from backend.services import quarterly_results_service as qrs
+
+    rows = [_row(date(2025, 12, 31), 4.78e9, 850.0)]  # POISONED, no peers
+    session = _mock_session({True: rows})
+    with patch.object(qrs, "_get_pipeline_session", return_value=session):
+        ttm = qrs.compute_ttm_from_xbrl("FOO.NS")
+
+    assert ttm is not None
+    assert "scale_outlier_skipped" in ttm["data_issues"]
+    assert "incomplete_due_to_scale_anomalies" in ttm["data_issues"]
+    assert ttm["revenue_ttm"] is None
+    assert ttm["quarters_used"] == 0
+
+
 def test_compute_ttm_handles_null_field_as_none():
     """If any quarter has NULL revenue_cr, revenue_ttm must be None
     (we'd rather surface the gap than silently treat NULL as 0)."""
