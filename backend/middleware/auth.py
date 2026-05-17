@@ -643,6 +643,24 @@ def verify_google_id_token(id_token: str, timeout: float = 8.0) -> dict:
         return {"ok": False, "error": "Could not reach Google — please retry."}
 
     if resp.status_code != 200:
+        # Diagnostic logging so we can see WHY Google rejected the token.
+        # Previously this branch swallowed everything — we were flying blind
+        # in Railway logs. Token prefix/suffix only (never the full token)
+        # for correlation; truncate Google's error body to avoid log spam.
+        try:
+            _body_snippet = (resp.text or "")[:500]
+        except Exception:
+            _body_snippet = "<unreadable>"
+        _tok_len = len(id_token)
+        _tok_prefix = id_token[:20]
+        _tok_suffix = id_token[-10:] if _tok_len > 30 else ""
+        _segments = id_token.count(".") + 1
+        _shape = "jwt-3seg" if _segments == 3 else f"opaque-{_segments}seg"
+        _log().warning(
+            "Google tokeninfo rejected token: status=%s shape=%s len=%s "
+            "prefix=%r suffix=%r body=%r",
+            resp.status_code, _shape, _tok_len, _tok_prefix, _tok_suffix, _body_snippet,
+        )
         return {"ok": False, "error": "Google rejected the sign-in token. Please try again."}
 
     try:
