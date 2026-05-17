@@ -7,7 +7,7 @@
 
 /**
  * Stable, short fingerprint of a Supabase access_token. We don't need
- * cryptographic strength here — just something unique enough to dedupe
+ * a cryptographic hash here — just something unique enough to dedupe
  * a remount within a single browser session. Uses the JWT's signature
  * segment when the token is shaped like a JWT, otherwise a length-tagged
  * prefix.
@@ -23,9 +23,9 @@ export function tokenFingerprint(token: string): string {
 }
 
 /**
- * Return true for localhost-ish hosts where we must NOT set an explicit
- * cookie domain (browsers reject `.localhost`, and a host-only cookie is
- * the right thing anyway).
+ * Return true for localhost-ish hosts where we deliberately skip setting
+ * an explicit cookie domain (browsers reject `.localhost`, and a host-only
+ * cookie is the right thing anyway).
  */
 export function isLocalHost(hostname: string): boolean {
   if (!hostname) return true
@@ -46,7 +46,7 @@ export function isLocalHost(hostname: string): boolean {
  *   127.0.0.1             → null    (host-only)
  *   some-preview.vercel.app → null  (don't widen — keep host-only)
  *
- * Returns null when no explicit domain should be set.
+ * Returns null when no explicit domain attribute applies.
  */
 export function cookieDomainForHost(hostname: string): string | null {
   if (!hostname) return null
