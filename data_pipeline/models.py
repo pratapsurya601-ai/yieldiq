@@ -236,6 +236,11 @@ class UpcomingEarnings(Base):
     event_type = Column(String(100))
     purpose = Column(String(500))
     updated_at = Column(DateTime, default=datetime.utcnow)
+    # ── 040_earnings_calendar.sql (additive, all nullable) ──────────
+    source = Column(String(50))
+    confirmed = Column(Boolean, default=True)
+    fiscal_period = Column(String(20))
+    fetched_at = Column(DateTime, default=datetime.utcnow)
 
 
 class DataFreshness(Base):

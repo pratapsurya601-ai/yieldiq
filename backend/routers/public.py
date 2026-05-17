@@ -1168,7 +1168,7 @@ async def get_earnings_calendar(
         company exactly once.
     """
     from datetime import datetime as _dt, timezone as _tz
-    _cache_key = f"public:earnings:v2:{days}:{limit}"
+    _cache_key = f"public:earnings:v3:{days}:{limit}"  # v3 adds confirmed/source/fiscal_period
     cached = cache.get(_cache_key)
     if cached is not None:
         return cached
@@ -1207,6 +1207,15 @@ async def get_earnings_calendar(
 
                 display = ue.ticker.replace(".NS", "").replace(".BO", "")
                 days_away = (ue.event_date - today).days
+                # feat/earnings-calendar-unification: surface
+                # confirmed/source so client surfaces (home strip,
+                # discover strip, calendar page) can render an
+                # "Expected" badge for yfinance fallbacks rather than
+                # treating them as confirmed NSE filings.
+                _src = getattr(ue, "source", None) or "nse_event_calendar"
+                _confirmed = getattr(ue, "confirmed", None)
+                if _confirmed is None:
+                    _confirmed = (_src == "nse_event_calendar")
                 events.append({
                     "ticker": ue.ticker,
                     "display_ticker": display,
@@ -1216,6 +1225,9 @@ async def get_earnings_calendar(
                     "event_type": ue.event_type or "Financial Results",
                     "purpose": ue.purpose or "",
                     "days_away": days_away,
+                    "confirmed": bool(_confirmed),
+                    "source": _src,
+                    "fiscal_period": getattr(ue, "fiscal_period", None),
                 })
                 if len(events) >= limit:
                     break

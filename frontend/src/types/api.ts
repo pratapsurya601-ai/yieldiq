@@ -186,6 +186,10 @@ export interface InsightCards {
   earnings_date: string | null
   earnings_est_eps: number | null
   earnings_days_until: number | null
+  // feat/earnings-calendar-unification — provenance + confidence
+  earnings_confirmed?: boolean | null
+  earnings_source?: string | null
+  earnings_fiscal_period?: string | null
   wall_street_avg_target: number | null
   wall_street_target_count: number | null
   insider_net_sentiment: string | null

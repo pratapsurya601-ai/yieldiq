@@ -370,6 +370,13 @@ class InsightCards(BaseModel):
     earnings_date: Optional[str] = None
     earnings_est_eps: Optional[float] = None
     earnings_days_until: Optional[int] = None
+    # ── feat/earnings-calendar-unification (additive) ──────────
+    # Provenance + confidence flags so the Summary card and any
+    # other surface can render consistent "Confirmed" vs
+    # "Expected" badges (NSE filing vs yfinance projection).
+    earnings_confirmed: Optional[bool] = None
+    earnings_source: Optional[str] = None          # nse_event_calendar | yfinance | finnhub
+    earnings_fiscal_period: Optional[str] = None   # e.g. 'Q1FY27'
     wall_street_avg_target: Optional[float] = None
     wall_street_target_count: Optional[int] = None
     insider_net_sentiment: Optional[str] = None

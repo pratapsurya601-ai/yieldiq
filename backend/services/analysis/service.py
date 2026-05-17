@@ -1586,13 +1586,40 @@ class AnalysisService(NarrativeMixin):
         except Exception:
             pass  # never block the response on hysteresis lookup
 
-        # ── Earnings date (NSE first, Finnhub fallback) ─────
-        _earnings = _query_earnings_date(ticker)
+        # ── Earnings date (unified service: NSE → yfinance) ─
+        # feat/earnings-calendar-unification: route every surface
+        # through earnings_calendar_service so the Summary card,
+        # Discover strip and Home strip can never disagree about
+        # the next reporting date. The service also adds a yfinance
+        # fallback so Nifty-50 stocks no longer show "Not scheduled"
+        # on days when the NSE event-calendar API blanks (incident
+        # 2026-05-17). Finnhub remains a final fallback for the
+        # est_eps field only (no date — the service supersedes it).
+        from backend.services.earnings_calendar_service import (
+            get_next_earnings_dict as _unified_next_earnings,
+        )
+        _earnings_pipeline_db = _get_pipeline_session()
+        _earnings: dict | None = None
+        if _earnings_pipeline_db is not None:
+            try:
+                _earnings = _unified_next_earnings(ticker, _earnings_pipeline_db)
+            except Exception:
+                _earnings = None
+            finally:
+                try:
+                    _earnings_pipeline_db.close()
+                except Exception:
+                    pass
         _earnings_date = (
             _earnings.get("date") if _earnings
             else (raw.get("finnhub_next_earnings") or {}).get("date")
         )
-        earnings_days_until = _earnings.get("days_away") if _earnings else None
+        earnings_days_until = _earnings.get("days_until") if _earnings else None
+        _earnings_confirmed = _earnings.get("confirmed") if _earnings else None
+        _earnings_source = _earnings.get("source") if _earnings else (
+            "finnhub" if (raw.get("finnhub_next_earnings") or {}).get("date") else None
+        )
+        _earnings_fiscal_period = _earnings.get("fiscal_period") if _earnings else None
 
         # ── Bulk deals for insider activity ──────────────────
         _bulk_deals_raw = _query_bulk_deals(ticker, days=90)
@@ -2649,6 +2676,9 @@ class AnalysisService(NarrativeMixin):
                 earnings_date=_earnings_date,
                 earnings_est_eps=raw.get("finnhub_next_earnings", {}).get("eps_estimate"),
                 earnings_days_until=earnings_days_until,
+                earnings_confirmed=_earnings_confirmed,
+                earnings_source=_earnings_source,
+                earnings_fiscal_period=_earnings_fiscal_period,
                 wall_street_avg_target=(raw.get("finnhub_price_target") or {}).get("mean"),
                 wall_street_target_count=(raw.get("finnhub_price_target") or {}).get("count"),
                 insider_net_sentiment=(raw.get("finnhub_insider") or {}).get("sentiment"),
