@@ -178,6 +178,43 @@ def fetch_yfinance_data(ticker):
         detected_currency = _detect_financial_currency(yf_ticker_obj, ticker)
 
     if detected_currency and detected_currency != 'INR':
+        # USD-reporter path (MPHASIS, COFORGE, PERSISTENT, KPITTECH, …).
+        # A handful of Indian IT-services issuers legitimately file their
+        # statutory statements in USD. For those, converting USD→INR per
+        # period_end_date keeps the DCF apples-to-apples with the INR
+        # discount rate and price. For everything else (ADR mistags),
+        # keep the historical skip-and-fall-back-to-NSE behaviour.
+        try:
+            from backend.services.currency_conversion_service import (
+                is_usd_reporter,
+                convert_statement_frames,
+            )
+        except Exception:
+            is_usd_reporter = None
+            convert_statement_frames = None
+        info_for_detect = {}
+        try:
+            if yf_ticker_obj is not None:
+                info_for_detect = yf_ticker_obj.info or {}
+        except Exception:
+            info_for_detect = {}
+        if (
+            is_usd_reporter is not None
+            and detected_currency == 'USD'
+            and is_usd_reporter(ticker, info_for_detect)
+        ):
+            print(
+                f"  INFO {ticker}: financialCurrency=USD on confirmed USD-reporter — "
+                f"converting all monetary fields to INR at period-end spot rates."
+            )
+            convert_statement_frames(last)
+            return {
+                'ticker': ticker,
+                'symbol': symbol,
+                'financial_currency': 'INR',  # post-conversion
+                'usd_converted': True,
+                **{k: v for k, v in last.items() if k != '_yf_ticker'},
+            }
         print(
             f"  WARNING {ticker}: yfinance returned financialCurrency={detected_currency} "
             f"(expected INR). Skipping yfinance — likely ADR data. "
