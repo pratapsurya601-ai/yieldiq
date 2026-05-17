@@ -47,8 +47,9 @@ export default function EmailVerifyBanner() {
   }, [])
 
   // Refresh the verified flag once per session by pulling /auth/me.
-  // Cheap (cached on the backend) and keeps a stale persisted Zustand
-  // value (e.g. from before the user verified in another tab) honest.
+  // Low-cost (cached on the backend) and keeps a stale persisted
+  // Zustand value (e.g. from before the user verified in another tab)
+  // honest.
   useEffect(() => {
     if (!token) return
     let alive = true
