@@ -264,20 +264,6 @@ class QualityOutput(BaseModel):
     # upstream data origin ("financials", "yfinance", …).
     revenue_cagr_window: Optional[str] = None
     revenue_source: Optional[str] = None
-    # ── Reverse-DCF upstream normalisation (Option B per
-    # docs/design/reverse-dcf-normalization.md, 2026-05-17) ────
-    # Cached outputs of models/forecaster._compute_fcf_base used as
-    # the single source of truth for the reverse-DCF growth-axis
-    # anchor. None on legacy payloads predating the change.
-    #   fcf_margin_5y    — DECIMAL median of trailing 5y positive
-    #                      FCF/revenue ratios (e.g. 0.085 = 8.5%).
-    #   normalized_fcf_cr— ₹ Crores. Mirrors the `fcf_base` value
-    #                      the forward DCF already uses, exposed
-    #                      here so the reverse-DCF service can read
-    #                      the same anchor without re-deriving the
-    #                      cyclical-sector logic.
-    fcf_margin_5y: Optional[float] = None
-    normalized_fcf_cr: Optional[float] = None
 
 
 class BulkDealItem(BaseModel):

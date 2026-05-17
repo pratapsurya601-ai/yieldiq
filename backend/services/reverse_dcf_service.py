@@ -181,7 +181,6 @@ def compute_reverse_dcf(
     consensus_growth: Optional[float] = None,
     historical_revenue_cagr: Optional[float] = None,
     historical_fcf_margin: Optional[float] = None,
-    normalized_fcf: Optional[float] = None,
 ) -> Optional[dict]:
     """Compute the reverse-DCF answer dict.
 
@@ -225,33 +224,9 @@ def compute_reverse_dcf(
         )
 
     # ── 1. Implied growth — hold margin (FCF) fixed ─────────────
-    # Upstream-normalised FCF anchor (Option B per
-    # docs/design/reverse-dcf-normalization.md). When the caller
-    # supplies `normalized_fcf` (populated from QualityOutput.
-    # normalized_fcf_cr → models/forecaster._compute_fcf_base), use
-    # it as the growth-axis anchor instead of the raw trailing
-    # `current_fcf`. For cyclical companies at a margin trough
-    # (RELIANCE refinery cycle, BPCL, TATASTEEL, JSWSTEEL,
-    # SHREECEM, etc.) `current_fcf` is depressed and the bisector
-    # has to reach the market price by inflating growth — producing
-    # the absurd 48.6% implied growth on RELIANCE. The normalised
-    # base — already mid-cycle smoothed by the forward DCF — lets
-    # the solver report what the market is really pricing in.
-    # `current_fcf` is retained for the margin-axis and iso curve
-    # because those paths already rebuild FCF from revenue × margin.
-    fcf_anchor = (
-        float(normalized_fcf)
-        if _is_finite_positive(normalized_fcf)
-        else float(current_fcf)
-    )
-    normalization_applied = (
-        _is_finite_positive(normalized_fcf)
-        and abs(float(normalized_fcf) - float(current_fcf)) /
-            max(abs(float(current_fcf)), 1.0) > 0.01
-    )
     def f_growth(g: float) -> float:
         return _dcf_per_share(
-            fcf_base=fcf_anchor,
+            fcf_base=current_fcf,
             growth_rate=g,
             wacc=wacc,
             terminal_g=terminal_g,
@@ -372,12 +347,5 @@ def compute_reverse_dcf(
             "total_cash": float(total_cash or 0.0),
             "shares": float(shares),
             "years": int(years),
-            # Reverse-DCF upstream-normalisation transparency. Both
-            # additive; pre-design-doc payloads will not carry them.
-            "normalized_fcf": (
-                float(normalized_fcf) if _is_finite_positive(normalized_fcf) else None
-            ),
-            "fcf_anchor_used": float(fcf_anchor),
-            "normalization_applied": bool(normalization_applied),
         },
     }
