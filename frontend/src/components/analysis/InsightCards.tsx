@@ -68,7 +68,24 @@ interface CardData {
 function _promoterCard(
   promoterPct: number | null | undefined,
   pledgePct: number | null | undefined,
+  holdingType?: string | null,
+  entity?: string | null,
 ): CardData {
+  // RBI norms: private banks legitimately have no designated promoter.
+  // Render the dedicated "No promoter (RBI norms)" tag so HDFCBANK /
+  // ICICIBANK / AXISBANK don't keep surfacing as "0.0% \u2014 Low stake".
+  if (holdingType === "no_promoter_bank") {
+    return {
+      title: "Promoter Holding",
+      value: "n/a",
+      subtitle: "No promoter (RBI norms)",
+      color: "text-body",
+      icon: "\u{1f3db}\ufe0f",
+      borderColor: "border-l-border",
+      tooltip: "RBI norms forbid a designated promoter for private commercial banks. Diversified institutional ownership is the structural norm, not a governance gap.",
+      metricKey: "promoter_holding",
+    }
+  }
   if (promoterPct === null || promoterPct === undefined) {
     return {
       title: "Promoter Holding",
@@ -82,21 +99,40 @@ function _promoterCard(
     }
   }
   const pledged = pledgePct !== null && pledgePct !== undefined && pledgePct > 0
-  const band =
-    promoterPct >= 50 ? { c: "text-blue-700", b: "border-l-blue-500", label: "High alignment" }
-    : promoterPct >= 25 ? { c: "text-body", b: "border-l-border", label: "Moderate" }
-    : { c: "text-amber-700", b: "border-l-amber-500", label: "Low stake" }
+  // Override-aware label. Foreign and govt promoters can be perfectly
+  // healthy at any percentage band; the alignment-vs-stake heuristic
+  // only applies to ordinary domestic promoter holdings.
+  let label: string
+  let colorClass: string
+  let borderClass: string
+  if (holdingType === "foreign_promoter") {
+    label = entity ? `Foreign promoter \u00b7 ${entity}` : "Foreign promoter"
+    colorClass = "text-blue-700"
+    borderClass = "border-l-blue-500"
+  } else if (holdingType === "govt_promoter") {
+    label = entity ? `Govt promoter \u00b7 ${entity}` : "Govt promoter"
+    colorClass = "text-blue-700"
+    borderClass = "border-l-blue-500"
+  } else {
+    const band =
+      promoterPct >= 50 ? { c: "text-blue-700", b: "border-l-blue-500", label: "High alignment" }
+      : promoterPct >= 25 ? { c: "text-body", b: "border-l-border", label: "Moderate" }
+      : { c: "text-amber-700", b: "border-l-amber-500", label: "Low stake" }
+    label = band.label
+    colorClass = band.c
+    borderClass = band.b
+  }
   const subtitle = pledged
-    ? `${band.label} \u00b7 ${pledgePct!.toFixed(1)}% pledged`
-    : band.label
+    ? `${label} \u00b7 ${pledgePct!.toFixed(1)}% pledged`
+    : label
   return {
     title: "Promoter Holding",
     value: `${promoterPct.toFixed(1)}%`,
     subtitle,
     subtitleColor: pledged ? "text-red-600" : undefined,
-    color: band.c,
+    color: colorClass,
     icon: "\u{1f465}",
-    borderColor: pledged ? "border-l-red-500" : band.b,
+    borderColor: pledged ? "border-l-red-500" : borderClass,
     tooltip: "Percent of shares held by promoters. Higher generally means aligned interests, but watch for pledge.",
     metricKey: "promoter_holding",
   }
@@ -127,9 +163,19 @@ export default function InsightCards({ quality, insights, valuation, currency, t
   // Coverage cards that used to live beside this one were removed
   // on 2026-04-22 because they duplicated QualityRatios exactly.
   const ratioCards: CardData[] = useMemo(() => [
-    _promoterCard(quality.promoter_pct, quality.promoter_pledge_pct),
+    _promoterCard(
+      quality.promoter_pct,
+      quality.promoter_pledge_pct,
+      quality.promoter_holding_type,
+      quality.promoter_entity,
+    ),
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  ], [quality.promoter_pct, quality.promoter_pledge_pct])
+  ], [
+    quality.promoter_pct,
+    quality.promoter_pledge_pct,
+    quality.promoter_holding_type,
+    quality.promoter_entity,
+  ])
 
   const cards: CardData[] = useMemo(() => [
     {

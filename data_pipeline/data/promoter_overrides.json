@@ -1,0 +1,234 @@
+{
+  "_schema": {
+    "version": 1,
+    "description": "Manual promoter-holding overrides for Indian equities where the NSE share-holding-pattern feed under-reports or mis-categorises the economic promoter. Foreign promoters frequently appear under 'Public' or 'FPI' on Indian filings (BAT in ITC, Unilever in HUL, Suzuki in MARUTI, etc.). RBI norms forbid a designated promoter for private banks, so those are flagged 'no_promoter_bank' rather than '0.0% — Low stake'. Values verified against the most recent BSE/NSE share-holding-pattern.htm at time of seeding; refresh quarterly.",
+    "types": {
+      "foreign_promoter": "Economic promoter is a foreign parent; pct is its effective beneficial holding.",
+      "no_promoter_bank": "RBI norms — no designated promoter (private commercial bank). pct is null.",
+      "govt_promoter": "Government of India (directly or via LIC/SUUTI/specified-undertakings) acts as the economic promoter; pct is aggregate GOI + LIC holding.",
+      "domestic_promoter": "Standard domestic promoter; override exists only because the extractor misreads the filing."
+    }
+  },
+  "ITC": {
+    "promoter_pct": 24.2,
+    "type": "foreign_promoter",
+    "entity": "British American Tobacco (via Tobacco Manufacturers India / Myddleton Investment)",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "HINDUNILVR": {
+    "promoter_pct": 61.9,
+    "type": "foreign_promoter",
+    "entity": "Unilever PLC",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "MARUTI": {
+    "promoter_pct": 58.2,
+    "type": "foreign_promoter",
+    "entity": "Suzuki Motor Corporation",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "NESTLEIND": {
+    "promoter_pct": 62.8,
+    "type": "foreign_promoter",
+    "entity": "Nestle S.A.",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "BOSCHLTD": {
+    "promoter_pct": 70.5,
+    "type": "foreign_promoter",
+    "entity": "Robert Bosch GmbH",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "CASTROLIND": {
+    "promoter_pct": 51.0,
+    "type": "foreign_promoter",
+    "entity": "BP plc (via Castrol Ltd UK)",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "COLPAL": {
+    "promoter_pct": 51.0,
+    "type": "foreign_promoter",
+    "entity": "Colgate-Palmolive Company",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "GILLETTE": {
+    "promoter_pct": 75.0,
+    "type": "foreign_promoter",
+    "entity": "Procter & Gamble",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "PGHH": {
+    "promoter_pct": 70.6,
+    "type": "foreign_promoter",
+    "entity": "Procter & Gamble",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "ABB": {
+    "promoter_pct": 75.0,
+    "type": "foreign_promoter",
+    "entity": "ABB Asea Brown Boveri Ltd (Switzerland)",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "SIEMENS": {
+    "promoter_pct": 75.0,
+    "type": "foreign_promoter",
+    "entity": "Siemens AG",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "3MINDIA": {
+    "promoter_pct": 75.0,
+    "type": "foreign_promoter",
+    "entity": "3M Company",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "HONAUT": {
+    "promoter_pct": 75.0,
+    "type": "foreign_promoter",
+    "entity": "Honeywell International",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "GLAXO": {
+    "promoter_pct": 75.0,
+    "type": "foreign_promoter",
+    "entity": "GlaxoSmithKline plc",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "PFIZER": {
+    "promoter_pct": 63.9,
+    "type": "foreign_promoter",
+    "entity": "Pfizer Inc.",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "SANOFI": {
+    "promoter_pct": 60.4,
+    "type": "foreign_promoter",
+    "entity": "Sanofi S.A.",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "ASTRAZEN": {
+    "promoter_pct": 75.0,
+    "type": "foreign_promoter",
+    "entity": "AstraZeneca Pharmaceuticals AB",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "WHIRLPOOL": {
+    "promoter_pct": 51.0,
+    "type": "foreign_promoter",
+    "entity": "Whirlpool Corporation (USA)",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "TIMKEN": {
+    "promoter_pct": 67.8,
+    "type": "foreign_promoter",
+    "entity": "Timken Company (USA)",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "SCHAEFFLER": {
+    "promoter_pct": 74.1,
+    "type": "foreign_promoter",
+    "entity": "Schaeffler AG",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "GRINDWELL": {
+    "promoter_pct": 58.0,
+    "type": "foreign_promoter",
+    "entity": "Compagnie de Saint-Gobain",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "HDFCBANK": {
+    "promoter_pct": null,
+    "type": "no_promoter_bank",
+    "entity": null,
+    "source": "RBI Master Direction — Issue and Pricing of Shares by Private Sector Banks"
+  },
+  "ICICIBANK": {
+    "promoter_pct": null,
+    "type": "no_promoter_bank",
+    "entity": null,
+    "source": "RBI norms"
+  },
+  "AXISBANK": {
+    "promoter_pct": null,
+    "type": "no_promoter_bank",
+    "entity": null,
+    "source": "RBI norms (SUUTI is an investor, not promoter)"
+  },
+  "KOTAKBANK": {
+    "promoter_pct": 25.9,
+    "type": "domestic_promoter",
+    "entity": "Uday Kotak & family",
+    "source": "BSE Q4 FY26 share-holding-pattern (RBI-mandated cap)"
+  },
+  "INDUSINDBK": {
+    "promoter_pct": 16.4,
+    "type": "domestic_promoter",
+    "entity": "Hinduja Group",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "FEDERALBNK": {
+    "promoter_pct": null,
+    "type": "no_promoter_bank",
+    "entity": null,
+    "source": "RBI norms"
+  },
+  "IDFCFIRSTB": {
+    "promoter_pct": null,
+    "type": "no_promoter_bank",
+    "entity": null,
+    "source": "RBI norms"
+  },
+  "RBLBANK": {
+    "promoter_pct": null,
+    "type": "no_promoter_bank",
+    "entity": null,
+    "source": "RBI norms"
+  },
+  "BANDHANBNK": {
+    "promoter_pct": 39.9,
+    "type": "domestic_promoter",
+    "entity": "Bandhan Financial Holdings",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "AUBANK": {
+    "promoter_pct": 22.9,
+    "type": "domestic_promoter",
+    "entity": "Sanjay Agarwal & family",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "SBIN": {
+    "promoter_pct": 57.5,
+    "type": "govt_promoter",
+    "entity": "Government of India",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "BANKBARODA": {
+    "promoter_pct": 63.9,
+    "type": "govt_promoter",
+    "entity": "Government of India",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "PNB": {
+    "promoter_pct": 70.1,
+    "type": "govt_promoter",
+    "entity": "Government of India",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "CANBK": {
+    "promoter_pct": 62.9,
+    "type": "govt_promoter",
+    "entity": "Government of India",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "UNIONBANK": {
+    "promoter_pct": 74.8,
+    "type": "govt_promoter",
+    "entity": "Government of India",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  },
+  "INDIANB": {
+    "promoter_pct": 73.8,
+    "type": "govt_promoter",
+    "entity": "Government of India",
+    "source": "BSE Q4 FY26 share-holding-pattern"
+  }
+}
