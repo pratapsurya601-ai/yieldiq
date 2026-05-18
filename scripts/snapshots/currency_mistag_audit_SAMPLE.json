@@ -1,0 +1,101 @@
+{
+  "_note": "MOCKED sample output illustrating expected report shape. Real runs write currency_mistag_audit_<utc-ts>.json. Numbers below are illustrative, not measured.",
+  "generated_at": "2026-05-18T10:00:00+00:00",
+  "database_url_host": "<neon-host>",
+  "thresholds": {
+    "implausible_usd_rev_per_share": 50.0
+  },
+  "summary": {
+    "total_usd_rows": 142,
+    "unique_usd_tickers": 19,
+    "suspect_tickers_total": 18,
+    "yfinance_now_reports_inr": 18,
+    "magnitude_implies_inr": 17,
+    "suspect_ticker_list": [
+      "AUROPHARMA", "BIOCON", "CIPLA", "COFORGE", "DIVISLAB",
+      "DRREDDY", "GLENMARK", "GRANULES", "IPCALAB", "KPITTECH",
+      "LAURUSLABS", "LUPIN", "MPHASIS", "PERSISTENT", "PFIZER",
+      "PIIND", "SUNPHARMA", "TORNTPHARM"
+    ]
+  },
+  "tickers": {
+    "DRREDDY": {
+      "company_name": "Dr. Reddy's Laboratories Ltd",
+      "sector": "Healthcare",
+      "industry": "Pharmaceuticals",
+      "row_count": 12,
+      "yf_info": {
+        "yf_symbol": "DRREDDY.NS",
+        "financialCurrency": "INR",
+        "country": "India",
+        "longName": "Dr. Reddy's Laboratories Limited",
+        "quoteType": "EQUITY"
+      },
+      "ticker_flags": [
+        "country_india",
+        "magnitude_says_inr(rps=3,124)",
+        "yfinance_says_inr"
+      ],
+      "rows": [
+        {
+          "ticker": "DRREDDY",
+          "period_end": "2025-03-31",
+          "period_type": "annual",
+          "currency": "USD",
+          "revenue": 320420000000.0,
+          "pat": 56010000000.0,
+          "shares_outstanding_lakh": 8330.0,
+          "data_source": "yfinance",
+          "data_quality_rank": 50,
+          "sector": "Healthcare",
+          "industry": "Pharmaceuticals",
+          "company_name": "Dr. Reddy's Laboratories Ltd",
+          "flags": [
+            "yfinance_says_inr",
+            "country_india",
+            "magnitude_says_inr(rps=3849)"
+          ]
+        }
+      ]
+    },
+    "MPHASIS": {
+      "company_name": "Mphasis Ltd",
+      "sector": "Information Technology",
+      "industry": "IT Services",
+      "row_count": 8,
+      "yf_info": {
+        "yf_symbol": "MPHASIS.NS",
+        "financialCurrency": "INR",
+        "country": "India",
+        "longName": "Mphasis Limited",
+        "quoteType": "EQUITY"
+      },
+      "ticker_flags": [
+        "country_india",
+        "magnitude_says_inr(rps=720)",
+        "yfinance_says_inr"
+      ],
+      "rows": [
+        {
+          "ticker": "MPHASIS",
+          "period_end": "2025-03-31",
+          "period_type": "annual",
+          "currency": "USD",
+          "revenue": 137980000000.0,
+          "pat": 16920000000.0,
+          "shares_outstanding_lakh": 1894.0,
+          "data_source": "yfinance",
+          "data_quality_rank": 50,
+          "sector": "Information Technology",
+          "industry": "IT Services",
+          "company_name": "Mphasis Ltd",
+          "flags": [
+            "yfinance_says_inr",
+            "country_india",
+            "magnitude_says_inr(rps=728)"
+          ]
+        }
+      ]
+    }
+  }
+}
