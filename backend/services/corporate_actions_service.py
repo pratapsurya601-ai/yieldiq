@@ -109,7 +109,15 @@ def get_actions(
     """
     if not ticker:
         return []
-    ticker_norm = ticker.strip().upper()
+    # FIX-CORP-ACTIONS-TICKER-NORM (2026-05-18): the corp_actions table
+    # stores tickers in BARE form (e.g. "HDFCBANK") but the caller in
+    # analysis/service.py passes the canonical .NS-suffixed form
+    # ("HDFCBANK.NS") because that's what the rest of the analysis
+    # pipeline uses as the cache key. Without this strip, the query
+    # returns empty for every Indian ticker and `has_structural_break`
+    # silently returns False — the HDFCBANK 30% phantom growth fix
+    # (PR #324) was a no-op in prod until this hotfix landed.
+    ticker_norm = ticker.strip().upper().replace(".NS", "").replace(".BO", "")
     if not ticker_norm:
         return []
 
