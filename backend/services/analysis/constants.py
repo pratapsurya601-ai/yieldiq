@@ -651,6 +651,20 @@ for _t in _INSURANCE_TICKERS:
 for _t in (FINANCIAL_COMPANIES - _NBFC_TICKERS - _INSURANCE_TICKERS):
     TICKER_SECTOR_OVERRIDES[_t] = "Banking"
 
+# ── Cement sector mistag fixes (added 2026-05-18, cement M&A truncation) ──
+# AMBUJACEM surfaces from yfinance as sector="General/Diversified" rather
+# than "Cement", which silently routes it through the generic DCF path
+# and bypasses every cement-specific gate. CYCLICAL_TICKERS membership is
+# keyed on the bare ticker so cyclical detection still fires, but the
+# sector string is what propagates to the API response, frontend sector
+# facet and peer-cohort queries. Force-pin to "Cement" so the override is
+# applied at the same point as the financial-sector overrides above.
+# Both bare and .NS-suffixed forms are seeded because some call sites look
+# up the suffixed form before normalisation. See
+# docs/design/cement-dcf-fix.md §3 (AMBUJACEM bucket A).
+TICKER_SECTOR_OVERRIDES["AMBUJACEM"] = "Cement"
+TICKER_SECTOR_OVERRIDES["AMBUJACEM.NS"] = "Cement"
+
 
 # USD → INR conversion rate for Financials rows tagged `currency = 'USD'`.
 # TODO: source from a forex feed (RBI reference rate) rather than a constant.
