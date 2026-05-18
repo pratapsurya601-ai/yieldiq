@@ -162,6 +162,7 @@ def assemble_local(ticker: str, db_session) -> dict | None:
     capex_list: list[float] = []
 
     shares = 0.0
+    shares_outstanding_raw_db = 0.0  # post-normalization raw count (PR #136)
     total_debt = 0.0
     total_cash = 0.0
     total_assets = 0.0
@@ -179,8 +180,8 @@ def assemble_local(ticker: str, db_session) -> dict | None:
         fins = db_session.execute(text(
             "SELECT revenue, pat, ebitda, eps_diluted, cfo, capex, "
             "free_cash_flow, total_assets, total_equity, total_debt, "
-            "cash_and_equivalents, shares_outstanding, roe, "
-            "debt_to_equity, net_margin, period_end, currency "
+            "cash_and_equivalents, shares_outstanding, shares_outstanding_raw, "
+            "roe, debt_to_equity, net_margin, period_end, currency "
             "FROM financials WHERE ticker = :t AND period_type = 'annual' "
             "ORDER BY period_end DESC LIMIT 5"
         ), {"t": clean}).mappings().all()
@@ -201,6 +202,9 @@ def assemble_local(ticker: str, db_session) -> dict | None:
             # shares/roe/de/net_margin/eps are currency-neutral ratios
             # or unit-counts; monetary fields get the multiplier.
             shares = _safe(latest.get("shares_outstanding"))
+            # shares_outstanding_raw is post-PR#136 normalization: already in
+            # raw count regardless of the legacy lakh/crore unit of `shares_outstanding`.
+            shares_outstanding_raw_db = _safe(latest.get("shares_outstanding_raw"))
             total_debt = _safe(latest.get("total_debt")) * fx_latest
             total_cash = _safe(latest.get("cash_and_equivalents")) * fx_latest
             total_assets = _safe(latest.get("total_assets")) * fx_latest
@@ -417,6 +421,9 @@ def assemble_local(ticker: str, db_session) -> dict | None:
         "price":            price,
         "latest_period_end": _latest_period_end,
         "shares":           shares_raw,
+        # PR #316: expose post-normalization raw count so the analysis
+        # service can sanity-check `shares` against this trusted column.
+        "shares_outstanding_raw": shares_outstanding_raw_db,
         "total_debt":       total_debt,
         "total_cash":       total_cash,
         "income_df":        income_df,

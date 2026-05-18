@@ -1739,6 +1739,10 @@ class StockDataCollector:
             "ticker":           self.ticker,
             "price":            price,
             "shares":           shares,
+            # PR #316: yfinance does not carry the post-normalization raw
+            # column from PR#136; set None so the consumer-side fallback in
+            # backend.services.analysis.service can detect "no DB raw".
+            "shares_outstanding_raw": None,
             "total_debt":       bs["total_debt"],
             "total_cash":       bs["total_cash"],
             "income_df":        income_df,
