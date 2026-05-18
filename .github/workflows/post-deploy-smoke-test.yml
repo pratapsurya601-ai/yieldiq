@@ -1,0 +1,83 @@
+name: Post-Deploy Smoke Test
+# E2E smoke test of /api/v1/public/stock-summary against 12 anchor tickers
+# covering every valuation path (DCF, rate_base, peer_capped, ETF NAV,
+# REIT NAV/DPU, holdco SOTP). Replaces the manual post-Railway-deploy
+# curl checks.
+
+env:
+  API_BASE: "https://api.yieldiq.in"
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Every 30 min during NSE market hours (Mon-Fri, 09:30-15:30 IST = 04:00-10:00 UTC)
+    - cron: "0,30 4-9 * * 1-5"
+    - cron: "0 10 * * 1-5"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/post_deploy_smoke_test.py"
+      - ".github/workflows/post-deploy-smoke-test.yml"
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run post-deploy smoke test
+        id: smoke
+        run: |
+          python scripts/post_deploy_smoke_test.py \
+            --api-base "${API_BASE}" \
+            --report smoke_report.json \
+            --verbose
+
+      - name: Upload smoke report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smoke-report
+          path: smoke_report.json
+          retention-days: 30
+
+      - name: Open GitHub issue on scheduled failure
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let r = { passed: '?', total: 12, results: [] };
+            try { r = JSON.parse(fs.readFileSync('smoke_report.json', 'utf8')); } catch(e) {}
+            const failed = (r.results || []).filter(x => !x.passed);
+            const title = `Post-deploy smoke FAIL: ${r.passed}/${r.total} anchors`;
+            const existing = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              state: 'open', per_page: 100,
+            });
+            if (existing.data.some(i => i.title === title)) {
+              core.info('dedupe: open issue with same title already exists');
+              return;
+            }
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const lines = failed.map(f => `- **${f.ticker}**: ${(f.issues || []).join('; ')}`).join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body: `Scheduled post-deploy smoke test failed.\n\nRun: ${runUrl}\n\n### Failing anchors\n${lines || '(none)'}\n`,
+              labels: ['smoke-test', 'bug'],
+            });
+
+      - name: Annotate failure
+        if: failure()
+        run: |
+          echo "::error::Post-deploy smoke test FAILED -- production stock-summary API regression"
+          echo "Run: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
