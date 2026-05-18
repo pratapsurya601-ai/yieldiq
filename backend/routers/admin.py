@@ -837,3 +837,174 @@ async def sentry_test(user: dict = Depends(require_admin)):
     raise _SentryWiringTestError(
         "Synthetic exception from /admin/sentry-test — wiring smoke test"
     )
+
+
+# ─────────────────────────────────────────────────────────────────
+# Realty developer land-bank inputs (Approach C engine curation).
+# See docs/design/realty-developers-dcf-fix.md §5 and the
+# realty_land_bank_inputs migration (047). Annual 2-hour operator
+# pass populates `uplift_per_share` from each company's annual-report
+# land-bank schedule.
+# ─────────────────────────────────────────────────────────────────
+from pydantic import BaseModel, Field
+from typing import Optional as _OptStr
+
+
+class _RealtyLandBankIn(BaseModel):
+    ticker: str = Field(..., description="Bare ticker symbol, no .NS/.BO suffix")
+    reporting_fy: str = Field(..., description="Source-AR FY label, e.g. 'FY25'")
+    land_bank_acres: _OptStr[float] = None
+    land_bank_market_value_cr: float
+    land_bank_book_value_cr: _OptStr[float] = None
+    unsold_inventory_cr: _OptStr[float] = None
+    pre_sales_pipeline_cr: _OptStr[float] = None
+    uplift_per_share: float
+    source_url: _OptStr[str] = None
+
+
+@router.get("/realty-land-bank")
+async def list_realty_land_bank(user: dict = Depends(require_admin)):
+    """List all curated land-bank rows. Newest first."""
+    try:
+        from data_pipeline.db import Session
+        from sqlalchemy import text as _t
+        sess = Session()
+        try:
+            rows = sess.execute(
+                _t(
+                    "SELECT ticker, reporting_fy, land_bank_acres, "
+                    "land_bank_market_value_cr, land_bank_book_value_cr, "
+                    "unsold_inventory_cr, pre_sales_pipeline_cr, "
+                    "uplift_per_share, source_url, entered_by, entered_at "
+                    "FROM realty_land_bank_inputs "
+                    "ORDER BY entered_at DESC"
+                )
+            ).fetchall()
+            out = []
+            for r in rows:
+                out.append({
+                    "ticker": r[0],
+                    "reporting_fy": r[1],
+                    "land_bank_acres": float(r[2]) if r[2] is not None else None,
+                    "land_bank_market_value_cr": float(r[3]) if r[3] is not None else None,
+                    "land_bank_book_value_cr": float(r[4]) if r[4] is not None else None,
+                    "unsold_inventory_cr": float(r[5]) if r[5] is not None else None,
+                    "pre_sales_pipeline_cr": float(r[6]) if r[6] is not None else None,
+                    "uplift_per_share": float(r[7]) if r[7] is not None else None,
+                    "source_url": r[8],
+                    "entered_by": r[9],
+                    "entered_at": r[10].isoformat() if r[10] else None,
+                })
+            return {"count": len(out), "rows": out}
+        finally:
+            sess.close()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"list_realty_land_bank failed: {_sanitize_error(exc, 'realty-land-bank.list')}",
+        )
+
+
+@router.post("/realty-land-bank")
+async def upsert_realty_land_bank(
+    payload: _RealtyLandBankIn,
+    user: dict = Depends(require_admin),
+):
+    """Upsert a single ticker's land-bank curation row.
+
+    Validates that `ticker` is in REALTY_TICKERS — refuses to write
+    rows for tickers the engine does not recognise as developers.
+    """
+    from backend.services.analysis.constants import REALTY_TICKERS
+    bare = payload.ticker.replace(".NS", "").replace(".BO", "").upper()
+    if bare not in REALTY_TICKERS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Ticker '{bare}' is not in REALTY_TICKERS. Add it to "
+                "backend/services/analysis/constants.py first (and to the "
+                "design doc), then retry."
+            ),
+        )
+    try:
+        from data_pipeline.db import Session
+        from sqlalchemy import text as _t
+        sess = Session()
+        try:
+            sess.execute(
+                _t(
+                    "INSERT INTO realty_land_bank_inputs ("
+                    "ticker, reporting_fy, land_bank_acres, "
+                    "land_bank_market_value_cr, land_bank_book_value_cr, "
+                    "unsold_inventory_cr, pre_sales_pipeline_cr, "
+                    "uplift_per_share, source_url, entered_by, entered_at"
+                    ") VALUES ("
+                    ":ticker, :reporting_fy, :land_bank_acres, "
+                    ":land_bank_market_value_cr, :land_bank_book_value_cr, "
+                    ":unsold_inventory_cr, :pre_sales_pipeline_cr, "
+                    ":uplift_per_share, :source_url, :entered_by, NOW()"
+                    ") ON CONFLICT (ticker) DO UPDATE SET "
+                    "reporting_fy = EXCLUDED.reporting_fy, "
+                    "land_bank_acres = EXCLUDED.land_bank_acres, "
+                    "land_bank_market_value_cr = EXCLUDED.land_bank_market_value_cr, "
+                    "land_bank_book_value_cr = EXCLUDED.land_bank_book_value_cr, "
+                    "unsold_inventory_cr = EXCLUDED.unsold_inventory_cr, "
+                    "pre_sales_pipeline_cr = EXCLUDED.pre_sales_pipeline_cr, "
+                    "uplift_per_share = EXCLUDED.uplift_per_share, "
+                    "source_url = EXCLUDED.source_url, "
+                    "entered_by = EXCLUDED.entered_by, "
+                    "entered_at = NOW()"
+                ),
+                {
+                    "ticker": bare,
+                    "reporting_fy": payload.reporting_fy,
+                    "land_bank_acres": payload.land_bank_acres,
+                    "land_bank_market_value_cr": payload.land_bank_market_value_cr,
+                    "land_bank_book_value_cr": payload.land_bank_book_value_cr,
+                    "unsold_inventory_cr": payload.unsold_inventory_cr,
+                    "pre_sales_pipeline_cr": payload.pre_sales_pipeline_cr,
+                    "uplift_per_share": payload.uplift_per_share,
+                    "source_url": payload.source_url,
+                    "entered_by": user.get("email"),
+                },
+            )
+            sess.commit()
+            return {"status": "ok", "ticker": bare}
+        finally:
+            sess.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"upsert_realty_land_bank failed: {_sanitize_error(exc, 'realty-land-bank.upsert')}",
+        )
+
+
+@router.delete("/realty-land-bank/{ticker}")
+async def delete_realty_land_bank(
+    ticker: str,
+    user: dict = Depends(require_admin),
+):
+    """Delete the land-bank curation row for `ticker`. After delete
+    the engine falls back to Tier 2 generic for that ticker.
+    """
+    bare = ticker.replace(".NS", "").replace(".BO", "").upper()
+    try:
+        from data_pipeline.db import Session
+        from sqlalchemy import text as _t
+        sess = Session()
+        try:
+            res = sess.execute(
+                _t("DELETE FROM realty_land_bank_inputs WHERE ticker = :t"),
+                {"t": bare},
+            )
+            sess.commit()
+            return {"status": "ok", "ticker": bare, "deleted": res.rowcount}
+        finally:
+            sess.close()
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"delete_realty_land_bank failed: {_sanitize_error(exc, 'realty-land-bank.delete')}",
+        )

@@ -783,6 +783,72 @@ for _t in (FINANCIAL_COMPANIES - _NBFC_TICKERS - _INSURANCE_TICKERS):
 TICKER_SECTOR_OVERRIDES["AMBUJACEM"] = "Cement"
 TICKER_SECTOR_OVERRIDES["AMBUJACEM.NS"] = "Cement"
 
+# ── Realty developer sector mistag fixes (2026-05-18) ───────────
+# Per docs/design/realty-developers-dcf-fix.md §5.2, three developer
+# tickers come out of yfinance with broken sectors and block any
+# Real-Estate routing until pinned:
+#   LODHA       → "General/Diversified"  (mis-tag)
+#   OBEROIRLTY  → NULL
+#   GODREJPROP  → NULL
+# Hard-override to "Real Estate" so the cohort engine + sector facet
+# work immediately. The ingestion-side bug (yfinance NULL for OBEROI/
+# GODREJ) is parallel work.
+for _realty_t in ("LODHA", "OBEROIRLTY", "GODREJPROP"):
+    TICKER_SECTOR_OVERRIDES[_realty_t] = "Real Estate"
+    TICKER_SECTOR_OVERRIDES[f"{_realty_t}.NS"] = "Real Estate"
+
+
+# ── Realty developer cohort (Approach C engine) ─────────────────
+# Per docs/design/realty-developers-dcf-fix.md §5.1. Listed residential
+# + mixed-use Indian developers. REITs are explicitly excluded — they
+# have their own classifier (REIT_TICKERS) and their own engine.
+REALTY_TICKERS: set[str] = {
+    "DLF", "GODREJPROP", "LODHA", "OBEROIRLTY",
+    "PRESTIGE", "PHOENIXLTD", "SOBHA", "BRIGADE",
+    "MAHLIFE", "KEYSTONE", "MACROTECH", "NCC",
+    "SHRIRAMPROP", "SUNTECK",
+}
+
+
+def is_realty_developer(
+    ticker: str | None,
+    sector: str | None = None,
+    industry: str | None = None,
+) -> bool:
+    """Return True if `ticker` is a listed Indian real-estate developer.
+
+    Mirrors the is_reit / is_regulated_utility shape. REITs are
+    explicitly excluded — a REIT ticker that happens to match a
+    real-estate sector string must still route to the REIT engine.
+    """
+    bare = ""
+    if ticker:
+        bare = (
+            ticker.replace(".NS", "")
+            .replace(".BO", "")
+            .upper()
+        )
+        # REITs are out of scope — they have their own classifier.
+        if bare in REIT_TICKERS:
+            return False
+        if bare in REALTY_TICKERS:
+            return True
+
+    # Sector / industry fallback. Only fires if the curated set misses
+    # the ticker; the routing branch in service.py additionally requires
+    # a curation row in realty_land_bank_inputs, so a stray match here
+    # cannot accidentally re-route a non-developer.
+    blob = " ".join(
+        (sector or "").lower().strip().split() +
+        (industry or "").lower().strip().split()
+    )
+    if blob:
+        if "real estate investment trust" in blob or "reit" in blob.split():
+            return False
+        if "real estate" in blob or "realty" in blob:
+            return True
+    return False
+
 
 # USD → INR conversion rate for Financials rows tagged `currency = 'USD'`.
 # TODO: source from a forex feed (RBI reference rate) rather than a constant.
