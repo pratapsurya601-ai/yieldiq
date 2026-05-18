@@ -781,6 +781,10 @@ class AnalysisService(NarrativeMixin):
         is_realty_branch_active = bool(
             is_realty_developer_ticker and _realty_land_bank_input
         )
+        # Pre-init so the valuation_model label assignment near the
+        # end of the function can reference it for non-insurance tickers
+        # without NameError.
+        _appraisal_val_result = None
 
         # ── Defense PSU analyst-opinion flag (2026-05-18) ────────
         # Per docs/design/defense-psu-dcf-fix.md (Approach D — NO-FIX).
@@ -3572,6 +3576,13 @@ class AnalysisService(NarrativeMixin):
                     if (is_financial or is_regulated_utility_ticker)
                     else enriched.get("dcf_reliable", True)
                 ),
+                # HOTFIX 2026-05-18: include realty + insurance branches.
+                # Previously the chain fell through to "dcf" for both
+                # realty (PR #356) and insurance appraisal (PR #357)
+                # tickers, so even when the engines fired the response
+                # mislabeled the method. UI confidence chips + reconciliation
+                # gate read this field; mislabel hid that the new engines
+                # were actually running.
                 valuation_model=(
                     "etf_nav_based" if is_etf_ticker
                     else (
@@ -3580,7 +3591,20 @@ class AnalysisService(NarrativeMixin):
                             "holding_company_sotp_required" if _holdco_skip
                             else (
                                 "rate_base" if is_regulated_utility_ticker
-                                else ("pb_ratio" if is_financial else "dcf")
+                                else (
+                                    "pb_plus_land_bank" if is_realty_branch_active
+                                    else (
+                                        "appraisal_value"
+                                        if (
+                                            clean_ticker.upper()
+                                            in _INSURANCE_TICKERS
+                                            and _appraisal_val_result
+                                        )
+                                        else (
+                                            "pb_ratio" if is_financial else "dcf"
+                                        )
+                                    )
+                                )
                             )
                         )
                     )
