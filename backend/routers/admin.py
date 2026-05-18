@@ -720,3 +720,87 @@ async def get_user_activity(
     except (TypeError, ValueError):
         days_i = 30
     return _pvs.activity_summary(email, days=days_i)
+
+
+# ─────────────────────────────────────────────────────────────────
+# Benchmark reconciliation — Layer A safety net (PR #335 follow-on).
+#
+# Surfaces the join of analysis_cache.fair_value vs
+# latest_consensus_per_ticker.target_median. Operators check this
+# daily to catch sector-engine regressions before users complain
+# (POWERGRID @ ₹59 vs market @ ₹305 was the motivating incident).
+#
+# Design: docs/design/benchmark-reconciliation-framework.md §6.1.
+# Service:   backend/services/benchmark_reconciliation_service.py.
+#
+# Auth: require_admin (same JWT allow-list as the other admin routes).
+# Never exposes the consensus number to non-admin callers — the
+# user-facing caveat path lives in the analysis serializer and uses
+# the abs-delta integer only.
+# ─────────────────────────────────────────────────────────────────
+@router.get("/benchmark-outliers")
+async def get_benchmark_outliers(
+    threshold: float = 0.30,
+    min_analysts: int = 3,
+    direction: str = "both",
+    limit: int = 50,
+    user: dict = Depends(require_admin),
+):
+    """Sorted list of tickers whose model FV diverges from analyst
+    consensus by more than ``threshold`` (fraction, not percent).
+
+    Query params:
+      - ``threshold``     : default 0.30  (30%; matches design D0 setting)
+      - ``min_analysts``  : default 3     (low-signal floor)
+      - ``direction``     : "both" | "over" | "under"
+      - ``limit``         : default 50, max 500
+
+    Returns ``{generated_at, threshold_pct, count, rows[]}`` sorted by
+    ``|delta_pct|`` desc. Each row carries our_fv, consensus_fv,
+    delta_pct, direction, analyst_count, source, fetched_at — see
+    OutlierRow in the service module. Admin-only; consensus values
+    never appear in non-admin responses.
+    """
+    from datetime import datetime, timezone
+    from backend.services import benchmark_reconciliation_service as brs
+
+    # Defensive clamping. The endpoint is admin-only so we don't worry
+    # about adversarial input, but we still bound the values to keep
+    # operator typos from producing a 50-page response.
+    try:
+        threshold_f = max(0.01, min(float(threshold), 5.0))
+    except (TypeError, ValueError):
+        threshold_f = 0.30
+    try:
+        min_an = max(1, min(int(min_analysts), 50))
+    except (TypeError, ValueError):
+        min_an = 3
+    try:
+        limit_i = max(1, min(int(limit), 500))
+    except (TypeError, ValueError):
+        limit_i = 50
+    direction_s = (direction or "both").lower().strip()
+    if direction_s not in ("both", "over", "under"):
+        direction_s = "both"
+
+    try:
+        rows = brs.get_outliers(
+            threshold_pct=threshold_f,
+            min_analysts=min_an,
+            direction=direction_s,
+            limit=limit_i,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"benchmark-outliers failed: {_sanitize_error(e, 'benchmark-outliers')}",
+        )
+
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "threshold_pct": threshold_f,
+        "min_analysts": min_an,
+        "direction": direction_s,
+        "count": len(rows),
+        "rows": [r.to_dict() for r in rows],
+    }

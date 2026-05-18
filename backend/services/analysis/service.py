@@ -3033,6 +3033,21 @@ class AnalysisService(NarrativeMixin):
                 except Exception:
                     pass
 
+        # ── Benchmark reconciliation caveat (Layer A safety net) ──
+        # Appends a generic data_issue if our FV diverges materially
+        # from analyst consensus for this ticker. Never reveals the
+        # consensus number itself. Failure modes degrade silently —
+        # this must never break the analysis path.
+        try:
+            from backend.services import benchmark_reconciliation_service as _brs
+            _binfo = _brs.is_ticker_flagged(ticker)
+            _bcaveat = _brs.caveat_text(_binfo)
+            if _bcaveat:
+                _data_issues = list(_data_issues) + [f"[benchmark_caveat] {_bcaveat}"]
+        except Exception:
+            # Reconciliation is best-effort; never break analysis on it.
+            pass
+
         return AnalysisResponse(
             ticker=ticker,
             company=company,
