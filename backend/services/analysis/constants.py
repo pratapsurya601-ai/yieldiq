@@ -581,6 +581,89 @@ def is_etf(
     return False
 
 
+# ── REIT detection (PR #333 — feat/reit-asset-type-classifier) ─────
+# Mirrors the ETF pattern. Indian REITs (Real Estate Investment Trusts)
+# are SEBI-regulated pass-through trusts that distribute >=90% of NDCF
+# as DPU and do NOT compound retained earnings — generic FCF-DCF
+# produces structurally wrong fair values (typically ~half of CMP
+# because project-level debt is subtracted from an already-small
+# pass-through cash flow EV; see docs/design/reit-valuation-fix.md §2).
+#
+# Detection = (curated ticker allow-list) OR (bare-symbol ends in
+# "REIT") OR (sector/industry text contains "REIT" /
+# "real estate investment trust").
+#
+# Routed via service.py BEFORE is_regulated_utility_ticker — REIT
+# wins over every other downstream classifier (a REIT that classifies
+# under "Real Estate" must be skipped, not P/B-modelled as a developer).
+# ─────────────────────────────────────────────────────────────────────
+
+REIT_TICKERS: set[str] = {
+    # All four Indian REITs as of 2026-05-18. First REIT IPO was
+    # EMBASSY (2019). InvITs (POWERGRID-INVIT, IRB-INVIT, INDIGRID)
+    # are deliberately NOT in this set — they are a separate
+    # SEBI-regulated category and should be classified separately.
+    "EMBASSY",
+    "MINDSPACE",
+    "BROOKFIELD",
+    "NEXUS",
+}
+
+
+def is_reit(
+    ticker: str | None,
+    sector: str | None = None,
+    industry: str | None = None,
+) -> bool:
+    """Return True if `ticker` is a Real Estate Investment Trust (REIT).
+
+    Three independent signals — match on any:
+
+      1. Ticker membership in :data:`REIT_TICKERS` (curated allow-list,
+         primary defence — 4 Indian REITs as of 2026-05-18).
+      2. Ticker keyword fallback: bare symbol ends with ``REIT``
+         (catches future listings without a constants.py edit).
+      3. Sector/industry text contains ``REIT`` or
+         ``Real Estate Investment Trust`` (case-insensitive).
+
+    REITs are valued by NAV (net asset value of underlying properties)
+    + DPU (distribution per unit) yield, NOT by DCF — generic DCF
+    structurally under-prices them (see docs/design/reit-valuation-fix.md).
+    service.py short-circuits to verdict="data_limited" with
+    valuation_method="reit_nav_dpu_required" when this returns True.
+    """
+    bare = ""
+    if ticker:
+        bare = (
+            ticker.replace(".NS", "")
+            .replace(".BO", "")
+            .upper()
+        )
+        if bare in REIT_TICKERS:
+            return True
+        # Keyword fallback — bare symbol ENDS in "REIT" (anchored to
+        # avoid false-positives on companies that happen to contain
+        # "REIT" mid-string).
+        if bare.endswith("REIT"):
+            return True
+
+    blob = " ".join(
+        (sector or "").lower().strip().split() +
+        (industry or "").lower().strip().split()
+    )
+    if blob:
+        if "real estate investment trust" in blob:
+            return True
+        # Match "reit" as a whole word (or as the "reit -" prefix
+        # yfinance uses for sub-classifications like "REIT - Office",
+        # "REIT - Retail"). Don't match substrings inside other words.
+        tokens = blob.replace("-", " ").split()
+        if "reit" in tokens or "reits" in tokens:
+            return True
+
+    return False
+
+
 def is_cyclical(ticker: str | None, sector: str | None = None) -> bool:
     """Return True if the ticker (or its resolved sector) is cyclical.
 

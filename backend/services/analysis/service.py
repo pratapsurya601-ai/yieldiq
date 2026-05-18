@@ -98,6 +98,7 @@ from backend.services.analysis.constants import (
     is_bank_like,
     is_etf,
     is_fmcg_sector,
+    is_reit,
     is_regulated_utility,
     get_brand_moat_multiplier,
     COMPANY_NAME_OVERRIDES,
@@ -616,8 +617,22 @@ class AnalysisService(NarrativeMixin):
             security_type=_etf_security_type,
         )
 
-        is_regulated_utility_ticker = (
+        # ── REIT classifier (PR #333) ─────────────────────────────
+        # Mirrors the ETF pattern. Indian REITs (EMBASSY, MINDSPACE,
+        # BROOKFIELD, NEXUS) are SEBI pass-through trusts and produce
+        # structurally wrong FVs through generic FCF-DCF. Routed BEFORE
+        # is_regulated_utility_ticker — REIT wins over every other
+        # classifier (a REIT must never be P/B-modelled as a developer
+        # or rate-base-modelled as a utility).
+        is_reit_ticker = (
             False if is_etf_ticker
+            else is_reit(
+                ticker, _enriched_sector, _enriched_industry,
+            )
+        )
+
+        is_regulated_utility_ticker = (
+            False if (is_etf_ticker or is_reit_ticker)
             else is_regulated_utility(
                 ticker, _enriched_sector, _enriched_industry,
             )
@@ -893,6 +908,47 @@ class AnalysisService(NarrativeMixin):
                 "ETFs are valued by NAV (net asset value) of their "
                 "underlying holdings, not by DCF. For NAV/iNAV refer "
                 "to the issuer's daily disclosure."
+            )
+        elif is_reit_ticker:
+            # REIT short-circuit (PR #333) — skip DCF / scenarios /
+            # peer_cap / recent-IPO / financial-valuation entirely.
+            # Indian REITs are SEBI-regulated pass-through trusts that
+            # distribute >=90% of NDCF as DPU and do NOT compound
+            # retained earnings. Their fair value is NAV/unit (net
+            # asset value of the underlying property portfolio)
+            # disclosed quarterly by the trust, plus DPU yield — there
+            # is no operating-business cash flow to project. Generic
+            # DCF mis-prices them by ~50% on the low side because
+            # project-level debt is subtracted from an already-small
+            # pass-through cash flow EV. See
+            # docs/design/reit-valuation-fix.md §2 for the full
+            # structural explanation.
+            iv = 0.0
+            iv_raw = 0.0
+            bear_iv = 0.0
+            bull_iv = 0.0
+            dcf_res = {
+                "intrinsic_value_per_share": 0.0,
+                "warnings": [
+                    "Valuation: REITs are valued by NAV (net asset "
+                    "value of underlying properties) plus DPU yield, "
+                    "not by DCF."
+                ],
+                "reliability_score": 0,
+                "tv_pct_of_ev": 0,
+                "sum_pv_fcfs": 0,
+                "pv_tv": 0,
+                "enterprise_value": 0,
+                "equity_value": 0,
+            }
+            projected = []
+            growth_schedule = []
+            base_growth = 0
+            _bvps = 0
+            _data_issues.append(
+                "REITs are valued by NAV (net asset value of the "
+                "underlying properties) plus DPU yield, not by DCF. "
+                "Refer to the issuer's daily NAV disclosure."
             )
         elif is_regulated_utility_ticker:
             # Defaults — always defined regardless of which path runs.
@@ -1344,6 +1400,7 @@ class AnalysisService(NarrativeMixin):
         # financials and regulated utilities both skip this).
         _skip_dcf_downstream = bool(
             is_financial or is_regulated_utility_ticker or is_etf_ticker
+            or is_reit_ticker
         )
         _fcf_base_for_scen = None
         if not _skip_dcf_downstream:
@@ -1587,6 +1644,7 @@ class AnalysisService(NarrativeMixin):
             and not is_financial
             and not is_regulated_utility_ticker
             and not is_etf_ticker
+            and not is_reit_ticker
             and price
             and price > 0
         ):
@@ -1703,6 +1761,12 @@ class AnalysisService(NarrativeMixin):
                 # The peer-cap heuristic is calibrated for FCF-DCF
                 # over-shoots and would silently re-introduce the very
                 # mis-valuation this PR was built to escape.
+                _pc = None
+            elif is_reit_ticker:
+                # REITs short-circuit to data_limited with iv=0 — the
+                # peer-cap would compute against a zero FV and is
+                # meaningless in any case (REITs are valued by NAV +
+                # DPU yield, see is_reit_ticker branch in Step 6).
                 _pc = None
             elif iv and iv > 0 and not is_financial:
                 _pc = _compute_peer_cap(ticker)
@@ -2761,12 +2825,16 @@ class AnalysisService(NarrativeMixin):
                 "valuation_model": (
                     "etf_nav_based" if is_etf_ticker
                     else (
-                        "rate_base" if is_regulated_utility_ticker
-                        else ("pb_ratio" if is_financial else "dcf")
+                        "reit_nav_dpu_required" if is_reit_ticker
+                        else (
+                            "rate_base" if is_regulated_utility_ticker
+                            else ("pb_ratio" if is_financial else "dcf")
+                        )
                     )
                 ),
                 "is_financial": bool(is_financial),
                 "is_regulated_utility": bool(is_regulated_utility_ticker),
+                "is_reit": bool(is_reit_ticker),
                 "cache_version": CACHE_VERSION,
             }
         except Exception:
@@ -2891,6 +2959,21 @@ class AnalysisService(NarrativeMixin):
             except Exception:
                 pass
 
+        # ── REIT final-state pin (PR #333) ───────────────────────
+        # Same shape as the ETF pin above. REIT short-circuit was set
+        # up at the top of Step 6; force the final verdict / iv / MoS
+        # into the data_limited shape so any intermediate adjustments
+        # do not re-introduce a non-zero FV. The frontend gates
+        # FV/MoS/score-derived UI on verdict=="data_limited".
+        if is_reit_ticker:
+            verdict = "data_limited"
+            iv = 0.0
+            mos_pct = 0.0
+            try:
+                _mos_display = 0.0
+            except Exception:
+                pass
+
         # NOTE: _override was resolved earlier (before the Score-MoS
         # dominance cap) so the cap can be exempted for caveated names.
         # Reuse that result here.
@@ -2976,10 +3059,13 @@ class AnalysisService(NarrativeMixin):
                 valuation_model=(
                     "etf_nav_based" if is_etf_ticker
                     else (
-                        "holding_company_sotp_required" if _holdco_skip
+                        "reit_nav_dpu_required" if is_reit_ticker
                         else (
-                            "rate_base" if is_regulated_utility_ticker
-                            else ("pb_ratio" if is_financial else "dcf")
+                            "holding_company_sotp_required" if _holdco_skip
+                            else (
+                                "rate_base" if is_regulated_utility_ticker
+                                else ("pb_ratio" if is_financial else "dcf")
+                            )
                         )
                     )
                 ),
