@@ -35,6 +35,27 @@ from datetime import date, datetime
 # generic DCF path because the trailing-FCF window had <3 prints.
 _RECENT_IPO_WINDOW_MONTHS = 36
 
+# Sector-aware override (PR feat/pharma-dcf-fix, 2026-05-18). Pharma has
+# slower-maturing economics than the typical IPO cohort: post-launch
+# product ramps, US ANDA approval cycles, and post-M&A working-capital
+# absorption (Mankind / Bharat Serums FY24) take longer than 36 months
+# to settle. Use 60 months (~5 annual reports) so MANKIND-style names
+# stay routed through the sector-relative cohort valuation rather than
+# falling off the cliff at month 37. Default (36) applies to every other
+# sector. Keys MUST be lower-cased sector slugs as emitted by
+# `models/industry_wacc.py` (e.g. "pharma", "it_services").
+_RECENT_IPO_WINDOW_MONTHS_BY_SECTOR: dict[str, int] = {
+    "pharma": 60,
+}
+
+
+def _window_months_for_sector(sector: str | None) -> int:
+    if not sector:
+        return _RECENT_IPO_WINDOW_MONTHS
+    return _RECENT_IPO_WINDOW_MONTHS_BY_SECTOR.get(
+        str(sector).strip().lower(), _RECENT_IPO_WINDOW_MONTHS
+    )
+
 # Minimum annual reports required for the generic DCF path. Below this,
 # we treat the ticker as a "data-side recent IPO" even when yfinance
 # fails to surface a listing date (defence-in-depth for the case where
@@ -76,8 +97,18 @@ def _parse_iso(d: str) -> date | None:
         return None
 
 
-def is_recent_ipo(ticker: str, listing_date: str | None) -> bool:
+def is_recent_ipo(
+    ticker: str,
+    listing_date: str | None,
+    sector: str | None = None,
+) -> bool:
     """Return True if the stock listed within the recent-IPO window.
+
+    The window is sector-aware: pharma gets 60 months, every other sector
+    keeps the legacy 36-month default. Pass `sector` as the lower-case
+    canonical slug used elsewhere in the pipeline (e.g. "pharma",
+    "it_services"). When `sector` is None the default 36-month window is
+    used — back-compatible with the original single-arg call sites.
 
     Returns False when listing_date is None, unparseable, in the future,
     or older than the configured window.
@@ -90,7 +121,8 @@ def is_recent_ipo(ticker: str, listing_date: str | None) -> bool:
     today = date.today()
     if parsed > today:
         return False
-    return _months_between(parsed, today) < _RECENT_IPO_WINDOW_MONTHS
+    window = _window_months_for_sector(sector)
+    return _months_between(parsed, today) < window
 
 
 def ipo_caveat(ticker: str, listing_date: str) -> str:

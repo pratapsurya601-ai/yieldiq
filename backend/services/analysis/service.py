@@ -1448,7 +1448,14 @@ class AnalysisService(NarrativeMixin):
                 except Exception:
                     _n_annual = 0
             _data_side_recent = _n_annual > 0 and _n_annual < _IPO_MIN_ANNUAL_REPORTS
-            if _ipo_is_recent_ipo(ticker, _listing_date_raw) or _data_side_recent:
+            # Pass sector so the recent-IPO window can widen for pharma
+            # (60 months vs the 36-month default — see ipo_framework
+            # _RECENT_IPO_WINDOW_MONTHS_BY_SECTOR, PR feat/pharma-dcf-fix).
+            _ipo_sector = enriched.get("sector") or raw.get("sector")
+            if (
+                _ipo_is_recent_ipo(ticker, _listing_date_raw, sector=_ipo_sector)
+                or _data_side_recent
+            ):
                 _is_recent_ipo = True
                 _ipo_listing_date = _listing_date_raw
         except Exception:

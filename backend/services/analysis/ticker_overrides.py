@@ -143,6 +143,34 @@ TICKER_OVERRIDES: dict[str, dict] = {
         ),
     },
     "SUNPHARMA.NS": {"_alias_to": "SUNPHARMA"},
+
+    # MANKIND — recent IPO (2023-05-09), domestic OTC scarcity premium not
+    # captured by generic DCF. EV/EBITDA ~30x reflects pricing power on
+    # branded OTC franchises (Manforce, Prega News, Unwanted-72) plus
+    # chronic-care branded generics — closer to FMCG economics than a
+    # commodity-generic exporter. Bumping terminal growth to 5% (vs 4%
+    # default) splits the difference between FMCG TITAN's 6% and the
+    # generic-pharma 4%, acknowledging the OTC moat without claiming
+    # FMCG-tier permanence. Belt-and-braces alongside the 60-month
+    # pharma IPO window — even after the window expires, the override
+    # keeps MANKIND's terminal value defensible. See
+    # docs/design/pharma-dcf-fix.md §3.2 for the full reasoning.
+    "MANKIND": {
+        "model_caveat": (
+            "Mankind Pharma is a recent IPO (May 2023) with a domestic OTC "
+            "franchise (Manforce, Prega News, Unwanted-72) whose pricing "
+            "power resembles branded FMCG more than commodity generics. "
+            "Generic DCF cannot price this scarcity premium; using 5% "
+            "terminal growth (vs 4% default) to acknowledge the OTC moat. "
+            "Recent-IPO sector-relative valuation also widens to 60 "
+            "months for pharma — see analytical notes for the bear/base/"
+            "bull spread."
+        ),
+        "terminal_growth_override": 0.05,
+    },
+    "MANKIND.NS": {"_alias_to": "MANKIND"},
+    "MANKINDPHARMA": {"_alias_to": "MANKIND"},
+    "MANKINDPHARMA.NS": {"_alias_to": "MANKIND"},
 }
 
 
