@@ -267,8 +267,10 @@ def main(argv: Optional[list[str]] = None) -> int:
                    help="Run the in-process gate self-test (no DB).")
     p.add_argument("--baseline",
                    help="Path to baseline JSON snapshot.")
-    p.add_argument("--canary", default="scripts/canary_stocks_50.json",
-                   help="Path to canary universe JSON.")
+    p.add_argument("--canary", default="scripts/canary_universe_180.json",
+                   help=("Path to canary universe JSON. Defaults to the "
+                         "v2 (180-stock) file; the legacy 50-stock file "
+                         "is still readable for backward compat."))
     p.add_argument("--output", default="canary_reconciliation_report.json",
                    help="Where to write this run's report.")
     args = p.parse_args(argv)

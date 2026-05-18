@@ -77,9 +77,16 @@ except Exception:
 _FETCH_TIMEOUT = int(os.environ.get("CANARY_FETCH_TIMEOUT", "60"))
 _FETCH_RETRIES = int(os.environ.get("CANARY_FETCH_RETRIES", "3"))
 # How many fetch failures we tolerate before declaring the harness has
-# failed (vs a single flake). Default 2 — one stock can flake without
-# blocking; three flakes means the API is genuinely unhealthy.
-_MAX_FETCH_FAILURES = int(os.environ.get("CANARY_MAX_FETCH_FAILURES", "2"))
+# failed (vs a single flake). The budget scales with universe size at
+# ~4% (i.e. 2 on a 50-stock run, 7 on a 180-stock run); an explicit
+# CANARY_MAX_FETCH_FAILURES env var overrides the scaling. The actual
+# applied budget is computed in `evaluate()` (which knows the universe
+# size); this module-level value is the *cap* / explicit override and
+# the floor for callers that don't pass a stock count.
+_MAX_FETCH_FAILURES_ENV = os.environ.get("CANARY_MAX_FETCH_FAILURES")
+_MAX_FETCH_FAILURES = int(_MAX_FETCH_FAILURES_ENV) if _MAX_FETCH_FAILURES_ENV else 2
+# Per-50-stocks budget used to size the dynamic fetch-failure tolerance.
+_FETCH_FAILURE_RATE_PER_50 = 2
 
 try:
     import requests  # type: ignore
@@ -162,7 +169,11 @@ except ImportError:  # pragma: no cover — exercised only when requests missing
 # ---------------------------------------------------------------------------
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-DEFAULT_STOCKS = REPO_ROOT / "scripts" / "canary_stocks_50.json"
+# v2 (180-stock universe with sector buckets) is the new default; the
+# legacy 50-stock file is still readable (load_stocks() auto-detects
+# both schemas). See docs/ops/canary-universe.md for the migration.
+DEFAULT_STOCKS = REPO_ROOT / "scripts" / "canary_universe_180.json"
+LEGACY_STOCKS = REPO_ROOT / "scripts" / "canary_stocks_50.json"
 SNAPSHOT_DIR = REPO_ROOT / "scripts" / "snapshots"
 
 API_BASE = os.environ.get("CANARY_API_BASE", "https://api.yieldiq.in").rstrip("/")
@@ -727,9 +738,58 @@ def run_all_gates(
 # ---------------------------------------------------------------------------
 
 
-def load_stocks(path: Path = DEFAULT_STOCKS) -> list[dict]:
+def load_stocks(
+    path: Path = DEFAULT_STOCKS, bucket: str | None = None
+) -> list[dict]:
+    """Load canary stocks from disk.
+
+    Supports BOTH the legacy v1 schema (``canary_stocks_50.json``, 50
+    stocks, no ``bucket`` field) AND the v2 schema
+    (``canary_universe_180.json``, 180 stocks with explicit
+    ``bucket`` field). Both are forward-compatible — v1 stocks read
+    cleanly when running gate-4 because the ``bucket`` field is only
+    consumed by the ``--bucket`` filter.
+
+    If the requested file is missing, fall back to the alternate
+    schema (so a workflow that still points at the 50-stock file
+    keeps working post-rename, and vice versa).
+
+    Args:
+        path: JSON file to load.
+        bucket: optional bucket name. When set, only stocks in that
+            bucket are returned. Available on v2 files; on v1 (which
+            lacks ``bucket``) the filter raises ValueError so the
+            operator knows their file doesn't support bucket scoping.
+    """
+    if not path.exists():
+        # Soft fallback: prefer the v2 universe if available, else v1.
+        if DEFAULT_STOCKS.exists():
+            path = DEFAULT_STOCKS
+        elif LEGACY_STOCKS.exists():
+            path = LEGACY_STOCKS
+        else:
+            raise FileNotFoundError(
+                f"No canary universe found at {path} (and neither "
+                f"{DEFAULT_STOCKS.name} nor {LEGACY_STOCKS.name} present)."
+            )
     data = json.loads(path.read_text(encoding="utf-8"))
-    return data["stocks"]
+    stocks = data["stocks"]
+    if bucket:
+        has_bucket = any("bucket" in s for s in stocks)
+        if not has_bucket:
+            raise ValueError(
+                f"--bucket={bucket!r} requested but {path.name} has no "
+                "bucket field (legacy v1 schema). Point --stocks at the "
+                "v2 universe file (canary_universe_180.json)."
+            )
+        stocks = [s for s in stocks if s.get("bucket") == bucket]
+        if not stocks:
+            raise ValueError(
+                f"--bucket={bucket!r} matched zero stocks in {path.name}. "
+                "Available buckets: "
+                + ", ".join(sorted({s.get("bucket") for s in data["stocks"] if s.get("bucket")}))
+            )
+    return stocks
 
 
 # ---------------------------------------------------------------------------
@@ -958,7 +1018,16 @@ def evaluate(
         per_stock.append(entry)
 
     gate_violations = sum(gate_totals.values())
-    fetch_budget = _MAX_FETCH_FAILURES
+    # Dynamic fetch-failure budget: 2 per 50 stocks (~4%) on the 50-stock
+    # universe stays at 2; on the 180-stock universe expands to ~7. An
+    # explicit CANARY_MAX_FETCH_FAILURES env var pins the budget instead.
+    if _MAX_FETCH_FAILURES_ENV is not None:
+        fetch_budget = _MAX_FETCH_FAILURES
+    else:
+        # Round up, with a floor of 2 so tiny per-bucket runs (e.g.
+        # --bucket pharma → 20 stocks) still tolerate one flake.
+        per_50 = _FETCH_FAILURE_RATE_PER_50
+        fetch_budget = max(2, (len(stocks) * per_50 + 49) // 50)
     passed = (gate_violations == 0) and (fetch_failures <= fetch_budget)
 
     return {
@@ -1103,7 +1172,25 @@ def render_markdown(report: dict, drift_notes: list[str] | None = None) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="YieldIQ canary-diff merge gate")
-    p.add_argument("--stocks", default=str(DEFAULT_STOCKS), help="path to canary_stocks_50.json")
+    p.add_argument(
+        "--stocks",
+        default=str(DEFAULT_STOCKS),
+        help=(
+            "Path to a canary universe JSON. Defaults to the v2 file "
+            "(canary_universe_180.json). Legacy canary_stocks_50.json "
+            "is also accepted — the loader auto-detects both schemas."
+        ),
+    )
+    p.add_argument(
+        "--bucket",
+        default=None,
+        help=(
+            "Scope the run to a single sector bucket from the v2 "
+            "universe file. Allowed values: top100_diversified, banks, "
+            "psu_utilities, cyclicals, pharma. Ignored on v1 (50-stock) "
+            "files — those have no bucket field."
+        ),
+    )
     p.add_argument("--api-base", default=API_BASE)
     p.add_argument("--report-json", default="canary_report.json")
     p.add_argument("--report-md", default="canary_report.md")
@@ -1112,8 +1199,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--quiet", action="store_true")
     args = p.parse_args(argv)
 
-    stocks = load_stocks(Path(args.stocks))
-    print(f"Canary diff: {len(stocks)} stocks against {args.api_base}")
+    stocks = load_stocks(Path(args.stocks), bucket=args.bucket)
+    bucket_label = f" (bucket={args.bucket})" if args.bucket else ""
+    print(
+        f"Canary diff: {len(stocks)} stocks{bucket_label} against "
+        f"{args.api_base}"
+    )
     t0 = time.time()
     state = collect_state(stocks, api_base=args.api_base, token=AUTH_TOKEN, verbose=not args.quiet)
     print(f"Fetched in {time.time() - t0:.1f}s")
