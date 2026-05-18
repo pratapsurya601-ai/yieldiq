@@ -2,24 +2,32 @@
 # ═══════════════════════════════════════════════════════════════
 # Structural-break-aware corporate-actions overlay service.
 #
-# Phase A (this file): SKELETON only.
-#   * Schema for the structural columns landed in
-#     data_pipeline/migrations/041_corporate_actions_structural.sql
-#     (mirror: db/migrations/012_corporate_actions_structural.sql).
-#   * No structural rows are seeded yet (Phase B).
-#   * The analysis pipeline does NOT call this module yet (Phase C).
+# Phase A (initial): SKELETON only.
+# Phase B (this PR — feat/hdfc-merger-growth-truncation):
+#   Seed rows landed in
+#   data_pipeline/migrations/042_seed_structural_mergers.sql
+#   (mirror: db/migrations/013_seed_structural_mergers.sql).
+# Phase C (this PR): compute_cagr_structural_aware() now implements
+#   the post-break truncation logic (Approach B) reserved in the
+#   original Phase-A docstring slot. See
+#   docs/design/hdfc-merger-growth-normalization.md for the design.
 #
-# As a result, the public methods here are DESIGNED to be safe no-ops
-# until Phase B lands seed data:
-#   * has_structural_break() → always returns False (no rows → no break).
-#   * compute_cagr_structural_aware() → falls back to plain
-#     ratios_service.compute_revenue_cagr semantics.
+# Wire-in:
+#   backend/services/analysis/service.py (~line 2062) now routes the
+#   3y / 5y revenue CAGR calls through compute_cagr_structural_aware
+#   so that tickers with seed structural rows get the truncated series
+#   while non-seeded tickers fall through to plain CAGR byte-identically.
 #
-# This means callers wired in Phase C will see ZERO behaviour change
-# on tickers without seed rows — i.e. canary-diff stays clean and the
-# CACHE_VERSION bump in Phase C only affects the 2-3 seeded names.
+# Behaviour contract:
+#   * has_structural_break() returns False for any ticker without a
+#     structural seed row → callers fall through to plain CAGR.
+#   * For seeded tickers, the merger fiscal year (Indian Apr–Mar) is
+#     dropped from the trailing window. Positions strictly *after* the
+#     merger FY are used. If <`years + 1` post-break points remain,
+#     the function returns None — the bellwether allowlist in
+#     analysis/service.py handles the None state gracefully.
 #
-# See docs/design/corporate-actions-overlay.md for the full design.
+# See docs/design/corporate-actions-overlay.md for Phase-A context.
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 
@@ -179,32 +187,103 @@ def has_structural_break(ticker: str, window_years: int = 3) -> bool:
     return False
 
 
+# ── Helpers: Indian fiscal-year mapping ────────────────────────
+def _indian_fy_end_year(d: date) -> int:
+    """Return the year-number of the Indian FY-end (Mar 31) containing `d`.
+
+    Indian financial year runs Apr 1 → Mar 31. A date in Jul 2023 sits
+    inside FY24, whose period_end is 2024-03-31; this helper returns
+    2024 for that date. A date in Feb 2024 also sits inside FY24 → 2024.
+    """
+    if d.month >= 4:
+        return d.year + 1
+    return d.year
+
+
+def _coerce_date(v) -> Optional[date]:
+    """Best-effort cast to `date`. Accepts date, datetime, ISO string."""
+    if v is None:
+        return None
+    if isinstance(v, datetime):
+        return v.date()
+    if isinstance(v, date):
+        return v
+    if isinstance(v, str):
+        try:
+            return datetime.fromisoformat(v[:10]).date()
+        except Exception:
+            return None
+    return None
+
+
+def _earliest_structural_break_fy(ticker: str, window_years: int) -> Optional[int]:
+    """Return the earliest in-window structural-break FY (year-number of
+    the FY-end), or None if no in-window structural row exists.
+
+    Used by compute_cagr_structural_aware() to compute how many tail
+    positions of the input series are post-break.
+    """
+    if window_years <= 0:
+        return None
+    today = date.today()
+    try:
+        window_start = today.replace(year=today.year - window_years)
+    except ValueError:
+        window_start = today.replace(month=1, day=1, year=today.year - window_years)
+
+    rows = get_actions(ticker, since=window_start)
+    fy_ends: list[int] = []
+    for r in rows:
+        if r.get("action_type") not in STRUCTURAL_ACTION_TYPES:
+            continue
+        ex_date = _coerce_date(r.get("ex_date"))
+        if ex_date is None or ex_date > today:
+            continue
+        fy_ends.append(_indian_fy_end_year(ex_date))
+    if not fy_ends:
+        return None
+    return min(fy_ends)
+
+
 # ── 3. compute_cagr_structural_aware ────────────────────────────
 def compute_cagr_structural_aware(
     ticker: str,
     field: str,
     years: int,
     series: Optional[Sequence[float]] = None,
+    latest_period_end: Optional[object] = None,
 ) -> Optional[float]:
-    """Structural-break-aware CAGR.
+    """Structural-break-aware CAGR (post-break truncation — Approach B).
 
-    Phase-A behaviour: no seed rows exist, so this always falls back to
-    the plain `ratios_service.compute_revenue_cagr` primitive. The
-    `field` argument is reserved for Phase C, where the structural
-    truncation logic will branch on field ("revenue" | "ebitda" |
-    "net_profit") to look up the right post-break series.
+    For tickers with a STRUCTURAL_ACTION_TYPES row inside the trailing
+    `years`-year window, truncate `series` to the strictly post-break
+    fiscal-year tail before delegating to ratios_service.compute_revenue_cagr.
+    The merger FY itself is excluded — its YoY YoY-comparable is broken
+    by the corporate event, so the first comparable position is FY+1.
+
+    If the post-break tail has fewer than `years + 1` points, return
+    None (the analysis pipeline's bellwether allowlist / null-CAGR gate
+    handle the None display).
 
     Args:
         ticker: NSE/BSE ticker.
-        field: metric name; reserved for Phase C.
+        field: metric name; informational only today ("revenue" /
+            "ebitda" / "net_profit") — `series` is the authoritative
+            input. Reserved for a future cache-pull path.
         years: CAGR horizon (typically 3 or 5).
         series: chronological values (oldest → newest) for the metric.
-            REQUIRED in Phase A — the caller already has the series in
-            hand from analysis/service.py. Phase C will optionally load
-            it from cache when None.
+            REQUIRED — the caller already has the series in hand from
+            analysis/service.py.
+        latest_period_end: date (or ISO string) of the last position in
+            `series`. Used to derive each position's FY. When omitted,
+            we fall back to *today's* FY which is correct for the live
+            analysis call-site (the latest annual / TTM row is current).
 
     Returns:
-        Decimal CAGR (e.g. 0.124 for 12.4%) or None if insufficient data.
+        Decimal CAGR (e.g. 0.124 for 12.4%) or None on:
+          * insufficient post-break data,
+          * insufficient raw data,
+          * unrecoverable input shape.
     """
     # Defensive imports — avoid a hard dependency at module import time
     # so test environments without the full backend can still import
@@ -216,21 +295,54 @@ def compute_cagr_structural_aware(
         return None
 
     if series is None:
-        # Phase A: no cache fallback. Caller must supply the series.
         return None
 
-    # Phase-A: no break detection in effect (no seed rows). Once Phase B
-    # seeds rows, has_structural_break() will start returning True for
-    # the affected tickers and Phase C will branch here on the
-    # truncation logic. For now, plain CAGR.
-    if has_structural_break(ticker, window_years=years):
-        # Reserved branch — Phase C will truncate `series` to the
-        # post-break window here. Until then, log and fall through to
-        # the plain primitive so behaviour is unchanged.
-        logger.debug(
-            "compute_cagr_structural_aware(%s, %s, %dy): break detected "
-            "but Phase-A truncation not implemented; using plain CAGR",
-            ticker, field, years,
-        )
+    series_list = list(series)
 
-    return compute_revenue_cagr(series, years)
+    # Fast path: no structural break → plain CAGR. This is the lion's
+    # share of tickers and the path canary-diff stays clean on.
+    break_fy = _earliest_structural_break_fy(ticker, window_years=years)
+    if break_fy is None:
+        return compute_revenue_cagr(series_list, years)
+
+    # Derive the FY-end year of the LAST series position. The analysis
+    # call-site populates `latest_period_end` from
+    # local_data_service.py (string date of the latest annual or TTM
+    # row); fall back to today's FY when absent.
+    pe = _coerce_date(latest_period_end)
+    if pe is not None:
+        latest_fy = _indian_fy_end_year(pe)
+    else:
+        latest_fy = _indian_fy_end_year(date.today())
+
+    # Each preceding position is FY-1, FY-2, ... assuming the input is
+    # a strictly annual series (which is the analysis-pipeline contract
+    # — income_df rows are annual financials, optionally with a TTM
+    # row appended; the TTM row by convention belongs to `latest_fy`).
+    n = len(series_list)
+    # Position i (0-indexed) corresponds to FY (latest_fy - (n - 1 - i)).
+    # The first STRICTLY post-break position is the smallest i with
+    # FY > break_fy, i.e. (latest_fy - (n - 1 - i)) > break_fy
+    # ⇒ i > break_fy - latest_fy + n - 1
+    first_post = break_fy - latest_fy + n  # = break_fy + (n - latest_fy)
+    if first_post < 0:
+        first_post = 0
+    if first_post >= n:
+        post_break = []
+    else:
+        post_break = series_list[first_post:]
+
+    logger.info(
+        "structural_cagr.truncate ticker=%s field=%s years=%d "
+        "break_fy=%d latest_fy=%d n=%d first_post=%d post_break_len=%d",
+        ticker, field, years, break_fy, latest_fy, n, first_post,
+        len(post_break),
+    )
+
+    if len(post_break) < years + 1:
+        # Grace window: not enough post-break annuals to compute the
+        # horizon. Caller already handles None via the bellwether
+        # allowlist + null-CAGR gate (see analysis/service.py FIX 1).
+        return None
+
+    return compute_revenue_cagr(post_break, years)

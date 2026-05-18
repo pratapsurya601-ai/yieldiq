@@ -2256,8 +2256,36 @@ class AnalysisService(NarrativeMixin):
             if _inc is not None and hasattr(_inc, "empty") and not _inc.empty \
                     and "revenue" in _inc.columns:
                 _rev_series = _inc["revenue"].dropna().tolist()
-                _rev_cagr_3y = _rcagr(_rev_series, 3)
-                _rev_cagr_5y = _rcagr(_rev_series, 5)
+                # FIX-HDFC-MERGER-CAGR (2026-05-18): route through
+                # corporate_actions_service so tickers with a seeded
+                # STRUCTURAL break (REVERSE_MERGER / MERGER / DEMERGER
+                # / SCHEME_OF_ARRANGEMENT / MATERIAL_ACQUISITION) inside
+                # the trailing window get the merger fiscal year
+                # truncated out of the CAGR base. Non-seeded tickers
+                # fall through to plain compute_revenue_cagr (byte-
+                # identical). See
+                # docs/design/hdfc-merger-growth-normalization.md.
+                try:
+                    from backend.services.corporate_actions_service import (
+                        compute_cagr_structural_aware as _cagr_sa,
+                    )
+                    _latest_pe = enriched.get("latest_period_end")
+                    _rev_cagr_3y = _cagr_sa(
+                        ticker, "revenue", 3,
+                        series=_rev_series,
+                        latest_period_end=_latest_pe,
+                    )
+                    _rev_cagr_5y = _cagr_sa(
+                        ticker, "revenue", 5,
+                        series=_rev_series,
+                        latest_period_end=_latest_pe,
+                    )
+                except Exception:
+                    # Defensive: any failure in the overlay falls back
+                    # to the legacy plain-CAGR path so we never regress
+                    # a working ticker because the overlay misbehaves.
+                    _rev_cagr_3y = _rcagr(_rev_series, 3)
+                    _rev_cagr_5y = _rcagr(_rev_series, 5)
         except Exception:
             pass
         # Sanity clamp: CAGR outside ±50% is almost certainly a data
