@@ -72,6 +72,26 @@ export interface ValuationOutput {
   current_price_source?: string | null
   fair_value_computed_at?: string | null
   valuation_engine_used?: string | null
+
+  // Defense-PSU NO-FIX flag (PR #333, 2026-05-18 — see
+  // docs/design/defense-psu-dcf-fix.md, Approach D). True when the
+  // trailing-financials DCF systematically understates forward
+  // earning power (Make-in-India order-book regime change). Frontend
+  // renders an "Analyst Opinion Required" banner above the FV.
+  analyst_opinion_required?: boolean | null
+
+  // Layer C — Confidence Framework scores (PRs #340 + #342,
+  // 2026-05-18). Three 0-100 ints produced by
+  // backend.services.confidence_service. Optional so legacy cached
+  // payloads remain valid. Frontend renders chips via
+  // <ConfidenceIndicators />; if all three are null/undefined the
+  // band is hidden entirely.
+  //   data_quality_score        — completeness/freshness of inputs
+  //   model_confidence_score    — engine fit for this business
+  //   valuation_stability_score — variance of FV over recent weeks
+  data_quality_score?: number | null
+  model_confidence_score?: number | null
+  valuation_stability_score?: number | null
 }
 
 export interface QualityOutput {

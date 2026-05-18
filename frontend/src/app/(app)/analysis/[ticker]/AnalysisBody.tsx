@@ -30,6 +30,7 @@ import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
 import { FormulasProvider } from "@/components/analysis/MetricTooltip"
 import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
+import ConfidenceIndicators from "@/components/analysis/ConfidenceIndicators"
 import ReverseDcfPanel from "@/components/analysis/ReverseDcfPanel"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
@@ -1044,6 +1045,20 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             />
           )
         })()}
+
+        {/* Confidence Framework chips + defense-PSU analyst-opinion
+            banner. Layer C scores (data quality, model confidence,
+            valuation stability) ship from PRs #340 + #342; the
+            analyst-opinion-required flag is the defense-PSU NO-FIX
+            caveat from PR #333. The component renders nothing when
+            all four signals are absent on legacy cached payloads. */}
+        <ConfidenceIndicators
+          dataQualityScore={valuation.data_quality_score}
+          modelConfidenceScore={valuation.model_confidence_score}
+          valuationStabilityScore={valuation.valuation_stability_score}
+          analystOpinionRequired={valuation.analyst_opinion_required}
+          dataIssues={data.data_issues}
+        />
 
         {/* Analytical notes — backend-emitted contextual disclaimers
             (premium brand, conglomerate, regulated utility, etc.). Sits
