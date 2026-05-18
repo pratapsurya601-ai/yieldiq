@@ -441,6 +441,60 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
         else:
             method = f"cyclical_5y_median({sector_tag})"
 
+    # ── Cash-flow-reality sanity gate (added 2026-05-18, DRREDDY) ──
+    # Anchored on the cf_df-derived `max_recent_fcf` and the
+    # post-`_get_adjusted_fcf` `latest_fcf`. Both come from the
+    # yfinance cash-flow statement in native rupee units and are
+    # the most unit-stable inputs in `enriched`. If `base` exceeds
+    # 2.5x of this anchor, one of the revenue-scaled candidates
+    # (nopat_proxy, pharma_rd_adjusted, hist_p75_margin, cyc_*) has
+    # been blown up by an upstream unit mismatch — most commonly
+    # `latest_revenue` arriving in ₹Cr instead of raw rupees via
+    # the XBRL TTM ladder in
+    # `backend/services/quarterly_results_service.py`. Pull the
+    # anchor down to that cf_df reality so the DCF cannot exceed
+    # a realistic earnings multiple of recent cash generation.
+    #
+    # Trigger evidence for DRREDDY 2026-05-18:
+    #   - reverse-DCF surfaced normalized_fcf=2.43e+16 (₹2.43 ×
+    #     10^9 Cr) — clearly polluted; max_recent_fcf from cf_df is
+    #     ~₹4,001 Cr.
+    #   - uncapped DCF FV ₹4,698 vs analyst consensus ₹1,200-1,500.
+    #
+    # Design notes:
+    #   - 2.5x multiplier is generous enough to preserve legitimate
+    #     pharma_rd_adjusted lift (~30-40% above max_recent_fcf is
+    #     normal when R&D is heavy).
+    #   - Only fires when cf_df-derived anchors are positive (we
+    #     never tighten a base that has no reliable cf_df reference).
+    #   - Always uses cf_df values directly, not enriched["latest_*"]
+    #     fields, so an upstream unit corruption in those fields
+    #     cannot pollute the ceiling itself.
+    cf_anchor_max = 0.0
+    cf_anchor_latest = 0.0
+    if not cf_df.empty and "fcf" in cf_df.columns:
+        _pos_for_anchor = cf_df["fcf"][cf_df["fcf"] > 0].tail(5)
+        if len(_pos_for_anchor) >= 1:
+            cf_anchor_max = float(_pos_for_anchor.max())
+        # latest positive FCF from cf_df itself (NOT enriched["latest_fcf"]
+        # which may have been substituted with a PAT proxy upstream).
+        _last_fcf_series = cf_df["fcf"].dropna()
+        if len(_last_fcf_series) >= 1:
+            _last = float(_last_fcf_series.iloc[-1])
+            if _last > 0:
+                cf_anchor_latest = _last
+    cf_anchor = max(cf_anchor_max, cf_anchor_latest)
+    if cf_anchor > 0 and base > 2.5 * cf_anchor:
+        log.warning(
+            "[%s] CF-reality cap fired: base ₹%.0fCr > 2.5 × cf_anchor "
+            "₹%.0fCr — pulling base to cf_anchor (likely upstream "
+            "latest_revenue/op_margin unit corruption; candidates=%s)",
+            ticker, base / 1e7, cf_anchor / 1e7,
+            {k: f"₹{v/1e7:.0f}Cr" for k, v in candidates.items()},
+        )
+        base = cf_anchor
+        method = f"cf_reality_cap({method})"
+
     # ── Hysteresis: resist flip-flopping between close candidates ──
     # When candidates are within ~10% of each other, small yfinance
     # revisions cause the median to oscillate day-to-day. The agent
