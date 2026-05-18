@@ -2254,6 +2254,21 @@ class AnalysisService(NarrativeMixin):
                 # meaningless in any case (REITs are valued by NAV +
                 # DPU yield, see is_reit_ticker branch in Step 6).
                 _pc = None
+            elif _trough_anchor_fired:
+                # Finding A (audit 2026-05-18): when the cyclical-trough
+                # anchor fired (iv was pinned to 0.95*price because the
+                # raw DCF residue was <0.2*price), running peer-cap on
+                # top trims FV down to peer-median × 1.5 — but the peer
+                # set during a sector trough is *also* depressed, so the
+                # cap re-introduces the very cycle-bottom signal the
+                # anchor was built to escape. Worse, bear/bull are
+                # already pinned to the anchored 0.85/1.10 band at L2573
+                # below, so a peer-capped base case (typically 0.6-0.8x
+                # of price) leaves base OUTSIDE the bear/bull band — an
+                # inconsistent story on the frontend (e.g. TATASTEEL
+                # bear=134, base=168, bull=230 on 2026-05-18 prod).
+                # Skip peer-cap when the anchor fired.
+                _pc = None
             elif iv and iv > 0 and not is_financial:
                 _pc = _compute_peer_cap(ticker)
             elif iv and iv > 0 and is_financial:
@@ -2608,6 +2623,61 @@ class AnalysisService(NarrativeMixin):
         _scenarios_clamped = _enforce_scenario_order(
             bear=_sc_bear_pre, base=_sc_base_pre, bull=_sc_bull_pre, price=price,
         )
+
+        # Finding C (audit 2026-05-18): secondary bear-floor guard for
+        # cyclicals. The primary cyclical-trough anchor (L1762) only
+        # fires when iv < 0.2 * price; tickers in the "0.2-0.5 twilight"
+        # (e.g. IOC at iv/price=0.37 on 2026-05-18 prod) bypass the
+        # anchor but the DCF engine can still emit a near-zero bear
+        # case (IOC shipped bear=₹1.59 on a ₹131.81 stock). The
+        # _enforce_scenario_order check accepts it because 1.59 <= 49.36
+        # <= 117.87 is "ordered". This is the exact display pathology
+        # PR #168 was built to prevent.
+        #
+        # Clamp the bear case to 0.5 * price for cyclicals when it
+        # falls below that floor. Skip the trough-anchor branch (already
+        # pinned bear to 0.85 * price upstream — different, stronger
+        # rescue path). We deliberately do NOT re-run
+        # `_enforce_scenario_order` here: if the underlying base FV is
+        # itself below 0.5 * price (e.g. IOC base ~0.37 * price) the
+        # re-clamp would force bear back down to 0.80 * base and
+        # re-introduce the very ₹0-bear pathology this floor is
+        # designed to prevent. Accepting bear >= base in pathological
+        # cases is preferable to bear == ₹1.59 on the public page;
+        # the base FV itself being too low is a separate engine
+        # investigation (see Finding B in the audit).
+        if (
+            price > 0
+            and is_cyclical(ticker, _resolved_sector_for_cycle)
+            and not _trough_anchor_fired
+            and _scenarios_clamped.bear.iv < 0.5 * price
+        ):
+            _floor_bear_iv = round(0.5 * price, 2)
+            _floor_bear_raw = ((_floor_bear_iv - price) / price * 100)
+            _floor_bear_d, _floor_bear_c = display_mos(_floor_bear_raw)
+            _floor_bear_bmos = buffett_mos_pct(_floor_bear_iv, price)
+            _floored_bear = ScenarioCase(
+                iv=_floor_bear_iv,
+                mos_pct=round(_floor_bear_d if _floor_bear_d is not None else 0, 1),
+                buffett_mos_pct=round(_floor_bear_bmos, 1) if _floor_bear_bmos is not None else None,
+                mos_clamped=_floor_bear_c,
+                growth=_scenarios_clamped.bear.growth,
+                wacc=_scenarios_clamped.bear.wacc,
+                term_g=_scenarios_clamped.bear.term_g,
+            )
+            import logging as _bear_floor_log
+            _bear_floor_log.getLogger("yieldiq.analysis").info(
+                "CYCLICAL_BEAR_FLOOR: %s bear=%.2f below 0.5*price=%.2f; "
+                "clamping bear to %.2f (base=%.2f, bull=%.2f preserved)",
+                ticker, _scenarios_clamped.bear.iv, 0.5 * price,
+                _floor_bear_iv, _scenarios_clamped.base.iv,
+                _scenarios_clamped.bull.iv,
+            )
+            _scenarios_clamped = ScenariosOutput(
+                bear=_floored_bear,
+                base=_scenarios_clamped.base,
+                bull=_scenarios_clamped.bull,
+            )
 
         _bear_case = _scenarios_clamped.bear.iv
         _base_case = _scenarios_clamped.base.iv
