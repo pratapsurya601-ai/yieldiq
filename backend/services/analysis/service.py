@@ -1262,6 +1262,16 @@ class AnalysisService(NarrativeMixin):
                 "reliability_score": (
                     int(_realty_val_result.get("confidence_score", 70))
                     if _realty_val_result else 50
+                ),
+                "tv_pct_of_ev": 0,
+                "sum_pv_fcfs": 0,
+                "pv_tv": 0,
+                "enterprise_value": 0,
+                "equity_value": 0,
+            }
+            projected = []
+            growth_schedule = []
+            base_growth = 0
         elif (
             # ── Insurance Appraisal-Value branch ──────────────────
             # Routes life insurers (HDFCLIFE / SBILIFE / ICICIPRULI /
