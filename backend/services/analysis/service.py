@@ -3048,6 +3048,72 @@ class AnalysisService(NarrativeMixin):
             # Reconciliation is best-effort; never break analysis on it.
             pass
 
+        # ── Layer C — Confidence Framework scores (PR 1) ─────
+        # Purely additive: compute the three 0-100 scores after
+        # valuation_method has been finalised, log them, and pass
+        # them to ValuationOutput below. PR 2 will read them back
+        # out for the verdict-intensity gate; PR 1 changes no
+        # behavior.
+        try:
+            from backend.services.confidence_service import compute_all_scores as _cf_all
+            _cf_method = (
+                "etf_nav_based" if is_etf_ticker
+                else ("reit_nav_dpu_required" if is_reit_ticker
+                else ("holding_company_sotp_required" if _holdco_skip
+                else ("rate_base" if is_regulated_utility_ticker
+                else ("pb_ratio" if is_financial
+                else ("sector_relative_recent_ipo"
+                      if _fair_value_source == "sector_relative_recent_ipo"
+                      else ("peer_capped"
+                            if _fair_value_source == "peer_capped"
+                            else "dcf"))))))
+            )
+            _cf_sector = (
+                enriched.get("sector")
+                or (raw.get("sector") if isinstance(raw, dict) else None)
+            )
+            _cf_flags = {
+                "analyst_opinion_required": bool(is_defense_psu_ticker),
+                "data_limited": bool(verdict == "data_limited"),
+                "dcf_unreliable": not bool(enriched.get("dcf_reliable", True)),
+            }
+            # FV history: best-effort. None on the hot path is fine —
+            # compute_valuation_stability_score returns a neutral 70.
+            _cf_fv_hist = None
+            try:
+                from backend.services.fv_accuracy_service import (
+                    get_recent_fv_history as _cf_fvh,
+                )
+                _cf_fv_hist = _cf_fvh(ticker, limit=4)  # type: ignore[misc]
+            except Exception:
+                _cf_fv_hist = None
+            _cf_scores = _cf_all(
+                ticker,
+                enriched=enriched,
+                raw=raw if isinstance(raw, dict) else None,
+                valuation_method=_cf_method,
+                sector=_cf_sector,
+                is_recent_ipo=bool(locals().get("_is_recent_ipo", False)),
+                fv_history=_cf_fv_hist,
+                extra_flags=_cf_flags,
+            )
+            import logging as _cf_log
+            _cf_log.getLogger("yieldiq.confidence").info(
+                "[%s] confidence_scores dq=%d mc=%d vs=%d (method=%s sector=%s)",
+                ticker,
+                _cf_scores["data_quality"],
+                _cf_scores["model_confidence"],
+                _cf_scores["valuation_stability"],
+                _cf_method, _cf_sector,
+            )
+        except Exception as _cf_exc:  # pragma: no cover — defensive
+            import logging as _cf_log
+            _cf_log.getLogger("yieldiq.confidence").warning(
+                "[%s] confidence-scores compute failed: %s: %s",
+                ticker, type(_cf_exc).__name__, _cf_exc,
+            )
+            _cf_scores = {"data_quality": None, "model_confidence": None, "valuation_stability": None}
+
         return AnalysisResponse(
             ticker=ticker,
             company=company,
@@ -3160,6 +3226,11 @@ class AnalysisService(NarrativeMixin):
                 analyst_opinion_required=(
                     True if is_defense_psu_ticker else None
                 ),
+                # Layer C — Confidence Framework (PR 1). Additive
+                # only; PR 2 will gate verdict intensity on these.
+                data_quality_score=_cf_scores.get("data_quality"),
+                model_confidence_score=_cf_scores.get("model_confidence"),
+                valuation_stability_score=_cf_scores.get("valuation_stability"),
             ),
             quality=QualityOutput(
                 yieldiq_score=yiq_score.get("score", 0),
