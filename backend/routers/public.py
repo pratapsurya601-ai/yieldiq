@@ -650,6 +650,17 @@ async def get_stock_summary(
                 "stock-summary lazy-recompute failed for %s: %s",
                 ticker, _compute_exc,
             )
+            # Surface to Sentry — these "Under Review" responses are
+            # invisible in Railway logs at the level we'd want for
+            # incident response (HDFCBANK 2026-05 Under Review event was
+            # this branch). Tag so we can group by ticker in the UI.
+            try:
+                import sentry_sdk as _sentry
+                _sentry.set_tag("failure_mode", "cache_miss_recompute_failed")
+                _sentry.set_tag("ticker", ticker)
+                _sentry.capture_exception(_compute_exc)
+            except Exception:
+                pass
             return JSONResponse(
                 status_code=503,
                 content={
