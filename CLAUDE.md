@@ -11,7 +11,8 @@ Three rules. No exceptions.
 1. **Never ship a data fix without running canary-diff first.**
    `python scripts/canary_diff.py` must exit 0 BEFORE merging any PR
    that touches: `backend/services/`, `backend/routers/`, `backend/validators/`,
-   `backend/models/`, `scripts/canary_stocks_50.json`.
+   `backend/models/`, `scripts/canary_universe_180.json`,
+   `scripts/canary_stocks_50.json` (legacy, still readable).
    The canary GH Actions workflow enforces this on the PR.
 
 2. **Never bump CACHE_VERSION without a before/after snapshot.**

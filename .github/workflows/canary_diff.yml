@@ -1,8 +1,10 @@
 name: Canary Diff (merge gate)
 
-# The merge gate. Runs the 50-stock canary-diff harness against
-# production. Required status check on every PR that touches the
-# computation surface, plus a daily 08:00 IST cron baseline.
+# The merge gate. Runs the 180-stock canary-diff harness against
+# production (v2 universe with sector buckets — see
+# scripts/canary_universe_180.json + docs/ops/canary-universe.md).
+# Required status check on every PR that touches the computation
+# surface, plus a daily 08:00 IST cron baseline.
 #
 # No secret required — the harness hits the unauth `/og-data` endpoint.
 # Historical note: this previously required CANARY_AUTH_TOKEN (Supabase
@@ -20,6 +22,7 @@ on:
       - 'backend/validators/**'
       - 'backend/models/**'
       - 'scripts/canary_stocks_50.json'
+      - 'scripts/canary_universe_180.json'
       - 'scripts/canary_diff.py'
       - 'scripts/canary_gate_selftest.py'
       - '.github/workflows/canary_diff.yml'
