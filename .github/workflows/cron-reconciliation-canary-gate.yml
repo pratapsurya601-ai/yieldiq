@@ -1,0 +1,160 @@
+name: Cron — Reconciliation Canary Gate (post-deploy)
+
+# Runs the Reconciliation Canary Gate against live data after each
+# deploy and on a daily schedule. Compares the per-canary deviation
+# (|our_fv - consensus| / consensus) against the previous run's
+# baseline and opens an issue when a regression is detected:
+#
+#   - hard_fail : a single canary ticker's deviation grew by > 10pp
+#                 (e.g. PR #337's SIEMENS regression: ~5% -> 55%).
+#   - broad_fail: > 5 canary tickers drifted any positive amount —
+#                 the signature of an engine-wide miscalibration.
+#
+# This is the **post-deploy** variant of the canary gate (the simpler
+# of the two options in PR brief). The "preview-env" variant would
+# block PRs at creation time but requires standing up a full preview
+# stack per PR, which is not justified for a sanity-check layer.
+#
+# Design: docs/design/benchmark-reconciliation-framework.md
+# Script: scripts/reconciliation_canary_gate.py
+# Self-test: runs on every PR that touches the script — CI-only,
+# no DB, no secrets required.
+
+on:
+  # PR-time validation: prove the gate logic works using mocked data.
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/reconciliation_canary_gate.py'
+      - 'backend/services/benchmark_reconciliation_service.py'
+      - 'backend/tests/test_benchmark_reconciliation.py'
+      - '.github/workflows/cron-reconciliation-canary-gate.yml'
+
+  # Post-deploy schedule: 04:30 UTC = 10:00 IST, 30min after the
+  # consensus refresh at 23:30 UTC + a six-hour buffer for the deploy
+  # window (Railway deploys typically land in the 04:00-04:30 UTC slot).
+  schedule:
+    - cron: "30 4 * * *"
+
+  workflow_dispatch:
+    inputs:
+      baseline_artifact:
+        description: "Optional: name of an earlier run's artifact to diff against"
+        required: false
+        default: ""
+
+concurrency:
+  group: cron-reconciliation-canary-gate
+  cancel-in-progress: false
+
+jobs:
+  # ───────── PR-time: pure self-test, no DB ─────────
+  selftest:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: pip install pytest sqlalchemy
+      - name: Gate self-test (mocked consensus)
+        run: python scripts/reconciliation_canary_gate.py --self-test
+      - name: Unit tests
+        run: pytest backend/tests/test_benchmark_reconciliation.py -v
+
+  # ───────── Post-deploy: live canary diff ─────────
+  live-gate:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install "SQLAlchemy>=2.0" "psycopg2-binary"
+
+      - name: Fetch previous baseline artifact (if any)
+        id: baseline
+        uses: dawidd6/action-download-artifact@v3
+        continue-on-error: true
+        with:
+          name: reconciliation-canary-report
+          workflow: cron-reconciliation-canary-gate.yml
+          path: prior/
+          if_no_artifact_found: warn
+
+      - name: Run gate
+        id: gate
+        continue-on-error: true
+        run: |
+          BASELINE=""
+          if [ -f prior/canary_reconciliation_report.json ]; then
+            BASELINE="--baseline prior/canary_reconciliation_report.json"
+            echo "using baseline from prior run"
+          else
+            echo "no baseline — first run; will pass and seed baseline"
+          fi
+          python scripts/reconciliation_canary_gate.py \
+              $BASELINE \
+              --canary scripts/canary_stocks_50.json \
+              --output canary_reconciliation_report.json
+
+      - name: Upload report as baseline for next run
+        uses: actions/upload-artifact@v4
+        with:
+          name: reconciliation-canary-report
+          path: canary_reconciliation_report.json
+          retention-days: 30
+
+      - name: Open regression issue on fail
+        if: steps.gate.outcome != 'success'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            let body = '## Reconciliation canary gate failed\n\n';
+            try {
+              const r = JSON.parse(fs.readFileSync('canary_reconciliation_report.json', 'utf8'));
+              body += `**Status:** \`${r.verdict.status}\`\n\n`;
+              body += `**Coverage:** ${r.covered_count}/${r.canary_count} canaries had both our_fv and consensus_fv.\n\n`;
+              body += `### Reasons\n`;
+              for (const reason of r.verdict.reasons) body += `- ${reason}\n`;
+              if (r.verdict.hard_fail_tickers.length) {
+                body += `\n### Hard-fail tickers\n`;
+                for (const t of r.verdict.hard_fail_tickers) {
+                  const p = r.verdict.per_ticker[t];
+                  body += `- **${t}**: baseline ${(p.baseline * 100).toFixed(1)}% → current ${(p.current * 100).toFixed(1)}% (Δ ${(p.delta * 100).toFixed(1)}pp)\n`;
+                }
+              }
+              body += `\n\nRun: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n`;
+            } catch (e) {
+              body += `Could not parse report: ${e.message}\n`;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `Reconciliation canary regression — ${new Date().toISOString().slice(0, 10)}`,
+              body,
+              labels: ['regression', 'reconciliation-gate'],
+            });
+
+      - name: Fail the workflow if gate failed
+        if: steps.gate.outcome != 'success'
+        run: |
+          echo "::error::Reconciliation canary gate failed — see opened issue."
+          exit 1
