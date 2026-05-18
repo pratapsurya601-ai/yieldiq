@@ -3490,6 +3490,7 @@ async def get_reverse_dcf_public(ticker: str):
 
     historical_revenue_cagr = None
     historical_fcf_margin = None
+    normalized_fcf = None
     try:
         q = analysis.quality
         historical_revenue_cagr = (
@@ -3499,6 +3500,32 @@ async def get_reverse_dcf_public(ticker: str):
         if historical_revenue_cagr is not None and historical_revenue_cagr > 1.0:
             # Stored as percent on some legacy payloads (e.g. 12 not 0.12)
             historical_revenue_cagr = historical_revenue_cagr / 100.0
+        # Reverse-DCF upstream normalisation (Option B per
+        # docs/design/reverse-dcf-normalization.md, v2 2026-05-18).
+        # `fcf_margin_5y` is a decimal; `normalized_fcf_cr` is in
+        # ₹ Crores and is reconverted to raw rupees (×1e7) to match
+        # the `current_fcf` unit convention the solver expects. Both
+        # fields are None on legacy v100-and-earlier payloads, which
+        # degrades gracefully to the old hard-coded `None` behaviour.
+        # Coercion failures (non-finite, weird types) also degrade to
+        # None rather than raising — the reverse-DCF endpoint must
+        # never 500 on a normalisation read.
+        historical_fcf_margin = getattr(q, "fcf_margin_5y", None)
+        try:
+            historical_fcf_margin = (
+                float(historical_fcf_margin)
+                if historical_fcf_margin is not None else None
+            )
+        except (TypeError, ValueError):
+            historical_fcf_margin = None
+        _norm_fcf_cr = getattr(q, "normalized_fcf_cr", None)
+        try:
+            if _norm_fcf_cr is not None:
+                _v = float(_norm_fcf_cr)
+                if _v == _v and _v not in (float("inf"), float("-inf")):
+                    normalized_fcf = _v * 1e7
+        except (TypeError, ValueError):
+            normalized_fcf = None
     except Exception:
         pass
 
@@ -3517,6 +3544,7 @@ async def get_reverse_dcf_public(ticker: str):
             terminal_g=terminal_g,
             historical_revenue_cagr=historical_revenue_cagr,
             historical_fcf_margin=historical_fcf_margin,
+            normalized_fcf=normalized_fcf,
         )
     except Exception as exc:
         logger.warning("reverse-dcf compute failed for %s: %s", ticker, exc)

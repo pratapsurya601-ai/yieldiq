@@ -112,6 +112,18 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     ticker         = enriched.get("ticker", "?")
     tax_rate       = 0.25
 
+    # ── Reverse-DCF upstream normalisation (Option B per
+    # docs/design/reverse-dcf-normalization.md, 2026-05-18 v2) ─────
+    # Initialise the two stash keys at the TOP of the function so that
+    # every code path (including the `if not candidates: return …`
+    # early-exit at L~275 and any mid-function raise) leaves a
+    # well-defined None on the enriched dict. Downstream readers in
+    # backend/services/analysis/service.py (QualityOutput construction)
+    # therefore never see a missing key — closing the class of failures
+    # that took down PR #305.
+    enriched["normalized_fcf_base"]   = None
+    enriched["normalized_fcf_margin"] = None
+
     candidates = {}
 
     # ── Candidate 1: Latest FCF (strongest signal if positive) ──
@@ -465,6 +477,46 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
         )
     except Exception:
         pass
+
+    # ── Reverse-DCF upstream normalisation (Option B per
+    # docs/design/reverse-dcf-normalization.md, 2026-05-18 v2) ──
+    # Serialise the already-normalised `base` (forward-DCF anchor)
+    # and a separately-computed 5y median FCF margin into the
+    # enriched dict so the reverse-DCF solver can read the same
+    # anchor without re-deriving the cyclical-sector logic. Two
+    # isolated try blocks so a failure computing the margin never
+    # affects the base serialisation (and vice versa). NEITHER
+    # branch references `base` from inside an except handler — the
+    # value is captured into a local first, eliminating the
+    # UnboundLocalError class that took down PR #305.
+    _base_local = base  # snapshot — base is in scope here, always
+    try:
+        if _base_local is not None and float(_base_local) > 0:
+            enriched["normalized_fcf_base"] = float(_base_local)
+    except Exception as _e_base:  # noqa: BLE001
+        log.warning(f"[{ticker}] normalized_fcf_base serialise failed: {_e_base}")
+        enriched["normalized_fcf_base"] = None
+
+    try:
+        _hist_fcf_margin_5y = None
+        if (not cf_df.empty and not income_df.empty
+                and "fcf" in cf_df.columns and "revenue" in income_df.columns
+                and "year" in cf_df.columns and "year" in income_df.columns):
+            _merged = pd.merge(
+                cf_df[["year", "fcf"]],
+                income_df[["year", "revenue"]],
+                on="year", how="inner",
+            )
+            _merged = _merged[(_merged["revenue"] > 0) & (_merged["fcf"] > 0)].tail(5)
+            if len(_merged) >= 3:
+                _margins = _merged["fcf"] / _merged["revenue"]
+                _m = float(np.median(_margins))
+                if np.isfinite(_m):
+                    _hist_fcf_margin_5y = _m
+        enriched["normalized_fcf_margin"] = _hist_fcf_margin_5y
+    except Exception as _e_marg:  # noqa: BLE001
+        log.warning(f"[{ticker}] normalized_fcf_margin compute failed: {_e_marg}")
+        enriched["normalized_fcf_margin"] = None
 
     return base, method
 
