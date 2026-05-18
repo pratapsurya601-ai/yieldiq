@@ -3,9 +3,17 @@ name: Cron — Refresh live_quotes (market hours)
 # Replaces the in-process APScheduler "market_live_quotes" job that
 # previously ran inside every uvicorn worker (N× duplication on Railway).
 #
-# Refreshes live_quotes for the union of {Supabase holdings, top-200
+# Refreshes live_quotes for the union of {Supabase holdings, top-1500
 # fair_value_history tickers} via yfinance fast_info. UPSERT-only, safe
 # to re-run.
+#
+# Coverage expanded from 200 -> 1500 on 2026-05-18 (companion to PR #317
+# price-staleness gate). Top-200 left HINDPETRO, POLICYBZR, MANKIND,
+# POWERGRID and most mid/small-caps unrefreshed during market hours.
+# Top-1500 now matches the pulse_daily universe (Nifty500 + mid/small
+# watch). Throughput: parallel fast_info at 20 workers finishes ~1500
+# tickers in ~3-4 min on GH-hosted runners — under the 5-min cron tick
+# and 8-min workflow timeout.
 #
 # Schedule: every 5 minutes during NSE market hours (Mon-Fri,
 # 09:15-15:30 IST = 03:45-10:00 UTC). The wrapper inside
@@ -24,6 +32,15 @@ on:
     # own no-op guard (collect_refresh_tickers returns [] off-hours-safe).
     - cron: "*/5 3-10 * * 1-5"
   workflow_dispatch:
+    inputs:
+      limit_fv:
+        description: "Top-N tickers from fair_value_history (default 1500)"
+        required: false
+        default: "1500"
+      workers:
+        description: "Parallel yfinance fast_info workers (default 20)"
+        required: false
+        default: "20"
 
 concurrency:
   group: cron-market-live-quotes
@@ -38,6 +55,8 @@ jobs:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
       PYTHONUNBUFFERED: "1"
+      YIELDIQ_QUOTES_LIMIT_FV: ${{ github.event.inputs.limit_fv || '1500' }}
+      YIELDIQ_QUOTES_WORKERS: ${{ github.event.inputs.workers || '20' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -53,13 +72,27 @@ jobs:
 
       - name: Refresh live_quotes
         run: |
+          # limit_fv + worker count come from env vars set on the job
+          # (YIELDIQ_QUOTES_LIMIT_FV / YIELDIQ_QUOTES_WORKERS). Defaults
+          # to 1500 tickers @ 20 workers. The wall-time print at the end
+          # is intentional — future operators can grep workflow logs to
+          # confirm the runtime stays under the 5-min cron tick.
           python -c "
+          import os, time
           from backend.workers.market_data_refresher import collect_refresh_tickers, refresh_live_quotes
-          tickers = collect_refresh_tickers(limit_fv=200)
-          print(f'collected {len(tickers)} tickers')
+          t0 = time.time()
+          tickers = collect_refresh_tickers()
+          print(f'collected {len(tickers)} tickers (limit_fv={os.environ.get(\"YIELDIQ_QUOTES_LIMIT_FV\",\"-\")}, workers={os.environ.get(\"YIELDIQ_QUOTES_WORKERS\",\"-\")})')
           if tickers:
               stats = refresh_live_quotes(tickers)
+              elapsed = time.time() - t0
               print(f'stats: {stats}')
+              print(f'wall_time_seconds={elapsed:.1f}')
+              # Soft alarm: if a single tick ever exceeds 4 min we are
+              # one bad yfinance day away from blowing through the 5-min
+              # cron interval. Surface as a warning annotation.
+              if elapsed > 240:
+                  print(f'::warning::live_quotes refresh took {elapsed:.0f}s — close to 5-min cron interval. Consider lowering YIELDIQ_QUOTES_LIMIT_FV or splitting into two staggered workflows.')
           else:
               print('no tickers — no-op')
           "

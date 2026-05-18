@@ -12,6 +12,8 @@ job tick, in batches of ≤100 tickers — never from the request path.
 from __future__ import annotations
 
 import logging
+import os
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from typing import Iterable
 
@@ -22,6 +24,19 @@ log = logging.getLogger("yieldiq.market_data_refresher")
 # Keep batches small so a single call to yf.Tickers(...) never blows
 # up the Railway worker. 100 is a safe ceiling observed in practice.
 BATCH_SIZE = 100
+
+# Parallel fast_info fetches per batch. Sequential ~540ms/ticker means
+# 1500 tickers would not fit in the 5-min cron interval — at 20 workers
+# the same set completes in ~3.3 min (measured 2026-05-18 on 100 NSE
+# tickers, extrapolated). yfinance fast_info is I/O-bound, so threads
+# are sufficient (no need for asyncio/multiprocessing). Tune via
+# YIELDIQ_QUOTES_WORKERS env var if Yahoo starts rate-limiting.
+MAX_QUOTE_WORKERS = int(os.environ.get("YIELDIQ_QUOTES_WORKERS", "20"))
+
+# Default ceiling for collect_refresh_tickers — matches pulse_daily's
+# top-1500 universe (Nifty500 + mid+small-cap watch). Override per call
+# (e.g. legacy APScheduler path still uses 200).
+DEFAULT_LIMIT_FV = int(os.environ.get("YIELDIQ_QUOTES_LIMIT_FV", "1500"))
 
 # Symbols refreshed by refresh_index_snapshots(). Keep in sync with
 # market_data_service.get_all_index_snapshots() consumers.
@@ -122,28 +137,36 @@ def refresh_live_quotes(tickers: Iterable[str]) -> dict:
         log.warning("refresh_live_quotes: no session (%s)", exc)
         return {"requested": len(tickers), "ok": 0, "failed": len(tickers)}
 
+    def _fetch_one(t: str):
+        try:
+            tk = yf.Ticker(t)
+            price, chg, vol = _quote_for(tk)
+            if price is None:
+                return (t, None)
+            return (
+                t,
+                {
+                    "ticker": t,
+                    "price": price,
+                    "change_pct": chg,
+                    "volume": vol,
+                    "as_of": now,
+                },
+            )
+        except Exception as exc:
+            log.debug("quote %s failed: %s", t, exc)
+            return (t, None)
+
     try:
         for batch in _chunk(tickers, BATCH_SIZE):
             rows = []
-            for t in batch:
-                try:
-                    tk = yf.Ticker(t)
-                    price, chg, vol = _quote_for(tk)
-                    if price is None:
+            # I/O-bound — threads are enough. See MAX_QUOTE_WORKERS comment.
+            with ThreadPoolExecutor(max_workers=MAX_QUOTE_WORKERS) as pool:
+                for _t, row in pool.map(_fetch_one, batch):
+                    if row is None:
                         fail += 1
-                        continue
-                    rows.append(
-                        {
-                            "ticker": t,
-                            "price": price,
-                            "change_pct": chg,
-                            "volume": vol,
-                            "as_of": now,
-                        }
-                    )
-                except Exception as exc:
-                    log.debug("quote %s failed: %s", t, exc)
-                    fail += 1
+                    else:
+                        rows.append(row)
 
             if not rows:
                 continue
@@ -311,16 +334,23 @@ def refresh_index_snapshots() -> dict:
 # Ticker discovery for the quotes job
 # ─────────────────────────────────────────────────────────────────
 
-def collect_refresh_tickers(limit_fv: int = 200) -> list[str]:
+def collect_refresh_tickers(limit_fv: int | None = None) -> list[str]:
     """
     Build the union of:
       • all distinct tickers currently held in Supabase `holdings`
       • top `limit_fv` tickers from fair_value_history (by last_updated)
 
+    `limit_fv` defaults to DEFAULT_LIMIT_FV (1500, matching pulse_daily's
+    top-N universe). Pass an explicit smaller integer for legacy callers
+    that need a tighter blast radius (e.g. the in-process APScheduler in
+    backend/main.py keeps 200 to bound Railway worker CPU).
+
     Returns a deduped list of ticker strings already carrying .NS/.BO
     suffixes where applicable. Missing data sources are silently
     skipped; this function never raises.
     """
+    if limit_fv is None:
+        limit_fv = DEFAULT_LIMIT_FV
     tickers: set[str] = set()
 
     # 1) Supabase holdings
