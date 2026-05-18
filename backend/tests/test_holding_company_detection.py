@@ -23,7 +23,7 @@ class TestCuratedAllowList:
     @pytest.mark.parametrize("ticker", [
         "BAJAJHLDNG", "TATAINVEST", "MCLEODRUSS", "NDTV", "NETWORK18",
         "GAYAHWS", "MOIL", "PILANIINVS", "WILLIAMAGR", "SUMMITSEC",
-        "KAMAHOLD", "MAHSCOOTER",
+        "KAMAHOLD", "MAHSCOOTER", "GRASIM",
     ])
     def test_curated_ticker_detected_bare(self, ticker):
         assert is_holding_company(ticker) is True
