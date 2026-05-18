@@ -1208,9 +1208,27 @@ async def _build_yieldiq50() -> ScreenerResponse:
                           -- flipped to a bad bucket. YESBANK was the case
                           -- in point (overvalued in cache, "undervalued"
                           -- in the day-old fair_value_history row).
+                          --
+                          -- 2026-05-18 fix: analysis_cache stores tickers
+                          -- in their CANONICAL form (e.g. RELIANCE.NS) per
+                          -- analysis_cache_service._canonical_cache_key,
+                          -- but fv.ticker_bare is bare (RELIANCE). The
+                          -- previous `ac.ticker = fv.ticker_bare` join
+                          -- never matched for Indian tickers, so the
+                          -- EXISTS clause rejected every row from the
+                          -- DB fallback — leaving Discover stuck on
+                          -- "warming up" whenever the in-process cache
+                          -- and screener_results.csv were empty (i.e.
+                          -- after every Railway cold-start). Match both
+                          -- bare and .NS-suffixed forms via IN so the
+                          -- check works regardless of writer source.
                           AND EXISTS (
                             SELECT 1 FROM analysis_cache ac
-                            WHERE ac.ticker = fv.ticker_bare
+                            WHERE ac.ticker IN (
+                                fv.ticker_bare,
+                                fv.ticker_bare || '.NS',
+                                fv.ticker_bare || '.BO'
+                              )
                               AND (ac.payload->'valuation'->>'verdict') NOT IN (
                                 'avoid','under_review','data_limited','overvalued'
                               )
