@@ -1,0 +1,62 @@
+name: Cron — Refresh consensus_estimates (daily 05:00 IST)
+
+# Nightly pull of analyst-consensus price targets from yfinance + Finnhub
+# into the `consensus_estimates` table. Read-only sanity-check layer that
+# feeds the Benchmark Reconciliation Framework (PR 2 surfaces this).
+#
+# Schedule: 23:30 UTC = 05:00 IST daily.
+#
+# Secrets required:
+#   - DATABASE_URL    : Neon/Aiven Postgres URL
+#   - FINNHUB_API_KEY : Finnhub free-tier token (60 req/min)
+#                       If unset, the Finnhub pass is skipped silently
+#                       and only the yfinance pass runs.
+#
+# Per project discipline (memory/feedback_yieldiq_discipline.md):
+#   - this job runs ONLY in GH Actions; never in the Railway worker.
+#   - no CACHE_VERSION bump — consensus does not enter the cache key.
+
+on:
+  schedule:
+    - cron: "30 23 * * *"
+  workflow_dispatch:
+    inputs:
+      limit_yfinance:
+        description: "Top-N tickers by market cap to pull from yfinance"
+        required: false
+        default: "1500"
+      limit_finnhub:
+        description: "Top-N tickers by market cap to pull from Finnhub"
+        required: false
+        default: "500"
+
+concurrency:
+  group: cron-consensus-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install minimal deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install "SQLAlchemy>=2.0" "psycopg2-binary" "yfinance>=0.2.40" "requests>=2.31"
+
+      - name: Refresh consensus_estimates
+        run: |
+          python scripts/refresh_consensus.py \
+            --limit-yfinance "${{ github.event.inputs.limit_yfinance || '1500' }}" \
+            --limit-finnhub  "${{ github.event.inputs.limit_finnhub  || '500'  }}"
