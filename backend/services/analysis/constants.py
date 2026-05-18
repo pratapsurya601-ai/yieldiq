@@ -840,6 +840,101 @@ def is_capital_goods(
     return False
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Brand-moat premium overlay (added 2026-05-18, PR
+# feat/fmcg-brand-moat-overlay — see docs/design/fmcg-dcf-fix.md)
+#
+# Generic FCF-DCF with terminal_g=4% and ~17.9x terminal multiple cannot
+# reach the 50-70x P/E that markets pay for the permanent-brand-moat
+# tail of Indian FMCG (NESTLE/Maggi, BRITANNIA/Good Day, MARICO/
+# Parachute, GODREJCP/Cinthol-Goodknight, PIDILITIND/Fevicol,
+# GILLETTE/razors). The 4% terminal pin caps the expected compounding
+# at India's nominal-GDP rate and leaves 20-50% of brand-permanence
+# value unrecognised for this sub-cohort.
+#
+# This is a CURATED per-ticker multiplier applied AFTER the generic DCF
+# produces `iv`, AND ONLY when the resolved sector is FMCG (belt-and-
+# braces: never apply outside FMCG even if a ticker is wrongly
+# classified into the dict). The overlay multiplies bear / base / bull
+# IVs by the same factor so dispersion ratio is preserved. The raw
+# pre-premium FV is appended to `data_issues` for audit transparency.
+#
+# Governance gates for adding a ticker (per design doc §9):
+#   (a) EV/EBITDA > 30
+#   (b) ROCE > 25%
+#   (c) named brand monopoly or duopoly
+#   (d) MoS gap > 25% in current prod
+#   (e) explicit sign-off in PR review
+#
+# Multipliers are calibrated to street consensus EV/EBITDA premiums to
+# the FMCG sector median; revisit annually. Bare ticker form (no .NS /
+# .BO suffix). Tickers NOT in this dict (HUL, ITC, DABUR, COLPAL, PGHH,
+# AKZOINDIA, BAJAJCON, EMAMI, JYOTHYLAB, VBL, TASTYBITE) deliberately
+# stay on the generic path — they already land within ±20% of CMP and a
+# blanket sector-wide multiplier would over-fit them.
+# ─────────────────────────────────────────────────────────────────────
+
+BRAND_MOAT_PREMIUM_TICKERS: dict[str, float] = {
+    "NESTLEIND":  1.45,  # Maggi / Cerelac / Nescafe monopoly
+    "BRITANNIA":  1.25,  # Good Day / Marie premium biscuit category leader
+    "MARICO":     1.20,  # Parachute coconut-oil monopoly + Saffola edible-oil
+    "GODREJCP":   1.20,  # Cinthol / Goodknight household-insecticide leader
+    "PIDILITIND": 1.35,  # Fevicol / Fevikwik adhesives category-killer
+    "GILLETTE":   1.25,  # premium razors monopoly
+    "TATACONSUM": 1.10,  # Tata Tea / Tetley + Tata Salt brand
+    "DABUR":      1.10,  # Dabur Honey / Chyawanprash herbal brand
+    "EMAMILTD":   1.10,  # Boroplus / Navratna brand
+    "JYOTHYLAB":  1.10,  # Ujala detergent / fabric-whitener monopoly
+}
+
+
+# Sector strings (case-insensitive) that count as "FMCG" for the
+# brand-moat premium gate. Mirrors the canonical labels seeded into
+# SECTOR_OVERRIDES (Tobacco / Packaged Foods / Household & Personal
+# Products / Beverages-Non-Alcoholic all collapse to "FMCG") plus the
+# yfinance long-form label ("Consumer Defensive") which some tickers
+# surface with directly.
+_FMCG_SECTOR_LABELS: set[str] = {
+    "fmcg",
+    "consumer defensive",
+    "consumer staples",
+}
+
+
+def is_fmcg_sector(sector: str | None) -> bool:
+    """Return True if `sector` resolves to the FMCG bucket for the
+    brand-moat premium gate. Case-insensitive, whitespace-tolerant.
+    """
+    if not sector:
+        return False
+    return sector.strip().lower() in _FMCG_SECTOR_LABELS
+
+
+def get_brand_moat_multiplier(ticker: str | None) -> float:
+    """Return the brand-moat multiplier for `ticker` (1.0 if not in the
+    curated set). Strips .NS / .BO suffix and uppercases before lookup
+    so call sites can pass either form.
+
+    NOTE: the SECTOR GATE is enforced at the call site
+    (backend/services/analysis/service.py) — this helper only does the
+    dict lookup. Returning > 1.0 here does NOT imply the premium will
+    be applied; the caller must additionally check
+    :func:`is_fmcg_sector` so a wrongly-classified ticker never gets
+    the multiplier applied outside FMCG.
+    """
+    if not ticker:
+        return 1.0
+    # Uppercase first so mixed-case inputs ("nestleind.ns") strip the
+    # suffix correctly — the legacy str.replace pattern elsewhere in
+    # this module is case-sensitive and would leak ".ns" through.
+    bare = (
+        ticker.upper()
+        .replace(".NS", "")
+        .replace(".BO", "")
+    )
+    return BRAND_MOAT_PREMIUM_TICKERS.get(bare, 1.0)
+
+
 # USD → INR conversion rate for Financials rows tagged `currency = 'USD'`.
 # TODO: source from a forex feed (RBI reference rate) rather than a constant.
 USD_INR_RATE = 83.5
