@@ -83,8 +83,10 @@ def _is_rate_limit(exc: Exception) -> bool:
     )
 
 
-def _quote_for(yf_symbol: str) -> tuple[float | None, float | None, int | None]:
-    """Return (price, change_pct, volume) from yfinance fast_info or (None, ...)."""
+def _quote_for(
+    yf_symbol: str,
+) -> tuple[float | None, float | None, int | None, float | None]:
+    """Return (price, change_pct, volume, prev_close) from yfinance fast_info."""
     tk = yf.Ticker(yf_symbol)
     fi = tk.fast_info
     price = float(getattr(fi, "last_price", 0) or 0)
@@ -95,7 +97,107 @@ def _quote_for(yf_symbol: str) -> tuple[float | None, float | None, int | None]:
     except (TypeError, ValueError):
         vol = None
     chg = ((price - prev) / prev * 100) if prev else None
-    return (price if price else None, chg, vol)
+    return (
+        price if price else None,
+        chg,
+        vol,
+        prev if prev else None,
+    )
+
+
+# ─────────────────────────────────────────────────────────────────
+# Write-time sanity gate (mirrors backend/workers/market_data_refresher.py)
+# ─────────────────────────────────────────────────────────────────
+#
+# See the full rationale in the canonical refresher. Duplicated here
+# because this script is intentionally standalone (no `backend.*`
+# imports — discipline rule at top of file).
+#
+# Caveats: legitimate moves that may be falsely rejected include
+# corporate-action ex-dates (splits / bonus / reverse-splits) and
+# resumption after long suspensions. Future work: a (ticker, date)
+# allow-list keyed off corporate_actions to bypass the gate.
+
+INTRADAY_MAX_MOVE = 0.50
+PREV_CLOSE_UPPER_BAND = 1.20
+PREV_CLOSE_LOWER_BAND = 0.80
+
+
+def _fetch_prev_price(conn, ticker_with_suffix: str) -> float | None:
+    """Return the existing live_quotes.price for `ticker_with_suffix`, or None."""
+    try:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT price FROM live_quotes WHERE ticker = %s",
+                (ticker_with_suffix,),
+            )
+            row = cur.fetchone()
+        if row and row[0] is not None:
+            return float(row[0])
+    except Exception as exc:
+        log.debug("prev live_quotes lookup failed for %s: %s",
+                  ticker_with_suffix, exc)
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+    return None
+
+
+def _sanity_check_quote(
+    ticker: str,
+    new_price: float,
+    prev_close: float | None,
+    prev_live_price: float | None,
+) -> tuple[bool, str | None]:
+    """Twin of backend.workers.market_data_refresher._sanity_check_quote."""
+    if new_price is None or new_price <= 0:
+        return (False, "non_positive_price")
+    if prev_live_price is None or prev_live_price <= 0:
+        return (True, None)
+    move = abs(new_price - prev_live_price) / prev_live_price
+    if move > INTRADAY_MAX_MOVE:
+        return (
+            False,
+            f"intraday_move_{move:.2%}_prev={prev_live_price:g}_new={new_price:g}",
+        )
+    if prev_close is not None and prev_close > 0:
+        ratio = new_price / prev_close
+        if ratio > PREV_CLOSE_UPPER_BAND or ratio < PREV_CLOSE_LOWER_BAND:
+            return (
+                False,
+                f"prev_close_band_ratio={ratio:.3f}_prev_close={prev_close:g}_new={new_price:g}",
+            )
+    return (True, None)
+
+
+def fetch_with_fallback_full(
+    bare_ticker: str,
+) -> tuple[str | None, float | None, float | None, int | None, float | None]:
+    """Like fetch_with_fallback but also returns prev_close from yfinance.
+
+    Returns (suffix_used, price, chg, vol, prev_close).
+    """
+    for suffix in (".NS", ".BO"):
+        sym = bare_ticker + suffix
+        for attempt in range(BACKOFF_MAX_ATTEMPTS):
+            try:
+                price, chg, vol, prev_close = _quote_for(sym)
+                if price is not None:
+                    return (suffix, price, chg, vol, prev_close)
+                break
+            except Exception as exc:
+                if _is_rate_limit(exc) and attempt < BACKOFF_MAX_ATTEMPTS - 1:
+                    sleep_s = BACKOFF_BASE * (2 ** attempt)
+                    log.warning(
+                        "rate-limited on %s (attempt %d), sleeping %.1fs",
+                        sym, attempt + 1, sleep_s,
+                    )
+                    time.sleep(sleep_s)
+                    continue
+                log.debug("yfinance %s failed: %s", sym, exc)
+                break
+    return (None, None, None, None, None)
 
 
 def fetch_with_fallback(
@@ -104,12 +206,17 @@ def fetch_with_fallback(
     """Try .NS first, fall back to .BO. Returns (suffix_used, price, chg, vol).
 
     suffix_used is None if both attempts returned no price.
+
+    Note: the prev_close from yfinance is consumed by the caller via
+    `fetch_with_fallback_full` for the write-time sanity gate. This
+    function preserves the original 4-tuple shape for backwards-
+    compatibility, dropping prev_close.
     """
     for suffix in (".NS", ".BO"):
         sym = bare_ticker + suffix
         for attempt in range(BACKOFF_MAX_ATTEMPTS):
             try:
-                price, chg, vol = _quote_for(sym)
+                price, chg, vol, _prev_close = _quote_for(sym)
                 if price is not None:
                     return (suffix, price, chg, vol)
                 # No price but no exception — don't retry, try next suffix.
@@ -177,25 +284,38 @@ def main() -> int:
         log.info("processing %d tickers (offset=%d, max=%s)",
                  len(sliced), args.offset, args.max_tickers)
 
-        ok_ns = ok_bo = no_price = errored = 0
+        ok_ns = ok_bo = no_price = errored = rejected = 0
         started = time.time()
 
         for i, bare in enumerate(sliced, 1):
             try:
-                suffix, price, chg, vol = fetch_with_fallback(bare)
+                suffix, price, chg, vol, prev_close = \
+                    fetch_with_fallback_full(bare)
                 if suffix is None or price is None:
                     no_price += 1
                 else:
-                    upsert_quote(
-                        conn,
-                        bare + suffix,
-                        price, chg, vol,
-                        datetime.now(timezone.utc),
+                    ticker_full = bare + suffix
+                    prev_live = _fetch_prev_price(conn, ticker_full)
+                    accept, reason = _sanity_check_quote(
+                        ticker_full, price, prev_close, prev_live,
                     )
-                    if suffix == ".NS":
-                        ok_ns += 1
+                    if not accept:
+                        rejected += 1
+                        log.warning(
+                            "live_quotes write-gate REJECT %s: %s",
+                            ticker_full, reason,
+                        )
                     else:
-                        ok_bo += 1
+                        upsert_quote(
+                            conn,
+                            ticker_full,
+                            price, chg, vol,
+                            datetime.now(timezone.utc),
+                        )
+                        if suffix == ".NS":
+                            ok_ns += 1
+                        else:
+                            ok_bo += 1
             except Exception as exc:
                 errored += 1
                 log.warning("upsert failed for %s: %s", bare, exc)
@@ -208,9 +328,10 @@ def main() -> int:
                 elapsed = time.time() - started
                 rate = i / elapsed if elapsed else 0
                 log.info(
-                    "progress %d/%d  ok_ns=%d ok_bo=%d no_price=%d err=%d  "
-                    "%.2f tickers/s",
-                    i, len(sliced), ok_ns, ok_bo, no_price, errored, rate,
+                    "progress %d/%d  ok_ns=%d ok_bo=%d no_price=%d "
+                    "rejected=%d err=%d  %.2f tickers/s",
+                    i, len(sliced), ok_ns, ok_bo, no_price,
+                    rejected, errored, rate,
                 )
 
             time.sleep(THROTTLE_SECONDS)
@@ -228,6 +349,7 @@ def main() -> int:
             "ok_ns": ok_ns,
             "ok_bo": ok_bo,
             "no_price": no_price,
+            "rejected": rejected,
             "errored": errored,
         }
         SUMMARY_PATH.write_text(json.dumps(summary, indent=2))
