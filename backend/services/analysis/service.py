@@ -3099,6 +3099,42 @@ class AnalysisService(NarrativeMixin):
             )
             _cf_scores = {"data_quality": None, "model_confidence": None, "valuation_stability": None}
 
+        # ── Layer C — Verdict-intensity gate (PR 2) ──────────
+        # Cap or force the verdict based on the three confidence
+        # scores per audit Step 3. The gate is non-amplifying: it
+        # can only narrow ("undervalued" -> "fairly_valued") or
+        # force "under_review" on triple-low confidence. Pass-
+        # through verdicts (data_limited / unavailable / avoid /
+        # under_review) are never touched, so the ETF / REIT /
+        # holdco short-circuits above remain authoritative.
+        try:
+            from backend.services.confidence_service import (
+                apply_confidence_verdict_gate as _cf_gate,
+            )
+            _orig_verdict = verdict
+            verdict, _data_issues = _cf_gate(
+                verdict,
+                _cf_scores.get("data_quality"),
+                _cf_scores.get("model_confidence"),
+                _cf_scores.get("valuation_stability"),
+                data_issues=_data_issues,
+            )
+            if verdict != _orig_verdict:
+                import logging as _cfg_log
+                _cfg_log.getLogger("yieldiq.confidence").info(
+                    "[%s] verdict_gate %s -> %s (dq=%s mc=%s vs=%s)",
+                    ticker, _orig_verdict, verdict,
+                    _cf_scores.get("data_quality"),
+                    _cf_scores.get("model_confidence"),
+                    _cf_scores.get("valuation_stability"),
+                )
+        except Exception as _cfg_exc:  # pragma: no cover
+            import logging as _cfg_log
+            _cfg_log.getLogger("yieldiq.confidence").warning(
+                "[%s] verdict_gate failed: %s: %s",
+                ticker, type(_cfg_exc).__name__, _cfg_exc,
+            )
+
         return AnalysisResponse(
             ticker=ticker,
             company=company,

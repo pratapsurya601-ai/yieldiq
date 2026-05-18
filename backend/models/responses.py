@@ -82,7 +82,12 @@ class ValuationOutput(BaseModel):
     # the denominator (upside %). None when FV is non-positive.
     # Purely additive — pre-PR clients ignore unknown fields.
     buffett_mos_pct: Optional[float] = None
-    verdict: Literal["undervalued", "fairly_valued", "overvalued", "avoid", "data_limited", "unavailable"]
+    # `under_review` added by feat/confidence-verdict-gating (PR 2,
+    # 2026-05-18): the triple-low-confidence branch of the verdict
+    # gate forces this state regardless of MoS. Previously the value
+    # appeared only on the cache-router side; routing layers
+    # (analysis.py) already treated it as a "bad verdict".
+    verdict: Literal["undervalued", "fairly_valued", "overvalued", "avoid", "data_limited", "unavailable", "under_review"]
     bear_case: float = 0
     base_case: float = 0
     bull_case: float = 0

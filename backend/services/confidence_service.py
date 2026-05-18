@@ -357,3 +357,92 @@ def compute_all_scores(
         "model_confidence": mc,
         "valuation_stability": vs,
     }
+
+
+# ───────────────────────────────────────────────────────────────────
+# Verdict-intensity gate (PR 2 — Step 3 of the audit)
+# ───────────────────────────────────────────────────────────────────
+# Per the audit's Step 3: "Verdict intensity should scale WITH
+# confidence. High confidence + 30% undervalued -> 'Notably
+# undervalued'. Low confidence + 30% undervalued -> 'Under Review'."
+#
+# The gate operates on the three scores produced by the functions
+# above and the original verdict (already set by the upstream DCF /
+# PB / peer-cap / IPO logic). It can only narrow / suppress the
+# verdict — it never amplifies. Verdicts that are already
+# data_limited / unavailable / under_review pass through unchanged.
+
+_INTENSITY_VERDICTS: frozenset[str] = frozenset({"undervalued", "overvalued"})
+_PASSTHROUGH_VERDICTS: frozenset[str] = frozenset({
+    "data_limited", "unavailable", "under_review", "avoid",
+})
+
+
+def _any_below(threshold: int, *vals: Optional[int]) -> bool:
+    return any(isinstance(v, int) and v < threshold for v in vals)
+
+
+def apply_confidence_verdict_gate(
+    verdict: str,
+    data_quality: Optional[int],
+    model_confidence: Optional[int],
+    valuation_stability: Optional[int],
+    data_issues: Optional[list[str]] = None,
+) -> tuple[str, list[str]]:
+    """Gate verdict intensity by the three confidence scores.
+
+    Logic table (matches the audit's Step 3 spec exactly):
+
+      | data_quality | model_confidence | valuation_stability | Result                       |
+      | >=80         | >=80             | >=80                | unchanged                    |
+      | >=70         | >=70             | >=70                | unchanged                    |
+      | <70 any      | any              | any                 | cap intensity                |
+      |              |                  |                     |  (under/overvalued ->        |
+      |              |                  |                     |   fairly_valued)             |
+      | <50 any      | <50              | <50                 | force `under_review`         |
+
+    Returns ``(new_verdict, new_data_issues)``. ``data_issues`` is
+    extended with a human-readable note explaining why the gate
+    fired so the UI can render a caveat.
+
+    Pass-through verdicts (``data_limited``, ``unavailable``,
+    ``under_review``, ``avoid``) are never modified. Non-intensity
+    verdicts (``fairly_valued``) are likewise never escalated; the
+    gate can only narrow, never amplify. The lone exception is the
+    "force under_review" branch (triple-low confidence), which is
+    the audit's explicit policy.
+    """
+    issues = list(data_issues or [])
+    if not isinstance(verdict, str) or verdict in _PASSTHROUGH_VERDICTS:
+        return verdict, issues
+
+    # Tier 3 — triple-low confidence: force under_review regardless
+    # of MoS or verdict. Catches the audit's worst case:
+    # "Low confidence + 30% undervalued -> Under Review".
+    if (
+        isinstance(data_quality, int) and data_quality < 50
+        and isinstance(model_confidence, int) and model_confidence < 50
+        and isinstance(valuation_stability, int) and valuation_stability < 50
+    ):
+        issues.append(
+            "[confidence_gate] All three confidence scores below 50 "
+            f"(dq={data_quality}, mc={model_confidence}, "
+            f"vs={valuation_stability}) - verdict forced to under_review."
+        )
+        return "under_review", issues
+
+    # Tier 2 — any score below 70: cap intensity verdicts down to
+    # fairly_valued. fairly_valued / avoid pass through unchanged.
+    if _any_below(70, data_quality, model_confidence, valuation_stability):
+        if verdict in _INTENSITY_VERDICTS:
+            issues.append(
+                "[confidence_gate] Confidence below threshold "
+                f"(dq={data_quality}, mc={model_confidence}, "
+                f"vs={valuation_stability}) - '{verdict}' verdict "
+                "capped to 'fairly_valued'."
+            )
+            return "fairly_valued", issues
+        return verdict, issues
+
+    # Tier 1 — all scores >= 70: original verdict unchanged.
+    return verdict, issues
