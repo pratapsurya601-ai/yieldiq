@@ -47,6 +47,14 @@ def _get_session():
 _MKT_OPEN_UTC = time(3, 45)
 _MKT_CLOSE_UTC = time(10, 0)
 _FRESHNESS_THRESHOLD = timedelta(hours=4)
+# PR #317: hard reject staleness — above this age the live_quotes row
+# is considered unreliable (likely pre-split / pre-corp-action / yfinance
+# hiccup never overwritten) and the cascade falls through to daily_prices
+# instead of serving a 10×-off price to the DCF engine.
+# Symptom that motivated this: HINDPETRO 2026-05-18 DCF used price=₹3870
+# (stored 9 days earlier, real CMP ~₹400) which crushed the FV/CMP ratio
+# to 0.01 and broke the verdict gate.
+_HARD_STALE_THRESHOLD = timedelta(days=2)
 
 
 def _is_market_hours_utc(now_utc: datetime) -> bool:
@@ -185,6 +193,27 @@ def get_canonical_price(
                 if row and row[0] is not None:
                     try:
                         _warn_if_stale(canonical, row[1])
+                        # PR #317: hard-stale gate — refuse live_quotes
+                        # values older than _HARD_STALE_THRESHOLD during
+                        # market hours. Falling through to daily_prices
+                        # (NSE EOD) is safer than serving a pre-split /
+                        # pre-corp-action stale value. Off-hours we still
+                        # accept the stale value (no daily_prices write
+                        # might have happened yet).
+                        as_of_val = row[1]
+                        if as_of_val is not None and _is_market_hours_utc(
+                            datetime.now(timezone.utc)
+                        ):
+                            age = datetime.now(timezone.utc) - as_of_val
+                            if age > _HARD_STALE_THRESHOLD:
+                                log.warning(
+                                    "canonical_price: REJECTING live_quotes "
+                                    "for %s — age=%s exceeds hard-stale "
+                                    "threshold %s; falling through to "
+                                    "daily_prices",
+                                    canonical, age, _HARD_STALE_THRESHOLD,
+                                )
+                                break  # skip remaining live_quotes candidates
                         return float(row[0])
                     except Exception:
                         pass

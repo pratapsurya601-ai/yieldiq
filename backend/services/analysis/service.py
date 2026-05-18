@@ -41,6 +41,9 @@ from backend.services.analytical_notes import compute_notes as _compute_analytic
 # CACHE_VERSION is stamped into the computation_inputs snapshot so the
 # audit trail records exactly which code generation produced an FV.
 from backend.services.cache_service import CACHE_VERSION
+# PR #316: sanity-bound shares before both DCF and cache storage so
+# `equity_value ÷ stored_shares` always equals `iv_raw_pre_moat`.
+from backend.validators.shares_outstanding import shares_or_warn
 # Per-ticker overrides for unusual businesses (conglomerates, holdcos,
 # turnarounds, pre-profit names). Surfaces honest "model approximate"
 # caveats. ROADMAP: build sum-of-parts engine for RELIANCE/ITC/holdcos.
@@ -381,6 +384,32 @@ class AnalysisService(NarrativeMixin):
 
         # ── Step 3: Compute metrics ───────────────────────────
         enriched = compute_metrics(raw)
+        # PR #316: reconcile shares with the trusted post-normalization
+        # column. `financials.shares_outstanding` is stored in mixed units
+        # (lakh / crore / raw) across rows because of legacy ingest paths;
+        # `shares_outstanding_raw` is the PR#136 normalizer output and is
+        # always a real raw count. When present and plausible, prefer it
+        # so downstream `equity_value ÷ shares` and `price × shares`
+        # ratios stop being 100× off. Falls through silently for
+        # yfinance-sourced `raw` (collector sets the field to None).
+        _shares_raw_trusted = shares_or_warn(
+            ticker, raw.get("shares_outstanding_raw")
+        )
+        if _shares_raw_trusted is not None:
+            _shares_legacy = float(enriched.get("shares") or 0)
+            if _shares_legacy <= 0 or abs(
+                _shares_raw_trusted - _shares_legacy
+            ) / max(_shares_raw_trusted, 1.0) > 0.01:
+                import logging as _sh_log
+                _sh_log.getLogger("yieldiq.analysis").info(
+                    "[%s] shares reconciled: legacy=%.0f → raw=%.0f "
+                    "(ratio %.2fx)",
+                    ticker, _shares_legacy, _shares_raw_trusted,
+                    (_shares_raw_trusted / _shares_legacy)
+                    if _shares_legacy > 0 else float("nan"),
+                )
+            enriched["shares"] = _shares_raw_trusted
+            enriched["shares_outstanding_source"] = "db_normalized_raw"
         # PR-DET-1: pinned price snapshot — do not recompute MoS on read.
         # `price` captured here is the SAME value used as both the response
         # `current_price` field (see ValuationOutput below) and the MoS
