@@ -397,7 +397,23 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
 
     # Primary: median of latest_fcf, nopat_proxy, and max_recent_fcf
     # Using median instead of max prevents one outlier year from inflating the base
-    valid_candidates = [v for v in [latest_val, nopat_val, max_val] if v > 0]
+    #
+    # ── Pharma R&D-adjusted candidate (PR feat/pharma-dcf-fix, 2026-05-18) ─
+    # When `pharma_rd_adjusted` is available (sector == "pharma" + valid
+    # op_margin + revenue floor satisfied — see candidate 3b above), include
+    # it in the median pool. R&D is investment, not opex; the growth-R&D
+    # add-back (60% × ~8% × revenue) is the standard sell-side anchor for
+    # pharma economic earnings. Sector-gated via the candidate's own
+    # presence, so non-pharma tickers see no change.
+    pharma_rd_val = candidates.get("pharma_rd_adjusted", 0)
+    enriched["_pharma_rd_used"] = False
+    if _sector == "pharma" and pharma_rd_val > 0:
+        valid_candidates = [
+            v for v in [latest_val, nopat_val, max_val, pharma_rd_val] if v > 0
+        ]
+        enriched["_pharma_rd_used"] = True
+    else:
+        valid_candidates = [v for v in [latest_val, nopat_val, max_val] if v > 0]
     if not valid_candidates:
         primary = 0
     elif len(valid_candidates) == 1:

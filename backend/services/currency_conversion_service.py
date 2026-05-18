@@ -77,6 +77,18 @@ USD_REPORTER_TICKERS: frozenset[str] = frozenset({
     "KPITTECH",
 })
 
+# Pharma USD-reporter candidates evaluated 2026-05-18 against live
+# yfinance (see docs/design/pharma-dcf-fix.md §3.1). At evaluation time
+# every candidate (DRREDDY.NS, DIVISLAB.NS, AUROPHARMA.NS, LAURUSLABS.NS)
+# returned ``financialCurrency='INR'`` — the USD tag the design doc
+# assumed for DRREDDY had flipped back to INR on the yfinance feed.
+# Per the design doc's "DO NOT add a pharma ticker unless it actually
+# reports USD" rule, the allow-list is intentionally left unchanged in
+# this PR. DRREDDY's residual ``data_limited`` state (v96 TTM-scale
+# guard) will need a data-pipeline re-ingest rather than a currency
+# allow-list extension. Revisit this list if yfinance flips DRREDDY /
+# DIVISLAB back to USD on a future backfill.
+
 
 def _bare(ticker: str) -> str:
     """Strip exchange suffix for allow-list comparison."""
