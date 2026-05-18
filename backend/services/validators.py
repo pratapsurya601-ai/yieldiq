@@ -109,7 +109,11 @@ BOUNDS = {
     # nominal GDP runs ~5–5.5%; a perpetual growth assumption above
     # 6% is unsupportable in steady-state and a sub-2% terminal growth
     # implies real-terms decline (deflation) which is also a red flag.
-    "terminal_growth":   (0.02, 0.06, "critical"),    # 2%-6%
+    # SEVERITY = "warning" (not "critical") to avoid surprise-quarantining
+    # cyclical-trough cached payloads where the trough anchor legitimately
+    # set terminal_g below 2% (steel/oil/metals at cycle bottoms).
+    # The flag still surfaces in data_issues for review.
+    "terminal_growth":   (0.02, 0.06, "warning"),     # 2%-6% (warning, not gate)
     "fcf_growth_rate":   (-0.50, 0.80, "warning"),    # -50% to +80%
     # MoS floor widened from -95 to -100 (2026-04-22). See bounds.py
     # for the rationale — NIVABUPA.NS legitimately lands at -96.5%

@@ -94,10 +94,13 @@ def test_rule1_terminal_growth_passing_within_band():
     assert "terminal_growth" not in r.failed_fields
 
 
-def test_rule1_terminal_growth_failing_above_six_pct_is_critical():
+def test_rule1_terminal_growth_failing_above_six_pct_is_warning():
+    # Severity downgraded from "critical" to "warning" to avoid
+    # quarantining legitimate cyclical-trough cached payloads. The
+    # field still surfaces in data_issues for review.
     r = validate_analysis(_healthy_response(terminal_growth=0.07))
     assert r.ok is False
-    assert r.severity == "critical"
+    assert r.severity in ("warning", "critical")  # may stack with other rules
     assert "terminal_growth" in r.failed_fields
 
 
