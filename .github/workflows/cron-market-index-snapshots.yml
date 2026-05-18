@@ -46,3 +46,11 @@ jobs:
           stats = refresh_index_snapshots()
           print(f'stats: {stats}')
           "
+
+      - name: Write cron heartbeat
+        # Dead-man monitoring (see .github/workflows/cron-deadman-checker.yml).
+        if: success()
+        run: |
+          python scripts/write_cron_heartbeat.py \
+            --workflow cron-market-index-snapshots \
+            --interval-minutes 15
