@@ -804,3 +804,36 @@ async def get_benchmark_outliers(
         "count": len(rows),
         "rows": [r.to_dict() for r in rows],
     }
+
+
+# ── Sentry wiring smoke test ─────────────────────────────────
+# Hit this after a deploy to confirm SENTRY_DSN is wired and the
+# event lands in the Sentry dashboard. Auth-gated so random callers
+# can't fill our event quota with synthetic 500s.
+class _SentryWiringTestError(RuntimeError):
+    """Synthetic exception raised by /admin/sentry-test only.
+
+    Distinct type so the dashboard filter `error.type:_SentryWiringTestError`
+    isolates wiring smoke tests from real prod errors.
+    """
+
+
+@router.get("/sentry-test")
+async def sentry_test(user: dict = Depends(require_admin)):
+    """Raise a synthetic exception to verify Sentry capture works.
+
+    Returns 500 by design — the exception bubbles to the FastAPI integration
+    which captures it. If the wiring is correct you'll see a
+    `_SentryWiringTestError` event in the Sentry dashboard within ~10s. If
+    Sentry is unconfigured (no DSN), the response is still 500 but no event
+    is shipped — behaviour is identical for the caller either way.
+    """
+    try:
+        import sentry_sdk as _sentry
+        _sentry.set_tag("smoke_test", "sentry_wiring")
+        _sentry.set_tag("triggered_by", user.get("email", "unknown"))
+    except Exception:
+        pass
+    raise _SentryWiringTestError(
+        "Synthetic exception from /admin/sentry-test — wiring smoke test"
+    )

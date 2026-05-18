@@ -321,18 +321,30 @@ class AnalysisService(NarrativeMixin):
                 "[%s] local assembler EXCEPTION: %s: %s",
                 ticker, type(_local_exc).__name__, _local_exc
             )
+            # Capture to Sentry so we see when local DB+Parquet assembly is
+            # broken (typically Neon pipeline drift or a parquet snapshot
+            # gone stale). The yfinance fallback below masks this as a
+            # latency regression rather than an error in metrics.
+            try:
+                import sentry_sdk as _sentry
+                _sentry.set_tag("ticker", ticker)
+                _sentry.set_tag("stage", "local_assembler")
+                _sentry.capture_exception(_local_exc)
+            except Exception:
+                pass
 
         # Fallback: yfinance collector (slow but comprehensive)
         if raw is None:
             _data_source = "yfinance"
+            _last_yf_exc: Exception | None = None
             for _attempt in range(3):
                 try:
                     collector = StockDataCollector(ticker)
                     raw = collector.get_all()
                     if raw is not None:
                         break
-                except Exception:
-                    pass
+                except Exception as _yf_exc:
+                    _last_yf_exc = _yf_exc
                 if raw is None and _attempt < 2:
                     # Retry backoff between yfinance attempts. This used to
                     # block the FastAPI event loop because the enclosing
@@ -345,6 +357,16 @@ class AnalysisService(NarrativeMixin):
                     # ever invoke `get_full_analysis` directly from an
                     # `async def` again, push it through `to_thread` first.
                     _time.sleep(3 + _attempt * 3)  # 3s, 6s delays
+            # All 3 yfinance attempts exhausted — capture so we can see
+            # data-source outage patterns (yfinance auth flips, BSE delistings).
+            if raw is None and _last_yf_exc is not None:
+                try:
+                    import sentry_sdk as _sentry
+                    _sentry.set_tag("ticker", ticker)
+                    _sentry.set_tag("stage", "yfinance_collector_exhausted")
+                    _sentry.capture_exception(_last_yf_exc)
+                except Exception:
+                    pass
 
         # ── Step 2: Validate ──────────────────────────────────
         validation = validate_stock_data(ticker, raw)

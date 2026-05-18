@@ -118,8 +118,22 @@ class CacheService:
 
     def set(self, key: str, value: Any, ttl: int = 900, version_keyed: bool = False) -> None:
         actual = _vkey(key, version_keyed)
-        with self._lock:
-            self._store[actual] = (value, time.time() + ttl, CACHE_VERSION)
+        try:
+            with self._lock:
+                self._store[actual] = (value, time.time() + ttl, CACHE_VERSION)
+        except Exception as exc:
+            # Cache write failures are silent killers — a worker that can't
+            # write to its in-mem cache will recompute every analysis on
+            # every hit and look healthy in logs while burning CPU. Surface
+            # via Sentry so we see the pattern before users complain.
+            try:
+                import sentry_sdk as _sentry
+                _sentry.set_tag("cache_op", "set")
+                _sentry.set_tag("cache_key_prefix", key.split(":", 1)[0] if ":" in key else key)
+                _sentry.capture_exception(exc)
+            except Exception:
+                pass
+            raise
 
     def delete(self, key: str, version_keyed: bool = False) -> None:
         actual = _vkey(key, version_keyed)
