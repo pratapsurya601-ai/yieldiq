@@ -164,6 +164,67 @@ from backend.services.analysis.db import (
 )
 from backend.services.analysis.narrative import NarrativeMixin
 
+# ── Tier 2 cohort valuation (Layer B Week 1) ─────────────────────
+# Feature-flagged via TIER2_ENABLED env var (default False).  When
+# the flag is False this import is a no-op — the routing branch
+# below short-circuits before calling any Tier 2 code.  See
+# docs/design/valuation-architecture-simplification.md §2.2 and
+# backend/services/tier2_cohort_valuation_service.py for the math.
+from backend.services.tier2_cohort_valuation_service import (
+    compute_tier2_fair_value,
+    is_tier2_skip_sector,
+    tier2_caveat,
+    tier2_enabled,
+)
+
+
+def _build_tier2_peers_from_sector_relative(
+    ticker: str,
+) -> list[dict]:
+    """Best-effort builder of a peer list for Tier 2 from existing
+    sector_relative DIRECT_PEERS + the live yfinance peer fetcher.
+
+    Returns [] on any failure — Tier 2 then returns None and the
+    caller falls back to generic DCF.  This keeps the W1 PR scope
+    contained: peer plumbing is deliberately small and best-effort
+    while the flag is off in prod.  W2 swaps this for a DB-backed
+    cohort query against `market_metrics` + `financials`.
+    """
+    try:
+        from screener.sector_relative import (
+            get_peers_for_ticker, _fetch_peer_metrics,
+        )
+    except Exception:
+        return []
+    peers = get_peers_for_ticker(ticker)
+    if not peers:
+        return []
+    try:
+        live = _fetch_peer_metrics(peers, exclude_ticker=ticker)
+    except Exception:
+        live = []
+    out: list[dict] = []
+    for row in live or []:
+        # Map sector_relative columns onto the Tier 2 PeerRecord shape.
+        # We don't have ROCE / Piotroski / market cap in CR here, so
+        # peers from this source land in the Tail bucket by default —
+        # which is the safe conservative choice (a peer with unknown
+        # quality should not be Premium).  When the W2 DB-backed
+        # builder lands, those fields populate properly.
+        out.append({
+            "ticker": row.get("ticker"),
+            "pe": row.get("pe"),
+            "ev_ebitda": row.get("ev_ebitda"),
+            "roce": None,
+            "piotroski": None,
+            # mktcap_b is in BILLIONS USD-equivalent in _fetch_peer_metrics;
+            # convert to CR (₹ Cr ≈ USD billion × 83.5 × 10 if INR ticker).
+            # We don't know currency reliably here, so leave None and
+            # let the bucket logic fall back to Tail for unknown.
+            "market_cap_cr": None,
+        })
+    return out
+
 
 class TickerNotFoundError(Exception):
     """Raised when the data provider returns no data for a ticker —
@@ -1255,7 +1316,100 @@ class AnalysisService(NarrativeMixin):
             growth_schedule = []
             base_growth = 0
         else:
+            # ── Tier 2 cohort valuation (Layer B W1; feature-flagged) ──
+            # When TIER2_ENABLED=true and the ticker is NOT in any
+            # sector-engine / skip path (banks, utilities, REITs, ETFs,
+            # holdcos handled by branches above), try the quality-
+            # bucketed sector cohort engine BEFORE generic DCF.  If
+            # Tier 2 succeeds, we populate iv/bear/bull from its result
+            # in the same shape as regulated_utility / financial paths.
+            # If Tier 2 returns None (cohort < 5 peers, missing EPS,
+            # peer median out of band) we fall through to generic DCF
+            # — no breaking change vs current state when the flag is
+            # off or the cohort is data-limited.
+            _tier2_result = None
+            _tier2_attempted = False
+            if tier2_enabled():
+                _tier2_attempted = True
+                try:
+                    _tier2_sector = (
+                        _enriched_sector
+                        or _resolve_sector(_raw_sector, clean_ticker)
+                    )
+                    if not is_tier2_skip_sector(_tier2_sector):
+                        # Piotroski may not have run yet (it runs in the
+                        # parallel step below). Compute it cheaply here
+                        # for the bucket decision; falls back to None on
+                        # any failure (peer → Tail bucket).
+                        try:
+                            _tier2_piotroski = compute_piotroski_fscore(
+                                enriched,
+                            )
+                            if isinstance(_tier2_piotroski, dict):
+                                _tier2_piotroski = _tier2_piotroski.get(
+                                    "fscore"
+                                ) or _tier2_piotroski.get("score")
+                        except Exception:
+                            _tier2_piotroski = None
+
+                        _tier2_eps = (
+                            enriched.get("diluted_eps")
+                            or raw.get("trailingEps")
+                            or enriched.get("eps")
+                            or raw.get("fh_eps_ttm")
+                        )
+                        _tier2_shares = (
+                            enriched.get("shares")
+                            or raw.get("shares", 0)
+                        )
+                        _tier2_mcap_cr = (
+                            (float(price or 0) * float(_tier2_shares or 0))
+                            / 1e7
+                        )
+                        _tier2_financials = {
+                            "eps": _tier2_eps,
+                            "ebitda": enriched.get("ebitda")
+                                or enriched.get("latest_ebitda"),
+                            "shares": _tier2_shares,
+                            "roce": enriched.get("roce_pct")
+                                or enriched.get("roce"),
+                            "piotroski": _tier2_piotroski,
+                            "market_cap_cr": _tier2_mcap_cr,
+                            "bvps": enriched.get("book_value_per_share")
+                                or enriched.get("bvps"),
+                            "net_debt_cr": (
+                                (enriched.get("total_debt", 0) or 0)
+                                - (enriched.get("total_cash", 0) or 0)
+                            ) / 1e7,
+                            "current_price": price,
+                        }
+                        _tier2_peers = _build_tier2_peers_from_sector_relative(
+                            ticker,
+                        )
+                        _tier2_result = compute_tier2_fair_value(
+                            ticker=ticker,
+                            sector=_tier2_sector,
+                            financials=_tier2_financials,
+                            peers=_tier2_peers,
+                        )
+                except Exception as _t2_exc:
+                    import logging as _t2_log
+                    _t2_log.getLogger("yieldiq.analysis").warning(
+                        "[%s] tier2_cohort_valuation failed: %s: %s",
+                        ticker, type(_t2_exc).__name__, _t2_exc,
+                    )
+                    _tier2_result = None
+
             # --- Standard DCF for non-financials ---
+            # NOTE on Tier 2 ordering: when TIER2_ENABLED=true and the
+            # cohort engine produced a valid FV above, we still let
+            # generic DCF run (defensive — its side effects on
+            # `projected` / `growth_schedule` are consumed downstream
+            # by scenarios / reverse-DCF) and then OVERRIDE iv / bear_iv
+            # / bull_iv / dcf_res with the Tier 2 result at the end of
+            # this branch.  This avoids reshuffling ~115 lines of
+            # indentation in this hot path; the override block lives
+            # just before the `# ── Growth-stock override ──` marker.
             forecast_result = forecaster.predict(enriched, years=forecast_yrs)
             projected = forecast_result.get("projections", [])
             growth_schedule = forecast_result.get("growth_schedule", [])
@@ -1371,6 +1525,39 @@ class AnalysisService(NarrativeMixin):
                     _pre_anchor_iv / price if price > 0 else 0.0, iv,
                     _trough_anchor_bear_iv, _trough_anchor_bull_iv,
                 )
+
+            # ── Tier 2 cohort override (Layer B W1; feature-flagged) ──
+            # If TIER2_ENABLED is on and the cohort engine produced a
+            # valid FV in the pre-DCF block above, REPLACE the DCF iv /
+            # bear_iv / bull_iv / dcf_res with the Tier 2 result here.
+            # Generic DCF was allowed to run first (so projections /
+            # growth_schedule are available for downstream scenarios /
+            # reverse-DCF), but the FV that surfaces in the response
+            # is the cohort number.
+            if (
+                _tier2_result is not None
+                and _tier2_result.get("fair_value", 0) > 0
+            ):
+                iv = float(_tier2_result["fair_value"])
+                iv_raw = iv
+                bear_iv = float(_tier2_result.get("bear_case", iv * 0.75))
+                bull_iv = float(_tier2_result.get("bull_case", iv * 1.25))
+                _tier2_method = _tier2_result.get("method", "cohort_pe")
+                _data_issues.append(
+                    tier2_caveat(_tier2_result.get("_meta", {}))
+                )
+                dcf_res = {
+                    "intrinsic_value_per_share": iv,
+                    "warnings": [f"Valuation: {_tier2_method} (Tier 2)"],
+                    "reliability_score": int(
+                        _tier2_result.get("confidence_score", 70)
+                    ),
+                    "tv_pct_of_ev": 0,
+                    "sum_pv_fcfs": 0,
+                    "pv_tv": 0,
+                    "enterprise_value": 0,
+                    "equity_value": 0,
+                }
 
         # ── Growth-stock override ─────────────────────────────
         # For pre-profit companies (FCF<=0 or PAT<=0) with real revenue,
