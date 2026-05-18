@@ -111,7 +111,30 @@ from backend.services.analysis.constants import (
     TOP_PRIVATE_BANKS,
     NEVER_SUPER_CYCLICAL,
     TICKER_SECTOR_OVERRIDES,
+    _INSURANCE_TICKERS,
 )
+
+
+def _try_insurance_appraisal(ticker: str, shares):
+    """Thin wrapper around
+    ``insurance_appraisal_service.get_appraisal_fair_value_for_ticker``
+    that swallows exceptions so a broken DB / missing migration never
+    crashes the analysis pipeline — at worst the ticker falls through
+    to the existing P/BV path (which is the current production
+    behaviour pre-PR).
+    """
+    try:
+        from backend.services.insurance_appraisal_service import (
+            get_appraisal_fair_value_for_ticker,
+        )
+        return get_appraisal_fair_value_for_ticker(ticker, shares)
+    except Exception as exc:
+        import logging as _log
+        _log.getLogger("yieldiq.analysis").warning(
+            "[%s] insurance_appraisal lookup failed: %s: %s",
+            ticker, type(exc).__name__, exc,
+        )
+        return None
 
 # ── NBFC WACC floor ─────────────────────────────────────────────
 # BAJFINANCE and peers route through the P/B financial-company
@@ -1239,6 +1262,42 @@ class AnalysisService(NarrativeMixin):
                 "reliability_score": (
                     int(_realty_val_result.get("confidence_score", 70))
                     if _realty_val_result else 50
+        elif (
+            # ── Insurance Appraisal-Value branch ──────────────────
+            # Routes life insurers (HDFCLIFE / SBILIFE / ICICIPRULI /
+            # LICI) through the EV + N×VNB engine *only when* the
+            # operator has loaded a row into ``insurance_appraisal_
+            # inputs`` via the admin UI. When no row exists,
+            # ``get_appraisal_fair_value_for_ticker`` returns None and
+            # this branch falls through to the existing P/BV path
+            # (``is_financial`` below) — so production output stays
+            # byte-identical until the first row of EV data is loaded.
+            # See docs/design/insurance-dcf-fix.md §3 Approach A and
+            # backend/services/insurance_appraisal_service.py.
+            clean_ticker.upper() in _INSURANCE_TICKERS
+            and (
+                _appraisal_val_result := _try_insurance_appraisal(
+                    ticker=ticker,
+                    shares=enriched.get("shares") or raw.get("shares", 0),
+                )
+            )
+        ):
+            bear_iv = float(_appraisal_val_result.get("bear_case") or 0)
+            bull_iv = float(_appraisal_val_result.get("bull_case") or 0)
+            iv = float(_appraisal_val_result.get("fair_value") or 0)
+            iv_raw = iv
+            _bvps = 0
+            _val_method = "appraisal_value (insurance EV + N×VNB)"
+            _meta_app = _appraisal_val_result.get("_meta") or {}
+            dcf_res = {
+                "intrinsic_value_per_share": iv,
+                "warnings": [
+                    f"Valuation: {_val_method} — N={_meta_app.get('n_multiplier')}, "
+                    f"EV/share=₹{_meta_app.get('ev_per_share')}, "
+                    f"VNB/share=₹{_meta_app.get('vnb_per_share')}"
+                ],
+                "reliability_score": int(
+                    _appraisal_val_result.get("confidence_score", 80)
                 ),
                 "tv_pct_of_ev": 0,
                 "sum_pv_fcfs": 0,
@@ -1249,6 +1308,11 @@ class AnalysisService(NarrativeMixin):
             projected = []
             growth_schedule = []
             base_growth = 0
+            if _meta_app.get("period_end"):
+                _data_issues.append(
+                    f"Appraisal Value derived from operator-curated EV/VNB inputs "
+                    f"as-of {_meta_app['period_end']}."
+                )
         elif is_financial:
             # Defaults — always defined regardless of which P/B path runs
             bear_iv = round(price * 0.75, 2) if price > 0 else 0

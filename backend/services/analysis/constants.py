@@ -56,7 +56,15 @@ _NBFC_TICKERS = {
     'POONAWALLA', 'AAVAS', 'HOMEFIRST',
 }
 _INSURANCE_TICKERS = {
-    'HDFCLIFE', 'SBILIFE', 'ICICIGI', 'NIACL', 'STARHEALTH',
+    # Life insurers (Appraisal Value engine consumers — see
+    # docs/design/insurance-dcf-fix.md and backend/services/
+    # insurance_appraisal_service.py). ICICIPRULI / LICI were added
+    # 2026-05-18 alongside the EV/VNB admin entry workflow so the
+    # admin endpoint validator accepts them.
+    'HDFCLIFE', 'SBILIFE', 'ICICIPRULI', 'LICI',
+    # General + health insurers (NOT routed through Appraisal Value;
+    # P/BV cohort with combined-ratio overlay — out of scope here).
+    'ICICIGI', 'NIACL', 'STARHEALTH',
 }
 
 # ── Unified bank-like classifier set (2026-04-29) ────────────────
