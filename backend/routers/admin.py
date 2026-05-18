@@ -723,6 +723,265 @@ async def get_user_activity(
 
 
 # ─────────────────────────────────────────────────────────────────
+# Insurance Embedded Value (EV) + Value of New Business (VNB) entry.
+#
+# Operator-curated quarterly workflow that activates the Appraisal
+# Value engine in backend/services/insurance_appraisal_service.py.
+# See docs/design/insurance-dcf-fix.md §3 Approach A and §8.4.
+#
+# Per-ticker schema (insurance_appraisal_inputs, migration 046):
+#   ticker, period_end, embedded_value_cr, value_new_business_cr,
+#   vnb_margin_pct, ev_growth_yoy_pct, source_url, entered_by,
+#   entered_at, notes.
+#
+# Validation:
+#   - ticker must be in INSURANCE_TICKERS (life-insurer subset; LICI
+#     and ICICIPRULI were added 2026-05-18 alongside this endpoint).
+#   - embedded_value_cr must be > 0.
+#   - period_end must not be in the future.
+# ─────────────────────────────────────────────────────────────────
+@router.get("/insurance-inputs")
+async def list_insurance_inputs(user: dict = Depends(require_admin)):
+    """Return every row in ``insurance_appraisal_inputs`` sorted by
+    ticker, period_end DESC. Empty list when the table has no rows
+    yet (expected on day-zero of this feature)."""
+    try:
+        from data_pipeline.db import Session as _Sess
+        from sqlalchemy import text as _t
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"db import failed: {_sanitize_error(exc, 'insurance-inputs.import')}",
+        )
+    if _Sess is None:
+        return {"rows": [], "warning": "no database session configured"}
+    db = _Sess()
+    try:
+        try:
+            rows = db.execute(
+                _t(
+                    "SELECT ticker, period_end, embedded_value_cr, "
+                    "value_new_business_cr, vnb_margin_pct, "
+                    "ev_growth_yoy_pct, source_url, entered_by, "
+                    "entered_at, notes "
+                    "FROM insurance_appraisal_inputs "
+                    "ORDER BY ticker ASC, period_end DESC"
+                )
+            ).fetchall()
+        except Exception as exc:
+            # Migration not applied → return empty list with a hint
+            # rather than 500, so the admin page is usable pre-migrate.
+            logger.warning(
+                "insurance_appraisal_inputs SELECT failed: %s: %s",
+                type(exc).__name__, exc,
+            )
+            return {
+                "rows": [],
+                "warning": (
+                    "insurance_appraisal_inputs table not present — "
+                    "apply migration 046_insurance_appraisal_inputs.sql"
+                ),
+            }
+        out = []
+        for r in rows:
+            out.append({
+                "ticker": r[0],
+                "period_end": r[1].isoformat() if r[1] else None,
+                "embedded_value_cr": float(r[2]) if r[2] is not None else None,
+                "value_new_business_cr": float(r[3]) if r[3] is not None else None,
+                "vnb_margin_pct": float(r[4]) if r[4] is not None else None,
+                "ev_growth_yoy_pct": float(r[5]) if r[5] is not None else None,
+                "source_url": r[6],
+                "entered_by": r[7],
+                "entered_at": r[8].isoformat() if r[8] else None,
+                "notes": r[9],
+            })
+        return {"rows": out, "count": len(out)}
+    finally:
+        db.close()
+
+
+@router.post("/insurance-inputs")
+async def upsert_insurance_input(
+    payload: dict,
+    user: dict = Depends(require_admin),
+):
+    """Upsert one row keyed on (ticker, period_end).
+
+    Expected JSON body::
+
+      {
+        "ticker": "HDFCLIFE",                   # required
+        "period_end": "2026-03-31",             # required, ISO date, not future
+        "embedded_value_cr": 51000,             # required, > 0
+        "value_new_business_cr": 3900,          # optional, > 0
+        "vnb_margin_pct": 26.5,                 # optional
+        "ev_growth_yoy_pct": 17.0,              # optional
+        "source_url": "https://...investor.pdf", # optional
+        "notes": "FY26 Q4 EV report"            # optional
+      }
+    """
+    # Lazy import the insurance ticker allow-list so a circular-import
+    # in this module never breaks the wider admin router.
+    from backend.services.analysis.constants import _INSURANCE_TICKERS
+    from datetime import date as _date
+
+    ticker = (payload.get("ticker") or "").strip().upper()
+    # Accept .NS/.BO suffixes but normalise to bare symbol.
+    ticker = ticker.replace(".NS", "").replace(".BO", "")
+    if not ticker:
+        raise HTTPException(status_code=400, detail="ticker is required")
+    if ticker not in _INSURANCE_TICKERS:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"ticker {ticker!r} is not in INSURANCE_TICKERS — "
+                f"valid: {sorted(_INSURANCE_TICKERS)}"
+            ),
+        )
+
+    period_end_raw = payload.get("period_end")
+    if not period_end_raw:
+        raise HTTPException(status_code=400, detail="period_end is required (ISO date)")
+    try:
+        period_end = _date.fromisoformat(str(period_end_raw)[:10])
+    except ValueError:
+        raise HTTPException(status_code=400, detail="period_end must be ISO YYYY-MM-DD")
+    if period_end > _date.today():
+        raise HTTPException(status_code=400, detail="period_end cannot be in the future")
+
+    try:
+        ev_cr = float(payload.get("embedded_value_cr"))
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="embedded_value_cr must be numeric")
+    if ev_cr <= 0:
+        raise HTTPException(status_code=400, detail="embedded_value_cr must be > 0")
+
+    def _opt_float(key):
+        v = payload.get(key)
+        if v is None or v == "":
+            return None
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            raise HTTPException(
+                status_code=400, detail=f"{key} must be numeric or null",
+            )
+
+    vnb_cr   = _opt_float("value_new_business_cr")
+    vnb_marg = _opt_float("vnb_margin_pct")
+    ev_grow  = _opt_float("ev_growth_yoy_pct")
+    src_url  = payload.get("source_url") or None
+    notes    = payload.get("notes") or None
+
+    try:
+        from data_pipeline.db import Session as _Sess
+        from sqlalchemy import text as _t
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"db import failed: {_sanitize_error(exc, 'insurance-inputs.import')}",
+        )
+    if _Sess is None:
+        raise HTTPException(status_code=500, detail="no database session configured")
+    db = _Sess()
+    try:
+        db.execute(
+            _t(
+                "INSERT INTO insurance_appraisal_inputs "
+                "(ticker, period_end, embedded_value_cr, value_new_business_cr, "
+                " vnb_margin_pct, ev_growth_yoy_pct, source_url, entered_by, "
+                " entered_at, notes) "
+                "VALUES (:t, :p, :ev, :vnb, :margin, :grow, :src, :who, NOW(), :n) "
+                "ON CONFLICT (ticker, period_end) DO UPDATE SET "
+                "  embedded_value_cr     = EXCLUDED.embedded_value_cr, "
+                "  value_new_business_cr = EXCLUDED.value_new_business_cr, "
+                "  vnb_margin_pct        = EXCLUDED.vnb_margin_pct, "
+                "  ev_growth_yoy_pct     = EXCLUDED.ev_growth_yoy_pct, "
+                "  source_url            = EXCLUDED.source_url, "
+                "  entered_by            = EXCLUDED.entered_by, "
+                "  entered_at            = NOW(), "
+                "  notes                 = EXCLUDED.notes"
+            ),
+            {
+                "t": ticker, "p": period_end, "ev": ev_cr,
+                "vnb": vnb_cr, "margin": vnb_marg, "grow": ev_grow,
+                "src": src_url, "who": user.get("email"), "n": notes,
+            },
+        )
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"upsert failed: {_sanitize_error(exc, 'insurance-inputs.upsert')}",
+        )
+    finally:
+        db.close()
+
+    return {
+        "status": "ok",
+        "ticker": ticker,
+        "period_end": period_end.isoformat(),
+        "entered_by": user.get("email"),
+    }
+
+
+@router.delete("/insurance-inputs")
+async def delete_insurance_input(
+    ticker: str,
+    period_end: str,
+    user: dict = Depends(require_admin),
+):
+    """Delete the (ticker, period_end) row. 404 when no such row."""
+    from datetime import date as _date
+    t = (ticker or "").strip().upper().replace(".NS", "").replace(".BO", "")
+    if not t:
+        raise HTTPException(status_code=400, detail="ticker is required")
+    try:
+        p = _date.fromisoformat(str(period_end)[:10])
+    except ValueError:
+        raise HTTPException(status_code=400, detail="period_end must be ISO YYYY-MM-DD")
+
+    try:
+        from data_pipeline.db import Session as _Sess
+        from sqlalchemy import text as _t
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"db import failed: {_sanitize_error(exc, 'insurance-inputs.import')}",
+        )
+    if _Sess is None:
+        raise HTTPException(status_code=500, detail="no database session configured")
+    db = _Sess()
+    try:
+        res = db.execute(
+            _t(
+                "DELETE FROM insurance_appraisal_inputs "
+                "WHERE ticker = :t AND period_end = :p"
+            ),
+            {"t": t, "p": p},
+        )
+        db.commit()
+        if res.rowcount == 0:
+            raise HTTPException(
+                status_code=404,
+                detail=f"no row for ticker={t} period_end={p.isoformat()}",
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"delete failed: {_sanitize_error(exc, 'insurance-inputs.delete')}",
+        )
+    finally:
+        db.close()
+
+    return {"status": "deleted", "ticker": t, "period_end": p.isoformat()}
+
+# ─────────────────────────────────────────────────────────────────
 # Benchmark reconciliation — Layer A safety net (PR #335 follow-on).
 #
 # Surfaces the join of analysis_cache.fair_value vs
