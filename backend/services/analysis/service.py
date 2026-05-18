@@ -96,6 +96,7 @@ from backend.services.analysis.constants import (
     INVENTORY_HEAVY_TICKERS,
     is_cyclical,
     is_bank_like,
+    is_etf,
     is_regulated_utility,
     COMPANY_NAME_OVERRIDES,
     _PB_MEDIANS,
@@ -553,8 +554,34 @@ class AnalysisService(NarrativeMixin):
         # sets (PFC / RECLTD / IRFC / HUDCO are in
         # _NBFC_INSURANCE_BANKLIKE for Piotroski bank-mode but value
         # via the regulated path).
-        is_regulated_utility_ticker = is_regulated_utility(
-            ticker, _enriched_sector, _enriched_industry,
+        # ── ETF classifier (audit Step 2, PR feat/etf-asset-type-classifier) ──
+        # ETFs (NIFTYBEES, BANKBEES, LIQUIDBEES, GOLDBEES, ICICIB22 …)
+        # are NOT operating businesses — they hold a basket of underlying
+        # securities and their fair value is the iNAV / NAV of those
+        # holdings published daily by the issuer. Running the generic
+        # FCF-DCF (or P/B, or peer-cap) path produces structurally
+        # nonsense FVs. We short-circuit BEFORE is_regulated_utility,
+        # is_financial, recent-IPO and the DCF branch entirely. ETF wins
+        # over every other classifier — an ETF that happens to hold
+        # utility stocks must still be valued as an ETF, not as a utility.
+        _etf_security_type = (
+            raw.get("quoteType")
+            or enriched.get("quoteType")
+            or raw.get("security_type")
+            or enriched.get("security_type")
+        )
+        is_etf_ticker = is_etf(
+            ticker,
+            sector=_enriched_sector,
+            industry=_enriched_industry,
+            security_type=_etf_security_type,
+        )
+
+        is_regulated_utility_ticker = (
+            False if is_etf_ticker
+            else is_regulated_utility(
+                ticker, _enriched_sector, _enriched_industry,
+            )
         )
 
         # ── Step 4: Build company info ────────────────────────
@@ -796,7 +823,39 @@ class AnalysisService(NarrativeMixin):
         #   2. is_financial — sector-appropriate P/BV / P/E peer-band.
         #   3. else — standard FCF-DCF via DCFEngine.
         _regulated_val_result = None
-        if is_regulated_utility_ticker:
+        if is_etf_ticker:
+            # ETF short-circuit — skip DCF / scenarios / peer_cap /
+            # recent-IPO / financial-valuation entirely. The fair value
+            # of an ETF is the NAV / iNAV of its underlying basket,
+            # published daily by the issuer; there is no operating-
+            # business cash flow to project.
+            iv = 0.0
+            iv_raw = 0.0
+            bear_iv = 0.0
+            bull_iv = 0.0
+            dcf_res = {
+                "intrinsic_value_per_share": 0.0,
+                "warnings": [
+                    "Valuation: ETFs are valued by NAV (net asset "
+                    "value) of their underlying holdings, not by DCF."
+                ],
+                "reliability_score": 0,
+                "tv_pct_of_ev": 0,
+                "sum_pv_fcfs": 0,
+                "pv_tv": 0,
+                "enterprise_value": 0,
+                "equity_value": 0,
+            }
+            projected = []
+            growth_schedule = []
+            base_growth = 0
+            _bvps = 0
+            _data_issues.append(
+                "ETFs are valued by NAV (net asset value) of their "
+                "underlying holdings, not by DCF. For NAV/iNAV refer "
+                "to the issuer's daily disclosure."
+            )
+        elif is_regulated_utility_ticker:
             # Defaults — always defined regardless of which path runs.
             bear_iv = round(price * 0.75, 2) if price > 0 else 0
             bull_iv = round(price * 1.25, 2) if price > 0 else 0
@@ -1244,7 +1303,9 @@ class AnalysisService(NarrativeMixin):
 
         # fcf_base for scenarios (only for tickers that ran a real DCF —
         # financials and regulated utilities both skip this).
-        _skip_dcf_downstream = bool(is_financial or is_regulated_utility_ticker)
+        _skip_dcf_downstream = bool(
+            is_financial or is_regulated_utility_ticker or is_etf_ticker
+        )
         _fcf_base_for_scen = None
         if not _skip_dcf_downstream:
             try:
@@ -1465,6 +1526,7 @@ class AnalysisService(NarrativeMixin):
             _is_recent_ipo
             and not is_financial
             and not is_regulated_utility_ticker
+            and not is_etf_ticker
             and price
             and price > 0
         ):
@@ -2573,8 +2635,11 @@ class AnalysisService(NarrativeMixin):
                 "iv_post_moat": float(iv or 0),
                 "moat_grade": moat_result.get("grade", "None"),
                 "valuation_model": (
-                    "rate_base" if is_regulated_utility_ticker
-                    else ("pb_ratio" if is_financial else "dcf")
+                    "etf_nav_based" if is_etf_ticker
+                    else (
+                        "rate_base" if is_regulated_utility_ticker
+                        else ("pb_ratio" if is_financial else "dcf")
+                    )
                 ),
                 "is_financial": bool(is_financial),
                 "is_regulated_utility": bool(is_regulated_utility_ticker),
@@ -2687,6 +2752,21 @@ class AnalysisService(NarrativeMixin):
             except Exception:
                 pass
 
+        # ── ETF final-state pin ──────────────────────────────────
+        # ETF short-circuit was set up at the top of Step 6. Force the
+        # final verdict / iv / MoS into the data_limited shape here so
+        # any intermediate adjustments (moat delta, scenario MoS, etc.)
+        # do not re-introduce a non-zero FV. The frontend gates
+        # FV/MoS/score-derived UI on verdict=="data_limited".
+        if is_etf_ticker:
+            verdict = "data_limited"
+            iv = 0.0
+            mos_pct = 0.0
+            try:
+                _mos_display = 0.0
+            except Exception:
+                pass
+
         # NOTE: _override was resolved earlier (before the Score-MoS
         # dominance cap) so the cap can be exempted for caveated names.
         # Reuse that result here.
@@ -2770,10 +2850,13 @@ class AnalysisService(NarrativeMixin):
                     else enriched.get("dcf_reliable", True)
                 ),
                 valuation_model=(
-                    "holding_company_sotp_required" if _holdco_skip
+                    "etf_nav_based" if is_etf_ticker
                     else (
-                        "rate_base" if is_regulated_utility_ticker
-                        else ("pb_ratio" if is_financial else "dcf")
+                        "holding_company_sotp_required" if _holdco_skip
+                        else (
+                            "rate_base" if is_regulated_utility_ticker
+                            else ("pb_ratio" if is_financial else "dcf")
+                        )
                     )
                 ),
                 reliability_score=dcf_res.get("reliability_score", 100),

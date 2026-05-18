@@ -469,6 +469,118 @@ def is_regulated_utility(
     return bare in REGULATED_UTILITY_TICKERS
 
 
+# ─────────────────────────────────────────────────────────────────────
+# ETF / exchange-traded-fund classifier (added 2026-05-18, audit step 2,
+# PR feat/etf-asset-type-classifier)
+#
+# ETFs are NOT operating businesses. They hold a basket of underlying
+# securities and their fair value is the iNAV / NAV of those holdings
+# published by the issuer daily — NOT a DCF on the fund's own "cash
+# flows" (there are none in the operating-business sense). Running the
+# generic FCF-DCF path on an ETF ticker produces structurally nonsense
+# FVs (typically near-zero because the trust has no FCF to project).
+#
+# Detection = (curated ticker allow-list) OR (ticker keyword fallback)
+# OR (sector/industry/quoteType signal). Curated set is the primary
+# defence; keyword fallback ("ETF", "BEES", "NIF50", "GILT", "GOLDETF"
+# in the ticker) catches the long tail of AMC-branded ETFs we haven't
+# enumerated. quoteType=='ETF' from yfinance is the third signal.
+#
+# Routed via service.py BEFORE is_regulated_utility_ticker — ETF wins
+# over every other classifier (an ETF that happens to hold utility
+# stocks must still be valued as an ETF, not as a utility).
+# ─────────────────────────────────────────────────────────────────────
+
+ETF_TICKERS: set[str] = {
+    # Nippon India / BeES family
+    "NIFTYBEES", "BANKBEES", "LIQUIDBEES", "GOLDBEES", "SILVERBEES",
+    "JUNIORBEES", "ITBEES", "PSUBNKBEES", "INFRABEES", "CONSUMBEES",
+    "DIVOPPBEES", "SHARIABEES",
+    # ICICI Prudential
+    "ICICIB22", "ICICILIQ", "ICICINIFTY", "ICICITECH",
+    # Motilal Oswal
+    "MOM100", "MOM50", "MOSt100", "MAFANG", "MASPTOP50", "MAFSETFIT",
+    # SBI Mutual Fund
+    "SETFNIF50", "SBIETFNIF", "SBIETFGOLD", "SBIETFCON", "SETFNN50",
+    "SBIETFPB", "SBIETFQLTY",
+    # Kotak
+    "KOTAKBKETF", "KOTAKLIQUID", "KOTAKNIFTY", "KOTAKPSUBK", "KOTAKNV20",
+    "KOTAKGOLD", "KOTAKIT",
+    # HDFC
+    "HDFCNIFETF", "HDFCSENSEX", "HDFCNIFBAN", "HDFCMID150", "HDFCSML250",
+    # Axis
+    "AXISNIFTY", "AXISBNKETF", "AXISGOLD", "AXISTECETF",
+    # Aditya Birla Sun Life / Mirae / IDFC / Edelweiss / others
+    "ABSLNN50ET", "BSLNIFTY", "MIRAEMETF", "IDFNIFTYET",
+    "NIFTYIETF", "NETFNIF50", "NETFNIFBK",
+    # Edelweiss / DSP / Quantum etc
+    "EDELWEISS", "DSPNIFTY", "QGOLDHALF", "GOLDSHARE",
+}
+
+
+_ETF_KEYWORD_PATTERNS = (
+    "ETF",
+    "BEES",
+    "NIF50",
+    "GILT",
+    "GOLDETF",
+    "SILVERETF",
+    "LIQUIDCASE",
+)
+
+
+def is_etf(
+    ticker: str | None,
+    sector: str | None = None,
+    industry: str | None = None,
+    security_type: str | None = None,
+) -> bool:
+    """Return True if `ticker` is an Exchange-Traded Fund (ETF).
+
+    Three independent signals — match on any:
+
+      1. Ticker membership in :data:`ETF_TICKERS` (curated allow-list).
+      2. Ticker keyword fallback: bare symbol contains one of
+         ``ETF``, ``BEES``, ``NIF50``, ``GILT``, ``GOLDETF`` (catches
+         the long tail of AMC-branded ETFs not in the curated set).
+      3. Upstream metadata says ETF: ``security_type`` (yfinance
+         ``quoteType``) equals ``"ETF"``, OR sector/industry text
+         contains "exchange-traded fund" / "exchange traded fund".
+
+    ETFs are valued by NAV / iNAV of their underlying holdings — not
+    by DCF, P/B, or any operating-business model. service.py
+    short-circuits to verdict="data_limited" with
+    valuation_method="etf_nav_based" when this returns True.
+    """
+    if security_type and security_type.strip().upper() == "ETF":
+        return True
+
+    if ticker:
+        bare = (
+            ticker.replace(".NS", "")
+            .replace(".BO", "")
+            .upper()
+        )
+        if bare in ETF_TICKERS:
+            return True
+        # Keyword fallback — anchored on the bare (no-suffix) symbol so
+        # we don't false-positive on company names that incidentally
+        # contain these substrings via the .NS / .BO suffix.
+        for kw in _ETF_KEYWORD_PATTERNS:
+            if kw in bare:
+                return True
+
+    blob = " ".join(
+        (sector or "").lower().strip().split() +
+        (industry or "").lower().strip().split()
+    )
+    if blob:
+        if "exchange-traded fund" in blob or "exchange traded fund" in blob:
+            return True
+
+    return False
+
+
 def is_cyclical(ticker: str | None, sector: str | None = None) -> bool:
     """Return True if the ticker (or its resolved sector) is cyclical.
 
