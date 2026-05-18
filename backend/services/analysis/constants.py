@@ -428,6 +428,47 @@ def is_top_private_bank(ticker: str | None) -> bool:
     return bare in TOP_PRIVATE_BANKS
 
 
+# ─────────────────────────────────────────────────────────────────────
+# Regulated-utility classifier (added 2026-05-18, PR
+# feat/regulated-utility-dcf-engine)
+#
+# Mirrors REGULATED_UTILITY_TICKERS in models/industry_wacc.py. Used by
+# backend/services/analysis/service.py to route these tickers through
+# the rate-base valuation path (regulated_utility_valuation_service)
+# instead of generic FCF-DCF, which structurally mis-values CERC /
+# PNGRB-regulated cash flows (debt double-penalty + capex-erodes-FCF).
+# Single import in service.py keeps the wiring readable.
+# ─────────────────────────────────────────────────────────────────────
+
+
+def is_regulated_utility(
+    ticker: str | None,
+    sector: str | None = None,
+    industry: str | None = None,
+) -> bool:
+    """Return True if `ticker` should be valued via the rate-base
+    regulated-utility engine (CERC / PNGRB / state tariff orders).
+
+    Ticker membership in :data:`models.industry_wacc.REGULATED_UTILITY_TICKERS`
+    is the single source of truth. `sector` / `industry` arguments are
+    accepted (and currently ignored) so the call site has the same shape
+    as ``is_bank_like`` / ``is_cyclical`` and so we can extend to keyword
+    fallbacks without churning every caller.
+    """
+    if not ticker:
+        return False
+    try:
+        from models.industry_wacc import REGULATED_UTILITY_TICKERS
+    except Exception:
+        return False
+    bare = (
+        ticker.replace(".NS", "")
+        .replace(".BO", "")
+        .upper()
+    )
+    return bare in REGULATED_UTILITY_TICKERS
+
+
 def is_cyclical(ticker: str | None, sector: str | None = None) -> bool:
     """Return True if the ticker (or its resolved sector) is cyclical.
 

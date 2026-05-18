@@ -96,6 +96,7 @@ from backend.services.analysis.constants import (
     INVENTORY_HEAVY_TICKERS,
     is_cyclical,
     is_bank_like,
+    is_regulated_utility,
     COMPANY_NAME_OVERRIDES,
     _PB_MEDIANS,
     _NBFC_TICKERS,
@@ -538,6 +539,24 @@ class AnalysisService(NarrativeMixin):
             ticker, _enriched_sector, _enriched_industry,
         )
 
+        # ── Regulated-utility classifier (PR feat/regulated-utility-dcf-engine) ──
+        # CERC / PNGRB / state-tariff-regulated utilities (POWERGRID,
+        # NTPC, NHPC, PFC, RECLTD, GAIL, TORNTPOWER, ADANIENSOL,
+        # ADANITRANS, IRFC, IEX, SJVN, HUDCO) must NOT use generic FCF-
+        # DCF. See docs/design/regulated-utility-dcf-fix.md for the
+        # failure trace; pre-PR POWERGRID printed FV ₹59.66 vs CMP ₹291
+        # (−79.5% MoS) because regulated capex erodes FCF while debt is
+        # then subtracted again at the equity-value step. The
+        # regulated_utility_valuation_service uses a rate-base /
+        # justified-P/B path instead. We intentionally short-circuit
+        # BEFORE the is_financial branch even when a ticker is in both
+        # sets (PFC / RECLTD / IRFC / HUDCO are in
+        # _NBFC_INSURANCE_BANKLIKE for Piotroski bank-mode but value
+        # via the regulated path).
+        is_regulated_utility_ticker = is_regulated_utility(
+            ticker, _enriched_sector, _enriched_industry,
+        )
+
         # ── Step 4: Build company info ────────────────────────
         _raw_sector = enriched.get("sector_name", raw.get("sector_name", ""))
         _display_name = COMPANY_NAME_OVERRIDES.get(ticker, raw.get("company_name", ticker))
@@ -768,8 +787,99 @@ class AnalysisService(NarrativeMixin):
         _trough_anchor_bear_iv: float | None = None
         _trough_anchor_bull_iv: float | None = None
 
-        # ── Step 6: Valuation (P/B for financials, DCF for others) ──
-        if is_financial:
+        # ── Step 6: Valuation (rate-base / P/B / DCF) ─────────────
+        # Branch priority:
+        #   1. is_regulated_utility_ticker — rate-base (Gordon
+        #      justified-P/B). Bypasses DCFEngine entirely. Falls
+        #      through to data_limited (NOT generic DCF) if BVPS is
+        #      missing.
+        #   2. is_financial — sector-appropriate P/BV / P/E peer-band.
+        #   3. else — standard FCF-DCF via DCFEngine.
+        _regulated_val_result = None
+        if is_regulated_utility_ticker:
+            # Defaults — always defined regardless of which path runs.
+            bear_iv = round(price * 0.75, 2) if price > 0 else 0
+            bull_iv = round(price * 1.25, 2) if price > 0 else 0
+            iv = round(price, 2) if price > 0 else 0
+            _val_method = ""
+            _bvps = 0
+
+            try:
+                from backend.services.regulated_utility_valuation_service import (
+                    compute_regulated_utility_fair_value,
+                )
+                _ru_company = {
+                    "current_price": price,
+                    "shares": enriched.get("shares") or raw.get("shares", 0),
+                    "market_cap": price * (enriched.get("shares", 0) or 0),
+                }
+                _ru_fin = {
+                    "priceToBook": raw.get("priceToBook") or enriched.get("pb_ratio"),
+                    "total_equity": enriched.get("total_equity") or raw.get("total_equity"),
+                    "book_value_per_share": enriched.get("book_value_per_share"),
+                    "bvps": enriched.get("bvps"),
+                    "roe": (
+                        raw.get("returnOnEquity")
+                        or enriched.get("roe")
+                    ),
+                    "returnOnEquity": raw.get("returnOnEquity"),
+                    "shares": enriched.get("shares") or raw.get("shares", 0),
+                }
+                _regulated_val_result = compute_regulated_utility_fair_value(
+                    ticker=ticker,
+                    company_info=_ru_company,
+                    financials=_ru_fin,
+                )
+            except Exception as _ru_exc:
+                import logging as _ru_log
+                _ru_log.getLogger("yieldiq.analysis").warning(
+                    "[%s] regulated_utility_valuation failed: %s: %s",
+                    ticker, type(_ru_exc).__name__, _ru_exc,
+                )
+                _regulated_val_result = None
+
+            if _regulated_val_result and _regulated_val_result.get("fair_value", 0) > 0:
+                iv = float(_regulated_val_result["fair_value"])
+                bear_iv = float(_regulated_val_result.get("bear_case", bear_iv))
+                bull_iv = float(_regulated_val_result.get("bull_case", bull_iv))
+                _val_method = (
+                    f"{_regulated_val_result.get('method', 'rate_base_gordon')} "
+                    f"(regulated utility)"
+                )
+                _bvps = float(_regulated_val_result.get("_meta", {}).get("bvps", 0) or 0)
+            else:
+                # No BVPS → honestly surface as data_limited rather than
+                # silently routing through generic DCF (which is the
+                # whole reason this branch exists).
+                _data_issues.append(
+                    "[data_limited] No book value per share available "
+                    "for regulated utility — rate-base valuation not "
+                    "possible."
+                )
+
+            iv_raw = iv
+            dcf_res = {
+                "intrinsic_value_per_share": iv,
+                "warnings": (
+                    [f"Valuation: {_val_method}"] if _val_method else []
+                ),
+                # Reliability ≥ 70 floor matches the existing gate in
+                # routers/analysis.py and the design-doc acceptance
+                # criterion (POWERGRID reliability_score >= 70).
+                "reliability_score": (
+                    int(_regulated_val_result.get("confidence_score", 70))
+                    if _regulated_val_result else 50
+                ),
+                "tv_pct_of_ev": 0,
+                "sum_pv_fcfs": 0,
+                "pv_tv": 0,
+                "enterprise_value": 0,
+                "equity_value": 0,
+            }
+            projected = []
+            growth_schedule = []
+            base_growth = 0
+        elif is_financial:
             # Defaults — always defined regardless of which P/B path runs
             bear_iv = round(price * 0.75, 2) if price > 0 else 0
             bull_iv = round(price * 1.25, 2) if price > 0 else 0
@@ -1132,9 +1242,11 @@ class AnalysisService(NarrativeMixin):
         except Exception:
             _price_history_for_momentum = None
 
-        # fcf_base for scenarios (non-financial only)
+        # fcf_base for scenarios (only for tickers that ran a real DCF —
+        # financials and regulated utilities both skip this).
+        _skip_dcf_downstream = bool(is_financial or is_regulated_utility_ticker)
         _fcf_base_for_scen = None
-        if not is_financial:
+        if not _skip_dcf_downstream:
             try:
                 _fcf_base_for_scen = (
                     projected[0] / (1 + growth_schedule[0])
@@ -1196,7 +1308,11 @@ class AnalysisService(NarrativeMixin):
                 return {"score": 50}
 
         def _run_scenarios():
-            if is_financial:
+            # Skip DCF-scenario engine for financials AND regulated
+            # utilities — both paths produce iv via a non-DCF route, and
+            # running run_scenarios on enriched FCFs would resurrect the
+            # very FCF-DCF mis-valuation this PR was built to escape.
+            if _skip_dcf_downstream:
                 return {}
             try:
                 return run_scenarios(
@@ -1338,7 +1454,13 @@ class AnalysisService(NarrativeMixin):
         except Exception:
             _is_recent_ipo = False
 
-        if _is_recent_ipo and not is_financial and price and price > 0:
+        if (
+            _is_recent_ipo
+            and not is_financial
+            and not is_regulated_utility_ticker
+            and price
+            and price > 0
+        ):
             try:
                 from backend.services.sector_percentile import (
                     compute_sector_cohort as _ipo_cohort_fn,
@@ -1410,6 +1532,12 @@ class AnalysisService(NarrativeMixin):
                 # Recent IPOs are valued sector-relative, not via DCF —
                 # the peer-cap (which assumes a DCF FV needs taming)
                 # would be a category error.
+                _pc = None
+            elif is_regulated_utility_ticker:
+                # Regulated utilities are valued via rate-base, not DCF.
+                # The peer-cap heuristic is calibrated for FCF-DCF
+                # over-shoots and would silently re-introduce the very
+                # mis-valuation this PR was built to escape.
                 _pc = None
             elif iv and iv > 0 and not is_financial:
                 _pc = _compute_peer_cap(ticker)
@@ -2389,6 +2517,14 @@ class AnalysisService(NarrativeMixin):
                 f"[info] Valued via {_method} peer band — DCF not "
                 f"meaningful for financials."
             )
+        # Regulated-utility analogue: surface the rate-base path so
+        # users understand why FV doesn't reconcile with reported FCF.
+        if is_regulated_utility_ticker and locals().get("_regulated_val_result"):
+            _method = _regulated_val_result.get("method", "rate_base_gordon")
+            _data_issues.append(
+                f"[info] Valued via {_method} — regulated utility, "
+                "FCF-DCF is not meaningful (capex is the rate base)."
+            )
 
         # ── FV stability snapshot (v35) ──────────────────────────
         # Pin every input that shaped the displayed `iv` into the
@@ -2429,8 +2565,12 @@ class AnalysisService(NarrativeMixin):
                 "iv_raw_pre_moat": float(locals().get("iv_raw") or 0),
                 "iv_post_moat": float(iv or 0),
                 "moat_grade": moat_result.get("grade", "None"),
-                "valuation_model": "pb_ratio" if is_financial else "dcf",
+                "valuation_model": (
+                    "rate_base" if is_regulated_utility_ticker
+                    else ("pb_ratio" if is_financial else "dcf")
+                ),
                 "is_financial": bool(is_financial),
+                "is_regulated_utility": bool(is_regulated_utility_ticker),
                 "cache_version": CACHE_VERSION,
             }
         except Exception:
@@ -2604,18 +2744,30 @@ class AnalysisService(NarrativeMixin):
                 terminal_growth=round(terminal_g, 4),
                 fcf_growth_rate=round(enriched.get("fcf_growth", 0), 4),
                 confidence_score=(
-                    _financial_val_result["confidence_score"]
-                    if is_financial and locals().get("_financial_val_result")
-                    else confidence.get("score", 50)
+                    _regulated_val_result["confidence_score"]
+                    if is_regulated_utility_ticker
+                    and locals().get("_regulated_val_result")
+                    else (
+                        _financial_val_result["confidence_score"]
+                        if is_financial and locals().get("_financial_val_result")
+                        else confidence.get("score", 50)
+                    )
                 ),
                 wacc_industry_min=round(max(0.06, wacc - 0.02), 4),
                 wacc_industry_max=round(min(0.16, wacc + 0.02), 4),
                 fcf_growth_historical_avg=round(enriched.get("fcf_growth", 0) * 0.9, 4),
                 tv_pct_of_ev=round(dcf_res.get("tv_pct_of_ev", 0) * 100, 1),
-                dcf_reliable=False if is_financial else enriched.get("dcf_reliable", True),
+                dcf_reliable=(
+                    False
+                    if (is_financial or is_regulated_utility_ticker)
+                    else enriched.get("dcf_reliable", True)
+                ),
                 valuation_model=(
                     "holding_company_sotp_required" if _holdco_skip
-                    else ("pb_ratio" if is_financial else "dcf")
+                    else (
+                        "rate_base" if is_regulated_utility_ticker
+                        else ("pb_ratio" if is_financial else "dcf")
+                    )
                 ),
                 reliability_score=dcf_res.get("reliability_score", 100),
                 pv_fcfs=round(dcf_res.get("sum_pv_fcfs", 0), 0),
