@@ -545,6 +545,9 @@ HOLDING_COMPANIES: set[str] = {
     "SUMMITSEC",        # Summit Securities
     "KAMAHOLD",         # Kama Holdings (SRF promoter holdco)
     "MAHSCOOTER",       # Maharashtra Scooters (Bajaj group holdco)
+    # GRASIM — holding for UltraTech Cement + VSF businesses.
+    # Standalone DCF misleading; needs SOTP.
+    "GRASIM",
 }
 
 
