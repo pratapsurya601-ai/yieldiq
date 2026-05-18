@@ -232,6 +232,20 @@ _TICKER_OVERRIDES: dict[str, dict[str, float]] = {
     "ULTRACEMCO": {"fv_tolerance_pct": 0.05, "mos_tolerance_pp": 4.0, "fv_cmp_min_override": 0.25},
     "AMBUJACEM":  {"fv_cmp_min_override": 0.25},
     "RAMCOCEM":   {"fv_cmp_min_override": 0.25},
+    # Metals super-cyclicals — same fv/cmp floor relaxation as cement
+    # super-cyclicals (PR #258). 10y signed-median can over-correct at
+    # trough. JSWSTEEL + HINDALCO observed at fv/cmp=0.30, below the
+    # default 0.35 floor but legitimate trough-cycle math. Extending the
+    # exemption to the full metals cohort for symmetry; revisit when the
+    # sector exits trough.
+    "JSWSTEEL":   {"fv_cmp_min_override": 0.25},
+    "HINDALCO":   {"fv_cmp_min_override": 0.25},
+    "TATASTEEL":  {"fv_cmp_min_override": 0.25},
+    "JINDALSTEL": {"fv_cmp_min_override": 0.25},
+    "SAIL":       {"fv_cmp_min_override": 0.25},
+    "NALCO":      {"fv_cmp_min_override": 0.25},
+    "VEDL":       {"fv_cmp_min_override": 0.25},
+    "NMDC":       {"fv_cmp_min_override": 0.25},
 }
 
 
