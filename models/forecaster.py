@@ -34,6 +34,38 @@ except Exception:  # pragma: no cover — keep forecaster importable in slim bui
     def is_inventory_heavy(ticker, sector=None, industry=None):  # type: ignore
         return False
 
+try:
+    from backend.services.analysis.constants import (
+        is_capital_goods,
+        CAPITAL_GOODS_REGIME_CHANGE,
+        CAPITAL_GOODS_HYPER_GROWTH,
+    )
+except Exception:  # pragma: no cover — slim builds
+    def is_capital_goods(ticker, sector=None, industry=None):  # type: ignore
+        return False
+    CAPITAL_GOODS_REGIME_CHANGE: dict[str, int] = {}
+    CAPITAL_GOODS_HYPER_GROWTH: set[str] = set()
+
+
+# Capital-goods FCF normalisation window. 7 years is long enough to
+# span a single project / capex cycle for EPC + heavy-engineering names
+# (LT, ABB, THERMAX) and short enough to avoid pre-2018 NSE
+# classification drift. Fallback `_MIN_CAPITAL_GOODS_YEARS` lets the
+# branch still fire for newer listings (KAYNES IPO'd Nov 2022, so
+# fewer than 4 years of clean cf_df rows are expected).
+CAPITAL_GOODS_WINDOW_YEARS: int = 7
+_MIN_CAPITAL_GOODS_YEARS: int = 3
+
+# Hyper-growth threshold (3y revenue CAGR above which the cap-goods
+# branch routes terminal_g through a stricter fade). KAYNES sits at
+# rev_3y ≈ 0.405; SIEMENS / ABB / LT sit below 0.20.
+CAPITAL_GOODS_HYPER_GROWTH_CAGR: float = 0.30
+# Hyper-growth terminal_g cap. Computed as min(reported_cagr × 0.5,
+# 0.06). 0.06 = high-end India long-run nominal growth; 0.5 × cagr
+# acknowledges some persistence of the near-term spike but refuses to
+# perpetuity-compound a 40% growth rate.
+CAPITAL_GOODS_HYPER_GROWTH_TERMINAL_CAP: float = 0.06
+
 log = get_logger(__name__)
 
 # ── Growth constraints ─────────────────────────────────────────
@@ -166,6 +198,113 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
         _inv_heavy = is_inventory_heavy(ticker, sector_arg, industry_arg)
     except Exception:
         _inv_heavy = False
+    # ── Candidate 2c: Capital-goods 7y WC-smoothed signed-median FCF ──
+    # (added 2026-05-18, PR feat/capital-goods-sector-engine)
+    #
+    # For project-execution / heavy-engineering tickers (LT, ABB,
+    # SIEMENS, THERMAX, CUMMINSIND, TIMKEN, SCHAEFFLER, GRINDWELL,
+    # KAYNES, ...) trailing 1-3y FCF is structurally unreliable — one
+    # milestone-billing year prints a peak, the next year's advance-
+    # payment + inventory build prints a trough. The fix:
+    #
+    #   1. Take a 7-year window of (CFO - |CapEx|) (CFO already nets
+    #      out WC deltas; subtracting |CapEx| produces the
+    #      Damodaran-style operating FCF that survives capex cycles).
+    #   2. If explicit `inventory` / `receivables` / `payables` columns
+    #      are available in cf_df, layer in an additional WC smoothing
+    #      term (subtract Δ inv + Δ rec - Δ pay) per year. In practice
+    #      CFO already incorporates this — the explicit subtraction is
+    #      a guard against year-tag misalignment.
+    #   3. Signed median (NOT positive-only): capital-goods legitimately
+    #      have negative-FCF years during heavy WC absorption; positive-
+    #      only would systematically anchor on cycle peaks. This is the
+    #      same shape as `cyc_10y_median` for super-cyclicals.
+    #   4. For BHEL (regime change post-2023) restrict the window to
+    #      years ≥ CAPITAL_GOODS_REGIME_CHANGE[ticker].
+    #   5. The candidate votes in the median pool alongside latest_fcf
+    #      / nopat_proxy / max_recent_fcf (see selection below).
+    _cap_goods = False
+    try:
+        _cap_goods = is_capital_goods(ticker, sector_arg, industry_arg)
+    except Exception:
+        _cap_goods = False
+    enriched["_is_capital_goods"] = bool(_cap_goods)
+    if _cap_goods and not cf_df.empty:
+        _cg_cfo_col = None
+        if "cfo" in cf_df.columns:
+            _cg_cfo_col = "cfo"
+        elif "ocf" in cf_df.columns:
+            _cg_cfo_col = "ocf"
+
+        # Regime-change cutoff (BHEL post-2023). When applied, drop pre-
+        # cutoff rows so the median doesn't reflect a dead-cycle that no
+        # longer applies (PSU thermal-power orderbook contraction).
+        _bare = (ticker or "").upper().replace(".NS", "").replace(".BO", "")
+        _regime_year = CAPITAL_GOODS_REGIME_CHANGE.get(_bare)
+
+        _cg_df = cf_df
+        if _regime_year is not None and "year" in cf_df.columns:
+            try:
+                _cg_df = cf_df[cf_df["year"] >= int(_regime_year)]
+                enriched["_capital_goods_regime_cutoff"] = int(_regime_year)
+            except Exception:
+                _cg_df = cf_df
+
+        if _cg_cfo_col is not None and "capex" in _cg_df.columns:
+            _wc_series = (
+                _cg_df[_cg_cfo_col] - _cg_df["capex"].abs()
+            ).tail(CAPITAL_GOODS_WINDOW_YEARS).dropna()
+
+            # Optional explicit WC overlay: if inventory / receivables /
+            # payables columns are present, subtract their year-over-year
+            # deltas (Δ inv + Δ rec - Δ pay). CFO usually already nets
+            # these out, but the overlay is a guard for collectors that
+            # report a "pre-WC CFO" alias. Missing columns → silent skip.
+            try:
+                _wc_overlay_cols = {
+                    "inv": next((c for c in ("inventory", "inventories")
+                                 if c in _cg_df.columns), None),
+                    "rec": next((c for c in ("receivables", "trade_receivables",
+                                              "accounts_receivable")
+                                 if c in _cg_df.columns), None),
+                    "pay": next((c for c in ("payables", "trade_payables",
+                                              "accounts_payable")
+                                 if c in _cg_df.columns), None),
+                }
+                if all(_wc_overlay_cols.values()):
+                    _tail = _cg_df.tail(CAPITAL_GOODS_WINDOW_YEARS + 1)
+                    _d_inv = _tail[_wc_overlay_cols["inv"]].diff().tail(
+                        CAPITAL_GOODS_WINDOW_YEARS)
+                    _d_rec = _tail[_wc_overlay_cols["rec"]].diff().tail(
+                        CAPITAL_GOODS_WINDOW_YEARS)
+                    _d_pay = _tail[_wc_overlay_cols["pay"]].diff().tail(
+                        CAPITAL_GOODS_WINDOW_YEARS)
+                    _wc_delta = (_d_inv.fillna(0) + _d_rec.fillna(0)
+                                 - _d_pay.fillna(0))
+                    # Align indexes (best-effort), subtract from
+                    # CFO-CapEx series. If alignment fails, fall back to
+                    # the plain (CFO - |CapEx|) tail computed above.
+                    try:
+                        _aligned = _wc_series.copy()
+                        _aligned.index = _wc_series.index
+                        _wc_delta.index = _wc_series.index[-len(_wc_delta):]
+                        _wc_series = _aligned.sub(_wc_delta, fill_value=0)
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            if len(_wc_series) >= _MIN_CAPITAL_GOODS_YEARS:
+                _cg_med = float(_wc_series.median())
+                candidates["cap_goods_7y_wc_smoothed"] = _cg_med
+                enriched["_capital_goods_window_years"] = int(len(_wc_series))
+                log.info(
+                    "[%s] capital-goods 7y WC-smoothed signed-median FCF: "
+                    "₹%.0fCr (n=%d years, regime_cutoff=%s)",
+                    ticker, _cg_med / 1e7, len(_wc_series),
+                    _regime_year if _regime_year else "—",
+                )
+
     if _inv_heavy and not cf_df.empty:
         # Accept either canonical "cfo" column or its "ocf" alias
         # (collector.py emits both — `cfo` is added at the data layer
@@ -232,6 +371,15 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
         nopat    = latest_revenue * margin_for_nopat * (1 - tax_rate)
         # FCF conversion based on the margin we are using (3y avg or TTM fallback)
         fcf_conv = 0.85 if margin_for_nopat >= 0.15 else 0.70
+        # Capital-goods override (sector_benchmarks.py::capital_goods sets
+        # fcf_conv=0.60 because project businesses absorb WC + run higher
+        # maintenance capex than the asset-light 0.85 default). Without
+        # this, SIEMENS / ELGIEQUIP / SCHAEFFLER's nopat_proxy candidate
+        # over-shoots, dragging the median selection to a peak-cycle
+        # value and producing +250% MoS FVs. See docs/design/
+        # capital-goods-dcf-fix.md §4 (Approach B step 3).
+        if _cap_goods:
+            fcf_conv = 0.60
 
         # Fix 1: Use normalised capex if M&A spike was detected
         norm_capex_pct = enriched.get("norm_capex_pct", None)
@@ -406,8 +554,25 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     # pharma economic earnings. Sector-gated via the candidate's own
     # presence, so non-pharma tickers see no change.
     pharma_rd_val = candidates.get("pharma_rd_adjusted", 0)
+    cap_goods_val = candidates.get("cap_goods_7y_wc_smoothed", 0)
     enriched["_pharma_rd_used"] = False
-    if _sector == "pharma" and pharma_rd_val > 0:
+    enriched["_capital_goods_used"] = False
+    if _cap_goods and cap_goods_val != 0:
+        # Capital-goods branch: vote cap_goods_7y_wc_smoothed into the
+        # median pool alongside latest_fcf / nopat_proxy / max_recent_fcf.
+        # Per docs/design/capital-goods-dcf-fix.md §4 the wc_adjusted_7y
+        # candidate should carry the most weight because it's the only
+        # one that survives project lumpiness — we promote it by
+        # ensuring it's in the pool even when negative-signed (signed
+        # median preservation), and let the standard median below pick
+        # the central value. Negative-signed cap_goods values are
+        # filtered out of the pool but the strategy stash records that
+        # the cap-goods branch fired (for debug visibility).
+        valid_candidates = [
+            v for v in [latest_val, nopat_val, max_val, cap_goods_val] if v > 0
+        ]
+        enriched["_capital_goods_used"] = True
+    elif _sector == "pharma" and pharma_rd_val > 0:
         valid_candidates = [
             v for v in [latest_val, nopat_val, max_val, pharma_rd_val] if v > 0
         ]
@@ -427,6 +592,27 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     base = max(primary, nopat_floor) if nopat_val > 0 else primary
 
     method = "median(latest_fcf, nopat_proxy, max_recent_fcf)"
+
+    # Capital-goods cap: when the cap-goods WC-smoothed 7y signed median
+    # is the credible anchor, prevent the nopat_floor (60% of peak EBIT)
+    # from smuggling a peak-cycle value back in. This is the cap-goods
+    # analogue of the cyc_norm hard ceiling for super-cyclicals.
+    if _cap_goods and cap_goods_val > 0:
+        # Allow up to 1.5x the WC-smoothed median (so a positive cycle
+        # can lift the base modestly) but never the full nopat_floor.
+        _cg_ceiling = cap_goods_val * 1.5
+        if base > _cg_ceiling:
+            base = _cg_ceiling
+            method = (
+                f"capital_goods_wc_smoothed_7y_capped"
+                f"(orig_method=median,wc_med=₹{cap_goods_val/1e7:.0f}Cr)"
+            )
+        else:
+            method = "capital_goods_wc_smoothed_7y"
+        _br = (ticker or "").upper().replace(".NS", "").replace(".BO", "")
+        if _br in CAPITAL_GOODS_REGIME_CHANGE:
+            method = f"capital_goods_regime_change({_br}≥{CAPITAL_GOODS_REGIME_CHANGE[_br]})"
+        enriched["_fcf_anchor_strategy"] = method
 
     # Cap cyclicals to the normalised FCF so the nopat_floor (60% of
     # peak-cycle EBIT) cannot smuggle the outlier back in.
@@ -1318,6 +1504,58 @@ class FCFForecaster:
         )
         _g_terminal_eff = TERMINAL_FADE_G + _terminal_g_adj
         _total_horizon = _explicit_years + _fade_years
+
+        # ── Capital-goods hyper-growth fade (added 2026-05-18, v113) ──
+        # KAYNES sits at rev_3y ≈ 0.405; SIEMENS / SCHAEFFLER / ELGIEQUIP
+        # at peak-cycle margins. A 30%+ near-term grower cannot
+        # compound to perpetuity at TERMINAL_FADE_G = 0.04 because the
+        # 5y exponential fade decays slowly enough to leave year-5
+        # growth still in the high-teens; the perpetuity then anchors
+        # the terminal value to that.
+        #
+        # Branch fires when:
+        #   - is_capital_goods(ticker) = True (sector-gated; non-cap-
+        #     goods hyper-growers are not affected)
+        #   - revenue_cagr_3y > CAPITAL_GOODS_HYPER_GROWTH_CAGR (0.30)
+        #     OR ticker ∈ CAPITAL_GOODS_HYPER_GROWTH curated set
+        #
+        # Effect: terminal_g pulled to min(reported_cagr × 0.5, 0.06)
+        # so the perpetuity caps even when the 5y fade hasn't fully
+        # decayed. 0.5x reflects partial persistence of the spike;
+        # 0.06 ceiling = high-end India long-run nominal growth.
+        try:
+            _is_cap_goods = bool(enriched.get("_is_capital_goods", False))
+        except Exception:
+            _is_cap_goods = False
+        _cg_bare = (ticker or "").upper().replace(".NS", "").replace(".BO", "")
+        _is_hyper_named = _cg_bare in CAPITAL_GOODS_HYPER_GROWTH
+        _rev_cagr_3y = float(enriched.get("revenue_cagr_3y") or 0.0)
+        if _is_cap_goods and (
+            _rev_cagr_3y > CAPITAL_GOODS_HYPER_GROWTH_CAGR or _is_hyper_named
+        ):
+            _hyper_terminal = min(
+                max(_rev_cagr_3y, 0.0) * 0.5,
+                CAPITAL_GOODS_HYPER_GROWTH_TERMINAL_CAP,
+            )
+            # Always apply the cap (it's the design's ceiling regardless
+            # of whether it raises or lowers the default 0.04). The real
+            # taming for hyper-growers like KAYNES happens via:
+            #   - MAX_FCF_GROWTH = 0.35 capping base growth in
+            #     _clamp(_exponential_fade(...)),
+            #   - the ticker_overrides[KAYNES].terminal_growth_override
+            #     = 0.06 cap propagated through service.py → DCFEngine.
+            # The _g_terminal_eff adjustment here primarily aligns the
+            # FCF projection's fade asymptote with the cap so the
+            # forecaster's last-3-year mean (`terminal_fcf_norm`) is
+            # consistent with the perpetuity_g used downstream.
+            _g_terminal_eff = _hyper_terminal
+            enriched["_capital_goods_hyper_growth_terminal_g"] = _g_terminal_eff
+            log.info(
+                "[%s] capital-goods hyper-growth fade: rev_cagr_3y=%.2f → "
+                "terminal_g=%.3f (cap=%.3f)",
+                ticker, _rev_cagr_3y, _g_terminal_eff,
+                CAPITAL_GOODS_HYPER_GROWTH_TERMINAL_CAP,
+            )
         # Use the compounder horizon when applicable, otherwise honour
         # the caller-supplied ``years`` (default FORECAST_YEARS = 10).
         if _total_horizon != 10:
@@ -1363,7 +1601,7 @@ class FCFForecaster:
                     fade_t = yr - _explicit_years
                     g = _clamp(_exponential_fade(fade_t, base_growth, _g_terminal_eff))
             else:
-                g = _clamp(_exponential_fade(yr, base_growth))
+                g = _clamp(_exponential_fade(yr, base_growth, _g_terminal_eff))
             fcf = fcf * (1 + g)
             if _terminal_ratio < 1.0 and yr <= 3:
                 fcf = fcf * _per_year_mult

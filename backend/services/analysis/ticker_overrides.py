@@ -194,6 +194,84 @@ TICKER_OVERRIDES: dict[str, dict] = {
     "MANKIND.NS": {"_alias_to": "MANKIND"},
     "MANKINDPHARMA": {"_alias_to": "MANKIND"},
     "MANKINDPHARMA.NS": {"_alias_to": "MANKIND"},
+
+    # ── Capital Goods sector engine (v113, 2026-05-18) ─────────────
+    # See docs/design/capital-goods-dcf-fix.md §4 for the recommendation.
+    # The cap-goods 7y WC-smoothed FCF candidate + nopat fcf_conv=0.60
+    # handle 12+ tickers cohort-wide. Two names need targeted overrides
+    # on top of the sector engine: BHEL (PSU regime change post-2023)
+    # and KAYNES (defence-EMS hyper-grower whose terminal_g cannot stay
+    # at 4% with a rev_3y of 40%).
+    "BHEL": {
+        "model_caveat": (
+            "BHEL is a PSU heavy-electrical / thermal-power equipment "
+            "maker that went through a decade-long orderbook decline "
+            "(FY13-FY22) followed by a Make-in-India + defence + nuclear "
+            "orders revival post-2023. Pre-2023 FCF is structurally "
+            "different from post-2023; the cap-goods 7y WC-smoothed "
+            "anchor is restricted to FY2023+ rows (CAPITAL_GOODS_REGIME_"
+            "CHANGE['BHEL']=2023) so the median doesn't reflect a dead "
+            "cycle. DCF is still exploratory — a proper SOTP across "
+            "thermal / nuclear / defence segments is on the Q3 roadmap."
+        ),
+        "verdict_label_prefix": "Regime change post-2023",
+    },
+    "BHEL.NS": {"_alias_to": "BHEL"},
+
+    "KAYNES": {
+        "model_caveat": (
+            "Kaynes Technology is a defence + EMS hyper-grower "
+            "(rev_3y ≈ 40%). yfinance tags it 'Tech Hardware / "
+            "Electronics' but the defence-EMS franchise is project-driven "
+            "capital goods — TICKER_SECTOR_OVERRIDES routes it to "
+            "'Capital Goods' so it picks up the 7y WC-smoothed FCF "
+            "anchor + fcf_conv=0.60. A 30%+ near-term CAGR cannot "
+            "compound to perpetuity, so terminal growth is capped at 6% "
+            "(min(rev_cagr_3y × 0.5, 0.06)) via the cap-goods hyper-"
+            "growth fade in models/forecaster.predict()."
+        ),
+        "verdict_label_prefix": "Hyper-growth — terminal capped",
+        # 0.06 = the cap from CAPITAL_GOODS_HYPER_GROWTH_TERMINAL_CAP.
+        # Belt-and-braces: even if the hyper-growth-fade branch in
+        # predict() doesn't fire (e.g. revenue_cagr_3y missing from
+        # enriched in a future code path), the override still pulls
+        # terminal_g down from the 4% default. Same shape as TITAN /
+        # MANKIND / ITC bumps but in the opposite direction.
+        "terminal_growth_override": 0.06,
+    },
+    "KAYNES.NS": {"_alias_to": "KAYNES"},
+    "KAYNESTECH": {"_alias_to": "KAYNES"},
+    "KAYNESTECH.NS": {"_alias_to": "KAYNES"},
+
+    # Sector-mistag caveat strings — surfaced on the analysis page so
+    # readers understand why TIMKEN / SCHAEFFLER / GRINDWELL FVs moved.
+    "TIMKEN": {
+        "model_caveat": (
+            "Re-sectored from 'Auto Components' to 'Capital Goods' "
+            "(v113, 2026-05-18). Bearings are historically auto-supply "
+            "but ~50% of revenue is now industrial / general "
+            "engineering — auto-components benchmarks gave wrong "
+            "terminal_g and capex assumptions. Now uses the 7y "
+            "WC-smoothed cap-goods FCF anchor."
+        ),
+    },
+    "TIMKEN.NS": {"_alias_to": "TIMKEN"},
+    "SCHAEFFLER": {
+        "model_caveat": (
+            "Re-sectored from 'Auto Components' to 'Capital Goods' "
+            "(v113, 2026-05-18). Industrial / general-engineering bearings "
+            "+ cap-goods fcf_conv=0.60 corrects a +280% over-valuation."
+        ),
+    },
+    "SCHAEFFLER.NS": {"_alias_to": "SCHAEFFLER"},
+    "GRINDWELL": {
+        "model_caveat": (
+            "Re-sectored from 'General / Diversified' to 'Capital Goods' "
+            "(v113, 2026-05-18). Abrasives are an industrial consumable; "
+            "the 7y WC-smoothed FCF anchor corrects a -59% under-valuation."
+        ),
+    },
+    "GRINDWELL.NS": {"_alias_to": "GRINDWELL"},
 }
 
 
