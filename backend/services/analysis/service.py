@@ -1519,6 +1519,27 @@ class AnalysisService(NarrativeMixin):
             ):
                 _is_recent_ipo = True
                 _ipo_listing_date = _listing_date_raw
+            # ── Named-ticker IPO-routing escape hatch ─────────────
+            # 2026-05-18 prod regression: PR #320 widened the pharma
+            # IPO window to 60mo, which routed MANKIND through
+            # compute_sector_relative_fv. The pharma cohort P/E median
+            # (~17x) materially under-prices MANKIND's domestic-OTC
+            # franchise; FV collapsed from ₹1,244 (pre-PR DCF) to
+            # ₹1,046 (post-PR cohort PE × EPS). For named tickers
+            # where we have a calibrated terminal_growth_override and
+            # the cohort median is a known mis-fit, force the DCF
+            # path so the override + R&D candidate actually take
+            # effect. See ticker_overrides.py `skip_ipo_routing`.
+            if _is_recent_ipo:
+                try:
+                    _ipo_skip_entry = _get_ticker_override(ticker)
+                    if _ipo_skip_entry and _ipo_skip_entry.get(
+                        "skip_ipo_routing"
+                    ):
+                        _is_recent_ipo = False
+                        _ipo_listing_date = None
+                except Exception:
+                    pass
         except Exception:
             _is_recent_ipo = False
 
