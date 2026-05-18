@@ -948,6 +948,13 @@ REGULATED_UTILITY_TICKERS = {
     "TORNTPOWER",  # Distribution, state-regulated
     "ADANITRANS",  # Transmission, CERC-regulated (legacy ticker, pre-2024 rename)
     "ADANIENSOL",  # Adani Energy Solutions — post-2024-rename canonical symbol
+    # Added 2026-05-18 (feat/regulated-utility-dcf-engine): tickers
+    # called out in docs/design/regulated-utility-dcf-fix.md §5 as
+    # blocked by the same generic-FCF-DCF defect.
+    "IRFC",        # Indian Railway Finance Corp — regulated NBFC (rate-base analogue)
+    "IEX",         # Indian Energy Exchange — regulated exchange, near-bond cash flows
+    "SJVN",        # SJVN Limited — state hydro, regulated tariff
+    "HUDCO",       # Housing & Urban Development Corp — regulated lender
 }
 
 
