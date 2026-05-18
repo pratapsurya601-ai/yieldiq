@@ -100,13 +100,26 @@ export default function InsuranceAdminPage() {
     }
   }, [])
 
+  // Wait for Zustand persist hydration before redirecting non-admins
+  // (otherwise valid admins flicker to /home before localStorage loads).
+  const [hydrated, setHydrated] = useState(false)
   useEffect(() => {
+    if (useAuthStore.persist.hasHydrated()) {
+      setHydrated(true)
+      return
+    }
+    const unsub = useAuthStore.persist.onFinishHydration(() => setHydrated(true))
+    return unsub
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated) return
     if (!isAdmin) {
       router.push("/home")
       return
     }
     void refresh()
-  }, [isAdmin, refresh, router])
+  }, [hydrated, isAdmin, refresh, router])
 
   function validate(state: FormState): string {
     if (!state.ticker) return "Ticker is required"
@@ -202,6 +215,7 @@ export default function InsuranceAdminPage() {
     }
   }
 
+  if (!hydrated) return null
   if (!isAdmin) return null
 
   return (

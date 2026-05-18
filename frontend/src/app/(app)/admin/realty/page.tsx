@@ -100,13 +100,27 @@ export default function RealtyLandBankAdminPage() {
     }
   }, [])
 
+  // Wait for Zustand persist hydration before checking admin status.
+  // Without this, the first render sees email=null (before localStorage
+  // rehydrates) and redirects to /home — even for valid admins.
+  const [hydrated, setHydrated] = useState(false)
   useEffect(() => {
+    if (useAuthStore.persist.hasHydrated()) {
+      setHydrated(true)
+      return
+    }
+    const unsub = useAuthStore.persist.onFinishHydration(() => setHydrated(true))
+    return unsub
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated) return
     if (!email || !ADMIN_EMAILS.includes(email)) {
       router.push("/home")
       return
     }
     refresh()
-  }, [email, router, refresh])
+  }, [hydrated, email, router, refresh])
 
   function startEdit(row: LandBankRow) {
     setEditingTicker(row.ticker)
@@ -171,6 +185,7 @@ export default function RealtyLandBankAdminPage() {
     }
   }
 
+  if (!hydrated) return null
   if (!email || !ADMIN_EMAILS.includes(email)) return null
 
   return (

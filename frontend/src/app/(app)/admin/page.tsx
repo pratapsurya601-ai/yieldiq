@@ -35,7 +35,19 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
+  // Wait for Zustand persist hydration before redirecting non-admins.
+  const [hydrated, setHydrated] = useState(false)
   useEffect(() => {
+    if (useAuthStore.persist.hasHydrated()) {
+      setHydrated(true)
+      return
+    }
+    const unsub = useAuthStore.persist.onFinishHydration(() => setHydrated(true))
+    return unsub
+  }, [])
+
+  useEffect(() => {
+    if (!hydrated) return
     if (!email || !ADMIN_EMAILS.includes(email)) {
       router.push("/home")
       return
@@ -44,8 +56,9 @@ export default function AdminPage() {
       .then((r) => setStats(r.data))
       .catch((e) => setError(e?.response?.data?.detail || "Failed to load stats"))
       .finally(() => setLoading(false))
-  }, [email, router])
+  }, [hydrated, email, router])
 
+  if (!hydrated) return null
   if (!email || !ADMIN_EMAILS.includes(email)) {
     return null
   }
