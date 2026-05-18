@@ -104,7 +104,16 @@ def _is_quarantined(ticker: str | None) -> bool:
 BOUNDS = {
     # field: (min, max, severity)
     "wacc":              (0.02, 0.30, "critical"),    # 2%-30%
-    "terminal_growth":   (0.0,  0.08, "critical"),    # 0%-8%
+    # terminal_growth tightened from [0.0, 0.08] to [0.02, 0.06] (audit
+    # Step 4, anomaly-detection rule 1, 2026-05-18). India long-run
+    # nominal GDP runs ~5–5.5%; a perpetual growth assumption above
+    # 6% is unsupportable in steady-state and a sub-2% terminal growth
+    # implies real-terms decline (deflation) which is also a red flag.
+    # SEVERITY = "warning" (not "critical") to avoid surprise-quarantining
+    # cyclical-trough cached payloads where the trough anchor legitimately
+    # set terminal_g below 2% (steel/oil/metals at cycle bottoms).
+    # The flag still surfaces in data_issues for review.
+    "terminal_growth":   (0.02, 0.06, "warning"),     # 2%-6% (warning, not gate)
     "fcf_growth_rate":   (-0.50, 0.80, "warning"),    # -50% to +80%
     # MoS floor widened from -95 to -100 (2026-04-22). See bounds.py
     # for the rationale — NIVABUPA.NS legitimately lands at -96.5%
@@ -119,6 +128,16 @@ BOUNDS = {
     "confidence":        (0, 100, "warning"),
     "pe_ratio":          (-200, 500, "warning"),
     "market_cap_inr":    (10e7, 30e12, "critical"),   # ₹10 Cr to ₹30L Cr
+    # ── Anomaly-detection rules (audit Step 4, 2026-05-18) ─────
+    # Reverse-DCF implied growth: outside [-10%, +50%] the reverse-DCF
+    # has either inverted (negative implied growth = market pricing
+    # in decline beyond a credible floor) or run away into the
+    # unrealistic-growth band. Both flag model unreliability.
+    "implied_growth_pct": (-0.10, 0.50, "warning"),
+    # Scenario valuation dispersion = bull_iv / bear_iv. A spread
+    # wider than 5x means the bear and bull scenarios are not
+    # describing the same business — i.e. inputs are nonsense.
+    "valuation_dispersion": (0.0, 5.0, "warning"),
 }
 
 
@@ -379,6 +398,130 @@ def validate_analysis(response) -> ValidationResult:
                         )
         except Exception:
             pass
+
+    # ── ANOMALY-DETECTION RULES (audit Step 4, 2026-05-18) ────
+    # Read-time gates only — no cache-layout change. Each rule guards
+    # against a specific historical mistag pattern that slipped past
+    # the existing bounds. See PR description for which rule covers
+    # which audit recommendation.
+    insights = getattr(response, "insights", None)
+    scenarios = getattr(response, "scenarios", None)
+
+    # Rule 2: reverse-DCF implied growth out of band → warning.
+    # Field lives on InsightCards.reverse_dcf_implied_growth (DECIMAL).
+    if insights is not None:
+        impl_g = getattr(insights, "reverse_dcf_implied_growth", None)
+        _check_bound("implied_growth_pct", impl_g, result)
+
+    # Rule 3: valuation dispersion bull/bear > 5x → warning.
+    # bear_case / bull_case live on ValuationOutput as the scenario IVs.
+    if v is not None:
+        try:
+            bear_iv = float(getattr(v, "bear_case", 0) or 0)
+            bull_iv = float(getattr(v, "bull_case", 0) or 0)
+        except (TypeError, ValueError):
+            bear_iv = bull_iv = 0.0
+        if bear_iv > 0 and bull_iv > 0:
+            dispersion = bull_iv / bear_iv
+            _check_bound("valuation_dispersion", dispersion, result)
+
+    # Rule 4: utility overvaluation guard. Regulated utilities are
+    # valued via the rate-base engine; an IV > 60% above market for
+    # a CERC/PNGRB/state-tariff name signals the inputs are off, not
+    # a mispriced asset. Promote to critical so it routes through
+    # under_review and is investigated before shipping.
+    try:
+        from backend.services.analysis.constants import is_regulated_utility
+    except Exception:
+        is_regulated_utility = None  # type: ignore[assignment]
+
+    _ticker = getattr(response, "ticker", None)
+    _sector = getattr(c, "sector", None) if c is not None else None
+    _industry = getattr(c, "industry", None) if c is not None else None
+    _is_utility = False
+    if is_regulated_utility is not None:
+        try:
+            _is_utility = bool(is_regulated_utility(_ticker, _sector, _industry))
+        except Exception:
+            _is_utility = False
+
+    if _is_utility and v is not None:
+        try:
+            iv = float(getattr(v, "fair_value", 0) or 0)
+            price = float(getattr(v, "current_price", 0) or 0)
+        except (TypeError, ValueError):
+            iv = price = 0.0
+        if iv > 0 and price > 0:
+            overshoot = (iv - price) / price
+            if overshoot > 0.6:
+                result.ok = False
+                result.severity = "critical"
+                if "fair_value" not in result.failed_fields:
+                    result.failed_fields.append("fair_value")
+                result.issues.append(
+                    f"UTILITY_OVERVALUATION: regulated utility {_ticker} "
+                    f"IV {iv:g} is {overshoot*100:.1f}% above price {price:g} "
+                    f"— rate-base valuation should be conservative; investigate inputs."
+                )
+
+    # Rule 5: .NS ticker with USD currency — historical mistag pattern
+    # (v50 / v75 / v90 corp-actions / currency-conversion). Fail-closed
+    # critical because every prior occurrence was a data bug, not a
+    # legitimate dual-listing situation (those route through the ADR
+    # handler before reaching the analysis payload).
+    if (
+        isinstance(_ticker, str)
+        and _ticker.upper().endswith(".NS")
+        and c is not None
+    ):
+        ccy = getattr(c, "currency", None)
+        if isinstance(ccy, str) and ccy.strip().upper() == "USD":
+            result.ok = False
+            result.severity = "critical"
+            if "currency" not in result.failed_fields:
+                result.failed_fields.append("currency")
+            result.issues.append(
+                f"ADR_NSE_MISMATCH: .NS ticker {_ticker} carries currency=USD "
+                f"— historical mistag pattern (v50/v75/v90)."
+            )
+
+    # Rule 6: FCF CAGR 5y sanity (>40% non-utility) — SKIPPED.
+    # `fcf_cagr_5y` is not a precomputed field on AnalysisResponse and
+    # the validator is invoked against the response object (not the
+    # enriched dict), so we cannot derive it here without fabricating
+    # a new field. Documented in PR body; revisit once a normalized
+    # FCF history is wired through the response model.
+
+    # Rule 7: phantom revenue CAGR — when a structural break (demerger,
+    # major M&A, capital restructure) is on file in the trailing 3y,
+    # a >30% 3y revenue CAGR is almost certainly the overlay failing
+    # to stitch pre/post bases, not real growth. Promote to critical.
+    try:
+        from backend.services.corporate_actions_service import has_structural_break
+    except Exception:
+        has_structural_break = None  # type: ignore[assignment]
+
+    if has_structural_break is not None and q is not None and _ticker:
+        try:
+            _broken = bool(has_structural_break(_ticker))
+        except Exception:
+            _broken = False
+        if _broken:
+            rev_cagr = getattr(q, "revenue_cagr_3y", None)
+            try:
+                rc = float(rev_cagr) if rev_cagr is not None else None
+            except (TypeError, ValueError):
+                rc = None
+            if rc is not None and abs(rc) > 0.30:
+                result.ok = False
+                result.severity = "critical"
+                if "revenue_cagr_3y" not in result.failed_fields:
+                    result.failed_fields.append("revenue_cagr_3y")
+                result.issues.append(
+                    f"PHANTOM_REVENUE_CAGR: {_ticker} revenue_cagr_3y "
+                    f"{rc*100:.1f}% on a structurally-broken ticker "
+                    f"— overlay may have failed to stitch pre/post bases."
+                )
 
     # ── DCF TRACE (ring-buffer) CHECKS ────────────────────────
     try:
