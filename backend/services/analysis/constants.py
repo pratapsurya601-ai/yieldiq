@@ -665,6 +665,180 @@ for _t in (FINANCIAL_COMPANIES - _NBFC_TICKERS - _INSURANCE_TICKERS):
 TICKER_SECTOR_OVERRIDES["AMBUJACEM"] = "Cement"
 TICKER_SECTOR_OVERRIDES["AMBUJACEM.NS"] = "Cement"
 
+# ── Capital Goods sector mistag fixes (added 2026-05-18, v113) ──────────
+# yfinance routinely surfaces bearings / abrasives / defence-EMS names
+# under unrelated buckets ("Auto Components" for TIMKEN/SCHAEFFLER —
+# historically true but ~50% of revenue is now industrial / general
+# engineering; "General/Diversified" for GRINDWELL — abrasives is a
+# capital-goods consumable; "Tech Hardware/Electronics" for KAYNES —
+# the defence-EMS franchise is project-driven capital goods).
+#
+# Routing them to "Capital Goods" wires them into:
+#   - is_capital_goods() classifier
+#   - sector_benchmarks.py::capital_goods (fcf_conv=0.60, wc_days=90)
+#   - the 7y WC-smoothed FCF candidate in _compute_fcf_base
+# See docs/design/capital-goods-dcf-fix.md §4 (Approach B + sector-mistag).
+#
+# Note on VOLTAS/BLUESTARCO/HAVELLS: per the design doc §4, these
+# stay tagged "Consumer Durables" (yfinance is technically right —
+# they are durables-facing) but are flagged via HYBRID_INDUSTRIAL_DURABLES
+# so the capital-goods FCF normalisation still fires (their B2B project
+# segments — MEP / commercial refrigeration / industrial cables — are
+# the under-valued tail). Pure sector override would cascade to peer
+# tables / hex axes etc. — bad.
+for _t in ("TIMKEN", "SCHAEFFLER", "GRINDWELL", "KAYNES"):
+    TICKER_SECTOR_OVERRIDES[_t] = "Capital Goods"
+    TICKER_SECTOR_OVERRIDES[f"{_t}.NS"] = "Capital Goods"
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Capital Goods classifier (added 2026-05-18, v113,
+# PR feat/capital-goods-sector-engine)
+#
+# 18 capital-goods / industrial tickers were broken bidirectionally
+# (15/18 outside ±30% of consensus). Root cause: lumpy project FCF +
+# working-capital absorption. Trailing 1-3y FCF for a turnkey project
+# business is meaningless — one milestone crossing inflates FCF, one
+# advance-payment WC build crashes it. The 5y revenue CAGR is null for
+# 10/18 names because revenue itself oscillates with project execution.
+#
+# This classifier routes detected tickers through a new branch in
+# models/forecaster._compute_fcf_base:
+#   - 7-year WC-smoothed signed-median FCF candidate (subtracts the
+#     yearly Δ inventory + Δ receivables - Δ payables to remove WC
+#     noise; signed median preserves legitimate negative-cycle years).
+#   - Hyper-growth fade for `revenue_cagr_3y > 0.30` (KAYNES style —
+#     30%+ cannot be perpetual; terminal_g pulled toward min(cagr×0.5,
+#     0.06) so the perpetuity cap doesn't compound to infinity).
+#
+# Detection = (curated allow-list) OR (sector keyword match) OR
+# (industry keyword match). Curated set is primary defence; sector
+# fallback catches yfinance "Industrials" / "Engineering" / "Capital
+# Goods" buckets.
+# ─────────────────────────────────────────────────────────────────────
+
+CAPITAL_GOODS_TICKERS: set[str] = {
+    # EPC / turnkey engineering (under-valued by trailing FCF; WC heavy)
+    "LT",            # Larsen & Toubro
+    "KEC",           # KEC International (T&D EPC)
+    "ISGEC",         # ISGEC Heavy Engineering
+    "BHEL",          # PSU thermal-power equipment (regime change post-2023)
+    "GMMPFAUDLR",    # GMM Pfaudler (glass-lined reactors)
+    "ELGIEQUIP",     # Elgi Equipments (air compressors)
+    # Process / plant engineering
+    "THERMAX",       # boiler + utility-plant engineering
+    "CUMMINSIND",    # Cummins India (gen-sets, engines)
+    "SIEMENS",       # Siemens India (post-Siemens-Energy demerger)
+    "ABB",           # ABB India
+    "CGPOWER",       # CG Power & Industrial Solutions
+    # Bearings / abrasives / industrial consumables (sector-mistagged)
+    "TIMKEN",        # Timken India (bearings — yfinance tags Auto Components)
+    "SCHAEFFLER",    # Schaeffler India (bearings — yfinance tags Auto Components)
+    "GRINDWELL",     # Grindwell Norton (abrasives — yfinance tags General)
+    "AIAENG",        # AIA Engineering (grinding media)
+    "KIRLOSKARIND",  # Kirloskar Industries
+    "KIRLOSKAROIL",  # Kirloskar Oil Engines
+    # Defence / EMS hyper-grower (sector-mistagged Tech Hardware)
+    "KAYNES",        # Kaynes Technology (defence + EMS, hyper-growth)
+    # Adjacent (engine OEMs, gearbox, motors)
+    "GREAVESCOT",    # Greaves Cotton
+}
+
+
+_CAPITAL_GOODS_SECTOR_KEYWORDS = (
+    "capital goods",
+    "industrials",
+    "engineering",
+    "engineering & construction",
+    "engineering and construction",
+    "heavy electrical equipment",
+    "industrial machinery",
+    "construction machinery",
+    "electrical equipment",
+)
+
+_CAPITAL_GOODS_INDUSTRY_KEYWORDS = (
+    "specialty industrial machinery",
+    "industrial machinery",
+    "electrical equipment",
+    "engineering",
+    "heavy machinery",
+    "bearings",
+    "abrasives",
+    "construction & engineering",
+)
+
+
+# Hybrid industrial / consumer-durable tickers. Sector stays
+# "Consumer Durables" (yfinance is right for HAVELLS/VOLTAS/BLUESTARCO
+# — they DO sell to consumers) but their B2B project tail (VOLTAS MEP
+# / HAVELLS industrial cable / BLUESTAR commercial refrigeration) is
+# what trailing-FCF DCF mis-prices. Flag so _compute_fcf_base still
+# applies the WC-smoothed 7y FCF normalisation.
+HYBRID_INDUSTRIAL_DURABLES: set[str] = {
+    "VOLTAS",
+    "BLUESTARCO",
+    "HAVELLS",
+}
+
+
+# Per-ticker regime-change cutoffs. For BHEL the pre-2023 decade was
+# structural decline (PSU thermal-power orderbook contraction); the
+# post-2023 Make-in-India + defence-orders revival is a different
+# business. Restrict the FCF window to years >= cutoff so the trailing
+# median doesn't reflect a dead-cycle that no longer applies.
+CAPITAL_GOODS_REGIME_CHANGE: dict[str, int] = {
+    "BHEL": 2023,
+}
+
+
+# Tickers explicitly classified as cap-goods hyper-growers (rev_3y
+# regularly > 30%). Hyper-growth branch in _compute_fcf_base fades
+# terminal_g down so the perpetuity isn't anchored on a 40% growth
+# rate that cannot be perpetual.
+CAPITAL_GOODS_HYPER_GROWTH: set[str] = {
+    "KAYNES",
+}
+
+
+def is_capital_goods(
+    ticker: str | None,
+    sector: str | None = None,
+    industry: str | None = None,
+) -> bool:
+    """Return True if the ticker should route through the capital-goods
+    sector engine in :func:`models.forecaster._compute_fcf_base`.
+
+    Three independent signals — match on any:
+
+      1. Ticker membership in :data:`CAPITAL_GOODS_TICKERS` (curated
+         allow-list) or :data:`HYBRID_INDUSTRIAL_DURABLES` (durables
+         with a material B2B project tail).
+      2. Sector string matches one of the cap-goods keywords
+         ("Capital Goods", "Industrials", "Engineering", ...).
+      3. Industry string contains one of the cap-goods industry
+         keywords ("Specialty Industrial Machinery", "Bearings",
+         "Abrasives", "Electrical Equipment", ...).
+
+    Mirrors the shape of :func:`is_inventory_heavy` and
+    :func:`is_capex_super_cyclical`. Used by the forecaster to route
+    detected tickers through the 7y WC-smoothed FCF candidate and the
+    hyper-growth terminal fade branch.
+    """
+    bare = (ticker or "").upper().replace(".NS", "").replace(".BO", "")
+    if bare and (
+        bare in CAPITAL_GOODS_TICKERS
+        or bare in HYBRID_INDUSTRIAL_DURABLES
+    ):
+        return True
+    s = (sector or "").strip().lower()
+    if s and any(k == s or k in s for k in _CAPITAL_GOODS_SECTOR_KEYWORDS):
+        return True
+    i = (industry or "").strip().lower()
+    if i and any(k in i for k in _CAPITAL_GOODS_INDUSTRY_KEYWORDS):
+        return True
+    return False
+
 
 # USD → INR conversion rate for Financials rows tagged `currency = 'USD'`.
 # TODO: source from a forex feed (RBI reference rate) rather than a constant.
