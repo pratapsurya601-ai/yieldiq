@@ -202,6 +202,52 @@ from backend.services.tier2_cohort_valuation_service import (
 )
 
 
+def _fetch_tier2_peer_metrics_map(
+    peer_tickers: list[str],
+) -> dict[str, dict]:
+    """Read cached ROCE / Piotroski / market_cap_cr for the given peers
+    from the `tier2_peer_metrics` table (populated by
+    `scripts/enrich_tier2_peer_metrics.py`).
+
+    Returns a dict keyed by the EXACT peer ticker string used in
+    DIRECT_PEERS (e.g. ``TCS.NS``). Peers missing from the table simply
+    won't appear in the dict — callers MUST default missing peers to
+    the Tail bucket (current behaviour, no regression).
+
+    Read-only and best-effort: any DB failure returns {} so the caller
+    falls back to the pre-existing Tail-default path.
+    """
+    if not peer_tickers:
+        return {}
+    try:
+        from backend.services.analysis.db import _get_pipeline_session
+        from sqlalchemy import text as _text
+    except Exception:
+        return {}
+    db = _get_pipeline_session()
+    if db is None:
+        return {}
+    try:
+        rows = db.execute(_text("""
+            SELECT ticker, roce_pct, piotroski,
+                   market_cap_cr, quality_bucket
+            FROM tier2_peer_metrics
+            WHERE ticker = ANY(:tickers)
+        """), {"tickers": list(peer_tickers)}).mappings().all()
+        return {r["ticker"]: dict(r) for r in rows}
+    except Exception as exc:
+        import logging as _l
+        _l.getLogger("yieldiq.analysis").debug(
+            "tier2_peer_metrics fetch failed: %s", exc,
+        )
+        return {}
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
 def _build_tier2_peers_from_sector_relative(
     ticker: str,
 ) -> list[dict]:
@@ -209,10 +255,14 @@ def _build_tier2_peers_from_sector_relative(
     sector_relative DIRECT_PEERS + the live yfinance peer fetcher.
 
     Returns [] on any failure — Tier 2 then returns None and the
-    caller falls back to generic DCF.  This keeps the W1 PR scope
-    contained: peer plumbing is deliberately small and best-effort
-    while the flag is off in prod.  W2 swaps this for a DB-backed
-    cohort query against `market_metrics` + `financials`.
+    caller falls back to generic DCF.
+
+    Quality fields (roce / piotroski / market_cap_cr) are joined in
+    from the ``tier2_peer_metrics`` cache table when present so that
+    quality bucketing actually fires for the curated cohort. Peers
+    missing from the cache fall through to the historical
+    all-fields-None path → Tail bucket (no regression vs flag-off
+    pre-cache behaviour).
     """
     try:
         from screener.sector_relative import (
@@ -227,25 +277,41 @@ def _build_tier2_peers_from_sector_relative(
         live = _fetch_peer_metrics(peers, exclude_ticker=ticker)
     except Exception:
         live = []
+
+    # Pull the cached quality metrics for ALL curated peer tickers
+    # (not just the ones the live fetcher returned, in case the live
+    # row uses a slightly different ticker form).
+    metrics_map = _fetch_tier2_peer_metrics_map(peers)
+
     out: list[dict] = []
     for row in live or []:
-        # Map sector_relative columns onto the Tier 2 PeerRecord shape.
-        # We don't have ROCE / Piotroski / market cap in CR here, so
-        # peers from this source land in the Tail bucket by default —
-        # which is the safe conservative choice (a peer with unknown
-        # quality should not be Premium).  When the W2 DB-backed
-        # builder lands, those fields populate properly.
+        peer_t = row.get("ticker")
+        # Look up by exact key first, then by the .NS-suffixed form
+        # (DIRECT_PEERS stores .NS / .BO; live fetcher sometimes
+        # strips suffixes).
+        cached = (
+            metrics_map.get(peer_t)
+            or metrics_map.get(f"{peer_t}.NS")
+            or metrics_map.get(f"{peer_t}.BO")
+            or {}
+        )
+
+        def _num(v):
+            try:
+                return float(v) if v is not None else None
+            except (TypeError, ValueError):
+                return None
+
         out.append({
-            "ticker": row.get("ticker"),
+            "ticker": peer_t,
             "pe": row.get("pe"),
             "ev_ebitda": row.get("ev_ebitda"),
-            "roce": None,
-            "piotroski": None,
-            # mktcap_b is in BILLIONS USD-equivalent in _fetch_peer_metrics;
-            # convert to CR (₹ Cr ≈ USD billion × 83.5 × 10 if INR ticker).
-            # We don't know currency reliably here, so leave None and
-            # let the bucket logic fall back to Tail for unknown.
-            "market_cap_cr": None,
+            "roce": _num(cached.get("roce_pct")),
+            "piotroski": (
+                int(cached["piotroski"])
+                if cached.get("piotroski") is not None else None
+            ),
+            "market_cap_cr": _num(cached.get("market_cap_cr")),
         })
     return out
 
