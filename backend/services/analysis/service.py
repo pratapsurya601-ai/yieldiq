@@ -464,6 +464,20 @@ class AnalysisService(NarrativeMixin):
         _has_any_fundamentals = (
             _latest_revenue > 0 or _latest_pat != 0 or _shares > 0
         )
+        # ETF carve-out (PR #325 follow-up, 2026-05-18). ETFs (NIFTYBEES,
+        # BANKBEES, GOLDBEES, ICICIB22 …) have NO operating fundamentals
+        # by design — no revenue, no PAT, and the "shares" field is the
+        # trust's units, which yfinance doesn't populate for most BeES /
+        # AMC-branded ETFs. Without this carve-out the gate below fires
+        # `verdict=unavailable` with market_cap=0, which then trips the
+        # `market_cap_inr < 10 Cr` critical bound in validators.py and
+        # the public stock-summary route quarantines as
+        # `validation_critical` — bypassing the ETF short-circuit
+        # (etf_nav_based) added in PR #325. Treat any allow-list /
+        # keyword-detected ETF as "has fundamentals enough to proceed"
+        # so the ETF branch at line ~826 can short-circuit cleanly.
+        if not _has_any_fundamentals and is_etf(ticker):
+            _has_any_fundamentals = True
         # PR P1-COVERAGE (2026-05-02): recently-IPO'd tickers (e.g.
         # INDIANHUME, CELLO) carry valid market_metrics rows (mcap > 0,
         # live price) but have ZERO annual_financials rows. Pre-fix
