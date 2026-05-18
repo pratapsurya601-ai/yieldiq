@@ -557,17 +557,19 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     cap_goods_val = candidates.get("cap_goods_7y_wc_smoothed", 0)
     enriched["_pharma_rd_used"] = False
     enriched["_capital_goods_used"] = False
-    if _cap_goods and cap_goods_val != 0:
-        # Capital-goods branch: vote cap_goods_7y_wc_smoothed into the
-        # median pool alongside latest_fcf / nopat_proxy / max_recent_fcf.
-        # Per docs/design/capital-goods-dcf-fix.md §4 the wc_adjusted_7y
-        # candidate should carry the most weight because it's the only
-        # one that survives project lumpiness — we promote it by
-        # ensuring it's in the pool even when negative-signed (signed
-        # median preservation), and let the standard median below pick
-        # the central value. Negative-signed cap_goods values are
-        # filtered out of the pool but the strategy stash records that
-        # the cap-goods branch fired (for debug visibility).
+    # HOTFIX 2026-05-18 — Capital-goods 7y WC-smoothed FCF candidate is
+    # DISABLED in the median pool. Smoke test post-PR #337 showed it
+    # voted LOW for SIEMENS/LT/ABB/THERMAX/CUMMINSIND (-50% to -78%
+    # vs consensus), making FVs significantly worse than the prior
+    # generic-DCF baseline. The 7y window for capital goods turns out
+    # to capture too much project-trough volatility — the signed median
+    # picks a negative-cycle value as central. Pending a redesign with
+    # benchmark reconciliation gating (Layer A), the cap-goods branch
+    # is short-circuited. Sector-mistag overrides (TIMKEN/SCHAEFFLER/
+    # GRINDWELL/KAYNES → Capital Goods) and hyper-growth fade for
+    # KAYNES are kept; only the FCF candidate vote is disabled.
+    # Original branch preserved as `if False and ...` for blame.
+    if False and _cap_goods and cap_goods_val != 0:
         valid_candidates = [
             v for v in [latest_val, nopat_val, max_val, cap_goods_val] if v > 0
         ]
@@ -1530,7 +1532,14 @@ class FCFForecaster:
         _cg_bare = (ticker or "").upper().replace(".NS", "").replace(".BO", "")
         _is_hyper_named = _cg_bare in CAPITAL_GOODS_HYPER_GROWTH
         _rev_cagr_3y = float(enriched.get("revenue_cagr_3y") or 0.0)
-        if _is_cap_goods and (
+        # HOTFIX 2026-05-18 — Hyper-growth fade DISABLED for capital goods.
+        # Post-PR #337 smoke test showed SIEMENS/LT/ABB FVs crushed; the
+        # terminal_g pull-down was over-aggressive. The KAYNES override in
+        # ticker_overrides.py (terminal_growth_override=0.06) provides
+        # the same effect without affecting the rest of the cohort. Once
+        # benchmark reconciliation (Layer A) is in place to gate further
+        # changes, the fade can be re-enabled with verified bounds.
+        if False and _is_cap_goods and (
             _rev_cagr_3y > CAPITAL_GOODS_HYPER_GROWTH_CAGR or _is_hyper_named
         ):
             _hyper_terminal = min(
