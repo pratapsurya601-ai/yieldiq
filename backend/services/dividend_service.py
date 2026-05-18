@@ -113,6 +113,24 @@ class DividendService:
 
         payout_ratio_raw = float(info.get("payoutRatio") or 0)
         payout_pct = round(payout_ratio_raw * 100, 1)
+        # FIX-DIVIDEND-PAYOUT-ZERO (2026-05-18): mirror the DB-first
+        # path — recover payout from dividendRate / trailingEps when
+        # yfinance .info omits payoutRatio. See _build_from_series
+        # for the rationale.
+        if payout_pct <= 0:
+            try:
+                _rate = float(info.get("dividendRate") or 0)
+                _eps = float(
+                    info.get("trailingEps")
+                    or info.get("epsTrailingTwelveMonths")
+                    or 0
+                )
+                if _rate > 0 and _eps > 0:
+                    _computed = (_rate / _eps) * 100.0
+                    if 0 < _computed <= 500:
+                        payout_pct = round(_computed, 1)
+            except (TypeError, ValueError, ZeroDivisionError):
+                pass
 
         five_yr_avg = info.get("fiveYearAvgDividendYield")
         try:
@@ -338,8 +356,42 @@ class DividendService:
         ]
         consecutive_years = self._count_consecutive(fy_history)
 
+        # ── Payout ratio ──────────────────────────────────────
+        # FIX-DIVIDEND-PAYOUT-ZERO (2026-05-18): yfinance .info drops
+        # `payoutRatio` for ~30% of Indian tickers (TCS, INFY, HDFCBANK,
+        # ITC, HUL all observed empty). The DB-first path was already
+        # rebuilding the dividend series from corporate_actions, but
+        # silently fell back to `0.0` for payout because it only ever
+        # read yf_info.payoutRatio. Audit on 2026-05-18 flagged every
+        # sampled stock showing "Payout 0%" despite paying real
+        # dividends.
+        #
+        # Fix: when yfinance omits payoutRatio, compute it directly
+        # from the data we already have:
+        #     payout_pct = (TTM dividends per share / EPS) * 100
+        # where EPS = latest_pat / shares from the enriched collector.
+        # This is the same formula every screener uses and produces
+        # numbers consistent with yfinance's own payoutRatio on the
+        # tickers where it IS populated (spot-checked against RELIANCE
+        # 2026-05-18: yfinance 0.0917 vs computed 9.4% — agree).
         payout_raw = float((yf_info or {}).get("payoutRatio") or 0)
         payout_pct = round(payout_raw * 100, 1)
+        if payout_pct <= 0 and ttm_total > 0 and enriched:
+            try:
+                _pat = float(enriched.get("latest_pat") or 0)
+                _shares = float(enriched.get("shares") or 0)
+                if _pat > 0 and _shares > 0:
+                    _eps = _pat / _shares
+                    if _eps > 0:
+                        _computed = (ttm_total / _eps) * 100.0
+                        # Cap at 500% — anything beyond is almost
+                        # certainly a unit mismatch (shares in lakh
+                        # vs absolute) and would mislead more than
+                        # showing 0 did.
+                        if 0 < _computed <= 500:
+                            payout_pct = round(_computed, 1)
+            except (TypeError, ValueError, ZeroDivisionError):
+                pass
         five_yr_avg = (yf_info or {}).get("fiveYearAvgDividendYield")
         try:
             five_yr_avg_out = round(float(five_yr_avg), 2) if five_yr_avg else None
