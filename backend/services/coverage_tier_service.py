@@ -209,11 +209,16 @@ def _gather_signals(ticker: str) -> dict[str, Any]:
 
     try:
         # ── market_cap_cr from market_metrics (latest row)
+        # NOTE: The actual `market_metrics` column is `trade_date`, NOT
+        # `as_of_date` (see data_pipeline/models.py:186). The prior name
+        # caused `UndefinedColumn` on every coverage_tier compute, silently
+        # leaving market_cap_cr=None and polluting prod logs at ~1 stack
+        # per analysis request.
         mc_row = sess.execute(text("""
             SELECT market_cap_cr
             FROM market_metrics
             WHERE ticker = :t
-            ORDER BY as_of_date DESC
+            ORDER BY trade_date DESC
             LIMIT 1
         """), {"t": db_t}).mappings().first()
         if mc_row and mc_row.get("market_cap_cr") is not None:
