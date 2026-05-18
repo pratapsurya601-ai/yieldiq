@@ -105,6 +105,7 @@ from backend.services.analysis.constants import (
     TOP_PRIVATE_BANK_COE,
     TOP_PRIVATE_BANKS,
     NEVER_SUPER_CYCLICAL,
+    TICKER_SECTOR_OVERRIDES,
 )
 
 # ── NBFC WACC floor ─────────────────────────────────────────────
@@ -548,7 +549,29 @@ class AnalysisService(NarrativeMixin):
         # the legacy variable name because it threads through 30+ call
         # sites; semantics now match Prism/Hex and Piotroski exactly.
         clean_ticker = ticker.replace('.NS', '').replace('.BO', '')
-        _enriched_sector = enriched.get("sector_name") or raw.get("sector_name") or raw.get("sector")
+        _raw_enriched_sector = (
+            enriched.get("sector_name")
+            or raw.get("sector_name")
+            or raw.get("sector")
+        )
+        # Ticker-based sector override (added 2026-05-18, cement M&A
+        # truncation PR). yfinance surfaces a handful of large-cap
+        # Indian names with wrong sector strings — AMBUJACEM lands as
+        # "General/Diversified" rather than "Cement", silently bypassing
+        # every cement-specific code path that reads off the sector
+        # string for routing (is_etf / is_regulated_utility /
+        # is_bank_like all take a sector argument). TICKER_SECTOR_OVERRIDES
+        # is the curated allow-list of known mistags; look up bare and
+        # suffixed forms before falling back to the yfinance-derived
+        # value. Note: _resolve_sector (utils.py) already consumes the
+        # same dict for the display-facing CompanyInfo.sector field and
+        # for downstream cyclical detection at line ~648, so this is the
+        # third (and only remaining) consumer that needed wiring.
+        _override_sector = (
+            TICKER_SECTOR_OVERRIDES.get(clean_ticker.upper())
+            or TICKER_SECTOR_OVERRIDES.get(ticker.upper())
+        )
+        _enriched_sector = _override_sector or _raw_enriched_sector
         _enriched_industry = raw.get("industry") or enriched.get("industry")
         is_financial = is_bank_like(
             ticker, _enriched_sector, _enriched_industry,
