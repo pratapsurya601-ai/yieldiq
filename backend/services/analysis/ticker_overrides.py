@@ -11,6 +11,15 @@ Each entry can specify:
   elevated WACC, prospectus-anchored projections). See: ipo_framework.py.
 - ipo_listing_date: str, ISO date (YYYY-MM-DD) of NSE/BSE listing — used by
   ipo_framework.is_recent_ipo() to decide whether IPO routing still applies.
+- skip_ipo_routing: bool, if true, force `_is_recent_ipo = False` in
+  service.py even when the sector-aware window would otherwise route
+  through `compute_sector_relative_fv`. Use for named recent-IPO tickers
+  where we have (a) a calibrated `terminal_growth_override` and
+  (b) the cohort P/E median materially under-prices the franchise (e.g.
+  MANKIND's domestic OTC scarcity premium not reflected in the broad
+  pharma cohort). The ticker stays on the DCF path so the override + R&D
+  candidate actually take effect. Service.py reads this in the
+  `_is_recent_ipo` gate (Step 7).
 
 ROADMAP: build sum-of-parts engine for RELIANCE/ITC/holdcos.
 Currently surfaces caveat banner. See: ticker_overrides.py.
@@ -162,11 +171,25 @@ TICKER_OVERRIDES: dict[str, dict] = {
             "power resembles branded FMCG more than commodity generics. "
             "Generic DCF cannot price this scarcity premium; using 5% "
             "terminal growth (vs 4% default) to acknowledge the OTC moat. "
-            "Recent-IPO sector-relative valuation also widens to 60 "
-            "months for pharma — see analytical notes for the bear/base/"
-            "bull spread."
+            "DCF path is retained (skip_ipo_routing) because the pharma "
+            "cohort P/E median (~17x) materially under-prices the OTC "
+            "franchise — sector-relative routing would peg FV at ~₹1,050 "
+            "vs the DCF + override band of ₹1,500-1,800."
         ),
         "terminal_growth_override": 0.05,
+        # 2026-05-18 prod regression fix: PR #320 widened the pharma
+        # IPO window to 60 months, which routed MANKIND through
+        # compute_sector_relative_fv (cohort PE median × EPS_ttm). The
+        # actual cohort median is ~17x — well below SUNPHARMA/DRREDDY's
+        # 25-30x — so MANKIND's FV dropped to ₹1,046 in prod (vs
+        # pre-PR ₹1,244 and the design-doc target band [₹1,500, ₹1,800]).
+        # The terminal_growth_override and pharma_rd_adjusted candidate
+        # never fired because the IPO path bypassed DCF entirely.
+        # `skip_ipo_routing` forces the DCF path so the calibrated
+        # levers actually take effect. The 60-month window stays in
+        # place for unnamed pharma IPOs (where cohort routing is the
+        # least-bad option pending Phase 2 prospectus DCF).
+        "skip_ipo_routing": True,
     },
     "MANKIND.NS": {"_alias_to": "MANKIND"},
     "MANKINDPHARMA": {"_alias_to": "MANKIND"},

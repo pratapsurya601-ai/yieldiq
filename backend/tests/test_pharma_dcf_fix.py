@@ -192,6 +192,47 @@ def test_mankind_aliases_resolve_to_same_override():
         )
 
 
+def test_mankind_skip_ipo_routing_flag_set():
+    """2026-05-18 prod regression fix: MANKIND must carry
+    skip_ipo_routing=True so service.py keeps it on the DCF path even
+    though the 60-month pharma IPO window would otherwise route it
+    through compute_sector_relative_fv. Without this flag, the cohort
+    P/E median (~17x) collapses MANKIND FV to ~₹1,046 — well below the
+    [₹1,400, ₹1,900] sensitivity envelope from the design doc."""
+    entry = ticker_overrides.get_override("MANKIND")
+    assert entry is not None
+    assert entry.get("skip_ipo_routing") is True, (
+        "MANKIND must opt out of IPO sector-relative routing so the "
+        "terminal_growth_override=0.05 and pharma_rd_adjusted FCF "
+        "candidate actually fire on the DCF path."
+    )
+    # Aliases must inherit the flag too.
+    for alias in ("MANKIND.NS", "MANKINDPHARMA", "MANKINDPHARMA.NS"):
+        resolved = ticker_overrides.get_override(alias)
+        assert resolved is not None
+        assert resolved.get("skip_ipo_routing") is True, (
+            f"{alias} must inherit skip_ipo_routing=True via alias"
+        )
+
+
+def test_skip_ipo_routing_default_off_for_other_tickers():
+    """The new opt-out flag must default to absent/falsey for every
+    other override entry — only the named cases (currently MANKIND)
+    bypass IPO routing. Catches accidental copy-paste of the flag
+    onto unrelated overrides."""
+    from backend.services.analysis.ticker_overrides import TICKER_OVERRIDES
+    for key, entry in TICKER_OVERRIDES.items():
+        if not isinstance(entry, dict) or entry.get("_alias_to"):
+            continue
+        if key == "MANKIND":
+            continue
+        assert not entry.get("skip_ipo_routing"), (
+            f"{key} must NOT set skip_ipo_routing — flag is opt-in for "
+            f"named tickers with calibrated terminal_growth_override + "
+            f"known cohort-P/E mis-fit."
+        )
+
+
 # ─────────────────────────────────────────────────────────────────
 # 4. USD-reporter detection routes DRREDDY through when info says USD
 # ─────────────────────────────────────────────────────────────────
