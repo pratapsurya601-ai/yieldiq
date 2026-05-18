@@ -443,7 +443,11 @@ class AnalysisService(NarrativeMixin):
         # "Under review — limited data" instead of unavailable.
         if not _has_any_fundamentals:
             try:
-                from backend.services.analysis.db import _get_pipeline_session
+                # NOTE: _get_pipeline_session is already imported at module top
+                # (line 141). Re-importing here would shadow the global, making
+                # Python treat it as local — so other usages elsewhere in this
+                # function raise UnboundLocalError when this branch doesn't fire.
+                # Hotfix #312 — DO NOT add `from ...db import _get_pipeline_session` here.
                 from sqlalchemy import text as _text
                 _bare = ticker.replace(".NS", "").replace(".BO", "")
                 _sess = _get_pipeline_session()

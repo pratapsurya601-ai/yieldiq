@@ -803,7 +803,25 @@ async def lifespan(app: FastAPI):
 
     threading.Thread(target=_screener_self_test, daemon=True).start()
 
-    sched = _start_pipeline_scheduler()
+    # APScheduler is OFF by default — jobs run via GitHub Actions cron
+    # (see .github/workflows/cron-market-*.yml, data-pipeline.yml,
+    # alerts_evaluator_hourly.yml). Each in-process scheduler instance
+    # cost ~200MB per uvicorn worker × 4 workers = ~800MB of duplicated
+    # background-job memory on Railway, plus N× duplicate fires per tick.
+    # Operator can re-enable per-service by setting
+    # ENABLE_INPROCESS_SCHEDULER=1 in Railway env (not recommended).
+    if os.environ.get("ENABLE_INPROCESS_SCHEDULER", "0") == "1":
+        logger.warning(
+            "ENABLE_INPROCESS_SCHEDULER=1 — starting in-process APScheduler. "
+            "This will duplicate fires across uvicorn workers. Prefer GH Actions cron."
+        )
+        sched = _start_pipeline_scheduler()
+    else:
+        sched = None
+        logger.info(
+            "APScheduler disabled (ENABLE_INPROCESS_SCHEDULER!=1) — "
+            "scheduled jobs run via GitHub Actions cron workflows."
+        )
     _prewarm_popular_stocks()
     _auto_refresh_parquets_if_needed()
     yield

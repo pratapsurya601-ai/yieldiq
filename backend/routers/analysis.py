@@ -858,9 +858,17 @@ async def get_analysis_preview(ticker: str):
             pass
 
         # Strip sensitive/premium data for public preview
+        # NOTE: result.company is a Pydantic CompanyInfo — must convert to
+        # dict before going into the response dict, else FastAPI's JSONEncoder
+        # raises TypeError: Object of type CompanyInfo is not JSON serializable.
+        # Hotfix #313.
+        _company_dict = (
+            result.company.model_dump(mode="json") if hasattr(result.company, "model_dump")
+            else (result.company.dict() if hasattr(result.company, "dict") else dict(result.company))
+        )
         preview = {
             "ticker": result.ticker,
-            "company": result.company,
+            "company": _company_dict,
             "valuation": {
                 "fair_value": _fv,
                 "current_price": _px,
