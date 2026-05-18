@@ -96,3 +96,13 @@ jobs:
           else:
               print('no tickers — no-op')
           "
+
+      - name: Write cron heartbeat
+        # Dead-man monitoring (see .github/workflows/cron-deadman-checker.yml).
+        # Only writes on success — a failed refresh deliberately leaves the
+        # heartbeat stale so the 30-min checker will flag it.
+        if: success()
+        run: |
+          python scripts/write_cron_heartbeat.py \
+            --workflow cron-market-live-quotes \
+            --interval-minutes 5

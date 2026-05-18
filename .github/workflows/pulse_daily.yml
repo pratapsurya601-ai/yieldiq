@@ -97,3 +97,17 @@ jobs:
           if fresh < 500:
               print(f"::warning::Only {fresh} fresh quotes — pulse may be under-covering. Expected 1000+.")
           PY
+
+      - name: Write cron heartbeat
+        # Dead-man monitoring (see .github/workflows/cron-deadman-checker.yml).
+        # Pulse fires twice on weekdays (03:00 + 12:00 UTC), so the longest
+        # legitimate gap is ~15h (Fri 12:00 -> Mon 03:00 is 63h, but
+        # we accept the weekend gap and only alert on weekday misses).
+        # interval_minutes=720 -> dead-man threshold 24h covers weekday gaps.
+        if: success()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python scripts/write_cron_heartbeat.py \
+            --workflow pulse_daily \
+            --interval-minutes 720

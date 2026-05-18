@@ -153,6 +153,19 @@ jobs:
               labels: ['regression', 'reconciliation-gate'],
             });
 
+      - name: Write cron heartbeat
+        # Dead-man monitoring (see .github/workflows/cron-deadman-checker.yml).
+        # Write the heartbeat even when the gate detected a regression —
+        # the workflow itself ran successfully; the regression is signal,
+        # not a dead cron. We only skip the heartbeat if an earlier step
+        # genuinely errored (e.g. DB down, checkout failed).
+        if: success() || steps.gate.outcome == 'failure'
+        run: |
+          pip install "psycopg2-binary"
+          python scripts/write_cron_heartbeat.py \
+            --workflow cron-reconciliation-canary-gate \
+            --interval-minutes 1440
+
       - name: Fail the workflow if gate failed
         if: steps.gate.outcome != 'success'
         run: |

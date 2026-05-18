@@ -45,3 +45,11 @@ jobs:
           stats = refresh_fx_rates()
           print(f'stats: {stats}')
           "
+
+      - name: Write cron heartbeat
+        # Dead-man monitoring (see .github/workflows/cron-deadman-checker.yml).
+        if: success()
+        run: |
+          python scripts/write_cron_heartbeat.py \
+            --workflow cron-market-fx-rates \
+            --interval-minutes 15
