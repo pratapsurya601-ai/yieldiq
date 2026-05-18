@@ -165,6 +165,21 @@ class ValuationOutput(BaseModel):
     # the FV. Purely additive — pre-PR clients ignore unknown fields.
     analyst_opinion_required: Optional[bool] = None
 
+    # ── Layer C — Confidence Framework scores (PR 1,
+    # feat/confidence-framework-scores, 2026-05-18) ─────────────
+    # Three 0-100 scores produced by
+    # backend.services.confidence_service. Optional so legacy
+    # cached payloads remain valid. PR 1 only writes them; the
+    # verdict-intensity gate that reads them lands in PR 2
+    # (feat/confidence-verdict-gating, CACHE_VERSION 113 -> 114).
+    #
+    # data_quality_score       — completeness/freshness of inputs
+    # model_confidence_score   — engine fit for this kind of business
+    # valuation_stability_score— variance of FV over recent weeks
+    data_quality_score: Optional[int] = None
+    model_confidence_score: Optional[int] = None
+    valuation_stability_score: Optional[int] = None
+
     # ── JSON precision lock (DRREDDY drift fix, 2026-04-25) ────
     # Round monetary / scenario floats at serialization so the authed
     # endpoint (returns this Pydantic model directly) matches the
