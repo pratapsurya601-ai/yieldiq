@@ -100,6 +100,7 @@ from backend.services.analysis.constants import (
     is_fmcg_sector,
     is_reit,
     is_regulated_utility,
+    is_defense_psu,
     get_brand_moat_multiplier,
     COMPANY_NAME_OVERRIDES,
     _PB_MEDIANS,
@@ -636,6 +637,17 @@ class AnalysisService(NarrativeMixin):
             else is_regulated_utility(
                 ticker, _enriched_sector, _enriched_industry,
             )
+        )
+
+        # ── Defense PSU analyst-opinion flag (2026-05-18) ────────
+        # Per docs/design/defense-psu-dcf-fix.md (Approach D — NO-FIX).
+        # We compute DCF normally; only the *output* is decorated:
+        # `analyst_opinion_required` flag, an explanatory caveat in
+        # `data_issues`, and a 0.7× confidence-score downgrade so the
+        # frontend renders the low-confidence badge. No WACC / terminal
+        # growth / FCF base / multiple is changed.
+        is_defense_psu_ticker = is_defense_psu(
+            ticker, _enriched_sector, _enriched_industry,
         )
 
         # ── Step 4: Build company info ────────────────────────
@@ -2783,6 +2795,18 @@ class AnalysisService(NarrativeMixin):
                 "FCF-DCF is not meaningful (capex is the rate base)."
             )
 
+        # Defense-PSU analyst-opinion caveat. We did not change the
+        # DCF math — this caveat explains *why* the displayed FV may
+        # diverge from street consensus by 30-60% on names like BDL /
+        # COCHINSHIP / BEML. See docs/design/defense-psu-dcf-fix.md.
+        if is_defense_psu_ticker:
+            _data_issues.append(
+                "Defense PSUs trade on order-book visibility "
+                "(Make-in-India). Trailing-financials DCF may "
+                "understate forward earnings. Consider street "
+                "consensus alongside our model FV."
+            )
+
         # ── FV stability snapshot (v35) ──────────────────────────
         # Pin every input that shaped the displayed `iv` into the
         # response (and therefore into analysis_cache.payload). Warm
@@ -3038,14 +3062,21 @@ class AnalysisService(NarrativeMixin):
                 terminal_growth=round(terminal_g, 4),
                 fcf_growth_rate=round(enriched.get("fcf_growth", 0), 4),
                 confidence_score=(
-                    _regulated_val_result["confidence_score"]
-                    if is_regulated_utility_ticker
-                    and locals().get("_regulated_val_result")
-                    else (
-                        _financial_val_result["confidence_score"]
-                        if is_financial and locals().get("_financial_val_result")
-                        else confidence.get("score", 50)
-                    )
+                    # Defense-PSU 0.7× downgrade per
+                    # docs/design/defense-psu-dcf-fix.md — applied on
+                    # top of whichever upstream confidence the pipeline
+                    # would have returned. int() floor matches the
+                    # field's declared type (ValuationOutput.confidence_score).
+                    int(round((
+                        _regulated_val_result["confidence_score"]
+                        if is_regulated_utility_ticker
+                        and locals().get("_regulated_val_result")
+                        else (
+                            _financial_val_result["confidence_score"]
+                            if is_financial and locals().get("_financial_val_result")
+                            else confidence.get("score", 50)
+                        )
+                    ) * (0.7 if is_defense_psu_ticker else 1.0)))
                 ),
                 wacc_industry_min=round(max(0.06, wacc - 0.02), 4),
                 wacc_industry_max=round(min(0.16, wacc + 0.02), 4),
@@ -3107,6 +3138,13 @@ class AnalysisService(NarrativeMixin):
                     else _fair_value_source
                 ),
                 peer_cap_details=_peer_cap_details,
+                # Defense-PSU NO-FIX flag — see Approach D in
+                # docs/design/defense-psu-dcf-fix.md. None (not False)
+                # for non-defense tickers so the frontend can three-
+                # state-render: missing / explicitly-False / True.
+                analyst_opinion_required=(
+                    True if is_defense_psu_ticker else None
+                ),
             ),
             quality=QualityOutput(
                 yieldiq_score=yiq_score.get("score", 0),

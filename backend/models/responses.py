@@ -155,6 +155,16 @@ class ValuationOutput(BaseModel):
     fair_value_source: Literal["dcf", "peer_capped"] = "dcf"
     peer_cap_details: Optional[PeerCapDetails] = None
 
+    # ── Defense-PSU analyst-opinion flag (2026-05-18, PR
+    # feat/defense-psu-analyst-opinion-flag) ────────────────────
+    # Per docs/design/defense-psu-dcf-fix.md (Approach D — NO-FIX).
+    # Set to True for tickers in DEFENSE_PSU_TICKERS to signal that
+    # the trailing-financials DCF systematically understates forward
+    # earning power (Make-in-India order-book regime change). The
+    # frontend renders an "analyst opinion required" caveat above
+    # the FV. Purely additive — pre-PR clients ignore unknown fields.
+    analyst_opinion_required: Optional[bool] = None
+
     # ── JSON precision lock (DRREDDY drift fix, 2026-04-25) ────
     # Round monetary / scenario floats at serialization so the authed
     # endpoint (returns this Pydantic model directly) matches the
