@@ -94,8 +94,8 @@ def _chunk(seq: list, n: int):
         yield seq[i : i + n]
 
 
-def _quote_for(tk) -> tuple[float | None, float | None, int | None]:
-    """Pull (price, change_pct, volume) from a yfinance Ticker handle."""
+def _quote_for(tk) -> tuple[float | None, float | None, int | None, float | None]:
+    """Pull (price, change_pct, volume, prev_close) from a yfinance Ticker handle."""
     try:
         fi = tk.fast_info
         price = float(getattr(fi, "last_price", 0) or 0)
@@ -106,10 +106,117 @@ def _quote_for(tk) -> tuple[float | None, float | None, int | None]:
         except (TypeError, ValueError):
             vol = None
         chg = ((price - prev) / prev * 100) if prev else None
-        return (price if price else None, chg, vol)
+        return (
+            price if price else None,
+            chg,
+            vol,
+            prev if prev else None,
+        )
     except Exception as exc:
         log.debug("fast_info failed: %s", exc)
-        return (None, None, None)
+        return (None, None, None, None)
+
+
+# ─────────────────────────────────────────────────────────────────
+# Write-time sanity gate
+# ─────────────────────────────────────────────────────────────────
+#
+# Background: on 2026-05-18 we observed POLICYBZR live_quotes.price =
+# ₹16,479 while true CMP was ~₹1,718 (~9x). yfinance fast_info had
+# returned a single momentary absurd tick; the refresher accepted it
+# and the bad row stayed in live_quotes until the next refresh cycle
+# overwrote it. PR #317 added a READ-time staleness gate; this gate
+# is the WRITE-time complement — it prevents a corrupt tick from
+# ever landing in the table in the first place.
+#
+# Heuristics (intentionally simple, easy to reason about):
+#   1. Intraday move vs PREVIOUS live_quotes.price > 50% → reject.
+#   2. Move vs yfinance previous_close > +20% or < -20% AND the
+#      previous live_quotes price exists → reject (suspicious, even
+#      a circuit-breaker max move on NSE is ±20%).
+#   3. No previous row → accept (first-ever fetch must seed somehow).
+#
+# Caveats for future work:
+#   * Legitimate moves that may trip the gate:
+#     - Stock splits / bonus / reverse-splits on the ex-date (e.g.
+#       1:10 split → 90% price drop). Mitigation: maintain a corporate-
+#       actions allow-list keyed by (ticker, date) and bypass the gate
+#       for that single day.
+#     - Resumption of trading after a long suspension or a UC/LC
+#       circuit on a thinly-traded counter the next day.
+#     - Currency-redenominated tickers (rare in NSE/BSE universe).
+#   * The +20% prev_close band assumes equities. Derivatives / index
+#     futures / penny stocks may need different bands — this gate is
+#     wired into live_quotes only, which is equity-only today.
+
+INTRADAY_MAX_MOVE = 0.50          # vs previous live_quotes.price
+PREV_CLOSE_UPPER_BAND = 1.20      # vs yfinance previous_close
+PREV_CLOSE_LOWER_BAND = 0.80
+
+
+def _fetch_prev_prices(sess, tickers: list[str]) -> dict[str, float]:
+    """Return {ticker: prev_live_price} for the tickers we are about to
+    write. Tickers missing from live_quotes are omitted from the result.
+
+    Robust to missing table / empty input — returns {} on failure.
+    """
+    if not tickers:
+        return {}
+    try:
+        rows = sess.execute(
+            text(
+                "SELECT ticker, price FROM live_quotes "
+                "WHERE ticker = ANY(:tickers)"
+            ),
+            {"tickers": list(tickers)},
+        ).fetchall()
+        return {r[0]: float(r[1]) for r in rows if r[1] is not None}
+    except Exception as exc:
+        log.debug("prev live_quotes lookup failed: %s", exc)
+        return {}
+
+
+def _sanity_check_quote(
+    ticker: str,
+    new_price: float,
+    prev_close: float | None,
+    prev_live_price: float | None,
+) -> tuple[bool, str | None]:
+    """Decide whether to accept this quote.
+
+    Returns (accept, reason_if_rejected). `reason` is a short string
+    suitable for logging; None when accepted.
+
+    Rules (see module docstring above for rationale):
+      * new_price <= 0 → reject (defensive; caller already filters None)
+      * no prev_live_price → accept (first-ever fetch)
+      * |new - prev_live| / prev_live > INTRADAY_MAX_MOVE → reject
+      * new / prev_close outside [0.80, 1.20] AND prev_live_price exists
+        → reject (would normally be a circuit-breaker, treat as bad tick)
+    """
+    if new_price is None or new_price <= 0:
+        return (False, "non_positive_price")
+
+    if prev_live_price is None or prev_live_price <= 0:
+        # First ever fetch — must seed the row somehow.
+        return (True, None)
+
+    move = abs(new_price - prev_live_price) / prev_live_price
+    if move > INTRADAY_MAX_MOVE:
+        return (
+            False,
+            f"intraday_move_{move:.2%}_prev={prev_live_price:g}_new={new_price:g}",
+        )
+
+    if prev_close is not None and prev_close > 0:
+        ratio = new_price / prev_close
+        if ratio > PREV_CLOSE_UPPER_BAND or ratio < PREV_CLOSE_LOWER_BAND:
+            return (
+                False,
+                f"prev_close_band_ratio={ratio:.3f}_prev_close={prev_close:g}_new={new_price:g}",
+            )
+
+    return (True, None)
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -140,7 +247,7 @@ def refresh_live_quotes(tickers: Iterable[str]) -> dict:
     def _fetch_one(t: str):
         try:
             tk = yf.Ticker(t)
-            price, chg, vol = _quote_for(tk)
+            price, chg, vol, prev_close = _quote_for(tk)
             if price is None:
                 return (t, None)
             return (
@@ -151,22 +258,58 @@ def refresh_live_quotes(tickers: Iterable[str]) -> dict:
                     "change_pct": chg,
                     "volume": vol,
                     "as_of": now,
+                    "_prev_close": prev_close,
                 },
             )
         except Exception as exc:
             log.debug("quote %s failed: %s", t, exc)
             return (t, None)
 
+    rejected = 0
     try:
         for batch in _chunk(tickers, BATCH_SIZE):
-            rows = []
+            raw_rows = []
             # I/O-bound — threads are enough. See MAX_QUOTE_WORKERS comment.
             with ThreadPoolExecutor(max_workers=MAX_QUOTE_WORKERS) as pool:
                 for _t, row in pool.map(_fetch_one, batch):
                     if row is None:
                         fail += 1
                     else:
-                        rows.append(row)
+                        raw_rows.append(row)
+
+            if not raw_rows:
+                continue
+
+            # Write-time sanity gate. Look up previous live_quotes price
+            # for every candidate ticker in one query, then drop any row
+            # whose new price is implausibly far from the previous.
+            prev_map = _fetch_prev_prices(
+                sess, [r["ticker"] for r in raw_rows]
+            )
+            rows = []
+            for r in raw_rows:
+                accept, reason = _sanity_check_quote(
+                    r["ticker"],
+                    r["price"],
+                    r.get("_prev_close"),
+                    prev_map.get(r["ticker"]),
+                )
+                if not accept:
+                    rejected += 1
+                    fail += 1
+                    log.warning(
+                        "live_quotes write-gate REJECT %s: %s",
+                        r["ticker"], reason,
+                    )
+                    continue
+                # Strip internal-only keys before UPSERT.
+                rows.append({
+                    "ticker": r["ticker"],
+                    "price": r["price"],
+                    "change_pct": r["change_pct"],
+                    "volume": r["volume"],
+                    "as_of": r["as_of"],
+                })
 
             if not rows:
                 continue
@@ -198,10 +341,15 @@ def refresh_live_quotes(tickers: Iterable[str]) -> dict:
         sess.close()
 
     log.info(
-        "refresh_live_quotes: requested=%d ok=%d failed=%d",
-        len(tickers), ok, fail,
+        "refresh_live_quotes: requested=%d ok=%d failed=%d rejected=%d",
+        len(tickers), ok, fail, rejected,
     )
-    return {"requested": len(tickers), "ok": ok, "failed": fail}
+    return {
+        "requested": len(tickers),
+        "ok": ok,
+        "failed": fail,
+        "rejected": rejected,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────
