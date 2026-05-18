@@ -1,0 +1,20 @@
+{
+  "anchor_rss_deltas_mb": {
+    "ASIANPAINT.NS": 10,
+    "BAJFINANCE.NS": 12,
+    "EMBASSY.NS": 3,
+    "HDFCBANK.NS": 15,
+    "HINDUNILVR.NS": 8,
+    "INFY.NS": 11,
+    "LT.NS": 13,
+    "MARUTI.NS": 10,
+    "ONGC.NS": 9,
+    "RELIANCE.NS": 14,
+    "SUNPHARMA.NS": 9,
+    "TCS.NS": 12
+  },
+  "captured_at": "2026-05-18T13:00:00+00:00",
+  "peak_rss_mb": 850,
+  "tolerance": 1.20,
+  "version": "v114"
+}

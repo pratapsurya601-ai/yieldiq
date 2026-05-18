@@ -1,0 +1,57 @@
+name: Memory Profile Check
+
+# Catches memory regressions before they ship. Runs scripts/profile_memory_anchors.py
+# in-process (no real server) against the 12 anchor tickers and fails the PR if
+# peak RSS exceeds tolerance × baseline (default 1.20×).
+#
+# To rebaseline after an intentional change (e.g. worker tuning, new model load):
+#   python scripts/profile_memory_anchors.py --update-baseline
+#   git add scripts/memory_baseline.json && git commit
+#
+# Background: docs/design/memory-baseline-investigation.md
+#   4-worker baseline was 1.3 GB; PR #326 cut to 2 workers → ~700 MB.
+
+on:
+  pull_request:
+    paths:
+      - "backend/**"
+      - "models/**"
+      - "scripts/profile_memory_anchors.py"
+      - "scripts/memory_baseline.json"
+      - ".github/workflows/memory-profile-check.yml"
+  workflow_dispatch:
+
+jobs:
+  memory-profile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r backend/requirements_backend.txt
+          pip install psutil httpx
+
+      - name: Run memory profile against anchors
+        env:
+          # Run with the same worker count assumption as the fix in PR #326.
+          WEB_CONCURRENCY: "1"
+          # Avoid pulling secrets / hitting external services where possible.
+          YIELDIQ_CI_MODE: "1"
+        run: |
+          python scripts/profile_memory_anchors.py --output memory_profile.json
+
+      - name: Upload memory profile artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: memory-profile
+          path: memory_profile.json

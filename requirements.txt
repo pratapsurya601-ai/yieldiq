@@ -55,3 +55,10 @@ playwright-stealth>=2.0.0
 # Init is conditional on SENTRY_DSN env var — package present on all
 # deploys so activation is a no-code toggle.
 sentry-sdk[fastapi]>=2.0.0
+
+# ── CI tooling ───────────────────────────────────────────────
+# psutil powers scripts/profile_memory_anchors.py (RSS sampling) and
+# the memory-profile-check CI workflow. Cheap, no native deps on the
+# CI runners we use; keeping in main requirements avoids a separate
+# dev file.
+psutil>=5.9.0
