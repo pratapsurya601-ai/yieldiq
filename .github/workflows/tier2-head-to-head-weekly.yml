@@ -1,0 +1,152 @@
+name: Weekly — Tier 2 vs custom-engine head-to-head
+
+# Layer B Week-2 reconciliation. Each Sunday compares every canary
+# ticker's *current* fair value against a freshly-computed Tier 2
+# cohort fair value, then declares whichever is closer to the latest
+# analyst consensus median the winner. Per-engine roll-ups feed the
+# Week-5 deprecation decision for the legacy custom engines (pharma
+# R&D-adj FCF, FMCG brand overlay, capital goods 7y WC-FCF, ...).
+#
+# Read-only / analytics:
+#   - No CACHE_VERSION bump (does not enter the cache key).
+#   - Does NOT flip TIER2_ENABLED (operator decision).
+#   - DATABASE_URL secret is the only requirement.
+#
+# Schedule: Sundays 06:00 UTC = 11:30 IST.
+
+on:
+  schedule:
+    - cron: "0 6 * * 0"
+  workflow_dispatch:
+    inputs:
+      universe:
+        description: "canary (180) or all (analysis_cache)"
+        required: false
+        default: "canary"
+      threshold_pct:
+        description: "pp gap for a decisive winner"
+        required: false
+        default: "5"
+      min_analysts:
+        description: "analyst coverage floor for consensus"
+        required: false
+        default: "3"
+
+concurrency:
+  group: tier2-head-to-head-weekly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  head-to-head:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install minimal deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            pip install "SQLAlchemy>=2.0" "psycopg2-binary"
+          fi
+
+      - name: Self-test (offline correctness)
+        run: |
+          python scripts/tier2_head_to_head.py --self-test
+
+      - name: Run head-to-head harness
+        id: run
+        run: |
+          python scripts/tier2_head_to_head.py \
+            --universe "${{ github.event.inputs.universe || 'canary' }}" \
+            --threshold-pct "${{ github.event.inputs.threshold_pct || '5' }}" \
+            --min-analysts "${{ github.event.inputs.min_analysts || '3' }}" \
+            --output tier2_head_to_head.json
+
+      - name: Upload report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tier2-head-to-head-report
+          path: tier2_head_to_head.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Open / update tier2-headtohead issue
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json, os, subprocess, textwrap, datetime as dt
+
+          with open("tier2_head_to_head.json", "r", encoding="utf-8") as f:
+              report = json.load(f)
+
+          meta = report.get("_meta", {})
+          recs = report.get("deprecation_recommendations", []) or []
+          summary = report.get("engine_summary", {})
+
+          today = dt.date.today().isoformat()
+          title = f"Tier 2 head-to-head ({today}) — {len(recs)} deprecation candidate(s)"
+
+          lines = []
+          lines.append(f"**Universe:** `{meta.get('universe')}` "
+                       f"(n={meta.get('ticker_count')})")
+          lines.append(f"**Threshold:** {meta.get('threshold_pct')}pp  "
+                       f"**Analyst floor:** {meta.get('min_analysts')}")
+          lines.append("")
+          lines.append("## Deprecation recommendations (Week 5)")
+          if recs:
+              for r in recs:
+                  lines.append(f"- {r}")
+          else:
+              lines.append("_No engines meet the 60% Tier 2 win rate / "
+                           "10-decisive-sample floor yet._")
+          lines.append("")
+          lines.append("## Per-engine summary")
+          lines.append("| Engine | Tier 2 wins | Current wins | Ties | No consensus |")
+          lines.append("|---|---:|---:|---:|---:|")
+          for engine, c in sorted(summary.items()):
+              lines.append(
+                  f"| `{engine}` | {c.get('tier2_wins', 0)} | "
+                  f"{c.get('current_wins', 0)} | {c.get('ties', 0)} | "
+                  f"{c.get('no_consensus', 0)} |"
+              )
+          lines.append("")
+          lines.append("Full per-ticker report attached as workflow artifact "
+                       "`tier2-head-to-head-report`.")
+          body = "\n".join(lines)
+
+          # GH_TOKEN is set via env; GH CLI picks it up automatically.
+          subprocess.run(
+              ["gh", "issue", "create",
+               "--title", title,
+               "--body", body,
+               "--label", "tier2-headtohead"],
+              check=True,
+          )
+          PY
+
+      - name: Write cron heartbeat
+        if: success()
+        run: |
+          if [ -f scripts/write_cron_heartbeat.py ]; then
+            python scripts/write_cron_heartbeat.py \
+              --workflow tier2-head-to-head-weekly \
+              --interval-minutes 10080 || true
+          fi
