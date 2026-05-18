@@ -2,13 +2,18 @@
 builder = "NIXPACKS"
 
 [deploy]
-# 4 workers on the 8 vCPU / 8 GB plan → 4× concurrent request capacity.
-# Rule of thumb for Python+FastAPI handling mixed I/O (DB + yfinance) and
-# CPU (DCF math) work is (2 × cores + 1), but 4 is a safer starting point
-# that leaves headroom for GC, asyncio tasks, and per-worker cache memory.
-# Each worker runs its own in-memory tier-0 cache so warm-warm requests on
-# any worker stay sub-10ms.
-startCommand = "uvicorn backend.main:app --host 0.0.0.0 --port $PORT --workers 4"
+# 2 workers, reduced from 4 (2026-05-18) per memory investigation at
+# docs/design/memory-baseline-investigation.md. The 4-worker setting was
+# inflating Railway baseline to 1.3 GB (4 × ~325 MB) and the env-var
+# WEB_CONCURRENCY=1 we'd been setting was silently no-op'd because uvicorn
+# does NOT read WEB_CONCURRENCY (only gunicorn does). Each worker holds
+# its own analysis-cache, DB pool, parquet/DuckDB handles. 2 workers
+# handle observed peak (1.2 req/s on api.yieldiq.in) with margin and
+# drop steady-state to ~650 MB. Single-worker would block long DCF
+# computes for ~3s; 2 preserves concurrency without the 4-worker memory
+# tax. Each worker still runs its own in-memory tier-0 cache so warm-warm
+# requests stay sub-10ms.
+startCommand = "uvicorn backend.main:app --host 0.0.0.0 --port $PORT --workers 2"
 healthcheckPath = "/health"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
