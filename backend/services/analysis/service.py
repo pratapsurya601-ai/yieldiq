@@ -97,7 +97,9 @@ from backend.services.analysis.constants import (
     is_cyclical,
     is_bank_like,
     is_etf,
+    is_fmcg_sector,
     is_regulated_utility,
+    get_brand_moat_multiplier,
     COMPANY_NAME_OVERRIDES,
     _PB_MEDIANS,
     _NBFC_TICKERS,
@@ -1642,6 +1644,42 @@ class AnalysisService(NarrativeMixin):
             except Exception:
                 # Recent-IPO override must never break analysis.
                 _ipo_sector_rel = None
+
+        # ── Brand-moat premium overlay (PR feat/fmcg-brand-moat-overlay) ──
+        # Curated per-ticker multiplier for the FMCG brand-permanence
+        # tail (NESTLE/Maggi, BRITANNIA/Good Day, MARICO/Parachute,
+        # GODREJCP/Cinthol-Goodknight, PIDILITIND/Fevicol, GILLETTE/
+        # razors, ...). Generic DCF with terminal_g=4% and ~17.9x
+        # terminal multiple cannot reach the 50-70x P/E that markets
+        # pay for these names; the overlay closes the gap without
+        # disturbing the ~half of FMCG that the generic engine values
+        # correctly (HUL, ITC, DABUR, COLPAL, PGHH, AKZOINDIA — NOT in
+        # the curated dict). Belt-and-braces sector gate: the
+        # multiplier is ONLY applied when the resolved sector is FMCG,
+        # so a wrongly-classified ticker can never get the premium
+        # outside the intended cohort. See docs/design/fmcg-dcf-fix.md.
+        try:
+            if (
+                iv
+                and iv > 0
+                and not is_financial
+                and not is_etf_ticker
+                and not is_regulated_utility_ticker
+                and is_fmcg_sector(_enriched_sector)
+            ):
+                _bm_mult = get_brand_moat_multiplier(ticker)
+                if _bm_mult > 1.0:
+                    _iv_pre_premium = iv
+                    iv = round(iv * _bm_mult, 2)
+                    bear_iv = round(bear_iv * _bm_mult, 2)
+                    bull_iv = round(bull_iv * _bm_mult, 2)
+                    _data_issues.append(
+                        f"Brand-moat premium applied: {_bm_mult:.2f}x "
+                        f"(was ₹{_iv_pre_premium:.0f})"
+                    )
+        except Exception:
+            # The overlay must never break analysis. Leave FV as-is.
+            pass
 
         # ── feat/peer-cap (2026-04-27): peer-multiple sanity ceiling ─
         # If DCF FV is more than 1.5× the lower of peer-median
