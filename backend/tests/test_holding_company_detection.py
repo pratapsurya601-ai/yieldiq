@@ -156,8 +156,12 @@ class TestNonHoldcoOperatingCompanies:
         ) is False
 
     def test_reit_not_detected(self):
-        # REITs are a separate category (already handled elsewhere);
-        # they have real rental revenue and should NOT trip holdco.
+        # REITs are a separate category, handled by is_reit() in
+        # backend/services/analysis/constants.py and short-circuited
+        # in service.py BEFORE the holdco check (PR #333,
+        # feat/reit-asset-type-classifier). They have real rental
+        # revenue and should NOT trip holdco regardless — covering
+        # this here as a defence-in-depth assertion.
         assert is_holding_company(
             "EMBASSY",
             sector="Real Estate",
