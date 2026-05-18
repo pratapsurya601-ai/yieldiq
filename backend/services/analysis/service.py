@@ -99,6 +99,7 @@ from backend.services.analysis.constants import (
     is_etf,
     is_fmcg_sector,
     is_reit,
+    is_realty_developer,
     is_regulated_utility,
     is_defense_psu,
     get_brand_moat_multiplier,
@@ -661,6 +662,42 @@ class AnalysisService(NarrativeMixin):
             )
         )
 
+        # ── Realty developer classifier (Approach C, 2026-05-18) ──
+        # Per docs/design/realty-developers-dcf-fix.md. Listed Indian
+        # residential / mixed-use developers (DLF, GODREJPROP, LODHA,
+        # OBEROIRLTY, PRESTIGE, PHOENIXLTD, SOBHA, BRIGADE, MAHLIFE,
+        # KEYSTONE, MACROTECH, NCC, SHRIRAMPROP, SUNTECK). REITs are
+        # excluded — they have their own classifier above which wins.
+        # The actual routing additionally requires a curation row in
+        # realty_land_bank_inputs (see Step 6 branch). Without that row
+        # the ticker silently falls through to the existing Tier 2
+        # generic path — this is why no CACHE_VERSION bump is required.
+        is_realty_developer_ticker = (
+            False if (is_etf_ticker or is_reit_ticker or is_regulated_utility_ticker)
+            else is_realty_developer(
+                ticker, _enriched_sector, _enriched_industry,
+            )
+        )
+        _realty_land_bank_input = None
+        if is_realty_developer_ticker:
+            try:
+                from backend.services.realty_valuation_service import (
+                    fetch_land_bank_input as _fetch_lb,
+                )
+                _realty_land_bank_input = _fetch_lb(ticker)
+            except Exception as _lb_exc:  # noqa: BLE001
+                import logging as _lb_log
+                _lb_log.getLogger("yieldiq.analysis").warning(
+                    "[%s] fetch_land_bank_input failed: %s: %s",
+                    ticker, type(_lb_exc).__name__, _lb_exc,
+                )
+                _realty_land_bank_input = None
+        # The branch downstream only fires when BOTH the classifier
+        # matches AND a curation row exists.
+        is_realty_branch_active = bool(
+            is_realty_developer_ticker and _realty_land_bank_input
+        )
+
         # ── Defense PSU analyst-opinion flag (2026-05-18) ────────
         # Per docs/design/defense-psu-dcf-fix.md (Approach D — NO-FIX).
         # We compute DCF normally; only the *output* is decorated:
@@ -1057,6 +1094,90 @@ class AnalysisService(NarrativeMixin):
                 "reliability_score": (
                     int(_regulated_val_result.get("confidence_score", 70))
                     if _regulated_val_result else 50
+                ),
+                "tv_pct_of_ev": 0,
+                "sum_pv_fcfs": 0,
+                "pv_tv": 0,
+                "enterprise_value": 0,
+                "equity_value": 0,
+            }
+            projected = []
+            growth_schedule = []
+            base_growth = 0
+        elif is_realty_branch_active:
+            # ── Realty developer Approach-C branch ──────────────
+            # Per docs/design/realty-developers-dcf-fix.md §5.
+            #   FV = (BVPS × sector_peer_PB) + uplift_per_share
+            # PHOENIXLTD additionally gets a 60%-weighted NOI ×
+            # cap-rate annuity overlay (§5.5). Routes BEFORE
+            # is_financial. Falls through to data_limited (NOT
+            # generic DCF) if BVPS is missing — same discipline as
+            # the regulated_utility branch.
+            bear_iv = round(price * 0.75, 2) if price > 0 else 0
+            bull_iv = round(price * 1.25, 2) if price > 0 else 0
+            iv = round(price, 2) if price > 0 else 0
+            _val_method = ""
+            _bvps = 0
+            _realty_val_result = None
+            try:
+                from backend.services.realty_valuation_service import (
+                    compute_realty_fair_value,
+                )
+                _realty_fin = {
+                    "current_price": price,
+                    "shares": enriched.get("shares") or raw.get("shares", 0),
+                    "priceToBook": raw.get("priceToBook") or enriched.get("pb_ratio"),
+                    "total_equity": enriched.get("total_equity") or raw.get("total_equity"),
+                    "book_value_per_share": enriched.get("book_value_per_share"),
+                    "bvps": enriched.get("bvps"),
+                    # PHOENIXLTD annuity overlay inputs (best-effort —
+                    # absence is fine; the overlay degrades gracefully).
+                    "operating_income_ttm": (
+                        enriched.get("operating_income_ttm")
+                        or enriched.get("operating_income")
+                        or raw.get("operatingIncome")
+                    ),
+                    "ebit_ttm": enriched.get("ebit_ttm"),
+                    "annuity_noi_ttm": enriched.get("annuity_noi_ttm"),
+                }
+                _realty_val_result = compute_realty_fair_value(
+                    ticker=ticker,
+                    financials=_realty_fin,
+                    land_bank_input=_realty_land_bank_input,
+                )
+            except Exception as _re_exc:  # noqa: BLE001
+                import logging as _re_log
+                _re_log.getLogger("yieldiq.analysis").warning(
+                    "[%s] realty_valuation failed: %s: %s",
+                    ticker, type(_re_exc).__name__, _re_exc,
+                )
+                _realty_val_result = None
+
+            if _realty_val_result and _realty_val_result.get("fair_value", 0) > 0:
+                iv = float(_realty_val_result["fair_value"])
+                bear_iv = float(_realty_val_result.get("bear_case", bear_iv))
+                bull_iv = float(_realty_val_result.get("bull_case", bull_iv))
+                _val_method = (
+                    f"{_realty_val_result.get('method', 'pb_plus_land_bank')} "
+                    f"(realty developer, FY={_realty_val_result.get('_meta', {}).get('reporting_fy', '?')})"
+                )
+                _bvps = float(_realty_val_result.get("_meta", {}).get("bvps", 0) or 0)
+            else:
+                _data_issues.append(
+                    "[data_limited] No book value per share available "
+                    "for realty developer — Approach-C valuation not "
+                    "possible."
+                )
+
+            iv_raw = iv
+            dcf_res = {
+                "intrinsic_value_per_share": iv,
+                "warnings": (
+                    [f"Valuation: {_val_method}"] if _val_method else []
+                ),
+                "reliability_score": (
+                    int(_realty_val_result.get("confidence_score", 70))
+                    if _realty_val_result else 50
                 ),
                 "tv_pct_of_ev": 0,
                 "sum_pv_fcfs": 0,
