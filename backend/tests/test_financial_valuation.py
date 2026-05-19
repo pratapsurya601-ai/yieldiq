@@ -393,18 +393,22 @@ def test_yesbank_stressed_private_bank_does_not_overshoot(patch_medians):
 
 
 def test_roe_adj_clamp_per_bucket():
-    """Direct unit test: stressed_private_banks gets (0.85, 1.0) clamp
-    instead of the default (0.95, 1.4). High-ROE stressed banks must
-    NOT get upward credit (sustainability concern)."""
+    """Direct unit test: stressed_private_banks AND traditional_hfc
+    get tightened clamps (no upward credit) vs the default (0.95, 1.4).
+
+    Both buckets share the same problem — current ROE is at a cycle
+    peak the market doesn't trust as sustainable, so awarding a
+    40% upward fair_pb credit produces over-shoot vs consensus.
+    Tightened post-Day-3 LICHSGFIN +50% drift investigation."""
     from backend.services.financial_valuation_service import (
         _roe_adj_clamp_for, _ROE_ADJ_CLAMP_DEFAULT,
     )
     # Default clamp for unknown / non-stressed groups
     assert _roe_adj_clamp_for("private_banks") == _ROE_ADJ_CLAMP_DEFAULT
-    assert _roe_adj_clamp_for("traditional_hfc") == _ROE_ADJ_CLAMP_DEFAULT
     assert _roe_adj_clamp_for("") == _ROE_ADJ_CLAMP_DEFAULT
-    # Tighter clamp for stressed banks
+    # Tighter clamps for stressed-cycle buckets
     assert _roe_adj_clamp_for("stressed_private_banks") == (0.85, 1.0)
+    assert _roe_adj_clamp_for("traditional_hfc") == (0.95, 1.0)
 
 
 def test_niacl_psu_gi_does_not_overshoot(patch_medians):
