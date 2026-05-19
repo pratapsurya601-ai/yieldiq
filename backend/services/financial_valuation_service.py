@@ -166,6 +166,31 @@ _FALLBACK_PE = {
 }
 
 
+# Per-bucket ROE adjustment clamps. Default (0.95, 1.4) lets a strong
+# ROE earner trade at a 40% premium to peer-median P/BV, and a weak
+# earner at a 5% discount (close to neutral — see HDFCBANK data-bug
+# investigation in _compute_pbv_path docstring for why the floor is
+# 0.95 not 0.7).
+#
+# Stressed banks override (2026-05-19): for YESBANK / RBLBANK /
+# BANDHANBNK / IDFCFIRSTB / INDUSINDBK the upward clamp is tightened
+# to 1.0 because their recent-quarter ROE recovery shouldn't earn a
+# premium until sustained. Asymmetric (0.85, 1.0): can still discount
+# if ROE deteriorates further, but no upward credit. This stops
+# YESBANK's 6.86% ROE (vs 4.78% peer median → raw adj 1.43) from
+# clamping at 1.4 and pushing fair_pb above market multiple.
+_ROE_ADJ_CLAMP: dict[str, tuple[float, float]] = {
+    "stressed_private_banks": (0.85, 1.0),
+}
+_ROE_ADJ_CLAMP_DEFAULT = (0.95, 1.4)
+
+
+def _roe_adj_clamp_for(group: str) -> tuple[float, float]:
+    """Return (floor, ceiling) for the ROE/peer-ROE adjustment for a
+    given peer group. Falls back to the global default."""
+    return _ROE_ADJ_CLAMP.get(group, _ROE_ADJ_CLAMP_DEFAULT)
+
+
 # ── Peer-median cache (1h TTL) ──────────────────────────────────
 _PEER_CACHE: dict[str, tuple[float, dict]] = {}
 _PEER_CACHE_TTL = 3600  # seconds
@@ -355,6 +380,7 @@ def _compute_pbv_path(
     bvps: float,
     roe: Optional[float],
     medians: dict,
+    group: Optional[str] = None,
 ) -> Optional[dict]:
     median_pb = medians.get("median_pb")
     median_roe = medians.get("median_roe")
@@ -382,7 +408,8 @@ def _compute_pbv_path(
     # bank-equity investigation.
     if roe and median_roe and median_roe > 0:
         adj = roe / median_roe
-        adj = max(0.95, min(1.4, adj))
+        clamp_lo, clamp_hi = _roe_adj_clamp_for(group or "")
+        adj = max(clamp_lo, min(clamp_hi, adj))
     else:
         adj = 1.0
 
@@ -536,7 +563,7 @@ def compute_financial_fair_value(
                 return result
         bvps = _extract_bvps(company_info, financials)
         if bvps and bvps > 0:
-            return _compute_pbv_path(ticker, price, bvps, roe, medians)
+            return _compute_pbv_path(ticker, price, bvps, roe, medians, group=group)
         return None
 
     # All lenders (banks / NBFCs / HFCs / govt-NBFCs) and insurers
@@ -550,7 +577,7 @@ def compute_financial_fair_value(
     # through to a P/E or DCF path that would mis-state the FV.
     bvps = _extract_bvps(company_info, financials)
     if bvps and bvps > 0:
-        return _compute_pbv_path(ticker, price, bvps, roe, medians)
+        return _compute_pbv_path(ticker, price, bvps, roe, medians, group=group)
 
     logger.info(
         "financial_valuation: no BVPS for %s (group=%s) — returning "

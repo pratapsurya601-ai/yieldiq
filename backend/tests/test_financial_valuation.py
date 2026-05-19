@@ -356,10 +356,16 @@ def test_icicigi_pbv_peer_valuation(patch_medians):
 def test_yesbank_stressed_private_bank_does_not_overshoot(patch_medians):
     """YESBANK was the #15 'over' outlier (+112% vs 11-analyst
     consensus ₹19). Pre-fix, YESBANK had no peer group → hardcoded
-    _PB_MEDIANS['Banking']=2.5 applied. After split into
-    stressed_private_banks with median P/B 1.24, model FV should
-    land within ±50% of consensus (full convergence would require
-    asymmetric ROE-adj clamping — separate Day-3 task)."""
+    _PB_MEDIANS['Banking']=2.5 applied.
+
+    After two fixes combined:
+      1. stressed_private_banks bucket with median P/B 1.24
+      2. asymmetric ROE-adj clamp (0.85, 1.0) for this bucket
+
+    YESBANK's ROE 6.86% vs peer median 5% raw adj = 1.37, clamped to
+    1.0 (no upward credit until sustained). fair_pb = 1.24 × 1.0 = 1.24.
+    FV = 16.34 BVPS × 1.24 ≈ ₹20.3 — within ±15% of consensus ₹19.32.
+    """
     patch_medians({
         "stressed_private_banks": {
             "median_pb": 1.24, "median_roe": 0.05,
@@ -378,15 +384,27 @@ def test_yesbank_stressed_private_bank_does_not_overshoot(patch_medians):
     assert result is not None
     fv = result["fair_value"]
     consensus = 19.32
-    # YESBANK's high ROE-vs-peer-median triggers ceiling clamp 1.4.
-    # Best we can do without changing the clamp ceiling is ~28-32.
-    # Documenting the realistic post-fix band; consensus convergence
-    # is a separate calibration concern.
-    assert 18 <= fv <= 35, (
-        f"YESBANK FV ₹{fv:.0f} outside expected post-fix band [18, 35]"
+    drift = (fv - consensus) / consensus
+    assert -0.20 < drift < 0.20, (
+        f"YESBANK FV ₹{fv:.2f} drifts {drift*100:+.1f}% from "
+        f"11-analyst consensus ₹19.32. Stressed-bank asymmetric "
+        f"ROE clamp expected to keep this within ±20%."
     )
-    # Critical: must NOT be the 2.5× hardcoded result (~₹41) anymore.
-    assert fv < 38, f"YESBANK still using hardcoded Banking=2.5× ({fv})"
+
+
+def test_roe_adj_clamp_per_bucket():
+    """Direct unit test: stressed_private_banks gets (0.85, 1.0) clamp
+    instead of the default (0.95, 1.4). High-ROE stressed banks must
+    NOT get upward credit (sustainability concern)."""
+    from backend.services.financial_valuation_service import (
+        _roe_adj_clamp_for, _ROE_ADJ_CLAMP_DEFAULT,
+    )
+    # Default clamp for unknown / non-stressed groups
+    assert _roe_adj_clamp_for("private_banks") == _ROE_ADJ_CLAMP_DEFAULT
+    assert _roe_adj_clamp_for("traditional_hfc") == _ROE_ADJ_CLAMP_DEFAULT
+    assert _roe_adj_clamp_for("") == _ROE_ADJ_CLAMP_DEFAULT
+    # Tighter clamp for stressed banks
+    assert _roe_adj_clamp_for("stressed_private_banks") == (0.85, 1.0)
 
 
 def test_niacl_psu_gi_does_not_overshoot(patch_medians):
