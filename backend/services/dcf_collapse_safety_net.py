@@ -230,6 +230,33 @@ def attempt_tier2_fallback(
 
     peer_list = list(peers) if peers else []
 
+    # 2026-05-19 hardening: if the caller passed an empty / minimal
+    # peer list, attempt a direct lookup from the tier2_peer_metrics
+    # table using the canonical DIRECT_PEERS sector mapping. The
+    # original implementation depended on peer_cap_service which
+    # returns empty for many sectors (cement, retail, etc.), causing
+    # the safety net to fail closed even when the cement cohort DOES
+    # exist in tier2_peer_metrics. This adds a second source of truth.
+    if len(peer_list) < 5:
+        try:
+            from backend.services.tier2_peer_lookup import (
+                fetch_peers_from_metrics_table,
+            )
+            _fetched = fetch_peers_from_metrics_table(ticker, sector)
+            if _fetched and len(_fetched) >= 5:
+                peer_list = _fetched
+                logger.info(
+                    "dcf_collapse_safety_net: %s — peer_list bootstrapped "
+                    "from tier2_peer_metrics (%d peers)",
+                    ticker, len(_fetched),
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug(
+                "dcf_collapse_safety_net: tier2_peer_lookup unavailable "
+                "for %s: %s — proceeding with whatever peers caller gave",
+                ticker, exc,
+            )
+
     try:
         result = compute_tier2_fair_value(
             ticker=ticker, sector=sector, financials=fin, peers=peer_list,
