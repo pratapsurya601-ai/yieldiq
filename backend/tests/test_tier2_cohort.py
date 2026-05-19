@@ -337,24 +337,90 @@ def test_fv_capped_at_8x_bvps():
 # ──────────────────────────────────────────────────────────────────
 
 def test_bucket_for_premium_core_tail():
-    # Premium: all three thresholds met
+    # ── Original 2026-04 cases (all still pass under refined rules) ──
+    # Premium: large mcap + ROCE>=25 + Piotroski>=7
     assert _bucket_for(roce=27.0, piotroski=8,
                        market_cap_cr=70000.0) == "premium"
-    # Core: ROCE in 15-25
+    # Core: ROCE 18 (>=15)
     assert _bucket_for(roce=18.0, piotroski=5,
                        market_cap_cr=10000.0) == "core"
-    # Core: Piotroski 5-6 even with low ROCE
+    # Core: Piotroski 5 even with low ROCE
     assert _bucket_for(roce=8.0, piotroski=5,
                        market_cap_cr=10000.0) == "core"
     # Tail: low everything
     assert _bucket_for(roce=8.0, piotroski=3,
                        market_cap_cr=1000.0) == "tail"
-    # Premium needs ALL THREE; missing mcap → falls to Core (ROCE in band)
+    # Sub-Premium mcap kills Premium even with great quality → Core
     assert _bucket_for(roce=27.0, piotroski=8,
                        market_cap_cr=10000.0) != "premium"
     # Missing inputs → Tail (conservative default)
     assert _bucket_for(roce=None, piotroski=None,
                        market_cap_cr=None) == "tail"
+
+
+def test_bucket_for_refined_2026_05():
+    """Cases the original strict-AND rule mis-classified.
+
+    Background: pre-refinement, _bucket_for required ALL THREE axes
+    (ROCE>=25 AND Piotroski>=7 AND mcap>=50k Cr) for Premium. The
+    Core branch used a narrow band (ROCE 15-25, Piotroski 5-6) that
+    excluded exceptional outliers. Real-world peers like HDFCBANK
+    (Piotroski=9, mcap=₹11L Cr, ROCE=NULL because banks have no
+    meaningful ROCE) and TCS (ROCE=60.7%, mcap=₹8L Cr, Piotroski=6)
+    fell to Tail despite clearly being best-in-class.
+    """
+    # HDFCBANK shape — large bank with high Piotroski, NULL ROCE
+    assert _bucket_for(roce=None, piotroski=9,
+                       market_cap_cr=1_185_447.0) == "premium"
+    # TCS shape — exceptional ROCE, large cap, merely-good Piotroski
+    assert _bucket_for(roce=60.7, piotroski=6,
+                       market_cap_cr=820_220.0) == "premium"
+    # INFY shape — large IT services, high Piotroski, NULL ROCE
+    assert _bucket_for(roce=None, piotroski=7,
+                       market_cap_cr=451_646.0) == "premium"
+    # Open-ended Core: ROCE 30 with Piotroski 4 and sub-Premium mcap → core
+    assert _bucket_for(roce=30.0, piotroski=4,
+                       market_cap_cr=10_000.0) == "core"
+    # Open-ended Core: Piotroski 8 with NULL ROCE and sub-Premium mcap → core
+    assert _bucket_for(roce=None, piotroski=8,
+                       market_cap_cr=10_000.0) == "core"
+    # Small + low quality stays Tail even with one missing axis
+    assert _bucket_for(roce=10.0, piotroski=None,
+                       market_cap_cr=5_000.0) == "tail"
+    # Large mcap alone (no quality signal) stays Tail
+    assert _bucket_for(roce=None, piotroski=None,
+                       market_cap_cr=200_000.0) == "tail"
+
+
+def test_bucket_for_premium_rejects_single_axis_quality():
+    """v2 refinement: large mcap + one good axis is NOT enough for Premium
+    when the other axis is clearly broken. These cases caught real junk
+    inclusions in the 2026-05-19 cohort.
+
+    BHEL had ROCE 2.7% with Piotroski 7 → was passing under v1's OR rule
+    despite a crushed return on capital. AMBUJACEM (ROCE 11.6) and TECHM
+    (ROCE 12.2) had the same pattern. BAJAJ-AUTO (Piotroski 4) and ABB
+    (Piotroski 4) had the inverse — high ROCE but deteriorating financials.
+    All six belong in Core, not Premium.
+    """
+    # BHEL shape — high Piotroski but ROCE below Core floor → Core not Premium
+    assert _bucket_for(roce=2.7, piotroski=7,
+                       market_cap_cr=138_690.0) == "core"
+    # AMBUJACEM shape — same pattern, sub-15 ROCE
+    assert _bucket_for(roce=11.6, piotroski=7,
+                       market_cap_cr=107_580.0) == "core"
+    # BAJAJ-AUTO shape — high ROCE but Piotroski 4 (weak) → Core not Premium
+    assert _bucket_for(roce=32.5, piotroski=4,
+                       market_cap_cr=289_744.0) == "core"
+    # BPCL shape — Piotroski 3 is a financial red flag regardless of ROCE
+    assert _bucket_for(roce=32.3, piotroski=3,
+                       market_cap_cr=121_661.0) == "core"
+    # Lower boundary: ROCE exactly 25 with Piotroski exactly 5 passes Premium
+    assert _bucket_for(roce=25.0, piotroski=5,
+                       market_cap_cr=50_000.0) == "premium"
+    # Inverse lower boundary: Piotroski exactly 7 with ROCE exactly 15
+    assert _bucket_for(roce=15.0, piotroski=7,
+                       market_cap_cr=50_000.0) == "premium"
 
 
 # ──────────────────────────────────────────────────────────────────
