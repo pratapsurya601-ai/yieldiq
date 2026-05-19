@@ -1124,12 +1124,20 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
         # TORNTPHARM, LUPIN, BIOCON, ABBOTINDIA, GLAXO, PFIZER, SANOFI,
         # ERIS, AJANTPHARM) and CDMOs (DIVISLAB) which keep default
         # treatment.
+        # Day-13 (2026-05-19): renamed "NEULAND" → "NEULANDLAB" (the
+        # actual NSE ticker — old entry never fired because lookup is
+        # on the bare NSE symbol). Added NATCOPHARM (US-focused generic
+        # exporter, was producing DCF FV 3.57× consensus per Day-13
+        # outlier scan).
         _PHARMA_GENERIC_TICKERS = frozenset({
             "DRREDDY", "AUROPHARMA", "ZYDUSLIFE", "GLENMARK", "IPCALAB",
             "LAURUSLABS", "ALEMBICLTD", "GRANULES", "WOCKPHARMA",
-            # 2026-05-19 expansion
-            "NEULAND", "GLANDPHARMA", "PPLPHARMA", "JBCHEPHARM",
+            # 2026-05-19 Day-6 expansion
+            "NEULANDLAB", "GLANDPHARMA", "PPLPHARMA", "JBCHEPHARM",
             "STAR", "SAILIFE",
+            # 2026-05-19 Day-13: NATCOPHARM (gOxford / gCopaxone /
+            # gIbrance — concentrated US generic exposure)
+            "NATCOPHARM",
         })
         try:
             _ticker_bare = ""
@@ -1569,9 +1577,17 @@ class FCFForecaster:
         # have durable India-domestic moats — TERMINAL_FADE_G=0.04 is
         # appropriate for them. Universal cap in v1 deploy produced
         # -40% to -60% under-shoots on franchise names.
+        # Day-13: sync TG set with the WACC-floor set so generic-
+        # exporter treatment is consistent. The earlier split (TG list
+        # was 9, WACC list was 15) meant the 6 Day-6 expansion tickers
+        # got WACC tightening but not terminal-g tightening, leaving
+        # them at default 0.04 terminal-g for a 30y model. Result: still
+        # +25-50% over consensus.
         _PHARMA_GENERIC_TICKERS_TG = frozenset({
             "DRREDDY", "AUROPHARMA", "ZYDUSLIFE", "GLENMARK", "IPCALAB",
             "LAURUSLABS", "ALEMBICLTD", "GRANULES", "WOCKPHARMA",
+            "NEULANDLAB", "GLANDPHARMA", "PPLPHARMA", "JBCHEPHARM",
+            "STAR", "SAILIFE", "NATCOPHARM",
         })
         try:
             _t_bare_tg = ""

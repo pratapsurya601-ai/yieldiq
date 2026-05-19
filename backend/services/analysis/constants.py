@@ -906,12 +906,13 @@ _DAY3_SECTOR_FIXES: dict[str, str] = {
 
     # Mid-cap pharma generic exporters (route to pharma cohort)
     "GRANULES":    "Pharma",
-    "NEULAND":     "Pharma",
+    "NEULANDLAB":  "Pharma",      # was "NEULAND" — actual NSE symbol
     "GLANDPHARMA": "Pharma",
     "PPLPHARMA":   "Pharma",
     "JBCHEPHARM":  "Pharma",
     "STAR":        "Pharma",      # Strides Pharma Science
     "SAILIFE":     "Pharma",
+    "NATCOPHARM":  "Pharma",      # Day-13: US-focused generic exporter
     "LUPIN":       "Pharma",
     "AJANTPHARM":  "Pharma",
     "ERIS":        "Pharma",
