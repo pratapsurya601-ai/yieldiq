@@ -67,8 +67,19 @@ FINANCIAL_PEER_GROUPS: dict[str, list[str]] = {
     # vs 23-analyst consensus ₹630 (+159.8% over-shoot — top "over"
     # outlier on 2026-05-19). Separate sub-groups; each generates its
     # own peer median.
-    "traditional_hfc":   ["LICHSGFIN", "LICHOUSFIN", "CANFINHOME", "PNBHOUSING"],
-    "premium_hfc":       ["AAVAS", "HOMEFIRST"],
+    #
+    # CANFINHOME taxonomy refinement (2026-05-19 follow-up PR #383):
+    # Initially placed in traditional_hfc with LICHSGFIN/LICHOUSFIN/
+    # PNBHOUSING. Market data showed CANFINHOME at P/B 1.89× — sitting
+    # between true traditional (LICHSGFIN 0.78, PNBHOUSING 1.44) and
+    # premium (AAVAS 2.17, HOMEFIRST 2.58). Its retail-housing focus,
+    # 18% ROE, and growth profile align with premium peers; the
+    # 3-member median 1.44 (LICHSGFIN/PNBHOUSING/CANFINHOME) was
+    # pulling LICHSGFIN's FV to ₹1,077 (still 71% over consensus).
+    # Moving CANFINHOME → premium_hfc tightens traditional_hfc median
+    # toward LICHSGFIN's actual market multiple.
+    "traditional_hfc":   ["LICHSGFIN", "LICHOUSFIN", "PNBHOUSING"],
+    "premium_hfc":       ["AAVAS", "HOMEFIRST", "CANFINHOME"],
     # Capital-light: AMCs, exchanges, brokers. P/E works here.
     "asset_mgmt":        ["HDFCAMC", "ICICIAMC", "NIPPONLIFE", "UTIAMC"],
 }
@@ -96,14 +107,15 @@ _FALLBACK_PB = {
     "govt_nbfc":         (1.2, 0.18),
     "life_insurance":    (2.0, 0.14),   # P/EV approximated via P/BV
     "general_insurance": (3.0, 0.15),
-    # Traditional HFC: legacy mortgage lenders, ~1.0× P/BV. LICHSGFIN
-    # at 0.78 (current), LICHOUSFIN ~0.85, PNBHOUSING ~1.2, CANFINHOME
-    # ~2.5 (still on higher end). 23-analyst LICHSGFIN consensus
-    # implies fair P/BV ~0.95 — fallback set near peer median.
-    "traditional_hfc":   (1.1, 0.14),
-    # Premium HFC: affordable-housing specialists, faster growth.
-    # AAVAS/HOMEFIRST trade 3-4×. Used only when split bucket fires.
-    "premium_hfc":       (3.5, 0.18),
+    # Traditional HFC: legacy mortgage lenders only (CANFINHOME moved
+    # to premium_hfc per PR #383 refinement). LICHSGFIN 0.78, LICHOUSFIN
+    # ~0.85, PNBHOUSING 1.44 — real 3-peer median ~0.95. 23-analyst
+    # LICHSGFIN consensus implies fair P/BV ~0.95; fallback matches.
+    "traditional_hfc":   (1.0, 0.13),
+    # Premium HFC: affordable-housing specialists + CANFINHOME (retail
+    # housing focus, 18% ROE, 1.89× P/B). Real median for [CANFINHOME
+    # 1.89, AAVAS 2.17, HOMEFIRST 2.58] = 2.17.
+    "premium_hfc":       (2.2, 0.17),
     "asset_mgmt":        (8.0, 0.25),   # AMCs trade rich
 }
 

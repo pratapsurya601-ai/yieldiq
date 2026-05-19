@@ -79,19 +79,23 @@ def test_get_peer_group_returns_none_for_non_financial():
 
 
 def test_hfc_split_routes_traditional_separate_from_premium():
-    """Legacy mortgage lenders and affordable-housing specialists
-    must NOT share a peer-median bucket. Mixing them pushed LICHSGFIN
-    fair P/BV to ~2.5 vs its real ~1.0 peer-derived value."""
+    """Legacy mortgage lenders and growth-oriented HFCs must NOT share
+    a peer-median bucket. Mixing them pushed LICHSGFIN fair P/BV up.
+
+    CANFINHOME (P/B 1.89, ROE 18%) was reclassified premium_hfc
+    2026-05-19 follow-up — its profile aligns with AAVAS/HOMEFIRST
+    not with LICHSGFIN/PNBHOUSING/LICHOUSFIN."""
     # Traditional bucket — legacy mortgage lenders, ~1.0× P/BV
     assert get_peer_group("LICHSGFIN") == "traditional_hfc"
     assert get_peer_group("LICHSGFIN.NS") == "traditional_hfc"
     assert get_peer_group("LICHOUSFIN") == "traditional_hfc"
     assert get_peer_group("PNBHOUSING") == "traditional_hfc"
-    assert get_peer_group("CANFINHOME") == "traditional_hfc"
 
-    # Premium bucket — affordable-housing specialists, 3-4× P/BV
+    # Premium bucket — growth-oriented HFCs (AAVAS, HOMEFIRST,
+    # CANFINHOME)
     assert get_peer_group("AAVAS") == "premium_hfc"
     assert get_peer_group("HOMEFIRST.NS") == "premium_hfc"
+    assert get_peer_group("CANFINHOME") == "premium_hfc"
 
 
 def test_lichsgfin_pbv_with_traditional_hfc_median(patch_medians):
