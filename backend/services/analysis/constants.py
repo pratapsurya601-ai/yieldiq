@@ -871,6 +871,26 @@ _DAY3_SECTOR_FIXES: dict[str, str] = {
     # Banking
     "CUB":         "Banking",           # City Union Bank
     "AUBANK":      "Banking",           # AU Small Finance Bank
+
+    # Internet platforms (Day-3 v3 — PR #389)
+    "PAYTM":       "Internet Platform",
+    "POLICYBZR":   "Internet Platform",
+    "ZOMATO":      "Internet Platform",
+    "NAUKRI":      "Internet Platform",
+    "NYKAA":       "Internet Platform",
+    "MEESHO":      "Internet Platform",
+    "SWIGGY":      "Internet Platform",
+    "CARTRADE":    "Internet Platform",
+
+    # Fintech / online brokers
+    "NUVAMA":      "Fintech",
+    "GROWW":       "Fintech",
+    "ANGELONE":    "Fintech",
+    "MOTILALOFS":  "Fintech",
+    "360ONE":      "Fintech",
+    "CDSL":        "Fintech",
+    "BSE":         "Fintech",
+    "MCX":         "Fintech",
 }
 for _t, _sec in _DAY3_SECTOR_FIXES.items():
     TICKER_SECTOR_OVERRIDES[_t] = _sec

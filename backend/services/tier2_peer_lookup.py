@@ -120,6 +120,27 @@ _SECTOR_KEY_MAP: dict[str, str] = {
     "agriculture": "fmcg",                       # food-adjacent
     "media & entertainment": "telecom",          # broadcast / content
     "media": "telecom",
+
+    # Internet platform mappings (2026-05-19 Day-3, with the
+    # new DIRECT_PEERS buckets). yfinance returns various labels
+    # for Indian platforms — none of which match traditional
+    # sector engines. Route them to the new cohort.
+    "internet": "internet_platform",
+    "internet platform": "internet_platform",
+    "e-commerce": "internet_platform",
+    "ecommerce": "internet_platform",
+    "internet retail": "internet_platform",
+    "internet content & information": "internet_platform",
+    "online services": "internet_platform",
+
+    # Fintech / online broker mappings
+    "fintech": "fintech_broker",
+    "online broker": "fintech_broker",
+    "capital markets": "fintech_broker",
+    "asset management": "fintech_broker",
+    "depository": "fintech_broker",
+    "exchanges": "fintech_broker",
+    "stock exchanges": "fintech_broker",
 }
 
 
