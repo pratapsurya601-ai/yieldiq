@@ -44,13 +44,17 @@ def patch_medians(monkeypatch):
 
 def test_peer_groups_expected_keys():
     # Housing finance was split 2026-05-19 — old "housing_finance"
-    # bucket bundled legacy mortgage lenders (LICHSGFIN, LICHOUSFIN,
-    # PNBHOUSING, CANFINHOME) with affordable-housing specialists
-    # (AAVAS, HOMEFIRST). Mixed-median produced LICHSGFIN FV ₹1,636
-    # vs 23-analyst consensus ₹630 (+159.8% over). Now two buckets.
+    # bucket bundled legacy mortgage lenders with affordable-housing
+    # specialists. LICHSGFIN was overshot to ₹1,636 vs consensus ₹630.
+    # Now traditional_hfc + premium_hfc.
+    #
+    # General insurance was split 2026-05-19 (PR #383 follow-up) for
+    # the same reason — NIACL 0.94× P/B was bundled with ICICIGI 5.68×.
+    # Now psu_gi + private_gi + health_insurance.
     assert set(FINANCIAL_PEER_GROUPS.keys()) == {
         "psu_banks", "private_banks", "lending_nbfc", "govt_nbfc",
-        "life_insurance", "general_insurance",
+        "life_insurance",
+        "psu_gi", "private_gi", "health_insurance",
         "traditional_hfc", "premium_hfc",
         "asset_mgmt",
     }
@@ -64,7 +68,13 @@ def test_get_peer_group_handles_suffix():
     assert get_peer_group("MUTHOOTFIN.NS") == "lending_nbfc"
     assert get_peer_group("SHRIRAMFIN") == "lending_nbfc"
     assert get_peer_group("PFC.NS") == "govt_nbfc"
-    assert get_peer_group("ICICIGI") == "general_insurance"
+    # General insurance split:
+    assert get_peer_group("ICICIGI") == "private_gi"
+    assert get_peer_group("GODIGIT") == "private_gi"
+    assert get_peer_group("NIACL") == "psu_gi"
+    assert get_peer_group("GICRE") == "psu_gi"
+    assert get_peer_group("STARHEALTH") == "health_insurance"
+    assert get_peer_group("NIVABUPA") == "health_insurance"
     assert get_peer_group("LICI") == "life_insurance"
     assert get_peer_group("HDFCLIFE") == "life_insurance"
     assert get_peer_group("HDFCAMC") == "asset_mgmt"
@@ -301,12 +311,14 @@ def test_pfc_pbv_fallback_to_default_medians(patch_medians):
     assert result["fair_value"] > 0
 
 
-# ── ICICIGI — general insurance, P/BV path ──────────────────────
+# ── ICICIGI — private GI bucket (split from general_insurance 2026-05-19) ──
 
 def test_icicigi_pbv_peer_valuation(patch_medians):
+    # ICICIGI now routes through private_gi bucket alongside GODIGIT.
+    # Real peer P/B median (ICICIGI 5.68, GODIGIT 6.13) ≈ 5.9.
     patch_medians({
-        "general_insurance": {
-            "median_pb": 3.0, "median_roe": 0.15,
+        "private_gi": {
+            "median_pb": 5.9, "median_roe": 0.14,
             "n_pb": 2, "n_pe": 2, "n_roe": 2,
         }
     })
@@ -321,10 +333,45 @@ def test_icicigi_pbv_peer_valuation(patch_medians):
     )
     assert result is not None
     assert result["method"] == "p_bv_peer"
-    # BVPS=300, fair P/BV ≈ 3.0 × (0.16/0.15) = 3.2. IV ≈ 960.
-    # CMP 1800 vs ~960 → overvalued
-    assert result["verdict"] == "overvalued"
-    assert 800 <= result["fair_value"] <= 1100
+    # BVPS=300, fair P/BV ≈ 5.9 × (0.16/0.14 clamp ceil) ≈ 5.9 × 1.14
+    # = 6.73. IV ≈ ₹2,020 — close to 26-analyst consensus ₹2,125.
+    assert 1700 <= result["fair_value"] <= 2300
+
+
+# ── PSU GI split anchor (2026-05-19) ─────────────────────────────
+
+
+def test_niacl_psu_gi_does_not_overshoot(patch_medians):
+    """NIACL was the top-of-list "over" outlier (+174% over consensus)
+    when it was bundled with ICICIGI/STARHEALTH in general_insurance.
+    With psu_gi split, peer median P/B drops from ~3.0 to ~1.05.
+
+    Anchor: NIACL BVPS ~₹176 (price ₹162 / pb 0.94), 3-analyst
+    consensus ₹170. Model FV should land within ±25% of consensus.
+    """
+    patch_medians({
+        "psu_gi": {
+            "median_pb": 1.05, "median_roe": 0.08,
+            "n_pb": 2, "n_pe": 2, "n_roe": 2,
+        }
+    })
+    result = compute_financial_fair_value(
+        ticker="NIACL.NS",
+        company_info={"current_price": 162.0, "shares": 1.65e9},
+        financials={
+            "priceToBook": 0.94,  # → BVPS = 172
+            "roe": 0.036,  # NIACL realized ROE much lower than peer
+        },
+        shareholding=None,
+    )
+    assert result is not None
+    fv = result["fair_value"]
+    consensus = 170.33
+    drift = (fv - consensus) / consensus
+    assert -0.30 < drift < 0.30, (
+        f"NIACL FV ₹{fv:.0f} drifts {drift*100:+.1f}% from "
+        f"3-analyst consensus ₹170. psu_gi split likely regressed."
+    )
 
 
 # ── Missing-data handling ────────────────────────────────────────

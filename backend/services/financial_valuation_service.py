@@ -58,7 +58,16 @@ FINANCIAL_PEER_GROUPS: dict[str, list[str]] = {
     ],
     "govt_nbfc":         ["PFC", "REC", "RECLTD", "IRFC", "HUDCO"],
     "life_insurance":    ["LICI", "HDFCLIFE", "SBILIFE", "ICICIPRULI"],
-    "general_insurance": ["ICICIGI", "STARHEALTH", "NIACL"],
+    # General-insurance split 2026-05-19 (PR #383 follow-up). Same
+    # peer-median pollution pattern as housing finance: a single
+    # "general_insurance" bucket was mixing PSU lifers (NIACL 0.94×,
+    # GICRE 1.11×) with premium/digital private GI (ICICIGI 5.68×,
+    # GODIGIT 6.13×) and standalone health (STARHEALTH 3.91×,
+    # NIVABUPA 3.28×). Mixed median ≈ 3.5 pushed NIACL FV to ~+174%
+    # over consensus on 2026-05-19. Three new buckets:
+    "psu_gi":            ["NIACL", "GICRE"],
+    "private_gi":        ["ICICIGI", "GODIGIT"],
+    "health_insurance":  ["STARHEALTH", "NIVABUPA"],
     # Housing finance split 2026-05-19 — peer-median pollution fix.
     # Old single "housing_finance" bucket mixed legacy mortgage lenders
     # (thin spreads, sub-1× P/BV) with affordable-housing specialists
@@ -92,7 +101,9 @@ _GROUP_METHOD = {
     "lending_nbfc":      "p_bv_peer",
     "govt_nbfc":         "p_bv_peer",
     "life_insurance":    "p_ev_peer",
-    "general_insurance": "p_bv_peer",
+    "psu_gi":            "p_bv_peer",
+    "private_gi":        "p_bv_peer",
+    "health_insurance":  "p_bv_peer",
     "traditional_hfc":   "p_bv_peer",
     "premium_hfc":       "p_bv_peer",
     "asset_mgmt":        "p_e_peer",
@@ -106,7 +117,15 @@ _FALLBACK_PB = {
     "lending_nbfc":      (4.0, 0.20),
     "govt_nbfc":         (1.2, 0.18),
     "life_insurance":    (2.0, 0.14),   # P/EV approximated via P/BV
-    "general_insurance": (3.0, 0.15),
+    # General-insurance split 2026-05-19 — old (3.0, 0.15) was a sector
+    # average that catastrophically over-shot PSU GIs. Real peer P/B
+    # medians from 2026-05-17 market_metrics:
+    #   psu_gi:           [NIACL 0.94, GICRE 1.11] → median 1.025
+    #   private_gi:       [ICICIGI 5.68, GODIGIT 6.13] → median 5.9
+    #   health_insurance: [STARHEALTH 3.91, NIVABUPA 3.28] → median 3.6
+    "psu_gi":            (1.05, 0.08),
+    "private_gi":        (5.5, 0.15),
+    "health_insurance":  (3.5, 0.08),
     # Traditional HFC: legacy mortgage lenders only (CANFINHOME moved
     # to premium_hfc per PR #383 refinement). LICHSGFIN 0.78, LICHOUSFIN
     # ~0.85, PNBHOUSING 1.44 — real 3-peer median ~0.95. 23-analyst
