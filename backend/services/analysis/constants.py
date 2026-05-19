@@ -810,6 +810,38 @@ for _t in (FINANCIAL_COMPANIES - _NBFC_TICKERS - _INSURANCE_TICKERS):
 TICKER_SECTOR_OVERRIDES["AMBUJACEM"] = "Cement"
 TICKER_SECTOR_OVERRIDES["AMBUJACEM.NS"] = "Cement"
 
+# ── 2026-05-19 Day-3: major large-cap mis-classification fixes ──────
+# yfinance returns incorrect sectors for several well-known large caps
+# (BIOCON as "Oil & Gas", ABB as "Energy"...). These mis-classifications
+# route stocks to the wrong DCF cohort and produce broken FVs that
+# surface as under-outliers. Hard-pin the canonical sector here.
+#
+# All are 10+ analyst consensus large-caps (high confidence the canonical
+# answer is unambiguous — BIOCON is unambiguously a biopharma, not
+# energy). Operator review pending; do not extend without data-team
+# verification.
+_DAY3_SECTOR_FIXES: dict[str, str] = {
+    "BIOCON":      "Pharma",
+    "ABB":         "Capital Goods",
+    "ADANIGREEN":  "Power",
+    "ADANIENT":    "Conglomerate",     # genuinely diversified
+    "ADANIPORTS":  "Infrastructure",
+    "APOLLOTYRE":  "Auto",
+    "AUROPHARMA":  "Pharma",
+    "BHARATFORG":  "Auto",
+    "EMCURE":      "Pharma",
+    "GLAXO":       "Pharma",
+    "GLENMARK":    "Pharma",
+    "IPCALAB":     "Pharma",
+    "MANKIND":     "Pharma",
+    "SUNPHARMA":   "Pharma",
+    "TORNTPHARM":  "Pharma",
+    "ZYDUSLIFE":   "Pharma",
+}
+for _t, _sec in _DAY3_SECTOR_FIXES.items():
+    TICKER_SECTOR_OVERRIDES[_t] = _sec
+    TICKER_SECTOR_OVERRIDES[f"{_t}.NS"] = _sec
+
 # ── Realty developer sector mistag fixes (2026-05-18) ───────────
 # Per docs/design/realty-developers-dcf-fix.md §5.2, three developer
 # tickers come out of yfinance with broken sectors and block any
