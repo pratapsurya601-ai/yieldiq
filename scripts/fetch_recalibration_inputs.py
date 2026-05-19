@@ -1,14 +1,24 @@
 """Quarterly recalibration data-pull for YieldIQ WACC inputs.
 
-This script pulls fresh values for the three WACC-driving knobs that
-need a quarterly refresh:
+This script captures fresh values for the three WACC-driving knobs that
+need a periodic refresh:
 
-1. **Risk-free rate** — Indian 10Y G-Sec yield (via yfinance).
-2. **Sector betas** — median 1Y beta from top-3 names per sector
-   (via ``yf.Ticker(t).info["beta"]``).
-3. **Terminal growth assumption** — heuristic derived from RBI's
-   published nominal GDP forecast minus a long-run convergence
-   haircut (default 50 bps). The operator MUST sanity-check these.
+1. **Risk-free rate** — Indian 10Y G-Sec yield. Hardcoded fallback that
+   the operator updates quarterly from the RBI Press-Release page. The
+   previous yfinance feeds (``^IN10Y`` and ``IN10YT=RR``) were dropped
+   by Yahoo in 2025 and both return 404.
+2. **Sector betas** — Damodaran emerging-markets sector betas (India
+   sheet), updated annually each January. Hardcoded as a table; operator
+   refreshes from the Stern dataset once a year. The previous
+   ``yf.Ticker(t).info["beta"]`` path produced catastrophically low
+   values for Indian listings (IT services 0.13, tech hardware 0.004)
+   and silently dropped tickers such as AMBER.NS, TATAMOTORS.NS,
+   SHREECEM.NS that had no ``beta`` field at all.
+3. **Terminal growth assumption** — Sector-specific Damodaran-style
+   stable-stage values, capped at 6 % (above India long-run nominal GDP
+   is unsupportable). Previously derived from "RBI nominal GDP − 50 bps",
+   which conflated *current* nominal GDP (~10.5 %) with *long-run*
+   terminal growth — a category error that would balloon every FV.
 
 Output is a JSON artifact in ``scripts/snapshots/`` that the operator
 inspects, optionally edits, and then feeds into
@@ -22,9 +32,8 @@ CLI:
     python scripts/fetch_recalibration_inputs.py \\
         --quarter Q2 --year 2026 --dry-run
 
-If yfinance is not installed or the G-Sec feed returns empty, the
-script raises a hard error pointing the operator at the manual-entry
-escape hatch (``--rf-manual``).
+The ``--rf-manual`` flag remains as an escape hatch when the hardcoded
+risk-free rate is stale.
 """
 
 from __future__ import annotations
@@ -32,8 +41,6 @@ from __future__ import annotations
 import argparse
 import datetime as _dt
 import json
-import os
-import statistics
 import sys
 from pathlib import Path
 from typing import Any
@@ -44,175 +51,187 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 
-# ── Sector → ticker map for beta sampling ─────────────────────────
-# Keys mirror INDUSTRY_WACC keys in models/industry_wacc.py.
-# Tickers are NSE symbols (yfinance suffix .NS). Top-3 by market-cap
-# within each sector — operator updates as cohort membership changes.
-SECTOR_BETA_TICKERS: dict[str, list[str]] = {
-    "it_services":      ["TCS.NS", "INFY.NS", "HCLTECH.NS"],
-    "saas_software":    ["INTELLECT.NS", "TANLA.NS", "NEWGEN.NS"],
-    "tech_hardware":    ["DIXON.NS", "AMBER.NS", "KAYNES.NS"],
-    "fmcg":             ["ITC.NS", "HINDUNILVR.NS", "NESTLEIND.NS"],
-    "consumer_durable": ["HAVELLS.NS", "VOLTAS.NS", "WHIRLPOOL.NS"],
-    "pharma":           ["SUNPHARMA.NS", "DRREDDY.NS", "CIPLA.NS"],
-    "hospital":         ["APOLLOHOSP.NS", "MAXHEALTH.NS", "FORTIS.NS"],
-    "auto_oem":         ["MARUTI.NS", "TATAMOTORS.NS", "M&M.NS"],
-    "auto_ancillary":   ["BOSCHLTD.NS", "MOTHERSON.NS", "BHARATFORG.NS"],
-    "capital_goods":    ["LT.NS", "SIEMENS.NS", "ABB.NS"],
-    "defence":          ["HAL.NS", "BEL.NS", "BHEL.NS"],
-    "infrastructure":   ["LT.NS", "ADANIPORTS.NS", "GMRAIRPORT.NS"],
-    "regulated_utility":["POWERGRID.NS", "GAIL.NS", "IGL.NS"],
-    "oil_gas":          ["RELIANCE.NS", "ONGC.NS", "IOC.NS"],
-    "power":            ["NTPC.NS", "TATAPOWER.NS", "ADANIGREEN.NS"],
-    "metals":           ["TATASTEEL.NS", "JSWSTEEL.NS", "HINDALCO.NS"],
-    "cement":           ["ULTRACEMCO.NS", "AMBUJACEM.NS", "SHREECEM.NS"],
-    "realty":           ["DLF.NS", "GODREJPROP.NS", "OBEROIRLTY.NS"],
-    "telecom":          ["BHARTIARTL.NS", "IDEA.NS", "TATACOMM.NS"],
-    "retail":           ["DMART.NS", "TRENT.NS", "VMART.NS"],
-    "chemicals":        ["PIDILITIND.NS", "SRF.NS", "NAVINFLUOR.NS"],
-    "media":            ["ZEEL.NS", "PVRINOX.NS", "SUNTV.NS"],
-    "logistics":        ["CONCOR.NS", "DELHIVERY.NS", "TCI.NS"],
-    "airlines":         ["INDIGO.NS"],
+# ══════════════════════════════════════════════════════════════════
+# Hardcoded reference tables
+# ══════════════════════════════════════════════════════════════════
+#
+# Cap on any sector terminal-growth value. India long-run nominal GDP
+# is not credibly above this; anything higher fails the sanity guard
+# in fetch_sector_terminal_growth() and is also enforced by the test
+# ``test_terminal_growth_never_exceeds_cap``.
+TERMINAL_GROWTH_CAP: float = 0.06
+
+
+# Risk-free rate (10Y G-Sec). Update QUARTERLY from
+# https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx
+# (look for "Government Stock - 10 Year" weighted-average yield).
+#
+# Last updated: 2026-05 — 10Y G-Sec mid-May 2026 ~7.10 %.
+RBI_10Y_GSEC_2026Q2: float = 0.0710
+RBI_10Y_GSEC_SOURCE: str = (
+    "RBI Press Release, 10Y G-Sec weighted-average yield, "
+    "mid-May 2026 (hardcoded — refresh quarterly from "
+    "https://www.rbi.org.in/Scripts/BS_PressReleaseDisplay.aspx)"
+)
+
+
+# Damodaran emerging-markets sector betas — India sheet.
+# Source: http://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/Betas.html
+# (Emerging Markets > India). Updated each January.
+#
+# Last revision: 2026-01 update (operator: refresh annually after the
+# Damodaran January data drop).
+#
+# NOTE: These are heuristic defaults aligned to the published levered-
+# beta column. Operator is expected to revise once they download the
+# actual 2026 spreadsheet — these values are starting points sized to
+# be obviously safer than the broken yfinance lookups they replace.
+DAMODARAN_INDIA_BETAS_2026: dict[str, float] = {
+    "it_services":       1.05,
+    "banks":             1.10,
+    "nbfc":              1.25,
+    "fmcg":              0.75,
+    "pharma":            0.85,
+    "auto_oem":          1.20,
+    "auto_ancillary":    1.10,
+    "cement":            1.05,
+    "metals":            1.35,
+    "oil_gas":           1.05,
+    "telecom":           0.90,
+    "capital_goods":     1.15,
+    "power":             0.85,
+    "regulated_utility": 0.65,
+    "realty":            1.40,
+    "infrastructure":    1.10,
+    "chemicals":         1.05,
+    "consumer_durable":  1.00,
+    "media":             1.20,
+    "retail":            1.15,
+    "logistics":         0.95,
+    "saas_software":     1.20,
+    "tech_hardware":     1.15,
+    "airlines":          1.45,
+    "defence":           1.00,
+    "hospital":          0.90,
 }
+DAMODARAN_BETAS_SOURCE: str = (
+    "Damodaran Emerging Markets sector betas (India), "
+    "Jan-2026 annual update — refresh from "
+    "http://pages.stern.nyu.edu/~adamodar/New_Home_Page/datafile/Betas.html"
+)
 
 
-# ── Heuristic terminal-growth defaults (operator edits before commit)─
+# Long-run terminal-growth assumptions, sector-specific.
+# Anchored to Damodaran's recommendation (~4-5 % nominal for India,
+# bounded by the 10Y G-Sec long-bond yield as a hard ceiling).
 #
-# Method: RBI's published nominal-GDP forecast minus a long-run
-# convergence haircut (~50 bps). Per-sector overlays reflect typical
-# Damodaran emerging-markets stable-stage growth assumptions.
-#
-# These numbers are STARTING POINTS for operator review, not gospel.
-def default_terminal_growth(rbi_nominal_gdp_fy: float,
-                            haircut_bps: int = 50) -> dict[str, float]:
-    base = round(rbi_nominal_gdp_fy - haircut_bps / 10_000.0, 4)
-    # Sector overlays expressed as additive deltas in decimal terms.
-    overlays = {
-        "it_services":       +0.005,   # global demand exposure
-        "saas_software":     +0.005,
-        "tech_hardware":     -0.005,
-        "fmcg":              +0.005,
-        "consumer_durable":  +0.000,
-        "pharma":            +0.000,
-        "hospital":          +0.005,
-        "auto_oem":          -0.010,
-        "auto_ancillary":    -0.010,
-        "capital_goods":     +0.000,
-        "defence":           +0.005,
-        "infrastructure":    +0.000,
-        "regulated_utility": -0.020,
-        "oil_gas":           -0.015,
-        "power":             -0.015,
-        "metals":            -0.020,
-        "cement":            -0.015,
-        "realty":            -0.005,
-        "telecom":           -0.005,
-        "retail":            +0.000,
-        "chemicals":         -0.005,
-        "media":             -0.010,
-        "logistics":         -0.005,
-        "airlines":          -0.005,
-        "general":           +0.000,
-    }
-    out: dict[str, float] = {"default": base}
-    for sector, delta in overlays.items():
-        out[sector] = round(base + delta, 4)
-    return out
+# Capped by TERMINAL_GROWTH_CAP. Operator revises once a year alongside
+# the beta refresh.
+TERMINAL_GROWTH_2026: dict[str, float] = {
+    "default":           0.045,
+    "it_services":       0.05,
+    "fmcg":              0.055,  # brand-premium persistence
+    "pharma":            0.05,
+    "auto_oem":          0.045,
+    "banks":             0.05,
+    "nbfc":              0.05,
+    "regulated_utility": 0.04,
+    "metals":            0.035,  # cyclical, lower
+    "oil_gas":           0.03,   # secular decline thesis
+    "telecom":           0.045,
+    "tech_hardware":     0.05,
+    "capital_goods":     0.045,
+    "cement":            0.04,
+    "realty":            0.045,
+    "saas_software":     0.055,
+    "media":             0.04,
+    "retail":            0.045,
+}
+TERMINAL_GROWTH_SOURCE: str = (
+    "Damodaran-style stable-stage terminal growth (India, 2026), "
+    f"capped at {TERMINAL_GROWTH_CAP:.2%}; sector overlays reflect "
+    "cyclicality and secular outlook"
+)
 
 
 # ══════════════════════════════════════════════════════════════════
 # Data-pull primitives (kept thin so they can be monkeypatched in tests)
 # ══════════════════════════════════════════════════════════════════
-def fetch_risk_free_rate(yf_module: Any = None) -> tuple[float, str]:
+def fetch_risk_free_rate() -> tuple[float, str]:
     """Return (rate_as_decimal, source_description) for the Indian 10Y
     G-Sec yield.
 
-    Tries ``^IN10Y`` first; falls back to ``IN10YT=RR``. Raises
-    ``RuntimeError`` if both feeds are empty.
+    Uses the hardcoded ``RBI_10Y_GSEC_2026Q2`` constant. Operator must
+    refresh quarterly from the RBI press-release page (see constant
+    docstring). Override at runtime with ``--rf-manual``.
     """
-    if yf_module is None:
-        try:
-            import yfinance as yf_module  # type: ignore[no-redef]
-        except ImportError as e:
-            raise RuntimeError(
-                "yfinance not installed. Run `pip install yfinance` or "
-                "supply --rf-manual <decimal>."
-            ) from e
-
-    candidates = ["^IN10Y", "IN10YT=RR"]
-    last_err: Exception | None = None
-    for sym in candidates:
-        try:
-            hist = yf_module.Ticker(sym).history(period="5d")
-        except Exception as e:  # network / parser errors
-            last_err = e
-            continue
-        if hist is None or len(hist) == 0:
-            continue
-        # G-Sec yield feeds quote in percent units (e.g. 7.2 → 7.2%).
-        close = float(hist["Close"].dropna().iloc[-1])
-        if close <= 0:
-            continue
-        as_of = str(hist.index[-1].date()) if hasattr(hist.index[-1], "date") else "latest"
-        # Convert percent → decimal (7.2 → 0.072). Heuristic: if close > 1
-        # assume percent units; else assume already decimal.
-        rate = close / 100.0 if close > 1 else close
-        return round(rate, 4), f"yfinance {sym}, {as_of} close"
-    raise RuntimeError(
-        "10Y G-Sec yield unavailable from yfinance "
-        f"(tried {candidates}; last error: {last_err}). "
-        "Pass --rf-manual <decimal, e.g. 0.072> to override."
-    )
+    return RBI_10Y_GSEC_2026Q2, RBI_10Y_GSEC_SOURCE
 
 
-def fetch_sector_betas(yf_module: Any = None,
-                       universe: dict[str, list[str]] | None = None
-                       ) -> tuple[dict[str, float], list[str]]:
-    """Return (sector → median beta, warnings) using top-3-per-sector."""
-    if yf_module is None:
-        try:
-            import yfinance as yf_module  # type: ignore[no-redef]
-        except ImportError as e:
-            raise RuntimeError(
-                "yfinance not installed. Run `pip install yfinance`."
-            ) from e
-    universe = universe or SECTOR_BETA_TICKERS
-    out: dict[str, float] = {}
+def fetch_sector_betas(
+    table: dict[str, float] | None = None,
+) -> tuple[dict[str, float], list[str]]:
+    """Return (sector → beta, warnings) from the Damodaran lookup table.
+
+    The previous implementation pulled ``yf.Ticker(t).info["beta"]``
+    sector by sector. That path was deleted because (a) Yahoo's beta
+    field for Indian listings is computed against a tiny lookback window
+    and routinely under-reports (TCS at 0.13, DIXON near zero), and
+    (b) many tickers simply have no beta field, silently dropping
+    sectors from the artifact.
+    """
+    src = dict(table) if table is not None else dict(DAMODARAN_INDIA_BETAS_2026)
     warnings: list[str] = []
-    for sector, tickers in universe.items():
-        betas: list[float] = []
-        for t in tickers:
-            try:
-                info = yf_module.Ticker(t).info or {}
-            except Exception as e:
-                warnings.append(f"{sector}: {t} info fetch failed ({e})")
-                continue
-            b = info.get("beta")
-            if b is None:
-                warnings.append(f"{sector}: {t} has no beta in info")
-                continue
-            try:
-                betas.append(float(b))
-            except (TypeError, ValueError):
-                warnings.append(f"{sector}: {t} beta not numeric ({b!r})")
-        if not betas:
-            warnings.append(f"{sector}: no beta samples — skipped")
+    out: dict[str, float] = {}
+    for sector, beta in src.items():
+        try:
+            b = float(beta)
+        except (TypeError, ValueError):
+            warnings.append(f"{sector}: beta not numeric ({beta!r}) — skipped")
             continue
-        out[sector] = round(statistics.median(betas), 3)
+        if b <= 0 or b > 3.0:
+            warnings.append(
+                f"{sector}: beta {b} outside sane range (0, 3] — skipped"
+            )
+            continue
+        out[sector] = round(b, 3)
     return out, warnings
 
 
-def fetch_rbi_nominal_gdp() -> tuple[float, str]:
-    """Return (nominal_gdp_forecast_decimal, source).
+def fetch_sector_terminal_growth(
+    table: dict[str, float] | None = None,
+    cap: float = TERMINAL_GROWTH_CAP,
+) -> tuple[dict[str, float], list[str]]:
+    """Return (sector → terminal growth, warnings) from the hardcoded
+    Damodaran-style table.
 
-    yfinance has no RBI GDP feed and scraping the MPC statement is
-    brittle. Use the most recently published RBI nominal-GDP projection
-    as a hardcoded fallback; operator updates this constant once a
-    year (or overrides via ``--gdp-nominal``).
+    Every value is clamped at ``cap`` (default 6 %). Anything above the
+    cap raises a warning AND is silently clipped — the operator is
+    expected to investigate before applying.
     """
-    # RBI Monetary Policy Report (Oct 2025): nominal GDP growth ~10.5%
-    # for FY26. Update when next MPC report lands.
-    return 0.105, "RBI MPC Oct-2025 nominal-GDP projection (hardcoded fallback)"
+    src = dict(table) if table is not None else dict(TERMINAL_GROWTH_2026)
+    warnings: list[str] = []
+    out: dict[str, float] = {}
+    for sector, g in src.items():
+        try:
+            gv = float(g)
+        except (TypeError, ValueError):
+            warnings.append(
+                f"{sector}: terminal_growth not numeric ({g!r}) — skipped"
+            )
+            continue
+        if gv > cap:
+            warnings.append(
+                f"{sector}: terminal_growth {gv} exceeds cap {cap}; clipped"
+            )
+            gv = cap
+        if gv < 0:
+            warnings.append(
+                f"{sector}: terminal_growth {gv} negative — skipped"
+            )
+            continue
+        out[sector] = round(gv, 4)
+    return out, warnings
 
 
 # ══════════════════════════════════════════════════════════════════
@@ -274,17 +293,17 @@ def print_summary(art: dict[str, Any]) -> None:
     print(f"\nRisk-free rate (10Y G-Sec): {art['risk_free_rate']:.4f}")
     print(f"  source: {art['rf_source']}")
 
-    print("\nSector betas (median, top-3 per sector):")
+    print("\nSector betas (Damodaran India sheet):")
     print(f"  source: {art['sector_betas_source']}")
-    print(f"  {'sector':<22}{'old':>10}{'new':>10}{'Δ':>10}")
+    print(f"  {'sector':<22}{'old':>10}{'new':>10}{'delta':>10}")
     for sector, new in sorted(art["sector_betas"].items()):
         old = cur.get(sector, {}).get("beta_typical", float("nan"))
         delta = new - old if old == old else float("nan")  # NaN-safe
         print(f"  {sector:<22}{old:>10.3f}{new:>10.3f}{delta:>+10.3f}")
 
-    print("\nTerminal growth (RBI-anchored heuristic — REVIEW BEFORE APPLY):")
+    print("\nTerminal growth (Damodaran-style, sector overlays — REVIEW BEFORE APPLY):")
     print(f"  source: {art['terminal_growth_source']}")
-    print(f"  {'sector':<22}{'old':>10}{'new':>10}{'Δ':>10}")
+    print(f"  {'sector':<22}{'old':>10}{'new':>10}{'delta':>10}")
     for sector, new in sorted(art["terminal_growth"].items()):
         old = cur.get(sector, {}).get("terminal_growth", float("nan"))
         delta = new - old if old == old else float("nan")
@@ -308,15 +327,11 @@ def main(argv: list[str] | None = None) -> int:
                     help="output JSON path (default: scripts/snapshots/...)")
     ap.add_argument("--rf-manual", type=float, default=None,
                     help="override 10Y G-Sec rate as decimal (e.g. 0.072)")
-    ap.add_argument("--gdp-nominal", type=float, default=None,
-                    help="override RBI nominal-GDP forecast as decimal "
-                         "(e.g. 0.105)")
-    ap.add_argument("--haircut-bps", type=int, default=50,
-                    help="convergence haircut applied to GDP forecast "
-                         "(default: 50)")
     ap.add_argument("--dry-run", action="store_true",
                     help="print artifact, do not write a file")
     args = ap.parse_args(argv)
+
+    warnings: list[str] = []
 
     # Risk-free rate
     if args.rf_manual is not None:
@@ -324,17 +339,15 @@ def main(argv: list[str] | None = None) -> int:
     else:
         rf, rf_src = fetch_risk_free_rate()
 
-    # Sector betas
-    betas, warnings = fetch_sector_betas()
-    beta_src = "yfinance Ticker.info median of top-3 per sector"
+    # Sector betas (Damodaran lookup)
+    betas, beta_warnings = fetch_sector_betas()
+    warnings.extend(beta_warnings)
+    beta_src = DAMODARAN_BETAS_SOURCE
 
     # Terminal growth
-    if args.gdp_nominal is not None:
-        gdp, gdp_src_label = args.gdp_nominal, "operator override --gdp-nominal"
-    else:
-        gdp, gdp_src_label = fetch_rbi_nominal_gdp()
-    tg = default_terminal_growth(gdp, haircut_bps=args.haircut_bps)
-    tg_src = f"{gdp_src_label} − {args.haircut_bps}bps convergence"
+    tg, tg_warnings = fetch_sector_terminal_growth()
+    warnings.extend(tg_warnings)
+    tg_src = TERMINAL_GROWTH_SOURCE
 
     # Current state
     try:

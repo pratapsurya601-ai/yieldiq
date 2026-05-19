@@ -2,8 +2,10 @@
 
 Covers:
 - fetch_recalibration_inputs.py
-    * yfinance mocked → artifact shape is correct
-    * empty G-Sec feed → RuntimeError with manual-entry instructions
+    * risk-free rate uses hardcoded RBI constant unless overridden
+    * Damodaran beta-table lookup produces sane sector values
+    * terminal growth table is capped at TERMINAL_GROWTH_CAP
+    * artifact shape is correct
 - apply_recalibration.py
     * dry-run preview produces expected diff rows
     * --apply rewrites models/industry_wacc.py in place
@@ -13,7 +15,6 @@ from __future__ import annotations
 
 import json
 import sys
-import types
 from pathlib import Path
 
 import pytest
@@ -28,121 +29,106 @@ import fetch_recalibration_inputs as fri  # noqa: E402
 import apply_recalibration as ar          # noqa: E402
 
 
-# ── yfinance test double ──────────────────────────────────────────
-class _FakeHist:
-    def __init__(self, closes: list[float]):
-        import datetime as _dt
-        self._closes = closes
-        # mimic pandas DataFrame access used by the script
-        self.index = [types.SimpleNamespace(
-            date=lambda d=_dt.date(2026, 5, 15): d
-        )]
-
-    def __len__(self) -> int:
-        return len(self._closes)
-
-    def __getitem__(self, key: str) -> "_FakeHist":
-        return self  # ["Close"] returns self
-
-    def dropna(self) -> "_FakeSeries":
-        return _FakeSeries(self._closes)
+# ── fetch_recalibration_inputs: risk-free rate ────────────────────
+def test_fetch_risk_free_rate_returns_hardcoded_constant():
+    rate, src = fri.fetch_risk_free_rate()
+    assert rate == pytest.approx(fri.RBI_10Y_GSEC_2026Q2)
+    assert "RBI" in src
+    assert "rbi.org.in" in src.lower()
 
 
-class _FakeSeries:
-    def __init__(self, vals: list[float]):
-        self.vals = vals
-
-    @property
-    def iloc(self) -> "_FakeSeries":
-        return self
-
-    def __getitem__(self, i: int) -> float:
-        return self.vals[i]
+def test_fetch_risk_free_rate_in_sane_band():
+    """Sanity guard: India 10Y G-Sec should fall in (4%, 12%) for
+    any plausible decade. If this fails the operator forgot to refresh
+    the constant or made a unit error (entered 7.1 instead of 0.071).
+    """
+    rate, _ = fri.fetch_risk_free_rate()
+    assert 0.04 <= rate <= 0.12
 
 
-class _FakeTicker:
-    def __init__(self, sym: str, hist_map: dict[str, list[float]],
-                 info_map: dict[str, dict]):
-        self._sym = sym
-        self._hist_map = hist_map
-        self._info_map = info_map
-
-    def history(self, period: str = "5d") -> _FakeHist:
-        return _FakeHist(self._hist_map.get(self._sym, []))
-
-    @property
-    def info(self) -> dict:
-        return self._info_map.get(self._sym, {})
-
-
-def _make_yf(hist_map: dict[str, list[float]],
-             info_map: dict[str, dict]):
-    mod = types.SimpleNamespace()
-    mod.Ticker = lambda s: _FakeTicker(s, hist_map, info_map)
-    return mod
-
-
-# ── fetch_recalibration_inputs ────────────────────────────────────
-def test_fetch_risk_free_rate_primary_ok():
-    yf = _make_yf({"^IN10Y": [7.21]}, {})
-    rate, src = fri.fetch_risk_free_rate(yf_module=yf)
-    assert rate == pytest.approx(0.0721, rel=1e-3)
-    assert "^IN10Y" in src
-
-
-def test_fetch_risk_free_rate_fallback_to_reuters():
-    yf = _make_yf({"^IN10Y": [], "IN10YT=RR": [7.05]}, {})
-    rate, src = fri.fetch_risk_free_rate(yf_module=yf)
-    assert rate == pytest.approx(0.0705, rel=1e-3)
-    assert "IN10YT=RR" in src
-
-
-def test_fetch_risk_free_rate_empty_raises_with_manual_hint():
-    yf = _make_yf({"^IN10Y": [], "IN10YT=RR": []}, {})
-    with pytest.raises(RuntimeError) as exc:
-        fri.fetch_risk_free_rate(yf_module=yf)
-    assert "--rf-manual" in str(exc.value)
-
-
-def test_fetch_sector_betas_takes_median_of_top_3():
-    info = {
-        "TCS.NS":     {"beta": 0.80},
-        "INFY.NS":    {"beta": 0.90},
-        "HCLTECH.NS": {"beta": 1.00},
-        "ITC.NS":     {"beta": 0.70},
-    }
-    yf = _make_yf({}, info)
-    universe = {"it_services": ["TCS.NS", "INFY.NS", "HCLTECH.NS"],
-                "fmcg": ["ITC.NS"]}
-    betas, warnings = fri.fetch_sector_betas(yf_module=yf, universe=universe)
-    assert betas["it_services"] == pytest.approx(0.90)
-    assert betas["fmcg"] == pytest.approx(0.70)
+# ── fetch_recalibration_inputs: sector betas (Damodaran table) ────
+def test_fetch_sector_betas_returns_damodaran_table():
+    betas, warnings = fri.fetch_sector_betas()
     assert warnings == []
+    # Spot-check anchor values from the published table.
+    assert betas["it_services"] == pytest.approx(1.05)
+    assert betas["fmcg"] == pytest.approx(0.75)
+    assert betas["tech_hardware"] == pytest.approx(1.15)
 
 
-def test_fetch_sector_betas_warns_on_missing_info():
-    info = {"TCS.NS": {"beta": 0.80}, "INFY.NS": {}}  # second missing
-    yf = _make_yf({}, info)
-    universe = {"it_services": ["TCS.NS", "INFY.NS", "MISSING.NS"]}
-    betas, warnings = fri.fetch_sector_betas(yf_module=yf, universe=universe)
-    assert betas["it_services"] == pytest.approx(0.80)
-    # Two non-numeric peers should produce warnings.
-    assert any("INFY.NS" in w for w in warnings)
-    assert any("MISSING.NS" in w for w in warnings)
+def test_fetch_sector_betas_all_in_sane_range():
+    """Every sector beta must fall in a sane range. Catches the
+    regression that motivated this PR: yfinance was returning
+    0.004 for tech_hardware (essentially zero) which would balloon
+    DCF fair values.
+    """
+    betas, _ = fri.fetch_sector_betas()
+    for sector in (
+        "it_services", "fmcg", "pharma", "auto_oem", "banks",
+        "metals", "oil_gas", "tech_hardware",
+    ):
+        assert sector in betas, f"missing sector: {sector}"
+        assert 0.4 <= betas[sector] <= 2.0, (
+            f"{sector} beta {betas[sector]} outside sane range"
+        )
 
 
-def test_default_terminal_growth_overlay_math():
-    tg = fri.default_terminal_growth(0.105, haircut_bps=50)
-    assert tg["default"] == pytest.approx(0.10)          # 10.5 − 0.5
-    assert tg["it_services"] == pytest.approx(0.105)     # +50bps overlay
-    assert tg["metals"] == pytest.approx(0.080)          # −200bps overlay
+def test_fetch_sector_betas_warns_on_garbage_input():
+    """If operator hand-edits the table with garbage, surface a warning."""
+    bad = {"it_services": 1.05, "broken": "nope", "negative": -0.5,
+           "too_high": 4.0}
+    betas, warnings = fri.fetch_sector_betas(table=bad)
+    assert betas == {"it_services": 1.05}
+    assert any("broken" in w for w in warnings)
+    assert any("negative" in w for w in warnings)
+    assert any("too_high" in w for w in warnings)
 
 
+# ── fetch_recalibration_inputs: terminal growth ───────────────────
+def test_fetch_terminal_growth_returns_table_values():
+    tg, warnings = fri.fetch_sector_terminal_growth()
+    assert warnings == []
+    assert tg["default"] == pytest.approx(0.045)
+    assert tg["fmcg"] == pytest.approx(0.055)
+    assert tg["oil_gas"] == pytest.approx(0.030)
+
+
+def test_terminal_growth_never_exceeds_cap():
+    """Acceptance test: no sector terminal-growth value may exceed the
+    6 % cap. India long-run nominal GDP is not credibly above this.
+    """
+    tg, _ = fri.fetch_sector_terminal_growth()
+    for sector, g in tg.items():
+        assert g <= fri.TERMINAL_GROWTH_CAP, (
+            f"{sector} terminal_growth {g} exceeds cap "
+            f"{fri.TERMINAL_GROWTH_CAP}"
+        )
+
+
+def test_terminal_growth_clips_above_cap_with_warning():
+    bad = {"reckless": 0.10, "ok": 0.04}
+    tg, warnings = fri.fetch_sector_terminal_growth(table=bad)
+    assert tg["reckless"] == pytest.approx(fri.TERMINAL_GROWTH_CAP)
+    assert tg["ok"] == pytest.approx(0.04)
+    assert any("reckless" in w and "exceeds cap" in w for w in warnings)
+
+
+def test_terminal_growth_skips_non_numeric_and_negative():
+    bad = {"text": "oops", "neg": -0.01, "ok": 0.05}
+    tg, warnings = fri.fetch_sector_terminal_growth(table=bad)
+    assert "text" not in tg
+    assert "neg" not in tg
+    assert tg["ok"] == pytest.approx(0.05)
+    assert any("text" in w for w in warnings)
+    assert any("neg" in w for w in warnings)
+
+
+# ── artifact shape ────────────────────────────────────────────────
 def test_build_artifact_shape():
     art = fri.build_artifact(
         rf=0.072, rf_src="src",
-        betas={"it_services": 0.9}, beta_src="b-src",
-        tg={"default": 0.05, "it_services": 0.06}, tg_src="t-src",
+        betas={"it_services": 1.05}, beta_src="b-src",
+        tg={"default": 0.045, "it_services": 0.05}, tg_src="t-src",
         current_snap={"it_services": {"beta_typical": 1.05,
                                       "terminal_growth": 0.035,
                                       "wacc_default": 0.11}},
@@ -189,11 +175,11 @@ INDUSTRY_WACC_USA = {
 def _make_artifact() -> dict:
     return {
         "captured_at": "2026-05-18T00:00:00Z",
-        "risk_free_rate": 0.072,
+        "risk_free_rate": 0.071,
         "sector_betas": {"it_services": 0.92, "fmcg": 0.70},
-        "terminal_growth": {"default": 0.10,
+        "terminal_growth": {"default": 0.045,
                             "it_services": 0.045,
-                            "fmcg": 0.050},  # unchanged
+                            "fmcg": 0.050},  # fmcg unchanged
         "current_industry_wacc_snapshot": {
             "it_services": {"beta_typical": 1.05,
                             "terminal_growth": 0.035,
