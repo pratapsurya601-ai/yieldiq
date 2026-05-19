@@ -64,7 +64,11 @@ _INSURANCE_TICKERS = {
     'HDFCLIFE', 'SBILIFE', 'ICICIPRULI', 'LICI',
     # General + health insurers (NOT routed through Appraisal Value;
     # P/BV cohort with combined-ratio overlay — out of scope here).
-    'ICICIGI', 'NIACL', 'STARHEALTH',
+    # 2026-05-19 expansion: GICRE/GODIGIT/NIVABUPA added to keep the
+    # insurance classifier consistent with the new psu_gi / private_gi
+    # / health_insurance peer buckets in financial_valuation_service.
+    'ICICIGI', 'NIACL', 'GICRE', 'GODIGIT',
+    'STARHEALTH', 'NIVABUPA',
 }
 
 # ── Unified bank-like classifier set (2026-04-29) ────────────────
@@ -104,9 +108,14 @@ _NBFC_INSURANCE_BANKLIKE: set[str] = {
     'SBICARD', 'SUNDARMFIN', 'CREDITACC', 'BAJAJHLDNG',
     # PSU lender-NBFCs (regulated utilities of credit)
     'PFC', 'RECLTD', 'IRFC',
-    # Insurance
-    'HDFCLIFE', 'SBILIFE', 'ICICIPRULI', 'ICICIGI', 'NIACL',
-    'STARHEALTH',
+    # Insurance — life + general + health + reinsurance
+    # 2026-05-19 expansion: GICRE/GODIGIT/NIVABUPA/LICI added.
+    # Without these, is_bank_like() returned False and the financial-
+    # services valuation path was bypassed → GICRE's PR #383 psu_gi
+    # peer bucket was dead code (FV +103% over consensus post-deploy).
+    'HDFCLIFE', 'SBILIFE', 'ICICIPRULI', 'LICI',
+    'ICICIGI', 'NIACL', 'GICRE', 'GODIGIT',
+    'STARHEALTH', 'NIVABUPA',
 }
 
 
