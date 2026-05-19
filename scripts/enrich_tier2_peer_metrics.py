@@ -123,26 +123,50 @@ def _fetch_market_cap_cr(sess, ticker: str) -> Optional[float]:
     return None
 
 
-def _fetch_piotroski(sess, ticker: str) -> Optional[int]:
+def _fetch_piotroski(sess, ticker: str, sector: str = "") -> Optional[int]:
     """Compute Piotroski via screener.piotroski.compute_piotroski_fscore.
 
-    The screener function expects an 'enriched' dict — we don't rebuild
-    the full enrichment here (that's the analysis pipeline's job). For
-    the cohort peers we approximate the F-score from the persisted
-    annual financials row only, and degrade to None when inputs are
-    insufficient. The Tier 2 service treats None as "unknown" and never
-    promotes a peer with unknown Piotroski to Premium.
+    Long-term fix (2026-05-19): the screener's signal functions expect
+    a richly-enriched dict with pandas DataFrames (income_df, cf_df) and
+    canonical flat-field key names (lt_debt_prev, total_assets_prev,
+    shares_prev_year, etc.). We build that here from two annual rows of
+    ``financials`` — the same shape the analysis pipeline assembles in
+    backend/services/analysis/service.py.
+
+    Schema mapping (financials table, verified 2026-05-19):
+        pat                  → income_df.net_income
+        ebit                 → income_df.operating_income
+        revenue              → income_df.revenue
+        revenue*gross_margin → income_df.gross_profit (derived)
+        cfo                  → cf_df.ocf
+        free_cash_flow       → cf_df.fcf  (also used for latest_fcf)
+        total_debt           → lt_debt / total_debt (no LT/ST split in schema)
+        cash_and_equivalents → total_cash
+        shares_outstanding   → shares
+        debt_to_equity       → de_ratio
+        roe                  → roe (fallback for f1 when ROA unavailable)
+        fcf_growth_yoy       → fcf_growth (fallback for f9)
+    Missing (current_assets) → f6 falls back to cash/debt ratio.
+
+    Sector/industry classification matters: bank-like tickers run a
+    4-signal reduced Piotroski (banks fail f4/f5/f6/f8/f9 mechanically
+    because of their balance-sheet structure). We pass the cohort
+    sector key so `is_bank_like` routes correctly.
     """
+    import pandas as pd
     try:
         from screener.piotroski import compute_piotroski_fscore
     except Exception:
         return None
     db_t = _db_ticker(ticker)
     try:
-        row = sess.execute(text("""
-            SELECT net_income, operating_cf, total_assets,
-                   total_debt, current_assets, current_liabilities,
-                   shares, revenue, gross_profit, period_end
+        rows = sess.execute(text("""
+            SELECT pat, ebit, revenue, gross_margin,
+                   cfo, free_cash_flow,
+                   total_assets, total_debt, cash_and_equivalents,
+                   shares_outstanding, debt_to_equity, roe,
+                   fcf_growth_yoy, current_liabilities,
+                   period_end
             FROM financials
             WHERE ticker = :t
               AND period_type = 'annual'
@@ -151,56 +175,82 @@ def _fetch_piotroski(sess, ticker: str) -> Optional[int]:
             LIMIT 2
         """), {"t": db_t}).mappings().all()
     except Exception as exc:
-        logger.debug("piotroski rows fetch failed for %s: %s", ticker, exc)
+        logger.warning("piotroski rows fetch failed for %s: %s", ticker, exc)
+        try:
+            sess.rollback()
+        except Exception:
+            pass
         return None
-    if not row:
+    if not rows:
         return None
-    latest = row[0]
-    prev = row[1] if len(row) > 1 else {}
 
-    def _num(v):
+    def _f(v):
         try:
             return float(v) if v is not None else None
         except (TypeError, ValueError):
             return None
 
-    ni = _num(latest.get("net_income"))
-    cfo = _num(latest.get("operating_cf"))
-    ta = _num(latest.get("total_assets"))
-    ta_prev = _num(prev.get("total_assets"))
-    td = _num(latest.get("total_debt"))
-    td_prev = _num(prev.get("total_debt"))
-    ca = _num(latest.get("current_assets"))
-    cl = _num(latest.get("current_liabilities"))
-    ca_prev = _num(prev.get("current_assets"))
-    cl_prev = _num(prev.get("current_liabilities"))
-    shares = _num(latest.get("shares"))
-    shares_prev = _num(prev.get("shares"))
-    rev = _num(latest.get("revenue"))
-    rev_prev = _num(prev.get("revenue"))
-    gp = _num(latest.get("gross_profit"))
-    gp_prev = _num(prev.get("gross_profit"))
+    def _norm_pct(v):
+        # gross_margin / roe etc. may be stored as percentage (e.g. 25.4)
+        # or as a decimal (e.g. 0.254). Anything with |v| > 1.5 is almost
+        # certainly stored as percent; rescale to decimal.
+        if v is None:
+            return None
+        return v / 100.0 if abs(v) > 1.5 else v
+
+    # Build chronologically-ordered DataFrames so _series_last (.iloc[-1])
+    # picks up the most recent row, _series_prev (.iloc[-2]) picks the
+    # prior. We pulled DESC so reverse to ascending.
+    ordered = list(reversed(rows))
+    income_data = []
+    cf_data = []
+    for r in ordered:
+        rev = _f(r.get("revenue"))
+        gm = _norm_pct(_f(r.get("gross_margin")))
+        gp = (rev * gm) if (rev is not None and gm is not None) else None
+        income_data.append({
+            "net_income":       _f(r.get("pat")),
+            "operating_income": _f(r.get("ebit")),
+            "revenue":          rev,
+            "gross_profit":     gp,
+        })
+        cf_data.append({
+            "ocf": _f(r.get("cfo")),
+            "fcf": _f(r.get("free_cash_flow")),
+        })
+
+    income_df = pd.DataFrame(income_data)
+    cf_df = pd.DataFrame(cf_data)
+
+    latest = rows[0]
+    prev = rows[1] if len(rows) > 1 else {}
 
     enriched = {
-        "ticker": ticker,
-        "net_income": ni,
-        "operating_cf": cfo,
-        "total_assets": ta,
-        "prev_total_assets": ta_prev,
-        "total_debt": td,
-        "prev_total_debt": td_prev,
-        "current_assets": ca,
-        "current_liabilities": cl,
-        "prev_current_assets": ca_prev,
-        "prev_current_liabilities": cl_prev,
-        "shares": shares,
-        "prev_shares": shares_prev,
-        "revenue": rev,
-        "prev_revenue": rev_prev,
-        "gross_profit": gp,
-        "prev_gross_profit": gp_prev,
-        "sector": "",
+        "ticker":             ticker,
+        "sector":             sector,
+        "industry":           sector,  # cohort key doubles as industry hint
+        "income_df":          income_df,
+        "cf_df":              cf_df,
+        # Flat fields the signal helpers read directly via .get(...).
+        "total_assets":       _f(latest.get("total_assets")),
+        "total_assets_prev":  _f(prev.get("total_assets")),
+        "lt_debt":            _f(latest.get("total_debt")),
+        "lt_debt_prev":       _f(prev.get("total_debt")),
+        "total_debt":         _f(latest.get("total_debt")),
+        "total_cash":         _f(latest.get("cash_and_equivalents")),
+        "de_ratio":           _f(latest.get("debt_to_equity")),
+        "shares":             _f(latest.get("shares_outstanding")),
+        "shares_prev_year":   _f(prev.get("shares_outstanding")),
+        "latest_fcf":         _f(latest.get("free_cash_flow")),
+        "latest_revenue":     _f(latest.get("revenue")),
+        "roe":                _norm_pct(_f(latest.get("roe"))),
+        "fcf_growth":         _norm_pct(_f(latest.get("fcf_growth_yoy"))),
+        "gross_margin":       _norm_pct(_f(latest.get("gross_margin"))),
+        # current_ratio / current_ratio_prev intentionally absent — the
+        # financials table has no current_assets column. f6 falls back
+        # to cash/(debt+1) which still produces a meaningful signal.
     }
+
     try:
         result = compute_piotroski_fscore(enriched)
         if isinstance(result, dict):
@@ -208,19 +258,20 @@ def _fetch_piotroski(sess, ticker: str) -> Optional[int]:
             return int(sc) if sc is not None else None
         return None
     except Exception as exc:
-        logger.debug("piotroski compute failed for %s: %s", ticker, exc)
+        logger.warning("piotroski compute failed for %s: %s", ticker, exc)
         return None
 
 
 # ── Driver ───────────────────────────────────────────────────────
-def _all_cohort_tickers() -> list[str]:
+def _all_cohort_tickers() -> list[tuple[str, str]]:
+    """Return [(ticker, sector_key), ...] with first-seen sector winning."""
     seen: set[str] = set()
-    out: list[str] = []
-    for peers in DIRECT_PEERS.values():
+    out: list[tuple[str, str]] = []
+    for sector_key, peers in DIRECT_PEERS.items():
         for t in peers:
             if t not in seen:
                 seen.add(t)
-                out.append(t)
+                out.append((t, sector_key))
     return out
 
 
@@ -228,9 +279,9 @@ def _sector_counts() -> dict[str, int]:
     return {k: len(v) for k, v in DIRECT_PEERS.items()}
 
 
-def enrich_one(sess, ticker: str) -> dict:
+def enrich_one(sess, ticker: str, sector: str = "") -> dict:
     roce = _fetch_roce_pct(sess, ticker)
-    piotroski = _fetch_piotroski(sess, ticker)
+    piotroski = _fetch_piotroski(sess, ticker, sector=sector)
     mcap = _fetch_market_cap_cr(sess, ticker)
     bucket = _bucket_for(roce, piotroski, mcap)
     return {
@@ -263,15 +314,21 @@ def main() -> int:
     sess = Session()
 
     if args.tickers:
-        tickers = [
-            t.strip().upper() for t in args.tickers.split(",") if t.strip()
+        # CLI subset — try to recover sector from DIRECT_PEERS, else "".
+        wanted = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
+        ticker_to_sector: dict[str, str] = {}
+        for sec, peers in DIRECT_PEERS.items():
+            for t in peers:
+                ticker_to_sector.setdefault(t.upper(), sec)
+        ticker_pairs: list[tuple[str, str]] = [
+            (t, ticker_to_sector.get(t, "")) for t in wanted
         ]
     else:
-        tickers = _all_cohort_tickers()
+        ticker_pairs = _all_cohort_tickers()
 
     logger.info(
         "enriching %d tier-2 cohort peers (sectors=%d, dry_run=%s)",
-        len(tickers), len(DIRECT_PEERS), args.dry_run,
+        len(ticker_pairs), len(DIRECT_PEERS), args.dry_run,
     )
 
     n_written = 0
@@ -280,11 +337,15 @@ def main() -> int:
     coverage = {"roce": 0, "piotroski": 0, "market_cap_cr": 0}
     rows_for_summary: list[dict] = []
 
-    for i, t in enumerate(tickers, 1):
+    for i, (t, sec) in enumerate(ticker_pairs, 1):
         try:
-            rec = enrich_one(sess, t)
+            rec = enrich_one(sess, t, sector=sec)
         except Exception as exc:
             logger.warning("%s: enrich failed: %s", t, exc)
+            try:
+                sess.rollback()
+            except Exception:
+                pass
             n_failed += 1
             continue
 
@@ -310,11 +371,11 @@ def main() -> int:
         if i % 25 == 0:
             logger.info(
                 "[%d/%d] written=%d failed=%d buckets=%s",
-                i, len(tickers), n_written, n_failed, dict(bucket_counter),
+                i, len(ticker_pairs), n_written, n_failed, dict(bucket_counter),
             )
 
     summary = {
-        "total_tickers": len(tickers),
+        "total_tickers": len(ticker_pairs),
         "written": n_written,
         "failed": n_failed,
         "dry_run": bool(args.dry_run),

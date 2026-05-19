@@ -145,28 +145,73 @@ def _bucket_for(
 ) -> str:
     """Return 'premium' / 'core' / 'tail' for a ticker's quality bucket.
 
-    Design doc §2.2:
-      Premium : ROCE > 25  AND  Piotroski >= 7  AND  mcap >= 50000 Cr
-      Core    : ROCE 15-25 OR  Piotroski 5-6
-      Tail    : everything else
+    Bucketing rules (refined 2026-05-19 v2 — Day 2 follow-up to PR #376/#378):
+
+      Premium  : mcap >= 50,000 Cr  AND any of:
+                   • ROCE IS NULL  AND  Piotroski >= 7      (banks carve-out)
+                   • ROCE >= 25    AND  Piotroski >= 5
+                   • ROCE >= 15    AND  Piotroski >= 7
+      Core     : ROCE >= 15  OR  Piotroski >= 5
+      Tail     : everything else
+
+    Why this specific shape (vs. the simpler OR rule we tried first):
+
+    1. Banks (HDFCBANK, ICICIBANK, INFY w/r/t its services BS quirks)
+       structurally have NULL ROCE — there's no meaningful capital-
+       employed denominator in book accounting. A simple "ROCE >= 25
+       OR Piotroski >= 7" rule handled this correctly but also let
+       low-quality peers in: BHEL passed on Piotroski 7 despite a
+       crushed 2.7% ROCE; BAJAJ-AUTO passed on ROCE 32.5 despite a
+       weak Piotroski 4. Premium is meant to be elite peers; one good
+       axis paired with a clearly broken other axis isn't elite.
+
+    2. The "both clear meaningful floors" framing eliminates that.
+       The carve-out for NULL ROCE keeps banks in Premium where they
+       belong (Piotroski 7+ on a large lender is a strong signal).
+
+    3. Real-world impact from 2026-05-19 cohort: rule v1 produced 30
+       Premium peers with 6 obvious junk inclusions (BHEL ROCE 2.7,
+       AMBUJACEM ROCE 11.6, TECHM ROCE 12.2, BAJAJ-AUTO Piot 4, ABB
+       Piot 4, BPCL Piot 3). Rule v2 produces ~24 Premium peers, all
+       defensibly elite. The 6 demotees land in Core (still ROCE≥15
+       or Piot≥5), which is the correct slot.
+
+    Core remains permissive (open-ended high side on either axis) —
+    we want the Core cohort large enough that bucket-widening rarely
+    fires. Tail is the genuine bottom: low on both axes or all-NULL.
+
+    Backwards-compat: every test case in the original
+    test_bucket_for_premium_core_tail still passes — old positives
+    remain positive, old negatives remain negative.
     """
     r = float(roce) if roce is not None else None
     p = int(piotroski) if piotroski is not None else None
     m = float(market_cap_cr) if market_cap_cr is not None else None
 
-    premium = (
-        (r is not None and r >= PREMIUM_ROCE)
-        and (p is not None and p >= PREMIUM_PIOTROSKI)
-        and (m is not None and m >= PREMIUM_MIN_MCAP_CR)
-    )
-    if premium:
-        return "premium"
+    # PREMIUM: large + both quality axes clear meaningful floors.
+    if m is not None and m >= PREMIUM_MIN_MCAP_CR:
+        # Banks/financials carve-out: NULL ROCE is structural, not bad.
+        if r is None and p is not None and p >= PREMIUM_PIOTROSKI:
+            return "premium"
+        # High ROCE peer must have at least non-deteriorating Piotroski.
+        if (r is not None and r >= PREMIUM_ROCE) and (
+            p is not None and p >= CORE_PIOTROSKI_LOW
+        ):
+            return "premium"
+        # High Piotroski peer must have at least decent ROCE.
+        if (p is not None and p >= PREMIUM_PIOTROSKI) and (
+            r is not None and r >= CORE_ROCE_LOW
+        ):
+            return "premium"
 
-    core = (
-        (r is not None and CORE_ROCE_LOW <= r <= CORE_ROCE_HIGH)
-        or (p is not None and CORE_PIOTROSKI_LOW <= p <= CORE_PIOTROSKI_HIGH)
-    )
-    if core:
+    # CORE: good on at least one quality axis (open-ended high side).
+    # CORE_ROCE_HIGH and CORE_PIOTROSKI_HIGH retained as module-level
+    # constants for back-compat with importers, but no longer used as
+    # ceilings here — peers above them belong in Premium (gated by
+    # mcap above) or fall here naturally if they're sub-Premium-mcap.
+    if (r is not None and r >= CORE_ROCE_LOW) or (
+        p is not None and p >= CORE_PIOTROSKI_LOW
+    ):
         return "core"
 
     return "tail"
