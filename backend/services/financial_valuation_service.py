@@ -46,7 +46,16 @@ logger = logging.getLogger("yieldiq.financial_valuation")
 # SFB — MUST be on a P/BV path. Insurance keeps P/BV / P/EV.
 # AMCs / brokers / exchanges keep P/E.
 FINANCIAL_PEER_GROUPS: dict[str, list[str]] = {
-    "psu_banks":         ["SBIN", "BANKBARODA", "PNB", "CANBK", "UNIONBANK", "INDIANB"],
+    # PSU banks expanded 2026-05-19 — BANKINDIA, IOB, CENTRALBK,
+    # UCOBANK, MAHABANK, IDBI all run-of-the-mill public-sector banks
+    # that were previously absent from this peer group. Result was that
+    # BANKINDIA shipped FV +49% over consensus because is_bank_like()
+    # returned False (not in FINANCIAL_COMPANIES either), routing it
+    # through generic DCF instead of P/B-cohort.
+    "psu_banks":         [
+        "SBIN", "BANKBARODA", "PNB", "CANBK", "UNIONBANK", "INDIANB",
+        "BANKINDIA", "IOB", "CENTRALBK", "UCOBANK", "MAHABANK", "IDBI",
+    ],
     "private_banks":     ["HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK", "FEDERALBNK"],
     # Stressed private banks split 2026-05-19 — YESBANK was the #15
     # over-outlier (+112% vs 11-analyst consensus). Root cause: not in

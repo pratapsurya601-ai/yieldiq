@@ -34,12 +34,18 @@ COMPANY_NAME_OVERRIDES = {
 # These companies have negative FCF by nature (loan disbursements = operating
 # outflows). FCF-based DCF does NOT apply; use P/B ratio valuation instead.
 FINANCIAL_COMPANIES = {
+    # Top-tier private banks
     'HDFCBANK', 'ICICIBANK', 'SBIN', 'KOTAKBANK', 'AXISBANK',
+    # PSU banks (expanded 2026-05-19 — see PR #385 fix)
     'BANKBARODA', 'PNB', 'CANBK', 'FEDERALBNK', 'IDFCFIRSTB',
     'INDUSINDBK', 'BANDHANBNK', 'RBLBANK', 'YESBANK',
+    'BANKINDIA', 'IOB', 'CENTRALBK', 'UCOBANK', 'MAHABANK',
+    'IDBI', 'UNIONBANK', 'INDIANB',
+    # NBFCs / housing finance
     'BAJFINANCE', 'BAJAJFINSV', 'CHOLAFIN', 'MUTHOOTFIN',
     'MANAPPURAM', 'M&MFIN', 'SHRIRAMFIN', 'LICHSGFIN',
     'POONAWALLA', 'AAVAS', 'HOMEFIRST',
+    # Insurance (life + general + health)
     'HDFCLIFE', 'SBILIFE', 'ICICIGI', 'NIACL', 'STARHEALTH',
 }
 
@@ -89,11 +95,14 @@ _INSURANCE_TICKERS = {
 #   - PSU lender-NBFCs (PFC, RECLTD, IRFC) and AMCs/exchanges
 #     that also fail FCF-based DCF.
 _NBFC_INSURANCE_BANKLIKE: set[str] = {
-    # Banks (majors and tier-2)
+    # Banks (majors and tier-2). PSU expansion 2026-05-19:
+    # BANKINDIA + IDBI + UNIONBANK added (were silently missing
+    # despite being major listed PSU banks).
     'HDFCBANK', 'ICICIBANK', 'SBIN', 'KOTAKBANK', 'AXISBANK',
     'BANKBARODA', 'PNB', 'CANBK', 'FEDERALBNK', 'IDFCFIRSTB',
     'INDUSINDBK', 'BANDHANBNK', 'RBLBANK', 'YESBANK',
-    'IOB', 'UCOBANK', 'CENTRALBK', 'INDIANB', 'MAHABANK',
+    'BANKINDIA', 'IOB', 'UCOBANK', 'CENTRALBK', 'INDIANB',
+    'MAHABANK', 'IDBI', 'UNIONBANK',
     'KARURVYSYA', 'CUB', 'DCBBANK', 'SOUTHBANK', 'TMB',
     # Small-Finance Banks (added 2026-04-29 — yfinance frequently
     # mis-tags these with sector="Chemicals" / "Industrials").
