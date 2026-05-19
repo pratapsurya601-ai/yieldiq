@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react"
 import ConvictionRing from "@/components/analysis/ConvictionRing"
 import VerdictChip from "@/components/analysis/VerdictChip"
 import CoverageTierBadge from "@/components/analysis/CoverageTierBadge"
+import StoryDcfBadge from "@/components/analysis/StoryDcfBadge"
 import Hex from "@/components/hex/Hex"
 import HexExplainer from "@/components/hex/HexExplainer"
 import { fetchHex, type HexAxisKey, type HexResponse } from "@/lib/hex"
@@ -388,6 +389,12 @@ export default function AnalysisHero({
                 Recent IPO — sector-relative valuation, no DCF available.
               </span>
             )}
+            {/* Story-DCF badge — fires when the DCF-collapse safety net's
+                third rung (after Tier 2 cohort + Platform P/S) rescued
+                the FV using Damodaran narrative + numbers. See
+                components/analysis/StoryDcfBadge for the engine-string
+                contract. */}
+            <StoryDcfBadge valuationEngineUsed={valuationEngineUsed} />
           </div>
 
           {/* Metric block — 2x2 on md+, 2 rows of 2 on mobile */}
