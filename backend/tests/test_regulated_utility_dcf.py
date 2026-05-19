@@ -180,8 +180,11 @@ def test_ntpc_rate_base_fv_in_acceptance_band():
 
 def test_pfc_routes_through_regulated_nbfc():
     """PFC FY25 approx: BVPS ≈ ₹275 (total_equity ₹91,000 Cr,
-    shares ~330 Cr). Expected fair_pb ≈ 2.36 → FV ≈ ₹650 (acceptance
-    band [₹400, ₹600], realised_roe adjustment can pull this down).
+    shares ~330 Cr). Post-recalibration 2026-05-19:
+      fair_pb_base = (0.135-0.05)/(0.12-0.05) = 1.214
+      roe_adjustment clamped at 1.15 (0.21/0.135 = 1.556 → clamp)
+      effective fair_pb = 1.396
+      FV ≈ 275 × 1.396 ≈ ₹384 in this test fixture (real data closer to ₹498).
     """
     result = compute_regulated_utility_fair_value(
         ticker="PFC.NS",
@@ -194,8 +197,77 @@ def test_pfc_routes_through_regulated_nbfc():
     )
     assert result is not None
     assert result["_meta"]["sub_type"] == "regulated_nbfc"
-    # ROE adjustment must clamp at 1.15 (0.21/0.18 = 1.167)
+    # ROE adjustment must clamp at 1.15 (0.21/0.135 = 1.556 → clamp)
     assert result["_meta"]["roe_adjustment"] == 1.15
+
+
+# ── Calibration anchor tests (2026-05-19 recalibration) ────────
+
+
+def test_justified_pb_regulated_nbfc_calibration():
+    """regulated_nbfc params must produce fair_pb_base ≈ 1.214.
+
+    Anchored to 13-analyst consensus on RECLTD and PFC. Pre-recalibration
+    value was 2.36, which over-shot consensus by ~70%. New value must be
+    1.10 < pb < 1.30 to keep the engine's effective fair_pb (after the
+    1.15 clamp) within ±7% of consensus FVs.
+    """
+    allowed_roe, coe, g = _SUB_TYPE_PARAMS["regulated_nbfc"]
+    pb = _justified_pb(allowed_roe, coe, g)
+    assert 1.10 < pb < 1.30, (
+        f"regulated_nbfc fair_pb_base = {pb:.3f} — expected ~1.21. "
+        "Consensus alignment will break if this drifts."
+    )
+
+
+def test_pfc_fv_matches_street_consensus_within_15pct():
+    """Anchor: PFC FY25 BVPS ₹356.8, 13-analyst consensus ₹515.
+    Model FV must land within ±15% of consensus.
+
+    BVPS derivation: total_equity 117,738 Cr × 1e7 / shares 33,001e6 = ₹356.8
+    """
+    result = compute_regulated_utility_fair_value(
+        ticker="PFC.NS",
+        company_info={"current_price": 446.0, "shares": 3300.10e6},
+        financials={
+            "total_equity": 117_738.35e7,
+            "shares": 3300.10e6,
+            "roe": 0.1953,
+        },
+    )
+    assert result is not None
+    fv = result["fair_value"]
+    consensus = 515.0
+    drift = (fv - consensus) / consensus
+    assert -0.15 < drift < 0.15, (
+        f"PFC FV ₹{fv:.0f} drifts {drift*100:+.1f}% from consensus ₹515. "
+        "Recalibration constants likely off."
+    )
+
+
+def test_recltd_fv_matches_street_consensus_within_15pct():
+    """Anchor: RECLTD FY26 BVPS ₹323.0, 13-analyst consensus ₹440.
+    Model FV must land within ±15% of consensus.
+
+    BVPS derivation: total_equity 85,054 Cr × 1e7 / shares 2,633e6 = ₹323.0
+    """
+    result = compute_regulated_utility_fair_value(
+        ticker="RECLTD.NS",
+        company_info={"current_price": 346.0, "shares": 2633.22e6},
+        financials={
+            "total_equity": 85_054.41e7,
+            "shares": 2633.22e6,
+            "roe": 0.1917,
+        },
+    )
+    assert result is not None
+    fv = result["fair_value"]
+    consensus = 440.0
+    drift = (fv - consensus) / consensus
+    assert -0.15 < drift < 0.15, (
+        f"RECLTD FV ₹{fv:.0f} drifts {drift*100:+.1f}% from consensus ₹440. "
+        "Recalibration constants likely off."
+    )
 
 
 # ── IRFC — regulated_nbfc sub-type, additional ticker ──────────

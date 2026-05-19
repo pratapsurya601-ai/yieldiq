@@ -37,9 +37,45 @@
 #
 #   For regulated NBFCs (PFC, RECLTD, IRFC, HUDCO) the multiplier is
 #   compressed: their "rate base" is a loan book and recovery is
-#   slower, so we use allowed_ROE ≈ 0.18, COE ≈ 0.105, g ≈ 0.05
-#   producing fair_pb ≈ 2.36 vs ~3.2 for transmission. See the per-
-#   sub-type tuning table below.
+#   slower. Original v1 calibration (2026-04) used allowed_ROE = 0.18,
+#   COE = 0.105, producing fair_pb ≈ 2.36 — but real-world market
+#   consistently trades these at P/B 1.0-1.5x. Recalibrated 2026-05-19
+#   anchored to 13-analyst consensus on RECLTD (₹440, BVPS ₹323 →
+#   implied fair_pb 1.36) and PFC (₹515, BVPS ₹357 → implied 1.44).
+#
+#   New calibration: allowed_ROE = 0.135, COE = 0.12, g = 0.05
+#     → fair_pb_base = (0.135 - 0.05) / (0.12 - 0.05) = 1.214
+#     → effective fair_pb (with cycle-peak realised ROE clamping the
+#       roe_adjustment at 1.15) ≈ 1.396
+#
+#   Why both numbers moved AND why allowed_ROE landed at 0.135
+#   (not the more obvious 0.15):
+#     1. COE 0.105 → 0.12. 10y G-Sec ~7% + 500bps PSU-NBFC risk
+#        premium (vs ~350bps for pure-play transmission utilities).
+#        Captures: PSU sentiment discount, asset-quality cyclicality,
+#        regulatory tariff-change risk on borrower IRRs.
+#     2. allowed_ROE 0.18 → 0.135. The naive answer is "use realized
+#        through-cycle ROE ~15%." But this engine then multiplies
+#        fair_pb by realised_roe/allowed_roe (clamped to [0.85, 1.15]).
+#        At the current cycle peak, realized_roe ~0.20 — which would
+#        clamp the adjustment at 1.15, inflating fair_pb by 15%. To
+#        keep the EFFECTIVE fair_pb (after clamping) matched to street
+#        consensus, allowed_ROE has to come down to 0.135. This way:
+#          fair_pb_base = 1.214 (no clamp regime)
+#          × 1.15 at peak                  = 1.396
+#          × 1.00 mid-cycle                = 1.214
+#          × 0.85 trough (realized ~0.115) = 1.032
+#        Producing a defensible cyclical range of FV multiples.
+#
+#   Validation against consensus FV (BVPS × effective fair_pb 1.396
+#   at current cycle peak):
+#     RECLTD  : 323 × 1.396 = 451   vs consensus 440  (+2.5%, ✓)
+#     PFC     : 357 × 1.396 = 498   vs consensus 515  (-3.3%, ✓)
+#     IRFC    :  40 × 1.396 = 56    vs consensus 60   (-7%,   ✓)
+#     HUDCO   :  90 × 1.396 = 126   vs consensus 225  (-44%  — but HUDCO
+#                                   has 1 analyst, low consensus reliability)
+#   3 of 4 within ±7% of street; HUDCO outlier likely a consensus quality
+#   issue, not a model issue.
 #
 #   When BVPS cannot be derived (missing total_equity AND missing
 #   priceToBook + price), we fall through to None and the caller
@@ -97,18 +133,27 @@ _REGULATED_NBFC_TICKERS = {
 
 
 # (allowed_ROE, COE, g) — Gordon constant-growth inputs.
+#
+# regulated_nbfc recalibrated 2026-05-19:
+#   - allowed_ROE 0.18 → 0.135 (calibrated so post-clamp effective P/B
+#     lands at consensus during cycle peaks — see header block for math)
+#   - COE 0.105 → 0.12 (G-Sec + 500bps PSU-NBFC premium)
+#   Effective fair_pb after clamp 1.15 = 1.396, matching 13-analyst
+#   consensus on RECLTD (+2.5%), PFC (-3.3%), IRFC (-7%) within ±7%.
 _SUB_TYPE_PARAMS: dict[str, tuple[float, float, float]] = {
     "transmission_utility": (0.155, 0.080, 0.040),
-    "regulated_nbfc":       (0.180, 0.105, 0.050),
+    "regulated_nbfc":       (0.135, 0.120, 0.050),
     "regulated_other":      (0.150, 0.090, 0.040),
 }
 
 # Approach-C fallback P/B median per sub-type — used when allowed-ROE
 # math fails (e.g. negative book equity or missing inputs). Anchored
 # to FY25 sector medians.
+# regulated_nbfc fallback 1.8 → 1.4 (matches 13-analyst consensus
+# median implied P/B on RECLTD/PFC; old 1.8 over-shot by ~30%).
 _FALLBACK_PB: dict[str, float] = {
     "transmission_utility": 2.6,
-    "regulated_nbfc":       1.8,
+    "regulated_nbfc":       1.4,
     "regulated_other":      2.2,
 }
 
