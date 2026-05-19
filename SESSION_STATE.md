@@ -6,7 +6,23 @@
 
 ---
 
-## 🔴 START HERE — Day 1 + Day 2 EXTENDED sprint (2026-05-19) — DEPLOYED & VALIDATED
+## 🔴 START HERE — Day 1 + 2 + 3 (2026-05-19) — 16 PRs SHIPPED
+
+### Day 3 additions (5 PRs)
+
+| PR | Theme | Outliers addressed |
+|---|---|---|
+| #385 | classify BANKINDIA + 7 PSU banks + expand psu_banks peer group | BANKINDIA over-outlier |
+| #386 | 16 large-cap sector overrides (BIOCON/ABB/Pharma family etc.) | Multiple Pharma/Auto under-outliers |
+| #387 | 17 more sector overrides for General/Diversified | PRAJIND, ADANIPOWER, CONCOR, BALKRISIND, OIL, MAZDOCK, VBL, BERGEPAINT, PAGEIND, WESTLIFE, JUBLFOOD, DEVYANI, SAPPHIRE, CUB, AUBANK |
+| #388 | traditional_hfc ROE clamp tightened (0.95, 1.0) + FMCG/Retail DIRECT_PEERS expanded | LICHSGFIN +50% → ~+5%; FMCG/retail under-outliers get real peer cohort |
+| #389 | new internet_platform + fintech_broker peer cohorts | PAYTM, POLICYBZR, NUVAMA, GROWW, MEESHO, ZOMATO, NAUKRI, NYKAA + 8 fintech tickers |
+
+### Day-3 starting baseline: 312 (Day 1) → 87 (Day-3 morning) → expected < 30 post all PRs
+
+---
+
+## Original Day 1 + Day 2 sprint (preserved)
 
 ### 11 PRs merged today
 
