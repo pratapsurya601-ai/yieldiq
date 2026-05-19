@@ -316,6 +316,159 @@ def _build_tier2_peers_from_sector_relative(
     return out
 
 
+def compute_tier2_for_ticker(
+    ticker: str,
+    sector: Optional[str] = None,
+) -> Optional[dict]:
+    """Standalone Tier 2 cohort fair-value computation for a single ticker.
+
+    This is the wiring helper consumed by the Tier 2 head-to-head
+    reconciliation harness (``scripts/tier2_head_to_head.py``). It is
+    DELIBERATELY decoupled from the main ``analyze_stock`` routing tree
+    so the harness can compute a Tier 2 FV on demand without bumping
+    CACHE_VERSION, without flipping ``TIER2_ENABLED``, and without
+    exercising the ~115 lines of cohort plumbing inside the live
+    request path.
+
+    Contract:
+      * Returns ``{"fair_value": float, "confidence_score": int,
+                   "bucket": str, ...}`` on success (full dict from
+        ``compute_tier2_fair_value`` plus a flattened ``bucket`` key
+        promoted out of ``_meta`` for harness convenience).
+      * Returns ``None`` for skip-sectors (banking / NBFC / insurance /
+        regulated utilities / REITs / ETFs / holdcos), unknown tickers,
+        loss-making tickers, cohort size < 5 even after widening, or
+        ANY data-source / DB failure.
+      * Never raises. Every error path degrades to ``None`` and logs
+        at DEBUG so the harness keeps marching across the universe.
+
+    Args:
+      ticker : bare or .NS/.BO-suffixed symbol. Canonicalized to the
+               same form used everywhere else in the analysis service.
+      sector : optional sector override; if omitted the helper resolves
+               it via the same ``_resolve_sector`` plumbing used by the
+               live analysis path.
+    """
+    import logging as _log
+    _logger = _log.getLogger("yieldiq.analysis.tier2_helper")
+
+    if not ticker:
+        return None
+
+    try:
+        clean_ticker = _canonicalize_ticker(ticker)
+    except Exception:
+        clean_ticker = ticker
+
+    try:
+        # ── Fetch raw + enriched financials for the ticker itself ──
+        try:
+            raw = StockDataCollector(clean_ticker).get_all()
+        except Exception as exc:
+            _logger.debug(
+                "tier2_helper[%s]: collector failed: %s: %s",
+                clean_ticker, type(exc).__name__, exc,
+            )
+            return None
+        if not raw:
+            return None
+
+        try:
+            enriched = compute_metrics(raw) or {}
+        except Exception:
+            enriched = raw or {}
+
+        # ── Sector resolution + skip-sector short-circuit ──
+        _raw_sector = enriched.get("sector") or raw.get("sector")
+        try:
+            resolved_sector = sector or _resolve_sector(
+                _raw_sector, clean_ticker,
+            )
+        except Exception:
+            resolved_sector = sector or _raw_sector
+
+        if is_tier2_skip_sector(resolved_sector):
+            _logger.debug(
+                "tier2_helper[%s]: skip-sector %s",
+                clean_ticker, resolved_sector,
+            )
+            return None
+
+        # ── Piotroski (best-effort; falls back to None → Tail) ──
+        try:
+            _piotroski = compute_piotroski_fscore(enriched)
+            if isinstance(_piotroski, dict):
+                _piotroski = (
+                    _piotroski.get("fscore") or _piotroski.get("score")
+                )
+        except Exception:
+            _piotroski = None
+
+        price = enriched.get("price", 0) or raw.get("price", 0) or 0
+        eps = (
+            enriched.get("diluted_eps")
+            or raw.get("trailingEps")
+            or enriched.get("eps")
+            or raw.get("fh_eps_ttm")
+        )
+        shares = enriched.get("shares") or raw.get("shares", 0) or 0
+        try:
+            mcap_cr = (float(price or 0) * float(shares or 0)) / 1e7
+        except (TypeError, ValueError):
+            mcap_cr = 0.0
+
+        financials = {
+            "eps": eps,
+            "ebitda": (
+                enriched.get("ebitda") or enriched.get("latest_ebitda")
+            ),
+            "shares": shares,
+            "roce": enriched.get("roce_pct") or enriched.get("roce"),
+            "piotroski": _piotroski,
+            "market_cap_cr": mcap_cr,
+            "bvps": (
+                enriched.get("book_value_per_share")
+                or enriched.get("bvps")
+            ),
+            "net_debt_cr": (
+                (enriched.get("total_debt", 0) or 0)
+                - (enriched.get("total_cash", 0) or 0)
+            ) / 1e7,
+            "current_price": price,
+        }
+
+        # ── Peer cohort via the shared sector-relative helper ──
+        try:
+            peers = _build_tier2_peers_from_sector_relative(clean_ticker)
+        except Exception as exc:
+            _logger.debug(
+                "tier2_helper[%s]: peer build failed: %s",
+                clean_ticker, exc,
+            )
+            peers = []
+
+        # ── Cohort FV ──
+        result = compute_tier2_fair_value(
+            ticker=clean_ticker,
+            sector=resolved_sector,
+            financials=financials,
+            peers=peers,
+        )
+        if not result:
+            return None
+
+        bucket = (result.get("_meta") or {}).get("bucket")
+        out = dict(result)
+        out["bucket"] = bucket
+        return out
+    except Exception as exc:  # final defensive net — never raise
+        _logger.debug(
+            "tier2_helper[%s]: unexpected failure: %s: %s",
+            clean_ticker, type(exc).__name__, exc,
+        )
+        return None
+
+
 class TickerNotFoundError(Exception):
     """Raised when the data provider returns no data for a ticker —
     i.e. the ticker symbol is invalid, unlisted, or misspelled.
