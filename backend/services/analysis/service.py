@@ -3955,6 +3955,48 @@ class AnalysisService(NarrativeMixin):
                 ticker, type(_cf_exc).__name__, _cf_exc,
             )
             _cf_scores = {"data_quality": None, "model_confidence": None, "valuation_stability": None}
+            _cf_method = locals().get("_cf_method") or "dcf"
+
+        # ── Layer C — Confidence verdict gate (PR #376 wiring) ───
+        # Apply extreme FV/price-ratio override + intensity cap based
+        # on the three Layer-C scores computed above. Carve-outs for
+        # rate-base / appraisal / NAV / SOTP engines are handled by
+        # the gate itself (`_RATIO_OVERRIDE_CARVEOUTS`). Defensive:
+        # any failure here must NOT break analysis — log and proceed
+        # with the original verdict.
+        try:
+            from backend.services.confidence_service import (
+                _apply_confidence_verdict_gate as _vg_apply,
+            )
+            _vg_before = verdict
+            _vg_new_verdict, _vg_new_issues = _vg_apply(
+                verdict,
+                _cf_scores.get("data_quality"),
+                _cf_scores.get("model_confidence"),
+                _cf_scores.get("valuation_stability"),
+                _data_issues,
+                fair_value=iv,
+                current_price=price,
+                valuation_model=_cf_method,
+            )
+            if _vg_new_verdict != _vg_before:
+                import logging as _vg_log
+                _vg_log.getLogger("yieldiq.confidence").info(
+                    "[%s] verdict gate: %s -> %s (mc=%s dq=%s vs=%s method=%s fv=%.4f px=%.4f)",
+                    ticker, _vg_before, _vg_new_verdict,
+                    _cf_scores.get("model_confidence"),
+                    _cf_scores.get("data_quality"),
+                    _cf_scores.get("valuation_stability"),
+                    _cf_method, float(iv or 0.0), float(price or 0.0),
+                )
+            verdict = _vg_new_verdict
+            _data_issues = _vg_new_issues
+        except Exception as _vg_exc:  # pragma: no cover — defensive
+            import logging as _vg_log
+            _vg_log.getLogger("yieldiq.confidence").warning(
+                "[%s] verdict gate failed: %s: %s",
+                ticker, type(_vg_exc).__name__, _vg_exc,
+            )
 
         return AnalysisResponse(
             ticker=ticker,
