@@ -920,6 +920,18 @@ _DAY3_SECTOR_FIXES: dict[str, str] = {
     "IRCTC":       "Infrastructure",
     "BLUEDART":    "Infrastructure",   # logistics
 
+    # Logistics platforms / scale-economics e-commerce logistics
+    # (Day-18, 2026-05-20). These ride the same scale-economics
+    # narrative as e-commerce platforms (high revenue growth + low
+    # current margin + hub/automation reinvestment) — generic DCF
+    # collapses on their trailing-FCF prints. Routing through
+    # "Internet Platform" makes the safety-net's 3rd rung (story-DCF
+    # with operator-curated narrative + numbers) the engine of
+    # record once DCF trips the unreasonable-FV guard.
+    "DELHIVERY":   "Internet Platform",   # B2B2C e-commerce logistics
+    "MAHLOG":      "Internet Platform",   # Mahindra Logistics 3PL
+    "ALLCARGO":    "Internet Platform",   # integrated logistics
+
     # Mid-cap pharma generic exporters (route to pharma cohort)
     "GRANULES":    "Pharma",
     "NEULANDLAB":  "Pharma",      # was "NEULAND" — actual NSE symbol

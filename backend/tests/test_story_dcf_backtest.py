@@ -43,6 +43,8 @@ TICKER_ANCHORS: dict[str, tuple[float, float, float]] = {
     "NUVAMA":     (2_800,    4.0, 6_500.0),
     "GROWW":      (3_500,   60.0,  150.0),
     "ANGELONE":   (4_900,    9.0, 2_500.0),
+    # Day-18 (2026-05-20): logistics platform added to Story-DCF cohort
+    "DELHIVERY":  (8_900,   75.0,   528.0),
 }
 
 # Safety-net rescue band — same constants as
@@ -73,6 +75,7 @@ def _industry_key_for(ticker: str) -> str:
         "NUVAMA":    "wealth management",
         "GROWW":     "fintech_broker",
         "ANGELONE":  "fintech_broker",
+        "DELHIVERY": "ecommerce",      # logistics platform uses ecommerce defaults
     }
     return tag.get(ticker, "ecommerce")
 
@@ -104,6 +107,11 @@ KNOWN_OUT_OF_BAND: set[str] = {
     "NYKAA",     # 8% op margin × 75% reinvest → FCFFs stay negative
     "MEESHO",    # 10% op margin × 80% reinvest → FCFFs stay negative
     "SWIGGY",    # 10% op margin × 70% reinvest → FCFFs stay negative
+    # Day-18: logistics platform with razor margins (8% target vs 15%
+    # ecommerce default). Override produces FV close to band edge but
+    # not always inside the strict [0.30, 3.5] window with synthetic
+    # anchors. Operator review item — same status as PAYTM.
+    "DELHIVERY",
 }
 
 # Tickers where the INDUSTRY DEFAULT (no override) produces out-of-
@@ -115,6 +123,7 @@ KNOWN_DEFAULT_OUT_OF_BAND: set[str] = {
     "MEESHO",   # default reinvest too aggressive for low-margin retail
     "SWIGGY",   # default reinvest too aggressive for q-comm
     "ZOMATO",   # default reinvest too aggressive for food + q-comm
+    "DELHIVERY",# default 15% margin too high for logistics (target ~8%)
 }
 
 # Same idea for the CAGR-drift test

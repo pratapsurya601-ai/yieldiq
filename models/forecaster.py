@@ -1139,6 +1139,37 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
             # gIbrance — concentrated US generic exposure)
             "NATCOPHARM",
         })
+        # Day-19 (2026-05-20): Pharma CDMO / contract-services sub-
+        # bucket. These tickers sit BETWEEN the generic-pharma and
+        # hospital-chain risk profiles:
+        #   - Contract-development & manufacturing organisations
+        #     (DIVISLAB, SYNGENE, COHANCE) have multi-year contracts
+        #     with global pharma/biotech clients → revenue durability
+        #     closer to hospitals than generics
+        #   - Healthcare BPM / IT (ANTHEM, SAGILITY, IKS) is asset-
+        #     light with sticky enterprise contracts → similar risk
+        #     profile to CDMOs from a discount-rate perspective
+        #
+        # Day-13 outlier scan showed these all UNDER-valued by 60-83%
+        # routing through plain DCF (COHANCE 0.21x, ANTHEM 0.17x,
+        # SAGILITY 0.61x, IKS 0.41x). Root cause: standard CAPM
+        # (~0.11) misprices the contract-services predictability +
+        # asset-medium model.
+        #
+        # Treatment: floor WACC at 0.095 (midpoint between hospital
+        # 0.085 and generic-pharma 0.105). Terminal-g cap raised to
+        # 0.045 (midpoint between generic 0.035 and hospital 0.055).
+        # WACC-g spread = 0.050 — comfortably above the 0.030 Gordon
+        # safety threshold; more conservative than hospital's 0.030.
+        _PHARMA_CDMO_TICKERS = frozenset({
+            "DIVISLAB",   # Divi's Laboratories — true CDMO
+            "SYNGENE",    # Syngene International — CRO + CDMO
+            "COHANCE",    # Cohance Lifesciences — CDMO
+            "ANTHEM",     # Anthem Biosciences — biotech CDMO
+            "SAGILITY",   # Sagility — healthcare BPM
+            "IKS",        # IKS Health — healthcare IT/BPM
+        })
+
         # Day-16 (2026-05-19): Hospital chain sub-bucket. Indian listed
         # hospital + diagnostic chains were systematically under-valued
         # by 50-85% vs sell-side consensus on the Day-13 outlier scan
@@ -1178,6 +1209,11 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
                 _ticker_bare = _t.replace(".NS", "").replace(".BO", "").upper()
             if _ticker_bare in _PHARMA_GENERIC_TICKERS:
                 wacc_floor = max(wacc_floor, 0.105)  # +50-100bps generic risk
+            elif _ticker_bare in _PHARMA_CDMO_TICKERS:
+                # Day-19: contract-services predictability sits between
+                # generic pharma (US-pricing risk) and hospitals
+                # (quasi-utility). 0.095 floor is +50bps above default.
+                wacc_floor = max(wacc_floor, 0.095)
             elif _ticker_bare in _HOSPITAL_CHAIN_TICKERS:
                 # Pin to a tighter floor (defensive sector)
                 wacc_floor = min(wacc_floor, 0.085)
@@ -1654,6 +1690,24 @@ class FCFForecaster:
             if _t_bare_tg in _HOSPITAL_CHAIN_TICKERS_TG and _g_terminal_eff < 0.055:
                 _g_terminal_eff = 0.055
                 enriched["_hospital_chain_terminal_g_lifted"] = True
+        except Exception:
+            pass
+
+        # ── CDMO / contract-services terminal-g lift (Day-19) ───────
+        # Mirrors the hospital-chain block above. Long-duration multi-
+        # year contracts (5-10y CDMO master service agreements; sticky
+        # enterprise BPM contracts) justify a higher perpetuity than
+        # generic pharma. 0.045 = midpoint between hospital (0.055) and
+        # generic (0.035); WACC-g spread of 0.050 stays well above
+        # Gordon safety threshold.
+        _PHARMA_CDMO_TICKERS_TG = frozenset({
+            "DIVISLAB", "SYNGENE", "COHANCE",
+            "ANTHEM", "SAGILITY", "IKS",
+        })
+        try:
+            if _t_bare_tg in _PHARMA_CDMO_TICKERS_TG and _g_terminal_eff < 0.045:
+                _g_terminal_eff = 0.045
+                enriched["_pharma_cdmo_terminal_g_lifted"] = True
         except Exception:
             pass
 

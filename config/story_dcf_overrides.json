@@ -71,5 +71,12 @@
     "reinvestment_rate": 0.45,
     "wacc": 0.125,
     "_notes": "Mature listed broker — F&O regulatory headwinds capped growth."
+  },
+  "DELHIVERY": {
+    "initial_growth": 0.22,
+    "target_op_margin": 0.08,
+    "reinvestment_rate": 0.70,
+    "wacc": 0.135,
+    "_notes": "Day-18 2026-05-20. B2B2C e-commerce logistics: 22 analysts cover with consensus ₹528 vs DCF FV ₹64 (0.12×) before this fix. Story: 20-25% revenue CAGR through FY28 (Meesho/Flipkart/Amazon volume + B2B Air/Truckload expansion), terminal op margin 8-10% post-scale (mature 3PL benchmark; Delhivery guided 5-7% pre-breakeven), heavy reinvestment in hub automation + middle-mile network. WACC 13.5% reflects post-IPO leverage normalisation + B2B-volume cyclicality vs pure e-commerce default 14%."
   }
 }
