@@ -255,6 +255,17 @@ def get_quarterly_results(
                         "falling back to standalone (%d rows)",
                         db_ticker, len(rows),
                     )
+                    # Tag standalone-fallback rows so downstream TTM
+                    # aggregators can detect the shape and mark the
+                    # window as `partial=True` (defer to yfinance
+                    # ladder). DRREDDY root-cause fix per
+                    # docs/design/drreddy-revenue-unit-root-cause.md
+                    # — standalone revenue is ~7% of consolidated for
+                    # group companies, so silently aggregating these
+                    # produces a ~14x-too-small TTM that poisons every
+                    # revenue-scaled FCF candidate downstream.
+                    for r in rows:
+                        r["_standalone_fallback"] = True
         else:
             rows = _fetch(False)
 
@@ -449,6 +460,33 @@ def compute_ttm_from_xbrl(ticker: str) -> Optional[dict]:
     if scale_skipped:
         data_issues.append("scale_outlier_skipped")
 
+    # ── Standalone-fallback guard (2026-05-19, DRREDDY root-cause).
+    # If get_quarterly_results fell back to standalone rows (i.e. the
+    # consolidated leg returned empty for this ticker), the TTM we'd
+    # compute is materially wrong for any group company (standalone
+    # ≈ 7% of consolidated for DRREDDY-class issuers). Mark the result
+    # as partial so resolve_ttm_for_analysis falls through to the
+    # yfinance ladder, which uses income_df (correct consolidated
+    # values from the annual filing).
+    #
+    # Conservative rule: ANY standalone-fallback row in the TTM
+    # window flips partial=True. In practice the fallback path tags
+    # every row in the same call, so mixed shapes are unlikely — but
+    # if a future caller seeds a mixed window we'd rather defer than
+    # silently aggregate apples-and-oranges quarters.
+    standalone_only_in_window = any(
+        r.get("_standalone_fallback") for r in rows
+    )
+    if standalone_only_in_window:
+        if "standalone_only" not in data_issues:
+            data_issues.append("standalone_only")
+        _logger.warning(
+            "TTM standalone-only fallback for %s — consolidated rows "
+            "missing for window; resolver will fall through to "
+            "yfinance ladder",
+            ticker,
+        )
+
     if not rows:
         # All rows were corrupt -- caller should fall back to annual.
         return {
@@ -480,7 +518,9 @@ def compute_ttm_from_xbrl(ticker: str) -> Optional[dict]:
     # If guard left fewer than 4 quarters, mark TTM as incomplete so
     # the caller falls back to annual data (matches existing
     # `partial=True` semantics in resolve_ttm_for_analysis).
-    partial = quarters_used < 4
+    # Standalone-only windows also flip partial=True so the resolver
+    # defers to the yfinance ladder (DRREDDY root-cause fix).
+    partial = quarters_used < 4 or standalone_only_in_window
     if partial and scale_skipped:
         data_issues.append("incomplete_due_to_scale_anomalies")
 
