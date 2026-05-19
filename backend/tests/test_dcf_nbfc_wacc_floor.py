@@ -82,7 +82,7 @@ def test_all_nbfc_members_get_floored_from_sub_floor():
     # silently lose floor coverage — this test pins the cohort.
     expected_members = {
         "BAJFINANCE", "BAJAJFINSV", "CHOLAFIN", "MUTHOOTFIN",
-        "MANAPPURAM", "M&MFIN", "SHRIRAMFIN", "LICHOUSFIN",
+        "MANAPPURAM", "M&MFIN", "SHRIRAMFIN", "LICHSGFIN",
         "POONAWALLA", "AAVAS", "HOMEFIRST",
     }
     assert expected_members.issubset(_NBFC_TICKERS)

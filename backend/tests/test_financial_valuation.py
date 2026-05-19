@@ -94,11 +94,14 @@ def test_hfc_split_routes_traditional_separate_from_premium():
 
     CANFINHOME (P/B 1.89, ROE 18%) was reclassified premium_hfc
     2026-05-19 follow-up — its profile aligns with AAVAS/HOMEFIRST
-    not with LICHSGFIN/PNBHOUSING/LICHOUSFIN."""
+    not with LICHSGFIN/PNBHOUSING.
+
+    LICHOUSFIN was removed 2026-05-19 — phantom ticker (no rows in
+    market_metrics/financials/stocks). LIC Housing Finance's real
+    NSE symbol is LICHSGFIN."""
     # Traditional bucket — legacy mortgage lenders, ~1.0× P/BV
     assert get_peer_group("LICHSGFIN") == "traditional_hfc"
     assert get_peer_group("LICHSGFIN.NS") == "traditional_hfc"
-    assert get_peer_group("LICHOUSFIN") == "traditional_hfc"
     assert get_peer_group("PNBHOUSING") == "traditional_hfc"
 
     # Premium bucket — growth-oriented HFCs (AAVAS, HOMEFIRST,
@@ -106,6 +109,9 @@ def test_hfc_split_routes_traditional_separate_from_premium():
     assert get_peer_group("AAVAS") == "premium_hfc"
     assert get_peer_group("HOMEFIRST.NS") == "premium_hfc"
     assert get_peer_group("CANFINHOME") == "premium_hfc"
+
+    # LICHOUSFIN is a phantom ticker — no peer group
+    assert get_peer_group("LICHOUSFIN") is None
 
 
 def test_lichsgfin_pbv_with_traditional_hfc_median(patch_medians):

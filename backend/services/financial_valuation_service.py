@@ -78,16 +78,21 @@ FINANCIAL_PEER_GROUPS: dict[str, list[str]] = {
     # own peer median.
     #
     # CANFINHOME taxonomy refinement (2026-05-19 follow-up PR #383):
-    # Initially placed in traditional_hfc with LICHSGFIN/LICHOUSFIN/
-    # PNBHOUSING. Market data showed CANFINHOME at P/B 1.89× — sitting
-    # between true traditional (LICHSGFIN 0.78, PNBHOUSING 1.44) and
-    # premium (AAVAS 2.17, HOMEFIRST 2.58). Its retail-housing focus,
-    # 18% ROE, and growth profile align with premium peers; the
-    # 3-member median 1.44 (LICHSGFIN/PNBHOUSING/CANFINHOME) was
-    # pulling LICHSGFIN's FV to ₹1,077 (still 71% over consensus).
-    # Moving CANFINHOME → premium_hfc tightens traditional_hfc median
-    # toward LICHSGFIN's actual market multiple.
-    "traditional_hfc":   ["LICHSGFIN", "LICHOUSFIN", "PNBHOUSING"],
+    # Initially placed in traditional_hfc with LICHSGFIN / PNBHOUSING.
+    # Market data showed CANFINHOME at P/B 1.89× — sitting between
+    # true traditional (LICHSGFIN 0.78, PNBHOUSING 1.44) and premium
+    # (AAVAS 2.17, HOMEFIRST 2.58). Its retail-housing focus, 18% ROE,
+    # and growth profile align with premium peers; the 3-member median
+    # 1.44 was pulling LICHSGFIN's FV to ₹1,077 (still 71% over
+    # consensus). Moving CANFINHOME → premium_hfc tightens traditional_
+    # hfc median toward LICHSGFIN's actual market multiple.
+    #
+    # LICHOUSFIN removed (2026-05-19): verified no rows exist for that
+    # ticker symbol in market_metrics, financials, or stocks. The
+    # canonical NSE symbol for LIC Housing Finance is LICHSGFIN;
+    # LICHOUSFIN appears to have been a duplicate/mistaken entry from
+    # an older peer-group draft.
+    "traditional_hfc":   ["LICHSGFIN", "PNBHOUSING"],
     "premium_hfc":       ["AAVAS", "HOMEFIRST", "CANFINHOME"],
     # Capital-light: AMCs, exchanges, brokers. P/E works here.
     "asset_mgmt":        ["HDFCAMC", "ICICIAMC", "NIPPONLIFE", "UTIAMC"],
