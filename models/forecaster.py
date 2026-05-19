@@ -1086,23 +1086,24 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
         # CAPM WACC
         wacc_floor = 0.09 if is_indian else 0.06
 
-        # Pharma WACC floor (2026-05-19 Day-5): industry_wacc.py specs
-        # wacc_default=0.115 for pharma, but CAPM with β=0.80, MRP=6%,
-        # Rf=7% delivers ~9.8-10.2%. The 130-150bps gap inflates DCF
-        # fair values by 15-18% via the perpetuity denominator, causing
-        # DRREDDY/ZYDUSLIFE/AUROPHARMA to over-shoot consensus.
-        # Anchor the CAPM result to the industry-tier spec when pharma
-        # is detected.
+        # Pharma WACC floor (2026-05-19 Day-5 v2): apply ONLY to generic
+        # exporters (DRREDDY/AUROPHARMA/ZYDUSLIFE/GLENMARK/IPCALAB)
+        # which face US-pricing-pressure risk premium. Franchise pharma
+        # (SUNPHARMA, CIPLA, MANKIND, TORNTPHARM, LUPIN) have durable
+        # India-domestic moats and the CAPM 9.8% is closer to truth for
+        # them — a universal floor produced -40% to -60% under-shoots
+        # on franchise pharma in the v1 deploy.
+        _PHARMA_GENERIC_TICKERS = frozenset({
+            "DRREDDY", "AUROPHARMA", "ZYDUSLIFE", "GLENMARK", "IPCALAB",
+            "LAURUSLABS", "ALEMBICLTD", "GRANULES", "WOCKPHARMA",
+        })
         try:
-            _sector_for_floor = ""
+            _ticker_bare = ""
             if enriched:
-                _sector_for_floor = (
-                    enriched.get("sector_name")
-                    or enriched.get("sector")
-                    or ""
-                ).strip().lower()
-            if "pharma" in _sector_for_floor:
-                wacc_floor = max(wacc_floor, 0.105)  # half of 130bps gap
+                _t = enriched.get("ticker") or ""
+                _ticker_bare = _t.replace(".NS", "").replace(".BO", "").upper()
+            if _ticker_bare in _PHARMA_GENERIC_TICKERS:
+                wacc_floor = max(wacc_floor, 0.105)  # +50-100bps generic risk
         except Exception:
             pass
 
@@ -1528,23 +1529,24 @@ class FCFForecaster:
         _g_terminal_eff = TERMINAL_FADE_G + _terminal_g_adj
         _total_horizon = _explicit_years + _fade_years
 
-        # ── Pharma terminal-g cap (2026-05-19 Day-5) ──────────────
-        # Pharma generic exporters (DRREDDY, AUROPHARMA, ZYDUSLIFE,
-        # LUPIN, GLENMARK) face structural pricing pressure in the US
-        # generics market; their through-cycle revenue growth runs
-        # 3-5% per industry_wacc.py spec (terminal_growth=0.035).
-        # Default TERMINAL_FADE_G=0.04 is appropriate for branded/
-        # franchise pharma (SUNPHARMA, CIPLA, MANKIND, ABBOTINDIA,
-        # GLAXO, PFIZER) but too generous for generics. Cap at 0.035
-        # when the sector matches.
+        # ── Pharma terminal-g cap (2026-05-19 Day-5 v2) ──────────────
+        # Apply ONLY to generic exporters (US-pricing-pressure exposure).
+        # Franchise pharma (SUNPHARMA/MANKIND/CIPLA/TORNTPHARM/LUPIN)
+        # have durable India-domestic moats — TERMINAL_FADE_G=0.04 is
+        # appropriate for them. Universal cap in v1 deploy produced
+        # -40% to -60% under-shoots on franchise names.
+        _PHARMA_GENERIC_TICKERS_TG = frozenset({
+            "DRREDDY", "AUROPHARMA", "ZYDUSLIFE", "GLENMARK", "IPCALAB",
+            "LAURUSLABS", "ALEMBICLTD", "GRANULES", "WOCKPHARMA",
+        })
         try:
-            _sector_for_pharma_cap = (
-                (enriched.get("sector_name") or enriched.get("sector") or "")
-                .strip().lower()
-            )
-            if "pharma" in _sector_for_pharma_cap and _g_terminal_eff > 0.035:
+            _t_bare_tg = ""
+            if enriched:
+                _t_raw = enriched.get("ticker") or ""
+                _t_bare_tg = _t_raw.replace(".NS", "").replace(".BO", "").upper()
+            if _t_bare_tg in _PHARMA_GENERIC_TICKERS_TG and _g_terminal_eff > 0.035:
                 _g_terminal_eff = 0.035
-                enriched["_pharma_terminal_g_capped"] = True
+                enriched["_pharma_generic_terminal_g_capped"] = True
         except Exception:
             pass
 
