@@ -15,10 +15,35 @@
 | #385 | classify BANKINDIA + 7 PSU banks + expand psu_banks peer group | BANKINDIA over-outlier |
 | #386 | 16 large-cap sector overrides (BIOCON/ABB/Pharma family etc.) | Multiple Pharma/Auto under-outliers |
 | #387 | 17 more sector overrides for General/Diversified | PRAJIND, ADANIPOWER, CONCOR, BALKRISIND, OIL, MAZDOCK, VBL, BERGEPAINT, PAGEIND, WESTLIFE, JUBLFOOD, DEVYANI, SAPPHIRE, CUB, AUBANK |
-| #388 | traditional_hfc ROE clamp tightened (0.95, 1.0) + FMCG/Retail DIRECT_PEERS expanded | LICHSGFIN +50% → ~+5%; FMCG/retail under-outliers get real peer cohort |
+| #388 | traditional_hfc ROE clamp tightened (0.95, 1.0) + FMCG/Retail DIRECT_PEERS expanded | LICHSGFIN +50% → ~+22%; FMCG/retail under-outliers get real peer cohort |
 | #389 | new internet_platform + fintech_broker peer cohorts | PAYTM, POLICYBZR, NUVAMA, GROWW, MEESHO, ZOMATO, NAUKRI, NYKAA + 8 fintech tickers |
 
-### Day-3 starting baseline: 312 (Day 1) → 87 (Day-3 morning) → expected < 30 post all PRs
+### Day-3 result: 312 (Day 1) → 95 outliers (70% reduction)
+
+**Post-deploy validation (Neon, 2026-05-19 17:35 IST):**
+- BANKINDIA ₹159 vs ₹160 (-0.6%) ✓
+- LICHSGFIN ₹774 vs ₹630 (+22.8%) ✓ improvement
+- 16 sector classifications corrected (BIOCON now Pharma, PAYTM now Internet Platform, etc.)
+
+### Day-4 carryover (2 engine gaps causing 60+ of remaining 95 outliers)
+
+**Gap 1: Soft-collapse rescue** (~30 affected)
+Safety-net trigger is FV/CMP ratio outside [0.10, 5.0]. Stocks like BIOCON
+(ratio 0.16), AUROPHARMA (0.21), GLENMARK (0.18) sit inside the band so
+safety net skips them — but reconciliation (30% threshold) flags them as
+under-outliers. Either lower safety-net LO from 0.10 to 0.50 OR add a
+second-tier outlier-rescue pass that calls Tier 2 for any reconciliation
+outlier regardless of ratio.
+
+**Gap 2: P/Sales engine for negative-EPS platforms** (~10 affected)
+PAYTM, POLICYBZR, NUVAMA, GROWW, MEESHO have peer cohorts (PR #389 added)
+but Tier 2 cohort engine requires positive EPS. Negative-EPS platforms
+return None. Need a new engine that uses peer-median P/Sales × ticker
+revenue-per-share, with growth adjustment.
+
+Both are engine-design work (~4-6 hr each), not config tweaks. Operator-
+data work (insurance EV + realty land-bank — docs/day3-operator-data-tasks.md)
+is parallel and would rescue 10 more.
 
 ---
 
