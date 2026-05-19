@@ -1079,28 +1079,55 @@ class AnalysisService(NarrativeMixin):
                     "fcf_years": _norm.get("fcf_years"),
                 }
 
-                # ── Peak-phase detection (2026-05-19 Day-5) ──
-                # 3-year normalized FCF includes the most recent supercycle
-                # peak year (FY25 for metals/oil — VEDL +65%, COALINDIA +40%).
-                # When latest annual FCF is ≥1.4× the 5y median, the 3y
-                # window is peak-biased; fall back to 5y median for a more
-                # through-cycle anchor.
+                # ── Peak-phase detection (2026-05-19 Day-5 + Day-6) ──
+                # The 3-year normalized FCF is peak-biased when the
+                # most recent years are at a supercycle high. Day-5
+                # added a 5y check; Day-6 extends to 10y because for
+                # commodities like VEDL where ALL of 2020-2025 is peak,
+                # even the 5y mean stays elevated. The 10y window
+                # reaches back into 2016-2019 (mid/down cycle) for a
+                # genuinely through-cycle anchor.
+                #
+                # Decision logic: use the LARGEST window where peak
+                # detection fires (most through-cycle), but only if
+                # 3y is materially above. If 3y > 5y > 10y, the cycle
+                # peak is multi-year and we want the longest reference.
                 try:
-                    _peak_check = _query_normalized_fcf(ticker, years=5)
-                    if _peak_check and _peak_check.get("fcf"):
-                        _3y_fcf = float(_norm["fcf"])
-                        _5y_fcf = float(_peak_check["fcf"])
-                        # If 3y mean is materially higher than 5y mean, the
-                        # newer years are peak. Use the longer window.
-                        if _5y_fcf > 0 and _3y_fcf > _5y_fcf * 1.35:
-                            enriched["latest_fcf"] = _5y_fcf
-                            enriched["_cyclical_peak_detected"] = True
-                            enriched["_cyclical_peak_3y_5y_ratio"] = round(
-                                _3y_fcf / _5y_fcf, 3
-                            )
-                            _fcf_data_source = "normalized_5y_peak_capped"
-                            _normalized_fcf_meta["peak_capped"] = True
-                            _normalized_fcf_meta["fallback_window"] = "5y"
+                    _peak_5y = _query_normalized_fcf(ticker, years=5)
+                    _peak_10y = _query_normalized_fcf(ticker, years=10)
+                    _3y_fcf = float(_norm["fcf"])
+                    _5y_fcf = (
+                        float(_peak_5y["fcf"])
+                        if _peak_5y and _peak_5y.get("fcf") else None
+                    )
+                    _10y_fcf = (
+                        float(_peak_10y["fcf"])
+                        if _peak_10y and _peak_10y.get("fcf") else None
+                    )
+
+                    _chosen_window = None
+                    _chosen_fcf = None
+
+                    # Check 10y first (most through-cycle)
+                    if _10y_fcf and _10y_fcf > 0 and _3y_fcf > _10y_fcf * 1.50:
+                        _chosen_window = "10y"
+                        _chosen_fcf = _10y_fcf
+                    # Else check 5y
+                    elif _5y_fcf and _5y_fcf > 0 and _3y_fcf > _5y_fcf * 1.35:
+                        _chosen_window = "5y"
+                        _chosen_fcf = _5y_fcf
+
+                    if _chosen_window and _chosen_fcf:
+                        enriched["latest_fcf"] = _chosen_fcf
+                        enriched["_cyclical_peak_detected"] = True
+                        enriched["_cyclical_peak_3y_ratio"] = round(
+                            _3y_fcf / _chosen_fcf, 3
+                        )
+                        _fcf_data_source = (
+                            f"normalized_{_chosen_window}_peak_capped"
+                        )
+                        _normalized_fcf_meta["peak_capped"] = True
+                        _normalized_fcf_meta["fallback_window"] = _chosen_window
                 except Exception:
                     pass
 

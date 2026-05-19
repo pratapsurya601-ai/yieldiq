@@ -60,8 +60,8 @@ _SECTOR_KEY_MAP: dict[str, str] = {
     "consumer staples": "fmcg",
     "pharma": "pharma",
     "pharmaceuticals": "pharma",
-    "capital goods": "capital_goods",
-    "industrials": "capital_goods",
+    "capital goods": "capital_goods_full",   # Day-6: expanded 11-peer bucket
+    "industrials": "capital_goods_full",
     "auto - 4w": "auto_oem",
     "auto - 2w": "auto_oem",
     "auto - oem": "auto_oem",

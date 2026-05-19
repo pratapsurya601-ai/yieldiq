@@ -327,9 +327,45 @@ def attempt_tier2_fallback(
                 )
                 return _p_fv_f, "platform_ps_after_dcf_collapse"
 
+        # ── Third rung: Story DCF (Day-6) ─────────────────────
+        # Platform engine returned None because peer cohort itself has
+        # no usable P/S. Last credible swing is Damodaran-style story
+        # DCF using operator-curated narrative + numbers (per-ticker
+        # overrides in config/story_dcf_overrides.json).
+        try:
+            from backend.services.story_dcf_engine import (
+                compute_story_dcf_fair_value,
+            )
+            story_result = compute_story_dcf_fair_value(
+                ticker=ticker,
+                sector=sector,
+                financials=fin,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "dcf_collapse_safety_net: %s — story_dcf raised: %s",
+                ticker, exc,
+            )
+            story_result = None
+
+        if story_result and (_s_fv := story_result.get("fair_value")):
+            try:
+                _s_fv_f = float(_s_fv)
+            except (TypeError, ValueError):
+                _s_fv_f = 0.0
+            if _s_fv_f > 0 and not is_fv_unreasonable(_s_fv_f, current_price):
+                logger.info(
+                    "dcf_collapse_safety_net: %s — story_dcf produced "
+                    "FV ₹%.2f (industry=%s, wacc=%.3f)",
+                    ticker, _s_fv_f,
+                    story_result.get("_meta", {}).get("industry", "?"),
+                    story_result.get("_meta", {}).get("wacc", 0),
+                )
+                return _s_fv_f, "story_dcf_after_dcf_collapse"
+
         logger.info(
-            "dcf_collapse_safety_net: %s — tier2 + platform engines both "
-            "returned None → caller should mark data_limited",
+            "dcf_collapse_safety_net: %s — all rescue engines returned None "
+            "(tier2 + platform_ps + story_dcf) → caller marks data_limited",
             ticker,
         )
         return None
