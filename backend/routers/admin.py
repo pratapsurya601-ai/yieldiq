@@ -1003,6 +1003,7 @@ async def get_benchmark_outliers(
     min_analysts: int = 3,
     direction: str = "both",
     limit: int = 50,
+    adaptive: bool = False,
     user: dict = Depends(require_admin),
 ):
     """Sorted list of tickers whose model FV diverges from analyst
@@ -1013,6 +1014,14 @@ async def get_benchmark_outliers(
       - ``min_analysts``  : default 3     (low-signal floor)
       - ``direction``     : "both" | "over" | "under"
       - ``limit``         : default 50, max 500
+      - ``adaptive``      : default False. When true, ``threshold`` is
+                            multiplied by a per-analyst-count factor:
+                            ≥20 analysts → ×0.67 (e.g. 30% → 20%),
+                            10-19 → ×1.0 (no change),
+                            5-9 → ×1.33 (e.g. 30% → 40%),
+                            3-4 → ×1.67 (e.g. 30% → 50%).
+                            Tightens the report against high-confidence
+                            consensus, widens it for sparse coverage.
 
     Returns ``{generated_at, threshold_pct, count, rows[]}`` sorted by
     ``|delta_pct|`` desc. Each row carries our_fv, consensus_fv,
@@ -1041,6 +1050,7 @@ async def get_benchmark_outliers(
     direction_s = (direction or "both").lower().strip()
     if direction_s not in ("both", "over", "under"):
         direction_s = "both"
+    adaptive_b = bool(adaptive)
 
     try:
         rows = brs.get_outliers(
@@ -1048,6 +1058,7 @@ async def get_benchmark_outliers(
             min_analysts=min_an,
             direction=direction_s,
             limit=limit_i,
+            adaptive=adaptive_b,
         )
     except Exception as e:
         raise HTTPException(
@@ -1060,6 +1071,7 @@ async def get_benchmark_outliers(
         "threshold_pct": threshold_f,
         "min_analysts": min_an,
         "direction": direction_s,
+        "adaptive": adaptive_b,
         "count": len(rows),
         "rows": [r.to_dict() for r in rows],
     }

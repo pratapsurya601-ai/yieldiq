@@ -44,13 +44,18 @@ def patch_medians(monkeypatch):
 
 def test_peer_groups_expected_keys():
     # Housing finance was split 2026-05-19 — old "housing_finance"
-    # bucket bundled legacy mortgage lenders (LICHSGFIN, LICHOUSFIN,
-    # PNBHOUSING, CANFINHOME) with affordable-housing specialists
-    # (AAVAS, HOMEFIRST). Mixed-median produced LICHSGFIN FV ₹1,636
-    # vs 23-analyst consensus ₹630 (+159.8% over). Now two buckets.
+    # bucket bundled legacy mortgage lenders with affordable-housing
+    # specialists. LICHSGFIN was overshot to ₹1,636 vs consensus ₹630.
+    # Now traditional_hfc + premium_hfc.
+    #
+    # General insurance was split 2026-05-19 (PR #383 follow-up) for
+    # the same reason — NIACL 0.94× P/B was bundled with ICICIGI 5.68×.
+    # Now psu_gi + private_gi + health_insurance.
     assert set(FINANCIAL_PEER_GROUPS.keys()) == {
-        "psu_banks", "private_banks", "lending_nbfc", "govt_nbfc",
-        "life_insurance", "general_insurance",
+        "psu_banks", "private_banks", "stressed_private_banks",
+        "lending_nbfc", "govt_nbfc",
+        "life_insurance",
+        "psu_gi", "private_gi", "health_insurance",
         "traditional_hfc", "premium_hfc",
         "asset_mgmt",
     }
@@ -59,12 +64,23 @@ def test_peer_groups_expected_keys():
 def test_get_peer_group_handles_suffix():
     assert get_peer_group("SBIN.NS") == "psu_banks"
     assert get_peer_group("HDFCBANK.NS") == "private_banks"
+    # Stressed private banks bucket (2026-05-19 split — see PR #383):
+    assert get_peer_group("YESBANK.NS") == "stressed_private_banks"
+    assert get_peer_group("RBLBANK") == "stressed_private_banks"
+    assert get_peer_group("BANDHANBNK") == "stressed_private_banks"
+    assert get_peer_group("INDUSINDBK") == "stressed_private_banks"
     # BAJFINANCE / MUTHOOTFIN are lenders → P/BV cohort, not P/E
     assert get_peer_group("BAJFINANCE") == "lending_nbfc"
     assert get_peer_group("MUTHOOTFIN.NS") == "lending_nbfc"
     assert get_peer_group("SHRIRAMFIN") == "lending_nbfc"
     assert get_peer_group("PFC.NS") == "govt_nbfc"
-    assert get_peer_group("ICICIGI") == "general_insurance"
+    # General insurance split:
+    assert get_peer_group("ICICIGI") == "private_gi"
+    assert get_peer_group("GODIGIT") == "private_gi"
+    assert get_peer_group("NIACL") == "psu_gi"
+    assert get_peer_group("GICRE") == "psu_gi"
+    assert get_peer_group("STARHEALTH") == "health_insurance"
+    assert get_peer_group("NIVABUPA") == "health_insurance"
     assert get_peer_group("LICI") == "life_insurance"
     assert get_peer_group("HDFCLIFE") == "life_insurance"
     assert get_peer_group("HDFCAMC") == "asset_mgmt"
@@ -79,19 +95,29 @@ def test_get_peer_group_returns_none_for_non_financial():
 
 
 def test_hfc_split_routes_traditional_separate_from_premium():
-    """Legacy mortgage lenders and affordable-housing specialists
-    must NOT share a peer-median bucket. Mixing them pushed LICHSGFIN
-    fair P/BV to ~2.5 vs its real ~1.0 peer-derived value."""
+    """Legacy mortgage lenders and growth-oriented HFCs must NOT share
+    a peer-median bucket. Mixing them pushed LICHSGFIN fair P/BV up.
+
+    CANFINHOME (P/B 1.89, ROE 18%) was reclassified premium_hfc
+    2026-05-19 follow-up — its profile aligns with AAVAS/HOMEFIRST
+    not with LICHSGFIN/PNBHOUSING.
+
+    LICHOUSFIN was removed 2026-05-19 — phantom ticker (no rows in
+    market_metrics/financials/stocks). LIC Housing Finance's real
+    NSE symbol is LICHSGFIN."""
     # Traditional bucket — legacy mortgage lenders, ~1.0× P/BV
     assert get_peer_group("LICHSGFIN") == "traditional_hfc"
     assert get_peer_group("LICHSGFIN.NS") == "traditional_hfc"
-    assert get_peer_group("LICHOUSFIN") == "traditional_hfc"
     assert get_peer_group("PNBHOUSING") == "traditional_hfc"
-    assert get_peer_group("CANFINHOME") == "traditional_hfc"
 
-    # Premium bucket — affordable-housing specialists, 3-4× P/BV
+    # Premium bucket — growth-oriented HFCs (AAVAS, HOMEFIRST,
+    # CANFINHOME)
     assert get_peer_group("AAVAS") == "premium_hfc"
     assert get_peer_group("HOMEFIRST.NS") == "premium_hfc"
+    assert get_peer_group("CANFINHOME") == "premium_hfc"
+
+    # LICHOUSFIN is a phantom ticker — no peer group
+    assert get_peer_group("LICHOUSFIN") is None
 
 
 def test_lichsgfin_pbv_with_traditional_hfc_median(patch_medians):
@@ -297,12 +323,14 @@ def test_pfc_pbv_fallback_to_default_medians(patch_medians):
     assert result["fair_value"] > 0
 
 
-# ── ICICIGI — general insurance, P/BV path ──────────────────────
+# ── ICICIGI — private GI bucket (split from general_insurance 2026-05-19) ──
 
 def test_icicigi_pbv_peer_valuation(patch_medians):
+    # ICICIGI now routes through private_gi bucket alongside GODIGIT.
+    # Real peer P/B median (ICICIGI 5.68, GODIGIT 6.13) ≈ 5.9.
     patch_medians({
-        "general_insurance": {
-            "median_pb": 3.0, "median_roe": 0.15,
+        "private_gi": {
+            "median_pb": 5.9, "median_roe": 0.14,
             "n_pb": 2, "n_pe": 2, "n_roe": 2,
         }
     })
@@ -317,10 +345,99 @@ def test_icicigi_pbv_peer_valuation(patch_medians):
     )
     assert result is not None
     assert result["method"] == "p_bv_peer"
-    # BVPS=300, fair P/BV ≈ 3.0 × (0.16/0.15) = 3.2. IV ≈ 960.
-    # CMP 1800 vs ~960 → overvalued
-    assert result["verdict"] == "overvalued"
-    assert 800 <= result["fair_value"] <= 1100
+    # BVPS=300, fair P/BV ≈ 5.9 × (0.16/0.14 clamp ceil) ≈ 5.9 × 1.14
+    # = 6.73. IV ≈ ₹2,020 — close to 26-analyst consensus ₹2,125.
+    assert 1700 <= result["fair_value"] <= 2300
+
+
+# ── PSU GI split anchor (2026-05-19) ─────────────────────────────
+
+
+def test_yesbank_stressed_private_bank_does_not_overshoot(patch_medians):
+    """YESBANK was the #15 'over' outlier (+112% vs 11-analyst
+    consensus ₹19). Pre-fix, YESBANK had no peer group → hardcoded
+    _PB_MEDIANS['Banking']=2.5 applied.
+
+    After two fixes combined:
+      1. stressed_private_banks bucket with median P/B 1.24
+      2. asymmetric ROE-adj clamp (0.85, 1.0) for this bucket
+
+    YESBANK's ROE 6.86% vs peer median 5% raw adj = 1.37, clamped to
+    1.0 (no upward credit until sustained). fair_pb = 1.24 × 1.0 = 1.24.
+    FV = 16.34 BVPS × 1.24 ≈ ₹20.3 — within ±15% of consensus ₹19.32.
+    """
+    patch_medians({
+        "stressed_private_banks": {
+            "median_pb": 1.24, "median_roe": 0.05,
+            "n_pb": 5, "n_pe": 5, "n_roe": 5,
+        }
+    })
+    result = compute_financial_fair_value(
+        ticker="YESBANK.NS",
+        company_info={"current_price": 22.06, "shares": 31.38e9},
+        financials={
+            "priceToBook": 1.35,  # → BVPS ~16.34
+            "roe": 0.0686,
+        },
+        shareholding=None,
+    )
+    assert result is not None
+    fv = result["fair_value"]
+    consensus = 19.32
+    drift = (fv - consensus) / consensus
+    assert -0.20 < drift < 0.20, (
+        f"YESBANK FV ₹{fv:.2f} drifts {drift*100:+.1f}% from "
+        f"11-analyst consensus ₹19.32. Stressed-bank asymmetric "
+        f"ROE clamp expected to keep this within ±20%."
+    )
+
+
+def test_roe_adj_clamp_per_bucket():
+    """Direct unit test: stressed_private_banks gets (0.85, 1.0) clamp
+    instead of the default (0.95, 1.4). High-ROE stressed banks must
+    NOT get upward credit (sustainability concern)."""
+    from backend.services.financial_valuation_service import (
+        _roe_adj_clamp_for, _ROE_ADJ_CLAMP_DEFAULT,
+    )
+    # Default clamp for unknown / non-stressed groups
+    assert _roe_adj_clamp_for("private_banks") == _ROE_ADJ_CLAMP_DEFAULT
+    assert _roe_adj_clamp_for("traditional_hfc") == _ROE_ADJ_CLAMP_DEFAULT
+    assert _roe_adj_clamp_for("") == _ROE_ADJ_CLAMP_DEFAULT
+    # Tighter clamp for stressed banks
+    assert _roe_adj_clamp_for("stressed_private_banks") == (0.85, 1.0)
+
+
+def test_niacl_psu_gi_does_not_overshoot(patch_medians):
+    """NIACL was the top-of-list "over" outlier (+174% over consensus)
+    when it was bundled with ICICIGI/STARHEALTH in general_insurance.
+    With psu_gi split, peer median P/B drops from ~3.0 to ~1.05.
+
+    Anchor: NIACL BVPS ~₹176 (price ₹162 / pb 0.94), 3-analyst
+    consensus ₹170. Model FV should land within ±25% of consensus.
+    """
+    patch_medians({
+        "psu_gi": {
+            "median_pb": 1.05, "median_roe": 0.08,
+            "n_pb": 2, "n_pe": 2, "n_roe": 2,
+        }
+    })
+    result = compute_financial_fair_value(
+        ticker="NIACL.NS",
+        company_info={"current_price": 162.0, "shares": 1.65e9},
+        financials={
+            "priceToBook": 0.94,  # → BVPS = 172
+            "roe": 0.036,  # NIACL realized ROE much lower than peer
+        },
+        shareholding=None,
+    )
+    assert result is not None
+    fv = result["fair_value"]
+    consensus = 170.33
+    drift = (fv - consensus) / consensus
+    assert -0.30 < drift < 0.30, (
+        f"NIACL FV ₹{fv:.0f} drifts {drift*100:+.1f}% from "
+        f"3-analyst consensus ₹170. psu_gi split likely regressed."
+    )
 
 
 # ── Missing-data handling ────────────────────────────────────────

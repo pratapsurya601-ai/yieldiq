@@ -169,34 +169,75 @@ LIMIT 1
 # ── Core algorithm (pure, testable without a DB) ────────────────────
 
 
+def _effective_threshold(
+    threshold_pct: float, analyst_count: int, adaptive: bool,
+) -> float:
+    """Adjust threshold by analyst-count band when adaptive=True.
+
+    Rationale: a 30% delta from a 30-analyst consensus is a real
+    disagreement; the same delta from a 3-analyst consensus could be
+    just one analyst's outlier opinion. Scaling the threshold by
+    coverage reduces noise without losing high-confidence signal.
+
+    Bands (multiplier on caller-supplied base threshold):
+      analyst_count >= 20  → ×0.67  (e.g. 30% base → 20% effective)
+      analyst_count 10-19  → ×1.00  (matches caller's intent)
+      analyst_count 5-9    → ×1.33  (e.g. 30% → 40%)
+      analyst_count 3-4    → ×1.67  (e.g. 30% → 50%)
+
+    When ``adaptive`` is False, the function is a no-op so existing
+    callers keep their flat-threshold behaviour. Only the admin /
+    reconciliation paths opt in via ``adaptive=True``.
+    """
+    if not adaptive:
+        return threshold_pct
+    if analyst_count >= 20:
+        return threshold_pct * 0.67
+    if analyst_count >= 10:
+        return threshold_pct
+    if analyst_count >= 5:
+        return threshold_pct * 1.33
+    return threshold_pct * 1.67
+
+
 def _classify(
     our_fv: Optional[float],
     consensus_fv: Optional[float],
     analyst_count: Optional[int],
     threshold_pct: float,
     min_analysts: int,
+    *,
+    adaptive: bool = False,
 ) -> Optional[float]:
     """Return signed delta_pct iff this row qualifies as an outlier,
     else None. Skips low-signal (too few analysts), missing inputs, and
-    non-positive divisors. Pure function — used directly in unit tests."""
+    non-positive divisors. Pure function — used directly in unit tests.
+
+    When ``adaptive=True`` the threshold is widened for low-coverage
+    consensus and tightened for high-coverage. See _effective_threshold."""
     if our_fv is None or consensus_fv is None:
         return None
     if consensus_fv <= 0 or our_fv <= 0:
         return None
     if analyst_count is None or analyst_count < min_analysts:
         return None
+    eff_threshold = _effective_threshold(
+        threshold_pct, analyst_count, adaptive,
+    )
     delta = (our_fv - consensus_fv) / consensus_fv
-    if abs(delta) <= threshold_pct:
+    if abs(delta) <= eff_threshold:
         return None
     return delta
 
 
 def _row_from_record(
     record: dict, threshold_pct: float, min_analysts: int,
+    *, adaptive: bool = False,
 ) -> Optional[OutlierRow]:
     delta = _classify(
         record.get("our_fv"), record.get("consensus_fv"),
         record.get("analyst_count"), threshold_pct, min_analysts,
+        adaptive=adaptive,
     )
     if delta is None:
         return None
@@ -221,13 +262,20 @@ def compute_outliers_from_records(
     min_analysts: int = DEFAULT_MIN_ANALYSTS,
     direction: str = "both",
     limit: Optional[int] = None,
+    adaptive: bool = False,
 ) -> list[OutlierRow]:
     """Pure-function entry point. Given an iterable of row-dicts (the
     SQL output), classify and sort. Used both by the live admin path
-    and by unit tests that bypass the DB entirely."""
+    and by unit tests that bypass the DB entirely.
+
+    ``adaptive=True`` widens the threshold for low-coverage consensus
+    and tightens it for high-coverage. See ``_effective_threshold``.
+    """
     out: list[OutlierRow] = []
     for r in records:
-        row = _row_from_record(r, threshold_pct, min_analysts)
+        row = _row_from_record(
+            r, threshold_pct, min_analysts, adaptive=adaptive,
+        )
         if row is None:
             continue
         if direction == "over" and row.direction != "over":
@@ -261,6 +309,7 @@ def get_outliers(
     direction: str = "both",
     limit: Optional[int] = 50,
     session=None,
+    adaptive: bool = False,
 ) -> list[OutlierRow]:
     """Live admin dashboard query. Returns at most ``limit`` rows sorted
     by ``|delta_pct|`` desc. Empty list on any DB issue — admin UI
@@ -290,6 +339,7 @@ def get_outliers(
         min_analysts=min_analysts,
         direction=direction,
         limit=limit,
+        adaptive=adaptive,
     )
 
 

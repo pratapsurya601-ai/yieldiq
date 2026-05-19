@@ -47,7 +47,18 @@ logger = logging.getLogger("yieldiq.financial_valuation")
 # AMCs / brokers / exchanges keep P/E.
 FINANCIAL_PEER_GROUPS: dict[str, list[str]] = {
     "psu_banks":         ["SBIN", "BANKBARODA", "PNB", "CANBK", "UNIONBANK", "INDIANB"],
-    "private_banks":     ["HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK", "INDUSINDBK", "FEDERALBNK"],
+    "private_banks":     ["HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK", "FEDERALBNK"],
+    # Stressed private banks split 2026-05-19 — YESBANK was the #15
+    # over-outlier (+112% vs 11-analyst consensus). Root cause: not in
+    # any peer group → hardcoded _PB_MEDIANS["Banking"]=2.5 applied
+    # despite YESBANK's actual P/B of 1.35. The mid-tier / stressed
+    # private banks share a structurally lower multiple band (P/B
+    # 1.05-1.35), driven by past asset-quality cycles (YESBANK 2020 AT1
+    # crisis, RBL governance issues, BANDHANBNK microfinance stress,
+    # IDFCFIRSTB profitability ramp, INDUSINDBK 2025 fraud impact).
+    "stressed_private_banks": [
+        "YESBANK", "RBLBANK", "BANDHANBNK", "IDFCFIRSTB", "INDUSINDBK",
+    ],
     # Lending NBFCs — balance-sheet lenders, P/BV always.
     "lending_nbfc":      [
         "BAJFINANCE", "BAJAJFINSV", "CHOLAFIN",
@@ -58,7 +69,16 @@ FINANCIAL_PEER_GROUPS: dict[str, list[str]] = {
     ],
     "govt_nbfc":         ["PFC", "REC", "RECLTD", "IRFC", "HUDCO"],
     "life_insurance":    ["LICI", "HDFCLIFE", "SBILIFE", "ICICIPRULI"],
-    "general_insurance": ["ICICIGI", "STARHEALTH", "NIACL"],
+    # General-insurance split 2026-05-19 (PR #383 follow-up). Same
+    # peer-median pollution pattern as housing finance: a single
+    # "general_insurance" bucket was mixing PSU lifers (NIACL 0.94×,
+    # GICRE 1.11×) with premium/digital private GI (ICICIGI 5.68×,
+    # GODIGIT 6.13×) and standalone health (STARHEALTH 3.91×,
+    # NIVABUPA 3.28×). Mixed median ≈ 3.5 pushed NIACL FV to ~+174%
+    # over consensus on 2026-05-19. Three new buckets:
+    "psu_gi":            ["NIACL", "GICRE"],
+    "private_gi":        ["ICICIGI", "GODIGIT"],
+    "health_insurance":  ["STARHEALTH", "NIVABUPA"],
     # Housing finance split 2026-05-19 — peer-median pollution fix.
     # Old single "housing_finance" bucket mixed legacy mortgage lenders
     # (thin spreads, sub-1× P/BV) with affordable-housing specialists
@@ -67,8 +87,24 @@ FINANCIAL_PEER_GROUPS: dict[str, list[str]] = {
     # vs 23-analyst consensus ₹630 (+159.8% over-shoot — top "over"
     # outlier on 2026-05-19). Separate sub-groups; each generates its
     # own peer median.
-    "traditional_hfc":   ["LICHSGFIN", "LICHOUSFIN", "CANFINHOME", "PNBHOUSING"],
-    "premium_hfc":       ["AAVAS", "HOMEFIRST"],
+    #
+    # CANFINHOME taxonomy refinement (2026-05-19 follow-up PR #383):
+    # Initially placed in traditional_hfc with LICHSGFIN / PNBHOUSING.
+    # Market data showed CANFINHOME at P/B 1.89× — sitting between
+    # true traditional (LICHSGFIN 0.78, PNBHOUSING 1.44) and premium
+    # (AAVAS 2.17, HOMEFIRST 2.58). Its retail-housing focus, 18% ROE,
+    # and growth profile align with premium peers; the 3-member median
+    # 1.44 was pulling LICHSGFIN's FV to ₹1,077 (still 71% over
+    # consensus). Moving CANFINHOME → premium_hfc tightens traditional_
+    # hfc median toward LICHSGFIN's actual market multiple.
+    #
+    # LICHOUSFIN removed (2026-05-19): verified no rows exist for that
+    # ticker symbol in market_metrics, financials, or stocks. The
+    # canonical NSE symbol for LIC Housing Finance is LICHSGFIN;
+    # LICHOUSFIN appears to have been a duplicate/mistaken entry from
+    # an older peer-group draft.
+    "traditional_hfc":   ["LICHSGFIN", "PNBHOUSING"],
+    "premium_hfc":       ["AAVAS", "HOMEFIRST", "CANFINHOME"],
     # Capital-light: AMCs, exchanges, brokers. P/E works here.
     "asset_mgmt":        ["HDFCAMC", "ICICIAMC", "NIPPONLIFE", "UTIAMC"],
 }
@@ -78,10 +114,13 @@ FINANCIAL_PEER_GROUPS: dict[str, list[str]] = {
 _GROUP_METHOD = {
     "psu_banks":         "p_bv_peer",
     "private_banks":     "p_bv_peer",
+    "stressed_private_banks": "p_bv_peer",
     "lending_nbfc":      "p_bv_peer",
     "govt_nbfc":         "p_bv_peer",
     "life_insurance":    "p_ev_peer",
-    "general_insurance": "p_bv_peer",
+    "psu_gi":            "p_bv_peer",
+    "private_gi":        "p_bv_peer",
+    "health_insurance":  "p_bv_peer",
     "traditional_hfc":   "p_bv_peer",
     "premium_hfc":       "p_bv_peer",
     "asset_mgmt":        "p_e_peer",
@@ -91,25 +130,65 @@ _GROUP_METHOD = {
 # Calibrated from FY25 trailing data; used only on cold start / DB down.
 _FALLBACK_PB = {
     "psu_banks":         (0.9, 0.14),   # (median P/BV, median ROE as decimal)
-    "private_banks":     (2.4, 0.16),
+    "private_banks":     (2.0, 0.13),   # was (2.4, 0.16) — recalibrated after
+                                        # removing INDUSINDBK to stressed bucket
+                                        # and reflecting real top-private median
+    # Real peer median (YESBANK/RBLBANK/BANDHANBNK/IDFCFIRSTB/INDUSINDBK
+    # P/B 1.05-1.35) ≈ 1.24. Median ROE ~5% (5 members: 1.35, 3.40,
+    # 4.78, 5.26, 6.86 → 4.78). Used only when DB query has < 2 peers.
+    "stressed_private_banks": (1.25, 0.05),
     "lending_nbfc":      (4.0, 0.20),
     "govt_nbfc":         (1.2, 0.18),
     "life_insurance":    (2.0, 0.14),   # P/EV approximated via P/BV
-    "general_insurance": (3.0, 0.15),
-    # Traditional HFC: legacy mortgage lenders, ~1.0× P/BV. LICHSGFIN
-    # at 0.78 (current), LICHOUSFIN ~0.85, PNBHOUSING ~1.2, CANFINHOME
-    # ~2.5 (still on higher end). 23-analyst LICHSGFIN consensus
-    # implies fair P/BV ~0.95 — fallback set near peer median.
-    "traditional_hfc":   (1.1, 0.14),
-    # Premium HFC: affordable-housing specialists, faster growth.
-    # AAVAS/HOMEFIRST trade 3-4×. Used only when split bucket fires.
-    "premium_hfc":       (3.5, 0.18),
+    # General-insurance split 2026-05-19 — old (3.0, 0.15) was a sector
+    # average that catastrophically over-shot PSU GIs. Real peer P/B
+    # medians from 2026-05-17 market_metrics:
+    #   psu_gi:           [NIACL 0.94, GICRE 1.11] → median 1.025
+    #   private_gi:       [ICICIGI 5.68, GODIGIT 6.13] → median 5.9
+    #   health_insurance: [STARHEALTH 3.91, NIVABUPA 3.28] → median 3.6
+    "psu_gi":            (1.05, 0.08),
+    "private_gi":        (5.5, 0.15),
+    "health_insurance":  (3.5, 0.08),
+    # Traditional HFC: legacy mortgage lenders only (CANFINHOME moved
+    # to premium_hfc per PR #383 refinement). LICHSGFIN 0.78, LICHOUSFIN
+    # ~0.85, PNBHOUSING 1.44 — real 3-peer median ~0.95. 23-analyst
+    # LICHSGFIN consensus implies fair P/BV ~0.95; fallback matches.
+    "traditional_hfc":   (1.0, 0.13),
+    # Premium HFC: affordable-housing specialists + CANFINHOME (retail
+    # housing focus, 18% ROE, 1.89× P/B). Real median for [CANFINHOME
+    # 1.89, AAVAS 2.17, HOMEFIRST 2.58] = 2.17.
+    "premium_hfc":       (2.2, 0.17),
     "asset_mgmt":        (8.0, 0.25),   # AMCs trade rich
 }
 
 _FALLBACK_PE = {
     "asset_mgmt":        (30.0, 0.25),
 }
+
+
+# Per-bucket ROE adjustment clamps. Default (0.95, 1.4) lets a strong
+# ROE earner trade at a 40% premium to peer-median P/BV, and a weak
+# earner at a 5% discount (close to neutral — see HDFCBANK data-bug
+# investigation in _compute_pbv_path docstring for why the floor is
+# 0.95 not 0.7).
+#
+# Stressed banks override (2026-05-19): for YESBANK / RBLBANK /
+# BANDHANBNK / IDFCFIRSTB / INDUSINDBK the upward clamp is tightened
+# to 1.0 because their recent-quarter ROE recovery shouldn't earn a
+# premium until sustained. Asymmetric (0.85, 1.0): can still discount
+# if ROE deteriorates further, but no upward credit. This stops
+# YESBANK's 6.86% ROE (vs 4.78% peer median → raw adj 1.43) from
+# clamping at 1.4 and pushing fair_pb above market multiple.
+_ROE_ADJ_CLAMP: dict[str, tuple[float, float]] = {
+    "stressed_private_banks": (0.85, 1.0),
+}
+_ROE_ADJ_CLAMP_DEFAULT = (0.95, 1.4)
+
+
+def _roe_adj_clamp_for(group: str) -> tuple[float, float]:
+    """Return (floor, ceiling) for the ROE/peer-ROE adjustment for a
+    given peer group. Falls back to the global default."""
+    return _ROE_ADJ_CLAMP.get(group, _ROE_ADJ_CLAMP_DEFAULT)
 
 
 # ── Peer-median cache (1h TTL) ──────────────────────────────────
@@ -301,6 +380,7 @@ def _compute_pbv_path(
     bvps: float,
     roe: Optional[float],
     medians: dict,
+    group: Optional[str] = None,
 ) -> Optional[dict]:
     median_pb = medians.get("median_pb")
     median_roe = medians.get("median_roe")
@@ -328,7 +408,8 @@ def _compute_pbv_path(
     # bank-equity investigation.
     if roe and median_roe and median_roe > 0:
         adj = roe / median_roe
-        adj = max(0.95, min(1.4, adj))
+        clamp_lo, clamp_hi = _roe_adj_clamp_for(group or "")
+        adj = max(clamp_lo, min(clamp_hi, adj))
     else:
         adj = 1.0
 
@@ -482,7 +563,7 @@ def compute_financial_fair_value(
                 return result
         bvps = _extract_bvps(company_info, financials)
         if bvps and bvps > 0:
-            return _compute_pbv_path(ticker, price, bvps, roe, medians)
+            return _compute_pbv_path(ticker, price, bvps, roe, medians, group=group)
         return None
 
     # All lenders (banks / NBFCs / HFCs / govt-NBFCs) and insurers
@@ -496,7 +577,7 @@ def compute_financial_fair_value(
     # through to a P/E or DCF path that would mis-state the FV.
     bvps = _extract_bvps(company_info, financials)
     if bvps and bvps > 0:
-        return _compute_pbv_path(ticker, price, bvps, roe, medians)
+        return _compute_pbv_path(ticker, price, bvps, roe, medians, group=group)
 
     logger.info(
         "financial_valuation: no BVPS for %s (group=%s) — returning "
