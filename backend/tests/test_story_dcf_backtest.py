@@ -107,11 +107,8 @@ KNOWN_OUT_OF_BAND: set[str] = {
     "NYKAA",     # 8% op margin × 75% reinvest → FCFFs stay negative
     "MEESHO",    # 10% op margin × 80% reinvest → FCFFs stay negative
     "SWIGGY",    # 10% op margin × 70% reinvest → FCFFs stay negative
-    # Day-18: logistics platform with razor margins (8% target vs 15%
-    # ecommerce default). Override produces FV close to band edge but
-    # not always inside the strict [0.30, 3.5] window with synthetic
-    # anchors. Operator review item — same status as PAYTM.
-    "DELHIVERY",
+    # Day-20 part-2: DELHIVERY retuned (15% margin / 40% reinvest) →
+    # FV now in-band at 0.45×. No longer in this set.
 }
 
 # Tickers where the INDUSTRY DEFAULT (no override) produces out-of-
