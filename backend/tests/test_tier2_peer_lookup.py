@@ -28,6 +28,35 @@ def test_sector_key_resolves_common_strings():
     assert _resolve_sector_key("Capital Goods") == "capital_goods"
 
 
+def test_sector_key_resolves_production_observed_strings():
+    """Sector strings actually observed in prod analysis_cache
+    (2026-05-19 query of payload->company->sector). The 2026-05-19
+    expansion added these to broaden under-outlier safety-net
+    coverage."""
+    # Slash-form variants (Indian-prod convention)
+    assert _resolve_sector_key("Metals/Mining") == "metals"
+    assert _resolve_sector_key("Power/Utilities") == "power"
+    assert _resolve_sector_key("Infrastructure/Construction") == "infra"
+    assert _resolve_sector_key("Tech Hardware/Electronics") == "capital_goods"
+
+    # Auto family
+    assert _resolve_sector_key("Auto OEM") == "auto_oem"
+    assert _resolve_sector_key("Auto Components") == "auto_oem"
+    assert _resolve_sector_key("Tyres") == "auto_oem"
+
+    # Industry-specific
+    assert _resolve_sector_key("Airlines") == "infra"
+    assert _resolve_sector_key("Logistics") == "infra"
+    assert _resolve_sector_key("Real Estate") == "infra"
+    assert _resolve_sector_key("Hospitals") == "healthcare"
+    assert _resolve_sector_key("Consumer Durables") == "capital_goods"
+    assert _resolve_sector_key("Renewable Energy") == "power"
+    assert _resolve_sector_key("Solar") == "power"
+    assert _resolve_sector_key("Textiles") == "retail"
+    assert _resolve_sector_key("Specialty Chemicals") == "chemicals"
+    assert _resolve_sector_key("Media & Entertainment") == "telecom"
+
+
 def test_sector_key_returns_none_for_unknown():
     assert _resolve_sector_key("Spaceships") is None
     assert _resolve_sector_key("") is None

@@ -51,6 +51,7 @@ def _norm_sector(s: Optional[str]) -> str:
 # ("Cement", "IT Services", "Auto - 4W", etc.). This mapping bridges
 # the two without modifying DIRECT_PEERS.
 _SECTOR_KEY_MAP: dict[str, str] = {
+    # Direct matches to DIRECT_PEERS keys
     "cement": "cement",
     "it services": "it_services",
     "information technology": "it_services",
@@ -64,11 +65,13 @@ _SECTOR_KEY_MAP: dict[str, str] = {
     "auto - 4w": "auto_oem",
     "auto - 2w": "auto_oem",
     "auto - oem": "auto_oem",
+    "auto oem": "auto_oem",
     "automobile": "auto_oem",
     "oil & gas": "oil_gas",
     "oil gas": "oil_gas",
     "energy": "oil_gas",
     "metals & mining": "metals",
+    "metals/mining": "metals",   # slash form (prod label)
     "metals": "metals",
     "steel": "metals",
     "telecom": "telecom",
@@ -84,6 +87,39 @@ _SECTOR_KEY_MAP: dict[str, str] = {
     "retail": "retail",
     "power": "power",
     "utilities": "power",
+    # 2026-05-19 expansion — additional prod sector strings observed
+    # in analysis_cache.payload->company->sector. Each mapping anchors
+    # to the closest DIRECT_PEERS cohort whose business model best
+    # approximates the target's economics.
+    "power/utilities": "power",                  # slash form
+    "infrastructure/construction": "infra",      # slash form
+    "auto components": "auto_oem",
+    "auto - components": "auto_oem",
+    "auto ancillary": "auto_oem",
+    "automotive ancillary": "auto_oem",
+    "tyres": "auto_oem",
+    "tires": "auto_oem",
+    "airlines": "infra",                         # capex-heavy, infra-adjacent
+    "logistics": "infra",
+    "shipping": "infra",
+    "tech hardware/electronics": "capital_goods",  # Indian electronics OEMs
+    "tech hardware": "capital_goods",
+    "consumer durables": "capital_goods",        # appliances, electronics
+    "hospitals": "healthcare",
+    "diagnostics": "healthcare",
+    "real estate": "infra",                      # closest until realty bucket added
+    "renewable energy": "power",
+    "solar": "power",
+    "renewables": "power",
+    "engineering & construction": "infra",
+    "engineering": "capital_goods",
+    "textiles": "retail",
+    "apparel": "retail",
+    "specialty chemicals": "chemicals",
+    "fertilizers": "chemicals",
+    "agriculture": "fmcg",                       # food-adjacent
+    "media & entertainment": "telecom",          # broadcast / content
+    "media": "telecom",
 }
 
 

@@ -87,7 +87,21 @@ CORE_PIOTROSKI_HIGH = 6
 
 # Minimum cohort size in a single bucket for Tier 2 to fire.
 # Below this we return None (caller surfaces as data_limited).
-MIN_BUCKET_SIZE = 5
+#
+# Lowered from 5 → 3 on 2026-05-19 (PR follow-on to DCF-collapse safety
+# net direct-peer-lookup work). The original "5 peers minimum" anchor
+# was inherited from the US/large-cap design where most sectors have
+# 10-15 peers. Indian-sector cohorts in DIRECT_PEERS are 4-8 peers
+# (auto_oem=4, retail=4, metals=4 etc.); after self-exclusion for a
+# member ticker, most fall to 3. The under-outlier safety-net coverage
+# audit (scripts/audit_safety_net_coverage.py) showed coverage of 40%
+# with MIN=5 vs ~75-80% projected with MIN=3.
+#
+# Statistical floor: a 3-peer median IS the middle value (vs 5-peer
+# which averages the middle 2). Slightly noisier but defensible — this
+# engine only fires when Tier 1 already collapsed (FV/price outside
+# [0.1, 5.0]), so noisier-but-bounded > broken-DCF FV.
+MIN_BUCKET_SIZE = 3
 
 # Sanity bands on bucket P/E. Anything outside is data noise.
 MIN_PEER_PE = 5.0
