@@ -73,22 +73,23 @@ def _install_tier2_stub(monkeypatch, return_value):
         (0.77, 405.0, True),   # INDIACEM-shape: ratio 0.0019
         (15.60, 245.0, True),  # ratio 0.064
         (19.25, 304.0, True),  # ratio 0.063
-        # Inflated cases (37 "over" outliers in day-1 reconciliation)
-        (2000.0, 400.0, False),# ratio 5.0 — exactly at HI is "reasonable" (> not >=)
-        (2400.0, 400.0, True), # ratio 6.0 — above HI
-        (2001.0, 400.0, True), # ratio 5.0025 — just above HI
+        # Inflated cases — Day-4 widened band to 3.5×
+        (1400.0, 400.0, False),# ratio 3.5 — exactly at HI is "reasonable"
+        (1500.0, 400.0, True), # ratio 3.75
+        (1401.0, 400.0, True), # ratio 3.5025 — just above HI
         # Normal cases — stay out of the way
         (500.0, 600.0, False), # ratio 0.83
         (450.0, 400.0, False), # ratio 1.125 (slightly above CMP)
         (300.0, 400.0, False), # ratio 0.75
-        (40.0, 400.0, False),  # ratio 0.10 — exactly at LO is "reasonable" (< not <=)
-        # Boundary just below LO
-        (39.0, 400.0, True),   # ratio 0.0975
-        # Garbage inputs
-        (0.0, 400.0, False),
-        (-50.0, 400.0, False),
+        (120.0, 400.0, False), # ratio 0.30 — exactly at LO is "reasonable"
+        # Boundary just below LO — Day-4 widened band to 0.30
+        (119.0, 400.0, True),  # ratio 0.2975
+        # Garbage inputs — Day-5 made FV ≤ 0 trigger the safety net
+        # (platform stocks routinely produce DCF=0).
+        (0.0, 400.0, True),
+        (-50.0, 400.0, True),
         (100.0, 0.0, False),
-        (None, 400.0, False),
+        (None, 400.0, True),    # Day-5: None → 0 → unreasonable
         (100.0, None, False),
     ],
 )
@@ -99,8 +100,9 @@ def test_is_fv_unreasonable(fv, price, expected):
 def test_thresholds_are_documented_values():
     # Belt-and-braces: if someone retunes the bands, the test fails
     # so the PR description and design discipline get updated too.
-    assert COLLAPSED_RATIO_LO == 0.1
-    assert INFLATED_RATIO_HI == 5.0
+    # Day-4 widening: 0.10 → 0.30 (LO), 5.0 → 3.5 (HI).
+    assert COLLAPSED_RATIO_LO == 0.30
+    assert INFLATED_RATIO_HI == 3.5
 
 
 # ──────────────────────────────────────────────────────────────────
