@@ -125,7 +125,14 @@ FROM (
     ORDER BY ticker, computed_at DESC
 ) ac
 JOIN latest_consensus_per_ticker lc
-  ON lc.ticker = ac.ticker
+  -- HOTFIX 2026-05-19: analysis_cache stores canonical .NS-suffixed
+  -- tickers ("RELIANCE.NS") while consensus_estimates was populated
+  -- with bare tickers ("RELIANCE") by scripts/refresh_consensus.py.
+  -- Strip the suffix on the cache side so the join actually matches.
+  -- Both sides normalised to bare upper-case to also tolerate the
+  -- opposite mismatch class for any future writer.
+  ON UPPER(REPLACE(REPLACE(ac.ticker, '.NS', ''), '.BO', ''))
+   = UPPER(REPLACE(REPLACE(lc.ticker, '.NS', ''), '.BO', ''))
 WHERE lc.analyst_count >= :min_analysts
   AND lc.target_median IS NOT NULL
   AND lc.target_median > 0
@@ -151,7 +158,9 @@ FROM (
     LIMIT 1
 ) ac
 JOIN latest_consensus_per_ticker lc
-  ON lc.ticker = ac.ticker
+  -- Mirror the ticker-form normalisation from `_OUTLIERS_SQL`.
+  ON UPPER(REPLACE(REPLACE(ac.ticker, '.NS', ''), '.BO', ''))
+   = UPPER(REPLACE(REPLACE(lc.ticker, '.NS', ''), '.BO', ''))
 WHERE lc.analyst_count IS NOT NULL
 LIMIT 1
 """
