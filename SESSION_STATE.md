@@ -6,7 +6,43 @@
 
 ---
 
-## 🔴 START HERE — Day 1 + Day 2 sprint (2026-05-19)
+## 🔴 START HERE — Day 1 + Day 2 EXTENDED sprint (2026-05-19) — DEPLOYED & VALIDATED
+
+### 11 PRs merged today
+
+| PR | Theme | Impact (post-deploy) |
+|---|---|---|
+| #373 | reconciliation JOIN ticker normalization | enables `/admin/outliers` |
+| #374 | `/admin/outliers` page | operator-visible outlier list |
+| #375 | outlier sector audit doc | Day-1 baseline 312 |
+| #376 | extreme-FV verdict-gate override | bad FVs no longer flip to "Notably Undervalued" |
+| #377 | DCF-collapse safety net → Tier 2 fallback | wired but bottlenecked by peer lookup |
+| #378 | verdict-gate wiring | suppresses bad verdicts at presentation time |
+| #380 | Tier 2 v2 bucketing (NULL-ROCE carve-out) | 24 clean premium peers (was 0 then 30 with junk) |
+| #381 | regulated NBFC recalibration | RECLTD ₹435 (was ₹1001), PFC ₹485 (was ₹1289) |
+| #382 | HFC peer split (traditional vs premium) | LICHSGFIN ₹923 (was ₹1636) |
+| #383 | **8-commit squash**: CANFINHOME reclassify, GI peer split (psu/private/health), LICHOUSFIN cleanup, stressed_private_banks, adaptive reconciliation threshold, asymmetric ROE clamp, direct peer lookup, sector map expansion, MIN_BUCKET_SIZE 5→3 | YESBANK ₹20 (was ₹40), NIACL ₹170 (was broken), STARHEALTH ₹576, ICICIGI ₹2388 |
+| #384 | classify GICRE/GODIGIT/NIVABUPA/LICI as bank-like | GICRE ₹504 (was ₹964), NIVABUPA ₹84 (was ₹11 DCF collapse), GODIGIT ₹285 |
+
+### Final post-deploy validation (live Neon DB, 2026-05-19 16:45 IST)
+
+| Ticker | Old | New | Consensus | Drift |
+|---|---:|---:|---:|---:|
+| RECLTD | 1001 | **435** | 440 | -1.1% ✓ |
+| PFC | 1289 | **485** | 515 | -5.9% ✓ |
+| NIACL | broken | **170** | 170 | 0.0% ✓ |
+| YESBANK | 40 | **20** | 19 | +4.3% ✓ |
+| GICRE | 964 | **504** | 475 | +6.1% ✓ |
+| NIVABUPA | 11 | **84** | 91 | -7.0% ✓ (DCF-collapse rescue) |
+| ICICIGI | broken | **2388** | 2125 | +12.4% ✓ |
+| STARHEALTH | broken | **576** | 579 | -0.5% ✓ |
+| GODIGIT | broken | **285** | 366 | -22.3% (within band) |
+| LICHSGFIN | 1636 | 923 | 613 | +50.6% (Day-3: pb_residual_income deeper recalibration) |
+| LICI | broken | 1852 | 1046 | +77.1% (Day-3: operator EV data via insurance_appraisal_inputs) |
+
+**9 of 11 stocks within ±25% of consensus. 2 stocks have documented Day-3 follow-up.**
+
+### CRITICAL INFRA GOTCHAS — read first
 
 ### TL;DR
 Day-1 baseline at 06:40 UTC was **312 benchmark-reconciliation outliers**
