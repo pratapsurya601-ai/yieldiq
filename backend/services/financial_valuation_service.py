@@ -47,7 +47,18 @@ logger = logging.getLogger("yieldiq.financial_valuation")
 # AMCs / brokers / exchanges keep P/E.
 FINANCIAL_PEER_GROUPS: dict[str, list[str]] = {
     "psu_banks":         ["SBIN", "BANKBARODA", "PNB", "CANBK", "UNIONBANK", "INDIANB"],
-    "private_banks":     ["HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK", "INDUSINDBK", "FEDERALBNK"],
+    "private_banks":     ["HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK", "FEDERALBNK"],
+    # Stressed private banks split 2026-05-19 — YESBANK was the #15
+    # over-outlier (+112% vs 11-analyst consensus). Root cause: not in
+    # any peer group → hardcoded _PB_MEDIANS["Banking"]=2.5 applied
+    # despite YESBANK's actual P/B of 1.35. The mid-tier / stressed
+    # private banks share a structurally lower multiple band (P/B
+    # 1.05-1.35), driven by past asset-quality cycles (YESBANK 2020 AT1
+    # crisis, RBL governance issues, BANDHANBNK microfinance stress,
+    # IDFCFIRSTB profitability ramp, INDUSINDBK 2025 fraud impact).
+    "stressed_private_banks": [
+        "YESBANK", "RBLBANK", "BANDHANBNK", "IDFCFIRSTB", "INDUSINDBK",
+    ],
     # Lending NBFCs — balance-sheet lenders, P/BV always.
     "lending_nbfc":      [
         "BAJFINANCE", "BAJAJFINSV", "CHOLAFIN",
@@ -103,6 +114,7 @@ FINANCIAL_PEER_GROUPS: dict[str, list[str]] = {
 _GROUP_METHOD = {
     "psu_banks":         "p_bv_peer",
     "private_banks":     "p_bv_peer",
+    "stressed_private_banks": "p_bv_peer",
     "lending_nbfc":      "p_bv_peer",
     "govt_nbfc":         "p_bv_peer",
     "life_insurance":    "p_ev_peer",
@@ -118,7 +130,13 @@ _GROUP_METHOD = {
 # Calibrated from FY25 trailing data; used only on cold start / DB down.
 _FALLBACK_PB = {
     "psu_banks":         (0.9, 0.14),   # (median P/BV, median ROE as decimal)
-    "private_banks":     (2.4, 0.16),
+    "private_banks":     (2.0, 0.13),   # was (2.4, 0.16) — recalibrated after
+                                        # removing INDUSINDBK to stressed bucket
+                                        # and reflecting real top-private median
+    # Real peer median (YESBANK/RBLBANK/BANDHANBNK/IDFCFIRSTB/INDUSINDBK
+    # P/B 1.05-1.35) ≈ 1.24. Median ROE ~5% (5 members: 1.35, 3.40,
+    # 4.78, 5.26, 6.86 → 4.78). Used only when DB query has < 2 peers.
+    "stressed_private_banks": (1.25, 0.05),
     "lending_nbfc":      (4.0, 0.20),
     "govt_nbfc":         (1.2, 0.18),
     "life_insurance":    (2.0, 0.14),   # P/EV approximated via P/BV
