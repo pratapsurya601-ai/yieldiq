@@ -122,6 +122,49 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* Operator tools */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <h2 className="text-sm font-semibold text-gray-900 mb-3">Operator tools</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <a
+            href="/admin/realty"
+            className="rounded-xl border border-gray-100 p-4 hover:border-blue-200 hover:bg-blue-50/40 transition"
+          >
+            <p className="text-sm font-semibold text-gray-900">Realty land-bank inputs</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Approach C engine curation (annual operator pass)
+            </p>
+          </a>
+          <a
+            href="/admin/insurance"
+            className="rounded-xl border border-gray-100 p-4 hover:border-blue-200 hover:bg-blue-50/40 transition"
+          >
+            <p className="text-sm font-semibold text-gray-900">Insurance EV inputs</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Appraisal value (life insurers)
+            </p>
+          </a>
+          <a
+            href="/admin/outliers"
+            className="rounded-xl border border-gray-100 p-4 hover:border-blue-200 hover:bg-blue-50/40 transition"
+          >
+            <p className="text-sm font-semibold text-gray-900">Benchmark reconciliation</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Outlier tickers vs consensus (daily)
+            </p>
+          </a>
+          <a
+            href="/admin/story-dcf"
+            className="rounded-xl border border-gray-100 p-4 hover:border-blue-200 hover:bg-blue-50/40 transition"
+          >
+            <p className="text-sm font-semibold text-gray-900">Story-DCF overrides</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              View + simulate (operator submits PR to change)
+            </p>
+          </a>
+        </div>
+      </div>
     </div>
   )
 }
