@@ -2571,9 +2571,22 @@ class AnalysisService(NarrativeMixin):
                         _eps_sn = float(_pat_sn) / _shares_sn
                     except Exception:
                         _eps_sn = None
+                # Day-20 (2026-05-20): added "revenue" + "latest_revenue"
+                # fields. Without these, the safety-net's 3rd rung (Story
+                # DCF) immediately returns None at the rev0 <= 0 guard in
+                # compute_story_dcf_fair_value. Live measurement confirmed:
+                # DELHIVERY recomputed at v121, safety net fired, all 3
+                # rungs returned None, but the data_issues caveat showed
+                # the rescue chain ran — Story-DCF couldn't fire because
+                # the _fin_sn dict had no revenue field. The downstream
+                # net_debt field is _Cr-denominated so revenue stays in
+                # paise/rupees (engine handles the Cr conversion).
+                _revenue_raw = enriched.get("revenue") or enriched.get("latest_revenue")
                 _fin_sn = {
                     "eps": _eps_sn,
                     "ebitda": enriched.get("ebitda"),
+                    "revenue": _revenue_raw,
+                    "latest_revenue": _revenue_raw,
                     "shares": _shares_sn,
                     "roce": enriched.get("roce") or enriched.get("roce_pct"),
                     "piotroski": piotroski.get("score") if isinstance(piotroski, dict) else None,
