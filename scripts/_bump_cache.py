@@ -1,37 +1,34 @@
-"""Day-20 part-2 CACHE_VERSION bump utility — 122 -> 123."""
+"""Day-21 CACHE_VERSION bump utility — 123 -> 124."""
 from pathlib import Path
 
 PATH = Path(__file__).resolve().parents[1] / "backend" / "services" / "cache_service.py"
 
-DAY20_PART2_COMMENT = (
-    "123: fix/day20-part2-delhivery-override-retune (2026-05-20). "
-    "DELHIVERY's Day-18 story-DCF override params (22% growth / 8% op "
-    "margin / 70% reinvestment / 13.5% WACC) produced NEGATIVE enterprise "
-    "value at the synthetic anchors — FCFFs stayed negative through year "
-    "7 and the PV of explicit period (-₹612 Cr) overwhelmed PV of TV "
-    "(+₹292 Cr). Story-DCF returned None at the EV<=0 guard, so the "
-    "Day-20 PR-#410 revenue-field fix had no observable effect for "
-    "DELHIVERY — the rescue chain returned None and the safety-net "
-    "logged the data_limited caveat. Retuned to v3: 22% growth / 15% "
-    "target op margin (mature 3PL benchmark; BlueDart pre-COVID 14-16%) "
-    "/ 40% reinvestment (asset-light pivot priced) / 3y margin "
-    "convergence / 12.5% WACC. With these params FV computes ₹205 vs "
-    "CMP ₹459 (0.45x — comfortably inside [0.30, 3.50] safety-net band). "
-    "FV still well below 22-analyst consensus ₹528 because this is a "
-    "narrative model with conservative assumptions (confidence cap = 50 "
-    "= 'story, not fact'). To match consensus would require terminal "
-    "margin 18-20% which is a growth-investor scenario this engine "
-    "intentionally does not model. Sector-scope: Internet Platform "
-    "(single-ticker override). Expected post-recompute: DELHIVERY FV "
-    "₹64 -> ₹205, engine string flips to story_dcf_after_dcf_collapse, "
-    "StoryDcfBadge fires on the frontend, confidence_score = 43-50."
+DAY21_COMMENT = (
+    "124: fix/day21-tg-lift-propagation (2026-05-20). Bug B fix. The "
+    "Day-16/Day-19 terminal-g lift blocks inside FCFForecaster.predict() "
+    "were structurally orphaned: they mutated a LOCAL _g_terminal_eff "
+    "variable that never propagated to DCFEngine(terminal_growth=...) at "
+    "service.py:1898. So the lift had ZERO effect on TV math despite the "
+    "code paths existing — verified by absence of _hospital_chain_terminal_"
+    "g_lifted and _pharma_cdmo_terminal_g_lifted flags across all 13 live "
+    "payloads at cache_version=122. Moved the lift to service.py:~L1294 "
+    "(immediately after the ticker_overrides terminal_g_override block and "
+    "BEFORE DCFEngine construction). Mirrors the canonical sets in "
+    "models/forecaster.py (test_tg_lift_set_membership_matches_forecaster "
+    "locks in the parity). Hospitals: TG 0.040 -> 0.055. CDMOs: TG 0.040 "
+    "-> 0.045. Combined with Day-20 WACC ceiling (hospitals capped at "
+    "0.095, CDMOs at 0.105), the wacc-g spread tightens to 0.040 / 0.060 "
+    "respectively — both above the 0.020 Gordon-model safety floor. "
+    "Expected: now-LIVE TG lift adds another +20-40% on top of the Day-20 "
+    "WACC ceiling's +5-17% — bringing hospital FVs from current 0.16-0.64x "
+    "consensus toward 0.40-0.85x. Sector-scope: pharma (same as Day-16/19)."
 )
 
 
 def main() -> int:
     text = PATH.read_text(encoding="utf-8")
-    old = "CACHE_VERSION = 122"
-    new = f"CACHE_VERSION = 123  # {DAY20_PART2_COMMENT}  # # "
+    old = "CACHE_VERSION = 123"
+    new = f"CACHE_VERSION = 124  # {DAY21_COMMENT}  # # "
     if old not in text:
         print(f"FAIL: '{old}' not found in {PATH}")
         return 2
@@ -41,7 +38,7 @@ def main() -> int:
         return 3
     new_text = text.replace(old + "  #", new + "#", 1)
     PATH.write_text(new_text, encoding="utf-8", newline="")
-    print(f"OK: bumped CACHE_VERSION 122 -> 123 in {PATH}")
+    print(f"OK: bumped CACHE_VERSION 123 -> 124 in {PATH}")
     return 0
 
 

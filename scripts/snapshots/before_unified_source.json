@@ -1,5 +1,5 @@
 {
-  "snapshot_at": "2026-05-19T20:40:06.020090+00:00",
+  "snapshot_at": "2026-05-19T20:54:29.192629+00:00",
   "purpose": "before_unified_source_collapse",
   "ticker_count": 50,
   "rows": [
@@ -23,7 +23,7 @@
       "ev_ebitda": 9.9274259094324,
       "rev_cagr_3y": 0.0639,
       "yieldiq_score": 67,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "TCS.NS",
@@ -45,7 +45,7 @@
       "ev_ebitda": 11.416089074001716,
       "rev_cagr_3y": 0.058,
       "yieldiq_score": 50,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "HDFCBANK.NS",
@@ -67,7 +67,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": null,
       "yieldiq_score": 68,
-      "cache_version": "122"
+      "cache_version": "123"
     },
     {
       "ticker": "INFY.NS",
@@ -89,7 +89,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.0344,
       "yieldiq_score": 40,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "ITC.NS",
@@ -111,7 +111,7 @@
       "ev_ebitda": 13.35125665566008,
       "rev_cagr_3y": 0.0375,
       "yieldiq_score": 63,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "HCLTECH.NS",
@@ -133,7 +133,7 @@
       "ev_ebitda": 11.016749620405797,
       "rev_cagr_3y": null,
       "yieldiq_score": 66,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "ICICIBANK.NS",
@@ -155,7 +155,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.1965,
       "yieldiq_score": 50,
-      "cache_version": "122"
+      "cache_version": "123"
     },
     {
       "ticker": "BHARTIARTL.NS",
@@ -177,7 +177,7 @@
       "ev_ebitda": 11.581256634462138,
       "rev_cagr_3y": 0.1218,
       "yieldiq_score": 61,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "SBIN.NS",
@@ -199,7 +199,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.1148,
       "yieldiq_score": 50,
-      "cache_version": "122"
+      "cache_version": "123"
     },
     {
       "ticker": "LT.NS",
@@ -221,7 +221,7 @@
       "ev_ebitda": 19.503756427146275,
       "rev_cagr_3y": 0.1632,
       "yieldiq_score": 50,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "BAJFINANCE.NS",
@@ -243,7 +243,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.2258,
       "yieldiq_score": 68,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "KOTAKBANK.NS",
@@ -265,7 +265,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.0491,
       "yieldiq_score": 65,
-      "cache_version": "122"
+      "cache_version": "123"
     },
     {
       "ticker": "AXISBANK.NS",
@@ -287,7 +287,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.1219,
       "yieldiq_score": 40,
-      "cache_version": "122"
+      "cache_version": "123"
     },
     {
       "ticker": "MARUTI.NS",
@@ -309,7 +309,7 @@
       "ev_ebitda": 15.938992841659994,
       "rev_cagr_3y": 0.166,
       "yieldiq_score": 50,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "WIPRO.NS",
@@ -331,7 +331,7 @@
       "ev_ebitda": 9.995678939727453,
       "rev_cagr_3y": null,
       "yieldiq_score": 63,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "SUNPHARMA.NS",
@@ -375,7 +375,7 @@
       "ev_ebitda": 47.11254301579134,
       "rev_cagr_3y": 0.1338,
       "yieldiq_score": 47,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "ULTRACEMCO.NS",
@@ -397,7 +397,7 @@
       "ev_ebitda": 19.167491556182636,
       "rev_cagr_3y": null,
       "yieldiq_score": 40,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "POWERGRID.NS",
@@ -441,7 +441,7 @@
       "ev_ebitda": 33.99385149980841,
       "rev_cagr_3y": 0.0231,
       "yieldiq_score": 61,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "DRREDDY.NS",
@@ -534,7 +534,7 @@
       "ev_ebitda": 11.98834668330735,
       "rev_cagr_3y": 0.1844,
       "yieldiq_score": 65,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "HEROMOTOCO.NS",
@@ -556,7 +556,7 @@
       "ev_ebitda": 12.077994825376038,
       "rev_cagr_3y": 0.1201,
       "yieldiq_score": 40,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "DIVISLAB.NS",
@@ -688,7 +688,7 @@
       "ev_ebitda": 19.625612215756348,
       "rev_cagr_3y": 0.1949,
       "yieldiq_score": 50,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "ASIANPAINT.NS",
@@ -710,7 +710,7 @@
       "ev_ebitda": 39.81296984225422,
       "rev_cagr_3y": 0.0532,
       "yieldiq_score": 47,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "NESTLEIND.NS",
@@ -732,7 +732,7 @@
       "ev_ebitda": 56.32431936430299,
       "rev_cagr_3y": 0.0762,
       "yieldiq_score": 50,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "BRITANNIA.NS",
@@ -754,7 +754,7 @@
       "ev_ebitda": 35.16129750409938,
       "rev_cagr_3y": 0.0566,
       "yieldiq_score": 60,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "DABUR.NS",
@@ -776,7 +776,7 @@
       "ev_ebitda": 27.510175702966055,
       "rev_cagr_3y": 0.0436,
       "yieldiq_score": 58,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "GODREJCP.NS",
@@ -798,7 +798,7 @@
       "ev_ebitda": 34.420058077924025,
       "rev_cagr_3y": 0.0459,
       "yieldiq_score": 51,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "PIDILITIND.NS",
@@ -820,7 +820,7 @@
       "ev_ebitda": 39.851636436496776,
       "rev_cagr_3y": 0.075,
       "yieldiq_score": 50,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "TECHM.NS",
@@ -842,7 +842,7 @@
       "ev_ebitda": 13.75380704857824,
       "rev_cagr_3y": null,
       "yieldiq_score": 63,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "INDUSINDBK.NS",
@@ -864,7 +864,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": -0.0805,
       "yieldiq_score": 12,
-      "cache_version": "122"
+      "cache_version": "123"
     },
     {
       "ticker": "GRASIM.NS",
@@ -886,7 +886,7 @@
       "ev_ebitda": 16.12845736350072,
       "rev_cagr_3y": 0.1226,
       "yieldiq_score": 30,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "HINDALCO.NS",
@@ -974,7 +974,7 @@
       "ev_ebitda": 25.068833707536452,
       "rev_cagr_3y": 0.1607,
       "yieldiq_score": 63,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "CIPLA.NS",
@@ -1018,7 +1018,7 @@
       "ev_ebitda": 44.946699029933846,
       "rev_cagr_3y": 0.113,
       "yieldiq_score": 40,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "BAJAJFINSV.NS",
@@ -1040,7 +1040,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.2158,
       "yieldiq_score": 68,
-      "cache_version": "121"
+      "cache_version": "122"
     },
     {
       "ticker": "SHRIRAMFIN.NS",
@@ -1062,7 +1062,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.0787,
       "yieldiq_score": 35,
-      "cache_version": "122"
+      "cache_version": "123"
     },
     {
       "ticker": "VEDL.NS",
