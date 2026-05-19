@@ -1225,6 +1225,26 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
             wacc_floor, 0.20,
         ))
 
+        # ── Day-20 (2026-05-20): WACC CEILING for defensive sub-buckets ──
+        # The Day-16/Day-19 sub-bucket floors (wacc_floor = min(0.085))
+        # were no-ops because CAPM-derived WACC for low-beta hospital/
+        # CDMO names already sits ABOVE the floor (0.098-0.128 measured
+        # live on cache_version=121). To actually MOVE the FV on these
+        # tickers we have to CAP wacc, not floor it. Post-clip ceiling:
+        #   - Hospital chains:  cap at 0.095 (defensive, quasi-utility)
+        #   - Pharma CDMOs:     cap at 0.105 (contract-services
+        #                       durability, between hospitals and
+        #                       generic-pharma)
+        # These ceilings DO bite (e.g. AGARWALEYE 0.128 → 0.095,
+        # ANTHEM/SAGILITY/IKS 0.128 → 0.105).
+        try:
+            if _ticker_bare in _HOSPITAL_CHAIN_TICKERS and wacc > 0.095:
+                wacc = 0.095
+            elif _ticker_bare in _PHARMA_CDMO_TICKERS and wacc > 0.105:
+                wacc = 0.105
+        except Exception:
+            pass
+
         result.update({
             "wacc": wacc, "re": re, "rd": rd,
             "beta": beta, "rf": rf, "market_premium": mrp,
