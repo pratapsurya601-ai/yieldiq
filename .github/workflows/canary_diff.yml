@@ -15,6 +15,14 @@ name: Canary Diff (merge gate)
 
 on:
   pull_request:
+    # Explicit event types so rebases / force-pushes (synchronize) and
+    # reopens correctly trigger this workflow. Without explicit types,
+    # GitHub's default firing on `synchronize` can be inconsistent for
+    # PR branches with stacked commits or force-pushes — observed
+    # 2026-05-19 during the Day-3 sprint (PRs #383/#385 missed canary
+    # runs after PR rebases). The explicit listing also documents the
+    # event surface for next-engineer clarity.
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
       - 'backend/services/**'

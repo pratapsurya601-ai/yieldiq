@@ -15,6 +15,9 @@ name: Sector Isolation (merge gate)
 
 on:
   pull_request:
+    # Explicit event types for consistent firing on rebases / force-
+    # pushes. Mirrors the canary_diff.yml fix from 2026-05-19.
+    types: [opened, synchronize, reopened, ready_for_review]
     branches: [main]
     paths:
       - 'models/**'
