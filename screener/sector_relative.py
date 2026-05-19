@@ -99,7 +99,13 @@ DIRECT_PEERS: dict[str, list[str]] = {
     "us_reits":           ["PLD","AMT","EQIX","SPG","O"],
     # Indian sectors
     "it_services":        ["TCS.NS","INFY.NS","WIPRO.NS","HCLTECH.NS","TECHM.NS"],
-    "fmcg":               ["ITC.NS","HINDUNILVR.NS","NESTLEIND.NS","BRITANNIA.NS","DABUR.NS"],
+    # FMCG cohort expanded 2026-05-19 — added VBL/PAGEIND/BERGEPAINT
+    # so brand-premium under-outliers have a real peer set (Tier 2
+    # cohort returned [] previously, falling through to DCF which
+    # produced 50-80% under-shoot vs consensus).
+    "fmcg":               ["ITC.NS","HINDUNILVR.NS","NESTLEIND.NS","BRITANNIA.NS",
+                           "DABUR.NS","VBL.NS","PAGEIND.NS","BERGEPAINT.NS",
+                           "MARICO.NS","COLPAL.NS","GODREJCP.NS","EMAMILTD.NS"],
     "pharma":             ["SUNPHARMA.NS","DRREDDY.NS","CIPLA.NS","DIVISLAB.NS"],
     "capital_goods":      ["LT.NS","SIEMENS.NS","ABB.NS","CUMMINSIND.NS"],
     "auto_oem":           ["MARUTI.NS","TATAMOTORS.NS","M&M.NS","BAJAJ-AUTO.NS"],
@@ -120,7 +126,15 @@ DIRECT_PEERS: dict[str, list[str]] = {
                            "NAVINFLUOR.NS","CLEAN.NS"],
     "healthcare":         ["APOLLOHOSP.NS","MAXHEALTH.NS","FORTIS.NS",
                            "YATHARTH.NS","KIMS.NS"],
-    "retail":             ["DMART.NS","TRENT.NS","VMART.NS","SHOPERSTOP.NS"],
+    # Retail cohort expanded 2026-05-19 — added QSR franchise operators
+    # (JUBLFOOD/DEVYANI/SAPPHIRE/WESTLIFE) and apparel (ABFRL). All were
+    # previously under-outliers because they fell to DCF with no peer
+    # cohort. Common business model: domestic operator of a global QSR/
+    # consumer brand franchise; FCF-based DCF mis-values during expansion
+    # phase but peer multiple (P/Sales) anchors them sensibly.
+    "retail":             ["DMART.NS","TRENT.NS","VMART.NS","SHOPERSTOP.NS",
+                           "JUBLFOOD.NS","DEVYANI.NS","SAPPHIRE.NS",
+                           "WESTLIFE.NS","ABFRL.NS"],
     "power":              ["NTPC.NS","POWERGRID.NS","TATAPOWER.NS","ADANIGREEN.NS",
                            "NHPC.NS","SJVN.NS"],
 }

@@ -190,6 +190,17 @@ _FALLBACK_PE = {
 # clamping at 1.4 and pushing fair_pb above market multiple.
 _ROE_ADJ_CLAMP: dict[str, tuple[float, float]] = {
     "stressed_private_banks": (0.85, 1.0),
+    # traditional_hfc (LICHSGFIN, PNBHOUSING) — 2026-05-19 follow-on
+    # to the HFC peer split. Legacy mortgage lenders trade at near-
+    # book P/BV because the market does not award sustained P/B
+    # premium to thin-spread housing finance even at strong realized
+    # ROE. Without this clamp, LICHSGFIN 15% ROE / peer median 13%
+    # = adj 1.15 → default ceiling 1.4 fires (not because ratio is
+    # extreme but because of the asymmetric default clamp). Resulting
+    # fair_pb = 1.0 × 1.4 = 1.4 → FV ₹923 vs 23-analyst consensus
+    # ₹613 (+50%). Tightening the upward clamp to 1.0 produces
+    # fair_pb = 1.0 × 1.0 = 1.0 → FV ≈ ₹660 (within ±10% of consensus).
+    "traditional_hfc":        (0.95, 1.0),
 }
 _ROE_ADJ_CLAMP_DEFAULT = (0.95, 1.4)
 
