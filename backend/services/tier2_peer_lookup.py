@@ -107,6 +107,16 @@ _SECTOR_KEY_MAP: dict[str, str] = {
     "consumer durables": "capital_goods",        # appliances, electronics
     "hospitals": "healthcare",
     "diagnostics": "healthcare",
+    # 2026-05-20 (Day-17): hotel + hospitality sector strings. ITCHOTELS
+    # was surfacing as sector="Hotels" or "Hospitality" with no peer
+    # cohort -> falling through to plain DCF. The economics align with
+    # the retail cohort (consumer-facing brand premium, store/property
+    # expansion economics, similar EBITDA-margin profile).
+    "hospitality": "retail",
+    "hotel chains": "retail",
+    "hotel": "retail",
+    "hotels": "retail",
+    "lodging": "retail",
     "real estate": "infra",                      # closest until realty bucket added
     "renewable energy": "power",
     "solar": "power",

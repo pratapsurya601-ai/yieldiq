@@ -45,6 +45,11 @@ FINANCIAL_COMPANIES = {
     'BAJFINANCE', 'BAJAJFINSV', 'CHOLAFIN', 'MUTHOOTFIN',
     'MANAPPURAM', 'M&MFIN', 'SHRIRAMFIN', 'LICHSGFIN',
     'POONAWALLA', 'AAVAS', 'HOMEFIRST',
+    # 2026-05-20 (Day-17): recent-IPO NBFC/HFC tickers that were
+    # routing through generic DCF and producing FV ~7% of consensus.
+    # FIVESTAR -> lending_nbfc, AADHARHFC -> premium_hfc, CANHLIFE
+    # -> life_insurance (see financial_valuation_service.py).
+    'FIVESTAR', 'AADHARHFC', 'CANHLIFE',
     # Insurance (life + general + health)
     'HDFCLIFE', 'SBILIFE', 'ICICIGI', 'NIACL', 'STARHEALTH',
 }
@@ -125,6 +130,12 @@ _NBFC_INSURANCE_BANKLIKE: set[str] = {
     'HDFCLIFE', 'SBILIFE', 'ICICIPRULI', 'LICI',
     'ICICIGI', 'NIACL', 'GICRE', 'GODIGIT',
     'STARHEALTH', 'NIVABUPA',
+    # 2026-05-20 (Day-17): same expansion as FINANCIAL_COMPANIES above.
+    # FIVESTAR / AADHARHFC are lenders, CANHLIFE is a life insurer.
+    # Without this set membership, is_bank_like() returns False and the
+    # financial-services valuation path is bypassed -> generic DCF
+    # under-shoots by ~93%.
+    'FIVESTAR', 'AADHARHFC', 'CANHLIFE',
 }
 
 
@@ -862,11 +873,16 @@ _DAY3_SECTOR_FIXES: dict[str, str] = {
     "BERGEPAINT":  "FMCG",              # decorative paints, brand-premium model
     "PAGEIND":     "FMCG",              # Jockey innerwear
 
-    # Retail / QSR
+    # Retail / QSR / Hospitality (route through retail cohort for
+    # peer-anchored valuation — Day-17 2026-05-20 added ITCHOTELS +
+    # ABLBL which were previously falling through to plain DCF and
+    # producing FV at 7% of consensus)
     "WESTLIFE":    "Retail",            # McDonald's franchise
     "JUBLFOOD":    "Retail",            # Domino's franchise
     "DEVYANI":     "Retail",            # KFC/Pizza Hut franchise
     "SAPPHIRE":    "Retail",            # KFC franchise
+    "ITCHOTELS":   "Retail",            # ITC Hotels (post-demerger 2024)
+    "ABLBL":       "Retail",            # Aditya Birla Lifestyle Brands
 
     # Banking
     "CUB":         "Banking",           # City Union Bank

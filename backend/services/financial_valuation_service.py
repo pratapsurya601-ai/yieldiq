@@ -69,15 +69,29 @@ FINANCIAL_PEER_GROUPS: dict[str, list[str]] = {
         "YESBANK", "RBLBANK", "BANDHANBNK", "IDFCFIRSTB", "INDUSINDBK",
     ],
     # Lending NBFCs — balance-sheet lenders, P/BV always.
+    # FIVESTAR added 2026-05-20 (Day-17): Five-Star Business Finance is
+    # an SME-focused NBFC. Live outlier scan showed it producing FV ~₹45
+    # vs 9-analyst consensus ₹620 (0.07× — engine=dcf, no peer-group
+    # routing). Membership in lending_nbfc routes it through the P/BV
+    # cohort median, which is the right anchor for any balance-sheet
+    # lender (FIVESTAR P/B ~ 3.5-4 historically, aligned with the cohort).
     "lending_nbfc":      [
         "BAJFINANCE", "BAJAJFINSV", "CHOLAFIN",
         "MUTHOOTFIN", "MANAPPURAM",
         "SHRIRAMFIN", "SUNDARMFIN",
         "M&MFIN", "SBICARD", "POONAWALLA",
         "BAJAJHLDNG", "CREDITACC",
+        "FIVESTAR",  # Day-17 addition
     ],
     "govt_nbfc":         ["PFC", "REC", "RECLTD", "IRFC", "HUDCO"],
-    "life_insurance":    ["LICI", "HDFCLIFE", "SBILIFE", "ICICIPRULI"],
+    # CANHLIFE added 2026-05-20 (Day-17): Canara HSBC Life Insurance
+    # (IPO Nov 2024 — separate listed entity from CANFINHOME mortgage
+    # finance, despite the similar prefix). Same life-insurance
+    # economics as LICI/HDFCLIFE/SBILIFE/ICICIPRULI. Live outlier scan
+    # showed it producing FV ₹13.8 vs 8-analyst consensus ₹180
+    # (0.08×) by routing through sector_relative_recent_ipo with a
+    # broken FV anchor.
+    "life_insurance":    ["LICI", "HDFCLIFE", "SBILIFE", "ICICIPRULI", "CANHLIFE"],
     # General-insurance split 2026-05-19 (PR #383 follow-up). Same
     # peer-median pollution pattern as housing finance: a single
     # "general_insurance" bucket was mixing PSU lifers (NIACL 0.94×,
@@ -113,7 +127,12 @@ FINANCIAL_PEER_GROUPS: dict[str, list[str]] = {
     # LICHOUSFIN appears to have been a duplicate/mistaken entry from
     # an older peer-group draft.
     "traditional_hfc":   ["LICHSGFIN", "PNBHOUSING"],
-    "premium_hfc":       ["AAVAS", "HOMEFIRST", "CANFINHOME"],
+    # AADHARHFC added 2026-05-20 (Day-17): Aadhar Housing Finance is an
+    # affordable-housing specialist (avg ticket ~₹10L, EWS+LIG borrower
+    # base, 90%+ retail). Same business profile as AAVAS and HOMEFIRST
+    # already in this group. Was producing FV ₹45 vs consensus ₹620
+    # (0.07×, engine=dcf) by routing through generic DCF.
+    "premium_hfc":       ["AAVAS", "HOMEFIRST", "CANFINHOME", "AADHARHFC"],
     # Capital-light: AMCs, exchanges, brokers. P/E works here.
     "asset_mgmt":        ["HDFCAMC", "ICICIAMC", "NIPPONLIFE", "UTIAMC"],
 }

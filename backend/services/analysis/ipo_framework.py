@@ -46,6 +46,15 @@ _RECENT_IPO_WINDOW_MONTHS = 36
 # `models/industry_wacc.py` (e.g. "pharma", "it_services").
 _RECENT_IPO_WINDOW_MONTHS_BY_SECTOR: dict[str, int] = {
     "pharma": 60,
+    # 2026-05-20 (Day-17): QSR franchise + hospitality post-IPO ramp
+    # takes 3-4y to stabilise (rapid store-count expansion + per-unit
+    # economics maturing). WESTLIFE (FY20 IPO), DEVYANI (FY21), SAPPHIRE
+    # (FY24), ITCHOTELS (post-demerger 2024), ABLBL (recent demerger)
+    # all fall in this window. 48 months ≈ 4 annual reports gives the
+    # generic DCF enough trailing-FCF prints OR keeps the sector-
+    # relative cohort route active until the franchise base stabilises.
+    "retail": 48,
+    "consumer cyclical": 48,
 }
 
 

@@ -1,5 +1,5 @@
 {
-  "snapshot_at": "2026-05-19T16:00:05.528927+00:00",
+  "snapshot_at": "2026-05-19T19:07:24.002078+00:00",
   "purpose": "before_unified_source_collapse",
   "ticker_count": 50,
   "rows": [
@@ -45,7 +45,7 @@
       "ev_ebitda": 11.416089074001716,
       "rev_cagr_3y": 0.058,
       "yieldiq_score": 50,
-      "cache_version": "118"
+      "cache_version": "119"
     },
     {
       "ticker": "HDFCBANK.NS",
@@ -67,7 +67,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": null,
       "yieldiq_score": 68,
-      "cache_version": "118"
+      "cache_version": "119"
     },
     {
       "ticker": "INFY.NS",
@@ -111,7 +111,7 @@
       "ev_ebitda": 13.35125665566008,
       "rev_cagr_3y": 0.0375,
       "yieldiq_score": 63,
-      "cache_version": "118"
+      "cache_version": "119"
     },
     {
       "ticker": "HCLTECH.NS",
@@ -155,7 +155,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.1965,
       "yieldiq_score": 50,
-      "cache_version": "118"
+      "cache_version": "119"
     },
     {
       "ticker": "BHARTIARTL.NS",
@@ -199,7 +199,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.1148,
       "yieldiq_score": 54,
-      "cache_version": "118"
+      "cache_version": "119"
     },
     {
       "ticker": "LT.NS",
@@ -265,7 +265,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.0491,
       "yieldiq_score": 65,
-      "cache_version": "118"
+      "cache_version": "119"
     },
     {
       "ticker": "AXISBANK.NS",
@@ -287,7 +287,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.1219,
       "yieldiq_score": 40,
-      "cache_version": "118"
+      "cache_version": "119"
     },
     {
       "ticker": "MARUTI.NS",
@@ -403,13 +403,13 @@
       "ticker": "POWERGRID.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
-      "fair_value": 359.84,
-      "current_price": 296.55,
+      "fair_value": 362.33,
+      "current_price": 298.6,
       "margin_of_safety": 21.3,
-      "verdict": "undervalued",
+      "verdict": "fairly_valued",
       "bear_case": 0.0,
-      "base_case": 359.84,
-      "bull_case": 431.81,
+      "base_case": 362.33,
+      "bull_case": 434.8,
       "piotroski": 3,
       "moat": "Narrow",
       "roe": 16.75,
@@ -419,7 +419,7 @@
       "ev_ebitda": 10.126560704698429,
       "rev_cagr_3y": 0.0261,
       "yieldiq_score": 47,
-      "cache_version": "117"
+      "cache_version": "119"
     },
     {
       "ticker": "HINDUNILVR.NS",
@@ -463,7 +463,7 @@
       "ev_ebitda": 12.185973906304802,
       "rev_cagr_3y": 0.1204,
       "yieldiq_score": 50,
-      "cache_version": "118"
+      "cache_version": "119"
     },
     {
       "ticker": "ONGC.NS",
@@ -485,19 +485,19 @@
       "ev_ebitda": 5.523523301935351,
       "rev_cagr_3y": 0.0756,
       "yieldiq_score": 40,
-      "cache_version": "117"
+      "cache_version": "119"
     },
     {
       "ticker": "NTPC.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
-      "fair_value": 532.31,
-      "current_price": 388.3,
+      "fair_value": 533.83,
+      "current_price": 389.4,
       "margin_of_safety": 37.1,
-      "verdict": "undervalued",
+      "verdict": "fairly_valued",
       "bear_case": 0.0,
-      "base_case": 532.31,
-      "bull_case": 638.77,
+      "base_case": 533.83,
+      "bull_case": 640.6,
       "piotroski": 4,
       "moat": "Narrow",
       "roe": 12.72,
@@ -507,7 +507,7 @@
       "ev_ebitda": 10.811761323284085,
       "rev_cagr_3y": 0.1235,
       "yieldiq_score": 50,
-      "cache_version": "117"
+      "cache_version": "119"
     },
     {
       "ticker": "TATAMOTORS.NS",
@@ -600,19 +600,19 @@
       "ev_ebitda": 5.80259920190979,
       "rev_cagr_3y": 0.0642,
       "yieldiq_score": 50,
-      "cache_version": "117"
+      "cache_version": "119"
     },
     {
       "ticker": "TATASTEEL.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
-      "fair_value": 199.22,
-      "current_price": 209.71,
+      "fair_value": 198.83,
+      "current_price": 209.29,
       "margin_of_safety": -5.0,
       "verdict": "fairly_valued",
-      "bear_case": 159.38,
-      "base_case": 199.22,
-      "bull_case": 239.06,
+      "bear_case": 159.06,
+      "base_case": 198.83,
+      "bull_case": 238.6,
       "piotroski": 4,
       "moat": "None",
       "roe": 3.75,
@@ -622,19 +622,19 @@
       "ev_ebitda": 13.735085428757065,
       "rev_cagr_3y": -0.0364,
       "yieldiq_score": 20,
-      "cache_version": "117"
+      "cache_version": "119"
     },
     {
       "ticker": "JSWSTEEL.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
-      "fair_value": 1228.16,
-      "current_price": 1292.8,
+      "fair_value": 1220.94,
+      "current_price": 1285.2,
       "margin_of_safety": -5.0,
       "verdict": "fairly_valued",
-      "bear_case": 982.53,
-      "base_case": 1228.16,
-      "bull_case": 1473.79,
+      "bear_case": 976.75,
+      "base_case": 1220.94,
+      "bull_case": 1465.13,
       "piotroski": 4,
       "moat": "None",
       "roe": 4.41,
@@ -644,7 +644,7 @@
       "ev_ebitda": 16.581223351794872,
       "rev_cagr_3y": 0.0183,
       "yieldiq_score": 25,
-      "cache_version": "117"
+      "cache_version": "119"
     },
     {
       "ticker": "ADANIPORTS.NS",
@@ -864,7 +864,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": -0.0805,
       "yieldiq_score": 12,
-      "cache_version": "118"
+      "cache_version": "119"
     },
     {
       "ticker": "GRASIM.NS",
@@ -908,7 +908,7 @@
       "ev_ebitda": 12.172474532264173,
       "rev_cagr_3y": 0.0545,
       "yieldiq_score": 43,
-      "cache_version": "117"
+      "cache_version": "119"
     },
     {
       "ticker": "ADANIENT.NS",
@@ -952,7 +952,7 @@
       "ev_ebitda": 5.521872109494022,
       "rev_cagr_3y": -0.0085,
       "yieldiq_score": 23,
-      "cache_version": "117"
+      "cache_version": "119"
     },
     {
       "ticker": "EICHERMOT.NS",
@@ -1062,7 +1062,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.0787,
       "yieldiq_score": 39,
-      "cache_version": "118"
+      "cache_version": "119"
     },
     {
       "ticker": "VEDL.NS",
@@ -1084,7 +1084,7 @@
       "ev_ebitda": 6.248037330115442,
       "rev_cagr_3y": -0.1082,
       "yieldiq_score": 67,
-      "cache_version": "117"
+      "cache_version": "119"
     }
   ]
 }
