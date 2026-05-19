@@ -25,7 +25,7 @@ def test_sector_key_resolves_common_strings():
     assert _resolve_sector_key("Banking") == "banking"
     assert _resolve_sector_key("Banks") == "banking"
     assert _resolve_sector_key("NBFC") == "nbfc"
-    assert _resolve_sector_key("Capital Goods") == "capital_goods"
+    assert _resolve_sector_key("Capital Goods") == "capital_goods_full"
 
 
 def test_sector_key_resolves_production_observed_strings():

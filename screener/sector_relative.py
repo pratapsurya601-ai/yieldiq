@@ -72,6 +72,7 @@ PEER_GROUP_LABELS: dict[str, str] = {
     "banking":                "Indian Banking",
     "nbfc":                   "Indian NBFC / Lending",
     "cement":                 "Indian Cement",
+    "capital_goods_full":     "Indian Capital Goods (extended)",
     "defence":                "Indian Defence",
     "infra":                  "Indian Infrastructure",
     "chemicals":              "Indian Chemicals",
@@ -128,6 +129,15 @@ DIRECT_PEERS: dict[str, list[str]] = {
                            "SHRIRAMFIN.NS","LICHSGFIN.NS"],
     "cement":             ["ULTRACEMCO.NS","AMBUJACEM.NS","ACC.NS","SHREECEM.NS",
                            "JKCEMENT.NS","DALMIABHARAT.NS"],
+    # Capital Goods cohort added 2026-05-19 Day-6 — previously no
+    # DIRECT_PEERS bucket existed for cap-goods (SIEMENS/ABB/THERMAX/
+    # CUMMINSIND etc.), so Tier 2 had nothing to fall back to when
+    # generic DCF mis-fired. Cohort sized at 10 with mix of premium
+    # (SIEMENS/ABB) and emerging (KAYNES/CUMMINSIND) for bucketing.
+    "capital_goods_full": ["SIEMENS.NS","ABB.NS","CUMMINSIND.NS",
+                           "THERMAX.NS","TIMKEN.NS","SCHAEFFLER.NS",
+                           "GRINDWELL.NS","KAYNES.NS","HONAUT.NS",
+                           "AIAENG.NS","ELGIEQUIP.NS"],
     "defence":            ["HAL.NS","BEL.NS","BHEL.NS","COCHINSHIP.NS",
                            "MAZAGON.NS","BDL.NS","GRSE.NS"],
     "infra":              ["LT.NS","ADANIPORTS.NS","GMRAIRPORT.NS",

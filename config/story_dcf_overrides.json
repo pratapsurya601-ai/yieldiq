@@ -1,0 +1,75 @@
+{
+  "_README": "Per-ticker story-DCF parameter overrides. Overlays on top of INDUSTRY_STORY_DEFAULTS in backend/services/story_dcf_engine.py. All numeric fields optional — provide only the ones you want to override. See StoryParams dataclass for full list.",
+  "_NOTE_2026_05_19_DAY6": "Initial values approximate — operator must verify against actual investor presentations and reset reinvestment_rate / target_op_margin per ticker. Conservative defaults used where unsure.",
+
+  "PAYTM": {
+    "initial_growth": 0.18,
+    "target_op_margin": 0.22,
+    "reinvestment_rate": 0.55,
+    "wacc": 0.135,
+    "_notes": "Payments scale economics; UPI revenue at thin margin but loan distribution + financial services higher margin. Op margin guide 18-25%."
+  },
+  "POLICYBZR": {
+    "initial_growth": 0.25,
+    "target_op_margin": 0.20,
+    "reinvestment_rate": 0.70,
+    "wacc": 0.13,
+    "_notes": "Insurance aggregator, recently profitable. Sustained operator's investment phase."
+  },
+  "ZOMATO": {
+    "initial_growth": 0.35,
+    "target_op_margin": 0.12,
+    "reinvestment_rate": 0.65,
+    "wacc": 0.135,
+    "_notes": "Food delivery + Blinkit. Higher growth + lower margin than payments. Blinkit Q-Comm reinvestment-heavy."
+  },
+  "NAUKRI": {
+    "initial_growth": 0.15,
+    "target_op_margin": 0.35,
+    "reinvestment_rate": 0.40,
+    "wacc": 0.12,
+    "_notes": "Info Edge — high op margin job platform business. Mature relative to other platforms."
+  },
+  "NYKAA": {
+    "initial_growth": 0.22,
+    "target_op_margin": 0.08,
+    "reinvestment_rate": 0.75,
+    "wacc": 0.135,
+    "_notes": "Beauty + fashion e-commerce. Thin retail margins."
+  },
+  "MEESHO": {
+    "initial_growth": 0.40,
+    "target_op_margin": 0.10,
+    "reinvestment_rate": 0.80,
+    "wacc": 0.14,
+    "_notes": "Long-tail e-commerce. High growth, low margin, capex-light but high marketing reinvestment."
+  },
+  "SWIGGY": {
+    "initial_growth": 0.30,
+    "target_op_margin": 0.10,
+    "reinvestment_rate": 0.70,
+    "wacc": 0.135,
+    "_notes": "Food delivery + Instamart, lower scale than ZOMATO but similar economics."
+  },
+  "NUVAMA": {
+    "initial_growth": 0.18,
+    "target_op_margin": 0.32,
+    "reinvestment_rate": 0.45,
+    "wacc": 0.125,
+    "_notes": "Wealth management — high op margin. Lower reinvestment vs other platforms."
+  },
+  "GROWW": {
+    "initial_growth": 0.30,
+    "target_op_margin": 0.25,
+    "reinvestment_rate": 0.55,
+    "wacc": 0.13,
+    "_notes": "Online broker — F&O + cash + mutual funds. Margin between Angel One and Zerodha (private)."
+  },
+  "ANGELONE": {
+    "initial_growth": 0.15,
+    "target_op_margin": 0.30,
+    "reinvestment_rate": 0.45,
+    "wacc": 0.125,
+    "_notes": "Mature listed broker — F&O regulatory headwinds capped growth."
+  }
+}
