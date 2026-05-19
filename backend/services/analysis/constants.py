@@ -891,6 +891,35 @@ _DAY3_SECTOR_FIXES: dict[str, str] = {
     "CDSL":        "Fintech",
     "BSE":         "Fintech",
     "MCX":         "Fintech",
+
+    # Day-6 final batch — last 2 General/Diversified outliers
+    "TMPV":        "Auto",       # Tata Motors Passenger Vehicles (2026 demerger spin-off)
+    "PNBHOUSING":  "NBFC",       # housing finance NBFC, in traditional_hfc peer group
+
+    # Defence / Capital Goods further refinements
+    "ELGIEQUIP":   "Capital Goods",
+    "AIAENG":      "Capital Goods",
+    "RVNL":        "Infrastructure",   # Rail Vikas Nigam
+    "BEML":        "Defence",          # Bharat Earth Movers
+    "IRCTC":       "Infrastructure",
+    "BLUEDART":    "Infrastructure",   # logistics
+
+    # Mid-cap pharma generic exporters (route to pharma cohort)
+    "GRANULES":    "Pharma",
+    "NEULAND":     "Pharma",
+    "GLANDPHARMA": "Pharma",
+    "PPLPHARMA":   "Pharma",
+    "JBCHEPHARM":  "Pharma",
+    "STAR":        "Pharma",      # Strides Pharma Science
+    "SAILIFE":     "Pharma",
+    "LUPIN":       "Pharma",
+    "AJANTPHARM":  "Pharma",
+    "ERIS":        "Pharma",
+    "ABBOTINDIA":  "Pharma",
+    "PFIZER":      "Pharma",
+    "SANOFI":      "Pharma",
+    "ZYDUSWELL":   "Pharma",
+    "DIVISLAB":    "Pharma",
 }
 for _t, _sec in _DAY3_SECTOR_FIXES.items():
     TICKER_SECTOR_OVERRIDES[_t] = _sec
