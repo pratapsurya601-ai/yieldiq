@@ -1279,3 +1279,319 @@ async def delete_realty_land_bank(
             status_code=500,
             detail=f"delete_realty_land_bank failed: {_sanitize_error(exc, 'realty-land-bank.delete')}",
         )
+
+
+# ─────────────────────────────────────────────────────────────────
+# Story-DCF operator-curated overrides (read-only + preview).
+#
+# Design note (2026-05-19, Day-11):
+# The override file `config/story_dcf_overrides.json` is the source of
+# truth — version-controlled, auditable via git history. Mutating it
+# from a running pod would not persist across Railway redeploys, so the
+# admin surface here is intentionally read-only + simulate-only:
+#
+#   GET  /admin/story-dcf-overrides                 — current state
+#   GET  /admin/story-dcf-overrides/audit           — back-test summary
+#   POST /admin/story-dcf-overrides/preview         — simulate a change
+#
+# To actually CHANGE an override the operator submits a PR editing
+# the JSON file. The preview endpoint lets them validate the change
+# in-app before opening the PR.
+# ─────────────────────────────────────────────────────────────────
+
+
+class _StoryDcfOverrideIn(BaseModel):
+    """Hypothetical override to simulate. All fields optional —
+    unspecified ones inherit from INDUSTRY_STORY_DEFAULTS."""
+    initial_growth: _OptStr[float] = None
+    target_op_margin: _OptStr[float] = None
+    terminal_growth: _OptStr[float] = None
+    fade_years: _OptStr[int] = None
+    margin_convergence_yr: _OptStr[int] = None
+    reinvestment_rate: _OptStr[float] = None
+    wacc: _OptStr[float] = None
+    tax_rate: _OptStr[float] = None
+
+
+class _StoryDcfPreviewIn(BaseModel):
+    ticker: str = Field(..., description="Bare ticker, e.g. 'PAYTM'")
+    sector: str = Field(
+        ...,
+        description=(
+            "Sector hint — one of the keys recognised by "
+            "_SECTOR_TO_INDUSTRY_KEY in story_dcf_engine.py "
+            "(e.g. 'payments', 'ecommerce', 'fintech_broker')."
+        ),
+    )
+    revenue_cr: float = Field(..., gt=0, description="Latest annual revenue in ₹ Cr")
+    shares_cr: float = Field(..., gt=0, description="Shares outstanding in Cr")
+    current_price: float = Field(..., gt=0, description="Latest close price in ₹")
+    override: _OptStr[_StoryDcfOverrideIn] = None
+
+
+@router.get("/story-dcf-overrides")
+async def list_story_dcf_overrides(user: dict = Depends(require_admin)):
+    """Return the contents of config/story_dcf_overrides.json plus
+    the INDUSTRY_STORY_DEFAULTS reference table. Both are read from
+    the in-memory cache so the response reflects what the engine is
+    actually using."""
+    try:
+        from backend.services.story_dcf_engine import (
+            INDUSTRY_STORY_DEFAULTS,
+            _load_overrides,
+        )
+        overrides = _load_overrides()
+        defaults = {
+            key: {
+                "initial_growth": p.initial_growth,
+                "target_op_margin": p.target_op_margin,
+                "terminal_growth": p.terminal_growth,
+                "fade_years": p.fade_years,
+                "margin_convergence_yr": p.margin_convergence_yr,
+                "reinvestment_rate": p.reinvestment_rate,
+                "wacc": p.wacc,
+                "tax_rate": p.tax_rate,
+                "confidence_floor": p.confidence_floor,
+                "confidence_cap": p.confidence_cap,
+            }
+            for key, p in INDUSTRY_STORY_DEFAULTS.items()
+        }
+        return {
+            "overrides": {
+                k: v for k, v in overrides.items() if not k.startswith("_")
+            },
+            "industry_defaults": defaults,
+            "_meta": {
+                "note": (
+                    "This endpoint is read-only. To change an override, "
+                    "edit config/story_dcf_overrides.json and submit a PR. "
+                    "Use POST /preview to simulate a change before "
+                    "opening the PR."
+                ),
+            },
+        }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"list_story_dcf_overrides failed: {_sanitize_error(exc, 'story-dcf.list')}",
+        )
+
+
+@router.post("/story-dcf-overrides/preview")
+async def preview_story_dcf_override(
+    payload: _StoryDcfPreviewIn,
+    user: dict = Depends(require_admin),
+):
+    """Simulate a story-DCF computation with a hypothetical override.
+
+    Lets the operator verify a proposed parameter change before opening
+    a PR to edit config/story_dcf_overrides.json. The endpoint does NOT
+    write anything — it only runs the engine with the supplied params
+    and returns the resulting FV + meta.
+
+    Use this to answer "if I bumped PAYTM's initial_growth from 0.18 to
+    0.22, what would the rescued FV become?" before committing.
+    """
+    try:
+        from backend.services.story_dcf_engine import (
+            INDUSTRY_STORY_DEFAULTS,
+            StoryParams,
+            _SECTOR_TO_INDUSTRY_KEY,
+            compute_story_dcf_fair_value,
+        )
+        from dataclasses import replace as _dc_replace
+
+        sec_norm = (payload.sector or "").strip().lower()
+        industry_key = _SECTOR_TO_INDUSTRY_KEY.get(sec_norm)
+        if industry_key is None:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Sector '{payload.sector}' is not a story-DCF eligible "
+                    "key. Use one of: payments, ecommerce, fintech_broker, "
+                    "wealth management, insurance aggregator."
+                ),
+            )
+        base = INDUSTRY_STORY_DEFAULTS.get(industry_key)
+        if base is None:
+            raise HTTPException(
+                status_code=500,
+                detail=f"No INDUSTRY_STORY_DEFAULTS entry for '{industry_key}'",
+            )
+
+        # Build the simulated StoryParams: industry default + supplied
+        # overrides. Empty override → equivalent to no override.
+        params = base
+        if payload.override is not None:
+            override_fields = {
+                k: v for k, v in payload.override.model_dump().items()
+                if v is not None
+            }
+            if override_fields:
+                params = _dc_replace(base, **override_fields)
+
+        # Run the engine. Inputs in Cr → rupees.
+        result = compute_story_dcf_fair_value(
+            ticker=payload.ticker,
+            sector=payload.sector,
+            financials={
+                "revenue": payload.revenue_cr * 1e7,
+                "shares": payload.shares_cr * 1e7,
+                "current_price": payload.current_price,
+            },
+            story_params=params,
+        )
+        if result is None:
+            return {
+                "status": "engine_returned_none",
+                "industry_key": industry_key,
+                "params": {
+                    "initial_growth": params.initial_growth,
+                    "target_op_margin": params.target_op_margin,
+                    "reinvestment_rate": params.reinvestment_rate,
+                    "wacc": params.wacc,
+                    "terminal_growth": params.terminal_growth,
+                },
+                "reason": (
+                    "Story-DCF model collapsed — likely FCFFs stayed "
+                    "negative across the 10y horizon OR terminal value "
+                    "denominator (wacc - g) < 0.03. Try lowering "
+                    "reinvestment_rate or raising target_op_margin."
+                ),
+            }
+
+        fv = float(result["fair_value"])
+        cmp_ = payload.current_price
+        ratio = fv / cmp_ if cmp_ else None
+        in_band = ratio is not None and 0.30 <= ratio <= 3.50
+
+        return {
+            "status": "ok",
+            "industry_key": industry_key,
+            "params": {
+                "initial_growth": params.initial_growth,
+                "target_op_margin": params.target_op_margin,
+                "reinvestment_rate": params.reinvestment_rate,
+                "wacc": params.wacc,
+                "terminal_growth": params.terminal_growth,
+                "fade_years": params.fade_years,
+                "margin_convergence_yr": params.margin_convergence_yr,
+                "tax_rate": params.tax_rate,
+            },
+            "result": {
+                "fair_value": fv,
+                "cmp": cmp_,
+                "fv_cmp_ratio": round(ratio, 3) if ratio is not None else None,
+                "in_safety_net_band": in_band,
+                "confidence_score": result.get("confidence_score"),
+                "verdict": result.get("verdict"),
+                "bear_case": result.get("bear_case"),
+                "bull_case": result.get("bull_case"),
+                "meta": result.get("_meta"),
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"preview_story_dcf_override failed: {_sanitize_error(exc, 'story-dcf.preview')}",
+        )
+
+
+@router.get("/story-dcf-overrides/audit")
+async def audit_story_dcf_overrides(user: dict = Depends(require_admin)):
+    """Run the offline back-test guardrails on the current overrides and
+    return the audit summary. Uses the same TICKER_ANCHORS table that
+    the pytest version uses, so the response matches what CI checks.
+
+    No DB access — the audit synthesises (revenue, shares, CMP) from
+    the hardcoded FY25 anchor table. To get LIVE numbers run
+    `scripts/story_dcf_backtest.py` against the prod replica.
+    """
+    try:
+        # Import the anchors + known-set guardrails from the test file
+        # without depending on pytest itself. They are plain module-level
+        # data.
+        import importlib.util as _ilu
+        from pathlib import Path as _P
+        spec = _ilu.spec_from_file_location(
+            "_story_dcf_backtest_mod",
+            _P(__file__).resolve().parents[2]
+            / "backend" / "tests" / "test_story_dcf_backtest.py",
+        )
+        if spec is None or spec.loader is None:
+            raise RuntimeError("could not locate test_story_dcf_backtest.py")
+        mod = _ilu.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        from backend.services.story_dcf_engine import (
+            _load_overrides,
+            compute_story_dcf_fair_value,
+        )
+        overrides = _load_overrides()
+        override_tickers = [t for t in overrides if not t.startswith("_")]
+
+        results = []
+        for ticker in override_tickers:
+            anchor = mod.TICKER_ANCHORS.get(ticker)
+            if anchor is None:
+                results.append({
+                    "ticker": ticker,
+                    "status": "no_anchor",
+                })
+                continue
+            rev_cr, sh_cr, cmp_ = anchor
+            result = compute_story_dcf_fair_value(
+                ticker=ticker,
+                sector=mod._industry_key_for(ticker),
+                financials={
+                    "revenue": rev_cr * 1e7,
+                    "shares": sh_cr * 1e7,
+                    "current_price": cmp_,
+                },
+            )
+            if result is None:
+                results.append({
+                    "ticker": ticker,
+                    "status": "model_collapsed",
+                    "anchor_cmp": cmp_,
+                    "needs_review": True,
+                    "review_reason": "Model returned None (operator backlog)",
+                })
+                continue
+            fv = float(result["fair_value"])
+            ratio = fv / cmp_
+            in_band = 0.30 <= ratio <= 3.5
+            results.append({
+                "ticker": ticker,
+                "status": "ok",
+                "fair_value": fv,
+                "anchor_cmp": cmp_,
+                "fv_cmp_ratio": round(ratio, 3),
+                "in_safety_net_band": in_band,
+                "needs_review": (not in_band) or ticker in mod.KNOWN_OUT_OF_BAND,
+                "review_reason": (
+                    "Outside rescue band [0.30, 3.5]" if not in_band
+                    else "Documented in KNOWN_OUT_OF_BAND" if ticker in mod.KNOWN_OUT_OF_BAND
+                    else None
+                ),
+            })
+
+        return {
+            "anchor_source": (
+                "backend/tests/test_story_dcf_backtest.py TICKER_ANCHORS "
+                "(FY25 hardcoded — for live values run "
+                "scripts/story_dcf_backtest.py against prod replica)"
+            ),
+            "total": len(results),
+            "needs_review_count": sum(1 for r in results if r.get("needs_review")),
+            "known_out_of_band": sorted(mod.KNOWN_OUT_OF_BAND),
+            "known_default_out_of_band": sorted(mod.KNOWN_DEFAULT_OUT_OF_BAND),
+            "rows": results,
+        }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"audit_story_dcf_overrides failed: {_sanitize_error(exc, 'story-dcf.audit')}",
+        )
