@@ -122,7 +122,13 @@ DIRECT_PEERS: dict[str, list[str]] = {
     "auto_oem":           ["MARUTI.NS","TATAMOTORS.NS","M&M.NS","BAJAJ-AUTO.NS"],
     "oil_gas":            ["RELIANCE.NS","ONGC.NS","IOC.NS","BPCL.NS"],
     "metals":             ["TATASTEEL.NS","JSWSTEEL.NS","HINDALCO.NS","VEDL.NS"],
-    "telecom":            ["BHARTIARTL.NS","IDEA.NS","TATACOMM.NS"],
+    # Telecom expanded 2026-05-19 Day-6 — original 3-peer set was below
+    # MIN_BUCKET_SIZE post self-exclusion. Added INDUS Towers (TPS),
+    # Bharti Hexacom (BHARTIHEXA), Tata Tele (TTML) and HFCL/SHYAMTEL
+    # for fiber/equipment exposure.
+    "telecom":            ["BHARTIARTL.NS","IDEA.NS","TATACOMM.NS",
+                           "BHARTIHEXA.NS","INDUSTOWER.NS","TTML.NS",
+                           "HFCL.NS"],
     "banking":            ["HDFCBANK.NS","ICICIBANK.NS","AXISBANK.NS","KOTAKBANK.NS",
                            "SBIN.NS","INDUSINDBK.NS","BANDHANBNK.NS","FEDERALBNK.NS"],
     "nbfc":               ["BAJFINANCE.NS","BAJAJFINSV.NS","CHOLAFIN.NS","MUTHOOTFIN.NS",
@@ -144,8 +150,14 @@ DIRECT_PEERS: dict[str, list[str]] = {
                            "IRB.NS","IRCON.NS"],
     "chemicals":          ["PIDILITIND.NS","SRF.NS","ATUL.NS","DEEPAKNITRO.NS",
                            "NAVINFLUOR.NS","CLEAN.NS"],
+    # Healthcare expanded 2026-05-19 Day-6 — added diagnostics chain
+    # operators (Dr Lal PathLabs, Metropolis, Vijaya, Krsnaa), eye-care
+    # (Agarwal Eye, Centre for Sight), and Aster DM for completeness.
     "healthcare":         ["APOLLOHOSP.NS","MAXHEALTH.NS","FORTIS.NS",
-                           "YATHARTH.NS","KIMS.NS"],
+                           "YATHARTH.NS","KIMS.NS","ASTERDM.NS",
+                           "LALPATHLAB.NS","METROPOLIS.NS","VIJAYA.NS",
+                           "RAINBOW.NS","NH.NS","MEDANTA.NS",
+                           "AGARWALEYE.NS"],
     # Retail cohort expanded 2026-05-19 — added QSR franchise operators
     # (JUBLFOOD/DEVYANI/SAPPHIRE/WESTLIFE) and apparel (ABFRL). All were
     # previously under-outliers because they fell to DCF with no peer
