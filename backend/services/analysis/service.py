@@ -1290,6 +1290,53 @@ class AnalysisService(NarrativeMixin):
                     _tg_val = wacc - 0.02
                 terminal_g = _tg_val
 
+        # ── Day-21 (2026-05-20): Hospital / Pharma-CDMO terminal-g lift ──
+        # Bug B fix. The Day-16/Day-19 lift blocks inside
+        # FCFForecaster.predict() were structurally orphaned: they
+        # mutated a LOCAL _g_terminal_eff variable that was never
+        # propagated to DCFEngine(terminal_growth=...) at L1898. So the
+        # lift had ZERO effect on TV computation despite the code
+        # paths existing. This block runs HERE — where terminal_g is
+        # finalised before DCFEngine construction — and is therefore
+        # the actual single source of truth for TV's g parameter.
+        #
+        # Design (mirrors models/forecaster.py exactly):
+        #   - _HOSPITAL_CHAIN_TICKERS: lift TG to 0.055 (defensive,
+        #     Indian healthcare nominal-spend CAGR 12-15%)
+        #   - _PHARMA_CDMO_TICKERS:    lift TG to 0.045 (long-duration
+        #     contracts, between hospitals and generic-pharma)
+        # Both still respect the wacc - 0.02 safety guard above so
+        # Gordon model can't blow up.
+        try:
+            _bare_ticker_tg = (ticker or "").replace(".NS", "").replace(".BO", "").upper()
+            _HOSPITAL_CHAIN_TICKERS_INLINE = {
+                "MAXHEALTH", "FORTIS", "MEDANTA", "KIMS",
+                "NH", "APOLLOHOSP", "ASTERDM", "RAINBOW",
+                "VIJAYA", "AGARWALEYE",
+            }
+            _PHARMA_CDMO_TICKERS_INLINE = {
+                "DIVISLAB", "SYNGENE", "COHANCE",
+                "ANTHEM", "SAGILITY", "IKS",
+            }
+            if _bare_ticker_tg in _HOSPITAL_CHAIN_TICKERS_INLINE and terminal_g < 0.055:
+                _tg_proposed = 0.055
+                if _tg_proposed < wacc - 0.02:  # safety guard preserved
+                    terminal_g = _tg_proposed
+                    _data_issues = list(_data_issues) + [
+                        f"[hospital-chain-tg-lifted] terminal_g raised to {terminal_g:.3f} "
+                        f"(Indian healthcare nominal-spend tailwind)"
+                    ]
+            elif _bare_ticker_tg in _PHARMA_CDMO_TICKERS_INLINE and terminal_g < 0.045:
+                _tg_proposed = 0.045
+                if _tg_proposed < wacc - 0.02:
+                    terminal_g = _tg_proposed
+                    _data_issues = list(_data_issues) + [
+                        f"[pharma-cdmo-tg-lifted] terminal_g raised to {terminal_g:.3f} "
+                        f"(contract-services revenue durability)"
+                    ]
+        except Exception:
+            pass
+
         forecast_yrs = 10
 
         # PR #168: track whether the cyclical-trough anchor fires so
