@@ -2615,11 +2615,21 @@ class AnalysisService(NarrativeMixin):
                     _data_issues = list(_data_issues) + [
                         f"[dcf_collapse_safety_net] DCF FV (₹{float(iv):.2f}) "
                         f"was unreasonable vs price (₹{float(price):.2f}); "
-                        f"substituted Tier 2 cohort FV (₹{_new_fv:.2f}). "
+                        f"substituted rescued FV (₹{_new_fv:.2f}). "
                         f"Source: {_sn_source}."
                     ]
                     iv = round(float(_new_fv), 2)
-                    _fair_value_source = "tier2_fallback"
+                    # Preserve the rung-specific engine string emitted by
+                    # the safety net (one of:
+                    #   "tier2_fallback_after_dcf_collapse",
+                    #   "platform_ps_after_dcf_collapse",
+                    #   "story_dcf_after_dcf_collapse")
+                    # so the frontend StoryDcfBadge / Platform badge can
+                    # fire and so analytics know WHICH rung rescued.
+                    # Day-10 fix — Day-7 had collapsed all three to the
+                    # generic "tier2_fallback" string, suppressing the
+                    # downstream badge.
+                    _fair_value_source = _sn_source or "tier2_fallback"
                 elif _engine_now in ("dcf", "peer_capped"):
                     # Tier 2 also couldn't compute — honestly surface
                     # as data_limited. The verdict block below reads
@@ -4162,11 +4172,19 @@ class AnalysisService(NarrativeMixin):
                         "peer_capped"
                         if _fair_value_source == "peer_capped"
                         else (
-                            # feat/dcf-collapse-safety-net: explicit
-                            # engine label so the frontend can render
-                            # the Tier 2 fallback provenance tooltip.
-                            "tier2_fallback"
-                            if _fair_value_source == "tier2_fallback"
+                            # feat/dcf-collapse-safety-net: pass the
+                            # rung-specific engine string through so the
+                            # frontend StoryDcfBadge / Platform-PS badge
+                            # fires and analytics know WHICH rung
+                            # rescued the FV. Day-10 fix — was
+                            # collapsed to "tier2_fallback".
+                            _fair_value_source
+                            if _fair_value_source in (
+                                "tier2_fallback",
+                                "tier2_fallback_after_dcf_collapse",
+                                "platform_ps_after_dcf_collapse",
+                                "story_dcf_after_dcf_collapse",
+                            )
                             else ("pb_residual_income" if is_financial else "dcf")
                         )
                     )
