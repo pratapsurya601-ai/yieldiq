@@ -8,6 +8,28 @@
 
 ## 🔴 START HERE — Day 1 + 2 + 3 (2026-05-19) — 16 PRs SHIPPED
 
+### 5-day final tally: 312 → 95 outliers (70% reduction)
+
+19 PRs across 5 days (#373-#392). Over-outlier count from 37 → 7 (-81%).
+Under-outlier count from 275 → 88 (-68%).
+
+Remaining 95 are structural — 10 loss-making platforms with no positive
+metrics, 30 sparse-consensus mid-caps, 20 capital-goods disabled-engine
+cases (BHEL/THERMAX — Agent 3 trough-picker risk), 25 sector
+mis-classifications. All clearly bounded and documented for future work.
+
+### Day 4 additions (1 PR)
+PR #390: GAIL gas_transmission sub-type, soft-collapse safety-net
+widening, NEW platform_valuation_service P/Sales engine, 10 operator-
+data rows (3 insurance EV + 7 realty land-bank, all flagged APPROXIMATE).
+
+### Day 5 additions (2 PRs)
+PR #391: Pharma WACC floor + terminal-g cap + cyclical peak detection
++ FV=0 safety-net rescue.
+PR #392: Scope pharma fixes to generic exporters only — franchise
+pharma (SUNPHARMA/MANKIND/etc.) reverted to default CAPM after v1
+universal cap under-shot them -40 to -60%.
+
 ### Day 3 additions (5 PRs)
 
 | PR | Theme | Outliers addressed |
