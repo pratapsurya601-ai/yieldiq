@@ -1079,6 +1079,31 @@ class AnalysisService(NarrativeMixin):
                     "fcf_years": _norm.get("fcf_years"),
                 }
 
+                # ── Peak-phase detection (2026-05-19 Day-5) ──
+                # 3-year normalized FCF includes the most recent supercycle
+                # peak year (FY25 for metals/oil — VEDL +65%, COALINDIA +40%).
+                # When latest annual FCF is ≥1.4× the 5y median, the 3y
+                # window is peak-biased; fall back to 5y median for a more
+                # through-cycle anchor.
+                try:
+                    _peak_check = _query_normalized_fcf(ticker, years=5)
+                    if _peak_check and _peak_check.get("fcf"):
+                        _3y_fcf = float(_norm["fcf"])
+                        _5y_fcf = float(_peak_check["fcf"])
+                        # If 3y mean is materially higher than 5y mean, the
+                        # newer years are peak. Use the longer window.
+                        if _5y_fcf > 0 and _3y_fcf > _5y_fcf * 1.35:
+                            enriched["latest_fcf"] = _5y_fcf
+                            enriched["_cyclical_peak_detected"] = True
+                            enriched["_cyclical_peak_3y_5y_ratio"] = round(
+                                _3y_fcf / _5y_fcf, 3
+                            )
+                            _fcf_data_source = "normalized_5y_peak_capped"
+                            _normalized_fcf_meta["peak_capped"] = True
+                            _normalized_fcf_meta["fallback_window"] = "5y"
+                except Exception:
+                    pass
+
         # ── NSE XBRL TTM preference (feat/wire-quarterly-xbrl-to-analysis) ──
         # For the 41 NIFTY-50 tickers whose Ind-AS quarterly P&L is
         # in `company_quarterly_results`, prefer the audited XBRL TTM
