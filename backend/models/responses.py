@@ -152,7 +152,10 @@ class ValuationOutput(BaseModel):
     # can render an explanatory tooltip without re-deriving any of
     # it. Both fields are purely additive — pre-PR clients ignore
     # unknown fields and continue to render `fair_value` as before.
-    fair_value_source: Literal["dcf", "peer_capped"] = "dcf"
+    # "tier2_fallback" added by feat/dcf-collapse-safety-net (CACHE_VERSION 113->115):
+    # when generic DCF collapses to an unreasonable FV vs price (e.g. INDIACEM
+    # ₹0.77 vs ₹405) the Tier 2 cohort engine substitutes a sensible value.
+    fair_value_source: Literal["dcf", "peer_capped", "tier2_fallback"] = "dcf"
     peer_cap_details: Optional[PeerCapDetails] = None
 
     # ── Defense-PSU analyst-opinion flag (2026-05-18, PR
