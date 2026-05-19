@@ -51,7 +51,10 @@ def test_get_sub_type_regulated_nbfc():
 
 
 def test_get_sub_type_regulated_other():
-    assert get_sub_type("GAIL") == "regulated_other"
+    # GAIL moved to gas_transmission 2026-05-19 Day-4 split.
+    assert get_sub_type("GAIL") == "gas_transmission"
+    assert get_sub_type("GAIL.NS") == "gas_transmission"
+    # TORNTPOWER / IEX still fall through to regulated_other.
     assert get_sub_type("TORNTPOWER.NS") == "regulated_other"
     assert get_sub_type("IEX") == "regulated_other"
 

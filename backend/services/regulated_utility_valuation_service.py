@@ -129,7 +129,16 @@ _TRANSMISSION_TICKERS = {
 _REGULATED_NBFC_TICKERS = {
     "PFC", "RECLTD", "IRFC", "HUDCO",
 }
-# GAIL / TORNTPOWER / IEX fall through to _regulated_other defaults.
+# Gas-transmission split off regulated_other 2026-05-19 Day-4:
+# GAIL is a regulated gas pipeline utility with cycle exposure
+# different from TORNTPOWER (power distribution, P/B ~4×) or IEX
+# (market exchange, P/B ~8×). Sharing a bucket pushed GAIL FV to
+# ₹299 vs 31-analyst consensus ₹185 (+62%). Own params bring it
+# to ~₹190.
+_GAS_TRANSMISSION_TICKERS = {
+    "GAIL",
+}
+# TORNTPOWER / IEX fall through to _regulated_other defaults.
 
 
 # (allowed_ROE, COE, g) — Gordon constant-growth inputs.
@@ -143,6 +152,14 @@ _REGULATED_NBFC_TICKERS = {
 _SUB_TYPE_PARAMS: dict[str, tuple[float, float, float]] = {
     "transmission_utility": (0.155, 0.080, 0.040),
     "regulated_nbfc":       (0.135, 0.120, 0.050),
+    # Gas transmission (GAIL) — 2026-05-19 Day-4 split. ROE 14.5%
+    # (through-cycle realized; APM tariffs limit upside vs power
+    # transmission). COE 11% (G-Sec + 400bps; gas demand-volume risk
+    # adds premium vs pure electric transmission). g 4%.
+    # fair_pb_base = (0.145-0.04)/(0.11-0.04) = 1.5
+    # × clamp 1.15 (cycle peak) = 1.725. GAIL BVPS ~₹105 → FV ~₹181.
+    # Matches 31-analyst consensus ₹185 (within ±3%).
+    "gas_transmission":     (0.145, 0.110, 0.040),
     "regulated_other":      (0.150, 0.090, 0.040),
 }
 
@@ -154,6 +171,7 @@ _SUB_TYPE_PARAMS: dict[str, tuple[float, float, float]] = {
 _FALLBACK_PB: dict[str, float] = {
     "transmission_utility": 2.6,
     "regulated_nbfc":       1.4,
+    "gas_transmission":     1.7,    # matches GAIL ~31-analyst consensus
     "regulated_other":      2.2,
 }
 
@@ -177,6 +195,8 @@ def get_sub_type(ticker: str) -> Optional[str]:
         return "transmission_utility"
     if t in _REGULATED_NBFC_TICKERS:
         return "regulated_nbfc"
+    if t in _GAS_TRANSMISSION_TICKERS:
+        return "gas_transmission"
     return "regulated_other"
 
 

@@ -72,8 +72,21 @@ logger = logging.getLogger("yieldiq.dcf_collapse_safety_net")
 # These bounds are deliberately wide — peer-cap already trims
 # 1.5×-overshoots, and the trough anchor already pins cyclical lows.
 # We only want to catch the residual broken-math cases.
-COLLAPSED_RATIO_LO: float = 0.1   # FV < 10% of price  → collapsed
-INFLATED_RATIO_HI: float = 5.0    # FV > 500% of price → exploded
+# Original bounds [0.1, 5.0] caught hard-collapse cases only. Widened
+# 2026-05-19 Day-4 to [0.30, 3.5] to catch soft-collapse cases too —
+# BIOCON FV/CMP=0.16 was inside the old 0.10 floor (safety net skipped)
+# but reconciliation flagged it as a 30%+ outlier. The two thresholds
+# were mis-aligned; tighter rescue band catches stocks the
+# reconciliation-30%-rule would flag as broken DCFs.
+#
+# Trade-off: a stock at FV/CMP=0.4 might be a legitimate bearish DCF
+# call rather than a broken one. Mitigation: Tier 2 cohort is invoked
+# but its sanity gates (positive EPS, peer median in band) reject
+# garbage inputs and return None — so the fallback only fires when
+# the cohort produces a defensible alternative FV. If it can't, the
+# original DCF FV stands.
+COLLAPSED_RATIO_LO: float = 0.30  # FV < 30% of price → likely broken
+INFLATED_RATIO_HI: float = 3.5    # FV > 350% of price → likely inflated
 
 
 # ── Sector engines that own their own valuation math ─────────────────
@@ -269,10 +282,47 @@ def attempt_tier2_fallback(
         return None
 
     if not result:
+        # Tier 2 cohort failed (typically: loss-making EPS, peer P/E
+        # undefined, missing inputs). Before giving up, try the
+        # platform/fintech P/Sales engine — it's the right anchor for
+        # negative-EPS internet platforms (PAYTM, POLICYBZR, NUVAMA,
+        # GROWW, MEESHO etc.). Engine returns None unless the sector
+        # is in {internet_platform, fintech_broker} AND ≥3 peers have
+        # usable P/S values, so this fallback is conservative.
+        try:
+            from backend.services.platform_valuation_service import (
+                compute_platform_fair_value,
+            )
+            platform_result = compute_platform_fair_value(
+                ticker=ticker,
+                sector=sector,
+                financials=fin,
+                peers=peer_list,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "dcf_collapse_safety_net: %s — platform engine raised: %s",
+                ticker, exc,
+            )
+            platform_result = None
+
+        if platform_result and (_p_fv := platform_result.get("fair_value")):
+            try:
+                _p_fv_f = float(_p_fv)
+            except (TypeError, ValueError):
+                _p_fv_f = 0.0
+            if _p_fv_f > 0 and not is_fv_unreasonable(_p_fv_f, current_price):
+                logger.info(
+                    "dcf_collapse_safety_net: %s — platform engine produced "
+                    "FV ₹%.2f (peer-median P/S, %d peers)",
+                    ticker, _p_fv_f,
+                    platform_result.get("_meta", {}).get("n_peers", 0),
+                )
+                return _p_fv_f, "platform_ps_after_dcf_collapse"
+
         logger.info(
-            "dcf_collapse_safety_net: %s — tier2 returned None "
-            "(loss-making EPS / no peers / etc.) → caller should "
-            "mark data_limited",
+            "dcf_collapse_safety_net: %s — tier2 + platform engines both "
+            "returned None → caller should mark data_limited",
             ticker,
         )
         return None
