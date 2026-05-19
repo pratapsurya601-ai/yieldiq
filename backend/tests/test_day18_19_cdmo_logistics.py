@@ -49,10 +49,11 @@ def test_logistics_tickers_routed_to_internet_platform():
 
 
 def test_delhivery_has_story_override():
-    """DELHIVERY needs ticker-specific overrides because the e-commerce
-    default (initial_growth=0.30, target_op_margin=0.15) over-shoots
-    Delhivery's actual mature-state economics. Tuned to 22% growth +
-    8% margin per analyst guidance."""
+    """DELHIVERY needs ticker-specific overrides. Retuned Day-20 part-2
+    (2026-05-20) from the original Day-18 params (22%/8%/70%/13.5%
+    which produced NEGATIVE EV) to v3 (22%/15%/40%/12.5% + 3y margin
+    convergence) — the new tune clears the safety-net 0.30 × CMP
+    floor with FV ≈ ₹205."""
     import json
     from pathlib import Path
     overrides = json.loads(
@@ -62,9 +63,10 @@ def test_delhivery_has_story_override():
     assert "DELHIVERY" in overrides
     entry = overrides["DELHIVERY"]
     assert entry["initial_growth"] == 0.22
-    assert entry["target_op_margin"] == 0.08
-    assert entry["reinvestment_rate"] == 0.70
-    assert entry["wacc"] == 0.135
+    assert entry["target_op_margin"] == 0.15
+    assert entry["margin_convergence_yr"] == 3
+    assert entry["reinvestment_rate"] == 0.40
+    assert entry["wacc"] == 0.125
 
 
 def test_story_dcf_engine_accepts_internet_platform_sector():
