@@ -200,6 +200,16 @@ def _persist_historical_financials(
                 ),
                 total_equity=_to_cr(total_equity),
                 total_assets=_to_cr(total_assets),
+                # current_liabilities added 2026-05-19 Day-6. Previously
+                # was always NULL on yfinance annual rows, breaking ROCE
+                # computation in Tier 2 enrichment (INFY at 0 coverage).
+                # yfinance balance_sheet exposes this directly as
+                # "Current Liabilities" — same row key convention as
+                # Total Debt / Total Assets above.
+                current_liabilities=_to_cr(
+                    _get_val(bs, "Current Liabilities", col)
+                    if bs is not None and not bs.empty else None
+                ),
                 shares_outstanding=_to_lakhs(shares_out),
                 roe=(_safe_pct(pat, total_equity)) if pat and total_equity else None,
                 roa=(_safe_pct(pat, total_assets)) if pat and total_assets else None,
