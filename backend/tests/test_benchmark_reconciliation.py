@@ -128,6 +128,65 @@ def test_classifier_skips_non_positive_inputs():
     assert brs.compute_outliers_from_records(records) == []
 
 
+# ── Adaptive threshold (2026-05-19 PR — analyst-count band scaling) ──
+
+
+def test_adaptive_threshold_tightens_for_high_coverage():
+    """30+ analyst coverage: a 25% delta should flag (effective threshold
+    20%), where flat 30% mode would skip it. High-confidence consensus
+    deserves a tighter tolerance."""
+    rec = _rec("BIGCAP", our_fv=125.0, consensus_fv=100.0, analysts=30)
+    # Flat mode: 25% < 30% → not flagged
+    assert brs.compute_outliers_from_records([rec]) == []
+    # Adaptive mode: effective threshold = 30% × 0.67 = 20%; 25% > 20% → flagged
+    rows = brs.compute_outliers_from_records([rec], adaptive=True)
+    assert len(rows) == 1
+    assert rows[0].ticker == "BIGCAP"
+
+
+def test_adaptive_threshold_widens_for_sparse_coverage():
+    """3-analyst consensus: a 40% delta should NOT flag (effective
+    threshold 50%), where flat 30% mode would flag it as noise."""
+    rec = _rec("SMALLCAP", our_fv=140.0, consensus_fv=100.0, analysts=3)
+    # Flat mode: 40% > 30% → flagged (potential noise)
+    rows_flat = brs.compute_outliers_from_records([rec])
+    assert len(rows_flat) == 1
+    # Adaptive mode: effective threshold = 30% × 1.67 = 50%; 40% < 50% → skipped
+    assert brs.compute_outliers_from_records([rec], adaptive=True) == []
+
+
+def test_adaptive_threshold_preserves_mid_band():
+    """10-19 analyst coverage: threshold unchanged. A 31% delta with
+    10 analysts should flag in both flat and adaptive modes."""
+    rec = _rec("MIDCAP", our_fv=131.0, consensus_fv=100.0, analysts=12)
+    assert len(brs.compute_outliers_from_records([rec])) == 1
+    assert len(brs.compute_outliers_from_records([rec], adaptive=True)) == 1
+
+
+def test_adaptive_threshold_filters_real_world_hudco_pattern():
+    """HUDCO-like case: 1-analyst consensus (filtered by min_analysts=3,
+    so this test uses 3 to stay in the band) with 44% drift — flat mode
+    flags as outlier, adaptive correctly skips (50% threshold for 3-4
+    analyst band)."""
+    rec = _rec("HUDCOSHAPE", our_fv=126.0, consensus_fv=225.0, analysts=3)
+    # Flat: |126-225|/225 = 44% > 30% → flagged
+    assert len(brs.compute_outliers_from_records([rec])) == 1
+    # Adaptive: 44% < 50% → not flagged (low consensus reliability)
+    assert brs.compute_outliers_from_records([rec], adaptive=True) == []
+
+
+def test_effective_threshold_bands():
+    """Direct unit test of the band logic (defends against silent
+    re-tuning that breaks production reconciliation expectations)."""
+    assert brs._effective_threshold(0.30, analyst_count=25, adaptive=True) == 0.30 * 0.67
+    assert brs._effective_threshold(0.30, analyst_count=15, adaptive=True) == 0.30
+    assert brs._effective_threshold(0.30, analyst_count=7, adaptive=True) == 0.30 * 1.33
+    assert brs._effective_threshold(0.30, analyst_count=4, adaptive=True) == 0.30 * 1.67
+    # adaptive=False is always a no-op
+    assert brs._effective_threshold(0.30, analyst_count=25, adaptive=False) == 0.30
+    assert brs._effective_threshold(0.30, analyst_count=4, adaptive=False) == 0.30
+
+
 # ── 2. CaveatInfo / caveat_text ──────────────────────────────────────
 
 
