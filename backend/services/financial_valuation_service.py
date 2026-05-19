@@ -59,7 +59,16 @@ FINANCIAL_PEER_GROUPS: dict[str, list[str]] = {
     "govt_nbfc":         ["PFC", "REC", "RECLTD", "IRFC", "HUDCO"],
     "life_insurance":    ["LICI", "HDFCLIFE", "SBILIFE", "ICICIPRULI"],
     "general_insurance": ["ICICIGI", "STARHEALTH", "NIACL"],
-    "housing_finance":   ["LICHSGFIN", "LICHOUSFIN", "CANFINHOME", "PNBHOUSING", "AAVAS", "HOMEFIRST"],
+    # Housing finance split 2026-05-19 — peer-median pollution fix.
+    # Old single "housing_finance" bucket mixed legacy mortgage lenders
+    # (thin spreads, sub-1× P/BV) with affordable-housing specialists
+    # (3-4× P/BV, higher growth, higher yields). The mixed median
+    # pushed LICHSGFIN's fair P/BV up to ~2.5, producing FV ₹1,636
+    # vs 23-analyst consensus ₹630 (+159.8% over-shoot — top "over"
+    # outlier on 2026-05-19). Separate sub-groups; each generates its
+    # own peer median.
+    "traditional_hfc":   ["LICHSGFIN", "LICHOUSFIN", "CANFINHOME", "PNBHOUSING"],
+    "premium_hfc":       ["AAVAS", "HOMEFIRST"],
     # Capital-light: AMCs, exchanges, brokers. P/E works here.
     "asset_mgmt":        ["HDFCAMC", "ICICIAMC", "NIPPONLIFE", "UTIAMC"],
 }
@@ -73,7 +82,8 @@ _GROUP_METHOD = {
     "govt_nbfc":         "p_bv_peer",
     "life_insurance":    "p_ev_peer",
     "general_insurance": "p_bv_peer",
-    "housing_finance":   "p_bv_peer",
+    "traditional_hfc":   "p_bv_peer",
+    "premium_hfc":       "p_bv_peer",
     "asset_mgmt":        "p_e_peer",
 }
 
@@ -86,7 +96,14 @@ _FALLBACK_PB = {
     "govt_nbfc":         (1.2, 0.18),
     "life_insurance":    (2.0, 0.14),   # P/EV approximated via P/BV
     "general_insurance": (3.0, 0.15),
-    "housing_finance":   (1.3, 0.13),
+    # Traditional HFC: legacy mortgage lenders, ~1.0× P/BV. LICHSGFIN
+    # at 0.78 (current), LICHOUSFIN ~0.85, PNBHOUSING ~1.2, CANFINHOME
+    # ~2.5 (still on higher end). 23-analyst LICHSGFIN consensus
+    # implies fair P/BV ~0.95 — fallback set near peer median.
+    "traditional_hfc":   (1.1, 0.14),
+    # Premium HFC: affordable-housing specialists, faster growth.
+    # AAVAS/HOMEFIRST trade 3-4×. Used only when split bucket fires.
+    "premium_hfc":       (3.5, 0.18),
     "asset_mgmt":        (8.0, 0.25),   # AMCs trade rich
 }
 

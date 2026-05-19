@@ -43,9 +43,15 @@ def patch_medians(monkeypatch):
 # ── Peer group detection ─────────────────────────────────────────
 
 def test_peer_groups_expected_keys():
+    # Housing finance was split 2026-05-19 — old "housing_finance"
+    # bucket bundled legacy mortgage lenders (LICHSGFIN, LICHOUSFIN,
+    # PNBHOUSING, CANFINHOME) with affordable-housing specialists
+    # (AAVAS, HOMEFIRST). Mixed-median produced LICHSGFIN FV ₹1,636
+    # vs 23-analyst consensus ₹630 (+159.8% over). Now two buckets.
     assert set(FINANCIAL_PEER_GROUPS.keys()) == {
         "psu_banks", "private_banks", "lending_nbfc", "govt_nbfc",
-        "life_insurance", "general_insurance", "housing_finance",
+        "life_insurance", "general_insurance",
+        "traditional_hfc", "premium_hfc",
         "asset_mgmt",
     }
 
@@ -67,6 +73,59 @@ def test_get_peer_group_handles_suffix():
 def test_get_peer_group_returns_none_for_non_financial():
     assert get_peer_group("RELIANCE.NS") is None
     assert get_peer_group("TCS") is None
+
+
+# ── HFC split (2026-05-19 fix for LICHSGFIN over-shoot) ──────────
+
+
+def test_hfc_split_routes_traditional_separate_from_premium():
+    """Legacy mortgage lenders and affordable-housing specialists
+    must NOT share a peer-median bucket. Mixing them pushed LICHSGFIN
+    fair P/BV to ~2.5 vs its real ~1.0 peer-derived value."""
+    # Traditional bucket — legacy mortgage lenders, ~1.0× P/BV
+    assert get_peer_group("LICHSGFIN") == "traditional_hfc"
+    assert get_peer_group("LICHSGFIN.NS") == "traditional_hfc"
+    assert get_peer_group("LICHOUSFIN") == "traditional_hfc"
+    assert get_peer_group("PNBHOUSING") == "traditional_hfc"
+    assert get_peer_group("CANFINHOME") == "traditional_hfc"
+
+    # Premium bucket — affordable-housing specialists, 3-4× P/BV
+    assert get_peer_group("AAVAS") == "premium_hfc"
+    assert get_peer_group("HOMEFIRST.NS") == "premium_hfc"
+
+
+def test_lichsgfin_pbv_with_traditional_hfc_median(patch_medians):
+    """Anchor: LICHSGFIN FY25 BVPS ~₹660, 23-analyst consensus ₹630.
+    With traditional-HFC peer median around 1.0× P/BV (real LICHSGFIN
+    0.78, LICHOUSFIN 0.85, PNBHOUSING 1.2, CANFINHOME 2.5 — median ~1.0)
+    and LICHSGFIN realized ROE 15% ~ peer median, fair P/BV should
+    land near 1.0× → FV around ₹630-700. Anything > ₹1,000 means the
+    HFC split has regressed."""
+    patch_medians({
+        "traditional_hfc": {
+            "median_pb": 1.0, "median_roe": 0.14,
+            "n_pb": 4, "n_pe": 4, "n_roe": 4,
+        }
+    })
+    result = compute_financial_fair_value(
+        ticker="LICHSGFIN.NS",
+        company_info={"current_price": 546.0, "shares": 5.50e8},
+        financials={
+            "total_equity": 36_351.8e7,   # ₹36,352 Cr in rupees
+            "shares": 5.50e8,             # 55 Cr = 5.5e8 shares
+            "roe": 0.1497,
+        },
+        shareholding=None,
+    )
+    assert result is not None
+    fv = result["fair_value"]
+    consensus = 630.0
+    drift = (fv - consensus) / consensus
+    assert -0.20 < drift < 0.20, (
+        f"LICHSGFIN FV ₹{fv:.0f} drifts {drift*100:+.1f}% from "
+        f"23-analyst consensus ₹630. HFC split likely regressed."
+    )
+    assert result["method"] == "p_bv_peer"
 
 
 # ── SBIN — PSU bank, P/BV path ───────────────────────────────────
