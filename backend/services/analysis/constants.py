@@ -821,14 +821,9 @@ TICKER_SECTOR_OVERRIDES["AMBUJACEM.NS"] = "Cement"
 # energy). Operator review pending; do not extend without data-team
 # verification.
 _DAY3_SECTOR_FIXES: dict[str, str] = {
+    # Pharma family (yfinance often returns "Healthcare" / "Oil & Gas")
     "BIOCON":      "Pharma",
-    "ABB":         "Capital Goods",
-    "ADANIGREEN":  "Power",
-    "ADANIENT":    "Conglomerate",     # genuinely diversified
-    "ADANIPORTS":  "Infrastructure",
-    "APOLLOTYRE":  "Auto",
     "AUROPHARMA":  "Pharma",
-    "BHARATFORG":  "Auto",
     "EMCURE":      "Pharma",
     "GLAXO":       "Pharma",
     "GLENMARK":    "Pharma",
@@ -837,6 +832,45 @@ _DAY3_SECTOR_FIXES: dict[str, str] = {
     "SUNPHARMA":   "Pharma",
     "TORNTPHARM":  "Pharma",
     "ZYDUSLIFE":   "Pharma",
+
+    # Capital goods / industrials
+    "ABB":         "Capital Goods",
+    "PRAJIND":     "Capital Goods",     # ethanol / bio-process plant
+
+    # Power
+    "ADANIGREEN":  "Power",
+    "ADANIPOWER":  "Power",
+
+    # Infrastructure / logistics
+    "ADANIENT":    "Conglomerate",      # genuinely diversified
+    "ADANIPORTS":  "Infrastructure",
+    "CONCOR":      "Infrastructure",    # Container Corporation, logistics
+
+    # Auto
+    "APOLLOTYRE":  "Auto",
+    "BHARATFORG":  "Auto",
+    "BALKRISIND":  "Auto",              # off-highway tyres
+
+    # Oil & Gas (these can also be Energy)
+    "OIL":         "Oil & Gas",         # Oil India Limited
+
+    # Defence
+    "MAZDOCK":     "Defence",           # Mazagon Dock Shipbuilders
+
+    # FMCG (consumer staples / brand-premium)
+    "VBL":         "FMCG",              # Varun Beverages
+    "BERGEPAINT":  "FMCG",              # decorative paints, brand-premium model
+    "PAGEIND":     "FMCG",              # Jockey innerwear
+
+    # Retail / QSR
+    "WESTLIFE":    "Retail",            # McDonald's franchise
+    "JUBLFOOD":    "Retail",            # Domino's franchise
+    "DEVYANI":     "Retail",            # KFC/Pizza Hut franchise
+    "SAPPHIRE":    "Retail",            # KFC franchise
+
+    # Banking
+    "CUB":         "Banking",           # City Union Bank
+    "AUBANK":      "Banking",           # AU Small Finance Bank
 }
 for _t, _sec in _DAY3_SECTOR_FIXES.items():
     TICKER_SECTOR_OVERRIDES[_t] = _sec
