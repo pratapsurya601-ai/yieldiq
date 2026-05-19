@@ -295,13 +295,29 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
                 pass
 
             if len(_wc_series) >= _MIN_CAPITAL_GOODS_YEARS:
-                _cg_med = float(_wc_series.median())
+                # 2026-05-19 Day-6: replace signed-median with trimmed-
+                # mean. The signed-median variant (disabled in v117)
+                # systematically picked trough years for project
+                # businesses, dragging FV 50-78% below consensus.
+                # Trimmed-mean (drop min + max, average the rest)
+                # excludes the extreme cycle tails and centres on
+                # mid-cycle. Falls back to median for series with < 5
+                # years where there isn't enough data to trim.
+                _sorted = sorted(_wc_series)
+                if len(_sorted) >= 5:
+                    _trimmed = _sorted[1:-1]
+                    _cg_med = float(sum(_trimmed) / len(_trimmed))
+                    _cg_method = "trimmed_mean"
+                else:
+                    _cg_med = float(_wc_series.median())
+                    _cg_method = "median_fallback"
                 candidates["cap_goods_7y_wc_smoothed"] = _cg_med
                 enriched["_capital_goods_window_years"] = int(len(_wc_series))
+                enriched["_capital_goods_aggregation"] = _cg_method
                 log.info(
-                    "[%s] capital-goods 7y WC-smoothed signed-median FCF: "
+                    "[%s] capital-goods 7y WC-smoothed %s FCF: "
                     "₹%.0fCr (n=%d years, regime_cutoff=%s)",
-                    ticker, _cg_med / 1e7, len(_wc_series),
+                    ticker, _cg_method, _cg_med / 1e7, len(_wc_series),
                     _regime_year if _regime_year else "—",
                 )
 
@@ -557,19 +573,25 @@ def _compute_fcf_base(enriched: dict) -> tuple[float, str]:
     cap_goods_val = candidates.get("cap_goods_7y_wc_smoothed", 0)
     enriched["_pharma_rd_used"] = False
     enriched["_capital_goods_used"] = False
-    # HOTFIX 2026-05-18 — Capital-goods 7y WC-smoothed FCF candidate is
-    # DISABLED in the median pool. Smoke test post-PR #337 showed it
-    # voted LOW for SIEMENS/LT/ABB/THERMAX/CUMMINSIND (-50% to -78%
-    # vs consensus), making FVs significantly worse than the prior
-    # generic-DCF baseline. The 7y window for capital goods turns out
-    # to capture too much project-trough volatility — the signed median
-    # picks a negative-cycle value as central. Pending a redesign with
-    # benchmark reconciliation gating (Layer A), the cap-goods branch
-    # is short-circuited. Sector-mistag overrides (TIMKEN/SCHAEFFLER/
-    # GRINDWELL/KAYNES → Capital Goods) and hyper-growth fade for
-    # KAYNES are kept; only the FCF candidate vote is disabled.
-    # Original branch preserved as `if False and ...` for blame.
-    if False and _cap_goods and cap_goods_val != 0:
+    # RE-ENABLED 2026-05-19 Day-6 with two-layer safety:
+    # 1. Aggregation is now trimmed-mean (drops min/max), not signed-
+    #    median — the original trough-picker pathology.
+    # 2. Reconciliation gate: only vote if the candidate is within 35%
+    #    of nopat_proxy (a non-cycle-biased reference). If the cap-
+    #    goods candidate drifts far from nopat, it's signalling a real
+    #    cycle artifact; we drop it from the pool rather than letting
+    #    it dominate.
+    # Combined effect: the engine re-fires for BHEL/SIEMENS/THERMAX/
+    # ABB/CUMMINSIND but only when the candidate is reconcilable with
+    # an independent estimate. If reconciliation fails, we fall through
+    # to the generic median path — same behaviour as the hotfix-disabled
+    # branch, but for the specific tickers where the gate flags noise.
+    _cg_reconciliation_ok = False
+    if _cap_goods and cap_goods_val > 0 and nopat_val > 0:
+        _cg_drift = abs(cap_goods_val - nopat_val) / max(nopat_val, 1)
+        _cg_reconciliation_ok = _cg_drift < 0.35
+        enriched["_capital_goods_reconciliation_drift"] = round(_cg_drift, 3)
+    if _cap_goods and cap_goods_val > 0 and _cg_reconciliation_ok:
         valid_candidates = [
             v for v in [latest_val, nopat_val, max_val, cap_goods_val] if v > 0
         ]
@@ -1093,9 +1115,21 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
         # India-domestic moats and the CAPM 9.8% is closer to truth for
         # them — a universal floor produced -40% to -60% under-shoots
         # on franchise pharma in the v1 deploy.
+        # Curated generic-exporter set — US-pricing-pressure exposure,
+        # narrower moats, lower terminal-growth justified. Expanded
+        # 2026-05-19 Day-6 (was 9, now 15) to cover the long tail of
+        # mid-cap generics that were silently routing through default
+        # CAPM despite being on the wrong end of the structural pricing
+        # cycle. Excludes franchise pharma (SUNPHARMA, CIPLA, MANKIND,
+        # TORNTPHARM, LUPIN, BIOCON, ABBOTINDIA, GLAXO, PFIZER, SANOFI,
+        # ERIS, AJANTPHARM) and CDMOs (DIVISLAB) which keep default
+        # treatment.
         _PHARMA_GENERIC_TICKERS = frozenset({
             "DRREDDY", "AUROPHARMA", "ZYDUSLIFE", "GLENMARK", "IPCALAB",
             "LAURUSLABS", "ALEMBICLTD", "GRANULES", "WOCKPHARMA",
+            # 2026-05-19 expansion
+            "NEULAND", "GLANDPHARMA", "PPLPHARMA", "JBCHEPHARM",
+            "STAR", "SAILIFE",
         })
         try:
             _ticker_bare = ""
