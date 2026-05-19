@@ -1,5 +1,5 @@
 {
-  "snapshot_at": "2026-05-19T15:07:41.242591+00:00",
+  "snapshot_at": "2026-05-19T16:00:05.528927+00:00",
   "purpose": "before_unified_source_collapse",
   "ticker_count": 50,
   "rows": [
@@ -7,13 +7,13 @@
       "ticker": "RELIANCE.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
-      "fair_value": 1586.39,
-      "current_price": 1335.9,
-      "margin_of_safety": 18.8,
+      "fair_value": 1570.7,
+      "current_price": 1322.7,
+      "margin_of_safety": 18.7,
       "verdict": "fairly_valued",
-      "bear_case": 1135.52,
-      "base_case": 1586.39,
-      "bull_case": 1903.67,
+      "bear_case": 1124.29,
+      "base_case": 1570.7,
+      "bull_case": 1884.84,
       "piotroski": 4,
       "moat": "Moderate",
       "roe": 8.93,
@@ -23,15 +23,15 @@
       "ev_ebitda": 9.9274259094324,
       "rev_cagr_3y": 0.0639,
       "yieldiq_score": 67,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "TCS.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
       "fair_value": 3436.4,
-      "current_price": 2283.2,
-      "margin_of_safety": 50.5,
+      "current_price": 2327.1,
+      "margin_of_safety": 47.7,
       "verdict": "fairly_valued",
       "bear_case": 1878.47,
       "base_case": 3436.4,
@@ -44,20 +44,20 @@
       "wacc": 0.098,
       "ev_ebitda": 11.416089074001716,
       "rev_cagr_3y": 0.058,
-      "yieldiq_score": 40,
-      "cache_version": "117"
+      "yieldiq_score": 50,
+      "cache_version": "118"
     },
     {
       "ticker": "HDFCBANK.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
-      "fair_value": 802.27,
-      "current_price": 768.65,
-      "margin_of_safety": 4.4,
+      "fair_value": 832.98,
+      "current_price": 762.45,
+      "margin_of_safety": 9.3,
       "verdict": "fairly_valued",
-      "bear_case": 561.59,
-      "base_case": 802.27,
-      "bull_case": 1042.95,
+      "bear_case": 583.08,
+      "base_case": 832.98,
+      "bull_case": 1082.87,
       "piotroski": 6,
       "moat": "Wide",
       "roe": 8.77,
@@ -67,15 +67,15 @@
       "ev_ebitda": null,
       "rev_cagr_3y": null,
       "yieldiq_score": 68,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "INFY.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
       "fair_value": 1845.05,
-      "current_price": 1142.5,
-      "margin_of_safety": 61.5,
+      "current_price": 1196.9,
+      "margin_of_safety": 54.2,
       "verdict": "fairly_valued",
       "bear_case": 1054.81,
       "base_case": 1845.05,
@@ -89,14 +89,14 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.0344,
       "yieldiq_score": 40,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "ITC.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
       "fair_value": 292.21,
-      "current_price": 310.15,
+      "current_price": 310.3,
       "margin_of_safety": -5.8,
       "verdict": "fairly_valued",
       "bear_case": 162.66,
@@ -111,14 +111,14 @@
       "ev_ebitda": 13.35125665566008,
       "rev_cagr_3y": 0.0375,
       "yieldiq_score": 63,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "HCLTECH.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
       "fair_value": 0.0,
-      "current_price": 1146.6,
+      "current_price": 1179.4,
       "margin_of_safety": 0.0,
       "verdict": "data_limited",
       "bear_case": 889.08,
@@ -132,20 +132,20 @@
       "wacc": 0.098,
       "ev_ebitda": 11.016749620405797,
       "rev_cagr_3y": null,
-      "yieldiq_score": 70,
-      "cache_version": "117"
+      "yieldiq_score": 66,
+      "cache_version": "118"
     },
     {
       "ticker": "ICICIBANK.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
-      "fair_value": 1639.24,
-      "current_price": 1251.1,
-      "margin_of_safety": 31.0,
-      "verdict": "undervalued",
-      "bear_case": 1147.47,
-      "base_case": 1639.24,
-      "bull_case": 2131.01,
+      "fair_value": 1701.7,
+      "current_price": 1240.8,
+      "margin_of_safety": 37.1,
+      "verdict": "fairly_valued",
+      "bear_case": 1191.19,
+      "base_case": 1701.7,
+      "bull_case": 2212.21,
       "piotroski": 9,
       "moat": "Wide",
       "roe": 14.93,
@@ -155,15 +155,15 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.1965,
       "yieldiq_score": 50,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "BHARTIARTL.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
       "fair_value": 1943.01,
-      "current_price": 1938.1,
-      "margin_of_safety": 0.3,
+      "current_price": 1913.5,
+      "margin_of_safety": 1.5,
       "verdict": "fairly_valued",
       "bear_case": 951.19,
       "base_case": 1943.01,
@@ -177,19 +177,19 @@
       "ev_ebitda": 11.581256634462138,
       "rev_cagr_3y": 0.1218,
       "yieldiq_score": 61,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "SBIN.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
-      "fair_value": 713.82,
+      "fair_value": 735.06,
       "current_price": 948.8,
-      "margin_of_safety": -24.8,
+      "margin_of_safety": -22.5,
       "verdict": "fairly_valued",
-      "bear_case": 499.67,
-      "base_case": 713.82,
-      "bull_case": 927.96,
+      "bear_case": 514.54,
+      "base_case": 735.06,
+      "bull_case": 955.58,
       "piotroski": 7,
       "moat": "Narrow",
       "roe": 15.93,
@@ -199,7 +199,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.1148,
       "yieldiq_score": 54,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "LT.NS",
@@ -221,19 +221,19 @@
       "ev_ebitda": 19.503756427146275,
       "rev_cagr_3y": 0.1632,
       "yieldiq_score": 50,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "BAJFINANCE.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
-      "fair_value": 876.53,
-      "current_price": 921.1,
+      "fair_value": 878.86,
+      "current_price": 923.55,
       "margin_of_safety": -4.8,
       "verdict": "fairly_valued",
-      "bear_case": 613.57,
-      "base_case": 876.53,
-      "bull_case": 1139.48,
+      "bear_case": 615.2,
+      "base_case": 878.86,
+      "bull_case": 1142.51,
       "piotroski": 7,
       "moat": "Moderate",
       "roe": 16.68,
@@ -243,19 +243,19 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.2258,
       "yieldiq_score": 68,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "KOTAKBANK.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
-      "fair_value": 444.05,
-      "current_price": 391.8,
-      "margin_of_safety": 13.3,
+      "fair_value": 453.11,
+      "current_price": 381.95,
+      "margin_of_safety": 18.6,
       "verdict": "fairly_valued",
-      "bear_case": 310.84,
-      "base_case": 444.05,
-      "bull_case": 577.27,
+      "bear_case": 317.18,
+      "base_case": 453.11,
+      "bull_case": 589.04,
       "piotroski": 7,
       "moat": "Wide",
       "roe": 10.64,
@@ -264,20 +264,20 @@
       "wacc": 0.098,
       "ev_ebitda": null,
       "rev_cagr_3y": 0.0491,
-      "yieldiq_score": 70,
-      "cache_version": "117"
+      "yieldiq_score": 65,
+      "cache_version": "118"
     },
     {
       "ticker": "AXISBANK.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
-      "fair_value": 1915.59,
-      "current_price": 1237.9,
-      "margin_of_safety": 54.7,
-      "verdict": "undervalued",
-      "bear_case": 1340.91,
-      "base_case": 1915.59,
-      "bull_case": 2490.26,
+      "fair_value": 2005.73,
+      "current_price": 1238.3,
+      "margin_of_safety": 62.0,
+      "verdict": "fairly_valued",
+      "bear_case": 1404.01,
+      "base_case": 2005.73,
+      "bull_case": 2607.44,
       "piotroski": 6,
       "moat": "Moderate",
       "roe": 12.27,
@@ -287,7 +287,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.1219,
       "yieldiq_score": 40,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "MARUTI.NS",
@@ -309,19 +309,19 @@
       "ev_ebitda": 15.938992841659994,
       "rev_cagr_3y": 0.166,
       "yieldiq_score": 50,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "WIPRO.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
       "fair_value": 0.0,
-      "current_price": 192.17,
+      "current_price": 195.17,
       "margin_of_safety": 0.0,
       "verdict": "data_limited",
-      "bear_case": 654.82,
-      "base_case": 818.52,
-      "bull_case": 6378.37,
+      "bear_case": 663.55,
+      "base_case": 829.44,
+      "bull_case": 6475.87,
       "piotroski": 6,
       "moat": "Narrow",
       "roe": 15.86,
@@ -331,29 +331,29 @@
       "ev_ebitda": 9.995678939727453,
       "rev_cagr_3y": null,
       "yieldiq_score": 63,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "SUNPHARMA.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
-      "fair_value": 1186.4,
+      "fair_value": 1228.46,
       "current_price": 1882.3,
-      "margin_of_safety": -37.0,
+      "margin_of_safety": -34.7,
       "verdict": "fairly_valued",
-      "bear_case": 729.15,
-      "base_case": 1186.4,
-      "bull_case": 1596.05,
+      "bear_case": 743.84,
+      "base_case": 1228.46,
+      "bull_case": 1662.7,
       "piotroski": 6,
       "moat": "Moderate",
       "roe": 15.13,
       "roce": 18.9,
       "de_ratio": 0.0,
-      "wacc": 0.105,
+      "wacc": 0.098,
       "ev_ebitda": 25.870484958098892,
       "rev_cagr_3y": 0.0865,
       "yieldiq_score": 45,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "TITAN.NS",
@@ -375,17 +375,17 @@
       "ev_ebitda": 47.11254301579134,
       "rev_cagr_3y": 0.1338,
       "yieldiq_score": 47,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "ULTRACEMCO.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
       "fair_value": 0.0,
-      "current_price": 11561.0,
+      "current_price": 11368.0,
       "margin_of_safety": 0.0,
       "verdict": "data_limited",
-      "bear_case": 5780.5,
+      "bear_case": 5684.0,
       "base_case": 3028.83,
       "bull_case": 4748.47,
       "piotroski": 4,
@@ -397,7 +397,7 @@
       "ev_ebitda": 19.167491556182636,
       "rev_cagr_3y": null,
       "yieldiq_score": 40,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "POWERGRID.NS",
@@ -426,8 +426,8 @@
       "source": "analysis_cache",
       "cached_flag": "false",
       "fair_value": 2253.75,
-      "current_price": 2254.2,
-      "margin_of_safety": 0.0,
+      "current_price": 2232.9,
+      "margin_of_safety": 0.9,
       "verdict": "fairly_valued",
       "bear_case": 1277.38,
       "base_case": 2253.75,
@@ -440,8 +440,8 @@
       "wacc": 0.098,
       "ev_ebitda": 33.99385149980841,
       "rev_cagr_3y": 0.0231,
-      "yieldiq_score": 58,
-      "cache_version": "117"
+      "yieldiq_score": 61,
+      "cache_version": "118"
     },
     {
       "ticker": "DRREDDY.NS",
@@ -463,7 +463,7 @@
       "ev_ebitda": 12.185973906304802,
       "rev_cagr_3y": 0.1204,
       "yieldiq_score": 50,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "ONGC.NS",
@@ -519,8 +519,8 @@
       "source": "analysis_cache",
       "cached_flag": "false",
       "fair_value": 3987.2,
-      "current_price": 3083.7,
-      "margin_of_safety": 29.3,
+      "current_price": 3092.3,
+      "margin_of_safety": 28.9,
       "verdict": "fairly_valued",
       "bear_case": 2365.93,
       "base_case": 3987.2,
@@ -534,7 +534,7 @@
       "ev_ebitda": 11.98834668330735,
       "rev_cagr_3y": 0.1844,
       "yieldiq_score": 65,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "HEROMOTOCO.NS",
@@ -556,14 +556,14 @@
       "ev_ebitda": 12.077994825376038,
       "rev_cagr_3y": 0.1201,
       "yieldiq_score": 40,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "DIVISLAB.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
       "fair_value": 0.0,
-      "current_price": 6835.0,
+      "current_price": 6912.0,
       "margin_of_safety": 0.0,
       "verdict": "data_limited",
       "bear_case": 1387.49,
@@ -578,7 +578,7 @@
       "ev_ebitda": 50.43467446424345,
       "rev_cagr_3y": null,
       "yieldiq_score": 40,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "COALINDIA.NS",
@@ -653,7 +653,7 @@
       "fair_value": 397.31,
       "current_price": 1762.8,
       "margin_of_safety": -77.5,
-      "verdict": "fairly_valued",
+      "verdict": "data_limited",
       "bear_case": 135.19,
       "base_case": 397.31,
       "bull_case": 707.64,
@@ -666,7 +666,7 @@
       "ev_ebitda": 19.458800230360055,
       "rev_cagr_3y": 0.2293,
       "yieldiq_score": 40,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "BAJAJ-AUTO.NS",
@@ -688,7 +688,7 @@
       "ev_ebitda": 19.625612215756348,
       "rev_cagr_3y": 0.1949,
       "yieldiq_score": 50,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "ASIANPAINT.NS",
@@ -710,7 +710,7 @@
       "ev_ebitda": 39.81296984225422,
       "rev_cagr_3y": 0.0532,
       "yieldiq_score": 47,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "NESTLEIND.NS",
@@ -732,15 +732,15 @@
       "ev_ebitda": 56.32431936430299,
       "rev_cagr_3y": 0.0762,
       "yieldiq_score": 50,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "BRITANNIA.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
       "fair_value": 5132.73,
-      "current_price": 5380.5,
-      "margin_of_safety": -4.6,
+      "current_price": 5416.5,
+      "margin_of_safety": -5.2,
       "verdict": "fairly_valued",
       "bear_case": 2300.87,
       "base_case": 5132.73,
@@ -754,15 +754,15 @@
       "ev_ebitda": 35.16129750409938,
       "rev_cagr_3y": 0.0566,
       "yieldiq_score": 60,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "DABUR.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
       "fair_value": 460.74,
-      "current_price": 456.35,
-      "margin_of_safety": 1.0,
+      "current_price": 452.8,
+      "margin_of_safety": 1.8,
       "verdict": "fairly_valued",
       "bear_case": 234.21,
       "base_case": 460.74,
@@ -776,7 +776,7 @@
       "ev_ebitda": 27.510175702966055,
       "rev_cagr_3y": 0.0436,
       "yieldiq_score": 58,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "GODREJCP.NS",
@@ -798,7 +798,7 @@
       "ev_ebitda": 34.420058077924025,
       "rev_cagr_3y": 0.0459,
       "yieldiq_score": 51,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "PIDILITIND.NS",
@@ -820,19 +820,19 @@
       "ev_ebitda": 39.851636436496776,
       "rev_cagr_3y": 0.075,
       "yieldiq_score": 50,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "TECHM.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
       "fair_value": 0.0,
-      "current_price": 1430.0,
+      "current_price": 1467.1,
       "margin_of_safety": 0.0,
       "verdict": "data_limited",
-      "bear_case": 4570.61,
-      "base_case": 5713.26,
-      "bull_case": 47042.03,
+      "bear_case": 4678.64,
+      "base_case": 5848.3,
+      "bull_case": 48247.78,
       "piotroski": 6,
       "moat": "Narrow",
       "roe": 16.24,
@@ -842,7 +842,7 @@
       "ev_ebitda": 13.75380704857824,
       "rev_cagr_3y": null,
       "yieldiq_score": 63,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "INDUSINDBK.NS",
@@ -864,14 +864,14 @@
       "ev_ebitda": null,
       "rev_cagr_3y": -0.0805,
       "yieldiq_score": 12,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "GRASIM.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
       "fair_value": 0.0,
-      "current_price": 2943.8,
+      "current_price": 2935.2,
       "margin_of_safety": 0.0,
       "verdict": "data_limited",
       "bear_case": 991.93,
@@ -886,7 +886,7 @@
       "ev_ebitda": 16.12845736350072,
       "rev_cagr_3y": 0.1226,
       "yieldiq_score": 30,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "HINDALCO.NS",
@@ -930,7 +930,7 @@
       "ev_ebitda": 22.523766873627718,
       "rev_cagr_3y": 0.0331,
       "yieldiq_score": 38,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "BPCL.NS",
@@ -974,15 +974,15 @@
       "ev_ebitda": 25.068833707536452,
       "rev_cagr_3y": 0.1607,
       "yieldiq_score": 63,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "CIPLA.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
       "fair_value": 1701.12,
-      "current_price": 1426.2,
-      "margin_of_safety": 19.3,
+      "current_price": 1409.8,
+      "margin_of_safety": 20.7,
       "verdict": "fairly_valued",
       "bear_case": 1026.0,
       "base_case": 1701.12,
@@ -996,7 +996,7 @@
       "ev_ebitda": 14.663595808800704,
       "rev_cagr_3y": 0.0788,
       "yieldiq_score": 57,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "TATACONSUM.NS",
@@ -1018,19 +1018,19 @@
       "ev_ebitda": 44.946699029933846,
       "rev_cagr_3y": 0.113,
       "yieldiq_score": 40,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "BAJAJFINSV.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
-      "fair_value": 1725.41,
-      "current_price": 1753.1,
+      "fair_value": 1722.16,
+      "current_price": 1749.8,
       "margin_of_safety": -1.6,
       "verdict": "fairly_valued",
-      "bear_case": 1207.79,
-      "base_case": 1725.41,
-      "bull_case": 2243.03,
+      "bear_case": 1205.51,
+      "base_case": 1722.16,
+      "bull_case": 2238.81,
       "piotroski": 7,
       "moat": "Moderate",
       "roe": 12.26,
@@ -1040,19 +1040,19 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.2158,
       "yieldiq_score": 68,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "SHRIRAMFIN.NS",
       "source": "analysis_cache",
       "cached_flag": "false",
-      "fair_value": 1195.2,
-      "current_price": 933.7,
+      "fair_value": 1187.07,
+      "current_price": 927.35,
       "margin_of_safety": 28.0,
       "verdict": "fairly_valued",
-      "bear_case": 836.64,
-      "base_case": 1195.2,
-      "bull_case": 1553.75,
+      "bear_case": 830.95,
+      "base_case": 1187.07,
+      "bull_case": 1543.19,
       "piotroski": 7,
       "moat": "None",
       "roe": 15.21,
@@ -1062,7 +1062,7 @@
       "ev_ebitda": null,
       "rev_cagr_3y": 0.0787,
       "yieldiq_score": 39,
-      "cache_version": "117"
+      "cache_version": "118"
     },
     {
       "ticker": "VEDL.NS",

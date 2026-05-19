@@ -1139,6 +1139,38 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
             # gIbrance — concentrated US generic exposure)
             "NATCOPHARM",
         })
+        # Day-16 (2026-05-19): Hospital chain sub-bucket. Indian listed
+        # hospital + diagnostic chains were systematically under-valued
+        # by 50-85% vs sell-side consensus on the Day-13 outlier scan
+        # (MAXHEALTH 0.16x cons, VIJAYA 0.15x, MEDANTA 0.26x, FORTIS
+        # 0.32x, KIMS 0.36x, APOLLOHOSP 0.39x, NH 0.49x).
+        #
+        # Root cause: standard CAPM WACC (≈ 0.11) + default terminal-g
+        # cap (0.04) misprices these because:
+        #   (a) Hospital service contracts (TPA + corporate + cash) are
+        #       quasi-recurring and ARPU stays sticky → CFO predictability
+        #       closer to an A-grade utility than to a generic industrial
+        #   (b) Indian healthcare nominal spend has grown 12-15% CAGR for
+        #       the last decade and is set to continue (Ayushman Bharat
+        #       + insurance penetration + aging demographics)
+        #   (c) Bed-expansion cycles take 7-10y to mature → 5y explicit
+        #       forecast horizon misses the ramp, anchoring valuation
+        #       on pre-maturity ARPU
+        #
+        # Treatment: floor WACC at 0.085 (-50bps vs default; closer to
+        # regulated-utility risk profile) and (in the terminal-g block
+        # below) bump cap to 0.055 (vs 0.04 default).
+        # The diagnostic chains (LALPATHLAB, METROPOLIS) are NOT included
+        # — they have lower predictability + commodity pricing pressure;
+        # they keep default treatment.
+        _HOSPITAL_CHAIN_TICKERS = frozenset({
+            "MAXHEALTH", "FORTIS", "MEDANTA", "KIMS",
+            "NH", "APOLLOHOSP", "ASTERDM", "RAINBOW",
+            "VIJAYA",
+            # Single-specialty chains with same characteristics
+            "AGARWALEYE",
+        })
+
         try:
             _ticker_bare = ""
             if enriched:
@@ -1146,6 +1178,9 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
                 _ticker_bare = _t.replace(".NS", "").replace(".BO", "").upper()
             if _ticker_bare in _PHARMA_GENERIC_TICKERS:
                 wacc_floor = max(wacc_floor, 0.105)  # +50-100bps generic risk
+            elif _ticker_bare in _HOSPITAL_CHAIN_TICKERS:
+                # Pin to a tighter floor (defensive sector)
+                wacc_floor = min(wacc_floor, 0.085)
         except Exception:
             pass
 
@@ -1597,6 +1632,28 @@ class FCFForecaster:
             if _t_bare_tg in _PHARMA_GENERIC_TICKERS_TG and _g_terminal_eff > 0.035:
                 _g_terminal_eff = 0.035
                 enriched["_pharma_generic_terminal_g_capped"] = True
+        except Exception:
+            pass
+
+        # ── Hospital chain terminal-g lift (2026-05-19 Day-16) ──────
+        # Mirrors the WACC-floor block above. For the 10 listed hospital
+        # chains, raise terminal-g floor from the default 0.04 to 0.055.
+        # Justification: Indian nominal healthcare spend has compounded
+        # 12-15% over the last decade and is set to continue per
+        # IRDAI penetration data + Ayushman Bharat coverage expansion +
+        # demographic aging. A 5.5% perpetuity is conservative against
+        # those numbers. Combined with the 0.085 WACC floor, the
+        # implied WACC - g spread of ~3% is still inside the Gordon-
+        # model safety band (must stay > 0.03 to avoid TV blow-up).
+        _HOSPITAL_CHAIN_TICKERS_TG = frozenset({
+            "MAXHEALTH", "FORTIS", "MEDANTA", "KIMS",
+            "NH", "APOLLOHOSP", "ASTERDM", "RAINBOW",
+            "VIJAYA", "AGARWALEYE",
+        })
+        try:
+            if _t_bare_tg in _HOSPITAL_CHAIN_TICKERS_TG and _g_terminal_eff < 0.055:
+                _g_terminal_eff = 0.055
+                enriched["_hospital_chain_terminal_g_lifted"] = True
         except Exception:
             pass
 

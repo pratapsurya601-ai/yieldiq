@@ -1,58 +1,45 @@
-"""One-shot CACHE_VERSION bump utility — Day-14.
-
-Reads backend/services/cache_service.py, finds the literal
-``CACHE_VERSION = 117`` (anywhere on line 34's long comment line),
-replaces it with ``CACHE_VERSION = 118  # <day-14 comment>  # # `` and
-preserves the historical inline-comment ledger that's already there.
-
-The pattern used in past bumps: prepend the new bump's annotation,
-keep the prior annotations intact, separated by `# # `.
-"""
+"""Day-16 CACHE_VERSION bump utility — 118 -> 119."""
 from pathlib import Path
 
 PATH = Path(__file__).resolve().parents[1] / "backend" / "services" / "cache_service.py"
 
-DAY14_COMMENT = (
-    "118: feat/day14-cache-bump (2026-05-19). Force recompute so the Day-7 → "
-    "Day-13 fixes land in user-visible payloads. Bundled changes: "
-    "(a) Day-7 yfinance current_liabilities collector — fills 4,003 NULL rows "
-    "in financials, unblocks Tier 2 ROCE enrichment for INFY-shape tickers. "
-    "(b) Day-8 story-DCF back-test guardrails — surfaces operator-review "
-    "backlog. (c) Day-9 frontend StoryDcfBadge — surfaces narrative-valuation "
-    "warning when third-rung rescue fires. (d) Day-10 engine-string fidelity "
-    "fix in analysis/service.py — _fair_value_source no longer collapses "
-    "all 3 safety-net rungs to 'tier2_fallback'; payload now carries the "
-    "rung-specific source ('tier2_fallback_after_dcf_collapse', "
-    "'platform_ps_after_dcf_collapse', 'story_dcf_after_dcf_collapse'). "
-    "(e) Day-11/12 admin endpoints for story-DCF override review (read-only "
-    "+ preview-simulator + audit). (f) Day-13 pharma-generic expansion — "
-    "added NATCOPHARM (was producing 3.57x consensus), renamed "
-    "NEULAND -> NEULANDLAB (dead-entry bug — never matched real NSE ticker), "
-    "synced WACC and terminal-g sets so generics get symmetric treatment. "
-    "Sector-scope: pharma generics tighten WACC floor (0.105) + terminal-g "
-    "cap (0.035); platform/payments/fintech_broker/wealth_mgmt cohort "
-    "tickers may flip to story_dcf_after_dcf_collapse engine on recompute. "
-    "Expected directional changes: NATCOPHARM ~3,393 -> ~1,000-1,200; "
-    "DRREDDY ~1,927 -> ~1,400; ZYDUSLIFE ~1,370 -> ~1,000; PAYTM / ZOMATO "
-    "/ MEESHO / SWIGGY may pick up StoryDcfBadge with confidence cap 50."
+DAY16_COMMENT = (
+    "119: feat/day16-hospital-chain (2026-05-19). New _HOSPITAL_CHAIN_TICKERS "
+    "sub-bucket in models/forecaster.py for 10 listed hospital + single-"
+    "specialty chains (MAXHEALTH/FORTIS/MEDANTA/KIMS/NH/APOLLOHOSP/ASTERDM/"
+    "RAINBOW/VIJAYA/AGARWALEYE). Lower WACC floor (0.085 vs default 0.09) + "
+    "raise terminal-g cap to 0.055 (vs default 0.04). Day-13 outlier scan "
+    "showed these systematically under-valued by 50-85% (MAXHEALTH 0.16x, "
+    "VIJAYA 0.15x, MEDANTA 0.26x, FORTIS 0.32x, KIMS 0.36x, APOLLOHOSP "
+    "0.39x). Root cause: standard CAPM ≈0.11 + default TG ≈0.04 misprice "
+    "this sub-sector because hospital service contracts are quasi-recurring "
+    "and Indian healthcare nominal spend has compounded 12-15% per decade "
+    "(Ayushman Bharat + insurance penetration + demographic aging). Both "
+    "_HOSPITAL_CHAIN_TICKERS and _HOSPITAL_CHAIN_TICKERS_TG sets stay synced "
+    "(Day-13 lesson — asymmetric WACC/TG sets produce mis-pricing). Wacc-g "
+    "spread = 0.030 — at Gordon-model safety threshold (exact equality). "
+    "Sector-scope: Pharma (sub-sector). Expected: MAXHEALTH ~₹197 -> ₹600+, "
+    "FORTIS ~₹353 -> ₹700+, MEDANTA ~₹342 -> ₹800+, KIMS ~₹290 -> ₹500+. "
+    "Diagnostics (LALPATHLAB/METROPOLIS) intentionally NOT included — "
+    "commodity pricing pressure makes them riskier than full-service "
+    "hospital chains."
 )
 
 
 def main() -> int:
     text = PATH.read_text(encoding="utf-8")
-    old = "CACHE_VERSION = 117"
-    new = f"CACHE_VERSION = 118  # {DAY14_COMMENT}  # # "
+    old = "CACHE_VERSION = 118"
+    new = f"CACHE_VERSION = 119  # {DAY16_COMMENT}  # # "
     if old not in text:
         print(f"FAIL: '{old}' not found in {PATH}")
         return 2
-    # Make sure we only edit the variable declaration once.
     count = text.count(old + "  #")
     if count != 1:
-        print(f"FAIL: expected exactly 1 declaration, found {count}")
+        print(f"FAIL: expected 1 declaration, found {count}")
         return 3
     new_text = text.replace(old + "  #", new + "#", 1)
     PATH.write_text(new_text, encoding="utf-8", newline="")
-    print(f"OK: bumped CACHE_VERSION 117 -> 118 in {PATH}")
+    print(f"OK: bumped CACHE_VERSION 118 -> 119 in {PATH}")
     return 0
 
 
