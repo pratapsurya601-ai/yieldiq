@@ -1,34 +1,37 @@
-"""Day-17 CACHE_VERSION bump utility — 119 -> 120."""
+"""Day-18+19 CACHE_VERSION bump utility — 120 -> 121."""
 from pathlib import Path
 
 PATH = Path(__file__).resolve().parents[1] / "backend" / "services" / "cache_service.py"
 
-DAY17_COMMENT = (
-    "120: feat/day17-recent-ipo-routing (2026-05-20). Tier-2 outlier "
-    "reduction PR #2 (after Day-16 hospital chain). Routes 5 under-valued "
-    "recent-IPO tickers to their proper peer cohorts. Sector overrides: "
-    "ITCHOTELS + ABLBL pinned to Retail (was 'Hotels'/'Hospitality' -> "
-    "no cohort -> plain DCF). Bank-like classifier: FIVESTAR + AADHARHFC "
-    "+ CANHLIFE added to _NBFC_INSURANCE_BANKLIKE and FINANCIAL_COMPANIES "
-    "(was producing FV ~7% of consensus by routing through generic DCF). "
-    "Financial peer groups: FIVESTAR -> lending_nbfc, AADHARHFC -> "
-    "premium_hfc, CANHLIFE -> life_insurance. Tier-2 sector resolution: "
-    "Hospitality / Hotels / Lodging now map to the retail peer cohort "
-    "(consumer-brand + store-expansion economics). IPO window: retail + "
-    "consumer cyclical lifted 36 -> 48 months to cover the 4y QSR "
-    "franchise ramp (WESTLIFE/DEVYANI/SAPPHIRE/ITCHOTELS/ABLBL all in "
-    "the 0-48mo bucket). Sector-scope: financial-services + retail + "
-    "consumer-cyclical (multi-sector by design — 3 separate sub-sectors "
-    "share the recent-IPO routing path). Expected directional shifts: "
-    "FIVESTAR ~Rs45 -> Rs500+, AADHARHFC ~Rs45 -> Rs500+, CANHLIFE "
-    "~Rs14 -> Rs160+, ITCHOTELS ~Rs16 -> Rs180+, ABLBL ~Rs10 -> Rs140+."
+DAY18_19_COMMENT = (
+    "121: feat/day18-19-logistics-cdmo (2026-05-20). Tier-2 outlier reduction "
+    "PR #3 (after Day-16 hospital + Day-17 recent-IPO routing). TWO additive "
+    "engine changes: (a) Day-18 logistics platforms (DELHIVERY/MAHLOG/ALLCARGO) "
+    "added to TICKER_SECTOR_OVERRIDES->Internet Platform, routing them through "
+    "the existing Story-DCF rescue rung when generic DCF collapses. DELHIVERY "
+    "also gets a per-ticker override in config/story_dcf_overrides.json "
+    "(initial_growth=0.22, target_op_margin=0.08, reinvestment_rate=0.70, "
+    "wacc=0.135) calibrated to actual analyst guidance. Live scan showed "
+    "DELHIVERY FV Rs64 vs 22-analyst consensus Rs528 (0.12x). (b) Day-19 "
+    "pharma CDMO/contract-services sub-bucket. New _PHARMA_CDMO_TICKERS "
+    "frozenset (DIVISLAB/SYNGENE/COHANCE/ANTHEM/SAGILITY/IKS, 6 names). "
+    "WACC floor 0.095 (midpoint between hospitals 0.085 and generic-pharma "
+    "0.105) + TG cap 0.045 (midpoint between hospitals 0.055 and generic "
+    "0.035). WACC-g spread = 0.050 (well above Gordon-model 0.030 threshold). "
+    "Justification: multi-year contracts (5-10y CDMO MSAs) + sticky "
+    "enterprise BPM contracts give revenue durability between generic "
+    "pharma and hospitals. Sector-scope: pharma + Internet Platform "
+    "(multi-sector by design). Expected: DELHIVERY ~Rs64 -> Rs450+, "
+    "COHANCE ~Rs92 -> Rs250+, ANTHEM ~Rs134 -> Rs450+, SAGILITY ~Rs35 "
+    "-> Rs55+, IKS ~Rs672 -> Rs1500+. SYNGENE/DIVISLAB already inside "
+    "rescue band — should tighten further toward consensus."
 )
 
 
 def main() -> int:
     text = PATH.read_text(encoding="utf-8")
-    old = "CACHE_VERSION = 119"
-    new = f"CACHE_VERSION = 120  # {DAY17_COMMENT}  # # "
+    old = "CACHE_VERSION = 120"
+    new = f"CACHE_VERSION = 121  # {DAY18_19_COMMENT}  # # "
     if old not in text:
         print(f"FAIL: '{old}' not found in {PATH}")
         return 2
@@ -38,7 +41,7 @@ def main() -> int:
         return 3
     new_text = text.replace(old + "  #", new + "#", 1)
     PATH.write_text(new_text, encoding="utf-8", newline="")
-    print(f"OK: bumped CACHE_VERSION 119 -> 120 in {PATH}")
+    print(f"OK: bumped CACHE_VERSION 120 -> 121 in {PATH}")
     return 0
 
 
