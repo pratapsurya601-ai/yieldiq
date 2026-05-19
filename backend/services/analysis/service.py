@@ -2453,6 +2453,142 @@ class AnalysisService(NarrativeMixin):
             _peer_cap_details = None
             _fair_value_source = "dcf"
 
+        # ── DCF-collapse safety net (feat/dcf-collapse-safety-net) ─
+        # Day-1 reconciliation (2026-05-19) showed 301 "we're too
+        # low" outliers, with the worst at sub-rupee FVs on ₹300-₹400
+        # stocks (INDIACEM ₹0.77 vs ₹405, etc.) — broken generic DCF
+        # collapsing the terminal value to near-zero. This block
+        # catches those + the 37 "too high" symmetric cases by
+        # checking FV/price ratio AFTER peer-cap has had its say.
+        #
+        # Conservative gates (see backend/services/dcf_collapse_safety_net.py):
+        #   • Only fires when ratio outside [0.1, 5.0].
+        #   • Never fires on dedicated sector engines (rate_base /
+        #     pb_ratio / appraisal_value / REIT / ETF / holdco /
+        #     realty / recent-IPO sector-relative).
+        #   • Never fires on cyclical-trough sectors (the trough
+        #     anchor at L1746 owns those — would double-correct).
+        #
+        # On success: swap in Tier 2 cohort FV + tag
+        #   `_fair_value_source = "tier2_fallback"` + audit caveat.
+        # On Tier 2 also unavailable: set `_dcf_collapse_unrescued`
+        # so the verdict block below forces `data_limited` rather
+        # than shipping a dishonest "Notably Undervalued at ₹0.77".
+        #
+        # Sector-scope: * (universal — applies to every generic-DCF
+        # ticker that escaped the existing sector branches).
+        _dcf_collapse_unrescued = False
+        try:
+            from backend.services.dcf_collapse_safety_net import (
+                attempt_tier2_fallback as _dcf_safety_fallback,
+                is_fv_unreasonable as _dcf_is_unreasonable,
+            )
+
+            # Mirror the same engine-label logic the response builder
+            # uses below so the safety net sees the actual engine that
+            # produced `iv`. This must stay in sync with the
+            # `valuation_method` derivation around L3725-3733.
+            if is_etf_ticker:
+                _engine_now = "etf_nav_based"
+            elif is_reit_ticker:
+                _engine_now = "reit_nav_dpu_required"
+            elif is_regulated_utility_ticker:
+                _engine_now = "rate_base"
+            elif locals().get("_is_recent_ipo") and locals().get("_fair_value_source") == "sector_relative_recent_ipo":
+                _engine_now = "sector_relative_recent_ipo"
+            elif is_financial:
+                _engine_now = "pb_ratio"
+            else:
+                _engine_now = _fair_value_source  # "dcf" or "peer_capped"
+
+            _sector_now = (
+                (locals().get("_enriched_sector") if isinstance(locals().get("_enriched_sector"), str) else None)
+                or (enriched.get("sector_name") if isinstance(enriched, dict) else None)
+                or (raw.get("sector_name") if isinstance(raw, dict) else None)
+                or (raw.get("sector") if isinstance(raw, dict) else None)
+                or (company.sector if getattr(company, "sector", None) else None)
+            )
+
+            if _dcf_is_unreasonable(iv, price):
+                # Build a minimal financials + peers payload for Tier 2.
+                _shares_sn = float(enriched.get("shares") or 0) or 0
+                _pat_sn = enriched.get("latest_pat")
+                _eps_sn: Optional[float] = None
+                if _shares_sn > 0 and _pat_sn is not None:
+                    try:
+                        _eps_sn = float(_pat_sn) / _shares_sn
+                    except Exception:
+                        _eps_sn = None
+                _fin_sn = {
+                    "eps": _eps_sn,
+                    "ebitda": enriched.get("ebitda"),
+                    "shares": _shares_sn,
+                    "roce": enriched.get("roce") or enriched.get("roce_pct"),
+                    "piotroski": piotroski.get("score") if isinstance(piotroski, dict) else None,
+                    "market_cap_cr": (
+                        (float(enriched.get("market_cap") or 0) / 1e7)
+                        if enriched.get("market_cap") else None
+                    ),
+                    "bvps": enriched.get("bvps"),
+                    "net_debt_cr": (
+                        (float(enriched.get("total_debt") or 0) - float(enriched.get("total_cash") or 0)) / 1e7
+                    ),
+                    "current_price": float(price) if price else None,
+                }
+
+                # Peer list: best-effort. The safety-net path is
+                # additive; if peer enrichment isn't available here
+                # we pass [] and let Tier 2 surface "no cohort" → None.
+                _peer_sn: list[dict] = []
+                try:
+                    from backend.services.peer_cap_service import (
+                        fetch_peer_records_for_ticker as _fetch_peers_sn,
+                    )
+                    _peer_sn = list(_fetch_peers_sn(ticker) or [])
+                except Exception:
+                    _peer_sn = []
+
+                _sn_result = _dcf_safety_fallback(
+                    ticker=ticker,
+                    current_fv=float(iv),
+                    current_price=float(price) if price else 0.0,
+                    sector=_sector_now,
+                    sector_engine_used=_engine_now,
+                    financials=_fin_sn,
+                    peers=_peer_sn,
+                )
+
+                if _sn_result is not None:
+                    _new_fv, _sn_source = _sn_result
+                    _data_issues = list(_data_issues) + [
+                        f"[dcf_collapse_safety_net] DCF FV (₹{float(iv):.2f}) "
+                        f"was unreasonable vs price (₹{float(price):.2f}); "
+                        f"substituted Tier 2 cohort FV (₹{_new_fv:.2f}). "
+                        f"Source: {_sn_source}."
+                    ]
+                    iv = round(float(_new_fv), 2)
+                    _fair_value_source = "tier2_fallback"
+                elif _engine_now in ("dcf", "peer_capped"):
+                    # Tier 2 also couldn't compute — honestly surface
+                    # as data_limited. The verdict block below reads
+                    # `_dcf_collapse_unrescued` and forces the verdict.
+                    _dcf_collapse_unrescued = True
+                    _data_issues = list(_data_issues) + [
+                        "[data_limited] DCF produced unreasonable FV vs "
+                        "price; sector-relative fallback also unavailable. "
+                        "Manual review needed."
+                    ]
+        except Exception as _sn_exc:  # noqa: BLE001
+            # The safety net must NEVER break analysis. Log and move on.
+            try:
+                import logging as _logging
+                _logging.getLogger("yieldiq.analysis").warning(
+                    "dcf_collapse_safety_net failed for %s: %s",
+                    ticker, _sn_exc,
+                )
+            except Exception:
+                pass
+
         # CRITICAL FIX (FIX1): mos_pct MUST be recomputed from the
         # post-adjustment `iv` so that the displayed MoS reconciles
         # with the displayed `fair_value` via (FV-CMP)/CMP. Prior
@@ -2591,7 +2727,16 @@ class AnalysisService(NarrativeMixin):
         # `enriched["income_df"]` too early in the pipeline. See the
         # post-CAGR override block below for the v2 implementation.
         _null_cagr_gate_tripped = False
-        if is_financial:
+
+        # ── DCF-collapse safety-net verdict override ─────────────
+        # When the safety net engaged AND Tier 2 also couldn't help,
+        # the only honest verdict is data_limited. Take this branch
+        # BEFORE the normal verdict tree below so the caveat already
+        # appended in _data_issues lines up with the verdict on the
+        # response.  See backend/services/dcf_collapse_safety_net.py.
+        if locals().get("_dcf_collapse_unrescued"):
+            verdict = "data_limited"
+        elif is_financial:
             # Financial companies: simple MoS verdict, NEVER "avoid"
             if iv <= 0:
                 verdict = "data_limited"
@@ -3922,7 +4067,14 @@ class AnalysisService(NarrativeMixin):
                     else (
                         "peer_capped"
                         if _fair_value_source == "peer_capped"
-                        else ("pb_residual_income" if is_financial else "dcf")
+                        else (
+                            # feat/dcf-collapse-safety-net: explicit
+                            # engine label so the frontend can render
+                            # the Tier 2 fallback provenance tooltip.
+                            "tier2_fallback"
+                            if _fair_value_source == "tier2_fallback"
+                            else ("pb_residual_income" if is_financial else "dcf")
+                        )
                     )
                 ),
                 # feat/peer-cap (2026-04-27): peer-multiple sanity
