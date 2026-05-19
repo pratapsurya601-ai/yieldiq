@@ -150,8 +150,15 @@ def is_fv_unreasonable(
         px = float(current_price) if current_price is not None else 0.0
     except (TypeError, ValueError):
         return False
-    if fv <= 0 or px <= 0:
+    if px <= 0:
         return False
+    # Day-5: treat FV=0 / negative as MORE collapsed than ratio < LO,
+    # not as "uncomputable." Platform stocks (PAYTM, NUVAMA, GROWW,
+    # MEESHO) routinely produce DCF=0 because trailing FCF is near
+    # zero. The safety-net path with Tier 2 + platform P/Sales is
+    # exactly designed to rescue these — must not skip them.
+    if fv <= 0:
+        return True
     ratio = fv / px
     return ratio < COLLAPSED_RATIO_LO or ratio > INFLATED_RATIO_HI
 

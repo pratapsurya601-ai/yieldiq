@@ -108,7 +108,15 @@ DIRECT_PEERS: dict[str, list[str]] = {
     "fmcg":               ["ITC.NS","HINDUNILVR.NS","NESTLEIND.NS","BRITANNIA.NS",
                            "DABUR.NS","VBL.NS","PAGEIND.NS","BERGEPAINT.NS",
                            "MARICO.NS","COLPAL.NS","GODREJCP.NS","EMAMILTD.NS"],
-    "pharma":             ["SUNPHARMA.NS","DRREDDY.NS","CIPLA.NS","DIVISLAB.NS"],
+    # Pharma cohort expanded 2026-05-19 Day-5 — original 4-peer set
+    # (SUNPHARMA/DRREDDY/CIPLA/DIVISLAB) was too thin to anchor mid-cap
+    # generic exporters and franchise-pharma names. Added AUROPHARMA,
+    # ZYDUSLIFE, LUPIN, TORNTPHARM, MANKIND, IPCALAB to give Tier 2
+    # cohort enough peers for the quality-bucketed split (premium/core/
+    # tail) to function properly.
+    "pharma":             ["SUNPHARMA.NS","DRREDDY.NS","CIPLA.NS","DIVISLAB.NS",
+                           "AUROPHARMA.NS","ZYDUSLIFE.NS","LUPIN.NS",
+                           "TORNTPHARM.NS","MANKIND.NS","IPCALAB.NS"],
     "capital_goods":      ["LT.NS","SIEMENS.NS","ABB.NS","CUMMINSIND.NS"],
     "auto_oem":           ["MARUTI.NS","TATAMOTORS.NS","M&M.NS","BAJAJ-AUTO.NS"],
     "oil_gas":            ["RELIANCE.NS","ONGC.NS","IOC.NS","BPCL.NS"],

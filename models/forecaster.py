@@ -1085,6 +1085,27 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
 
         # CAPM WACC
         wacc_floor = 0.09 if is_indian else 0.06
+
+        # Pharma WACC floor (2026-05-19 Day-5): industry_wacc.py specs
+        # wacc_default=0.115 for pharma, but CAPM with β=0.80, MRP=6%,
+        # Rf=7% delivers ~9.8-10.2%. The 130-150bps gap inflates DCF
+        # fair values by 15-18% via the perpetuity denominator, causing
+        # DRREDDY/ZYDUSLIFE/AUROPHARMA to over-shoot consensus.
+        # Anchor the CAPM result to the industry-tier spec when pharma
+        # is detected.
+        try:
+            _sector_for_floor = ""
+            if enriched:
+                _sector_for_floor = (
+                    enriched.get("sector_name")
+                    or enriched.get("sector")
+                    or ""
+                ).strip().lower()
+            if "pharma" in _sector_for_floor:
+                wacc_floor = max(wacc_floor, 0.105)  # half of 130bps gap
+        except Exception:
+            pass
+
         wacc = float(np.clip(
             e_w * re + d_w * rd * (1 - tax_rate),
             wacc_floor, 0.20,
@@ -1506,6 +1527,26 @@ class FCFForecaster:
         )
         _g_terminal_eff = TERMINAL_FADE_G + _terminal_g_adj
         _total_horizon = _explicit_years + _fade_years
+
+        # ── Pharma terminal-g cap (2026-05-19 Day-5) ──────────────
+        # Pharma generic exporters (DRREDDY, AUROPHARMA, ZYDUSLIFE,
+        # LUPIN, GLENMARK) face structural pricing pressure in the US
+        # generics market; their through-cycle revenue growth runs
+        # 3-5% per industry_wacc.py spec (terminal_growth=0.035).
+        # Default TERMINAL_FADE_G=0.04 is appropriate for branded/
+        # franchise pharma (SUNPHARMA, CIPLA, MANKIND, ABBOTINDIA,
+        # GLAXO, PFIZER) but too generous for generics. Cap at 0.035
+        # when the sector matches.
+        try:
+            _sector_for_pharma_cap = (
+                (enriched.get("sector_name") or enriched.get("sector") or "")
+                .strip().lower()
+            )
+            if "pharma" in _sector_for_pharma_cap and _g_terminal_eff > 0.035:
+                _g_terminal_eff = 0.035
+                enriched["_pharma_terminal_g_capped"] = True
+        except Exception:
+            pass
 
         # ── Capital-goods hyper-growth fade (added 2026-05-18, v113) ──
         # KAYNES sits at rev_3y ≈ 0.405; SIEMENS / SCHAEFFLER / ELGIEQUIP
