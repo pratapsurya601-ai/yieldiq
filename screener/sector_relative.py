@@ -77,6 +77,8 @@ PEER_GROUP_LABELS: dict[str, str] = {
     "chemicals":              "Indian Chemicals",
     "healthcare":             "Indian Healthcare",
     "retail":                 "Indian Retail",
+    "internet_platform":      "Indian Internet Platforms",
+    "fintech_broker":         "Indian Fintech / Online Broker",
     "power":                  "Indian Power & Utilities",
 }
 
@@ -135,6 +137,27 @@ DIRECT_PEERS: dict[str, list[str]] = {
     "retail":             ["DMART.NS","TRENT.NS","VMART.NS","SHOPERSTOP.NS",
                            "JUBLFOOD.NS","DEVYANI.NS","SAPPHIRE.NS",
                            "WESTLIFE.NS","ABFRL.NS"],
+
+    # ── Internet platforms (added 2026-05-19, Day 3) ──────────
+    # Indian consumer-internet and fintech-distribution platforms.
+    # Asset-light, growth-stage, near-zero or volatile FCF — DCF
+    # collapses, P/B doesn't apply, peer-relative P/Sales is the
+    # only defensible anchor. Damodaran's preferred approach for
+    # platform-shaped businesses.
+    #
+    # internet_platform: consumer-facing platforms (commerce, content,
+    #   discovery). PAYTM straddles fintech but its primary economics
+    #   are consumer-platform.
+    "internet_platform":  ["ZOMATO.NS","NAUKRI.NS","NYKAA.NS",
+                           "POLICYBZR.NS","PAYTM.NS","MEESHO.NS",
+                           "SWIGGY.NS","CARTRADE.NS"],
+
+    # fintech_broker: capital-markets distribution (broker, exchange,
+    #   depository, AMC distribution). Tighter unit economics than the
+    #   broader internet_platform bucket. Listed pure plays:
+    "fintech_broker":     ["NUVAMA.NS","GROWW.NS","ANGELONE.NS",
+                           "MOTILALOFS.NS","360ONE.NS","CDSL.NS",
+                           "BSE.NS","MCX.NS"],
     "power":              ["NTPC.NS","POWERGRID.NS","TATAPOWER.NS","ADANIGREEN.NS",
                            "NHPC.NS","SJVN.NS"],
 }
