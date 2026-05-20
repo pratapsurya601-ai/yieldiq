@@ -140,6 +140,61 @@ export const SCREENER_PRESETS: ScreenerPreset[] = [
     ],
     sort: "mos",
   },
+  // Day-33 (2026-05-20) — 5 sector-themed presets added per Day-27
+  // audit recommendation. Each uses only backend-allowed fields
+  // (pe_ratio / pb_ratio / roe / roce / de_ratio / market_cap_cr /
+  // mos / sector). Calibrated thresholds based on YieldIQ's existing
+  // sector-cohort medians, not external benchmarks.
+  {
+    key: "psu_power_bargains",
+    label: "PSU Power bargains",
+    description: "Government utilities trading below 12× earnings",
+    filters: [
+      { field: "sector", op: "=", value: "Utilities" },
+      { field: "pe_ratio", op: "<", value: "12" },
+    ],
+    sort: "mos",
+  },
+  {
+    key: "pharma_quality",
+    label: "Pharma quality",
+    description: "Strong return on equity across pharma names",
+    filters: [
+      { field: "sector", op: "=", value: "Pharma" },
+      { field: "roe", op: ">", value: "15" },
+    ],
+    sort: "roe",
+  },
+  {
+    key: "bargain_largecaps",
+    label: "Bargain large-caps",
+    description: "Market cap > ₹1,00,000 Cr trading 15%+ below fair value",
+    filters: [
+      { field: "market_cap_cr", op: ">", value: "100000" },
+      { field: "mos", op: ">", value: "15" },
+    ],
+    sort: "market_cap_cr",
+  },
+  {
+    key: "tech_leaders",
+    label: "Tech leaders",
+    description: "Indian IT services with > 20% ROCE",
+    filters: [
+      { field: "sector", op: "=", value: "Technology" },
+      { field: "roce", op: ">", value: "20" },
+    ],
+    sort: "roce",
+  },
+  {
+    key: "conservative_value",
+    label: "Conservative value",
+    description: "Low-debt names with positive margin of safety",
+    filters: [
+      { field: "de_ratio", op: "<", value: "0.5" },
+      { field: "mos", op: ">", value: "10" },
+    ],
+    sort: "mos",
+  },
 ]
 
 // Saved query storage (localStorage). We intentionally avoid putting this

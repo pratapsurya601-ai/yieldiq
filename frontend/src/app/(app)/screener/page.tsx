@@ -206,7 +206,10 @@ function ScreenerInner() {
       {showEmptyState ? (
         <div className="rounded-2xl border border-border bg-white p-6">
           <h2 className="text-sm font-semibold text-ink mb-3">Start with a preset</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Day-33 (2026-05-20): added lg:grid-cols-3 since
+              SCREENER_PRESETS expanded from 4 → 9 entries; 3-across
+              on desktop reads better than 2 rows of 4-5. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {SCREENER_PRESETS.map((p) => (
               <button
                 key={p.key}
