@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
+import WatchlistButton from "@/components/watchlist/WatchlistButton"
 import { cn } from "@/lib/utils"
 import EmptyState from "@/components/common/EmptyState"
 import type { ScreenerQueryRow } from "@/lib/screenerFilters"
@@ -209,9 +210,19 @@ export default function ResultsTable({ rows, total, isLoading, pageSize = 50, er
                   {columns.map((col) => (
                     <td key={col} className="px-3 py-2 whitespace-nowrap">
                       {col === "ticker" ? (
-                        <Link href={href} className="font-semibold text-blue-700 hover:underline">
-                          {tickerClean}
-                        </Link>
+                        /* Day-32 (2026-05-20): ticker cell now holds
+                           Link + icon-only WatchlistButton. Icon stays
+                           tight in the row (h-7 w-7) and triggers per-
+                           ticker membership check on render. */
+                        <span className="inline-flex items-center gap-1">
+                          <Link href={href} className="font-semibold text-blue-700 hover:underline">
+                            {tickerClean}
+                          </Link>
+                          <WatchlistButton
+                            ticker={tickerRaw}
+                            variant="icon-only"
+                          />
+                        </span>
                       ) : (
                         <span className="text-body">{formatCell(row[col])}</span>
                       )}
