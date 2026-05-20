@@ -150,9 +150,9 @@ export default function DiscoverPage() {
             )}
           </>
         ) : (
-          {/* Day-36 (2026-05-20): added dark:bg-surface dark:border-border
-              so the YieldIQ 50 warming-up card doesn't render as a
-              glaring white block on dark theme. */}
+          // Day-36 (2026-05-20): added dark:bg-surface dark:border-border
+          // so the YieldIQ 50 warming-up card doesn't render as a
+          // glaring white block on dark theme.
           <div className="bg-white dark:bg-surface border border-gray-100 dark:border-border rounded-xl p-6 text-center">
             <div className="mx-auto h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center mb-3">
               <svg className="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
