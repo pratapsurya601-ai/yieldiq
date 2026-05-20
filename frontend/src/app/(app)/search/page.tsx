@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import Fuse from "fuse.js"
 import type { IFuseOptions } from "fuse.js"
 import { cn } from "@/lib/utils"
@@ -338,11 +339,27 @@ export default function SearchPage() {
           </ul>
         )}
 
-        {/* No-results state */}
+        {/* No-results state — Day-37 (2026-05-20): added dark variants
+            + a Browse Screener CTA so the user has somewhere to go
+            when their query returns no matches. Previously the dialog
+            just stated the failure with no forward path. */}
         {showSuggestions && indexReady && query.length >= 2 && suggestions.length === 0 && (
-          <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg p-4 text-center">
-            <p className="text-sm text-gray-600">No stocks found for &ldquo;{query}&rdquo;</p>
-            <p className="text-xs text-gray-400 mt-1">Try the NSE ticker (e.g. RELIANCE) or full company name</p>
+          <div
+            className="absolute z-50 w-full mt-1 bg-white dark:bg-surface border border-gray-200 dark:border-border rounded-xl shadow-lg p-4 text-center space-y-2"
+            data-testid="search-no-results"
+          >
+            <p className="text-sm text-gray-600 dark:text-body">
+              No stocks found for &ldquo;{query}&rdquo;
+            </p>
+            <p className="text-xs text-gray-400 dark:text-caption">
+              Try the NSE ticker (e.g. RELIANCE) or full company name
+            </p>
+            <Link
+              href="/screener"
+              className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold transition"
+            >
+              Browse all stocks →
+            </Link>
           </div>
         )}
       </div>
