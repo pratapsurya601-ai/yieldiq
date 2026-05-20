@@ -1922,6 +1922,79 @@ async def get_health_stats(user: dict = Depends(require_admin)):
         finally:
             sess.close()
 
+        # ── Day-50 (2026-05-20): webhook events dashboard ──────
+        # Pulls from `webhook_event_log` (migration 019). The
+        # supabase client is used directly because the table lives
+        # in Supabase Postgres, not the analysis-cache DB. Block is
+        # wrapped in try/except so a missing table pre-migration
+        # doesn't 500 the entire health-stats endpoint.
+        webhook_block: dict = {
+            "by_type_24h": {},
+            "processed_count_24h": 0,
+            "duplicate_count_24h": 0,
+            "failed_count_24h": 0,
+            "dedupe_ratio_24h": None,
+            "last_failure_reason": None,
+            "last_failure_at": None,
+        }
+        try:
+            from db.supabase_client import get_admin_client as _get_sb
+            from datetime import timedelta
+            sb = _get_sb()
+            if sb is not None:
+                cutoff = (
+                    datetime.now(timezone.utc) - timedelta(hours=24)
+                ).isoformat()
+                # Pull the 24h slice once and aggregate in Python —
+                # the table is small (Razorpay sends ~10-100 events
+                # per day in our volume range) so a single roundtrip
+                # is cheaper than three filtered queries.
+                rows = (
+                    sb.table("webhook_event_log")
+                    .select("event_type,status,error,received_at")
+                    .gte("received_at", cutoff)
+                    .order("received_at", desc=True)
+                    .limit(5000)
+                    .execute()
+                ).data or []
+                by_type: dict[str, int] = defaultdict(int)
+                processed = duplicate = failed = 0
+                last_fail_reason: str | None = None
+                last_fail_at: str | None = None
+                for r in rows:
+                    et = r.get("event_type") or "?"
+                    by_type[et] += 1
+                    st = r.get("status")
+                    if st == "processed":
+                        processed += 1
+                    elif st == "duplicate":
+                        duplicate += 1
+                    elif st == "failed":
+                        failed += 1
+                        if last_fail_reason is None:
+                            # rows came back desc — first failed we
+                            # encounter is the most recent.
+                            last_fail_reason = r.get("error")
+                            last_fail_at = r.get("received_at")
+                accepted = processed + duplicate
+                dedupe_ratio = (
+                    round(duplicate / accepted, 3) if accepted > 0 else None
+                )
+                webhook_block = {
+                    "by_type_24h": dict(by_type),
+                    "processed_count_24h": processed,
+                    "duplicate_count_24h": duplicate,
+                    "failed_count_24h": failed,
+                    "dedupe_ratio_24h": dedupe_ratio,
+                    "last_failure_reason": last_fail_reason,
+                    "last_failure_at": last_fail_at,
+                }
+        except Exception as wh_exc:
+            logger.warning(
+                "health-stats webhook block failed (non-fatal): %s: %s",
+                type(wh_exc).__name__, wh_exc,
+            )
+
         return {
             "as_of": datetime.now(timezone.utc).isoformat(),
             "cache": {
@@ -1943,6 +2016,7 @@ async def get_health_stats(user: dict = Depends(require_admin)):
                 "rescues_attempted_24h": attempted,
                 "rescues_succeeded_24h": rescued,
             },
+            "webhook": webhook_block,
             "_meta": {
                 "note": (
                     "Warm coverage = fraction of analysis_cache rows at "
@@ -2063,6 +2137,26 @@ async def get_health_alerts(user: dict = Depends(require_admin)):
                     "warn", "story_dcf.rescue_rate_24h", rescue, 0.10,
                     f"Story-DCF rescue success rate {rescue:.0%} on {attempted} attempts. Operator should review config/story_dcf_overrides.json.",
                 )
+
+        # Day-50: webhook failure thresholds. >5 failed deliveries in
+        # 24h is unusual (typically zero); >20 means signature/parse
+        # is broken or the handler is throwing on every event — both
+        # block tier flips, so escalate.
+        wh_failed = stats.get("webhook", {}).get("failed_count_24h", 0) or 0
+        if wh_failed > 20:
+            _add(
+                "alert", "webhook.failed_count_24h", wh_failed, 20,
+                f"{wh_failed} webhook deliveries failed in 24h — "
+                "signature, parse, or handler likely broken; tier "
+                "flips are blocked. Check webhook.last_failure_reason.",
+            )
+        elif wh_failed > 5:
+            _add(
+                "warn", "webhook.failed_count_24h", wh_failed, 5,
+                f"{wh_failed} webhook deliveries failed in 24h. "
+                "Baseline is typically 0; investigate "
+                "webhook.last_failure_reason.",
+            )
 
         # Overall status: alert > warn > ok
         status = "ok"
