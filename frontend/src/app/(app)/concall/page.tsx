@@ -132,7 +132,10 @@ export default function ConcallPage() {
 
       {!result && (
         <>
-          <div className="grid grid-cols-2 gap-3 mb-4">
+          {/* Day-30 (2026-05-20): added grid-cols-1 mobile default; the
+              old grid-cols-2 squashed the ticker + period inputs into
+              ~150px columns on 375px-wide phones. */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             <div>
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Ticker (optional)</label>
               <input

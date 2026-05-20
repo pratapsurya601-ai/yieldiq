@@ -172,8 +172,13 @@ export default function ResultsTable({ rows, total, isLoading, pageSize = 50, er
         )}
       </div>
 
+      {/* Day-30 (2026-05-20): added min-w-[800px] on the table so its
+          natural width forces horizontal scroll on mobile (<768px). The
+          existing overflow-x-auto wrapper was correct but the table
+          collapsed to viewport width before scrolling could fire,
+          truncating columns. */}
       <div className="overflow-x-auto max-h-[70vh]">
-        <table className="w-full text-sm">
+        <table className="w-full min-w-[800px] text-sm">
           <thead className="sticky top-0 bg-bg border-b border-border z-10">
             <tr>
               {columns.map((col) => (
