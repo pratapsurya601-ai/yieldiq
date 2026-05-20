@@ -55,7 +55,7 @@ export default function SavedQueries({ reloadToken, onLoad, pathname }: SavedQue
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-white p-4">
+    <div className="rounded-2xl border border-border bg-white dark:bg-surface p-4">
       <h3 className="text-sm font-semibold text-ink mb-3">Saved queries</h3>
       <ul className="space-y-2">
         {queries.map((q) => (

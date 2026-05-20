@@ -118,9 +118,12 @@ export default function IncidentBanner() {
   // Tone: amber for "we had a thing", red if still open. Avoid green —
   // a banner with a green tone tells the visitor nothing useful.
   const isOpen = incident.ended_at === null || incident.ended_at === ""
+  // Day-36 (2026-05-20): added dark-mode variants. The banner sits at
+  // the top of every page — without dark counterparts it rendered as
+  // a glaring light-coloured strip across the dark layout.
   const toneClasses = isOpen
-    ? "bg-red-50 border-red-200 text-red-900"
-    : "bg-amber-50 border-amber-200 text-amber-900"
+    ? "bg-red-50 border-red-200 text-red-900 dark:bg-red-950/40 dark:border-red-900 dark:text-red-200"
+    : "bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200"
 
   return (
     <div

@@ -204,7 +204,7 @@ function ScreenerInner() {
       </header>
 
       {showEmptyState ? (
-        <div className="rounded-2xl border border-border bg-white p-6">
+        <div className="rounded-2xl border border-border bg-white dark:bg-surface p-6">
           <h2 className="text-sm font-semibold text-ink mb-3">Start with a preset</h2>
           {/* Day-33 (2026-05-20): added lg:grid-cols-3 since
               SCREENER_PRESETS expanded from 4 → 9 entries; 3-across
