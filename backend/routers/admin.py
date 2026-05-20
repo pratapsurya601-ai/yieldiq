@@ -1595,3 +1595,146 @@ async def audit_story_dcf_overrides(user: dict = Depends(require_admin)):
             status_code=500,
             detail=f"audit_story_dcf_overrides failed: {_sanitize_error(exc, 'story-dcf.audit')}",
         )
+
+
+# ─────────────────────────────────────────────────────────────────
+# Day-26 (2026-05-20): Perf dashboard endpoint.
+#
+# Validates the Week-1 perf cuts (Days 22-25) by querying
+# analysis_cache.compute_ms + payload.timings_ms (Day-24
+# instrumentation) and returning:
+#   - cache hit rate per cache_version
+#   - p50/p95 cold-compute latency per cache_version
+#   - p50/p95 per-step latency (when timings_ms is present)
+#   - tickers with the slowest compute_ms (helps spot regression)
+#
+# The dashboard renders this data; nothing to plot here — pure JSON.
+# ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/perf-stats")
+async def get_perf_stats(
+    limit: int = 1000,
+    user: dict = Depends(require_admin),
+):
+    """Latency + cache-hit telemetry for the last `limit` rows of
+    analysis_cache. Default 1000 rows ≈ last 6-12h of traffic.
+
+    Response shape:
+      {
+        "rows_inspected": <int>,
+        "by_cache_version": {
+          "124": { "n": 320, "p50_ms": 2700, "p95_ms": 4900, "max_ms": 17400 },
+          "117": { ... },  # older rows that survived for warm reads
+        },
+        "step_latency_p50_ms_by_step": {  # only rows with timings_ms
+          "step1_fetch": 89, "step5_wacc_forecast": 412, ...
+        },
+        "step_latency_p95_ms_by_step": { ... },
+        "rows_with_step_timings": <int>,
+        "slowest_tickers": [
+          {"ticker": "BLACKBUCK.NS", "v": "117", "compute_ms": 61086,
+           "engine": "dcf"},
+          ...
+        ],
+      }
+    """
+    try:
+        from collections import defaultdict
+        from data_pipeline.db import Session
+        from sqlalchemy import text as _t
+
+        sess = Session()
+        try:
+            rows = sess.execute(_t(
+                """
+                SELECT
+                    ticker, cache_version, compute_ms, computed_at,
+                    payload->'valuation'->>'valuation_engine_used' AS engine,
+                    payload->'timings_ms'                             AS timings
+                FROM analysis_cache
+                WHERE compute_ms IS NOT NULL
+                ORDER BY computed_at DESC
+                LIMIT :lim
+                """
+            ), {"lim": int(limit)}).fetchall()
+        finally:
+            sess.close()
+
+        # Bucket by cache_version
+        by_version: dict[str, list[int]] = defaultdict(list)
+        # Per-step accumulators
+        step_buckets: dict[str, list[int]] = defaultdict(list)
+        slowest: list[tuple[str, str, int, str]] = []
+        rows_with_step_timings = 0
+
+        for r in rows:
+            ticker, cache_v, compute_ms, _ts, engine, timings = r
+            if compute_ms is None:
+                continue
+            cv = str(cache_v) if cache_v is not None else "unknown"
+            by_version[cv].append(int(compute_ms))
+            slowest.append((str(ticker), cv, int(compute_ms), engine or "?"))
+            # timings_ms — JSON dict if present
+            if timings:
+                rows_with_step_timings += 1
+                # SQLAlchemy returns JSON as dict already in modern versions
+                if isinstance(timings, dict):
+                    for k, v in timings.items():
+                        try:
+                            step_buckets[k].append(int(v))
+                        except (TypeError, ValueError):
+                            pass
+
+        def _percentile(lst: list[int], q: float) -> int | None:
+            if not lst:
+                return None
+            s = sorted(lst)
+            idx = min(int(q * len(s)), len(s) - 1)
+            return s[idx]
+
+        by_version_summary = {}
+        for cv, ms_list in sorted(by_version.items()):
+            by_version_summary[cv] = {
+                "n": len(ms_list),
+                "p50_ms": _percentile(ms_list, 0.5),
+                "p95_ms": _percentile(ms_list, 0.95),
+                "max_ms": max(ms_list) if ms_list else None,
+            }
+
+        step_p50 = {
+            k: _percentile(v, 0.5) for k, v in step_buckets.items()
+        }
+        step_p95 = {
+            k: _percentile(v, 0.95) for k, v in step_buckets.items()
+        }
+
+        slowest.sort(key=lambda x: -x[2])
+        slowest_top = [
+            {"ticker": t, "v": v, "compute_ms": ms, "engine": e}
+            for t, v, ms, e in slowest[:30]
+        ]
+
+        return {
+            "rows_inspected": len(rows),
+            "by_cache_version": by_version_summary,
+            "step_latency_p50_ms_by_step": step_p50,
+            "step_latency_p95_ms_by_step": step_p95,
+            "rows_with_step_timings": rows_with_step_timings,
+            "slowest_tickers": slowest_top,
+            "_meta": {
+                "note": (
+                    "by_cache_version: latest version is the canonical "
+                    "current state. Earlier versions are pre-bump rows "
+                    "still in cache; their compute_ms is historical. "
+                    "step_latency: populated by Day-24 instrumentation; "
+                    "warm reads omit timings_ms so this only reflects "
+                    "cold computes since Day-24 deploy."
+                ),
+            },
+        }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"get_perf_stats failed: {_sanitize_error(exc, 'perf-stats')}",
+        )
