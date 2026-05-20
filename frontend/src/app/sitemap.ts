@@ -25,8 +25,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Dynamic stock pages from API
   let stockPages: MetadataRoute.Sitemap = []
   try {
+    // Day-40 (2026-05-20): revalidate cut from 86400 (24h) -> 3600 (1h)
+    // so newly-listed tickers surface in Google Search within an hour
+    // of being added to the public/all-tickers endpoint. Previously
+    // new IPOs took up to a day to enter the sitemap.
     const res = await fetch(`${API_BASE}/api/v1/public/all-tickers`, {
-      next: { revalidate: 86400 },
+      next: { revalidate: 3600 },
     })
     if (res.ok) {
       const tickers: { ticker: string; last_updated: string | null }[] = await res.json()
@@ -38,6 +42,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         lastModified: t.last_updated ? new Date(t.last_updated) : new Date(),
         changeFrequency: "daily" as const,
         priority: 0.7,
+      }))
+      // Day-40 (2026-05-20): /analysis/{ticker} added to sitemap. This is
+      // the actual user-facing entry surface (the /stocks/.../fair-value
+      // pages are SEO landing pages that link INTO /analysis). Previously
+      // Google indexed only the SEO landing pages, missing the canonical
+      // analysis URL entirely.
+      const analysisPages: MetadataRoute.Sitemap = tickers.map(t => ({
+        url: `https://yieldiq.in/analysis/${encodeURIComponent(t.ticker)}`,
+        lastModified: t.last_updated ? new Date(t.last_updated) : new Date(),
+        changeFrequency: "daily" as const,
+        priority: 0.9,  // higher than /stocks since this is the canonical surface
       }))
       // Hex SEO pages — one per active ticker. Display ticker (no .NS suffix)
       // since the route accepts bare symbols. Kept alongside /prism so any
@@ -57,7 +72,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         changeFrequency: "daily" as const,
         priority: 0.8,
       }))
-      stockPages = [...fairValuePages, ...hexPages, ...prismPages]
+      stockPages = [...fairValuePages, ...analysisPages, ...hexPages, ...prismPages]
     }
   } catch {
     // Sitemap generation should never fail — return static pages only
