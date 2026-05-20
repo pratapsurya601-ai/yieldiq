@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import api from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
+import { sentimentToneClass } from "@/lib/constants"
 import ConcallEmpty from "@/components/empty-states/ConcallEmpty"
 
 interface GuidanceItem {
@@ -47,11 +48,13 @@ CFO: We've seen a 4-5% increase in input costs this quarter. Our pricing actions
 Analyst 2: How do you see the rural slowdown impacting Q4?
 CEO: Rural is showing initial signs of recovery. We expect normal monsoons next year to drive a stronger H2 FY27.`
 
+// Day-34 (2026-05-20): sentimentColor() now delegates to
+// sentimentToneClass() from lib/constants.ts which keeps the palette
+// consistent with VerdictChip + PeerComparisonCard. The previous
+// inline palette diverged from VERDICT_COLORS (used raw green/red/
+// amber 50-800 triplets) and had no dark-mode variants.
 function sentimentColor(s: string): string {
-  if (s === "positive") return "bg-green-50 text-green-800 border-green-200"
-  if (s === "negative") return "bg-red-50 text-red-800 border-red-200"
-  if (s === "cautious") return "bg-amber-50 text-amber-800 border-amber-200"
-  return "bg-blue-50 text-blue-800 border-blue-200"
+  return sentimentToneClass(s)
 }
 
 export default function ConcallPage() {
