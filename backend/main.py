@@ -224,6 +224,8 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from backend.routers import analysis, screener, portfolio, watchlist, alerts, market, auth
 from backend.routers import payments, pipeline, email, referral, admin, public, tax, concall
+# Day-49 (2026-05-20): student verification automation
+from backend.routers import student_verify as student_verify_router
 from backend.routers import account as account_router
 from backend.routers import analytics as analytics_router
 from backend.routers import notifications as notifications_router
@@ -934,6 +936,8 @@ app.include_router(watchlist.router)
 app.include_router(alerts.router)
 app.include_router(market.router)
 app.include_router(payments.router)
+# Day-49: student-verify upload + admin review endpoints
+app.include_router(student_verify_router.router)
 app.include_router(pipeline.router)
 app.include_router(email.router)
 app.include_router(referral.router)

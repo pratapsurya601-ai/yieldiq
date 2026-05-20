@@ -545,6 +545,107 @@ def send_upgrade_confirmation_email(email: str, tier: str, name: str = "") -> bo
     return send_email(email, subject, html)
 
 
+def send_student_application_email(
+    email: str,
+    decision: str,
+    name: str = "",
+    rejection_reason: str | None = None,
+) -> bool:
+    """Day-49 (2026-05-20): student / CA articleship verification result.
+
+    Sent from /admin/student-applications/{id}/approve|reject.
+
+    decision="approved" → celebratory copy + CTA into the app.
+    decision="rejected" → bordered reason block + resubmit CTA.
+
+    Safe to call in a background thread; honours the unsubscribe
+    flag like every other transactional email in this module.
+    """
+    if is_user_unsubscribed(email):
+        return False
+
+    decision_lower = (decision or "").lower().strip()
+    display_name = name or email.split("@")[0].title()
+
+    if decision_lower == "approved":
+        subject = "Your YieldIQ Student access is approved"
+        body_html = f"""
+        <h1 style="margin:0;font-size:22px;color:#0F172A;font-weight:700;">
+          Welcome to YieldIQ Student, {display_name}
+        </h1>
+        <p style="margin:12px 0 0;color:#475569;font-size:14px;line-height:1.6;">
+          We've verified your application. Your account has been moved to
+          the Student plan effective immediately — no payment required.
+        </p>
+        <ul style="margin:16px 0 0;padding-left:20px;color:#334155;font-size:14px;line-height:1.8;">
+          <li>5 deep analyses every day</li>
+          <li>Unlimited watchlist + email alerts</li>
+          <li>Access expires at graduation — re-verify any time</li>
+        </ul>
+        <div style="margin-top:24px;">
+          <a href="https://yieldiq.in/search" style="display:inline-block;background-color:{BRAND_PRIMARY};color:#FFFFFF;
+            text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">
+            Start your first analysis →
+          </a>
+        </div>
+        """
+    else:
+        subject = "About your YieldIQ Student application"
+        reason_block = ""
+        if rejection_reason:
+            reason_block = f"""
+            <div style="margin-top:18px;padding:14px 16px;background-color:#FEF2F2;border-left:3px solid #DC2626;
+              border-radius:4px;color:#7F1D1D;font-size:13px;line-height:1.6;">
+              <strong>Why:</strong> {rejection_reason}
+            </div>
+            """
+        body_html = f"""
+        <h1 style="margin:0;font-size:22px;color:#0F172A;font-weight:700;">
+          We couldn't verify your application
+        </h1>
+        <p style="margin:12px 0 0;color:#475569;font-size:14px;line-height:1.6;">
+          Hi {display_name}, thanks for applying for YieldIQ Student access.
+          We weren't able to approve this submission.
+        </p>
+        {reason_block}
+        <p style="margin:16px 0 0;color:#475569;font-size:14px;line-height:1.6;">
+          You can resubmit at any time with a clearer scan of your
+          college ID or a current CA articleship enrolment letter.
+        </p>
+        <div style="margin-top:24px;">
+          <a href="https://yieldiq.in/account/student-verify" style="display:inline-block;background-color:{BRAND_PRIMARY};color:#FFFFFF;
+            text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">
+            Resubmit application →
+          </a>
+        </div>
+        """
+
+    html = f"""
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;padding:0;background-color:#F1F5F9;">
+      <tr>
+        <td align="center" style="padding:24px 16px;">
+          <table width="600" cellpadding="0" cellspacing="0" border="0"
+                 style="max-width:600px;width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#FFFFFF;">
+            <tr><td style="background-color:{HEADER_DARK};padding:36px 32px 28px;text-align:center;">
+              <span style="display:inline-block;width:44px;height:44px;background-color:{BRAND_PRIMARY};
+                color:#FFFFFF;font-size:22px;font-weight:800;line-height:44px;
+                text-align:center;border-radius:10px;letter-spacing:-1px;">Y</span>
+              <div style="color:#FFFFFF;font-size:22px;font-weight:700;letter-spacing:4px;padding-top:14px;">YIELDIQ</div>
+            </td></tr>
+            <tr><td style="padding:32px 32px 32px;">
+              {body_html}
+              <p style="margin:24px 0 0;color:#94A3B8;font-size:12px;line-height:1.5;">
+                Questions? Reply to this email or write to hello@yieldiq.in.
+              </p>
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+    """
+    return send_email(email, subject, html)
+
+
 def _verdict_color(verdict: str) -> str:
     """Return a color hex for the verdict badge."""
     v = verdict.lower()
