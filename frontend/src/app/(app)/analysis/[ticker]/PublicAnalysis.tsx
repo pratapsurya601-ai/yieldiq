@@ -125,14 +125,47 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
   const prism = raw ? adaptPrismResponse(raw, tickerUpper) : null
 
   if (isLoading) {
+    // Day-28 (2026-05-20): expanded loading skeleton to match the final
+    // layout — same outer container, breadcrumb + title heights, summary
+    // card with verdict-pill + 4-stat dl grid placeholders, hex on the
+    // right. Removes the ~300ms CLS burst when real data lands.
+    // Uses bg-subtle pulse to stay consistent with PrismSkeleton.
     return (
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-        <div className="h-4 w-40 bg-subtle rounded animate-pulse mb-3" />
-        <div className="h-10 w-64 bg-subtle rounded animate-pulse mb-6" />
-        <div className="grid lg:grid-cols-[1fr,1fr] gap-6">
-          <div className="h-72 bg-subtle rounded-2xl animate-pulse" />
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8">
+        {/* Breadcrumb + title placeholder */}
+        <header className="space-y-3">
+          <div className="h-4 w-48 bg-subtle rounded animate-pulse" />
+          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <div className="h-10 w-32 bg-subtle rounded animate-pulse" />
+            <div className="h-6 w-48 bg-subtle rounded animate-pulse" />
+          </div>
+        </header>
+
+        {/* Summary card + Prism placeholder — mirrors the final grid */}
+        <section className="grid lg:grid-cols-[1fr,auto] gap-6 items-start">
+          <div
+            className="bg-bg border border-border rounded-2xl p-6 shadow-sm space-y-5"
+            data-testid="public-analysis-loading-skeleton"
+          >
+            {/* Verdict pill placeholder — rounded-full chip ~28px */}
+            <div className="h-7 w-32 bg-subtle rounded-full animate-pulse" />
+            {/* 4-stat dl grid placeholder (2 cols mobile, 4 cols sm+) */}
+            <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-4 gap-y-3">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="space-y-2">
+                  <div className="h-3 w-20 bg-subtle/80 rounded animate-pulse" />
+                  <div className="h-6 w-24 bg-subtle rounded animate-pulse" />
+                </div>
+              ))}
+            </dl>
+            {/* Secondary band — fills the lower half of the card */}
+            <div className="space-y-2 pt-2">
+              <div className="h-3 w-3/4 bg-subtle/70 rounded animate-pulse" />
+              <div className="h-3 w-2/3 bg-subtle/70 rounded animate-pulse" />
+            </div>
+          </div>
           <PrismSkeleton />
-        </div>
+        </section>
       </main>
     )
   }

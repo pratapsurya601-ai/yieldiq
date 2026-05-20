@@ -57,16 +57,54 @@ function EmptyState() {
 }
 
 function Skeleton() {
+  // Day-28 (2026-05-20): skeleton now mirrors the actual table layout —
+  // header row with title + P&L badge + "See all" link, then 6-column
+  // table with 6 placeholder rows. Removes the layout shift when the
+  // live holdings render. Uses bg-border pulse to stay consistent with
+  // existing v2 panels.
   return (
-    <div className="bg-surface border border-border rounded-2xl p-4">
-      <div className="h-4 w-32 bg-border rounded animate-pulse mb-3" />
-      {[...Array(4)].map((_, i) => (
-        <div key={i} className="flex gap-2 py-1.5">
-          {[...Array(6)].map((_, j) => (
-            <div key={j} className="h-3 flex-1 bg-border rounded animate-pulse" />
-          ))}
+    <div
+      className="bg-surface border border-border rounded-2xl overflow-hidden"
+      data-testid="portfolio-panel-loading-skeleton"
+    >
+      {/* Header band — title + P&L badge + See all link */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <div className="space-y-1.5">
+          <div className="h-4 w-32 bg-border rounded animate-pulse" />
+          <div className="flex items-center gap-2">
+            <div className="h-3 w-16 bg-border/70 rounded animate-pulse" />
+            <div className="h-3 w-12 bg-border/70 rounded animate-pulse" />
+          </div>
         </div>
-      ))}
+        <div className="h-3 w-14 bg-border/70 rounded animate-pulse" />
+      </div>
+      {/* Table band — th row + 6 tr rows × 6 td cells */}
+      <div className="overflow-x-auto">
+        <table className="w-full">
+          <thead className="bg-bg/50 border-b border-border">
+            <tr>
+              {[0, 1, 2, 3, 4, 5].map((i) => (
+                <th key={i} className="px-2 py-2">
+                  <div className="h-3 w-12 bg-border rounded animate-pulse" />
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {[0, 1, 2, 3, 4, 5].map((row) => (
+              <tr key={row} className="border-b border-border last:border-b-0">
+                {[0, 1, 2, 3, 4, 5].map((col) => (
+                  <td key={col} className="px-2 py-2.5">
+                    <div
+                      className={`h-3 ${col === 0 ? "w-14" : "w-10 ml-auto"} bg-border/80 rounded animate-pulse`}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   )
 }
