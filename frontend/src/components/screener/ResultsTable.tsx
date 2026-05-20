@@ -100,7 +100,7 @@ export default function ResultsTable({ rows, total, isLoading, pageSize = 50, er
 
   if (isLoading) {
     return (
-      <div className="rounded-2xl border border-border bg-white overflow-hidden">
+      <div className="rounded-2xl border border-border bg-white dark:bg-surface overflow-hidden">
         <div className="px-4 py-3 border-b border-border">
           <div className="h-4 w-32 animate-pulse rounded bg-border/60" />
         </div>
@@ -145,7 +145,7 @@ export default function ResultsTable({ rows, total, isLoading, pageSize = 50, er
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-white overflow-hidden">
+    <div className="rounded-2xl border border-border bg-white dark:bg-surface overflow-hidden">
       <div className="px-4 py-3 border-b border-border flex items-center justify-between">
         <span className="text-sm font-semibold text-ink">{total.toLocaleString()} results</span>
         {pageCount > 1 && (
