@@ -44,6 +44,12 @@ EXPECTED_TESTIDS: list[tuple[str, str, str]] = [
     # Day-37: search no-results CTA
     ("search-no-results",
      "app/(app)/search/page.tsx", "37"),
+
+    # Day-40: JSON-LD structured data
+    ("jsonld-financialproduct",
+     "app/(app)/analysis/[ticker]/JsonLd.tsx", "40"),
+    ("jsonld-breadcrumb",
+     "app/(app)/analysis/[ticker]/JsonLd.tsx", "40"),
 ]
 
 
