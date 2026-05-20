@@ -1959,3 +1959,128 @@ async def get_health_stats(user: dict = Depends(require_admin)):
             status_code=500,
             detail=f"get_health_stats failed: {_sanitize_error(exc, 'health-stats')}",
         )
+
+
+# ─────────────────────────────────────────────────────────────────
+# Day-45 (2026-05-20): /admin/health-alerts — threshold checker.
+#
+# Reads /admin/health-stats, applies a fixed threshold table, and
+# returns the breaches (if any) plus an overall "status" tag the
+# nightly cron can branch on.
+#
+# Thresholds (tuned to YieldIQ operating norms as of Day-44):
+#   warm_coverage_pct           < 0.50  → WARN   (Day-25 auto-warmup should keep this > 0.70)
+#   warm_coverage_pct           < 0.20  → ALERT  (warmup job stuck)
+#   p95_latency_ms ANY engine   > 8000  → WARN   (Day-22/23 cuts had p95 < 3s; >8s suggests regression)
+#   p95_latency_ms ANY engine   > 20000 → ALERT  (likely yfinance retry chain or worker degradation)
+#   outliers.drift_gt_30pct     > 200   → WARN   (baseline ~140; >200 = engine regression candidate)
+#   outliers.fv_eq_zero_now     > 5     → WARN   (Day-5 safety-net should rescue; > 5 = bug)
+#   story_dcf.rescue_rate_24h   < 0.10  → WARN   (operator review of overrides)
+#                               < 0.02  → ALERT
+# ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/health-alerts")
+async def get_health_alerts(user: dict = Depends(require_admin)):
+    """Threshold check on /admin/health-stats. Returns:
+      {
+        "status": "ok" | "warn" | "alert",
+        "breaches": [{level, metric, value, threshold, message}, ...],
+        "stats_snapshot": {...},  # copy of /health-stats response
+      }
+    """
+    try:
+        # Reuse the health-stats computation to avoid drift between
+        # the two endpoints.
+        stats = await get_health_stats(user=user)
+
+        breaches: list[dict] = []
+
+        def _add(level: str, metric: str, value, threshold, message: str) -> None:
+            breaches.append({
+                "level": level,
+                "metric": metric,
+                "value": value,
+                "threshold": threshold,
+                "message": message,
+            })
+
+        # Cache warm-coverage
+        wc = stats.get("cache", {}).get("warm_coverage_pct")
+        if wc is not None:
+            if wc < 0.20:
+                _add(
+                    "alert", "cache.warm_coverage_pct", wc, 0.20,
+                    "Warmup job appears stuck; <20% of cache is at current CACHE_VERSION.",
+                )
+            elif wc < 0.50:
+                _add(
+                    "warn", "cache.warm_coverage_pct", wc, 0.50,
+                    "Cache still warming after recent CACHE_VERSION bump (Day-25 auto-trigger should push this past 0.70 within 30min).",
+                )
+
+        # p95 latency per engine
+        engine_p95 = stats.get("latency", {}).get("by_engine_p95_ms", {}) or {}
+        for engine, ms in engine_p95.items():
+            if ms is None:
+                continue
+            if ms > 20000:
+                _add(
+                    "alert", f"latency.p95.{engine}", ms, 20000,
+                    f"Engine '{engine}' p95 cold latency > 20s — likely yfinance retry chain blow-up or worker degradation.",
+                )
+            elif ms > 8000:
+                _add(
+                    "warn", f"latency.p95.{engine}", ms, 8000,
+                    f"Engine '{engine}' p95 cold latency > 8s (Day-22 baseline was ~3s).",
+                )
+
+        # Outliers
+        drift = stats.get("outliers", {}).get("drift_gt_30pct_now")
+        if drift is not None and drift > 200:
+            _add(
+                "warn", "outliers.drift_gt_30pct_now", drift, 200,
+                f"{drift} tickers drift >30% from consensus (baseline ~140). Investigate engine regression.",
+            )
+        fv_zero = stats.get("outliers", {}).get("fv_eq_zero_now")
+        if fv_zero is not None and fv_zero > 5:
+            _add(
+                "warn", "outliers.fv_eq_zero_now", fv_zero, 5,
+                f"{fv_zero} tickers have FV=0. Day-5 safety-net rescue should have caught these — bug suspected.",
+            )
+
+        # Story-DCF rescue rate
+        rescue = stats.get("story_dcf", {}).get("rescue_rate_24h")
+        attempted = stats.get("story_dcf", {}).get("rescues_attempted_24h", 0)
+        if rescue is not None and attempted >= 5:
+            if rescue < 0.02:
+                _add(
+                    "alert", "story_dcf.rescue_rate_24h", rescue, 0.02,
+                    f"Story-DCF rescue success rate {rescue:.0%} on {attempted} attempts. Override params likely producing negative EV (Day-20 lesson).",
+                )
+            elif rescue < 0.10:
+                _add(
+                    "warn", "story_dcf.rescue_rate_24h", rescue, 0.10,
+                    f"Story-DCF rescue success rate {rescue:.0%} on {attempted} attempts. Operator should review config/story_dcf_overrides.json.",
+                )
+
+        # Overall status: alert > warn > ok
+        status = "ok"
+        for b in breaches:
+            if b["level"] == "alert":
+                status = "alert"
+                break
+            if b["level"] == "warn":
+                status = "warn"
+        return {
+            "status": status,
+            "breaches": breaches,
+            "stats_snapshot": stats,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"get_health_alerts failed: {_sanitize_error(exc, 'health-alerts')}",
+        )
