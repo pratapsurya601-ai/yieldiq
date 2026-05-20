@@ -2119,6 +2119,33 @@ class AnalysisService(NarrativeMixin):
                     "enterprise_value": 0,
                     "equity_value": 0,
                 }
+                # Day-51 (2026-05-20): canary gate-3 fix for cyclicals
+                # routed through Tier-2 cohort after trough anchor fires.
+                #
+                # Without this re-clamp, trough_anchor_bear_iv stays
+                # pinned to 0.85 * price (computed when DCF was producing
+                # near-zero), but iv was just overridden to the Tier-2
+                # cohort FV which can be substantially below price.
+                # Result: bear (0.85 × price) > base (cohort FV) →
+                # canary gate-3 scenario_dispersion FAIL.
+                # Observed in canary 2026-05-20 on HINDALCO, HINDZINC,
+                # COROMANDEL, GUJGASLTD — all metals/cement/gas where
+                # the cohort engine produced a base FV well under price.
+                #
+                # Fix: when Tier-2 overrides iv after the trough anchor
+                # fired, re-anchor the bear/bull band so it can never
+                # bracket above/below the new base. Cap bear at 95% of
+                # the new iv (so bear ≤ base is guaranteed); floor bull
+                # at 105% of the new iv (so bull ≥ base is guaranteed).
+                # Still respects the original "cycle-priced-in" intent
+                # by keeping the band tied to price where possible.
+                if _trough_anchor_fired and price > 0:
+                    _trough_anchor_bear_iv = round(
+                        min(0.85 * price, iv * 0.95), 2,
+                    )
+                    _trough_anchor_bull_iv = round(
+                        max(1.10 * price, iv * 1.05), 2,
+                    )
 
         # ── Growth-stock override ─────────────────────────────
         # For pre-profit companies (FCF<=0 or PAT<=0) with real revenue,
