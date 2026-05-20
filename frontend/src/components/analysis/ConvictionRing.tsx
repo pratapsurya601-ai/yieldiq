@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { cn } from "@/lib/utils"
-import { SCORE_COLOR, SCORE_GRADE } from "@/lib/constants"
+import { SCORE_COLOR, SCORE_GRADE, VERDICT_COLORS } from "@/lib/constants"
 
 interface ConvictionRingProps {
   score: number
@@ -24,7 +24,15 @@ export default function ConvictionRing({ score, confidence, size = 140 }: Convic
 
   // Score-based color gradient: red (0-35), amber (35-55), blue (55-75), green (75-100)
   const scoreColor = safeScore >= 75 ? "#10B981" : safeScore >= 55 ? "#3B82F6" : safeScore >= 35 ? "#F59E0B" : "#EF4444"
-  const confidenceColor = safeConfidence >= 70 ? "#185FA5" : safeConfidence >= 40 ? "#B45309" : "#DC2626"
+  // Day-34 (2026-05-20): confidence colour pulls hex from VERDICT_COLORS
+  // (canonical source) instead of hardcoded literals — keeps the
+  // confidence ring in lockstep with VerdictChip / hero pill colours.
+  const confidenceColor =
+    safeConfidence >= 70
+      ? VERDICT_COLORS.undervalued.hex     // brand blue (high confidence)
+      : safeConfidence >= 40
+        ? VERDICT_COLORS.overvalued.hex   // amber (medium)
+        : VERDICT_COLORS.avoid.hex        // red (low)
   const grade = SCORE_GRADE(safeScore)
 
   // Gradient end color: complement the score color for visual depth

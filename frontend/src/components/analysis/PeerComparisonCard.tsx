@@ -1,22 +1,20 @@
 import Link from "next/link"
 import type { PublicPeersResponse } from "@/lib/api"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
+import { verdictClassesWithDark } from "@/lib/constants"
 
 interface Props {
   ticker: string
   data: PublicPeersResponse | null
 }
 
+// Day-34 (2026-05-20): the local verdictClasses() helper used to
+// duplicate the bg/text/border tailwind triplet inline AND diverged
+// from VERDICT_COLORS (green for undervalued vs canonical blue). Now
+// delegates to verdictClassesWithDark() in lib/constants.ts so peer
+// chips stay in lockstep with VerdictChip + the hero pill.
 function verdictClasses(v: string | null | undefined): string {
-  // Each verdict carries an explicit dark: variant so the chip text stays
-  // legible against the dark-mode card surface.
-  if (!v) return "bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
-  const k = v.toLowerCase()
-  if (k === "undervalued") return "bg-green-50 text-green-700 border-green-200 dark:bg-green-950/40 dark:text-green-300 dark:border-green-900"
-  if (k === "overvalued") return "bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900"
-  if (k === "avoid") return "bg-red-100 text-red-800 border-red-300 dark:bg-red-950/50 dark:text-red-200 dark:border-red-900"
-  if (k === "fairly_valued" || k === "fairly valued") return "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900"
-  return "bg-gray-50 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700"
+  return verdictClassesWithDark(v)
 }
 
 function verdictLabel(v: string | null | undefined): string {
