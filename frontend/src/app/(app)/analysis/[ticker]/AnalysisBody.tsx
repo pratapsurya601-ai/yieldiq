@@ -685,7 +685,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
   const scenarioBlock = data.scenarios && !dataLimited ? (
     <div className="bg-bg rounded-2xl border border-border p-5">
       <h2 className="text-sm font-semibold text-ink mb-4">Scenario Analysis</h2>
-      <div className="grid grid-cols-3 gap-3">
+      {/* Day-30 (2026-05-20): added grid-cols-1 mobile default. The
+          old grid-cols-3 squashed Bear/Base/Bull cards to ~100px wide
+          on 375px phones, truncating both the label and the FV value. */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {(["bear", "base", "bull"] as const).map((key) => {
           const sc = data.scenarios[key]
           const label = key === "bear" ? "Bear" : key === "base" ? "Base" : "Bull"

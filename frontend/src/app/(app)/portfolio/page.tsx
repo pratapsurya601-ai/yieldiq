@@ -243,7 +243,11 @@ function PortfolioInner() {
                     ({summary.total_pnl_pct >= 0 ? "+" : ""}{summary.total_pnl_pct.toFixed(2)}%)
                   </p>
                 </div>
-                <div className="grid grid-cols-3 gap-3 mt-4 pt-4 border-t border-white/20 text-xs">
+                {/* Day-30 (2026-05-20): added grid-cols-1 mobile
+                    default. The old grid-cols-3 squashed Invested /
+                    Current Value / P&L into ~110px columns on 375px
+                    phones, truncating the larger rupee values. */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4 pt-4 border-t border-white/20 text-xs">
                   <div>
                     <p className="opacity-80">Invested</p>
                     <p className="font-bold text-sm">{fmtRsCompact(summary.total_invested)}</p>
