@@ -442,11 +442,32 @@ async def verify_subscription(
         except Exception:
             pass
 
+        # Day-47 (2026-05-20): send post-checkout confirmation email
+        # off-thread so a slow SMTP path can't block the redirect. The
+        # tier flip already succeeded above; missing email is not fatal.
+        try:
+            import threading
+            from backend.services.email_service import send_upgrade_confirmation_email
+            threading.Thread(
+                target=send_upgrade_confirmation_email,
+                args=(user["email"], new_tier),
+                daemon=True,
+            ).start()
+        except Exception as _eml_exc:
+            logger.warning(
+                "verify-subscription: confirmation email dispatch failed for %s: %s",
+                user.get("email"), _eml_exc,
+            )
+
         return {
             "ok": True,
             "tier": new_tier,
             "subscription_id": razorpay_subscription_id,
             "message": f"Subscribed to {new_tier.title()} plan",
+            # Day-47 (2026-05-20): hand the frontend an explicit
+            # post-checkout destination so it can render the activation
+            # modal via the `?just_upgraded={tier}` query param.
+            "redirect_to": f"/account?just_upgraded={new_tier}",
         }
     except HTTPException:
         raise

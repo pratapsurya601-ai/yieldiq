@@ -448,6 +448,103 @@ def _get_top_undervalued_stocks(limit: int = 5) -> list[dict]:
     return []
 
 
+def send_upgrade_confirmation_email(email: str, tier: str, name: str = "") -> bool:
+    """Day-47 (2026-05-20): post-checkout confirmation email.
+
+    Sent from /verify-subscription after the tier flip succeeds. Tier-
+    specific copy with feature highlights + a primary next-action CTA.
+
+    Returns True if the email was queued (Resend accepted). False if
+    user is unsubscribed or the send failed. Safe to call in a
+    background thread alongside the existing send_welcome_email.
+
+    Tier copy
+    ─────────
+    analyst:   "Portfolio Prism unlocked. Import a broker account..."
+    pro:       "CSV/PDF export + API key unlocked..."
+    student:   "Student access approved. Same 5 daily analyses + watchlist."
+    """
+    if is_user_unsubscribed(email):
+        return False
+
+    tier_lower = (tier or "").lower().strip()
+    display_name = name or email.split("@")[0].title()
+
+    # Tier-specific feature block + CTA
+    tier_specs: dict[str, dict[str, str]] = {
+        "analyst": {
+            "title": "You're now on the Analyst plan",
+            "features": (
+                "<li>Unlimited daily analyses</li>"
+                "<li>Portfolio Prism — visualise your holdings against fair value</li>"
+                "<li>AI summary on every analysis</li>"
+                "<li>5 broker accounts you can connect</li>"
+            ),
+            "cta_label": "Import your first broker account",
+            "cta_href": "https://yieldiq.in/portfolio?tab=connect",
+        },
+        "pro": {
+            "title": "You're now on the Pro plan",
+            "features": (
+                "<li>Everything in Analyst</li>"
+                "<li>CSV + PDF export on any analysis</li>"
+                "<li>API key with 100 requests/day</li>"
+                "<li>10 broker accounts</li>"
+            ),
+            "cta_label": "Generate your first API key",
+            "cta_href": "https://yieldiq.in/account/api",
+        },
+        "student": {
+            "title": "Student access approved",
+            "features": (
+                "<li>5 daily analyses (same as Analyst evaluation)</li>"
+                "<li>Watchlist + email alerts</li>"
+                "<li>Access expires at graduation — re-verify any time</li>"
+            ),
+            "cta_label": "Start your first analysis",
+            "cta_href": "https://yieldiq.in/search",
+        },
+    }
+    spec = tier_specs.get(tier_lower, tier_specs["analyst"])
+
+    subject = f"{spec['title']} — YieldIQ"
+    html = f"""
+    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:0;padding:0;background-color:#F1F5F9;">
+      <tr>
+        <td align="center" style="padding:24px 16px;">
+          <table width="600" cellpadding="0" cellspacing="0" border="0"
+                 style="max-width:600px;width:100%;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background-color:#FFFFFF;">
+            <tr><td style="background-color:{HEADER_DARK};padding:36px 32px 28px;text-align:center;">
+              <span style="display:inline-block;width:44px;height:44px;background-color:{BRAND_PRIMARY};
+                color:#FFFFFF;font-size:22px;font-weight:800;line-height:44px;
+                text-align:center;border-radius:10px;letter-spacing:-1px;">Y</span>
+              <div style="color:#FFFFFF;font-size:22px;font-weight:700;letter-spacing:4px;padding-top:14px;">YIELDIQ</div>
+            </td></tr>
+            <tr><td style="padding:32px 32px 16px;">
+              <h1 style="margin:0;font-size:22px;color:#0F172A;font-weight:700;">{spec['title']}, {display_name}</h1>
+              <p style="margin:12px 0 0;color:#475569;font-size:14px;line-height:1.6;">
+                Your subscription is active. Here's what's now available on your account:
+              </p>
+              <ul style="margin:16px 0 0;padding-left:20px;color:#334155;font-size:14px;line-height:1.8;">{spec['features']}</ul>
+            </td></tr>
+            <tr><td style="padding:8px 32px 32px;">
+              <a href="{spec['cta_href']}" style="display:inline-block;background-color:{BRAND_PRIMARY};color:#FFFFFF;
+                text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;font-size:14px;">
+                {spec['cta_label']} →
+              </a>
+              <p style="margin:24px 0 0;color:#94A3B8;font-size:12px;line-height:1.5;">
+                Questions? Reply to this email or write to hello@yieldiq.in.<br/>
+                Manage subscription · <a href="https://yieldiq.in/account" style="color:{BRAND_PRIMARY};">/account</a>
+              </p>
+            </td></tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+    """
+    return send_email(email, subject, html)
+
+
 def _verdict_color(verdict: str) -> str:
     """Return a color hex for the verdict badge."""
     v = verdict.lower()
