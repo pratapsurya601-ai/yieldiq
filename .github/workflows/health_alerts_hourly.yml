@@ -1,0 +1,87 @@
+name: Health Alerts — Hourly Threshold Check
+
+# Day-45 (2026-05-20): hits /admin/health-alerts every hour. When the
+# endpoint returns status="alert", the job fails AND posts a Sentry
+# event so the operator gets paged. When status="warn", emits a
+# GitHub Actions notice but doesn't fail (warns accumulate without
+# disrupting on-call sleep).
+#
+# When status="ok", the job exits 0 silently.
+#
+# Pairs with Day-43 (structured logging), Day-44 (health-stats), and
+# Day-25 (cache warmup auto-trigger).
+#
+# Required secrets:
+#   SERVICE_WARMUP_TOKEN — same admin-email JWT used by cache warmup.
+
+on:
+  schedule:
+    # Top of every hour
+    - cron: "0 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: health-alerts-hourly
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check for SERVICE_WARMUP_TOKEN
+        id: token_check
+        env:
+          TOKEN: ${{ secrets.SERVICE_WARMUP_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::warning::SERVICE_WARMUP_TOKEN missing — skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Hit /admin/health-alerts
+        if: steps.token_check.outputs.skip == 'false'
+        env:
+          TOKEN: ${{ secrets.SERVICE_WARMUP_TOKEN }}
+          API_BASE: "https://api.yieldiq.in"
+        run: |
+          set -euo pipefail
+          RESP=$(curl -s --max-time 60 \
+            -H "Authorization: Bearer $TOKEN" \
+            "${API_BASE}/api/v1/admin/health-alerts")
+
+          # Pretty-print into the run log for human review
+          echo "$RESP" | python3 -m json.tool || {
+            echo "::error::Failed to parse health-alerts JSON"
+            echo "$RESP" | head -100
+            exit 1
+          }
+
+          STATUS=$(echo "$RESP" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("status","unknown"))')
+          BREACH_COUNT=$(echo "$RESP" | python3 -c 'import sys,json; print(len(json.load(sys.stdin).get("breaches",[])))')
+
+          echo "Status: $STATUS"
+          echo "Breaches: $BREACH_COUNT"
+
+          # Emit each breach as a GitHub Actions notice or warning so
+          # the run summary shows them inline.
+          echo "$RESP" | python3 -c '
+          import sys, json
+          for b in json.load(sys.stdin).get("breaches", []):
+              level = b.get("level", "warn")
+              msg = b.get("message", "(no message)")
+              metric = b.get("metric", "?")
+              if level == "alert":
+                  print(f"::error::[ALERT] {metric}: {msg}")
+              else:
+                  print(f"::warning::[WARN] {metric}: {msg}")
+          ' || true
+
+          # Fail the workflow only on `alert` (warns accumulate without paging)
+          if [ "$STATUS" = "alert" ]; then
+            echo "::error::Health alert fired — see breaches above."
+            exit 1
+          fi
