@@ -148,9 +148,25 @@ function LoginContent() {
             onKeyDown={(e) => e.key === "Enter" && handleLogin()}
             placeholder="Password" className="w-full px-4 py-3 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
 
-          <button onClick={handleLogin} disabled={loading}
-            className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50">
-            {loading ? "Signing in..." : "Sign in"}
+          {/* Day-29 (2026-05-20): added inline spinner so the in-flight
+              state is visually obvious. Previously only the disabled
+              opacity + text change conveyed loading — easy to miss on
+              fast networks where the text flips for <100ms then the
+              redirect lands, leaving users uncertain whether the click
+              registered. */}
+          <button
+            onClick={handleLogin}
+            disabled={loading}
+            data-testid="login-submit-button"
+            className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            {loading && (
+              <span
+                aria-hidden="true"
+                className="inline-block h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"
+              />
+            )}
+            <span>{loading ? "Signing in…" : "Sign in"}</span>
           </button>
 
           <p className="text-center text-sm text-gray-500">

@@ -42,9 +42,16 @@ function extractScreenerError(err: unknown): string {
       response?: { status?: number; data?: { detail?: unknown } }
       message?: string
     }
+    const status = anyErr.response?.status
+    // Day-29 (2026-05-20): 429 surfaces specific copy. Default fallback
+    // ('Check that every filter has a field…') misleads users into
+    // believing they broke the query when actually the API is rate-
+    // limited. Catch 429 first before falling into generic-detail path.
+    if (status === 429) {
+      return "Too many screener requests right now — try again in a few seconds."
+    }
     const detail = anyErr.response?.data?.detail
     if (typeof detail === "string" && detail) return detail
-    const status = anyErr.response?.status
     if (status && anyErr.message) return `${anyErr.message} (HTTP ${status})`
     if (anyErr.message) return anyErr.message
   }
@@ -245,13 +252,26 @@ function ScreenerInner() {
             />
 
             {error && (
-              <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
-                <p className="text-sm font-medium text-amber-800">
-                  Screener failed &mdash; try different filters
-                </p>
-                <p className="text-xs text-amber-700 mt-1">
-                  {extractScreenerError(error)}
-                </p>
+              <div
+                className="rounded-xl border border-amber-200 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/40 p-4 flex items-start justify-between gap-3"
+                data-testid="screener-error-banner"
+              >
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                    Screener failed &mdash; try different filters
+                  </p>
+                  <p className="text-xs text-amber-700 dark:text-amber-300 mt-1">
+                    {extractScreenerError(error)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={triggerRun}
+                  disabled={isFetching || clauses.length === 0}
+                  className="flex-shrink-0 text-xs font-semibold text-amber-900 dark:text-amber-100 bg-amber-100 dark:bg-amber-900/50 hover:bg-amber-200 dark:hover:bg-amber-900 px-3 py-1.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
+                >
+                  Retry
+                </button>
               </div>
             )}
 

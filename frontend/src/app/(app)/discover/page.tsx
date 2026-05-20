@@ -51,7 +51,11 @@ export default function DiscoverPage() {
     gcTime: 30 * 60 * 1000,
     retry: 2,
   })
-  const { data: yiq50 } = useQuery({
+  const {
+    data: yiq50,
+    refetch: refetchYiq50,
+    isFetching: yiq50Fetching,
+  } = useQuery({
     queryKey: ["yieldiq50", BUILD_ID],
     queryFn: async () => {
       const d = await getYieldIQ50()
@@ -154,9 +158,22 @@ export default function DiscoverPage() {
             </div>
             <p className="text-sm font-semibold text-gray-900 mb-1">YieldIQ 50 is warming up</p>
             <p className="text-xs text-gray-500 mb-4 max-w-xs mx-auto">Daily shortlist refreshes overnight &mdash; check back tomorrow morning.</p>
-            <Link href="/discover/screener" className="inline-flex items-center justify-center min-h-[40px] px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:scale-[0.98] transition">
-              Browse Screener &rarr;
-            </Link>
+            <div className="flex items-center justify-center gap-2">
+              {/* Day-29 (2026-05-20): added Refresh button so users
+                  with a transient empty response (cold cache, scheduler
+                  delay) can retry without reloading the whole page. */}
+              <button
+                type="button"
+                onClick={() => refetchYiq50()}
+                disabled={yiq50Fetching}
+                className="inline-flex items-center justify-center min-h-[40px] px-4 py-2 border border-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition"
+              >
+                {yiq50Fetching ? "Refreshing…" : "Refresh"}
+              </button>
+              <Link href="/discover/screener" className="inline-flex items-center justify-center min-h-[40px] px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:scale-[0.98] transition">
+                Browse Screener &rarr;
+              </Link>
+            </div>
           </div>
         )}
       </section>
