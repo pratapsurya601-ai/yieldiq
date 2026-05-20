@@ -22,6 +22,18 @@ on:
     - cron: "45 2 * * 1-5"
     - cron: "30 7 * * 1-5"
     - cron: "15 11 * * 1-5"
+  # Day-25 (2026-05-20): auto-trigger after any merge to main that
+  # touches backend/services/cache_service.py. Every CACHE_VERSION
+  # bump invalidates analysis_cache rows; without an immediate
+  # warmup the next scheduled run can be 4-12h away and ALL top-500
+  # tickers serve cache MISS (cold compute, ~2.7s p50) until then.
+  # The Day-14 -> Day-21 sprint bumped CACHE_VERSION 7 times and
+  # each one left users on cold-compute path for hours. This trigger
+  # closes that gap.
+  push:
+    branches: [main]
+    paths:
+      - 'backend/services/cache_service.py'
   workflow_dispatch:
     inputs:
       limit:
