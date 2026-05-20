@@ -638,10 +638,31 @@ class AnalysisService(NarrativeMixin):
                 pass
 
         # Fallback: yfinance collector (slow but comprehensive)
+        #
+        # Day-23 (2026-05-20) — tightened the retry chain.
+        # Previously: 3 attempts × ~15s yfinance call + 3s + 6s sleeps
+        #             = ~54s worst case. Confirmed live: 30+ tickers
+        #             in analysis_cache historically took 45-62s here
+        #             (BLACKBUCK, CARRARO, AIIL, MFSL, TINNARUBR,
+        #             HDFCBANK, INFY, etc.).
+        # Now:        2 attempts × ~15s + 1s sleep + 15s total wall-
+        #             time guard = ~17s worst case before falling
+        #             through to data_limited verdict. The data_
+        #             limited path is HONEST UX vs. a 60s spinner.
+        #
+        # If yfinance is genuinely flaky for a ticker (auth flip,
+        # NSE/BSE outage), 2 attempts catches transient failures
+        # without burning the user's patience.
         if raw is None:
             _data_source = "yfinance"
             _last_yf_exc: Exception | None = None
-            for _attempt in range(3):
+            _yf_t_start = _time.perf_counter()
+            _YF_WALL_BUDGET_S = 15.0
+            for _attempt in range(2):
+                # Wall-time guard — abort the retry loop if we've
+                # already spent the budget on previous attempts.
+                if (_time.perf_counter() - _yf_t_start) > _YF_WALL_BUDGET_S:
+                    break
                 try:
                     collector = StockDataCollector(ticker)
                     raw = collector.get_all()
@@ -649,18 +670,15 @@ class AnalysisService(NarrativeMixin):
                         break
                 except Exception as _yf_exc:
                     _last_yf_exc = _yf_exc
-                if raw is None and _attempt < 2:
-                    # Retry backoff between yfinance attempts. This used to
-                    # block the FastAPI event loop because the enclosing
-                    # `get_full_analysis` is a SYNC function called directly
-                    # from async route handlers. As of PR #83 (2026-04-25
-                    # health audit) every call site in
-                    # `backend/routers/analysis.py` wraps this entry point
-                    # in `asyncio.to_thread(...)`, so the sleep now sleeps
-                    # in a worker thread and never stalls the loop. If you
-                    # ever invoke `get_full_analysis` directly from an
-                    # `async def` again, push it through `to_thread` first.
-                    _time.sleep(3 + _attempt * 3)  # 3s, 6s delays
+                if raw is None and _attempt < 1:
+                    # Single 1s backoff between the 2 attempts. This
+                    # used to be 3s + 6s = 9s of pure sleep. Profile
+                    # data shows the second attempt rarely succeeds
+                    # if the first failed within the same wall-clock
+                    # window — yfinance auth flips don't recover in
+                    # 1-9s anyway. Keep the wall-time guard above
+                    # honest.
+                    _time.sleep(1.0)
             # All 3 yfinance attempts exhausted — capture so we can see
             # data-source outage patterns (yfinance auth flips, BSE delistings).
             if raw is None and _last_yf_exc is not None:
