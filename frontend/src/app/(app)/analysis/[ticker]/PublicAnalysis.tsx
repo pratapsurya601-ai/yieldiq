@@ -27,6 +27,7 @@ import { adaptPrismResponse } from "@/lib/prism"
 import Prism from "@/components/prism/Prism"
 import PrismSkeleton from "@/components/prism/PrismSkeleton"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
+import WatchlistButton from "@/components/watchlist/WatchlistButton"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
 import FvConfidenceBand from "@/components/analysis/FvConfidenceBand"
 import {
@@ -272,7 +273,15 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
           <h1 className="font-display text-3xl sm:text-4xl font-black text-ink tracking-tight">
             {displayTicker}
           </h1>
-          <p className="text-body text-lg">{companyDisplay}</p>
+          <p className="text-body text-lg flex-1 min-w-0">{companyDisplay}</p>
+          {/* Day-32 (2026-05-20): WatchlistButton placed in the hero —
+              first chance the user has to save a ticker. Unauthed
+              clicks redirect to /auth/login (with return_to). */}
+          <WatchlistButton
+            ticker={tickerUpper}
+            companyName={company_name ?? ""}
+            variant="compact"
+          />
         </div>
       </header>
 
