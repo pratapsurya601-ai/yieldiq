@@ -120,6 +120,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title,
     description,
     robots: noindex ? { index: false, follow: false } : undefined,
+    // Day-41 (2026-05-20): canonical URL prevents Google from
+    // indexing URL variants (?utm_source=foo, ?ref=bar) as separate
+    // pages. Always points at the bare /analysis/{ticker} URL.
+    alternates: {
+      canonical: `https://yieldiq.in/analysis/${ticker}`,
+    },
     openGraph: {
       title,
       description,
@@ -132,6 +138,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
           width: 1200,
           height: 630,
           alt: `${displayTicker} stock analysis on YieldIQ`,
+          // Day-42 (2026-05-20): og:image:type for older scrapers
+          type: "image/png",
         },
       ],
     },

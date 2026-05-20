@@ -50,6 +50,10 @@ EXPECTED_TESTIDS: list[tuple[str, str, str]] = [
      "app/(app)/analysis/[ticker]/JsonLd.tsx", "40"),
     ("jsonld-breadcrumb",
      "app/(app)/analysis/[ticker]/JsonLd.tsx", "40"),
+
+    # Day-41: classification breadcrumb
+    ("breadcrumb-classification",
+     "components/analysis/Breadcrumb.tsx", "41"),
 ]
 
 

@@ -1,11 +1,42 @@
+# Day-42 (2026-05-20): explicit Allow rules for the three SEO-eligible
+# stock surfaces (/stocks/.../fair-value, /prism, /hex) plus a default
+# Crawl-delay for non-Google bots. Google ignores Crawl-delay (uses
+# its own throttling); the directive only constrains Bingbot, Yandex,
+# etc. that have historically hammered the YieldIQ backend during
+# index crawls.
+
 User-agent: *
 Allow: /
 Allow: /analysis/
+Allow: /stocks/
+Allow: /prism/
+Allow: /hex/
 Allow: /features
 Allow: /pricing
 Allow: /terms
 Allow: /privacy
+Allow: /blog/
+Allow: /compare/
 
+Disallow: /api/
+Disallow: /auth/
+Disallow: /onboarding
+Disallow: /account
+
+Crawl-delay: 1
+
+# Google ignores Crawl-delay but uses its own adaptive throttling.
+# Repeat the Allow rules under the Googlebot agent so the explicit
+# allowlist applies to Google too. Removing Crawl-delay for Google
+# also avoids the "ignored directive" warning in Search Console.
+User-agent: Googlebot
+Allow: /
+Allow: /analysis/
+Allow: /stocks/
+Allow: /prism/
+Allow: /hex/
+Allow: /blog/
+Allow: /compare/
 Disallow: /api/
 Disallow: /auth/
 Disallow: /onboarding
