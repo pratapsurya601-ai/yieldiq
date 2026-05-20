@@ -279,17 +279,48 @@ function ScreenerInner() {
   )
 }
 
+function ScreenerSkeleton() {
+  // Day-28 (2026-05-20): replaces the blank-spinner Suspense fallback with
+  // a static placeholder that mirrors the real ScreenerInner empty-state
+  // (title + 4-preset grid). Suspense bailout happens because the inner
+  // component uses useSearchParams(); we can't render anything that reads
+  // the URL here, but we CAN render the surrounding chrome eagerly so
+  // first paint shows the screener identity instead of a generic spinner.
+  // Eagerly references SCREENER_PRESETS so preset labels are SSR-friendly.
+  return (
+    <main
+      className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-6"
+      data-testid="screener-loading-skeleton"
+    >
+      <header className="space-y-2">
+        <h1 className="font-display text-3xl font-black text-ink tracking-tight">
+          Screener
+        </h1>
+        <p className="text-sm text-caption">
+          Filter Indian stocks by valuation, quality, and growth.
+        </p>
+      </header>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        {SCREENER_PRESETS.map((p) => (
+          <div
+            key={p.key}
+            className="rounded-xl border border-border bg-surface px-4 py-3 space-y-2 animate-pulse"
+          >
+            <div className="text-sm font-semibold text-ink/70">{p.label}</div>
+            <div className="h-3 w-3/4 bg-border rounded" />
+          </div>
+        ))}
+      </div>
+      <div className="h-64 bg-surface border border-border rounded-2xl animate-pulse" />
+    </main>
+  )
+}
+
 export default function ScreenerPage() {
   // useSearchParams requires a Suspense boundary during static rendering;
   // see Next docs on the use-search-params bailout.
   return (
-    <Suspense
-      fallback={
-        <div className="flex items-center justify-center py-20">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-        </div>
-      }
-    >
+    <Suspense fallback={<ScreenerSkeleton />}>
       <ScreenerInner />
     </Suspense>
   )
