@@ -54,9 +54,32 @@ function QuotaBanner({ remaining }: { remaining: number }) {
 }
 
 function PanelFallback({ label }: { label: string }) {
+  // Day-29 (2026-05-20): closes Day-27 audit HIGH issue — fallback was
+  // a generic "{label} temporarily unavailable" with no recovery path.
+  // Now: shows the label, a brief explanation, and a Try again button
+  // that reloads the page (panel-level refetch isn't possible from
+  // inside the ErrorBoundary fallback since each panel owns its own
+  // React Query state). Acceptable UX for a transient panel failure.
   return (
-    <div className="bg-surface border border-border rounded-2xl p-4">
-      <p className="text-xs text-body">{label} temporarily unavailable.</p>
+    <div
+      className="bg-surface border border-border rounded-2xl p-4 space-y-2"
+      data-testid={`panel-fallback-${label.toLowerCase().replace(/\s+/g, "-")}`}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="text-xs font-semibold text-ink">{label} unavailable</p>
+          <p className="text-[11px] text-caption mt-0.5">
+            This panel failed to load. The rest of the page is unaffected.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="flex-shrink-0 text-[11px] font-semibold text-brand hover:underline focus:underline focus:outline-none"
+        >
+          Try again
+        </button>
+      </div>
     </div>
   )
 }
