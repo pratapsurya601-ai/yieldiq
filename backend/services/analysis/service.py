@@ -594,6 +594,22 @@ class AnalysisService(NarrativeMixin):
         """
         _ts = datetime.now().isoformat()
 
+        # ── Day-24 (2026-05-20): per-step latency instrumentation ─
+        # Populates a dict that's attached to AnalysisResponse._timings
+        # so the Day-26 perf dashboard can answer "which step dominates
+        # the 2.7s cold p50?" Adds < 100ns per call (perf_counter).
+        # NOT a behaviour change; pure observability.
+        import time as _time_t  # local alias — `_time` is reassigned downstream in Step 1
+        _t_inner_start = _time_t.perf_counter()
+        _t_step = _t_inner_start
+        _timings_steps: dict[str, int] = {}
+
+        def _record_step(name: str) -> None:
+            nonlocal _t_step
+            now = _time_t.perf_counter()
+            _timings_steps[name] = int((now - _t_step) * 1000)
+            _t_step = now
+
         # ── Step 1: Fetch data ────────────────────────────────
         # Try local DB + Parquet first (~100ms). Fall back to
         # yfinance collector (~20-30s) only if local data is
@@ -690,6 +706,8 @@ class AnalysisService(NarrativeMixin):
                 except Exception:
                     pass
 
+        _record_step("step1_fetch")
+
         # ── Step 2: Validate ──────────────────────────────────
         validation = validate_stock_data(ticker, raw)
         _raw_confidence = validation.confidence if validation else "medium"
@@ -732,6 +750,8 @@ class AnalysisService(NarrativeMixin):
                 data_issues=_data_issues,
                 timestamp=_ts,
             )
+
+        _record_step("step2_validate")
 
         # ── Step 3: Compute metrics ───────────────────────────
         enriched = compute_metrics(raw)
@@ -1034,6 +1054,8 @@ class AnalysisService(NarrativeMixin):
             ticker, _enriched_sector, _enriched_industry,
         )
 
+        _record_step("step3_metrics")
+
         # ── Step 4: Build company info ────────────────────────
         _raw_sector = enriched.get("sector_name", raw.get("sector_name", ""))
         _display_name = COMPANY_NAME_OVERRIDES.get(ticker, raw.get("company_name", ticker))
@@ -1062,6 +1084,8 @@ class AnalysisService(NarrativeMixin):
             market_cap_source="live_price_x_shares",
             shares_outstanding_source=_data_source,
         )
+
+        _record_step("step4_company")
 
         # ── Step 5: WACC + Forecast ───────────────────────────
         # Try TTM data from local DB first, then annual, then yfinance.
@@ -1362,6 +1386,8 @@ class AnalysisService(NarrativeMixin):
         _trough_anchor_fired = False
         _trough_anchor_bear_iv: float | None = None
         _trough_anchor_bull_iv: float | None = None
+
+        _record_step("step5_wacc_forecast")
 
         # ── Step 6: Valuation (rate-base / P/B / DCF) ─────────────
         # Branch priority:
@@ -2120,6 +2146,8 @@ class AnalysisService(NarrativeMixin):
 
         mos_pct = margin_of_safety(iv, price) * 100 if price > 0 else 0
 
+        _record_step("step6_valuation")
+
         # ── Step 7: Quality checks & insight sub-computes (PARALLEL) ──
         # All of these are pure reads over `enriched` / `raw` / scalar
         # inputs already computed above. They don't mutate self or share
@@ -2778,6 +2806,8 @@ class AnalysisService(NarrativeMixin):
             _total = max(0, min(100, _v + _q + _g))
             yiq_score = {"score": _total, "grade": "A" if _total >= 75 else "B" if _total >= 55 else "C" if _total >= 35 else "D" if _total >= 20 else "F"}
 
+        _record_step("step7_quality")
+
         # ── Step 8: Scenarios ─────────────────────────────────
         # `scenarios_raw` was computed in the parallel wave above
         # (empty dict for financials by design).
@@ -2796,6 +2826,8 @@ class AnalysisService(NarrativeMixin):
                 growth=d.get("growth", 0), wacc=d.get("wacc", wacc),
                 term_g=d.get("term_g", terminal_g),
             )
+
+        _record_step("step8_scenarios")
 
         # ── Step 9: Insights ──────────────────────────────────
         try:
@@ -2856,6 +2888,8 @@ class AnalysisService(NarrativeMixin):
                     )
             except (ValueError, TypeError):
                 pass
+
+        _record_step("step9_insights")
 
         # ── Step 10: Verdict ──────────────────────────────────
         _conf_score = confidence.get("score", 50)
@@ -4138,9 +4172,22 @@ class AnalysisService(NarrativeMixin):
                 ticker, type(_vg_exc).__name__, _vg_exc,
             )
 
+        # Day-24: record Step 10 and finalise timings just before the
+        # response is built. total_inner_ms is wall-clock for the entire
+        # _get_full_analysis_inner call (excludes outer get_full_analysis
+        # validators + AI narrative + translations layers).
+        try:
+            _record_step("step10_verdict")
+            _timings_steps["total_inner_ms"] = int(
+                (_time_t.perf_counter() - _t_inner_start) * 1000
+            )
+        except Exception:
+            pass
+
         return AnalysisResponse(
             ticker=ticker,
             company=company,
+            timings_ms=_timings_steps if _timings_steps else None,
             valuation=ValuationOutput(
                 fair_value=round(iv, 2),
                 current_price=round(price, 2),

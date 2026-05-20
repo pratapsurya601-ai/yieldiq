@@ -554,6 +554,17 @@ class AnalysisResponse(BaseModel):
     # See backend/services/validators/stability.py for the structural
     # check that fires when this is missing on a fresh compute.
     computation_inputs: Optional[dict] = None
+    # Day-24 (2026-05-20) — per-step latency breakdown (milliseconds).
+    # Populated on cold compute by ``_get_full_analysis_inner`` at each
+    # Step N boundary in service.py. Lets the perf dashboard (Day-26)
+    # answer "which step dominates the 2.7s cold p50?" Optional —
+    # warm cache hits and legacy payloads omit this field.
+    # Keys: step1_fetch, step2_validate, step3_metrics, step4_company,
+    # step5_wacc_forecast, step6_valuation, step7_quality, step8_scenarios,
+    # step9_insights, step10_verdict, total_inner_ms.
+    # NOTE: name avoids leading underscore — Pydantic v2 treats `_foo`
+    # as a PrivateAttr which is excluded from serialisation.
+    timings_ms: Optional[dict[str, int]] = None
 
 
 # ── Screener response ─────────────────────────────────────────
