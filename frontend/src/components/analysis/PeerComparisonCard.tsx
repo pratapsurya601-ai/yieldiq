@@ -2,6 +2,7 @@ import Link from "next/link"
 import type { PublicPeersResponse } from "@/lib/api"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
 import { verdictClassesWithDark } from "@/lib/constants"
+import { formatNumberWithSuffix, formatPctSigned } from "@/lib/utils"
 
 interface Props {
   ticker: string
@@ -33,15 +34,12 @@ function verdictLabel(v: string | null | undefined): string {
   return v.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())
 }
 
-function fmtPct(v: number | null | undefined, decimals = 1): string {
-  if (v == null || isNaN(v)) return "\u2014"
-  return `${v >= 0 ? "+" : ""}${v.toFixed(decimals)}%`
-}
-
-function fmtNum(v: number | null | undefined, decimals = 1, suffix = ""): string {
-  if (v == null || isNaN(v)) return "\u2014"
-  return `${v.toFixed(decimals)}${suffix}`
-}
+// Day-35 (2026-05-20): local fmtPct / fmtNum replaced by canonical
+// helpers from lib/utils.ts. The local versions diverged on the
+// em-dash fallback path (isNaN check ignored +/- Infinity) and the
+// default decimal precision. One source of truth now.
+const fmtPct = formatPctSigned
+const fmtNum = formatNumberWithSuffix
 
 function Placeholder({ ticker }: { ticker: string }) {
   return (
