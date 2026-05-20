@@ -806,6 +806,49 @@ def _extract_amount_paise(payload: dict, logger) -> tuple[int | None, str]:
     return None, "INR"
 
 
+def _log_webhook_attempt(
+    event_id: str | None,
+    event_type: str | None,
+    status: str,
+    error: str | None,
+    logger,
+) -> None:
+    """Day-50 (2026-05-20): write one row to `webhook_event_log`
+    per delivery attempt for ops visibility.
+
+    status ∈ {'processed', 'duplicate', 'failed'}. Failures across
+    different parts of the handler (signature, parse, handler crash)
+    all flow through this single sink so the dashboard's
+    "last failure reason" is meaningful.
+
+    Best-effort — if the log insert itself fails we swallow the
+    error. Losing visibility into a single delivery is acceptable;
+    breaking the live tier-flip pipeline because the log table is
+    momentarily unhappy is not.
+    """
+    try:
+        from db.supabase_client import get_admin_client
+        client_sb = get_admin_client()
+        if client_sb is None:
+            return
+        # Truncate the error string aggressively — Postgres TEXT is
+        # unbounded but a 2KB cap keeps a runaway traceback from
+        # bloating the table and the dashboard payload.
+        err = (error or "")[:2048] if error else None
+        client_sb.table("webhook_event_log").insert({
+            "provider": "razorpay",
+            "event_id": event_id,
+            "event_type": event_type,
+            "status": status,
+            "error": err,
+        }).execute()
+    except Exception as log_exc:
+        logger.debug(
+            "webhook_event_log insert failed (non-fatal): %s: %s",
+            type(log_exc).__name__, log_exc,
+        )
+
+
 def _claim_webhook_event(event_id: str, event_type: str, logger) -> bool:
     """Attempt to claim this event_id in `webhook_events`.
 
@@ -922,6 +965,14 @@ async def razorpay_webhook(request: Request):
             "webhook signature verification failed: %s: %s",
             type(e).__name__, e,
         )
+        # Day-50: visibility into rejected deliveries
+        _log_webhook_attempt(
+            event_id=None,
+            event_type=None,
+            status="failed",
+            error=f"signature: {type(e).__name__}: {e}",
+            logger=logger,
+        )
         raise HTTPException(status_code=400, detail="Invalid signature")
 
     # 2. Parse body.
@@ -929,6 +980,13 @@ async def razorpay_webhook(request: Request):
         payload = json.loads(body_bytes.decode("utf-8"))
     except Exception as e:
         logger.error("webhook body parse failed: %s", e)
+        _log_webhook_attempt(
+            event_id=None,
+            event_type=None,
+            status="failed",
+            error=f"parse: {type(e).__name__}: {e}",
+            logger=logger,
+        )
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
     event = payload.get("event", "")
@@ -953,7 +1011,23 @@ async def razorpay_webhook(request: Request):
     _dedup_event_id = _razorpay_event_id(payload)
     if _dedup_event_id and _claim_webhook_event(_dedup_event_id, event, logger):
         # Already processed — ack so Razorpay stops retrying.
+        _log_webhook_attempt(
+            event_id=_dedup_event_id,
+            event_type=event,
+            status="duplicate",
+            error=None,
+            logger=logger,
+        )
         return {"ok": True, "duplicate": True, "event": event}
+    # Log every accepted (non-duplicate) attempt so dedupe-ratio is
+    # computable as duplicate / (processed + duplicate).
+    _log_webhook_attempt(
+        event_id=_dedup_event_id,
+        event_type=event,
+        status="processed",
+        error=None,
+        logger=logger,
+    )
 
     # 3. No subscription context (e.g. payment.captured standalone) —
     # ack and skip. Not an error.
