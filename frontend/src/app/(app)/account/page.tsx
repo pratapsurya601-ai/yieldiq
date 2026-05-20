@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import Cookies from "js-cookie"
 import api from "@/lib/api"
 import ThemeToggle from "@/components/layout/ThemeToggle"
+import UpgradeActivationModal from "@/components/account/UpgradeActivationModal"
 import {
   trackUpgradeClicked,
   trackCheckoutOpened,
@@ -79,6 +80,10 @@ function ReferralSection() {
 export default function AccountPage() {
   return (
     <Suspense fallback={<div className="max-w-md md:max-w-2xl mx-auto px-4 py-8" />}>
+      {/* Day-47 (2026-05-20): UpgradeActivationModal reads
+          ?just_upgraded= from the URL set by /verify-subscription's
+          redirect_to field and renders tier-specific celebration copy. */}
+      <UpgradeActivationModal />
       <AccountInner />
     </Suspense>
   )

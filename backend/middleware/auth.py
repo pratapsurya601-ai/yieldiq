@@ -324,9 +324,19 @@ def check_analysis_limit(
     # logs without being told.
     response.headers["X-Analyses-Real-Count"] = str(used)
     if not allowed:
+        # Day-48 (2026-05-20): structured 429 payload so the frontend
+        # can render a clickable upgrade CTA instead of plain error
+        # text. Keys mirror the broker/compare quota errors so a single
+        # TierCapUpsell component handles all three surfaces.
         raise HTTPException(
             status_code=429,
-            detail=f"Daily analysis limit reached ({display_used}/{limit}). Upgrade for more.",
+            detail={
+                "error": "quota_exceeded",
+                "message": f"Daily analysis limit reached ({display_used}/{limit})",
+                "limit": limit,
+                "used": display_used,
+                "upgrade_link": "/pricing?ref=quota_wall",
+            },
             headers={
                 "X-Analyses-Today": str(display_used),
                 "X-Analyses-Limit": str(limit),

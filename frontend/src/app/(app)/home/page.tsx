@@ -94,7 +94,10 @@ export default function HomePage() {
   const rawLimit = TIER_LIMITS[tier]
   const dailyLimit = typeof rawLimit === "number" ? rawLimit : null
   const remaining = dailyLimit !== null ? Math.max(0, dailyLimit - analysesToday) : null
-  const showQuotaWarning = tier === "free" && remaining !== null && remaining <= 1
+  // Day-48 (2026-05-20): fire the quota warning at remaining<=3 (was <=1).
+  // At <=1 the user is already one click from the wall — no runway to
+  // consider upgrading. Three-left gives a soft nudge before the hard wall.
+  const showQuotaWarning = tier === "free" && remaining !== null && remaining <= 3
 
   return (
     <div className="bg-bg pb-20">
