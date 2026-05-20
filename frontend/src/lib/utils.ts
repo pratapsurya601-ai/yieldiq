@@ -85,6 +85,38 @@ export function formatPercentage(value: number | null | undefined, decimals = 1)
 }
 
 /**
+ * Day-35 (2026-05-20): canonical number formatter for raw scalars that
+ * aren't rupee amounts (e.g. P/E ratios, ROCE multiples, share counts).
+ * Replaces 3+ local fmtNum() re-implementations across the app
+ * (PeerComparisonCard, admin/story-dcf, etc.) that diverged on the
+ * default decimal precision (1 dp vs 2 dp) and em-dash fallback.
+ *
+ * Use formatCurrency for rupee amounts (handles Cr/L compaction) and
+ * formatPercentage for already-% values.
+ */
+export function formatNumberWithSuffix(
+  value: number | null | undefined,
+  decimals = 1,
+  suffix = "",
+): string {
+  if (value == null || !Number.isFinite(value)) return "\u2014"
+  return `${value.toFixed(decimals)}${suffix}`
+}
+
+/**
+ * Day-35 (2026-05-20): signed-percentage formatter with explicit '+'
+ * on positives. Replaces fmtPct() variants in PeerComparisonCard etc.
+ * that diverged on the leading-sign convention.
+ */
+export function formatPctSigned(
+  value: number | null | undefined,
+  decimals = 1,
+): string {
+  if (value == null || !Number.isFinite(value)) return "\u2014"
+  return `${value >= 0 ? "+" : ""}${value.toFixed(decimals)}%`
+}
+
+/**
  * Canonical MoS → verdict label.
  *
  * Single source of truth for the user-facing valuation verdict on

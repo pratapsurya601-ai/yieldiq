@@ -20,6 +20,7 @@ import { useCallback, useEffect, useState } from "react"
 import { useAuthStore } from "@/store/authStore"
 import { useRouter } from "next/navigation"
 import api from "@/lib/api"
+import { formatNumberWithSuffix, formatRateDecimal } from "@/lib/utils"
 
 const ADMIN_EMAILS = ["pratapsurya601@gmail.com", "suryasbss601@gmail.com"]
 
@@ -88,15 +89,16 @@ interface PreviewResponse {
   }
 }
 
-function fmtPct(n: number | null | undefined): string {
-  if (n === null || n === undefined) return "—"
-  return `${(n * 100).toFixed(1)}%`
-}
-
-function fmtNum(n: number | null | undefined, digits = 2): string {
-  if (n === null || n === undefined) return "—"
-  return n.toFixed(digits)
-}
+// Day-35 (2026-05-20): local fmtPct / fmtNum replaced by canonical
+// helpers from lib/utils.ts. The local fmtPct multiplied by 100 since
+// admin story-dcf params are stored as DECIMALS (0.18 = 18%) — use
+// formatRateDecimal which handles this convention canonically. The
+// local fmtNum defaulted to 2 dp vs PeerComparisonCard's 1 dp; now
+// both go through formatNumberWithSuffix(value, 2) for admin and
+// formatNumberWithSuffix(value, 1) elsewhere — explicit per caller.
+const fmtPct = (n: number | null | undefined) => formatRateDecimal(n, 1)
+const fmtNum = (n: number | null | undefined, digits = 2) =>
+  formatNumberWithSuffix(n, digits)
 
 function ParamRow({
   label,
