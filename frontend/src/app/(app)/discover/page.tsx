@@ -12,9 +12,26 @@
 // Both rails fetch from live endpoints but frequently render empty/
 // near-empty states for first-time visitors, making the page feel
 // half-finished. Hide until the underlying data coverage is denser.
+//
+// Day-68 (2026-05-21): Default content replacing "warming up" placeholder.
+// The 2026-05-20 audit found YIQ50 + FII/DII rails sat in "warming up"
+// state for 6+ weeks for new visitors — first-impression activation
+// killer. Fix: when YIQ50 is empty, render real default content instead
+// of an empty card:
+//   1. Top 5 MoS gainers — live from /api/v1/screener/run?min_mos=15
+//   2. Earnings reporters today — live from /api/v1/public/earnings-calendar
+//   3. Methodology spotlight — 7-day rotating tip array (client-side)
+// All three sections are FRONTEND-ONLY (no new backend endpoints, no
+// CACHE_VERSION bump). See tests/test_day68_discover_default_content.py.
 // ─────────────────────────────────────────────────────────────────────
 import { useQuery } from "@tanstack/react-query"
-import { getYieldIQ50, getTopPick, BUILD_ID } from "@/lib/api"
+import {
+  getYieldIQ50,
+  getTopPick,
+  runScreener,
+  BUILD_ID,
+} from "@/lib/api"
+import axios from "axios"
 import { formatMoS } from "@/lib/utils"
 import TopPickCard from "@/components/discover/TopPickCard"
 import ScreenerPresetsWithCounts from "@/components/discover/ScreenerPresetsWithCounts"
@@ -23,6 +40,78 @@ import MarketPulse from "@/components/discover/MarketPulse"
 // import { NearLowsRail, LowestPERail } from "@/components/discover/DiscoverRails"
 import { useAuthStore } from "@/store/authStore"
 import Link from "next/link"
+
+// Day-68: Methodology spotlight — 7 daily tips that rotate by day-of-year
+// so the same visitor sees a different tip each visit within a week. This
+// replaces a "warming up" empty card with always-fresh educational content.
+const METHODOLOGY_TIPS: { title: string; body: string; href: string }[] = [
+  {
+    title: "Why we use 5-year median FCF, not TTM",
+    body: "Trailing-12-month free cash flow is noisy — one bad working-capital quarter can swing it 40%. The 5-year median smooths cycles without lagging structural changes.",
+    href: "/methodology",
+  },
+  {
+    title: "Margin of Safety isn't a price target",
+    body: "A +30% MoS means the stock trades 30% below our fair value range — it's a cushion against being wrong, not a 12-month forecast.",
+    href: "/methodology",
+  },
+  {
+    title: "WACC is sector-calibrated, not a single number",
+    body: "Banks, FMCG, and capital goods don't share a discount rate. YieldIQ uses sector-median equity beta + India 10Y as the risk-free anchor.",
+    href: "/methodology",
+  },
+  {
+    title: "Why narrow moats beat no moats",
+    body: "A 'Narrow' moat means 5–10 years of pricing power — long enough for the DCF terminal value to matter. 'None' compounds at WACC, which is why we discount it harder.",
+    href: "/methodology",
+  },
+  {
+    title: "Reverse-DCF: what the price is telling you",
+    body: "Instead of asking 'what's it worth?' we solve for the growth rate implied by today's price. If the market needs 18% FCF growth for 10 years to break even, that's a red flag.",
+    href: "/methodology",
+  },
+  {
+    title: "Three scenarios, not one point estimate",
+    body: "Bear / Base / Bull are not opinions — they're sensitivity bounds. If MoS stays positive across all three, the trade is robust to being wrong about growth.",
+    href: "/methodology",
+  },
+  {
+    title: "Score and MoS measure different things",
+    body: "Score (0–100) is business quality. MoS is price discount. A 90/+5% beats a 60/+40% for most long-horizon investors — quality compounds, discount evaporates.",
+    href: "/methodology",
+  },
+]
+
+function pickTodayTip(): { title: string; body: string; href: string } {
+  // Day-of-year mod 7 → stable across the day, rotates weekly.
+  const now = new Date()
+  const start = new Date(now.getFullYear(), 0, 0)
+  const diffMs = now.getTime() - start.getTime()
+  const dayOfYear = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+  return METHODOLOGY_TIPS[dayOfYear % METHODOLOGY_TIPS.length]
+}
+
+interface EarningsEventLite {
+  ticker: string
+  display_ticker: string
+  company_name: string
+  event_date: string
+  event_type: string
+}
+
+async function fetchTodayEarnings(): Promise<EarningsEventLite[]> {
+  const base = process.env.NEXT_PUBLIC_API_URL || ""
+  const res = await axios.get(`${base}/api/v1/public/earnings-calendar`, {
+    params: { days: 1, limit: 50 },
+  })
+  const events: EarningsEventLite[] = res.data?.events ?? []
+  // Keep only events on the soonest available date (today, or the next
+  // trading day if today is empty — the backend already filters >= today
+  // in IST, so events[0].event_date is the earliest).
+  if (events.length === 0) return []
+  const target = events[0].event_date
+  return events.filter(e => e.event_date === target).slice(0, 5)
+}
 
 const RANK_COLORS = ["bg-yellow-500", "bg-gray-400", "bg-amber-600"]
 
@@ -34,6 +123,35 @@ const RANK_COLORS = ["bg-yellow-500", "bg-gray-400", "bg-amber-600"]
 
 export default function DiscoverPage() {
   const { tier } = useAuthStore()
+  const todayTip = pickTodayTip()
+
+  // Day-68: Top 5 MoS gainers — used both as default-content when YIQ50
+  // is cold, and as a permanent secondary rail. min_mos=15 keeps it from
+  // surfacing borderline names; client-side sort by MoS desc since the
+  // backend default sort is by PE.
+  const { data: mosGainers } = useQuery({
+    queryKey: ["top-mos-gainers", BUILD_ID],
+    queryFn: async () => {
+      const d = await runScreener({ min_mos: 15, page_size: 50 })
+      const sorted = [...(d?.results ?? [])].sort(
+        (a, b) => b.margin_of_safety - a.margin_of_safety,
+      )
+      return sorted.slice(0, 5)
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    retry: 1,
+  })
+
+  // Day-68: Earnings reporters today (or next reporting day). Reuses the
+  // /public/earnings-calendar endpoint already powering the home strip.
+  const { data: earningsToday } = useQuery({
+    queryKey: ["discover-earnings-today", BUILD_ID],
+    queryFn: fetchTodayEarnings,
+    staleTime: 30 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
+    retry: 1,
+  })
   // P0 (2026-04-30): old staleTime=86_400_000 (24h) cached the empty
   // "warming up" first-hit response for a full day after each deploy.
   // New policy: 5min stale / 30min gc, retry twice, and THROW on empty
@@ -150,35 +268,152 @@ export default function DiscoverPage() {
             )}
           </>
         ) : (
-          // Day-36 (2026-05-20): added dark:bg-surface dark:border-border
-          // so the YieldIQ 50 warming-up card doesn't render as a
-          // glaring white block on dark theme.
-          <div className="bg-white dark:bg-surface border border-gray-100 dark:border-border rounded-xl p-6 text-center">
-            <div className="mx-auto h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center mb-3">
-              <svg className="h-6 w-6 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
-              </svg>
-            </div>
-            <p className="text-sm font-semibold text-gray-900 mb-1">YieldIQ 50 is warming up</p>
-            <p className="text-xs text-gray-500 mb-4 max-w-xs mx-auto">Daily shortlist refreshes overnight &mdash; check back tomorrow morning.</p>
-            <div className="flex items-center justify-center gap-2">
-              {/* Day-29 (2026-05-20): added Refresh button so users
-                  with a transient empty response (cold cache, scheduler
-                  delay) can retry without reloading the whole page. */}
+          // Day-68 (2026-05-21): replaced the YIQ50 "warming up" empty
+          // card with live default content (Top 5 MoS gainers from the
+          // screener) so new visitors never see a placeholder-only page.
+          // Falls back to a thin Refresh affordance if even the screener
+          // is empty (extremely unlikely — analysis_cache is populated
+          // for ~1,700 tickers).
+          <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
+            <p className="text-xs font-semibold text-ink mb-1">
+              Top 5 MoS gainers
+            </p>
+            <p className="text-[11px] text-caption mb-3">
+              Largest discounts to fair value right now. Refreshes with the daily run.
+            </p>
+            {mosGainers && mosGainers.length > 0 ? (
+              <ul className="divide-y divide-border">
+                {mosGainers.map((s, i) => (
+                  <li key={s.ticker}>
+                    <Link
+                      href={`/analysis/${s.ticker}`}
+                      className="flex items-center justify-between py-2 hover:bg-bg/50 rounded px-1 -mx-1 transition"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono text-caption w-4">
+                          {i + 1}
+                        </span>
+                        <span className="text-sm font-semibold text-ink">
+                          {s.ticker.replace(".NS", "")}
+                        </span>
+                      </div>
+                      <div className="flex items-baseline gap-3 font-mono">
+                        <span className="text-sm text-brand">
+                          {formatMoS(s.margin_of_safety)}
+                        </span>
+                        <span className="text-xs text-caption">
+                          {s.score}
+                          <span className="text-[10px] text-caption/70">/100</span>
+                        </span>
+                      </div>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-caption">
+                  Daily shortlist refreshes overnight.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => refetchYiq50()}
+                  disabled={yiq50Fetching}
+                  className="text-xs font-semibold text-brand hover:underline disabled:opacity-50"
+                >
+                  {yiq50Fetching ? "Refreshing…" : "Refresh"}
+                </button>
+              </div>
+            )}
+            <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
+              <Link
+                href="/discover/screener"
+                className="text-xs font-semibold text-brand hover:underline"
+              >
+                Browse full Screener &rarr;
+              </Link>
               <button
                 type="button"
                 onClick={() => refetchYiq50()}
                 disabled={yiq50Fetching}
-                className="inline-flex items-center justify-center min-h-[40px] px-4 py-2 border border-gray-200 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition"
+                className="text-[11px] text-caption hover:text-ink disabled:opacity-50"
               >
-                {yiq50Fetching ? "Refreshing…" : "Refresh"}
+                {yiq50Fetching ? "Refreshing YIQ 50…" : "Retry YIQ 50"}
               </button>
-              <Link href="/discover/screener" className="inline-flex items-center justify-center min-h-[40px] px-5 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 active:scale-[0.98] transition">
-                Browse Screener &rarr;
-              </Link>
             </div>
           </div>
         )}
+      </section>
+
+      {/* Day-68: Earnings reporters today — reuses /public/earnings-calendar
+          (the same endpoint that powers the home "Earnings this week" strip).
+          Renders the soonest reporting day; max 5 tickers. */}
+      <section>
+        <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-3">
+          Earnings reporters today
+        </p>
+        {earningsToday && earningsToday.length > 0 ? (
+          <div className="bg-bg dark:bg-surface border border-border rounded-xl overflow-hidden">
+            <ul className="divide-y divide-border">
+              {earningsToday.map(ev => (
+                <li key={ev.ticker}>
+                  <Link
+                    href={`/analysis/${ev.ticker}`}
+                    className="flex items-center justify-between px-3 py-2.5 hover:bg-bg/50 transition"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-ink truncate">
+                        {ev.display_ticker}
+                      </p>
+                      <p className="text-[11px] text-caption truncate">
+                        {ev.company_name}
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-mono text-caption uppercase tracking-wide flex-shrink-0 ml-3">
+                      {ev.event_type}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <div className="px-3 py-2 border-t border-border">
+              <Link
+                href="/earnings-calendar"
+                className="text-xs font-semibold text-brand hover:underline"
+              >
+                Full earnings calendar &rarr;
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
+            <p className="text-xs text-caption">
+              No earnings filings on the immediate horizon.{" "}
+              <Link href="/earnings-calendar" className="text-brand font-semibold hover:underline">
+                See the full calendar &rarr;
+              </Link>
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/* Day-68: Methodology spotlight — rotates daily (day-of-year mod 7)
+          so the page always has fresh content even on cold-start days
+          when YIQ50 / earnings / market-flows are all empty. */}
+      <section>
+        <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-3">
+          Methodology spotlight
+        </p>
+        <Link
+          href={todayTip.href}
+          className="block bg-bg dark:bg-surface border border-border rounded-xl p-4 hover:border-brand transition"
+        >
+          <p className="text-sm font-semibold text-ink mb-1">{todayTip.title}</p>
+          <p className="text-xs text-caption leading-relaxed">{todayTip.body}</p>
+          <p className="text-[11px] font-semibold text-brand mt-2">
+            Read the full methodology &rarr;
+          </p>
+        </Link>
       </section>
 
       {/* Sector leaders — top ticker per sector from YieldIQ 50 */}
