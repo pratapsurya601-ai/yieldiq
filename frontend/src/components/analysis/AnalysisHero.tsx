@@ -118,9 +118,11 @@ function fallbackThesis(verdict: Verdict, moat: string, mos: number): string {
   }
   // Day-61 (2026-05-21): explicit low_confidence framing rather than
   // the generic "review model inputs" — gives the user one honest
-  // sentence about why the pill is neutral.
+  // sentence about why the pill is neutral. SEBI vocabulary lint
+  // bans "recommend" / "recommendation"; "fair-value view" is the
+  // app-wide neutral phrasing.
   if (verdict === "low_confidence") {
-    return `${moatPhrase}. Model confidence is below 50% — read the FV / MoS numbers as a leaning, not a recommendation.`
+    return `${moatPhrase}. Model confidence is below 50% — read the FV / MoS numbers as a leaning, not a fair-value view to act on.`
   }
   return `${moatPhrase}. Review model inputs before drawing conclusions.`
 }
