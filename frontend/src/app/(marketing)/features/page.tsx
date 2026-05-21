@@ -68,7 +68,7 @@ const featureGrid = [
 
 export default function FeaturesPage() {
   return (
-    <div className="bg-white text-gray-900">
+    <div className="bg-bg dark:bg-surface text-ink">
       {/* Hero */}
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-20">
         <div className="max-w-4xl mx-auto px-4 text-center">
@@ -77,7 +77,7 @@ export default function FeaturesPage() {
             <br />
             <span className="bg-gradient-to-r from-blue-500 to-cyan-400 bg-clip-text text-transparent">Value Indian Stocks.</span>
           </h1>
-          <p className="text-gray-400 text-lg">No spreadsheets. No terminal subscriptions. Just clear, data-driven fair value estimates.</p>
+          <p className="text-caption text-lg">No spreadsheets. No terminal subscriptions. Just clear, data-driven fair value estimates.</p>
         </div>
       </section>
 
@@ -89,8 +89,8 @@ export default function FeaturesPage() {
               <div className={f.reversed ? "order-2 md:order-2" : ""}>
                 <div className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase mb-3">{f.tag}</div>
                 <h2 className="text-3xl font-black mb-4">{f.title}</h2>
-                <p className="text-gray-500 leading-relaxed mb-4">{f.desc}</p>
-                <ul className="space-y-2 text-sm text-gray-600">
+                <p className="text-caption leading-relaxed mb-4">{f.desc}</p>
+                <ul className="space-y-2 text-sm text-caption">
                   {f.bullets.map((b) => (
                     <li key={b} className="flex gap-2">
                       <span className="text-blue-500">{"\u2713"}</span>
@@ -99,11 +99,11 @@ export default function FeaturesPage() {
                   ))}
                 </ul>
               </div>
-              <div className={`bg-gray-50 rounded-2xl p-8 text-center ${f.reversed ? "order-1 md:order-1" : ""}`}>
+              <div className={`bg-bg dark:bg-surface rounded-2xl p-8 text-center ${f.reversed ? "order-1 md:order-1" : ""}`}>
                 <div className="text-6xl mb-4">{f.visual.icon}</div>
                 <div className="text-2xl font-black">{f.visual.line1}</div>
                 <div className="text-green-600 font-bold mt-1">{f.visual.line2}</div>
-                {f.visual.note && <div className="text-gray-400 text-xs mt-2">{f.visual.note}</div>}
+                {f.visual.note && <div className="text-caption text-xs mt-2">{f.visual.note}</div>}
               </div>
             </div>
           ))}
@@ -111,7 +111,7 @@ export default function FeaturesPage() {
       </section>
 
       {/* Feature Grid */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-20 bg-bg dark:bg-surface">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase text-center mb-3">All Features</p>
           <h2 className="text-3xl md:text-4xl font-black text-center mb-16">
@@ -119,10 +119,10 @@ export default function FeaturesPage() {
           </h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {featureGrid.map((f) => (
-              <div key={f.title} className="bg-white rounded-2xl p-6 border border-gray-100 hover:border-blue-200 hover:shadow-lg transition">
+              <div key={f.title} className="bg-bg dark:bg-surface rounded-2xl p-6 border border-gray-100 hover:border-blue-200 hover:shadow-lg transition">
                 <div className="text-3xl mb-3">{f.icon}</div>
                 <h3 className="font-bold text-lg mb-2">{f.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{f.desc}</p>
+                <p className="text-caption text-sm leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -133,7 +133,7 @@ export default function FeaturesPage() {
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-20">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h2 className="text-3xl font-black text-white mb-4">Ready to See What Your Stocks Are Really Worth?</h2>
-          <p className="text-gray-400 mb-8">Start with any NSE/BSE ticker. Free.</p>
+          <p className="text-caption mb-8">Start with any NSE/BSE ticker. Free.</p>
           <Link
             href="/auth/signup"
             className="bg-gradient-to-r from-blue-700 to-cyan-500 text-white font-bold px-10 py-4 rounded-xl text-lg hover:opacity-90 transition shadow-lg shadow-blue-500/25 inline-block"
@@ -148,13 +148,13 @@ export default function FeaturesPage() {
         <div className="max-w-6xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-2">
             <img src="/logo-new.svg" alt="YieldIQ" className="w-6 h-6 rounded-md" />
-            <span className="text-gray-400 text-sm">&copy; 2026 YieldIQ. Made in India.</span>
+            <span className="text-caption text-sm">&copy; 2026 YieldIQ. Made in India.</span>
           </div>
-          <div className="flex gap-6 text-gray-500 text-xs">
+          <div className="flex gap-6 text-caption text-xs">
             <Link href="/" className="hover:text-gray-300">Home</Link>
             <Link href="/pricing" className="hover:text-gray-300">Pricing</Link>
           </div>
-          <p className="text-gray-600 text-xs">
+          <p className="text-caption text-xs">
             Model output only &mdash; not investment advice. YieldIQ is not registered with SEBI as an investment adviser.
           </p>
         </div>
