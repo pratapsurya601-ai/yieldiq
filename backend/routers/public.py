@@ -2680,6 +2680,7 @@ async def get_peers(
             score = None
             moat = None
             roe = None
+            roce = None
             pe_ratio = None
 
             analysis = cache.get(f"analysis:{peer_full}")
@@ -2706,6 +2707,9 @@ async def get_peers(
                 score = q.yieldiq_score
                 moat = q.moat
                 roe = round(q.roe, 2) if q.roe is not None else None
+                # Day-86: ROCE pulled alongside ROE so the cohort-outlier
+                # detector has a second profitability axis to z-score on.
+                roce = round(q.roce, 2) if getattr(q, "roce", None) is not None else None
                 # pe_ratio not directly on QualityOutput — derive from price/EPS if available
                 try:
                     eps_ttm = getattr(v, "eps_ttm", None)
@@ -2714,8 +2718,8 @@ async def get_peers(
                 except Exception:
                     pe_ratio = None
 
-            # Fallback: pull pe_ratio / roe from latest ratio_history row
-            if pe_ratio is None or roe is None:
+            # Fallback: pull pe_ratio / roe / roce from latest ratio_history row
+            if pe_ratio is None or roe is None or roce is None:
                 try:
                     rh = (
                         db.query(RatioHistory)
@@ -2729,6 +2733,8 @@ async def get_peers(
                             pe_ratio = rh.pe_ratio
                         if roe is None:
                             roe = rh.roe
+                        if roce is None:
+                            roce = getattr(rh, "roce", None)
                 except Exception:
                     pass
 
@@ -2751,6 +2757,7 @@ async def get_peers(
                 "score": score,
                 "moat": moat,
                 "roe": roe,
+                "roce": roce,
                 "pe_ratio": pe_ratio,
             })
 
@@ -2762,6 +2769,76 @@ async def get_peers(
             sector_label_value = get_sector_label_for_ticker(clean)
         except Exception:
             sector_label_value = None
+
+        # Day-86 (2026-05-22): cohort-outlier flagging.
+        # The Day-80 caption explains WHY each peer is in the cohort, but
+        # said nothing when one peer's fundamentals depart sharply from
+        # the cohort median — which is exactly when the cohort itself is
+        # suspect (sector-pin misclassification) or the peer is a genuine
+        # standout worth investigating. Compute z-scores against the
+        # cohort median on ROE, ROCE, and YieldIQ score; if ANY metric
+        # is > 2 sigma from the median, mark the peer as a cohort outlier
+        # and attach the field(s) that drove the flag.
+        #
+        # SEBI vocabulary guard: this is a neutral statistical signal
+        # ("deviates from cohort"), not an advisory call. Banned advisory
+        # verbs are avoided in both source comments and surface copy.
+        try:
+            def _median(xs: list[float]) -> float | None:
+                if not xs:
+                    return None
+                ys = sorted(xs)
+                n = len(ys)
+                if n % 2 == 1:
+                    return ys[n // 2]
+                return (ys[n // 2 - 1] + ys[n // 2]) / 2.0
+
+            def _stdev(xs: list[float]) -> float | None:
+                if len(xs) < 2:
+                    return None
+                m = sum(xs) / len(xs)
+                var = sum((x - m) ** 2 for x in xs) / (len(xs) - 1)
+                return var ** 0.5
+
+            metric_fields = ("roe", "roce", "score")
+            stats_by_metric: dict[str, dict[str, float]] = {}
+            for f in metric_fields:
+                vals = [
+                    float(p[f]) for p in peers_out
+                    if isinstance(p.get(f), (int, float))
+                ]
+                med = _median(vals)
+                sd = _stdev(vals)
+                if med is not None and sd is not None and sd > 0:
+                    stats_by_metric[f] = {"median": med, "stdev": sd}
+
+            for p in peers_out:
+                deviates_on: list[dict[str, float]] = []
+                for f, st in stats_by_metric.items():
+                    val = p.get(f)
+                    if not isinstance(val, (int, float)):
+                        continue
+                    z = abs(float(val) - st["median"]) / st["stdev"]
+                    if z > 2.0:
+                        deviates_on.append({
+                            "metric": f,
+                            "value": round(float(val), 2),
+                            "cohort_median": round(st["median"], 2),
+                            "z": round(z, 2),
+                        })
+                p["outlier_flag"] = {
+                    "is_outlier": len(deviates_on) > 0,
+                    "deviates_on": deviates_on,
+                }
+        except Exception as exc:
+            logger.debug(f"outlier_flag synth failed for {clean}: {exc}")
+            # Failure-safe — every peer still gets the key so the frontend
+            # can rely on its presence.
+            for p in peers_out:
+                p.setdefault("outlier_flag", {
+                    "is_outlier": False,
+                    "deviates_on": [],
+                })
 
         # Day-80 (2026-05-22): peer-cohort transparency.
         # Tickertape and most retail screeners surface "industry peers"

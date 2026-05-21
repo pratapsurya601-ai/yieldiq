@@ -2079,6 +2079,92 @@ async def get_health_stats(user: dict = Depends(require_admin)):
                 type(ca_exc).__name__, ca_exc,
             )
 
+        # ── Day-86 (2026-05-22): market_metrics ratios feed health ─
+        # Mirrors the Day-78 corp_actions block, this time for the
+        # `market_metrics` table (PE, PB, ROE, ROCE). Same two failure
+        # modes:
+        #   1. Writer entirely stopped — `feed_last_write_at` (proxy:
+        #      MAX(trade_date)) drifts past 24h. Ratios are refreshed
+        #      daily by the NSE bhavcopy + per-symbol ingest, so 24h
+        #      is the right alert horizon (tighter than corp-actions
+        #      which is an event feed and naturally sparse).
+        #   2. Per-ticker staleness — a ticker's MAX(trade_date) is
+        #      older than 7 days, meaning the daily ingest is silently
+        #      skipping it. Tracked as % of all tickers with any row.
+        # Aggregate-only queries — bounded by the natural-key index,
+        # not row volume — and wrapped in try/except so a missing table
+        # or DB hiccup never 500s the endpoint.
+        market_metrics_block: dict = {
+            "total_rows": 0,
+            "tickers_covered_24h": 0,
+            "tickers_with_stale_ratios_pct": None,
+            "oldest_freshly_updated_pct": None,
+            "feed_last_write_at": None,
+        }
+        try:
+            mm_sess = Session()
+            try:
+                mm_row = mm_sess.execute(_t(
+                    """
+                    SELECT
+                        COUNT(*) AS total_rows,
+                        COUNT(DISTINCT ticker) FILTER (
+                            WHERE trade_date > (CURRENT_DATE - INTERVAL '1 day')
+                        ) AS tickers_24h,
+                        MAX(trade_date) AS feed_last_trade_date
+                    FROM market_metrics
+                    """
+                )).first()
+                # Per-ticker staleness: tickers whose MOST-RECENT
+                # market_metrics row is older than 7 days. Same shape
+                # as Day-78 corp_actions decay query, different window
+                # (ratios are daily, corp-actions are event-driven).
+                stale_row = mm_sess.execute(_t(
+                    """
+                    WITH latest_per_ticker AS (
+                        SELECT ticker, MAX(trade_date) AS last_td
+                        FROM market_metrics
+                        WHERE ticker IS NOT NULL
+                        GROUP BY ticker
+                    )
+                    SELECT
+                        COUNT(*) AS tickers_with_any,
+                        COUNT(*) FILTER (
+                            WHERE last_td < (CURRENT_DATE - INTERVAL '7 days')
+                        ) AS tickers_stale_7d
+                    FROM latest_per_ticker
+                    """
+                )).first()
+                total_rows_mm = int(mm_row[0] or 0) if mm_row else 0
+                tickers_24h_mm = int(mm_row[1] or 0) if mm_row else 0
+                last_td = mm_row[2] if mm_row else None
+                tickers_with_any_mm = int(stale_row[0] or 0) if stale_row else 0
+                tickers_stale_7d = int(stale_row[1] or 0) if stale_row else 0
+                stale_pct_mm = (
+                    round(tickers_stale_7d / tickers_with_any_mm, 3)
+                    if tickers_with_any_mm > 0 else None
+                )
+                market_metrics_block = {
+                    "total_rows": total_rows_mm,
+                    "tickers_covered_24h": tickers_24h_mm,
+                    "tickers_with_stale_ratios_pct": stale_pct_mm,
+                    # Alias for parity with the corp_actions block — same
+                    # semantics ("share of tickers whose newest row is
+                    # past the staleness horizon"), exposed under both
+                    # names so health-alerts can mirror the Day-78 wiring.
+                    "oldest_freshly_updated_pct": stale_pct_mm,
+                    "feed_last_write_at": (
+                        last_td.isoformat() if last_td is not None else None
+                    ),
+                }
+            finally:
+                mm_sess.close()
+        except Exception as mm_exc:
+            logger.warning(
+                "health-stats market_metrics block failed (non-fatal): %s: %s",
+                type(mm_exc).__name__, mm_exc,
+            )
+
         return {
             "as_of": datetime.now(timezone.utc).isoformat(),
             "cache": {
@@ -2102,6 +2188,7 @@ async def get_health_stats(user: dict = Depends(require_admin)):
             },
             "webhook": webhook_block,
             "corp_actions": corp_actions_block,
+            "market_metrics": market_metrics_block,
             "_meta": {
                 "note": (
                     "Warm coverage = fraction of analysis_cache rows at "
@@ -2139,6 +2226,12 @@ async def get_health_stats(user: dict = Depends(require_admin)):
 #   corp_actions.feed_last_write_at  > 48h old  → ALERT (Day-78: ingestion stopped)
 #   corp_actions.oldest_freshly_updated_pct > 0.30 → WARN (Day-78: coverage decay,
 #                                                  Reliance-pattern from 2026-05-20 audit)
+#   market_metrics.feed_last_write_at > 24h old → ALERT (Day-86: ratios ingest stopped;
+#                                                  tighter than corp-actions because
+#                                                  ratios are a daily feed)
+#   market_metrics.tickers_with_stale_ratios_pct > 0.20 → WARN (Day-86: per-ticker
+#                                                  ratio staleness — >20% of tickers
+#                                                  have no fresh row in past 7 days)
 # ─────────────────────────────────────────────────────────────────
 
 
@@ -2287,6 +2380,48 @@ async def get_health_alerts(user: dict = Depends(require_admin)):
                 f"of tickers have no row newer than 6 months "
                 f"(Reliance-pattern, audit 2026-05-20). Investigate "
                 f"per-ticker ingest gaps.",
+            )
+
+        # Day-86: market_metrics ratios feed thresholds. Ratios are a
+        # daily feed (NSE bhavcopy), so 24h is the correct alert horizon —
+        # tighter than the 48h corp-actions threshold which is an
+        # event feed. Per-ticker staleness threshold is 20% (lower than
+        # the 30% corp-actions threshold) because ratios are expected to
+        # cover ~all active tickers every day; >20% missing for a week
+        # means the per-symbol ingest is silently skipping.
+        mm = stats.get("market_metrics", {}) or {}
+        mm_last_write = mm.get("feed_last_write_at")
+        if mm_last_write:
+            try:
+                from datetime import datetime as _dt2, timezone as _tz2
+                _mm_lw = _dt2.fromisoformat(str(mm_last_write))
+                if _mm_lw.tzinfo is None:
+                    _mm_lw = _mm_lw.replace(tzinfo=_tz2.utc)
+                mm_hours_old = (
+                    _dt2.now(_tz2.utc) - _mm_lw
+                ).total_seconds() / 3600.0
+                if mm_hours_old > 24:
+                    _add(
+                        "alert", "market_metrics.feed_last_write_at",
+                        mm_last_write, 24,
+                        f"market_metrics ingestion appears stopped — most "
+                        f"recent trade_date is {mm_hours_old:.0f}h old "
+                        f"(threshold 24h). Check NSE bhavcopy + ratios "
+                        f"refresh cron.",
+                    )
+            except Exception as mm_ts_exc:
+                logger.warning(
+                    "market_metrics.feed_last_write_at parse failed: %s: %s",
+                    type(mm_ts_exc).__name__, mm_ts_exc,
+                )
+        mm_stale_pct = mm.get("tickers_with_stale_ratios_pct")
+        if mm_stale_pct is not None and mm_stale_pct > 0.20:
+            _add(
+                "warn", "market_metrics.tickers_with_stale_ratios_pct",
+                mm_stale_pct, 0.20,
+                f"Per-ticker staleness in market_metrics feed — "
+                f"{mm_stale_pct:.0%} of tickers have no row newer than "
+                f"7 days. Investigate per-symbol ratios ingest.",
             )
 
         # Overall status: alert > warn > ok
