@@ -5,8 +5,14 @@
 //   - buffett        (score >= 60, mos >= 0, wide moat)  → Wide-Moat at Discount
 //   - deep_value     (mos >= 30)                          → Deep Value
 //   - growth_quality (revenue growth + margins)           → High-Margin Growers
-// 4th tile: custom screener via /api/v1/screener/run?min_mos=15&min_score=50
+// 4th tile: custom screener via /api/v1/screener/run?min_mos=20&min_score=65
 //           framed as "Quality at a discount".
+//
+// 2026-05-21 (Day-70): tightened from min_score=50/min_mos=15 (which
+// returned 702 stocks — the 2026-05-20 audit flagged this as "filter
+// too loose, not a quality-at-a-discount list at all") to
+// min_score=65/min_mos=20. Goal: 30-80 names so the tile actually
+// surfaces opinionated picks, not the entire mid-cap universe.
 
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
@@ -51,10 +57,10 @@ const TILES: TileConfig[] = [
   {
     key: "quality_discount",
     title: "Quality at a Discount",
-    blurb: "Score ≥ 50 · MoS ≥ 15%",
+    blurb: "Score ≥ 65 · MoS ≥ 20%",
     icon: Coins,
-    fetcher: () => runScreener({ min_score: 50, min_mos: 15, page_size: 25 }),
-    href: "/screener?min_score=50&min_mos=15",
+    fetcher: () => runScreener({ min_score: 65, min_mos: 20, page_size: 25 }),
+    href: "/screener?min_score=65&min_mos=20",
   },
 ]
 
