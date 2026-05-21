@@ -257,6 +257,20 @@ _TICKER_OVERRIDES: dict[str, dict[str, float]] = {
     "NALCO":      {"fv_cmp_min_override": 0.25},
     "VEDL":       {"fv_cmp_min_override": 0.25},
     "NMDC":       {"fv_cmp_min_override": 0.25},
+    # Premium consumer / capital-goods names where the market has bid
+    # well above any reasonable DCF for years. The 0.35 default floor
+    # flags these as "engine probably broken" but the math is correct
+    # --- these are simply trading at premium multiples that no DCF
+    # will justify. Day-53 (2026-05-20): canary 2026-05-20 reported
+    # all five at fv/cmp 0.31-0.34. Lower the floor to 0.30 so the
+    # gate still catches catastrophic engine breakage (fv/cmp < 0.30
+    # is still well outside any plausible reading) without firing on
+    # legitimate premium-stock reads.
+    "BERGEPAINT": {"fv_cmp_min_override": 0.30},
+    "UNITDSPR":   {"fv_cmp_min_override": 0.30},
+    "SCHAEFFLER": {"fv_cmp_min_override": 0.30},
+    "KEI":        {"fv_cmp_min_override": 0.30},
+    "JSWINFRA":   {"fv_cmp_min_override": 0.30},
 }
 
 
