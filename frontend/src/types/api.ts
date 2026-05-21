@@ -1,6 +1,10 @@
 // types/api.ts — mirrors backend/models/responses.py exactly
 
-export type Verdict = "undervalued" | "fairly_valued" | "overvalued" | "avoid" | "data_limited" | "unavailable"
+// Day-61 (2026-05-21): "low_confidence" added as a first-class verdict.
+// The hero renders it instead of confident undervalued/overvalued when
+// the model's own confidence drops below 50% --- a sub-50% confidence
+// number on a confidently-coloured pill was the audit's #2 trust hit.
+export type Verdict = "undervalued" | "fairly_valued" | "overvalued" | "avoid" | "data_limited" | "unavailable" | "low_confidence"
 export type Grade = "A" | "B" | "C" | "D" | "F"
 export type Tier = "free" | "starter" | "pro" | "analyst"
 export type Confidence = "high" | "medium" | "low" | "unusable"

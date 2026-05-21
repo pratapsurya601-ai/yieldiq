@@ -7,6 +7,12 @@ export const VERDICT_COLORS = {
   avoid: { bg: "bg-red-50", text: "text-red-800", border: "border-red-200", hex: "#DC2626" },
   data_limited: { bg: "bg-gray-100", text: "text-gray-600", border: "border-gray-300", hex: "#6B7280" },
   unavailable: { bg: "bg-gray-100", text: "text-gray-500", border: "border-gray-300", hex: "#9CA3AF" },
+  // Day-61 (2026-05-21): low_confidence is rendered neutral-slate so a
+  // sub-50% confidence reading never reads as a confident undervalued /
+  // overvalued call. The hero hint surfaces the actual MoS sign so the
+  // user can see whether the underlying model leans cheap or expensive
+  // --- the pill itself simply refuses to amplify the signal.
+  low_confidence: { bg: "bg-slate-100", text: "text-slate-700", border: "border-slate-300", hex: "#64748B" },
 } as const
 
 export const TIER_LIMITS = { free: 5, starter: Infinity, pro: Infinity, analyst: Infinity } as const
@@ -45,12 +51,13 @@ export type VerdictKey = keyof typeof VERDICT_COLORS
  * the production CSS and the dark-mode variants would silently 404.
  */
 const VERDICT_DARK_CLASSES: Record<VerdictKey, string> = {
-  undervalued:   "dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900",
-  fairly_valued: "dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700",
-  overvalued:    "dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900",
-  avoid:         "dark:bg-red-950/40 dark:text-red-300 dark:border-red-900",
-  data_limited:  "dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700",
-  unavailable:   "dark:bg-gray-800 dark:text-gray-500 dark:border-gray-700",
+  undervalued:    "dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-900",
+  fairly_valued:  "dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700",
+  overvalued:     "dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-900",
+  avoid:          "dark:bg-red-950/40 dark:text-red-300 dark:border-red-900",
+  data_limited:   "dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700",
+  unavailable:    "dark:bg-gray-800 dark:text-gray-500 dark:border-gray-700",
+  low_confidence: "dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700",
 }
 
 /**

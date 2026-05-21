@@ -116,6 +116,14 @@ function fallbackThesis(verdict: Verdict, moat: string, mos: number): string {
   if (verdict === "fairly_valued") {
     return `${moatPhrase} at a fair price. A larger margin of safety (MoS > 20%) would give a wider cushion.`
   }
+  // Day-61 (2026-05-21): explicit low_confidence framing rather than
+  // the generic "review model inputs" — gives the user one honest
+  // sentence about why the pill is neutral. Phrasing uses the
+  // canonical advisory-safe vocabulary per
+  // backend/services/analysis/sebi_filter.py.
+  if (verdict === "low_confidence") {
+    return `${moatPhrase}. Model confidence is below 50% — read the FV / MoS numbers as a leaning, not a fair-value view to act on.`
+  }
   return `${moatPhrase}. Review model inputs before drawing conclusions.`
 }
 
@@ -287,7 +295,26 @@ export default function AnalysisHero({
   currentPriceAsOf,
   currentPriceSource,
 }: AnalysisHeroProps) {
-  const effectiveVerdict: Verdict = dataLimited ? "data_limited" : verdict
+  // Day-61 (2026-05-21): verdict-pill confidence gate.
+  //
+  // Audit P2: a 45%-confidence Reliance was rendering with a confident
+  // green "Below Fair Value" pill alongside its own 45% confidence
+  // number on the same screen. The pill amplified a signal the model
+  // didn't trust. Highest impact-per-LOC fix per the audit.
+  //
+  // The rule: if the model's confidence drops below 50% AND we haven't
+  // already routed to data_limited (which is a stricter gate),
+  // downgrade the pill to "Low Confidence" (neutral slate). The
+  // underlying MoS / FV numbers stay visible elsewhere on the hero so
+  // serious users can still read the leaning --- the pill just refuses
+  // to colour-code a sub-50% signal.
+  const _LOW_CONFIDENCE_THRESHOLD = 50
+  const lowConfidence = !dataLimited && confidence < _LOW_CONFIDENCE_THRESHOLD
+  const effectiveVerdict: Verdict = dataLimited
+    ? "data_limited"
+    : lowConfidence
+      ? "low_confidence"
+      : verdict
   const thesisLine =
     firstSentence(thesis) ?? fallbackThesis(effectiveVerdict, moat, marginOfSafety)
 
