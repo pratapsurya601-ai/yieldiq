@@ -268,6 +268,23 @@ def compute_reverse_dcf(
     # cannot leak ±60% values into the UI.
     implied_growth = max(SEARCH_MIN_GROWTH, min(SEARCH_MAX_GROWTH, implied_growth))
 
+    # ── Day-76 boundary-peg guard (audit 2026-05-20 P5) ──────────
+    # When the bisector pegs at SEARCH_MIN_GROWTH or SEARCH_MAX_GROWTH
+    # without a normalised anchor in play, the displayed number is a
+    # bound, not a market-implied estimate. The audit caught this on
+    # RELIANCE (50.0% growth = SEARCH_MAX_GROWTH; refining-cycle FCF
+    # trough) and HDFCBANK (-5.0% growth = SEARCH_MIN_GROWTH; post-
+    # HDFC-merger balance-sheet inflation). Tag the result so the
+    # frontend can render an "off-scale" qualifier rather than a
+    # spurious precise number — and surface this in the summary so the
+    # plain-English line carries the caveat too.
+    _eps = 1e-4
+    growth_pegged_high = abs(implied_growth - SEARCH_MAX_GROWTH) < _eps
+    growth_pegged_low = abs(implied_growth - SEARCH_MIN_GROWTH) < _eps
+    growth_off_scale = (
+        (growth_pegged_high or growth_pegged_low) and not growth_converged
+    )
+
     # ── 2. Implied margin — hold consensus growth fixed ─────────
     # Rebuild FCF from revenue × candidate margin so the search has
     # a meaningful axis. Output is the steady-state FCF margin the
@@ -329,11 +346,28 @@ def compute_reverse_dcf(
     impl_g_pct = implied_growth * 100
     impl_m_pct = implied_margin * 100
     cons_g_pct = consensus_growth * 100
-    summary = (
-        f"Market is pricing in {impl_g_pct:.1f}% FCF growth "
-        f"at current {cur_m_pct:.1f}% margins, "
-        f"or {impl_m_pct:.1f}% margins at consensus {cons_g_pct:.1f}% growth."
-    )
+    if growth_off_scale:
+        # Day-76: peg-without-convergence means the solver could not
+        # reach the market price inside the documented search window
+        # using the supplied FCF anchor. Most often a cyclical-margin
+        # trough (current FCF depressed) or a merger-distorted balance
+        # sheet (HDFCBANK post-HDFC merger). The number is reported as
+        # a bound, never as a point estimate.
+        _bound_word = ">=" if growth_pegged_high else "<="
+        summary = (
+            f"Market-implied FCF growth is {_bound_word} {impl_g_pct:.1f}% "
+            f"at current {cur_m_pct:.1f}% margins -- solver pegged at "
+            f"the search bound, so the trailing-margin anchor is likely "
+            f"distorted by a cyclical trough or balance-sheet event. "
+            f"Margin-axis read: {impl_m_pct:.1f}% at consensus "
+            f"{cons_g_pct:.1f}% growth."
+        )
+    else:
+        summary = (
+            f"Market is pricing in {impl_g_pct:.1f}% FCF growth "
+            f"at current {cur_m_pct:.1f}% margins, "
+            f"or {impl_m_pct:.1f}% margins at consensus {cons_g_pct:.1f}% growth."
+        )
 
     # ── 5. Sanity-check vs trailing actuals (optional) ──────────
     sanity_lines: list[str] = []
@@ -380,4 +414,12 @@ def compute_reverse_dcf(
             "fcf_anchor_used": float(fcf_anchor),
             "normalization_applied": bool(normalization_applied),
         },
+        # Day-76 (audit 2026-05-20 P5): boundary-peg telemetry. When
+        # `growth_off_scale` is True the implied_growth_pct value is a
+        # bound, not a point estimate; the frontend should render it
+        # with a >= / <= qualifier and warn that the trailing-margin
+        # anchor is likely cycle-distorted.
+        "growth_off_scale": bool(growth_off_scale),
+        "growth_pegged_high": bool(growth_pegged_high),
+        "growth_pegged_low": bool(growth_pegged_low),
     }
