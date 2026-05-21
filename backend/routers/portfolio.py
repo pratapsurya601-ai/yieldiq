@@ -674,6 +674,88 @@ def _parse_broker_csv_legacy(csv_text: str, broker: str) -> list[dict]:
     return parsed
 
 
+# ── Tax-loss harvesting calculator (Day-90, 2026-05-22) ────────
+# Read-only: enriches saved holdings with live price + bucket
+# classification, returns ranked TLH candidates. Tier-gated to
+# Analyst+ (free users see an upgrade preview on the frontend; the
+# backend enforces here to prevent direct API access).
+
+class TLHSuggestRequest(BaseModel):
+    realized_stcg_this_fy: float = 0.0
+    realized_ltcg_this_fy: float = 0.0
+
+
+@router.post("/tlh-suggestions")
+async def tlh_suggestions(
+    req: TLHSuggestRequest | None = None,
+    user: dict = Depends(get_current_user),
+):
+    """Indian-tax-aware tax-loss harvesting calculator.
+
+    Pulls the signed-in user's saved holdings, enriches with live
+    prices, classifies each into ST/LT bucket, and returns ranked
+    candidates where realizing the position would create a deductible
+    loss. NOT investment advice — frame as estimator/calculator only.
+
+    Tier: Analyst+. Free users get a 402 with upgrade pointer.
+    """
+    email = user.get("email", "")
+    if not email:
+        raise HTTPException(status_code=401, detail="Email required")
+
+    tier = (user.get("tier") or "free").lower()
+    if tier == "free":
+        raise HTTPException(
+            status_code=402,
+            detail={
+                "error": "tier_upgrade_required",
+                "tier": tier,
+                "required": "analyst",
+                "message": (
+                    "The tax-loss harvesting calculator is an Analyst "
+                    "(₹799/mo) tool. Upgrade to access ranked candidates."
+                ),
+                "upgrade_link": "/pricing",
+            },
+        )
+
+    from backend.services.portfolio_service import get_holdings_with_live_data
+    from backend.services.tlh_service import compute_suggestions
+
+    enriched = get_holdings_with_live_data(email)
+    live = enriched.get("holdings", []) or []
+
+    # Map live holdings -> TLH service input shape. acquired_on uses
+    # `saved_at` as a proxy when the user hasn't recorded an explicit
+    # acquisition date (current schema has no buy_date column; the
+    # caveat surfaces in the UI).
+    payload = [
+        {
+            "ticker": h.get("ticker", ""),
+            "qty": h.get("quantity", 0),
+            "avg_cost": h.get("entry_price", 0),
+            "current_price": h.get("current_price", 0),
+            "acquired_on": h.get("saved_at"),
+        }
+        for h in live
+    ]
+
+    req = req or TLHSuggestRequest()
+    result = compute_suggestions(
+        payload,
+        realized_stcg_this_fy=req.realized_stcg_this_fy,
+        realized_ltcg_this_fy=req.realized_ltcg_this_fy,
+    )
+
+    # Surface the source of acquired_on so the UI can warn users that
+    # `saved_at` (when the row was imported) may not equal the actual
+    # broker buy date — relevant if they imported old positions today.
+    result["context"]["acquired_on_source"] = (
+        "holdings.saved_at (import/save timestamp; not broker buy date)"
+    )
+    return result
+
+
 @router.get("/health", response_model=PortfolioHealthResponse)
 async def get_portfolio_health(user: dict = Depends(get_current_user)):
     """Portfolio health score (0-100) for the authenticated user.
