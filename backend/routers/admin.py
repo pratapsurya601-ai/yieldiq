@@ -2178,3 +2178,102 @@ async def get_health_alerts(user: dict = Depends(require_admin)):
             status_code=500,
             detail=f"get_health_alerts failed: {_sanitize_error(exc, 'health-alerts')}",
         )
+
+
+# ─────────────────────────────────────────────────────────────────
+# Day-55 (2026-05-21): /admin/validation-trace/{ticker}
+#
+# Ops diagnostic: when a public stock-summary returns
+# `under_review` with `reason=validation_critical`, the user-facing
+# payload deliberately hides the issue list (it's diagnostic, not
+# UX). This endpoint surfaces the full list — issues + failed
+# fields + severity — for a single ticker so we can decide whether
+# to fix data, exempt the ticker, or change the bounds.
+#
+# Built originally to investigate ITCHOTELS / ABLBL (Bug D) which
+# both ship `under_review` with issue_count >= 2. Without this
+# endpoint the only way to see what's wrong is to add print()s and
+# wait for the next deploy.
+# ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/validation-trace/{ticker}")
+async def get_validation_trace(
+    ticker: str,
+    user: dict = Depends(require_admin),
+):
+    """Return the raw ValidationResult for a single ticker.
+
+    Recomputes the analysis via AnalysisService (same path the public
+    endpoint takes on cache miss), then runs validate_analysis against
+    it without the public quarantine gate. Returns:
+
+        {
+          "ticker": "ITCHOTELS.NS",
+          "validation": {
+              "ok": false,
+              "severity": "critical",
+              "issues": ["..."],
+              "failed_fields": ["..."]
+          },
+          "payload_snapshot": {
+              "fair_value": ...,
+              "price": ...,
+              "verdict": ...,
+              "valuation_engine_used": ...,
+              "data_issues": [...]
+          }
+        }
+
+    Admin-only; never exposes secrets (payload_snapshot is a
+    deliberately small subset of fields). Slow because it runs the
+    full analysis pipeline — call sparingly.
+    """
+    try:
+        from backend.services.analysis_service import AnalysisService
+        from backend.services.validators import validate_analysis
+
+        svc = AnalysisService()
+        response = svc.get_full_analysis(ticker)
+        vr = validate_analysis(response)
+
+        # Snapshot only the fields useful for triaging a validation fail.
+        # Avoid dumping the full response (~50KB+ with all sub-blocks)
+        # to keep the admin UI render snappy.
+        payload = response.model_dump() if hasattr(response, "model_dump") else dict(response)
+        val = payload.get("valuation") or {}
+        snapshot = {
+            "fair_value": val.get("fair_value"),
+            "price": val.get("price"),
+            "mos_pct": val.get("mos_pct"),
+            "fair_value_ratio": val.get("fair_value_ratio"),
+            "wacc": val.get("wacc"),
+            "terminal_growth": val.get("terminal_growth"),
+            "verdict": val.get("verdict"),
+            "valuation_engine_used": val.get("valuation_engine_used"),
+            "data_issues": payload.get("data_issues") or [],
+            "sector": payload.get("sector"),
+            "market_cap_inr": (payload.get("metrics") or {}).get("market_cap_inr"),
+        }
+
+        return {
+            "ticker": ticker,
+            "validation": {
+                "ok": vr.ok,
+                "severity": vr.severity,
+                "issues": list(vr.issues),
+                "failed_fields": list(vr.failed_fields),
+            },
+            "payload_snapshot": snapshot,
+        }
+    except Exception as exc:
+        # Compute itself can fail (delisted, missing data) — surface
+        # the exception type so ops sees the difference between
+        # "validation failed" and "compute couldn't even run".
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                f"validation-trace failed for {ticker}: "
+                f"{_sanitize_error(exc, 'validation-trace')}"
+            ),
+        )
