@@ -7,9 +7,10 @@
 // as the Discover methodology spotlight (see discover/page.tsx
 // pickTodayTip around line 85). Stable within a day, rotates weekly.
 //
-// Each tip must be SEBI-safe: no buy/sell/hold/strong/accumulate/
-// recommend/outperform/underperform language. "Consider", "look at",
-// "compare with" are the only call-to-action verbs allowed.
+// Each tip must use SEBI-compliant vocabulary only. See
+// backend/services/analysis/sebi_filter.py for the canonical banned-
+// word list. "Consider", "look at", "compare with" are the only
+// call-to-action verbs allowed in tip text.
 //
 // TODO: build a nightly rule engine (backend cron) that scans
 // analysis_cache and emits 1-3 factual deltas, e.g. count of IT names
