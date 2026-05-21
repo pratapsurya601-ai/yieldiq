@@ -36,7 +36,7 @@ export default function BlogIndexPage() {
   const rest = posts.slice(1)
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-bg dark:bg-surface">
       {/* Header */}
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-16">
         <div className="max-w-3xl mx-auto px-4 text-center">
@@ -44,7 +44,7 @@ export default function BlogIndexPage() {
           <h1 className="text-3xl sm:text-5xl font-black text-white mb-3 leading-tight">
             Plain-English investing guides
           </h1>
-          <p className="text-gray-400 max-w-xl mx-auto">
+          <p className="text-caption max-w-xl mx-auto">
             DCF, Margin of Safety, Piotroski F-Score, Reverse DCF, Indian capital gains tax \u2014 written for retail investors who want to think clearly about stocks.
           </p>
         </div>
@@ -59,16 +59,16 @@ export default function BlogIndexPage() {
           >
             <div className="flex items-center gap-2 mb-3">
               <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider">Featured</span>
-              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${CATEGORY_LABELS[featured.category]?.color || "bg-gray-50 text-gray-700 border-gray-200"}`}>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${CATEGORY_LABELS[featured.category]?.color || "bg-bg dark:bg-surface text-ink border-border"}`}>
                 {CATEGORY_LABELS[featured.category]?.label || featured.category}
               </span>
-              <span className="text-[10px] text-gray-500">{featured.readTime} min read</span>
+              <span className="text-[10px] text-caption">{featured.readTime} min read</span>
             </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-gray-900 mb-3 leading-tight group-hover:text-blue-700 transition">
+            <h2 className="text-2xl sm:text-3xl font-black text-ink mb-3 leading-tight group-hover:text-blue-700 transition">
               {featured.title}
             </h2>
-            <p className="text-gray-600 leading-relaxed mb-4">{featured.description}</p>
-            <div className="flex items-center justify-between text-xs text-gray-500">
+            <p className="text-caption leading-relaxed mb-4">{featured.description}</p>
+            <div className="flex items-center justify-between text-xs text-caption">
               <span>{featured.author}</span>
               <span>{fmtDate(featured.date)}</span>
             </div>
@@ -78,35 +78,35 @@ export default function BlogIndexPage() {
 
       {/* Rest of posts */}
       <section className="max-w-4xl mx-auto px-4 pb-16">
-        <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">All articles</h2>
+        <h2 className="text-sm font-bold text-caption uppercase tracking-wider mb-4">All articles</h2>
         <div className="grid sm:grid-cols-2 gap-4">
           {rest.map((post: BlogPost) => (
             <Link
               key={post.slug}
               href={`/blog/${post.slug}`}
-              className="block bg-white border border-gray-200 rounded-xl p-5 hover:border-blue-300 hover:shadow-sm transition group"
+              className="block bg-bg dark:bg-surface border border-border rounded-xl p-5 hover:border-blue-300 hover:shadow-sm transition group"
             >
               <div className="flex items-center gap-2 mb-2">
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${CATEGORY_LABELS[post.category]?.color || "bg-gray-50 text-gray-700 border-gray-200"}`}>
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${CATEGORY_LABELS[post.category]?.color || "bg-bg dark:bg-surface text-ink border-border"}`}>
                   {CATEGORY_LABELS[post.category]?.label || post.category}
                 </span>
-                <span className="text-[10px] text-gray-400">{post.readTime} min read</span>
+                <span className="text-[10px] text-caption">{post.readTime} min read</span>
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2 leading-tight group-hover:text-blue-700 transition">
+              <h3 className="text-lg font-bold text-ink mb-2 leading-tight group-hover:text-blue-700 transition">
                 {post.title}
               </h3>
-              <p className="text-sm text-gray-500 leading-relaxed line-clamp-2 mb-3">{post.description}</p>
-              <p className="text-[10px] text-gray-400">{fmtDate(post.date)}</p>
+              <p className="text-sm text-caption leading-relaxed line-clamp-2 mb-3">{post.description}</p>
+              <p className="text-[10px] text-caption">{fmtDate(post.date)}</p>
             </Link>
           ))}
         </div>
       </section>
 
       {/* CTA */}
-      <section className="bg-gray-50 border-t border-gray-100 py-12">
+      <section className="bg-bg dark:bg-surface border-t border-gray-100 py-12">
         <div className="max-w-3xl mx-auto px-4 text-center">
-          <h2 className="text-2xl font-black text-gray-900 mb-3">Apply this to real stocks</h2>
-          <p className="text-gray-500 mb-6">Use YieldIQ\u2019s DCF, screeners, and analysis tools on 2,300+ Indian stocks. Free.</p>
+          <h2 className="text-2xl font-black text-ink mb-3">Apply this to real stocks</h2>
+          <p className="text-caption mb-6">Use YieldIQ\u2019s DCF, screeners, and analysis tools on 2,300+ Indian stocks. Free.</p>
           <Link href="/auth/signup" className="inline-block bg-blue-600 text-white font-bold px-8 py-4 rounded-xl text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/20">
             Start Free &rarr;
           </Link>

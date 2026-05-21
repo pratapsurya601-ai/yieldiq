@@ -48,7 +48,7 @@ export default function ApiDocsPage() {
             <span className="text-white font-bold text-lg">YieldIQ</span>
           </Link>
           <div className="flex items-center gap-6 text-sm">
-            <Link href="/pricing" className="text-gray-400 hover:text-white transition">
+            <Link href="/pricing" className="text-caption hover:text-white transition">
               Pricing
             </Link>
             <Link
@@ -83,11 +83,11 @@ export default function ApiDocsPage() {
           <h2 className="text-2xl font-semibold">Authentication</h2>
           <p className="text-gray-300">
             Pass your API key in the{" "}
-            <code className="text-cyan-300 bg-white/5 px-1.5 py-0.5 rounded">
+            <code className="text-cyan-300 bg-bg dark:bg-surface/5 px-1.5 py-0.5 rounded">
               Authorization
             </code>{" "}
             header (or{" "}
-            <code className="text-cyan-300 bg-white/5 px-1.5 py-0.5 rounded">
+            <code className="text-cyan-300 bg-bg dark:bg-surface/5 px-1.5 py-0.5 rounded">
               X-API-Key
             </code>
             ):
@@ -95,7 +95,7 @@ export default function ApiDocsPage() {
           <pre className="bg-black/40 border border-white/10 rounded-xl p-4 text-sm overflow-x-auto">
             <code>Authorization: Bearer yk_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8</code>
           </pre>
-          <p className="text-sm text-gray-400">
+          <p className="text-sm text-caption">
             Keys begin with{" "}
             <code className="text-cyan-300">yk_</code>. The full key is shown
             once at creation time and cannot be retrieved later — store it
@@ -213,7 +213,7 @@ export default function ApiDocsPage() {
           </Link>
         </section>
 
-        <footer className="pt-8 border-t border-white/5 text-center text-xs text-gray-500">
+        <footer className="pt-8 border-t border-white/5 text-center text-xs text-caption">
           YieldIQ is not registered with SEBI as an investment adviser. All
           API outputs are model estimates only.
         </footer>

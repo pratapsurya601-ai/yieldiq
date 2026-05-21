@@ -50,7 +50,7 @@ const plans: Plan[] = [
       { text: "1 portfolio / 1 broker account", included: true },
       { text: "Discover rails (YieldIQ 50, Sector Leaders)", included: true },
     ],
-    ctaStyle: "border-2 border-gray-200 text-gray-700 hover:bg-gray-50",
+    ctaStyle: "border-2 border-border text-ink hover:bg-gray-50",
   },
   {
     id: "analyst",
@@ -71,7 +71,7 @@ const plans: Plan[] = [
       { text: "Tax Report (capital gains calc) — FY 2025-26 logic per Budget 2024", included: true },
       { text: "Compare up to 3 stocks side-by-side", included: true },
     ],
-    ctaStyle: "bg-white text-blue-700 font-bold hover:bg-blue-50",
+    ctaStyle: "bg-bg dark:bg-surface text-blue-700 font-bold hover:bg-blue-50",
   },
   {
     id: "pro",
@@ -92,7 +92,7 @@ const plans: Plan[] = [
       { text: "Compare up to 5 stocks side-by-side", included: true },
       { text: "Early access to new features (beta ring)", included: true },
     ],
-    ctaStyle: "border-2 border-gray-200 text-gray-700 hover:bg-gray-50",
+    ctaStyle: "border-2 border-border text-ink hover:bg-gray-50",
   },
 ]
 
@@ -156,21 +156,21 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="bg-white text-gray-900">
+    <div className="bg-bg dark:bg-surface text-ink">
       {/* Hero */}
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-10 md:py-14">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h1 className="text-3xl md:text-5xl font-black text-white mb-3">Simple Pricing. No Surprises.</h1>
-          <p className="text-gray-400 text-base md:text-lg">Start free. Upgrade when you need more power. Cancel anytime.</p>
+          <p className="text-caption text-base md:text-lg">Start free. Upgrade when you need more power. Cancel anytime.</p>
         </div>
       </section>
 
       {/* Pricing Cards */}
-      <section className="py-10 md:py-16 bg-gray-50">
+      <section className="py-10 md:py-16 bg-bg dark:bg-surface">
         <div className="max-w-6xl mx-auto px-4">
           {/* Billing toggle */}
           <div className="flex justify-center mb-10">
-            <div className="inline-flex bg-white border border-gray-200 rounded-xl p-1 shadow-sm">
+            <div className="inline-flex bg-bg dark:bg-surface border border-border rounded-xl p-1 shadow-sm">
               <button
                 onClick={() => handleBillingToggle("monthly")}
                 className={`px-5 py-2 min-h-[40px] rounded-lg text-sm font-semibold transition ${billing === "monthly" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
@@ -206,7 +206,7 @@ export default function PricingPage() {
                 className={
                   plan.highlighted
                     ? "bg-gradient-to-br from-blue-900 to-blue-700 rounded-2xl p-8 text-white relative overflow-hidden shadow-xl"
-                    : "bg-white rounded-2xl p-8 border border-gray-200 shadow-sm"
+                    : "bg-bg dark:bg-surface rounded-2xl p-8 border border-border shadow-sm"
                 }
               >
                 {plan.badge && (
@@ -225,7 +225,7 @@ export default function PricingPage() {
 
                 <ul className="space-y-3 mb-8">
                   {plan.features.map((f) => (
-                    <li key={f.text} className={`flex items-start gap-3 text-sm ${!f.included && !plan.highlighted ? "text-gray-400" : ""}`}>
+                    <li key={f.text} className={`flex items-start gap-3 text-sm ${!f.included && !plan.highlighted ? "text-caption" : ""}`}>
                       <span className={`font-bold mt-0.5 ${f.included ? (plan.highlighted ? "text-green-300" : "text-green-500") : ""}`}>
                         {f.included ? "\u2713" : "\u2717"}
                       </span>
@@ -235,7 +235,7 @@ export default function PricingPage() {
                 </ul>
 
                 {cta.disabled ? (
-                  <div className={`block w-full text-center py-3 rounded-xl font-semibold ${plan.highlighted ? "bg-white/20 text-white" : "bg-gray-100 text-gray-500"}`}>
+                  <div className={`block w-full text-center py-3 rounded-xl font-semibold ${plan.highlighted ? "bg-bg dark:bg-surface/20 text-white" : "bg-gray-100 text-caption"}`}>
                     {cta.label}
                   </div>
                 ) : (
@@ -264,22 +264,22 @@ export default function PricingPage() {
           and we don't want to clutter the primary upgrade decision.
           Acquisition logic: cheap CAC for a long-tail audience that
           graduates into full-price Analyst once they start earning. */}
-      <section className="py-8 md:py-10 bg-gray-50 border-t border-gray-100">
+      <section className="py-8 md:py-10 bg-bg dark:bg-surface border-t border-gray-100">
         <div className="max-w-4xl mx-auto px-4">
-          <div className="rounded-2xl border-2 border-dashed border-blue-200 bg-white p-6 md:p-8 shadow-sm">
+          <div className="rounded-2xl border-2 border-dashed border-blue-200 bg-bg dark:bg-surface p-6 md:p-8 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-start gap-6">
               <div className="flex-1">
                 <div className="inline-block text-[10px] font-black uppercase tracking-[0.2em] text-blue-700 bg-blue-50 rounded-full px-3 py-1 mb-2">
                   Verified students &amp; CA articleship
                 </div>
-                <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-1">
+                <h3 className="text-xl md:text-2xl font-black text-ink mb-1">
                   Student / CA articleship — &#8377;199/mo
                 </h3>
-                <p className="text-sm text-gray-500 mb-4">
+                <p className="text-sm text-caption mb-4">
                   ~75% off Analyst. For verified students and articleship
                   trainees only.
                 </p>
-                <ul className="space-y-2 text-sm text-gray-700 mb-4">
+                <ul className="space-y-2 text-sm text-ink mb-4">
                   <li className="flex items-start gap-2">
                     <span className="text-green-500 font-bold mt-0.5">&#10003;</span>
                     <span>5 deep analyses per day (same as Analyst)</span>
@@ -289,16 +289,16 @@ export default function PricingPage() {
                     <span>Watchlist + portfolio</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-gray-400 font-bold mt-0.5">&#10007;</span>
-                    <span className="text-gray-500">No Pro tier features (no API, no CSV/PDF export)</span>
+                    <span className="text-caption font-bold mt-0.5">&#10007;</span>
+                    <span className="text-caption">No Pro tier features (no API, no CSV/PDF export)</span>
                   </li>
                   <li className="flex items-start gap-2">
-                    <span className="text-gray-400 font-bold mt-0.5">&#10003;</span>
+                    <span className="text-caption font-bold mt-0.5">&#10003;</span>
                     <span>Auto-expires when your graduation / articleship date passes</span>
                   </li>
                 </ul>
                 <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-xs text-blue-900 leading-relaxed">
-                  <strong>Verification:</strong> upload your current
+                  <span className="font-bold">Verification:</span> upload your current
                   student ID OR articleship registration to{" "}
                   <a href="mailto:hello@yieldiq.in" className="underline font-semibold">
                     hello@yieldiq.in
@@ -308,8 +308,8 @@ export default function PricingPage() {
               </div>
               <div className="shrink-0 flex flex-col items-stretch gap-2 md:min-w-[200px]">
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-black text-gray-900">&#8377;199</span>
-                  <span className="text-xs text-gray-400 font-semibold">/ month</span>
+                  <span className="text-4xl font-black text-ink">&#8377;199</span>
+                  <span className="text-xs text-caption font-semibold">/ month</span>
                 </div>
                 <a
                   href="mailto:hello@yieldiq.in?subject=Student%20%2F%20CA%20verification%20for%20YieldIQ&body=Hi%20YieldIQ%20team%2C%0A%0AI%27d%20like%20to%20apply%20for%20the%20%E2%82%B9199%2Fmo%20Student%20tier.%20Attached%20is%20my%20current%20student%20ID%20%2F%20articleship%20registration.%0A%0AYieldIQ%20signup%20email%3A%20%0AInstitution%20%2F%20firm%3A%20%0AExpected%20graduation%20%2F%20completion%20date%3A%20%0A%0AThanks."
@@ -317,7 +317,7 @@ export default function PricingPage() {
                 >
                   Email verification &rarr;
                 </a>
-                <p className="text-[11px] text-gray-400 text-center leading-snug">
+                <p className="text-[11px] text-caption text-center leading-snug">
                   No payment until we approve.
                 </p>
               </div>
@@ -332,15 +332,15 @@ export default function PricingPage() {
           already favours Analyst — a natural self-serve upsell. */}
       <section className="py-10 md:py-12 bg-gradient-to-br from-gray-50 to-white border-y border-gray-100">
         <div className="max-w-4xl mx-auto px-4">
-          <div className="rounded-2xl border border-gray-200 bg-white p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-5 shadow-sm">
+          <div className="rounded-2xl border border-border bg-bg dark:bg-surface p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-5 shadow-sm">
             <div className="flex-1">
               <div className="inline-block text-[10px] font-black uppercase tracking-[0.2em] text-blue-700 bg-blue-50 rounded-full px-3 py-1 mb-2">
                 No subscription?
               </div>
-              <h3 className="text-xl md:text-2xl font-black text-gray-900 mb-1">
+              <h3 className="text-xl md:text-2xl font-black text-ink mb-1">
                 Just one analysis — ₹99
               </h3>
-              <p className="text-sm text-gray-500 leading-relaxed">
+              <p className="text-sm text-caption leading-relaxed">
                 24-hour full access to a single stock: Prism, Fair Value,
                 scenarios, Moat, AI summary, and shareable Report Card.
                 Perfect if you&apos;re weighing one decision. Upgrade to
@@ -349,8 +349,8 @@ export default function PricingPage() {
             </div>
             <div className="shrink-0 flex flex-col items-stretch gap-2 md:min-w-[180px]">
               <div className="flex items-baseline justify-center gap-1">
-                <span className="text-3xl md:text-4xl font-black text-gray-900">&#8377;99</span>
-                <span className="text-xs text-gray-400 font-semibold">/ analysis</span>
+                <span className="text-3xl md:text-4xl font-black text-ink">&#8377;99</span>
+                <span className="text-xs text-caption font-semibold">/ analysis</span>
               </div>
               <Link
                 href="/search"
@@ -364,14 +364,14 @@ export default function PricingPage() {
       </section>
 
       {/* FAQ */}
-      <section className="py-12 md:py-16 bg-white">
+      <section className="py-12 md:py-16 bg-bg dark:bg-surface">
         <div className="max-w-3xl mx-auto px-4">
           <h2 className="text-2xl font-black text-center mb-8">Frequently Asked Questions</h2>
           <div className="space-y-5">
             {faqs.map((faq) => (
-              <div key={faq.q} className="border-b border-gray-200 pb-4">
+              <div key={faq.q} className="border-b border-border pb-4">
                 <h3 className="font-bold mb-1.5 text-sm">{faq.q}</h3>
-                <p className="text-gray-500 text-sm">{faq.a}</p>
+                <p className="text-caption text-sm">{faq.a}</p>
               </div>
             ))}
           </div>

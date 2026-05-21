@@ -110,28 +110,28 @@ export default async function IPODetailPage(
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-bg dark:bg-surface">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
       <div className="max-w-3xl mx-auto px-4 py-8 sm:py-12">
-        <nav className="text-xs text-gray-400 mb-6 flex items-center gap-1.5">
+        <nav className="text-xs text-caption mb-6 flex items-center gap-1.5">
           <Link href="/" className="hover:text-gray-600">Home</Link>
           <span>/</span>
           <Link href="/ipo" className="hover:text-gray-600">IPO Calendar</Link>
           <span>/</span>
-          <span className="text-gray-600 font-medium">{ipo.symbol}</span>
+          <span className="text-caption font-medium">{ipo.symbol}</span>
         </nav>
 
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 mb-6">
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 sm:p-8 mb-6">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="flex-1 min-w-0">
-              <h1 className="text-2xl sm:text-3xl font-black text-gray-900">
+              <h1 className="text-2xl sm:text-3xl font-black text-ink">
                 {ipo.company_name}
               </h1>
-              <p className="text-gray-500 text-sm mt-1">
+              <p className="text-caption text-sm mt-1">
                 {ipo.symbol} &middot; {ipo.exchange}
                 {ipo.sector ? ` \u00B7 ${ipo.sector}` : ""}
               </p>
@@ -140,7 +140,7 @@ export default async function IPODetailPage(
               className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border ${
                 ipo.status === "upcoming"
                   ? "bg-blue-50 text-blue-700 border-blue-200"
-                  : "bg-gray-50 text-gray-600 border-gray-200"
+                  : "bg-bg dark:bg-surface text-caption border-border"
               }`}
             >
               {ipo.status}
@@ -148,49 +148,49 @@ export default async function IPODetailPage(
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-6">
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">
+            <div className="bg-bg dark:bg-surface rounded-xl p-4 border border-gray-100">
+              <p className="text-[10px] text-caption uppercase tracking-wider mb-1">
                 Price Band
               </p>
-              <p className="text-lg font-bold text-gray-900 font-mono">
+              <p className="text-lg font-bold text-ink font-mono">
                 {fmtBand(ipo.price_band_min, ipo.price_band_max)}
               </p>
             </div>
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">
+            <div className="bg-bg dark:bg-surface rounded-xl p-4 border border-gray-100">
+              <p className="text-[10px] text-caption uppercase tracking-wider mb-1">
                 Issue Size
               </p>
-              <p className="text-lg font-bold text-gray-900 font-mono">
+              <p className="text-lg font-bold text-ink font-mono">
                 {fmtCr(ipo.issue_size_cr)}
               </p>
             </div>
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">
+            <div className="bg-bg dark:bg-surface rounded-xl p-4 border border-gray-100">
+              <p className="text-[10px] text-caption uppercase tracking-wider mb-1">
                 Exchange
               </p>
-              <p className="text-lg font-bold text-gray-900">{ipo.exchange}</p>
+              <p className="text-lg font-bold text-ink">{ipo.exchange}</p>
             </div>
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">
+            <div className="bg-bg dark:bg-surface rounded-xl p-4 border border-gray-100">
+              <p className="text-[10px] text-caption uppercase tracking-wider mb-1">
                 Open Date
               </p>
-              <p className="text-sm font-semibold text-gray-900">
+              <p className="text-sm font-semibold text-ink">
                 {fmtDate(ipo.ipo_open_date)}
               </p>
             </div>
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">
+            <div className="bg-bg dark:bg-surface rounded-xl p-4 border border-gray-100">
+              <p className="text-[10px] text-caption uppercase tracking-wider mb-1">
                 Close Date
               </p>
-              <p className="text-sm font-semibold text-gray-900">
+              <p className="text-sm font-semibold text-ink">
                 {fmtDate(ipo.ipo_close_date)}
               </p>
             </div>
-            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">
+            <div className="bg-bg dark:bg-surface rounded-xl p-4 border border-gray-100">
+              <p className="text-[10px] text-caption uppercase tracking-wider mb-1">
                 Listing Date
               </p>
-              <p className="text-sm font-semibold text-gray-900">
+              <p className="text-sm font-semibold text-ink">
                 {fmtDate(ipo.listing_date)}
               </p>
             </div>
@@ -215,7 +215,7 @@ export default async function IPODetailPage(
           </div>
         )}
 
-        <p className="text-[10px] text-gray-400 text-center leading-relaxed">
+        <p className="text-[10px] text-caption text-center leading-relaxed">
           IPO information is currently a curated list and may not reflect the latest
           regulatory disclosures. Always check the official offer document and SEBI
           filings before investing. Not investment advice.
