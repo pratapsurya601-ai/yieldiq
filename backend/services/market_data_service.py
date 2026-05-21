@@ -56,6 +56,96 @@ _FRESHNESS_THRESHOLD = timedelta(hours=4)
 # to 0.01 and broke the verdict gate.
 _HARD_STALE_THRESHOLD = timedelta(days=2)
 
+# Day-58 (2026-05-21): defensive gates against TCS-class price bugs.
+#
+# Two failure modes the existing cascade does NOT catch:
+#
+#   (a) daily_prices stuck for months. If NSE bhavcopy ingestion
+#       silently stopped for a ticker, daily_prices keeps serving the
+#       last good close forever. TCS observed 2026-05-21 at ₹2,327
+#       (its Nov-2025 low), real market ~₹3,500 (+50% off).
+#
+#   (b) Outlier in a fresh row. A 92x unit bug, an FX-conversion bug,
+#       or a wrong-ticker resolution can pass through every staleness
+#       check because the timestamp is new. INFY 2026-04 hit
+#       ₹1,09,652 from yfinance .info this way.
+#
+# Defenses:
+#   - Daily-prices staleness gate: reject close_price rows older than
+#     _DAILY_PRICES_HARD_STALE_DAYS trading days.
+#   - Outlier gate: compare any served price against the 30-day median
+#     of daily_prices for the same ticker. Reject if deviation exceeds
+#     _OUTLIER_TOLERANCE_PCT. Returns None → upstream renders
+#     "data_limited" rather than a confidently-wrong number.
+#
+# Both gates fail OPEN if the comparison data isn't available (new
+# listings, fresh tickers). They only reject when we have ENOUGH
+# evidence to know the served value is anomalous.
+_DAILY_PRICES_HARD_STALE_DAYS = 7      # 7 trading days (~10 calendar)
+_OUTLIER_TOLERANCE_PCT = 0.40          # 40% deviation from 30d median
+_OUTLIER_MIN_HISTORY = 5               # need ≥5 closes to validate
+
+
+def _daily_prices_baseline(
+    candidates: list[str], sess
+) -> tuple[float, "datetime | None"] | None:
+    """Return (median_close, latest_trade_date) over last 30 closes
+    from daily_prices, or None if insufficient history.
+
+    Iterates candidates so callers can pass [canonical, bare] without
+    pre-knowing which form the writer used. Returns the FIRST candidate
+    with enough history rather than merging across forms (avoids the
+    bare/canonical drift bug that's bitten us in fair_value_history).
+    """
+    for cand in candidates:
+        try:
+            rows = sess.execute(
+                text(
+                    "SELECT close_price, trade_date FROM daily_prices "
+                    "WHERE ticker = :t AND close_price IS NOT NULL "
+                    "AND close_price > 0 "
+                    "ORDER BY trade_date DESC LIMIT 30"
+                ),
+                {"t": cand},
+            ).fetchall()
+        except Exception:
+            continue
+        if len(rows) >= _OUTLIER_MIN_HISTORY:
+            closes = sorted(float(r[0]) for r in rows)
+            median = closes[len(closes) // 2]
+            latest_trade_date = rows[0][1]
+            return median, latest_trade_date
+    return None
+
+
+def _is_price_outlier(price: float, median: float) -> bool:
+    """True if `price` deviates more than _OUTLIER_TOLERANCE_PCT from
+    `median`. Fails CLOSED on zero/negative median (rare; treat as
+    insufficient evidence and skip the gate)."""
+    if median <= 0 or price <= 0:
+        return False
+    return abs(price - median) / median > _OUTLIER_TOLERANCE_PCT
+
+
+def _is_daily_prices_stale(latest_trade_date) -> bool:
+    """True if the latest daily_prices row for this ticker is older
+    than _DAILY_PRICES_HARD_STALE_DAYS calendar days. Liberal on the
+    boundary (7 days) since 7 trading days is ~10 calendar including
+    weekends + holidays."""
+    if latest_trade_date is None:
+        return False
+    try:
+        # latest_trade_date is a date or datetime; normalize to date.
+        if hasattr(latest_trade_date, "date"):
+            ld = latest_trade_date.date()
+        else:
+            ld = latest_trade_date
+        from datetime import date as _date_cls
+        age_days = (_date_cls.today() - ld).days
+        return age_days > _DAILY_PRICES_HARD_STALE_DAYS
+    except Exception:
+        return False
+
 
 def _is_market_hours_utc(now_utc: datetime) -> bool:
     """True if `now_utc` falls inside NSE trading hours (Mon-Fri)."""
@@ -176,6 +266,31 @@ def get_canonical_price(
     sess = _get_session()
     if sess is not None:
         try:
+            # Day-58 (2026-05-21): compute the 30-day daily_prices
+            # baseline ONCE up front so we can outlier-check every
+            # candidate price the cascade returns. Failing the baseline
+            # lookup (new listing, no history) leaves baseline=None and
+            # the outlier gate falls open — never falsely rejects.
+            _baseline = _daily_prices_baseline(candidates, sess)
+
+            def _accept(px: float, source: str) -> "float | None":
+                """Apply the outlier gate and return px if it passes,
+                else None. Centralised so every cascade rung uses the
+                same logic."""
+                if _baseline is None:
+                    return px  # insufficient history; accept
+                median, _latest = _baseline
+                if _is_price_outlier(px, median):
+                    log.warning(
+                        "canonical_price: REJECTING %s for %s — px=%.2f "
+                        "deviates >%.0f%% from 30d median %.2f; "
+                        "falling through cascade",
+                        source, canonical, px,
+                        _OUTLIER_TOLERANCE_PCT * 100, median,
+                    )
+                    return None
+                return px
+
             # 1. live_quotes — preferred (intraday, bhavcopy-backed)
             for cand in candidates:
                 try:
@@ -214,7 +329,12 @@ def get_canonical_price(
                                     canonical, age, _HARD_STALE_THRESHOLD,
                                 )
                                 break  # skip remaining live_quotes candidates
-                        return float(row[0])
+                        # Day-58 outlier gate.
+                        gated = _accept(float(row[0]), "live_quotes")
+                        if gated is not None:
+                            return gated
+                        # Outlier rejected — try next candidate /
+                        # cascade rung.
                     except Exception:
                         pass
 
@@ -223,7 +343,7 @@ def get_canonical_price(
                 try:
                     row = sess.execute(
                         text(
-                            "SELECT close_price FROM daily_prices "
+                            "SELECT close_price, trade_date FROM daily_prices "
                             "WHERE ticker = :t "
                             "AND close_price IS NOT NULL AND close_price > 0 "
                             "ORDER BY trade_date DESC LIMIT 1"
@@ -234,13 +354,32 @@ def get_canonical_price(
                     row = None
                 if row and row[0] is not None:
                     try:
+                        # Day-58 daily_prices staleness gate. Catches
+                        # the TCS-class failure (bhavcopy ingestion
+                        # silently stopped for months; close_price
+                        # served forever as the last good close).
+                        if _is_daily_prices_stale(row[1]):
+                            log.warning(
+                                "canonical_price: REJECTING daily_prices "
+                                "for %s — trade_date=%s exceeds %d-day "
+                                "staleness threshold; falling through to "
+                                "yfinance",
+                                canonical, row[1], _DAILY_PRICES_HARD_STALE_DAYS,
+                            )
+                            continue
                         px = float(row[0])
+                        # Day-58 outlier gate (rare here since baseline
+                        # uses daily_prices itself, but catches a brand-
+                        # new outlier row against the older median).
+                        gated = _accept(px, "daily_prices")
+                        if gated is None:
+                            continue
                         log.warning(
                             "canonical_price: %s missing from live_quotes, "
                             "fell through to daily_prices close=%.2f",
-                            canonical, px,
+                            canonical, gated,
                         )
-                        return px
+                        return gated
                     except Exception:
                         pass
         finally:
