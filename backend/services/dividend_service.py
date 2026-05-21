@@ -356,6 +356,46 @@ class DividendService:
         ]
         consecutive_years = self._count_consecutive(fy_history)
 
+        # Day-67 (2026-05-21): when DB series is suspiciously sparse
+        # (typically a corporate_actions feed gap for the ticker — see
+        # audit 2026-05-20: HDFCBANK reported "1 consecutive year"
+        # despite paying dividends for 10+ years), cross-check against
+        # yfinance .dividends and adopt the LONGER streak. The DB feed
+        # is preferred for amounts (Indian-rupee, ex-date precise) but
+        # is not authoritative for COUNT when it's freshly populated.
+        if consecutive_years <= 1 and len(fy_history) <= 2:
+            try:
+                import yfinance as _yf
+                _yf_hist = _yf.Ticker(ticker).dividends
+                if _yf_hist is not None and len(_yf_hist) > 0:
+                    _yf_fy = self._build_fy_history(_yf_hist)
+                    _yf_streak = self._count_consecutive(_yf_fy)
+                    if _yf_streak > consecutive_years:
+                        log.info(
+                            "DividendService: %s DB streak=%d but yfinance "
+                            "streak=%d — adopting yfinance streak (DB feed "
+                            "likely sparse).",
+                            ticker, consecutive_years, _yf_streak,
+                        )
+                        consecutive_years = _yf_streak
+                        # Also enrich fy_history with the yfinance buckets
+                        # so the frontend shows the longer track record.
+                        # Merge: DB amounts take precedence per-FY; new
+                        # FY buckets from yfinance fill in the gaps.
+                        _db_fys = {row["fy"] for row in fy_history}
+                        _yf_extra = [
+                            row for row in _yf_fy if row["fy"] not in _db_fys
+                        ]
+                        fy_history = sorted(
+                            fy_history + _yf_extra,
+                            key=lambda r: r["fy"],
+                        )[-5:]
+            except Exception as _yf_exc:
+                log.debug(
+                    "DividendService: yfinance streak fallback failed for "
+                    "%s: %s", ticker, _yf_exc,
+                )
+
         # ── Payout ratio ──────────────────────────────────────
         # FIX-DIVIDEND-PAYOUT-ZERO (2026-05-18): yfinance .info drops
         # `payoutRatio` for ~30% of Indian tickers (TCS, INFY, HDFCBANK,
