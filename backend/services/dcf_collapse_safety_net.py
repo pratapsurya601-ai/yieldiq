@@ -105,6 +105,7 @@ SECTOR_ENGINE_AUTHORITATIVE: frozenset[str] = frozenset({
     "pb_ratio",                        # banks / NBFCs (HDFCBANK / SBIN …)
     "pb_residual_income",              # bank PB residual income variant
     "sector_relative_recent_ipo",      # recent-IPO sector-relative path
+    "relative_post_demerger",          # Day-73 Bug D: ITCHOTELS / ABLBL etc.
 })
 
 

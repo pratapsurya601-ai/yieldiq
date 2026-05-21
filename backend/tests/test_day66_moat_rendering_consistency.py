@@ -62,5 +62,8 @@ def test_moat_engine_band_wide_unchanged():
 
 def test_cache_version_bumped_for_engine_change():
     src = _CACHE.read_text(encoding="utf-8")
-    assert "CACHE_VERSION = 130" in src
+    # Day-73 (Bug D, 2026-05-21): CACHE_VERSION bumped 130 -> 131 for
+    # the post-demerger detect-and-route fix. This Day-66 guard now
+    # checks the changelog entry survived in the cache_service.py
+    # changelog rather than pinning the version number.
     assert "fix/day66-moat-rendering-consistency" in src

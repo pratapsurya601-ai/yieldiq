@@ -1888,6 +1888,115 @@ class AnalysisService(NarrativeMixin):
             # peer median out of band) we fall through to generic DCF
             # — no breaking change vs current state when the flag is
             # off or the cohort is data-limited.
+            # ── Day-73 Bug D: post-demerger relative-valuation route ──
+            # ITCHOTELS (Jan-2025 demerger) and ABLBL (recent demerger)
+            # were returning FV=0 / verdict="fairly_valued" / revenue_cagr_3y=null
+            # because generic DCF cannot stitch pre/post-demerger bases
+            # — the trailing FCF series is mathematically meaningless
+            # across a structural-break boundary. Route these names
+            # through the IPO framework's existing peer-multiple path
+            # (compute_sector_relative_fv) instead. Gate: a structural
+            # break is on file AND <8 quarters (~2y) have elapsed since
+            # the event. After 8 quarters of post-event standalone
+            # financials are on hand, generic DCF resumes naturally
+            # (the gate evaluates False, this block is skipped).
+            # See backend/services/analysis/ipo_framework.py for the
+            # peer-multiple math reused here.
+            _post_demerger_route = False
+            _post_demerger_meta: dict | None = None
+            try:
+                from backend.services.corporate_actions_service import (
+                    has_structural_break as _pdr_has_break,
+                    quarters_since_event as _pdr_quarters_since,
+                )
+                _pdr_active = (
+                    _pdr_has_break(ticker)
+                    and (_pdr_quarters_since(ticker) or 99) < 8
+                    and not is_financial
+                    and not is_regulated_utility_ticker
+                    and not is_etf_ticker
+                    and not is_reit_ticker
+                    and price
+                    and price > 0
+                )
+            except Exception:
+                _pdr_active = False
+            if _pdr_active:
+                try:
+                    from backend.services.sector_percentile import (
+                        compute_sector_cohort as _pdr_cohort_fn,
+                    )
+                    _pdr_sess = _get_pipeline_session()
+                    _pdr_cohort_rows: list[dict] = []
+                    if _pdr_sess is not None:
+                        try:
+                            _pdr_cohort_rows = _pdr_cohort_fn(
+                                sector_label=enriched.get("sector_name")
+                                or raw.get("sector_name")
+                                or raw.get("sector")
+                                or "",
+                                db_session=_pdr_sess,
+                                industry_label=raw.get("industry")
+                                or enriched.get("industry"),
+                            ) or []
+                        finally:
+                            try:
+                                _pdr_sess.close()
+                            except Exception:
+                                pass
+                    _pdr_shares = float(enriched.get("shares") or 0) or 0
+                    _pdr_eps_ttm: float | None = None
+                    _pdr_rev_ps: float | None = None
+                    if _pdr_shares > 0:
+                        _pdr_pat = enriched.get("latest_pat")
+                        _pdr_rev = enriched.get("latest_revenue")
+                        if _pdr_pat is not None:
+                            try:
+                                _pdr_eps_ttm = float(_pdr_pat) / _pdr_shares
+                            except Exception:
+                                _pdr_eps_ttm = None
+                        if _pdr_rev is not None:
+                            try:
+                                _pdr_rev_ps = float(_pdr_rev) / _pdr_shares
+                            except Exception:
+                                _pdr_rev_ps = None
+                    _pdr_result = _ipo_compute_sector_relative_fv(
+                        eps_ttm=_pdr_eps_ttm,
+                        revenue_per_share=_pdr_rev_ps,
+                        cohort=_pdr_cohort_rows,
+                        price=float(price),
+                    )
+                    if _pdr_result and (_pdr_result.get("fair_value") or 0) > 0:
+                        iv = float(_pdr_result["fair_value"])
+                        iv_raw = iv
+                        bear_iv = round(iv * 0.80, 2)
+                        bull_iv = round(iv * 1.20, 2)
+                        _post_demerger_route = True
+                        _post_demerger_meta = _pdr_result
+                        _data_issues.append(
+                            "Post-demerger relative valuation: peer "
+                            f"multiples (method={_pdr_result.get('method')}, "
+                            f"n_peers={_pdr_result.get('n_peers', 0)}) — "
+                            "DCF requires ≥8 quarters of standalone "
+                            "fundamentals."
+                        )
+                        import logging as _pdr_log
+                        _pdr_log.getLogger("yieldiq.analysis").info(
+                            "POST_DEMERGER_ROUTE: %s iv=%.2f price=%.2f "
+                            "method=%s n_peers=%d quarters_since_event=%s",
+                            ticker, iv, float(price),
+                            _pdr_result.get("method"),
+                            int(_pdr_result.get("n_peers") or 0),
+                            _pdr_quarters_since(ticker),
+                        )
+                except Exception as _pdr_exc:
+                    import logging as _pdr_log2
+                    _pdr_log2.getLogger("yieldiq.analysis").warning(
+                        "[%s] post_demerger_route failed: %s: %s",
+                        ticker, type(_pdr_exc).__name__, _pdr_exc,
+                    )
+                    _post_demerger_route = False
+
             _tier2_result = None
             _tier2_attempted = False
             if tier2_enabled():
@@ -2098,6 +2207,7 @@ class AnalysisService(NarrativeMixin):
             if (
                 _tier2_result is not None
                 and _tier2_result.get("fair_value", 0) > 0
+                and not _post_demerger_route
             ):
                 iv = float(_tier2_result["fair_value"])
                 iv_raw = iv
@@ -2562,7 +2672,12 @@ class AnalysisService(NarrativeMixin):
         _fair_value_source: str = "dcf"
         _peer_cap_details: PeerCapDetails | None = None
         try:
-            if _is_recent_ipo:
+            if locals().get("_post_demerger_route"):
+                # Post-demerger relative valuation (Day-73 Bug D): same
+                # rationale as the recent-IPO branch below — peer-cap is
+                # a DCF-overshoot heuristic and a category error here.
+                _pc = None
+            elif _is_recent_ipo:
                 # Recent IPOs are valued sector-relative, not via DCF —
                 # the peer-cap (which assumes a DCF FV needs taming)
                 # would be a category error.
@@ -2666,6 +2781,11 @@ class AnalysisService(NarrativeMixin):
                 _engine_now = "reit_nav_dpu_required"
             elif is_regulated_utility_ticker:
                 _engine_now = "rate_base"
+            elif locals().get("_post_demerger_route"):
+                # Day-73 Bug D: post-demerger relative valuation — the
+                # safety net's [0.1, 5.0] FV/CMP gate is calibrated for
+                # DCF over/under-shoot and is not meaningful here.
+                _engine_now = "relative_post_demerger"
             elif locals().get("_is_recent_ipo") and locals().get("_fair_value_source") == "sector_relative_recent_ipo":
                 _engine_now = "sector_relative_recent_ipo"
             elif is_financial:
@@ -4355,7 +4475,9 @@ class AnalysisService(NarrativeMixin):
                 current_price_source=_data_source,
                 fair_value_computed_at=_ts,
                 valuation_engine_used=(
-                    "sector_relative_recent_ipo"
+                    "relative_post_demerger"
+                    if locals().get("_post_demerger_route")
+                    else "sector_relative_recent_ipo"
                     if _fair_value_source == "sector_relative_recent_ipo"
                     else (
                         "peer_capped"

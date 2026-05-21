@@ -213,6 +213,30 @@ def validate_analysis(response) -> ValidationResult:
     q = getattr(response, "quality", None)
     c = getattr(response, "company", None)
 
+    # ── Day-73 Bug D: post-demerger / IPO relative-valuation opt-out ──
+    # When the response was produced by a peer-multiple path (recent
+    # demerger or IPO with <2y standalone fundamentals), the DCF-shaped
+    # sanity rules below are category errors — there is no DCF input
+    # here to gate. Skip:
+    #   * fair_value_ratio bounds (DCF over/under-shoot calibration)
+    #   * margin_of_safety bounds (downstream of that ratio)
+    #   * PHANTOM_REVENUE_CAGR (Rule 7) — catches stitched pre/post
+    #     bases on a DCF run; irrelevant when revenue_cagr_3y was
+    #     never used as a DCF input in the first place.
+    # The rest of validate_analysis (WACC sanity, market_cap bounds,
+    # score / piotroski / D/E hygiene, ADR mistag, FV_INPUT_MISMATCH,
+    # DCF trace ring-buffer) still applies — those are universal.
+    _engine_used = getattr(v, "valuation_engine_used", None) if v else None
+    _RELATIVE_VALUATION_ENGINES = {
+        "relative_post_demerger",
+        "ipo_relative",
+        "sector_relative_recent_ipo",
+    }
+    _skip_dcf_shaped_rules = (
+        isinstance(_engine_used, str)
+        and _engine_used in _RELATIVE_VALUATION_ENGINES
+    )
+
     # Track whether this response's FV reflects a legitimately-applied
     # DCF 5x cap. When True, the fair_value_ratio bounds check is
     # expected to "fail" (the moat multiplier — up to +25% for Wide —
@@ -233,7 +257,11 @@ def validate_analysis(response) -> ValidationResult:
         # +500% hard bound and the ratio above 5.0 — both are
         # explained by correct cap behavior, so downgrade to info.
         mos_val = getattr(v, "margin_of_safety", None)
-        if was_capped:
+        if _skip_dcf_shaped_rules:
+            # Day-73: post-demerger / IPO relative valuation — MoS bound
+            # is DCF-calibrated and doesn't apply.
+            pass
+        elif was_capped:
             lo, hi, _s = BOUNDS["margin_of_safety"]
             try:
                 mv = float(mos_val) if mos_val is not None else None
@@ -253,7 +281,11 @@ def validate_analysis(response) -> ValidationResult:
         cmp_price = getattr(v, "current_price", 0) or 0
         if fv > 0 and cmp_price > 0:
             ratio = fv / cmp_price
-            if was_capped:
+            if _skip_dcf_shaped_rules:
+                # Day-73: post-demerger / IPO relative valuation —
+                # bounds are DCF-calibrated and don't apply here.
+                pass
+            elif was_capped:
                 # Cap was legitimately applied upstream. Log an INFO
                 # note but don't flip severity — this is expected.
                 lo, hi, _sev = BOUNDS["fair_value_ratio"]
@@ -501,7 +533,12 @@ def validate_analysis(response) -> ValidationResult:
     except Exception:
         has_structural_break = None  # type: ignore[assignment]
 
-    if has_structural_break is not None and q is not None and _ticker:
+    if (
+        has_structural_break is not None
+        and q is not None
+        and _ticker
+        and not _skip_dcf_shaped_rules
+    ):
         try:
             _broken = bool(has_structural_break(_ticker))
         except Exception:
