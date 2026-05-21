@@ -14,10 +14,10 @@ export default function ConcallEmpty() {
         </svg>
       </div>
 
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-ink mb-1">
+      <h2 className="text-lg font-semibold text-ink mb-1">
         No concall transcripts yet
       </h2>
-      <p className="text-sm text-gray-500 dark:text-caption mb-6 max-w-xs">
+      <p className="text-sm text-caption mb-6 max-w-xs">
         We&apos;re indexing earnings calls. Browse analyses while we populate.
       </p>
 

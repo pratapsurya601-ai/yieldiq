@@ -42,17 +42,17 @@ function shortName(s: string | null, n = 28): string {
 function DealsTable({ title, deals }: { title: string; deals: BulkBlockDeal[] }) {
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
-      <div className="px-4 py-2 border-b border-border bg-gray-50/50">
-        <p className="text-xs font-semibold text-gray-700">{title}</p>
+      <div className="px-4 py-2 border-b border-border bg-surface/50">
+        <p className="text-xs font-semibold text-ink">{title}</p>
       </div>
       {deals.length === 0 ? (
         <div className="px-4 py-3">
-          <p className="text-xs text-gray-500">No recent {title.toLowerCase()}.</p>
+          <p className="text-xs text-caption">No recent {title.toLowerCase()}.</p>
         </div>
       ) : (
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-gray-100 text-[10px] text-gray-400 uppercase">
+            <tr className="border-b border-border text-[10px] text-caption uppercase">
               <th className="text-left px-3 py-1.5">Date</th>
               <th className="text-left px-3 py-1.5">Client</th>
               <th className="text-center px-3 py-1.5">Side</th>
@@ -62,9 +62,9 @@ function DealsTable({ title, deals }: { title: string; deals: BulkBlockDeal[] })
           </thead>
           <tbody>
             {deals.map((d, i) => (
-              <tr key={`${d.deal_date}-${i}`} className={i % 2 === 1 ? "bg-gray-50/40" : ""}>
-                <td className="px-3 py-1.5 font-mono text-gray-700">{d.deal_date}</td>
-                <td className="px-3 py-1.5 text-gray-700">{shortName(d.client_name)}</td>
+              <tr key={`${d.deal_date}-${i}`} className={i % 2 === 1 ? "bg-surface/40" : ""}>
+                <td className="px-3 py-1.5 font-mono text-ink">{d.deal_date}</td>
+                <td className="px-3 py-1.5 text-ink">{shortName(d.client_name)}</td>
                 <td className="px-3 py-1.5 text-center">
                   <span
                     className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
@@ -123,14 +123,14 @@ export default function BulkBlockDealsPanel({ ticker }: Props) {
 
   return (
     <div className="space-y-3">
-      <p className="text-xs font-semibold text-gray-700 uppercase tracking-wider">
+      <p className="text-xs font-semibold text-ink uppercase tracking-wider">
         Bulk &amp; Block Deals
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <DealsTable title="Bulk Deals" deals={bulk ?? []} />
         <DealsTable title="Block Deals" deals={block ?? []} />
       </div>
-      <p className="text-[10px] text-gray-400">
+      <p className="text-[10px] text-caption">
         Source: NSE bulk/block deal reports, archived daily by YieldIQ.
       </p>
     </div>

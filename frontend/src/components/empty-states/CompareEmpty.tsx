@@ -14,10 +14,10 @@ export default function CompareEmpty() {
         </svg>
       </div>
 
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-ink mb-1">
+      <h2 className="text-lg font-semibold text-ink mb-1">
         Compare any two stocks
       </h2>
-      <p className="text-sm text-gray-500 dark:text-caption mb-6 max-w-xs">
+      <p className="text-sm text-caption mb-6 max-w-xs">
         Pick two companies to see side-by-side DCF, moat, and MoS.
       </p>
 

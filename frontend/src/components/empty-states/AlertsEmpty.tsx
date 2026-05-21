@@ -14,10 +14,10 @@ export default function AlertsEmpty() {
         </svg>
       </div>
 
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-ink mb-1">
+      <h2 className="text-lg font-semibold text-ink mb-1">
         No alerts set
       </h2>
-      <p className="text-sm text-gray-500 dark:text-caption mb-6 max-w-xs">
+      <p className="text-sm text-caption mb-6 max-w-xs">
         Get notified when a stock&apos;s margin of safety crosses your threshold.
       </p>
 

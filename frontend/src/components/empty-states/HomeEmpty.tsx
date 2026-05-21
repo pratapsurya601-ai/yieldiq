@@ -27,14 +27,14 @@ export default function HomeEmpty() {
         </svg>
       </div>
 
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-ink mb-1">
+      <h2 className="text-lg font-semibold text-ink mb-1">
         Your market briefing will live here
       </h2>
-      <p className="text-sm text-gray-500 dark:text-caption mb-6 max-w-xs">
+      <p className="text-sm text-caption mb-6 max-w-xs">
         Start by analysing a stock to see personalised insights and your daily briefing.
       </p>
 
-      <p className="text-[10px] font-bold text-gray-500 dark:text-caption uppercase tracking-widest mb-3">Popular picks</p>
+      <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-3">Popular picks</p>
       <div className="flex flex-wrap justify-center gap-2">
         {POPULAR_TICKERS.map((item) => (
           <Link
@@ -42,7 +42,7 @@ export default function HomeEmpty() {
             href={`/analysis/${item.ticker}`}
             className={cn(
               "inline-flex items-center rounded-full px-5 py-2.5 min-h-[40px]",
-              "bg-white border border-gray-200 text-sm font-medium text-gray-700",
+              "bg-bg dark:bg-surface border border-border text-sm font-medium text-ink",
               "hover:border-blue-300 hover:text-blue-700 active:bg-blue-50 active:scale-[0.97]",
               "transition-colors shadow-sm"
             )}

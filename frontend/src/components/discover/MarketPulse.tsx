@@ -59,11 +59,11 @@ export default function MarketPulse({ days = 30 }: { days?: number }) {
   if (isLoading) {
     return (
       <section>
-        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">
+        <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-3">
           Market Pulse — FII vs DII
         </p>
-        <div className="bg-white border border-gray-100 rounded-xl p-6 text-center">
-          <p className="text-xs text-gray-400">Loading flows…</p>
+        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-6 text-center">
+          <p className="text-xs text-caption">Loading flows…</p>
         </div>
       </section>
     )
@@ -75,14 +75,14 @@ export default function MarketPulse({ days = 30 }: { days?: number }) {
   if (days_.length === 0) {
     return (
       <section>
-        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">
+        <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-3">
           Market Pulse — FII vs DII
         </p>
-        <div className="bg-white border border-gray-100 rounded-xl p-6 text-center">
-          <p className="text-sm font-semibold text-gray-900 mb-1">
+        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-6 text-center">
+          <p className="text-sm font-semibold text-ink mb-1">
             FII / DII flows are warming up
           </p>
-          <p className="text-xs text-gray-500 max-w-xs mx-auto">
+          <p className="text-xs text-caption max-w-xs mx-auto">
             NSE only publishes a current-day snapshot. Daily archive starts the day this feature ships — check back tomorrow.
           </p>
         </div>
@@ -102,15 +102,15 @@ export default function MarketPulse({ days = 30 }: { days?: number }) {
   return (
     <section>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">
+        <p className="text-[10px] font-bold text-caption uppercase tracking-widest">
           Market Pulse — FII vs DII
         </p>
-        <p className="text-[10px] text-gray-500">Last {days_.length} sessions · ₹ Cr</p>
+        <p className="text-[10px] text-caption">Last {days_.length} sessions · ₹ Cr</p>
       </div>
-      <div className="bg-white border border-gray-100 rounded-xl overflow-hidden">
+      <div className="bg-bg dark:bg-surface border border-border rounded-xl overflow-hidden">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-gray-100 text-[10px] text-gray-400 uppercase">
+            <tr className="border-b border-border text-[10px] text-caption uppercase">
               <th className="text-left px-3 py-2">Date</th>
               <th className="text-right px-3 py-2">FII Net</th>
               <th className="text-right px-3 py-2">DII Net</th>
@@ -125,8 +125,8 @@ export default function MarketPulse({ days = 30 }: { days?: number }) {
                 ? Math.min(100, (Math.abs(d.dii_net) / maxAbs) * 100)
                 : 0
               return (
-                <tr key={d.date} className={`border-b border-gray-50 ${i % 2 === 1 ? "bg-gray-50/50" : ""}`}>
-                  <td className="px-3 py-2 text-gray-700 font-mono">{d.date}</td>
+                <tr key={d.date} className={`border-b border-border ${i % 2 === 1 ? "bg-surface/50" : ""}`}>
+                  <td className="px-3 py-2 text-ink font-mono">{d.date}</td>
                   <td className="px-3 py-2 text-right">
                     <div className="flex items-center justify-end gap-2">
                       <span
@@ -159,7 +159,7 @@ export default function MarketPulse({ days = 30 }: { days?: number }) {
           </tbody>
         </table>
       </div>
-      <p className="text-[10px] text-gray-400 mt-1">
+      <p className="text-[10px] text-caption mt-1">
         Source: NSE FII/DII snapshot, archived daily by YieldIQ.
       </p>
     </section>
