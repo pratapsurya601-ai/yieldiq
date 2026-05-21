@@ -13,8 +13,8 @@ import BacktestChart from "./BacktestChart"
  *   4. Per-year breakdown table
  *   5. Methodology + SEBI disclosure
  *
- * Vocabulary (SEBI): no buy/sell/hold/strong/accumulate/recommend/
- * outperform/underperform/should. The headline number is framed as
+ * Vocabulary (SEBI): see backend/services/analysis/sebi_filter.py for
+ * banned advisory terms. The headline number is framed as
  * "delta vs Nifty proxy" or "produced/yielded".
  */
 

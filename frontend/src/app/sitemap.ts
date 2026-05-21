@@ -19,7 +19,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: "https://yieldiq.in/how-it-works", priority: 0.8, changeFrequency: "monthly" },
     { url: "https://yieldiq.in/methodology", priority: 0.6, changeFrequency: "monthly" },
     // Day-89: hypothetical YIQ-50 backtest marketing page.
-    { url: "https://yieldiq.in/backtest", priority: 0.7, changeFrequency: "weekly" },
+    { url: "https://yieldiq.in/yiq50-backtest", priority: 0.7, changeFrequency: "weekly" },
     // Day-83: end-user help section. Each topic indexed as its own URL
     // so Google ranks them on the long-tail "how do I read X" queries.
     { url: "https://yieldiq.in/help", priority: 0.7, changeFrequency: "monthly" },
