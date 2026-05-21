@@ -1030,11 +1030,20 @@ def _add_flags(
     except Exception:
         pass
 
-    # I3 — Wide moat
+    # I3 — Wide moat.
+    #
+    # Day-66 (2026-05-21): drop the `m_score > 65` fallback that
+    # caused the audit's Reliance contradiction (Moat card said
+    # "Moderate", Strengths card said "Wide Economic Moat"). The
+    # moat label threshold is score >= 70 (see _MOAT_BAND_WIDE in
+    # screener/moat_engine.py); the "> 65" alt-gate fired on stocks
+    # with scores 66-69 that the label engine had explicitly
+    # classified as Moderate. Use the GRADE as the single source of
+    # truth so the two surfaces can never disagree.
     try:
         m_score = int(moat_result.get("score", 0)) if moat_result else 0
         m_grade = (moat_result.get("grade") or "") if moat_result else ""
-        if m_score > 65 or m_grade == "Wide":
+        if m_grade == "Wide":
             moat_types = moat_result.get("moat_types", []) if moat_result else []
             type_str = ", ".join(moat_types) if moat_types else "competitive advantages"
             add(
