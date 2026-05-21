@@ -649,12 +649,34 @@ export interface PublicPeerRow {
   pe_ratio: number | null
 }
 
+// Day-80 (2026-05-22): peer-cohort transparency. The public /peers
+// endpoint now returns a structured cohort-criteria object alongside
+// the raw peer rows so the compare page (and SEO peer card) can
+// surface WHY each peer is in the cohort — Tickertape just says
+// "industry peers" without ever explaining the rationale.
+export interface PeerCohortCriteria {
+  sub_sector: string | null
+  sector: string | null
+  // Inclusive [min%, max%] mcap band, expressed as percent of subject
+  // mcap. Example: [11.8, 81.4] = peers range from 12% to 81% of HDFCBANK.
+  mcap_band_pct: [number, number] | null
+  peer_count: number
+  // Plain-English caption, ready to render. Null if neither sub-sector
+  // nor mcap band could be synthesised.
+  caption: string | null
+  // True when the cohort has more than one sub-sector — UI displays
+  // a "mixed cohort" disclaimer instead of asserting a single sub-sector.
+  mixed_sub_sector: boolean
+}
+
 export interface PublicPeersResponse {
   ticker: string
   // Both fields optional — older cached responses (pre-2026-04-29) lack
   // them. Consumers must default `has_peers` to `peers.length > 0`.
   has_peers?: boolean
   sector_label?: string | null
+  // Optional — added 2026-05-22 (Day-80). Older cached responses lack it.
+  cohort_criteria?: PeerCohortCriteria | null
   peers: PublicPeerRow[]
 }
 
