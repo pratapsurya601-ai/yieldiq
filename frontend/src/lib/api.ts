@@ -664,8 +664,8 @@ export interface PeerCohortCriteria {
   // Plain-English caption, ready to render. Null if neither sub-sector
   // nor mcap band could be synthesised.
   caption: string | null
-  // True when the cohort has more than one sub-sector — UI should
-  // disclaim "mixed cohort" instead of asserting a single sub-sector.
+  // True when the cohort has more than one sub-sector — UI displays
+  // a "mixed cohort" disclaimer instead of asserting a single sub-sector.
   mixed_sub_sector: boolean
 }
 
