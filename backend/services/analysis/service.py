@@ -3169,7 +3169,26 @@ class AnalysisService(NarrativeMixin):
             and not _trough_anchor_fired
             and _scenarios_clamped.bear.iv < 0.5 * price
         ):
-            _floor_bear_iv = round(0.5 * price, 2)
+            # Day-56 (2026-05-21): respect scenario ordering when the
+            # bear-floor would push bear above base. The original
+            # comment (Finding C 2026-05-18) deliberately allowed
+            # bear >= base because the alternative was bear=₹1.59 on
+            # tickers like IOC where base FV < 0.5*price. Canary 2026-
+            # 05-20 caught this on HINDZINC/COROMANDEL/GUJGASLTD —
+            # gate-3 scenario_dispersion FAILs because bear > base.
+            #
+            # Fix: floor bear at min(0.5*price, 0.95*base) instead of
+            # just 0.5*price. For HINDZINC (base 307, price 630) the
+            # original gave bear=315 > base; this gives
+            # min(315, 291.7) = 291.7 — still meaningfully above the
+            # ₹0 pathology the Finding-C guard was built to prevent,
+            # AND strictly below base so the scenarios always order.
+            #
+            # For IOC (base 49.36, price 131.81) the original would
+            # have given bear=65.9, this gives min(65.9, 46.9) = 46.9
+            # — slightly below base, but far above the ₹1.59 the bare
+            # engine produces. Strictly better in every direction.
+            _floor_bear_iv = round(min(0.5 * price, iv * 0.95), 2)
             _floor_bear_raw = ((_floor_bear_iv - price) / price * 100)
             _floor_bear_d, _floor_bear_c = display_mos(_floor_bear_raw)
             _floor_bear_bmos = buffett_mos_pct(_floor_bear_iv, price)
