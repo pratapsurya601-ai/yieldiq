@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { AlertTriangle, Info } from "lucide-react"
 import type { ValidationResult } from "@/lib/validators"
 
 /**
@@ -22,12 +23,12 @@ export default function DataQualityBanner({
   const bg = critical ? "bg-red-50 dark:bg-red-950/30" : "bg-amber-50 dark:bg-amber-950/30"
   const border = critical ? "border-red-200 dark:border-red-900" : "border-amber-200 dark:border-amber-900"
   const text = critical ? "text-red-900 dark:text-red-200" : "text-amber-900 dark:text-amber-200"
-  const icon = critical ? "⚠" : "ⓘ"
+  const Icon = critical ? AlertTriangle : Info
 
   return (
     <div className={`${bg} ${border} ${text} border rounded-xl p-4 mb-4`}>
       <div className="flex items-start gap-3">
-        <span className="text-lg" aria-hidden="true">{icon}</span>
+        <Icon className="w-5 h-5 flex-shrink-0 mt-0.5" aria-hidden="true" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold">
             {critical ? "Data Under Review" : "Data Quality Notice"}
