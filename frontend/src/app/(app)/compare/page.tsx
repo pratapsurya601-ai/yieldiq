@@ -621,6 +621,20 @@ function CompareContent() {
             {displayTicker(firstTicker)}
             {peersData?.sector_label ? ` (${peersData.sector_label})` : ""}:
           </p>
+          {/* Day-80: peer-cohort transparency caption. Unique vs Tickertape /
+              Screener which surface peers without explaining selection. */}
+          {peersData?.cohort_criteria?.caption && (
+            <p
+              data-testid="peer-cohort-caption"
+              className="text-[11px] text-amber-800 mb-2 leading-snug"
+            >
+              <span className="font-semibold">Cohort:</span>{" "}
+              {peersData.cohort_criteria.caption}
+              {peersData.cohort_criteria.mixed_sub_sector && (
+                <span className="ml-1 italic opacity-80">(mixed cohort)</span>
+              )}
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             {peerSuggestions.map((p) => (
               <button

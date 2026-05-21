@@ -2763,10 +2763,68 @@ async def get_peers(
         except Exception:
             sector_label_value = None
 
+        # Day-80 (2026-05-22): peer-cohort transparency.
+        # Tickertape and most retail screeners surface "industry peers"
+        # without ever explaining WHY each peer is in the cohort. We have
+        # all the inputs — sector, sub_sector, mcap_ratio per row — so
+        # synthesise a short, plain-English caption + structured object
+        # the frontend can render above the suggestion chips.
+        #
+        # Caption shape (example):
+        #   "Same sub-sector (Banks - Regional); peers span 12%-81% of HDFCBANK mcap"
+        #
+        # Structured `cohort_criteria` lets consumers (compare page,
+        # SEO peer card, future export) render their own variant without
+        # parsing the caption string.
+        cohort_criteria: dict[str, object] | None = None
+        try:
+            sub_sectors = {p.get("sub_sector") for p in peers_out if p.get("sub_sector")}
+            sectors = {p.get("sector") for p in peers_out if p.get("sector")}
+            mcap_ratios = [
+                p.get("mcap_ratio") for p in peers_out
+                if isinstance(p.get("mcap_ratio"), (int, float))
+            ]
+            primary_sub = next(iter(sub_sectors)) if len(sub_sectors) == 1 else None
+            primary_sector = next(iter(sectors)) if len(sectors) == 1 else None
+            mcap_band: list[float] | None = None
+            if mcap_ratios:
+                mcap_band = [
+                    round(min(mcap_ratios) * 100, 1),
+                    round(max(mcap_ratios) * 100, 1),
+                ]
+
+            caption_parts: list[str] = []
+            if primary_sub:
+                caption_parts.append(f"Same sub-sector ({primary_sub})")
+            elif primary_sector:
+                caption_parts.append(f"Same sector ({primary_sector})")
+            if mcap_band:
+                lo, hi = mcap_band
+                caption_parts.append(
+                    f"peers span {lo:g}%-{hi:g}% of {clean} mcap"
+                )
+            caption = "; ".join(caption_parts) if caption_parts else None
+
+            cohort_criteria = {
+                "sub_sector": primary_sub,
+                "sector": primary_sector,
+                "mcap_band_pct": mcap_band,
+                "peer_count": len(peers_out),
+                "caption": caption,
+                # Cohort is mixed when sub-sectors disagree — surface that
+                # so the UI can disclaim "mixed cohort" instead of asserting
+                # a single sub-sector. Useful for diversified conglomerates.
+                "mixed_sub_sector": len(sub_sectors) > 1,
+            }
+        except Exception as exc:
+            logger.debug(f"cohort_criteria synth failed for {clean}: {exc}")
+            cohort_criteria = None
+
         result = {
             "ticker": full_ticker,
             "has_peers": len(peers_out) > 0,
             "sector_label": sector_label_value,
+            "cohort_criteria": cohort_criteria,
             "peers": peers_out,
         }
         cache.set(_cache_key, result, ttl=1800)
