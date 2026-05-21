@@ -53,17 +53,17 @@ export default async function PortfolioUploadPage({ searchParams }: PageProps) {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 sm:py-12">
-      <nav className="text-xs text-gray-400 mb-6 flex items-center gap-1.5">
+      <nav className="text-xs text-caption mb-6 flex items-center gap-1.5">
         <Link href="/portfolio" className="hover:text-gray-600">Portfolio</Link>
         <span>/</span>
-        <span className="text-gray-600 font-medium">Upload</span>
+        <span className="text-caption font-medium">Upload</span>
       </nav>
 
       <header className="mb-6">
         <h1 className="text-2xl sm:text-3xl font-black" style={{ color: "var(--color-ink, #0F172A)" }}>
           Portfolio tracker
         </h1>
-        <p className="text-sm text-gray-500 mt-1">
+        <p className="text-sm text-caption mt-1">
           Upload a CSV of your holdings to see live P&amp;L, weighted fair value
           and sector exposure — entirely from public YieldIQ valuations.
         </p>

@@ -221,10 +221,10 @@ export default function InsuranceAdminPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6 pb-20">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">
+        <h1 className="text-xl font-bold text-ink">
           Insurance Embedded Value &amp; VNB
         </h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-caption">
           Quarterly operator entry that activates the Appraisal Value engine
           for life insurers. See
           {" "}
@@ -251,16 +251,16 @@ export default function InsuranceAdminPage() {
       {/* Entry form */}
       <form
         onSubmit={onSubmit}
-        className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4"
+        className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5 space-y-4"
       >
-        <h2 className="text-sm font-semibold text-gray-900">Add / Update Entry</h2>
+        <h2 className="text-sm font-semibold text-ink">Add / Update Entry</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label className="block text-sm">
-            <span className="text-gray-700">Ticker</span>
+            <span className="text-ink">Ticker</span>
             <select
               value={form.ticker}
               onChange={(e) => setForm({ ...form, ticker: e.target.value })}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 block w-full rounded-lg border border-border px-3 py-2 text-sm"
               required
             >
               {INSURANCE_TICKERS.map((t) => (
@@ -272,19 +272,19 @@ export default function InsuranceAdminPage() {
           </label>
 
           <label className="block text-sm">
-            <span className="text-gray-700">Period End (quarter / half-year)</span>
+            <span className="text-ink">Period End (quarter / half-year)</span>
             <input
               type="date"
               value={form.period_end}
               max={todayISO()}
               onChange={(e) => setForm({ ...form, period_end: e.target.value })}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 block w-full rounded-lg border border-border px-3 py-2 text-sm"
               required
             />
           </label>
 
           <label className="block text-sm">
-            <span className="text-gray-700">Embedded Value (₹ Cr) *</span>
+            <span className="text-ink">Embedded Value (₹ Cr) *</span>
             <input
               type="number"
               step="0.01"
@@ -293,13 +293,13 @@ export default function InsuranceAdminPage() {
               onChange={(e) =>
                 setForm({ ...form, embedded_value_cr: e.target.value })
               }
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 block w-full rounded-lg border border-border px-3 py-2 text-sm"
               required
             />
           </label>
 
           <label className="block text-sm">
-            <span className="text-gray-700">VNB (₹ Cr) — trailing 4Q</span>
+            <span className="text-ink">VNB (₹ Cr) — trailing 4Q</span>
             <input
               type="number"
               step="0.01"
@@ -307,12 +307,12 @@ export default function InsuranceAdminPage() {
               onChange={(e) =>
                 setForm({ ...form, value_new_business_cr: e.target.value })
               }
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 block w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
 
           <label className="block text-sm">
-            <span className="text-gray-700">VNB margin (%)</span>
+            <span className="text-ink">VNB margin (%)</span>
             <input
               type="number"
               step="0.01"
@@ -320,12 +320,12 @@ export default function InsuranceAdminPage() {
               onChange={(e) =>
                 setForm({ ...form, vnb_margin_pct: e.target.value })
               }
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 block w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
 
           <label className="block text-sm">
-            <span className="text-gray-700">EV growth YoY (%)</span>
+            <span className="text-ink">EV growth YoY (%)</span>
             <input
               type="number"
               step="0.01"
@@ -333,28 +333,28 @@ export default function InsuranceAdminPage() {
               onChange={(e) =>
                 setForm({ ...form, ev_growth_yoy_pct: e.target.value })
               }
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 block w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
 
           <label className="block text-sm md:col-span-2">
-            <span className="text-gray-700">Source URL (insurer IR PDF)</span>
+            <span className="text-ink">Source URL (insurer IR PDF)</span>
             <input
               type="url"
               placeholder="https://www.hdfclife.com/about-us/investor-relations"
               value={form.source_url}
               onChange={(e) => setForm({ ...form, source_url: e.target.value })}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 block w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
 
           <label className="block text-sm md:col-span-2">
-            <span className="text-gray-700">Notes</span>
+            <span className="text-ink">Notes</span>
             <textarea
               rows={2}
               value={form.notes}
               onChange={(e) => setForm({ ...form, notes: e.target.value })}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+              className="mt-1 block w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
         </div>
@@ -378,7 +378,7 @@ export default function InsuranceAdminPage() {
               setFormError("")
               setInfo("")
             }}
-            className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-border px-4 py-2 text-sm text-ink hover:bg-gray-50"
           >
             Reset
           </button>
@@ -386,22 +386,22 @@ export default function InsuranceAdminPage() {
       </form>
 
       {/* Existing rows */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5">
+        <h2 className="text-sm font-semibold text-ink mb-3">
           Existing entries ({rows.length})
         </h2>
         {loading ? (
-          <div className="text-sm text-gray-500">Loading…</div>
+          <div className="text-sm text-caption">Loading…</div>
         ) : rows.length === 0 ? (
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-caption">
             No rows yet. Add the first quarterly entry to activate the
             Appraisal Value engine.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-xs">
-              <thead className="text-gray-600">
-                <tr className="border-b border-gray-200">
+              <thead className="text-caption">
+                <tr className="border-b border-border">
                   <th className="py-2 pr-3 text-left font-semibold">Ticker</th>
                   <th className="py-2 pr-3 text-left font-semibold">Period</th>
                   <th className="py-2 pr-3 text-right font-semibold">EV (Cr)</th>
@@ -419,7 +419,7 @@ export default function InsuranceAdminPage() {
                     key={`${r.ticker}-${r.period_end}`}
                     className="border-b border-gray-100"
                   >
-                    <td className="py-2 pr-3 font-medium text-gray-900">
+                    <td className="py-2 pr-3 font-medium text-ink">
                       {r.ticker}
                     </td>
                     <td className="py-2 pr-3">{r.period_end}</td>
@@ -449,7 +449,7 @@ export default function InsuranceAdminPage() {
                         "—"
                       )}
                     </td>
-                    <td className="py-2 pr-3 text-gray-500">
+                    <td className="py-2 pr-3 text-caption">
                       {r.entered_by ?? "—"}
                     </td>
                     <td className="py-2 pr-3 text-right space-x-2">

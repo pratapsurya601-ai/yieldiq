@@ -121,7 +121,7 @@ function AddStockInput({
 
   if (disabled) {
     return (
-      <div className="text-xs text-gray-500 italic px-3 py-2 border border-dashed border-gray-200 rounded-xl bg-gray-50">
+      <div className="text-xs text-caption italic px-3 py-2 border border-dashed border-border rounded-xl bg-bg dark:bg-surface">
         Limit reached ({MAX_STOCKS} stocks). Remove one to add another.
       </div>
     )
@@ -130,7 +130,7 @@ function AddStockInput({
   return (
     <div ref={wrapperRef} className="relative">
       <svg
-        className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500 pointer-events-none"
+        className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-caption pointer-events-none"
         fill="none"
         viewBox="0 0 24 24"
         stroke="currentColor"
@@ -144,10 +144,10 @@ function AddStockInput({
         onChange={(e) => setQuery(e.target.value)}
         onFocus={() => suggestions.length > 0 && setOpen(true)}
         placeholder="Add stock... (e.g. INFY)"
-        className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full pl-10 pr-4 py-2.5 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       {open && suggestions.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
+        <div className="absolute z-50 w-full mt-1 bg-bg dark:bg-surface border border-border rounded-xl shadow-lg overflow-hidden max-h-64 overflow-y-auto">
           {suggestions.map((s) => (
             <button
               key={s.ticker}
@@ -158,8 +158,8 @@ function AddStockInput({
               }}
               className="w-full text-left px-4 py-3 hover:bg-blue-50 transition flex items-center justify-between border-b border-gray-50 last:border-0"
             >
-              <span className="font-medium text-gray-900 text-sm truncate">{s.name}</span>
-              <span className="text-xs text-gray-600 font-mono ml-3 shrink-0">
+              <span className="font-medium text-ink text-sm truncate">{s.name}</span>
+              <span className="text-xs text-caption font-mono ml-3 shrink-0">
                 {displayTicker(s.ticker)}
               </span>
             </button>
@@ -218,7 +218,7 @@ function MetricRow({
       className="grid items-center gap-2 px-3 py-2.5 text-sm"
       style={{ gridTemplateColumns: `minmax(8rem, 11rem) repeat(${count}, minmax(0, 1fr))` }}
     >
-      <span className="text-gray-600 text-xs font-medium">{spec.label}</span>
+      <span className="text-caption text-xs font-medium">{spec.label}</span>
       {spec.rendered.map((cell, i) => (
         <span
           key={i}
@@ -226,7 +226,7 @@ function MetricRow({
             "text-center font-medium px-2 py-1 rounded-md tabular-nums",
             best === i && "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
             worst === i && "bg-rose-50 text-rose-700 ring-1 ring-rose-200",
-            best !== i && worst !== i && "text-gray-900",
+            best !== i && worst !== i && "text-ink",
           )}
         >
           {cell}
@@ -249,19 +249,19 @@ function MobileStockCard({
   index: number
 }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-4 space-y-2">
+    <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-4 space-y-2">
       <div className="flex items-center justify-between mb-3 pb-3 border-b border-gray-100">
         <Link
           href={`/analysis/${stock.ticker}`}
-          className="font-semibold text-gray-900 hover:text-blue-600 truncate"
+          className="font-semibold text-ink hover:text-blue-600 truncate"
         >
           {stock.company_name}
         </Link>
-        <span className="text-xs font-mono text-gray-600 shrink-0 ml-2">
+        <span className="text-xs font-mono text-caption shrink-0 ml-2">
           {displayTicker(stock.ticker)}
         </span>
       </div>
-      <p className="text-xs text-gray-500 -mt-2 mb-2">{stock.sector}</p>
+      <p className="text-xs text-caption -mt-2 mb-2">{stock.sector}</p>
       {rowSpecs.map((row) => {
         const cell = row.rendered[index]
         const label = row.label
@@ -269,13 +269,13 @@ function MobileStockCard({
         const isWorst = rank.worst.has(label)
         return (
           <div key={label} className="flex items-center justify-between text-sm py-1">
-            <span className="text-xs text-gray-600">{label}</span>
+            <span className="text-xs text-caption">{label}</span>
             <span
               className={cn(
                 "font-medium tabular-nums px-2 py-0.5 rounded-md",
                 isBest && "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
                 isWorst && "bg-rose-50 text-rose-700 ring-1 ring-rose-200",
-                !isBest && !isWorst && "text-gray-900",
+                !isBest && !isWorst && "text-ink",
               )}
             >
               {cell}
@@ -577,8 +577,8 @@ function CompareContent() {
   return (
     <div className="max-w-2xl md:max-w-5xl lg:max-w-6xl mx-auto px-4 py-6 space-y-5 pb-20">
       <div className="text-center">
-        <h1 className="text-lg font-bold text-gray-900 mb-1">Side-by-side Comparison</h1>
-        <p className="text-xs text-gray-500">
+        <h1 className="text-lg font-bold text-ink mb-1">Side-by-side Comparison</h1>
+        <p className="text-xs text-caption">
           Pick {MIN_STOCKS}–{MAX_STOCKS} stocks. Best per metric is green, worst is red.
         </p>
       </div>
@@ -626,7 +626,7 @@ function CompareContent() {
               <button
                 key={p.ticker}
                 onClick={() => addTicker(p.ticker)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white border border-amber-200 rounded-full text-xs font-medium text-amber-900 hover:bg-amber-100 hover:border-amber-300 transition"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-bg dark:bg-surface border border-amber-200 rounded-full text-xs font-medium text-amber-900 hover:bg-amber-100 hover:border-amber-300 transition"
               >
                 <span>+</span>
                 <span>{displayTicker(p.ticker)}</span>
@@ -640,7 +640,7 @@ function CompareContent() {
       {tickers.length > 0 && isLoading && (
         <div className="text-center py-12">
           <div className="inline-block h-6 w-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin mb-3" />
-          <p className="text-sm text-gray-500">Loading {tickers.length} {tickers.length === 1 ? "stock" : "stocks"}...</p>
+          <p className="text-sm text-caption">Loading {tickers.length} {tickers.length === 1 ? "stock" : "stocks"}...</p>
         </div>
       )}
 
@@ -654,8 +654,8 @@ function CompareContent() {
       {/* Empty / underfilled prompts */}
       {!isLoading && tickers.length === 0 && (
         <div className="text-center py-12 px-4">
-          <h2 className="text-base font-semibold text-gray-900 mb-1">Build a peer group</h2>
-          <p className="text-sm text-gray-600 max-w-md mx-auto">
+          <h2 className="text-base font-semibold text-ink mb-1">Build a peer group</h2>
+          <p className="text-sm text-caption max-w-md mx-auto">
             Search above to add stocks. Try a sector trio like
             {" "}
             <button
@@ -677,7 +677,7 @@ function CompareContent() {
       )}
 
       {!isLoading && tickers.length === 1 && (
-        <div className="text-center py-8 text-sm text-gray-600">
+        <div className="text-center py-8 text-sm text-caption">
           Add at least one more stock to start comparing.
         </div>
       )}
@@ -685,27 +685,27 @@ function CompareContent() {
       {/* Comparison table — desktop / tablet */}
       {enoughStocks && rowSpecs.length > 0 && (
         <>
-          <div className="hidden sm:block bg-white rounded-2xl border border-gray-100 overflow-x-auto">
+          <div className="hidden sm:block bg-bg dark:bg-surface rounded-2xl border border-gray-100 overflow-x-auto">
             {/* Header row */}
             <div
-              className="grid items-center gap-2 px-3 py-3 border-b border-gray-100 bg-gray-50 sticky top-0 z-10"
+              className="grid items-center gap-2 px-3 py-3 border-b border-gray-100 bg-bg dark:bg-surface sticky top-0 z-10"
               style={{
                 gridTemplateColumns: `minmax(8rem, 11rem) repeat(${orderedStocks.length}, minmax(0, 1fr))`,
               }}
             >
-              <span className="text-xs font-bold text-gray-600 uppercase tracking-widest">
+              <span className="text-xs font-bold text-caption uppercase tracking-widest">
                 Metric
               </span>
               {orderedStocks.map((s) => (
                 <div key={s.ticker} className="text-center min-w-0">
                   <Link
                     href={`/analysis/${s.ticker}`}
-                    className="text-sm font-semibold text-gray-900 hover:text-blue-600 transition truncate block"
+                    className="text-sm font-semibold text-ink hover:text-blue-600 transition truncate block"
                     title={s.company_name}
                   >
                     {s.company_name}
                   </Link>
-                  <p className="text-[11px] text-gray-600 font-mono">
+                  <p className="text-[11px] text-caption font-mono">
                     {displayTicker(s.ticker)}
                   </p>
                 </div>
@@ -720,7 +720,7 @@ function CompareContent() {
                   <div key={spec.label}>
                     <MetricRow spec={spec} count={orderedStocks.length} />
                     {sectionAfter && idx < rowSpecs.length - 1 && (
-                      <div className="bg-gray-50 px-3 py-1.5 text-[10px] uppercase tracking-widest text-gray-600 font-semibold border-y border-gray-100">
+                      <div className="bg-bg dark:bg-surface px-3 py-1.5 text-[10px] uppercase tracking-widest text-caption font-semibold border-y border-gray-100">
                         {sectionAfter.label}
                       </div>
                     )}
@@ -754,7 +754,7 @@ export default function ComparePage() {
   return (
     <Suspense
       fallback={
-        <div className="flex items-center justify-center py-20 text-gray-600">
+        <div className="flex items-center justify-center py-20 text-caption">
           Loading comparison...
         </div>
       }

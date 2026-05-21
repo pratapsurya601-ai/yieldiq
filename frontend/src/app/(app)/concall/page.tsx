@@ -111,12 +111,12 @@ export default function ConcallPage() {
   return (
     <div className="max-w-3xl mx-auto px-4 py-6 pb-20">
       <div className="mb-6">
-        <Link href="/portfolio" className="text-xs text-gray-500 hover:text-gray-900 mb-3 inline-flex items-center gap-1">
+        <Link href="/portfolio" className="text-xs text-caption hover:text-gray-900 mb-3 inline-flex items-center gap-1">
           &larr; Back
         </Link>
         <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase mb-1">AI Summary</p>
-        <h1 className="text-2xl font-black text-gray-900 mb-1">Concall Transcript Analysis</h1>
-        <p className="text-sm text-gray-500">Paste an earnings call transcript &mdash; get structured insights in 10 seconds.</p>
+        <h1 className="text-2xl font-black text-ink mb-1">Concall Transcript Analysis</h1>
+        <p className="text-sm text-caption">Paste an earnings call transcript &mdash; get structured insights in 10 seconds.</p>
       </div>
 
       {/* Tier gate */}
@@ -140,30 +140,30 @@ export default function ConcallPage() {
               ~150px columns on 375px-wide phones. */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             <div>
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Ticker (optional)</label>
+              <label className="text-xs font-bold text-caption uppercase tracking-wider mb-1 block">Ticker (optional)</label>
               <input
                 type="text"
                 placeholder="e.g. RELIANCE"
                 value={ticker}
                 onChange={e => setTicker(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg dark:bg-surface"
               />
             </div>
             <div>
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 block">Quarter</label>
+              <label className="text-xs font-bold text-caption uppercase tracking-wider mb-1 block">Quarter</label>
               <input
                 type="text"
                 placeholder="e.g. Q3 FY26"
                 value={quarter}
                 onChange={e => setQuarter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg dark:bg-surface"
               />
             </div>
           </div>
 
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Transcript</label>
+              <label className="text-xs font-bold text-caption uppercase tracking-wider">Transcript</label>
               <div className="flex gap-3 text-xs">
                 <button onClick={() => setTranscript(SAMPLE_TRANSCRIPT)} className="text-blue-600 hover:underline font-semibold">
                   Load sample
@@ -179,9 +179,9 @@ export default function ConcallPage() {
               onChange={e => setTranscript(e.target.value)}
               placeholder="Paste the full earnings call transcript here. Open the PDF in any viewer, select all (Ctrl+A), copy (Ctrl+C), and paste here..."
               rows={12}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono bg-white resize-y"
+              className="w-full px-3 py-2 border border-border rounded-lg text-xs font-mono bg-bg dark:bg-surface resize-y"
             />
-            <p className="text-xs text-gray-600 mt-1">{transcript.length.toLocaleString()} characters &middot; minimum 200 required</p>
+            <p className="text-xs text-caption mt-1">{transcript.length.toLocaleString()} characters &middot; minimum 200 required</p>
           </div>
 
           <button
@@ -199,13 +199,13 @@ export default function ConcallPage() {
           )}
 
           {transcript.length === 0 ? (
-            <div className="bg-gray-50 border border-gray-200 rounded-2xl">
+            <div className="bg-bg dark:bg-surface border border-border rounded-2xl">
               <ConcallEmpty />
             </div>
           ) : (
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-5">
-              <h3 className="text-sm font-bold text-gray-900 mb-2">How to get a transcript</h3>
-              <ol className="text-xs text-gray-600 space-y-1 list-decimal list-inside">
+            <div className="bg-bg dark:bg-surface border border-border rounded-xl p-5">
+              <h3 className="text-sm font-bold text-ink mb-2">How to get a transcript</h3>
+              <ol className="text-xs text-caption space-y-1 list-decimal list-inside">
                 <li>Visit company&apos;s investor relations page or BSE/NSE filings</li>
                 <li>Look for &ldquo;Q3 FY26 Earnings Call Transcript&rdquo; (usually a PDF)</li>
                 <li>Open the PDF, select all text (Ctrl+A), copy (Ctrl+C)</li>
@@ -220,7 +220,7 @@ export default function ConcallPage() {
       {result && (
         <>
           <div className="mb-4 flex items-center justify-between">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-caption">
               Analyzed {result.ticker || "stock"} {result.quarter ? `\u2014 ${result.quarter}` : ""}
               {result.cached && <span className="ml-2 text-[10px] bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full">cached</span>}
             </p>
@@ -243,12 +243,12 @@ export default function ConcallPage() {
 
           {/* Financial Highlights */}
           {result.financial_highlights.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-4">
-              <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5 mb-4">
+              <h2 className="text-sm font-bold text-ink mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                 Financial Highlights
               </h2>
-              <ul className="space-y-2 text-sm text-gray-800">
+              <ul className="space-y-2 text-sm text-ink">
                 {result.financial_highlights.map((h, i) => (
                   <li key={i} className="flex gap-2"><span className="text-green-600">&bull;</span><span>{h}</span></li>
                 ))}
@@ -258,8 +258,8 @@ export default function ConcallPage() {
 
           {/* Forward Guidance */}
           {result.forward_guidance.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-4">
-              <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5 mb-4">
+              <h2 className="text-sm font-bold text-ink mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
                 Forward Guidance
               </h2>
@@ -267,9 +267,9 @@ export default function ConcallPage() {
                 {result.forward_guidance.map((g, i) => (
                   <div key={i} className="border-l-2 border-blue-200 pl-3">
                     <p className="text-xs font-bold text-blue-700 uppercase">{g.topic}</p>
-                    <p className="text-sm text-gray-900 mt-0.5">{g.guidance}</p>
+                    <p className="text-sm text-ink mt-0.5">{g.guidance}</p>
                     {g.quote && (
-                      <p className="text-xs italic text-gray-500 mt-1">&ldquo;{g.quote}&rdquo;</p>
+                      <p className="text-xs italic text-caption mt-1">&ldquo;{g.quote}&rdquo;</p>
                     )}
                   </div>
                 ))}
@@ -279,12 +279,12 @@ export default function ConcallPage() {
 
           {/* Strategic Priorities */}
           {result.strategic_priorities.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-4">
-              <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5 mb-4">
+              <h2 className="text-sm font-bold text-ink mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
                 Strategic Priorities
               </h2>
-              <ul className="space-y-2 text-sm text-gray-800">
+              <ul className="space-y-2 text-sm text-ink">
                 {result.strategic_priorities.map((p, i) => (
                   <li key={i} className="flex gap-2"><span className="text-purple-600">&bull;</span><span>{p}</span></li>
                 ))}
@@ -294,16 +294,16 @@ export default function ConcallPage() {
 
           {/* Q&A Themes */}
           {result.q_and_a_themes.length > 0 && (
-            <div className="bg-white border border-gray-200 rounded-2xl p-5 mb-4">
-              <h2 className="text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+            <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5 mb-4">
+              <h2 className="text-sm font-bold text-ink mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-cyan-500 rounded-full"></span>
                 What Analysts Asked About
               </h2>
               <div className="space-y-3">
                 {result.q_and_a_themes.map((q, i) => (
-                  <div key={i} className="bg-gray-50 rounded-lg p-3">
-                    <p className="text-sm font-bold text-gray-900 mb-1">{q.theme}</p>
-                    <p className="text-xs text-gray-600">{q.summary}</p>
+                  <div key={i} className="bg-bg dark:bg-surface rounded-lg p-3">
+                    <p className="text-sm font-bold text-ink mb-1">{q.theme}</p>
+                    <p className="text-xs text-caption">{q.summary}</p>
                   </div>
                 ))}
               </div>
@@ -326,7 +326,7 @@ export default function ConcallPage() {
           )}
 
           {/* Disclaimer */}
-          <p className="text-xs text-gray-600 text-center mt-6">
+          <p className="text-xs text-caption text-center mt-6">
             AI-generated summary from your transcript. May contain inaccuracies. Verify against the original transcript.
             Not investment advice. YieldIQ is not registered with SEBI.
           </p>

@@ -168,35 +168,35 @@ export default async function PrismPage(
 
       <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
         {/* Breadcrumb */}
-        <nav className="text-xs text-gray-400 mb-6 flex items-center gap-1.5">
+        <nav className="text-xs text-caption mb-6 flex items-center gap-1.5">
           <Link href="/" className="hover:text-gray-600">Home</Link>
           <span>/</span>
           <Link href="/nifty50" className="hover:text-gray-600">Stocks</Link>
           <span>/</span>
-          <span className="text-gray-600 font-medium">{disp} Prism</span>
+          <span className="text-caption font-medium">{disp} Prism</span>
         </nav>
 
         {/* Hero */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 mb-8">
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 sm:p-8 mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
             <div>
-              <h1 className="text-3xl sm:text-4xl font-serif font-black text-gray-900">
+              <h1 className="text-3xl sm:text-4xl font-serif font-black text-ink">
                 {data.company_name}
               </h1>
               <div className="flex items-center gap-3 mt-2">
-                <span className="text-sm font-mono text-gray-500">{disp}</span>
+                <span className="text-sm font-mono text-caption">{disp}</span>
                 <span className="text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
                   {data.verdict_label}
                 </span>
               </div>
-              <p className="text-gray-500 text-sm mt-3">
+              <p className="text-caption text-sm mt-3">
                 A 6-pillar fundamental profile. Each pillar scored 0&ndash;10.
               </p>
               <div className="mt-4 flex items-baseline gap-2">
                 <span className="text-5xl font-black text-blue-600 font-mono tabular-nums">
                   {overall.toFixed(1)}
                 </span>
-                <span className="text-gray-400 font-medium">/10 composite</span>
+                <span className="text-caption font-medium">/10 composite</span>
               </div>
             </div>
             <div className="flex justify-center">
@@ -212,19 +212,19 @@ export default async function PrismPage(
             if (!pillar) return null
             const hasScore = typeof pillar.score === "number"
             const score = hasScore ? Math.max(0, Math.min(10, pillar.score as number)) : 0
-            const color = hasScore ? scoreClass(score) : "text-gray-600 border-gray-200 bg-gray-50"
+            const color = hasScore ? scoreClass(score) : "text-caption border-border bg-bg dark:bg-surface"
             return (
-              <div key={key} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <div key={key} className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-5">
                 <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-lg font-bold text-gray-900">{PILLAR_LABEL[key]}</h2>
+                  <h2 className="text-lg font-bold text-ink">{PILLAR_LABEL[key]}</h2>
                   <span className={`text-sm font-bold px-3 py-1 rounded-full border ${color}`}>
                     {hasScore ? score.toFixed(1) : "\u2014"} &middot; {pillar.label}
                   </span>
                 </div>
                 {pillar.why && (
-                  <p className="text-sm text-gray-700 leading-relaxed">{pillar.why}</p>
+                  <p className="text-sm text-ink leading-relaxed">{pillar.why}</p>
                 )}
-                <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                <p className="text-xs text-caption mt-2 leading-relaxed">
                   {PILLAR_BLURB[key]}
                 </p>
                 {pillar.data_limited && showAxisCaveat && (
@@ -238,17 +238,17 @@ export default async function PrismPage(
         </div>
 
         {/* Compare input */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
-          <h2 className="text-lg font-bold text-gray-900 mb-1">Compare with another stock</h2>
-          <p className="text-xs text-gray-500 mb-4">
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8">
+          <h2 className="text-lg font-bold text-ink mb-1">Compare with another stock</h2>
+          <p className="text-xs text-caption mb-4">
             Overlay {disp}'s prism against a peer.
           </p>
           <PrismCompareInput base={disp} />
         </div>
 
         {/* Share */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
-          <h2 className="text-lg font-bold text-gray-900 mb-3">Share this prism</h2>
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8">
+          <h2 className="text-lg font-bold text-ink mb-3">Share this prism</h2>
           <ShareBar ticker={disp} url={canonical} ogUrl={ogUrl} verdictLabel={data.verdict_label} />
         </div>
 
@@ -260,14 +260,14 @@ export default async function PrismPage(
           </p>
           <Link
             href={`/analysis/${disp}`}
-            className="inline-block bg-white text-blue-700 font-bold px-8 py-3 rounded-xl hover:bg-blue-50 transition"
+            className="inline-block bg-bg dark:bg-surface text-blue-700 font-bold px-8 py-3 rounded-xl hover:bg-blue-50 transition"
           >
             Full analysis &rarr;
           </Link>
         </div>
 
         {/* Disclaimer */}
-        <p className="text-[10px] text-gray-400 text-center leading-relaxed">
+        <p className="text-[10px] text-caption text-center leading-relaxed">
           Model estimate. Not investment advice.
           YieldIQ is not registered with SEBI as an investment adviser or research analyst.
           Past performance does not guarantee future results.

@@ -40,8 +40,8 @@ export default function StocksIndexClient({
   return (
     <div className="px-4 sm:px-6 lg:px-8 max-w-6xl mx-auto w-full py-6">
       <header className="mb-6">
-        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">All Stocks</h1>
-        <p className="mt-1 text-sm text-gray-600">
+        <h1 className="text-2xl sm:text-3xl font-bold text-ink">All Stocks</h1>
+        <p className="mt-1 text-sm text-caption">
           {tickers.length.toLocaleString("en-IN")} Indian stocks in the YieldIQ
           universe. Click a ticker to see its DCF fair value, reverse DCF, risk
           analysis and DuPont breakdown.
@@ -58,9 +58,9 @@ export default function StocksIndexClient({
             setQuery(e.target.value)
             setPage(1)
           }}
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
-        <div className="text-xs text-gray-500">
+        <div className="text-xs text-caption">
           Showing {filtered.length === 0 ? 0 : start + 1}
           {"–"}
           {Math.min(start + PAGE_SIZE, filtered.length)} of{" "}
@@ -69,7 +69,7 @@ export default function StocksIndexClient({
       </div>
 
       {tickers.length === 0 ? (
-        <div className="border border-gray-200 rounded-xl p-8 text-center text-gray-500 text-sm">
+        <div className="border border-border rounded-xl p-8 text-center text-caption text-sm">
           Universe data is temporarily unavailable. Try refreshing in a moment,
           or jump to a popular stock:{" "}
           <Link href="/stocks/RELIANCE/fair-value" className="text-blue-600 hover:underline">
@@ -92,7 +92,7 @@ export default function StocksIndexClient({
               <li key={t.ticker}>
                 <Link
                   href={`/stocks/${encodeURIComponent(t.ticker)}/fair-value`}
-                  className="block px-3 py-2 border border-gray-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition text-sm font-medium text-gray-900"
+                  className="block px-3 py-2 border border-border rounded-lg hover:border-blue-400 hover:bg-blue-50 transition text-sm font-medium text-ink"
                 >
                   {t.ticker}
                 </Link>
@@ -106,18 +106,18 @@ export default function StocksIndexClient({
                 type="button"
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={safePage <= 1}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                className="px-3 py-1.5 text-sm border border-border rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
               >
                 Previous
               </button>
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-caption">
                 Page {safePage} of {totalPages}
               </span>
               <button
                 type="button"
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={safePage >= totalPages}
-                className="px-3 py-1.5 text-sm border border-gray-300 rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
+                className="px-3 py-1.5 text-sm border border-border rounded-md disabled:opacity-40 disabled:cursor-not-allowed hover:bg-gray-50"
               >
                 Next
               </button>

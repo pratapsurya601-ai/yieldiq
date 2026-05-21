@@ -179,16 +179,16 @@ function SplitMirrorSpectrum({
       <div className="grid grid-cols-[1fr_110px_1fr] items-end pb-3 border-b border-gray-100">
         <div className="text-right pr-3">
           <div className="text-sm font-bold" style={{ color: COLOR_A }}>{tA}</div>
-          <div className="text-[11px] text-gray-500 font-mono">
+          <div className="text-[11px] text-caption font-mono">
             {a.overall.toFixed(1)}/10 &middot; {a.verdict_label}
           </div>
         </div>
-        <div className="text-center text-[10px] text-gray-400 uppercase tracking-wider">
+        <div className="text-center text-[10px] text-caption uppercase tracking-wider">
           Pillar
         </div>
         <div className="text-left pl-3">
           <div className="text-sm font-bold" style={{ color: COLOR_B }}>{tB}</div>
-          <div className="text-[11px] text-gray-500 font-mono">
+          <div className="text-[11px] text-caption font-mono">
             {b.overall.toFixed(1)}/10 &middot; {b.verdict_label}
           </div>
         </div>
@@ -210,10 +210,10 @@ function SplitMirrorSpectrum({
           >
             {/* Left bar: extends right-to-left, anchored at the right */}
             <div className="flex items-center justify-end gap-3">
-              <span className="text-xs font-mono tabular-nums text-gray-600 w-8 text-right">
+              <span className="text-xs font-mono tabular-nums text-caption w-8 text-right">
                 {sa !== null ? sa.toFixed(1) : "\u2014"}
               </span>
-              <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden relative max-w-[240px]">
+              <div className="flex-1 h-3 bg-surface rounded-full overflow-hidden relative max-w-[240px]">
                 <div
                   className="absolute top-0 right-0 h-full rounded-full"
                   style={{ width: `${wa}%`, backgroundColor: COLOR_A }}
@@ -222,19 +222,19 @@ function SplitMirrorSpectrum({
             </div>
             {/* Center label */}
             <div className="text-center">
-              <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+              <div className="text-xs font-bold text-ink uppercase tracking-wider">
                 {PILLAR_LABEL[key]}
               </div>
             </div>
             {/* Right bar: extends left-to-right, anchored at the left */}
             <div className="flex items-center gap-3">
-              <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden relative max-w-[240px]">
+              <div className="flex-1 h-3 bg-surface rounded-full overflow-hidden relative max-w-[240px]">
                 <div
                   className="absolute top-0 left-0 h-full rounded-full"
                   style={{ width: `${wb}%`, backgroundColor: COLOR_B }}
                 />
               </div>
-              <span className="text-xs font-mono tabular-nums text-gray-600 w-8">
+              <span className="text-xs font-mono tabular-nums text-caption w-8">
                 {sb !== null ? sb.toFixed(1) : "\u2014"}
               </span>
             </div>
@@ -280,19 +280,19 @@ export default function CompareClient({ a, b, canonical }: CompareClientProps) {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
-      <nav className="text-xs text-gray-400 mb-6 flex items-center gap-1.5">
+      <nav className="text-xs text-caption mb-6 flex items-center gap-1.5">
         <Link href="/" className="hover:text-gray-600">Home</Link>
         <span>/</span>
         <Link href={`/prism/${t1}`} className="hover:text-gray-600">Prism</Link>
         <span>/</span>
-        <span className="text-gray-600 font-medium">{t1} vs {t2}</span>
+        <span className="text-caption font-medium">{t1} vs {t2}</span>
       </nav>
 
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 mb-8">
-        <h1 className="text-3xl sm:text-4xl font-serif font-black text-gray-900 mb-2">
-          {t1} <span className="text-gray-400 font-medium">vs</span> {t2}
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 sm:p-8 mb-8">
+        <h1 className="text-3xl sm:text-4xl font-serif font-black text-ink mb-2">
+          {t1} <span className="text-caption font-medium">vs</span> {t2}
         </h1>
-        <p className="text-gray-500 text-sm mb-6">
+        <p className="text-caption text-sm mb-6">
           6-pillar prism overlay. Higher is stronger on each pillar. Model estimate.
         </p>
         <div className="flex justify-center">
@@ -301,26 +301,26 @@ export default function CompareClient({ a, b, canonical }: CompareClientProps) {
       </div>
 
       {/* Split-mirror Spectrum */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
-        <h2 className="text-sm font-bold text-gray-900 uppercase tracking-wider mb-4">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8">
+        <h2 className="text-sm font-bold text-ink uppercase tracking-wider mb-4">
           Pillar spectrum
         </h2>
         <SplitMirrorSpectrum a={a} b={b} tA={t1} tB={t2} />
       </div>
 
       {/* Per-axis delta table */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-8">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm overflow-hidden mb-8">
         <div className="grid grid-cols-[1fr_auto_1fr_auto] text-sm">
           <div className="p-4 font-bold text-center border-b border-gray-100" style={{ color: COLOR_A }}>
             {t1}
           </div>
-          <div className="p-4 text-center text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
+          <div className="p-4 text-center text-xs text-caption uppercase tracking-wider border-b border-gray-100">
             Pillar
           </div>
           <div className="p-4 font-bold text-center border-b border-gray-100" style={{ color: COLOR_B }}>
             {t2}
           </div>
-          <div className="p-4 text-center text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
+          <div className="p-4 text-center text-xs text-caption uppercase tracking-wider border-b border-gray-100">
             Δ
           </div>
           {PRISM_PILLAR_ORDER.map((key) => {
@@ -332,31 +332,31 @@ export default function CompareClient({ a, b, canonical }: CompareClientProps) {
             return (
               <Fragment key={key}>
                 <div className="p-4 border-t border-gray-100 text-right">
-                  <div className={`text-lg font-bold font-mono ${sa !== null ? scoreClass(sa) : "text-gray-400"}`}>
+                  <div className={`text-lg font-bold font-mono ${sa !== null ? scoreClass(sa) : "text-caption"}`}>
                     {sa !== null ? sa.toFixed(1) : "\u2014"}
                   </div>
-                  {pa?.label && <div className="text-xs text-gray-500">{pa.label}</div>}
+                  {pa?.label && <div className="text-xs text-caption">{pa.label}</div>}
                 </div>
-                <div className="p-4 border-t border-gray-100 flex flex-col items-center justify-center bg-gray-50 min-w-[100px]">
-                  <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                <div className="p-4 border-t border-gray-100 flex flex-col items-center justify-center bg-bg dark:bg-surface min-w-[100px]">
+                  <div className="text-xs font-bold text-ink uppercase tracking-wider">
                     {PILLAR_LABEL[key]}
                   </div>
                 </div>
                 <div className="p-4 border-t border-gray-100 text-left">
-                  <div className={`text-lg font-bold font-mono ${sb !== null ? scoreClass(sb) : "text-gray-400"}`}>
+                  <div className={`text-lg font-bold font-mono ${sb !== null ? scoreClass(sb) : "text-caption"}`}>
                     {sb !== null ? sb.toFixed(1) : "\u2014"}
                   </div>
-                  {pb?.label && <div className="text-xs text-gray-500">{pb.label}</div>}
+                  {pb?.label && <div className="text-xs text-caption">{pb.label}</div>}
                 </div>
                 <div className="p-4 border-t border-gray-100 text-center min-w-[80px]">
                   <div className={`text-sm font-mono font-bold ${
                     delta === null
-                      ? "text-gray-400"
+                      ? "text-caption"
                       : delta > 0
                         ? "text-blue-600"
                         : delta < 0
                           ? "text-amber-600"
-                          : "text-gray-500"
+                          : "text-caption"
                   }`}>
                     {delta === null
                       ? "\u2014"
@@ -370,8 +370,8 @@ export default function CompareClient({ a, b, canonical }: CompareClientProps) {
       </div>
 
       {/* Change stocks */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
-        <h2 className="text-lg font-bold text-gray-900 mb-3">Change stocks</h2>
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8">
+        <h2 className="text-lg font-bold text-ink mb-3">Change stocks</h2>
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -382,14 +382,14 @@ export default function CompareClient({ a, b, canonical }: CompareClientProps) {
           <input
             value={left}
             onChange={(e) => setLeft(e.target.value)}
-            className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Ticker 1"
           />
-          <span className="text-gray-400 text-sm text-center">vs</span>
+          <span className="text-caption text-sm text-center">vs</span>
           <input
             value={right}
             onChange={(e) => setRight(e.target.value)}
-            className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Ticker 2"
           />
           <button
@@ -402,8 +402,8 @@ export default function CompareClient({ a, b, canonical }: CompareClientProps) {
       </div>
 
       {/* Share */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
-        <h2 className="text-lg font-bold text-gray-900 mb-3">Share</h2>
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8">
+        <h2 className="text-lg font-bold text-ink mb-3">Share</h2>
         <div className="flex flex-wrap gap-3">
           <a
             href={twitter}
@@ -439,13 +439,13 @@ export default function CompareClient({ a, b, canonical }: CompareClientProps) {
         </p>
         <Link
           href="/signup"
-          className="inline-block bg-white text-blue-700 font-bold px-8 py-3 rounded-xl hover:bg-blue-50 transition"
+          className="inline-block bg-bg dark:bg-surface text-blue-700 font-bold px-8 py-3 rounded-xl hover:bg-blue-50 transition"
         >
           Create a free account &rarr;
         </Link>
       </div>
 
-      <p className="text-[10px] text-gray-400 text-center leading-relaxed">
+      <p className="text-[10px] text-caption text-center leading-relaxed">
         Model estimate. Not investment advice.
         YieldIQ is not registered with SEBI as an investment adviser or research analyst.
         Past performance does not guarantee future results.

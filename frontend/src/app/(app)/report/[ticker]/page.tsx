@@ -17,7 +17,7 @@ function verdictColor(v: string) {
   if (v === "undervalued") return "text-green-700 bg-green-50"
   if (v === "fairly_valued") return "text-blue-700 bg-blue-50"
   if (v === "overvalued") return "text-red-700 bg-red-50"
-  return "text-gray-700 bg-gray-50"
+  return "text-ink bg-bg dark:bg-surface"
 }
 
 export default function ReportPage() {
@@ -34,13 +34,13 @@ export default function ReportPage() {
   if (isLoading) return (
     <div className="max-w-md mx-auto px-4 py-20 text-center">
       <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent mx-auto" />
-      <p className="text-sm text-gray-400 mt-4">Generating report...</p>
+      <p className="text-sm text-caption mt-4">Generating report...</p>
     </div>
   )
 
   if (error || !data) return (
     <div className="max-w-md mx-auto px-4 py-20 text-center">
-      <p className="text-gray-500">Could not generate report for {ticker}</p>
+      <p className="text-caption">Could not generate report for {ticker}</p>
       <Link href={`/analysis/${ticker}`} className="text-blue-600 text-sm mt-2 inline-block">Try full analysis →</Link>
     </div>
   )
@@ -54,7 +54,7 @@ export default function ReportPage() {
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white pb-20">
       <div className="max-w-md mx-auto px-4 py-8">
         {/* Report Card */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-lg overflow-hidden">
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-lg overflow-hidden">
 
           {/* Header gradient */}
           <div className="bg-gradient-to-r from-blue-600 to-cyan-500 px-5 py-4 text-white">
@@ -75,19 +75,19 @@ export default function ReportPage() {
               <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl ${gradeColor(quality.grade)}`}>
                 {quality.yieldiq_score}
               </div>
-              <p className="text-[10px] text-gray-400 text-center mt-1">YieldIQ</p>
+              <p className="text-[10px] text-caption text-center mt-1">YieldIQ</p>
             </div>
             <div className="flex-1">
               <span className={`inline-block px-3 py-1 rounded-full text-xs font-semibold capitalize ${verdictColor(valuation.verdict)}`}>
                 {verdict}
               </span>
-              <div className="mt-2 flex gap-4 text-xs text-gray-600">
+              <div className="mt-2 flex gap-4 text-xs text-caption">
                 <div>
-                  <span className="text-gray-400">Fair Value</span>
+                  <span className="text-caption">Fair Value</span>
                   <p className="font-semibold font-mono">{formatCurrency(valuation.fair_value, company.currency, ticker)}</p>
                 </div>
                 <div>
-                  <span className="text-gray-400">MoS</span>
+                  <span className="text-caption">MoS</span>
                   <p className={`font-semibold ${valuation.margin_of_safety >= 0 ? "text-green-600" : "text-red-600"}`}>
                     {mosSign}{valuation.margin_of_safety.toFixed(1)}%
                   </p>
@@ -99,16 +99,16 @@ export default function ReportPage() {
           {/* Key Metrics Grid */}
           <div className="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100">
             <div className="px-3 py-3 text-center">
-              <p className="text-[10px] text-gray-400 uppercase">Piotroski</p>
-              <p className="text-lg font-bold text-gray-900">{quality.piotroski_score}/9</p>
+              <p className="text-[10px] text-caption uppercase">Piotroski</p>
+              <p className="text-lg font-bold text-ink">{quality.piotroski_score}/9</p>
             </div>
             <div className="px-3 py-3 text-center">
-              <p className="text-[10px] text-gray-400 uppercase">Moat</p>
-              <p className="text-lg font-bold text-gray-900">{quality.moat}</p>
+              <p className="text-[10px] text-caption uppercase">Moat</p>
+              <p className="text-lg font-bold text-ink">{quality.moat}</p>
             </div>
             <div className="px-3 py-3 text-center">
-              <p className="text-[10px] text-gray-400 uppercase">Confidence</p>
-              <p className="text-lg font-bold text-gray-900">{valuation.confidence_score}%</p>
+              <p className="text-[10px] text-caption uppercase">Confidence</p>
+              <p className="text-lg font-bold text-ink">{valuation.confidence_score}%</p>
             </div>
           </div>
 
@@ -121,7 +121,7 @@ export default function ReportPage() {
                 const color = key === "bear" ? "text-red-600" : key === "bull" ? "text-green-600" : "text-blue-700"
                 return (
                   <div key={key} className="px-3 py-2 text-center">
-                    <p className="text-[10px] text-gray-400">{label} case</p>
+                    <p className="text-[10px] text-caption">{label} case</p>
                     <p className={`text-sm font-bold font-mono ${color}`}>
                       {formatCurrency(sc.iv, company.currency, ticker)}
                     </p>
@@ -134,17 +134,17 @@ export default function ReportPage() {
           {/* AI Summary */}
           {data.ai_summary && (
             <div className="px-5 py-3 border-b border-gray-100">
-              <p className="text-xs text-gray-600 leading-relaxed line-clamp-3">
+              <p className="text-xs text-caption leading-relaxed line-clamp-3">
                 {data.ai_summary}
               </p>
             </div>
           )}
 
           {/* Footer CTA */}
-          <div className="px-5 py-4 bg-gray-50 flex items-center justify-between">
+          <div className="px-5 py-4 bg-bg dark:bg-surface flex items-center justify-between">
             <div>
-              <p className="text-[10px] text-gray-400">Powered by</p>
-              <p className="text-sm font-bold text-gray-900">YieldIQ</p>
+              <p className="text-[10px] text-caption">Powered by</p>
+              <p className="text-sm font-bold text-ink">YieldIQ</p>
             </div>
             <Link
               href={`/analysis/${ticker}`}

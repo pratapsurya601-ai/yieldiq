@@ -208,20 +208,20 @@ export default function CompareClient({ data }: { data: CompareData }) {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
       {/* Breadcrumb */}
-      <nav className="text-xs text-gray-400 mb-6 flex items-center gap-1.5">
+      <nav className="text-xs text-caption mb-6 flex items-center gap-1.5">
         <Link href="/" className="hover:text-gray-600">Home</Link>
         <span>/</span>
-        <span className="text-gray-600 font-medium">Compare</span>
+        <span className="text-caption font-medium">Compare</span>
         <span>/</span>
-        <span className="text-gray-600 font-medium">{s1.display_ticker} vs {s2.display_ticker}</span>
+        <span className="text-caption font-medium">{s1.display_ticker} vs {s2.display_ticker}</span>
       </nav>
 
       {/* Header */}
       <div className="text-center mb-6">
-        <h1 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">
+        <h1 className="text-2xl sm:text-3xl font-black text-ink mb-2">
           {s1.display_ticker} vs {s2.display_ticker}
         </h1>
-        <p className="text-gray-500 text-sm">
+        <p className="text-caption text-sm">
           Head-to-head DCF comparison &middot; {s1.company_name} vs {s2.company_name}
         </p>
       </div>
@@ -240,17 +240,17 @@ export default function CompareClient({ data }: { data: CompareData }) {
       {overallName ? (
         <div className="bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-6 text-center mb-8">
           <p className="text-sm text-green-700 font-semibold mb-1">Model Favors</p>
-          <p className="text-xl sm:text-2xl font-black text-gray-900">
+          <p className="text-xl sm:text-2xl font-black text-ink">
             {overallName} shows a larger model margin of safety
           </p>
-          <p className="text-sm text-gray-600 mt-1">
+          <p className="text-sm text-caption mt-1">
             Leads on {overallWins} of {total_metrics} model metrics &middot; not investment advice
           </p>
         </div>
       ) : (
-        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 text-center mb-8">
-          <p className="text-xl font-bold text-gray-900">It&apos;s a tie</p>
-          <p className="text-sm text-gray-500 mt-1">
+        <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-6 text-center mb-8">
+          <p className="text-xl font-bold text-ink">It&apos;s a tie</p>
+          <p className="text-sm text-caption mt-1">
             {s1.display_ticker} and {s2.display_ticker} are evenly matched on the {total_metrics} headline metrics.
           </p>
         </div>
@@ -266,12 +266,12 @@ export default function CompareClient({ data }: { data: CompareData }) {
               className={`rounded-2xl p-5 border ${isWin ? "border-green-300 bg-green-50/40" : "border-gray-200 bg-white"}`}
             >
               <Link href={`/stocks/${s.display_ticker}/fair-value`} className="hover:opacity-80 transition block">
-                <p className="text-lg sm:text-xl font-black text-gray-900">{s.display_ticker}</p>
-                <p className="text-xs text-gray-500 truncate">{s.company_name}</p>
-                <p className="text-xs text-gray-400">{s.sector || DASH}</p>
+                <p className="text-lg sm:text-xl font-black text-ink">{s.display_ticker}</p>
+                <p className="text-xs text-caption truncate">{s.company_name}</p>
+                <p className="text-xs text-caption">{s.sector || DASH}</p>
               </Link>
               <div className="mt-3 space-y-2">
-                <p className="text-2xl font-black font-mono text-gray-900">{fmtINR(s.current_price)}</p>
+                <p className="text-2xl font-black font-mono text-ink">{fmtINR(s.current_price)}</p>
                 <VerdictBadge v={s.verdict} />
               </div>
             </div>
@@ -280,26 +280,26 @@ export default function CompareClient({ data }: { data: CompareData }) {
       </div>
 
       {/* Comparison table */}
-      <div className="rounded-2xl border border-gray-200 overflow-hidden mb-8">
+      <div className="rounded-2xl border border-border overflow-hidden mb-8">
         <table className="w-full text-sm">
           <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="text-left px-4 py-3 font-semibold text-gray-500 uppercase tracking-wider text-xs">Metric</th>
-              <th className="text-center px-4 py-3 font-semibold text-gray-900">{s1.display_ticker}</th>
-              <th className="text-center px-4 py-3 font-semibold text-gray-900">{s2.display_ticker}</th>
+            <tr className="bg-bg dark:bg-surface border-b border-border">
+              <th className="text-left px-4 py-3 font-semibold text-caption uppercase tracking-wider text-xs">Metric</th>
+              <th className="text-center px-4 py-3 font-semibold text-ink">{s1.display_ticker}</th>
+              <th className="text-center px-4 py-3 font-semibold text-ink">{s2.display_ticker}</th>
             </tr>
           </thead>
           <tbody>
             {metrics.map(m => (
               <tr key={m.label} className="border-b border-gray-100 last:border-0">
-                <td className="px-4 py-3 text-gray-600">{m.label}</td>
+                <td className="px-4 py-3 text-caption">{m.label}</td>
                 <td
                   className={`px-4 py-3 text-center font-mono font-semibold ${
                     m.winner === "stock1"
                       ? "bg-green-50 text-green-700"
                       : m.winner === "stock2"
                         ? "text-red-500"
-                        : "text-gray-900"
+                        : "text-ink"
                   }`}
                 >
                   {m.v1}
@@ -310,7 +310,7 @@ export default function CompareClient({ data }: { data: CompareData }) {
                       ? "bg-green-50 text-green-700"
                       : m.winner === "stock1"
                         ? "text-red-500"
-                        : "text-gray-900"
+                        : "text-ink"
                   }`}
                 >
                   {m.v2}
@@ -324,25 +324,25 @@ export default function CompareClient({ data }: { data: CompareData }) {
       {/* Compare other stocks */}
       <form
         onSubmit={handleCompare}
-        className="bg-gray-50 rounded-2xl border border-gray-200 p-6 mb-8"
+        className="bg-bg dark:bg-surface rounded-2xl border border-border p-6 mb-8"
       >
-        <h2 className="text-sm font-bold text-gray-900 mb-3">Compare other stocks</h2>
+        <h2 className="text-sm font-bold text-ink mb-3">Compare other stocks</h2>
         <div className="flex flex-col sm:flex-row gap-3">
           <input
             type="text"
             placeholder="e.g. ITC"
             value={t1Input}
             onChange={e => setT1Input(e.target.value)}
-            className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:border-blue-500"
+            className="flex-1 px-4 py-2.5 border border-border rounded-lg text-sm bg-bg dark:bg-surface focus:outline-none focus:border-blue-500"
             aria-label="First ticker"
           />
-          <span className="text-gray-400 font-bold text-center self-center">vs</span>
+          <span className="text-caption font-bold text-center self-center">vs</span>
           <input
             type="text"
             placeholder="e.g. BRITANNIA"
             value={t2Input}
             onChange={e => setT2Input(e.target.value)}
-            className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:border-blue-500"
+            className="flex-1 px-4 py-2.5 border border-border rounded-lg text-sm bg-bg dark:bg-surface focus:outline-none focus:border-blue-500"
             aria-label="Second ticker"
           />
           <button
@@ -362,14 +362,14 @@ export default function CompareClient({ data }: { data: CompareData }) {
         </p>
         <Link
           href="/auth/signup"
-          className="inline-block bg-white text-blue-700 font-bold px-8 py-3 rounded-xl hover:bg-blue-50 transition"
+          className="inline-block bg-bg dark:bg-surface text-blue-700 font-bold px-8 py-3 rounded-xl hover:bg-blue-50 transition"
         >
           Sign up free &rarr;
         </Link>
       </div>
 
       {/* Disclaimer */}
-      <p className="text-[10px] text-gray-400 text-center leading-relaxed">
+      <p className="text-[10px] text-caption text-center leading-relaxed">
         Model estimates using publicly available data. Not investment advice.
         YieldIQ is not registered with SEBI as an investment adviser or research analyst.
       </p>

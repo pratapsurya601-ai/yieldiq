@@ -42,7 +42,7 @@ interface TechData {
 type Indicator = "sma" | "bollinger"
 
 function regimeBadge(label: string | null): { text: string; cls: string } {
-  if (!label) return { text: "—", cls: "bg-gray-100 text-gray-600" }
+  if (!label) return { text: "—", cls: "bg-surface text-caption" }
   const map: Record<string, { text: string; cls: string }> = {
     overbought_zone: { text: "Overbought zone (RSI ≥ 70)", cls: "bg-red-50 text-red-700" },
     oversold_zone: { text: "Oversold zone (RSI ≤ 30)", cls: "bg-green-50 text-green-700" },
@@ -52,7 +52,7 @@ function regimeBadge(label: string | null): { text: string; cls: string } {
     macd_above_signal: { text: "MACD above signal line", cls: "bg-green-50 text-green-700" },
     macd_below_signal: { text: "MACD below signal line", cls: "bg-amber-50 text-amber-700" },
   }
-  return map[label] || { text: label, cls: "bg-gray-100 text-gray-600" }
+  return map[label] || { text: label, cls: "bg-surface text-caption" }
 }
 
 function fmtDate(s: string): string {
@@ -78,61 +78,61 @@ export default function TechnicalsClient({ data, ticker }: { data: TechData; tic
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
       {/* Breadcrumb */}
-      <nav className="text-xs text-gray-400 mb-6 flex items-center gap-1.5">
+      <nav className="text-xs text-caption mb-6 flex items-center gap-1.5">
         <Link href="/" className="hover:text-gray-600">Home</Link>
         <span>/</span>
         <Link href={`/stocks/${display}/fair-value`} className="hover:text-gray-600">{display}</Link>
         <span>/</span>
-        <span className="text-gray-600 font-medium">Technicals</span>
+        <span className="text-caption font-medium">Technicals</span>
       </nav>
 
       <div className="mb-8">
         <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase mb-2">Technical Indicators</p>
-        <h1 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">
+        <h1 className="text-2xl sm:text-3xl font-black text-ink mb-2">
           {display} Technical Reference
         </h1>
-        <p className="text-gray-500 text-sm">
+        <p className="text-caption text-sm">
           SMA, RSI, MACD, Bollinger Bands. Factual reference data — not buy/sell signals.
         </p>
       </div>
 
       {/* Latest snapshot */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Close</p>
-          <p className="text-xl font-bold text-gray-900 font-mono">₹{latest.close.toLocaleString("en-IN")}</p>
+        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
+          <p className="text-[10px] text-caption uppercase tracking-wider mb-1">Close</p>
+          <p className="text-xl font-bold text-ink font-mono">₹{latest.close.toLocaleString("en-IN")}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">RSI(14)</p>
-          <p className="text-xl font-bold text-gray-900">{latest.rsi_14 ?? "—"}</p>
+        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
+          <p className="text-[10px] text-caption uppercase tracking-wider mb-1">RSI(14)</p>
+          <p className="text-xl font-bold text-ink">{latest.rsi_14 ?? "—"}</p>
           <p className={`text-[10px] mt-1 px-2 py-0.5 rounded-full font-semibold inline-block ${rsiBadge.cls}`}>{rsiBadge.text}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">200 DMA</p>
-          <p className="text-xl font-bold text-gray-900 font-mono">₹{latest.sma_200?.toLocaleString("en-IN") ?? "—"}</p>
+        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
+          <p className="text-[10px] text-caption uppercase tracking-wider mb-1">200 DMA</p>
+          <p className="text-xl font-bold text-ink font-mono">₹{latest.sma_200?.toLocaleString("en-IN") ?? "—"}</p>
           <p className={`text-[10px] mt-1 px-2 py-0.5 rounded-full font-semibold inline-block ${smaBadge.cls}`}>{smaBadge.text}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">MACD</p>
-          <p className="text-xl font-bold text-gray-900">{latest.macd?.toFixed(2) ?? "—"}</p>
+        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
+          <p className="text-[10px] text-caption uppercase tracking-wider mb-1">MACD</p>
+          <p className="text-xl font-bold text-ink">{latest.macd?.toFixed(2) ?? "—"}</p>
           <p className={`text-[10px] mt-1 px-2 py-0.5 rounded-full font-semibold inline-block ${macdBadge.cls}`}>{macdBadge.text}</p>
         </div>
       </div>
 
       {/* Price chart with overlay toggle */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 mb-6">
+      <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-4 sm:p-6 mb-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-bold text-gray-900">Price + Overlay</h2>
-          <div className="flex bg-gray-100 rounded-lg p-1 text-xs">
+          <h2 className="text-sm font-bold text-ink">Price + Overlay</h2>
+          <div className="flex bg-surface rounded-lg p-1 text-xs">
             <button
               onClick={() => setOverlay("sma")}
-              className={`px-3 py-1 rounded-md font-semibold transition ${overlay === "sma" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
+              className={`px-3 py-1 rounded-md font-semibold transition ${overlay === "sma" ? "bg-bg dark:bg-surface text-ink shadow-sm" : "text-caption"}`}
             >
               SMA 20/50/200
             </button>
             <button
               onClick={() => setOverlay("bollinger")}
-              className={`px-3 py-1 rounded-md font-semibold transition ${overlay === "bollinger" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"}`}
+              className={`px-3 py-1 rounded-md font-semibold transition ${overlay === "bollinger" ? "bg-bg dark:bg-surface text-ink shadow-sm" : "text-caption"}`}
             >
               Bollinger Bands
             </button>
@@ -167,8 +167,8 @@ export default function TechnicalsClient({ data, ticker }: { data: TechData; tic
       </div>
 
       {/* RSI chart */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 mb-6">
-        <h2 className="text-sm font-bold text-gray-900 mb-3">RSI(14)</h2>
+      <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-4 sm:p-6 mb-6">
+        <h2 className="text-sm font-bold text-ink mb-3">RSI(14)</h2>
         <ResponsiveContainer width="100%" height={180}>
           <LineChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -180,12 +180,12 @@ export default function TechnicalsClient({ data, ticker }: { data: TechData; tic
             <Line type="monotone" dataKey="rsi_14" stroke="#7C3AED" strokeWidth={2} dot={false} name="RSI" />
           </LineChart>
         </ResponsiveContainer>
-        <p className="text-[10px] text-gray-400 mt-2">RSI ≥ 70 = overbought zone; RSI ≤ 30 = oversold zone. These are descriptive labels, not trade recommendations.</p>
+        <p className="text-[10px] text-caption mt-2">RSI ≥ 70 = overbought zone; RSI ≤ 30 = oversold zone. These are descriptive labels, not trade recommendations.</p>
       </div>
 
       {/* MACD chart */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-4 sm:p-6 mb-6">
-        <h2 className="text-sm font-bold text-gray-900 mb-3">MACD (12, 26, 9)</h2>
+      <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-4 sm:p-6 mb-6">
+        <h2 className="text-sm font-bold text-ink mb-3">MACD (12, 26, 9)</h2>
         <ResponsiveContainer width="100%" height={180}>
           <ComposedChart data={chartData}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
@@ -198,7 +198,7 @@ export default function TechnicalsClient({ data, ticker }: { data: TechData; tic
             <Line type="monotone" dataKey="macd_signal" stroke="#F59E0B" strokeWidth={2} dot={false} name="Signal" />
           </ComposedChart>
         </ResponsiveContainer>
-        <p className="text-[10px] text-gray-400 mt-2">MACD line crossing above/below signal line is a directional indicator, not a registered-advisor trade call.</p>
+        <p className="text-[10px] text-caption mt-2">MACD line crossing above/below signal line is a directional indicator, not a registered-advisor trade call.</p>
       </div>
 
       {/* Disclaimer */}
@@ -214,12 +214,12 @@ export default function TechnicalsClient({ data, ticker }: { data: TechData; tic
       <div className="bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl p-6 text-center text-white mb-8">
         <h2 className="text-lg font-bold mb-1">See fundamentals for {display}</h2>
         <p className="text-blue-100 text-sm mb-4">Combine technicals with DCF fair value.</p>
-        <Link href={`/stocks/${display}/fair-value`} className="inline-block bg-white text-blue-700 font-bold px-6 py-2.5 rounded-xl hover:bg-blue-50 transition text-sm">
+        <Link href={`/stocks/${display}/fair-value`} className="inline-block bg-bg dark:bg-surface text-blue-700 font-bold px-6 py-2.5 rounded-xl hover:bg-blue-50 transition text-sm">
           See Fair Value &rarr;
         </Link>
       </div>
 
-      <p className="text-[10px] text-gray-400 text-center">
+      <p className="text-[10px] text-caption text-center">
         Indicators computed from {data.days_in_sample} days of price history.
         YieldIQ is not registered with SEBI as an investment adviser.
       </p>
