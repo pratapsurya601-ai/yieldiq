@@ -49,7 +49,7 @@ export default function BacktestChart({ data }: { data: CurvePoint[] }) {
               color: "var(--color-ink)",
               fontSize: 12,
             }}
-            formatter={(v: number) => v.toFixed(2)}
+            formatter={(v) => (typeof v === "number" ? v.toFixed(2) : String(v))}
           />
           <Legend wrapperStyle={{ fontSize: 12, color: "var(--color-body)" }} />
           <Line
