@@ -162,7 +162,7 @@ export default function ReverseDCFClient({ initialData, ticker }: { initialData:
           <div className="mb-6 text-[11px] text-caption flex flex-wrap items-center gap-2">
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-bg dark:bg-surface border border-border">
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500" aria-hidden />
-              Reverse DCF computed against price <strong className="font-mono text-ink">{fmt(data.current_price)}</strong>
+              Reverse DCF computed against price <span className="font-mono font-bold text-ink">{fmt(data.current_price)}</span>
               {ago ? <> &middot; captured {ago}</> : null}
             </span>
             <Link
