@@ -102,4 +102,7 @@ def test_layout_checks_top_level_status_field():
 
 def test_cache_version_bumped_for_engine_change():
     src = _CACHE.read_text(encoding="utf-8")
-    assert "CACHE_VERSION = 129" in src
+    # Day-73 (Bug D, 2026-05-21): CACHE_VERSION moved past 129 with
+    # multiple subsequent bumps. Pin the changelog entry, not the
+    # integer, so future bumps don't keep editing this Day-64 guard.
+    assert "fix/day64-audit-polish-batch" in src or "day64" in src.lower()

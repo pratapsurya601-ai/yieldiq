@@ -195,6 +195,81 @@ def has_structural_break(ticker: str, window_years: int = 3) -> bool:
     return False
 
 
+# ── 2b. quarters_since_event ────────────────────────────────────
+def quarters_since_event(ticker: str, window_years: int = 5) -> Optional[int]:
+    """Whole quarters elapsed since the most-recent structural-break
+    corporate action for `ticker`, or None when no in-window event is
+    on file (or the DB lookup fails).
+
+    Used by backend/services/analysis/service.py to gate the
+    Day-73 post-demerger relative-valuation route: tickers with a
+    structural break AND <8 quarters of post-event standalone
+    fundamentals get routed through the IPO-style sector-relative
+    path (peer multiples) instead of generic DCF, which cannot stitch
+    pre/post bases. ITCHOTELS (Jan-2025 demerger), ABLBL (recent
+    demerger) — both <2 years post-event — are the motivating cases.
+
+    Args:
+        ticker: NSE/BSE ticker; normalised to bare (no .NS/.BO
+            suffix) inside `get_actions`.
+        window_years: lookback for the structural-event scan. Default
+            5y covers the practical post-demerger ramp window.
+
+    Returns:
+        Non-negative integer quarter count for the most-recent
+        in-window structural action, or None on no event / DB error.
+        Never raises.
+    """
+    if window_years <= 0:
+        return None
+    today = date.today()
+    try:
+        window_start = today.replace(year=today.year - window_years)
+    except ValueError:
+        window_start = today.replace(
+            month=1, day=1, year=today.year - window_years,
+        )
+
+    try:
+        rows = get_actions(ticker, since=window_start)
+    except Exception as exc:
+        logger.warning(
+            "quarters_since_event(%s): get_actions failed: %s",
+            ticker, exc,
+        )
+        return None
+
+    most_recent: Optional[date] = None
+    for r in rows:
+        if r.get("action_type") not in STRUCTURAL_ACTION_TYPES:
+            continue
+        ex_date = r.get("ex_date")
+        if isinstance(ex_date, datetime):
+            ex_date = ex_date.date()
+        elif isinstance(ex_date, str):
+            try:
+                ex_date = datetime.fromisoformat(ex_date[:10]).date()
+            except Exception:
+                ex_date = None
+        if not isinstance(ex_date, date) or ex_date > today:
+            continue
+        if most_recent is None or ex_date > most_recent:
+            most_recent = ex_date
+
+    if most_recent is None:
+        return None
+
+    months = (
+        (today.year - most_recent.year) * 12
+        + (today.month - most_recent.month)
+    )
+    if today.day < most_recent.day:
+        months -= 1
+    if months < 0:
+        months = 0
+    return months // 3
+
+
 # ── Helpers: Indian fiscal-year mapping ────────────────────────
 def _indian_fy_end_year(d: date) -> int:
     """Return the year-number of the Indian FY-end (Mar 31) containing `d`.
