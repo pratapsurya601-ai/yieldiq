@@ -106,25 +106,41 @@ export default function InstallPrompt() {
   if (!show) return null
 
   return (
+    // Day-67 (2026-05-21): audit-driven repositioning + theming.
+    //   - bottom-RIGHT on desktop (sm:) rather than bottom-LEFT —
+    //     left side overlapped the portfolio table per the audit
+    //   - design tokens (bg-bg, dark:bg-surface, text-ink) replace
+    //     hardcoded bg-white / text-gray so the banner respects the
+    //     active theme (audit's theme-consistency complaint)
+    //   - explicit × close button at top-right alongside "Not now"
+    //     so the dismiss affordance is unambiguous
     <div
       role="dialog"
       aria-labelledby="install-prompt-title"
-      className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-sm rounded-2xl border border-gray-200 bg-white p-4 shadow-lg sm:right-auto sm:left-4"
+      className="fixed bottom-4 left-4 right-4 z-50 mx-auto max-w-sm rounded-2xl border border-border bg-bg dark:bg-surface p-4 shadow-lg sm:left-auto sm:right-4"
     >
-      <div className="flex items-start gap-3">
+      <button
+        type="button"
+        onClick={dismiss}
+        aria-label="Dismiss install prompt"
+        className="absolute top-2 right-2 grid h-6 w-6 place-items-center rounded-full text-caption hover:bg-border/40 hover:text-ink"
+      >
+        ×
+      </button>
+      <div className="flex items-start gap-3 pr-6">
         <div className="h-10 w-10 flex-none rounded-xl bg-blue-600 text-white font-bold grid place-items-center">
           Y
         </div>
         <div className="flex-1 min-w-0">
-          <p id="install-prompt-title" className="text-sm font-semibold text-gray-900">
+          <p id="install-prompt-title" className="text-sm font-semibold text-ink">
             Install YieldIQ
           </p>
           {iosHelper ? (
-            <p className="mt-1 text-xs text-gray-600">
+            <p className="mt-1 text-xs text-caption">
               Tap the Share icon &rarr; Add to Home Screen to install.
             </p>
           ) : (
-            <p className="mt-1 text-xs text-gray-600">
+            <p className="mt-1 text-xs text-caption">
               Get the app experience &mdash; fast launch, offline reads, home-screen icon.
             </p>
           )}
@@ -139,7 +155,7 @@ export default function InstallPrompt() {
             )}
             <button
               onClick={dismiss}
-              className="rounded-lg px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-700"
+              className="rounded-lg px-3 py-1.5 text-xs font-medium text-caption hover:text-ink"
             >
               Not now
             </button>

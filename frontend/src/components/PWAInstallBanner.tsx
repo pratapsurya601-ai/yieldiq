@@ -60,20 +60,26 @@ export default function PWAInstallBanner() {
   if (!show) return null
 
   return (
+    // Day-67 (2026-05-21): theme-aware tokens replace hardcoded
+    // bg-white / text-gray. Same audit complaint that drove the
+    // InstallPrompt.tsx changes above --- two PWA install components
+    // exist in the codebase; this is the mobile-only one (300px,
+    // <=3 views gate). Kept mobile-only positioning since this
+    // component already self-gates on userAgent.
     <div className="fixed bottom-0 left-0 right-0 z-50 p-4 pb-safe">
-      <div className="max-w-md mx-auto bg-white border border-gray-200 rounded-2xl shadow-lg p-4 flex items-center gap-3">
+      <div className="max-w-md mx-auto bg-bg dark:bg-surface border border-border rounded-2xl shadow-lg p-4 flex items-center gap-3">
         {/* loading="lazy" — this banner is conditional (mobile-only,
             3+ views), so the logo isn't above the fold and shouldn't
             trigger the "preloaded but unused" devtools warning. */}
         <img src="/logo-new.svg" alt="YieldIQ" loading="lazy" decoding="async" className="w-10 h-10 rounded-xl flex-shrink-0" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-gray-900">Add YieldIQ to Home Screen</p>
-          <p className="text-xs text-gray-500">Quick access to stock analysis</p>
+          <p className="text-sm font-semibold text-ink">Add YieldIQ to Home Screen</p>
+          <p className="text-xs text-caption">Quick access to stock analysis</p>
         </div>
         <div className="flex gap-2 flex-shrink-0">
           <button
             onClick={handleDismiss}
-            className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1"
+            className="text-xs text-caption hover:text-ink px-2 py-1"
           >
             Not now
           </button>
