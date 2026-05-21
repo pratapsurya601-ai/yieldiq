@@ -18,6 +18,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: "https://yieldiq.in/blog", priority: 0.9, changeFrequency: "weekly" },
     { url: "https://yieldiq.in/how-it-works", priority: 0.8, changeFrequency: "monthly" },
     { url: "https://yieldiq.in/methodology", priority: 0.6, changeFrequency: "monthly" },
+    // Day-83: end-user help section. Each topic indexed as its own URL
+    // so Google ranks them on the long-tail "how do I read X" queries.
+    { url: "https://yieldiq.in/help", priority: 0.7, changeFrequency: "monthly" },
+    { url: "https://yieldiq.in/help/reading-an-analysis", priority: 0.6, changeFrequency: "monthly" },
+    { url: "https://yieldiq.in/help/fair-value-and-mos", priority: 0.6, changeFrequency: "monthly" },
+    { url: "https://yieldiq.in/help/using-the-screener", priority: 0.6, changeFrequency: "monthly" },
+    { url: "https://yieldiq.in/help/portfolio-prism", priority: 0.6, changeFrequency: "monthly" },
+    { url: "https://yieldiq.in/help/confidence-and-limits", priority: 0.6, changeFrequency: "monthly" },
+    { url: "https://yieldiq.in/help/sectors-and-cohorts", priority: 0.6, changeFrequency: "monthly" },
+    { url: "https://yieldiq.in/help/pricing-and-tiers", priority: 0.6, changeFrequency: "monthly" },
     { url: "https://yieldiq.in/terms", priority: 0.3, changeFrequency: "monthly" },
     { url: "https://yieldiq.in/privacy", priority: 0.3, changeFrequency: "monthly" },
   ]
