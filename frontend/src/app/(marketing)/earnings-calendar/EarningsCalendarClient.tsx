@@ -47,7 +47,7 @@ function dayBadge(daysAway: number): string {
   if (daysAway === 0) return "bg-red-50 text-red-700 border-red-200"
   if (daysAway === 1) return "bg-amber-50 text-amber-700 border-amber-200"
   if (daysAway <= 7) return "bg-blue-50 text-blue-700 border-blue-200"
-  return "bg-gray-50 text-gray-600 border-gray-200"
+  return "bg-bg dark:bg-surface text-caption border-border"
 }
 
 export default function EarningsCalendarClient({ data }: { data: CalendarData }) {
@@ -89,19 +89,19 @@ export default function EarningsCalendarClient({ data }: { data: CalendarData })
   }, [filtered])
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-bg dark:bg-surface">
       {/* Header */}
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-12 sm:py-16">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">Earnings Calendar</h1>
-          <p className="text-gray-400 mb-4">
+          <p className="text-caption mb-4">
             Upcoming results for Indian stocks &middot; Next {data.window_days} days &middot; {data.total} events
           </p>
           {data.by_date.length > 0 && (
             <div className="flex flex-wrap justify-center gap-2 mt-4">
               {data.by_date.slice(0, 7).map(d => (
-                <div key={d.date} className="bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs">
-                  <span className="text-gray-400">{fmtDate(d.date)}</span>
+                <div key={d.date} className="bg-bg dark:bg-surface/5 border border-white/10 rounded-lg px-3 py-2 text-xs">
+                  <span className="text-caption">{fmtDate(d.date)}</span>
                   <span className="text-blue-400 font-bold ml-2">{d.count}</span>
                 </div>
               ))}
@@ -118,12 +118,12 @@ export default function EarningsCalendarClient({ data }: { data: CalendarData })
             placeholder="Search ticker or company..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="flex-1 px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white"
+            className="flex-1 px-4 py-2.5 border border-border rounded-lg text-sm bg-bg dark:bg-surface"
           />
           <select
             value={sectorFilter}
             onChange={e => setSectorFilter(e.target.value)}
-            className="px-4 py-2.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-700"
+            className="px-4 py-2.5 border border-border rounded-lg text-sm bg-bg dark:bg-surface text-ink"
           >
             <option value="">All Sectors</option>
             {sectors.map(s => <option key={s} value={s}>{s}</option>)}
@@ -134,7 +134,7 @@ export default function EarningsCalendarClient({ data }: { data: CalendarData })
       {/* Events grouped by date */}
       <section className="max-w-4xl mx-auto px-4 py-8 space-y-6">
         {grouped.length === 0 && (
-          <div className="text-center py-16 text-gray-400">
+          <div className="text-center py-16 text-caption">
             <p className="text-lg font-semibold mb-1">No upcoming earnings found</p>
             <p className="text-sm">Try adjusting filters, or check back soon — calendar updates daily from NSE</p>
           </div>
@@ -146,8 +146,8 @@ export default function EarningsCalendarClient({ data }: { data: CalendarData })
             <div key={date}>
               <div className="flex items-baseline justify-between mb-3 border-b border-gray-100 pb-2">
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">{fmtDate(date)}</h2>
-                  <p className="text-xs text-gray-400">{events.length} {events.length === 1 ? "result" : "results"}</p>
+                  <h2 className="text-lg font-bold text-ink">{fmtDate(date)}</h2>
+                  <p className="text-xs text-caption">{events.length} {events.length === 1 ? "result" : "results"}</p>
                 </div>
                 <span className={`text-[10px] font-bold px-2 py-1 rounded-full border ${dayBadge(daysAway)}`}>
                   {dayLabel(daysAway)}
@@ -158,15 +158,15 @@ export default function EarningsCalendarClient({ data }: { data: CalendarData })
                   <Link
                     key={`${e.ticker}-${i}`}
                     href={`/stocks/${e.display_ticker}/fair-value`}
-                    className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-100 rounded-lg hover:border-blue-200 hover:shadow-sm transition"
+                    className="flex items-center gap-3 px-4 py-3 bg-bg dark:bg-surface border border-gray-100 rounded-lg hover:border-blue-200 hover:shadow-sm transition"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-gray-900">{e.display_ticker}</p>
-                      <p className="text-xs text-gray-500 truncate">{e.company_name}</p>
-                      {e.sector && <p className="text-[10px] text-gray-400 mt-0.5">{normalizeSector(e.sector)}</p>}
+                      <p className="text-sm font-bold text-ink">{e.display_ticker}</p>
+                      <p className="text-xs text-caption truncate">{e.company_name}</p>
+                      {e.sector && <p className="text-[10px] text-caption mt-0.5">{normalizeSector(e.sector)}</p>}
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] text-gray-400 uppercase tracking-wider">{e.event_type}</p>
+                      <p className="text-[10px] text-caption uppercase tracking-wider">{e.event_type}</p>
                     </div>
                   </Link>
                 ))}
@@ -177,10 +177,10 @@ export default function EarningsCalendarClient({ data }: { data: CalendarData })
       </section>
 
       {/* CTA */}
-      <section className="bg-gray-50 border-t border-gray-100 py-12">
+      <section className="bg-bg dark:bg-surface border-t border-gray-100 py-12">
         <div className="max-w-3xl mx-auto px-4 text-center">
-          <h2 className="text-2xl font-black text-gray-900 mb-3">Get notified before earnings</h2>
-          <p className="text-gray-500 mb-6">Set price alerts and get notified before any stock&apos;s earnings call.</p>
+          <h2 className="text-2xl font-black text-ink mb-3">Get notified before earnings</h2>
+          <p className="text-caption mb-6">Set price alerts and get notified before any stock&apos;s earnings call.</p>
           <Link href="/auth/signup" className="inline-block bg-blue-600 text-white font-bold px-8 py-4 rounded-xl text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/20">
             Start Free &rarr;
           </Link>
@@ -188,7 +188,7 @@ export default function EarningsCalendarClient({ data }: { data: CalendarData })
       </section>
 
       <footer className="py-6 border-t border-gray-100">
-        <p className="text-[10px] text-gray-400 text-center max-w-2xl mx-auto px-4">
+        <p className="text-[10px] text-caption text-center max-w-2xl mx-auto px-4">
           Data sourced from NSE corporate event calendar. Not investment advice.
           YieldIQ is not registered with SEBI as an investment adviser.
         </p>

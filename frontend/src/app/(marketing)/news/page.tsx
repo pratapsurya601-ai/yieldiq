@@ -55,7 +55,7 @@ function importanceLabel(level: string) {
   if (level === "critical") return { text: "Critical", cls: "bg-red-50 text-red-700 border-red-200" }
   if (level === "high") return { text: "High", cls: "bg-amber-50 text-amber-700 border-amber-200" }
   if (level === "medium") return { text: "Medium", cls: "bg-blue-50 text-blue-700 border-blue-200" }
-  return { text: "Low", cls: "bg-gray-50 text-gray-600 border-gray-200" }
+  return { text: "Low", cls: "bg-bg dark:bg-surface text-caption border-border" }
 }
 
 export default async function NewsFeedPage() {
@@ -66,11 +66,11 @@ export default async function NewsFeedPage() {
   } catch {}
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-bg dark:bg-surface">
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-12">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-2">Corporate Filings Feed</h1>
-          <p className="text-gray-400">
+          <p className="text-caption">
             Latest BSE/NSE announcements &middot; {data.count} items in the last 7 days
           </p>
         </div>
@@ -78,7 +78,7 @@ export default async function NewsFeedPage() {
 
       <section className="max-w-4xl mx-auto px-4 py-6">
         {data.items.length === 0 && (
-          <div className="text-center py-16 text-gray-400">
+          <div className="text-center py-16 text-caption">
             <p className="text-lg font-semibold mb-1">Feed temporarily unavailable</p>
             <p className="text-sm">News provider is rate-limited. Check back soon.</p>
           </div>
@@ -99,18 +99,18 @@ export default async function NewsFeedPage() {
                 <div className="flex items-start justify-between gap-3 mb-2">
                   <div className="flex items-center gap-2 flex-wrap min-w-0">
                     {item.ticker && (
-                      <span className="text-xs font-bold text-gray-900">{item.company_name || item.ticker}</span>
+                      <span className="text-xs font-bold text-ink">{item.company_name || item.ticker}</span>
                     )}
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${il.cls}`}>{il.text}</span>
-                    <span className="text-[10px] text-gray-400 capitalize">{item.category}</span>
+                    <span className="text-[10px] text-caption capitalize">{item.category}</span>
                   </div>
-                  <span className="text-[10px] text-gray-400 flex-shrink-0">{timeAgo(item.published_at)}</span>
+                  <span className="text-[10px] text-caption flex-shrink-0">{timeAgo(item.published_at)}</span>
                 </div>
-                <p className="text-sm text-gray-900 font-medium leading-snug">{item.headline}</p>
+                <p className="text-sm text-ink font-medium leading-snug">{item.headline}</p>
                 {item.summary && (
-                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.summary}</p>
+                  <p className="text-xs text-caption mt-1 line-clamp-2">{item.summary}</p>
                 )}
-                <div className="mt-2 flex items-center gap-2 text-[10px] text-gray-400">
+                <div className="mt-2 flex items-center gap-2 text-[10px] text-caption">
                   <span>{item.source}</span>
                   {item.url && <span>&middot; Click to open filing &rarr;</span>}
                 </div>
@@ -121,7 +121,7 @@ export default async function NewsFeedPage() {
       </section>
 
       <footer className="py-6 border-t border-gray-100">
-        <p className="text-[10px] text-gray-400 text-center max-w-2xl mx-auto px-4">
+        <p className="text-[10px] text-caption text-center max-w-2xl mx-auto px-4">
           Data sourced from BSE corporate announcements. Updated every 30 minutes.
           Not investment advice. YieldIQ is not registered with SEBI as an investment adviser.
         </p>

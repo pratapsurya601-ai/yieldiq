@@ -122,13 +122,13 @@ export default function ScreenClient({ data, slug }: { data: ScreenData; slug: s
   const arrow = (k: SortKey) => sortKey === k ? (sortDir === "desc" ? " \u25BC" : " \u25B2") : ""
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-bg dark:bg-surface">
       {/* Header */}
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-12">
         <div className="max-w-4xl mx-auto px-4 text-center">
           <p className="text-blue-300 text-xs font-bold tracking-wider uppercase mb-2">Pre-built Filter</p>
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">{data.h1}</h1>
-          <p className="text-gray-400 max-w-2xl mx-auto">{data.intro}</p>
+          <p className="text-caption max-w-2xl mx-auto">{data.intro}</p>
           <p className="text-blue-400 text-sm font-semibold mt-3">{data.total} stocks match this filter</p>
         </div>
       </section>
@@ -143,7 +143,7 @@ export default function ScreenClient({ data, slug }: { data: ScreenData; slug: s
               className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition ${
                 s.slug === slug
                   ? "bg-blue-600 text-white border-blue-600"
-                  : "bg-white text-gray-600 border-gray-200 hover:border-gray-400"
+                  : "bg-bg dark:bg-surface text-caption border-border hover:border-gray-400"
               }`}
             >
               {s.name}
@@ -155,11 +155,11 @@ export default function ScreenClient({ data, slug }: { data: ScreenData; slug: s
       {/* Filter */}
       <section className="max-w-6xl mx-auto px-4 py-4 border-b border-gray-100">
         <div className="flex items-center justify-between gap-4">
-          <p className="text-sm text-gray-500">Showing {sorted.length} stocks</p>
+          <p className="text-sm text-caption">Showing {sorted.length} stocks</p>
           <select
             value={sectorFilter}
             onChange={e => setSectorFilter(e.target.value)}
-            className="text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700"
+            className="text-sm border border-border rounded-lg px-3 py-2 bg-bg dark:bg-surface text-ink"
           >
             <option value="">All Sectors</option>
             {sectors.map(s => <option key={s} value={s}>{s}</option>)}
@@ -169,49 +169,49 @@ export default function ScreenClient({ data, slug }: { data: ScreenData; slug: s
 
       {/* Table */}
       <section className="max-w-6xl mx-auto px-4 py-6">
-        <div className="overflow-x-auto rounded-xl border border-gray-200">
+        <div className="overflow-x-auto rounded-xl border border-border">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="text-left px-4 py-3 font-semibold text-gray-500 w-10">#</th>
-                <th className="text-left px-4 py-3 font-semibold text-gray-500">Company</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-500 cursor-pointer hover:text-gray-900 select-none" onClick={() => toggle("current_price")}>Price{arrow("current_price")}</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-500 cursor-pointer hover:text-gray-900 select-none" onClick={() => toggle("score")}>Score{arrow("score")}</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-500 cursor-pointer hover:text-gray-900 select-none" onClick={() => toggle("mos")}>MoS%{arrow("mos")}</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-500 cursor-pointer hover:text-gray-900 select-none hidden sm:table-cell" onClick={() => toggle("roce")}>ROCE{arrow("roce")}</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-500 cursor-pointer hover:text-gray-900 select-none hidden md:table-cell" onClick={() => toggle("pe_ratio")}>P/E{arrow("pe_ratio")}</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-500 cursor-pointer hover:text-gray-900 select-none hidden md:table-cell" onClick={() => toggle("piotroski")}>F-Score{arrow("piotroski")}</th>
-                <th className="text-center px-4 py-3 font-semibold text-gray-500">Verdict</th>
+              <tr className="bg-bg dark:bg-surface border-b border-border">
+                <th className="text-left px-4 py-3 font-semibold text-caption w-10">#</th>
+                <th className="text-left px-4 py-3 font-semibold text-caption">Company</th>
+                <th className="text-right px-4 py-3 font-semibold text-caption cursor-pointer hover:text-gray-900 select-none" onClick={() => toggle("current_price")}>Price{arrow("current_price")}</th>
+                <th className="text-right px-4 py-3 font-semibold text-caption cursor-pointer hover:text-gray-900 select-none" onClick={() => toggle("score")}>Score{arrow("score")}</th>
+                <th className="text-right px-4 py-3 font-semibold text-caption cursor-pointer hover:text-gray-900 select-none" onClick={() => toggle("mos")}>MoS%{arrow("mos")}</th>
+                <th className="text-right px-4 py-3 font-semibold text-caption cursor-pointer hover:text-gray-900 select-none hidden sm:table-cell" onClick={() => toggle("roce")}>ROCE{arrow("roce")}</th>
+                <th className="text-right px-4 py-3 font-semibold text-caption cursor-pointer hover:text-gray-900 select-none hidden md:table-cell" onClick={() => toggle("pe_ratio")}>P/E{arrow("pe_ratio")}</th>
+                <th className="text-right px-4 py-3 font-semibold text-caption cursor-pointer hover:text-gray-900 select-none hidden md:table-cell" onClick={() => toggle("piotroski")}>F-Score{arrow("piotroski")}</th>
+                <th className="text-center px-4 py-3 font-semibold text-caption">Verdict</th>
               </tr>
             </thead>
             <tbody>
               {sorted.map((s, i) => (
                 <tr key={s.ticker} className="border-b border-gray-100 hover:bg-gray-50 transition">
-                  <td className="px-4 py-3 text-gray-400 text-xs">{i + 1}</td>
+                  <td className="px-4 py-3 text-caption text-xs">{i + 1}</td>
                   <td className="px-4 py-3">
                     <Link href={`/stocks/${s.display_ticker}/fair-value`} className="hover:text-blue-600 transition">
-                      <p className="font-semibold text-gray-900">{s.display_ticker}</p>
-                      <p className="text-xs text-gray-400 truncate max-w-[180px]">{s.company_name}</p>
+                      <p className="font-semibold text-ink">{s.display_ticker}</p>
+                      <p className="text-xs text-caption truncate max-w-[180px]">{s.company_name}</p>
                     </Link>
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-900">{fmt(s.current_price)}</td>
-                  <td className="px-4 py-3 text-right font-bold text-gray-900">{s.score}</td>
+                  <td className="px-4 py-3 text-right font-mono text-ink">{fmt(s.current_price)}</td>
+                  <td className="px-4 py-3 text-right font-bold text-ink">{s.score}</td>
                   <td className={`px-4 py-3 text-right font-mono font-semibold ${s.mos >= 0 ? "text-green-600" : "text-red-600"}`}>
                     {s.mos >= 0 ? "+" : ""}{s.mos.toFixed(1)}%
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-900 hidden sm:table-cell">
+                  <td className="px-4 py-3 text-right font-mono text-ink hidden sm:table-cell">
                     {s.roce != null ? `${s.roce.toFixed(1)}%` : "\u2014"}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-900 hidden md:table-cell">
+                  <td className="px-4 py-3 text-right font-mono text-ink hidden md:table-cell">
                     {s.pe_ratio != null ? s.pe_ratio.toFixed(1) : "\u2014"}
                   </td>
-                  <td className="px-4 py-3 text-right font-bold text-gray-900 hidden md:table-cell">{s.piotroski}/9</td>
+                  <td className="px-4 py-3 text-right font-bold text-ink hidden md:table-cell">{s.piotroski}/9</td>
                   <td className="px-4 py-3 text-center">{verdictBadge(s.verdict)}</td>
                 </tr>
               ))}
               {sorted.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-12 text-center text-gray-400">
+                  <td colSpan={9} className="px-4 py-12 text-center text-caption">
                     No stocks match this filter right now. Cache is warming \u2014 check back in a few minutes.
                   </td>
                 </tr>
@@ -225,10 +225,10 @@ export default function ScreenClient({ data, slug }: { data: ScreenData; slug: s
       <BacktestSection slug={data.slug} />
 
       {/* CTA */}
-      <section className="bg-gray-50 border-t border-gray-100 py-12">
+      <section className="bg-bg dark:bg-surface border-t border-gray-100 py-12">
         <div className="max-w-3xl mx-auto px-4 text-center">
-          <h2 className="text-2xl font-black text-gray-900 mb-3">Want custom filters?</h2>
-          <p className="text-gray-500 mb-6">Build your own screener with 50+ filters across 2,300+ Indian stocks.</p>
+          <h2 className="text-2xl font-black text-ink mb-3">Want custom filters?</h2>
+          <p className="text-caption mb-6">Build your own screener with 50+ filters across 2,300+ Indian stocks.</p>
           <Link href="/auth/signup" className="inline-block bg-blue-600 text-white font-bold px-8 py-4 rounded-xl text-lg hover:bg-blue-700 transition shadow-lg shadow-blue-500/20">
             Start Free &rarr;
           </Link>
@@ -236,7 +236,7 @@ export default function ScreenClient({ data, slug }: { data: ScreenData; slug: s
       </section>
 
       <footer className="py-6 border-t border-gray-100">
-        <p className="text-[10px] text-gray-400 text-center max-w-2xl mx-auto px-4">
+        <p className="text-[10px] text-caption text-center max-w-2xl mx-auto px-4">
           This is a factor-based filter, not a stock recommendation. Model estimates only \u2014 not investment advice.
           YieldIQ is not registered with SEBI as an investment adviser.
         </p>
@@ -281,15 +281,15 @@ function BacktestSection({ slug }: { slug: string }) {
         <div className="flex items-start justify-between gap-4 mb-4">
           <div>
             <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase mb-1">Backtest</p>
-            <h2 className="text-2xl font-black text-gray-900">How have these stocks performed?</h2>
-            <p className="text-xs text-gray-500 mt-1">Equal-weighted portfolio of current constituents vs Nifty (NIFTYBEES)</p>
+            <h2 className="text-2xl font-black text-ink">How have these stocks performed?</h2>
+            <p className="text-xs text-caption mt-1">Equal-weighted portfolio of current constituents vs Nifty (NIFTYBEES)</p>
           </div>
         </div>
 
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
+        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4 mb-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-end">
           <div className="flex-1">
-            <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1 block">Period</label>
-            <select value={years} onChange={e => setYears(parseInt(e.target.value))} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
+            <label className="text-[10px] text-caption uppercase tracking-wider mb-1 block">Period</label>
+            <select value={years} onChange={e => setYears(parseInt(e.target.value))} className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg dark:bg-surface">
               <option value={1}>1 year</option>
               <option value={2}>2 years</option>
               <option value={3}>3 years</option>
@@ -297,8 +297,8 @@ function BacktestSection({ slug }: { slug: string }) {
             </select>
           </div>
           <div className="flex-1">
-            <label className="text-[10px] text-gray-500 uppercase tracking-wider mb-1 block">Rebalance</label>
-            <select value={rebalance} onChange={e => setRebalance(e.target.value as "monthly" | "quarterly" | "yearly")} className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
+            <label className="text-[10px] text-caption uppercase tracking-wider mb-1 block">Rebalance</label>
+            <select value={rebalance} onChange={e => setRebalance(e.target.value as "monthly" | "quarterly" | "yearly")} className="w-full px-3 py-2 border border-border rounded-lg text-sm bg-bg dark:bg-surface">
               <option value="monthly">Monthly</option>
               <option value="quarterly">Quarterly</option>
               <option value="yearly">Yearly</option>
@@ -323,39 +323,39 @@ function BacktestSection({ slug }: { slug: string }) {
           <>
             {/* Summary cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-              <div className="bg-white border border-gray-200 rounded-xl p-4">
-                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">CAGR</p>
+              <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
+                <p className="text-[10px] text-caption uppercase tracking-wider mb-1">CAGR</p>
                 <p className={`text-xl font-bold ${m.cagr_pct >= 0 ? "text-green-600" : "text-red-600"}`}>
                   {m.cagr_pct >= 0 ? "+" : ""}{m.cagr_pct.toFixed(1)}%
                 </p>
                 {m.benchmark_cagr_pct != null && (
-                  <p className="text-[10px] text-gray-400 mt-0.5">Nifty: {m.benchmark_cagr_pct >= 0 ? "+" : ""}{m.benchmark_cagr_pct.toFixed(1)}%</p>
+                  <p className="text-[10px] text-caption mt-0.5">Nifty: {m.benchmark_cagr_pct >= 0 ? "+" : ""}{m.benchmark_cagr_pct.toFixed(1)}%</p>
                 )}
               </div>
-              <div className="bg-white border border-gray-200 rounded-xl p-4">
-                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">vs Nifty</p>
+              <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
+                <p className="text-[10px] text-caption uppercase tracking-wider mb-1">vs Nifty</p>
                 <p className={`text-xl font-bold ${outperformed ? "text-green-600" : "text-red-600"}`}>
                   {m.outperformance_pct != null ? `${m.outperformance_pct >= 0 ? "+" : ""}${m.outperformance_pct.toFixed(1)}%` : "—"}
                 </p>
-                <p className="text-[10px] text-gray-400 mt-0.5">Annualized delta</p>
+                <p className="text-[10px] text-caption mt-0.5">Annualized delta</p>
               </div>
-              <div className="bg-white border border-gray-200 rounded-xl p-4">
-                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Max Drawdown</p>
+              <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
+                <p className="text-[10px] text-caption uppercase tracking-wider mb-1">Max Drawdown</p>
                 <p className="text-xl font-bold text-red-600">{m.max_drawdown_pct.toFixed(1)}%</p>
-                <p className="text-[10px] text-gray-400 mt-0.5">Peak-to-trough</p>
+                <p className="text-[10px] text-caption mt-0.5">Peak-to-trough</p>
               </div>
-              <div className="bg-white border border-gray-200 rounded-xl p-4">
-                <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Return/Vol</p>
+              <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
+                <p className="text-[10px] text-caption uppercase tracking-wider mb-1">Return/Vol</p>
                 <p className={`text-xl font-bold ${m.sharpe_proxy >= 0 ? "text-gray-900" : "text-red-600"}`}>{m.sharpe_proxy.toFixed(2)}</p>
-                <p className="text-[10px] text-gray-400 mt-0.5">Sharpe proxy</p>
+                <p className="text-[10px] text-caption mt-0.5">Sharpe proxy</p>
               </div>
             </div>
 
             {/* Equity curve chart */}
-            <div className="bg-white border border-gray-200 rounded-xl p-4 mb-4">
+            <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4 mb-4">
               <div className="flex items-baseline justify-between mb-2">
-                <h3 className="text-sm font-bold text-gray-900">Growth of ₹100</h3>
-                <p className="text-[10px] text-gray-400">{data.tickers_backtested} of {data.tickers_requested} stocks have price history</p>
+                <h3 className="text-sm font-bold text-ink">Growth of ₹100</h3>
+                <p className="text-[10px] text-caption">{data.tickers_backtested} of {data.tickers_requested} stocks have price history</p>
               </div>
               <ResponsiveContainer width="100%" height={280}>
                 <LineChart data={data.curve}>
@@ -381,9 +381,9 @@ function BacktestSection({ slug }: { slug: string }) {
             </div>
 
             {/* Disclaimer */}
-            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
-              <p className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-2">Important caveats</p>
-              <ul className="text-xs text-gray-600 space-y-1 leading-relaxed">
+            <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
+              <p className="text-xs font-bold text-ink uppercase tracking-wider mb-2">Important caveats</p>
+              <ul className="text-xs text-caption space-y-1 leading-relaxed">
                 <li>&bull; <b>Survivorship bias:</b> This backtest uses TODAY&apos;s filter constituents. Stocks that failed the filter in the past are not included.</li>
                 <li>&bull; <b>Not a rolling backtest:</b> A true backtest would re-run the filter at each historical date.</li>
                 <li>&bull; <b>Past performance:</b> Historical returns do not guarantee future results.</li>

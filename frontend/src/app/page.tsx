@@ -97,7 +97,7 @@ function DemoCard() {
               <span className="text-white font-bold text-lg">{c.display_ticker}</span>
               <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded font-medium">NSE</span>
             </div>
-            <div className="text-gray-500 text-xs mt-0.5">{c.company_name}</div>
+            <div className="text-caption text-xs mt-0.5">{c.company_name}</div>
           </div>
           <div className="text-right">
             <div className="text-white font-bold text-lg font-mono">&#8377;{fmt(c.current_price)}</div>
@@ -119,7 +119,7 @@ function DemoCard() {
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-3xl font-black text-white">{score}</span>
-              <span className="text-[10px] text-gray-400 font-semibold tracking-wider uppercase">{c.grade || "\u2014"}</span>
+              <span className="text-[10px] text-caption font-semibold tracking-wider uppercase">{c.grade || "\u2014"}</span>
             </div>
           </div>
           <div className="space-y-2.5 flex-1">
@@ -127,11 +127,11 @@ function DemoCard() {
               {verdictText}
             </div>
             <div>
-              <div className="text-gray-500 text-[10px] uppercase tracking-wider">Fair Value</div>
+              <div className="text-caption text-[10px] uppercase tracking-wider">Fair Value</div>
               <div className="text-white font-bold font-mono">&#8377;{fmt(c.fair_value)}</div>
             </div>
             <div>
-              <div className="text-gray-500 text-[10px] uppercase tracking-wider">Margin of Safety</div>
+              <div className="text-caption text-[10px] uppercase tracking-wider">Margin of Safety</div>
               <div className={`font-bold font-mono ${(c.mos || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>{mosSign}{(c.mos || 0).toFixed(1)}%</div>
             </div>
           </div>
@@ -150,7 +150,7 @@ function DemoCard() {
         </div>
         <div className="flex items-center gap-1.5 mt-3 justify-center">
           <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-          <span className="text-[10px] text-gray-500">Recomputed nightly</span>
+          <span className="text-[10px] text-caption">Recomputed nightly</span>
         </div>
       </div>
     </div>
@@ -169,7 +169,7 @@ const pricingPlans = [
    ═════════════════════════════════════════════════════════ */
 function LandingContent() {
   return (
-    <div className="bg-white text-gray-900 overflow-x-hidden">
+    <div className="bg-bg dark:bg-surface text-ink overflow-x-hidden">
       <MarketingTopNav variant="dark" />
 
       {/* ── 1. Hero ────────────────────────────────────── */}
@@ -191,7 +191,7 @@ function LandingContent() {
               <p className="text-gray-300 text-lg md:text-xl max-w-xl mx-auto lg:mx-0 mb-4 leading-relaxed">
                 Built for self-directed long-term investors &mdash; every assumption is editable, every number links to the source filing.
               </p>
-              <p className="text-gray-500 text-sm md:text-base max-w-xl mx-auto lg:mx-0 mb-8 leading-relaxed">
+              <p className="text-caption text-sm md:text-base max-w-xl mx-auto lg:mx-0 mb-8 leading-relaxed">
                 Not a broker. Not a chart tool. Not a tipster service. A valuation layer that sits on top of the fundamentals you already read on Screener.in.
               </p>
 
@@ -207,15 +207,15 @@ function LandingContent() {
               </div>
 
               {/* Stats strip */}
-              <p className="text-gray-400 text-sm">
+              <p className="text-caption text-sm">
                 <span className="text-white font-semibold">2,300+ NSE &amp; BSE stocks</span>
-                <span className="mx-2 text-gray-600">&middot;</span>
+                <span className="mx-2 text-caption">&middot;</span>
                 <span className="text-white font-semibold">Source-linked</span>
-                <span className="mx-2 text-gray-600">&middot;</span>
+                <span className="mx-2 text-caption">&middot;</span>
                 <span className="text-white font-semibold">Editable assumptions</span>
               </p>
 
-              <p className="mt-4 text-gray-500 text-xs">
+              <p className="mt-4 text-caption text-xs">
                 <Link href="/methodology" className="underline hover:text-gray-300 transition">
                   How the score is computed &rarr;
                 </Link>
@@ -230,7 +230,7 @@ function LandingContent() {
       </section>
 
       {/* ── 2. Here's what you'll see (kept from a4426ce) ── */}
-      <section id="how-it-works" className="bg-white py-20 border-b border-gray-100">
+      <section id="how-it-works" className="bg-bg dark:bg-surface py-20 border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <FadeIn>
             <div className="text-center mb-12">
@@ -240,15 +240,15 @@ function LandingContent() {
                   No sign-up to browse
                 </span>
               </div>
-              <h2 className="font-display text-3xl sm:text-4xl font-black text-gray-900 mb-3">
+              <h2 className="font-display text-3xl sm:text-4xl font-black text-ink mb-3">
                 Here&rsquo;s what you&rsquo;ll see
               </h2>
-              <p className="text-gray-600 text-base max-w-2xl mx-auto">
+              <p className="text-caption text-base max-w-2xl mx-auto">
                 Every Indian stock on YieldIQ is analysed through this same lens &mdash;
                 live prices, 3-scenario DCF, quality scores, and plain-English AI
                 commentary. This is a real card, rotating through real tickers.
               </p>
-              <p className="text-gray-500 text-xs mt-3 max-w-2xl mx-auto">
+              <p className="text-caption text-xs mt-3 max-w-2xl mx-auto">
                 Browse and analyse any stock without signing up. A free account
                 (5 deep analyses per day) unlocks watchlists, portfolios, and saved screens.
               </p>
@@ -275,8 +275,8 @@ function LandingContent() {
                       {item.num}
                     </div>
                     <div>
-                      <h3 className="font-bold text-gray-900 text-base mb-1">{item.title}</h3>
-                      <p className="text-gray-600 text-sm leading-relaxed">{item.body}</p>
+                      <h3 className="font-bold text-ink text-base mb-1">{item.title}</h3>
+                      <p className="text-caption text-sm leading-relaxed">{item.body}</p>
                     </div>
                   </div>
                 ))}
@@ -287,13 +287,13 @@ function LandingContent() {
       </section>
 
       {/* ── 3. Why this is different ────────────────────── */}
-      <section className="py-20 bg-gray-50 border-b border-gray-100">
+      <section className="py-20 bg-bg dark:bg-surface border-b border-gray-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <FadeIn>
-            <h2 className="font-display text-3xl md:text-4xl font-black text-gray-900 text-center mb-3">
+            <h2 className="font-display text-3xl md:text-4xl font-black text-ink text-center mb-3">
               Why this is different
             </h2>
-            <p className="text-gray-500 text-base text-center max-w-2xl mx-auto mb-12">
+            <p className="text-caption text-base text-center max-w-2xl mx-auto mb-12">
               Most valuation tools copy US templates and bolt on Indian tickers. YieldIQ is built the other way around.
             </p>
           </FadeIn>
@@ -330,10 +330,10 @@ function LandingContent() {
                 body: "Banks and NBFCs use P/B with residual-income logic. FMCG uses stable-growth DCF. One engine per business type \u2014 not one-size-fits-all.",
               },
             ].map((f) => (
-              <div key={f.title} className="bg-white rounded-2xl p-6 border border-gray-100">
+              <div key={f.title} className="bg-bg dark:bg-surface rounded-2xl p-6 border border-gray-100">
                 <div className="text-2xl mb-3">{f.icon}</div>
-                <h3 className="font-bold text-gray-900 text-base mb-2">{f.title}</h3>
-                <p className="text-gray-600 text-sm leading-relaxed">{f.body}</p>
+                <h3 className="font-bold text-ink text-base mb-2">{f.title}</h3>
+                <p className="text-caption text-sm leading-relaxed">{f.body}</p>
               </div>
             ))}
           </div>
@@ -341,10 +341,10 @@ function LandingContent() {
       </section>
 
       {/* ── 4. Pricing teaser ───────────────────────────── */}
-      <section className="py-16 bg-white border-b border-gray-100">
+      <section className="py-16 bg-bg dark:bg-surface border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <FadeIn>
-            <h2 className="font-display text-3xl md:text-4xl font-black text-gray-900 text-center mb-10">
+            <h2 className="font-display text-3xl md:text-4xl font-black text-ink text-center mb-10">
               Pricing
             </h2>
           </FadeIn>
@@ -354,14 +354,14 @@ function LandingContent() {
                 key={p.name}
                 className={`rounded-2xl p-6 border ${p.highlight ? "border-blue-500 ring-1 ring-blue-500/20 bg-white" : "border-gray-100 bg-white"}`}
               >
-                <p className="text-sm font-bold text-gray-500 uppercase tracking-wider">
+                <p className="text-sm font-bold text-caption uppercase tracking-wider">
                   {p.name}
                 </p>
                 <p className="mt-2">
-                  <span className="font-display text-3xl font-black text-gray-900 font-mono">{p.price}</span>
-                  <span className="text-gray-500 text-sm">{p.period}</span>
+                  <span className="font-display text-3xl font-black text-ink font-mono">{p.price}</span>
+                  <span className="text-caption text-sm">{p.period}</span>
                 </p>
-                <p className="text-gray-600 text-sm mt-3 leading-relaxed">{p.tagline}</p>
+                <p className="text-caption text-sm mt-3 leading-relaxed">{p.tagline}</p>
               </div>
             ))}
           </div>
@@ -389,22 +389,22 @@ function LandingContent() {
           </Link>
 
           {/* Trust bar */}
-          <div className="mt-10 flex items-center justify-center gap-3 flex-wrap text-gray-400 text-xs">
-            <span className="text-gray-500">Data from</span>
+          <div className="mt-10 flex items-center justify-center gap-3 flex-wrap text-caption text-xs">
+            <span className="text-caption">Data from</span>
             {["NSE", "BSE", "RBI", "yfinance"].map((s, i) => (
               <span key={s} className="inline-flex items-center gap-3">
-                {i > 0 && <span className="text-gray-700">&bull;</span>}
-                <span className="font-mono tracking-wider text-gray-400 font-medium">{s}</span>
+                {i > 0 && <span className="text-ink">&bull;</span>}
+                <span className="font-mono tracking-wider text-caption font-medium">{s}</span>
               </span>
             ))}
           </div>
 
           {/* SEBI disclaimer — exact text, do not edit */}
-          <p className="mt-6 text-gray-500 text-xs max-w-xl mx-auto leading-relaxed">
+          <p className="mt-6 text-caption text-xs max-w-xl mx-auto leading-relaxed">
             YieldIQ is not registered with SEBI as an investment adviser. All outputs are model estimates using publicly available data. Not investment advice.
           </p>
 
-          <p className="mt-6 text-gray-600 text-xs">&copy; 2026 YieldIQ</p>
+          <p className="mt-6 text-caption text-xs">&copy; 2026 YieldIQ</p>
         </div>
       </section>
     </div>
@@ -431,8 +431,8 @@ export default function RootPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="text-2xl font-bold text-gray-900 mb-2">YieldIQ</div>
-          <div className="text-sm text-gray-500">Loading...</div>
+          <div className="text-2xl font-bold text-ink mb-2">YieldIQ</div>
+          <div className="text-sm text-caption">Loading...</div>
         </div>
       </div>
     )

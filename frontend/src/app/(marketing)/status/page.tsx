@@ -152,7 +152,7 @@ function severityBadgeClasses(sev: string): string {
     case "partial":
       return "bg-blue-50 text-blue-700 border-blue-200"
     default:
-      return "bg-gray-50 text-gray-700 border-gray-200"
+      return "bg-bg dark:bg-surface text-ink border-border"
   }
 }
 

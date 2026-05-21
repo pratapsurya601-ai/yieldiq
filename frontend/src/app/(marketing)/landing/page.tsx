@@ -13,7 +13,7 @@ function MarketingFooter() {
               <img src="/logo-new.svg" alt="YieldIQ" className="w-8 h-8 rounded-lg" />
               <span className="text-white font-bold text-lg">YieldIQ</span>
             </div>
-            <p className="text-gray-500 text-sm max-w-xs">
+            <p className="text-caption text-sm max-w-xs">
               Institutional-grade DCF valuation for Indian retail investors.
             </p>
           </div>
@@ -21,28 +21,28 @@ function MarketingFooter() {
             <div>
               <h4 className="text-gray-300 font-semibold text-sm mb-3">Product</h4>
               <div className="space-y-2">
-                <Link href="/features" className="block text-gray-500 text-sm hover:text-gray-300 transition">Features</Link>
-                <Link href="/pricing" className="block text-gray-500 text-sm hover:text-gray-300 transition">Pricing</Link>
+                <Link href="/features" className="block text-caption text-sm hover:text-gray-300 transition">Features</Link>
+                <Link href="/pricing" className="block text-caption text-sm hover:text-gray-300 transition">Pricing</Link>
               </div>
             </div>
             <div>
               <h4 className="text-gray-300 font-semibold text-sm mb-3">Company</h4>
               <div className="space-y-2">
-                <a href="mailto:hello@yieldiq.in" className="block text-gray-500 text-sm hover:text-gray-300 transition">Contact</a>
+                <a href="mailto:hello@yieldiq.in" className="block text-caption text-sm hover:text-gray-300 transition">Contact</a>
               </div>
             </div>
             <div>
               <h4 className="text-gray-300 font-semibold text-sm mb-3">Legal</h4>
               <div className="space-y-2">
-                <Link href="#" className="block text-gray-500 text-sm hover:text-gray-300 transition">Privacy</Link>
-                <Link href="#" className="block text-gray-500 text-sm hover:text-gray-300 transition">Terms</Link>
+                <Link href="#" className="block text-caption text-sm hover:text-gray-300 transition">Privacy</Link>
+                <Link href="#" className="block text-caption text-sm hover:text-gray-300 transition">Terms</Link>
               </div>
             </div>
           </div>
         </div>
         <div className="border-t border-white/5 mt-10 pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-gray-600 text-xs">&copy; 2026 YieldIQ. Made in India.</p>
-          <p className="text-gray-600 text-xs">
+          <p className="text-caption text-xs">&copy; 2026 YieldIQ. Made in India.</p>
+          <p className="text-caption text-xs">
             Model output only &mdash; not investment advice. YieldIQ is not registered with SEBI as an investment adviser.
           </p>
         </div>
@@ -53,7 +53,7 @@ function MarketingFooter() {
 
 export default function LandingPage() {
   return (
-    <div className="bg-white text-gray-900">
+    <div className="bg-bg dark:bg-surface text-ink">
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B]">
         <div className="absolute top-20 left-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl" />
@@ -65,7 +65,7 @@ export default function LandingPage() {
             <br />
             <span className="bg-gradient-to-r from-blue-500 to-cyan-400 bg-clip-text text-transparent">Before You Invest.</span>
           </h1>
-          <p className="text-gray-400 text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
+          <p className="text-caption text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
             YieldIQ gives Indian retail investors institutional-grade DCF valuation &mdash;
             no spreadsheets, no guesswork. Enter a ticker, get a fair value estimate in seconds.
           </p>
@@ -77,28 +77,28 @@ export default function LandingPage() {
               Start Valuing Stocks &mdash; Free &rarr;
             </Link>
           </div>
-          <p className="text-gray-500 text-sm">Works for 2,300+ NSE &amp; BSE stocks.</p>
+          <p className="text-caption text-sm">Works for 2,300+ NSE &amp; BSE stocks.</p>
 
           {/* Stats */}
           <div className="flex justify-center gap-12 mt-16 flex-wrap">
             <div className="text-center">
               <div className="text-3xl font-black text-white">2,300+</div>
-              <div className="text-gray-500 text-xs mt-1">Stocks Covered</div>
+              <div className="text-caption text-xs mt-1">Stocks Covered</div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-black text-white">10-Year</div>
-              <div className="text-gray-500 text-xs mt-1">DCF Projections</div>
+              <div className="text-caption text-xs mt-1">DCF Projections</div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-black text-white">Free</div>
-              <div className="text-gray-500 text-xs mt-1">5 Deep Analyses/Day</div>
+              <div className="text-caption text-xs mt-1">5 Deep Analyses/Day</div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Problem */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-20 bg-bg dark:bg-surface">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase text-center mb-3">The Problem</p>
           <h2 className="text-3xl md:text-4xl font-black text-center mb-16 leading-tight">
@@ -106,24 +106,24 @@ export default function LandingPage() {
             <br />Not Value.
           </h2>
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+            <div className="bg-bg dark:bg-surface rounded-2xl p-8 shadow-sm border border-gray-100">
               <div className="text-3xl mb-4">&#x1F3B2;</div>
               <h3 className="font-bold text-lg mb-2">Entering at any price</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">
+              <p className="text-caption text-sm leading-relaxed">
                 Retail investors chase momentum without knowing if a stock is overvalued or undervalued.
               </p>
             </div>
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+            <div className="bg-bg dark:bg-surface rounded-2xl p-8 shadow-sm border border-gray-100">
               <div className="text-3xl mb-4">&#x1F4CA;</div>
               <h3 className="font-bold text-lg mb-2">DCF is too complex</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">
+              <p className="text-caption text-sm leading-relaxed">
                 Building a discounted cash flow model takes hours and requires finance expertise most people lack.
               </p>
             </div>
-            <div className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100">
+            <div className="bg-bg dark:bg-surface rounded-2xl p-8 shadow-sm border border-gray-100">
               <div className="text-3xl mb-4">&#x1F4B0;</div>
               <h3 className="font-bold text-lg mb-2">Tools cost a fortune</h3>
-              <p className="text-gray-500 text-sm leading-relaxed">
+              <p className="text-caption text-sm leading-relaxed">
                 Bloomberg Terminal costs &#8377;20L/year. Screeners give ratios, not valuations. The gap is massive.
               </p>
             </div>
@@ -132,7 +132,7 @@ export default function LandingPage() {
       </section>
 
       {/* How It Works */}
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-bg dark:bg-surface">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase text-center mb-3">How It Works</p>
           <h2 className="text-3xl md:text-4xl font-black text-center mb-16">
@@ -149,7 +149,7 @@ export default function LandingPage() {
                   {item.step}
                 </div>
                 <h3 className="font-bold text-lg mb-2">{item.title}</h3>
-                <p className="text-gray-500 text-sm">{item.desc}</p>
+                <p className="text-caption text-sm">{item.desc}</p>
               </div>
             ))}
           </div>
@@ -157,7 +157,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features Grid */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-20 bg-bg dark:bg-surface">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase text-center mb-3">Why YieldIQ</p>
           <h2 className="text-3xl md:text-4xl font-black text-center mb-16">
@@ -170,10 +170,10 @@ export default function LandingPage() {
               { icon: "\u{1F50D}", title: "Transparent Models", desc: "Every assumption is visible and adjustable. No black box. See exactly how the fair value is calculated." },
               { icon: "\u26A1", title: "Free to Start", desc: "Core valuation is free. No credit card. No signup wall. Start using it in 10 seconds." },
             ].map((f) => (
-              <div key={f.title} className="bg-white rounded-2xl p-8 border border-gray-100 hover:border-blue-200 hover:shadow-lg transition">
+              <div key={f.title} className="bg-bg dark:bg-surface rounded-2xl p-8 border border-gray-100 hover:border-blue-200 hover:shadow-lg transition">
                 <div className="text-2xl mb-3">{f.icon}</div>
                 <h3 className="font-bold text-lg mb-2">{f.title}</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">{f.desc}</p>
+                <p className="text-caption text-sm leading-relaxed">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -181,7 +181,7 @@ export default function LandingPage() {
       </section>
 
       {/* What You Get */}
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-bg dark:bg-surface">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase text-center mb-3">What You Get</p>
           <h2 className="text-3xl md:text-4xl font-black text-center mb-16">
@@ -199,7 +199,7 @@ export default function LandingPage() {
               <div key={f.title} className="text-center p-6">
                 <div className="text-4xl mb-4">{f.icon}</div>
                 <h3 className="font-bold mb-2">{f.title}</h3>
-                <p className="text-gray-500 text-sm">{f.desc}</p>
+                <p className="text-caption text-sm">{f.desc}</p>
               </div>
             ))}
           </div>
@@ -207,9 +207,9 @@ export default function LandingPage() {
       </section>
 
       {/* Trust */}
-      <section className="py-12 bg-gray-50 border-y border-gray-100">
+      <section className="py-12 bg-bg dark:bg-surface border-y border-gray-100">
         <div className="max-w-4xl mx-auto px-4 text-center">
-          <p className="text-gray-400 text-sm">
+          <p className="text-caption text-sm">
             Data sourced from BSE/NSE filings &nbsp;&bull;&nbsp;
             India-calibrated WACC (RBI benchmarks) &nbsp;&bull;&nbsp;
             100% transparent models &nbsp;&bull;&nbsp;
@@ -224,7 +224,7 @@ export default function LandingPage() {
           <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
             Stop Guessing. Start Valuing.
           </h2>
-          <p className="text-gray-400 text-lg mb-10 max-w-xl mx-auto">
+          <p className="text-caption text-lg mb-10 max-w-xl mx-auto">
             Join thousands of Indian investors making smarter decisions with DCF analysis.
           </p>
           <Link
@@ -233,7 +233,7 @@ export default function LandingPage() {
           >
             Launch YieldIQ &mdash; It&apos;s Free &rarr;
           </Link>
-          <p className="text-gray-500 text-sm mt-6">Works on mobile. No download required.</p>
+          <p className="text-caption text-sm mt-6">Works on mobile. No download required.</p>
         </div>
       </section>
 

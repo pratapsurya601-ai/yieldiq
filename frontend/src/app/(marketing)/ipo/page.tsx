@@ -81,19 +81,19 @@ function fmtCr(n: number | null): string {
 
 function statusPill(status: string): string {
   if (status === "upcoming") return "bg-blue-50 text-blue-700 border-blue-200"
-  return "bg-gray-50 text-gray-600 border-gray-200"
+  return "bg-bg dark:bg-surface text-caption border-border"
 }
 
 function IPOCard({ ipo }: { ipo: IPO }) {
   return (
     <Link
       href={`/ipo/${ipo.symbol}`}
-      className="block bg-white border border-gray-200 hover:border-blue-300 rounded-2xl p-5 transition shadow-sm hover:shadow-md"
+      className="block bg-bg dark:bg-surface border border-border hover:border-blue-300 rounded-2xl p-5 transition shadow-sm hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">
-          <h3 className="font-bold text-gray-900 truncate">{ipo.company_name}</h3>
-          <p className="text-xs text-gray-500 mt-0.5">
+          <h3 className="font-bold text-ink truncate">{ipo.company_name}</h3>
+          <p className="text-xs text-caption mt-0.5">
             {ipo.symbol} &middot; {ipo.exchange}
             {ipo.sector ? ` \u00B7 ${ipo.sector}` : ""}
           </p>
@@ -108,24 +108,24 @@ function IPOCard({ ipo }: { ipo: IPO }) {
       </div>
       <div className="grid grid-cols-2 gap-3 text-sm">
         <div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider">Price Band</p>
-          <p className="font-semibold text-gray-900 font-mono">
+          <p className="text-[10px] text-caption uppercase tracking-wider">Price Band</p>
+          <p className="font-semibold text-ink font-mono">
             {fmtBand(ipo.price_band_min, ipo.price_band_max)}
           </p>
         </div>
         <div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider">Issue Size</p>
-          <p className="font-semibold text-gray-900 font-mono">{fmtCr(ipo.issue_size_cr)}</p>
+          <p className="text-[10px] text-caption uppercase tracking-wider">Issue Size</p>
+          <p className="font-semibold text-ink font-mono">{fmtCr(ipo.issue_size_cr)}</p>
         </div>
         <div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider">Open</p>
-          <p className="text-gray-700">{fmtDate(ipo.ipo_open_date)}</p>
+          <p className="text-[10px] text-caption uppercase tracking-wider">Open</p>
+          <p className="text-ink">{fmtDate(ipo.ipo_open_date)}</p>
         </div>
         <div>
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider">
+          <p className="text-[10px] text-caption uppercase tracking-wider">
             {ipo.status === "recent" ? "Listed" : "Close"}
           </p>
-          <p className="text-gray-700">
+          <p className="text-ink">
             {ipo.status === "recent" ? fmtDate(ipo.listing_date) : fmtDate(ipo.ipo_close_date)}
           </p>
         </div>
@@ -153,7 +153,7 @@ export default async function IPOListPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-bg dark:bg-surface">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
@@ -164,21 +164,21 @@ export default async function IPOListPage() {
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">
             IPO Calendar &mdash; Indian Stocks
           </h1>
-          <p className="text-gray-400">
+          <p className="text-caption">
             Upcoming and recent IPOs on NSE / BSE &middot; Price band, issue size, listing dates
           </p>
         </div>
       </section>
 
       <section className="max-w-4xl mx-auto px-4 py-8">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">
+        <h2 className="text-xl font-bold text-ink mb-4">
           Upcoming IPOs
-          <span className="ml-2 text-sm font-normal text-gray-400">
+          <span className="ml-2 text-sm font-normal text-caption">
             ({upcomingIpos.length})
           </span>
         </h2>
         {upcomingIpos.length === 0 ? (
-          <p className="text-sm text-gray-400 py-8 text-center">No upcoming IPOs listed.</p>
+          <p className="text-sm text-caption py-8 text-center">No upcoming IPOs listed.</p>
         ) : (
           <div className="grid sm:grid-cols-2 gap-4">
             {upcomingIpos.map(ipo => (
@@ -189,14 +189,14 @@ export default async function IPOListPage() {
       </section>
 
       <section className="max-w-4xl mx-auto px-4 py-8 border-t border-gray-100">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">
+        <h2 className="text-xl font-bold text-ink mb-4">
           Recently Listed
-          <span className="ml-2 text-sm font-normal text-gray-400">
+          <span className="ml-2 text-sm font-normal text-caption">
             ({recentIpos.length})
           </span>
         </h2>
         {recentIpos.length === 0 ? (
-          <p className="text-sm text-gray-400 py-8 text-center">No recent IPOs.</p>
+          <p className="text-sm text-caption py-8 text-center">No recent IPOs.</p>
         ) : (
           <div className="grid sm:grid-cols-2 gap-4">
             {recentIpos.map(ipo => (
@@ -207,7 +207,7 @@ export default async function IPOListPage() {
       </section>
 
       <footer className="py-6 border-t border-gray-100">
-        <p className="text-[10px] text-gray-400 text-center max-w-2xl mx-auto px-4">
+        <p className="text-[10px] text-caption text-center max-w-2xl mx-auto px-4">
           IPO data is currently a curated list maintained by YieldIQ; it will move
           to a live ingestion feed soon. Not investment advice. YieldIQ is not
           registered with SEBI as an investment adviser.

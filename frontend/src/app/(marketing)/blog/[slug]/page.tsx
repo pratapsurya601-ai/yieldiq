@@ -89,20 +89,20 @@ export default async function BlogPostPage(
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-bg dark:bg-surface">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
       {/* Nav */}
-      <nav className="sticky top-0 z-50 bg-white border-b border-gray-100">
+      <nav className="sticky top-0 z-50 bg-bg dark:bg-surface border-b border-gray-100">
         <div className="max-w-4xl mx-auto px-4 py-3 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
             <img src="/logo-new.svg" alt="YieldIQ" className="w-7 h-7 rounded-lg" />
-            <span className="font-bold text-gray-900">YieldIQ</span>
+            <span className="font-bold text-ink">YieldIQ</span>
           </Link>
-          <Link href="/blog" className="text-sm text-gray-500 hover:text-gray-900 transition">
+          <Link href="/blog" className="text-sm text-caption hover:text-gray-900 transition">
             All articles &larr;
           </Link>
         </div>
@@ -110,25 +110,25 @@ export default async function BlogPostPage(
 
       <article className="max-w-3xl mx-auto px-4 py-10">
         {/* Breadcrumb */}
-        <nav className="text-xs text-gray-400 mb-6 flex items-center gap-1.5">
+        <nav className="text-xs text-caption mb-6 flex items-center gap-1.5">
           <Link href="/" className="hover:text-gray-600">Home</Link>
           <span>/</span>
           <Link href="/blog" className="hover:text-gray-600">Blog</Link>
           <span>/</span>
-          <span className="text-gray-600 truncate">{post.title}</span>
+          <span className="text-caption truncate">{post.title}</span>
         </nav>
 
         {/* Header */}
         <header className="mb-8 pb-6 border-b border-gray-100">
           <div className="flex items-center gap-3 mb-4">
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${cat?.color || "bg-gray-50 text-gray-700 border-gray-200"}`}>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${cat?.color || "bg-bg dark:bg-surface text-ink border-border"}`}>
               {cat?.label || post.category}
             </span>
-            <span className="text-xs text-gray-400">{post.readTime} min read</span>
+            <span className="text-xs text-caption">{post.readTime} min read</span>
           </div>
-          <h1 className="text-3xl sm:text-4xl font-black text-gray-900 mb-3 leading-tight">{post.title}</h1>
-          <p className="text-lg text-gray-600 leading-relaxed mb-4">{post.description}</p>
-          <div className="flex items-center gap-3 text-sm text-gray-500">
+          <h1 className="text-3xl sm:text-4xl font-black text-ink mb-3 leading-tight">{post.title}</h1>
+          <p className="text-lg text-caption leading-relaxed mb-4">{post.description}</p>
+          <div className="flex items-center gap-3 text-sm text-caption">
             <span className="font-medium">{post.author}</span>
             <span className="text-gray-300">&bull;</span>
             <span>{fmtDate(post.date)}</span>
@@ -144,16 +144,16 @@ export default async function BlogPostPage(
         {/* Related posts */}
         {related.length > 0 && (
           <section className="mt-12 pt-8 border-t border-gray-100">
-            <h2 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-4">Related articles</h2>
+            <h2 className="text-sm font-bold text-caption uppercase tracking-wider mb-4">Related articles</h2>
             <div className="grid sm:grid-cols-3 gap-4">
               {related.map(r => (
                 <Link
                   key={r.slug}
                   href={`/blog/${r.slug}`}
-                  className="block bg-gray-50 hover:bg-blue-50 border border-gray-100 hover:border-blue-200 rounded-xl p-4 transition"
+                  className="block bg-bg dark:bg-surface hover:bg-blue-50 border border-gray-100 hover:border-blue-200 rounded-xl p-4 transition"
                 >
-                  <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">{r.readTime} min</p>
-                  <p className="text-sm font-bold text-gray-900 line-clamp-2 leading-snug">{r.title}</p>
+                  <p className="text-[10px] text-caption uppercase tracking-wider mb-1">{r.readTime} min</p>
+                  <p className="text-sm font-bold text-ink line-clamp-2 leading-snug">{r.title}</p>
                 </Link>
               ))}
             </div>
@@ -164,12 +164,12 @@ export default async function BlogPostPage(
         <section className="mt-12 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl p-6 text-center text-white">
           <h2 className="text-xl font-bold mb-2">Apply this on YieldIQ</h2>
           <p className="text-blue-100 text-sm mb-4">Free DCF analysis, screeners, portfolio import, tax reports for 2,300+ Indian stocks.</p>
-          <Link href="/auth/signup" className="inline-block bg-white text-blue-700 font-bold px-6 py-3 rounded-xl hover:bg-blue-50 transition text-sm">
+          <Link href="/auth/signup" className="inline-block bg-bg dark:bg-surface text-blue-700 font-bold px-6 py-3 rounded-xl hover:bg-blue-50 transition text-sm">
             Start Free &rarr;
           </Link>
         </section>
 
-        <p className="text-[10px] text-gray-400 text-center mt-8">
+        <p className="text-[10px] text-caption text-center mt-8">
           Published {fmtDate(post.date)} &middot; Educational content, not investment advice.
           YieldIQ is not registered with SEBI as an investment adviser.
         </p>
