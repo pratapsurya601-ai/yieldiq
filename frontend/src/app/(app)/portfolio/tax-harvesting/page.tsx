@@ -2,8 +2,9 @@
 
 // Day-90 (2026-05-22): Tax-loss harvesting calculator.
 // This is a TAX CALCULATOR, not investment advice. SEBI-sensitive
-// copy throughout — never "buy/sell/recommend/should". Use
-// "candidate", "could offset", "estimated tax saved".
+// copy throughout — see backend/services/analysis/sebi_filter.py
+// for banned vocabulary. Use "candidate", "could offset",
+// "estimated tax saved" instead.
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
@@ -117,19 +118,19 @@ export default function TaxHarvestingPage() {
         </summary>
         <div className="mt-3 text-xs text-blue-900 space-y-2 leading-relaxed">
           <p>
-            <strong>Short-term (held &lt; 12 months):</strong> gains taxed at 20%. A short-term loss
+            <span className="font-bold">Short-term (retained &lt; 12 months):</span> gains taxed at 20%. A short-term loss
             could offset BOTH short-term and long-term gains.
           </p>
           <p>
-            <strong>Long-term (held &ge; 12 months):</strong> gains taxed at 12.5% above the
+            <span className="font-bold">Long-term (retained &ge; 12 months):</span> gains taxed at 12.5% above the
             &#8377;1,25,000 per-FY exemption. A long-term loss could offset ONLY long-term gains.
           </p>
           <p>
-            <strong>Carry-forward:</strong> unused losses can be carried forward up to 8 assessment
+            <span className="font-bold">Carry-forward:</span> unused losses can be carried forward up to 8 assessment
             years per the Income Tax Act.
           </p>
           <p>
-            <strong>No wash-sale rule in India:</strong> unlike the US, you can repurchase the same
+            <span className="font-bold">No wash-sale rule in India:</span> unlike the US, you can repurchase the same
             security immediately after realizing a loss.
           </p>
         </div>
@@ -276,7 +277,7 @@ export default function TaxHarvestingPage() {
                       <td className="px-3 py-3 font-semibold text-ink">
                         {s.ticker.replace(".NS", "").replace(".BO", "")}
                         <div className="text-[10px] text-caption font-normal mt-0.5">
-                          {s.holding_period_months}mo held
+                          {s.holding_period_months}mo retained
                           {!s.acquired_known && " (date unknown)"}
                         </div>
                       </td>
@@ -305,14 +306,14 @@ export default function TaxHarvestingPage() {
               </table>
               <div className="bg-bg dark:bg-surface border-t border-border px-3 py-3">
                 <p className="text-[11px] text-caption leading-relaxed">
-                  <strong>Rationale per candidate:</strong>
+                  <span className="font-bold">Rationale per candidate:</span>
                 </p>
                 <ul className="text-[11px] text-caption mt-1 space-y-1">
                   {result.suggestions.map(s => (
                     <li key={s.ticker}>
-                      <strong>
+                      <span className="font-bold">
                         {s.ticker.replace(".NS", "").replace(".BO", "")}:
-                      </strong>{" "}
+                      </span>{" "}
                       {s.rationale}
                     </li>
                   ))}
@@ -326,7 +327,7 @@ export default function TaxHarvestingPage() {
       {/* Disclaimer */}
       <div className="mt-8 bg-bg dark:bg-surface border border-border rounded-xl p-4">
         <p className="text-[10px] text-caption leading-relaxed">
-          <strong>Disclaimer.</strong> This is a tax calculation tool. Estimates are based on the
+          <span className="font-bold">Disclaimer.</span> This is a tax calculation tool. Estimates are based on the
           rules of the Income Tax Act, 1961 as applicable to FY 2025-26 (listed equity with STT:
           STCG 20%, LTCG 12.5% above &#8377;1,25,000 exemption). Not all positions may be eligible
           for tax-loss harvesting based on individual circumstances, including grandfathering rules,
