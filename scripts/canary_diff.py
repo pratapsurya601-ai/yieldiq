@@ -271,6 +271,7 @@ _TICKER_OVERRIDES: dict[str, dict[str, float]] = {
     "SCHAEFFLER": {"fv_cmp_min_override": 0.30},
     "KEI":        {"fv_cmp_min_override": 0.30},
     "JSWINFRA":   {"fv_cmp_min_override": 0.30},
+    "ZFCVINDIA":  {"fv_cmp_min_override": 0.30},
 }
 
 
