@@ -13,7 +13,7 @@ const VERDICT_LABELS: Record<Verdict, string> = {
   unavailable: "Unavailable",
   // Day-61 (2026-05-21): rendered when model confidence < 50%. Honest
   // framing --- the model has a leaning but doesn't trust itself enough
-  // to recommend a colour-coded verdict. The hero metrics still show
+  // to colour-code a confident verdict. The hero metrics still show
   // FV / MoS so the user can read the underlying number directly.
   low_confidence: "Low Confidence",
 }
