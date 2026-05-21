@@ -40,24 +40,24 @@ export default function ForgotPasswordPage() {
   return (
     // [color-scheme:light] prevents dark-mode browsers from leaking light
     // grey input text on the white card. See login/page.tsx for context.
-    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50 [color-scheme:light]">
+    <div className="min-h-screen flex items-center justify-center px-4 bg-bg dark:bg-surface [color-scheme:light]">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <img src="/logo-new.svg" alt="YieldIQ" className="w-16 h-16 rounded-xl mx-auto mb-3" />
-          <h1 className="text-2xl font-bold text-gray-900">YieldIQ</h1>
-          <p className="text-sm text-gray-500 mt-1">Reset your password</p>
+          <h1 className="text-2xl font-bold text-ink">YieldIQ</h1>
+          <p className="text-sm text-caption mt-1">Reset your password</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-6 space-y-4">
           {sent ? (
             <>
-              <h2 className="text-lg font-semibold text-gray-900">Check your inbox</h2>
-              <p className="text-sm text-gray-600">
-                If an account with <strong className="font-semibold text-gray-900">{email}</strong>{" "}
+              <h2 className="text-lg font-semibold text-ink">Check your inbox</h2>
+              <p className="text-sm text-caption">
+                If an account with <span className="font-bold font-semibold text-ink">{email}</span>{" "}
                 exists, we&rsquo;ve sent a password-reset link. Open the email
                 and click the link to set a new password.
               </p>
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-caption">
                 No email in 1&ndash;2 minutes? Check your spam folder. Still nothing,{" "}
                 <button
                   type="button"
@@ -77,8 +77,8 @@ export default function ForgotPasswordPage() {
             </>
           ) : (
             <>
-              <h2 className="text-lg font-semibold text-gray-900">Forgot password</h2>
-              <p className="text-sm text-gray-500">
+              <h2 className="text-lg font-semibold text-ink">Forgot password</h2>
+              <p className="text-sm text-caption">
                 Enter the email you signed up with. We&rsquo;ll send you a
                 link to set a new password.
               </p>
@@ -95,7 +95,7 @@ export default function ForgotPasswordPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
                 placeholder="Email"
-                className="w-full px-4 py-3 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-3 bg-bg dark:bg-surface text-ink placeholder:text-gray-400 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
 
               <button
@@ -106,7 +106,7 @@ export default function ForgotPasswordPage() {
                 {loading ? "Sending\u2026" : "Send reset link"}
               </button>
 
-              <p className="text-center text-sm text-gray-500">
+              <p className="text-center text-sm text-caption">
                 Remembered it?{" "}
                 <Link href="/auth/login" className="text-blue-600 font-medium hover:underline">
                   Sign in

@@ -220,10 +220,10 @@ function CallbackInner() {
   }, [])
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50 [color-scheme:light]">
+    <div className="min-h-screen flex items-center justify-center px-4 bg-bg dark:bg-surface [color-scheme:light]">
       <div className="w-full max-w-sm text-center space-y-4">
         <div className="h-8 w-8 mx-auto animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-        <p className="text-sm text-gray-600">{message}</p>
+        <p className="text-sm text-caption">{message}</p>
       </div>
     </div>
   )
