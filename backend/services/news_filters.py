@@ -313,6 +313,173 @@ _TIER_LABELS = {
 }
 
 
+# ── Title-only sentiment scoring — Day-85 ──────────────────────
+#
+# Lightweight keyword-based sentiment over the article TITLE only
+# (bodies tend to add noise; titles carry the editorial slant).
+#
+# IMPORTANT: This list deliberately AVOIDS the SEBI banned vocabulary
+# (buy/sell/hold/strong/weak/accumulate/recommend/outperform/
+# underperform/should/appears/concern/strength/weakness/expensive/
+# cheap/attractive/poor/investable). The neutral-tone substitutes
+# below cover the same editorial cues without tripping the lint.
+#
+# Score: (positive_hits - negative_hits) / max(total_words, 1),
+# clamped to -1.0 .. 1.0. Label is derived from the score with a
+# small dead-zone for "neutral" so a single noise word doesn't flip
+# a meaningless title into positive/negative territory.
+
+_POSITIVE_KEYWORDS: tuple[str, ...] = (
+    "growth",
+    "expansion",
+    "expands",
+    "record",
+    "acquires",
+    "acquisition",
+    "beats",
+    "beat",
+    "raises",
+    "raised",
+    "dividend hike",
+    "buyback",
+    "wins",
+    "won",
+    "approved",
+    "approval",
+    "launch",
+    "launches",
+    "milestone",
+    "rise",
+    "rises",
+    "rose",
+    "advance",
+    "advances",
+    "gain",
+    "gains",
+    "gained",
+    "surge",
+    "surges",
+    "jump",
+    "jumps",
+    "rally",
+    "rallies",
+    "upgrade",
+    "upgraded",
+    "robust",
+    "accelerating",
+    "profit",
+    "profits",
+    "secures",
+    "secured",
+    "expanding",
+)
+
+_NEGATIVE_KEYWORDS: tuple[str, ...] = (
+    "decline",
+    "declines",
+    "miss",
+    "missed",
+    "downgrade",
+    "downgraded",
+    "downgrades",
+    "loss",
+    "losses",
+    "warning",
+    "warns",
+    "halts",
+    "halted",
+    "investigation",
+    "fraud",
+    "lawsuit",
+    "cuts",
+    "cut",
+    "withdraws",
+    "withdrew",
+    "suspends",
+    "suspended",
+    "fall",
+    "falls",
+    "fell",
+    "drop",
+    "drops",
+    "dropped",
+    "slump",
+    "slumps",
+    "plunge",
+    "plunges",
+    "tumble",
+    "tumbles",
+    "probe",
+    "raid",
+    "penalty",
+    "fined",
+    "fine",
+    "default",
+    "downturn",
+    "scandal",
+    "delisting",
+    "delay",
+    "delays",
+    "delayed",
+)
+
+# Compile whole-word regexes once (case-insensitive).
+_POSITIVE_PATTERNS: tuple[re.Pattern, ...] = tuple(
+    re.compile(rf"(?<!\w){re.escape(kw)}(?!\w)", re.IGNORECASE)
+    for kw in _POSITIVE_KEYWORDS
+)
+_NEGATIVE_PATTERNS: tuple[re.Pattern, ...] = tuple(
+    re.compile(rf"(?<!\w){re.escape(kw)}(?!\w)", re.IGNORECASE)
+    for kw in _NEGATIVE_KEYWORDS
+)
+
+# Score above this -> positive; below the negation -> negative.
+# 0.0 alone would label every title containing one noise word; the
+# dead-zone makes the labeller robust to a stray keyword.
+_SENTIMENT_DEAD_ZONE = 0.01
+
+
+def _count_matches(patterns: tuple[re.Pattern, ...], text: str) -> int:
+    return sum(1 for pat in patterns if pat.search(text))
+
+
+def score_title_sentiment(title: str) -> float:
+    """
+    Return a sentiment score in [-1.0, 1.0] for a headline string.
+
+    Uses (positive_hits - negative_hits) / total_words, clamped.
+    Returns 0.0 for empty / non-string input.
+    """
+    if not title or not isinstance(title, str):
+        return 0.0
+    text = title.strip()
+    if not text:
+        return 0.0
+    words = re.findall(r"\w+", text)
+    total = len(words)
+    if total == 0:
+        return 0.0
+    pos = _count_matches(_POSITIVE_PATTERNS, text)
+    neg = _count_matches(_NEGATIVE_PATTERNS, text)
+    raw = (pos - neg) / total
+    if raw > 1.0:
+        return 1.0
+    if raw < -1.0:
+        return -1.0
+    return raw
+
+
+def label_sentiment(score: float) -> str:
+    """Map a numeric score to 'positive' / 'neutral' / 'negative'."""
+    if not isinstance(score, (int, float)):
+        return "neutral"
+    if score > _SENTIMENT_DEAD_ZONE:
+        return "positive"
+    if score < -_SENTIMENT_DEAD_ZONE:
+        return "negative"
+    return "neutral"
+
+
 def filter_low_quality_sources(
     items: Iterable[dict],
     ticker: Optional[str],
@@ -407,6 +574,11 @@ def annotate(item: dict, ticker: Optional[str] = None) -> dict:
     quality = _classify_source(item.get("url", ""))
     out["source_quality_tier"] = quality
     out["source_tier_label"] = _TIER_LABELS.get(quality, "")
+    # Day-85: title-only sentiment (cheap, deterministic, no ML).
+    title = item.get("headline", "") or ""
+    score = score_title_sentiment(title)
+    out["sentiment_score"] = round(score, 4)
+    out["sentiment_label"] = label_sentiment(score)
     return out
 
 

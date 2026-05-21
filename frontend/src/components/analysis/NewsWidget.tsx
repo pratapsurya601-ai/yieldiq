@@ -21,6 +21,12 @@ interface NewsItem {
   // widget keeps rendering against an older API rollout window.
   topic?: string
   tier?: number
+  // Day-79: source-quality tier (A/B/C) + human label.
+  source_quality_tier?: "A" | "B" | "C"
+  source_tier_label?: string
+  // Day-85: title-only sentiment score in [-1, 1] + bucketed label.
+  sentiment_score?: number
+  sentiment_label?: "positive" | "neutral" | "negative"
 }
 
 interface TickerNewsResponse {
@@ -54,6 +60,26 @@ function timeAgo(iso: string): string {
 function importanceBadge(level: string): { text: string; cls: string } | null {
   if (level === "critical") return { text: "Critical", cls: "bg-red-50 text-red-700 border-red-200" }
   if (level === "high") return { text: "High", cls: "bg-amber-50 text-amber-700 border-amber-200" }
+  return null
+}
+
+// Day-79: chip styling for source-quality tier. Tier A/B are neutral
+// (bg-bg / surface tokens); Tier C uses an amber tint to visually
+// deprioritize US-aggregator sources without hiding them entirely.
+function sourceTierChip(tier?: string): string {
+  if (tier === "C") {
+    return "bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800"
+  }
+  return "bg-bg dark:bg-surface text-ink border-border"
+}
+
+// Day-85: small up/right/down glyph + color tint for title sentiment.
+// Kept deliberately neutral in copy (no advisory verbs) — just a
+// directional hint on the editorial slant of the headline itself.
+function sentimentGlyph(label?: string): { glyph: string; cls: string } | null {
+  if (label === "positive") return { glyph: "↑", cls: "text-emerald-600 dark:text-emerald-400" }
+  if (label === "negative") return { glyph: "↓", cls: "text-rose-600 dark:text-rose-400" }
+  if (label === "neutral") return { glyph: "→", cls: "text-caption" }
   return null
 }
 
@@ -96,6 +122,12 @@ export default function NewsWidget({ ticker }: Props) {
 
   const cleanTicker = ticker.replace(".NS", "").replace(".BO", "")
 
+  // Day-79: avoid visual noise on all-Tier-A lists (India-native
+  // sources only) — the chip carries no additional signal then.
+  const showTierChips = items.some(
+    (it) => it.source_quality_tier && it.source_quality_tier !== "A",
+  )
+
   return (
     <div className="bg-bg rounded-2xl border border-border p-5">
       <div className="flex items-center justify-between mb-3">
@@ -111,14 +143,32 @@ export default function NewsWidget({ ticker }: Props) {
         {items.map((item, i) => {
           const badge = importanceBadge(item.importance)
           const hasUrl = !!item.url
+          const sg = sentimentGlyph(item.sentiment_label)
+          const tierChipCls = sourceTierChip(item.source_quality_tier)
           const inner = (
             <div className="flex items-start justify-between gap-3 py-2 border-b border-border last:border-0">
               <div className="min-w-0 flex-1">
                 <p className="text-sm text-ink leading-snug line-clamp-2">
+                  {sg && (
+                    <span
+                      aria-label={`Headline sentiment: ${item.sentiment_label}`}
+                      className={`mr-1 font-bold ${sg.cls}`}
+                    >
+                      {sg.glyph}
+                    </span>
+                  )}
                   {item.headline}
                 </p>
                 <div className="mt-1 flex items-center gap-2 flex-wrap text-[10px] text-caption">
                   <span>{item.source}</span>
+                  {showTierChips && item.source_tier_label && (
+                    <span
+                      className={`px-1.5 py-0.5 rounded-full border text-caption ${tierChipCls}`}
+                      title={`Source quality: ${item.source_tier_label}`}
+                    >
+                      {item.source_tier_label}
+                    </span>
+                  )}
                   {item.topic && item.topic !== "general" && (
                     <>
                       <span aria-hidden="true">·</span>
