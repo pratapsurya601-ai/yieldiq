@@ -1237,8 +1237,55 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
         #                       generic-pharma)
         # These ceilings DO bite (e.g. AGARWALEYE 0.128 → 0.095,
         # ANTHEM/SAGILITY/IKS 0.128 → 0.105).
+        #
+        # ── Day-84 (2026-05-22): Pharma FRANCHISE quality cohort ─────
+        # Audit 2026-05-20 observed MANKIND FV ₹1,046 vs CMP ₹2,584
+        # (−59.5%, "got worse" vs prior walk). Day-53 widened canary
+        # bounds to silence the alert but the underlying engine still
+        # undershoots high-quality Indian pharma franchises whose
+        # premium multiples (P/E 30-50x, EV/EBITDA 25-35x) reflect
+        # durable domestic-OTC / branded chronic-care pricing power
+        # closer to FMCG than to commodity-generics.
+        #
+        # Generic-pharma tickers face US-pricing risk premium (WACC
+        # floor at 0.105). CDMO names get WACC cap 0.105 (long-duration
+        # contracts). Hospital chains get 0.095 cap (quasi-utility).
+        # The FRANCHISE bucket sits between hospital and CDMO: India-
+        # domestic moats are durable but FCF predictability is one
+        # notch below the rate-base regularity of hospitals. Cap at
+        # 0.095 — same as hospitals — because pricing power on branded
+        # OTC + chronic-care brands (Manforce / Prega News / Unwanted-
+        # 72; Pantocid / Dolo; Saridon / Sumo) is genuinely quasi-FMCG.
+        # Live live measured WACC pre-cap: MANKIND 0.098, DRREDDY 0.105,
+        # SUNPHARMA ≈ 0.10, DIVISLAB ≈ 0.105 → cap of 0.095 bites on
+        # every entry in the set.
+        _PHARMA_FRANCHISE_TICKERS = frozenset({
+            # Domestic-OTC + branded chronic-care franchises with
+            # FMCG-like pricing power (the design-doc target band).
+            "MANKIND",       # Manforce / Prega News / Unwanted-72 / OTC
+            "SUNPHARMA",     # Halol-recovered, India-formulations leader
+            "CIPLA",         # India-formulations + respiratory franchise
+            "TORNTPHARM",    # branded chronic-care leader
+            "DRREDDY",       # premium generics + domestic formulations
+            "DIVISLAB",      # CDMO-but-premium-margin (overlap w/ CDMO
+                             # set OK; franchise cap is tighter, wins)
+            "ABBOTINDIA",    # MNC franchise on chronic-care
+            "GLAND",         # premium injectables (alias GLANDPHARMA
+                             # stays in generic set for US-pricing risk)
+            "GLAXO",         # GSK Pharma India MNC franchise
+            "PFIZER",        # Pfizer India MNC franchise
+            "SANOFI",        # Sanofi India MNC franchise
+            "AJANTPHARM",    # branded formulations exporter
+            "ERIS",          # branded chronic-care specialist
+        })
         try:
             if _ticker_bare in _HOSPITAL_CHAIN_TICKERS and wacc > 0.095:
+                wacc = 0.095
+            elif _ticker_bare in _PHARMA_FRANCHISE_TICKERS and wacc > 0.095:
+                # Day-84: franchise cap evaluated BEFORE the CDMO cap
+                # so DIVISLAB (in both sets) gets the tighter franchise
+                # treatment. The franchise label is the higher-quality
+                # signal — when in doubt, prefer the tighter cap.
                 wacc = 0.095
             elif _ticker_bare in _PHARMA_CDMO_TICKERS and wacc > 0.105:
                 wacc = 0.105
@@ -1728,6 +1775,30 @@ class FCFForecaster:
             if _t_bare_tg in _PHARMA_CDMO_TICKERS_TG and _g_terminal_eff < 0.045:
                 _g_terminal_eff = 0.045
                 enriched["_pharma_cdmo_terminal_g_lifted"] = True
+        except Exception:
+            pass
+
+        # ── Day-84 (2026-05-22): Pharma FRANCHISE terminal-g lift ────
+        # Mirrors the WACC-cap block above. Premium Indian pharma
+        # franchises (domestic-OTC + branded chronic-care MNCs) carry
+        # quasi-FMCG pricing power; perpetuity of 5.5% is conservative
+        # against India healthcare nominal-spend CAGR (12-15% per
+        # IRDAI penetration + Ayushman Bharat + demographic aging).
+        # Same 0.055 anchor as hospital chains; sub-bucket sits one
+        # notch below the FMCG brand-moat tail (TITAN 0.06, NESTLE
+        # multiplier overlay) reflecting genuine FCF predictability.
+        # NOTE: this lift is structurally orphaned from DCFEngine —
+        # the actual SSOT lives in service.py Day-21 block (Bug B
+        # 2026-05-20). Both blocks must stay in sync.
+        _PHARMA_FRANCHISE_TICKERS_TG = frozenset({
+            "MANKIND", "SUNPHARMA", "CIPLA", "TORNTPHARM", "DRREDDY",
+            "DIVISLAB", "ABBOTINDIA", "GLAND", "GLAXO", "PFIZER",
+            "SANOFI", "AJANTPHARM", "ERIS",
+        })
+        try:
+            if _t_bare_tg in _PHARMA_FRANCHISE_TICKERS_TG and _g_terminal_eff < 0.055:
+                _g_terminal_eff = 0.055
+                enriched["_pharma_franchise_terminal_g_lifted"] = True
         except Exception:
             pass
 
