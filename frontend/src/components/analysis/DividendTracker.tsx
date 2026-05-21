@@ -47,7 +47,7 @@ function CoverageValue({ v }: { v: number | null }) {
   return (
     <span className="inline-flex items-center gap-1">
       {text}
-      <XIcon className="w-4 h-4 text-red-600" aria-label="Weak coverage" />
+      <XIcon className="w-4 h-4 text-red-600" aria-label="Low coverage" />
     </span>
   )
 }
