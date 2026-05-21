@@ -432,6 +432,57 @@ class DividendService:
                             payout_pct = round(_computed, 1)
             except (TypeError, ValueError, ZeroDivisionError):
                 pass
+
+        # Day-74 FIX-RELIANCE-PAYOUT-ZERO (2026-05-21): the standalone
+        # /api/v1/analysis/{ticker}/dividends route calls the service
+        # with enriched=None (the analyze pipeline passes enriched, but
+        # the standalone DividendTracker route doesn't have it). In
+        # that case the recovery block above is skipped and Reliance
+        # still rendered "Payout 0%" despite paying ₹5.50/share — the
+        # 2026-05-18 fix didn't cover this path.
+        #
+        # Fall back to yfinance .info.trailingEps. This mirrors the
+        # non-DB-first path (lines ~120-133) which already does this.
+        # On Reliance (probed 2026-05-21): ttm_total=5.5, trailingEps
+        # ≈ ₹50 → ~11% payout, matches yfinance's own payoutRatio when
+        # populated. yfinance .info fetch is ~1s and the result is
+        # cached at the router layer (30 min) so cold cost is bounded.
+        #
+        # If trailingEps is ALSO null (rare: pre-IPO, demerged, banks
+        # with NM EPS), we leave payout_pct = 0 and the frontend
+        # presentation guard renders "—" instead of "0%".
+        if payout_pct <= 0 and ttm_total > 0:
+            try:
+                _eps = None
+                if yf_info:
+                    _eps = yf_info.get("trailingEps") or yf_info.get(
+                        "epsTrailingTwelveMonths"
+                    )
+                if _eps is None:
+                    # Cold path (standalone endpoint): fetch .info once.
+                    import yfinance as _yf
+                    _info_late = _yf.Ticker(ticker).info or {}
+                    _eps = _info_late.get("trailingEps") or _info_late.get(
+                        "epsTrailingTwelveMonths"
+                    )
+                    # If yfinance also surfaced payoutRatio late, prefer
+                    # it over our computation — it's the same number we
+                    # would compute, just sourced upstream.
+                    _late_payout = float(_info_late.get("payoutRatio") or 0)
+                    if _late_payout > 0:
+                        payout_pct = round(_late_payout * 100, 1)
+                if payout_pct <= 0 and _eps is not None:
+                    _eps_f = float(_eps)
+                    if _eps_f > 0:
+                        _computed = (ttm_total / _eps_f) * 100.0
+                        if 0 < _computed <= 500:
+                            payout_pct = round(_computed, 1)
+            except (TypeError, ValueError, ZeroDivisionError, Exception) as _exc:
+                log.debug(
+                    "DividendService: trailingEps payout fallback failed "
+                    "for %s: %s",
+                    ticker, _exc,
+                )
         five_yr_avg = (yf_info or {}).get("fiveYearAvgDividendYield")
         try:
             five_yr_avg_out = round(float(five_yr_avg), 2) if five_yr_avg else None
