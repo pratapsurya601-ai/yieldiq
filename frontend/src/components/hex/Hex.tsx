@@ -133,6 +133,22 @@ export default function Hex({
   const overall = Math.max(0, Math.min(10, data.overall))
   const overallColor = scoreColor(overall)
 
+  // Day-82 (Tier-3 #35, Option E): when a ticker has thin inputs, the
+  // hexagon visibly collapses toward the centre. Surface that as an
+  // explicit "N of 6 axes have inputs" suffix on the SVG aria-label /
+  // <title> so screen readers — and the visible tooltip on hover — say
+  // why the shape is small, instead of just reading the overall score.
+  const totalAxes = HEX_AXIS_ORDER.length
+  const limitedAxes = HEX_AXIS_ORDER.filter(
+    (k) => data.axes[k]?.data_limited,
+  )
+  const availableAxes = totalAxes - limitedAxes.length
+  const coverageSuffix =
+    availableAxes < totalAxes
+      ? ` — data limited: ${availableAxes} of ${totalAxes} inputs available`
+      : ""
+  const a11yLabel = `YieldIQ Score for ${data.ticker}: ${overall.toFixed(1)}/10${coverageSuffix}`
+
   return (
     <div
       className="relative inline-flex items-center justify-center"
@@ -143,12 +159,12 @@ export default function Hex({
         height={size}
         viewBox={`0 0 ${size} ${size}`}
         role="img"
-        aria-label={`YieldIQ Score for ${data.ticker}: ${overall.toFixed(1)}/10`}
+        aria-label={a11yLabel}
+        data-coverage-available={availableAxes}
+        data-coverage-total={totalAxes}
         style={{ overflow: "visible" }}
       >
-        <title>
-          YieldIQ Score for {data.ticker}: {overall.toFixed(1)}/10
-        </title>
+        <title>{a11yLabel}</title>
 
         <defs>
           {/* Radial gradient for the main polygon fill — denser near centre. */}
