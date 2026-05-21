@@ -79,15 +79,15 @@ function SignupContent() {
   return (
     // [color-scheme:light] prevents dark-mode browsers from leaking light
     // grey input text on the white card. See login/page.tsx for context.
-    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50 [color-scheme:light]">
+    <div className="min-h-screen flex items-center justify-center px-4 bg-bg dark:bg-surface [color-scheme:light]">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <img src="/logo-new.svg" alt="YieldIQ" className="w-16 h-16 rounded-xl mx-auto mb-3" />
-          <h1 className="text-2xl font-bold text-gray-900">YieldIQ</h1>
-          <p className="text-sm text-gray-500 mt-1">Start analysing stocks in 60 seconds</p>
+          <h1 className="text-2xl font-bold text-ink">YieldIQ</h1>
+          <p className="text-sm text-caption mt-1">Start analysing stocks in 60 seconds</p>
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Create account</h2>
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-ink">Create account</h2>
           {referralCode && (
             <p className="text-xs text-green-700 bg-green-50 rounded-lg px-3 py-2">
               Referred by a friend! They will earn bonus analyses when you sign up.
@@ -100,21 +100,21 @@ function SignupContent() {
           <GoogleSignInButton label="Sign up with Google" />
           <OAuthDivider />
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email" className="w-full px-4 py-3 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            placeholder="Email" className="w-full px-4 py-3 bg-bg dark:bg-surface text-ink placeholder:text-gray-400 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSignup()}
-            placeholder="Password (min 6 characters)" className="w-full px-4 py-3 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            placeholder="Password (min 6 characters)" className="w-full px-4 py-3 bg-bg dark:bg-surface text-ink placeholder:text-gray-400 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <button onClick={handleSignup} disabled={loading}
             className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 transition disabled:opacity-50">
             {loading ? "Creating account..." : "Create free account"}
           </button>
-          <p className="text-center text-sm text-gray-500">
+          <p className="text-center text-sm text-caption">
             Already have an account? <Link href="/auth/login" className="text-blue-600 font-medium hover:underline">Sign in</Link>
           </p>
         </div>
-        <p className="text-[10px] text-gray-400 text-center">5 free analyses per day. No credit card required.</p>
+        <p className="text-[10px] text-caption text-center">5 free analyses per day. No credit card required.</p>
         <div className="text-center pt-2 border-t border-gray-100">
-          <p className="text-xs text-gray-500 mb-1">Not ready to sign up?</p>
+          <p className="text-xs text-caption mb-1">Not ready to sign up?</p>
           <Link
             href="/stocks/RELIANCE/fair-value"
             className="text-xs font-semibold text-blue-600 hover:text-blue-700"

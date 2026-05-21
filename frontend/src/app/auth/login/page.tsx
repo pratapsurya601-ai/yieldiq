@@ -121,16 +121,16 @@ function LoginContent() {
     // UA stylesheet does NOT leak into form controls. Without this,
     // Chrome on a dark-mode OS renders <input> text in light grey on the
     // white background — invisible. Caught 2026-04-25.
-    <div className="min-h-screen flex items-center justify-center px-4 bg-gray-50 [color-scheme:light]">
+    <div className="min-h-screen flex items-center justify-center px-4 bg-bg dark:bg-surface [color-scheme:light]">
       <div className="w-full max-w-sm space-y-6">
         <div className="text-center">
           <img src="/logo-new.svg" alt="YieldIQ" className="w-16 h-16 rounded-xl mx-auto mb-3" />
-          <h1 className="text-2xl font-bold text-gray-900">YieldIQ</h1>
-          <p className="text-sm text-gray-500 mt-1">Fair-value estimates for Indian stocks</p>
+          <h1 className="text-2xl font-bold text-ink">YieldIQ</h1>
+          <p className="text-sm text-caption mt-1">Fair-value estimates for Indian stocks</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-100 p-6 space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Sign in</h2>
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-6 space-y-4">
+          <h2 className="text-lg font-semibold text-ink">Sign in</h2>
 
           {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
 
@@ -143,10 +143,10 @@ function LoginContent() {
               inputs so even if [color-scheme:light] above is ignored by an
               old browser, the typed text stays dark on light. */}
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
-            placeholder="Email" className="w-full px-4 py-3 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            placeholder="Email" className="w-full px-4 py-3 bg-bg dark:bg-surface text-ink placeholder:text-gray-400 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
           <input type="password" value={password} onChange={(e) => setPassword(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-            placeholder="Password" className="w-full px-4 py-3 bg-white text-gray-900 placeholder:text-gray-400 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            placeholder="Password" className="w-full px-4 py-3 bg-bg dark:bg-surface text-ink placeholder:text-gray-400 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
 
           {/* Day-29 (2026-05-20): added inline spinner so the in-flight
               state is visually obvious. Previously only the disabled
@@ -169,11 +169,11 @@ function LoginContent() {
             <span>{loading ? "Signing in…" : "Sign in"}</span>
           </button>
 
-          <p className="text-center text-sm text-gray-500">
+          <p className="text-center text-sm text-caption">
             <Link href="/auth/forgot-password" className="text-blue-600 font-medium hover:underline">Forgot password?</Link>
           </p>
 
-          <p className="text-center text-sm text-gray-500">
+          <p className="text-center text-sm text-caption">
             No account? <Link href="/auth/signup" className="text-blue-600 font-medium hover:underline">Create one</Link>
           </p>
         </div>
