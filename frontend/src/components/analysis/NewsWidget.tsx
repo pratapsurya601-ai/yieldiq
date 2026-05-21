@@ -73,9 +73,9 @@ function sourceTierChip(tier?: string): string {
   return "bg-bg dark:bg-surface text-ink border-border"
 }
 
-// Day-85: small ↑/→/↓ glyph + color tint for title sentiment. Kept
-// deliberately neutral in copy (no buy/sell verbs) — just a directional
-// hint on the editorial slant of the headline itself.
+// Day-85: small up/right/down glyph + color tint for title sentiment.
+// Kept deliberately neutral in copy (no advisory verbs) — just a
+// directional hint on the editorial slant of the headline itself.
 function sentimentGlyph(label?: string): { glyph: string; cls: string } | null {
   if (label === "positive") return { glyph: "↑", cls: "text-emerald-600 dark:text-emerald-400" }
   if (label === "negative") return { glyph: "↓", cls: "text-rose-600 dark:text-rose-400" }
