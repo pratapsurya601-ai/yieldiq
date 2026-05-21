@@ -1995,6 +1995,90 @@ async def get_health_stats(user: dict = Depends(require_admin)):
                 type(wh_exc).__name__, wh_exc,
             )
 
+        # ── Day-78 (2026-05-22): corporate-actions feed health ─
+        # Detects two failure modes the Day-67 yfinance fallback
+        # silently papers over:
+        #   1. Writer entirely stopped — `feed_last_write_at` (proxy:
+        #      MAX(ex_date) across the table) drifts past 48h.
+        #   2. Per-ticker coverage decay — a ticker still gets reads
+        #      but its newest corp_actions row is > 6 months old.
+        #      This is the Reliance pattern flagged in the 2026-05-20
+        #      audit ("last dividend Aug 2025").
+        # Queries are aggregate-only (count/count-distinct/max) so the
+        # cost is bounded by the natural-key index, not row volume.
+        # Wrapped in try/except so a pre-migration deploy or DB hiccup
+        # never 500s the health-stats endpoint (mirrors Day-50 webhook
+        # block pattern).
+        corp_actions_block: dict = {
+            "total_rows": 0,
+            "tickers_covered_24h": 0,
+            "tickers_covered_7d": 0,
+            "oldest_freshly_updated_pct": None,
+            "feed_last_write_at": None,
+        }
+        try:
+            ca_sess = Session()
+            try:
+                ca_row = ca_sess.execute(_t(
+                    """
+                    SELECT
+                        COUNT(*) AS total_rows,
+                        COUNT(DISTINCT ticker) FILTER (
+                            WHERE ex_date > (CURRENT_DATE - INTERVAL '1 day')
+                        ) AS tickers_24h,
+                        COUNT(DISTINCT ticker) FILTER (
+                            WHERE ex_date > (CURRENT_DATE - INTERVAL '7 days')
+                        ) AS tickers_7d,
+                        MAX(ex_date) AS feed_last_ex_date
+                    FROM corporate_actions
+                    """
+                )).first()
+                # Coverage-decay: % of tickers whose MOST-RECENT row
+                # is older than 6 months. Cheap because we group by
+                # ticker, take MAX(ex_date), then a single COUNT FILTER.
+                decay_row = ca_sess.execute(_t(
+                    """
+                    WITH latest_per_ticker AS (
+                        SELECT ticker, MAX(ex_date) AS last_ex
+                        FROM corporate_actions
+                        WHERE ticker IS NOT NULL
+                        GROUP BY ticker
+                    )
+                    SELECT
+                        COUNT(*) AS tickers_with_any,
+                        COUNT(*) FILTER (
+                            WHERE last_ex < (CURRENT_DATE - INTERVAL '6 months')
+                        ) AS tickers_stale_6mo
+                    FROM latest_per_ticker
+                    """
+                )).first()
+                total_rows_ca = int(ca_row[0] or 0) if ca_row else 0
+                tickers_24h = int(ca_row[1] or 0) if ca_row else 0
+                tickers_7d = int(ca_row[2] or 0) if ca_row else 0
+                last_ex = ca_row[3] if ca_row else None
+                tickers_with_any = int(decay_row[0] or 0) if decay_row else 0
+                tickers_stale_6mo = int(decay_row[1] or 0) if decay_row else 0
+                stale_pct = (
+                    round(tickers_stale_6mo / tickers_with_any, 3)
+                    if tickers_with_any > 0 else None
+                )
+                corp_actions_block = {
+                    "total_rows": total_rows_ca,
+                    "tickers_covered_24h": tickers_24h,
+                    "tickers_covered_7d": tickers_7d,
+                    "oldest_freshly_updated_pct": stale_pct,
+                    "feed_last_write_at": (
+                        last_ex.isoformat() if last_ex is not None else None
+                    ),
+                }
+            finally:
+                ca_sess.close()
+        except Exception as ca_exc:
+            logger.warning(
+                "health-stats corp_actions block failed (non-fatal): %s: %s",
+                type(ca_exc).__name__, ca_exc,
+            )
+
         return {
             "as_of": datetime.now(timezone.utc).isoformat(),
             "cache": {
@@ -2017,6 +2101,7 @@ async def get_health_stats(user: dict = Depends(require_admin)):
                 "rescues_succeeded_24h": rescued,
             },
             "webhook": webhook_block,
+            "corp_actions": corp_actions_block,
             "_meta": {
                 "note": (
                     "Warm coverage = fraction of analysis_cache rows at "
@@ -2051,6 +2136,9 @@ async def get_health_stats(user: dict = Depends(require_admin)):
 #   outliers.fv_eq_zero_now     > 5     → WARN   (Day-5 safety-net should rescue; > 5 = bug)
 #   story_dcf.rescue_rate_24h   < 0.10  → WARN   (operator review of overrides)
 #                               < 0.02  → ALERT
+#   corp_actions.feed_last_write_at  > 48h old  → ALERT (Day-78: ingestion stopped)
+#   corp_actions.oldest_freshly_updated_pct > 0.30 → WARN (Day-78: coverage decay,
+#                                                  Reliance-pattern from 2026-05-20 audit)
 # ─────────────────────────────────────────────────────────────────
 
 
@@ -2156,6 +2244,49 @@ async def get_health_alerts(user: dict = Depends(require_admin)):
                 f"{wh_failed} webhook deliveries failed in 24h. "
                 "Baseline is typically 0; investigate "
                 "webhook.last_failure_reason.",
+            )
+
+        # Day-78: corp_actions feed-health thresholds. The Day-67
+        # yfinance fallback silently papers over an NSE outage by
+        # filling dividend gaps from yfinance, so this is the only
+        # signal we have that the primary ingest has stopped.
+        ca = stats.get("corp_actions", {}) or {}
+        last_write = ca.get("feed_last_write_at")
+        if last_write:
+            try:
+                # ex_date is a DATE — Postgres serialises it as YYYY-MM-DD.
+                # Parse loosely; fall back to skipping the check rather
+                # than raising in the alerts endpoint.
+                from datetime import datetime as _dt, timezone as _tz
+                _lw = _dt.fromisoformat(str(last_write))
+                if _lw.tzinfo is None:
+                    _lw = _lw.replace(tzinfo=_tz.utc)
+                hours_old = (
+                    _dt.now(_tz.utc) - _lw
+                ).total_seconds() / 3600.0
+                if hours_old > 48:
+                    _add(
+                        "alert", "corp_actions.feed_last_write_at",
+                        last_write, 48,
+                        f"Corp-actions ingestion appears stopped — most "
+                        f"recent ex_date is {hours_old:.0f}h old "
+                        f"(threshold 48h). Check NSE bhavcopy + "
+                        f"fetch_corporate_actions.py cron.",
+                    )
+            except Exception as ts_exc:
+                logger.warning(
+                    "corp_actions.feed_last_write_at parse failed: %s: %s",
+                    type(ts_exc).__name__, ts_exc,
+                )
+        stale_pct = ca.get("oldest_freshly_updated_pct")
+        if stale_pct is not None and stale_pct > 0.30:
+            _add(
+                "warn", "corp_actions.oldest_freshly_updated_pct",
+                stale_pct, 0.30,
+                f"Coverage decay in corp-actions feed — {stale_pct:.0%} "
+                f"of tickers have no row newer than 6 months "
+                f"(Reliance-pattern, audit 2026-05-20). Investigate "
+                f"per-ticker ingest gaps.",
             )
 
         # Overall status: alert > warn > ok
