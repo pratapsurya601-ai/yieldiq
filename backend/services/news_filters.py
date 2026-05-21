@@ -186,6 +186,148 @@ def source_tier(item: dict) -> int:
     return 3  # unknown source — middle ground, not noise
 
 
+# ── 2b. Source-quality tier (A / B / C) — Day-79 ───────────────
+#
+# Adds a coarser A/B/C/unknown classification on top of the existing
+# numeric tier. Drives the India-relevance filter for .NS/.BO tickers
+# that don't have a US listing (small-caps where GuruFocus / Seeking
+# Alpha coverage is near-useless for the Indian retail investor).
+#
+# Tier A: native Indian financial media (highest India relevance)
+# Tier B: Indian general news + reputable global wires
+# Tier C: US/global retail-aggregator sites with weak India coverage
+# unknown: malformed URL / unrecognised host — treated as Tier B
+#         (never aggressively filtered).
+
+_INDIAN_SOURCES_TIER_A = {
+    "moneycontrol.com",
+    "economictimes.indiatimes.com",
+    "business-standard.com",
+    "livemint.com",
+    "bloombergquint.com",
+    "ndtvprofit.com",
+    "businesstoday.in",
+    "thehindubusinessline.com",
+    "financialexpress.com",
+    "cnbctv18.com",
+}
+
+_INDIAN_SOURCES_TIER_B = {
+    "reuters.com",
+    "bloomberg.com",
+    "ft.com",
+    "thehindu.com",
+    "indianexpress.com",
+}
+
+_DOWNRANKED_SOURCES = {
+    "gurufocus.com",
+    "seekingalpha.com",
+    "fool.com",
+    "investorshub.com",
+    "simplywall.st",
+    "wallstreetzen.com",
+}
+
+# Indian tickers that ALSO trade as a US ADR / GDR. For these, US
+# aggregator coverage is sometimes genuinely relevant (ADR holders
+# read it), so we keep Tier C instead of dropping it.
+_INDIAN_TICKERS_WITH_US_LISTING = {
+    "TCS",
+    "INFY",
+    "WIPRO",
+    "HDFCBANK",
+    "ICICIBANK",
+    "RDY",
+    "DRREDDY",
+    "TATAMOTORS",
+    "MMTC",
+    "SIFY",
+    "WIT",
+    "IBN",
+    "HDB",
+    "RELIANCE",
+}
+
+
+def _classify_source(domain_or_url: str) -> str:
+    """
+    Classify a source domain into A / B / C / unknown.
+
+    Accepts either a bare host (``moneycontrol.com``) or a full URL
+    (``https://www.moneycontrol.com/news/...``). Strips ``www.``.
+    Malformed / empty input → ``"B"`` (default safe tier — we never
+    aggressively filter what we can't classify).
+    """
+    if not domain_or_url or not isinstance(domain_or_url, str):
+        return "B"
+    raw = domain_or_url.strip().lower()
+    if not raw:
+        return "B"
+    # Accept either a domain or a full URL.
+    if "://" in raw or raw.startswith("/"):
+        host = _domain_of(raw)
+    else:
+        # Treat as a bare host. _domain_of expects a URL; prepend scheme.
+        host = _domain_of(f"http://{raw}")
+    if not host:
+        return "B"
+    if host in _INDIAN_SOURCES_TIER_A:
+        return "A"
+    if host in _DOWNRANKED_SOURCES:
+        return "C"
+    if host in _INDIAN_SOURCES_TIER_B:
+        return "B"
+    return "B"
+
+
+def _has_us_listing(ticker: Optional[str]) -> bool:
+    """True if ticker has a known US listing (ADR/GDR)."""
+    if not ticker:
+        return False
+    clean = ticker.upper().replace(".NS", "").replace(".BO", "")
+    return clean in _INDIAN_TICKERS_WITH_US_LISTING
+
+
+def _is_indian_only_ticker(ticker: Optional[str]) -> bool:
+    """
+    True if ticker is an Indian listing with no US ADR/GDR.
+
+    Used to decide whether to drop Tier C (downranked US aggregator)
+    sources. Big-cap dual-listed names (TCS, INFY, ...) keep Tier C
+    because some users follow the ADR; small-caps drop it.
+    """
+    if not ticker:
+        return False
+    t = ticker.upper()
+    is_indian_suffix = t.endswith(".NS") or t.endswith(".BO")
+    if not is_indian_suffix:
+        return False
+    return not _has_us_listing(t)
+
+
+_TIER_LABELS = {
+    "A": "India-native",
+    "B": "Global wire",
+    "C": "US aggregator",
+}
+
+
+def filter_low_quality_sources(
+    items: Iterable[dict],
+    ticker: Optional[str],
+) -> list[dict]:
+    """
+    Drop Tier C (downranked US-aggregator) items for Indian-only
+    tickers. For dual-listed names or non-Indian tickers, returns
+    the list unchanged.
+    """
+    items_list = list(items or [])
+    if not _is_indian_only_ticker(ticker):
+        return items_list
+    return [it for it in items_list if _classify_source(it.get("url", "")) != "C"]
+
+
 # ── 3. Topic classifier ────────────────────────────────────────
 
 _TOPIC_PATTERNS: list[tuple[str, list[re.Pattern]]] = [
@@ -258,10 +400,13 @@ _KEEP_TIER4_TOPICS = {"earnings", "deal", "governance"}
 
 
 def annotate(item: dict, ticker: Optional[str] = None) -> dict:
-    """Attach tier + topic fields. Pure (returns a new dict)."""
+    """Attach tier + topic + source-quality fields. Pure (returns a new dict)."""
     out = dict(item)
     out["tier"] = source_tier(item)
     out["topic"] = classify_topic(item)
+    quality = _classify_source(item.get("url", ""))
+    out["source_quality_tier"] = quality
+    out["source_tier_label"] = _TIER_LABELS.get(quality, "")
     return out
 
 
@@ -286,8 +431,21 @@ def filter_and_rank(
             continue
         kept.append(ann)
 
+    # Day-79: for Indian-only listings (no US ADR), drop downranked
+    # US-aggregator sources (GuruFocus, Seeking Alpha, ...). Big-cap
+    # dual-listed names keep them since some users follow the ADR.
+    kept = filter_low_quality_sources(kept, ticker)
+
     def _key(it: dict):
-        return (it.get("tier", 3), -_pub_epoch(it))
+        # Primary sort: existing numeric tier (1 best).
+        # Secondary: prefer A > B > C within the same numeric tier
+        # (so a Tier-1 Moneycontrol still beats a Tier-1 ... none of
+        # them are C, but this keeps ordering stable for the aggregate
+        # feed where ticker is None and Tier-C survives).
+        quality_rank = {"A": 0, "B": 1, "C": 2}.get(
+            it.get("source_quality_tier", "B"), 1
+        )
+        return (it.get("tier", 3), quality_rank, -_pub_epoch(it))
 
     kept.sort(key=_key)
     return kept
