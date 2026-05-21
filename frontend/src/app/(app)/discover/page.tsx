@@ -186,8 +186,20 @@ export default function DiscoverPage() {
   })
 
   return (
+    // Day-81 (2026-05-22): Discover UX redesign — Option A (hero +
+    // above-the-fold restructure). The audit found the highest-intent
+    // surface (ScreenerPresetsWithCounts grid — where passive readers
+    // become active filterers) sat at the bottom of the page, behind
+    // 6 vertically-stacked rails. New reading order:
+    //   1. Top Pick (anchor, highest-scored stock)
+    //   2. Daily Insight (methodology spotlight — always-fresh content)
+    //   3. Screener Presets (the conversion surface, now above the fold)
+    //   4. Top-5 MoS gainers + YIQ 50 (deeper exploration rails)
+    //   5. Earnings + Sector Leaders (calendar / browse)
+    //   6. MarketPulse (macro context — least time-sensitive)
+    // Frontend-only reorder. No new endpoints. No CACHE_VERSION bump.
     <div className="max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-4 py-6 space-y-8 pb-20">
-      {/* Highest-scored stock today */}
+      {/* Day-81 hero (1/6): Highest-scored stock today (anchor). */}
       {topPick && (
         <section>
           <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-2">Highest YieldIQ score today</p>
@@ -202,6 +214,45 @@ export default function DiscoverPage() {
           <p className="text-[10px] text-caption mt-1">Updated daily. Based on YieldIQ 50 model. Not investment advice.</p>
         </section>
       )}
+
+      {/* Day-81 (2/6): Daily Insight — moved up from bottom-third so
+          cold-start visitors get an educational anchor immediately under
+          the Top Pick. Rotates daily (day-of-year mod 7). */}
+      <section data-day81-slot="daily-insight">
+        <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-3">
+          Daily Insight
+        </p>
+        <Link
+          href={todayTip.href}
+          className="block bg-bg dark:bg-surface border border-border rounded-xl p-4 hover:border-brand transition"
+        >
+          <p className="text-sm font-semibold text-ink mb-1">{todayTip.title}</p>
+          <p className="text-xs text-caption leading-relaxed">{todayTip.body}</p>
+          <p className="text-[11px] font-semibold text-brand mt-2">
+            Read the full methodology &rarr;
+          </p>
+        </Link>
+      </section>
+
+      {/* Day-81 (3/6): Screener Presets — promoted from page bottom to
+          above-the-fold. This is the highest-intent conversion surface
+          (passive reader -> active filterer). Putting it third in
+          reading order (after the anchor + educational tile) makes it
+          discoverable without scrolling on 1080p+ screens. */}
+      <section data-day81-slot="screener-presets">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-[10px] font-bold text-caption uppercase tracking-widest">
+            Explore the Screener
+          </p>
+          <Link
+            href="/screener"
+            className="text-[11px] font-semibold text-brand hover:underline"
+          >
+            All filters &rarr;
+          </Link>
+        </div>
+        <ScreenerPresetsWithCounts />
+      </section>
 
       {/* YieldIQ 50 */}
       <section>
@@ -397,26 +448,7 @@ export default function DiscoverPage() {
         )}
       </section>
 
-      {/* Day-68: Methodology spotlight — rotates daily (day-of-year mod 7)
-          so the page always has fresh content even on cold-start days
-          when YIQ50 / earnings / market-flows are all empty. */}
-      <section>
-        <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-3">
-          Methodology spotlight
-        </p>
-        <Link
-          href={todayTip.href}
-          className="block bg-bg dark:bg-surface border border-border rounded-xl p-4 hover:border-brand transition"
-        >
-          <p className="text-sm font-semibold text-ink mb-1">{todayTip.title}</p>
-          <p className="text-xs text-caption leading-relaxed">{todayTip.body}</p>
-          <p className="text-[11px] font-semibold text-brand mt-2">
-            Read the full methodology &rarr;
-          </p>
-        </Link>
-      </section>
-
-      {/* Sector leaders — top ticker per sector from YieldIQ 50 */}
+      {/* Day-81 (5/6): Sector leaders — top ticker per sector from YIQ 50. */}
       {yiq50 && yiq50.results.length > 0 && (
         <SectorLeaders stocks={yiq50.results} />
       )}
@@ -427,13 +459,11 @@ export default function DiscoverPage() {
       {/* UNCOMMENT WHEN /api/v1/public/lowest-pe RETURNS DENSE DATA */}
       {/* {yiq50 && <LowestPERail stocks={yiq50.results} />} */}
 
-      {/* Market Pulse — FII vs DII daily flow */}
-      <MarketPulse days={30} />
-
-      {/* Screener Presets */}
-      <section>
-        <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-3">Screener</p>
-        <ScreenerPresetsWithCounts />
+      {/* Day-81 (6/6): Market Pulse — FII vs DII daily flow. Demoted to
+          bottom because it's macro context (least time-sensitive for the
+          per-stock workflow that the Screener Presets surface drives). */}
+      <section data-day81-slot="market-pulse">
+        <MarketPulse days={30} />
       </section>
     </div>
   )
