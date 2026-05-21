@@ -110,6 +110,14 @@ export default function DailyInsightCard() {
           >
             {tip.cta}
           </Link>
+          {/* Day-83: secondary link into the end-user help section so the
+              Daily Insight slot doubles as an entry point into /help. */}
+          <Link
+            href="/help"
+            className="block mt-1 text-[11px] text-caption hover:text-ink transition-colors"
+          >
+            Browse all help topics &rarr;
+          </Link>
         </div>
       </div>
     </div>
