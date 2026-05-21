@@ -182,6 +182,16 @@ function humaniseSource(raw: string | null | undefined): string | null {
   if (lower === "bse" || lower === "bse_live") return "Live (BSE)"
   if (lower === "nse_xbrl") return "NSE XBRL"
   if (lower === "yfinance") return "yfinance"
+  // Day-64 (2026-05-21): audit caught internal "local_db_parquet" /
+  // "local_db" / "supabase_cache" dev-name strings leaking into the
+  // footer summary line. Humanise so the user never sees raw
+  // implementation tokens. Anything else (truly novel source) falls
+  // through to the original token --- still better than null but
+  // worth filtering at the addSource() humanise step too.
+  if (lower === "local_db_parquet" || lower === "local_db") return "YieldIQ database"
+  if (lower === "supabase_cache" || lower === "analysis_cache") return "YieldIQ database"
+  if (lower === "trusted_db" || lower === "pipeline_db") return "YieldIQ database"
+  if (lower === "tier2_cohort" || lower === "story_dcf") return "YieldIQ model"
   return s
 }
 
