@@ -57,7 +57,7 @@ export async function generateMetadata(
 function pctColor(curr: number, prev: number): string {
   if (curr > prev) return "text-green-600"
   if (curr < prev) return "text-red-600"
-  return "text-gray-600"
+  return "text-caption"
 }
 
 export default async function DuPontPage(
@@ -74,20 +74,20 @@ export default async function DuPontPage(
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* Breadcrumb */}
-      <nav className="text-xs text-gray-400 mb-6 flex items-center gap-1.5">
+      <nav className="text-xs text-caption mb-6 flex items-center gap-1.5">
         <Link href="/" className="hover:text-gray-600">Home</Link>
         <span>/</span>
         <Link href={`/stocks/${display}/fair-value`} className="hover:text-gray-600">{display}</Link>
         <span>/</span>
-        <span className="text-gray-600 font-medium">DuPont Analysis</span>
+        <span className="text-caption font-medium">DuPont Analysis</span>
       </nav>
 
       <div className="mb-8">
         <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase mb-2">DuPont Decomposition</p>
-        <h1 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">
+        <h1 className="text-2xl sm:text-3xl font-black text-ink mb-2">
           Why does {display} earn its ROE?
         </h1>
-        <p className="text-gray-500 text-sm">
+        <p className="text-caption text-sm">
           Breaking down Return on Equity into profitability, efficiency, and leverage.
         </p>
       </div>
@@ -103,78 +103,78 @@ export default async function DuPontPage(
 
       {/* Three pillars */}
       <div className="grid sm:grid-cols-3 gap-4 mb-8">
-        <div className="bg-white border border-gray-200 rounded-2xl p-5">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Profitability</p>
-          <p className="text-sm text-gray-500 mb-2">Net Margin</p>
-          <p className="text-3xl font-black text-gray-900 mb-1">{latest.net_margin_pct != null ? `${latest.net_margin_pct.toFixed(1)}%` : "\u2014"}</p>
+        <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5">
+          <p className="text-[10px] text-caption uppercase tracking-wider mb-1">Profitability</p>
+          <p className="text-sm text-caption mb-2">Net Margin</p>
+          <p className="text-3xl font-black text-ink mb-1">{latest.net_margin_pct != null ? `${latest.net_margin_pct.toFixed(1)}%` : "\u2014"}</p>
           {first && first.net_margin_pct != null && latest.net_margin_pct != null && (
             <p className={`text-xs font-semibold ${pctColor(latest.net_margin_pct, first.net_margin_pct)}`}>
               {first.net_margin_pct.toFixed(1)}% →{latest.net_margin_pct.toFixed(1)}%
             </p>
           )}
-          <p className="text-[10px] text-gray-400 mt-2">How much profit per ₹ of revenue</p>
+          <p className="text-[10px] text-caption mt-2">How much profit per ₹ of revenue</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-2xl p-5">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Efficiency</p>
-          <p className="text-sm text-gray-500 mb-2">Asset Turnover</p>
-          <p className="text-3xl font-black text-gray-900 mb-1">{latest.asset_turnover != null ? `${latest.asset_turnover.toFixed(2)}x` : "\u2014"}</p>
+        <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5">
+          <p className="text-[10px] text-caption uppercase tracking-wider mb-1">Efficiency</p>
+          <p className="text-sm text-caption mb-2">Asset Turnover</p>
+          <p className="text-3xl font-black text-ink mb-1">{latest.asset_turnover != null ? `${latest.asset_turnover.toFixed(2)}x` : "\u2014"}</p>
           {first && first.asset_turnover != null && latest.asset_turnover != null && (
             <p className={`text-xs font-semibold ${pctColor(latest.asset_turnover, first.asset_turnover)}`}>
               {first.asset_turnover.toFixed(2)}x →{latest.asset_turnover.toFixed(2)}x
             </p>
           )}
-          <p className="text-[10px] text-gray-400 mt-2">Revenue per ₹ of assets</p>
+          <p className="text-[10px] text-caption mt-2">Revenue per ₹ of assets</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-2xl p-5">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Leverage</p>
-          <p className="text-sm text-gray-500 mb-2">Equity Multiplier</p>
-          <p className="text-3xl font-black text-gray-900 mb-1">{latest.equity_multiplier != null ? `${latest.equity_multiplier.toFixed(2)}x` : "\u2014"}</p>
+        <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5">
+          <p className="text-[10px] text-caption uppercase tracking-wider mb-1">Leverage</p>
+          <p className="text-sm text-caption mb-2">Equity Multiplier</p>
+          <p className="text-3xl font-black text-ink mb-1">{latest.equity_multiplier != null ? `${latest.equity_multiplier.toFixed(2)}x` : "\u2014"}</p>
           {first && first.equity_multiplier != null && latest.equity_multiplier != null && (
             <p className={`text-xs font-semibold ${pctColor(first.equity_multiplier, latest.equity_multiplier)}`}>
               {first.equity_multiplier.toFixed(2)}x →{latest.equity_multiplier.toFixed(2)}x
             </p>
           )}
-          <p className="text-[10px] text-gray-400 mt-2">Assets funded by equity vs debt</p>
+          <p className="text-[10px] text-caption mt-2">Assets funded by equity vs debt</p>
         </div>
       </div>
 
       {/* Commentary */}
       {data.commentary && (
-        <div className="bg-gray-50 border border-gray-200 rounded-2xl p-5 mb-8">
-          <p className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Trend Analysis</p>
-          <p className="text-sm text-gray-800 leading-relaxed">{data.commentary}</p>
+        <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5 mb-8">
+          <p className="text-xs font-bold text-caption uppercase tracking-wider mb-1">Trend Analysis</p>
+          <p className="text-sm text-ink leading-relaxed">{data.commentary}</p>
         </div>
       )}
 
       {/* Historical Table */}
-      <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden mb-8">
+      <div className="bg-bg dark:bg-surface border border-border rounded-2xl overflow-hidden mb-8">
         <div className="px-6 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-bold text-gray-900">Historical Decomposition</h2>
-          <p className="text-xs text-gray-500 mt-1">Last {data.years} years</p>
+          <h2 className="text-sm font-bold text-ink">Historical Decomposition</h2>
+          <p className="text-xs text-caption mt-1">Last {data.years} years</p>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-100">
-                <th className="text-left px-4 py-3 font-semibold text-gray-500">Year</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-500">Revenue</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-500">PAT</th>
+              <tr className="bg-bg dark:bg-surface border-b border-gray-100">
+                <th className="text-left px-4 py-3 font-semibold text-caption">Year</th>
+                <th className="text-right px-4 py-3 font-semibold text-caption">Revenue</th>
+                <th className="text-right px-4 py-3 font-semibold text-caption">PAT</th>
                 <th className="text-right px-4 py-3 font-semibold text-blue-600">Net Margin</th>
                 <th className="text-right px-4 py-3 font-semibold text-blue-600">Asset TO</th>
                 <th className="text-right px-4 py-3 font-semibold text-blue-600">Leverage</th>
-                <th className="text-right px-4 py-3 font-semibold text-gray-900">ROE</th>
+                <th className="text-right px-4 py-3 font-semibold text-ink">ROE</th>
               </tr>
             </thead>
             <tbody>
               {data.periods.map(p => (
                 <tr key={p.period_end} className="border-b border-gray-100">
-                  <td className="px-4 py-3 font-medium text-gray-900">{p.fy}</td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-700">₹{p.revenue_cr.toLocaleString("en-IN")}Cr</td>
-                  <td className="px-4 py-3 text-right font-mono text-gray-700">₹{p.pat_cr.toLocaleString("en-IN")}Cr</td>
+                  <td className="px-4 py-3 font-medium text-ink">{p.fy}</td>
+                  <td className="px-4 py-3 text-right font-mono text-ink">₹{p.revenue_cr.toLocaleString("en-IN")}Cr</td>
+                  <td className="px-4 py-3 text-right font-mono text-ink">₹{p.pat_cr.toLocaleString("en-IN")}Cr</td>
                   <td className="px-4 py-3 text-right font-mono font-semibold text-blue-700">{p.net_margin_pct.toFixed(1)}%</td>
                   <td className="px-4 py-3 text-right font-mono font-semibold text-blue-700">{p.asset_turnover.toFixed(2)}</td>
                   <td className="px-4 py-3 text-right font-mono font-semibold text-blue-700">{p.equity_multiplier.toFixed(2)}</td>
-                  <td className="px-4 py-3 text-right font-mono font-bold text-gray-900">{p.roe_pct.toFixed(1)}%</td>
+                  <td className="px-4 py-3 text-right font-mono font-bold text-ink">{p.roe_pct.toFixed(1)}%</td>
                 </tr>
               ))}
             </tbody>
@@ -197,12 +197,12 @@ export default async function DuPontPage(
       <div className="bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl p-6 text-center text-white mb-8">
         <h2 className="text-lg font-bold mb-1">See DCF fair value for {display}</h2>
         <p className="text-blue-100 text-sm mb-4">Combine financial quality with intrinsic value.</p>
-        <Link href={`/stocks/${display}/fair-value`} className="inline-block bg-white text-blue-700 font-bold px-6 py-2.5 rounded-xl hover:bg-blue-50 transition text-sm">
+        <Link href={`/stocks/${display}/fair-value`} className="inline-block bg-bg dark:bg-surface text-blue-700 font-bold px-6 py-2.5 rounded-xl hover:bg-blue-50 transition text-sm">
           See Fair Value &rarr;
         </Link>
       </div>
 
-      <p className="text-[10px] text-gray-400 text-center">
+      <p className="text-[10px] text-caption text-center">
         DuPont decomposition from audited annual financials. Factual analysis, not investment advice.
       </p>
     </div>

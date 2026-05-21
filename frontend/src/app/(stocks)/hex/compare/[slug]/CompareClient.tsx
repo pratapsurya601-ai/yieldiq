@@ -68,19 +68,19 @@ export default function CompareClient({ a, b, canonical }: CompareClientProps) {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
-      <nav className="text-xs text-gray-400 mb-6 flex items-center gap-1.5">
+      <nav className="text-xs text-caption mb-6 flex items-center gap-1.5">
         <Link href="/" className="hover:text-gray-600">Home</Link>
         <span>/</span>
         <Link href={`/hex/${t1}`} className="hover:text-gray-600">Hex</Link>
         <span>/</span>
-        <span className="text-gray-600 font-medium">{t1} vs {t2}</span>
+        <span className="text-caption font-medium">{t1} vs {t2}</span>
       </nav>
 
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 mb-8">
-        <h1 className="text-3xl sm:text-4xl font-black text-gray-900 mb-2">
-          {t1} <span className="text-gray-400 font-medium">vs</span> {t2}
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 sm:p-8 mb-8">
+        <h1 className="text-3xl sm:text-4xl font-black text-ink mb-2">
+          {t1} <span className="text-caption font-medium">vs</span> {t2}
         </h1>
-        <p className="text-gray-500 text-sm mb-6">
+        <p className="text-caption text-sm mb-6">
           6-axis hex overlay. Higher is stronger on each axis. Model estimate.
         </p>
         <div className="flex justify-center">
@@ -89,12 +89,12 @@ export default function CompareClient({ a, b, canonical }: CompareClientProps) {
       </div>
 
       {/* Side-by-side table */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-8">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm overflow-hidden mb-8">
         <div className="grid grid-cols-[1fr_auto_1fr] text-sm">
           <div className="p-4 font-bold text-blue-600 text-center border-b border-gray-100">
             {t1} &middot; {a.overall.toFixed(1)}/10
           </div>
-          <div className="p-4 text-center text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
+          <div className="p-4 text-center text-xs text-caption uppercase tracking-wider border-b border-gray-100">
             Axis
           </div>
           <div className="p-4 font-bold text-amber-600 text-center border-b border-gray-100">
@@ -109,14 +109,14 @@ export default function CompareClient({ a, b, canonical }: CompareClientProps) {
                   <div className={`text-lg font-bold font-mono ${scoreClass(av.score)}`}>
                     {av.score.toFixed(1)}
                   </div>
-                  <div className="text-xs text-gray-500">{av.label}</div>
-                  {av.why && <div className="text-[11px] text-gray-500 mt-1">{av.why}</div>}
+                  <div className="text-xs text-caption">{av.label}</div>
+                  {av.why && <div className="text-[11px] text-caption mt-1">{av.why}</div>}
                 </div>
-                <div className="p-4 border-t border-gray-100 flex flex-col items-center justify-center bg-gray-50">
-                  <div className="text-xs font-bold text-gray-700 uppercase tracking-wider">
+                <div className="p-4 border-t border-gray-100 flex flex-col items-center justify-center bg-bg dark:bg-surface">
+                  <div className="text-xs font-bold text-ink uppercase tracking-wider">
                     {AXIS_LABEL[key]}
                   </div>
-                  <div className="text-[10px] text-gray-400 mt-1 text-center max-w-[160px] leading-tight">
+                  <div className="text-[10px] text-caption mt-1 text-center max-w-[160px] leading-tight">
                     {HEX_AXIS_BLURB[key]}
                   </div>
                 </div>
@@ -124,8 +124,8 @@ export default function CompareClient({ a, b, canonical }: CompareClientProps) {
                   <div className={`text-lg font-bold font-mono ${scoreClass(bv.score)}`}>
                     {bv.score.toFixed(1)}
                   </div>
-                  <div className="text-xs text-gray-500">{bv.label}</div>
-                  {bv.why && <div className="text-[11px] text-gray-500 mt-1">{bv.why}</div>}
+                  <div className="text-xs text-caption">{bv.label}</div>
+                  {bv.why && <div className="text-[11px] text-caption mt-1">{bv.why}</div>}
                 </div>
               </Fragment>
             )
@@ -134,8 +134,8 @@ export default function CompareClient({ a, b, canonical }: CompareClientProps) {
       </div>
 
       {/* Change stocks */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
-        <h2 className="text-lg font-bold text-gray-900 mb-3">Change stocks</h2>
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8">
+        <h2 className="text-lg font-bold text-ink mb-3">Change stocks</h2>
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -146,14 +146,14 @@ export default function CompareClient({ a, b, canonical }: CompareClientProps) {
           <input
             value={left}
             onChange={(e) => setLeft(e.target.value)}
-            className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Ticker 1"
           />
-          <span className="text-gray-400 text-sm text-center">vs</span>
+          <span className="text-caption text-sm text-center">vs</span>
           <input
             value={right}
             onChange={(e) => setRight(e.target.value)}
-            className="border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="border border-border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="Ticker 2"
           />
           <button
@@ -166,8 +166,8 @@ export default function CompareClient({ a, b, canonical }: CompareClientProps) {
       </div>
 
       {/* Share */}
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
-        <h2 className="text-lg font-bold text-gray-900 mb-3">Share</h2>
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8">
+        <h2 className="text-lg font-bold text-ink mb-3">Share</h2>
         <div className="flex flex-wrap gap-3">
           <a
             href={twitter}
@@ -203,13 +203,13 @@ export default function CompareClient({ a, b, canonical }: CompareClientProps) {
         </p>
         <Link
           href="/signup"
-          className="inline-block bg-white text-blue-700 font-bold px-8 py-3 rounded-xl hover:bg-blue-50 transition"
+          className="inline-block bg-bg dark:bg-surface text-blue-700 font-bold px-8 py-3 rounded-xl hover:bg-blue-50 transition"
         >
           Create a free account &rarr;
         </Link>
       </div>
 
-      <p className="text-[10px] text-gray-400 text-center leading-relaxed">
+      <p className="text-[10px] text-caption text-center leading-relaxed">
         Model estimate. Not investment advice.
         YieldIQ is not registered with SEBI as an investment adviser or research analyst.
         Past performance does not guarantee future results.

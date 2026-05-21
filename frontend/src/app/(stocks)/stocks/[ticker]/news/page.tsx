@@ -69,7 +69,7 @@ function importanceBadge(level: string) {
   if (level === "critical") return { text: "Critical", cls: "bg-red-50 text-red-700 border-red-200", dot: "bg-red-500" }
   if (level === "high") return { text: "High", cls: "bg-amber-50 text-amber-700 border-amber-200", dot: "bg-amber-500" }
   if (level === "medium") return { text: "Medium", cls: "bg-blue-50 text-blue-700 border-blue-200", dot: "bg-blue-500" }
-  return { text: "Low", cls: "bg-gray-50 text-gray-600 border-gray-200", dot: "bg-gray-400" }
+  return { text: "Low", cls: "bg-bg dark:bg-surface text-caption border-border", dot: "bg-gray-400" }
 }
 
 export default async function StockNewsPage(
@@ -84,18 +84,18 @@ export default async function StockNewsPage(
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* Breadcrumb */}
-      <nav className="text-xs text-gray-400 mb-6 flex items-center gap-1.5">
+      <nav className="text-xs text-caption mb-6 flex items-center gap-1.5">
         <Link href="/" className="hover:text-gray-600">Home</Link>
         <span>/</span>
         <Link href={`/stocks/${display}/fair-value`} className="hover:text-gray-600">{display}</Link>
         <span>/</span>
-        <span className="text-gray-600 font-medium">News</span>
+        <span className="text-caption font-medium">News</span>
       </nav>
 
       <div className="mb-6">
         <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase mb-1">News & Filings</p>
-        <h1 className="text-2xl sm:text-3xl font-black text-gray-900">{display} \u2014 Recent Activity</h1>
-        <p className="text-gray-500 text-sm mt-1">{data.count} items in the last 14 days</p>
+        <h1 className="text-2xl sm:text-3xl font-black text-ink">{display} \u2014 Recent Activity</h1>
+        <p className="text-caption text-sm mt-1">{data.count} items in the last 14 days</p>
       </div>
 
       {/* AI Summary */}
@@ -107,7 +107,7 @@ export default async function StockNewsPage(
       )}
 
       {data.items.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-caption">
           <p className="text-lg font-semibold mb-1">No recent news for {display}</p>
           <p className="text-sm">Check back later \u2014 updated every hour from yfinance + BSE.</p>
         </div>
@@ -130,14 +130,14 @@ export default async function StockNewsPage(
                       <span className={`w-1.5 h-1.5 rounded-full ${ib.dot}`}></span>
                       {ib.text}
                     </span>
-                    <span className="text-[10px] text-gray-400 capitalize">{item.category}</span>
-                    <span className="text-[10px] text-gray-400">&middot; {item.source}</span>
+                    <span className="text-[10px] text-caption capitalize">{item.category}</span>
+                    <span className="text-[10px] text-caption">&middot; {item.source}</span>
                   </div>
-                  <span className="text-[10px] text-gray-400 flex-shrink-0">{timeAgo(item.published_at)}</span>
+                  <span className="text-[10px] text-caption flex-shrink-0">{timeAgo(item.published_at)}</span>
                 </div>
-                <p className="text-sm text-gray-900 font-medium leading-snug">{item.headline}</p>
+                <p className="text-sm text-ink font-medium leading-snug">{item.headline}</p>
                 {item.summary && (
-                  <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.summary}</p>
+                  <p className="text-xs text-caption mt-1 line-clamp-2">{item.summary}</p>
                 )}
                 {item.url && (
                   <p className="text-[10px] text-blue-600 mt-2">Click to open &rarr;</p>
@@ -152,12 +152,12 @@ export default async function StockNewsPage(
       <div className="mt-8 bg-gradient-to-r from-blue-600 to-cyan-500 rounded-2xl p-6 text-center text-white">
         <h2 className="text-lg font-bold mb-1">Get alerts for important filings</h2>
         <p className="text-blue-100 text-sm mb-4">Add {display} to your watchlist for board meeting & dividend alerts.</p>
-        <Link href={`/analysis/${ticker}`} className="inline-block bg-white text-blue-700 font-bold px-6 py-2.5 rounded-xl hover:bg-blue-50 transition text-sm">
+        <Link href={`/analysis/${ticker}`} className="inline-block bg-bg dark:bg-surface text-blue-700 font-bold px-6 py-2.5 rounded-xl hover:bg-blue-50 transition text-sm">
           Open analysis &rarr;
         </Link>
       </div>
 
-      <p className="text-[10px] text-gray-400 text-center mt-6">
+      <p className="text-[10px] text-caption text-center mt-6">
         News from yfinance + BSE corporate announcements. Importance scoring is automated.
         YieldIQ is not registered with SEBI as an investment adviser.
       </p>

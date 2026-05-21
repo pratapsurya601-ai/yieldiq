@@ -227,14 +227,14 @@ export default function SearchPage() {
   return (
     <div className="max-w-md md:max-w-xl mx-auto px-4 py-12 space-y-8 pb-20">
       <div className="text-center">
-        <h1 className="text-xl font-bold text-gray-900 mb-1">Analyse a stock</h1>
-        <p className="text-sm text-gray-500">Search by company name or NSE ticker</p>
+        <h1 className="text-xl font-bold text-ink mb-1">Analyse a stock</h1>
+        <p className="text-sm text-caption">Search by company name or NSE ticker</p>
       </div>
 
-      <div className="relative sticky top-0 z-10 bg-white -mx-4 px-4 pb-3">
+      <div className="relative sticky top-0 z-10 bg-bg dark:bg-surface -mx-4 px-4 pb-3">
         <div className="flex gap-2">
           <div className="relative flex-1">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-caption pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2} aria-hidden="true">
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
             </svg>
             <input
@@ -280,7 +280,7 @@ export default function SearchPage() {
               onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
               onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
               placeholder="Search NSE/BSE ticker or company, e.g. RELIANCE, TCS, SBIN.BO"
-              className="w-full pl-10 pr-10 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-10 py-3 border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
           <button
@@ -303,7 +303,7 @@ export default function SearchPage() {
           <ul
             id={listboxId}
             role="listbox"
-            className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden"
+            className="absolute z-50 w-full mt-1 bg-bg dark:bg-surface border border-border rounded-xl shadow-lg overflow-hidden"
           >
             {suggestions.map((s, i) => (
               <li
@@ -325,14 +325,14 @@ export default function SearchPage() {
                   )}
                 >
                   <div className="min-w-0 flex-1 flex items-center gap-2">
-                    <span className="font-medium text-gray-900 text-sm truncate">{s.name}</span>
+                    <span className="font-medium text-ink text-sm truncate">{s.name}</span>
                     {s.type !== "stock" && (
                       <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded">
                         {s.type}
                       </span>
                     )}
                   </div>
-                  <span className="text-xs text-gray-400 font-mono ml-2 shrink-0">{s.displayTicker}</span>
+                  <span className="text-xs text-caption font-mono ml-2 shrink-0">{s.displayTicker}</span>
                 </button>
               </li>
             ))}
@@ -348,7 +348,7 @@ export default function SearchPage() {
             className="absolute z-50 w-full mt-1 bg-white dark:bg-surface border border-gray-200 dark:border-border rounded-xl shadow-lg p-4 text-center space-y-2"
             data-testid="search-no-results"
           >
-            <p className="text-sm text-gray-600 dark:text-body">
+            <p className="text-sm text-caption dark:text-body">
               No stocks found for &ldquo;{query}&rdquo;
             </p>
             <p className="text-xs text-gray-400 dark:text-caption">
@@ -367,7 +367,7 @@ export default function SearchPage() {
       {/* Recently analysed */}
       {recent.length >= 3 && (
         <div>
-          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">Recently analysed</p>
+          <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-3">Recently analysed</p>
           <div className="flex flex-wrap gap-2">
             {recent.map((r) => (
               <button
@@ -384,7 +384,7 @@ export default function SearchPage() {
       )}
 
       <div>
-        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">Popular stocks</p>
+        <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-3">Popular stocks</p>
         <div className="flex flex-wrap gap-2 mb-3">
           {SECTOR_FILTERS.map((s) => (
             <button
@@ -394,7 +394,7 @@ export default function SearchPage() {
                 "px-3 py-1.5 min-h-[32px] rounded-full border text-xs font-medium transition active:scale-[0.97]",
                 sectorFilter === s
                   ? "bg-blue-600 border-blue-600 text-white"
-                  : "bg-white border-gray-200 text-gray-600 hover:border-blue-300 hover:text-blue-700"
+                  : "bg-bg dark:bg-surface border-border text-caption hover:border-blue-300 hover:text-blue-700"
               )}
             >
               {s}
@@ -407,9 +407,9 @@ export default function SearchPage() {
               key={s.ticker}
               onMouseEnter={() => router.prefetch(`/analysis/${s.ticker}`)}
               onClick={() => handleSelect(s.ticker, s.label)}
-              className="px-4 py-2.5 min-h-[40px] bg-white border border-gray-200 rounded-lg text-sm font-medium text-gray-700 hover:border-blue-300 hover:text-blue-700 active:scale-[0.97] transition-colors inline-flex items-center gap-1.5"
+              className="px-4 py-2.5 min-h-[40px] bg-bg dark:bg-surface border border-border rounded-lg text-sm font-medium text-ink hover:border-blue-300 hover:text-blue-700 active:scale-[0.97] transition-colors inline-flex items-center gap-1.5"
             >
-              <span className="text-[10px] text-gray-400 font-normal">{SECTOR_LABELS[s.sector] || ""}</span>
+              <span className="text-[10px] text-caption font-normal">{SECTOR_LABELS[s.sector] || ""}</span>
               {s.label}
             </button>
           ))}

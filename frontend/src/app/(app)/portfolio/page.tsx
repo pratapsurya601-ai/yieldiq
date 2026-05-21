@@ -33,7 +33,7 @@ function fmtRsCompact(n: number): string {
 function pctColor(n: number): string {
   if (n > 0) return "text-green-600"
   if (n < 0) return "text-red-600"
-  return "text-gray-600"
+  return "text-caption"
 }
 
 export default function PortfolioPage() {
@@ -156,17 +156,17 @@ function PortfolioInner() {
           PnLSparklinePlaceholder in components/portfolio/HealthDashboard.tsx. */}
 
       {/* Tabs — iOS segmented control style */}
-      <div className="flex bg-gray-100 rounded-xl p-1">
+      <div className="flex bg-surface rounded-xl p-1">
         <button onClick={() => setTab("holdings")}
-          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "holdings" ? "bg-white text-gray-900 shadow-sm ring-1 ring-black/5" : "text-gray-500 hover:text-gray-700"}`}>
+          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "holdings" ? "bg-bg dark:bg-surface text-ink shadow-sm ring-1 ring-black/5" : "text-caption hover:text-gray-700"}`}>
           Holdings
         </button>
         <button onClick={() => setTab("watchlist")}
-          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "watchlist" ? "bg-white text-gray-900 shadow-sm ring-1 ring-black/5" : "text-gray-500 hover:text-gray-700"}`}>
+          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "watchlist" ? "bg-bg dark:bg-surface text-ink shadow-sm ring-1 ring-black/5" : "text-caption hover:text-gray-700"}`}>
           Watchlist{watchlist && watchlist.length > 0 ? ` (${watchlist.length})` : ""}
         </button>
         <button onClick={() => setTab("alerts")}
-          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "alerts" ? "bg-white text-gray-900 shadow-sm ring-1 ring-black/5" : "text-gray-500 hover:text-gray-700"}`}>
+          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "alerts" ? "bg-bg dark:bg-surface text-ink shadow-sm ring-1 ring-black/5" : "text-caption hover:text-gray-700"}`}>
           Alerts{alerts && alerts.length > 0 ? ` (${alerts.length})` : ""}
         </button>
       </div>
@@ -179,13 +179,13 @@ function PortfolioInner() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75a23.978 23.978 0 01-7.577-1.22 2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0" />
             </svg>
           </div>
-          <p className="text-base font-semibold text-gray-700 mb-1">Couldn&rsquo;t load holdings</p>
-          <p className="text-sm text-gray-500 mb-4">We hit a snag fetching your portfolio. Check your connection and retry, or import fresh from your broker.</p>
+          <p className="text-base font-semibold text-ink mb-1">Couldn&rsquo;t load holdings</p>
+          <p className="text-sm text-caption mb-4">We hit a snag fetching your portfolio. Check your connection and retry, or import fresh from your broker.</p>
           <div className="flex gap-2 justify-center flex-wrap">
             <Link href="/portfolio/import" className="inline-flex items-center justify-center min-h-[40px] bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 active:scale-[0.98] transition">
               Import Zerodha / Groww CSV &rarr;
             </Link>
-            <Link href="/search" className="inline-flex items-center justify-center min-h-[40px] bg-white border border-gray-200 text-gray-700 text-sm font-semibold px-4 py-2 rounded-lg hover:bg-gray-50 active:scale-[0.98] transition">
+            <Link href="/search" className="inline-flex items-center justify-center min-h-[40px] bg-bg dark:bg-surface border border-border text-ink text-sm font-semibold px-4 py-2 rounded-lg hover:bg-gray-50 active:scale-[0.98] transition">
               Analyse a stock
             </Link>
           </div>
@@ -197,7 +197,7 @@ function PortfolioInner() {
           <div className="skeleton rounded-2xl h-[148px]" />
           {/* Three holding-row skeletons — matches the real card layout */}
           {[0, 1, 2].map((i) => (
-            <div key={i} className="bg-white rounded-xl border border-gray-100 p-4 space-y-3">
+            <div key={i} className="bg-bg dark:bg-surface rounded-xl border border-gray-100 p-4 space-y-3">
               <div className="flex items-start justify-between">
                 <div className="space-y-2">
                   <div className="skeleton h-4 w-24 rounded" />
@@ -271,33 +271,33 @@ function PortfolioInner() {
                 and rendering as one merged/averaged position. */}
             {holdings.map((h) => (
               <Link key={`${h.ticker}:${h.account_label || "default"}`} href={`/analysis/${h.ticker}`}
-                className="block bg-white rounded-xl border border-gray-100 p-4 hover:border-blue-200 transition">
+                className="block bg-bg dark:bg-surface rounded-xl border border-gray-100 p-4 hover:border-blue-200 transition">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-bold text-gray-900">{h.display_ticker || h.ticker.replace(".NS", "")}</p>
+                      <p className="font-bold text-ink">{h.display_ticker || h.ticker.replace(".NS", "")}</p>
                       {h.account_label && h.account_label !== "default" && (
-                        <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-caption bg-surface px-1.5 py-0.5 rounded">
                           {h.account_label}
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-500 truncate">{h.sector || h.company_name || "—"}</p>
+                    <p className="text-xs text-caption truncate">{h.sector || h.company_name || "—"}</p>
                   </div>
                   <div className="text-right">
                     {/* TODO(PR-B, SEBI-compliance): render <PriceTimestamp
                          as_of={h.as_of ?? null} /> under CMP once the
                          portfolio holdings endpoint surfaces `as_of`
                          for each holding's current_price. */}
-                    <p className="text-sm font-mono font-semibold text-gray-900">{formatCurrency(h.current_price, "INR")}</p>
-                    <p className="text-[10px] text-gray-500 uppercase tracking-wider">CMP</p>
+                    <p className="text-sm font-mono font-semibold text-ink">{formatCurrency(h.current_price, "INR")}</p>
+                    <p className="text-[10px] text-caption uppercase tracking-wider">CMP</p>
                   </div>
                 </div>
                 <div className="flex items-center justify-between text-xs">
-                  <div className="text-gray-500">
+                  <div className="text-caption">
                     {h.quantity} × {formatCurrency(h.entry_price, "INR")}
                     <span className="text-gray-300 mx-1">=</span>
-                    <span className="text-gray-700">{fmtRsCompact(h.invested_value)}</span>
+                    <span className="text-ink">{fmtRsCompact(h.invested_value)}</span>
                   </div>
                   <div className="text-right">
                     <p className={`font-mono font-bold ${pctColor(h.pnl_pct)}`}>
@@ -308,8 +308,8 @@ function PortfolioInner() {
                 {/* Optional: show fair value & verdict if available */}
                 {h.fair_value != null && h.mos_pct != null && (
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50 text-[10px]">
-                    <span className="text-gray-400">
-                      Fair Value: <span className="font-mono text-gray-700">{formatCurrency(h.fair_value, "INR")}</span>
+                    <span className="text-caption">
+                      Fair Value: <span className="font-mono text-ink">{formatCurrency(h.fair_value, "INR")}</span>
                     </span>
                     <span className={`font-semibold ${h.mos_pct >= 0 ? "text-green-600" : "text-amber-600"}`}>
                       MoS {h.mos_pct >= 0 ? "+" : ""}{h.mos_pct.toFixed(1)}%
@@ -337,7 +337,7 @@ function PortfolioInner() {
               secondaryHref="/portfolio/import"
             />
             <div className="mt-4 pt-4 text-center">
-              <p className="text-[11px] text-gray-400 uppercase tracking-wider mb-2 font-semibold">Want to see it first?</p>
+              <p className="text-[11px] text-caption uppercase tracking-wider mb-2 font-semibold">Want to see it first?</p>
               <Link
                 href="/analysis/RELIANCE.NS"
                 className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-700"
@@ -384,14 +384,14 @@ function PortfolioInner() {
           onClick={() => !resetHoldingsMut.isPending && setResetConfirm(false)}
         >
           <div
-            className="w-full max-w-sm bg-white rounded-2xl shadow-xl p-5 space-y-4"
+            className="w-full max-w-sm bg-bg dark:bg-surface rounded-2xl shadow-xl p-5 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div>
-              <h3 id="reset-holdings-title" className="text-sm font-semibold text-gray-900">
+              <h3 id="reset-holdings-title" className="text-sm font-semibold text-ink">
                 Delete all {holdings?.length ?? 0} holdings?
               </h3>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-caption mt-1">
                 This permanently removes every holding from your portfolio.
                 Your watchlist and alerts are not affected. You&apos;ll need
                 to re-import from broker CSV or add them back manually.
@@ -403,7 +403,7 @@ function PortfolioInner() {
                 autoFocus
                 onClick={() => setResetConfirm(false)}
                 disabled={resetHoldingsMut.isPending}
-                className="min-h-[36px] px-3 py-1.5 text-xs font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                className="min-h-[36px] px-3 py-1.5 text-xs font-semibold text-ink bg-surface rounded-lg hover:bg-gray-200 disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -425,11 +425,11 @@ function PortfolioInner() {
         watchlist && watchlist.length > 0 ? (
           <section aria-label="Watchlist" data-testid="watchlist-list" className="space-y-2">
             {watchlist.map((w: { ticker: string; company_name: string; target_price: number; added_price: number }) => (
-              <div key={w.ticker} className="flex items-center bg-white rounded-xl border border-gray-100 hover:border-blue-200 transition">
+              <div key={w.ticker} className="flex items-center bg-bg dark:bg-surface rounded-xl border border-gray-100 hover:border-blue-200 transition">
                 <Link href={`/analysis/${w.ticker}`} className="flex-1 flex items-center justify-between p-4">
                   <div>
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium text-gray-900">{w.ticker.replace(".NS", "")}</p>
+                      <p className="font-medium text-ink">{w.ticker.replace(".NS", "")}</p>
                       <UnlockBadge ticker={w.ticker} size="sm" />
                       {tickersWithBandShift.has(w.ticker.toUpperCase()) && (
                         <span
@@ -440,14 +440,14 @@ function PortfolioInner() {
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-gray-400">{w.company_name}</p>
+                    <p className="text-xs text-caption">{w.company_name}</p>
                   </div>
                   <div className="text-right">
                     {w.added_price > 0 && (
-                      <p className="text-sm font-mono text-gray-600">{formatCurrency(w.added_price, "INR")}</p>
+                      <p className="text-sm font-mono text-caption">{formatCurrency(w.added_price, "INR")}</p>
                     )}
                     {w.target_price > 0 && (
-                      <p className="text-xs text-gray-400">Target: {formatCurrency(w.target_price, "INR")}</p>
+                      <p className="text-xs text-caption">Target: {formatCurrency(w.target_price, "INR")}</p>
                     )}
                   </div>
                 </Link>
@@ -455,7 +455,7 @@ function PortfolioInner() {
                   onClick={() => removeWatchlistMut.mutate(w.ticker)}
                   disabled={removeWatchlistMut.isPending}
                   aria-label={`Remove ${w.ticker.replace(".NS", "")} from watchlist`}
-                  className="flex items-center justify-center min-w-[44px] min-h-[44px] text-gray-400 hover:text-red-500 active:scale-90 transition shrink-0"
+                  className="flex items-center justify-center min-w-[44px] min-h-[44px] text-caption hover:text-red-500 active:scale-90 transition shrink-0"
                   title="Remove from watchlist"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -482,15 +482,15 @@ function PortfolioInner() {
         alerts && alerts.length > 0 ? (
           <div className="space-y-2">
             {alerts.map((a: { id: number; ticker: string; alert_type: string; target_price: number; created_at: string }) => (
-              <div key={a.id} className="flex items-center bg-white rounded-xl border border-gray-100 p-4">
+              <div key={a.id} className="flex items-center bg-bg dark:bg-surface rounded-xl border border-gray-100 p-4">
                 <Link href={`/analysis/${a.ticker}`} className="flex-1">
                   <div className="flex items-center gap-2">
-                    <p className="font-medium text-gray-900">{a.ticker.replace(".NS", "")}</p>
+                    <p className="font-medium text-ink">{a.ticker.replace(".NS", "")}</p>
                     <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${a.alert_type === "above" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
                       {a.alert_type === "above" ? "ABOVE" : "BELOW"}
                     </span>
                   </div>
-                  <p className="text-sm font-mono text-gray-600 mt-0.5">
+                  <p className="text-sm font-mono text-caption mt-0.5">
                     {"\u20b9"}{a.target_price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
                   </p>
                 </Link>
@@ -498,7 +498,7 @@ function PortfolioInner() {
                   onClick={() => removeAlertMut.mutate(a.id)}
                   disabled={removeAlertMut.isPending}
                   aria-label={`Delete ${a.ticker.replace(".NS", "")} price alert`}
-                  className="flex items-center justify-center min-w-[44px] min-h-[44px] text-gray-400 hover:text-red-500 active:scale-90 transition shrink-0"
+                  className="flex items-center justify-center min-w-[44px] min-h-[44px] text-caption hover:text-red-500 active:scale-90 transition shrink-0"
                   title="Delete alert"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -515,8 +515,8 @@ function PortfolioInner() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
               </svg>
             </div>
-            <p className="text-base font-semibold text-gray-700 mb-1">No active alerts</p>
-            <p className="text-sm text-gray-400 mb-4">Set price alerts on any analysis page to get notified by email.</p>
+            <p className="text-base font-semibold text-ink mb-1">No active alerts</p>
+            <p className="text-sm text-caption mb-4">Set price alerts on any analysis page to get notified by email.</p>
             <Link href="/search" className="text-sm text-blue-600 font-medium hover:underline">Search stocks</Link>
           </div>
         )

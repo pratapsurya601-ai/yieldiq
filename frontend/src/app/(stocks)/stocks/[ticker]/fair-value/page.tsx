@@ -372,12 +372,12 @@ export default async function StockFairValuePage(
 
       <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
         {/* Breadcrumb */}
-        <nav className="text-xs text-gray-400 mb-6 flex items-center gap-1.5">
+        <nav className="text-xs text-caption mb-6 flex items-center gap-1.5">
           <Link href="/" className="hover:text-gray-600">Home</Link>
           <span>/</span>
           <Link href="/nifty50" className="hover:text-gray-600">Stocks</Link>
           <span>/</span>
-          <span className="text-gray-600 font-medium">{display}</span>
+          <span className="text-caption font-medium">{display}</span>
         </nav>
 
         <AdrCohortBanner ticker={display} />
@@ -404,22 +404,22 @@ export default async function StockFairValuePage(
         })()}
 
         {/* Hero Section */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden mb-8">
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm overflow-hidden mb-8">
           <div className="p-6 sm:p-8">
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
               <div>
-                <h1 className="text-2xl sm:text-3xl font-black text-gray-900">
+                <h1 className="text-2xl sm:text-3xl font-black text-ink">
                   {data.company_name}
                 </h1>
-                <p className="text-gray-500 text-sm mt-1">
+                <p className="text-caption text-sm mt-1">
                   {display} &middot; {data.sector} &middot; {data.exchange}
                 </p>
               </div>
               <div className="text-left sm:text-right">
-                <p className="text-3xl font-black text-gray-900 font-mono">
+                <p className="text-3xl font-black text-ink font-mono">
                   {fmt(data.current_price, data.currency, display)}
                 </p>
-                <p className="text-sm text-gray-400">Current Market Price</p>
+                <p className="text-sm text-caption">Current Market Price</p>
               </div>
             </div>
 
@@ -445,11 +445,11 @@ export default async function StockFairValuePage(
                     Value" on a 360px viewport). */}
                 <div className="flex flex-wrap gap-x-6 gap-y-3">
                   <div>
-                    <p className="text-xs text-gray-400">Fair Value ({isBankModel(data) ? ENGINE_LABEL.pb_ratio : ENGINE_LABEL.dcf})</p>
-                    <p className="text-xl font-bold text-gray-900 font-mono">{fmt(data.fair_value, data.currency, display)}</p>
+                    <p className="text-xs text-caption">Fair Value ({isBankModel(data) ? ENGINE_LABEL.pb_ratio : ENGINE_LABEL.dcf})</p>
+                    <p className="text-xl font-bold text-ink font-mono">{fmt(data.fair_value, data.currency, display)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-gray-400">Margin of Safety</p>
+                    <p className="text-xs text-caption">Margin of Safety</p>
                     <p className={`text-xl font-bold font-mono ${data.mos >= 0 ? "text-green-600" : "text-red-600"}`}>
                       {mosSign}{data.mos.toFixed(1)}%
                     </p>
@@ -476,8 +476,8 @@ export default async function StockFairValuePage(
             {(() => {
               const ago = timeAgo(data.last_updated)
               return ago ? (
-                <p className="mt-3 text-[11px] text-gray-400">
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-50 border border-gray-200">
+                <p className="mt-3 text-[11px] text-caption">
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-bg dark:bg-surface border border-border">
                     <span className="w-1.5 h-1.5 rounded-full bg-green-500" aria-hidden />
                     Updated {ago}
                   </span>
@@ -493,7 +493,7 @@ export default async function StockFairValuePage(
               {!isBankModel(data) && !isFVSuppressed && (
                 <Link
                   href={`/stocks/${display}/fair-value/sensitivity`}
-                  className="inline-flex items-center gap-1.5 rounded-xl border bg-white px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 transition"
+                  className="inline-flex items-center gap-1.5 rounded-xl border bg-bg dark:bg-surface px-4 py-2 text-sm font-semibold text-blue-700 hover:bg-blue-50 transition"
                   style={{ borderColor: "var(--color-border, #E2E8F0)" }}
                 >
                   DCF Sensitivity →
@@ -508,29 +508,29 @@ export default async function StockFairValuePage(
         {/* Key Metrics Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
           {[
-            { label: "YieldIQ Score", value: isFVSuppressed ? "—" : `${data.score}/100`, color: isFVSuppressed ? "text-gray-400" : scoreColor(data.score) },
+            { label: "YieldIQ Score", value: isFVSuppressed ? "—" : `${data.score}/100`, color: isFVSuppressed ? "text-caption" : scoreColor(data.score) },
             { label: "Piotroski F-Score", value: `${data.piotroski}/9`, color: data.piotroski >= 7 ? "text-green-600" : data.piotroski >= 4 ? "text-blue-600" : "text-red-600" },
             { label: "Economic Moat", value: data.moat, color: data.moat === "Wide" ? "text-green-600" : data.moat === "Narrow" ? "text-blue-600" : "text-gray-600" },
             { label: "Confidence", value: `${data.confidence}%`, color: data.confidence >= 70 ? "text-green-600" : "text-amber-600" },
-            { label: "ROE", value: reconciledRoe != null ? `${reconciledRoe.toFixed(1)}%` : "\u2014", color: "text-gray-900" },
+            { label: "ROE", value: reconciledRoe != null ? `${reconciledRoe.toFixed(1)}%` : "\u2014", color: "text-ink" },
             // D/E: when net (header source) and total (trends source)
             // disagree by > 0.05, render both with labels so the user
             // can see WHY the table below shows a different number
             // instead of assuming one is wrong.
-            { label: showBothDe ? "Net / Total D/E" : "Debt/Equity", value: deDisplay, color: "text-gray-900" },
+            { label: showBothDe ? "Net / Total D/E" : "Debt/Equity", value: deDisplay, color: "text-ink" },
             // For the bank model the surfaced rate is the cost of equity
             // (capped at 11% in the COE policy), not WACC — relabel so
             // the auditor isn't misled into thinking we discounted FCF.
-            { label: isBankModel(data) ? "Cost of Equity" : "WACC", value: `${(data.wacc * 100).toFixed(1)}%`, color: "text-gray-900" },
+            { label: isBankModel(data) ? "Cost of Equity" : "WACC", value: `${(data.wacc * 100).toFixed(1)}%`, color: "text-ink" },
             // Backend returns market_cap in INR (not Cr). /1e7 → Cr.
-            { label: "Market Cap", value: data.market_cap ? formatMarketCap(data.market_cap / 1e7) : "\u2014", color: "text-gray-900" },
+            { label: "Market Cap", value: data.market_cap ? formatMarketCap(data.market_cap / 1e7) : "\u2014", color: "text-ink" },
           ].map(m => (
-            <div key={m.label} className="bg-gray-50 rounded-xl p-4 border border-gray-100">
+            <div key={m.label} className="bg-bg dark:bg-surface rounded-xl p-4 border border-gray-100">
               {/* Mobile fix: 10px label is below the 11px iOS Safari min
                   for accessible body copy. Bump to 11px on mobile, keep
                   the original 10px on >= sm so the desktop card density
                   is unchanged. */}
-              <p className="text-[11px] sm:text-[10px] text-gray-500 sm:text-gray-400 uppercase tracking-wider mb-1">{m.label}</p>
+              <p className="text-[11px] sm:text-[10px] text-caption sm:text-gray-400 uppercase tracking-wider mb-1">{m.label}</p>
               <p className={`text-lg font-bold ${m.color}`}>{m.value}</p>
             </div>
           ))}
@@ -542,9 +542,9 @@ export default async function StockFairValuePage(
         {(data.roce != null || data.ev_ebitda != null || data.debt_ebitda != null ||
           data.interest_coverage != null || data.current_ratio != null ||
           data.asset_turnover != null || data.revenue_cagr_3y != null) && (
-          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
-            <h2 className="text-lg font-bold text-gray-900 mb-1">Quality &amp; Valuation</h2>
-            <p className="text-xs text-gray-400 mb-4">Neutral model outputs &mdash; no recommendations.</p>
+          <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8">
+            <h2 className="text-lg font-bold text-ink mb-1">Quality &amp; Valuation</h2>
+            <p className="text-xs text-caption mb-4">Neutral model outputs &mdash; no recommendations.</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               {[
                 { label: "ROCE", value: reconciledRoce != null ? `${reconciledRoce.toFixed(1)}%` : "\u2014", note: "Return on capital employed" },
@@ -562,10 +562,10 @@ export default async function StockFairValuePage(
                 { label: "Revenue CAGR (3Y)", value: data.revenue_cagr_3y != null ? `${(data.revenue_cagr_3y * 100).toFixed(1)}%` : "\u2014", note: "3-year revenue growth" },
                 { label: "Revenue CAGR (5Y)", value: data.revenue_cagr_5y != null ? `${(data.revenue_cagr_5y * 100).toFixed(1)}%` : "\u2014", note: "5-year revenue growth" },
               ].map(r => (
-                <div key={r.label} className="border-l-2 border-gray-200 pl-3 py-1">
-                  <p className="text-[10px] text-gray-500 uppercase tracking-wider">{r.label}</p>
-                  <p className="text-lg font-bold text-gray-900 font-mono">{r.value}</p>
-                  <p className="text-[10px] text-gray-400">{r.note}</p>
+                <div key={r.label} className="border-l-2 border-border pl-3 py-1">
+                  <p className="text-[10px] text-caption uppercase tracking-wider">{r.label}</p>
+                  <p className="text-lg font-bold text-ink font-mono">{r.value}</p>
+                  <p className="text-[10px] text-caption">{r.note}</p>
                 </div>
               ))}
             </div>
@@ -643,54 +643,54 @@ export default async function StockFairValuePage(
           {!isBankModel(data) && !isFVSuppressed && (
             <Link
               href={`/stocks/${display}/reverse-dcf`}
-              className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+              className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
             >
               <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Reverse DCF</p>
-              <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-700 transition">Market-implied growth</h3>
-              <p className="text-xs text-gray-500">What FCF growth is priced in &rarr;</p>
+              <h3 className="font-bold text-ink mb-1 group-hover:text-blue-700 transition">Market-implied growth</h3>
+              <p className="text-xs text-caption">What FCF growth is priced in &rarr;</p>
             </Link>
           )}
           <Link
             href={`/stocks/${display}/risk-analysis`}
-            className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+            className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
           >
             <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Risk Analysis</p>
-            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-700 transition">Volatility & drawdown</h3>
-            <p className="text-xs text-gray-500">Risk profile of {display} &rarr;</p>
+            <h3 className="font-bold text-ink mb-1 group-hover:text-blue-700 transition">Volatility & drawdown</h3>
+            <p className="text-xs text-caption">Risk profile of {display} &rarr;</p>
           </Link>
           <Link
             href={`/stocks/${display}/dupont`}
-            className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+            className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
           >
             <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">DuPont</p>
-            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-700 transition">ROE decomposition</h3>
-            <p className="text-xs text-gray-500">Why ROE is what it is &rarr;</p>
+            <h3 className="font-bold text-ink mb-1 group-hover:text-blue-700 transition">ROE decomposition</h3>
+            <p className="text-xs text-caption">Why ROE is what it is &rarr;</p>
           </Link>
           <Link
             href={`/stocks/${display}/technicals`}
-            className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+            className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
           >
             <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Technicals</p>
-            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-700 transition">RSI, MACD, MAs</h3>
-            <p className="text-xs text-gray-500">Reference indicators &rarr;</p>
+            <h3 className="font-bold text-ink mb-1 group-hover:text-blue-700 transition">RSI, MACD, MAs</h3>
+            <p className="text-xs text-caption">Reference indicators &rarr;</p>
           </Link>
         </div>
         <div className="grid sm:grid-cols-2 gap-4 mb-8">
           <Link
             href={`/stocks/${display}/news`}
-            className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+            className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
           >
             <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">News & Filings</p>
-            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-700 transition">Recent activity</h3>
-            <p className="text-xs text-gray-500">BSE filings + news for {display} &rarr;</p>
+            <h3 className="font-bold text-ink mb-1 group-hover:text-blue-700 transition">Recent activity</h3>
+            <p className="text-xs text-caption">BSE filings + news for {display} &rarr;</p>
           </Link>
           <Link
             href={`/compare/${display}-vs-RELIANCE`}
-            className="block bg-white border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+            className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
           >
             <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Compare</p>
-            <h3 className="font-bold text-gray-900 mb-1 group-hover:text-blue-700 transition">Head-to-head with peers</h3>
-            <p className="text-xs text-gray-500">Compare {display} side by side &rarr;</p>
+            <h3 className="font-bold text-ink mb-1 group-hover:text-blue-700 transition">Head-to-head with peers</h3>
+            <p className="text-xs text-caption">Compare {display} side by side &rarr;</p>
           </Link>
         </div>
 
@@ -702,14 +702,14 @@ export default async function StockFairValuePage(
           </p>
           <Link
             href={`/analysis/${data.ticker}`}
-            className="inline-block bg-white text-blue-700 font-bold px-8 py-3 rounded-xl hover:bg-blue-50 transition"
+            className="inline-block bg-bg dark:bg-surface text-blue-700 font-bold px-8 py-3 rounded-xl hover:bg-blue-50 transition"
           >
             Analyse {display} Now &rarr;
           </Link>
         </div>
 
         {/* Disclaimer */}
-        <p className="text-[10px] text-gray-400 text-center leading-relaxed">
+        <p className="text-[10px] text-caption text-center leading-relaxed">
           Model estimates using publicly available data. Not investment advice.
           YieldIQ is not registered with SEBI as an investment adviser or research analyst.
           Past performance does not guarantee future results.

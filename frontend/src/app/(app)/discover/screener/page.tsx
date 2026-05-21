@@ -101,14 +101,14 @@ function ScreenerContent() {
           &larr; Back to Discover
         </Link>
         <h1 className={`text-xl font-bold ${config.color}`}>{config.title}</h1>
-        <p className="text-sm text-gray-500 mt-1">{config.description}</p>
+        <p className="text-sm text-caption mt-1">{config.description}</p>
       </div>
 
       {/* Loading */}
       {isLoading && (
         <div className="flex items-center justify-center py-16">
           <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
-          <span className="ml-3 text-sm text-gray-500">Running screener...</span>
+          <span className="ml-3 text-sm text-caption">Running screener...</span>
         </div>
       )}
 
@@ -130,9 +130,9 @@ function ScreenerContent() {
 
       {/* Results */}
       {data && data.results && data.results.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <span className="text-sm font-semibold text-gray-900">{data.total} stocks found</span>
+            <span className="text-sm font-semibold text-ink">{data.total} stocks found</span>
             <div className="flex items-center gap-3">
               {tier !== "free" && (
                 <button
@@ -142,7 +142,7 @@ function ScreenerContent() {
                   Download CSV
                 </button>
               )}
-              <span className="text-xs text-gray-400">Page {data.page}</span>
+              <span className="text-xs text-caption">Page {data.page}</span>
             </div>
           </div>
           <div className="divide-y divide-gray-50">
@@ -163,13 +163,13 @@ function ScreenerContent() {
                   className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-gray-400 w-6 text-right">{i + 1}</span>
+                    <span className="text-xs text-caption w-6 text-right">{i + 1}</span>
                     <span className="text-sm font-semibold text-blue-700">{cleanTicker}</span>
                   </div>
                   <div className="flex items-center gap-6">
                     <div className="text-right">
-                      <span className="text-sm font-bold text-gray-900">{stock.score}</span>
-                      <span className="text-xs text-gray-400 ml-1">score</span>
+                      <span className="text-sm font-bold text-ink">{stock.score}</span>
+                      <span className="text-xs text-caption ml-1">score</span>
                     </div>
                     <div className="text-right w-16">
                       <span className={`text-sm font-semibold ${mosColor}`}>
@@ -186,9 +186,9 @@ function ScreenerContent() {
 
       {/* Empty */}
       {data && (!data.results || data.results.length === 0) && (
-        <div className="bg-gray-50 border border-gray-100 rounded-xl p-8 text-center">
-          <p className="text-sm text-gray-500">No stocks match this criteria.</p>
-          <p className="text-xs text-gray-400 mt-1">Try a different preset or lower the filters.</p>
+        <div className="bg-bg dark:bg-surface border border-gray-100 rounded-xl p-8 text-center">
+          <p className="text-sm text-caption">No stocks match this criteria.</p>
+          <p className="text-xs text-caption mt-1">Try a different preset or lower the filters.</p>
         </div>
       )}
     </div>

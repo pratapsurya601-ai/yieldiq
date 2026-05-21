@@ -135,29 +135,29 @@ export default async function HexPage(
 
       <div className="max-w-4xl mx-auto px-4 py-8 sm:py-12">
         {/* Breadcrumb */}
-        <nav className="text-xs text-gray-400 mb-6 flex items-center gap-1.5">
+        <nav className="text-xs text-caption mb-6 flex items-center gap-1.5">
           <Link href="/" className="hover:text-gray-600">Home</Link>
           <span>/</span>
           <Link href="/nifty50" className="hover:text-gray-600">Stocks</Link>
           <span>/</span>
-          <span className="text-gray-600 font-medium">{disp} Hex</span>
+          <span className="text-caption font-medium">{disp} Hex</span>
         </nav>
 
         {/* Hero */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 sm:p-8 mb-8">
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 sm:p-8 mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
             <div>
-              <h1 className="text-3xl sm:text-4xl font-black text-gray-900">
-                {disp} <span className="text-gray-400 font-medium">Hex</span>
+              <h1 className="text-3xl sm:text-4xl font-black text-ink">
+                {disp} <span className="text-caption font-medium">Hex</span>
               </h1>
-              <p className="text-gray-500 text-sm mt-2">
+              <p className="text-caption text-sm mt-2">
                 A 6-axis fundamental and market profile. Each axis scored 0&ndash;10.
               </p>
               <div className="mt-4 flex items-baseline gap-2">
                 <span className="text-5xl font-black text-blue-600 font-mono tabular-nums">
                   {overall.toFixed(1)}
                 </span>
-                <span className="text-gray-400 font-medium">/10 overall</span>
+                <span className="text-caption font-medium">/10 overall</span>
               </div>
             </div>
             <div className="flex justify-center">
@@ -178,17 +178,17 @@ export default async function HexPage(
                   ? "text-amber-600 border-amber-200 bg-amber-50"
                   : "text-red-600 border-red-200 bg-red-50"
             return (
-              <div key={key} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+              <div key={key} className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-5">
                 <div className="flex items-center justify-between mb-2">
-                  <h2 className="text-lg font-bold text-gray-900">{AXIS_LABEL[key]}</h2>
+                  <h2 className="text-lg font-bold text-ink">{AXIS_LABEL[key]}</h2>
                   <span className={`text-sm font-bold px-3 py-1 rounded-full border ${color}`}>
                     {score.toFixed(1)} &middot; {axis.label}
                   </span>
                 </div>
                 {axis.why && (
-                  <p className="text-sm text-gray-700 leading-relaxed">{axis.why}</p>
+                  <p className="text-sm text-ink leading-relaxed">{axis.why}</p>
                 )}
-                <p className="text-xs text-gray-400 mt-2 leading-relaxed">
+                <p className="text-xs text-caption mt-2 leading-relaxed">
                   {HEX_AXIS_BLURB[key]}
                 </p>
                 {axis.data_limited && showAxisCaveat && (
@@ -209,29 +209,29 @@ export default async function HexPage(
           </p>
           <Link
             href={`/analysis/${disp}`}
-            className="inline-block bg-white text-blue-700 font-bold px-8 py-3 rounded-xl hover:bg-blue-50 transition"
+            className="inline-block bg-bg dark:bg-surface text-blue-700 font-bold px-8 py-3 rounded-xl hover:bg-blue-50 transition"
           >
             Full analysis &rarr;
           </Link>
         </div>
 
         {/* Compare input */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
-          <h2 className="text-lg font-bold text-gray-900 mb-1">Compare with another stock</h2>
-          <p className="text-xs text-gray-500 mb-4">
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8">
+          <h2 className="text-lg font-bold text-ink mb-1">Compare with another stock</h2>
+          <p className="text-xs text-caption mb-4">
             Overlay {disp}'s hex against a peer.
           </p>
           <HexCompareInput base={disp} />
         </div>
 
         {/* Share */}
-        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 mb-8">
-          <h2 className="text-lg font-bold text-gray-900 mb-3">Share this hex</h2>
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8">
+          <h2 className="text-lg font-bold text-ink mb-3">Share this hex</h2>
           <HexShareBar ticker={disp} url={canonical} />
         </div>
 
         {/* Disclaimer */}
-        <p className="text-[10px] text-gray-400 text-center leading-relaxed">
+        <p className="text-[10px] text-caption text-center leading-relaxed">
           Model estimate. Not investment advice.
           YieldIQ is not registered with SEBI as an investment adviser or research analyst.
           Past performance does not guarantee future results.

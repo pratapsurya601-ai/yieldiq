@@ -145,10 +145,10 @@ function TickerInput({
         }}
         onFocus={() => suggestions.length > 0 && setOpen(true)}
         placeholder="Ticker (e.g. INFY)"
-        className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
       {open && suggestions.length > 0 && (
-        <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden max-h-56 overflow-y-auto">
+        <div className="absolute z-50 w-full mt-1 bg-bg dark:bg-surface border border-border rounded-lg shadow-lg overflow-hidden max-h-56 overflow-y-auto">
           {suggestions.map((s) => (
             <button
               key={s.ticker}
@@ -160,8 +160,8 @@ function TickerInput({
               }}
               className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b border-gray-50 last:border-0"
             >
-              <span className="font-medium text-gray-900">{s.name}</span>
-              <span className="ml-2 text-gray-500 text-xs">{s.ticker}</span>
+              <span className="font-medium text-ink">{s.name}</span>
+              <span className="ml-2 text-caption text-xs">{s.ticker}</span>
             </button>
           ))}
         </div>
@@ -217,8 +217,8 @@ export default function PortfolioAnalyzePage() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-gray-900">Portfolio Prism</h1>
-        <p className="text-sm text-gray-600 mt-1">
+        <h1 className="text-2xl font-semibold text-ink">Portfolio Prism</h1>
+        <p className="text-sm text-caption mt-1">
           Aggregate Prism scores, sector concentration, valuation skew,
           and Piotroski distribution across up to {MAX_HOLDINGS} holdings.
           Stateless — nothing is saved.
@@ -226,8 +226,8 @@ export default function PortfolioAnalyzePage() {
       </div>
 
       {/* Holdings input table */}
-      <section className="border border-gray-200 rounded-xl p-4 bg-white">
-        <div className="grid grid-cols-12 gap-3 text-xs font-medium text-gray-500 mb-2 px-1">
+      <section className="border border-border rounded-xl p-4 bg-bg dark:bg-surface">
+        <div className="grid grid-cols-12 gap-3 text-xs font-medium text-caption mb-2 px-1">
           <div className="col-span-7">Ticker</div>
           <div className="col-span-4">Shares</div>
           <div className="col-span-1"></div>
@@ -249,7 +249,7 @@ export default function PortfolioAnalyzePage() {
                   value={row.shares}
                   onChange={(e) => updateRow(row.id, { shares: e.target.value })}
                   placeholder="0"
-                  className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="col-span-1">
@@ -257,7 +257,7 @@ export default function PortfolioAnalyzePage() {
                   type="button"
                   onClick={() => removeRow(row.id)}
                   disabled={rows.length === 1}
-                  className="text-gray-400 hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed text-lg"
+                  className="text-caption hover:text-red-600 disabled:opacity-30 disabled:cursor-not-allowed text-lg"
                   aria-label="Remove row"
                 >
                   ×
@@ -347,14 +347,14 @@ function Results({ data }: { data: AnalyzeResponse }) {
             const pct = typeof v === "number" ? Math.max(0, Math.min(100, v)) : 0
             return (
               <div key={p.key} className="flex items-center gap-3">
-                <div className="w-20 text-sm text-gray-700">{p.label}</div>
-                <div className="flex-1 h-6 bg-gray-100 rounded-full overflow-hidden">
+                <div className="w-20 text-sm text-ink">{p.label}</div>
+                <div className="flex-1 h-6 bg-surface rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all"
                     style={{ width: `${pct}%`, backgroundColor: p.color }}
                   />
                 </div>
-                <div className="w-14 text-right text-sm font-medium text-gray-900">
+                <div className="w-14 text-right text-sm font-medium text-ink">
                   {typeof v === "number" ? v.toFixed(1) : "—"}
                 </div>
               </div>
@@ -428,7 +428,7 @@ function Results({ data }: { data: AnalyzeResponse }) {
           />
         </div>
         {piotroski.unknown > 0 && (
-          <p className="mt-2 text-xs text-gray-500">
+          <p className="mt-2 text-xs text-caption">
             {piotroski.unknown} holding{piotroski.unknown === 1 ? "" : "s"} without
             a Piotroski score (not yet cached).
           </p>
@@ -439,7 +439,7 @@ function Results({ data }: { data: AnalyzeResponse }) {
       <Panel title="Holdings">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="text-xs text-gray-500 border-b border-gray-200">
+            <thead className="text-xs text-caption border-b border-border">
               <tr>
                 <th className="text-left py-2 px-2">Ticker</th>
                 <th className="text-right py-2 px-2">Shares</th>
@@ -455,7 +455,7 @@ function Results({ data }: { data: AnalyzeResponse }) {
             <tbody>
               {data.holdings.map((h) => (
                 <tr key={h.ticker} className="border-b border-gray-100">
-                  <td className="py-2 px-2 font-medium text-gray-900">
+                  <td className="py-2 px-2 font-medium text-ink">
                     {h.ticker.replace(/\.NS$/, "")}
                     {h.data_limited && (
                       <span className="ml-1 text-xs text-amber-600">⚠</span>
@@ -469,8 +469,8 @@ function Results({ data }: { data: AnalyzeResponse }) {
                     {h.value > 0 ? `₹${h.value.toLocaleString("en-IN", { maximumFractionDigits: 0 })}` : "—"}
                   </td>
                   <td className="text-right py-2 px-2">{h.weight_pct.toFixed(1)}%</td>
-                  <td className="py-2 px-2 text-gray-700">{h.sector || "—"}</td>
-                  <td className="py-2 px-2 text-gray-700">{h.verdict_band ? verdictLabel(h.verdict_band) : "—"}</td>
+                  <td className="py-2 px-2 text-ink">{h.sector || "—"}</td>
+                  <td className="py-2 px-2 text-ink">{h.verdict_band ? verdictLabel(h.verdict_band) : "—"}</td>
                   <td className="text-right py-2 px-2">{h.piotroski_score ?? "—"}</td>
                   <td className="text-right py-2 px-2">{h.composite_score ?? "—"}</td>
                 </tr>
@@ -480,7 +480,7 @@ function Results({ data }: { data: AnalyzeResponse }) {
         </div>
       </Panel>
 
-      <p className="text-xs text-gray-500 text-center pt-2">
+      <p className="text-xs text-caption text-center pt-2">
         Phase 1 — analysis only. Persistence, tier-aware caps, and substitution
         suggestions ship in the next release.
       </p>
@@ -492,8 +492,8 @@ function Results({ data }: { data: AnalyzeResponse }) {
 
 function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="border border-gray-200 rounded-xl p-4 bg-white">
-      <h2 className="text-sm font-semibold text-gray-900 mb-3">{title}</h2>
+    <section className="border border-border rounded-xl p-4 bg-bg dark:bg-surface">
+      <h2 className="text-sm font-semibold text-ink mb-3">{title}</h2>
       {children}
     </section>
   )
@@ -501,9 +501,9 @@ function Panel({ title, children }: { title: string; children: React.ReactNode }
 
 function SummaryStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="border border-gray-200 rounded-xl p-3 bg-white">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className="text-lg font-semibold text-gray-900 mt-1">{value}</div>
+    <div className="border border-border rounded-xl p-3 bg-bg dark:bg-surface">
+      <div className="text-xs text-caption">{label}</div>
+      <div className="text-lg font-semibold text-ink mt-1">{value}</div>
     </div>
   )
 }

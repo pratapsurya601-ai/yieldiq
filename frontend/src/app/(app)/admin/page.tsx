@@ -20,10 +20,10 @@ interface AdminStats {
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 p-5">
-      <p className="text-xs text-gray-600 uppercase tracking-wide">{label}</p>
-      <p className="text-2xl font-bold text-gray-900 mt-1">{value}</p>
-      {sub && <p className="text-xs text-gray-500 mt-0.5">{sub}</p>}
+    <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5">
+      <p className="text-xs text-caption uppercase tracking-wide">{label}</p>
+      <p className="text-2xl font-bold text-ink mt-1">{value}</p>
+      {sub && <p className="text-xs text-caption mt-0.5">{sub}</p>}
     </div>
   )
 }
@@ -84,8 +84,8 @@ export default function AdminPage() {
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 pb-20">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Admin Dashboard</h1>
-        <p className="text-sm text-gray-500">Real-time platform metrics</p>
+        <h1 className="text-xl font-bold text-ink">Admin Dashboard</h1>
+        <p className="text-sm text-caption">Real-time platform metrics</p>
       </div>
 
       {/* Stat Cards Grid */}
@@ -108,8 +108,8 @@ export default function AdminPage() {
 
       {/* Top Stocks */}
       {stats.top_stocks_today.length > 0 && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Top Analysed Stocks Today</h2>
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5">
+          <h2 className="text-sm font-semibold text-ink mb-3">Top Analysed Stocks Today</h2>
           <div className="flex flex-wrap gap-2">
             {stats.top_stocks_today.map((ticker) => (
               <span
@@ -124,15 +124,15 @@ export default function AdminPage() {
       )}
 
       {/* Operator tools */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Operator tools</h2>
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5">
+        <h2 className="text-sm font-semibold text-ink mb-3">Operator tools</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <a
             href="/admin/realty"
             className="rounded-xl border border-gray-100 p-4 hover:border-blue-200 hover:bg-blue-50/40 transition"
           >
-            <p className="text-sm font-semibold text-gray-900">Realty land-bank inputs</p>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-sm font-semibold text-ink">Realty land-bank inputs</p>
+            <p className="text-xs text-caption mt-0.5">
               Approach C engine curation (annual operator pass)
             </p>
           </a>
@@ -140,8 +140,8 @@ export default function AdminPage() {
             href="/admin/insurance"
             className="rounded-xl border border-gray-100 p-4 hover:border-blue-200 hover:bg-blue-50/40 transition"
           >
-            <p className="text-sm font-semibold text-gray-900">Insurance EV inputs</p>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-sm font-semibold text-ink">Insurance EV inputs</p>
+            <p className="text-xs text-caption mt-0.5">
               Appraisal value (life insurers)
             </p>
           </a>
@@ -149,8 +149,8 @@ export default function AdminPage() {
             href="/admin/outliers"
             className="rounded-xl border border-gray-100 p-4 hover:border-blue-200 hover:bg-blue-50/40 transition"
           >
-            <p className="text-sm font-semibold text-gray-900">Benchmark reconciliation</p>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-sm font-semibold text-ink">Benchmark reconciliation</p>
+            <p className="text-xs text-caption mt-0.5">
               Outlier tickers vs consensus (daily)
             </p>
           </a>
@@ -158,8 +158,8 @@ export default function AdminPage() {
             href="/admin/story-dcf"
             className="rounded-xl border border-gray-100 p-4 hover:border-blue-200 hover:bg-blue-50/40 transition"
           >
-            <p className="text-sm font-semibold text-gray-900">Story-DCF overrides</p>
-            <p className="text-xs text-gray-500 mt-0.5">
+            <p className="text-sm font-semibold text-ink">Story-DCF overrides</p>
+            <p className="text-xs text-caption mt-0.5">
               View + simulate (operator submits PR to change)
             </p>
           </a>

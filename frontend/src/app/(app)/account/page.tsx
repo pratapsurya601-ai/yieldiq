@@ -319,7 +319,7 @@ function AccountInner() {
           <span className="text-sm text-body">Learn Mode</span>
           <button onClick={toggleLearnMode}
             className={`w-10 h-6 rounded-full transition ${learnMode ? "bg-blue-600" : "bg-gray-200 dark:bg-gray-700"}`}>
-            <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${learnMode ? "translate-x-5" : "translate-x-1"}`} />
+            <div className={`w-4 h-4 bg-bg dark:bg-surface rounded-full shadow transition-transform ${learnMode ? "translate-x-5" : "translate-x-1"}`} />
           </button>
         </label>
         {tier !== "free" && (
@@ -327,7 +327,7 @@ function AccountInner() {
             <span className="text-sm text-body">Pro Mode</span>
             <button onClick={toggleProMode}
               className={`w-10 h-6 rounded-full transition ${proMode ? "bg-blue-600" : "bg-gray-200 dark:bg-gray-700"}`}>
-              <div className={`w-4 h-4 bg-white rounded-full shadow transition-transform ${proMode ? "translate-x-5" : "translate-x-1"}`} />
+              <div className={`w-4 h-4 bg-bg dark:bg-surface rounded-full shadow transition-transform ${proMode ? "translate-x-5" : "translate-x-1"}`} />
             </button>
           </label>
         )}
@@ -375,11 +375,11 @@ function AccountInner() {
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="font-bold">Pro</h3>
-                <p className="text-xs text-gray-400">For bloggers, advisors, power users</p>
+                <p className="text-xs text-caption">For bloggers, advisors, power users</p>
               </div>
               <div className="text-right">
                 <p className="text-2xl font-bold">{"\u20b9"}1,499</p>
-                <p className="text-xs text-gray-400">/month</p>
+                <p className="text-xs text-caption">/month</p>
               </div>
             </div>
             <ul className="space-y-1.5 mb-4 text-sm text-gray-300">
@@ -391,7 +391,7 @@ function AccountInner() {
               <li>&#10003; Priority compute + earnings-day digest</li>
             </ul>
             <button onClick={() => handleUpgrade("pro")} disabled={upgrading}
-              className="w-full py-3 min-h-[44px] bg-white text-gray-900 rounded-xl text-sm font-bold hover:bg-gray-100 active:scale-[0.98] transition disabled:opacity-50 disabled:active:scale-100">
+              className="w-full py-3 min-h-[44px] bg-bg dark:bg-surface text-ink rounded-xl text-sm font-bold hover:bg-gray-100 active:scale-[0.98] transition disabled:opacity-50 disabled:active:scale-100">
               {upgrading ? "Processing..." : "Upgrade to Pro \u2014 \u20b91,499/mo"}
             </button>
           </div>

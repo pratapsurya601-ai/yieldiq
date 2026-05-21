@@ -191,8 +191,8 @@ export default function RealtyLandBankAdminPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6 pb-20">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Realty Land-Bank Inputs</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-xl font-bold text-ink">Realty Land-Bank Inputs</h1>
+        <p className="text-sm text-caption">
           Annual operator pass — populates the Approach C (P/B + land-bank multiplier) engine.
           See <code className="text-xs">docs/design/realty-developers-dcf-fix.md</code>.
         </p>
@@ -207,17 +207,17 @@ export default function RealtyLandBankAdminPage() {
       {/* Form */}
       <form
         onSubmit={onSubmit}
-        className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4"
+        className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5 space-y-4"
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-900">
+          <h2 className="text-sm font-semibold text-ink">
             {editingTicker ? `Edit ${editingTicker}` : "Add new entry"}
           </h2>
           {editingTicker && (
             <button
               type="button"
               onClick={resetForm}
-              className="text-xs text-gray-500 hover:text-gray-700"
+              className="text-xs text-caption hover:text-gray-700"
             >
               Cancel edit
             </button>
@@ -226,13 +226,13 @@ export default function RealtyLandBankAdminPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <label className="block">
-            <span className="text-xs font-medium text-gray-700">Ticker *</span>
+            <span className="text-xs font-medium text-ink">Ticker *</span>
             <select
               required
               disabled={!!editingTicker}
               value={form.ticker}
               onChange={(e) => setForm({ ...form, ticker: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             >
               <option value="">— select —</option>
               {REALTY_TICKERS.map((t) => (
@@ -242,30 +242,30 @@ export default function RealtyLandBankAdminPage() {
           </label>
 
           <label className="block">
-            <span className="text-xs font-medium text-gray-700">Reporting FY *</span>
+            <span className="text-xs font-medium text-ink">Reporting FY *</span>
             <input
               required
               type="text"
               placeholder="FY25"
               value={form.reporting_fy}
               onChange={(e) => setForm({ ...form, reporting_fy: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
 
           <label className="block">
-            <span className="text-xs font-medium text-gray-700">Land bank acres</span>
+            <span className="text-xs font-medium text-ink">Land bank acres</span>
             <input
               type="number"
               step="any"
               value={form.land_bank_acres}
               onChange={(e) => setForm({ ...form, land_bank_acres: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
 
           <label className="block">
-            <span className="text-xs font-medium text-gray-700">
+            <span className="text-xs font-medium text-ink">
               Land bank market value (₹ Cr) *
             </span>
             <input
@@ -276,12 +276,12 @@ export default function RealtyLandBankAdminPage() {
               onChange={(e) =>
                 setForm({ ...form, land_bank_market_value_cr: e.target.value })
               }
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
 
           <label className="block">
-            <span className="text-xs font-medium text-gray-700">
+            <span className="text-xs font-medium text-ink">
               Land bank book value (₹ Cr)
             </span>
             <input
@@ -291,12 +291,12 @@ export default function RealtyLandBankAdminPage() {
               onChange={(e) =>
                 setForm({ ...form, land_bank_book_value_cr: e.target.value })
               }
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
 
           <label className="block">
-            <span className="text-xs font-medium text-gray-700">
+            <span className="text-xs font-medium text-ink">
               Unsold inventory (₹ Cr)
             </span>
             <input
@@ -304,12 +304,12 @@ export default function RealtyLandBankAdminPage() {
               step="any"
               value={form.unsold_inventory_cr}
               onChange={(e) => setForm({ ...form, unsold_inventory_cr: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
 
           <label className="block">
-            <span className="text-xs font-medium text-gray-700">
+            <span className="text-xs font-medium text-ink">
               Pre-sales pipeline (₹ Cr)
             </span>
             <input
@@ -319,12 +319,12 @@ export default function RealtyLandBankAdminPage() {
               onChange={(e) =>
                 setForm({ ...form, pre_sales_pipeline_cr: e.target.value })
               }
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
 
           <label className="block">
-            <span className="text-xs font-medium text-gray-700">
+            <span className="text-xs font-medium text-ink">
               Uplift per share (₹) *
             </span>
             <input
@@ -333,21 +333,21 @@ export default function RealtyLandBankAdminPage() {
               step="any"
               value={form.uplift_per_share}
               onChange={(e) => setForm({ ...form, uplift_per_share: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
-            <span className="text-[10px] text-gray-500 mt-0.5 block">
+            <span className="text-[10px] text-caption mt-0.5 block">
               (mkt_value − book_value) × 1e7 ÷ shares
             </span>
           </label>
 
           <label className="block md:col-span-2">
-            <span className="text-xs font-medium text-gray-700">Source URL</span>
+            <span className="text-xs font-medium text-ink">Source URL</span>
             <input
               type="url"
               placeholder="https://www.bseindia.com/.../annual-report.pdf"
               value={form.source_url}
               onChange={(e) => setForm({ ...form, source_url: e.target.value })}
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
         </div>
@@ -364,24 +364,24 @@ export default function RealtyLandBankAdminPage() {
       </form>
 
       {/* List */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="text-sm font-semibold text-gray-900">
+          <h2 className="text-sm font-semibold text-ink">
             Curated entries ({rows.length}/{REALTY_TICKERS.length})
           </h2>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-caption">
             Engine routes through Approach C only for tickers with a row here.
             Missing tickers fall back to Tier 2 generic.
           </p>
         </div>
         {loading ? (
-          <div className="p-8 text-center text-sm text-gray-500">Loading…</div>
+          <div className="p-8 text-center text-sm text-caption">Loading…</div>
         ) : rows.length === 0 ? (
-          <div className="p-8 text-center text-sm text-gray-500">No entries yet.</div>
+          <div className="p-8 text-center text-sm text-caption">No entries yet.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-600">
+              <thead className="bg-bg dark:bg-surface text-xs uppercase tracking-wide text-caption">
                 <tr>
                   <th className="px-4 py-2 text-left">Ticker</th>
                   <th className="px-4 py-2 text-left">FY</th>
@@ -409,7 +409,7 @@ export default function RealtyLandBankAdminPage() {
                         {nextReviewDue(row.entered_at)}
                         {overdue && <span className="ml-1 text-[10px]">(overdue)</span>}
                       </td>
-                      <td className="px-4 py-2 text-xs text-gray-600">
+                      <td className="px-4 py-2 text-xs text-caption">
                         {row.entered_by ?? "—"}
                       </td>
                       <td className="px-4 py-2 text-right">

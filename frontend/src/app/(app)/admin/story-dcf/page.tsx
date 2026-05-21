@@ -111,9 +111,9 @@ function ParamRow({
 }) {
   return (
     <div className="flex items-center justify-between py-1 text-xs">
-      <span className="text-gray-600">{label}</span>
-      <span className="font-mono text-gray-900">{value}</span>
-      {hint && <span className="ml-2 text-[10px] text-gray-400">{hint}</span>}
+      <span className="text-caption">{label}</span>
+      <span className="font-mono text-ink">{value}</span>
+      {hint && <span className="ml-2 text-[10px] text-caption">{hint}</span>}
     </div>
   )
 }
@@ -228,8 +228,8 @@ export default function StoryDcfAdminPage() {
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-6 pb-20">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Story-DCF overrides</h1>
-        <p className="text-sm text-gray-500">
+        <h1 className="text-xl font-bold text-ink">Story-DCF overrides</h1>
+        <p className="text-sm text-caption">
           Read-only + preview-only. To change a value, submit a PR
           editing <code className="text-xs">config/story_dcf_overrides.json</code>.
           Use the preview below to validate the change first.
@@ -243,30 +243,30 @@ export default function StoryDcfAdminPage() {
       )}
 
       {/* ── Audit ─────────────────────────────────────────── */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-baseline justify-between">
           <div>
-            <h2 className="text-sm font-semibold text-gray-900">
+            <h2 className="text-sm font-semibold text-ink">
               Override back-test audit
             </h2>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-caption">
               Synthetic FY25 anchors vs. operator-curated parameters.
             </p>
           </div>
           {audit && (
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-caption">
               {audit.needs_review_count}/{audit.total} need review
             </span>
           )}
         </div>
         {loading ? (
-          <div className="p-8 text-center text-sm text-gray-500">Loading…</div>
+          <div className="p-8 text-center text-sm text-caption">Loading…</div>
         ) : !audit ? (
-          <div className="p-8 text-center text-sm text-gray-500">No audit data.</div>
+          <div className="p-8 text-center text-sm text-caption">No audit data.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-600">
+              <thead className="bg-bg dark:bg-surface text-xs uppercase tracking-wide text-caption">
                 <tr>
                   <th className="px-4 py-2 text-left">Ticker</th>
                   <th className="px-4 py-2 text-right">Story FV (₹)</th>
@@ -301,7 +301,7 @@ export default function StoryDcfAdminPage() {
                           ? "✓"
                           : "✗"}
                     </td>
-                    <td className="px-4 py-2 text-xs text-gray-600">
+                    <td className="px-4 py-2 text-xs text-caption">
                       {row.status === "model_collapsed"
                         ? "Model collapsed"
                         : row.needs_review
@@ -318,8 +318,8 @@ export default function StoryDcfAdminPage() {
 
       {/* ── Industry defaults reference ───────────────────── */}
       {overrides && (
-        <div className="bg-white rounded-2xl border border-gray-100 p-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5">
+          <h2 className="text-sm font-semibold text-ink mb-3">
             Industry defaults
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -328,7 +328,7 @@ export default function StoryDcfAdminPage() {
                 key={key}
                 className="rounded-xl border border-gray-100 p-3"
               >
-                <p className="text-xs font-semibold text-gray-900 mb-1">{key}</p>
+                <p className="text-xs font-semibold text-ink mb-1">{key}</p>
                 <ParamRow label="initial_growth" value={fmtPct(p.initial_growth)} />
                 <ParamRow label="target_op_margin" value={fmtPct(p.target_op_margin)} />
                 <ParamRow label="reinvestment_rate" value={fmtPct(p.reinvestment_rate)} />
@@ -342,13 +342,13 @@ export default function StoryDcfAdminPage() {
       {/* ── Preview simulator ─────────────────────────────── */}
       <form
         onSubmit={runPreview}
-        className="bg-white rounded-2xl border border-gray-100 p-5 space-y-4"
+        className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5 space-y-4"
       >
         <div>
-          <h2 className="text-sm font-semibold text-gray-900">
+          <h2 className="text-sm font-semibold text-ink">
             Preview a hypothetical override
           </h2>
-          <p className="text-xs text-gray-500">
+          <p className="text-xs text-caption">
             Leave override fields blank to use the industry default.
           </p>
         </div>
@@ -361,7 +361,7 @@ export default function StoryDcfAdminPage() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <label className="block">
-            <span className="text-xs font-medium text-gray-700">Ticker</span>
+            <span className="text-xs font-medium text-ink">Ticker</span>
             <input
               required
               type="text"
@@ -369,18 +369,18 @@ export default function StoryDcfAdminPage() {
               onChange={(e) =>
                 setPreviewForm({ ...previewForm, ticker: e.target.value })
               }
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
           <label className="block">
-            <span className="text-xs font-medium text-gray-700">Sector</span>
+            <span className="text-xs font-medium text-ink">Sector</span>
             <select
               required
               value={previewForm.sector}
               onChange={(e) =>
                 setPreviewForm({ ...previewForm, sector: e.target.value })
               }
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             >
               {SUPPORTED_SECTORS.map((s) => (
                 <option key={s} value={s}>
@@ -390,7 +390,7 @@ export default function StoryDcfAdminPage() {
             </select>
           </label>
           <label className="block">
-            <span className="text-xs font-medium text-gray-700">CMP (₹)</span>
+            <span className="text-xs font-medium text-ink">CMP (₹)</span>
             <input
               required
               type="number"
@@ -399,11 +399,11 @@ export default function StoryDcfAdminPage() {
               onChange={(e) =>
                 setPreviewForm({ ...previewForm, current_price: e.target.value })
               }
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
           <label className="block">
-            <span className="text-xs font-medium text-gray-700">Revenue (₹ Cr)</span>
+            <span className="text-xs font-medium text-ink">Revenue (₹ Cr)</span>
             <input
               required
               type="number"
@@ -412,11 +412,11 @@ export default function StoryDcfAdminPage() {
               onChange={(e) =>
                 setPreviewForm({ ...previewForm, revenue_cr: e.target.value })
               }
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
           <label className="block">
-            <span className="text-xs font-medium text-gray-700">Shares (Cr)</span>
+            <span className="text-xs font-medium text-ink">Shares (Cr)</span>
             <input
               required
               type="number"
@@ -425,13 +425,13 @@ export default function StoryDcfAdminPage() {
               onChange={(e) =>
                 setPreviewForm({ ...previewForm, shares_cr: e.target.value })
               }
-              className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2 text-sm"
             />
           </label>
         </div>
 
         <div className="border-t border-gray-100 pt-3">
-          <p className="text-xs font-semibold text-gray-700 mb-2">
+          <p className="text-xs font-semibold text-ink mb-2">
             Override fields (optional)
           </p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -444,7 +444,7 @@ export default function StoryDcfAdminPage() {
               ] as const
             ).map(([field, label]) => (
               <label key={field} className="block">
-                <span className="text-xs text-gray-600">{label}</span>
+                <span className="text-xs text-caption">{label}</span>
                 <input
                   type="number"
                   step="any"
@@ -453,7 +453,7 @@ export default function StoryDcfAdminPage() {
                   onChange={(e) =>
                     setPreviewForm({ ...previewForm, [field]: e.target.value })
                   }
-                  className="mt-1 w-full rounded-lg border border-gray-200 px-2 py-1.5 text-xs font-mono"
+                  className="mt-1 w-full rounded-lg border border-border px-2 py-1.5 text-xs font-mono"
                 />
               </label>
             ))}
@@ -470,12 +470,12 @@ export default function StoryDcfAdminPage() {
 
         {/* ── Preview result ───────────────────────────────── */}
         {previewResult && (
-          <div className="mt-3 rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3">
+          <div className="mt-3 rounded-xl border border-border bg-bg dark:bg-surface p-4 space-y-3">
             <div className="flex items-baseline justify-between">
-              <h3 className="text-sm font-semibold text-gray-900">
+              <h3 className="text-sm font-semibold text-ink">
                 Preview result
               </h3>
-              <span className="text-xs text-gray-500">
+              <span className="text-xs text-caption">
                 industry: {previewResult.industry_key}
               </span>
             </div>
@@ -489,13 +489,13 @@ export default function StoryDcfAdminPage() {
                 <>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
                     <div>
-                      <p className="text-gray-500">Fair value</p>
+                      <p className="text-caption">Fair value</p>
                       <p className="font-mono text-lg font-semibold">
                         ₹{fmtNum(previewResult.result.fair_value, 0)}
                       </p>
                     </div>
                     <div>
-                      <p className="text-gray-500">FV/CMP</p>
+                      <p className="text-caption">FV/CMP</p>
                       <p
                         className={`font-mono text-lg font-semibold ${
                           previewResult.result.in_safety_net_band
@@ -505,25 +505,25 @@ export default function StoryDcfAdminPage() {
                       >
                         {fmtNum(previewResult.result.fv_cmp_ratio, 2)}
                       </p>
-                      <p className="text-[10px] text-gray-400">
+                      <p className="text-[10px] text-caption">
                         band [0.30, 3.5]
                       </p>
                     </div>
                     <div>
-                      <p className="text-gray-500">Confidence</p>
+                      <p className="text-caption">Confidence</p>
                       <p className="font-mono text-lg font-semibold">
                         {previewResult.result.confidence_score ?? "—"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-gray-500">Verdict</p>
+                      <p className="text-caption">Verdict</p>
                       <p className="font-mono text-sm font-semibold">
                         {previewResult.result.verdict ?? "—"}
                       </p>
                     </div>
                   </div>
-                  <div className="border-t border-gray-200 pt-3">
-                    <p className="text-xs font-semibold text-gray-700 mb-1">
+                  <div className="border-t border-border pt-3">
+                    <p className="text-xs font-semibold text-ink mb-1">
                       Final params used
                     </p>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-x-4">
@@ -550,7 +550,7 @@ export default function StoryDcfAdminPage() {
       </form>
 
       {overrides && (
-        <p className="text-xs text-gray-400 italic">
+        <p className="text-xs text-caption italic">
           {overrides._meta.note}
         </p>
       )}

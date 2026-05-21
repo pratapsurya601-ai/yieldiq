@@ -55,7 +55,7 @@ function fmt(n: number): string {
 }
 
 function pctColor(n: number | null | undefined, positiveGood = true): string {
-  if (n == null) return "text-gray-400"
+  if (n == null) return "text-caption"
   if (positiveGood) return n >= 0 ? "text-green-600" : "text-red-600"
   return n <= 0 ? "text-green-600" : "text-red-600"
 }
@@ -96,46 +96,46 @@ export default async function RiskAnalysisPage(
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
       {/* Breadcrumb */}
-      <nav className="text-xs text-gray-400 mb-6 flex items-center gap-1.5">
+      <nav className="text-xs text-caption mb-6 flex items-center gap-1.5">
         <Link href="/" className="hover:text-gray-600">Home</Link>
         <span>/</span>
         <Link href={`/stocks/${display}/fair-value`} className="hover:text-gray-600">{display}</Link>
         <span>/</span>
-        <span className="text-gray-600 font-medium">Risk Analysis</span>
+        <span className="text-caption font-medium">Risk Analysis</span>
       </nav>
 
       {/* Hero */}
       <div className="mb-8">
         <p className="text-blue-600 text-xs font-bold tracking-[0.2em] uppercase mb-2">Risk Analysis</p>
-        <h1 className="text-2xl sm:text-3xl font-black text-gray-900 mb-2">
+        <h1 className="text-2xl sm:text-3xl font-black text-ink mb-2">
           {display} Risk & Volatility Profile
         </h1>
-        <p className="text-gray-500 text-sm">
+        <p className="text-caption text-sm">
           Based on {data.days_in_sample} days of price history. Factual statistics, no recommendations.
         </p>
       </div>
 
       {/* Top-line risk cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Annualised Volatility</p>
-          <p className="text-xl font-bold text-gray-900">{data.volatility_pct != null ? `${data.volatility_pct.toFixed(1)}%` : "\u2014"}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">{volRegime} volatility</p>
+        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
+          <p className="text-[10px] text-caption uppercase tracking-wider mb-1">Annualised Volatility</p>
+          <p className="text-xl font-bold text-ink">{data.volatility_pct != null ? `${data.volatility_pct.toFixed(1)}%` : "\u2014"}</p>
+          <p className="text-[10px] text-caption mt-0.5">{volRegime} volatility</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Max Drawdown</p>
+        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
+          <p className="text-[10px] text-caption uppercase tracking-wider mb-1">Max Drawdown</p>
           <p className="text-xl font-bold text-red-600">{data.max_drawdown_pct != null ? `${data.max_drawdown_pct.toFixed(1)}%` : "\u2014"}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">{data.max_drawdown_days ?? "\u2014"} days peak-to-trough</p>
+          <p className="text-[10px] text-caption mt-0.5">{data.max_drawdown_days ?? "\u2014"} days peak-to-trough</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Beta vs Nifty</p>
-          <p className="text-xl font-bold text-gray-900">{data.beta != null ? data.beta.toFixed(2) : "\u2014"}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5 truncate">{betaLabel}</p>
+        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
+          <p className="text-[10px] text-caption uppercase tracking-wider mb-1">Beta vs Nifty</p>
+          <p className="text-xl font-bold text-ink">{data.beta != null ? data.beta.toFixed(2) : "\u2014"}</p>
+          <p className="text-[10px] text-caption mt-0.5 truncate">{betaLabel}</p>
         </div>
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Return/Vol Ratio</p>
-          <p className={`text-xl font-bold ${data.sharpe_proxy != null ? pctColor(data.sharpe_proxy) : "text-gray-400"}`}>{data.sharpe_proxy != null ? data.sharpe_proxy.toFixed(2) : "\u2014"}</p>
-          <p className="text-[10px] text-gray-400 mt-0.5">Simple Sharpe proxy</p>
+        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
+          <p className="text-[10px] text-caption uppercase tracking-wider mb-1">Return/Vol Ratio</p>
+          <p className={`text-xl font-bold ${data.sharpe_proxy != null ? pctColor(data.sharpe_proxy) : "text-caption"}`}>{data.sharpe_proxy != null ? data.sharpe_proxy.toFixed(2) : "\u2014"}</p>
+          <p className="text-[10px] text-caption mt-0.5">Simple Sharpe proxy</p>
         </div>
       </div>
 
@@ -152,35 +152,35 @@ export default async function RiskAnalysisPage(
       </div>
 
       {/* Drawdown Details */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-8">
-        <h2 className="text-sm font-bold text-gray-900 mb-4">Drawdown History</h2>
+      <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-6 mb-8">
+        <h2 className="text-sm font-bold text-ink mb-4">Drawdown History</h2>
         <div className="grid sm:grid-cols-2 gap-6">
           <div>
-            <p className="text-xs text-gray-500 mb-1">Worst Drawdown</p>
+            <p className="text-xs text-caption mb-1">Worst Drawdown</p>
             <p className="text-2xl font-black text-red-600 mb-1">{data.max_drawdown_pct.toFixed(1)}%</p>
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-caption">
               From {dateShort(data.peak_date)} to {dateShort(data.trough_date)}<br />
               {data.max_drawdown_days} days of decline
             </p>
           </div>
           <div>
-            <p className="text-xs text-gray-500 mb-1">Recovery</p>
+            <p className="text-xs text-caption mb-1">Recovery</p>
             {data.recovery_days != null ? (
               <>
                 <p className="text-2xl font-black text-green-600 mb-1">{data.recovery_days} days</p>
-                <p className="text-xs text-gray-500">Time from trough back to previous peak</p>
+                <p className="text-xs text-caption">Time from trough back to previous peak</p>
               </>
             ) : (
               <>
                 <p className="text-2xl font-black text-amber-600 mb-1">Not recovered</p>
-                <p className="text-xs text-gray-500">Still below the previous peak</p>
+                <p className="text-xs text-caption">Still below the previous peak</p>
               </>
             )}
           </div>
         </div>
         {Math.abs(data.current_drawdown_pct) > 1 && (
           <div className="mt-4 pt-4 border-t border-gray-100">
-            <p className="text-xs text-gray-500">
+            <p className="text-xs text-caption">
               Currently {Math.abs(data.current_drawdown_pct).toFixed(1)}% below the 3-year high
             </p>
           </div>
@@ -188,8 +188,8 @@ export default async function RiskAnalysisPage(
       </div>
 
       {/* Returns Grid */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-8">
-        <h2 className="text-sm font-bold text-gray-900 mb-4">Historical Returns</h2>
+      <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-6 mb-8">
+        <h2 className="text-sm font-bold text-ink mb-4">Historical Returns</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           {[
             { label: "1 Month", value: data.return_1m },
@@ -197,8 +197,8 @@ export default async function RiskAnalysisPage(
             { label: "1 Year", value: data.return_1y },
             { label: "3 Years", value: data.return_3y },
           ].map(r => (
-            <div key={r.label} className="bg-gray-50 rounded-xl p-3">
-              <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">{r.label}</p>
+            <div key={r.label} className="bg-bg dark:bg-surface rounded-xl p-3">
+              <p className="text-[10px] text-caption uppercase tracking-wider mb-1">{r.label}</p>
               <p className={`text-lg font-bold font-mono ${pctColor(r.value)}`}>
                 {r.value != null ? `${r.value >= 0 ? "+" : ""}${r.value.toFixed(1)}%` : "\u2014"}
               </p>
@@ -208,11 +208,11 @@ export default async function RiskAnalysisPage(
       </div>
 
       {/* 52w Range */}
-      <div className="bg-white border border-gray-200 rounded-2xl p-6 mb-8">
-        <h2 className="text-sm font-bold text-gray-900 mb-4">52-Week Range</h2>
+      <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-6 mb-8">
+        <h2 className="text-sm font-bold text-ink mb-4">52-Week Range</h2>
         <div className="flex items-baseline justify-between mb-2 text-sm">
           <span className="text-red-600 font-mono font-bold">{fmt(data.week52_low)}</span>
-          <span className="text-xs text-gray-400">Range: {priceInRange}%</span>
+          <span className="text-xs text-caption">Range: {priceInRange}%</span>
           <span className="text-green-600 font-mono font-bold">{fmt(data.week52_high)}</span>
         </div>
         <div className="h-2 bg-gradient-to-r from-red-400 via-amber-400 to-green-400 rounded-full" />
@@ -224,13 +224,13 @@ export default async function RiskAnalysisPage(
         <p className="text-blue-100 text-sm mb-4">Combine risk profile with intrinsic value estimate.</p>
         <Link
           href={`/stocks/${display}/fair-value`}
-          className="inline-block bg-white text-blue-700 font-bold px-6 py-2.5 rounded-xl hover:bg-blue-50 transition text-sm"
+          className="inline-block bg-bg dark:bg-surface text-blue-700 font-bold px-6 py-2.5 rounded-xl hover:bg-blue-50 transition text-sm"
         >
           See Fair Value &rarr;
         </Link>
       </div>
 
-      <p className="text-[10px] text-gray-400 text-center">
+      <p className="text-[10px] text-caption text-center">
         Risk statistics computed from historical price data. Past volatility does not predict future risk.
         YieldIQ is not registered with SEBI as an investment adviser.
       </p>

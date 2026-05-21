@@ -141,10 +141,10 @@ export default function BenchmarkOutliersAdminPage() {
       data-testid="admin-outliers-page"
     >
       <div>
-        <h1 className="text-xl font-bold text-gray-900">
+        <h1 className="text-xl font-bold text-ink">
           Benchmark reconciliation outliers
         </h1>
-        <p className="text-sm text-gray-500">
+        <p className="text-sm text-caption">
           Tickers whose model fair-value diverges from analyst consensus by
           more than the configured threshold. Layer A safety net —{" "}
           <code className="text-xs">
@@ -153,7 +153,7 @@ export default function BenchmarkOutliersAdminPage() {
           . Reconciliation runs daily at 10am IST.
         </p>
         {meta && (
-          <p className="text-xs text-gray-400 mt-2">
+          <p className="text-xs text-caption mt-2">
             Generated {fmtTs(meta.generated_at)} · threshold{" "}
             {(meta.threshold_pct * 100).toFixed(0)}% · min analysts{" "}
             {meta.min_analysts} · {meta.count} row(s)
@@ -171,9 +171,9 @@ export default function BenchmarkOutliersAdminPage() {
       )}
 
       {/* Controls */}
-      <div className="bg-white rounded-2xl border border-gray-100 p-4 flex flex-wrap items-center gap-4">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-4 flex flex-wrap items-center gap-4">
         <div
-          className="inline-flex rounded-lg border border-gray-200 overflow-hidden"
+          className="inline-flex rounded-lg border border-border overflow-hidden"
           role="group"
           aria-label="Direction filter"
           data-testid="direction-filter"
@@ -193,7 +193,7 @@ export default function BenchmarkOutliersAdminPage() {
               className={`px-3 py-1.5 text-xs font-medium ${
                 direction === opt.v
                   ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-700 hover:bg-gray-50"
+                  : "bg-bg dark:bg-surface text-ink hover:bg-gray-50"
               }`}
             >
               {opt.label}
@@ -201,13 +201,13 @@ export default function BenchmarkOutliersAdminPage() {
           ))}
         </div>
 
-        <label className="flex items-center gap-2 text-xs text-gray-700">
+        <label className="flex items-center gap-2 text-xs text-ink">
           <span>Limit</span>
           <select
             value={limit}
             onChange={(e) => setLimit(Number(e.target.value))}
             data-testid="limit-select"
-            className="rounded-lg border border-gray-200 px-2 py-1 text-xs"
+            className="rounded-lg border border-border px-2 py-1 text-xs"
           >
             {LIMIT_OPTIONS.map((n) => (
               <option key={n} value={n}>
@@ -222,24 +222,24 @@ export default function BenchmarkOutliersAdminPage() {
           onClick={refresh}
           disabled={loading}
           data-testid="reload-button"
-          className="ml-auto rounded-lg border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+          className="ml-auto rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-ink hover:bg-gray-50 disabled:opacity-60"
         >
           {loading ? "Loading…" : "Reload"}
         </button>
       </div>
 
       {/* Table */}
-      <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 overflow-hidden">
         {loading ? (
           <div
-            className="p-8 text-center text-sm text-gray-500"
+            className="p-8 text-center text-sm text-caption"
             data-testid="admin-outliers-loading"
           >
             Loading…
           </div>
         ) : sortedRows.length === 0 ? (
           <div
-            className="p-8 text-center text-sm text-gray-500"
+            className="p-8 text-center text-sm text-caption"
             data-testid="admin-outliers-empty"
           >
             No outliers found — reconciliation may not have run yet
@@ -251,7 +251,7 @@ export default function BenchmarkOutliersAdminPage() {
               className="w-full text-sm"
               data-testid="admin-outliers-table"
             >
-              <thead className="bg-gray-50 text-xs uppercase tracking-wide text-gray-600">
+              <thead className="bg-bg dark:bg-surface text-xs uppercase tracking-wide text-caption">
                 <tr>
                   <th className="px-4 py-2 text-left">Ticker</th>
                   <th className="px-4 py-2 text-right">Our FV</th>
@@ -319,10 +319,10 @@ export default function BenchmarkOutliersAdminPage() {
                       <td className="px-4 py-2 text-right tabular-nums">
                         {row.analyst_count}
                       </td>
-                      <td className="px-4 py-2 text-xs text-gray-600">
+                      <td className="px-4 py-2 text-xs text-caption">
                         {row.source}
                       </td>
-                      <td className="px-4 py-2 text-xs text-gray-600">
+                      <td className="px-4 py-2 text-xs text-caption">
                         {fmtTs(row.fetched_at)}
                       </td>
                     </tr>

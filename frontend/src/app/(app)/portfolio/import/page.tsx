@@ -141,11 +141,11 @@ export default function PortfolioImportPage() {
     <div className="max-w-2xl mx-auto px-4 py-6 pb-20">
       {/* Header */}
       <div className="mb-6">
-        <Link href="/portfolio" className="text-xs text-gray-500 hover:text-gray-900 mb-3 inline-flex items-center gap-1">
+        <Link href="/portfolio" className="text-xs text-caption hover:text-gray-900 mb-3 inline-flex items-center gap-1">
           &larr; Back to portfolio
         </Link>
-        <h1 className="text-2xl font-black text-gray-900 mb-1">Import Holdings</h1>
-        <p className="text-sm text-gray-500">Upload or paste your broker CSV to bulk-add holdings.</p>
+        <h1 className="text-2xl font-black text-ink mb-1">Import Holdings</h1>
+        <p className="text-sm text-caption">Upload or paste your broker CSV to bulk-add holdings.</p>
       </div>
 
       {/* Free tier notice */}
@@ -160,7 +160,7 @@ export default function PortfolioImportPage() {
 
       {/* Broker selection */}
       <div className="mb-5">
-        <label className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 block">1. Select Broker</label>
+        <label className="text-xs font-bold text-caption uppercase tracking-wider mb-2 block">1. Select Broker</label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {BROKER_OPTIONS.map(b => (
             <button
@@ -169,20 +169,20 @@ export default function PortfolioImportPage() {
               className={`text-left p-3 rounded-lg border-2 transition ${
                 broker === b.value
                   ? "border-blue-500 bg-blue-50"
-                  : "border-gray-200 bg-white hover:border-gray-300"
+                  : "border-border bg-bg dark:bg-surface hover:border-gray-300"
               }`}
             >
               <p className={`text-sm font-semibold ${broker === b.value ? "text-blue-700" : "text-gray-900"}`}>{b.label}</p>
             </button>
           ))}
         </div>
-        <p className="text-[10px] text-gray-400 mt-2">Expected columns: {BROKER_OPTIONS.find(b => b.value === broker)?.format}</p>
+        <p className="text-[10px] text-caption mt-2">Expected columns: {BROKER_OPTIONS.find(b => b.value === broker)?.format}</p>
       </div>
 
       {/* Input */}
       <div className="mb-5">
         <div className="flex items-center justify-between mb-2">
-          <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">2. Upload File or Paste CSV</label>
+          <label className="text-xs font-bold text-caption uppercase tracking-wider">2. Upload File or Paste CSV</label>
           <div className="flex gap-3 text-xs">
             <button onClick={handleLoadExample} className="text-blue-600 hover:underline font-semibold">
               Load example
@@ -215,9 +215,9 @@ export default function PortfolioImportPage() {
           onChange={e => { setCsvText(e.target.value); if (fileName) setFileName(null) }}
           placeholder="Paste CSV here, or click &ldquo;Upload file&rdquo; above (supports .csv, .xlsx)..."
           rows={10}
-          className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono bg-white resize-y"
+          className="w-full px-3 py-2 border border-border rounded-lg text-xs font-mono bg-bg dark:bg-surface resize-y"
         />
-        <p className="text-[10px] text-gray-400 mt-1">Accepts: .csv, .xlsx, .xls (Excel files are auto-converted in the browser)</p>
+        <p className="text-[10px] text-caption mt-1">Accepts: .csv, .xlsx, .xls (Excel files are auto-converted in the browser)</p>
       </div>
 
       {/* Import button */}
@@ -267,9 +267,9 @@ export default function PortfolioImportPage() {
       )}
 
       {/* Help */}
-      <div className="mt-8 bg-gray-50 border border-gray-200 rounded-xl p-5">
-        <h3 className="text-sm font-bold text-gray-900 mb-2">How to export from Zerodha</h3>
-        <ol className="text-xs text-gray-600 space-y-1 list-decimal list-inside">
+      <div className="mt-8 bg-bg dark:bg-surface border border-border rounded-xl p-5">
+        <h3 className="text-sm font-bold text-ink mb-2">How to export from Zerodha</h3>
+        <ol className="text-xs text-caption space-y-1 list-decimal list-inside">
           <li>Log in to <a href="https://console.zerodha.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Zerodha Console</a></li>
           <li>Go to Portfolio &rarr; Holdings</li>
           <li>Click the download icon (top right) &rarr; Export CSV</li>
@@ -277,7 +277,7 @@ export default function PortfolioImportPage() {
         </ol>
       </div>
 
-      <p className="text-[10px] text-gray-400 text-center mt-6">
+      <p className="text-[10px] text-caption text-center mt-6">
         Your data is processed on YieldIQ servers. We never share your holdings.
       </p>
     </div>

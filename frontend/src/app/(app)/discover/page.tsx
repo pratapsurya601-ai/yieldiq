@@ -190,7 +190,7 @@ export default function DiscoverPage() {
       {/* Highest-scored stock today */}
       {topPick && (
         <section>
-          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-2">Highest YieldIQ score today</p>
+          <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-2">Highest YieldIQ score today</p>
           <TopPickCard
             ticker={topPick.ticker}
             companyName={topPick.company_name || topPick.ticker}
@@ -199,43 +199,43 @@ export default function DiscoverPage() {
             moat={topPick.moat || "Narrow"}
             summary={topPick.summary || ""}
           />
-          <p className="text-[10px] text-gray-500 mt-1">Updated daily. Based on YieldIQ 50 model. Not investment advice.</p>
+          <p className="text-[10px] text-caption mt-1">Updated daily. Based on YieldIQ 50 model. Not investment advice.</p>
         </section>
       )}
 
       {/* YieldIQ 50 */}
       <section>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">YieldIQ 50</p>
-          <p className="text-[10px] text-gray-500">Updated daily</p>
+          <p className="text-[10px] font-bold text-caption uppercase tracking-widest">YieldIQ 50</p>
+          <p className="text-[10px] text-caption">Updated daily</p>
         </div>
         {yiq50 && yiq50.results.length >= 3 ? (
           <>
             <div className="grid grid-cols-3 gap-2 mb-3">
               {yiq50.results.slice(0, 3).map((s, i) => (
                 <Link key={s.ticker} href={`/analysis/${s.ticker}`}
-                  className="relative bg-white rounded-xl border border-gray-100 p-4 min-h-[96px] text-center hover:border-blue-300 hover:shadow-sm active:scale-[0.98] transition">
+                  className="relative bg-bg dark:bg-surface rounded-xl border border-gray-100 p-4 min-h-[96px] text-center hover:border-blue-300 hover:shadow-sm active:scale-[0.98] transition">
                   {/* Rank badge */}
                   <span className={`absolute -top-2 -left-2 w-6 h-6 rounded-full ${RANK_COLORS[i]} text-white text-[10px] font-bold flex items-center justify-center shadow-sm`}>
                     #{i + 1}
                   </span>
-                  <p className="text-sm font-bold text-gray-900 truncate">{s.ticker.replace(".NS", "")}</p>
+                  <p className="text-sm font-bold text-ink truncate">{s.ticker.replace(".NS", "")}</p>
                   <div className="mt-1 flex items-baseline justify-center gap-1.5">
                     <span className="text-base font-bold text-blue-700 font-mono">{formatMoS(s.margin_of_safety)}</span>
                     <span className="text-xs text-gray-300">·</span>
-                    <span className="text-sm font-mono text-gray-700">{s.score}<span className="text-[10px] text-gray-400">/100</span></span>
+                    <span className="text-sm font-mono text-ink">{s.score}<span className="text-[10px] text-caption">/100</span></span>
                   </div>
                   {Math.abs(s.margin_of_safety) >= 100 && (
-                    <p className="mt-1 text-[10px] text-gray-400 leading-tight">uncertain</p>
+                    <p className="mt-1 text-[10px] text-caption leading-tight">uncertain</p>
                   )}
                 </Link>
               ))}
             </div>
             {tier !== "free" && yiq50.results.length > 3 && (
-              <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="bg-bg dark:bg-surface rounded-xl border border-gray-100 overflow-hidden">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-100 text-[10px] text-gray-400 uppercase">
+                    <tr className="border-b border-gray-100 text-[10px] text-caption uppercase">
                       <th className="text-left px-3 py-2">#</th>
                       <th className="text-left px-3 py-2">Ticker</th>
                       <th className="text-right px-3 py-2">Score</th>
@@ -245,7 +245,7 @@ export default function DiscoverPage() {
                   <tbody>
                     {yiq50.results.map((s, i) => (
                       <tr key={s.ticker} className={`border-b border-gray-50 hover:bg-blue-50 transition-colors ${i % 2 === 1 ? "bg-gray-50/50" : ""}`}>
-                        <td className="px-3 py-2 text-gray-400">{i + 1}</td>
+                        <td className="px-3 py-2 text-caption">{i + 1}</td>
                         <td className="px-3 py-2 font-medium">
                           <Link href={`/analysis/${s.ticker}`} className="text-blue-700 hover:underline">
                             {s.ticker.replace(".NS", "")}
@@ -260,9 +260,9 @@ export default function DiscoverPage() {
               </div>
             )}
             {tier === "free" && (
-              <div className="bg-gray-50 rounded-xl border border-gray-100 p-4 text-center">
-                <p className="text-lg font-bold text-gray-400">+{Math.max(0, yiq50.total - 3)} more</p>
-                <p className="text-xs text-gray-400 mb-2">Starter plan</p>
+              <div className="bg-bg dark:bg-surface rounded-xl border border-gray-100 p-4 text-center">
+                <p className="text-lg font-bold text-caption">+{Math.max(0, yiq50.total - 3)} more</p>
+                <p className="text-xs text-caption mb-2">Starter plan</p>
                 <Link href="/account" className="text-xs text-blue-600 font-medium hover:underline">Unlock all 50</Link>
               </div>
             )}
@@ -432,7 +432,7 @@ export default function DiscoverPage() {
 
       {/* Screener Presets */}
       <section>
-        <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-3">Screener</p>
+        <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-3">Screener</p>
         <ScreenerPresetsWithCounts />
       </section>
     </div>

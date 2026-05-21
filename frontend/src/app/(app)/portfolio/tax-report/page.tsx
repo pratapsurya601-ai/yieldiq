@@ -144,11 +144,11 @@ export default function TaxReportPage() {
     <div className="max-w-3xl mx-auto px-4 py-6 pb-20">
       {/* Header */}
       <div className="mb-6">
-        <Link href="/portfolio" className="text-xs text-gray-500 hover:text-gray-900 mb-3 inline-flex items-center gap-1">
+        <Link href="/portfolio" className="text-xs text-caption hover:text-gray-900 mb-3 inline-flex items-center gap-1">
           &larr; Back to portfolio
         </Link>
-        <h1 className="text-2xl font-black text-gray-900 mb-1">Capital Gains Tax Report</h1>
-        <p className="text-sm text-gray-500">India FY 2025-26 &middot; STCG 20% &middot; LTCG 12.5% above &#8377;1.25L</p>
+        <h1 className="text-2xl font-black text-ink mb-1">Capital Gains Tax Report</h1>
+        <p className="text-sm text-caption">India FY 2025-26 &middot; STCG 20% &middot; LTCG 12.5% above &#8377;1.25L</p>
       </div>
 
       {/* Tier gate */}
@@ -169,7 +169,7 @@ export default function TaxReportPage() {
         <>
           <div className="mb-4">
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">Paste Trades CSV</label>
+              <label className="text-xs font-bold text-caption uppercase tracking-wider">Paste Trades CSV</label>
               <button onClick={() => setCsvText(ZERODHA_EXAMPLE)} className="text-xs text-blue-600 hover:underline font-semibold">
                 Load example
               </button>
@@ -179,7 +179,7 @@ export default function TaxReportPage() {
               onChange={e => setCsvText(e.target.value)}
               placeholder={CSV_PLACEHOLDER}
               rows={8}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-xs font-mono bg-white resize-y"
+              className="w-full px-3 py-2 border border-border rounded-lg text-xs font-mono bg-bg dark:bg-surface resize-y"
             />
           </div>
 
@@ -198,16 +198,16 @@ export default function TaxReportPage() {
           )}
 
           {/* Help */}
-          <div className="mt-8 bg-gray-50 border border-gray-200 rounded-xl p-5">
-            <h3 className="text-sm font-bold text-gray-900 mb-2">How to get your trades CSV from Zerodha</h3>
-            <ol className="text-xs text-gray-600 space-y-1 list-decimal list-inside">
+          <div className="mt-8 bg-bg dark:bg-surface border border-border rounded-xl p-5">
+            <h3 className="text-sm font-bold text-ink mb-2">How to get your trades CSV from Zerodha</h3>
+            <ol className="text-xs text-caption space-y-1 list-decimal list-inside">
               <li>Log in to <a href="https://console.zerodha.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Zerodha Console</a></li>
               <li>Reports &rarr; Tax P&amp;L &rarr; Select FY</li>
               {/* sebi-allow: buy, sell */}
               <li>Download Equity &mdash; gives FIFO-matched buy/sell pairs</li>
               <li>Paste the CSV contents here</li>
             </ol>
-            <p className="text-[10px] text-gray-400 mt-3 leading-relaxed">
+            <p className="text-[10px] text-caption mt-3 leading-relaxed">
               We apply FY 2025-26 rules: STCG 20% on gains held &lt;12mo, LTCG 12.5% above &#8377;1.25L exemption.
               STCL is set off against LTCG where applicable. Grandfathering (pre-Feb 2018) is not computed here &mdash;
               use broker&apos;s Tax P&amp;L which already applies FMV rule.
@@ -242,27 +242,27 @@ export default function TaxReportPage() {
           {/* Per-FY breakdown */}
           <div className="space-y-4 mb-6">
             {fyEntries.map(([fy, s]) => (
-              <div key={fy} className="bg-white border border-gray-200 rounded-2xl p-5">
+              <div key={fy} className="bg-bg dark:bg-surface border border-border rounded-2xl p-5">
                 <div className="flex items-baseline justify-between mb-4">
-                  <h2 className="text-lg font-bold text-gray-900">{fy}</h2>
-                  <p className="text-xs text-gray-400">{s.trade_count} trades</p>
+                  <h2 className="text-lg font-bold text-ink">{fy}</h2>
+                  <p className="text-xs text-caption">{s.trade_count} trades</p>
                 </div>
 
                 {/* STCG */}
                 <div className="mb-4">
                   <div className="flex items-baseline justify-between mb-2">
-                    <h3 className="text-sm font-bold text-gray-700">STCG (Short-term, &lt;12mo)</h3>
+                    <h3 className="text-sm font-bold text-ink">STCG (Short-term, &lt;12mo)</h3>
                     <p className={`text-xs font-bold ${s.stcg_net >= 0 ? "text-gray-900" : "text-green-600"}`}>
                       Net: {fmtRs(s.stcg_net)}
                     </p>
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-xs">
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-gray-400">Gains</p>
-                      <p className="font-mono font-semibold text-gray-900">{fmtRs(s.stcg_gain)}</p>
+                    <div className="bg-bg dark:bg-surface rounded-lg p-3">
+                      <p className="text-caption">Gains</p>
+                      <p className="font-mono font-semibold text-ink">{fmtRs(s.stcg_gain)}</p>
                     </div>
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-gray-400">Losses</p>
+                    <div className="bg-bg dark:bg-surface rounded-lg p-3">
+                      <p className="text-caption">Losses</p>
                       <p className="font-mono font-semibold text-red-600">{fmtRs(-s.stcg_loss)}</p>
                     </div>
                     <div className="bg-blue-50 rounded-lg p-3">
@@ -275,18 +275,18 @@ export default function TaxReportPage() {
                 {/* LTCG */}
                 <div className="mb-4">
                   <div className="flex items-baseline justify-between mb-2">
-                    <h3 className="text-sm font-bold text-gray-700">LTCG (Long-term, &ge;12mo)</h3>
+                    <h3 className="text-sm font-bold text-ink">LTCG (Long-term, &ge;12mo)</h3>
                     <p className={`text-xs font-bold ${s.ltcg_net >= 0 ? "text-gray-900" : "text-green-600"}`}>
                       Net: {fmtRs(s.ltcg_net)}
                     </p>
                   </div>
                   <div className="grid grid-cols-3 gap-3 text-xs">
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-gray-400">Gains</p>
-                      <p className="font-mono font-semibold text-gray-900">{fmtRs(s.ltcg_gain)}</p>
+                    <div className="bg-bg dark:bg-surface rounded-lg p-3">
+                      <p className="text-caption">Gains</p>
+                      <p className="font-mono font-semibold text-ink">{fmtRs(s.ltcg_gain)}</p>
                     </div>
-                    <div className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-gray-400">Exemption Used</p>
+                    <div className="bg-bg dark:bg-surface rounded-lg p-3">
+                      <p className="text-caption">Exemption Used</p>
                       <p className="font-mono font-semibold text-green-600">{fmtRs(s.ltcg_exemption_applied)}</p>
                     </div>
                     <div className="bg-blue-50 rounded-lg p-3">
@@ -303,8 +303,8 @@ export default function TaxReportPage() {
 
                 {/* Total tax */}
                 <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
-                  <p className="text-sm font-bold text-gray-900">FY Total Tax</p>
-                  <p className="text-xl font-black text-gray-900">{fmtRs(s.total_tax)}</p>
+                  <p className="text-sm font-bold text-ink">FY Total Tax</p>
+                  <p className="text-xl font-black text-ink">{fmtRs(s.total_tax)}</p>
                 </div>
 
                 {/* Show trades */}
@@ -319,7 +319,7 @@ export default function TaxReportPage() {
                   <div className="mt-3 overflow-x-auto">
                     <table className="w-full text-xs">
                       <thead>
-                        <tr className="border-b border-gray-200 text-gray-500">
+                        <tr className="border-b border-border text-caption">
                           <th className="text-left py-2 font-semibold">Ticker</th>
                           <th className="text-right py-2 font-semibold">Qty</th>
                           {/* sebi-allow: buy, sell */}
@@ -333,10 +333,10 @@ export default function TaxReportPage() {
                       <tbody>
                         {[...s.stcg_trades, ...s.ltcg_trades].sort((a, b) => b.sell_date.localeCompare(a.sell_date)).map((t, i) => (
                           <tr key={i} className="border-b border-gray-50">
-                            <td className="py-2 font-semibold text-gray-900">{t.ticker}</td>
+                            <td className="py-2 font-semibold text-ink">{t.ticker}</td>
                             <td className="py-2 text-right font-mono">{t.quantity}</td>
-                            <td className="py-2 text-right font-mono text-gray-600">{fmtRsCompact(t.buy_price)}</td>
-                            <td className="py-2 text-right font-mono text-gray-600">{fmtRsCompact(t.sell_price)}</td>
+                            <td className="py-2 text-right font-mono text-caption">{fmtRsCompact(t.buy_price)}</td>
+                            <td className="py-2 text-right font-mono text-caption">{fmtRsCompact(t.sell_price)}</td>
                             <td className={`py-2 text-right font-mono font-bold ${t.gain >= 0 ? "text-green-600" : "text-red-600"}`}>
                               {fmtRsCompact(t.gain)}
                             </td>
@@ -366,7 +366,7 @@ export default function TaxReportPage() {
             </button>
             <button
               onClick={() => { setResult(null); setCsvText(""); }}
-              className="flex-1 py-3 bg-white border border-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-50 transition"
+              className="flex-1 py-3 bg-bg dark:bg-surface border border-border text-ink rounded-xl font-semibold hover:bg-gray-50 transition"
             >
               Start Over
             </button>
@@ -382,7 +382,7 @@ export default function TaxReportPage() {
           )}
 
           {/* Disclaimer */}
-          <p className="text-[10px] text-gray-400 text-center mt-6 leading-relaxed">
+          <p className="text-[10px] text-caption text-center mt-6 leading-relaxed">
             Calculations apply post-Budget-2024 rules: LTCG threshold &#8377;1.25L, holding period changes,
             and buyback-as-dividend treatment for trades on/after 1 Oct 2024.
             This is an estimate &mdash; consult a CA for ITR filing.
