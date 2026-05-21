@@ -646,7 +646,28 @@ export interface PublicPeerRow {
   score: number | null
   moat: string | null
   roe: number | null
+  // Day-86 (2026-05-22): ROCE surfaced alongside ROE so the cohort-outlier
+  // detector has a second profitability axis. Optional — older cached
+  // responses lack it.
+  roce?: number | null
   pe_ratio: number | null
+  // Day-86: cohort-outlier flag. Optional — older cached responses lack it.
+  // `is_outlier=true` when the peer is > 2 sigma from the cohort median
+  // on ROE, ROCE, or YieldIQ score; `deviates_on` lists the metric(s)
+  // that triggered the flag with the cohort median + z-score.
+  outlier_flag?: PeerOutlierFlag | null
+}
+
+export interface PeerOutlierDeviation {
+  metric: "roe" | "roce" | "score" | string
+  value: number
+  cohort_median: number
+  z: number
+}
+
+export interface PeerOutlierFlag {
+  is_outlier: boolean
+  deviates_on: PeerOutlierDeviation[]
 }
 
 // Day-80 (2026-05-22): peer-cohort transparency. The public /peers

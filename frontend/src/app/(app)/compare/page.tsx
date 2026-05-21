@@ -537,6 +537,13 @@ function CompareContent() {
       .map((p) => ({
         ticker: (p.ticker || p.peer_ticker || "").toUpperCase(),
         name: p.company_name || p.peer_ticker || p.ticker || "",
+        // Day-86: cohort-outlier flag — surfaced as a small chip on
+        // the suggestion button so the user sees WHICH peer departs
+        // from the cohort median before committing it to the compare
+        // table. Neutral phrasing ("deviates from cohort"), never
+        // the SEBI-hazard advisory verbs.
+        isOutlier: !!p.outlier_flag?.is_outlier,
+        deviatesOn: p.outlier_flag?.deviates_on ?? [],
       }))
       .filter((p) => p.ticker && !have.has(p.ticker))
       .slice(0, 4)
@@ -636,16 +643,38 @@ function CompareContent() {
             </p>
           )}
           <div className="flex flex-wrap gap-2">
-            {peerSuggestions.map((p) => (
-              <button
-                key={p.ticker}
-                onClick={() => addTicker(p.ticker)}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-bg dark:bg-surface border border-amber-200 rounded-full text-xs font-medium text-amber-900 hover:bg-amber-100 hover:border-amber-300 transition"
-              >
-                <span>+</span>
-                <span>{displayTicker(p.ticker)}</span>
-              </button>
-            ))}
+            {peerSuggestions.map((p) => {
+              // Day-86: build a "departs from cohort" tooltip listing the
+              // metrics that flagged the peer. Neutral SEBI-safe wording.
+              const outlierTitle = p.isOutlier
+                ? `Departs from cohort on: ${p.deviatesOn
+                    .map(
+                      (d) =>
+                        `${d.metric.toUpperCase()} ${d.value} vs cohort median ${d.cohort_median} (z=${d.z})`,
+                    )
+                    .join("; ")}`
+                : undefined
+              return (
+                <button
+                  key={p.ticker}
+                  onClick={() => addTicker(p.ticker)}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-bg dark:bg-surface border border-amber-200 rounded-full text-xs font-medium text-amber-900 hover:bg-amber-100 hover:border-amber-300 transition"
+                >
+                  <span>+</span>
+                  <span>{displayTicker(p.ticker)}</span>
+                  {p.isOutlier && (
+                    <span
+                      data-testid="peer-cohort-outlier-tag"
+                      title={outlierTitle}
+                      className="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-rose-100 border border-rose-200 text-[10px] font-semibold text-rose-800 leading-none"
+                    >
+                      <span aria-hidden="true">{"⚠"}</span>
+                      <span>Cohort outlier</span>
+                    </span>
+                  )}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}
