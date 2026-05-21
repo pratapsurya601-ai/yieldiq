@@ -3432,6 +3432,42 @@ async def get_reverse_dcf_public(ticker: str):
             extra_headers={"X-Source": "reverse_dcf_v1", "X-Cache": "HIT"},
         )
 
+    # ── Day-76 bank-skip gate (audit 2026-05-20 P5) ──────────────
+    # Reverse-DCF on banks/NBFCs/insurers is not a meaningful concept:
+    # the FCF/CFO-capex identity does not apply (banks intermediate
+    # cashflow, they do not consume capex in the industrial sense),
+    # and merger-affected balance sheets (HDFCBANK post-HDFC merger)
+    # distort every input the solver reads. The audit caught HDFCBANK
+    # surfacing "-5% implied growth" (= SEARCH_MIN_GROWTH peg) which
+    # was both wrong-by-construction and confusing to users. Return a
+    # structured `not_applicable` payload so the frontend can render
+    # "Reverse DCF not applicable for banks; see ROE/RoA panel
+    # instead" rather than hide the section entirely.
+    try:
+        from backend.services.analysis.constants import is_bank_like
+        if is_bank_like(ticker):
+            payload = {
+                "ticker": ticker,
+                "applicable": False,
+                "reason": (
+                    "Reverse DCF is not applicable to banks, NBFCs and "
+                    "insurers: the FCF identity does not hold for "
+                    "financial intermediaries. See the ROE / RoA / "
+                    "P-B panel for these names instead."
+                ),
+                "category": "bank_like",
+            }
+            cache.set(cache_key, payload, ttl=3600)
+            return _cached_json(
+                payload, s_maxage=600, swr=3600,
+                extra_headers={
+                    "X-Source": "reverse_dcf_v1",
+                    "X-Cache": "MISS-NOT-APPLICABLE",
+                },
+            )
+    except Exception as _exc_bank:
+        logger.info("reverse-dcf bank gate failed for %s: %s", ticker, _exc_bank)
+
     # ── Pull AnalysisResponse from the SoT cache (tier-1, then DB) ─
     analysis = cache.get(f"analysis:{ticker}")
     if analysis is None or not hasattr(analysis, "valuation"):
@@ -3539,6 +3575,42 @@ async def get_reverse_dcf_public(ticker: str):
             normalized_fcf = None
     except Exception:
         pass
+
+    # ── Day-76 cyclical fallback (audit 2026-05-20 P5) ───────────
+    # When `normalized_fcf_cr` is unpopulated on legacy / pre-v131
+    # cached payloads but we DO have `fcf_margin_5y` and the current
+    # revenue, synthesize a 5y-mid-cycle FCF anchor as
+    #   normalized_fcf := current_revenue * historical_fcf_margin
+    # This is the same identity the forward DCF uses for cyclical
+    # mid-cycle reseating (see models/forecaster._compute_fcf_base
+    # post-v110); applying it here closes the gap on RELIANCE-class
+    # cyclicals whose `current_fcf` is depressed by a refining-margin
+    # trough and would otherwise force the bisector to peg at
+    # SEARCH_MAX_GROWTH (the audit's "Market is pricing in 50% growth"
+    # finding). Only fires when the upstream stash is missing AND the
+    # historical-margin read is finite + positive, so well-populated
+    # post-v131 payloads pass through unchanged.
+    if (
+        normalized_fcf is None
+        and historical_fcf_margin is not None
+        and isinstance(historical_fcf_margin, (int, float))
+        and historical_fcf_margin == historical_fcf_margin  # NaN guard
+        and historical_fcf_margin > 0
+        and current_revenue > 0
+    ):
+        try:
+            _synth = float(current_revenue) * float(historical_fcf_margin)
+            if _synth == _synth and _synth not in (
+                float("inf"), float("-inf"),
+            ) and _synth > 0:
+                normalized_fcf = _synth
+                logger.info(
+                    "reverse-dcf: synthesized normalized_fcf for %s "
+                    "from revenue*hist_margin (legacy payload fallback)",
+                    ticker,
+                )
+        except (TypeError, ValueError):
+            pass
 
     try:
         from backend.services.reverse_dcf_service import compute_reverse_dcf
