@@ -3085,8 +3085,26 @@ class AnalysisService(NarrativeMixin):
             # honest "cycle has priced in" read instead of ₹0 and a
             # stray bull-only number from _enforce_scenario_order.
             if _trough_anchor_fired and _trough_anchor_bear_iv is not None:
-                _bear_iv_val = _trough_anchor_bear_iv
-                _bull_iv_val = _trough_anchor_bull_iv or round(price * 1.10, 2)
+                # Day-53c (2026-05-21): generalize the Day-51 re-clamp.
+                # Any iv override AFTER the trough anchor fires (Tier-2
+                # cohort, growth-stock override, future overrides) can
+                # push base below the trough-anchor bear floor → gate-3
+                # scenario_dispersion FAIL (bear > base). Day-51 patched
+                # only the Tier-2 path; canary 2026-05-21 still failed
+                # on GUJGASLTD/HINDZINC/COROMANDEL coming through other
+                # paths. Re-clamping here at the point of USE catches
+                # every path: by the time we're rendering scenarios,
+                # iv is final, so anchoring bear/bull off iv (not the
+                # stale trough-anchor values) is universally correct.
+                if price > 0:
+                    _bear_iv_val = round(min(_trough_anchor_bear_iv, iv * 0.95), 2)
+                    _bull_iv_val = round(
+                        max(_trough_anchor_bull_iv or round(price * 1.10, 2), iv * 1.05),
+                        2,
+                    )
+                else:
+                    _bear_iv_val = _trough_anchor_bear_iv
+                    _bull_iv_val = _trough_anchor_bull_iv or round(price * 1.10, 2)
                 _t_bear_raw = ((_bear_iv_val - price) / price * 100) if price > 0 else 0
                 _t_bull_raw = ((_bull_iv_val - price) / price * 100) if price > 0 else 0
                 _t_bear_d, _t_bear_c = display_mos(_t_bear_raw)
