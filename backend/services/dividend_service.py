@@ -544,16 +544,41 @@ class DividendService:
         coverage: float | None,
         consecutive_years: int,
     ) -> tuple[str, str]:
-        """Return (label, reason). Label ∈ {"strong","moderate","at_risk"}."""
+        """Return (label, reason). Label ∈ {"strong","moderate","at_risk"}.
+
+        Day-65 (2026-05-21): rewritten after audit 2026-05-20 caught
+        ITC tagged "At Risk · Payout 89%" — a 5-year-consistent payer
+        at high but stable payout is the OPPOSITE of at-risk.
+        Coverage ratio + track record are now the primary at-risk
+        signals; raw payout % only escalates to at-risk when it
+        crosses 100% (paying more than the company earns) OR when
+        track record is also weak.
+
+        At-risk gates (any one trips):
+          - payout > 100%  (paying more than earnings — unsustainable
+            arithmetic regardless of track record)
+          - coverage < 1.0 (FCF doesn't cover the dividend)
+          - payout > 80% AND consecutive_years == 0 (high payout AND
+            no track record means we can't trust it will hold)
+
+        Strong gate (all three required, unchanged):
+          payout < 50% AND coverage >= 2.0 AND consecutive_years >= 5
+
+        Moderate: everything else, with reason text reflecting which
+        signal dominates.
+        """
         if payout_pct <= 0 and coverage is None:
             return ("moderate", "Limited data to assess dividend sustainability.")
 
-        # At-risk gates
-        if payout_pct > 90:
+        # At-risk gate 1: paying more than earnings.
+        if payout_pct > 100:
             return (
                 "at_risk",
-                f"Payout ratio of {payout_pct:.0f}% leaves almost no earnings buffer.",
+                f"Payout ratio of {payout_pct:.0f}% means dividend "
+                "exceeds earnings — not sustainable without a cut.",
             )
+
+        # At-risk gate 2: FCF doesn't cover dividend at all.
         if coverage is not None and coverage < 1.0:
             return (
                 "at_risk",
@@ -561,7 +586,15 @@ class DividendService:
                 "Risk of cut if earnings fall.",
             )
 
-        # Strong gate (all three required)
+        # At-risk gate 3: high payout AND no track record.
+        if payout_pct > 80 and consecutive_years == 0:
+            return (
+                "at_risk",
+                f"Payout ratio of {payout_pct:.0f}% with no consistent "
+                "track record — sustainability unproven.",
+            )
+
+        # Strong gate (unchanged).
         if (
             payout_pct < 50
             and (coverage is None or coverage >= 2.0)
@@ -573,8 +606,17 @@ class DividendService:
             reason += "."
             return ("strong", reason)
 
-        # Moderate
-        if payout_pct >= 50:
+        # Moderate — reason picks the most informative signal.
+        if payout_pct >= 80 and consecutive_years >= 5:
+            # The ITC-class case: high payout but long track record.
+            # This is the moderate verdict the audit said we should
+            # land here on.
+            reason = (
+                f"Payout ratio {payout_pct:.0f}% is elevated, "
+                f"but the {consecutive_years}-year payment track "
+                "record suggests management treats it as a commitment."
+            )
+        elif payout_pct >= 50:
             reason = (
                 f"Payout ratio of {payout_pct:.0f}% is elevated but manageable."
             )
