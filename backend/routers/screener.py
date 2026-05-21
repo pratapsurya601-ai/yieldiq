@@ -148,20 +148,42 @@ def _query_preset_from_db(preset: str, page: int = 1,
     try:
         from backend.services.cache_service import cache as _c
 
-        # Filter functions per preset
-        def _is_buffett(score, mos, moat, pe):
+        # Filter functions per preset.
+        #
+        # Day-63 (2026-05-21): each filter now takes (score, mos, moat,
+        # pe, revenue_cagr_3y) so growth_quality can enforce a genuine
+        # growth requirement instead of just being "top score." Audit
+        # 2026-05-20 caught all three Discover screens (Wide-Moat / Deep
+        # Value / High-Margin Growers) leading with the SAME 3 tickers
+        # (WAAREEINDO/EIEL/WEBELSOLAR at +0%) --- root cause was a
+        # too-loose growth filter combined with an identical sort
+        # across presets. Sort is now preset-specific (see below).
+        def _is_buffett(score, mos, moat, pe, rev_cagr):
             # Quality + reasonable price + wide moat
             return score >= 60 and mos >= 0 and moat == "Wide"
 
-        def _is_deep_value(score, mos, moat, pe):
+        def _is_deep_value(score, mos, moat, pe, rev_cagr):
             # Big margin of safety + decent quality
             return mos >= 30 and score >= 50
 
-        def _is_growth_quality(score, mos, moat, pe):
-            # High score (good fundamentals) + non-negative MoS
-            return score >= 75
+        def _is_growth_quality(score, mos, moat, pe, rev_cagr):
+            # Score >= 70 AND positive 3y revenue growth. The growth
+            # threshold (8%) is calibrated to "genuinely growing"
+            # rather than "barely keeping up with inflation" --- India
+            # nominal GDP is ~6-7%, so 8%+ revenue CAGR means real
+            # growth net of macro. Falls open (no growth gate) only
+            # when rev_cagr is missing entirely; the score>=70 floor
+            # still applies.
+            if score < 70:
+                return False
+            if rev_cagr is None:
+                # Missing-data fallback — apply the prior score-only
+                # gate so we never starve the screen completely on
+                # cohorts where revenue_cagr_3y didn't backfill.
+                return score >= 75
+            return rev_cagr >= 0.08
 
-        def _is_custom(score, mos, moat, pe):
+        def _is_custom(score, mos, moat, pe, rev_cagr):
             return score >= 30  # almost everything
 
         filter_fn = {
@@ -170,6 +192,23 @@ def _query_preset_from_db(preset: str, page: int = 1,
             "growth_quality": _is_growth_quality,
             "custom": _is_custom,
         }.get(preset, _is_custom)
+
+        # Day-63 (2026-05-21): preset-specific sort key. With one
+        # universal sort by (score, mos) the top-3 of every preset
+        # collapsed to the same handful of high-score names. Now each
+        # preset's leaderboard ranks by its OWN primary signal so the
+        # screens look meaningfully different even when filter
+        # universes overlap.
+        #
+        # candidate tuple is (ticker, score, mos, rev_cagr) — keep
+        # this ordering in sync with the (ticker, ..., ...) push
+        # statements below.
+        _PRESET_SORT_KEYS = {
+            "buffett":        lambda c: (c[2], c[1]),           # MoS desc, then score
+            "deep_value":     lambda c: (c[2], c[1]),           # MoS desc, then score
+            "growth_quality": lambda c: ((c[3] or 0), c[1]),    # revenue CAGR desc, then score
+        }
+        sort_key = _PRESET_SORT_KEYS.get(preset, lambda c: (c[1], c[2]))  # default: score, mos
 
         # Three opinionated presets exclude clamped rows; see block
         # comment lower in this function for full reasoning.
@@ -225,7 +264,8 @@ def _query_preset_from_db(preset: str, page: int = 1,
                       (payload->'quality'->>'moat')                    AS moat,
                       (payload->'valuation'->>'eps_ttm')::float        AS eps_ttm,
                       (payload->'valuation'->>'current_price')::float  AS current_price,
-                      COALESCE((payload->'valuation'->>'data_limited')::boolean, false) AS data_limited
+                      COALESCE((payload->'valuation'->>'data_limited')::boolean, false) AS data_limited,
+                      (payload->'quality'->>'revenue_cagr_3y')::float  AS revenue_cagr_3y
                     FROM analysis_cache
                     WHERE computed_at > now() - interval '48 hours'
                     """
@@ -246,6 +286,7 @@ def _query_preset_from_db(preset: str, page: int = 1,
                 except Exception:
                     pass
                 _data_limited = bool(_r[6]) if len(_r) > 6 else False
+                _rev_cagr = _r[7] if len(_r) > 7 else None  # Day-63
                 # Skip rows where MoS got clamped (data-quality issues)
                 # for the three opinionated presets. See block comment above.
                 if _exclude_clamped and (_data_limited or abs(mos) >= 50):
@@ -256,8 +297,8 @@ def _query_preset_from_db(preset: str, page: int = 1,
                 # can't both be counted. Pre-fix this was producing
                 # 899 > 550-Nifty-500-universe in prod.
                 _dedup_key = full_ticker.split(".")[0]
-                if filter_fn(score, mos, moat, pe) and _dedup_key not in seen_tickers:
-                    candidates.append((full_ticker, score, mos))
+                if filter_fn(score, mos, moat, pe, _rev_cagr) and _dedup_key not in seen_tickers:
+                    candidates.append((full_ticker, score, mos, _rev_cagr))
                     seen_tickers.add(_dedup_key)
         except Exception as _exc:
             logger.info("analysis_cache scan skipped: %s", _exc)
@@ -288,14 +329,18 @@ def _query_preset_from_db(preset: str, page: int = 1,
             _dl = bool(getattr(v, "data_limited", False))
             if _exclude_clamped and (_dl or abs(mos) >= 50):
                 continue
+            _rev_cagr2 = getattr(q, "revenue_cagr_3y", None)  # Day-63
 
             _dedup_key2 = val.ticker.split(".")[0]
-            if filter_fn(score, mos, moat, pe) and _dedup_key2 not in seen_tickers:
-                candidates.append((val.ticker, score, mos))
+            if filter_fn(score, mos, moat, pe, _rev_cagr2) and _dedup_key2 not in seen_tickers:
+                candidates.append((val.ticker, score, mos, _rev_cagr2))
                 seen_tickers.add(_dedup_key2)
 
-        # Sort by score (descending) then MoS
-        candidates.sort(key=lambda x: (x[1], x[2]), reverse=True)
+        # Day-63 (2026-05-21): preset-specific sort. Default is the
+        # legacy (score, mos) desc; named presets get their own
+        # primary signal so leaderboards differ structurally across
+        # screens. See _PRESET_SORT_KEYS above.
+        candidates.sort(key=sort_key, reverse=True)
 
         # Pagination
         total = len(candidates)
@@ -309,7 +354,7 @@ def _query_preset_from_db(preset: str, page: int = 1,
                 score=int(round(score)),
                 margin_of_safety=round(mos, 1),
             )
-            for ticker, score, mos in page_items
+            for ticker, score, mos, _rev_cagr_ignored in page_items
         ]
         return stocks, total
     except Exception as e:
