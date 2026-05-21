@@ -10,6 +10,13 @@
  * limited tickers, cache miss) the component renders nothing — this
  * is purely additive UI sitting below the scenario card.
  *
+ * Day-87: wire the three new fields shipped by Day-76 backend:
+ *   • applicable=false + category=bank_like → small "not applicable"
+ *     card instead of hiding the panel.
+ *   • growth_off_scale=true → headline becomes a >= / <= bound with
+ *     an amber caveat note (summary text is already bound-qualified
+ *     server-side; we surface it verbatim).
+ *
  * No reuse from the existing /stocks/[ticker]/reverse-dcf page (which
  * hits the older authed endpoint with a different shape) — that path
  * is verdict-centric, this panel is implied-axis-centric.
@@ -45,6 +52,13 @@ interface ReverseDcfPayload {
   sanity_check_lines: string[]
   converged: boolean
   inputs: ReverseDcfInputs
+  // Day-87: Day-76 backend additions ---------------------------------
+  applicable?: boolean
+  reason?: string
+  category?: string
+  growth_off_scale?: boolean
+  growth_pegged_high?: boolean
+  growth_pegged_low?: boolean
 }
 
 async function fetchReverseDcf(ticker: string): Promise<ReverseDcfPayload | null> {
@@ -55,7 +69,12 @@ async function fetchReverseDcf(ticker: string): Promise<ReverseDcfPayload | null
     })
     if (!res.ok) return null
     const data = await res.json()
-    if (!data || typeof data !== "object" || !("implied_growth_pct" in data)) {
+    if (!data || typeof data !== "object") return null
+    // Day-87: accept the bank-skip payload shape (no implied_growth_pct).
+    if (data.applicable === false) {
+      return data as ReverseDcfPayload
+    }
+    if (!("implied_growth_pct" in data)) {
       return null
     }
     return data as ReverseDcfPayload
@@ -83,8 +102,32 @@ export default function ReverseDcfPanel({ ticker }: Props) {
   })
 
   if (isLoading || !data) {
-    // Skip rendering on null/error — task spec requires we hide cleanly.
+    // Still hide on null/error — only the bank-skip payload renders.
     return null
+  }
+
+  // Day-87: bank-skip card. Banks / NBFCs / insurers do not admit an
+  // FCF-based reverse-DCF — Day-76 returns a structured non-applicable
+  // payload and we surface a small explanatory card so the absence is
+  // legible rather than mysteriously missing.
+  if (data.applicable === false) {
+    return (
+      <section
+        aria-label="Reverse DCF — not applicable"
+        className="bg-bg dark:bg-surface rounded-2xl border border-border p-4"
+      >
+        <header className="mb-1">
+          <h2 className="text-sm font-semibold text-ink tracking-tight uppercase">
+            Reverse-DCF
+          </h2>
+        </header>
+        <p className="text-caption text-xs leading-relaxed">
+          <span className="font-bold text-ink">Not applicable for banks.</span>{" "}
+          Banks, NBFCs and insurers use ROE / RoA / NIM instead of FCF-based
+          valuation. See the Quality panel for those metrics.
+        </p>
+      </section>
+    )
   }
 
   const {
@@ -94,7 +137,21 @@ export default function ReverseDcfPanel({ ticker }: Props) {
     current_market_implied_summary: summary,
     sanity_check_lines: sanity,
     inputs,
+    growth_off_scale: offScale,
+    growth_pegged_high: peggedHigh,
+    growth_pegged_low: peggedLow,
   } = data
+
+  // Day-87: off-scale headline. When the bisector pegs at the search
+  // boundary we surface the number as a bound (>= / <=) plus a short
+  // caveat. The backend `summary` field is already bound-qualified so
+  // we render it verbatim and tag it with the amber note below.
+  const offScalePrefix = peggedHigh ? "≥" : peggedLow ? "≤" : null
+  const offScaleCaveat = peggedHigh
+    ? "off-scale — likely trough-margin distortion"
+    : peggedLow
+      ? "off-scale — likely balance-sheet event distortion"
+      : null
 
   return (
     <section
@@ -113,6 +170,13 @@ export default function ReverseDcfPanel({ ticker }: Props) {
 
       <p className="text-sm text-body leading-relaxed">{summary}</p>
 
+      {offScale && offScaleCaveat && (
+        <p className="mt-2 text-xs leading-relaxed rounded-md border border-amber-300/40 bg-amber-50 dark:bg-amber-950/20 text-amber-900 dark:text-amber-200 px-3 py-2">
+          <span className="font-bold">Note:</span> {offScaleCaveat}. The
+          implied-growth figure above is a bound, not a point estimate.
+        </p>
+      )}
+
       <ul className="mt-4 space-y-2 text-sm">
         <li className="flex items-baseline gap-2">
           <span aria-hidden className="text-caption">&bull;</span>
@@ -123,8 +187,12 @@ export default function ReverseDcfPanel({ ticker }: Props) {
             </span>{" "}
             margins:{" "}
             <span className="font-semibold font-mono tabular-nums text-ink">
+              {offScalePrefix ? `${offScalePrefix} ` : ""}
               {formatPct(impliedG)}
             </span>
+            {offScale && (
+              <span className="ml-1 text-caption text-xs">(off-scale)</span>
+            )}
           </span>
         </li>
         <li className="flex items-baseline gap-2">
