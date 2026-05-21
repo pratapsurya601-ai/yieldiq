@@ -65,7 +65,7 @@ export default function BackButton({
       type="button"
       onClick={onClick}
       aria-label={label}
-      className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors px-2 py-1 -ml-2 rounded-lg hover:bg-gray-100"
+      className="inline-flex items-center gap-1.5 text-sm text-caption hover:text-ink transition-colors px-2 py-1 -ml-2 rounded-lg hover:bg-surface"
     >
       <svg
         xmlns="http://www.w3.org/2000/svg"

@@ -90,7 +90,7 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
 
   const wrapperCls = isDark
     ? "sticky top-0 z-50 border-b border-white/5 bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B]"
-    : "sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-gray-100"
+    : "sticky top-0 z-50 bg-bg/95 backdrop-blur-md border-b border-border"
 
   const linkBase = isDark
     ? "text-gray-400 hover:text-white transition"
@@ -110,7 +110,7 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
         <Link href={token ? "/home" : "/"} className="flex items-center gap-2 flex-shrink-0">
           <img src="/logo-new.svg" alt="YieldIQ" className="w-7 h-7 rounded-lg" />
-          <span className={cn("font-bold", isDark ? "text-white" : "text-gray-900")}>
+          <span className={cn("font-bold", isDark ? "text-white" : "text-ink")}>
             YieldIQ
           </span>
         </Link>
@@ -171,16 +171,16 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
                 {menuOpen && (
                   <div
                     role="menu"
-                    className="absolute right-0 mt-2 w-44 rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden text-sm"
+                    className="absolute right-0 mt-2 w-44 rounded-lg border border-border bg-bg dark:bg-surface shadow-lg overflow-hidden text-sm"
                   >
-                    <Link href="/account" role="menuitem" className="block px-3 py-2 text-gray-700 hover:bg-gray-50">Account</Link>
-                    <Link href="/portfolio" role="menuitem" className="block px-3 py-2 text-gray-700 hover:bg-gray-50">Portfolio</Link>
-                    <Link href="/compare" role="menuitem" className="block px-3 py-2 text-gray-700 hover:bg-gray-50">Compare</Link>
+                    <Link href="/account" role="menuitem" className="block px-3 py-2 text-ink hover:bg-surface">Account</Link>
+                    <Link href="/portfolio" role="menuitem" className="block px-3 py-2 text-ink hover:bg-surface">Portfolio</Link>
+                    <Link href="/compare" role="menuitem" className="block px-3 py-2 text-ink hover:bg-surface">Compare</Link>
                     <button
                       type="button"
                       role="menuitem"
                       onClick={() => { logout(); setMenuOpen(false) }}
-                      className="block w-full text-left px-3 py-2 text-gray-700 hover:bg-gray-50 border-t border-gray-100"
+                      className="block w-full text-left px-3 py-2 text-ink hover:bg-surface border-t border-border"
                     >
                       Sign out
                     </button>
@@ -215,7 +215,7 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
       {open && (
         <div className={cn(
           "md:hidden border-t px-4 py-3 space-y-1",
-          isDark ? "border-white/5 bg-[#0F172A]" : "border-gray-100 bg-white"
+          isDark ? "border-white/5 bg-[#0F172A]" : "border-border bg-bg"
         )}>
           {navItems.map((item) => (
             <Link
@@ -229,7 +229,7 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
               {item.label}
             </Link>
           ))}
-          <div className={cn("pt-2 mt-2 border-t", isDark ? "border-white/5" : "border-gray-100")}>
+          <div className={cn("pt-2 mt-2 border-t", isDark ? "border-white/5" : "border-border")}>
             {token ? (
               <>
                 {tier === "free" && dailyLimit !== null && (

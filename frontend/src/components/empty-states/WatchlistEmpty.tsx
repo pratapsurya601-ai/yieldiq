@@ -16,10 +16,10 @@ export default function WatchlistEmpty() {
         </svg>
       </div>
 
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-ink mb-1">
+      <h2 className="text-lg font-semibold text-ink mb-1">
         Add stocks you are watching
       </h2>
-      <p className="text-sm text-gray-500 dark:text-caption mb-6 max-w-xs">
+      <p className="text-sm text-caption mb-6 max-w-xs">
         Tap the star icon on any analysis to add it to your watchlist and track valuation changes over time.
       </p>
 
@@ -27,8 +27,8 @@ export default function WatchlistEmpty() {
         href="/search"
         className={cn(
           "inline-flex items-center justify-center rounded-full px-6 py-2.5 min-h-[44px]",
-          "bg-gray-100 dark:bg-bg text-gray-700 dark:text-ink text-sm font-semibold",
-          "hover:bg-gray-200 dark:hover:bg-border active:bg-gray-300 active:scale-[0.97] transition"
+          "bg-surface text-ink text-sm font-semibold",
+          "hover:bg-border active:bg-border active:scale-[0.97] transition"
         )}
       >
         Search for stocks

@@ -115,10 +115,10 @@ export default function Navbar() {
   const moreActive = MORE_ITEMS.some((item) => pathname.startsWith(item.href))
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-t border-gray-200 pb-[env(safe-area-inset-bottom)]" aria-label="Main navigation">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-bg/95 dark:bg-surface/95 backdrop-blur-md border-t border-border pb-[env(safe-area-inset-bottom)]" aria-label="Main navigation">
       {tier === "free" && <AnalysisCounter />}
       {/* Thin separator between counter and nav items */}
-      {tier === "free" && <div className="h-px bg-gray-100 mx-4" />}
+      {tier === "free" && <div className="h-px bg-border mx-4" />}
       <div className="flex items-center justify-around px-2 h-14">
         {TABS.map((tab) => {
           const isActive = pathname.startsWith(tab.href)
@@ -204,7 +204,7 @@ export default function Navbar() {
           {moreOpen && (
             <div
               role="menu"
-              className="absolute bottom-full right-0 mb-2 w-44 rounded-lg border border-gray-200 bg-white shadow-lg overflow-hidden"
+              className="absolute bottom-full right-0 mb-2 w-44 rounded-lg border border-border bg-bg dark:bg-surface shadow-lg overflow-hidden"
             >
               {MORE_ITEMS.map((item) => {
                 const isActive = pathname.startsWith(item.href)
@@ -216,7 +216,7 @@ export default function Navbar() {
                     onClick={() => setMoreOpen(false)}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 text-sm",
-                      isActive ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-50"
+                      isActive ? "bg-blue-50 text-blue-600" : "text-ink hover:bg-surface"
                     )}
                   >
                     {item.icon}

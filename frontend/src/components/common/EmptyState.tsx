@@ -62,7 +62,7 @@ export default function EmptyState({
     <div
       className={cn(
         "flex flex-col items-center px-6 py-10 text-center rounded-2xl",
-        "bg-white border border-gray-100",
+        "bg-bg dark:bg-surface border border-border",
         className,
       )}
     >
@@ -79,10 +79,10 @@ export default function EmptyState({
         </div>
       )}
 
-      <h2 className="text-lg font-semibold text-gray-900 mb-1">{title}</h2>
+      <h2 className="text-lg font-semibold text-ink mb-1">{title}</h2>
 
       {description && (
-        <p className="text-sm text-gray-500 mb-5 max-w-sm">{description}</p>
+        <p className="text-sm text-caption mb-5 max-w-sm">{description}</p>
       )}
 
       {children ? (
@@ -108,7 +108,7 @@ export default function EmptyState({
                 href={secondaryHref}
                 className={cn(
                   "inline-flex items-center justify-center rounded-full px-5 py-2.5 min-h-[44px]",
-                  "bg-white border border-gray-200 text-gray-700 text-sm font-semibold",
+                  "bg-bg dark:bg-surface border border-border text-ink text-sm font-semibold",
                   "hover:border-blue-300 hover:text-blue-700 active:scale-[0.97] transition",
                 )}
               >
