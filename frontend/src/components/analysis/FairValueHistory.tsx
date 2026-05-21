@@ -13,6 +13,7 @@ import {
   Legend,
   ReferenceDot,
 } from "recharts"
+import { Lock } from "lucide-react"
 import { getFVHistory, type FVHistoryPoint, type FVHistoryResponse } from "@/lib/api"
 import { cn, formatCurrency } from "@/lib/utils"
 
@@ -170,7 +171,10 @@ export default function FairValueHistory({ ticker, companyName, currency = "INR"
                 )}
                 aria-label={locked ? `${y} year (upgrade required)` : `${y} year`}
               >
-                {y}Y{locked ? " 🔒" : ""}
+                <span className="inline-flex items-center gap-1">
+                  {y}Y
+                  {locked && <Lock className="w-3 h-3" aria-hidden="true" />}
+                </span>
               </button>
             )
           })}
@@ -262,7 +266,10 @@ export default function FairValueHistory({ ticker, companyName, currency = "INR"
       {/* Tier upgrade CTA */}
       {data.tier_limited && (
         <div className="border border-blue-100 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30 rounded-xl p-3 flex items-center justify-between gap-3">
-          <p className="text-xs text-blue-700 dark:text-blue-300">🔒 Unlock 3-year history with Starter</p>
+          <p className="text-xs text-blue-700 dark:text-blue-300 inline-flex items-center gap-1.5">
+            <Lock className="w-3.5 h-3.5" aria-hidden="true" />
+            Unlock 3-year history with Starter
+          </p>
           <a
             href="/pricing"
             className="text-xs font-semibold text-blue-600 dark:text-blue-400 whitespace-nowrap hover:underline"

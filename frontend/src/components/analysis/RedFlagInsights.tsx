@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { AlertCircle, AlertTriangle, CheckCircle2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import type { RedFlag } from "@/types/api"
 
@@ -15,9 +16,15 @@ const SEVERITY_ORDER: Record<RedFlag["severity"], number> = {
 }
 
 const SEVERITY_LABEL: Record<RedFlag["severity"], string> = {
-  critical: "🔴 CRITICAL",
-  warning: "🟡 WARNING",
-  info: "✅ POSITIVE",
+  critical: "CRITICAL",
+  warning: "WARNING",
+  info: "POSITIVE",
+}
+
+const SEVERITY_ICON: Record<RedFlag["severity"], typeof AlertCircle> = {
+  critical: AlertCircle,
+  warning: AlertTriangle,
+  info: CheckCircle2,
 }
 
 const SEVERITY_CARD: Record<RedFlag["severity"], string> = {
@@ -115,10 +122,14 @@ export default function RedFlagInsights({ flags }: Props) {
                 <div className="flex items-center justify-between gap-2">
                   <span
                     className={cn(
-                      "text-[11px] font-bold uppercase tracking-wider",
+                      "inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider",
                       SEVERITY_BADGE[f.severity]
                     )}
                   >
+                    {(() => {
+                      const Icon = SEVERITY_ICON[f.severity]
+                      return <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+                    })()}
                     {SEVERITY_LABEL[f.severity]}
                   </span>
                 </div>

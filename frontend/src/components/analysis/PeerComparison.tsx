@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
+import { Star } from "lucide-react"
 import { getPeers, type PeerRow, type PeersResponse } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { currencySymbol, currencyLocale } from "@/lib/currency"
@@ -134,8 +135,10 @@ const buildColumns = (currency: string | null | undefined, ticker: string): Colu
     label: "Company",
     render: row => (
       <div className="flex flex-col">
-        <span className="text-xs font-medium text-ink">
-          {row.is_main && "★ "}
+        <span className="text-xs font-medium text-ink inline-flex items-center gap-1">
+          {row.is_main && (
+            <Star className="w-3 h-3 text-amber-500 fill-amber-500" aria-label="Main ticker" />
+          )}
           {truncate(row.company_name, 14)}
         </span>
         <span className="text-[10px] text-caption">
@@ -252,7 +255,7 @@ export default function PeerComparison({ ticker, currency }: Props) {
     const main = data.peers.find(p => p.is_main)
     if (!main) return null
     if (top.ticker === main.ticker) {
-      return `★ ${main.company_name} has the highest YieldIQ Score in ${data.sector_label ?? "this sector"}.`
+      return `${main.company_name} has the highest YieldIQ Score in ${data.sector_label ?? "this sector"}.`
     }
     const rank = ranked.findIndex(p => p.ticker === main.ticker) + 1
     if (rank === 0) return null

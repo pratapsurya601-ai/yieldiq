@@ -21,9 +21,9 @@ function fmtCr(v: number): string {
 }
 
 function vixZone(v: number): { label: string; color: string } {
-  if (v < 15) return { label: "😌 Calm", color: "text-green-600" }
-  if (v < 20) return { label: "⚠ Caution", color: "text-yellow-600" }
-  return { label: "😰 Fear", color: "text-red-600" }
+  if (v < 15) return { label: "Calm", color: "text-green-600" }
+  if (v < 20) return { label: "Caution", color: "text-yellow-600" }
+  return { label: "Fear", color: "text-red-600" }
 }
 
 // NSE returns dates like "13-Apr-2026". Convert to a short

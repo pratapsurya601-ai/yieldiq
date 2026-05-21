@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { Check, AlertTriangle, X as XIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { currencySymbol } from "@/lib/currency"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
@@ -24,11 +25,31 @@ const SUST_LABEL: Record<string, string> = {
   at_risk: "● AT RISK",
 }
 
-function fmtCoverage(v: number | null): string {
-  if (v === null || v === undefined) return "—"
-  if (v >= 2) return `${v.toFixed(1)}× ✓`
-  if (v >= 1) return `${v.toFixed(1)}× ⚠`
-  return `${v.toFixed(1)}× ✗`
+function CoverageValue({ v }: { v: number | null }) {
+  if (v === null || v === undefined) return <>—</>
+  const text = `${v.toFixed(1)}×`
+  if (v >= 2) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        {text}
+        <Check className="w-4 h-4 text-green-600" aria-label="Healthy coverage" />
+      </span>
+    )
+  }
+  if (v >= 1) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        {text}
+        <AlertTriangle className="w-4 h-4 text-amber-500" aria-label="Moderate coverage" />
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1">
+      {text}
+      <XIcon className="w-4 h-4 text-red-600" aria-label="Weak coverage" />
+    </span>
+  )
 }
 
 export default function DividendTracker({ dividend, currency, ticker }: Props) {
@@ -143,7 +164,7 @@ export default function DividendTracker({ dividend, currency, ticker }: Props) {
             <div className="rounded-xl bg-bg p-3">
               <p className="text-[11px] text-caption uppercase tracking-wide">FCF Coverage</p>
               <p className="text-lg font-semibold text-ink mt-0.5">
-                {fmtCoverage(dividend.coverage_ratio)}
+                <CoverageValue v={dividend.coverage_ratio} />
               </p>
             </div>
           </div>

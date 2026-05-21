@@ -1,5 +1,6 @@
 "use client"
 
+import { Search, Lightbulb, Target, type LucideIcon } from "lucide-react"
 import Prism from "@/components/prism/Prism"
 import type { PrismData } from "@/components/prism/types"
 
@@ -28,19 +29,19 @@ interface StepExplainerProps {
   onFinish: () => void
 }
 
-const BULLETS = [
+const BULLETS: { icon: LucideIcon; title: string; body: string }[] = [
   {
-    icon: "🔍",
+    icon: Search,
     title: "6 pillars",
     body: "Pulse, Quality, Moat, Safety, Growth, Value — each scored 0 to 10.",
   },
   {
-    icon: "💡",
+    icon: Lightbulb,
     title: "Wider = better",
     body: "Each lens\u2019s width is that pillar\u2019s score. Narrow means low, wide means high.",
   },
   {
-    icon: "🎯",
+    icon: Target,
     title: "The beam converges",
     body: "Into one composite score and a plain-English verdict.",
   },
@@ -65,20 +66,23 @@ export default function StepExplainer({ referenceData, onFinish }: StepExplainer
       </div>
 
       <ul className="space-y-4 mt-2">
-        {BULLETS.map((b) => (
+        {BULLETS.map((b) => {
+          const Icon = b.icon
+          return (
           <li key={b.title} className="flex items-start gap-3">
             <span
               aria-hidden="true"
-              className="w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center text-lg flex-shrink-0"
+              className="w-10 h-10 rounded-full bg-surface border border-border flex items-center justify-center text-brand flex-shrink-0"
             >
-              {b.icon}
+              <Icon className="w-5 h-5" />
             </span>
             <div className="min-w-0">
               <p className="font-semibold text-ink">{b.title}</p>
               <p className="text-sm text-body mt-0.5 leading-snug">{b.body}</p>
             </div>
           </li>
-        ))}
+          )
+        })}
       </ul>
 
       <p className="text-xs text-caption mt-6 text-center">
