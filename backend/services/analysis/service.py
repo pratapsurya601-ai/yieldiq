@@ -1360,6 +1360,26 @@ class AnalysisService(NarrativeMixin):
                 "DIVISLAB", "SYNGENE", "COHANCE",
                 "ANTHEM", "SAGILITY", "IKS",
             }
+            # ── Day-84 (2026-05-22) Pharma FRANCHISE quality cohort ──
+            # Audit 2026-05-20: MANKIND FV ₹1,046 vs CMP ₹2,584
+            # (−59.5%). The terminal_growth_override of 0.05 alone is
+            # not enough to bridge the gap between vanilla DCF and the
+            # design-doc target band [₹1,500, ₹1,800]. Premium Indian
+            # pharma franchises (domestic OTC + branded chronic-care
+            # MNCs) deserve the same terminal-g treatment as hospital
+            # chains because their pricing power, revenue durability,
+            # and India healthcare nominal-spend tailwind are
+            # structurally comparable to the hospital sub-bucket.
+            # Set is identical to forecaster.py _PHARMA_FRANCHISE_
+            # TICKERS_TG — both blocks must stay in sync.
+            # Order matters: franchise tier is evaluated BEFORE CDMO
+            # so DIVISLAB (in both sets) picks up the franchise lift
+            # (0.055) rather than the looser CDMO lift (0.045).
+            _PHARMA_FRANCHISE_TICKERS_INLINE = {
+                "MANKIND", "SUNPHARMA", "CIPLA", "TORNTPHARM", "DRREDDY",
+                "DIVISLAB", "ABBOTINDIA", "GLAND", "GLAXO", "PFIZER",
+                "SANOFI", "AJANTPHARM", "ERIS",
+            }
             if _bare_ticker_tg in _HOSPITAL_CHAIN_TICKERS_INLINE and terminal_g < 0.055:
                 _tg_proposed = 0.055
                 if _tg_proposed < wacc - 0.02:  # safety guard preserved
@@ -1367,6 +1387,14 @@ class AnalysisService(NarrativeMixin):
                     _data_issues = list(_data_issues) + [
                         f"[hospital-chain-tg-lifted] terminal_g raised to {terminal_g:.3f} "
                         f"(Indian healthcare nominal-spend tailwind)"
+                    ]
+            elif _bare_ticker_tg in _PHARMA_FRANCHISE_TICKERS_INLINE and terminal_g < 0.055:
+                _tg_proposed = 0.055
+                if _tg_proposed < wacc - 0.02:
+                    terminal_g = _tg_proposed
+                    _data_issues = list(_data_issues) + [
+                        f"[pharma-franchise-tg-lifted] terminal_g raised to {terminal_g:.3f} "
+                        f"(domestic-OTC + branded chronic-care franchise durability)"
                     ]
             elif _bare_ticker_tg in _PHARMA_CDMO_TICKERS_INLINE and terminal_g < 0.045:
                 _tg_proposed = 0.045
