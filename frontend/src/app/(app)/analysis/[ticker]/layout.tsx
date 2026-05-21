@@ -11,7 +11,18 @@ interface Props {
 // page title or social-card preview — to a casual reader on Reddit /
 // Twitter the phrase reads as "the app is broken" or "this stock is
 // blacklisted", neither of which is true. Use neutral phrasing instead.
-const UNDER_REVIEW_VERDICTS = new Set(["data_limited", "unavailable"])
+// Day-64 (2026-05-21): expanded to include "under_review" (top-level
+// validator status) and "low_confidence" (Day-61 verdict-pill gate)
+// so the page title never confidently advertises a verdict the body
+// has already neutralised. HDFCBANK 2026-05-20 audit observed
+// "HDFCBANK --- Undervalued | YieldIQ" in tab while the body
+// rendered "Under Review" --- this set is the gate that fix lives in.
+const UNDER_REVIEW_VERDICTS = new Set([
+  "data_limited",
+  "unavailable",
+  "under_review",
+  "low_confidence",
+])
 
 // Substrings that may appear in a backend-supplied title for an under-
 // review ticker. Defense in depth: even if the og-data endpoint is
@@ -22,6 +33,7 @@ const FORBIDDEN_TITLE_SUBSTRINGS = [
   "Unavailable",
   "Under Review",
   "Avoid",
+  "Low Confidence",
 ]
 
 function neutralTitle(displayTicker: string): string {
@@ -68,8 +80,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // both title and description with neutral copy. We do this BEFORE
   // falling back to the generic default so we never accidentally render
   // "RELIANCE — Data Limited | YieldIQ" in an og:title tag.
+  // Day-64 (2026-05-21): also gate on the top-level `status` field.
+  // The public endpoint returns `{ status: "under_review", ... }` for
+  // tickers the validator quarantined (ITCHOTELS / ABLBL pattern) ---
+  // verdict may still carry a stale value in that payload.
+  const backendStatus =
+    typeof ogData?.status === "string" ? (ogData.status as string) : ""
   const isUnderReview =
     UNDER_REVIEW_VERDICTS.has(verdict) ||
+    UNDER_REVIEW_VERDICTS.has(backendStatus) ||
     FORBIDDEN_TITLE_SUBSTRINGS.some((s) => backendTitle.includes(s))
 
   // Derive the tab title's verdict from MoS (the same number rendered

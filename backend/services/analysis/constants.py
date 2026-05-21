@@ -932,6 +932,22 @@ _DAY3_SECTOR_FIXES: dict[str, str] = {
     "MAHLOG":      "Internet Platform",   # Mahindra Logistics 3PL
     "ALLCARGO":    "Internet Platform",   # integrated logistics
 
+    # Day-64 (2026-05-21): fertilizer / agri-input mis-tags. Audit
+    # 2026-05-20 caught PARADEEP rendering with sector
+    # "General/Diversified". Indian fertilizer cohort routes correctly
+    # only when sector is "Chemicals" (chemical fertilizers are part of
+    # that cohort per the engine's _is_chemicals() classifier).
+    "PARADEEP":    "Chemicals",      # Paradeep Phosphates
+    "RCF":         "Chemicals",      # Rashtriya Chemicals & Fertilizers (PSU)
+    "GNFC":        "Chemicals",      # Gujarat Narmada Valley Fertilizers
+    "GSFC":        "Chemicals",      # Gujarat State Fertilizers
+    "NFL":         "Chemicals",      # National Fertilizers
+    "CHAMBLFERT":  "Chemicals",      # Chambal Fertilizers
+    "FACT":        "Chemicals",      # Fertilizers and Chemicals Travancore
+    "ZUARI":       "Chemicals",      # Zuari Agro Chemicals
+    "DEEPAKFERT":  "Chemicals",      # Deepak Fertilizers
+    "MADRASFERT":  "Chemicals",      # Madras Fertilizers
+
     # Mid-cap pharma generic exporters (route to pharma cohort)
     "GRANULES":    "Pharma",
     "NEULANDLAB":  "Pharma",      # was "NEULAND" — actual NSE symbol
