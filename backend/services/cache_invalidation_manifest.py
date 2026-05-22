@@ -187,6 +187,27 @@ MANIFEST: list[dict] = [
             "ratio_history first; reject implausible zero when debt > 0."
         ),
     },
+    {
+        # Task#87: asset_turnover=null for RELIANCE/TATASTEEL/
+        # ULTRACEMCO/TCS/INFY. PR #498's sanity gate was correctly
+        # rejecting a ~1e-7 ratio caused by a pre-existing unit
+        # mismatch at the call site in analysis/service.py — revenue
+        # in Crores vs total_assets in raw INR (yfinance). Fix mirrors
+        # the FIX-ROCE-UNIT-MISMATCH pattern: prefer DB _ta_db (Crores)
+        # so units align with revenue.
+        "version_id": "v_task87_asset_turnover_unit_callsite_2026_05_22",
+        "applied_at": datetime(2026, 5, 22, 15, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["ratios.asset_turnover"],
+        },
+        "rationale": (
+            "Task#87: asset_turnover call site mixed Crore revenue "
+            "with raw-INR total_assets, producing ~1e-7 ratios that "
+            "PR #498's sanity gate correctly nulled. Prefer DB total "
+            "assets so units match revenue."
+        ),
+    },
 ]
 
 
