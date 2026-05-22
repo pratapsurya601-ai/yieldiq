@@ -936,7 +936,24 @@ export interface StockSummary {
   ev_ebitda: number | null
   market_cap: number
   ai_summary_snippet: string | null
+  // Day-103c: compounded-growth panel (3y/5y/10y CAGR) — additive,
+  // nullable across the board so older cached payloads degrade safely.
+  compounded_growth: CompoundedGrowthPanel | null
   last_updated: string | null
+}
+
+export interface CompoundedGrowthMetric {
+  "3y": number | null
+  "5y": number | null
+  "10y": number | null
+  as_of_fy: number | null
+}
+
+export interface CompoundedGrowthPanel {
+  revenue: CompoundedGrowthMetric
+  profit: CompoundedGrowthMetric
+  roe_avg: CompoundedGrowthMetric
+  stock: CompoundedGrowthMetric
 }
 
 export const getStockSummary = async (

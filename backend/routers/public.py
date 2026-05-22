@@ -399,8 +399,23 @@ def _extract_analysis_summary(result) -> dict:
             result.ai_summary[:200] + "..." if result.ai_summary and len(result.ai_summary) > 200
             else result.ai_summary
         ),
+        # Day-103c (2026-05-22): compounded-growth panel (3y/5y/10y CAGR
+        # for revenue/profit/ROE-avg/stock). Pure derived metric, no new
+        # ingestion. Failure must never break the summary — defensive
+        # try/except yields None so the UI hides the panel.
+        "compounded_growth": _safe_compute_cagr_panel(result.ticker),
         "last_updated": result.timestamp,
     }
+
+
+def _safe_compute_cagr_panel(ticker: str):
+    """Defensive wrapper so a CAGR failure can never break stock-summary."""
+    try:
+        from backend.services.cagr_service import compute_cagr_panel
+        return compute_cagr_panel(ticker)
+    except Exception as exc:  # pragma: no cover — logged, payload still ships
+        logger.info("compounded_growth: compute failed for %s: %s", ticker, exc)
+        return None
 
 
 # ═══════════════════════════════════════════════════════════════
