@@ -506,6 +506,61 @@ def _fetch_ebit_and_interest(ticker: str) -> tuple[float | None, float | None]:
             pass
 
 
+def _fetch_de_ratio(ticker: str) -> float | None:
+    """Latest annual D/E ratio from ``ratio_history`` (decimal, e.g.
+    1.04 = debt is 1.04x equity).
+
+    Returns ``None`` on miss — callers must preserve None instead of
+    coercing to 0. Audit#5 P1 (2026-05-22): the yfinance-sourced
+    ``de_ratio`` in ``enriched`` is coerced to ``0`` whenever
+    ``info["debtToEquity"]`` is missing (see ``data/collector.py``
+    line 1668), which made TATASTEEL / ADANIPORTS / RELIANCE / NTPC
+    render as "net cash" despite carrying material debt. The
+    ``ratio_history`` table is populated by the XBRL pipeline and is
+    the upstream truth used by the screener (see
+    ``backend/routers/public.py`` line 2074).
+    """
+    db = _get_pipeline_session()
+    if db is None:
+        return None
+    try:
+        from sqlalchemy import text
+        db_ticker = ticker.replace(".NS", "").replace(".BO", "")
+        row = db.execute(text("""
+            SELECT de_ratio
+            FROM ratio_history
+            WHERE ticker = :t
+              AND period_type = 'annual'
+              AND de_ratio IS NOT NULL
+            ORDER BY period_end DESC
+            LIMIT 1
+        """), {"t": db_ticker}).mappings().first()
+        if row is None:
+            return None
+        val = row.get("de_ratio")
+        if val is None:
+            return None
+        try:
+            f = float(val)
+        except (TypeError, ValueError):
+            return None
+        # NaN guard
+        if f != f:
+            return None
+        return f
+    except Exception as exc:
+        import logging as _l
+        _l.getLogger("yieldiq.analysis").debug(
+            "de_ratio fetch failed for %s: %s", ticker, exc,
+        )
+        return None
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+
 def _fetch_roce_inputs(
     ticker: str,
 ) -> tuple[float | None, float | None, float | None, float | None]:
