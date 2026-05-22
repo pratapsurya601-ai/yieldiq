@@ -10,7 +10,7 @@
  * "Data Limited" verdict with no explanation. The INFY post-mortem
  * (2026-04-29) confirmed this is a class-level issue, not a one-off.
  *
- * Until the direct NSE data path lands (ETA Q2 2026), we surface the
+ * Until the direct NSE data path lands, we surface the
  * status explicitly so users typing "INFY" don't infer the model is
  * simply broken.
  *
@@ -54,10 +54,10 @@ export default function AdrCohortBanner({ ticker }: { ticker: string }) {
         <span className="text-lg" aria-hidden="true">ⓘ</span>
         <div className="flex-1 min-w-0 text-sm leading-relaxed">
           <p>
-            <strong>Data Limited:</strong> {bare} is on our ADR cross-listed
+            <span className="font-bold">Data Limited:</span> {bare} is on our ADR cross-listed
             cohort where upstream financial data has known quality issues.
             We&apos;re working on a direct NSE data path. Fair value and score
-            may be conservative until fix ETA Q2 2026.{" "}
+            may be conservative until the direct NSE data path lands.{" "}
             <a
               href="/blog/infy-incident-postmortem"
               className="underline font-semibold whitespace-nowrap"
