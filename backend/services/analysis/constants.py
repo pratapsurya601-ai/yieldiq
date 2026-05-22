@@ -1559,3 +1559,141 @@ def is_capital_goods(
         return True
     return False
 
+
+# ─────────────────────────────────────────────────────────────────────
+# Day-107a (2026-05-23) — IT-services sector cohort overrides
+#
+# Indian large-cap IT services are structurally distinct from generic
+# tech / software:
+#   - Balance-sheet light, deep net-cash positions (median D/E ≈ 0.10
+#     across the 10-ticker cohort per ratio_history.parquet 2022-2026)
+#   - Mature 20-26% EBIT-margin businesses with multi-year deal-book
+#     visibility (BFSI / healthcare / hyperscaler verticals)
+#   - Tier-1 names (TCS/INFY/HCLTECH/WIPRO/TECHM) carry deposit-
+#     franchise-like client stickiness; Tier-2 (LTIM/PERSISTENT/
+#     MPHASIS/COFORGE/BSOFT) are higher-beta acquisitive plays
+#
+# Live medians (data/parquet/ratio_history.parquet, period_type=annual,
+# FY22 → FY26 where available):
+#   ROE         : 21% cohort median; TCS 48%, INFY 30%, HCLTECH 23%
+#   Net margin  : 12% cohort median; Tier-1 14-19%, Tier-2 6-12%
+#   D/E         : 0.10 cohort median; floor 0.03 (BSOFT), ceiling 0.23
+#                 (WIPRO post-Capco acquisition leverage)
+#
+# Override knobs (mirrors the Day-84 pharma-franchise WACC-cap + TG-lift
+# pattern and the Day-92 regulated-utility surfacing pattern):
+#   1. WACC tighten     — Tier-1: cap at 0.115 (100bps off generic
+#                          CAPM 12-13% landing); floor 0.085 (never
+#                          below risk-free + reasonable premium).
+#                         Tier-2: cap at 0.125 (50bps tighten; higher
+#                          beta and acquisitive book).
+#   2. Terminal-g lift  — Tier-1: 0.045 floor (multi-year deal-contract
+#                          visibility into BFSI/healthcare verticals).
+#                         Tier-2: default 0.040 (leave alone).
+#   3. Margin sanity    — flag any forecast input that assumes terminal
+#                         EBIT margin > 0.30 (IT-services margin band
+#                         has been 22-26% for a decade; expansion to
+#                         30%+ is structurally implausible).
+#   4. Scenario weights — recommended 30/45/25 (bull/base/bear) for
+#                         surfacing in narratives. NOT wired into the
+#                         engine (run_scenarios uses equal-weight
+#                         min/median/max ordering today); kept as
+#                         metadata for downstream consumers.
+#
+# Detection: whitelist wins over sector/industry string. The whitelist
+# is curated (10 large-caps explicitly named); the sector/industry
+# helper exists so future IT-services large-caps inherit the treatment
+# without code changes if/when they're added to the universe.
+# ─────────────────────────────────────────────────────────────────────
+
+# Tier-1 large-cap IT services (deposit-franchise-like client books,
+# 22-26% EBIT margins, deep net cash). WACC cap 0.115 / TG floor 0.045.
+IT_SERVICES_TIER1_TICKERS: set[str] = {
+    "TCS", "INFY", "WIPRO", "HCLTECH", "TECHM",
+}
+
+# Tier-2 IT services (acquisitive, higher beta, thinner margin band).
+# WACC cap 0.125 / TG default (no lift).
+IT_SERVICES_TIER2_TICKERS: set[str] = {
+    "LTIM", "PERSISTENT", "MPHASIS", "COFORGE", "BSOFT",
+}
+
+# Union of both tiers — used for cohort detection.
+IT_SERVICES_COHORT_TICKERS: set[str] = (
+    IT_SERVICES_TIER1_TICKERS | IT_SERVICES_TIER2_TICKERS
+)
+
+# Numeric anchors (single source of truth — both forecaster.py and
+# service.py read these via import or re-state them literally).
+# Calibrated 2026-05-23: 100bps tighten on Tier-1, 50bps on Tier-2.
+# Anchored to keep the post-cohort FV shift inside the ±20% backwards-
+# compat band on representative TCS/INFY DCF math.
+IT_SERVICES_TIER1_WACC_CAP = 0.115
+IT_SERVICES_TIER2_WACC_CAP = 0.125
+IT_SERVICES_WACC_FLOOR = 0.085  # never go below rf + reasonable premium
+IT_SERVICES_TIER1_TG_FLOOR = 0.045
+IT_SERVICES_TERMINAL_MARGIN_CEILING = 0.30  # flag inputs above this
+
+# Recommended scenario weight split (surface-only metadata).
+# Default is 0.33/0.34/0.33; the IT cohort skew reflects bear-narrative
+# pressure (US-recession + AI-substitution) balanced against base-case
+# deal-book durability.
+IT_SERVICES_SCENARIO_WEIGHTS = {
+    "bull": 0.30,
+    "base": 0.45,
+    "bear": 0.25,
+}
+
+# Sector / industry strings that route a non-whitelisted ticker into
+# the cohort (whitelist still wins). Lower-case substring match.
+_IT_SERVICES_SECTOR_KEYWORDS = frozenset({
+    "information technology",
+    "it services",
+    "technology services",
+})
+_IT_SERVICES_INDUSTRY_KEYWORDS = frozenset({
+    "information technology services",
+    "it consulting",
+    "software - infrastructure",
+    "software - application",  # acquisitive sub-bucket; tier-2 default
+})
+
+
+def is_it_services_cohort(
+    ticker: str | None,
+    sector: str | None = None,
+    industry: str | None = None,
+) -> bool:
+    """Return True if the ticker belongs to the Day-107a IT-services
+    cohort.
+
+    Whitelist takes precedence — explicit cohort membership wins over
+    a stale / mis-tagged sector string. Sector/industry keywords act
+    as a fallback so future IT-services large-caps inherit the
+    treatment without a code change.
+    """
+    bare = (ticker or "").upper().replace(".NS", "").replace(".BO", "")
+    if bare and bare in IT_SERVICES_COHORT_TICKERS:
+        return True
+    s = (sector or "").strip().lower()
+    if s and any(k in s for k in _IT_SERVICES_SECTOR_KEYWORDS):
+        return True
+    i = (industry or "").strip().lower()
+    if i and any(k in i for k in _IT_SERVICES_INDUSTRY_KEYWORDS):
+        return True
+    return False
+
+
+def it_services_tier(ticker: str | None) -> str | None:
+    """Return "tier1", "tier2", or None for IT-services cohort
+    membership. Used to pick the WACC cap (Tier-1 tighter) and the TG
+    lift (Tier-1 only)."""
+    bare = (ticker or "").upper().replace(".NS", "").replace(".BO", "")
+    if not bare:
+        return None
+    if bare in IT_SERVICES_TIER1_TICKERS:
+        return "tier1"
+    if bare in IT_SERVICES_TIER2_TICKERS:
+        return "tier2"
+    return None
+
