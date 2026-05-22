@@ -454,6 +454,62 @@ def _compute_pbv_path(
 
     fair_pb = median_pb * adj
 
+    # ── Day-109b (2026-05-23) — NBFC sub-segment P/B anchor + band ──
+    # The peer-median bucket `lending_nbfc` mixes diversified-Tier-1
+    # (BAJFINANCE 5-6× P/BV), gold-loan (MUTHOOTFIN/MANAPPURAM ~2×)
+    # and vehicle-finance (CHOLAFIN/SHRIRAMFIN ~2-2.5×) — its median
+    # under-anchors BAJFINANCE and over-anchors the rest. For tickers
+    # with a Day-109b sub-segment anchor, REPLACE the peer-median ×
+    # ROE-adj result with the cohort anchor × AUM-growth-boost and
+    # CLAMP into the sub-segment band. Non-cohort NBFCs (PNB-HFC
+    # peers already in premium_hfc/traditional_hfc, AMCs, etc.) are
+    # untouched. See sector_overrides.py for cohort membership SSOT.
+    _nbfc_meta: Optional[dict] = None
+    try:
+        from backend.services.analysis.sector_overrides import (
+            nbfc_pb_anchor as _nbfc_pb_anchor,
+            nbfc_pb_band as _nbfc_pb_band,
+            nbfc_aum_growth_boost as _nbfc_boost,
+            nbfc_sub_segment as _nbfc_sub_segment,
+        )
+        _anchor = _nbfc_pb_anchor(ticker)
+        if _anchor is not None:
+            _band = _nbfc_pb_band(ticker)
+            # AUM growth proxy: medians may carry an "aum_growth_yoy"
+            # (set by the caller when available) — fall back to None
+            # → boost=1.0 → no change. Never fabricate growth.
+            _aum_g = medians.get("aum_growth_yoy") if isinstance(medians, dict) else None
+            _boost = _nbfc_boost(ticker, _aum_g)
+            _pre_clamp = _anchor * _boost
+            if _band is not None:
+                _lo, _hi = _band
+                _clamped = max(_lo, min(_hi, _pre_clamp))
+            else:
+                _clamped = _pre_clamp
+            fair_pb = _clamped
+            _nbfc_meta = {
+                "nbfc_sub_segment": _nbfc_sub_segment(ticker),
+                "nbfc_anchor_pre_boost": round(_anchor, 2),
+                "nbfc_aum_growth_yoy": _aum_g,
+                "nbfc_aum_growth_boost": round(_boost, 3),
+                "nbfc_anchor_post_clamp": round(_clamped, 2),
+                "nbfc_band_low": _band[0] if _band else None,
+                "nbfc_band_high": _band[1] if _band else None,
+            }
+            logger.info(
+                "NBFC cohort anchor applied: %s seg=%s anchor=%.2f boost=%.3f "
+                "fair_pb=%.2f (band=[%.2f, %.2f])",
+                ticker,
+                _nbfc_meta["nbfc_sub_segment"],
+                _anchor,
+                _boost,
+                _clamped,
+                _band[0] if _band else float("nan"),
+                _band[1] if _band else float("nan"),
+            )
+    except Exception as _nbfc_exc:  # pragma: no cover — defensive
+        logger.debug("NBFC cohort anchor skipped %s: %s", ticker, _nbfc_exc)
+
     # ── Top private banks COE bump (P1 launch-aftermath, 2026-04-30) ──
     # HDFCBANK / ICICIBANK / KOTAKBANK / AXISBANK have cost of equity
     # ~10.5-11.5% (mature deposit franchise) vs generic 12.5% used in
@@ -515,6 +571,7 @@ def _compute_pbv_path(
             "roe_adjustment": round(adj, 2),
             "fair_pb": round(fair_pb, 2),
             "bvps": round(bvps, 2),
+            **({"nbfc_cohort": _nbfc_meta} if _nbfc_meta else {}),
         },
     }
 

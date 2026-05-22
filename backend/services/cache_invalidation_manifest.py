@@ -359,6 +359,31 @@ MANIFEST: list[dict] = [
             "BHEL +50bps WACC penalty)."
         ),
     },
+    {
+        # Day-109b (2026-05-23): NBFC (Non-Bank Finance) sector cohort
+        # overrides. Sub-segment fair-P/B anchoring (diversified Tier-1
+        # 5.0×, HFC pure-play 1.4×, gold-loan 2.2×, MFI 1.8×, vehicle
+        # finance 2.2×) + AUM-growth boost (±15% / -10%). HDFCLIFE
+        # EXCLUDED — insurance is a separate cohort (Day-XXX follow-up).
+        # BAJAJFINSV flagged as holdco-skip (SOTP, not lending). Wired
+        # through the existing P/B financial-company valuation path
+        # (financial_valuation_service._compute_pbv_path) — NBFCs do
+        # NOT route through DCF.
+        "version_id": "v_day109b_nbfc_cohort_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 20, 5, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "BAJFINANCE", "LICHSGFIN", "PNBHOUSING", "REPCO",
+                "MUTHOOTFIN", "MANAPPURAM", "CREDITACC", "CHOLAFIN",
+                "MMFIN", "SHRIRAMFIN", "SUNDARMFIN",
+            ],
+            "fields": "*",
+        },
+        "rationale": (
+            "Day-109b: NBFC cohort PB anchoring by sub-segment + "
+            "AUM-growth boost"
+        ),
+    },
 ]
 
 
