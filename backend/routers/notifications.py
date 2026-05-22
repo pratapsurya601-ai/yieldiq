@@ -124,13 +124,19 @@ async def test_push(
 ):
     """Send a Web Push to every subscription on file for the caller.
 
-    Copy is intentionally informational (SEBI: no buy/sell/recommend).
+    Copy is intentionally informational (SEBI-safe vocabulary).
+
+    Hotfix 2026-05-22: target url was /account/notifications — same
+    page the test button lives on. Click handler in sw.js found the
+    already-open tab, called focus(), and looked like nothing
+    happened. Point at / so the click traverses to a visibly
+    different surface. Real alerts carry their own ticker URLs.
     """
     delivered = push_service.send_push(
         db,
         user_id=user["user_id"],
         title=push_service.TEST_NOTIFICATION_TITLE,
         body=push_service.TEST_NOTIFICATION_BODY,
-        url="/account/notifications",
+        url="/",
     )
     return {"ok": True, "delivered": delivered}
