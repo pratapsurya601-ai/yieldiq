@@ -1313,6 +1313,25 @@ class AnalysisService(NarrativeMixin):
                 wacc_data["wacc"] = TOP_PRIVATE_BANK_COE
                 wacc_data["top_private_bank_coe_applied"] = True
 
+        # ── Day-107c (2026-05-23) ASHOKLEY CV WACC floor at 11% ──
+        # ASHOKLEY (commercial-vehicle pure-play) has CV-cycle beta
+        # closer to 1.3-1.5 in commodity-linked freight downturns.
+        # The default CAPM landing of ~10% understates risk; floor
+        # WACC at 0.11 so the DCF spread reflects the cycle premium.
+        # 2W / 4W auto OEMs do NOT get a floor — their betas land in
+        # the 1.0-1.2 band where default WACC is appropriate.
+        _AUTO_CV_WACC_FLOOR = 0.11
+        if clean_ticker == "ASHOKLEY" and wacc < _AUTO_CV_WACC_FLOOR:
+            import logging as _ashok_log
+            _ashok_log.getLogger("yieldiq.analysis").info(
+                "ASHOKLEY CV WACC floor applied: %.4f -> %.4f",
+                wacc, _AUTO_CV_WACC_FLOOR,
+            )
+            wacc = _AUTO_CV_WACC_FLOOR
+            if isinstance(wacc_data, dict):
+                wacc_data["wacc"] = _AUTO_CV_WACC_FLOOR
+                wacc_data["auto_cv_wacc_floor_applied"] = True
+
         country = get_active_country()
         terminal_g = country.get("default_terminal_growth", 0.025)
         if terminal_g >= wacc:
@@ -1405,6 +1424,118 @@ class AnalysisService(NarrativeMixin):
                         f"[pharma-cdmo-tg-lifted] terminal_g raised to {terminal_g:.3f} "
                         f"(contract-services revenue durability)"
                     ]
+            # ── Day-107c (2026-05-23) Auto OEM cohort: segment TG lift ──
+            # Indian auto OEMs are cyclical but ride a structural per-
+            # capita-ownership tailwind. Two-wheeler penetration in
+            # India is ~2-tier (rural under-served); 4W passenger and
+            # CV are mid-cycle commodity-linked. The default 2.5% TG
+            # (or per-country override ~4%) understates the long-run
+            # nominal demand CAGR. Lift TG per segment:
+            #   - 2W (BAJAJ-AUTO/HEROMOTOCO/EICHERMOT/TVSMOTOR) → 5.0%
+            #     Under-penetrated; export tailwinds (BAJAJ, TVS).
+            #   - 4W passenger (MARUTI/TATAMOTORS/M&M)         → 4.5%
+            #     Mid-cycle; EV transition + premiumization.
+            #   - CV (ASHOKLEY)                                 → 4.0%
+            #     Commodity-linked freight demand; tightest band.
+            #   - Auto ancillaries / tires (MOTHERSON/BOSCHLTD/
+            #     MRF/APOLLOTYRE)                                → 4.0%
+            #     Tier-2; tracks 4W cycle without secular lift.
+            # Safety guard `terminal_g < target` only lifts (never cuts).
+            _AUTO_2W_TICKERS_INLINE = {
+                "BAJAJ-AUTO", "BAJAJAUTO", "HEROMOTOCO",
+                "EICHERMOT", "TVSMOTOR",
+            }
+            _AUTO_4W_TICKERS_INLINE = {
+                "MARUTI", "TATAMOTORS", "M&M", "MM",
+            }
+            _AUTO_CV_TICKERS_INLINE = {"ASHOKLEY"}
+            _AUTO_ANCILLARY_TICKERS_INLINE = {
+                "MOTHERSON", "BOSCHLTD", "MRF", "APOLLOTYRE",
+            }
+            if _bare_ticker_tg in _AUTO_2W_TICKERS_INLINE and terminal_g < 0.050:
+                _tg_proposed = 0.050
+                if _tg_proposed < wacc - 0.02:
+                    terminal_g = _tg_proposed
+                    _data_issues = list(_data_issues) + [
+                        f"[auto-2w-tg-lifted] terminal_g raised to {terminal_g:.3f} "
+                        f"(India 2W per-capita ownership tailwind)"
+                    ]
+            elif _bare_ticker_tg in _AUTO_4W_TICKERS_INLINE and terminal_g < 0.045:
+                _tg_proposed = 0.045
+                if _tg_proposed < wacc - 0.02:
+                    terminal_g = _tg_proposed
+                    _data_issues = list(_data_issues) + [
+                        f"[auto-4w-tg-lifted] terminal_g raised to {terminal_g:.3f} "
+                        f"(India 4W passenger premiumization + EV transition)"
+                    ]
+            elif _bare_ticker_tg in _AUTO_CV_TICKERS_INLINE and terminal_g < 0.040:
+                _tg_proposed = 0.040
+                if _tg_proposed < wacc - 0.02:
+                    terminal_g = _tg_proposed
+                    _data_issues = list(_data_issues) + [
+                        f"[auto-cv-tg-lifted] terminal_g raised to {terminal_g:.3f} "
+                        f"(India CV freight cycle)"
+                    ]
+            elif _bare_ticker_tg in _AUTO_ANCILLARY_TICKERS_INLINE and terminal_g < 0.040:
+                _tg_proposed = 0.040
+                if _tg_proposed < wacc - 0.02:
+                    terminal_g = _tg_proposed
+                    _data_issues = list(_data_issues) + [
+                        f"[auto-anc-tg-lifted] terminal_g raised to {terminal_g:.3f} "
+                        f"(auto ancillary/tire 4W cycle)"
+                    ]
+        except Exception:
+            pass
+
+        # ── Day-107c (2026-05-23) Auto OEM cycle-stage detection ──
+        # Autos are deeply cyclical. Trailing EBITDA margin can be
+        # 150%+ of 5y median at cycle peaks (e.g. BAJAJ-AUTO FY24 ~22%
+        # vs 5y median ~17%) or <50% at troughs (e.g. TATAMOTORS
+        # FY20 COVID-trough ~3% vs 5y median ~8%). The DCF engine
+        # anchored on trailing margin will over/under-shoot at the
+        # extremes. We detect cycle-stage here and surface a flag so
+        # the bear-floor block below can apply the Day-51 pattern
+        # (`min(0.6 × fv, 0.4 × price)`) when in a deep trough.
+        _AUTO_COHORT_ALL_INLINE = {
+            "MARUTI", "TATAMOTORS", "M&M", "MM", "BAJAJ-AUTO", "BAJAJAUTO",
+            "HEROMOTOCO", "EICHERMOT", "ASHOKLEY", "TVSMOTOR",
+            "MOTHERSON", "BOSCHLTD", "MRF", "APOLLOTYRE",
+        }
+        _auto_cohort_member = False
+        _auto_cycle_stage = "neutral"
+        try:
+            _auto_bare = (ticker or "").replace(".NS", "").replace(".BO", "").upper()
+            if _auto_bare in _AUTO_COHORT_ALL_INLINE:
+                _auto_cohort_member = True
+                _trailing_margin = (
+                    enriched.get("ebitda_margin")
+                    or enriched.get("ebitda_margin_ttm")
+                    or 0
+                )
+                _median_margin = (
+                    enriched.get("ebitda_margin_5y_median")
+                    or 0
+                )
+                if _trailing_margin and _median_margin and _median_margin > 0:
+                    _ratio = float(_trailing_margin) / float(_median_margin)
+                    if _ratio > 1.5:
+                        _auto_cycle_stage = "peak"
+                        _data_issues = list(_data_issues) + [
+                            f"[auto-cycle-peak] trailing margin "
+                            f"{float(_trailing_margin):.3f} is "
+                            f"{_ratio:.2f}x 5y median "
+                            f"{float(_median_margin):.3f}; "
+                            f"DCF input may overshoot mid-cycle FV"
+                        ]
+                    elif _ratio < 0.5:
+                        _auto_cycle_stage = "trough"
+                        _data_issues = list(_data_issues) + [
+                            f"[auto-cycle-trough] trailing margin "
+                            f"{float(_trailing_margin):.3f} is "
+                            f"{_ratio:.2f}x 5y median "
+                            f"{float(_median_margin):.3f}; "
+                            f"bear-floor will engage"
+                        ]
         except Exception:
             pass
 
@@ -2285,6 +2416,32 @@ class AnalysisService(NarrativeMixin):
                     _trough_anchor_bull_iv = round(
                         max(1.10 * price, iv * 1.05), 2,
                     )
+
+        # ── Day-107c (2026-05-23) Auto cohort cycle-trough bear-floor ──
+        # When a cohort member is detected as cycle-trough (trailing
+        # EBITDA margin < 50% of 5y median) apply the Day-51 cyclical
+        # bear-floor pattern: bear_iv = min(0.6 × current_fv,
+        # 0.4 × current_price). This prevents the bear case rendering
+        # at ~0 when the engine is anchored on a COVID-2020-style
+        # trough margin. Apply ONLY when the existing bear_iv would
+        # be lower than this floor (max() preserves upside).
+        if (
+            _auto_cohort_member
+            and _auto_cycle_stage == "trough"
+            and iv > 0
+            and price > 0
+        ):
+            try:
+                _auto_bear_floor = round(min(0.6 * iv, 0.4 * price), 2)
+                if bear_iv < _auto_bear_floor:
+                    _data_issues = list(_data_issues) + [
+                        f"[auto-cycle-trough-bear-floor] bear raised from "
+                        f"{bear_iv:.2f} to {_auto_bear_floor:.2f} "
+                        f"(min(0.6*fv, 0.4*price) — cycle-trough)"
+                    ]
+                    bear_iv = _auto_bear_floor
+            except Exception:
+                pass
 
         # ── Growth-stock override ─────────────────────────────
         # For pre-profit companies (FCF<=0 or PAT<=0) with real revenue,

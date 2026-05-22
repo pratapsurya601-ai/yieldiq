@@ -282,6 +282,32 @@ MANIFEST: list[dict] = [
         "scope": {"tickers": "*", "fields": ["compounded_growth"]},
         "rationale": "Day-103c: new compounded_growth field on stock-summary",
     },
+    {
+        # Day-107c (2026-05-23): Indian auto OEM cohort overrides.
+        # Three coordinated engine knobs scoped to the 12-ticker
+        # cohort below: (1) segment-differentiated terminal growth
+        # — 2W 5.0%, 4W passenger 4.5%, CV 4.0%, ancillary/tires 4.0%;
+        # (2) ASHOKLEY CV WACC floor at 0.11 (commodity-linked beta);
+        # (3) cycle-trough bear-floor `min(0.6*fv, 0.4*price)` per
+        # the Day-51 cyclical-trough pattern, triggered when trailing
+        # EBITDA margin < 50% of 5y median. Engine change → FV / MoS
+        # / verdict / scenarios all touched; full-row invalidation
+        # for the 12 cohort tickers.
+        "version_id": "v_day107c_auto_cohort_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 10, 10, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "MARUTI", "TATAMOTORS", "M&M", "BAJAJ-AUTO",
+                "HEROMOTOCO", "EICHERMOT", "ASHOKLEY", "TVSMOTOR",
+                "MOTHERSON", "BOSCHLTD", "MRF", "APOLLOTYRE",
+            ],
+            "fields": "*",
+        },
+        "rationale": (
+            "Day-107c: auto cohort overrides (5y EBIT normalization, "
+            "segment TG, cycle bear-floor)"
+        ),
+    },
 ]
 
 

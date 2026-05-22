@@ -202,10 +202,12 @@ def test_day95_does_not_invalidate_rows_computed_after_it():
     )
 
     manifest = _load_production_manifest()
-    metals = _find_entry(manifest, "v_day95_metals_sector_pins")
-    v_init = _find_entry(manifest, "v_init_2026_05_22")
-    # After both entries → no applicable invalidation.
-    row_after_all = max(metals["applied_at"], v_init["applied_at"]) + timedelta(hours=1)
+    # After the LATEST entry in the manifest → no applicable
+    # invalidation for any ticker. (The original draft hard-coded
+    # max(metals, v_init); that bit-rotted as later cohort entries
+    # such as Day-107c added MARUTI/etc. to scope. Always pick the
+    # true tail so the invariant survives future additions.)
+    row_after_all = max(e["applied_at"] for e in manifest) + timedelta(hours=1)
 
     for ticker in DAY95_METALS_TICKERS + NON_METALS_TICKERS:
         assert is_row_valid_per_manifest(
