@@ -272,6 +272,30 @@ def body_has_skip_declaration(body: str | None) -> bool:
     return bool(_SKIP_RE.search(body))
 
 
+# Day-95 (2026-05-22): post-Day-94 the gate ALSO accepts a manifest entry
+# in lieu of a CACHE_VERSION bump. Touching analysis code without bumping
+# the integer is now OK as long as the engineer appends a scoped entry
+# to MANIFEST in backend/services/cache_invalidation_manifest.py.
+_MANIFEST_FILE = "backend/services/cache_invalidation_manifest.py"
+_MANIFEST_ENTRY_HINT_RE = re.compile(
+    r'^\+\s*"version_id"\s*:\s*"[^"]+"\s*,', re.MULTILINE,
+)
+
+
+def diff_has_manifest_entry(diff_text: str) -> bool:
+    """True if the diff appends at least one MANIFEST entry.
+
+    We look for an added line containing `"version_id": "..."` inside
+    the manifest file. This is a heuristic match — a new entry dict
+    will always have a `version_id` field per the schema. If someone
+    edits an existing entry's version_id, this will also pass, but
+    that's a deliberate manifest edit which also invalidates rows.
+    """
+    if _MANIFEST_FILE not in _changed_paths(diff_text):
+        return False
+    return bool(_MANIFEST_ENTRY_HINT_RE.search(diff_text))
+
+
 # ---- CLI -------------------------------------------------------------------
 ERROR_MESSAGE = """\
 CACHE_VERSION-bump check FAILED.
@@ -344,6 +368,15 @@ def main(argv: list[str] | None = None) -> int:
     if diff_has_cache_bump(diff):
         print(
             "[cache-version] Trigger paths touched AND CACHE_VERSION bumped. OK.\n"
+            "  matched: " + ", ".join(matched)
+        )
+        return 0
+
+    # Day-95 (2026-05-22): manifest entry counts the same as a bump.
+    if diff_has_manifest_entry(diff):
+        print(
+            "[cache-version] Trigger paths touched AND manifest entry appended "
+            "(Day-94 architecture). OK.\n"
             "  matched: " + ", ".join(matched)
         )
         return 0
