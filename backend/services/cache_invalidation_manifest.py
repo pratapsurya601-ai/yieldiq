@@ -377,6 +377,24 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        # Day-110b (2026-05-23): Insurance cohort overrides (P/EV
+        # anchors for life — P/B fallback today, P/EV when EV
+        # ingestion lands; P/B + CR overlay for general insurance).
+        "version_id": "v_day110b_insurance_cohort_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 21, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "HDFCLIFE", "SBILIFE", "ICICIPRULI", "LICI", "MAXFIN",
+                "ICICIGI", "NIACL",
+            ],
+            "fields": "*",
+        },
+        "rationale": (
+            "Day-110b: Insurance cohort overrides (P/EV anchors for "
+            "life, P/B+CR for general)"
+        ),
+    },
+    {
         # Day-110a (2026-05-23): observability-only manifest entry for
         # the sector landing-page read-path hotfix (aggregator now uses
         # get_cached_latest() which bypasses manifest validation).

@@ -510,6 +510,66 @@ def _compute_pbv_path(
     except Exception as _nbfc_exc:  # pragma: no cover — defensive
         logger.debug("NBFC cohort anchor skipped %s: %s", ticker, _nbfc_exc)
 
+    # ── Day-110b (2026-05-23) — Insurance cohort P/B anchor + band ──
+    # Layered on the same peer-median path as NBFC. Insurance is in
+    # separate peer groups (life_insurance / psu_gi / private_gi),
+    # NOT in any bank cohort, so the TOP_PRIVATE_BANK_PB_BUMP below
+    # never fires here. The cohort REPLACES fair_pb with the sub-
+    # segment anchor (P/B fallback path; P/EV path is gated on EV
+    # ingestion — see insurance_appraisal_service.py + design doc).
+    _insurance_meta: Optional[dict] = None
+    try:
+        from backend.services.analysis.sector_overrides import (
+            insurance_anchor_multiple as _ins_anchor,
+            insurance_anchor_band as _ins_band,
+            insurance_subsegment as _ins_sub,
+            insurance_data_gaps as _ins_gaps,
+            is_insurance_cohort_ticker as _ins_in,
+        )
+        if _ins_in(ticker):
+            # Combined ratio is not in ratio_history today; medians
+            # dict MAY carry it when the caller upstream has stitched
+            # it in. Fall back to None → GI tier-1 picks the safer
+            # underwriting-loss anchor (2.5x), GI PSU is unaffected.
+            _cr = medians.get("combined_ratio") if isinstance(medians, dict) else None
+            _ev_ps = medians.get("embedded_value_per_share") if isinstance(medians, dict) else None
+            _anchor_ins = _ins_anchor(ticker, embedded_value_per_share=_ev_ps, combined_ratio=_cr)
+            _band_ins = _ins_band(ticker, embedded_value_per_share=_ev_ps)
+            if _anchor_ins is not None:
+                if _band_ins is not None:
+                    _lo, _hi = _band_ins
+                    _clamped_ins = max(_lo, min(_hi, _anchor_ins))
+                else:
+                    _clamped_ins = _anchor_ins
+                fair_pb = _clamped_ins
+                _gaps = _ins_gaps(
+                    ticker,
+                    embedded_value_per_share=_ev_ps,
+                    combined_ratio=_cr,
+                    bvps=bvps,
+                )
+                _insurance_meta = {
+                    "insurance_sub_segment": _ins_sub(ticker),
+                    "insurance_anchor_pre_clamp": round(_anchor_ins, 3),
+                    "insurance_anchor_post_clamp": round(_clamped_ins, 3),
+                    "insurance_band_low": _band_ins[0] if _band_ins else None,
+                    "insurance_band_high": _band_ins[1] if _band_ins else None,
+                    "insurance_combined_ratio": _cr,
+                    "insurance_embedded_value_per_share": _ev_ps,
+                    "insurance_data_gaps": _gaps,
+                }
+                logger.info(
+                    "Insurance cohort anchor applied: %s seg=%s anchor=%.3f "
+                    "fair_pb=%.3f data_limited=%s",
+                    ticker,
+                    _insurance_meta["insurance_sub_segment"],
+                    _anchor_ins,
+                    _clamped_ins,
+                    _gaps.get("data_limited"),
+                )
+    except Exception as _ins_exc:  # pragma: no cover — defensive
+        logger.debug("Insurance cohort anchor skipped %s: %s", ticker, _ins_exc)
+
     # ── Top private banks COE bump (P1 launch-aftermath, 2026-04-30) ──
     # HDFCBANK / ICICIBANK / KOTAKBANK / AXISBANK have cost of equity
     # ~10.5-11.5% (mature deposit franchise) vs generic 12.5% used in
@@ -572,6 +632,7 @@ def _compute_pbv_path(
             "fair_pb": round(fair_pb, 2),
             "bvps": round(bvps, 2),
             **({"nbfc_cohort": _nbfc_meta} if _nbfc_meta else {}),
+            **({"insurance_cohort": _insurance_meta} if _insurance_meta else {}),
         },
     }
 

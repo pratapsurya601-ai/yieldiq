@@ -1034,6 +1034,315 @@ def compute_distribution_yield_fair_value(
     }
 
 
+# ═══════════════════════════════════════════════════════════════════
+# Day-110b (2026-05-23) — Insurance sector cohort overrides
+# ═══════════════════════════════════════════════════════════════════
+# Companion to Day-109a (banking) and Day-109b (NBFC). Insurance is
+# fundamentally different math: Indian life insurers are anchored on
+# Price-to-Embedded-Value (P/EV), not P/B and never DCF. General
+# insurers are P/B with a combined-ratio (CR) overlay.
+#
+# Existing infra context:
+#   - ``backend/services/insurance_appraisal_service.py`` already ships
+#     a full Appraisal-Value engine (EV + N×VNB) gated on operator-
+#     loaded ``insurance_appraisal_inputs`` rows. When that table is
+#     empty (every environment that hasn't had operator data entered)
+#     the code falls through to the P/BV peer-median path. That fall-
+#     through path is what Day-110b nuances.
+#   - The peer groups ``life_insurance`` / ``psu_gi`` / ``private_gi``
+#     / ``health_insurance`` already exist in financial_valuation_
+#     service.py with per-bucket P/B fallbacks. Those buckets stay; we
+#     LAYER tier-aware anchors + bands per sub-segment.
+#   - Day-109b's ``is_nbfc_insurance_excluded`` continues to return
+#     True for life insurers — this cohort is dual-handled (insurance
+#     has its own router; the NBFC exclusion just keeps insurers out of
+#     the NBFC P/B math). Documented in tests.
+#
+# Override knobs (P/EV ≈ P/B × 4-5 ratio for life; P/B + CR for GI):
+#
+#   Life insurance Tier-1 private (HDFCLIFE / SBILIFE / ICICIPRULI /
+#       MAXFIN): anchor 2.5× EV, band [2.0, 3.5]. When EV is not
+#       loaded, fall back to P/B ~4.5× book (rough EV ≈ 2× book × P/EV
+#       2.5 = 5× book; use 4.5× to be slightly conservative).
+#   Life insurance PSU (LICI): anchor 1.0× EV, band [0.8, 1.5]. P/B
+#       fallback 1.5×. PSU governance + slower VNB growth discount.
+#   General insurance Tier-1 private (ICICIGI): anchor 6.5× book when
+#       combined_ratio < 100% (underwriting profit), 6.0× when CR ≥
+#       100% or unknown. Band [4.5, 7.5]. Calibrated against the real
+#       2026-05 private_gi peer-median 5.9× (ICICIGI 5.68 / GODIGIT
+#       6.13) so the cohort layer is consistent with consensus-pinned
+#       ICICIGI FV ~₹2,020. Note: GODIGIT stays in the private_gi
+#       peer bucket and is NOT in this cohort to avoid double-counting.
+#   General insurance PSU (NIACL): anchor 1.05× book regardless of CR
+#       (matches psu_gi peer-median; PSU discount on GI underwriting
+#       franchises). Band [0.8, 1.5].
+#
+# Data gaps (2026-05-23 — Phase 2 follow-ups):
+#   - embedded_value is NOT in yfinance / ratio_history parquet; only
+#     in annual EV reports (the existing insurance_appraisal_inputs
+#     admin form is the canonical ingestion path).
+#   - combined_ratio is NOT consistently present in ratio_history.
+#   - Both gaps surface via insurance_data_gaps() so the caller can
+#     stamp ``data_limited`` and add an audit note. The cohort still
+#     ships a static anchor (P/B-based) so the FV is more accurate
+#     than the unsegmented peer-median fallback.
+#
+# Wiring:
+#   - Layered into ``_compute_pbv_path`` in financial_valuation_
+#     service.py AFTER the NBFC anchor block and BEFORE the
+#     ``TOP_PRIVATE_BANK_PB_BUMP``. Insurance is in a separate peer
+#     group from banks, so the top-private-bank bump never fires on
+#     it; layering order is for code locality, not interaction.
+# ═══════════════════════════════════════════════════════════════════
+
+# ── Life insurance — Tier-1 private ──────────────────────────────
+# Top private life insurers with strong VNB growth + retail+banca
+# distribution moats. Anchor 2.5× EV / 4.5× P/B fallback.
+# MAXFIN included per Day-110b scope; treated as Tier-1 private for
+# anchor purposes although smaller scale than HDFCLIFE/SBILIFE.
+_INSURANCE_LIFE_TIER1_PRIVATE: Final[frozenset[str]] = frozenset({
+    "HDFCLIFE",
+    "SBILIFE",
+    "ICICIPRULI",
+    "MAXFIN",
+})
+
+# ── Life insurance — PSU ─────────────────────────────────────────
+# LICI: state-owned, ~60% market share, lower VNB margin (~16% vs
+# ~26% for private peers), governance + slower-product-mix discount.
+_INSURANCE_LIFE_PSU: Final[frozenset[str]] = frozenset({
+    "LICI",
+})
+
+# ── General insurance — Tier-1 private ───────────────────────────
+# ICICIGI is the clear Tier-1 private GI listing. GODIGIT is
+# deliberately NOT included — its digital-GI multiple sits in the
+# existing private_gi peer-bucket (5.5x fallback) which is already
+# anchored correctly; double-applying Day-110b would over-anchor.
+_INSURANCE_GI_TIER1_PRIVATE: Final[frozenset[str]] = frozenset({
+    "ICICIGI",
+})
+
+# ── General insurance — PSU ──────────────────────────────────────
+# NIACL: New India Assurance, PSU general insurer. Governance + GI-
+# cycle drag → 1.5× book regardless of combined ratio.
+_INSURANCE_GI_PSU: Final[frozenset[str]] = frozenset({
+    "NIACL",
+})
+
+# ── Union (all insurance cohort members) ─────────────────────────
+_INSURANCE_COHORT_TICKERS_INLINE: Final[frozenset[str]] = (
+    _INSURANCE_LIFE_TIER1_PRIVATE
+    | _INSURANCE_LIFE_PSU
+    | _INSURANCE_GI_TIER1_PRIVATE
+    | _INSURANCE_GI_PSU
+)
+
+# ── Public override constants ────────────────────────────────────
+# Life insurance — P/EV anchors (used when embedded_value column is
+# available — currently Phase 2 since EV is not in yfinance).
+INSURANCE_LIFE_TIER1_PEV_ANCHOR: Final[float] = 2.5
+INSURANCE_LIFE_TIER1_PEV_BAND: Final[tuple[float, float]] = (2.0, 3.5)
+INSURANCE_LIFE_PSU_PEV_ANCHOR: Final[float] = 1.0
+INSURANCE_LIFE_PSU_PEV_BAND: Final[tuple[float, float]] = (0.8, 1.5)
+
+# Life insurance — P/B fallback anchors (used in current path, since
+# EV ingestion has not landed). Calibrated so that
+#   fair_pb_fallback ≈ pev_anchor × (book / EV ratio)
+# where book/EV ≈ 1.8 for Tier-1 private (HDFCLIFE 2.5 × 1.8 = 4.5)
+# and ~1.5 for LICI (1.0 × 1.5 = 1.5).
+INSURANCE_LIFE_TIER1_PB_FALLBACK_ANCHOR: Final[float] = 4.5
+INSURANCE_LIFE_TIER1_PB_FALLBACK_BAND: Final[tuple[float, float]] = (3.0, 6.0)
+INSURANCE_LIFE_PSU_PB_FALLBACK_ANCHOR: Final[float] = 1.5
+INSURANCE_LIFE_PSU_PB_FALLBACK_BAND: Final[tuple[float, float]] = (1.0, 2.5)
+
+# General insurance — P/B with combined-ratio overlay.
+# Calibrated against real market multiples (ICICIGI 5.68×, NIACL 0.94×
+# as of 2026-05-17 market_metrics) and the consensus-pinned tests in
+# test_financial_valuation.py (ICICIGI FV ~₹2,020, NIACL FV ~₹170).
+# Tier-1 private anchors land near the existing private_gi peer-median
+# (5.9×) so the cohort layer is consistent with the bucket median; the
+# CR overlay nudges +/- around it. PSU anchor (1.05×) matches the
+# psu_gi peer-median (1.05×); the cohort gives an explicit named
+# constant for that anchor and a tight band to surface in _meta.
+INSURANCE_GI_TIER1_PB_ANCHOR_UW_PROFIT: Final[float] = 6.5   # CR < 100%
+INSURANCE_GI_TIER1_PB_ANCHOR_UW_LOSS: Final[float] = 6.0     # CR ≥ 100% / unknown
+INSURANCE_GI_TIER1_PB_BAND: Final[tuple[float, float]] = (4.5, 7.5)
+INSURANCE_GI_PSU_PB_ANCHOR: Final[float] = 1.05
+INSURANCE_GI_PSU_PB_BAND: Final[tuple[float, float]] = (0.8, 1.5)
+
+# Combined-ratio threshold: below this is underwriting profit.
+INSURANCE_GI_COMBINED_RATIO_PROFIT_THRESHOLD: Final[float] = 1.00
+
+
+def is_insurance_cohort_ticker(ticker: str | None) -> bool:
+    """True if the ticker is in the Day-110b insurance cohort (any
+    sub-segment). HDFCLIFE / SBILIFE / ICICIPRULI / LICI / MAXFIN /
+    ICICIGI / NIACL.
+
+    Note: ``is_nbfc_insurance_excluded`` from Day-109b returns True
+    for the four life insurers listed there (HDFCLIFE / SBILIFE /
+    ICICIPRULI / LICI / CANHLIFE). Day-110b is the POSITIVE cohort;
+    the Day-109b exclusion stays in place to keep insurers out of NBFC
+    P/B math. Both helpers can return True simultaneously for the
+    same ticker — that's intentional dual-handling, not a bug."""
+    return _bare(ticker) in _INSURANCE_COHORT_TICKERS_INLINE
+
+
+def insurance_subsegment(ticker: str | None) -> str | None:
+    """Return the insurance sub-segment key, or ``None`` if not in
+    cohort.
+
+    Keys (stable, surfaced in ``_meta`` for canary diff + admin debug):
+      ``life_tier1_private`` | ``life_psu`` |
+      ``gi_tier1_private`` | ``gi_psu``
+    """
+    bare = _bare(ticker)
+    if bare in _INSURANCE_LIFE_TIER1_PRIVATE:
+        return "life_tier1_private"
+    if bare in _INSURANCE_LIFE_PSU:
+        return "life_psu"
+    if bare in _INSURANCE_GI_TIER1_PRIVATE:
+        return "gi_tier1_private"
+    if bare in _INSURANCE_GI_PSU:
+        return "gi_psu"
+    return None
+
+
+def insurance_anchor_multiple(
+    ticker: str | None,
+    embedded_value_per_share: float | None = None,
+    combined_ratio: float | None = None,
+) -> float | None:
+    """Return the fair-multiple anchor for the cohort sub-segment.
+
+    For LIFE insurers:
+      - If ``embedded_value_per_share`` is provided (>0), the anchor
+        is interpreted as a P/EV multiple (Tier-1 2.5×, PSU 1.0×).
+        Caller multiplies anchor × EV-per-share for FV.
+      - If EV is None (current default path — EV not in parquet),
+        the anchor is a P/B fallback (Tier-1 4.5×, PSU 1.5×). Caller
+        multiplies anchor × BVPS for FV.
+
+    For GENERAL insurers:
+      - Tier-1 private: 4.0× book when CR < 100% (underwriting
+        profit), 2.5× when CR ≥ 100% or unknown.
+      - PSU: 1.5× book regardless of CR (governance discount).
+
+    Returns ``None`` for non-cohort tickers."""
+    seg = insurance_subsegment(ticker)
+    if seg is None:
+        return None
+    if seg == "life_tier1_private":
+        if embedded_value_per_share is not None and embedded_value_per_share > 0:
+            return INSURANCE_LIFE_TIER1_PEV_ANCHOR
+        return INSURANCE_LIFE_TIER1_PB_FALLBACK_ANCHOR
+    if seg == "life_psu":
+        if embedded_value_per_share is not None and embedded_value_per_share > 0:
+            return INSURANCE_LIFE_PSU_PEV_ANCHOR
+        return INSURANCE_LIFE_PSU_PB_FALLBACK_ANCHOR
+    if seg == "gi_tier1_private":
+        if combined_ratio is not None:
+            try:
+                cr = float(combined_ratio)
+                # Auto-detect percent vs decimal (>3 → percent).
+                if cr > 3.0:
+                    cr = cr / 100.0
+                if cr < INSURANCE_GI_COMBINED_RATIO_PROFIT_THRESHOLD:
+                    return INSURANCE_GI_TIER1_PB_ANCHOR_UW_PROFIT
+            except (TypeError, ValueError):
+                pass
+        return INSURANCE_GI_TIER1_PB_ANCHOR_UW_LOSS
+    if seg == "gi_psu":
+        return INSURANCE_GI_PSU_PB_ANCHOR
+    return None
+
+
+def insurance_anchor_band(
+    ticker: str | None,
+    embedded_value_per_share: float | None = None,
+) -> tuple[float, float] | None:
+    """Return the (low, high) clamp band for the cohort sub-segment.
+    Mirrors ``insurance_anchor_multiple``: P/EV band when EV is
+    supplied for life, P/B band otherwise. Returns ``None`` for
+    non-cohort tickers."""
+    seg = insurance_subsegment(ticker)
+    if seg is None:
+        return None
+    if seg == "life_tier1_private":
+        if embedded_value_per_share is not None and embedded_value_per_share > 0:
+            return INSURANCE_LIFE_TIER1_PEV_BAND
+        return INSURANCE_LIFE_TIER1_PB_FALLBACK_BAND
+    if seg == "life_psu":
+        if embedded_value_per_share is not None and embedded_value_per_share > 0:
+            return INSURANCE_LIFE_PSU_PEV_BAND
+        return INSURANCE_LIFE_PSU_PB_FALLBACK_BAND
+    if seg == "gi_tier1_private":
+        return INSURANCE_GI_TIER1_PB_BAND
+    if seg == "gi_psu":
+        return INSURANCE_GI_PSU_PB_BAND
+    return None
+
+
+def insurance_data_gaps(
+    ticker: str | None,
+    embedded_value_per_share: float | None = None,
+    combined_ratio: float | None = None,
+    bvps: float | None = None,
+) -> dict:
+    """Return a dict describing which Day-110b inputs are missing for
+    transparency / data_issues surfacing.
+
+    Keys (all bool):
+      ``ev_missing``        — life insurers need EV for the P/EV path.
+                              True when seg is life-* and EV is None
+                              or non-positive.
+      ``combined_ratio_missing`` — GI tier-1 needs CR to pick the
+                              underwriting-profit-vs-loss anchor. True
+                              when seg is gi_tier1_private and CR is
+                              None. (gi_psu does not need CR — always
+                              1.5× book.)
+      ``bvps_missing``      — every fallback path needs BVPS. True
+                              when bvps is None or non-positive.
+      ``data_limited``      — convenience aggregate: True when any
+                              critical input is missing such that the
+                              cohort can only ship a STATIC anchor (no
+                              EV, no CR overlay). For life: True iff
+                              ev_missing. For gi_tier1_private: True
+                              iff combined_ratio_missing. For gi_psu /
+                              non-cohort: always False (the static
+                              anchor IS the published model).
+
+    Non-cohort tickers return an empty dict (caller treats absence as
+    "no gaps to report")."""
+    seg = insurance_subsegment(ticker)
+    if seg is None:
+        return {}
+    ev_missing = False
+    cr_missing = False
+    if seg in ("life_tier1_private", "life_psu"):
+        ev_missing = not (
+            embedded_value_per_share is not None
+            and embedded_value_per_share > 0
+        )
+    if seg == "gi_tier1_private":
+        cr_missing = combined_ratio is None
+    bvps_missing = not (bvps is not None and bvps > 0)
+    if seg.startswith("life_"):
+        data_limited = ev_missing
+    elif seg == "gi_tier1_private":
+        data_limited = cr_missing
+    else:  # gi_psu
+        data_limited = False
+    return {
+        "sub_segment": seg,
+        "ev_missing": ev_missing,
+        "combined_ratio_missing": cr_missing,
+        "bvps_missing": bvps_missing,
+        "data_limited": data_limited,
+    }
+
+
 # Re-export inline sets for source-text tests + downstream callers.
 REIT_INVIT_COHORT_TICKERS_INLINE = _REIT_INVIT_COHORT_TICKERS_INLINE
 REIT_OFFICE = _REIT_OFFICE
@@ -1042,3 +1351,8 @@ INVIT_ROADS = _INVIT_ROADS
 INVIT_TRANSMISSION = _INVIT_TRANSMISSION
 INVIT_OTHER = _INVIT_OTHER
 INVIT_TICKERS_INLINE = _INVIT_TICKERS_INLINE
+INSURANCE_COHORT_TICKERS_INLINE = _INSURANCE_COHORT_TICKERS_INLINE
+INSURANCE_LIFE_TIER1_PRIVATE = _INSURANCE_LIFE_TIER1_PRIVATE
+INSURANCE_LIFE_PSU = _INSURANCE_LIFE_PSU
+INSURANCE_GI_TIER1_PRIVATE = _INSURANCE_GI_TIER1_PRIVATE
+INSURANCE_GI_PSU = _INSURANCE_GI_PSU
