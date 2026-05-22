@@ -640,6 +640,19 @@ function CompareContent() {
               {peersData.cohort_criteria.mixed_sub_sector && (
                 <span className="ml-1 italic opacity-80">(mixed cohort)</span>
               )}
+              {/* Day-96: thin sub-sectors (e.g. Airlines — INDIGO is
+                  effectively the only listed large-cap airline) force
+                  the peer-builder to broaden to the nearest sector
+                  cohort. Tag the cohort so the user reads the chips
+                  with appropriate skepticism. */}
+              {peersData.cohort_criteria.cohort_broadened && (
+                <span
+                  data-testid="peer-cohort-broadened-tag"
+                  className="ml-1 italic opacity-80"
+                >
+                  (broadened cohort — not true sub-sector peers)
+                </span>
+              )}
             </p>
           )}
           <div className="flex flex-wrap gap-2">
