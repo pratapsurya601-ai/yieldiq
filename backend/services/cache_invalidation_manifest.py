@@ -153,6 +153,23 @@ MANIFEST: list[dict] = [
             "scenario midpoint is meaningful."
         ),
     },
+    {
+        # Audit#5 P1: INDIGO asset_turnover=359808 — clearly a unit
+        # mismatch. Defensive sanity gate in compute_asset_turnover
+        # nulls values outside [0.001, 100] so UI shows "n/a" instead
+        # of an obviously-wrong number.
+        "version_id": "v_audit5_p1_asset_turnover_units_2026_05_22",
+        "applied_at": datetime(2026, 5, 22, 13, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["INDIGO"],
+            "fields": ["ratios.asset_turnover"],
+        },
+        "rationale": (
+            "Audit#5 P1: asset_turnover sanity gate — INDIGO showed "
+            "359808 due to unit mismatch upstream. Scoped to INDIGO; "
+            "other tickers are within plausible band."
+        ),
+    },
 ]
 
 
