@@ -19,6 +19,7 @@ from datetime import datetime
 from sqlalchemy import (
     Column, Integer, String, Text, Date, DateTime, UniqueConstraint, Index,
 )
+from sqlalchemy.sql import func
 
 from data_pipeline.models import Base
 
@@ -43,3 +44,30 @@ class ConcallTranscript(Base):
     subject = Column(Text, nullable=False)
     category = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+# ─────────────────────────────────────────────────────────────────
+# Day-103a: ticker-level concall library with AI-cached summaries.
+# Migration: data_pipeline/migrations/051_concalls.sql
+# Separate from ConcallTranscript above — that one carries raw NSE
+# filings metadata; this one carries the curated, summarised library
+# surface that the public /concalls/{ticker} endpoint reads.
+# ─────────────────────────────────────────────────────────────────
+class Concall(Base):
+    """One row per ticker-quarter concall with cached AI summary."""
+    __tablename__ = "concalls"
+    __table_args__ = (
+        UniqueConstraint("ticker", "period", name="uq_concalls_ticker_period"),
+        Index("idx_concalls_ticker_date", "ticker", "concall_date"),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticker = Column(Text, nullable=False)
+    period = Column(Text, nullable=False)
+    concall_date = Column(Date, nullable=True)
+    source_url = Column(Text, nullable=False)
+    transcript_text = Column(Text, nullable=True)
+    ai_summary = Column(Text, nullable=True)
+    ai_summary_model = Column(Text, nullable=True)
+    ai_summary_generated_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())

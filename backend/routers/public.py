@@ -1762,6 +1762,43 @@ async def get_ticker_news(ticker: str, days: int = Query(default=14, ge=1, le=60
         raise HTTPException(status_code=500, detail="News unavailable")
 
 
+# ─────────────────────────────────────────────────────────────────
+# Day-103a: ticker-level concall library
+# Backs the ConcallsPanel on /analysis/[ticker]. Reads the new
+# `concalls` table; returns 200 with an empty list when the ticker
+# has no library coverage yet so the frontend can render an "empty"
+# affordance instead of a hard error.
+# ─────────────────────────────────────────────────────────────────
+@router.get("/concalls/{ticker}")
+async def get_ticker_concalls(ticker: str, limit: int = Query(default=12, ge=1, le=50)):
+    full = (ticker or "").upper().strip()
+    if not full:
+        raise HTTPException(status_code=400, detail="ticker required")
+    cache_key = f"public:concalls:{full}:{limit}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=3600, swr=7200)
+    try:
+        from backend.services.concall_service import list_concalls
+        items = list_concalls(full, limit=limit)
+        result = {
+            "ticker": full,
+            "count": len(items),
+            "concalls": items,
+        }
+        cache.set(cache_key, result, ttl=3600)
+        return _cached_json(result, s_maxage=3600, swr=7200)
+    except Exception as exc:
+        logger.warning(f"concalls fetch failed for {full}: {exc}")
+        # Stay 200 with an empty library — concalls are an additive
+        # surface and a backend hiccup should never break the page.
+        return _cached_json(
+            {"ticker": full, "count": 0, "concalls": []},
+            s_maxage=300,
+            swr=600,
+        )
+
+
 @router.get("/news")
 async def get_news_feed(days: int = Query(default=7, ge=1, le=30), limit: int = Query(default=50, le=100)):
     """
