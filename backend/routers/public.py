@@ -15,6 +15,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from fastapi.responses import JSONResponse
 
 from backend.services.cache_service import cache
+from backend.services.summary_projection import resolve_fair_value
 from backend.middleware.auth import get_current_user, get_current_user_optional, is_superuser
 
 logger = logging.getLogger("yieldiq.public")
@@ -323,18 +324,14 @@ def _extract_analysis_summary(result) -> dict:
     # when fair_value is falsy, so None renders the same as the
     # missing-data branch). Never write 0 unless both engine + base
     # genuinely produced 0.
-    _raw_fv = v.fair_value
-    _raw_base = getattr(v, "base_case", None)
-    if _raw_fv is not None and float(_raw_fv) > 0:
-        _fv_out: float | None = round(float(_raw_fv), 2)
-    elif _raw_base is not None and float(_raw_base) > 0:
-        _fv_out = round(float(_raw_base), 2)
-    elif _raw_fv is None and _raw_base is None:
-        _fv_out = None
-    else:
-        # Engine genuinely computed 0 (or 0 with no base scenario).
-        # Preserve the value — verdict gate already shows data_limited.
-        _fv_out = round(float(_raw_fv or 0), 2)
+    # Shared projection helper (backend/services/summary_projection.py)
+    # so og-data and any future summary endpoint apply the identical
+    # floor. See Audit#5 P0b follow-up: og-data was forwarding engine
+    # fair_value verbatim and rendered "₹0 fair value" on ULTRACEMCO.NS
+    # OG cards while this endpoint was already correct.
+    _fv_out = resolve_fair_value(
+        v.fair_value, getattr(v, "base_case", None),
+    )
     return {
         "ticker": result.ticker,
         "company_name": c.company_name,

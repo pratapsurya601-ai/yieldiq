@@ -666,7 +666,19 @@ async def get_og_data(
         # here at the edge so users never see them even if some upstream
         # path forgot to gate. Defensive — the analysis_service also
         # has this check, but duplicating at the router is cheap.
-        _fv = float(result.valuation.fair_value or 0)
+        # AUDIT5_P0B_FAIR_VALUE_FLOOR parity (Day-100, 2026-05-22):
+        # Apply the same engine-FV→base_case fallthrough that
+        # _extract_analysis_summary uses, via the shared helper in
+        # backend/services/summary_projection.py. Without this, og-data
+        # rendered "₹0 fair value" on ULTRACEMCO.NS OG cards while the
+        # public stock-summary endpoint surfaced base_case=3028 — same
+        # AnalysisResponse, two different user-facing numbers.
+        from backend.services.summary_projection import resolve_fair_value as _resolve_fv
+        _fv_resolved = _resolve_fv(
+            result.valuation.fair_value,
+            getattr(result.valuation, "base_case", None),
+        )
+        _fv = float(_fv_resolved if _fv_resolved is not None else 0)
         _px = float(result.valuation.current_price or 0)
         _mos = float(result.valuation.margin_of_safety or 0)
         _verdict = result.valuation.verdict
