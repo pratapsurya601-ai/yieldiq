@@ -264,6 +264,7 @@ export default function EditorialHero({
     currentPrice,
     bullCase,
     bearCase,
+    marginOfSafety,
   })
   const isUnreliable =
     !!dataLimited ||

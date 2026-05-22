@@ -330,6 +330,7 @@ export default function AnalysisHero({
       currentPrice,
       bullCase,
       bearCase,
+      marginOfSafety,
     })
   const effectiveVerdict: Verdict = dataLimited
     ? "data_limited"
