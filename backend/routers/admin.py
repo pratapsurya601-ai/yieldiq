@@ -2543,3 +2543,61 @@ async def get_validation_trace(
                 f"{_sanitize_error(exc, 'validation-trace')}"
             ),
         )
+
+
+# ─────────────────────────────────────────────────────────────────
+# Day-94 (2026-05-22): /admin/cache-manifest
+#
+# Ops visibility into the granular cache invalidation manifest.
+# Returns:
+#   - The full manifest list (version_id, applied_at, scope, rationale)
+#   - A summary (counts, most-recent entry)
+#   - Whether the panic switch (CACHE_MANIFEST_DISABLED) is active
+#
+# Useful when investigating "why is this ticker still serving an old
+# FV?" — find the manifest entry that should have invalidated it.
+# ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/cache-manifest")
+async def get_cache_manifest(user: dict = Depends(require_admin)):
+    """Return the current cache-invalidation manifest + summary."""
+    try:
+        import os
+        from backend.services.cache_invalidation_manifest import (
+            MANIFEST,
+            summarise_manifest,
+        )
+        summary = summarise_manifest()
+        # Normalise datetime objects to ISO strings for JSON
+        entries = []
+        for entry in MANIFEST:
+            applied_at = entry.get("applied_at")
+            entries.append({
+                "version_id": entry.get("version_id"),
+                "applied_at": (
+                    applied_at.isoformat()
+                    if hasattr(applied_at, "isoformat")
+                    else str(applied_at)
+                ),
+                "scope": entry.get("scope"),
+                "rationale": entry.get("rationale"),
+            })
+        return {
+            "summary": {
+                "total_entries": summary.total_entries,
+                "most_recent_entry_id": summary.most_recent_entry_id,
+                "most_recent_applied_at": summary.most_recent_applied_at,
+                "global_entries_count": summary.global_entries_count,
+                "scoped_entries_count": summary.scoped_entries_count,
+            },
+            "panic_switch_active": os.environ.get(
+                "CACHE_MANIFEST_DISABLED", ""
+            ).strip() in ("1", "true", "yes"),
+            "entries": entries,
+        }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"get_cache_manifest failed: {_sanitize_error(exc, 'cache-manifest')}",
+        )

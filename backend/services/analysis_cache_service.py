@@ -137,11 +137,36 @@ def _get_session():
         return None
 
 
-def get_cached(ticker: str, max_age_hours: int = 24) -> Optional[dict]:
+def get_cached(
+    ticker: str,
+    max_age_hours: int = 24,
+    fields_needed=None,
+) -> Optional[dict]:
     """
     Return the cached analysis payload (as a plain dict) if a row
-    exists for `ticker` with the current CACHE_VERSION and a
-    `computed_at` newer than `max_age_hours` ago. Otherwise None.
+    exists for `ticker` and is still valid per the granular cache
+    invalidation manifest. Otherwise None.
+
+    Day-94 (2026-05-22) change: the read-path validity gate is now
+    the manifest at backend/services/cache_invalidation_manifest.py
+    (`is_row_valid_per_manifest`), not strict equality against the
+    global CACHE_VERSION integer. The SQL query no longer filters
+    on cache_version; instead we pull the most-recent row (any
+    version) within the TTL window and ask the manifest if it's
+    still good. This means a cached row computed AFTER the most-
+    recent applicable invalidation is served even if its
+    cache_version integer differs from today's CACHE_VERSION.
+
+    Effect: a scoped invalidation (e.g. 6 utility tickers) no longer
+    invalidates the other 2,394 tickers' cached payloads. See the
+    module docstring of cache_invalidation_manifest.py for the
+    architectural rationale.
+
+    `fields_needed`: optional iterable of field paths the caller
+    intends to read. Lets the manifest perform field-level
+    invalidation (e.g. a "scenarios.bear" only fix doesn't invalidate
+    a caller that only needs "fair_value"). None means "all fields"
+    — the safe default for callers that don't declare.
 
     Never raises: DB problems are logged and treated as a miss.
     """
@@ -154,21 +179,63 @@ def get_cached(ticker: str, max_age_hours: int = 24) -> Optional[dict]:
         row = sess.execute(
             text(
                 """
-                SELECT payload
+                SELECT payload, computed_at
                 FROM analysis_cache
                 WHERE ticker = :ticker
-                  AND cache_version = :version
                   AND computed_at > now() - (:hours || ' hours')::interval
+                ORDER BY computed_at DESC
+                LIMIT 1
                 """
             ),
             {
                 "ticker": ticker,
-                "version": str(CACHE_VERSION),
                 "hours": str(max_age_hours),
             },
         ).fetchone()
         if not row:
             return None
+        # Manifest validity gate (Day-94). Replaces strict cache_version
+        # equality. If the row predates an applicable invalidation,
+        # treat as miss → caller recomputes.
+        try:
+            from backend.services.cache_invalidation_manifest import (
+                is_row_valid_per_manifest,
+            )
+            if not is_row_valid_per_manifest(
+                ticker=ticker,
+                computed_at=row[1],
+                fields_needed=fields_needed,
+            ):
+                return None
+        except Exception as _mfst_exc:
+            # Manifest import / matcher failure must not break the
+            # read path. Fall through to legacy strict equality so
+            # at least we don't serve stale data.
+            logger.warning(
+                "analysis_cache: manifest check failed for %s "
+                "(falling back to strict cache_version): %s",
+                ticker, _mfst_exc,
+            )
+            # Re-query with the legacy filter.
+            legacy = sess.execute(
+                text(
+                    """
+                    SELECT payload
+                    FROM analysis_cache
+                    WHERE ticker = :ticker
+                      AND cache_version = :version
+                      AND computed_at > now() - (:hours || ' hours')::interval
+                    """
+                ),
+                {
+                    "ticker": ticker,
+                    "version": str(CACHE_VERSION),
+                    "hours": str(max_age_hours),
+                },
+            ).fetchone()
+            if not legacy:
+                return None
+            row = legacy
         payload = row[0]
         # psycopg2 returns JSONB as a dict already; psycopg3 / some
         # drivers return a str. Handle both.
