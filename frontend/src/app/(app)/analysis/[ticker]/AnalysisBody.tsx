@@ -46,6 +46,7 @@ import UnlockBadge from "@/components/payg/UnlockBadge"
 import { usePaygStore } from "@/store/paygStore"
 import SensitivityPanel from "@/components/analysis/SensitivityPanel"
 import SensitivityTornado from "@/components/analysis/SensitivityTornado"
+import TickerSuggestions from "@/components/analysis/TickerSuggestions"
 import { useAuthStore } from "@/store/authStore"
 import {
   formatCurrency,
@@ -553,7 +554,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             />
           </div>
         ) : is404 ? (
-          <a href="/search" className="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition">Search again</a>
+          <>
+            {/* Day-106: surface "Did you mean?" hits from the static
+                ticker index before the dead-end "Search again" CTA.
+                Renders nothing if the backend returns zero matches,
+                so the Search button remains the visible fallback. */}
+            <TickerSuggestions ticker={ticker} />
+            <a href="/search" className="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition">Search again</a>
+          </>
         ) : (
           <button onClick={() => window.location.reload()} className="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition">Try again</button>
         )}
