@@ -410,6 +410,28 @@ MANIFEST: list[dict] = [
             "boost + stress flag"
         ),
     },
+    {
+        # Day-110c (2026-05-23): REIT/InvIT sector cohort overrides.
+        # Distribution-yield-anchored implied fair price by
+        # sub-segment (office/retail REIT, roads/transmission/other
+        # InvIT). Layered on PR #333 REIT short-circuit; InvITs join
+        # the same no-DCF path via the new is_invit classifier. Adds
+        # ``reit_invit_cohort`` block to _computation_inputs.
+        "version_id": "v_day110c_reit_invit_cohort_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 21, 5, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "EMBASSY", "MINDSPACE", "BIRET", "BROOKFIELD",
+                "NEXUSSELECT", "NEXUS",
+                "IRBINVIT", "POWERGRIDIT", "INDIGRID", "VIRTUS",
+            ],
+            "fields": "*",
+        },
+        "rationale": (
+            "Day-110c: REIT/InvIT distribution-yield anchoring by "
+            "sub-segment"
+        ),
+    },
 ]
 
 
