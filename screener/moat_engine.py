@@ -588,6 +588,29 @@ def compute_moat_score(enriched: dict, wacc: float) -> dict:
         floor_applied = True
         log.info(f"[{ticker}] Moat allowlist floor applied: → {grade} ({total}/100)")
 
+    # ── Day-107b (2026-05-23) FMCG top-franchise moat floor ─────
+    # HUL / NESTLEIND / ITC / BRITANNIA hold 20%+ category share AND
+    # 40+ year India distribution moats. Pure financial-ratio scoring
+    # undersells the brand-permanence component, so floor the moat
+    # score at 75/100 (above the broader allowlist floor of 70). See
+    # backend/services/analysis/sector_overrides.py for the single
+    # source of truth on cohort membership.
+    try:
+        from backend.services.analysis.sector_overrides import (
+            fmcg_moat_floor as _fmcg_moat_floor,
+        )
+        _fmcg_floor = _fmcg_moat_floor(ticker)
+        if _fmcg_floor is not None and total < _fmcg_floor:
+            total = _fmcg_floor
+            grade = _moat_label_from_score(total)
+            floor_applied = True
+            log.info(
+                f"[{ticker}] Day-107b FMCG top-franchise moat floor "
+                f"applied: → {grade} ({total}/100)"
+            )
+    except Exception:
+        pass
+
     # ── Moat types ───────────────────────────────────────────────
     moat_types = _detect_moat_types(enriched, total)
 

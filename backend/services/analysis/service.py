@@ -1332,6 +1332,26 @@ class AnalysisService(NarrativeMixin):
                 wacc_data["wacc"] = _AUTO_CV_WACC_FLOOR
                 wacc_data["auto_cv_wacc_floor_applied"] = True
 
+        # ── Day-107b (2026-05-23) FMCG cohort WACC tighten ────────
+        # FMCG balance sheets (HUL / NESTLEIND / ITC / BRITANNIA /
+        # DABUR / MARICO / COLPAL / GODREJCP / EMAMILTD / TATACONSUM
+        # / VBL) are net-cash with beta 0.5-0.7. CAPM systematically
+        # over-charges them by 50-150bps. Tighten to a floor of
+        # 8.5%. See sector_overrides.py for cohort membership SSOT.
+        try:
+            from backend.services.analysis.sector_overrides import (
+                fmcg_wacc_floor as _fmcg_wacc_floor,
+            )
+            _fmcg_wacc_target = _fmcg_wacc_floor(clean_ticker)
+            if _fmcg_wacc_target is not None and wacc > _fmcg_wacc_target:
+                _wacc_pre = wacc
+                wacc = _fmcg_wacc_target
+                if isinstance(wacc_data, dict):
+                    wacc_data["wacc"] = _fmcg_wacc_target
+                    wacc_data["fmcg_cohort_wacc_floor_applied"] = True
+        except Exception:
+            pass
+
         country = get_active_country()
         terminal_g = country.get("default_terminal_growth", 0.025)
         if terminal_g >= wacc:
@@ -1483,6 +1503,34 @@ class AnalysisService(NarrativeMixin):
                     _data_issues = list(_data_issues) + [
                         f"[auto-anc-tg-lifted] terminal_g raised to {terminal_g:.3f} "
                         f"(auto ancillary/tire 4W cycle)"
+                    ]
+        except Exception:
+            pass
+
+        # ── Day-107b (2026-05-23) FMCG sector cohort TG lift ──
+        # Separate try-block so the auto-cohort elif-chain above
+        # doesn't preclude FMCG tickers from being lifted. The
+        # fmcg_terminal_growth() helper returns None for non-FMCG
+        # tickers so this is a safe no-op outside the cohort.
+        # Tier mix:
+        #   - Top franchise leaders (HUL/NESTLE/BRITANNIA) → 5.0%
+        #   - ITC (cigarette tail risk discount)            → 4.5%
+        #   - Tier-2 (DABUR/MARICO/COLPAL/GODREJCP)         → 4.5%
+        #   - Tier-3 (EMAMI/TATACONSUM/VBL)                 → 4.0%
+        # Runs AFTER the Day-107b WACC tighten so the
+        # ``terminal_g < wacc - 0.02`` guard uses the tightened WACC.
+        try:
+            from backend.services.analysis.sector_overrides import (
+                fmcg_terminal_growth as _fmcg_tg,
+            )
+            _fmcg_tg_target = _fmcg_tg(ticker)
+            if _fmcg_tg_target is not None and terminal_g < _fmcg_tg_target:
+                _tg_proposed = _fmcg_tg_target
+                if _tg_proposed < wacc - 0.02:
+                    terminal_g = _tg_proposed
+                    _data_issues = list(_data_issues) + [
+                        f"[fmcg-cohort-tg-lifted] terminal_g raised to {terminal_g:.3f} "
+                        f"(India household-consumption baseline + franchise durability)"
                     ]
         except Exception:
             pass
