@@ -51,6 +51,7 @@ import {
   verdictDisplayLabel,
   verdictFromMos,
   formatRelativeTime,
+  shouldGateVerdict,
 } from "@/lib/utils"
 import { trackStockAnalysed } from "@/lib/analytics"
 import Link from "next/link"
@@ -416,14 +417,32 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       // disagree. Falls back to the verdict-string label if MoS is
       // missing/non-finite (e.g. data_limited / unavailable states).
       const mos = data.valuation.margin_of_safety
-      // Fallback chain: MoS-derived verdict > backend verdict label >
-      // neutral "Stock Analysis". The neutral form catches tickers
-      // where price / FV / verdict are all null (e.g. data outage on
-      // INFY 2026-04-30) so we never render "INFY —  | YieldIQ".
+      // Day-91 (2026-05-22): route the tab title through the same
+      // verdict-pill gate the hero uses. Before this, TCS at 67%
+      // confidence + Data Limited banner rendered "TCS — Notably
+      // Undervalued | YieldIQ" in the browser tab — directly
+      // contradicting the page's own data-limited banner. RELIANCE /
+      // INDIGO at 41-45% confidence rendered confident verdicts in
+      // the tab too. The gate collapses both to "Under Review" /
+      // "Low Confidence" using the shared lib/utils helper.
+      const gated = shouldGateVerdict({
+        dataLimited:
+          (data.valuation.verdict || "").toString().toLowerCase() === "data_limited",
+        confidence: data.valuation.confidence_score,
+        currentPrice: data.valuation.current_price,
+        bullCase: data.valuation.bull_case,
+        bearCase: data.valuation.bear_case,
+      })
+      // Fallback chain: gate > MoS-derived verdict > backend verdict
+      // label > neutral "Stock Analysis". The neutral form catches
+      // tickers where price / FV / verdict are all null (e.g. data
+      // outage on INFY 2026-04-30) so we never render "INFY —  | YieldIQ".
       const mosVerdict =
         mos != null && Number.isFinite(mos) ? verdictFromMos(mos) : ""
       const fallbackVerdict = verdictDisplayLabel(data.valuation.verdict)
-      const verdict = mosVerdict || fallbackVerdict || "Stock Analysis"
+      const verdict = gated
+        ? "Under Review"
+        : mosVerdict || fallbackVerdict || "Stock Analysis"
       document.title = `${displayTicker} — ${verdict} | YieldIQ`
 
       const desc = `${data.company.company_name} (${data.ticker}) fair value ₹${data.valuation.fair_value.toFixed(0)} vs price ₹${data.valuation.current_price.toFixed(0)}. YieldIQ Score: ${data.quality.yieldiq_score}/100. ${data.quality.moat} moat.`
@@ -1036,6 +1055,8 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               fvClamped={fvClamped}
               dcfReliable={valuation.dcf_reliable}
               dataConfidence={data.data_confidence}
+              bullCase={valuation.bull_case}
+              bearCase={valuation.bear_case}
             />
           ) : (
             <AnalysisHero
@@ -1055,6 +1076,8 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               valuationEngineUsed={valuation.valuation_engine_used}
               currentPriceAsOf={valuation.current_price_as_of}
               currentPriceSource={valuation.current_price_source}
+              bullCase={valuation.bull_case}
+              bearCase={valuation.bear_case}
             />
           )
         })()}

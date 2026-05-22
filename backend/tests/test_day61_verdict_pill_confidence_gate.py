@@ -65,13 +65,17 @@ def test_verdict_chip_renders_low_confidence_label():
 # ── Hero gate logic ─────────────────────────────────────────
 
 
-def test_hero_routes_low_confidence_for_sub50_confidence():
+def test_hero_routes_low_confidence_via_shared_gate():
+    """Day-91 (2026-05-22) tightened the gate: threshold lifted to 60
+    and routed through the shared shouldGateVerdict() helper in
+    lib/utils.ts. The hero now delegates the decision to the helper
+    instead of inlining the comparison."""
     src = _HERO.read_text(encoding="utf-8")
-    # The 50% threshold constant
-    assert "_LOW_CONFIDENCE_THRESHOLD = 50" in src
+    # The hero imports the shared gate helper
+    assert "shouldGateVerdict" in src
     # The gate fires only when NOT already data_limited (so dataLimited
     # remains the stricter outer gate)
-    assert "lowConfidence = !dataLimited && confidence < _LOW_CONFIDENCE_THRESHOLD" in src
+    assert "!dataLimited &&" in src
     # And the verdict assignment uses lowConfidence -> 'low_confidence'
     assert '? "low_confidence"' in src
 
@@ -80,4 +84,5 @@ def test_hero_fallback_thesis_handles_low_confidence():
     src = _HERO.read_text(encoding="utf-8")
     # Honest framing rather than the generic "review model inputs"
     assert 'verdict === "low_confidence"' in src
-    assert "below 50%" in src
+    # Day-91 raised the threshold to 60% — copy reflects the new floor
+    assert "60%" in src

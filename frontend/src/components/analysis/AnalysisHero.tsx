@@ -8,7 +8,7 @@ import StoryDcfBadge from "@/components/analysis/StoryDcfBadge"
 import Hex from "@/components/hex/Hex"
 import HexExplainer from "@/components/hex/HexExplainer"
 import { fetchHex, type HexAxisKey, type HexResponse } from "@/lib/hex"
-import { formatCurrency, formatPct } from "@/lib/utils"
+import { formatCurrency, formatPct, shouldGateVerdict } from "@/lib/utils"
 import type { Verdict } from "@/types/api"
 
 interface AnalysisHeroProps {
@@ -24,6 +24,12 @@ interface AnalysisHeroProps {
   thesis: string | null
   dataLimited: boolean
   ticker?: string
+  // Day-91 (2026-05-22): scenario band gate inputs. When the bull/bear
+  // band exceeds 25% of current price the verdict pill collapses to
+  // low_confidence even when raw confidence reads >= 60. Optional for
+  // legacy cached payloads.
+  bullCase?: number | null
+  bearCase?: number | null
   // feat/transparency (2026-05-02) — optional per-number provenance
   // surfaced as small "source · as-of" captions under each hero metric.
   // All optional and additive; legacy callers continue to render the
@@ -122,7 +128,7 @@ function fallbackThesis(verdict: Verdict, moat: string, mos: number): string {
   // canonical advisory-safe vocabulary per
   // backend/services/analysis/sebi_filter.py.
   if (verdict === "low_confidence") {
-    return `${moatPhrase}. Model confidence is below 50% — read the FV / MoS numbers as a leaning, not a fair-value view to act on.`
+    return `${moatPhrase}. Model confidence is below the gate threshold (60%) or the bull/bear scenario band is wide — read the FV / MoS numbers as a leaning, not a fair-value view to act on.`
   }
   return `${moatPhrase}. Review model inputs before drawing conclusions.`
 }
@@ -294,22 +300,32 @@ export default function AnalysisHero({
   valuationEngineUsed,
   currentPriceAsOf,
   currentPriceSource,
+  bullCase,
+  bearCase,
 }: AnalysisHeroProps) {
-  // Day-61 (2026-05-21): verdict-pill confidence gate.
+  // Day-91 (2026-05-22): verdict-pill confidence gate — tightened per
+  // audit #4. See lib/utils.ts::shouldGateVerdict for the canonical
+  // rule. Changes vs Day-61:
+  //   - _LOW_CONFIDENCE_THRESHOLD = 60 (was 50) — RELIANCE/INDIGO at
+  //     41-45% confidence were slipping through
+  //   - new _WIDE_BAND_RATIO_THRESHOLD = 0.25 — scenario band wider
+  //     than 25% of current price also routes to low_confidence
+  //   - single source of truth so EditorialHero / PublicAnalysis /
+  //     tab title can't disagree (audit found 4 independent paths)
   //
-  // Audit P2: a 45%-confidence Reliance was rendering with a confident
-  // green "Below Fair Value" pill alongside its own 45% confidence
-  // number on the same screen. The pill amplified a signal the model
-  // didn't trust. Highest impact-per-LOC fix per the audit.
-  //
-  // The rule: if the model's confidence drops below 50% AND we haven't
-  // already routed to data_limited (which is a stricter gate),
-  // downgrade the pill to "Low Confidence" (neutral slate). The
-  // underlying MoS / FV numbers stay visible elsewhere on the hero so
-  // serious users can still read the leaning --- the pill just refuses
-  // to colour-code a sub-50% signal.
-  const _LOW_CONFIDENCE_THRESHOLD = 50
-  const lowConfidence = !dataLimited && confidence < _LOW_CONFIDENCE_THRESHOLD
+  // Cascade: dataLimited (outer) > low_confidence > verdict. The
+  // dataLimited path keeps its own "data_limited" verdict so TCS-class
+  // tickers (Data Limited banner present) render the Data Limited
+  // pill, not a fair-value pill.
+  const lowConfidence =
+    !dataLimited &&
+    shouldGateVerdict({
+      dataLimited: false,
+      confidence,
+      currentPrice,
+      bullCase,
+      bearCase,
+    })
   const effectiveVerdict: Verdict = dataLimited
     ? "data_limited"
     : lowConfidence

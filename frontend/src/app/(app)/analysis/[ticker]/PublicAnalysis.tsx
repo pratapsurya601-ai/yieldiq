@@ -37,6 +37,7 @@ import {
   formatCompanyName,
   verdictDisplayLabel,
   verdictFromMos,
+  shouldGateVerdict,
 } from "@/lib/utils"
 
 /**
@@ -238,22 +239,42 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
   // is only a fallback when MoS is null/non-finite — it can drift from
   // MoS during cold-cache or stale-cache conditions and produced the
   // SBIN/TCS tab-vs-body contradiction (P0, 2026-04-30).
-  const verdictText =
-    typeof mos_pct === "number" && Number.isFinite(mos_pct)
+  // Day-91 (2026-05-22): route the public pill through the same gate
+  // the authenticated hero uses (lib/utils::shouldGateVerdict). Audit
+  // #4 found PublicAnalysis was deriving its pill from verdictFromMos
+  // alone — TCS-class data-limited tickers and RELIANCE/INDIGO at
+  // sub-60% confidence rendered confident "Notably Undervalued"
+  // public pills even when the authenticated hero gated them. The
+  // public payload includes confidence + scenarios so the gate can
+  // run with the same inputs as the authenticated path.
+  const publicGated = shouldGateVerdict({
+    dataLimited:
+      (verdict_label || "").toString().toLowerCase() === "data_limited",
+    confidence,
+    currentPrice: price ?? null,
+    bullCase: scenarios?.bull ?? null,
+    bearCase: scenarios?.bear ?? null,
+  })
+  const verdictText = publicGated
+    ? "Under Review"
+    : typeof mos_pct === "number" && Number.isFinite(mos_pct)
       ? verdictFromMos(mos_pct)
       : verdict_label
         ? verdictDisplayLabel(verdict_label)
         : "Under Review"
 
   // MoS sign determines the tint of the summary pill. Positive = undervalued.
-  const mosTone =
-    mos_pct === null || mos_pct === undefined
+  // When the gate fires, force neutral tone so the "Under Review" pill
+  // doesn't render with a positive green tint inherited from a 25%+ MoS.
+  const mosTone = publicGated
+    ? "neutral"
+    : mos_pct === null || mos_pct === undefined
       ? "neutral"
       : mos_pct >= 15
-      ? "positive"
-      : mos_pct <= -15
-      ? "negative"
-      : "neutral"
+        ? "positive"
+        : mos_pct <= -15
+          ? "negative"
+          : "neutral"
 
   const mosToneClasses: Record<string, string> = {
     positive: "bg-green-50 text-green-800 border-green-200",
