@@ -308,6 +308,27 @@ MANIFEST: list[dict] = [
             "segment TG, cycle bear-floor)"
         ),
     },
+    {
+        # Day-107b (2026-05-23): FMCG sector cohort overrides — TG
+        # lift to 5.0% / 4.5% / 4.5% / 4.0% by tier, WACC floor at
+        # 8.5%, moat-pillar floor at 75 for top-4 franchise leaders,
+        # and slightly bullish scenario weighting (40/40/20) for the
+        # top-4. Engine-output change for the 11 named tickers.
+        "version_id": "v_day107b_fmcg_cohort_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 10, 5, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "HUL", "NESTLEIND", "ITC", "BRITANNIA", "DABUR",
+                "MARICO", "COLPAL", "GODREJCP", "EMAMI",
+                "TATACONSUM", "VBL",
+            ],
+            "fields": "*",
+        },
+        "rationale": (
+            "Day-107b: FMCG cohort overrides (TG lift, WACC tighten, "
+            "moat premium)"
+        ),
+    },
 ]
 
 
