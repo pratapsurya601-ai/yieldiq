@@ -36,9 +36,10 @@ const ROWS: Row[] = [
 describe("SectorTable", () => {
   it("renders one row per cohort ticker with the bare symbol", () => {
     render(<SectorTable rows={ROWS} />)
-    expect(screen.getByText("TCS")).toBeInTheDocument()
-    expect(screen.getByText("INFY")).toBeInTheDocument()
-    expect(screen.getByText("TECHM")).toBeInTheDocument()
+    // Bare ticker may render in both badge + link — assert presence, not uniqueness
+    expect(screen.getAllByText("TCS").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("INFY").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("TECHM").length).toBeGreaterThan(0)
     // Verdict badges visible
     expect(screen.getByText("Undervalued")).toBeInTheDocument()
     expect(screen.getByText("Overvalued")).toBeInTheDocument()
