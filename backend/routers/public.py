@@ -804,6 +804,59 @@ async def get_promoter_pledge(ticker: str):
 
 
 # ─────────────────────────────────────────────────────────────────
+# Day-103b (2026-05-22): per-ticker annual-report PDF links.
+#
+# Closes the Screener.in parity gap flagged in the Day-102 audit —
+# they ship FY12+ AR links going back ~13 years. Thin link-index
+# only (heavy Claude-extracted AR fields stay in their own table /
+# service). Public, no auth. 6h CDN cache (filings are infrequent).
+# Additive — no manifest entry, no CACHE_VERSION bump.
+# ─────────────────────────────────────────────────────────────────
+@router.get("/annual-reports/{ticker}")
+async def get_annual_reports(
+    ticker: str,
+    limit: int = Query(default=15, ge=1, le=100),
+):
+    """Return annual report links for `ticker`, newest fiscal year first.
+
+    Response shape::
+
+        {"ticker": "HDFCBANK.NS",
+         "annual_reports": [
+            {"fiscal_year": 2024,
+             "filed_date":  "2024-05-22",
+             "source_url":  "https://www.bseindia.com/.../...pdf"},
+            ...
+         ]}
+
+    Returns 200 with an empty ``annual_reports`` list when no rows
+    are on file — we deliberately do NOT 404 so the panel can render
+    a "coming soon" state without front-end branching on status codes.
+    """
+    t = (ticker or "").strip().upper()
+    if not t:
+        raise HTTPException(status_code=400, detail="ticker required")
+
+    _cache_key = f"public:annual-reports:{t}:{limit}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return _cached_json(cached, s_maxage=21600, swr=43200)
+
+    try:
+        from backend.services.annual_reports_service import list_annual_reports
+    except Exception as exc:
+        logger.warning("annual-reports import failed: %s", exc)
+        # Degrade gracefully — empty list, not 503.
+        payload = {"ticker": t, "annual_reports": []}
+        return _cached_json(payload, s_maxage=60, swr=300)
+
+    rows = list_annual_reports(t, limit=limit)
+    payload = {"ticker": t, "annual_reports": rows}
+    cache.set(_cache_key, payload, ttl=21600, version_keyed=False)
+    return _cached_json(payload, s_maxage=21600, swr=43200)
+
+
+# ─────────────────────────────────────────────────────────────────
 # Day-99 (2026-05-22): industry-relative percentile rankings.
 #
 # No Indian competitor surfaces "Quality 8.5/10 — 75th percentile in

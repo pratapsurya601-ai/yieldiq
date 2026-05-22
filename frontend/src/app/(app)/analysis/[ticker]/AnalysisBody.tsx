@@ -16,6 +16,7 @@ import InsightCards from "@/components/analysis/InsightCards"
 import RedFlagInsights from "@/components/analysis/RedFlagInsights"
 import QualityRatios from "@/components/analysis/QualityRatios"
 import PromoterPledgePanel from "@/components/analysis/PromoterPledgePanel"
+import AnnualReportsPanel from "@/components/analysis/AnnualReportsPanel"
 import InsiderTradingPanel from "@/components/analysis/InsiderTradingPanel"
 import BulkBlockDealsPanel from "@/components/analysis/BulkBlockDealsPanel"
 import DividendTracker from "@/components/analysis/DividendTracker"
@@ -839,6 +840,8 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               fcfDataSource={valuation.fcf_data_source}
             />
           </div>
+          {/* Day-103b: per-ticker annual report PDF links (Screener.in parity). */}
+          <AnnualReportsPanel ticker={ticker} />
         </div>
       ),
     },
