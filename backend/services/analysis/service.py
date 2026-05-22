@@ -3699,9 +3699,22 @@ class AnalysisService(NarrativeMixin):
         _ca_for_ratio = _ca_db if _ca_db is not None else enriched.get("current_assets")
         _cl_for_ratio = _cl_db if _cl_db is not None else enriched.get("current_liabilities")
         _current_ratio = _cr(_ca_for_ratio, _cl_for_ratio)
+        # FIX-AUDIT5-P1-ASSET-TURNOVER-UNIT (Task#87, 2026-05-22):
+        # Same unit-mismatch family as FIX-ROCE-UNIT-MISMATCH above.
+        # `enriched.latest_revenue` is in Crores, but
+        # `_total_assets = enriched.get("total_assets") or _ta_db or 0`
+        # picks the raw-INR yfinance value first (e.g. TCS.NS = 1.82e12).
+        # The resulting ratio (~1e-7) trips PR #498's [0.001, 100] sanity
+        # gate and returns None, so RELIANCE/TATASTEEL/ULTRACEMCO/TCS/INFY
+        # all render "n/a" despite clean DB data.
+        #
+        # Fix: prefer DB-sourced _ta_db (Crores) over enriched.total_assets
+        # so revenue and total_assets share the same unit. Mirrors the
+        # _ta_for_roce / _cl_for_roce pattern at line 3536.
+        _ta_for_at = _ta_db if _ta_db is not None else _total_assets
         _asset_turnover = _at(
             enriched.get("latest_revenue") or enriched.get("revenue"),
-            _total_assets,
+            _ta_for_at,
         )
 
         # ── Audit#5 P1 de_ratio null-safety (2026-05-22) ──────
