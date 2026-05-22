@@ -103,6 +103,8 @@ export default function NotificationPreferencesPage() {
         />
       </div>
 
+      <WebPushPanel onToast={showToast} />
+
       {toast && (
         <p
           className={
@@ -115,6 +117,142 @@ export default function NotificationPreferencesPage() {
           {toast.msg}
         </p>
       )}
+    </div>
+  )
+}
+
+// ── Day-98: Web Push (PWA) panel ────────────────────────────────
+//
+// Two buttons:
+//   1. "Enable mobile notifications"  -> requests Notification permission,
+//      subscribes via PushManager (using NEXT_PUBLIC_VAPID_PUBLIC_KEY),
+//      POSTs subscription to /api/v1/notifications/subscribe.
+//   2. "Send test notification"      -> POSTs to /api/v1/notifications/test
+//      which fires a Web Push to every registered subscription.
+//
+// Notification copy is informational only (SEBI vocab — see push_service).
+// The panel is a no-op (with explanatory text) on browsers that lack
+// either Notification, ServiceWorker, or PushManager.
+
+function urlBase64ToUint8Array(base64: string): Uint8Array {
+  const padding = "=".repeat((4 - (base64.length % 4)) % 4)
+  const b64 = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/")
+  const raw = typeof window !== "undefined" ? window.atob(b64) : ""
+  const out = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i)
+  return out
+}
+
+function WebPushPanel({ onToast }: { onToast: (msg: string, tone?: "ok" | "err") => void }) {
+  const [supported, setSupported] = useState(false)
+  const [permission, setPermission] = useState<NotificationPermission | "unknown">("unknown")
+  const [subscribed, setSubscribed] = useState(false)
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const ok =
+      "Notification" in window &&
+      "serviceWorker" in navigator &&
+      "PushManager" in window
+    setSupported(ok)
+    if (ok) {
+      setPermission(Notification.permission)
+      navigator.serviceWorker.ready.then(async (reg) => {
+        const sub = await reg.pushManager.getSubscription()
+        setSubscribed(!!sub)
+      }).catch(() => { /* SW not registered yet */ })
+    }
+  }, [])
+
+  const enable = async () => {
+    setBusy(true)
+    try {
+      const vapid = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY
+      if (!vapid) {
+        onToast("Push not configured on this build.", "err")
+        return
+      }
+      const perm = await Notification.requestPermission()
+      setPermission(perm)
+      if (perm !== "granted") {
+        onToast("Permission denied.", "err")
+        return
+      }
+      const reg = await navigator.serviceWorker.ready
+      let sub = await reg.pushManager.getSubscription()
+      if (!sub) {
+        sub = await reg.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(vapid),
+        })
+      }
+      const json = sub.toJSON() as { endpoint?: string; keys?: { p256dh?: string; auth?: string } }
+      await api.post("/api/v1/notifications/subscribe", {
+        endpoint: json.endpoint,
+        p256dh: json.keys?.p256dh,
+        auth: json.keys?.auth,
+      })
+      setSubscribed(true)
+      onToast("Mobile notifications enabled.")
+    } catch (e) {
+      onToast("Could not enable — try again.", "err")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const sendTest = async () => {
+    setBusy(true)
+    try {
+      await api.post("/api/v1/notifications/test", {})
+      onToast("Test notification sent.")
+    } catch {
+      onToast("Test failed — try again.", "err")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (!supported) {
+    return (
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-5">
+        <div className="text-sm font-medium text-ink">Mobile notifications</div>
+        <p className="text-xs text-caption mt-1">
+          This browser does not support Web Push. Install YieldIQ as a PWA on
+          a supported browser (Chrome, Edge, or Firefox) to enable mobile alerts.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-5 space-y-3">
+      <div>
+        <div className="text-sm font-medium text-ink">Mobile notifications</div>
+        <p className="text-xs text-caption mt-1 leading-relaxed">
+          Get notified on your phone when a watchlist alert condition is met.
+          Permission: <span className="font-bold">{permission}</span>.
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={enable}
+          disabled={busy || subscribed}
+          className="text-xs px-3 py-2 rounded-lg bg-blue-600 text-white disabled:opacity-50"
+        >
+          {subscribed ? "Enabled" : "Enable mobile notifications"}
+        </button>
+        <button
+          type="button"
+          onClick={sendTest}
+          disabled={busy || !subscribed}
+          className="text-xs px-3 py-2 rounded-lg border border-border text-ink disabled:opacity-50"
+        >
+          Send test notification
+        </button>
+      </div>
     </div>
   )
 }

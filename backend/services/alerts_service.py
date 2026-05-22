@@ -363,7 +363,30 @@ def evaluate_alerts(session: OrmSession, *, dry_run: bool = False) -> list[Evalu
             email = _resolve_email(alert.user_id) if alert.notify_email else None
             if email:
                 sent_ok = _send_alert_email(email, alert.kind, ticker, snap, threshold)
-            else:
+            # Day-98: also fan out via Web Push when the user opted in.
+            # Push is best-effort — never gates the email path or the
+            # alert's fired/cooldown state. Failures are logged inside
+            # push_service.send_push and surface as delivered=0.
+            if getattr(alert, "notify_push", False):
+                try:
+                    from backend.services.push_service import (
+                        render_alert_copy,
+                        send_push,
+                    )
+                    title, body = render_alert_copy(ticker, alert.kind, threshold)
+                    send_push(
+                        session,
+                        user_id=alert.user_id,
+                        title=title,
+                        body=body,
+                        url=f"/analysis/{ticker}",
+                    )
+                    # If email wasn't configured but push went out, treat
+                    # as a successful fire so we don't infinite-retry.
+                    sent_ok = True if not email else sent_ok
+                except Exception as e:
+                    logger.warning("push fan-out failed for %s: %s", alert.user_id, e)
+            if not email and not getattr(alert, "notify_push", False):
                 # No email on file — still mark triggered so we don't
                 # spin on the same alert forever, but note the reason.
                 sent_ok = False
