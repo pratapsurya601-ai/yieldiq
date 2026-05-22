@@ -951,6 +951,7 @@ app.include_router(concall.router)
 app.include_router(account_router.router)
 app.include_router(notifications_router.router)
 app.include_router(telemetry_router.router)
+app.include_router(telemetry_router.admin_router)
 app.include_router(api_keys_router.router)
 app.include_router(scenarios_router.router)
 from backend.routers import hex as hex_router

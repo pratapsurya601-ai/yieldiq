@@ -163,6 +163,15 @@ export default function AdminPage() {
               View + simulate (operator submits PR to change)
             </p>
           </a>
+          <a
+            href="/admin/pwa-funnel"
+            className="rounded-xl border border-gray-100 p-4 hover:border-blue-200 hover:bg-blue-50/40 transition"
+          >
+            <p className="text-sm font-semibold text-ink">PWA install funnel</p>
+            <p className="text-xs text-caption mt-0.5">
+              Prompted → installed conversion (last 7 days)
+            </p>
+          </a>
         </div>
       </div>
     </div>
