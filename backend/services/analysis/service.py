@@ -2106,6 +2106,98 @@ class AnalysisService(NarrativeMixin):
                     f"(peer median)"
                 )
 
+                # ── Day-109a (2026-05-23): Banking cohort overlay ──
+                # Layered on top of the existing Day-76 PB-ratio path.
+                # Banks don't get DCF; they get tier-anchored P/BV with
+                # ROE/asset-quality overlays. When the ticker is in the
+                # Day-109a banking cohort AND we have a valid BVPS, we
+                # rebuild the fair value from the cohort anchor (tier-1
+                # private 3.0x, PSU 1.2x, tier-2 1.8x) lifted by the
+                # ROE-quality boost (+20% when ROE>=16% AND GNPA<=2%).
+                # Optional GNPA / provision_coverage flow through from
+                # the financials dict; when absent the boost degrades to
+                # 1.0 (no penalty), the stress flag never fires, and we
+                # simply use the cohort anchor — strictly additive to
+                # the existing Day-76 behaviour.
+                try:
+                    from backend.services.analysis.sector_overrides import (
+                        is_banking_cohort_ticker as _is_bank_cohort,
+                        banking_pb_anchor as _bank_pb_anchor,
+                        banking_pb_band as _bank_pb_band,
+                        banking_roe_quality_boost as _bank_roe_boost,
+                        banking_stress_flag as _bank_stress,
+                        banking_tier as _bank_tier_fn,
+                    )
+                    if _is_bank_cohort(clean_ticker):
+                        _b_anchor = _bank_pb_anchor(clean_ticker)
+                        _b_bvps = _bvps if (_bvps and _bvps > 0) else None
+                        _b_roe = _fv_fin.get("roe")
+                        _b_gnpa = (
+                            enriched.get("gnpa_pct")
+                            or raw.get("gnpa_pct")
+                        )
+                        _b_pcr = (
+                            enriched.get("provision_coverage")
+                            or raw.get("provision_coverage")
+                        )
+                        if _b_anchor is not None and _b_bvps is not None:
+                            _b_boost = _bank_roe_boost(
+                                clean_ticker, _b_roe, _b_gnpa,
+                            )
+                            _b_fair_pb = _b_anchor * _b_boost
+                            _b_low, _b_high = _bank_pb_band(clean_ticker)
+                            # Clamp to cohort band so the boost can't
+                            # over-shoot the tier ceiling.
+                            _b_fair_pb_clamped = max(
+                                _b_low, min(_b_high, _b_fair_pb),
+                            )
+                            _b_iv = round(_b_bvps * _b_fair_pb_clamped, 2)
+                            _b_bear = round(_b_bvps * _b_low, 2)
+                            _b_bull = round(_b_bvps * _b_high, 2)
+                            iv = _b_iv
+                            bear_iv = _b_bear
+                            bull_iv = _b_bull
+                            _val_method = (
+                                f"pb_ratio (Day-109a banking cohort: "
+                                f"{_bank_tier_fn(clean_ticker)} anchor "
+                                f"{_b_anchor:.1f}x × boost {_b_boost:.2f})"
+                            )
+                            if _bank_stress(
+                                clean_ticker, _b_gnpa, _b_pcr,
+                            ):
+                                _data_issues.append(
+                                    "[data_limited] stressed book — "
+                                    "Day-109a banking cohort flag: "
+                                    "GNPA > 5% or provision coverage "
+                                    "< 60% (PB anchor still applied)."
+                                )
+                            # NIM (informational only). Surface the
+                            # bank-metrics NIM when available so the
+                            # frontend can render alongside the PB
+                            # band — not a knob, just transparency.
+                            _b_nim_info = (
+                                enriched.get("nim")
+                                or raw.get("nim")
+                            )
+                            if _b_nim_info is not None:
+                                try:
+                                    _data_issues.append(
+                                        f"[info] trailing NIM "
+                                        f"{float(_b_nim_info):.2f}% "
+                                        "(Day-109a banking cohort, "
+                                        "informational only)."
+                                    )
+                                except Exception:
+                                    pass
+                except Exception as _bank_cohort_exc:
+                    import logging as _bc_log
+                    _bc_log.getLogger("yieldiq.analysis").debug(
+                        "[%s] Day-109a banking cohort overlay skipped: "
+                        "%s: %s",
+                        ticker, type(_bank_cohort_exc).__name__,
+                        _bank_cohort_exc,
+                    )
+
             # Lender-only data_limited tag (feat/route-banks-nbfcs-to-pb-always):
             # If every P/B path failed for a Banking / NBFC ticker and we
             # are about to fall through to method 5 ("Insufficient data"
