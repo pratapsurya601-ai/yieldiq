@@ -179,14 +179,15 @@ export const WIDE_BAND_RATIO_THRESHOLD = 0.25
  * Day-91's gate is symmetric: it fires whenever confidence < 60 or the
  * scenario band > 25% of price, regardless of MoS direction. This was
  * intentionally conservative for the BULL side (a high positive MoS at
- * moderate confidence might be wrong upward — buying on a noisy "deep
+ * moderate confidence might be wrong upward — acting on a noisy "deep
  * value" signal is the larger trust risk). But Audit #5 found four
  * audit-universe tickers (SUNPHARMA -33%, MARUTI -31%, SBIN -31%,
  * ASIANPAINT -47%) rendering "fairly_valued" pills despite the user
  * paying a material premium to fair value. Overpaying is a more
  * material trust risk than underpaying — flatten an overvalued name
- * to "fairly_valued" and a user buys; flatten an undervalued name and
- * they merely don't buy. The first is harmful, the second is neutral.
+ * to "fairly_valued" and a user acts on it; flatten an undervalued
+ * name and they merely take no action. The first is harmful, the
+ * second is neutral.
  *
  * Rule: when MoS <= BEAR_OVERVALUED_BYPASS_MOS (-25%) AND confidence
  * is at least BEAR_OVERVALUED_BYPASS_CONFIDENCE (40, well above
