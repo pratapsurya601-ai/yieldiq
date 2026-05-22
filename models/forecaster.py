@@ -1328,6 +1328,8 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
                 or _ticker_bare in _IT_SERVICES_TIER2_TICKERS
             ) and wacc < 0.085:
                 wacc = 0.085
+        except Exception:
+            pass
 
         result.update({
             "wacc": wacc, "re": re, "rd": rd,
