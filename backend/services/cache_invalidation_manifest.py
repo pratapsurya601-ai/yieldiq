@@ -284,15 +284,10 @@ MANIFEST: list[dict] = [
     },
     {
         # Day-107c (2026-05-23): Indian auto OEM cohort overrides.
-        # Three coordinated engine knobs scoped to the 12-ticker
-        # cohort below: (1) segment-differentiated terminal growth
-        # — 2W 5.0%, 4W passenger 4.5%, CV 4.0%, ancillary/tires 4.0%;
-        # (2) ASHOKLEY CV WACC floor at 0.11 (commodity-linked beta);
-        # (3) cycle-trough bear-floor `min(0.6*fv, 0.4*price)` per
-        # the Day-51 cyclical-trough pattern, triggered when trailing
-        # EBITDA margin < 50% of 5y median. Engine change → FV / MoS
-        # / verdict / scenarios all touched; full-row invalidation
-        # for the 12 cohort tickers.
+        # Segment-differentiated TG (2W 5.0%, 4W 4.5%, CV 4.0%,
+        # ancillary 4.0%), ASHOKLEY CV WACC floor 0.11, cycle-trough
+        # bear-floor `min(0.6*fv, 0.4*price)` triggered when trailing
+        # EBITDA margin < 50% of 5y median.
         "version_id": "v_day107c_auto_cohort_2026_05_23",
         "applied_at": datetime(2026, 5, 23, 10, 10, 0, tzinfo=timezone.utc),
         "scope": {
@@ -310,10 +305,8 @@ MANIFEST: list[dict] = [
     },
     {
         # Day-107b (2026-05-23): FMCG sector cohort overrides — TG
-        # lift to 5.0% / 4.5% / 4.5% / 4.0% by tier, WACC floor at
-        # 8.5%, moat-pillar floor at 75 for top-4 franchise leaders,
-        # and slightly bullish scenario weighting (40/40/20) for the
-        # top-4. Engine-output change for the 11 named tickers.
+        # lift to 5.0%/4.5%/4.5%/4.0% by tier, WACC floor 8.5%,
+        # moat-pillar floor 75 for top-4, scenario weighting 40/40/20.
         "version_id": "v_day107b_fmcg_cohort_2026_05_23",
         "applied_at": datetime(2026, 5, 23, 10, 5, 0, tzinfo=timezone.utc),
         "scope": {
@@ -327,6 +320,27 @@ MANIFEST: list[dict] = [
         "rationale": (
             "Day-107b: FMCG cohort overrides (TG lift, WACC tighten, "
             "moat premium)"
+        ),
+    },
+    {
+        # Day-107d (2026-05-23): Capital Goods / E&C cohort overrides.
+        # Sub-buckets: defence+power-T&D (BEL/ABB/SIEMENS) TG 4.5%,
+        # general E&C TG 4.0%, BHEL TG 3.5% + 50bps WACC penalty.
+        # Order-book lift deferred to Phase 2 pending order_book col.
+        "version_id": "v_day107d_capital_goods_cohort_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 10, 15, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "LT", "SIEMENS", "ABB", "CUMMINSIND", "BHEL", "BEL",
+                "THERMAX", "KEC", "VOLTAS", "BLUESTARCO",
+                "KIRLOSKAR", "GRINDWELL",
+            ],
+            "fields": "*",
+        },
+        "rationale": (
+            "Day-107d: capital goods cohort overrides (order-book lift "
+            "deferred to Phase 2, TG by sub-segment 4.5/4.0/3.5%, "
+            "BHEL +50bps WACC penalty)."
         ),
     },
 ]

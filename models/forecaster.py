@@ -1292,6 +1292,33 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
         except Exception:
             pass
 
+        # ── Day-107d (2026-05-23): BHEL WACC penalty ────────────────
+        # Capital-goods cohort: BHEL carries a +50bps incremental WACC
+        # penalty layered on top of CAPM output. Justification:
+        #   1. PSU governance discount (capital allocation track record
+        #      on thermal-power tail is structurally inferior to
+        #      private-sector E&C).
+        #   2. Project receivables execution risk — BHEL's post-2023
+        #      regime change (Make-in-India + defence revival) is real,
+        #      but receivable cycles on PSU orders remain a WC drag not
+        #      captured in baseline CAPM WACC.
+        #   3. The 7y WC-smoothed FCF candidate already adjusts the
+        #      FCF series for cycle noise — the penalty is a discount-
+        #      rate side-payment for governance risk that lives outside
+        #      the cash-flow series.
+        # Applied INCREMENTALLY (wacc = min(wacc + penalty, 0.20)),
+        # NOT as a cap/floor.
+        try:
+            from backend.services.analysis.constants import (
+                CAPITAL_GOODS_COHORT_PSU_LEGACY,
+                CAPITAL_GOODS_BHEL_WACC_PENALTY_BPS,
+            )
+            if _ticker_bare in CAPITAL_GOODS_COHORT_PSU_LEGACY:
+                _bhel_penalty = CAPITAL_GOODS_BHEL_WACC_PENALTY_BPS / 10000.0
+                wacc = float(min(wacc + _bhel_penalty, 0.20))
+        except Exception:
+            pass
+
         result.update({
             "wacc": wacc, "re": re, "rd": rd,
             "beta": beta, "rf": rf, "market_premium": mrp,
@@ -1799,6 +1826,41 @@ class FCFForecaster:
             if _t_bare_tg in _PHARMA_FRANCHISE_TICKERS_TG and _g_terminal_eff < 0.055:
                 _g_terminal_eff = 0.055
                 enriched["_pharma_franchise_terminal_g_lifted"] = True
+        except Exception:
+            pass
+
+        # ── Day-107d (2026-05-23): Capital-goods cohort TG floors ─────
+        # Capital goods / E&C cohort terminal-growth differentiation by
+        # sub-segment:
+        #   DEFENSE_POWER_TD  -> 4.5% (BEL/ABB/SIEMENS — defence orders
+        #                              + power-T&D capex secular tailwind)
+        #   GENERAL_EPC       -> 4.0% (LT/KEC/THERMAX/CUMMINSIND/VOLTAS/
+        #                              BLUESTARCO/KIRLOSKAR*/GRINDWELL —
+        #                              India nominal GDP anchor)
+        #   PSU_LEGACY        -> 3.5% (BHEL — sub-nominal-GDP, commodity-
+        #                              linked thermal-power tail)
+        #
+        # FLOOR semantics: only LIFT terminal_g if it would otherwise
+        # land below the sub-segment anchor. KAYNES hyper-growth fade
+        # output is left untouched. Precedence: defence > EPC > PSU
+        # (defence wins on overlap — curated sets are disjoint today
+        # but the elif order matters if a ticker is added to multiple).
+        _CG_COHORT_DEFENSE_PT_TG = frozenset({"BEL", "ABB", "SIEMENS"})
+        _CG_COHORT_GENERAL_EPC_TG = frozenset({
+            "LT", "KEC", "THERMAX", "CUMMINSIND", "VOLTAS", "BLUESTARCO",
+            "KIRLOSKAR", "KIRLOSKARIND", "KIRLOSKAROIL", "GRINDWELL",
+        })
+        _CG_COHORT_PSU_LEGACY_TG = frozenset({"BHEL"})
+        try:
+            if _t_bare_tg in _CG_COHORT_DEFENSE_PT_TG and _g_terminal_eff < 0.045:
+                _g_terminal_eff = 0.045
+                enriched["_capital_goods_cohort_tg_lifted"] = "defense_power_td"
+            elif _t_bare_tg in _CG_COHORT_GENERAL_EPC_TG and _g_terminal_eff < 0.040:
+                _g_terminal_eff = 0.040
+                enriched["_capital_goods_cohort_tg_lifted"] = "general_epc"
+            elif _t_bare_tg in _CG_COHORT_PSU_LEGACY_TG and _g_terminal_eff < 0.035:
+                _g_terminal_eff = 0.035
+                enriched["_capital_goods_cohort_tg_lifted"] = "psu_legacy"
         except Exception:
             pass
 
