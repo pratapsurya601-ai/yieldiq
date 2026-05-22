@@ -1,0 +1,46 @@
+{
+  "data": [
+    {
+      "companyName": "HDFC Bank Limited",
+      "symbol": "HDFCBANK",
+      "from_yr": "2023",
+      "to_yr": "2024",
+      "fyFrom": "2023",
+      "fyTo": "2024",
+      "fromYr": "2023",
+      "toYr": "2024",
+      "fileName": "https://nsearchives.nseindia.com/annual_reports/AR_HDFCBANK_2023_2024.zip",
+      "attchmntFile": "https://nsearchives.nseindia.com/annual_reports/AR_HDFCBANK_2023_2024.zip",
+      "submissionDate": "26-05-2024 18:30:00",
+      "an_dt": "26-05-2024 18:30:00"
+    },
+    {
+      "companyName": "HDFC Bank Limited",
+      "symbol": "HDFCBANK",
+      "from_yr": "2022",
+      "to_yr": "2023",
+      "fyFrom": "2022",
+      "fyTo": "2023",
+      "fromYr": "2022",
+      "toYr": "2023",
+      "fileName": "https://nsearchives.nseindia.com/annual_reports/AR_HDFCBANK_2022_2023.pdf",
+      "attchmntFile": "https://nsearchives.nseindia.com/annual_reports/AR_HDFCBANK_2022_2023.pdf",
+      "submissionDate": "17-05-2023 18:00:00",
+      "an_dt": "17-05-2023 18:00:00"
+    },
+    {
+      "companyName": "HDFC Bank Limited",
+      "symbol": "HDFCBANK",
+      "from_yr": "2021",
+      "to_yr": "2022",
+      "fyFrom": "2021",
+      "fyTo": "2022",
+      "fromYr": "2021",
+      "toYr": "2022",
+      "fileName": "https://nsearchives.nseindia.com/annual_reports/AR_HDFCBANK_2021_2022.pdf",
+      "attchmntFile": "https://nsearchives.nseindia.com/annual_reports/AR_HDFCBANK_2021_2022.pdf",
+      "submissionDate": "20-05-2022 17:45:00",
+      "an_dt": "20-05-2022 17:45:00"
+    }
+  ]
+}
