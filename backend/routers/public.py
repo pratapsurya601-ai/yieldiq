@@ -5029,3 +5029,209 @@ async def get_manifest_history(ticker: str):
             s_maxage=60,
             swr=300,
         )
+# ═══════════════════════════════════════════════════════════════
+# Day-108c (2026-05-23) — Sector landing pages.
+#
+# Public, no-auth aggregator. For each Day-108c slug (it-services,
+# fmcg, auto, capital-goods, pharma, utilities, banking, metals,
+# cyclical) returns:
+#   - cohort_tickers (list[str], suffixed)
+#   - cohort_notes   (str, SEBI-safe cohort math description)
+#   - aggregates     (medians of fv/price ratio, score, MoS, PE, ROE
+#                     + verdict distribution + ticker_count)
+#   - tickers        (per-constituent compact rows)
+#
+# Reads exclusively from analysis_cache via get_cached() — no
+# recompute. Empty cohort returns an empty aggregates object + an
+# empty tickers list with HTTP 200 (the UI distinguishes between
+# 404 "unknown slug" and "data not yet computed").
+# ═══════════════════════════════════════════════════════════════
+def _sector_page_aggregate(slug: str) -> dict | None:
+    """Build the Day-108c landing-page payload for a slug, or None
+    when the slug is unknown.
+
+    Pure compute: takes the cohort definition, walks the cached
+    analysis_cache rows, projects each into a compact row, and
+    medians the non-null numeric fields. Median over the unfiltered
+    cohort (including over/undervalued names) — the landing page is
+    a sector valuation snapshot, not a screen.
+    """
+    from backend.services.sector_pages import get_cohort
+    from backend.services import analysis_cache_service
+
+    cohort = get_cohort(slug)
+    if cohort is None:
+        return None
+
+    bare_tickers: tuple[str, ...] = cohort["tickers"]
+    suffixed = [f"{t}.NS" for t in bare_tickers]
+
+    rows: list[dict] = []
+    for symbol in suffixed:
+        try:
+            payload = analysis_cache_service.get_cached(symbol)
+        except Exception:
+            payload = None
+        if not isinstance(payload, dict):
+            continue
+        val = payload.get("valuation") or {}
+        qual = payload.get("quality") or {}
+        comp = payload.get("company") or {}
+        try:
+            fv = val.get("fair_value")
+            base = val.get("base_case")
+            # Mirror the _extract_analysis_summary floor: when engine
+            # fair_value collapses to 0 but a real base_case exists,
+            # use base_case so the medians don't get poisoned by
+            # genuine model-failure zeros.
+            from backend.services.summary_projection import resolve_fair_value
+            fv_out = resolve_fair_value(fv, base)
+        except Exception:
+            fv_out = None
+        price = val.get("current_price")
+        try:
+            ratio = (
+                float(fv_out) / float(price)
+                if fv_out is not None and price not in (None, 0)
+                else None
+            )
+        except Exception:
+            ratio = None
+        row = {
+            "ticker": payload.get("ticker") or symbol,
+            "name": comp.get("company_name") or symbol,
+            "score": qual.get("yieldiq_score"),
+            "verdict": val.get("verdict"),
+            "fv": (
+                round(float(fv_out), 2) if fv_out is not None else None
+            ),
+            "price": (
+                round(float(price), 2) if price is not None else None
+            ),
+            "mos_pct": (
+                round(float(val.get("margin_of_safety")), 1)
+                if val.get("margin_of_safety") is not None
+                else None
+            ),
+            "pe_ratio": (
+                round(float(qual.get("pe_ratio")), 2)
+                if qual.get("pe_ratio") is not None
+                else None
+            ),
+            "roe": (
+                round(float(qual.get("roe")), 2)
+                if qual.get("roe") is not None
+                else None
+            ),
+            "fv_to_price": (
+                round(float(ratio), 4) if ratio is not None else None
+            ),
+        }
+        rows.append(row)
+
+    aggregates = _sector_page_compute_aggregates(rows)
+
+    return {
+        "slug": slug,
+        "display_name": cohort["display_name"],
+        "cohort_tickers": list(suffixed),
+        "cohort_notes": cohort["notes"],
+        "manifest_ref": cohort.get("manifest_ref"),
+        "aggregates": aggregates,
+        "tickers": rows,
+    }
+
+
+def _sector_page_compute_aggregates(rows: list[dict]) -> dict:
+    """Median over the non-null projection of each compact row.
+
+    Empty cohort → ticker_count 0 and every median None. Verdict
+    distribution counts every verdict string seen at least once; the
+    bucket dict is stable so the frontend can render fixed columns
+    even when the value is zero.
+    """
+    import statistics
+
+    def _median(xs: list[float]) -> Optional[float]:
+        clean = [float(x) for x in xs if x is not None]
+        if not clean:
+            return None
+        return float(statistics.median(clean))
+
+    verdict_buckets = {"undervalued": 0, "fairly_valued": 0, "overvalued": 0}
+    verdict_other = 0
+    for r in rows:
+        v = r.get("verdict")
+        if v in verdict_buckets:
+            verdict_buckets[v] += 1
+        elif v is not None:
+            verdict_other += 1
+    if verdict_other:
+        verdict_buckets["other"] = verdict_other
+
+    return {
+        "ticker_count": len(rows),
+        "median_fair_value_to_price_ratio": (
+            round(_median([r["fv_to_price"] for r in rows]), 4)
+            if _median([r["fv_to_price"] for r in rows]) is not None
+            else None
+        ),
+        "median_score": (
+            round(_median([r["score"] for r in rows]), 1)
+            if _median([r["score"] for r in rows]) is not None
+            else None
+        ),
+        "median_mos_pct": (
+            round(_median([r["mos_pct"] for r in rows]), 2)
+            if _median([r["mos_pct"] for r in rows]) is not None
+            else None
+        ),
+        "median_pe": (
+            round(_median([r["pe_ratio"] for r in rows]), 2)
+            if _median([r["pe_ratio"] for r in rows]) is not None
+            else None
+        ),
+        "median_roe": (
+            round(_median([r["roe"] for r in rows]), 2)
+            if _median([r["roe"] for r in rows]) is not None
+            else None
+        ),
+        "verdict_distribution": verdict_buckets,
+    }
+
+
+@router.get("/sector/{slug}")
+async def get_sector_landing(slug: str):
+    """Day-108c sector landing page payload.
+
+    404 when the slug isn't one of the Day-108c cohort slugs. The
+    response is cached at the edge for 30 min — sector aggregates
+    don't move minute-to-minute and we want CDN coverage for the
+    SEO crawl. Empty-cohort cases (no cached rows) still return 200
+    so the frontend can render its empty state deterministically.
+    """
+    from backend.services.sector_pages import get_cohort
+    norm = (slug or "").strip().lower()
+    if get_cohort(norm) is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Unknown sector slug '{slug}'.",
+        )
+    cache_key = f"public:sector-page:v1:{norm}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return _cached_json(
+            cached, s_maxage=1800, swr=3600,
+            extra_headers={"X-Source": "analysis_cache_v35", "X-Cache": "HIT"},
+        )
+    payload = _sector_page_aggregate(norm)
+    if payload is None:
+        # Defensive — _sector_page_aggregate already returned None
+        # only when the slug is unknown, which we gated above.
+        raise HTTPException(status_code=404, detail="Unknown sector slug")
+    cache.set(cache_key, payload, ttl=1800)
+    return _cached_json(
+        payload, s_maxage=1800, swr=3600,
+        extra_headers={"X-Source": "analysis_cache_v35", "X-Cache": "MISS"},
+    )
+

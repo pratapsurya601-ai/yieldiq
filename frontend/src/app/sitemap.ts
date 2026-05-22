@@ -1,5 +1,8 @@
 import type { MetadataRoute } from "next"
 import { BLOG_POSTS } from "@/lib/blog"
+// Day-108c (2026-05-23) — sector landing-page slugs surfaced for SEO.
+// Slug set MUST mirror backend/services/sector_pages.py SECTOR_PAGE_SLUGS.
+import { SECTOR_PAGE_SLUGS } from "./(marketing)/sector/[slug]/sectorCohorts"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -157,5 +160,22 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.6,
   }))
 
-  return [...staticPages, ...blogPages, ...stockPages, ...comparePages, ...prismComparePages]
+  // Day-108c sector landing pages — one per cohort slug. Indexed
+  // weekly because the aggregate medians shift slowly relative to
+  // per-ticker pages.
+  const sectorPages: MetadataRoute.Sitemap = SECTOR_PAGE_SLUGS.map(slug => ({
+    url: `https://yieldiq.in/sector/${slug}`,
+    lastModified: new Date(),
+    changeFrequency: "weekly" as const,
+    priority: 0.7,
+  }))
+
+  return [
+    ...staticPages,
+    ...blogPages,
+    ...stockPages,
+    ...comparePages,
+    ...prismComparePages,
+    ...sectorPages,
+  ]
 }
