@@ -270,6 +270,18 @@ MANIFEST: list[dict] = [
             "to cross the unmodeled branch)."
         ),
     },
+    {
+        # Day-103c (2026-05-22): added `compounded_growth` field to
+        # /api/v1/public/stock-summary response (3y/5y/10y CAGR panel
+        # for revenue/profit/ROE-avg/stock). Pure additive surface —
+        # no existing field changed. Manifest entry exists so any
+        # stock-summary rows cached before the deploy get refreshed
+        # and start emitting the new field.
+        "version_id": "v_day103c_cagr_panel_2026_05_22",
+        "applied_at": datetime(2026, 5, 22, 19, 0, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["compounded_growth"]},
+        "rationale": "Day-103c: new compounded_growth field on stock-summary",
+    },
 ]
 
 

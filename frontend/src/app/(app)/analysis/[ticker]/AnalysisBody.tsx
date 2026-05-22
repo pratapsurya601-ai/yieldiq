@@ -32,6 +32,7 @@ import { FormulasProvider } from "@/components/analysis/MetricTooltip"
 import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
 import ConfidenceIndicators from "@/components/analysis/ConfidenceIndicators"
 import ReverseDcfPanel from "@/components/analysis/ReverseDcfPanel"
+import CompoundedGrowthPanel from "@/components/analysis/CompoundedGrowthPanel"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
@@ -754,6 +755,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           />
           <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
           {scenarioBlock}
+          {/* Day-103c (2026-05-22): compounded-growth panel sits between
+              scenarios and the deeper financials section. Self-fetches
+              from /stock-summary; renders nothing if data is absent. */}
+          <CompoundedGrowthPanel ticker={ticker} />
           {!dataLimited && <ReverseDcfPanel ticker={ticker} />}
           <DividendTracker
             dividend={insights?.dividend ?? null}
