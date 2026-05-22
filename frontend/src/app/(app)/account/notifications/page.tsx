@@ -134,11 +134,12 @@ export default function NotificationPreferencesPage() {
 // The panel is a no-op (with explanatory text) on browsers that lack
 // either Notification, ServiceWorker, or PushManager.
 
-function urlBase64ToUint8Array(base64: string): Uint8Array {
+function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   const padding = "=".repeat((4 - (base64.length % 4)) % 4)
   const b64 = (base64 + padding).replace(/-/g, "+").replace(/_/g, "/")
   const raw = typeof window !== "undefined" ? window.atob(b64) : ""
-  const out = new Uint8Array(raw.length)
+  const buf = new ArrayBuffer(raw.length)
+  const out = new Uint8Array(buf)
   for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i)
   return out
 }
