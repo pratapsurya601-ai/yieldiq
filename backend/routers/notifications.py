@@ -17,10 +17,13 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+from sqlalchemy.orm import Session as OrmSession
 
 from backend.middleware.auth import get_current_user
 from backend.services import notifications_service as svc
+from backend.services import push_service
 
 logger = logging.getLogger(__name__)
 
@@ -61,3 +64,73 @@ async def mark_read(notification_id: int, user: dict = Depends(get_current_user)
 async def mark_all_read(user: dict = Depends(get_current_user)):
     n = svc.mark_all_read(user["user_id"])
     return {"ok": True, "marked": n}
+
+
+# ── Day-98: Web Push (PWA) subscribe + test ──────────────────────
+#
+# Subscribe stores the browser PushManager subscription. Test fires a
+# single Web Push to every registered subscription for the user — used
+# from /account/notifications "Send test notification" button to
+# confirm the round-trip is wired up before the user trusts it for
+# real band alerts.
+
+
+def _get_db():
+    """Yield a SQLAlchemy session on the pipeline engine (mirror of
+    backend.routers.alerts._get_db).
+    """
+    from data_pipeline.db import Session as _S
+    if _S is None:
+        raise HTTPException(status_code=503, detail="Database not configured")
+    db = _S()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+class PushSubscribePayload(BaseModel):
+    endpoint: str
+    p256dh: str
+    auth: str
+
+
+@router.post("/subscribe")
+async def subscribe_push(
+    payload: PushSubscribePayload,
+    request: Request,
+    user: dict = Depends(get_current_user),
+    db: OrmSession = Depends(_get_db),
+):
+    """Register (or refresh) a Web Push subscription for the caller."""
+    if not payload.endpoint or not payload.p256dh or not payload.auth:
+        raise HTTPException(status_code=400, detail="Missing subscription fields")
+    ua = (request.headers.get("user-agent") or "")[:255]
+    row = push_service.upsert_subscription(
+        db,
+        user_id=user["user_id"],
+        endpoint=payload.endpoint,
+        p256dh=payload.p256dh,
+        auth=payload.auth,
+        user_agent=ua,
+    )
+    return {"ok": True, "subscription": row}
+
+
+@router.post("/test")
+async def test_push(
+    user: dict = Depends(get_current_user),
+    db: OrmSession = Depends(_get_db),
+):
+    """Send a Web Push to every subscription on file for the caller.
+
+    Copy is intentionally informational (SEBI: no buy/sell/recommend).
+    """
+    delivered = push_service.send_push(
+        db,
+        user_id=user["user_id"],
+        title=push_service.TEST_NOTIFICATION_TITLE,
+        body=push_service.TEST_NOTIFICATION_BODY,
+        url="/account/notifications",
+    )
+    return {"ok": True, "delivered": delivered}

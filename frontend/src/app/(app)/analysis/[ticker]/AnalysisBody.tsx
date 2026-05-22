@@ -182,7 +182,7 @@ function humaniseSource(raw: string | null | undefined): string | null {
   if (lower === "nse" || lower === "nse_live") return "Live (NSE)"
   if (lower === "bse" || lower === "bse_live") return "Live (BSE)"
   if (lower === "nse_xbrl") return "NSE XBRL"
-  if (lower === "yfinance") return "yfinance"
+  if (lower === "yfinance") return "Live (yfinance)"
   // Day-64 (2026-05-21): audit caught internal "local_db_parquet" /
   // "local_db" / "supabase_cache" dev-name strings leaking into the
   // footer summary line. Humanise so the user never sees raw

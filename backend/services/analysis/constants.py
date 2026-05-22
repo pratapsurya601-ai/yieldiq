@@ -965,6 +965,28 @@ _DAY3_SECTOR_FIXES: dict[str, str] = {
     "SANOFI":      "Pharma",
     "ZYDUSWELL":   "Pharma",
     "DIVISLAB":    "Pharma",
+
+    # Day-95 (2026-05-22): pure-play metals/mining tickers that yfinance
+    # tags as "General/Diversified" or NULL. Pin to "Metals" so the
+    # cyclical / cohort engine routes them correctly. Audit #4 caught
+    # HINDZINC specifically.
+    "HINDZINC":    "Metals",
+    "HINDCOPPER":  "Metals",
+    "HINDALCO":    "Metals",
+    "VEDL":        "Metals",
+    "NATIONALUM":  "Metals",
+    "TATASTEEL":   "Metals",
+    "JSWSTEEL":    "Metals",
+    "JINDALSTEL":  "Metals",
+    "SAIL":        "Metals",
+    "NMDC":        "Metals",
+    "MOIL":        "Metals",
+    "GMDCLTD":     "Metals",
+    "COALINDIA":   "Metals",
+    "WELCORP":     "Metals",
+    "RATNAMANI":   "Metals",
+    "APLAPOLLO":   "Metals",
+    "JINDALSAW":   "Metals",
 }
 for _t, _sec in _DAY3_SECTOR_FIXES.items():
     TICKER_SECTOR_OVERRIDES[_t] = _sec

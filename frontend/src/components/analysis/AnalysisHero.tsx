@@ -8,6 +8,11 @@ import StoryDcfBadge from "@/components/analysis/StoryDcfBadge"
 import Hex from "@/components/hex/Hex"
 import HexExplainer from "@/components/hex/HexExplainer"
 import { fetchHex, type HexAxisKey, type HexResponse } from "@/lib/hex"
+import {
+  fetchIndustryPercentile,
+  percentileCaption,
+  type IndustryPercentileResponse,
+} from "@/lib/industryPercentile"
 import { formatCurrency, formatPct, shouldGateVerdict } from "@/lib/utils"
 import type { Verdict } from "@/types/api"
 
@@ -341,6 +346,12 @@ export default function AnalysisHero({
   )
   const [explainerAxis, setExplainerAxis] = useState<HexAxisKey | null>(null)
 
+  // Day-99: industry-relative percentiles. Optional secondary fetch —
+  // null on error / missing so the hero degrades to the legacy render.
+  const [percentile, setPercentile] = useState<IndustryPercentileResponse | null>(
+    null,
+  )
+
   useEffect(() => {
     if (!ticker) {
       setHexStatus("error")
@@ -358,10 +369,26 @@ export default function AnalysisHero({
         if (cancelled) return
         setHexStatus("error")
       })
+    // Percentile fetch is independent and best-effort.
+    fetchIndustryPercentile(ticker)
+      .then((p) => {
+        if (cancelled) return
+        setPercentile(p)
+      })
+      .catch(() => {
+        if (cancelled) return
+        setPercentile(null)
+      })
     return () => {
       cancelled = true
     }
   }, [ticker])
+
+  const percentileMap = percentile?.percentiles ?? undefined
+  const scoreCaption = percentileCaption(
+    (percentileMap?.score ?? null) as number | null,
+    percentile?.industry ?? null,
+  )
 
   return (
     <section
@@ -377,6 +404,7 @@ export default function AnalysisHero({
                 data={hex}
                 size={200}
                 onAxisTap={(k) => setExplainerAxis(k)}
+                percentiles={percentileMap}
               />
             ) : hexStatus === "loading" ? (
               <HexSkeleton size={200} />
@@ -411,6 +439,17 @@ export default function AnalysisHero({
                 <GradeContradictionTip />
               )}
             </p>
+            {/* Day-99: industry-relative caption under the score.
+                SEBI-safe vocabulary by construction (see
+                backend/services/analysis/sebi_filter.py). */}
+            {scoreCaption && (
+              <p
+                className="text-xs text-caption mt-0.5"
+                data-testid="industry-percentile-caption"
+              >
+                {scoreCaption}
+              </p>
+            )}
           </div>
         </div>
 

@@ -147,13 +147,28 @@ async def get_holdings(user: dict = Depends(get_current_user)):
 async def get_holdings_live(user: dict = Depends(get_current_user)):
     """
     Get holdings enriched with live prices, P&L, fair value, and verdict.
-    Returns: { holdings: [...], summary: {...} }
+    Returns: { holdings: [...], summary: {...}, sample_portfolio?: {...} }
+
+    Day-97: when the user has zero real holdings AND the JWT was issued
+    in the last ~5 minutes (proxy for "first session after signup"), we
+    attach a `sample_portfolio` payload so the frontend can render the
+    Portfolio Prism + observations against believable data instead of an
+    empty state. Nothing is persisted — the fixture is hardcoded in
+    backend/services/sample_portfolio.py and the frontend dismisses it
+    via localStorage on import / explicit close.
     """
     from backend.services.portfolio_service import get_holdings_with_live_data
     email = user.get("email", "")
     if not email:
         return {"holdings": [], "summary": {}}
-    return get_holdings_with_live_data(email)
+    result = get_holdings_with_live_data(email)
+    if not (result.get("holdings") or []):
+        from backend.services.sample_portfolio import (
+            build_sample_portfolio, is_first_session,
+        )
+        if is_first_session(user.get("iat")):
+            result["sample_portfolio"] = build_sample_portfolio()
+    return result
 
 
 @router.post("/holdings", response_model=SuccessResponse)
