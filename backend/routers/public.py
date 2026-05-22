@@ -1722,6 +1722,46 @@ async def backtest_screen_endpoint(
         )
 
 
+@router.get("/backtest/yiq50")
+async def backtest_yiq50_endpoint(
+    lookback: str = Query(default="3y", pattern="^[135]y$"),
+):
+    """Day-89 — hypothetical annual-rotation backtest of YieldIQ-50.
+
+    Returns the per-year picks (top-5 by historical MoS at year-start
+    where available, fallback to a deterministic large-cap slice if
+    fair_value_history is too sparse), each year's basket return, and
+    the cumulative return vs a Nifty-top-5 proxy. Method tag and full
+    caveats are returned in `_meta` and surfaced on the page.
+
+    Public, no-auth, 12-hour cache. Read-only — does NOT touch the
+    cached-analysis store, so no CACHE_VERSION bump is required.
+    """
+    years = int(lookback.rstrip("y"))
+    _cache_key = f"public:backtest:yiq50:{years}"
+    cached = cache.get(_cache_key)
+    if cached is not None:
+        return cached
+    try:
+        from backend.services.yiq50_backtest_service import run_yiq50_backtest
+        result = run_yiq50_backtest(lookback_years=years)
+        if result.get("error"):
+            raise HTTPException(status_code=503, detail=result["error"])
+        cache.set(_cache_key, result, ttl=43200)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(
+            "yiq50 backtest failed lookback=%sy: %s: %s",
+            years, type(e).__name__, e,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Backtest computation failed: {type(e).__name__}",
+        )
+
+
 @router.get("/technicals/{ticker}")
 async def get_technicals_endpoint(ticker: str, days: int = Query(default=365, ge=60, le=730)):
     """
