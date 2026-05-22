@@ -170,6 +170,23 @@ MANIFEST: list[dict] = [
             "other tickers are within plausible band."
         ),
     },
+    {
+        # Audit#5 P1: de_ratio=0 on all 17 audit-universe tickers.
+        # Root cause: data/collector.py coerced missing yfinance
+        # debtToEquity to 0 instead of None. Fix reads from
+        # ratio_history (XBRL) and preserves None for genuine missing.
+        "version_id": "v_audit5_p1_de_ratio_null_safety_2026_05_22",
+        "applied_at": datetime(2026, 5, 22, 13, 30, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["ratios.de_ratio"],
+        },
+        "rationale": (
+            "Audit#5 P1: de_ratio null-safety — every audit-universe "
+            "ticker was casting yfinance null to literal 0. Read from "
+            "ratio_history first; reject implausible zero when debt > 0."
+        ),
+    },
 ]
 
 
