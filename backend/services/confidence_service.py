@@ -408,6 +408,38 @@ _RATIO_HIGH = 5.0
 # Confidence floor below which an extreme ratio forces under_review.
 _RATIO_OVERRIDE_CONF_FLOOR = 70
 
+# ── Audit#6 (2026-05-22): bear-side overvalued bypass ─────────────
+# Mirror of the frontend PR #499 / Day-94 rule in
+# `frontend/src/lib/utils.ts::shouldGateVerdict`. The Layer-3
+# intensity cap below collapses `overvalued` / `notably_overvalued`
+# down to `fairly_valued` whenever ANY of the three confidence
+# scores sits below 70. That symmetric cap is correct on the BULL
+# side (a moderately-confident "notably_undervalued" can mislead a
+# reader into acting on a noisy deep-value signal). It is wrong on
+# the BEAR side: SUNPHARMA (mos -33%), MARUTI (-31%), SBIN (-31%),
+# ASIANPAINT (-47%) all surfaced `fairly_valued` on the public API
+# at 50-65% model_confidence despite the model clearly flagging a
+# premium to fair value. Flattening an overvalued read into
+# `fairly_valued` is materially more harmful than flattening an
+# undervalued read — the first reads as a green light to a name
+# that the model thinks is rich, the second merely declines to
+# surface a value idea. Frontend PR #499 added the asymmetric
+# bypass at the UI layer; this constant + bypass mirrors it into
+# the backend so /api/v1/public/stock-summary, og-data, push
+# notifications, email alerts, and any analytics keying off
+# verdict all see the same string.
+#
+# Rule: when mos_pct <= -25 AND model_confidence >= 40, do NOT
+# apply the Layer-3 cap. Pass-through and Layer-1/Layer-2 (extreme
+# ratio override, triple-low under_review) remain unchanged so
+# `data_limited` and genuinely low-confidence reads still gate.
+BEAR_OVERVALUED_BYPASS_MOS: float = -25.0
+BEAR_OVERVALUED_BYPASS_CONFIDENCE: int = 40
+# Threshold below which a bear-side read deepens to
+# `notably_overvalued` instead of plain `overvalued`. Matches the
+# frontend `verdictFromMos` boundary so both layers agree.
+BEAR_NOTABLY_OVERVALUED_MOS: float = -40.0
+
 
 def _any_below(threshold: int, *vals: Optional[int]) -> bool:
     return any(isinstance(v, int) and v < threshold for v in vals)
@@ -494,6 +526,44 @@ def _apply_confidence_verdict_gate(
     # ── Layer 3: any score below 70 -> cap intensity verdicts ────
     if _any_below(70, data_quality, model_confidence, valuation_stability):
         if verdict in _INTENSITY_VERDICTS:
+            # Audit#6 bear-side bypass — mirror of frontend PR #499.
+            # See module-level BEAR_OVERVALUED_BYPASS_* docstring.
+            # Compute MoS from FV/price (the gate already has both
+            # for Layer 1) so callers do not have to pass it
+            # separately. mos_pct = (fv - price) / price * 100.
+            if verdict in ("overvalued", "notably_overvalued"):
+                try:
+                    _fv = float(fair_value) if fair_value is not None else 0.0
+                    _px = float(current_price) if current_price is not None else 0.0
+                except (TypeError, ValueError):
+                    _fv = 0.0
+                    _px = 0.0
+                if _fv > 0 and _px > 0:
+                    mos_pct = (_fv - _px) / _px * 100.0
+                    if (
+                        mos_pct <= BEAR_OVERVALUED_BYPASS_MOS
+                        and isinstance(model_confidence, int)
+                        and model_confidence >= BEAR_OVERVALUED_BYPASS_CONFIDENCE
+                    ):
+                        # Keep the engine's intensity. Re-derive the
+                        # band from MoS so the surfaced label tracks
+                        # the frontend verdictFromMos thresholds even
+                        # if the engine emitted a coarser label.
+                        bypassed = (
+                            "notably_overvalued"
+                            if mos_pct <= BEAR_NOTABLY_OVERVALUED_MOS
+                            else "overvalued"
+                        )
+                        issues.append(
+                            "[confidence_gate] Bear-side bypass: "
+                            f"mos={mos_pct:.1f}% <= "
+                            f"{BEAR_OVERVALUED_BYPASS_MOS}% with "
+                            f"mc={model_confidence} >= "
+                            f"{BEAR_OVERVALUED_BYPASS_CONFIDENCE}; "
+                            f"intensity preserved as '{bypassed}' "
+                            "(Audit#6 mirror of frontend PR #499)."
+                        )
+                        return bypassed, issues
             issues.append(
                 "[confidence_gate] Confidence below threshold "
                 f"(dq={data_quality}, mc={model_confidence}, "

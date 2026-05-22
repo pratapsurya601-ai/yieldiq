@@ -208,6 +208,32 @@ MANIFEST: list[dict] = [
             "assets so units match revenue."
         ),
     },
+    {
+        # Audit#6: backend mirror of frontend PR #499 — asymmetric
+        # bear-side bypass for the overvalued band. Layer-3 of
+        # _apply_confidence_verdict_gate was capping any moderate-
+        # confidence overvalued read down to fairly_valued; the
+        # frontend already corrected this in the UI rendering layer,
+        # so the API payload disagreed with the rendered pill on a
+        # subset of bear-side tickers. Fix mirrors the frontend
+        # constants (BEAR_OVERVALUED_BYPASS_MOS=-25,
+        # BEAR_OVERVALUED_BYPASS_CONFIDENCE=40,
+        # BEAR_NOTABLY_OVERVALUED_MOS=-40) into the gate so the
+        # backend ``verdict`` field agrees with the UI label.
+        "version_id": "v_audit6_backend_overvalued_mirror_2026_05_22",
+        "applied_at": datetime(2026, 5, 22, 16, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["SUNPHARMA", "MARUTI", "SBIN", "ASIANPAINT"],
+            "fields": ["verdict"],
+        },
+        "rationale": (
+            "Audit#6: backend mirror of #499 frontend overvalued gate. "
+            "Re-derives verdict for the four audit-confirmed bear-side "
+            "tickers so /api/v1/public/stock-summary, og-data, push and "
+            "email alerts, and verdict-keyed analytics agree with the "
+            "rendered pill."
+        ),
+    },
 ]
 
 
