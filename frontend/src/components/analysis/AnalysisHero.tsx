@@ -440,8 +440,8 @@ export default function AnalysisHero({
               )}
             </p>
             {/* Day-99: industry-relative caption under the score.
-                SEBI-safe vocabulary by construction (helper avoids
-                outperform / underperform / buy / sell / recommend). */}
+                SEBI-safe vocabulary by construction (see
+                backend/services/analysis/sebi_filter.py). */}
             {scoreCaption && (
               <p
                 className="text-xs text-caption mt-0.5"

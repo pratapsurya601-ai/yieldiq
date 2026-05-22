@@ -34,9 +34,7 @@ export async function fetchIndustryPercentile(
  *   25-49 → "Below {industry} median"
  *   <  25 → "Bottom quartile in {industry}"
  *
- * Explicitly avoids the SEBI-banned vocabulary
- * (outperform / underperform / buy / sell / hold / recommend /
- * strong / accumulate / should). See
+ * Explicitly avoids the SEBI-banned vocabulary. See
  * backend/services/analysis/sebi_filter.py for the canonical
  * banned list this caption is designed against.
  */
