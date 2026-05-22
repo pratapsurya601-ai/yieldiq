@@ -117,6 +117,20 @@ MANIFEST: list[dict] = [
             "the manifest deploy so the system starts from a clean state."
         ),
     },
+    {
+        "version_id": "v_day95_metals_sector_pins",
+        "applied_at": datetime(2026, 5, 22, 4, 50, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "HINDZINC", "HINDCOPPER", "HINDALCO", "VEDL", "NATIONALUM",
+                "TATASTEEL", "JSWSTEEL", "JINDALSTEL", "SAIL", "NMDC",
+                "MOIL", "GMDCLTD", "COALINDIA", "WELCORP", "RATNAMANI",
+                "APLAPOLLO", "JINDALSAW",
+            ],
+            "fields": "*",  # sector pin can shift anything downstream
+        },
+        "rationale": "Day-95: metals/mining sector pins (HINDZINC and 16 others). Cohort routing change.",
+    },
 ]
 
 
