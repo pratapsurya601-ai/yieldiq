@@ -1,59 +1,49 @@
-"""Ingest related-party transactions from BSE/NSE annual-report PDFs.
+"""Ingest annual-report URLs from NSE into `company_annual_reports`.
 
-SCAFFOLDING ONLY. The PDF parsing and LLM-extraction calls are stubbed
-(see TODOs). What this script DOES wire up today:
+Day-104a (2026-05-23) rewrite:
+  The previous version of this script wrote into
+  `related_party_transactions` (migration 017) — that was wrong. The
+  Day-103b/d AR panel reads from `company_annual_reports` (migration
+  027), so this script now targets that table.
 
-  * Argparse skeleton (--tickers / --top / --all / --year / --dry-run /
-    --use-sample-fixture).
-  * Polite HTTP retry helper (carry-over pattern from
-    backfill_concall_transcripts.py).
-  * Idempotent UPSERT into related_party_transactions (matches the
-    composite UNIQUE in migration 017).
-  * Sample-fallback path so the rest of the pipeline (service layer,
-    summary aggregation, red-flag rules, frontend chip) can be developed
-    and tested without a working extractor.
+  Scope is Phase-1 only: ticker, fiscal_year, ar_url, source,
+  published_at. The JSONB extraction columns (segment_data,
+  capex_commitments, auditor_flags, contingent_liabilities,
+  related_party_transactions, mda_summary) stay NULL until the
+  Day-104b LLM-extractor PR.
 
-Source URL patterns (documented for the Phase-2 implementer):
-
-  BSE annual-report PDFs are served from
-    https://www.bseindia.com/xml-data/corpfiling/AttachLive/{guid}.pdf
-  Index page (per-company, per-year):
-    https://www.bseindia.com/corporates/ann.html?scrip={bse_code}
-
-  NSE annual-report listing:
-    https://www.nseindia.com/companies-listing/corporate-filings-annual-reports
-  JSON feed:
-    https://www.nseindia.com/api/annual-reports?index=equities&symbol={NSE_SYMBOL}
-
-  SEBI's online portal (cross-check):
-    https://www.sebi.gov.in/sebi_data/...
-
-Apply migration first:
-    DATABASE_URL=... python scripts/apply_migration.py \\
-        data_pipeline/migrations/017_related_party_transactions.sql
+Primary source: NSE's annual-reports JSON feed
+    https://www.nseindia.com/api/annual-reports?index=equities&symbol=<SYM>
+BSE listing (kept as a fallback hook for Phase-2; not implemented
+this PR — NSE has been more reliable for the metadata feed):
+    https://www.bseindia.com/corporates/ann.html?scrip=<bse_code>
+    https://www.bseindia.com/xml-data/corpfiling/AttachLive/<guid>.pdf
 
 Usage:
-    DATABASE_URL=... python scripts/ingest_annual_reports.py \\
-        --tickers RELIANCE,TCS --year 2025 --dry-run
-    DATABASE_URL=... python scripts/ingest_annual_reports.py \\
-        --use-sample-fixture --year 2025
+    DATABASE_URL=... python scripts/ingest_annual_reports.py \
+        --tickers HDFCBANK,RELIANCE --years-back 5
+    DATABASE_URL=... python scripts/ingest_annual_reports.py \
+        --top 100 --years-back 3 --dry-run
+    DATABASE_URL=... python scripts/ingest_annual_reports.py \
+        --all --years-back 10 --sleep 2.0
+    # Offline smoke test using saved fixtures:
+    python scripts/ingest_annual_reports.py \
+        --tickers HDFCBANK,RELIANCE --dry-run \
+        --fixtures-dir backend/tests/fixtures/nse/annual_reports
 
-Phase-2 work is gated on:
-  * Choosing the section-finding regex strategy (PyMuPDF text vs
-    pdfplumber word boxes vs OCR fallback for scanned ARs).
-  * Choosing Groq vs Gemini for extraction (cost vs accuracy tradeoff —
-    see docs/related_party_analyzer_design.md).
+Apply migration first:
+    DATABASE_URL=... python scripts/apply_migration.py \
+        data_pipeline/migrations/027_company_annual_reports.sql
 """
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import sys
 import time
+from datetime import date
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
@@ -62,234 +52,213 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(message)s",
 )
-logger = logging.getLogger("rpt_ingest")
+logger = logging.getLogger("ar_ingest")
 
 DEFAULT_SLEEP = 1.5
 DEFAULT_TOP = 100
-
-# AOC-2 / MGT-9 section-header regex starter set. Phase-2 work will
-# expand this — annual reports are surprisingly free-form. Some put
-# AOC-2 as a standalone schedule, others embed it inside Notes.
-SECTION_HEADER_PATTERNS = [
-    r"\bForm\s*AOC[-\s]*2\b",
-    r"\bMGT[-\s]*9\b",
-    r"\bRelated\s+Party\s+Transactions\b",
-    r"\bParticulars\s+of\s+contracts.*related\s+parties\b",
-]
+DEFAULT_YEARS_BACK = 5
 
 
-# ---------------------------------------------------------------------------
-# HTTP fetch + page-range identification — STUBBED.
-# ---------------------------------------------------------------------------
+def _resolve_universe(args, engine) -> list[str]:
+    """Mirror scripts/backfill_concall_transcripts.py._resolve_universe."""
+    from sqlalchemy import text
 
-def fetch_annual_report_pdf(ticker: str, fiscal_year: int) -> Optional[bytes]:
-    """Download the AR PDF for (ticker, FY). STUB.
-
-    Phase-1 implementation:
-      1. Resolve ticker → BSE code via existing universe data.
-      2. Hit BSE listing page, parse for the AR matching the FY.
-      3. GET the PDF, follow redirects, return bytes.
-      4. Fall back to NSE feed if BSE 404s.
-    """
-    # TODO(phase-1): real BSE / NSE fetch with retries + polite sleep.
-    logger.info("STUB fetch_annual_report_pdf(%s, %s)", ticker, fiscal_year)
-    return None
-
-
-def find_rpt_page_range(pdf_bytes: bytes) -> Optional[tuple[int, int]]:
-    """Locate AOC-2 / MGT-9 / RPT-notes section. STUB.
-
-    Phase-1 implementation:
-      * Use PyMuPDF (fitz) to extract text per page.
-      * Match SECTION_HEADER_PATTERNS against each page.
-      * Walk forwards until the next major section header to bound the
-        end page (typically "Signatures to the Standalone Financial
-        Statements" or the start of the next note).
-    """
-    # TODO(phase-1): PDF parsing via PyMuPDF or pdfplumber.
-    return None
-
-
-# ---------------------------------------------------------------------------
-# LLM extraction — STUBBED. See backend/services/related_party_service.py
-# for the prompt template.
-# ---------------------------------------------------------------------------
-
-def extract_rpts_with_llm(
-    pdf_bytes: bytes,
-    page_start: int,
-    page_end: int,
-    ticker: str,
-    fiscal_year: int,
-) -> List[Dict[str, Any]]:
-    """Phase-2 LLM call. STUB."""
-    # TODO(phase-2): Groq or Gemini call. Use LLM_SYSTEM_PROMPT /
-    # LLM_USER_PROMPT_TEMPLATE from related_party_service.
-    return []
-
-
-# ---------------------------------------------------------------------------
-# Sample-fixture loader — supports the --use-sample-fixture path.
-# ---------------------------------------------------------------------------
-
-SAMPLE_FIXTURE_PATH = REPO_ROOT / "tests" / "fixtures" / "sample_rpts.json"
-
-
-def load_sample_rows(
-    tickers: Optional[List[str]],
-    fiscal_year: Optional[int],
-) -> List[Dict[str, Any]]:
-    if not SAMPLE_FIXTURE_PATH.exists():
-        logger.warning("Sample fixture missing at %s", SAMPLE_FIXTURE_PATH)
-        return []
-    with open(SAMPLE_FIXTURE_PATH, encoding="utf-8") as fh:
-        blob = json.load(fh)
-    rows: List[Dict[str, Any]] = list(blob.get("rows", []))
-    if tickers:
-        wanted = {t.upper() for t in tickers}
-        rows = [r for r in rows if r["ticker"].upper() in wanted]
-    if fiscal_year:
-        rows = [r for r in rows if int(r["fiscal_year"]) == int(fiscal_year)]
-    return rows
-
-
-# ---------------------------------------------------------------------------
-# DB writer — idempotent UPSERT.
-# ---------------------------------------------------------------------------
-
-UPSERT_SQL = """
-INSERT INTO related_party_transactions (
-    ticker, fiscal_year, source_filing, related_party_name, related_party_type,
-    txn_type, amount_inr, is_arms_length, description, source_pdf_url,
-    source_page, llm_extracted, llm_confidence, human_reviewed
-) VALUES (
-    :ticker, :fiscal_year, :source_filing, :related_party_name, :related_party_type,
-    :txn_type, :amount_inr, :is_arms_length, :description, :source_pdf_url,
-    :source_page, :llm_extracted, :llm_confidence, :human_reviewed
-)
-ON CONFLICT (ticker, fiscal_year, related_party_name, txn_type, amount_inr)
-DO UPDATE SET
-    is_arms_length = EXCLUDED.is_arms_length,
-    description    = COALESCE(EXCLUDED.description, related_party_transactions.description),
-    llm_confidence = GREATEST(
-        COALESCE(EXCLUDED.llm_confidence, 0),
-        COALESCE(related_party_transactions.llm_confidence, 0)
-    ),
-    fetched_at = NOW();
-"""
-
-
-def upsert_rows(rows: Iterable[Dict[str, Any]], dry_run: bool) -> int:
-    rows = list(rows)
-    if dry_run:
-        logger.info("DRY-RUN: would upsert %d rows", len(rows))
-        return 0
-
-    try:
-        from sqlalchemy import text
-        from db.engine import get_engine  # type: ignore
-    except Exception as exc:
-        logger.error("DB layer not importable: %s", exc)
-        return 0
-
-    written = 0
-    with get_engine().begin() as conn:
-        for r in rows:
-            conn.execute(text(UPSERT_SQL), {
-                "ticker": r["ticker"].upper(),
-                "fiscal_year": int(r["fiscal_year"]),
-                "source_filing": r.get("source_filing", "AnnualReport"),
-                "related_party_name": r["related_party_name"],
-                "related_party_type": r.get("related_party_type"),
-                "txn_type": r["txn_type"],
-                "amount_inr": r.get("amount_inr"),
-                "is_arms_length": r.get("is_arms_length"),
-                "description": r.get("description"),
-                "source_pdf_url": r.get("source_pdf_url"),
-                "source_page": r.get("source_page"),
-                "llm_extracted": r.get("llm_extracted", True),
-                "llm_confidence": r.get("llm_confidence"),
-                "human_reviewed": r.get("human_reviewed", False),
-            })
-            written += 1
-    return written
-
-
-# ---------------------------------------------------------------------------
-# Per-ticker pipeline driver.
-# ---------------------------------------------------------------------------
-
-def process_ticker(ticker: str, fiscal_year: int, sleep_s: float) -> List[Dict[str, Any]]:
-    """STUB end-to-end pipeline for one (ticker, FY)."""
-    pdf = fetch_annual_report_pdf(ticker, fiscal_year)
-    if pdf is None:
-        logger.info("[%s FY%s] no AR PDF — skipping (Phase-1 work)", ticker, fiscal_year)
-        return []
-    page_range = find_rpt_page_range(pdf)
-    if page_range is None:
-        logger.info("[%s FY%s] could not locate RPT section", ticker, fiscal_year)
-        return []
-    p0, p1 = page_range
-    rows = extract_rpts_with_llm(pdf, p0, p1, ticker, fiscal_year)
-    time.sleep(sleep_s)
-    return rows
-
-
-# ---------------------------------------------------------------------------
-# CLI.
-# ---------------------------------------------------------------------------
-
-def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    p.add_argument("--tickers", help="Comma-separated ticker override")
-    p.add_argument("--top", type=int, default=DEFAULT_TOP,
-                   help="Top-N tickers by market cap (default 100)")
-    p.add_argument("--all", action="store_true", help="All active tickers")
-    p.add_argument("--year", type=int, required=True, help="Fiscal year, e.g. 2025")
-    p.add_argument("--sleep", type=float, default=DEFAULT_SLEEP,
-                   help="Seconds between requests (default 1.5)")
-    p.add_argument("--dry-run", action="store_true", help="Compute but do not write")
-    p.add_argument("--use-sample-fixture", action="store_true",
-                   help="Skip the (stubbed) PDF/LLM path and ingest from "
-                        "tests/fixtures/sample_rpts.json instead. Useful for "
-                        "exercising the rest of the pipeline.")
-    return p.parse_args(argv)
-
-
-def _resolve_tickers(args) -> List[str]:
     if args.tickers:
         return [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
-    if args.use_sample_fixture:
-        # All five fixture tickers.
-        return ["RELIANCE", "INFY", "TCS", "ADANIENT", "NIRMA"]
-    # Production path would hit the universe-resolver here.
-    # TODO(phase-1): wire to data_pipeline universe lookup once Phase-1
-    # PDF/LLM extraction is real.
-    logger.warning("No --tickers provided and not using fixture. "
-                   "Phase-1 universe resolver not implemented yet.")
-    return []
+
+    with engine.connect() as conn:
+        if args.all:
+            rows = conn.execute(text(
+                "SELECT s.ticker FROM stocks s "
+                "WHERE s.is_active = TRUE "
+                "ORDER BY s.ticker"
+            )).fetchall()
+        else:
+            n = args.top or DEFAULT_TOP
+            rows = conn.execute(text(
+                "SELECT s.ticker "
+                "FROM stocks s "
+                "LEFT JOIN market_metrics mm ON mm.ticker = s.ticker "
+                "WHERE s.is_active = TRUE "
+                "GROUP BY s.ticker "
+                "ORDER BY COALESCE(MAX(mm.market_cap_cr), 0) DESC "
+                "LIMIT :n"
+            ), {"n": n}).fetchall()
+    return [r[0] for r in rows if r and r[0]]
 
 
-def main(argv: Optional[List[str]] = None) -> int:
-    args = parse_args(argv)
-    tickers = _resolve_tickers(args)
-    logger.info("Ingest plan: %d tickers, FY%s, dry_run=%s, sample=%s",
-                len(tickers), args.year, args.dry_run, args.use_sample_fixture)
+def _filter_by_years_back(rows: list[dict], years_back: int) -> list[dict]:
+    """Keep only rows whose fiscal_year is within `years_back` of today.
 
-    all_rows: List[Dict[str, Any]] = []
-    if args.use_sample_fixture:
-        all_rows = load_sample_rows(tickers, args.year)
-        logger.info("Sample fixture provided %d rows", len(all_rows))
+    Indian FY convention: FY2024 = Apr-2023 to Mar-2024. We use the
+    current calendar year as the upper bound and `years_back` years
+    earlier as the lower bound.
+    """
+    if not years_back or years_back <= 0:
+        return rows
+    cutoff = date.today().year - years_back
+    return [r for r in rows if r.get("fiscal_year") and r["fiscal_year"] >= cutoff]
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    g = ap.add_mutually_exclusive_group()
+    g.add_argument("--top", type=int, default=None,
+                   help=f"Top-N by market cap (default {DEFAULT_TOP})")
+    g.add_argument("--tickers", help="Comma-separated ticker list")
+    g.add_argument("--all", action="store_true", help="All active tickers")
+
+    ap.add_argument("--years-back", type=int, default=DEFAULT_YEARS_BACK,
+                    help=f"Keep ARs whose fiscal_year >= today-N "
+                         f"(default {DEFAULT_YEARS_BACK})")
+    ap.add_argument("--sleep", type=float, default=DEFAULT_SLEEP,
+                    help=f"Seconds between NSE requests (default {DEFAULT_SLEEP})")
+    ap.add_argument("--dry-run", action="store_true",
+                    help="Fetch + print, DO NOT write to DB")
+    ap.add_argument("--limit", type=int, default=None,
+                    help="Cap tickers processed (smoke testing)")
+    ap.add_argument("--fixtures-dir", default=None,
+                    help="If set, read NSE responses from disk instead of "
+                         "hitting the network. Used for offline smokes + "
+                         "tests. Expects per-ticker <SYM>.json files.")
+    args = ap.parse_args()
+
+    if args.top is None and not args.tickers and not args.all and not args.fixtures_dir:
+        args.top = DEFAULT_TOP
+
+    # Lazy imports so --help works without psycopg2 / sqlalchemy installed.
+    from data_pipeline.sources.nse_annual_reports import (
+        fetch_filings_for_symbol,
+        load_fixture,
+        normalize_record,
+        upsert_records,
+        get_nse_session,
+    )
+
+    fixtures_dir = Path(args.fixtures_dir) if args.fixtures_dir else None
+    using_fixtures = fixtures_dir is not None
+
+    # Universe resolution: from CLI in fixture/tickers mode, from DB otherwise.
+    universe: list[str]
+    engine = None
+    if args.tickers:
+        universe = [t.strip().upper() for t in args.tickers.split(",") if t.strip()]
+    elif using_fixtures:
+        # In fixture mode without --tickers, walk the fixtures dir.
+        universe = sorted(p.stem for p in fixtures_dir.glob("*.json"))
     else:
-        for t in tickers:
-            try:
-                rows = process_ticker(t, args.year, sleep_s=args.sleep)
-                all_rows.extend(rows)
-            except Exception:
-                logger.exception("[%s] failed; continuing", t)
+        if not os.environ.get("DATABASE_URL"):
+            print("DATABASE_URL not set", file=sys.stderr)
+            return 2
+        from sqlalchemy import create_engine
+        url = os.environ["DATABASE_URL"]
+        if url.startswith("postgres://"):
+            url = "postgresql://" + url[len("postgres://"):]
+        engine = create_engine(url, pool_pre_ping=True)
+        universe = _resolve_universe(args, engine)
 
-    written = upsert_rows(all_rows, dry_run=args.dry_run)
-    logger.info("Done. rows_collected=%d rows_written=%d", len(all_rows), written)
+    if args.limit:
+        universe = universe[: args.limit]
+
+    if not universe:
+        logger.info("nothing to do — empty universe")
+        return 0
+
+    logger.info(
+        "ingest plan: tickers=%d years_back=%d dry_run=%s fixtures=%s",
+        len(universe), args.years_back, args.dry_run,
+        str(fixtures_dir) if fixtures_dir else "no",
+    )
+
+    # HTTP session is None when we're in fixture mode — load_fixture
+    # never touches the network so we don't need curl_cffi installed.
+    session_http = None if using_fixtures else get_nse_session()
+
+    # DB connection only when we'll actually write.
+    db_conn = None
+    if not args.dry_run:
+        if engine is None:
+            if not os.environ.get("DATABASE_URL"):
+                print("DATABASE_URL not set (required to write)", file=sys.stderr)
+                return 2
+        try:
+            import psycopg2  # type: ignore
+            db_conn = psycopg2.connect(os.environ["DATABASE_URL"])
+        except Exception as exc:
+            logger.error("psycopg2.connect failed: %s", exc)
+            return 2
+
+    processed = 0
+    found = 0
+    new_rows = 0
+    failed = 0
+
+    try:
+        for i, ticker in enumerate(universe, 1):
+            try:
+                if using_fixtures:
+                    raw_items = load_fixture(ticker, fixtures_dir)
+                else:
+                    raw_items = fetch_filings_for_symbol(
+                        ticker, session=session_http,
+                    )
+            except Exception as exc:
+                logger.warning("[%d/%d] %s fetch failed: %s",
+                               i, len(universe), ticker, exc)
+                failed += 1
+                if not using_fixtures:
+                    time.sleep(args.sleep)
+                continue
+
+            processed += 1
+
+            rows: list[dict] = []
+            for it in raw_items:
+                norm = normalize_record(it, ticker)
+                if norm:
+                    rows.append(norm)
+
+            rows = _filter_by_years_back(rows, args.years_back)
+            found += len(rows)
+
+            if args.dry_run:
+                for r in rows:
+                    logger.info(
+                        "[%d/%d] %s FY%s %s (dry-run)",
+                        i, len(universe), ticker, r["fiscal_year"],
+                        r["ar_url"][:120],
+                    )
+            elif rows and db_conn is not None:
+                try:
+                    added = upsert_records(rows, db_conn)
+                    new_rows += added
+                except Exception as exc:
+                    logger.warning("[%d/%d] %s upsert failed: %s",
+                                   i, len(universe), ticker, exc)
+                    failed += 1
+
+            if i % 25 == 0 or i == len(universe):
+                logger.info(
+                    "[%d/%d] processed=%d ars_found=%d new_rows=%d failed=%d",
+                    i, len(universe), processed, found, new_rows, failed,
+                )
+
+            if not using_fixtures:
+                time.sleep(args.sleep)
+    finally:
+        if db_conn is not None:
+            try:
+                db_conn.close()
+            except Exception:
+                pass
+
+    logger.info("")
+    logger.info("DONE annual-report ingest")
+    logger.info("  processed   : %d", processed)
+    logger.info("  ars_found   : %d", found)
+    logger.info("  new_rows    : %d%s",
+                new_rows, " (dry-run, not written)" if args.dry_run else "")
+    logger.info("  failed      : %d", failed)
     return 0
 
 

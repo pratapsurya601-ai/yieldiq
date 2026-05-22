@@ -1,0 +1,24 @@
+{
+  "data": [
+    {
+      "companyName": "Reliance Industries Limited",
+      "symbol": "RELIANCE",
+      "from_yr": "2023",
+      "to_yr": "2024",
+      "fileName": "https://nsearchives.nseindia.com/annual_reports/AR_RELIANCE_2023_2024.pdf",
+      "attchmntFile": "https://nsearchives.nseindia.com/annual_reports/AR_RELIANCE_2023_2024.pdf",
+      "submissionDate": "29-07-2024 19:00:00",
+      "an_dt": "29-07-2024 19:00:00"
+    },
+    {
+      "companyName": "Reliance Industries Limited",
+      "symbol": "RELIANCE",
+      "from_yr": "2022",
+      "to_yr": "2023",
+      "fileName": "https://nsearchives.nseindia.com/annual_reports/AR_RELIANCE_2022_2023.pdf",
+      "attchmntFile": "https://nsearchives.nseindia.com/annual_reports/AR_RELIANCE_2022_2023.pdf",
+      "submissionDate": "25-07-2023 19:00:00",
+      "an_dt": "25-07-2023 19:00:00"
+    }
+  ]
+}
