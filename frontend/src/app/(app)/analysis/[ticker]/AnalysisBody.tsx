@@ -17,6 +17,7 @@ import RedFlagInsights from "@/components/analysis/RedFlagInsights"
 import QualityRatios from "@/components/analysis/QualityRatios"
 import PromoterPledgePanel from "@/components/analysis/PromoterPledgePanel"
 import AnnualReportsPanel from "@/components/analysis/AnnualReportsPanel"
+import ManifestHistoryPanel from "@/components/analysis/ManifestHistoryPanel"
 import InsiderTradingPanel from "@/components/analysis/InsiderTradingPanel"
 import BulkBlockDealsPanel from "@/components/analysis/BulkBlockDealsPanel"
 import DividendTracker from "@/components/analysis/DividendTracker"
@@ -1157,6 +1158,11 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             additive — renders any non-null subset, hides itself when
             nothing is available (legacy cached payloads). */}
         <DataFreshnessWidget data={data} />
+
+        {/* Day-108a: "Why we changed this analysis" — surfaces the
+            Day-94 cache-invalidation manifest as a per-ticker audit
+            log. Trust signal panel; fine to live deep on the page. */}
+        <ManifestHistoryPanel ticker={ticker} />
 
         <ModelDisclaimer className="mx-4" />
       </div>
