@@ -146,6 +146,69 @@ export function verdictFromMos(mos: number | null | undefined): string {
 }
 
 /**
+ * Day-91 (2026-05-22): verdict-pill confidence gate — single source of truth.
+ *
+ * Audit #4 found the Day-61 confidence gate (AnalysisHero only) was firing
+ * inconsistently because FOUR render paths each derived their verdict
+ * independently:
+ *   - AnalysisHero  (Day-61 gate, threshold 50)
+ *   - EditorialHero (score100 < 50 gate, no confidence check)
+ *   - AnalysisBody  document.title (verdictFromMos only, no gate)
+ *   - PublicAnalysis pill          (verdictFromMos only, no gate)
+ *
+ * Result: TCS rendered "NOTABLY UNDERVALUED" in the title bar alongside a
+ * Data Limited banner; RELIANCE / INDIGO at 41-45% confidence rendered
+ * confident "UNDERVALUED" pills. Audit guidance: route every label
+ * through ONE gate function, raise threshold 50 -> 60, and add a
+ * scenario-band-ratio gate so wide-band names also collapse to neutral.
+ *
+ * The gate fires when ANY of these is true:
+ *   - dataLimited === true
+ *   - confidence < 60 (was 50)
+ *   - (bull_case - bear_case) / current_price > 0.25
+ *
+ * Returns true when the caller renders an "Under Review" /
+ * "Low Confidence" label instead of a directional verdict.
+ */
+export const LOW_CONFIDENCE_THRESHOLD = 60
+export const WIDE_BAND_RATIO_THRESHOLD = 0.25
+
+export interface VerdictGateInputs {
+  dataLimited?: boolean | null
+  confidence?: number | null
+  currentPrice?: number | null
+  bullCase?: number | null
+  bearCase?: number | null
+}
+
+export function shouldGateVerdict(inputs: VerdictGateInputs): boolean {
+  const { dataLimited, confidence, currentPrice, bullCase, bearCase } = inputs
+  if (dataLimited === true) return true
+  if (
+    typeof confidence === "number" &&
+    Number.isFinite(confidence) &&
+    confidence < LOW_CONFIDENCE_THRESHOLD
+  ) {
+    return true
+  }
+  if (
+    typeof currentPrice === "number" &&
+    currentPrice > 0 &&
+    typeof bullCase === "number" &&
+    Number.isFinite(bullCase) &&
+    typeof bearCase === "number" &&
+    Number.isFinite(bearCase)
+  ) {
+    const band = bullCase - bearCase
+    const ratio = band / currentPrice
+    if (Number.isFinite(ratio) && ratio > WIDE_BAND_RATIO_THRESHOLD) {
+      return true
+    }
+  }
+  return false
+}
+
+/**
  * SEBI-safe verdict display label.
  *
  * Loosened 2026-05-17: descriptive valuation vocabulary ("Undervalued"

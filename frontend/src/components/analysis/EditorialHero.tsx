@@ -35,6 +35,7 @@ import type {
 import {
   formatCurrency,
   formatPct,
+  shouldGateVerdict,
   verdictDisplayLabel,
   verdictFromMos,
   verdictRegion,
@@ -116,6 +117,14 @@ export interface EditorialHeroProps {
    */
   fvClamped?: boolean
   /**
+   * Day-91 (2026-05-22): scenario band gate inputs. When the bull/bear
+   * band exceeds 25% of current price the headline collapses to "Under
+   * Review" even when confidence reads >= 60. Optional/nullable for
+   * legacy cached payloads.
+   */
+  bullCase?: number | null
+  bearCase?: number | null
+  /**
    * DCF reliability gate (mirrors ValuationOutput.dcf_reliable). When
    * false, the fair_value/MoS in the payload failed the backend's
    * reliability check and the hero must not present a positive verdict.
@@ -179,6 +188,8 @@ export default function EditorialHero({
   valuationVerdict,
   confidence,
   fvClamped,
+  bullCase,
+  bearCase,
   dcfReliable,
   dataConfidence,
 }: EditorialHeroProps) {
@@ -242,12 +253,25 @@ export default function EditorialHero({
     typeof dataConfidence === "string" &&
     (dataConfidence.toLowerCase() === "low" ||
       dataConfidence.toLowerCase() === "unusable")
+  // Day-91 (2026-05-22): fold the shared confidence/band-ratio gate
+  // into isUnreliable so the EditorialHero, AnalysisHero, tab title,
+  // and PublicAnalysis pill agree. Was: score100 < 50 only — caught
+  // RELIANCE/INDIGO by score but missed TCS (score 70, confidence 67,
+  // wide scenario band) per audit #4.
+  const verdictGated = shouldGateVerdict({
+    dataLimited: false,
+    confidence,
+    currentPrice,
+    bullCase,
+    bearCase,
+  })
   const isUnreliable =
     !!dataLimited ||
     verdictUnreliable ||
     dcfReliable === false ||
     confidenceUnreliable ||
     fvClamped === true ||
+    verdictGated ||
     (typeof score100 === "number" && Number.isFinite(score100) && score100 < 50)
 
   return (
