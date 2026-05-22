@@ -235,15 +235,24 @@ def save_user_concall(user_email: str, analysis: dict) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════
-# Day-103a: ticker-level concall library
+# Day-103a (refactored by Day-103d, 2026-05-22): ticker-level
+# concall library.
 #
-# `list_concalls` and `summarise_concall` back the public endpoint
-# GET /api/v1/public/concalls/{ticker}. They read/write the new
-# `concalls` table (see migrations/051_concalls.sql) and lean on the
-# same Groq client used elsewhere on the analysis page. Summaries
-# are cached in the `ai_summary` column so repeat reads never call
-# Groq again.
+# `list_concalls` backs the public endpoint
+# GET /api/v1/public/concalls/{ticker}. It now reads from the
+# CANONICAL `concall_transcripts` table (migration 010) — the
+# `concalls` table the Day-103a agent created in migration 051 was
+# a duplicate and is being dropped in migration 053.
+#
+# The canonical table has no `ai_summary` column. Period semantics
+# are parsed out of the free-text `subject` field
+# ("Q3 FY25 earnings call" → "Q3-FY25"). `ai_summary` is returned as
+# None for now; a future PR will add a caching layer (either a new
+# column or an out-of-band cache table) and call `summarise_concall`.
+# The frontend already handles a missing `ai_summary` gracefully.
 # ═══════════════════════════════════════════════════════════════
+
+import re
 
 _LIBRARY_SUMMARY_SYSTEM = (
     "You are a careful financial writer producing a neutral, factual "
@@ -296,9 +305,13 @@ def summarise_concall(transcript_text: str) -> str:
     """Return a 5-bullet structured summary for a concall transcript.
 
     Pure function over the transcript text — does not touch the
-    database. Callers persist the result into the `ai_summary` column
-    (plus `ai_summary_generated_at` / `ai_summary_model`) so the work
-    is never repeated.
+    database. Currently UNUSED at the request path: the canonical
+    `concall_transcripts` table has no `ai_summary` column, and we
+    chose not to add one in Day-103d's narrow refactor. A follow-up
+    PR will introduce either (a) a new `concall_transcript_summaries`
+    cache table or (b) an `ai_summary` column on `concall_transcripts`
+    plus the matching `ai_summary_model` / `_generated_at` fields, at
+    which point this helper will be wired into `list_concalls`.
 
     Returns an empty string when the LLM is unavailable so callers can
     fall back to the source link only.
@@ -325,7 +338,7 @@ def summarise_concall(transcript_text: str) -> str:
 
 
 def _normalise_library_ticker(ticker: str) -> str:
-    """Normalise to the .NS-suffixed form stored in the concalls table."""
+    """Normalise to the .NS-suffixed form stored in concall_transcripts."""
     t = (ticker or "").upper().strip()
     if not t:
         return ""
@@ -335,7 +348,7 @@ def _normalise_library_ticker(ticker: str) -> str:
 
 
 def _get_library_session():
-    """Open a SQLAlchemy session for the concalls library table.
+    """Open a SQLAlchemy session for the concall_transcripts table.
 
     Uses the same pipeline-engine factory the financials/analysis
     services use so all reads share a connection pool.
@@ -349,14 +362,57 @@ def _get_library_session():
     return None
 
 
-def list_concalls(ticker: str, limit: int = 12) -> list[dict]:
-    """Return the most recent concalls for a ticker, newest first.
+# Period extraction from the NSE free-text `subject` line.
+#
+# Real-world examples we want to canonicalise:
+#   "Q3 FY25 earnings call"            → "Q3-FY25"
+#   "Q3FY25 analyst meet"              → "Q3-FY25"
+#   "Earnings call - Q1 FY2026"        → "Q1-FY26"
+#   "Quarter ended 30 June 2024"       → "Q1-FY25"  (best effort)
+#
+# When no quarter+FY pattern matches, we fall back to a truncated
+# version of the raw subject so the panel still has something to show.
+_PERIOD_QFY_RE = re.compile(
+    r"Q\s*([1-4])\s*FY\s*((?:20)?\d{2})",
+    re.IGNORECASE,
+)
 
-    Each row carries `period`, `date` (ISO YYYY-MM-DD or ""), `source_url`,
-    `ai_summary`, and `has_full_transcript`. Returns [] on any DB or
-    schema issue so the public endpoint stays 200 with an empty library
-    instead of 500-ing for one ticker. Lazily back-fills a missing
-    summary when the transcript text is on file and Groq is configured.
+
+def _parse_period_from_subject(subject: str) -> str:
+    """Parse a canonical 'Q?-FY??' period from a free-text subject.
+
+    Falls back to the truncated raw subject when no quarter/FY pattern
+    is found — better to show *something* than to ship an empty cell.
+    """
+    s = (subject or "").strip()
+    if not s:
+        return ""
+    m = _PERIOD_QFY_RE.search(s)
+    if m:
+        q = m.group(1)
+        fy_raw = m.group(2)
+        # Normalise '2026' / '26' → '26'
+        fy = fy_raw[-2:]
+        return f"Q{q}-FY{fy}"
+    # No match — return a short label derived from the subject so the
+    # panel renders meaningfully. Cap at 40 chars to keep the UI tidy.
+    return s[:40]
+
+
+def list_concalls(ticker: str, limit: int = 12) -> list[dict]:
+    """Return the most recent concall filings for a ticker, newest first.
+
+    Reads from the canonical `concall_transcripts` table (migration 010).
+    Each row maps as:
+
+        period            ← parsed from `subject` (e.g. "Q3-FY25")
+        date              ← filing_date.isoformat() | ""
+        source_url        ← pdf_url
+        ai_summary        ← None (no column on this table; future PR)
+        has_full_transcript ← pdf_url is not None
+
+    Returns [] on any DB or schema issue so the public endpoint stays
+    200 with an empty library instead of 500-ing for one ticker.
     """
     full = _normalise_library_ticker(ticker)
     if not full:
@@ -366,41 +422,28 @@ def list_concalls(ticker: str, limit: int = 12) -> list[dict]:
     if session is None:
         return []
     try:
-        from backend.models.concalls import Concall
+        from backend.models.concalls import ConcallTranscript
         rows = (
-            session.query(Concall)
-            .filter(Concall.ticker == full)
-            .order_by(Concall.concall_date.desc().nullslast(), Concall.id.desc())
+            session.query(ConcallTranscript)
+            .filter(ConcallTranscript.ticker == full)
+            .order_by(
+                ConcallTranscript.filing_date.desc(),
+                ConcallTranscript.id.desc(),
+            )
             .limit(limit)
             .all()
         )
 
         out: list[dict] = []
         for r in rows:
-            summary = r.ai_summary or ""
-            # Lazy back-fill: if we have full transcript text but no
-            # cached summary, generate + persist it once. We swallow
-            # any persistence error so the read path never fails.
-            if not summary and (r.transcript_text or "").strip():
-                generated = summarise_concall(r.transcript_text or "")
-                if generated:
-                    r.ai_summary = generated
-                    r.ai_summary_model = _LIBRARY_SUMMARY_MODEL
-                    r.ai_summary_generated_at = datetime.now(timezone.utc)
-                    try:
-                        session.commit()
-                    except Exception:
-                        try:
-                            session.rollback()
-                        except Exception:
-                            pass
-                    summary = generated
             out.append({
-                "period": r.period,
-                "date": r.concall_date.isoformat() if r.concall_date else "",
-                "source_url": r.source_url,
-                "ai_summary": summary,
-                "has_full_transcript": bool((r.transcript_text or "").strip()),
+                "period": _parse_period_from_subject(r.subject or ""),
+                "date": r.filing_date.isoformat() if r.filing_date else "",
+                "source_url": r.pdf_url,
+                # No cached summary column on concall_transcripts; the
+                # frontend treats a missing/None summary as "link only".
+                "ai_summary": None,
+                "has_full_transcript": bool(r.pdf_url),
             })
         return out
     except Exception as exc:

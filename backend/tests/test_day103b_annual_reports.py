@@ -11,8 +11,10 @@ Locks the contract for:
     can render a stable "coming soon" empty state.
 
 Uses an in-memory SQLite DB to avoid a live Neon connection. SQLite
-``annual_reports`` mirrors migration 052 closely enough for the read
-path (SERIAL → INTEGER PRIMARY KEY AUTOINCREMENT, DATE → TEXT).
+``company_annual_reports`` mirrors migration 027 closely enough for
+the read path (BIGSERIAL → INTEGER PRIMARY KEY AUTOINCREMENT, DATE →
+TEXT). Day-103d (2026-05-22) retargeted this from the duplicate
+`annual_reports` table to the canonical `company_annual_reports`.
 """
 from __future__ import annotations
 
@@ -73,14 +75,19 @@ class _SqliteConnShim:
 
 def _make_db() -> _SqliteConnShim:
     raw = sqlite3.connect(":memory:", check_same_thread=False)
+    # Mirror the subset of `company_annual_reports` columns the service
+    # actually reads. The production table has many more JSONB columns
+    # for the Claude-extracted structured layer; they are out of scope
+    # for the link-index read path tested here.
     raw.execute(
         """
-        CREATE TABLE annual_reports (
-            id          INTEGER PRIMARY KEY AUTOINCREMENT,
-            ticker      TEXT NOT NULL,
-            fiscal_year INTEGER NOT NULL,
-            filed_date  TEXT,
-            source_url  TEXT NOT NULL,
+        CREATE TABLE company_annual_reports (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            ticker        TEXT NOT NULL,
+            fiscal_year   INTEGER NOT NULL,
+            published_at  TEXT,
+            ar_url        TEXT,
+            source        TEXT,
             UNIQUE (ticker, fiscal_year)
         )
         """
@@ -89,9 +96,11 @@ def _make_db() -> _SqliteConnShim:
 
 
 def _seed(conn: _SqliteConnShim, rows: list[tuple]) -> None:
+    """Seed (ticker, fiscal_year, published_at, ar_url) tuples."""
     cur = conn._raw.cursor()
     cur.executemany(
-        "INSERT INTO annual_reports (ticker, fiscal_year, filed_date, source_url) "
+        "INSERT INTO company_annual_reports "
+        "(ticker, fiscal_year, published_at, ar_url) "
         "VALUES (?, ?, ?, ?)",
         rows,
     )

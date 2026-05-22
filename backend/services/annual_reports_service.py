@@ -3,16 +3,18 @@
 # Annual-reports INDEX service.
 #
 # This service returns the per-ticker list of annual report PDF
-# links (one row per fiscal year). It is intentionally separate
-# from `annual_report_service.py` (singular), which handles the
-# heavy Claude-extracted structured-data layer (segment_data,
-# capex commitments, auditor flags, ...).
+# links (one row per fiscal year) used by AnnualReportsPanel on
+# the analysis page.
 #
-# Shipping this thin link-index closes the Screener.in parity gap
-# flagged in the Day-102 competitive audit (FY12+ AR links). The
-# BSE filing-index scraper that populates the table is a Phase-2
-# follow-up task — for Day-103b we only ship table + endpoint +
-# UI + a small seed for HDFCBANK.NS so the panel renders.
+# Day-103d refactor (2026-05-22):
+#   The Day-103b agent shipped a brand-new `annual_reports` table
+#   without realising `company_annual_reports` (migration 027)
+#   already covered this need (plus a Claude-extracted structured
+#   layer on top). We now read from the canonical table and the
+#   duplicate is dropped in migration 053. Column mapping:
+#       fiscal_year ← fiscal_year
+#       filed_date  ← published_at  (renamed; same meaning)
+#       source_url  ← ar_url
 # ===============================================================
 from __future__ import annotations
 
@@ -86,8 +88,8 @@ def list_annual_reports(
         with conn.cursor() as cur:
             cur.execute(
                 """
-                SELECT fiscal_year, filed_date, source_url
-                  FROM annual_reports
+                SELECT fiscal_year, published_at, ar_url
+                  FROM company_annual_reports
                  WHERE ticker = %s
                  ORDER BY fiscal_year DESC
                  LIMIT %s
