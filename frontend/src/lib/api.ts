@@ -688,6 +688,16 @@ export interface PeerCohortCriteria {
   // True when the cohort has more than one sub-sector — UI displays
   // a "mixed cohort" disclaimer instead of asserting a single sub-sector.
   mixed_sub_sector: boolean
+  // Day-96 (2026-05-22): True when the peer-builder had to fall back
+  // past the subject's sub-sector (e.g. Airlines → Industrials because
+  // INDIGO has effectively no listed peers). UI renders a warning so
+  // the user knows the peers aren't true sub-sector matches.
+  cohort_broadened?: boolean
+  // Subject's true sub-sector — distinguishes "what we filtered for"
+  // from "what we got". Useful for the broadened-cohort disclaimer.
+  subject_sub_sector?: string | null
+  // Count of returned peers actually sharing subject's sub-sector.
+  same_sub_sector_peer_count?: number
 }
 
 export interface PublicPeersResponse {

@@ -2684,7 +2684,7 @@ async def get_peers(
         return _data_unavailable_payload(full_ticker, "db_session_unavailable")
 
     try:
-        from data_pipeline.models import PeerGroup, RatioHistory
+        from data_pipeline.models import PeerGroup, RatioHistory, Stock
         rows = (
             db.query(PeerGroup)
             .filter(PeerGroup.ticker == clean)
@@ -2703,6 +2703,49 @@ async def get_peers(
                 },
                 headers={"Cache-Control": "public, s-maxage=300, stale-while-revalidate=600"},
             )
+
+        # Day-96 (2026-05-22): airlines peer-engine bug fix.
+        # The peer_groups table stores `sector` / `sub_sector` from the
+        # SUBJECT ticker on every peer row (see scripts/build_peer_groups.py
+        # lines 320-321) regardless of whether the cohort had to broaden
+        # past the subject's sub-sector. For thin sub-sectors (Airlines:
+        # INDIGO is essentially alone — SPICEJET ~5% of mcap, Air India
+        # unlisted) the builder falls back to "same sector, mcap proximity"
+        # and INDIGO's peers became ABB / CUMMINSIND / SIEMENS / POWERINDIA
+        # / POLYCAB — all capital-goods, none airlines — but each row was
+        # tagged sub_sector="Airlines". That's a labelling lie.
+        #
+        # Fix: read each peer's TRUE industry (= sub_sector) from `stocks`
+        # at query time and surface that on the row. Also detect cohort
+        # broadening (peer reason != "same_sub_sector_mcap_proximity") and
+        # surface a `cohort_broadened` flag so the frontend can warn.
+        peer_bare_tickers = [
+            (peer.peer_ticker or "").replace(".NS", "").replace(".BO", "")
+            for peer in rows
+        ]
+        subject_and_peers = list({clean, *peer_bare_tickers})
+        true_sub_sector_by_ticker: dict[str, str | None] = {}
+        try:
+            stock_rows = (
+                db.query(Stock.ticker, Stock.industry, Stock.sector)
+                .filter(Stock.ticker.in_(subject_and_peers))
+                .all()
+            )
+            true_sub_sector_by_ticker = {
+                r[0]: r[1] for r in stock_rows
+            }
+        except Exception as exc:
+            logger.debug(f"true sub_sector lookup failed for {clean}: {exc}")
+            true_sub_sector_by_ticker = {}
+
+        subject_sub_sector = true_sub_sector_by_ticker.get(clean)
+
+        # All peers share a single `reason` per ticker (builder writes it
+        # uniformly). Read from row[0] for broadening detection.
+        cohort_reason = rows[0].reason if rows else None
+        cohort_broadened = bool(
+            cohort_reason and cohort_reason != "same_sub_sector_mcap_proximity"
+        )
 
         peers_out: list[dict] = []
         for peer in rows:
@@ -2778,6 +2821,12 @@ async def get_peers(
                 except Exception:
                     pass
 
+            # Day-96: per-peer sub_sector is THE PEER's own industry, not
+            # the subject's. The peer_groups table tag is unreliable for
+            # broadened cohorts — see comment above the loop.
+            true_sub = true_sub_sector_by_ticker.get(peer_clean)
+            peer_sub_sector = true_sub if true_sub is not None else peer.sub_sector
+
             peers_out.append({
                 # Canonical field — matches the authenticated /api/v1/analysis/{t}/peers
                 # response shape used elsewhere in the app. Retain `peer_ticker`
@@ -2787,7 +2836,7 @@ async def get_peers(
                 "peer_ticker": peer.peer_ticker,
                 "rank": peer.rank,
                 "sector": peer.sector,
-                "sub_sector": peer.sub_sector,
+                "sub_sector": peer_sub_sector,
                 "mcap_ratio": peer.mcap_ratio,
                 "company_name": company_name or peer_clean,
                 "fair_value": fair_value,
@@ -2910,8 +2959,37 @@ async def get_peers(
                     round(max(mcap_ratios) * 100, 1),
                 ]
 
+            # Day-96: count peers actually sharing the subject's sub-sector
+            # so the caption can say "only N same-sub-sector peer(s) available,
+            # broadened to nearest <sector>". This is honest about the cohort
+            # makeup instead of asserting "Same sub-sector (Airlines)" when
+            # the peers are capital-goods firms with Airlines tag inherited.
+            same_sub_peer_count = 0
+            if subject_sub_sector:
+                same_sub_peer_count = sum(
+                    1 for p in peers_out
+                    if p.get("sub_sector") == subject_sub_sector
+                )
+
             caption_parts: list[str] = []
-            if primary_sub:
+            if cohort_broadened and primary_sector:
+                # Broadened cohort: be explicit. Mention how many true
+                # same-sub-sector peers were available before broadening.
+                if subject_sub_sector:
+                    same_str = (
+                        f"only {same_sub_peer_count} same-sub-sector peer"
+                        f"{'s' if same_sub_peer_count != 1 else ''} available"
+                    )
+                    caption_parts.append(
+                        f"Same sector ({primary_sector}); {same_str}, "
+                        f"broadened to nearest {primary_sector}"
+                    )
+                else:
+                    caption_parts.append(
+                        f"Same sector ({primary_sector}); broadened from "
+                        f"sub-sector match"
+                    )
+            elif primary_sub:
                 caption_parts.append(f"Same sub-sector ({primary_sub})")
             elif primary_sector:
                 caption_parts.append(f"Same sector ({primary_sector})")
@@ -2932,6 +3010,18 @@ async def get_peers(
                 # so the UI can disclaim "mixed cohort" instead of asserting
                 # a single sub-sector. Useful for diversified conglomerates.
                 "mixed_sub_sector": len(sub_sectors) > 1,
+                # Day-96: True when the peer-builder had to fall back past
+                # the subject's sub-sector (e.g. Airlines → Industrials).
+                # Frontend renders a "broadened cohort" warning chip so the
+                # user knows the peers aren't true sub-sector matches.
+                "cohort_broadened": cohort_broadened,
+                # Subject's true sub-sector (= industry from `stocks`).
+                # Distinguishes "what we filtered FOR" from "what we got".
+                "subject_sub_sector": subject_sub_sector,
+                # Count of returned peers that actually share the subject's
+                # sub-sector. Zero for INDIGO post-fix (no other listed
+                # large-cap airlines). Powers the broadening explanation.
+                "same_sub_sector_peer_count": same_sub_peer_count,
             }
         except Exception as exc:
             logger.debug(f"cohort_criteria synth failed for {clean}: {exc}")
