@@ -254,6 +254,7 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
     currentPrice: price ?? null,
     bullCase: scenarios?.bull ?? null,
     bearCase: scenarios?.bear ?? null,
+    marginOfSafety: mos_pct ?? null,
   })
   const verdictText = publicGated
     ? "Under Review"

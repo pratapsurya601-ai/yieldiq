@@ -432,6 +432,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         currentPrice: data.valuation.current_price,
         bullCase: data.valuation.bull_case,
         bearCase: data.valuation.bear_case,
+        marginOfSafety: mos,
       })
       // Fallback chain: gate > MoS-derived verdict > backend verdict
       // label > neutral "Stock Analysis". The neutral form catches

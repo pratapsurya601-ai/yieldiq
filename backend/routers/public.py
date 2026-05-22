@@ -15,6 +15,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from fastapi.responses import JSONResponse
 
 from backend.services.cache_service import cache
+from backend.services.summary_projection import resolve_fair_value
 from backend.middleware.auth import get_current_user, get_current_user_optional, is_superuser
 
 logger = logging.getLogger("yieldiq.public")
@@ -305,6 +306,32 @@ def _extract_analysis_summary(result) -> dict:
     _price = round(v.current_price, 2)
     _mos = round(v.margin_of_safety, 1)
     _score = q.yieldiq_score
+    # ── AUDIT5_P0B_FAIR_VALUE_FLOOR (Day-100, 2026-05-22) ──────────
+    # Audit #5 flagged ULTRACEMCO.NS shipping `fair_value: 0.0` while
+    # `base_case: 3028.83` and `fair_value_source: "dcf"`. Verdict
+    # gated to `data_limited` (confidence 50) but the SEO fair-value
+    # page renders the pill from `fair_value` directly — so users
+    # saw "₹0 fair value" on the hero. Same defect shape as Audit #4
+    # (utility bear=₹0); the Day-92 fix only covered bear/bull at
+    # the engine layer, not the summary `fair_value` field.
+    #
+    # Policy: when the engine's fair_value collapses to 0 but a real
+    # scenario midpoint (base_case) exists, surface base_case so the
+    # verdict-pill gating shows the analyst-meaningful number. If
+    # neither is available, emit None and the frontend hides the pill
+    # (AnalysisHero already branches on `fairValue > 0`; the SEO
+    # /fair-value/page.tsx falls through to the empty-string `fvText`
+    # when fair_value is falsy, so None renders the same as the
+    # missing-data branch). Never write 0 unless both engine + base
+    # genuinely produced 0.
+    # Shared projection helper (backend/services/summary_projection.py)
+    # so og-data and any future summary endpoint apply the identical
+    # floor. See Audit#5 P0b follow-up: og-data was forwarding engine
+    # fair_value verbatim and rendered "₹0 fair value" on ULTRACEMCO.NS
+    # OG cards while this endpoint was already correct.
+    _fv_out = resolve_fair_value(
+        v.fair_value, getattr(v, "base_case", None),
+    )
     return {
         "ticker": result.ticker,
         "company_name": c.company_name,
@@ -312,7 +339,7 @@ def _extract_analysis_summary(result) -> dict:
         "industry": getattr(c, "industry", ""),
         "exchange": getattr(c, "exchange", "NSE"),
         "currency": getattr(c, "currency", "INR"),
-        "fair_value": round(v.fair_value, 2),
+        "fair_value": _fv_out,
         "current_price": _price,
         "price": _price,
         "mos": _mos,

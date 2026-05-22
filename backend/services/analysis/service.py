@@ -185,6 +185,7 @@ from backend.services.analysis.db import (
     _fetch_roce_inputs,
     _fetch_bank_metrics_inputs,
     _fetch_current_assets,
+    _fetch_de_ratio,
 )
 from backend.services.analysis.narrative import NarrativeMixin
 
@@ -3698,10 +3699,65 @@ class AnalysisService(NarrativeMixin):
         _ca_for_ratio = _ca_db if _ca_db is not None else enriched.get("current_assets")
         _cl_for_ratio = _cl_db if _cl_db is not None else enriched.get("current_liabilities")
         _current_ratio = _cr(_ca_for_ratio, _cl_for_ratio)
+        # FIX-AUDIT5-P1-ASSET-TURNOVER-UNIT (Task#87, 2026-05-22):
+        # Same unit-mismatch family as FIX-ROCE-UNIT-MISMATCH above.
+        # `enriched.latest_revenue` is in Crores, but
+        # `_total_assets = enriched.get("total_assets") or _ta_db or 0`
+        # picks the raw-INR yfinance value first (e.g. TCS.NS = 1.82e12).
+        # The resulting ratio (~1e-7) trips PR #498's [0.001, 100] sanity
+        # gate and returns None, so RELIANCE/TATASTEEL/ULTRACEMCO/TCS/INFY
+        # all render "n/a" despite clean DB data.
+        #
+        # Fix: prefer DB-sourced _ta_db (Crores) over enriched.total_assets
+        # so revenue and total_assets share the same unit. Mirrors the
+        # _ta_for_roce / _cl_for_roce pattern at line 3536.
+        _ta_for_at = _ta_db if _ta_db is not None else _total_assets
         _asset_turnover = _at(
             enriched.get("latest_revenue") or enriched.get("revenue"),
-            _total_assets,
+            _ta_for_at,
         )
+
+        # ── Audit#5 P1 de_ratio null-safety (2026-05-22) ──────
+        # ``enriched["de_ratio"]`` comes from data/collector.py:1668
+        # which coerces ``info.get("debtToEquity")`` to ``0`` whenever
+        # the yfinance field is missing. That made TATASTEEL /
+        # ADANIPORTS / RELIANCE / NTPC etc. render as "net cash"
+        # in the ratio grid despite carrying material debt (audit
+        # found 17/17 universe tickers at 0.0).
+        #
+        # Resolution order:
+        #   1. ``ratio_history.de_ratio`` (XBRL-pipeline truth, same
+        #      source the screener uses).
+        #   2. ``enriched["de_ratio"]`` ONLY when it's a credible
+        #      non-zero value, OR when total_debt is also genuinely
+        #      zero (cash-rich IT names like TCS / INFY stay at 0).
+        #   3. ``None`` — frontend renders "—".
+        #
+        # Bank-like guard: D/E for banks mixes deposits with debt
+        # and is misleading; keep the existing behaviour (do not
+        # special-case banks here — the field stays whatever the
+        # data source provides, consistent with prior shipping).
+        _de_db = _fetch_de_ratio(ticker)
+        _de_enriched = enriched.get("de_ratio")
+        if _de_db is not None:
+            _de_resolved: float | None = _de_db
+        elif _de_enriched is None:
+            _de_resolved = None
+        else:
+            try:
+                _de_f = float(_de_enriched)
+            except (TypeError, ValueError):
+                _de_f = None
+            if _de_f is None or _de_f != _de_f:
+                _de_resolved = None
+            elif _de_f == 0.0 and (_total_debt or 0) > 0:
+                # yfinance returned 0 but the balance sheet says
+                # there IS debt — the 0 is the null-cast bug, not
+                # a real zero. Surface as None.
+                _de_resolved = None
+            else:
+                _de_resolved = _de_f
+
         _rev_cagr_3y = None
         _rev_cagr_5y = None
         try:
@@ -4621,7 +4677,7 @@ class AnalysisService(NarrativeMixin):
                 # ROE/ROCE: return as PERCENTAGE (frontend displays directly with %)
                 # yfinance returns decimals (0.23), Aiven sometimes percentages — normalize.
                 roe=_normalize_pct(enriched.get("roe") or _compute_roe_fallback(enriched)),
-                de_ratio=enriched.get("de_ratio"),
+                de_ratio=_de_resolved,
                 roce=_normalize_pct(_roce_val),
                 debt_ebitda=_debt_ebitda_val,
                 debt_ebitda_label=_debt_ebitda_lbl,

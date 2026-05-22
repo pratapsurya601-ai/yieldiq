@@ -173,17 +173,75 @@ export function verdictFromMos(mos: number | null | undefined): string {
 export const LOW_CONFIDENCE_THRESHOLD = 60
 export const WIDE_BAND_RATIO_THRESHOLD = 0.25
 
+/**
+ * Day-94 (2026-05-22): asymmetric bear-side bypass — Audit #5 P1.
+ *
+ * Day-91's gate is symmetric: it fires whenever confidence < 60 or the
+ * scenario band > 25% of price, regardless of MoS direction. This was
+ * intentionally conservative for the BULL side (a high positive MoS at
+ * moderate confidence might be wrong upward — acting on a noisy "deep
+ * value" signal is the larger trust risk). But Audit #5 found four
+ * audit-universe tickers (SUNPHARMA -33%, MARUTI -31%, SBIN -31%,
+ * ASIANPAINT -47%) rendering "fairly_valued" pills despite the user
+ * paying a material premium to fair value. Overpaying is a more
+ * material trust risk than underpaying — flatten an overvalued name
+ * to "fairly_valued" and a user acts on it; flatten an undervalued
+ * name and they merely take no action. The first is harmful, the
+ * second is neutral.
+ *
+ * Rule: when MoS <= BEAR_OVERVALUED_BYPASS_MOS (-25%) AND confidence
+ * is at least BEAR_OVERVALUED_BYPASS_CONFIDENCE (40, well above
+ * data_limited floor but below the symmetric 60 threshold), do NOT
+ * gate. Let verdictFromMos return "Overvalued" / "Notably Overvalued".
+ *
+ * The bull side keeps the existing 60% / wide-band gate (TCS +48%
+ * MoS at 67% confidence with a wide scenario band still renders
+ * "Under Review", not "Notably Undervalued").
+ *
+ * Confidence missing (null/undefined) still gates — we will not flip
+ * to "Overvalued" without a positive confidence read.
+ */
+export const BEAR_OVERVALUED_BYPASS_MOS = -25
+export const BEAR_OVERVALUED_BYPASS_CONFIDENCE = 40
+
 export interface VerdictGateInputs {
   dataLimited?: boolean | null
   confidence?: number | null
   currentPrice?: number | null
   bullCase?: number | null
   bearCase?: number | null
+  /**
+   * Signed MoS percentage (e.g. -33 means price 33% above fair value).
+   * Optional for back-compat; when provided enables the bear-side
+   * bypass described above. NOT a decimal.
+   */
+  marginOfSafety?: number | null
 }
 
 export function shouldGateVerdict(inputs: VerdictGateInputs): boolean {
-  const { dataLimited, confidence, currentPrice, bullCase, bearCase } = inputs
+  const {
+    dataLimited,
+    confidence,
+    currentPrice,
+    bullCase,
+    bearCase,
+    marginOfSafety,
+  } = inputs
   if (dataLimited === true) return true
+
+  // Day-94 bear-side bypass — see comment above. Evaluated BEFORE the
+  // confidence/band gates so a moderately-confident overvalued read
+  // surfaces honestly. data_limited still short-circuits first.
+  const bearBypass =
+    typeof marginOfSafety === "number" &&
+    Number.isFinite(marginOfSafety) &&
+    marginOfSafety <= BEAR_OVERVALUED_BYPASS_MOS &&
+    typeof confidence === "number" &&
+    Number.isFinite(confidence) &&
+    confidence >= BEAR_OVERVALUED_BYPASS_CONFIDENCE
+
+  if (bearBypass) return false
+
   if (
     typeof confidence === "number" &&
     Number.isFinite(confidence) &&

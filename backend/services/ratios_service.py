@@ -197,12 +197,40 @@ def compute_current_ratio(current_assets, current_liabilities) -> float | None:
 
 
 def compute_asset_turnover(revenue, total_assets) -> float | None:
-    """Revenue / Total Assets. Returns ratio (×)."""
+    """Revenue / Total Assets. Returns ratio (×).
+
+    Both inputs MUST be in the same monetary unit (Crores by repo
+    convention). The ratio for any real operating company sits in the
+    0.05x–5x range; banks/NBFCs go lower, capital-light services go
+    higher but never above ~5x.
+
+    FIX-AUDIT5-P1-ASSET-TURNOVER (2026-05-22): INDIGO surfaced an
+    asset_turnover of 359,808.21 — a textbook unit-mismatch
+    fingerprint (revenue and total_assets were in different scales,
+    likely raw INR vs Crores). Same family as FIX-ROCE-UNIT-MISMATCH
+    and FIX-CURRENT-RATIO-UNIT. Rather than rely on every call site
+    getting units right, gate at the ratio function: any value
+    outside [0.001, 100] is implausible for ANY listed company on
+    earth and almost certainly a unit bug — log a warning and
+    return None so the UI shows "—" instead of a clearly-wrong
+    number that erodes user trust.
+    """
     _rev = _num(revenue)
     _ta = _num(total_assets)
     if _rev is None or _ta is None or _ta <= 0:
         return None
-    return round(_rev / _ta, 2)
+    _ratio = _rev / _ta
+    # Sanity gate — see docstring. Bounds chosen wide enough that no
+    # legitimate company is ever clipped (real-world range 0.05–5×).
+    if _ratio > 100 or _ratio < 0.001:
+        import logging as _l
+        _l.getLogger("yieldiq.ratios").warning(
+            "asset_turnover sanity gate tripped: revenue=%s total_assets=%s "
+            "ratio=%.4f — likely unit mismatch, returning None",
+            _rev, _ta, _ratio,
+        )
+        return None
+    return round(_ratio, 2)
 
 
 # ═══════════════════════════════════════════════════════════════

@@ -131,6 +131,109 @@ MANIFEST: list[dict] = [
         },
         "rationale": "Day-95: metals/mining sector pins (HINDZINC and 16 others). Cohort routing change.",
     },
+    {
+        # Day-100 / Audit #5 P0b — fair_value 0-floor leak.
+        # `_extract_analysis_summary` in backend/routers/public.py used
+        # to forward the engine's fair_value verbatim. When the engine
+        # returned 0.0 but a real scenario midpoint (base_case) existed
+        # (ULTRACEMCO.NS at 2026-05-22), the SEO fair-value page rendered
+        # "₹0 fair value" on the hero pill. Fix: fall through to
+        # base_case when engine fair_value is 0 and base_case > 0; emit
+        # None when neither exists so the frontend hides the pill.
+        "version_id": "v_audit5_p0b_fv_floor_2026_05_22",
+        "applied_at": datetime(2026, 5, 22, 12, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["ULTRACEMCO"],
+            "fields": ["fair_value"],
+        },
+        "rationale": (
+            "Audit#5 P0b: fair_value 0-floor leak — fall through to "
+            "base_case in /stock-summary projection so the SEO hero "
+            "pill stops rendering ₹0 when the engine collapses but "
+            "scenario midpoint is meaningful."
+        ),
+    },
+    {
+        # Audit#5 P1: INDIGO asset_turnover=359808 — clearly a unit
+        # mismatch. Defensive sanity gate in compute_asset_turnover
+        # nulls values outside [0.001, 100] so UI shows "n/a" instead
+        # of an obviously-wrong number.
+        "version_id": "v_audit5_p1_asset_turnover_units_2026_05_22",
+        "applied_at": datetime(2026, 5, 22, 13, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["INDIGO"],
+            "fields": ["ratios.asset_turnover"],
+        },
+        "rationale": (
+            "Audit#5 P1: asset_turnover sanity gate — INDIGO showed "
+            "359808 due to unit mismatch upstream. Scoped to INDIGO; "
+            "other tickers are within plausible band."
+        ),
+    },
+    {
+        # Audit#5 P1: de_ratio=0 on all 17 audit-universe tickers.
+        # Root cause: data/collector.py coerced missing yfinance
+        # debtToEquity to 0 instead of None. Fix reads from
+        # ratio_history (XBRL) and preserves None for genuine missing.
+        "version_id": "v_audit5_p1_de_ratio_null_safety_2026_05_22",
+        "applied_at": datetime(2026, 5, 22, 13, 30, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["ratios.de_ratio"],
+        },
+        "rationale": (
+            "Audit#5 P1: de_ratio null-safety — every audit-universe "
+            "ticker was casting yfinance null to literal 0. Read from "
+            "ratio_history first; reject implausible zero when debt > 0."
+        ),
+    },
+    {
+        # Task#87: asset_turnover=null for RELIANCE/TATASTEEL/
+        # ULTRACEMCO/TCS/INFY. PR #498's sanity gate was correctly
+        # rejecting a ~1e-7 ratio caused by a pre-existing unit
+        # mismatch at the call site in analysis/service.py — revenue
+        # in Crores vs total_assets in raw INR (yfinance). Fix mirrors
+        # the FIX-ROCE-UNIT-MISMATCH pattern: prefer DB _ta_db (Crores)
+        # so units align with revenue.
+        "version_id": "v_task87_asset_turnover_unit_callsite_2026_05_22",
+        "applied_at": datetime(2026, 5, 22, 15, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["ratios.asset_turnover"],
+        },
+        "rationale": (
+            "Task#87: asset_turnover call site mixed Crore revenue "
+            "with raw-INR total_assets, producing ~1e-7 ratios that "
+            "PR #498's sanity gate correctly nulled. Prefer DB total "
+            "assets so units match revenue."
+        ),
+    },
+    {
+        # Audit#6: backend mirror of frontend PR #499 — asymmetric
+        # bear-side bypass for the overvalued band. Layer-3 of
+        # _apply_confidence_verdict_gate was capping any moderate-
+        # confidence overvalued read down to fairly_valued; the
+        # frontend already corrected this in the UI rendering layer,
+        # so the API payload disagreed with the rendered pill on a
+        # subset of bear-side tickers. Fix mirrors the frontend
+        # constants (BEAR_OVERVALUED_BYPASS_MOS=-25,
+        # BEAR_OVERVALUED_BYPASS_CONFIDENCE=40,
+        # BEAR_NOTABLY_OVERVALUED_MOS=-40) into the gate so the
+        # backend ``verdict`` field agrees with the UI label.
+        "version_id": "v_audit6_backend_overvalued_mirror_2026_05_22",
+        "applied_at": datetime(2026, 5, 22, 16, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["SUNPHARMA", "MARUTI", "SBIN", "ASIANPAINT"],
+            "fields": ["verdict"],
+        },
+        "rationale": (
+            "Audit#6: backend mirror of #499 frontend overvalued gate. "
+            "Re-derives verdict for the four audit-confirmed bear-side "
+            "tickers so /api/v1/public/stock-summary, og-data, push and "
+            "email alerts, and verdict-keyed analytics agree with the "
+            "rendered pill."
+        ),
+    },
 ]
 
 
