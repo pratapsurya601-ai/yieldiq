@@ -11,7 +11,7 @@
 // auth, 6h CDN cache). Self-fetches because the AR link list isn't on
 // the StockSummary contract — we keep this surface lazy.
 //
-// SEBI-safe: no opinion, no recommendation, just verified filing
+// SEBI-safe: no opinion, no commentary — just verified filing
 // links with the source-of-truth date.
 
 import { useEffect, useMemo, useState } from "react"
