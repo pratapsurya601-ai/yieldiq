@@ -4,6 +4,16 @@ import { useAuthStore } from "@/store/authStore"
 import { useRouter } from "next/navigation"
 import api from "@/lib/api"
 
+// Distinct error class so the Sentry dashboard filter
+// `error.type:SentryClientProbeError` cleanly separates the Day-101
+// readiness probe from real production errors.
+class SentryClientProbeError extends Error {
+  constructor(msg: string) {
+    super(msg)
+    this.name = "SentryClientProbeError"
+  }
+}
+
 const ADMIN_EMAILS = ["pratapsurya601@gmail.com", "suryasbss601@gmail.com"]
 
 interface AdminStats {
@@ -163,6 +173,46 @@ export default function AdminPage() {
               View + simulate (operator submits PR to change)
             </p>
           </a>
+        </div>
+      </div>
+
+      {/* Sentry readiness probes (Day-101). Two buttons that throw
+          deliberate, distinct error types so the Sentry dashboard can
+          confirm both backend and client capture end-to-end before
+          the first paying user hits the flow. */}
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-amber-100 p-5">
+        <h2 className="text-sm font-semibold text-ink mb-1">Sentry readiness probes</h2>
+        <p className="text-xs text-caption mb-3">
+          Admin-only. Each button throws a labeled synthetic exception.
+          See <code>docs/runbooks/sentry-verify-2026-05-22.md</code>.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              api.get("/api/v1/admin/sentry-probe").catch(() => {
+                // expected 500 — the endpoint raises by design
+              })
+            }}
+            className="px-4 py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-xs font-medium hover:bg-amber-100"
+          >
+            Trigger backend error
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              // Throw on a microtask so React's error boundary catches it
+              // and Sentry's Next.js integration ships an event.
+              setTimeout(() => {
+                throw new SentryClientProbeError(
+                  "Day-101 client-side Sentry probe — admin /admin button",
+                )
+              }, 0)
+            }}
+            className="px-4 py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-900 text-xs font-medium hover:bg-amber-100"
+          >
+            Trigger client error
+          </button>
         </div>
       </div>
     </div>

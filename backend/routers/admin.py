@@ -1110,6 +1110,37 @@ async def sentry_test(user: dict = Depends(require_admin)):
     )
 
 
+class _SentryProbeError(RuntimeError):
+    """Synthetic exception raised by /admin/sentry-probe only.
+
+    Distinct from `_SentryWiringTestError` so the Day-101 live-flow
+    readiness probe can be filtered separately in the Sentry dashboard
+    (`error.type:_SentryProbeError`). Both types share the same handler
+    shape — this exists purely to give the pre-launch verification
+    checklist its own non-overlapping signal.
+    """
+
+
+@router.get("/sentry-probe")
+async def sentry_probe(user: dict = Depends(require_admin)):
+    """Day-101 pre-launch Sentry readiness probe.
+
+    Mirrors /admin/sentry-test but raises `_SentryProbeError` so the
+    pre-launch verification checklist (docs/runbooks/sentry-verify-*.md)
+    can confirm Sentry capture end-to-end without polluting the normal
+    smoke-test signal. Admin-gated.
+    """
+    try:
+        import sentry_sdk as _sentry
+        _sentry.set_tag("smoke_test", "sentry_probe_day101")
+        _sentry.set_tag("triggered_by", user.get("email", "unknown"))
+    except Exception:
+        pass
+    raise _SentryProbeError(
+        "Synthetic exception from /admin/sentry-probe — Day-101 live-flow readiness probe"
+    )
+
+
 # ─────────────────────────────────────────────────────────────────
 # Realty developer land-bank inputs (Approach C engine curation).
 # See docs/design/realty-developers-dcf-fix.md §5 and the
