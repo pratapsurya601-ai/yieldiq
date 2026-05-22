@@ -12,26 +12,29 @@ on:
   push:
     branches: [main]
     paths:
-      - "backend/services/analysis_service.py"
-      - "backend/services/local_data_service.py"
-      - "backend/services/validators.py"
+      - "backend/services/**"
+      - "backend/routers/**"
+      - "backend/validators/**"
+      - "backend/models/**"
       - "screener/**/*.py"
       - "models/**/*.py"
       - "dashboard/utils/scoring.py"
-      - "data_pipeline/nse_prices/**/*.py"
       - "data_pipeline/**"
       - "scripts/canary_check.py"
+      - ".github/workflows/canary.yml"
   pull_request:
     branches: [main]
     paths:
-      - "backend/services/analysis_service.py"
-      - "backend/services/local_data_service.py"
-      - "backend/services/validators.py"
+      - "backend/services/**"
+      - "backend/routers/**"
+      - "backend/validators/**"
+      - "backend/models/**"
       - "screener/**/*.py"
       - "models/**/*.py"
       - "dashboard/utils/scoring.py"
       - "data_pipeline/nse_prices/**/*.py"
       - "scripts/canary_check.py"
+      - ".github/workflows/canary.yml"
 
 jobs:
   canary:
