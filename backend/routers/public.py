@@ -4925,3 +4925,107 @@ async def get_fv_accuracy(
 
     cache.set(cache_key, payload, ttl=21600, version_keyed=False)
     return _cached_json(payload, s_maxage=21600, swr=86400)
+
+
+# ─────────────────────────────────────────────────────────────────
+# Day-108a (2026-05-23): /api/v1/public/manifest-history/{ticker}
+#
+# Surfaces the Day-94 cache-invalidation manifest as a per-ticker
+# "Why we changed" audit trail. The admin endpoint
+# /admin/cache-manifest-impact (Day-95b) already exposes the same
+# manifest joined against the live cache table to ops; this is the
+# PUBLIC, unauth, read-only variant intended for the analysis page
+# trust-signal panel.
+#
+# Filtering uses the canonical _ticker_in_scope matcher from the
+# manifest module so wildcard ("*") entries surface for every ticker
+# and scoped lists match by bare-ticker (NSE/BSE suffix stripped).
+#
+# Ordering: applied_at DESC (newest first) — matches what the UI
+# wants for "latest model update at the top of the timeline".
+#
+# Unknown tickers return 200 with an empty entries list so the
+# frontend can render a stable empty state without a 404 round-trip.
+#
+# Cache: 1h shared cache, 6h stale-while-revalidate. The manifest is
+# code-deployed (not DB-backed), so a new entry lands with a deploy;
+# the 1h TTL is plenty.
+# ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/manifest-history/{ticker}")
+async def get_manifest_history(ticker: str):
+    """Return the per-ticker subset of MANIFEST, newest first.
+
+    Response shape::
+
+        {
+          "ticker": "NTPC.NS",
+          "entries": [
+            {
+              "version_id": "v_init_2026_05_22",
+              "applied_at": "2026-05-22T23:00:00+00:00",
+              "rationale": "Day-94 migration anchor — ...",
+              "fields_affected": ["*"]
+            },
+            ...
+          ]
+        }
+
+    ``fields_affected`` mirrors ``entry.scope.fields`` — either the
+    literal list of dotted field paths the entry touches, or
+    ``["*"]`` for whole-row entries. The frontend renders these as
+    faded chips next to each timeline card.
+    """
+    try:
+        from backend.services.cache_invalidation_manifest import (
+            MANIFEST,
+            _ticker_in_scope,
+        )
+
+        symbol = (ticker or "").strip()
+        matches: list[dict[str, Any]] = []
+        for entry in MANIFEST:
+            scope = entry.get("scope") or {}
+            scope_tickers = scope.get("tickers")
+            if not _ticker_in_scope(symbol, scope_tickers):
+                continue
+            scope_fields = scope.get("fields")
+            if scope_fields == "*" or scope_fields is None:
+                fields_affected: list[str] = ["*"]
+            elif isinstance(scope_fields, (list, tuple, set)):
+                fields_affected = [str(f) for f in scope_fields]
+            else:
+                fields_affected = [str(scope_fields)]
+
+            applied_at = entry.get("applied_at")
+            try:
+                applied_iso = applied_at.isoformat() if applied_at else None
+            except Exception:
+                applied_iso = str(applied_at) if applied_at else None
+
+            matches.append({
+                "version_id": entry.get("version_id"),
+                "applied_at": applied_iso,
+                "rationale": entry.get("rationale"),
+                "fields_affected": fields_affected,
+            })
+
+        # Newest-first. Entries with a missing applied_at sink to the
+        # bottom rather than blowing up the comparator.
+        matches.sort(
+            key=lambda e: e.get("applied_at") or "",
+            reverse=True,
+        )
+
+        payload = {"ticker": symbol, "entries": matches}
+        return _cached_json(payload, s_maxage=3600, swr=21600)
+    except Exception as exc:
+        logger.exception("manifest-history failed for %s", ticker)
+        # Degrade to an empty list rather than a 500 — this is a
+        # trust-signal panel, not a critical surface.
+        return _cached_json(
+            {"ticker": ticker, "entries": [], "error": type(exc).__name__},
+            s_maxage=60,
+            swr=300,
+        )
