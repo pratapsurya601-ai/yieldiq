@@ -776,6 +776,63 @@ async def get_promoter_pledge(ticker: str):
     return _cached_json(payload, s_maxage=3600, swr=7200)
 
 
+# ─────────────────────────────────────────────────────────────────
+# Day-99 (2026-05-22): industry-relative percentile rankings.
+#
+# No Indian competitor surfaces "Quality 8.5/10 — 75th percentile in
+# IT Services" alongside a pillar number. Every input is already in
+# analysis_cache so the marginal cost is one SQL fanout per industry.
+# Cached 6h in-process; never bumps CACHE_VERSION (read-only).
+# ─────────────────────────────────────────────────────────────────
+@router.get("/percentile/{ticker}")
+async def get_industry_percentile(
+    ticker: str,
+    metrics: Optional[str] = Query(
+        default=None,
+        description="Comma-separated metric keys. Defaults to all 7.",
+    ),
+):
+    """Percentile rank of `ticker` within its industry cohort.
+
+    `metrics` accepts any subset of:
+        score, value, quality, growth, moat, safety, pulse
+
+    Returns:
+        {
+          "ticker": "TCS.NS",
+          "industry": "Information Technology Services",
+          "cohort_size": 18,
+          "percentiles": {"score": 75, "quality": 82, ...}
+        }
+
+    Thin-cohort (< 5 peers with fresh data) returns the same shape
+    with all `percentiles` null and a `caveat` string explaining
+    why — never a misleading "100th of 3" number.
+    """
+    t = (ticker or "").strip().upper()
+    if not t:
+        raise HTTPException(status_code=400, detail="ticker required")
+    requested: Optional[list[str]] = None
+    if metrics:
+        requested = [m.strip() for m in metrics.split(",") if m.strip()]
+
+    sess = _get_db_session()
+    if sess is None:
+        raise HTTPException(status_code=503, detail="db unavailable")
+    try:
+        from backend.services.industry_percentile_service import (
+            get_cached_percentiles,
+        )
+        payload = get_cached_percentiles(t, sess, requested)
+    except Exception as exc:
+        logger.warning("public:percentile failed for %s: %s", t, exc)
+        raise HTTPException(status_code=503, detail="percentile service error")
+    finally:
+        _safe_close(sess)
+
+    return _cached_json(payload, s_maxage=3600, swr=21600)
+
+
 @router.get("/all-tickers")
 async def get_all_tickers():
     """

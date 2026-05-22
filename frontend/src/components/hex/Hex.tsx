@@ -12,6 +12,15 @@ interface HexProps {
   size?: number
   sectorOverlay?: boolean
   onAxisTap?: (axis: HexAxisKey) => void
+  /**
+   * Day-99 (2026-05-22): optional industry-relative percentile per
+   * pillar (0-100). When present, a tiny caption-color rank is
+   * rendered next to each pillar's value pill so users see
+   * "Quality 8.5 · 75th" instead of just "8.5". Absent / null
+   * entries (thin cohort) render no caption — the pillar value
+   * stays the canonical visual anchor.
+   */
+  percentiles?: Partial<Record<HexAxisKey, number | null>>
 }
 
 const AXIS_LABEL: Record<HexAxisKey, string> = {
@@ -50,11 +59,24 @@ function vertex(
   return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)]
 }
 
+/** Ordinal suffix for percentile labels: 1st, 2nd, 3rd, 4th... */
+function ordinal(n: number): string {
+  const v = n % 100
+  if (v >= 11 && v <= 13) return `${n}th`
+  switch (n % 10) {
+    case 1: return `${n}st`
+    case 2: return `${n}nd`
+    case 3: return `${n}rd`
+    default: return `${n}th`
+  }
+}
+
 export default function Hex({
   data,
   size = 240,
   sectorOverlay = false,
   onAxisTap,
+  percentiles,
 }: HexProps) {
   const cx = size / 2
   const cy = size / 2
@@ -380,6 +402,29 @@ export default function Hex({
                 >
                   {p.score != null ? p.score.toFixed(1) : "\u2014"}
                 </text>
+                {/* Day-99: industry-relative percentile caption.
+                    Rendered just below the pill so the pillar score
+                    stays the dominant visual; null entries (thin
+                    cohort) render nothing. */}
+                {percentiles && typeof percentiles[p.key] === "number" && (
+                  <text
+                    x={p.x}
+                    y={p.y + 22}
+                    textAnchor="middle"
+                    dominantBaseline="central"
+                    aria-label={`${AXIS_LABEL[p.key]} ${ordinal(percentiles[p.key] as number)} percentile in industry`}
+                    style={{
+                      fill: "var(--color-caption)",
+                      fontSize: 8.5,
+                      fontWeight: 700,
+                      letterSpacing: "0.04em",
+                      fontFamily:
+                        "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
+                    }}
+                  >
+                    {ordinal(percentiles[p.key] as number)}
+                  </text>
+                )}
               </g>
             )
           })}
