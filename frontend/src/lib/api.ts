@@ -477,6 +477,25 @@ export interface LiveHolding {
   notes: string
 }
 
+export interface SampleHolding {
+  ticker: string
+  display_ticker: string
+  company_name: string
+  sector: string
+  quantity: number
+  entry_price: number
+  invested_value: number
+  acquired_on: string
+  is_sample: true
+}
+
+export interface SamplePortfolio {
+  holdings: SampleHolding[]
+  summary: { total_invested: number; count: number }
+  label: string
+  note: string
+}
+
 export interface HoldingsLiveResponse {
   holdings: LiveHolding[]
   summary: {
@@ -488,6 +507,8 @@ export interface HoldingsLiveResponse {
     losers: number
     count: number
   }
+  /** Day-97: present only on first-session signups with zero real holdings. */
+  sample_portfolio?: SamplePortfolio
 }
 
 export const getHoldingsLive = (): Promise<HoldingsLiveResponse> =>
