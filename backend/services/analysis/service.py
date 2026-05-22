@@ -99,6 +99,7 @@ from backend.services.analysis.constants import (
     is_etf,
     is_fmcg_sector,
     is_reit,
+    is_invit,
     is_realty_developer,
     is_regulated_utility,
     is_defense_psu,
@@ -996,6 +997,29 @@ class AnalysisService(NarrativeMixin):
                 ticker, _enriched_sector, _enriched_industry,
             )
         )
+
+        # ── InvIT classifier (Day-110c, 2026-05-23) ───────────────
+        # InvITs (Infrastructure Investment Trusts) are structurally
+        # identical to REITs for valuation purposes (>=90% mandatory
+        # distribution, no organic compounding). The cohort module
+        # (sector_overrides.py) provides sub-segment-aware fair-yield
+        # anchoring. The PR #333 REIT short-circuit branch is reused
+        # via the ``_is_reit_or_invit`` gate below — InvITs join the
+        # no-DCF / distribution-yield path. The sub-segment is
+        # surfaced in _meta under reit_invit_cohort.
+        is_invit_ticker = (
+            False if (is_etf_ticker or is_reit_ticker)
+            else is_invit(
+                ticker, _enriched_sector, _enriched_industry,
+            )
+        )
+        # The PR #333 short-circuit consumes ``is_reit_ticker``;
+        # extending it here folds InvITs into the same no-DCF path
+        # without touching the ~15 downstream call sites. Where the
+        # caller needs to know REIT-vs-InvIT specifically (eg the
+        # _meta sub-segment), it consults ``is_invit_ticker``.
+        _is_reit_or_invit = bool(is_reit_ticker or is_invit_ticker)
+        is_reit_ticker = _is_reit_or_invit
 
         is_regulated_utility_ticker = (
             False if (is_etf_ticker or is_reit_ticker)
@@ -4549,6 +4573,79 @@ class AnalysisService(NarrativeMixin):
                 "is_reit": bool(is_reit_ticker),
                 "cache_version": CACHE_VERSION,
             }
+            # ── Day-110c: REIT/InvIT cohort sub-segment + implied
+            # fair price (distribution-yield anchored). Surfaced in
+            # _computation_inputs so canary_diff + admin pages can
+            # see the new anchor without changing the user-facing
+            # valuation_model (which stays "reit_nav_dpu_required").
+            try:
+                from backend.services.analysis.sector_overrides import (
+                    is_reit_invit_cohort_ticker,
+                    reit_invit_subsegment,
+                    reit_invit_fair_yield,
+                    compute_distribution_yield_fair_value,
+                )
+                if is_reit_invit_cohort_ticker(ticker):
+                    _seg = reit_invit_subsegment(ticker)
+                    _yld = reit_invit_fair_yield(ticker)
+                    # Best-effort: try to derive annual distribution per
+                    # unit from dividend_yield * price as proxy. If the
+                    # enriched payload exposes a more precise
+                    # ``annual_distribution_per_unit``, prefer that.
+                    _dist = (
+                        enriched.get("annual_distribution_per_unit")
+                        if isinstance(enriched, dict) else None
+                    )
+                    if _dist is None:
+                        _dy = (
+                            (enriched.get("dividend_yield")
+                             if isinstance(enriched, dict) else None)
+                            or raw.get("dividendYield")
+                        )
+                        try:
+                            if _dy is not None and price > 0:
+                                _dyf = float(_dy)
+                                # yfinance returns this as decimal or
+                                # percent depending on field; >1 → %.
+                                if _dyf > 1.0:
+                                    _dyf = _dyf / 100.0
+                                _dist = _dyf * float(price)
+                        except (TypeError, ValueError):
+                            _dist = None
+                    _cohort_meta = {
+                        "subsegment": _seg,
+                        "fair_yield_anchor": (
+                            float(_yld[0]) if _yld else None
+                        ),
+                        "fair_yield_band": (
+                            [float(_yld[1][0]), float(_yld[1][1])]
+                            if _yld else None
+                        ),
+                        "is_invit": bool(is_invit_ticker),
+                    }
+                    _dy_fv = compute_distribution_yield_fair_value(
+                        ticker, _dist, distribution_cagr_3y=None,
+                    )
+                    if _dy_fv is not None:
+                        _cohort_meta["implied_fair_price"] = (
+                            _dy_fv["implied_fair_price"]
+                        )
+                        _cohort_meta["implied_fair_price_boosted"] = (
+                            _dy_fv["implied_fair_price_boosted"]
+                        )
+                        _cohort_meta["annual_distribution_per_unit"] = (
+                            _dy_fv["annual_distribution_per_unit"]
+                        )
+                    else:
+                        _cohort_meta["data_status"] = (
+                            "distribution_data_unavailable_phase2"
+                        )
+                    _computation_inputs["reit_invit_cohort"] = _cohort_meta
+            except Exception:
+                # Never fail the response on cohort metadata; the
+                # short-circuit branch above already produced a safe
+                # reit_nav_dpu_required verdict.
+                pass
         except Exception:
             _computation_inputs = None
 

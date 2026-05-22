@@ -727,3 +727,318 @@ BANKING_TIER1_TICKERS_INLINE = _BANKING_TIER1_TICKERS_INLINE
 BANKING_TIER1_PRIVATE_TICKERS = _BANKING_TIER1_PRIVATE_TICKERS
 BANKING_PSU_TICKERS = _BANKING_PSU_TICKERS
 BANKING_TIER2_TICKERS = _BANKING_TIER2_TICKERS
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Day-110c (2026-05-23) — REIT / InvIT sector cohort overrides
+# ═══════════════════════════════════════════════════════════════════
+# Indian REITs (Real Estate Investment Trusts) and InvITs
+# (Infrastructure Investment Trusts) are SEBI-regulated pass-through
+# trusts that distribute >=90% of NDCF as DPU/distribution. Standard
+# DCF mis-prices them by ~50% because:
+#
+#   1. Mandatory >=90% payout → retained earnings are structurally
+#      near-zero → no organic compounding.
+#   2. Forward growth = AUM expansion (new asset acquisitions), not
+#      organic earnings growth → DCF terminal value is mispriced.
+#   3. WACC under CAPM is artificially low (high leverage allowed
+#      under SEBI rules), so the discount factor is wrong.
+#
+# The existing PR #333 / REIT short-circuit routes the 4 curated REITs
+# (EMBASSY/MINDSPACE/BROOKFIELD/NEXUS) to a ``data_limited`` verdict
+# with ``valuation_model="reit_nav_dpu_required"`` and IV=0. This
+# cohort module is ADDITIVE — it computes a distribution-yield-based
+# implied fair price and surfaces it in ``_meta`` for downstream
+# callers (verdict gate, panel rendering, canary diff). It does NOT
+# replace the short-circuit; the short-circuit's "DCF doesn't fit"
+# message remains the user-facing engine model name.
+#
+# Sub-segments + fair distribution yield (vs 10y G-sec ~7.0%):
+#
+#   Office REIT (EMBASSY/MINDSPACE/BIRET):
+#       fair yield band 6.5-7.5%, anchor 7.0%
+#       (premium ~0-50bps over G-sec; rated commercial real estate)
+#   Retail REIT (NEXUSSELECT):
+#       fair yield band 7.0-8.0%, anchor 7.5%
+#       (mall + consumption-cycle risk premium)
+#   Roads InvIT (IRBINVIT):
+#       fair yield band 10-12%, anchor 11.0%
+#       (single-asset concentration, traffic-cycle risk)
+#   Transmission InvIT (POWERGRIDIT/INDIGRID):
+#       fair yield band 8-10%, anchor 9.0%
+#       (regulated returns, transmission availability-linked)
+#   Other InvIT (VIRTUS):
+#       fair yield band 9-11%, anchor 10.0%
+#
+# Implied fair price = trailing_annual_distribution / fair_yield_anchor.
+# Distribution-growth boost: trailing 3y distribution CAGR > 8% adds
+# +10% to the implied fair price; CAGR < 3% cuts it by 10%.
+#
+# NOTE on the NEXUS / NEXUSSELECT split: the existing PR #335 curated
+# REIT_TICKERS set in constants.py contains "NEXUS" (the legacy bare
+# ticker used in earlier PRs). The actual NSE listing trades as
+# "NEXUSSELECT". We accept BOTH in the Day-110c cohort to avoid
+# breaking the existing classifier contract; the sub-segment helper
+# maps both to "retail_reit".
+#
+# Data-availability discipline: if a per-unit annual distribution is
+# not available in the parquet ratio store, callers should fall back
+# to ``dividend_yield * current_price`` as a proxy. If even that's
+# missing, SKIP (don't fabricate) and document in _meta as Phase 2.
+# ═══════════════════════════════════════════════════════════════════
+
+# ── Office REITs (commercial real estate) ───────────────────────
+_REIT_OFFICE: Final[frozenset[str]] = frozenset({
+    "EMBASSY",
+    "MINDSPACE",
+    "BIRET",           # Brookfield India Real Estate Trust
+    "BROOKFIELD",      # legacy alias used in REIT_TICKERS (PR #335)
+})
+
+# ── Retail REITs (malls / consumption) ──────────────────────────
+_REIT_RETAIL: Final[frozenset[str]] = frozenset({
+    "NEXUSSELECT",
+    "NEXUS",           # legacy alias used in REIT_TICKERS (PR #335)
+})
+
+# ── Roads InvITs (highway / toll concessions) ───────────────────
+_INVIT_ROADS: Final[frozenset[str]] = frozenset({
+    "IRBINVIT",
+})
+
+# ── Transmission InvITs (regulated power transmission) ──────────
+_INVIT_TRANSMISSION: Final[frozenset[str]] = frozenset({
+    "POWERGRIDIT",     # PowerGrid Infrastructure Investment Trust
+    "INDIGRID",        # IndiGrid Trust
+})
+
+# ── Other / catch-all InvITs ────────────────────────────────────
+_INVIT_OTHER: Final[frozenset[str]] = frozenset({
+    "VIRTUS",          # Virtus Infra Trust
+})
+
+# ── Union (all REIT/InvIT cohort members) ───────────────────────
+_REIT_INVIT_COHORT_TICKERS_INLINE: Final[frozenset[str]] = (
+    _REIT_OFFICE
+    | _REIT_RETAIL
+    | _INVIT_ROADS
+    | _INVIT_TRANSMISSION
+    | _INVIT_OTHER
+)
+
+# Union of just-the-InvITs (used by the constants.is_invit
+# classifier — separate from REITs because the existing PR #333
+# REIT short-circuit branch logic also catches InvITs via this
+# cohort helper).
+_INVIT_TICKERS_INLINE: Final[frozenset[str]] = (
+    _INVIT_ROADS | _INVIT_TRANSMISSION | _INVIT_OTHER
+)
+
+# ── Sub-segment fair distribution yield (anchor + band) ─────────
+# Anchor is the single-number "fair yield" used to derive implied
+# fair price (= trailing_distribution / anchor). Band is the
+# undervalued/overvalued gate (yield ABOVE band-high → undervalued,
+# BELOW band-low → overvalued; remember yield and price are
+# inverse).
+REIT_INVIT_YIELD_BAND_OFFICE: Final[tuple[float, float]] = (0.065, 0.075)
+REIT_INVIT_YIELD_ANCHOR_OFFICE: Final[float] = 0.070
+
+REIT_INVIT_YIELD_BAND_RETAIL: Final[tuple[float, float]] = (0.070, 0.080)
+REIT_INVIT_YIELD_ANCHOR_RETAIL: Final[float] = 0.075
+
+REIT_INVIT_YIELD_BAND_ROADS: Final[tuple[float, float]] = (0.100, 0.120)
+REIT_INVIT_YIELD_ANCHOR_ROADS: Final[float] = 0.110
+
+REIT_INVIT_YIELD_BAND_TRANSMISSION: Final[tuple[float, float]] = (0.080, 0.100)
+REIT_INVIT_YIELD_ANCHOR_TRANSMISSION: Final[float] = 0.090
+
+REIT_INVIT_YIELD_BAND_OTHER_INVIT: Final[tuple[float, float]] = (0.090, 0.110)
+REIT_INVIT_YIELD_ANCHOR_OTHER_INVIT: Final[float] = 0.100
+
+# Distribution-growth boost thresholds + multipliers
+REIT_INVIT_DIST_GROWTH_HIGH_THRESHOLD: Final[float] = 0.08   # CAGR > 8%
+REIT_INVIT_DIST_GROWTH_HIGH_MULT: Final[float] = 1.10        # +10% lift
+REIT_INVIT_DIST_GROWTH_LOW_THRESHOLD: Final[float] = 0.03    # CAGR < 3%
+REIT_INVIT_DIST_GROWTH_LOW_MULT: Final[float] = 0.90         # -10% cut
+
+
+def is_reit_invit_cohort_ticker(ticker: str | None) -> bool:
+    """True if the ticker is in the Day-110c REIT/InvIT cohort
+    (any sub-segment). Used by service.py to surface sub-segment
+    metadata + implied fair value in _meta alongside the existing
+    PR #333 REIT short-circuit."""
+    return _bare(ticker) in _REIT_INVIT_COHORT_TICKERS_INLINE
+
+
+def is_invit_cohort_ticker(ticker: str | None) -> bool:
+    """True if the ticker is an InvIT (Infrastructure Investment
+    Trust) — roads / transmission / other. Separate from is_reit()
+    because the existing PR #335 REIT classifier deliberately
+    excludes InvITs (they are a separate SEBI category)."""
+    return _bare(ticker) in _INVIT_TICKERS_INLINE
+
+
+def reit_invit_subsegment(ticker: str | None) -> str | None:
+    """Return the sub-segment key for a Day-110c cohort member, or
+    ``None`` if the ticker is not in the cohort.
+
+    Sub-segment keys (stable, surfaced in _meta):
+      ``office_reit`` | ``retail_reit`` | ``roads_invit`` |
+      ``transmission_invit`` | ``other_invit``
+    """
+    bare = _bare(ticker)
+    if bare in _REIT_OFFICE:
+        return "office_reit"
+    if bare in _REIT_RETAIL:
+        return "retail_reit"
+    if bare in _INVIT_ROADS:
+        return "roads_invit"
+    if bare in _INVIT_TRANSMISSION:
+        return "transmission_invit"
+    if bare in _INVIT_OTHER:
+        return "other_invit"
+    return None
+
+
+def reit_invit_fair_yield(
+    ticker: str | None,
+) -> tuple[float, tuple[float, float]] | None:
+    """Return ``(anchor, (band_low, band_high))`` fair-distribution
+    yield for the sub-segment, or ``None`` if the ticker is not in
+    the cohort.
+
+    Yields are expressed as decimals (0.07 == 7%). The anchor is the
+    single-number "fair yield" used to derive implied fair price
+    (= trailing annual distribution per unit / anchor).
+    """
+    seg = reit_invit_subsegment(ticker)
+    if seg == "office_reit":
+        return REIT_INVIT_YIELD_ANCHOR_OFFICE, REIT_INVIT_YIELD_BAND_OFFICE
+    if seg == "retail_reit":
+        return REIT_INVIT_YIELD_ANCHOR_RETAIL, REIT_INVIT_YIELD_BAND_RETAIL
+    if seg == "roads_invit":
+        return REIT_INVIT_YIELD_ANCHOR_ROADS, REIT_INVIT_YIELD_BAND_ROADS
+    if seg == "transmission_invit":
+        return (
+            REIT_INVIT_YIELD_ANCHOR_TRANSMISSION,
+            REIT_INVIT_YIELD_BAND_TRANSMISSION,
+        )
+    if seg == "other_invit":
+        return (
+            REIT_INVIT_YIELD_ANCHOR_OTHER_INVIT,
+            REIT_INVIT_YIELD_BAND_OTHER_INVIT,
+        )
+    return None
+
+
+def reit_invit_distribution_growth_boost(
+    ticker: str | None,
+    distribution_cagr_3y: float | None,
+) -> float:
+    """Return the multiplicative boost to apply to the implied fair
+    price based on trailing 3y distribution CAGR.
+
+    - CAGR > 8% → 1.10 (high-growth REIT/InvIT lift)
+    - CAGR < 3% → 0.90 (stalled-distribution de-rating)
+    - otherwise (or None / NaN / non-cohort) → 1.0 (no change)
+    """
+    if not is_reit_invit_cohort_ticker(ticker):
+        return 1.0
+    if distribution_cagr_3y is None:
+        return 1.0
+    try:
+        c = float(distribution_cagr_3y)
+    except (TypeError, ValueError):
+        return 1.0
+    if c != c:   # NaN guard
+        return 1.0
+    if c > REIT_INVIT_DIST_GROWTH_HIGH_THRESHOLD:
+        return REIT_INVIT_DIST_GROWTH_HIGH_MULT
+    if c < REIT_INVIT_DIST_GROWTH_LOW_THRESHOLD:
+        return REIT_INVIT_DIST_GROWTH_LOW_MULT
+    return 1.0
+
+
+def compute_distribution_yield_fair_value(
+    ticker: str | None,
+    annual_distribution_per_unit: float | None,
+    distribution_cagr_3y: float | None = None,
+) -> dict | None:
+    """Compute the distribution-yield-anchored implied fair price for
+    a Day-110c REIT/InvIT cohort member.
+
+    Args:
+        ticker: bare or suffixed ticker (e.g. "EMBASSY", "EMBASSY.NS")
+        annual_distribution_per_unit: trailing 12m distribution / DPU
+            per unit, in INR. If None / non-positive, returns None
+            (degrades gracefully — Phase 2 ingestion).
+        distribution_cagr_3y: optional 3y trailing CAGR (decimal,
+            e.g. 0.09 for 9%). If supplied, triggers the +/-10%
+            boost gate. If None, the boost factor is 1.0.
+
+    Returns:
+        ``None`` if the ticker is not in the cohort or the
+        distribution input is missing. Otherwise a dict with keys:
+
+          ``subsegment`` (str): sub-segment key
+          ``fair_yield_anchor`` (float): anchor yield (decimal)
+          ``fair_yield_band`` (tuple[float, float]): low, high band
+          ``annual_distribution_per_unit`` (float): echoed input
+          ``implied_fair_price`` (float): distribution / anchor
+              (in INR; pre-boost)
+          ``distribution_growth_boost`` (float): 1.0 / 1.10 / 0.90
+          ``implied_fair_price_boosted`` (float): post-boost fair
+              price
+          ``distribution_cagr_3y`` (float | None): echoed input
+
+    Math:
+        implied_fair_price = annual_distribution_per_unit / anchor
+        boosted = implied_fair_price * boost
+    """
+    seg = reit_invit_subsegment(ticker)
+    if seg is None:
+        return None
+    yield_pair = reit_invit_fair_yield(ticker)
+    if yield_pair is None:
+        return None
+    if annual_distribution_per_unit is None:
+        return None
+    try:
+        dist = float(annual_distribution_per_unit)
+    except (TypeError, ValueError):
+        return None
+    if dist != dist:   # NaN guard
+        return None
+    if dist <= 0:
+        return None
+
+    anchor, band = yield_pair
+    implied_fair = dist / anchor
+    boost = reit_invit_distribution_growth_boost(
+        ticker, distribution_cagr_3y,
+    )
+    boosted = implied_fair * boost
+    return {
+        "subsegment": seg,
+        "fair_yield_anchor": float(anchor),
+        "fair_yield_band": (float(band[0]), float(band[1])),
+        "annual_distribution_per_unit": float(dist),
+        "implied_fair_price": float(round(implied_fair, 4)),
+        "distribution_growth_boost": float(boost),
+        "implied_fair_price_boosted": float(round(boosted, 4)),
+        "distribution_cagr_3y": (
+            float(distribution_cagr_3y)
+            if distribution_cagr_3y is not None
+            else None
+        ),
+    }
+
+
+# Re-export inline sets for source-text tests + downstream callers.
+REIT_INVIT_COHORT_TICKERS_INLINE = _REIT_INVIT_COHORT_TICKERS_INLINE
+REIT_OFFICE = _REIT_OFFICE
+REIT_RETAIL = _REIT_RETAIL
+INVIT_ROADS = _INVIT_ROADS
+INVIT_TRANSMISSION = _INVIT_TRANSMISSION
+INVIT_OTHER = _INVIT_OTHER
+INVIT_TICKERS_INLINE = _INVIT_TICKERS_INLINE

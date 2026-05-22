@@ -737,6 +737,61 @@ def is_reit(
     return False
 
 
+# ── InvIT detection (Day-110c, 2026-05-23) ────────────────────────
+# InvITs (Infrastructure Investment Trusts) are SEBI-regulated
+# pass-through trusts that distribute >=90% of NDCF, structurally
+# identical to REITs for valuation purposes (DCF mis-prices both).
+# Kept as a SEPARATE category from is_reit() because the existing
+# PR #335 REIT classifier deliberately excludes InvITs and the
+# Day-110c sub-segment metadata uses different sub-segment keys
+# (roads_invit / transmission_invit / other_invit vs office_reit /
+# retail_reit). Callers should treat is_reit OR is_invit as the
+# "no-DCF, distribution-yield-anchored" gate.
+INVIT_TICKERS: set[str] = {
+    "IRBINVIT",
+    "POWERGRIDIT",
+    "INDIGRID",
+    "VIRTUS",
+}
+
+
+def is_invit(
+    ticker: str | None,
+    sector: str | None = None,
+    industry: str | None = None,
+) -> bool:
+    """Return True if `ticker` is an Infrastructure Investment Trust.
+
+    Three signals: curated ticker set, bare-symbol endswith "INVIT",
+    sector/industry text contains "infrastructure investment trust"
+    or the token "invit".
+    """
+    bare = ""
+    if ticker:
+        bare = (
+            ticker.replace(".NS", "")
+            .replace(".BO", "")
+            .upper()
+        )
+        if bare in INVIT_TICKERS:
+            return True
+        if bare.endswith("INVIT"):
+            return True
+
+    blob = " ".join(
+        (sector or "").lower().strip().split() +
+        (industry or "").lower().strip().split()
+    )
+    if blob:
+        if "infrastructure investment trust" in blob:
+            return True
+        tokens = blob.replace("-", " ").split()
+        if "invit" in tokens or "invits" in tokens:
+            return True
+
+    return False
+
+
 def is_cyclical(ticker: str | None, sector: str | None = None) -> bool:
     """Return True if the ticker (or its resolved sector) is cyclical.
 
