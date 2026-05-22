@@ -44,6 +44,14 @@ class ConcallTranscript(Base):
     subject = Column(Text, nullable=False)
     category = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    # Day-104b: AI summary cache. ai_summary populated lazily on first
+    # list_concalls request that finds a row with pdf_url but no
+    # summary. transcript_text caches the parsed PDF text so we don't
+    # re-fetch + re-parse if Groq errors after extraction.
+    ai_summary = Column(Text, nullable=True)
+    ai_summary_model = Column(Text, nullable=True)
+    ai_summary_generated_at = Column(DateTime(timezone=True), nullable=True)
+    transcript_text = Column(Text, nullable=True)
 
 
 # ─────────────────────────────────────────────────────────────────

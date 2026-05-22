@@ -16,7 +16,9 @@
 # ═══════════════════════════════════════════════════════════════
 from __future__ import annotations
 
+import asyncio
 import hashlib
+import io
 import json
 import logging
 import os
@@ -258,8 +260,41 @@ _LIBRARY_SUMMARY_SYSTEM = (
     "You are a careful financial writer producing a neutral, factual "
     "5-bullet summary of an Indian-market earnings call for retail "
     "investors. Use plain English. Stick to what management actually "
-    "said. Never use directional or advisory framing about the stock."
+    "said. Never use directional or advisory framing about the stock. "
+    "You are SEBI-compliant: you do not recommend, rate, or rank "
+    "securities, and you do not use vocabulary that implies a view on "
+    "future share price."
 )
+
+
+# SEBI-safe vocabulary check. Any of these tokens appearing in the
+# generated summary (case-insensitive, word-boundary) triggers a
+# withhold-pending-review fallback. Kept narrow so we don't flag
+# innocent uses (e.g. "strong" is banned, "stronger rupee" would also
+# be flagged — that's the conservative tradeoff we want).
+_SEBI_BANNED_WORDS = (
+    "buy", "sell", "hold", "strong", "recommend", "accumulate",
+    "should", "outperform", "underperform", "opportunity", "pick",
+)
+
+_SEBI_WITHHELD_MESSAGE = "(summary withheld pending review)"
+_SUMMARY_UNAVAILABLE_MESSAGE = "(summary unavailable)"
+
+
+def _contains_banned_vocab(text: str) -> Optional[str]:
+    """Return the first banned word found in `text`, or None.
+
+    Word-boundary, case-insensitive. We deliberately match substrings
+    only at word boundaries so 'household' is NOT flagged for 'hold'.
+    """
+    if not text:
+        return None
+    import re as _re
+    lower = text.lower()
+    for w in _SEBI_BANNED_WORDS:
+        if _re.search(rf"\b{_re.escape(w)}\b", lower):
+            return w
+    return None
 
 
 def _library_summary_prompt(transcript_text: str) -> str:
@@ -273,14 +308,21 @@ def _library_summary_prompt(transcript_text: str) -> str:
             + excerpt[-last_chunk:]
         )
     return (
-        "Summarise this earnings call into exactly 5 short bullets. "
-        "Cover: (1) revenue/topline commentary, (2) margin/profitability "
-        "commentary, (3) segment or geography drivers, (4) outlook or "
-        "guidance language used by management, (5) any risks or "
-        "concerns explicitly acknowledged. Each bullet must be one "
-        "sentence, factual, and avoid any directional framing about "
-        "the share price.\n\nReturn only the 5 bullets, each prefixed "
-        "with '- '. No preamble, no headings, no closing line.\n\n"
+        "Summarise this earnings call into EXACTLY 5 short bullets. "
+        "Each bullet is ONE short sentence, factual observation only, "
+        "covering in order: (1) revenue / topline trajectory with "
+        "numbers, (2) profit / margin trajectory with numbers, "
+        "(3) segment or geography performance, (4) capex / capacity "
+        "commitments mentioned, (5) management commentary on outlook "
+        "(quote the language management used — do NOT characterise it "
+        "as 'positive' or 'negative'; instead say 'management guided "
+        "to X' or 'management flagged Y').\n\n"
+        "BANNED WORDS (do not use under any circumstances): buy, sell, "
+        "hold, strong, recommend, accumulate, should, outperform, "
+        "underperform, opportunity, pick. Do not rate or rank the "
+        "stock. Do not imply a view on future share price.\n\n"
+        "Return only the 5 bullets, each prefixed with '- '. No "
+        "preamble, no headings, no closing line.\n\n"
         f"Transcript:\n{excerpt}"
     )
 
@@ -305,13 +347,14 @@ def summarise_concall(transcript_text: str) -> str:
     """Return a 5-bullet structured summary for a concall transcript.
 
     Pure function over the transcript text — does not touch the
-    database. Currently UNUSED at the request path: the canonical
-    `concall_transcripts` table has no `ai_summary` column, and we
-    chose not to add one in Day-103d's narrow refactor. A follow-up
-    PR will introduce either (a) a new `concall_transcript_summaries`
-    cache table or (b) an `ai_summary` column on `concall_transcripts`
-    plus the matching `ai_summary_model` / `_generated_at` fields, at
-    which point this helper will be wired into `list_concalls`.
+    database. Day-104b wires this into `list_concalls` via the lazy
+    populate path (`populate_concall_summary`).
+
+    SEBI-safe: the prompt explicitly bans directional vocabulary, and
+    the output is post-checked against `_SEBI_BANNED_WORDS`. If a
+    banned word slips through, we return the
+    `_SEBI_WITHHELD_MESSAGE` sentinel instead so we never surface
+    advisory language to retail users.
 
     Returns an empty string when the LLM is unavailable so callers can
     fall back to the source link only.
@@ -331,10 +374,20 @@ def summarise_concall(transcript_text: str) -> str:
             temperature=0.2,
             max_tokens=600,
         )
-        return (comp.choices[0].message.content or "").strip()
+        summary = (comp.choices[0].message.content or "").strip()
     except Exception as exc:
         logger.warning(f"summarise_concall failed: {exc}")
         return ""
+
+    banned = _contains_banned_vocab(summary)
+    if banned is not None:
+        logger.warning(
+            "summarise_concall: SEBI-banned token '%s' in LLM output; "
+            "withholding summary pending review",
+            banned,
+        )
+        return _SEBI_WITHHELD_MESSAGE
+    return summary
 
 
 def _normalise_library_ticker(ticker: str) -> str:
@@ -399,17 +452,188 @@ def _parse_period_from_subject(subject: str) -> str:
     return s[:40]
 
 
-def list_concalls(ticker: str, limit: int = 12) -> list[dict]:
+# ─────────────────────────────────────────────────────────────────
+# Day-104b: lazy AI-summary cache.
+#
+# Concurrency: cap Groq fan-out at 5 in-flight summaries process-wide
+# so a hot-ticker burst doesn't blow rate limits or Groq cost spikes.
+# We use a threading.Semaphore because populate_concall_summary is
+# invoked from FastAPI BackgroundTasks (sync callables run in a worker
+# thread).
+# ─────────────────────────────────────────────────────────────────
+import threading as _threading
+
+_CONCALL_SUMMARY_CONCURRENCY = 5
+_concall_summary_sem = _threading.Semaphore(_CONCALL_SUMMARY_CONCURRENCY)
+
+# Max bytes we'll pull for a PDF before bailing. NSE concall PDFs are
+# usually 200-800 KB; 5 MB is a safe ceiling.
+_PDF_MAX_BYTES = 5 * 1024 * 1024
+_PDF_FETCH_TIMEOUT_S = 30.0
+
+
+def _fetch_pdf_bytes(url: str) -> Optional[bytes]:
+    """Download a PDF with a hard size + timeout ceiling.
+
+    Returns None on any failure (network, oversize, non-200). Caller
+    is responsible for the structured-warning log path.
+    """
+    try:
+        import httpx
+        with httpx.Client(timeout=_PDF_FETCH_TIMEOUT_S, follow_redirects=True) as client:
+            with client.stream("GET", url) as resp:
+                if resp.status_code != 200:
+                    logger.warning(
+                        "concall PDF fetch non-200 %s for %s",
+                        resp.status_code, url,
+                    )
+                    return None
+                buf = bytearray()
+                for chunk in resp.iter_bytes():
+                    buf.extend(chunk)
+                    if len(buf) > _PDF_MAX_BYTES:
+                        logger.warning(
+                            "concall PDF exceeds %d bytes; aborting fetch of %s",
+                            _PDF_MAX_BYTES, url,
+                        )
+                        return None
+                return bytes(buf)
+    except Exception as exc:
+        logger.warning("concall PDF fetch failed for %s: %s", url, exc)
+        return None
+
+
+def _extract_pdf_text(pdf_bytes: bytes) -> str:
+    """Extract text from a PDF via pypdf. Empty string on any failure."""
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(io.BytesIO(pdf_bytes))
+        parts: list[str] = []
+        for page in reader.pages:
+            try:
+                parts.append(page.extract_text() or "")
+            except Exception:
+                continue
+        return "\n".join(p for p in parts if p).strip()
+    except Exception as exc:
+        logger.warning("pypdf extraction failed: %s", exc)
+        return ""
+
+
+def populate_concall_summary(concall_id: int) -> None:
+    """Populate ai_summary for a single concall_transcripts row.
+
+    Background task entry point. Idempotent and self-bounded:
+      * Acquires the module-level semaphore so we never have more
+        than _CONCALL_SUMMARY_CONCURRENCY Groq calls in flight.
+      * If transcript_text is already cached, skip the PDF fetch.
+      * On any failure, persists the `(summary unavailable)` sentinel
+        so subsequent requests don't re-enter this code path.
+
+    No-op (logged) when the DB session factory or the row is missing.
+    """
+    if not _concall_summary_sem.acquire(blocking=False):
+        # Hit the in-flight ceiling — skip this round. The next
+        # list_concalls call for the same ticker will retry; the
+        # backlog drains naturally without a queue.
+        logger.info(
+            "populate_concall_summary: concurrency cap hit, skipping id=%s",
+            concall_id,
+        )
+        return
+    try:
+        session = _get_library_session()
+        if session is None:
+            logger.warning("populate_concall_summary: no DB session, id=%s", concall_id)
+            return
+        try:
+            from backend.models.concalls import ConcallTranscript
+            row = session.get(ConcallTranscript, concall_id)
+            if row is None:
+                logger.warning("populate_concall_summary: row missing id=%s", concall_id)
+                return
+            if row.ai_summary:
+                # Another worker beat us to it; nothing to do.
+                return
+
+            transcript_text = (row.transcript_text or "").strip()
+            if not transcript_text:
+                if not row.pdf_url:
+                    # Nothing to summarise and nothing to fetch.
+                    row.ai_summary = _SUMMARY_UNAVAILABLE_MESSAGE
+                    row.ai_summary_generated_at = datetime.now(timezone.utc)
+                    session.commit()
+                    return
+                pdf_bytes = _fetch_pdf_bytes(row.pdf_url)
+                if not pdf_bytes:
+                    row.ai_summary = _SUMMARY_UNAVAILABLE_MESSAGE
+                    row.ai_summary_generated_at = datetime.now(timezone.utc)
+                    session.commit()
+                    return
+                transcript_text = _extract_pdf_text(pdf_bytes)
+                if not transcript_text or len(transcript_text) < 200:
+                    row.ai_summary = _SUMMARY_UNAVAILABLE_MESSAGE
+                    row.ai_summary_generated_at = datetime.now(timezone.utc)
+                    session.commit()
+                    return
+                # Cache the extracted text so a future Groq retry doesn't
+                # re-download + re-parse the PDF.
+                row.transcript_text = transcript_text
+                session.commit()
+
+            summary = summarise_concall(transcript_text)
+            if not summary:
+                row.ai_summary = _SUMMARY_UNAVAILABLE_MESSAGE
+            else:
+                row.ai_summary = summary
+                row.ai_summary_model = _LIBRARY_SUMMARY_MODEL
+            row.ai_summary_generated_at = datetime.now(timezone.utc)
+            session.commit()
+        except Exception as exc:
+            logger.warning(
+                "populate_concall_summary failed for id=%s: %s",
+                concall_id, exc,
+            )
+            try:
+                session.rollback()
+            except Exception:
+                pass
+        finally:
+            try:
+                session.close()
+            except Exception:
+                pass
+    finally:
+        _concall_summary_sem.release()
+
+
+def list_concalls(
+    ticker: str,
+    limit: int = 12,
+    background_tasks=None,
+) -> list[dict]:
     """Return the most recent concall filings for a ticker, newest first.
 
-    Reads from the canonical `concall_transcripts` table (migration 010).
+    Reads from the canonical `concall_transcripts` table (migration 010,
+    extended by migration 055 with the AI-summary cache columns).
+
     Each row maps as:
 
-        period            ← parsed from `subject` (e.g. "Q3-FY25")
-        date              ← filing_date.isoformat() | ""
-        source_url        ← pdf_url
-        ai_summary        ← None (no column on this table; future PR)
+        period              ← parsed from `subject` (e.g. "Q3-FY25")
+        date                ← filing_date.isoformat() | ""
+        source_url          ← pdf_url
+        ai_summary          ← cached value | None (lazy populate)
         has_full_transcript ← pdf_url is not None
+
+    Lazy AI-summary cache (Day-104b): for any row with `pdf_url` set
+    and no cached summary, we enqueue a background task to fetch +
+    summarise the PDF. The CURRENT request still returns
+    `ai_summary: None` for those rows — subsequent requests within
+    seconds will see the populated value once the worker finishes.
+
+    `background_tasks` is the FastAPI `BackgroundTasks` instance from
+    the calling endpoint. When None (e.g. from a script, or from the
+    backfill CLI), we skip enqueuing.
 
     Returns [] on any DB or schema issue so the public endpoint stays
     200 with an empty library instead of 500-ing for one ticker.
@@ -436,13 +660,28 @@ def list_concalls(ticker: str, limit: int = 12) -> list[dict]:
 
         out: list[dict] = []
         for r in rows:
+            cached_summary = (r.ai_summary or "").strip() or None
+            # Schedule lazy populate for rows that have a source PDF
+            # but no cached summary yet. We use background_tasks when
+            # available; otherwise the row simply returns None and a
+            # later request will trigger the populate.
+            if (
+                cached_summary is None
+                and r.pdf_url
+                and background_tasks is not None
+            ):
+                try:
+                    background_tasks.add_task(populate_concall_summary, r.id)
+                except Exception as exc:
+                    logger.warning(
+                        "failed to enqueue concall summary task id=%s: %s",
+                        r.id, exc,
+                    )
             out.append({
                 "period": _parse_period_from_subject(r.subject or ""),
                 "date": r.filing_date.isoformat() if r.filing_date else "",
                 "source_url": r.pdf_url,
-                # No cached summary column on concall_transcripts; the
-                # frontend treats a missing/None summary as "link only".
-                "ai_summary": None,
+                "ai_summary": cached_summary,
                 "has_full_transcript": bool(r.pdf_url),
             })
         return out
