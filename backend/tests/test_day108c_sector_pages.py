@@ -246,7 +246,7 @@ def test_endpoint_it_services_returns_aggregates(client):
         return fake_cache.get(ticker)
 
     with patch(
-        "backend.services.analysis_cache_service.get_cached",
+        "backend.services.analysis_cache_service.get_cached_latest",
         side_effect=_fake_get_cached,
     ):
         res = client.get("/api/v1/public/sector/it-services")
@@ -277,7 +277,7 @@ def test_endpoint_empty_cohort_returns_200(client):
     _cache.delete("public:sector-page:v1:cyclical")
 
     with patch(
-        "backend.services.analysis_cache_service.get_cached",
+        "backend.services.analysis_cache_service.get_cached_latest",
         return_value=None,
     ):
         res = client.get("/api/v1/public/sector/cyclical")

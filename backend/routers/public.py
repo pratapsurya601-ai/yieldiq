@@ -5069,7 +5069,11 @@ def _sector_page_aggregate(slug: str) -> dict | None:
     rows: list[dict] = []
     for symbol in suffixed:
         try:
-            payload = analysis_cache_service.get_cached(symbol)
+            # Day-110a: use get_cached_latest so the manifest's
+            # v_init_2026_05_22 wildcard entry doesn't invalidate every
+            # pre-2026-05-22T23:00Z cached row and leave us with an
+            # empty cohort. Sector landing pages are stale-tolerant.
+            payload = analysis_cache_service.get_cached_latest(symbol)
         except Exception:
             payload = None
         if not isinstance(payload, dict):

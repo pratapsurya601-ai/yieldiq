@@ -377,6 +377,21 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        # Day-110a (2026-05-23): observability-only manifest entry for
+        # the sector landing-page read-path hotfix (aggregator now uses
+        # get_cached_latest() which bypasses manifest validation).
+        "version_id": "v_day110a_sector_page_read_path_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 11, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["sector_page"],
+        },
+        "rationale": (
+            "Day-110a: sector landing-page aggregator now bypasses "
+            "manifest validation (read-path-only)."
+        ),
+    },
+    {
         # Day-109a (2026-05-23): Banking sector cohort overrides.
         # Layered on Day-76 PB skip path: tier-anchored P/BV (T1 3.0x,
         # PSU 1.2x, T2 1.8x), ROE-quality boost, stress flag.

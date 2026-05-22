@@ -569,4 +569,89 @@ def invalidate(ticker: str) -> None:
             pass
 
 
-__all__ = ["get_cached", "save_cached", "invalidate"]
+def get_cached_latest(
+    ticker: str,
+    max_age_hours: int = 168,
+) -> Optional[dict]:
+    """Return the most recent cached row for ``ticker``, ignoring the
+    cache-invalidation manifest.
+
+    Day-110a (2026-05-23): companion to ``get_cached`` for surfaces
+    where slightly-stale data is preferable to NO data. The Day-108c
+    sector landing pages are the motivating use case — they aggregate
+    a fixed cohort and only need approximate medians, so we accept a
+    cached row even when the manifest says "needs recompute". Without
+    this, the Day-94 wildcard migration anchor invalidated every
+    pre-2026-05-22T23:00Z cache row and the sector aggregator saw an
+    empty cohort.
+
+    Behavior:
+      - Same canonicalization, TTL, JSON parsing as ``get_cached``.
+      - Wider default TTL window (7 days) — a 3-day-old FV on a sector
+        landing page is acceptable; a missing one is not.
+      - SKIPS the ``is_row_valid_per_manifest`` gate. Cache_version is
+        also NOT enforced.
+      - Returns None on truly missing rows (no row in the TTL window)
+        and on DB errors.
+
+    Do NOT use this for:
+      - The headline /api/v1/analysis endpoint (users expect fresh).
+      - Any surface where a stale verdict could mislead an action
+        (alerts, push, email, portfolio rebalancing).
+
+    Safe for:
+      - Sector landing-page aggregates (Day-108c).
+      - Read-only leaderboards / list surfaces.
+      - Any "best-effort snapshot" view.
+    """
+    sess = _get_session()
+    if sess is None:
+        return None
+    ticker = _canonical_cache_key(ticker)
+    try:
+        row = sess.execute(
+            text(
+                """
+                SELECT payload
+                FROM analysis_cache
+                WHERE ticker = :ticker
+                  AND computed_at > now() - (:hours || ' hours')::interval
+                ORDER BY computed_at DESC
+                LIMIT 1
+                """
+            ),
+            {
+                "ticker": ticker,
+                "hours": str(max_age_hours),
+            },
+        ).fetchone()
+        if not row:
+            return None
+        payload = row[0]
+        if isinstance(payload, (bytes, bytearray)):
+            payload = payload.decode("utf-8")
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except Exception:
+                logger.warning(
+                    "analysis_cache.get_cached_latest: payload not valid JSON for %s",
+                    ticker,
+                )
+                return None
+        if not isinstance(payload, dict):
+            return None
+        return payload
+    except Exception as exc:
+        logger.warning(
+            "analysis_cache.get_cached_latest failed for %s: %s", ticker, exc,
+        )
+        return None
+    finally:
+        try:
+            sess.close()
+        except Exception:
+            pass
+
+
+__all__ = ["get_cached", "get_cached_latest", "save_cached", "invalidate"]
