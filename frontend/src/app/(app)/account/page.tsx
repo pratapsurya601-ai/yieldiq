@@ -275,6 +275,19 @@ function AccountInner() {
             </div>
           </div>
         </div>
+        {/* Notifications link — Day-98 push + email/digest toggles live at
+            /account/notifications. Hotfix 2026-05-22: page existed but had
+            no entry-point from /account, so users couldn't discover it. */}
+        <a
+          href="/account/notifications"
+          className="flex items-center justify-between rounded-xl border border-border px-3 py-3 hover:bg-surface dark:hover:bg-bg transition"
+        >
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-ink">Notifications</span>
+            <span className="text-xs text-caption">Push, email digests, and alert preferences</span>
+          </div>
+          <span className="text-sm text-caption" aria-hidden>›</span>
+        </a>
         {/* Display-name editor link (PR #72). Sub-route /account/profile
             handles the input + 3-edit lifetime cap. */}
         <a
