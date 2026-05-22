@@ -157,3 +157,53 @@ self.addEventListener('fetch', (event) => {
 
   // Everything else: let the browser handle it (no SW intervention).
 })
+
+// ─── Day-98: Web Push handlers ────────────────────────────────
+//
+// `push`: payload is JSON {title, body, url} sent by the backend via
+//   pywebpush. We always render a notification — Chrome on Android
+//   penalises silent pushes, and an empty payload here would be a bug.
+//
+// `notificationclick`: focus an existing tab if one is open at the
+//   target URL, otherwise open a new one. Keeps the PWA single-instance
+//   on mobile (Chrome groups tabs by SW origin).
+//
+// Note: NO cache changes here. CACHE_NAME is deliberately untouched.
+self.addEventListener('push', (event) => {
+  let data = {}
+  try {
+    data = event.data ? event.data.json() : {}
+  } catch {
+    data = { title: 'YieldIQ', body: event.data ? event.data.text() : '' }
+  }
+  const title = data.title || 'YieldIQ'
+  const options = {
+    body: data.body || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    data: { url: data.url || '/' },
+  }
+  event.waitUntil(self.registration.showNotification(title, options))
+})
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const target = (event.notification.data && event.notification.data.url) || '/'
+  event.waitUntil(
+    (async () => {
+      const all = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+      for (const client of all) {
+        try {
+          const u = new URL(client.url)
+          if (u.pathname === target) {
+            await client.focus()
+            return
+          }
+        } catch {
+          // ignore malformed client URLs
+        }
+      }
+      await self.clients.openWindow(target)
+    })(),
+  )
+})

@@ -10,3 +10,9 @@ httpx==0.27.0
 # in-house fallback if this isn't installed (see
 # backend/services/newsletter_render_service.py::_md_to_html).
 mistune==3.0.2
+# Day-98: Web Push (PWA) — server-side VAPID-signed push delivery.
+# Depends on `cryptography` which is already pulled in via python-jose.
+# backend.services.push_service falls back to a log-only no-op if
+# pywebpush can't be imported, so the backend still boots in minimal
+# environments (CI, local sqlite-only test runs).
+pywebpush==2.0.0
