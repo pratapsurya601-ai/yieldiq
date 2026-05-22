@@ -3201,7 +3201,60 @@ class AnalysisService(NarrativeMixin):
         # flat field got bull < base while the clamped scenarios had
         # bull >= base * 1.05. Canary gate 1 (single_source_of_truth)
         # + gate 3 (dispersion) both fired for that one row.
-        if is_financial:
+        # Day-92 (2026-05-22): regulated utilities (NTPC, POWERGRID,
+        # NLCINDIA, JSWENERGY, NTPCGREEN, IREDA, ...) route through
+        # `regulated_utility_valuation_service` which short-circuits the
+        # generic DCF. That means `scenarios_raw` (built from DCF cash
+        # flows by `run_scenarios`) is empty/zero for these tickers, and
+        # the non-financial branch below would build _sc_bear_pre off
+        # `scenarios_raw["Bear case"]` → bear_iv=0. `_enforce_scenario_order`
+        # then accepts (0 <= base <= bull) as "ordered" and ships bear=₹0
+        # to the public stock-summary endpoint (audit #4 2026-05-22 found
+        # NTPC + POWERGRID with bear_case=0.0).
+        #
+        # The regulated-utility engine itself ALREADY produces sensible
+        # bear/bull (0.75/1.25 of base — Gordon ± tariff true-up band)
+        # and writes them into bear_iv / bull_iv up at L1546-1547. So the
+        # fix is structural: treat the regulated_utility branch like the
+        # financial branch — build _sc_bear_pre / _sc_bull_pre directly
+        # off bear_iv / bull_iv instead of rebuilding from scenarios_raw.
+        # Additionally apply the same defensive floor Day-56 introduced
+        # for cyclicals: bear must be at least 0.85 * price (mid-cycle
+        # pessimism floor for a bond-like regulated cash flow) and bull
+        # must be at least 1.10 * price. These floors only widen the
+        # band, never tighten it (we take min for bear-cap below iv,
+        # max for bull above iv).
+        _is_regulated_utility_engine = bool(
+            locals().get("is_regulated_utility_ticker", False)
+            and locals().get("_regulated_val_result")
+            and float(_regulated_val_result.get("fair_value", 0) or 0) > 0
+        )
+        if is_financial or _is_regulated_utility_engine:
+            # For regulated utilities, apply a defensive floor mirroring
+            # the Day-56 cyclical pattern so bear never collapses to ₹0
+            # and bull always has visible upside vs price. Floors only
+            # widen the band — they never override a tighter engine
+            # result that's already above the floors.
+            if _is_regulated_utility_engine and price > 0:
+                _ru_bear_floor = round(min(0.85 * price, iv * 0.95), 2)
+                _ru_bull_floor = round(max(1.10 * price, iv * 1.05), 2)
+                # Engine produces 0.75*base / 1.25*base. Take the wider
+                # band (engine vs floor) on each side so the floor only
+                # kicks in when the engine's own values would push bear
+                # close to zero (e.g. low-WACC utilities where the engine
+                # collapsed or the result was overwritten downstream).
+                if bear_iv <= 0 or bear_iv < _ru_bear_floor * 0.5:
+                    # Engine bear missing or implausibly low → use floor.
+                    bear_iv = _ru_bear_floor
+                if bull_iv <= 0 or bull_iv < iv:
+                    bull_iv = _ru_bull_floor
+                import logging as _ru_floor_log
+                _ru_floor_log.getLogger("yieldiq.analysis").info(
+                    "REGULATED_UTILITY_BEAR_FLOOR: %s price=%.2f iv=%.2f "
+                    "bear=%.2f bull=%.2f (floor bear=%.2f bull=%.2f)",
+                    ticker, price, iv, bear_iv, bull_iv,
+                    _ru_bear_floor, _ru_bull_floor,
+                )
             _bear_raw = ((bear_iv - price) / price * 100) if price > 0 else 0
             _bull_raw = ((bull_iv - price) / price * 100) if price > 0 else 0
             _bear_d, _bear_c = display_mos(_bear_raw)
