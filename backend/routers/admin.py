@@ -2601,3 +2601,132 @@ async def get_cache_manifest(user: dict = Depends(require_admin)):
             status_code=500,
             detail=f"get_cache_manifest failed: {_sanitize_error(exc, 'cache-manifest')}",
         )
+
+
+# ─────────────────────────────────────────────────────────────────
+# Day-95b (2026-05-22): /admin/cache-manifest-impact
+#
+# Production proof that the Day-94 manifest is doing what it
+# promised: scoping invalidation to the listed tickers instead of
+# wiping every cached row.
+#
+# For each entry in the manifest, scans analysis_cache and reports:
+#   - total_rows:       how many rows exist within the TTL window
+#   - would_invalidate: how many of those rows this entry would
+#                       treat as invalid (i.e. recompute on next read)
+#   - pct:              would_invalidate / total_rows * 100
+#
+# A correctly scoped entry against ~17 metals tickers should report
+# would_invalidate ≈ 17 against a total_rows in the low thousands.
+# A "*" wildcard entry will (correctly) report total_rows for every
+# row predating its applied_at.
+#
+# Read-only. No CACHE_VERSION bump. No writes. Errors degrade to a
+# safe error response so the dashboard never breaks ops.
+# ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/cache-manifest-impact")
+async def get_cache_manifest_impact(user: dict = Depends(require_admin)):
+    """Per-entry "would invalidate N of M rows" diagnostic.
+
+    Returns one row per manifest entry, computed by joining the
+    manifest against the live ``analysis_cache`` table and running
+    the same matcher the read path uses (``is_row_valid_per_manifest``).
+
+    Intended use: confirm that a scoped invalidation entry is actually
+    scoped — e.g. the Day-95 metals/mining entry should report
+    ``would_invalidate`` ≈ 17, not 2,400.
+    """
+    try:
+        from sqlalchemy import text
+        from backend.services.cache_invalidation_manifest import (
+            MANIFEST,
+            _coerce_datetime,
+            _ticker_in_scope,
+            _field_in_scope,
+        )
+        from backend.services.analysis_cache_service import _get_session
+
+        sess = _get_session()
+        if sess is None:
+            return {
+                "ok": False,
+                "reason": "no_db_session",
+                "entries": [],
+            }
+        try:
+            # Pull only the columns the matcher needs. TTL window of
+            # 168h (7 days) matches the loosest read-path window
+            # (valuation_bulk); the strict 24h window is a subset so
+            # this gives the most conservative impact estimate.
+            rows = sess.execute(
+                text(
+                    """
+                    SELECT ticker, computed_at
+                    FROM analysis_cache
+                    WHERE computed_at > now() - interval '168 hours'
+                    """
+                )
+            ).fetchall()
+        finally:
+            try:
+                sess.close()
+            except Exception:
+                pass
+
+        cache_rows = [
+            (r[0], _coerce_datetime(r[1])) for r in (rows or [])
+        ]
+        total_rows = len(cache_rows)
+
+        entries_out = []
+        for entry in MANIFEST:
+            applied_at = _coerce_datetime(entry.get("applied_at"))
+            scope = entry.get("scope") or {}
+            scope_tickers = scope.get("tickers")
+            scope_fields = scope.get("fields")
+            would_invalidate = 0
+            sample_tickers: list[str] = []
+            if applied_at is not None:
+                # The matcher is called with fields_needed=None on the
+                # hot path most of the time (callers rarely declare),
+                # so use the same worst-case here to mirror production.
+                for ticker, computed_at in cache_rows:
+                    if computed_at is None or applied_at <= computed_at:
+                        continue
+                    if not _ticker_in_scope(ticker, scope_tickers):
+                        continue
+                    if not _field_in_scope(None, scope_fields):
+                        continue
+                    would_invalidate += 1
+                    if len(sample_tickers) < 5:
+                        sample_tickers.append(ticker)
+            pct = (
+                round(would_invalidate / total_rows * 100, 2)
+                if total_rows > 0 else 0.0
+            )
+            entries_out.append({
+                "version_id": entry.get("version_id"),
+                "applied_at": applied_at.isoformat() if applied_at else None,
+                "scope": scope,
+                "rationale": entry.get("rationale"),
+                "would_invalidate": would_invalidate,
+                "total_rows_in_window": total_rows,
+                "pct_of_window": pct,
+                "sample_invalidated_tickers": sample_tickers,
+            })
+        return {
+            "ok": True,
+            "total_rows_in_window": total_rows,
+            "window_hours": 168,
+            "entries": entries_out,
+        }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "get_cache_manifest_impact failed: "
+                f"{_sanitize_error(exc, 'cache-manifest-impact')}"
+            ),
+        )
