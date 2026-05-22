@@ -152,12 +152,22 @@ def _fetch_industry(db_session, ticker: str) -> tuple[Optional[str], Optional[st
     classification (e.g. "Banks - Private Sector" vs "Banks -
     Regional"). `sector` is returned as a fallback display label
     so callers can render something even when industry is null.
+
+    Fix (audit #5 P0a, 2026-05-22): the `stocks` table stores tickers
+    in BARE form (`RELIANCE`) with the `.NS` form in a separate
+    `ticker_ns` column. Callers / analysis_cache.ticker keys are
+    canonicalized to `.NS` form. Matching `ticker = 'RELIANCE.NS'`
+    therefore matched nothing, so every prod lookup returned null
+    industry → cohort_size 0 → empty percentiles, even though
+    `stocks.industry` is populated for ~75% of the universe.
+    Match on `ticker_ns` first, fall back to `ticker` so callers
+    passing either form land the same row.
     """
     try:
         row = db_session.execute(
             text(
                 "SELECT industry, sector FROM stocks "
-                "WHERE ticker = :t LIMIT 1"
+                "WHERE ticker_ns = :t OR ticker = :t LIMIT 1"
             ),
             {"t": ticker},
         ).fetchone()
@@ -186,6 +196,11 @@ def _fetch_cohort_payloads(
     yfinance hiccup yet tight enough that the cohort reflects the
     current market.
     """
+    # Fix (audit #5 P0a, 2026-05-22): join on stocks.ticker_ns since
+    # analysis_cache.ticker is canonicalized to `.NS` form while
+    # stocks.ticker is the bare form. Return the canonical .NS ticker
+    # so the subject-in-cohort match (`tk == t`) in the caller works
+    # for tickers passed in as `RELIANCE.NS`.
     sql = text(
         """
         WITH latest_ac AS (
@@ -195,9 +210,9 @@ def _fetch_cohort_payloads(
             WHERE ac.computed_at > now() - (:days || ' days')::interval
             ORDER BY ac.ticker, ac.computed_at DESC
         )
-        SELECT s.ticker, la.payload
+        SELECT COALESCE(s.ticker_ns, s.ticker) AS ticker, la.payload
         FROM stocks s
-        JOIN latest_ac la ON la.ticker = s.ticker
+        JOIN latest_ac la ON la.ticker = COALESCE(s.ticker_ns, s.ticker)
         WHERE COALESCE(s.is_active, TRUE) = TRUE
           AND s.industry = :industry
         """
