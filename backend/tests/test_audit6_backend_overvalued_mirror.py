@@ -97,16 +97,28 @@ def test_sunpharma_shape_overvalued_passes_through() -> None:
     assert any("Bear-side bypass" in s for s in issues)
 
 
-def test_asianpaint_shape_notably_overvalued_passes_through() -> None:
-    """mos=-47, conf=55 -> notably_overvalued.
+def test_asianpaint_shape_clamped_to_overvalued() -> None:
+    """mos=-47, conf=55 -> overvalued (Audit#7 P0 clamp).
 
     Real ticker: ASIANPAINT at mos=-47% — below the
-    BEAR_NOTABLY_OVERVALUED_MOS=-40 threshold so the gate deepens
-    the label to notably_overvalued even if the engine emitted the
-    coarser ``overvalued``. Matches frontend verdictFromMos.
+    BEAR_NOTABLY_OVERVALUED_MOS=-40 threshold. The original Audit#6
+    implementation returned ``notably_overvalued``, but that string
+    is NOT a member of ValuationOutput.verdict's literal in
+    backend/models/responses.py, so pydantic raised and the whole
+    summary recompute wedged on cache_miss_recompute_failed.
+
+    Post Audit#7 P0 the bypass clamps the surfaced label to
+    ``overvalued`` (a valid literal) and emits the intensity hint
+    in the issues array. The frontend pill renders
+    ``notably overvalued`` from mos_pct via verdictFromMos on the
+    client; the API string is the conservative subset that the
+    pydantic model accepts.
     """
-    verdict, _ = _gate("overvalued", mos_pct=-47.0, model_confidence=55)
-    assert verdict == "notably_overvalued"
+    verdict, issues = _gate("overvalued", mos_pct=-47.0, model_confidence=55)
+    assert verdict == "overvalued"
+    # The intensity hint must still be logged so analytics can
+    # recover the deeper signal from cached payloads.
+    assert any("intensity_hint='notably_overvalued'" in s for s in issues)
 
 
 def test_just_above_threshold_still_caps_to_fairly_valued() -> None:
