@@ -27,6 +27,7 @@ import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
 import FairValueHistory from "@/components/analysis/FairValueHistory"
 import FinancialStatements from "@/components/analysis/FinancialStatements"
+import ConcallsPanel from "@/components/analysis/ConcallsPanel"
 import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
 import { FormulasProvider } from "@/components/analysis/MetricTooltip"
@@ -845,6 +846,9 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               fcfDataSource={valuation.fcf_data_source}
             />
           </div>
+          {/* Day-103a: concall library with AI-summarised quarterly
+              earnings calls. Renders empty state until ingestion lands. */}
+          <ConcallsPanel ticker={ticker} />
           {/* Day-103b: per-ticker annual report PDF links (Screener.in parity). */}
           <AnnualReportsPanel ticker={ticker} />
         </div>
