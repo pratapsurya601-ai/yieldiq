@@ -131,6 +131,28 @@ MANIFEST: list[dict] = [
         },
         "rationale": "Day-95: metals/mining sector pins (HINDZINC and 16 others). Cohort routing change.",
     },
+    {
+        # Day-100 / Audit #5 P0b — fair_value 0-floor leak.
+        # `_extract_analysis_summary` in backend/routers/public.py used
+        # to forward the engine's fair_value verbatim. When the engine
+        # returned 0.0 but a real scenario midpoint (base_case) existed
+        # (ULTRACEMCO.NS at 2026-05-22), the SEO fair-value page rendered
+        # "₹0 fair value" on the hero pill. Fix: fall through to
+        # base_case when engine fair_value is 0 and base_case > 0; emit
+        # None when neither exists so the frontend hides the pill.
+        "version_id": "v_audit5_p0b_fv_floor_2026_05_22",
+        "applied_at": datetime(2026, 5, 22, 12, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["ULTRACEMCO"],
+            "fields": ["fair_value"],
+        },
+        "rationale": (
+            "Audit#5 P0b: fair_value 0-floor leak — fall through to "
+            "base_case in /stock-summary projection so the SEO hero "
+            "pill stops rendering ₹0 when the engine collapses but "
+            "scenario midpoint is meaningful."
+        ),
+    },
 ]
 
 
