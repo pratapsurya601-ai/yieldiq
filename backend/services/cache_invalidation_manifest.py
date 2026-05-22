@@ -360,15 +360,7 @@ MANIFEST: list[dict] = [
         ),
     },
     {
-        # Day-109b (2026-05-23): NBFC (Non-Bank Finance) sector cohort
-        # overrides. Sub-segment fair-P/B anchoring (diversified Tier-1
-        # 5.0×, HFC pure-play 1.4×, gold-loan 2.2×, MFI 1.8×, vehicle
-        # finance 2.2×) + AUM-growth boost (±15% / -10%). HDFCLIFE
-        # EXCLUDED — insurance is a separate cohort (Day-XXX follow-up).
-        # BAJAJFINSV flagged as holdco-skip (SOTP, not lending). Wired
-        # through the existing P/B financial-company valuation path
-        # (financial_valuation_service._compute_pbv_path) — NBFCs do
-        # NOT route through DCF.
+        # Day-109b (2026-05-23): NBFC sub-segment PB anchoring.
         "version_id": "v_day109b_nbfc_cohort_2026_05_23",
         "applied_at": datetime(2026, 5, 23, 20, 5, 0, tzinfo=timezone.utc),
         "scope": {
@@ -382,6 +374,25 @@ MANIFEST: list[dict] = [
         "rationale": (
             "Day-109b: NBFC cohort PB anchoring by sub-segment + "
             "AUM-growth boost"
+        ),
+    },
+    {
+        # Day-109a (2026-05-23): Banking sector cohort overrides.
+        # Layered on Day-76 PB skip path: tier-anchored P/BV (T1 3.0x,
+        # PSU 1.2x, T2 1.8x), ROE-quality boost, stress flag.
+        "version_id": "v_day109a_banking_cohort_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 20, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK",
+                "SBIN", "INDUSINDBK", "FEDERALBNK", "IDFCFIRSTB",
+                "AUBANK", "BANDHANBNK", "RBLBANK",
+            ],
+            "fields": "*",
+        },
+        "rationale": (
+            "Day-109a: banking cohort PB anchoring + ROE-quality "
+            "boost + stress flag"
         ),
     },
 ]

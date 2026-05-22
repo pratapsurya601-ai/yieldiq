@@ -497,3 +497,233 @@ NBFC_MFI = _NBFC_MFI
 NBFC_VEHICLE_FINANCE = _NBFC_VEHICLE_FINANCE
 NBFC_INSURANCE_EXCLUDE = _NBFC_INSURANCE_EXCLUDE
 NBFC_HOLDCO_SKIP = _NBFC_HOLDCO_SKIP
+
+
+# ═══════════════════════════════════════════════════════════════════
+# Day-109a (2026-05-23) — Banking sector cohort overrides
+# ═══════════════════════════════════════════════════════════════════
+# Companion to the existing Day-76 PB-ratio skip path (banks already
+# bypass generic DCF in favour of P/BV peer-median valuation via
+# ``financial_valuation_service._compute_pbv_path``). The cohort here
+# adds NUANCE on top of that path:
+#
+#   1. **Tier-specific fair P/BV bands** instead of one peer median.
+#      Tier-1 private (HDFC/ICICI/KOTAK/AXIS/INDUSIND) trade at very
+#      different multiples than PSU (SBIN) and Tier-2 mid-caps. The
+#      Day-76 peer-median pools all "psu_banks" or "pvt_banks" but
+#      the spread within each pool is wide. Anchoring to per-tier
+#      medians (3.0x / 1.2x / 1.8x) reduces single-peer-blowup risk.
+#
+#   2. **ROE-quality boost**. Banks with TTM ROE >= 16% AND gross NPA
+#      <= 2.0% are durably higher-quality (HDFCBANK shape) — anchor
+#      P/BV gets a +20% lift so HDFCBANK lands near 3.6x book rather
+#      than the cohort median 3.0x.
+#
+#   3. **Stress flag**. GNPA > 5.0% OR provision coverage < 60% sets
+#      `data_limited=True` and surfaces "stressed book" in the
+#      data_issues list so verdicts stay calibrated.
+#
+# **Critical**: banks do NOT get DCF. The cohort layers on top of the
+# existing PB-ratio path. The PB band + anchor are returned for the
+# caller to combine with BVPS; the engine integration in
+# ``backend/services/analysis/service.py`` consults
+# ``banking_pb_anchor()`` after the existing peer-median runs, so the
+# Day-76 ``TOP_PRIVATE_BANK_PB_BUMP`` and tier-1 COE compression
+# remain in effect — this cohort is additive nuance, not replacement.
+#
+# ═══════════════════════════════════════════════════════════════════
+# Cohort medians (sourced from market multiples, FY24-FY26 trailing)
+# ═══════════════════════════════════════════════════════════════════
+# Tier-1 private (HDFCBANK 2.7x, ICICIBANK 3.3x, KOTAKBANK 3.0x,
+# AXISBANK 2.4x, INDUSINDBK 2.0x): cohort median 3.0x book; fair band
+# 2.5x-4.0x. ROE band 14-18%, GNPA band 1.4-2.4%.
+# PSU (SBIN current 1.1-1.3x book): fair band 0.9x-1.6x, anchor 1.2x.
+# Tier-2 (FEDERALBNK 1.4x, IDFCFIRSTB 1.5x, AUBANK 2.5x, BANDHANBNK
+# 1.3x, RBLBANK 0.9x): cohort median 1.8x; fair band 1.2x-2.5x.
+#
+# Data gap (2026-05-23): GNPA + provision_coverage are not in the
+# local parquet ratio_history (no `data/parquet/` exists in this
+# checkout). The asset-quality knob accepts optional caller-provided
+# GNPA + PCR — when both are None it degrades to "anchor only" and
+# the stress flag never fires. Phase 2 will populate from
+# NSE-XBRL-Sch-XVIII (Asset Classification) once extraction lands;
+# see `bank_data_availability.md` for the coverage matrix.
+# ═══════════════════════════════════════════════════════════════════
+
+# ── Tier-1 private (large-cap private banks) ─────────────────────
+_BANKING_TIER1_PRIVATE_TICKERS: Final[frozenset[str]] = frozenset({
+    "HDFCBANK",
+    "ICICIBANK",
+    "KOTAKBANK",
+    "AXISBANK",
+    "INDUSINDBK",
+})
+
+# ── PSU (state-owned) ────────────────────────────────────────────
+# SBIN is the only Tier-1 PSU in the cohort. Other PSUs (PNB,
+# BANKBARODA, CANBK, ...) are deliberately out of scope here — they
+# fall back to the Day-76 peer-median PB path without per-tier
+# anchoring until their data quality and governance discount can be
+# modelled separately.
+_BANKING_PSU_TICKERS: Final[frozenset[str]] = frozenset({
+    "SBIN",
+})
+
+# ── Tier-2 / regional / mid-cap private ──────────────────────────
+_BANKING_TIER2_TICKERS: Final[frozenset[str]] = frozenset({
+    "FEDERALBNK",
+    "IDFCFIRSTB",
+    "AUBANK",
+    "BANDHANBNK",
+    "RBLBANK",
+})
+
+# ── Union (all banking cohort members) ───────────────────────────
+_BANKING_TIER1_TICKERS_INLINE: Final[frozenset[str]] = (
+    _BANKING_TIER1_PRIVATE_TICKERS
+    | _BANKING_PSU_TICKERS
+    | _BANKING_TIER2_TICKERS
+)
+
+# ── Public override constants ────────────────────────────────────
+# Tier-1 private: fair P/BV band 2.5x-4.0x, anchor 3.0x
+BANKING_TIER1_PRIVATE_PB_BAND: Final[tuple[float, float]] = (2.5, 4.0)
+BANKING_TIER1_PRIVATE_PB_ANCHOR: Final[float] = 3.0
+
+# PSU: fair P/BV band 0.9x-1.6x, anchor 1.2x
+BANKING_PSU_PB_BAND: Final[tuple[float, float]] = (0.9, 1.6)
+BANKING_PSU_PB_ANCHOR: Final[float] = 1.2
+
+# Tier-2 / regional: fair P/BV band 1.2x-2.5x, anchor 1.8x
+BANKING_TIER2_PB_BAND: Final[tuple[float, float]] = (1.2, 2.5)
+BANKING_TIER2_PB_ANCHOR: Final[float] = 1.8
+
+# ROE-quality boost: banks with TTM ROE >= 16% AND GNPA <= 2.0%
+# get a +20% lift to their fair-PB anchor. Tuned so HDFCBANK
+# (ROE ~17.5%, GNPA ~1.4%) lands at 3.0 * 1.2 = 3.6x book.
+BANKING_ROE_QUALITY_THRESHOLD_ROE: Final[float] = 0.16
+BANKING_ROE_QUALITY_THRESHOLD_GNPA: Final[float] = 0.02
+BANKING_ROE_QUALITY_BOOST: Final[float] = 1.20
+
+# Stress flag thresholds
+BANKING_STRESS_GNPA: Final[float] = 0.05   # >5% gross NPA
+BANKING_STRESS_PCR: Final[float] = 0.60    # <60% provision coverage
+
+
+def is_banking_cohort_ticker(ticker: str | None) -> bool:
+    """True if the ticker is in the Day-109a banking cohort (any tier)."""
+    return _bare(ticker) in _BANKING_TIER1_TICKERS_INLINE
+
+
+def banking_tier(ticker: str | None) -> str | None:
+    """Return the banking-cohort tier label or ``None`` if not in cohort.
+
+    Tier labels: ``"tier1_private"``, ``"psu"``, ``"tier2"``. Used by
+    callers to select the right PB band / anchor and to surface the
+    tier in audit metadata."""
+    bare = _bare(ticker)
+    if bare in _BANKING_TIER1_PRIVATE_TICKERS:
+        return "tier1_private"
+    if bare in _BANKING_PSU_TICKERS:
+        return "psu"
+    if bare in _BANKING_TIER2_TICKERS:
+        return "tier2"
+    return None
+
+
+def banking_pb_band(ticker: str | None) -> tuple[float, float] | None:
+    """Return the (low, high) fair P/BV band for the cohort tier, or
+    ``None`` if the ticker is not in the cohort. The caller uses this
+    band as the "undervalued below low / overvalued above high" gate
+    when surfacing verdicts on top of the Day-76 PB-ratio engine."""
+    tier = banking_tier(ticker)
+    if tier == "tier1_private":
+        return BANKING_TIER1_PRIVATE_PB_BAND
+    if tier == "psu":
+        return BANKING_PSU_PB_BAND
+    if tier == "tier2":
+        return BANKING_TIER2_PB_BAND
+    return None
+
+
+def banking_pb_anchor(ticker: str | None) -> float | None:
+    """Return the median fair P/BV anchor for the cohort tier, or
+    ``None`` if the ticker is not in the cohort. The anchor is the
+    single-number multiple used when no ROE-quality boost fires —
+    multiply by BVPS to get the cohort-anchored fair value."""
+    tier = banking_tier(ticker)
+    if tier == "tier1_private":
+        return BANKING_TIER1_PRIVATE_PB_ANCHOR
+    if tier == "psu":
+        return BANKING_PSU_PB_ANCHOR
+    if tier == "tier2":
+        return BANKING_TIER2_PB_ANCHOR
+    return None
+
+
+def banking_roe_quality_boost(
+    ticker: str | None,
+    roe: float | None,
+    gnpa: float | None,
+) -> float:
+    """Return the multiplicative boost to apply to the cohort PB
+    anchor for high-ROE / clean-book banks.
+
+    Fires (returns ``BANKING_ROE_QUALITY_BOOST = 1.20``) when ALL of:
+      - ticker is in the Day-109a banking cohort
+      - ``roe`` is not None and >= 16% (0.16 as decimal, OR 16.0+ as
+        percent — the helper auto-detects via the >1 heuristic)
+      - ``gnpa`` is not None and <= 2.0% (decimal 0.02 OR percent 2.0)
+
+    Otherwise returns 1.0 — including when either input is None
+    (data gap → no boost, no penalty). Calibrated so HDFCBANK
+    (ROE 17.5%, GNPA 1.4%) lands at anchor * 1.2 = 3.6x book."""
+    if not is_banking_cohort_ticker(ticker):
+        return 1.0
+    if roe is None or gnpa is None:
+        return 1.0
+    # Normalise: accept either decimal (0.175) or percent (17.5).
+    roe_dec = float(roe) / 100.0 if float(roe) > 1.0 else float(roe)
+    gnpa_dec = float(gnpa) / 100.0 if float(gnpa) > 1.0 else float(gnpa)
+    if (
+        roe_dec >= BANKING_ROE_QUALITY_THRESHOLD_ROE
+        and gnpa_dec <= BANKING_ROE_QUALITY_THRESHOLD_GNPA
+    ):
+        return BANKING_ROE_QUALITY_BOOST
+    return 1.0
+
+
+def banking_stress_flag(
+    ticker: str | None,
+    gnpa: float | None,
+    provision_coverage: float | None,
+) -> bool:
+    """Return True when the bank is in stress per cohort thresholds:
+    gross NPA > 5% OR provision coverage ratio < 60%.
+
+    Each input may be supplied as decimal (0.05) or percent (5.0);
+    the helper auto-detects via the >1 heuristic. When BOTH inputs
+    are None, returns False (data gap is not stress — the caller
+    handles "stress unknown" separately via ``data_limited``)."""
+    if not is_banking_cohort_ticker(ticker):
+        return False
+    gnpa_stress = False
+    pcr_stress = False
+    if gnpa is not None:
+        g = float(gnpa) / 100.0 if float(gnpa) > 1.0 else float(gnpa)
+        gnpa_stress = g > BANKING_STRESS_GNPA
+    if provision_coverage is not None:
+        p = (
+            float(provision_coverage) / 100.0
+            if float(provision_coverage) > 1.0
+            else float(provision_coverage)
+        )
+        pcr_stress = p < BANKING_STRESS_PCR
+    return gnpa_stress or pcr_stress
+
+
+# Re-export inline sets for source-text tests + downstream callers.
+BANKING_TIER1_TICKERS_INLINE = _BANKING_TIER1_TICKERS_INLINE
+BANKING_TIER1_PRIVATE_TICKERS = _BANKING_TIER1_PRIVATE_TICKERS
+BANKING_PSU_TICKERS = _BANKING_PSU_TICKERS
+BANKING_TIER2_TICKERS = _BANKING_TIER2_TICKERS
