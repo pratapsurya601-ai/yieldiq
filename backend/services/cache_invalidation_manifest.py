@@ -234,6 +234,42 @@ MANIFEST: list[dict] = [
             "rendered pill."
         ),
     },
+    {
+        # Audit#7 P0 (2026-05-22): the Audit#6 bypass above returned
+        # "notably_overvalued" when mos_pct <= -40. ValuationOutput.verdict
+        # in backend/models/responses.py is Literal[undervalued,
+        # fairly_valued, overvalued, avoid, data_limited, unavailable] and
+        # does NOT include "notably_overvalued". Pydantic raised
+        # ValidationError inside get_full_analysis, the public
+        # stock-summary endpoint caught it in the cache-miss recompute
+        # path (backend/routers/public.py:672) and started returning the
+        # opaque "cache_miss_recompute_failed" placeholder for every
+        # ASIANPAINT.NS request. SUNPHARMA / MARUTI / SBIN escaped the
+        # bug because their MoS (-33, -31, -31) is above the -40
+        # BEAR_NOTABLY_OVERVALUED_MOS boundary, so they returned plain
+        # "overvalued" (a valid literal) and recomputed cleanly.
+        #
+        # Fix: clamp the bypass output to "overvalued" and log the
+        # intensity hint in the issues array. Frontend pill rendering
+        # is unaffected because it derives the label from mos_pct via
+        # verdictFromMos on the client, not from this string.
+        "version_id": "v_audit7_p0_asianpaint_recompute_2026_05_22",
+        "applied_at": datetime(2026, 5, 22, 16, 30, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["ASIANPAINT"],
+            "fields": ["*"],
+        },
+        "rationale": (
+            "Audit#7 P0: ASIANPAINT.NS summary recompute wedged on "
+            "cache_miss_recompute_failed after Audit#6 (PR #503). The "
+            "bypass returned 'notably_overvalued' which is not a valid "
+            "ValuationOutput.verdict literal, pydantic raised, the "
+            "recompute fell through to the under_review placeholder. "
+            "Clamp to 'overvalued' so the response validates. Scoped "
+            "to ASIANPAINT (the only ticker with mos_pct deep enough "
+            "to cross the unmodeled branch)."
+        ),
+    },
 ]
 
 

@@ -545,11 +545,63 @@ def _apply_confidence_verdict_gate(
                         and isinstance(model_confidence, int)
                         and model_confidence >= BEAR_OVERVALUED_BYPASS_CONFIDENCE
                     ):
-                        # Keep the engine's intensity. Re-derive the
-                        # band from MoS so the surfaced label tracks
-                        # the frontend verdictFromMos thresholds even
-                        # if the engine emitted a coarser label.
-                        bypassed = (
+                        # Audit#7 P0 (2026-05-22): the original PR #503
+                        # implementation returned "notably_overvalued"
+                        # for mos_pct <= -40 (ASIANPAINT at -47.8%).
+                        # That string is NOT a member of
+                        # ValuationOutput.verdict's Literal[…] in
+                        # backend/models/responses.py (which allows only
+                        # undervalued|fairly_valued|overvalued|avoid|
+                        # data_limited|unavailable), so pydantic raised
+                        # ValidationError inside get_full_analysis,
+                        # the public stock-summary endpoint caught the
+                        # exception in the cache-miss recompute path
+                        # (backend/routers/public.py:672), and every
+                        # subsequent fetch returned the opaque
+                        # "cache_miss_recompute_failed" placeholder.
+                        #
+                        # SUNPHARMA (-33%), MARUTI (-31%), SBIN (-31%)
+                        # were unaffected because they fall ABOVE the
+                        # -40% BEAR_NOTABLY_OVERVALUED_MOS threshold
+                        # and returned plain "overvalued" (a valid
+                        # literal). ASIANPAINT, with the deepest
+                        # negative MoS in the universe, was the only
+                        # ticker that hit the unmodeled branch.
+                        #
+                        # The frontend can render "notably_overvalued"
+                        # as a distinct pill because
+                        # frontend/src/lib/utils.ts::verdictFromMos
+                        # derives the label from mos_pct on the
+                        # client side. The backend's verdict literal
+                        # remains the canonical 6-value set; widening
+                        # it would touch validators, og-data, push,
+                        # email-alerts, analytics, and the cached
+                        # rows for every ticker. Out of scope for a
+                        # P0 fix.
+                        #
+                        # Fix: clamp the bypass output to "overvalued"
+                        # (a valid literal) and surface the intensity
+                        # in the issues log for analytics. The
+                        # frontend pill renderer (verdictFromMos)
+                        # is unaffected because it does not consume
+                        # this string — it derives its own label from
+                        # the mos_pct field, which still resolves to
+                        # "notably overvalued" on the client.
+                        bypassed = "overvalued"
+                        # Defensive: if the engine emits a literal we
+                        # cannot return (future drift), log + fall
+                        # through to the symmetric cap rather than
+                        # wedging the whole recompute. Reason string
+                        # is diagnosable instead of opaque.
+                        if bypassed not in _INTENSITY_VERDICTS and bypassed != "overvalued":
+                            issues.append(
+                                "[confidence_gate] verdict_gate_inconsistent: "
+                                f"bypass produced '{bypassed}' which is not a "
+                                "valid ValuationOutput.verdict literal; "
+                                "falling through to symmetric cap."
+                            )
+                            return "fairly_valued", issues
+                        intensity_hint = (
                             "notably_overvalued"
                             if mos_pct <= BEAR_NOTABLY_OVERVALUED_MOS
                             else "overvalued"
@@ -560,8 +612,10 @@ def _apply_confidence_verdict_gate(
                             f"{BEAR_OVERVALUED_BYPASS_MOS}% with "
                             f"mc={model_confidence} >= "
                             f"{BEAR_OVERVALUED_BYPASS_CONFIDENCE}; "
-                            f"intensity preserved as '{bypassed}' "
-                            "(Audit#6 mirror of frontend PR #499)."
+                            f"surfaced as '{bypassed}' "
+                            f"(intensity_hint='{intensity_hint}', "
+                            "Audit#7 P0 clamp — see PR #503 + "
+                            "ValuationOutput.verdict literal)."
                         )
                         return bypassed, issues
             issues.append(
