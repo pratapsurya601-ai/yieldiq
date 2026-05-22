@@ -1507,6 +1507,29 @@ class AnalysisService(NarrativeMixin):
         except Exception:
             pass
 
+        # ── Day-107a (2026-05-23) IT-services Tier-1 TG lift ──
+        # TCS/INFY/HCLTECH/WIPRO/TECHM lift terminal_g to 0.045.
+        # Separate try-block so the auto elif chain above doesn't
+        # preclude IT tickers. Mirrors Day-84 pharma TG-lift shape.
+        try:
+            _IT_SERVICES_TIER1_TICKERS_INLINE = {
+                "TCS", "INFY", "WIPRO", "HCLTECH", "TECHM",
+            }
+            if (
+                _bare_ticker_tg in _IT_SERVICES_TIER1_TICKERS_INLINE
+                and terminal_g < 0.045
+            ):
+                _tg_proposed = 0.045
+                if _tg_proposed < wacc - 0.02:
+                    terminal_g = _tg_proposed
+                    _data_issues = list(_data_issues) + [
+                        f"[it-services-tier1-tg-lifted] terminal_g raised "
+                        f"to {terminal_g:.3f} (multi-year deal-book "
+                        f"visibility)"
+                    ]
+        except Exception:
+            pass
+
         # ── Day-107b (2026-05-23) FMCG sector cohort TG lift ──
         # Separate try-block so the auto-cohort elif-chain above
         # doesn't preclude FMCG tickers from being lifted. The
@@ -1584,6 +1607,37 @@ class AnalysisService(NarrativeMixin):
                             f"{float(_median_margin):.3f}; "
                             f"bear-floor will engage"
                         ]
+        except Exception:
+            pass
+
+        # ── Day-107a (2026-05-23) IT-services margin sanity flag ────
+        # Cohort has been in 22-26% EBIT-margin band for a decade.
+        # Forecast input > 30% is structurally implausible → flag as
+        # data_limited so downstream consumers show the badge.
+        try:
+            _IT_SERVICES_COHORT_TICKERS_INLINE = {
+                "TCS", "INFY", "WIPRO", "HCLTECH", "TECHM",
+                "LTIM", "PERSISTENT", "MPHASIS", "COFORGE", "BSOFT",
+            }
+            if _bare_ticker_tg in _IT_SERVICES_COHORT_TICKERS_INLINE:
+                _term_margin = None
+                try:
+                    _enr = locals().get("enriched", None) or {}
+                    _term_margin = _enr.get("terminal_ebit_margin")
+                    if _term_margin is None:
+                        _term_margin = _enr.get("ebit_margin_terminal")
+                except Exception:
+                    _term_margin = None
+                if (
+                    _term_margin is not None
+                    and float(_term_margin) > 0.30
+                ):
+                    _data_issues = list(_data_issues) + [
+                        f"[it-services-margin-sanity] terminal EBIT margin "
+                        f"input {float(_term_margin):.1%} exceeds 30% "
+                        f"ceiling (cohort band 22-26% for a decade — "
+                        f"flag as data_limited)"
+                    ]
         except Exception:
             pass
 

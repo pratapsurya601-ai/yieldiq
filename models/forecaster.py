@@ -1294,20 +1294,8 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
 
         # ── Day-107d (2026-05-23): BHEL WACC penalty ────────────────
         # Capital-goods cohort: BHEL carries a +50bps incremental WACC
-        # penalty layered on top of CAPM output. Justification:
-        #   1. PSU governance discount (capital allocation track record
-        #      on thermal-power tail is structurally inferior to
-        #      private-sector E&C).
-        #   2. Project receivables execution risk — BHEL's post-2023
-        #      regime change (Make-in-India + defence revival) is real,
-        #      but receivable cycles on PSU orders remain a WC drag not
-        #      captured in baseline CAPM WACC.
-        #   3. The 7y WC-smoothed FCF candidate already adjusts the
-        #      FCF series for cycle noise — the penalty is a discount-
-        #      rate side-payment for governance risk that lives outside
-        #      the cash-flow series.
-        # Applied INCREMENTALLY (wacc = min(wacc + penalty, 0.20)),
-        # NOT as a cap/floor.
+        # penalty layered on top of CAPM output. See constants.py for
+        # rationale (PSU governance + WC drag).
         try:
             from backend.services.analysis.constants import (
                 CAPITAL_GOODS_COHORT_PSU_LEGACY,
@@ -1318,6 +1306,28 @@ def compute_wacc(ticker_obj, is_indian: bool = False, enriched: dict = None) -> 
                 wacc = float(min(wacc + _bhel_penalty, 0.20))
         except Exception:
             pass
+
+        # ── Day-107a (2026-05-23) IT-services cohort WACC tighten ────
+        # Tier-1 (TCS/INFY/WIPRO/HCLTECH/TECHM) cap at 11.5%, Tier-2
+        # (LTIM/PERSISTENT/MPHASIS/COFORGE/BSOFT) cap at 12.5%, hard
+        # floor 8.5%. Calibrated to keep post-cohort FV shift inside
+        # ±20% backwards-compat band. Mirrors Day-84 pharma WACC-cap.
+        _IT_SERVICES_TIER1_TICKERS = frozenset({
+            "TCS", "INFY", "WIPRO", "HCLTECH", "TECHM",
+        })
+        _IT_SERVICES_TIER2_TICKERS = frozenset({
+            "LTIM", "PERSISTENT", "MPHASIS", "COFORGE", "BSOFT",
+        })
+        try:
+            if _ticker_bare in _IT_SERVICES_TIER1_TICKERS and wacc > 0.115:
+                wacc = max(0.115, 0.085)
+            elif _ticker_bare in _IT_SERVICES_TIER2_TICKERS and wacc > 0.125:
+                wacc = max(0.125, 0.085)
+            if (
+                _ticker_bare in _IT_SERVICES_TIER1_TICKERS
+                or _ticker_bare in _IT_SERVICES_TIER2_TICKERS
+            ) and wacc < 0.085:
+                wacc = 0.085
 
         result.update({
             "wacc": wacc, "re": re, "rd": rd,

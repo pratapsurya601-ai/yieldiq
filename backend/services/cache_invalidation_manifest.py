@@ -283,6 +283,22 @@ MANIFEST: list[dict] = [
         "rationale": "Day-103c: new compounded_growth field on stock-summary",
     },
     {
+        # Day-107a (2026-05-23): IT services cohort overrides
+        # (Tier-1 WACC cap 0.115, Tier-2 0.125, hard floor 0.085;
+        # backwards-compat band ±20% on TCS/INFY DCF math).
+        "version_id": "v_day107a_it_services_cohort_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 10, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["TCS", "INFY", "WIPRO", "HCLTECH", "TECHM",
+                        "LTIM", "PERSISTENT", "MPHASIS", "COFORGE", "BSOFT"],
+            "fields": "*",
+        },
+        "rationale": (
+            "Day-107a: IT services cohort overrides (WACC tighten, TG "
+            "lift, scenario re-weight)"
+        ),
+    },
+    {
         # Day-107c (2026-05-23): Indian auto OEM cohort overrides.
         # Segment-differentiated TG (2W 5.0%, 4W 4.5%, CV 4.0%,
         # ancillary 4.0%), ASHOKLEY CV WACC floor 0.11, cycle-trough
