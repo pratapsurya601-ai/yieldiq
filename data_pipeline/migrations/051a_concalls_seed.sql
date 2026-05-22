@@ -1,3 +1,11 @@
+-- SUPERSEDED 2026-05-22 by Day-103d schema-refactor.
+-- This table was created in error — existing infrastructure already
+-- covered this concern via concall_transcripts (010) / company_annual_reports (027).
+-- DO NOT apply this migration to new Neon instances. The Day-103d service
+-- refactor retargets the panel endpoints at the canonical tables; see
+-- migration 054 for the equivalent seed against canonical tables.
+-- See docs/design/day103d-schema-cleanup-2026-05-22.md
+
 BEGIN;
 
 -- Migration 051a (Day-103a): seed rows for the concalls library so the
