@@ -19,8 +19,8 @@
 //   * Null → "—" (insufficient data or sanity-gate trip)
 //   * Footer: "Computed from annual filings, as of FY{as_of_fy}"
 //
-// SEBI-safe copy: no buy/sell language. We describe what the numbers
-// are, not what action they suggest.
+// SEBI-safe copy: no advisory language. We describe what the numbers
+// are, not what action they imply.
 
 import { useQuery } from "@tanstack/react-query"
 import { getStockSummary } from "@/lib/api"
