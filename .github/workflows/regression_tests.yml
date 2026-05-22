@@ -14,8 +14,10 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - "backend/services/analysis/**/*.py"
-      - "backend/services/analysis_service.py"
+      - "backend/services/**"
+      - "backend/routers/**"
+      - "backend/validators/**"
+      - "backend/models/**"
       - "scripts/canary_diff.py"
       - "scripts/canary_outliers_v2.json"
       - "tests/regression/**/*.py"
@@ -23,11 +25,14 @@ on:
   push:
     branches: [main]
     paths:
-      - "backend/services/analysis/**/*.py"
-      - "backend/services/analysis_service.py"
+      - "backend/services/**"
+      - "backend/routers/**"
+      - "backend/validators/**"
+      - "backend/models/**"
       - "scripts/canary_diff.py"
       - "scripts/canary_outliers_v2.json"
       - "tests/regression/**/*.py"
+      - ".github/workflows/regression_tests.yml"
   workflow_dispatch:
 
 jobs:
