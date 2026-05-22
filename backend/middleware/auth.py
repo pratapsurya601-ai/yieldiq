@@ -241,7 +241,12 @@ async def get_current_user(
         # current tier from users_meta so post-payment upgrades take
         # effect without forcing a re-login.
         tier = _get_fresh_tier(user_id, tier)
-        return {"user_id": user_id, "email": email, "tier": tier}
+        # `iat` is exposed so downstream handlers can implement
+        # "first-session" heuristics (e.g. Day-97 onboarding sample
+        # portfolio) without a second DB lookup. May be None for
+        # legacy tokens minted before iat was added.
+        iat = payload.get("iat")
+        return {"user_id": user_id, "email": email, "tier": tier, "iat": iat}
     except JWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

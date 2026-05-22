@@ -4,6 +4,7 @@ import { getHoldingsLive, getPortfolioHealth, getWatchlist, removeFromWatchlist,
 import EmptyState from "@/components/common/EmptyState"
 import HealthScore from "@/components/portfolio/HealthScore"
 import PortfolioPrism from "@/components/portfolio/PortfolioPrism"
+import SamplePortfolioView, { SAMPLE_DISMISSED_KEY } from "@/components/portfolio/SamplePortfolioView"
 // PnLSparklinePlaceholder is intentionally not imported — the card is
 // hidden until GET /portfolio/history exists. See HealthDashboard.tsx
 // for restore instructions.
@@ -71,6 +72,35 @@ function PortfolioInner() {
   const { data: holdingsLive, isError: holdingsError, isLoading: holdingsLoading } = useQuery({ queryKey: ["holdings-live"], queryFn: getHoldingsLive, retry: 1 })
   const holdings = holdingsLive?.holdings || []
   const summary = holdingsLive?.summary
+
+  // Day-97: backend attaches `sample_portfolio` on the FIRST session
+  // after signup when the user has zero real holdings. Render the
+  // SamplePortfolioView so the brand-new user sees the Portfolio Prism
+  // + observation engine instantly instead of an empty state. One-way
+  // dismissal via localStorage so we never re-show after import / close.
+  const [sampleDismissed, setSampleDismissed] = useState(false)
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined" && localStorage.getItem(SAMPLE_DISMISSED_KEY) === "1") {
+        setSampleDismissed(true)
+      }
+    } catch { /* SSR / disabled storage — silently fall back to showing sample */ }
+  }, [])
+  const samplePortfolio = holdingsLive?.sample_portfolio
+  const showSample = !sampleDismissed && !!samplePortfolio && holdings.length === 0
+  // Map sample → Prism-compatible shape (ticker + invested_value is enough
+  // for PortfolioPrism's weighting math). current_value isn't required by
+  // the analyze endpoint, which only consumes ticker + shares.
+  const prismHoldingsForSample = (samplePortfolio?.holdings || []).map((h) => ({
+    ticker: h.ticker,
+    quantity: h.quantity,
+    invested_value: h.invested_value,
+    current_value: h.invested_value,
+  }))
+  const dismissSample = () => {
+    try { localStorage.setItem(SAMPLE_DISMISSED_KEY, "1") } catch { /* ignore */ }
+    setSampleDismissed(true)
+  }
   const { data: health } = useQuery({ queryKey: ["portfolio-health"], queryFn: getPortfolioHealth, retry: 1 })
   const { data: watchlist } = useQuery({ queryKey: ["watchlist"], queryFn: getWatchlist })
   const { data: alerts } = useQuery({ queryKey: ["alerts"], queryFn: getAlerts })
@@ -144,6 +174,12 @@ function PortfolioInner() {
 
       {/* Portfolio Prism — weighted 6-pillar signature across all holdings */}
       {holdings && holdings.length >= 3 && <PortfolioPrism holdings={holdings} />}
+      {/* Day-97: also fire the Prism for the sample fixture so the brand-new
+          user sees the differentiator immediately. Backend's analyze endpoint
+          is stateless + cached, so this costs at most 6 cache hits. */}
+      {showSample && prismHoldingsForSample.length >= 3 && (
+        <PortfolioPrism holdings={prismHoldingsForSample} />
+      )}
 
       {/* Top-of-page health dashboard — ring + 30d P&L trend */}
       {health && health.score > 0 && (
@@ -216,7 +252,10 @@ function PortfolioInner() {
           ))}
         </div>
       )}
-      {tab === "holdings" && !holdingsError && !holdingsLoading && (
+      {tab === "holdings" && !holdingsError && !holdingsLoading && showSample && samplePortfolio && (
+        <SamplePortfolioView sample={samplePortfolio} onDismiss={dismissSample} />
+      )}
+      {tab === "holdings" && !holdingsError && !holdingsLoading && !showSample && (
         holdings && holdings.length > 0 ? (
           <section aria-label="Holdings" data-testid="holdings-list" className="space-y-3">
             {/* Warn when any holding is trading >15% below our model fair value */}
