@@ -1361,6 +1361,10 @@ CAPITAL_GOODS_TICKERS: set[str] = {
     "KIRLOSKAROIL",  # Kirloskar Oil Engines
     # Defence / EMS hyper-grower (sector-mistagged Tech Hardware)
     "KAYNES",        # Kaynes Technology (defence + EMS, hyper-growth)
+    # Defence electronics PSU (Day-107d cohort — secular defence capex
+    # tailwind makes BEL fit the cap-goods 7y WC-smoothed FCF anchor
+    # better than the financial sector default).
+    "BEL",           # Bharat Electronics (PSU, defence electronics)
     # Adjacent (engine OEMs, gearbox, motors)
     "GREAVESCOT",    # Greaves Cotton
 }
@@ -1420,6 +1424,101 @@ CAPITAL_GOODS_REGIME_CHANGE: dict[str, int] = {
 CAPITAL_GOODS_HYPER_GROWTH: set[str] = {
     "KAYNES",
 }
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Day-107d (2026-05-23): Capital Goods / E&C sector cohort overrides
+# ─────────────────────────────────────────────────────────────────────
+# Three sub-buckets layered on the existing cap-goods engine
+# (`is_capital_goods`, `CAPITAL_GOODS_TICKERS`, 7y WC-smoothed FCF,
+#  KAYNES hyper-growth fade). The cohorts differentiate by terminal
+# growth and WACC treatment — order-book-heavy defence + power-T&D
+# names carry secular India-capex tailwinds, general E&C names sit at
+# steady-state nominal-growth, and PSU legacy thermal-power names
+# carry execution + governance discount.
+#
+# Sub-segment terminal-growth anchors (FLOOR — only lift if lower):
+#   - DEFENSE_POWER_TD  : 0.045  (BEL, ABB, SIEMENS — defence orders,
+#                                 power-T&D capex, secular tailwind)
+#   - GENERAL_EPC       : 0.040  (LT, KEC, THERMAX, CUMMINSIND,
+#                                 VOLTAS, BLUESTARCO, KIRLOSKAR,
+#                                 GRINDWELL — nominal India-GDP CAGR)
+#   - PSU_LEGACY        : 0.035  (BHEL — regime-change post-2023 but
+#                                 commodity-linked thermal-power tail)
+#
+# FLOOR semantics: only LIFT terminal_g if it would otherwise land
+# below the sub-segment anchor. KAYNES hyper-growth fade output is
+# left untouched.
+#
+# Reference EBIT-margin medians (3y; cap-goods margins swing 200-
+# 400bps year-on-year with project mix so 3y median anchors steady-
+# state better than trailing):
+#   - LT:       ~10.5-11.5%   (E&C heavy + IT-services mix)
+#   - SIEMENS:  ~11-13%       (post Siemens-Energy demerger, premium)
+#   - BHEL:     ~3-5%         (PSU thermal-power, regime-change tail)
+#   - BEL:      ~24-27%       (defence electronics, premium franchise)
+# 3y EBIT median normalisation is implemented inside the cap-goods
+# 7y FCF branch already; cohort tables below pin TG / WACC by sub-
+# segment.
+#
+# BHEL-specific WACC penalty: +50bps on top of CAPM output (post-clip)
+# reflecting (a) PSU governance discount, (b) thermal-power orderbook
+# execution risk, (c) project receivables that aren't captured by
+# working-capital WACC adjustments inside the model.
+#
+# Order-book-as-revenue-signal lift (originally specified at
+# +100-200bps if order_book/TTM_revenue > 2.0) is DEFERRED to Phase 2:
+# the local financial parquet schema doesn't expose an order_book
+# column (Indian filings don't uniformly report it). Implement when
+# the column lands; until then, the secular tailwind for defence /
+# power-T&D names is captured via the 4.5% TG anchor.
+# ─────────────────────────────────────────────────────────────────────
+
+CAPITAL_GOODS_COHORT_DEFENSE_POWER_TD: set[str] = {
+    "BEL",        # Bharat Electronics (defence electronics)
+    "ABB",        # ABB India (T&D + automation)
+    "SIEMENS",    # Siemens India (post Energy demerger; T&D + automation)
+}
+
+CAPITAL_GOODS_COHORT_GENERAL_EPC: set[str] = {
+    "LT",            # Larsen & Toubro (E&C + tech-services hybrid)
+    "KEC",           # KEC International (T&D EPC, project-execution)
+    "THERMAX",       # boilers + utility-plant engineering
+    "CUMMINSIND",    # Cummins India (gen-sets, engines)
+    "VOLTAS",        # MEP / commercial cooling (hybrid durable)
+    "BLUESTARCO",    # commercial refrigeration (hybrid durable)
+    "KIRLOSKAR",     # KIRLOSKARIND parent / engines (alias)
+    "KIRLOSKARIND",  # Kirloskar Industries
+    "KIRLOSKAROIL",  # Kirloskar Oil Engines
+    "GRINDWELL",     # Grindwell Norton (abrasives industrial consumable)
+}
+
+CAPITAL_GOODS_COHORT_PSU_LEGACY: set[str] = {
+    "BHEL",
+}
+
+
+# BHEL-specific incremental WACC penalty (bps) layered on top of CAPM
+# output AFTER the standard clip. Reflects PSU governance + project
+# receivables execution risk that isn't otherwise captured.
+CAPITAL_GOODS_BHEL_WACC_PENALTY_BPS: int = 50
+
+
+# Sub-segment terminal-growth floors. Order: DEFENSE > EPC > PSU_LEGACY
+# (defence wins if a ticker is in multiple buckets — shouldn't happen
+# in the curated lists today, but precedence matters).
+CAPITAL_GOODS_COHORT_TG_FLOORS: dict[str, float] = {
+    "defense_power_td": 0.045,
+    "general_epc":      0.040,
+    "psu_legacy":       0.035,
+}
+
+
+# Single-project concentration threshold for the data_limited flag. If
+# `>30%` of revenue comes from a single project / contract, the cap-
+# goods cohort flags the row data_limited unless segment-level data
+# is available.
+CAPITAL_GOODS_SINGLE_PROJECT_CONCENTRATION_THRESHOLD: float = 0.30
 
 
 def is_capital_goods(
