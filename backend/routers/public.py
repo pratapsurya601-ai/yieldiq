@@ -1770,7 +1770,11 @@ async def get_ticker_news(ticker: str, days: int = Query(default=14, ge=1, le=60
 # affordance instead of a hard error.
 # ─────────────────────────────────────────────────────────────────
 @router.get("/concalls/{ticker}")
-async def get_ticker_concalls(ticker: str, limit: int = Query(default=12, ge=1, le=50)):
+async def get_ticker_concalls(
+    ticker: str,
+    background_tasks: BackgroundTasks,
+    limit: int = Query(default=12, ge=1, le=50),
+):
     full = (ticker or "").upper().strip()
     if not full:
         raise HTTPException(status_code=400, detail="ticker required")
@@ -1780,13 +1784,26 @@ async def get_ticker_concalls(ticker: str, limit: int = Query(default=12, ge=1, 
         return _cached_json(cached, s_maxage=3600, swr=7200)
     try:
         from backend.services.concall_service import list_concalls
-        items = list_concalls(full, limit=limit)
+        # Day-104b: pass BackgroundTasks through so list_concalls can
+        # enqueue lazy AI-summary populates for rows that haven't been
+        # summarised yet. The current request still returns
+        # ai_summary: None for those rows; the next request picks up
+        # the cached summary once the worker finishes.
+        items = list_concalls(full, limit=limit, background_tasks=background_tasks)
         result = {
             "ticker": full,
             "count": len(items),
             "concalls": items,
         }
-        cache.set(cache_key, result, ttl=3600)
+        # Only cache when every row has a populated summary — otherwise
+        # we'd serve a stale "all-None" response for an hour and the
+        # populated values would be invisible until the cache expires.
+        all_summarised = all(
+            (it.get("ai_summary") is not None) or not it.get("source_url")
+            for it in items
+        )
+        if all_summarised:
+            cache.set(cache_key, result, ttl=3600)
         return _cached_json(result, s_maxage=3600, swr=7200)
     except Exception as exc:
         logger.warning(f"concalls fetch failed for {full}: {exc}")
