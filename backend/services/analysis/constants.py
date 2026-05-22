@@ -965,6 +965,34 @@ _DAY3_SECTOR_FIXES: dict[str, str] = {
     "SANOFI":      "Pharma",
     "ZYDUSWELL":   "Pharma",
     "DIVISLAB":    "Pharma",
+
+    # Day-93 (2026-05-22): metals & mining sector mistags. Audit #4
+    # caught HINDZINC (pure-play zinc miner) rendering with a non-metals
+    # sector — yfinance classifies most Indian metal/mining tickers as
+    # generic "Financial Services" / "Industrials" because Vedanta and
+    # the PSU mining names dominate via holdco structures. The cohort
+    # routing engine needs "Metals & Mining" to apply cyclical
+    # normalisation (CYCLICAL_TICKERS at L280 already enumerates these,
+    # but sector-level facet / story-DCF routing keys off the resolved
+    # sector string). SECTOR_OVERRIDES at L794 maps "Steel" -> "Metals
+    # & Mining" so the cyclicals stay coherent.
+    "HINDZINC":    "Metals & Mining",   # Hindustan Zinc (Vedanta sub, pure-play zinc/lead/silver miner)
+    "HINDCOPPER":  "Metals & Mining",   # Hindustan Copper (PSU copper miner)
+    "HINDALCO":    "Metals & Mining",   # Aditya Birla aluminium + copper
+    "VEDL":        "Metals & Mining",   # Vedanta holdco (zinc + aluminium + oil)
+    "NATIONALUM":  "Metals & Mining",   # NALCO (PSU aluminium)
+    "TATASTEEL":   "Metals & Mining",   # integrated steel
+    "JSWSTEEL":    "Metals & Mining",   # integrated steel
+    "JINDALSTEL":  "Metals & Mining",   # Jindal Steel & Power
+    "SAIL":        "Metals & Mining",   # Steel Authority of India (PSU)
+    "NMDC":        "Metals & Mining",   # NMDC iron-ore miner (PSU)
+    "MOIL":        "Metals & Mining",   # Manganese Ore (India) — PSU
+    "GMDCLTD":     "Metals & Mining",   # Gujarat Mineral Development
+    "COALINDIA":   "Metals & Mining",   # Coal India (PSU)
+    "WELCORP":     "Metals & Mining",   # Welspun Corp (steel pipes)
+    "RATNAMANI":   "Metals & Mining",   # Ratnamani Metals (steel pipes)
+    "APLAPOLLO":   "Metals & Mining",   # APL Apollo Tubes (steel)
+    "JINDALSAW":   "Metals & Mining",   # Jindal SAW (steel pipes)
 }
 for _t, _sec in _DAY3_SECTOR_FIXES.items():
     TICKER_SECTOR_OVERRIDES[_t] = _sec

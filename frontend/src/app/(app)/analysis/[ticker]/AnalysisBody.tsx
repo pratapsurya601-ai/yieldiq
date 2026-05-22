@@ -182,7 +182,13 @@ function humaniseSource(raw: string | null | undefined): string | null {
   if (lower === "nse" || lower === "nse_live") return "Live (NSE)"
   if (lower === "bse" || lower === "bse_live") return "Live (BSE)"
   if (lower === "nse_xbrl") return "NSE XBRL"
-  if (lower === "yfinance") return "yfinance"
+  // Day-93 (2026-05-22): audit #4 caught INFY rendering "Sources: yfinance"
+  // while 16 sibling stocks showed "YieldIQ database" — same view, two
+  // visibly different label conventions. The underlying data pipeline IS
+  // legitimately different for INFY (ADR cohort, no warm DB record yet),
+  // so we keep the honest disclosure but normalise the PHRASING to match
+  // the "Live (NSE)" / "Live (BSE)" convention already in this map.
+  if (lower === "yfinance") return "Live (yfinance)"
   // Day-64 (2026-05-21): audit caught internal "local_db_parquet" /
   // "local_db" / "supabase_cache" dev-name strings leaking into the
   // footer summary line. Humanise so the user never sees raw
