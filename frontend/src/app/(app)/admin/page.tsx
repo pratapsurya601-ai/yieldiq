@@ -28,6 +28,13 @@ interface AdminStats {
   cache_hit_rate: number
 }
 
+interface DataQualitySummary {
+  green: number
+  yellow: number
+  red: number
+  total_tables: number
+}
+
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
     <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5">
@@ -42,6 +49,7 @@ export default function AdminPage() {
   const { email } = useAuthStore()
   const router = useRouter()
   const [stats, setStats] = useState<AdminStats | null>(null)
+  const [dqSummary, setDqSummary] = useState<DataQualitySummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
 
@@ -66,6 +74,12 @@ export default function AdminPage() {
       .then((r) => setStats(r.data))
       .catch((e) => setError(e?.response?.data?.detail || "Failed to load stats"))
       .finally(() => setLoading(false))
+    // Best-effort fetch of data-quality summary so the nav tile can
+    // show a red-count badge. Silent failure is fine — the tile still
+    // renders, just without the badge.
+    api.get("/api/v1/admin/data-quality/runs")
+      .then((r) => setDqSummary(r.data?.summary || null))
+      .catch(() => setDqSummary(null))
   }, [hydrated, email, router])
 
   if (!hydrated) return null
@@ -171,6 +185,26 @@ export default function AdminPage() {
             <p className="text-sm font-semibold text-ink">Story-DCF overrides</p>
             <p className="text-xs text-caption mt-0.5">
               View + simulate (operator submits PR to change)
+            </p>
+          </a>
+          <a
+            href="/admin/data-quality"
+            data-testid="admin-nav-data-quality"
+            className="rounded-xl border border-gray-100 p-4 hover:border-blue-200 hover:bg-blue-50/40 transition"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-ink">Data quality</p>
+              {dqSummary && dqSummary.red > 0 && (
+                <span
+                  data-testid="admin-nav-dq-badge"
+                  className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-800 border border-red-200"
+                >
+                  {dqSummary.red} red
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-caption mt-0.5">
+              Validator runs per table (green / yellow / red)
             </p>
           </a>
           <a
