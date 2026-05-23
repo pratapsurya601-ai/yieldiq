@@ -1,7 +1,7 @@
 /**
  * Phase J — useSessionTrace hook.
  *
- * Pins the must-hold invariants:
+ * Pins the load-bearing invariants:
  *   1. Anonymous (no token / no userId): hook is a no-op. No fetch
  *      goes out even when trackPageView / trackSearch / trackClick
  *      are called.
