@@ -29,6 +29,7 @@ import FinancialBars from "@/components/analysis/FinancialBars"
 import FairValueHistory from "@/components/analysis/FairValueHistory"
 import FinancialStatements from "@/components/analysis/FinancialStatements"
 import ConcallsPanel from "@/components/analysis/ConcallsPanel"
+import ConcallSignalsPanel from "@/components/concall/ConcallSignalsPanel"
 import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
 import { FormulasProvider } from "@/components/analysis/MetricTooltip"
@@ -855,6 +856,11 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               fcfDataSource={valuation.fcf_data_source}
             />
           </div>
+          {/* Phase G-intel-phase1 (c): structured signals extracted via
+              Anthropic from the latest transcript. Renders ABOVE the
+              free-text ConcallsPanel; renders nothing when no signals
+              exist yet (additive surface — never blocks the page). */}
+          <ConcallSignalsPanel ticker={ticker} />
           {/* Day-103a: concall library with AI-summarised quarterly
               earnings calls. Renders empty state until ingestion lands. */}
           <ConcallsPanel ticker={ticker} />
