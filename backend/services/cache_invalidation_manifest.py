@@ -618,6 +618,28 @@ MANIFEST: list[dict] = [
             "undervalued bypass threshold lowered 50 → 40."
         ),
     },
+    {
+        # Phase C.2 PR 1 (2026-05-25): remove TypeError fallback in
+        # backend/services/analysis/service.py that ran a DIFFERENT
+        # scoring formula (40/30/20 envelopes, no sentiment) than the
+        # canonical compute_yieldiq_score (20/50/20/10). The fallback
+        # is unreachable under realistic inputs post-2026-04-30
+        # hardening — see docs/diagnostics/phase-c-score-formula-
+        # 2026-05-25.md §4 Quirk #2. The new behaviour returns
+        # score=0/grade=D on the (expected-impossible) TypeError path
+        # rather than silently producing a divergent number.
+        #
+        # Scope: ["score"] because the change ONLY affects the score
+        # field, and only in the unreachable TypeError branch. No
+        # canary FV/verdict movement expected.
+        "version_id": "v_phase_c2_remove_typeerror_fallback_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 0, 0, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["score"]},
+        "rationale": (
+            "Phase C.2 PR 1: drop divergent TypeError scoring fallback "
+            "(canonical compute_yieldiq_score is the only score path)."
+        ),
+    },
 ]
 
 
