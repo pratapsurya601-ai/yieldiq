@@ -937,6 +937,28 @@ MANIFEST: list[dict] = [
             "the new rows show up immediately."
         ),
     },
+    {
+        # Migration 063 added 10 nullable JSONB columns to ar_signals
+        # (risk_factors, esg_metrics, governance, workforce_metrics,
+        # customer_concentration, operational_kpis, subsidiary_summary,
+        # dividend_history, capital_actions, strategic_priorities) for
+        # the extended manual-AR template. Backward-compatible -- the
+        # existing 21 loaded rows stay valid with NULL on every new
+        # column. No frontend surfaces these yet, but we invalidate
+        # any cached ar_intel payloads so the moment the top-200 batch
+        # ships and a future panel renders the new fields, no stale
+        # cached row hides them.
+        "version_id": "v_ar_signals_extended_2026_05_24",
+        "applied_at": datetime(2026, 5, 24, 0, 0, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["ar_signals", "ar_intel"]},
+        "rationale": (
+            "Extended ar_signals schema with 10 new JSONB fields "
+            "(risk_factors, esg_metrics, governance, workforce_metrics, "
+            "customer_concentration, operational_kpis, subsidiary_summary, "
+            "dividend_history, capital_actions, strategic_priorities). "
+            "Backward-compatible — existing rows unchanged."
+        ),
+    },
 ]
 
 

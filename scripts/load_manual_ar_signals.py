@@ -90,6 +90,23 @@ _REQUIRED_TOP_KEYS = (
     "auditor_flags", "contingent_liabilities", "management_outlook",
 )
 
+# 10 extended JSONB fields added by migration 063. All OPTIONAL --
+# files written before the schema extension simply omit them and the
+# loader passes NULL into the column. New extractions (top-200 batch)
+# fill any subset the AR actually discloses.
+_EXTENDED_FIELDS = (
+    "risk_factors",
+    "esg_metrics",
+    "governance",
+    "workforce_metrics",
+    "customer_concentration",
+    "operational_kpis",
+    "subsidiary_summary",
+    "dividend_history",
+    "capital_actions",
+    "strategic_priorities",
+)
+
 
 # ---------------------------------------------------------------------------
 # Sanitization helpers (built on ar_intel_service primitives)
@@ -240,6 +257,14 @@ def upsert_signals(
     (so the caller can batch multiple upserts in one transaction)
     and uses the manual model_version / prompt_version constants.
     """
+    # Extended JSONB fields (migration 063). Pass NULL when the
+    # source JSON omits the key so existing 21 rows + old templates
+    # round-trip unchanged.
+    extended_values = tuple(
+        json.dumps(signals[k]) if k in signals and signals[k] is not None else None
+        for k in _EXTENDED_FIELDS
+    )
+
     cur.execute(
         """
         INSERT INTO ar_signals (
@@ -249,9 +274,13 @@ def upsert_signals(
             management_outlook,
             quality_flag,
             model_version, prompt_version,
-            input_tokens, output_tokens, cost_usd
+            input_tokens, output_tokens, cost_usd,
+            risk_factors, esg_metrics, governance, workforce_metrics,
+            customer_concentration, operational_kpis, subsidiary_summary,
+            dividend_history, capital_actions, strategic_priorities
         ) VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
         )
         ON CONFLICT (annual_report_id, model_version, prompt_version)
         DO UPDATE SET
@@ -265,6 +294,16 @@ def upsert_signals(
             input_tokens               = EXCLUDED.input_tokens,
             output_tokens              = EXCLUDED.output_tokens,
             cost_usd                   = EXCLUDED.cost_usd,
+            risk_factors               = EXCLUDED.risk_factors,
+            esg_metrics                = EXCLUDED.esg_metrics,
+            governance                 = EXCLUDED.governance,
+            workforce_metrics          = EXCLUDED.workforce_metrics,
+            customer_concentration     = EXCLUDED.customer_concentration,
+            operational_kpis           = EXCLUDED.operational_kpis,
+            subsidiary_summary         = EXCLUDED.subsidiary_summary,
+            dividend_history           = EXCLUDED.dividend_history,
+            capital_actions            = EXCLUDED.capital_actions,
+            strategic_priorities       = EXCLUDED.strategic_priorities,
             extracted_at               = now()
         """,
         (
@@ -281,6 +320,7 @@ def upsert_signals(
             None,   # input_tokens
             None,   # output_tokens
             0,      # cost_usd
+            *extended_values,
         ),
     )
 
@@ -308,17 +348,51 @@ def sanitize(payload: dict) -> tuple[dict, str, int]:
     # Over threshold -- withhold: blank management_outlook and all
     # free-text 'quote' / 'description' fields, keep numeric scaffolding.
     payload["management_outlook"] = ""
+    _FREE_TEXT_FIELDS = (
+        "quote", "description", "purpose", "drivers", "nature",
+        "outlook", "commentary", "notes", "qualification",
+    )
+
+    def _blank_in_dict(d: dict) -> None:
+        for fld in _FREE_TEXT_FIELDS:
+            if fld in d and isinstance(d[fld], str):
+                d[fld] = ""
+
+    # Original 5 list-of-dict sections.
     for key in ("segment_data", "capex_commitments",
                 "related_party_transactions", "auditor_flags",
                 "contingent_liabilities"):
         items = payload.get(key) or []
         for item in items:
             if isinstance(item, dict):
-                for fld in ("quote", "description", "purpose",
-                            "drivers", "nature", "outlook",
-                            "commentary", "notes", "qualification"):
-                    if fld in item and isinstance(item[fld], str):
-                        item[fld] = ""
+                _blank_in_dict(item)
+
+    # Extended list-of-dict sections (migration 063): risk_factors,
+    # subsidiary_summary, dividend_history, capital_actions,
+    # strategic_priorities all have the same shape -- list of dicts
+    # where any free-text leaf gets blanked.
+    for key in ("risk_factors", "subsidiary_summary", "dividend_history",
+                "capital_actions", "strategic_priorities"):
+        items = payload.get(key) or []
+        if isinstance(items, list):
+            for item in items:
+                if isinstance(item, dict):
+                    _blank_in_dict(item)
+
+    # Extended dict-shaped sections: blank the top-level free-text
+    # leaves (usually just `note`) and recurse into any nested
+    # arrays of dicts (e.g. customer_concentration.geographic_split).
+    for key in ("esg_metrics", "governance", "workforce_metrics",
+                "customer_concentration", "operational_kpis"):
+        obj = payload.get(key)
+        if isinstance(obj, dict):
+            _blank_in_dict(obj)
+            for nested in obj.values():
+                if isinstance(nested, list):
+                    for item in nested:
+                        if isinstance(item, dict):
+                            _blank_in_dict(item)
+
     return payload, "sebi_withheld", n
 
 
