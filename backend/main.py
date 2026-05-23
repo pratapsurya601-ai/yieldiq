@@ -979,6 +979,14 @@ app.include_router(sectors_router.router)
 from backend.routers import incidents as incidents_router
 app.include_router(incidents_router.router)
 
+# Phase J — session-observation harness. POST /api/v1/internal/session-trace
+# accepts batched UI events from useSessionTrace on auth'd sessions;
+# GET /api/v1/admin/session-traces surfaces them for admin replay during
+# launch-week debugging. No PII, no form contents.
+from backend.routers import internal as internal_router
+app.include_router(internal_router.router)
+app.include_router(internal_router.admin_router)
+
 
 @app.get("/health")
 async def health_check():
