@@ -925,18 +925,20 @@ def collect_state(
 
     Pool sizing:
       - The requests Session above is configured pool_maxsize=10.
-      - We use 8 worker threads to stay under that bound (each worker can
-        be mid-flight on at most one connection, leaving 2 slots for the
-        urllib3 Retry replays).
-      - Override via CANARY_FETCH_WORKERS env var if a CI runner needs to
-        throttle further (e.g. set to 4 if /og-data starts rate-limiting).
+      - We use 4 worker threads — production /og-data started returning
+        HTTP 503 on ~6% of requests when we tried 8 workers in CI
+        (observed 2026-05-23 on PR #598 first run). 4 workers keeps the
+        canary fast (~5min for 333 stocks vs ~12min sequential) without
+        triggering API rate-limiting / load shed.
+      - Override via CANARY_FETCH_WORKERS env var. Set to 1 for the
+        nightly cron if we ever care about exact-time-of-day determinism.
 
     Ordering: the input ``stocks`` order is preserved in the returned
     dict (insertion-order via the futures dict), so any downstream code
     that iterates state in stock order keeps the same behaviour.
     """
     import concurrent.futures as _f
-    workers = max(1, int(os.environ.get("CANARY_FETCH_WORKERS", "8")))
+    workers = max(1, int(os.environ.get("CANARY_FETCH_WORKERS", "4")))
     state: dict[str, dict] = {spec["symbol"]: {} for spec in stocks}
     total = len(stocks)
     completed = 0
