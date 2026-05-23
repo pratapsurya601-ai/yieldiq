@@ -292,6 +292,89 @@ def test_db_loader_returns_none_when_database_url_unset(monkeypatch):
     assert load_peer_groups_sample() is None
 
 
+def test_db_loader_ratio_history_uses_settled_period_for_null_sample():
+    """Regression for GH issue #546: ratio_history's pe_ratio null-rate
+    sample must lock onto the latest *settled* period_end (>=80% of
+    active universe covered), NOT MAX(period_end).
+
+    Scenario: active universe is 2000 tickers. Two period_ends exist:
+      - 2026-03-31: 1900 rows  (settled — past filing deadline)
+      - 2026-06-30: 100 rows   (cold — only early filers have reported)
+
+    Before the fix the loader picked 2026-06-30 and saw a ~95% null
+    rate because most rows weren't built yet. After the fix it picks
+    2026-03-31 (>=1600 rows = 80% of 2000) and the null rate reflects
+    the real populator quality.
+    """
+    from backend.services.data_quality.db_loaders_a2 import (
+        load_ratio_history_sample,
+    )
+    from backend.services.data_quality.validators.ratio_history import (
+        HDFCBANK_BANDS,
+    )
+    from datetime import date
+
+    queue: list[Any] = [
+        # _columns_of fetchall
+        [("ticker",), ("period_end",), ("period_type",),
+         ("pe_ratio",), ("pb_ratio",), ("roe",), ("de_ratio",)],
+        (50_000,),            # row_count
+        (49_500,),            # prior_row_count
+        (_NOW,),              # last_update
+        (2_000,),             # active_universe (NEW)
+        (date(2026, 3, 31),), # settled period (NEW)
+        (1_900,),             # pe_sample_size
+        (190,),               # pe_null_count -> 10% null rate
+        (400,),               # de_null_count -> 21% null rate
+    ]
+    for _ in HDFCBANK_BANDS:
+        queue.append((20.0,))  # plausible value per band
+
+    sample = load_ratio_history_sample(conn_factory=lambda: _ScriptedConn(queue))
+    assert sample is not None
+    assert sample.pe_sample_size == 1900
+    assert sample.pe_null_count == 190
+    assert sample.de_null_count == 400
+    # And the column we sampled is the settled period, not "max".
+    # (We verify behaviour via the sample, since the loader doesn't
+    # expose period_end; the queue ordering would explode if MAX(...)
+    # had been called.)
+
+
+def test_db_loader_ratio_history_falls_back_to_max_when_no_settled_period():
+    """Cold-start path: when no period_end has >=80% coverage (e.g.
+    a freshly seeded test DB), the loader falls back to MAX(period_end)
+    so the validator still produces a result instead of crashing."""
+    from backend.services.data_quality.db_loaders_a2 import (
+        load_ratio_history_sample,
+    )
+    from backend.services.data_quality.validators.ratio_history import (
+        HDFCBANK_BANDS,
+    )
+    from datetime import date
+
+    queue: list[Any] = [
+        [("ticker",), ("period_end",), ("period_type",),
+         ("pe_ratio",), ("pb_ratio",), ("roe",), ("de_ratio",)],
+        (100,),               # row_count
+        (50,),                # prior_row_count
+        (_NOW,),              # last_update
+        (2_000,),             # active_universe -> threshold = 1600
+        (None,),              # no period meets the >=1600 threshold
+        (date(2026, 6, 30),), # MAX(period_end) fallback
+        (50,),                # pe_sample_size
+        (40,),                # pe_null_count (high — cold-start signal)
+        (45,),                # de_null_count
+    ]
+    for _ in HDFCBANK_BANDS:
+        queue.append((20.0,))
+
+    sample = load_ratio_history_sample(conn_factory=lambda: _ScriptedConn(queue))
+    assert sample is not None
+    assert sample.pe_sample_size == 50
+    assert sample.pe_null_count == 40
+
+
 def test_db_loader_peer_groups_via_fake_conn():
     """End-to-end: scripted fake conn drives the peer_groups loader.
 
