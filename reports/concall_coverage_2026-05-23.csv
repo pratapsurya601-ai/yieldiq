@@ -1,0 +1,343 @@
+ticker,company_name,sector,industry,mcap_cr,bse_code,in_canary,in_top200,total,in_1y,in_5y,with_summary,withheld,with_text,oldest,newest
+360ONE,360 ONE WAM LIMITED,Financial Services,Asset Management,45444.12,542772,True,False,16,16,16,0,0,0,2026-01-05,2026-05-11
+3MINDIA,3M India Limited,Industrials,Conglomerates,37585.91,523395,True,False,2,2,2,0,0,0,2026-03-09,2026-03-11
+ABB,ABB India Limited,Energy,Nifty Energy,155297.04,500002,True,True,8,8,8,0,0,0,2026-02-02,2026-05-15
+ABBOTINDIA,Abbott India Limited,Pharma,Nifty Pharma,59370.55,500488,True,True,0,0,0,0,0,0,,
+ABCAPITAL,Aditya Birla Capital Limited,Financial Services,Financial Conglomerates,95111.86,540691,True,True,15,15,15,0,0,0,2026-01-29,2026-05-08
+ABSLAMC,Aditya Birla Sun Life AMC Limited,Financial Services,Asset Management,31002.69,543374,True,False,12,12,12,0,0,0,2026-01-08,2026-05-12
+ACC,ACC Limited,Basic Materials,Building Materials,26894.89,500410,True,False,18,18,18,0,0,0,2026-01-13,2026-05-13
+ADANIENSOL,Adani Energy Solutions Limited,Energy,Nifty Energy,169615.1,539254,True,True,8,8,8,0,0,0,2026-01-23,2026-05-06
+ADANIENT,Adani Enterprises Limited,Metal,Nifty Metal,372348.47,512599,True,True,12,12,12,0,0,0,2026-01-20,2026-05-07
+ADANIGREEN,Adani Green Energy Limited,Energy,Nifty Energy,227145.6,541450,True,True,10,10,10,0,0,0,2026-01-23,2026-05-16
+ADANIPORTS,Adani Ports and Special Economic Zone Limited,Industrials,Marine Shipping,412639.06,532921,True,True,11,11,11,0,0,0,2026-01-19,2026-05-06
+ADANIPOWER,Adani Power Limited,Energy,Nifty Energy,434542.03,533096,True,True,15,15,15,0,0,0,2026-01-21,2026-05-06
+AEGISLOG,Aegis Logistics Limited,Energy,Nifty Energy,25529.98,500003,True,False,8,8,8,0,0,0,2026-01-27,2026-02-18
+AIAENG,AIA Engineering Limited,Industrials,Specialty Industrial Machinery,38012.19,532683,True,False,4,4,4,0,0,0,2026-01-23,2026-02-02
+AIIL,Authum Investment & Infrastructure Limited,Financial Services,Capital Markets,42928.35,539177,True,False,0,0,0,0,0,0,,
+AJANTPHARM,Ajanta Pharma Limited,Pharma,Nifty Pharma,39694.55,532331,True,False,8,8,8,0,0,0,2026-01-12,2026-05-08
+AKZOINDIA,Akzo Nobel India Limited,,,13601.98,,True,False,0,0,0,0,0,0,,
+ALKEM,Alkem Laboratories Limited,Pharma,Nifty Pharma,67578.14,539523,True,True,13,13,13,0,0,0,2025-12-23,2026-03-20
+AMBER,Amber Enterprises India Limited,Consumer Cyclical,"Furnishings, Fixtures & Appliances",31079.68,540902,True,False,13,13,13,0,0,0,2026-02-04,2026-05-16
+AMBUJACEM,Ambuja Cements Limited,Basic Materials,Building Materials,114090.38,500425,True,True,19,19,19,0,0,0,2026-01-13,2026-05-13
+ANANDRATHI,Anand Rathi Wealth Limited,Financial Services,Asset Management,30691.9,543415,True,False,14,14,14,0,0,0,2026-01-05,2026-05-06
+ANANTRAJ,Anant Raj Limited,Real Estate,Nifty Realty,20183.7,515055,True,False,8,8,8,0,0,0,2026-01-22,2026-05-13
+ANGELONE,Angel One Limited,Financial Services,Capital Markets,29731.16,543235,True,False,9,9,9,0,0,0,2026-01-15,2026-05-06
+ANTHEM,Anthem Biosciences Limited,Pharma,Biotechnology,44074.88,544449,True,False,5,5,5,0,0,0,2026-01-27,2026-05-12
+APARINDS,Apar Industries Limited,Industrials,Electrical Equipment & Parts,51455.61,532259,True,True,6,6,6,0,0,0,2026-01-19,2026-05-07
+APLAPOLLO,APL Apollo Tubes Limited,Metal,Nifty Metal,58644.23,533758,True,True,8,8,8,0,0,0,2026-01-15,2026-05-06
+APOLLOHOSP,Apollo Hospitals Enterprise Limited,Pharma,Medical Care Facilities,116537.47,508869,True,True,6,6,6,0,0,0,2026-01-30,2026-05-16
+APOLLOTYRE,Apollo Tyres Limited,Consumer Cyclical,Auto Parts,28208.15,500877,True,False,7,7,7,0,0,0,2026-01-23,2026-05-15
+ASHOKLEY,Ashok Leyland Limited,Auto,Nifty Auto,102663.23,500477,True,True,4,4,4,0,0,0,2026-02-03,2026-02-19
+ASIANPAINT,Asian Paints Limited,Basic Materials,Specialty Chemicals,250110.31,500820,True,True,5,5,5,0,0,0,2026-01-27,2026-02-18
+ASTERDM,Aster DM Healthcare Limited,Pharma,Medical Care Facilities,38958.92,540975,True,False,15,15,15,0,0,0,2026-01-03,2026-05-15
+ASTRAL,Astral Limited,Industrials,Building Products & Equipment,43763.11,532830,True,False,9,9,9,0,0,0,2026-01-29,2026-05-07
+ASTRAZEN,AstraZeneca Pharma India Limited,Pharma,Drug Manufacturers - Specialty & Generic,21812.5,506820,True,False,1,1,1,0,0,0,2026-01-16,2026-01-16
+ATGL,Adani Total Gas Limited,Energy,Nifty Energy,69826.94,542066,True,True,5,5,5,0,0,0,2026-01-15,2026-05-05
+AUBANK,AU Small Finance Bank Limited,Bank,Nifty Bank,79748.86,540611,True,True,13,13,13,0,0,0,2026-01-07,2026-05-13
+AUROPHARMA,Aurobindo Pharma Limited,Pharma,Nifty Pharma,87805.59,524804,True,True,10,10,10,0,0,0,2026-01-08,2026-05-14
+AWL,AWL Agri Business Limited,Consumer Defensive,Packaged Foods,26752.72,543458,True,False,13,13,13,0,0,0,2026-01-29,2026-05-05
+AXISBANK,Axis Bank Limited,Bank,Nifty Private Bank,425545.41,532215,True,True,38,38,38,0,0,0,2026-01-16,2026-05-12
+BAJAJ-AUTO,Bajaj Auto Limited,Auto,Nifty Auto,298723.02,532977,True,True,8,8,8,0,0,0,2026-01-14,2026-05-12
+BAJAJFINSV,Bajaj Finserv Limited,Financial Services,Nifty Financial Services,293763.76,532978,True,True,10,10,10,0,0,0,2026-01-23,2026-05-08
+BAJAJHFL,Bajaj Housing Finance Limited,Financial Services,Mortgage Finance,76623.69,544252,True,True,11,11,11,0,0,0,2026-01-14,2026-05-11
+BAJAJHLDNG,Bajaj Holdings & Investment Limited,Financial Services,Asset Management,118327.27,500490,True,True,0,0,0,0,0,0,,
+BAJFINANCE,Bajaj Finance Limited,Financial Services,Nifty Financial Services,593496.32,500034,True,True,10,10,10,0,0,0,2026-01-14,2026-05-13
+BALKRISIND,Balkrishna Industries Limited,Consumer Cyclical,Auto Parts,45039.04,502355,True,False,8,8,8,0,0,0,2026-01-16,2026-05-14
+BANDHANBNK,Bandhan Bank Limited,Bank,Nifty Private Bank,33203.88,541153,True,False,18,18,18,0,0,0,2026-01-16,2026-05-05
+BANKBARODA,Bank of Baroda,Bank,Nifty PSU Bank,145025.69,532134,True,True,7,7,7,0,0,0,2026-01-23,2026-05-14
+BANKINDIA,Bank of India,Bank,Nifty PSU Bank,67593.46,532149,True,True,17,17,17,0,0,0,2025-12-23,2026-05-15
+BDL,Bharat Dynamics Limited,Industrials,Aerospace & Defense,53100.24,541143,True,True,0,0,0,0,0,0,,
+BEL,Bharat Electronics Limited,Industrials,Aerospace & Defense,338260.03,500049,True,True,4,4,4,0,0,0,2026-01-21,2026-05-15
+BEML,BEML Limited,Industrials,Conglomerates,16248.85,500048,True,False,3,3,3,0,0,0,2026-02-09,2026-02-23
+BERGEPAINT,Berger Paints (I) Limited,Basic Materials,Specialty Chemicals,62054.67,509480,True,True,11,11,11,0,0,0,2026-01-29,2026-05-14
+BHARATFORG,Bharat Forge Limited,Auto,Nifty Auto,95125.29,500493,True,True,12,12,12,0,0,0,2026-02-05,2026-05-11
+BHARTIARTL,Bharti Airtel Limited,Communication Services,Telecom Services,1160669.09,532454,True,True,11,11,11,0,0,0,2026-01-27,2026-05-14
+BHARTIHEXA,Bharti Hexacom Limited,Communication Services,Telecom Services,78115.0,544162,True,True,9,9,9,0,0,0,2026-01-27,2026-05-14
+BHEL,Bharat Heavy Electricals Limited,Energy,Nifty Energy,140884.29,500103,True,True,0,0,0,0,0,0,,
+BIOCON,Biocon Limited,Pharma,Nifty Pharma,69647.44,532523,True,True,12,12,12,0,0,0,2026-02-13,2026-05-14
+BLUESTARCO,Blue Star Limited,Industrials,Building Products & Equipment,38896.07,500067,True,False,13,13,13,0,0,0,2026-01-22,2026-05-12
+BOSCHLTD,Bosch Limited,Auto,Nifty Auto,112503.49,500530,True,True,9,9,9,0,0,0,2026-01-29,2026-05-11
+BPCL,Bharat Petroleum Corporation Limited,Energy,Nifty Energy,135882.0,500547,True,True,3,3,3,0,0,0,2026-01-24,2026-05-15
+BRIGADE,Brigade Enterprises Limited,Real Estate,Nifty Realty,19232.38,532929,True,False,15,15,15,0,0,0,2026-01-09,2026-05-12
+BRITANNIA,Britannia Industries Limited,FMCG,Nifty FMCG,138234.31,500825,True,True,12,12,12,0,0,0,2026-02-04,2026-05-15
+BSE,BSE Limited,Financial Services,Nifty Financial Services,162476.01,532123,True,True,25,25,25,0,0,0,2026-01-07,2026-05-15
+CAMS,Computer Age Management Services Limited,IT Services,Information Technology Services,20738.94,543232,True,False,25,25,25,0,0,0,2025-12-23,2026-05-12
+CANBK,Canara Bank,Bank,Nifty PSU Bank,129510.76,532483,True,True,8,8,8,0,0,0,2026-01-21,2026-05-14
+CASTROLIND,Castrol India Limited,Energy,Nifty Energy,18330.42,500870,True,False,7,7,7,0,0,0,2026-01-28,2026-05-04
+CDSL,Central Depository Services (India) Limited,Financial Services,Capital Markets,29117.88,511194,True,False,14,14,14,0,0,0,2025-12-22,2026-05-07
+CENTRALBK,Central Bank of India,Bank,Nifty PSU Bank,33046.67,532885,True,False,10,10,10,0,0,0,2026-01-12,2026-05-08
+CESC,CESC Limited,Energy,Nifty Energy,24920.72,500084,True,False,2,2,2,0,0,0,2026-02-02,2026-02-16
+CGPOWER,CG Power and Industrial Solutions Limited,Energy,Nifty Energy,137587.47,500093,True,True,11,11,11,0,0,0,2025-12-23,2026-05-12
+CHOLAFIN,Cholamandalam Investment and Finance Company Limited,Financial Services,Nifty Financial Services,142423.41,511243,True,True,11,11,11,0,0,0,2025-12-23,2026-05-11
+CHOLAHLDNG,Cholamandalam Financial Holdings Limited,Financial Services,Credit Services,33437.53,504973,True,False,8,8,8,0,0,0,2026-02-02,2026-05-15
+CIPLA,Cipla Limited,Pharma,Nifty Pharma,115410.47,500087,True,True,10,10,10,0,0,0,2026-01-09,2026-05-15
+COALINDIA,Coal India Limited,Energy,Nifty Energy,296797.0,533278,True,True,2,2,2,0,0,0,2026-03-03,2026-03-05
+COCHINSHIP,Cochin Shipyard Limited,Industrials,Aerospace & Defense,46741.56,540678,True,False,0,0,0,0,0,0,,
+COFORGE,Coforge Limited,IT Services,Nifty IT,58655.43,532541,True,True,11,11,11,0,0,0,2025-12-22,2026-05-12
+COLPAL,Colgate Palmolive (India) Limited,FMCG,Nifty FMCG,59665.49,500830,True,True,0,0,0,0,0,0,,
+CONCOR,Container Corporation of India Limited,Industrials,Railroads,40727.52,531344,True,False,8,8,8,0,0,0,2026-01-19,2026-05-05
+COROMANDEL,Coromandel International Limited,Basic Materials,Agricultural Inputs,61702.24,506395,True,True,9,9,9,0,0,0,2026-01-27,2026-05-15
+CREDITACC,CREDITACCESS GRAMEEN LIMITED,Financial Services,Credit Services,23963.98,541770,True,False,17,17,17,0,0,0,2026-01-13,2026-05-15
+CRISIL,CRISIL Limited,Financial Services,Financial Data & Stock Exchanges,31731.2,500092,True,False,5,5,5,0,0,0,2026-02-13,2026-04-24
+CROMPTON,Crompton Greaves Consumer Electricals Limited,Consumer Cyclical,"Furnishings, Fixtures & Appliances",19725.58,539876,True,False,11,11,11,0,0,0,2026-01-19,2026-05-13
+CUB,City Union Bank Limited,Financial Services,Banks - Regional,20063.44,532210,True,False,14,14,14,0,0,0,2026-01-28,2026-05-04
+CUMMINSIND,Cummins India Limited,Industrials,Specialty Industrial Machinery,149715.72,500480,True,True,8,8,8,0,0,0,2026-01-27,2026-05-16
+DABUR,Dabur India Limited,FMCG,Nifty FMCG,86378.71,500096,True,True,11,11,11,0,0,0,2026-01-15,2026-05-12
+DALBHARAT,Dalmia Bharat Limited,Basic Materials,Building Materials,37070.81,542216,True,False,6,6,6,0,0,0,2026-01-13,2026-05-01
+DEVYANI,Devyani International Limited,Consumer Cyclical,Restaurants,15430.24,543330,True,False,14,14,14,0,0,0,2026-01-01,2026-05-15
+DIVISLAB,Divi's Laboratories Limited,Pharma,Nifty Pharma,179403.66,532488,True,True,4,4,4,0,0,0,2026-02-03,2026-05-15
+DIXON,Dixon Technologies (India) Limited,IT Services,Consumer Electronics,69037.02,540699,True,True,35,35,35,0,0,0,2025-12-23,2026-05-15
+DLF,DLF Limited,Real Estate,Nifty Realty,150560.83,532868,True,True,9,9,9,0,0,0,2026-01-19,2026-05-14
+DMART,Avenue Supermarts Limited,Consumer Defensive,Discount Stores,302199.97,540376,True,True,0,0,0,0,0,0,,
+DRREDDY,Dr. Reddy's Laboratories Limited,Pharma,Nifty Pharma,111834.13,500124,True,True,11,11,11,0,0,0,2026-01-08,2026-05-12
+EICHERMOT,Eicher Motors Limited,Auto,Nifty Auto,200660.84,505200,True,True,4,4,4,0,0,0,2026-02-03,2026-02-16
+EMAMILTD,Emami Limited,FMCG,Nifty FMCG,20085.55,531162,True,False,9,9,9,0,0,0,2026-01-07,2026-05-14
+EMCURE,Emcure Pharmaceuticals Limited,Pharma,Drug Manufacturers - Specialty & Generic,32323.12,544210,True,False,9,9,9,0,0,0,2026-01-22,2026-05-11
+ENDURANCE,Endurance Technologies Limited,Consumer Cyclical,Auto Parts,35847.93,540153,True,False,7,7,7,0,0,0,2026-02-03,2026-05-15
+ENRIN,Siemens Energy India Limited,Energy,Nifty Energy,116807.53,544390,True,True,3,3,3,0,0,0,2026-05-12,2026-05-15
+ERIS,Eris Lifesciences Limited,Pharma,Drug Manufacturers - Specialty & Generic,20127.51,540596,True,False,10,10,10,0,0,0,2026-02-06,2026-05-15
+ESCORTS,Escorts Kubota Limited,Industrials,Farm & Heavy Construction Machinery,36253.23,500495,True,False,21,21,21,0,0,0,2026-01-02,2026-05-13
+ETERNAL,ETERNAL LIMITED,Consumer Cyclical,Internet Retail,236089.95,543320,True,True,4,4,4,0,0,0,2026-01-15,2026-05-06
+EXIDEIND,Exide Industries Limited,Auto,Nifty Auto,30791.25,500086,True,False,9,9,9,0,0,0,2026-01-28,2026-05-11
+FACT,Fertilizers and Chemicals Travancore Limited,Basic Materials,Agricultural Inputs,58676.49,590024,True,True,0,0,0,0,0,0,,
+FEDERALBNK,The Federal Bank  Limited,Bank,Nifty Private Bank,73281.56,500469,True,True,29,29,29,0,0,0,2026-01-03,2026-05-14
+FORCEMOT,FORCE MOTORS LTD,Consumer Cyclical,Auto Manufacturers,29485.84,500033,True,False,0,0,0,0,0,0,,
+FORTIS,Fortis Healthcare Limited,Pharma,Medical Care Facilities,72751.55,532843,True,True,8,8,8,0,0,0,2026-01-07,2026-05-15
+GAIL,GAIL (India) Limited,Energy,Nifty Energy,109468.5,532155,True,True,6,6,6,0,0,0,2026-01-23,2026-05-15
+GESHIP,The Great Eastern Shipping Company Limited,Industrials,Marine Shipping,22675.71,500620,True,False,9,9,9,0,0,0,2026-01-21,2026-05-15
+GICRE,General Insurance Corporation of India,Financial Services,Insurance - Reinsurance,70246.18,540755,True,True,5,5,5,0,0,0,2026-02-03,2026-02-24
+GILLETTE,Gillette India Limited,Consumer Defensive,Household & Personal Products,26550.43,507815,True,False,0,0,0,0,0,0,,
+GLAND,Gland Pharma Limited,Pharma,Nifty Pharma,31376.21,543245,True,False,16,16,16,0,0,0,2026-01-09,2026-05-15
+GLAXO,GlaxoSmithKline Pharmaceuticals Limited,Pharma,Drug Manufacturers - General,41960.18,500660,True,False,8,8,8,0,0,0,2026-02-03,2026-05-13
+GLENMARK,Glenmark Pharmaceuticals Limited,Pharma,Nifty Pharma,67728.19,532296,True,True,5,5,5,0,0,0,2026-01-22,2026-02-04
+GMDCLTD,Gujarat Mineral Development Corporation Limited,Energy,Thermal Coal,23436.6,532181,True,False,0,0,0,0,0,0,,
+GMRAIRPORT,GMR AIRPORTS LIMITED,Industrials,Airports & Air Services,106983.54,532754,False,True,7,7,7,0,0,0,2026-02-11,2026-04-07
+GODFRYPHLP,Godfrey Phillips India Limited,Consumer Defensive,Tobacco,37824.01,500163,True,False,0,0,0,0,0,0,,
+GODIGIT,Go Digit General Insurance Limited,Financial Services,Insurance - Property & Casualty,29586.43,544179,True,False,16,16,16,0,0,0,2025-12-24,2026-05-14
+GODREJCP,Godrej Consumer Products Limited,FMCG,Nifty FMCG,113518.76,532424,True,True,11,11,11,0,0,0,2026-01-06,2026-05-13
+GODREJIND,Godrej Industries Limited,Industrials,Conglomerates,41031.25,500164,True,False,0,0,0,0,0,0,,
+GODREJPROP,Godrej Properties Limited,Real Estate,Nifty Realty,56434.28,533150,True,True,11,11,11,0,0,0,2026-01-13,2026-05-06
+GRANULES,Granules India Limited,Pharma,Drug Manufacturers - Specialty & Generic,18657.87,532482,True,False,9,9,9,0,0,0,2026-01-08,2026-05-05
+GRASIM,Grasim Industries Limited,Basic Materials,Building Materials,201146.05,500300,True,True,11,11,11,0,0,0,2026-01-30,2026-05-15
+GROWW,Billionbrains Garage Ventures Limited,Financial Services,Capital Markets,134988.77,544603,True,True,12,12,12,0,0,0,2026-01-09,2026-04-24
+GRSE,Garden Reach Shipbuilders & Engineers Limited,Industrials,Aerospace & Defense,34953.25,542011,True,False,6,6,6,0,0,0,2026-02-05,2026-05-12
+GUJGASLTD,Gujarat Gas Limited,Utilities,Utilities - Regulated Gas,27291.23,539336,True,False,3,3,3,0,0,0,2026-01-13,2026-01-28
+GVT&D,GE Vernova T&D India Limited,Energy,Nifty Energy,118434.33,522275,True,True,0,0,0,0,0,0,,
+HAL,Hindustan Aeronautics Limited,Industrials,Aerospace & Defense,320216.16,541154,True,True,3,3,3,0,0,0,2026-02-18,2026-05-15
+HAVELLS,Havells India Limited,Industrials,Electrical Equipment & Parts,82195.74,517354,True,True,10,10,10,0,0,0,2026-01-13,2026-04-26
+HCLTECH,HCL Technologies Limited,IT Services,Nifty IT,390425.66,532281,True,True,6,6,6,0,0,0,2025-12-31,2026-04-24
+HDBFS,HDB Financial Services Limited,Financial Services,Credit Services,57960.1,544429,True,True,10,10,10,0,0,0,2025-12-29,2026-04-21
+HDFCAMC,HDFC Asset Management Company Limited,Financial Services,Asset Management,122284.85,541729,True,True,13,13,13,0,0,0,2026-01-02,2026-05-15
+HDFCBANK,HDFC Bank Limited,Bank,Nifty Private Bank,1231460.87,500180,True,True,15,15,15,0,0,0,2026-01-12,2026-04-24
+HDFCLIFE,HDFC Life Insurance Company Limited,Financial Services,Nifty Financial Services,133751.35,540777,True,True,12,12,12,0,0,0,2026-01-08,2026-05-07
+HEROMOTOCO,Hero MotoCorp Limited,Auto,Nifty Auto,106549.49,500182,True,True,13,13,13,0,0,0,2026-01-31,2026-05-15
+HEXT,Hexaware Technologies Limited,IT Services,Information Technology Services,30168.56,544362,True,False,7,7,7,0,0,0,2026-01-14,2026-05-09
+HINDALCO,Hindalco Industries Limited,Metal,Nifty Metal,238150.3,500440,True,True,12,12,12,0,0,0,2026-02-05,2026-05-13
+HINDCOPPER,Hindustan Copper Limited,Metal,Nifty Metal,55449.16,513599,True,True,0,0,0,0,0,0,,
+HINDPETRO,Hindustan Petroleum Corporation Limited,Energy,Nifty Energy,82453.12,500104,True,True,11,11,11,0,0,0,2026-01-14,2026-05-13
+HINDUNILVR,Hindustan Unilever Limited,FMCG,Nifty FMCG,546820.38,500696,True,True,9,9,9,0,0,0,2026-02-04,2026-05-07
+HINDZINC,Hindustan Zinc Limited,Metal,Nifty Metal,269490.85,500188,True,True,10,10,10,0,0,0,2026-01-14,2026-05-14
+HONAUT,Honeywell Automation India Limited,Industrials,Electrical Equipment & Parts,29006.07,517174,True,False,0,0,0,0,0,0,,
+HPCL,,,,0.0,,True,False,0,0,0,0,0,0,,
+HUDCO,Housing & Urban Development Corporation Limited,Financial Services,Credit Services,46440.08,540530,True,False,3,3,3,0,0,0,2026-01-31,2026-02-06
+HYUNDAI,Hyundai Motor India Limited,Consumer Cyclical,Auto Manufacturers,154610.33,544274,True,True,10,10,10,0,0,0,2026-01-28,2026-05-15
+ICICIAMC,ICICI Prudential Asset Management Company Limited,Financial Services,Asset Management,165749.6,544658,True,True,11,11,11,0,0,0,2026-01-09,2026-04-17
+ICICIBANK,ICICI Bank Limited,Bank,Nifty Private Bank,969173.0,532174,True,True,8,8,8,0,0,0,2026-01-13,2026-04-24
+ICICIGI,ICICI Lombard General Insurance Company Limited,Financial Services,Nifty Financial Services,94307.16,540716,True,True,16,16,16,0,0,0,2026-01-06,2026-05-05
+ICICIPRULI,ICICI Prudential Life Insurance Company Limited,Financial Services,Insurance - Life,82192.17,540133,True,True,17,17,17,0,0,0,2026-01-02,2026-05-08
+IDBI,IDBI Bank Limited,Financial Services,Banks - Regional,81901.05,500116,True,True,0,0,0,0,0,0,,
+IDEA,Vodafone Idea Limited,Communication Services,Telecom Services,140304.23,532822,False,True,4,4,4,0,0,0,2026-01-22,2026-05-13
+IDFCFIRSTB,IDFC First Bank Limited,Bank,Nifty Private Bank,61282.6,539437,True,True,15,15,15,0,0,0,2026-01-23,2026-04-30
+IGL,Indraprastha Gas Limited,Energy,Nifty Energy,23719.75,532514,True,False,4,4,4,0,0,0,2026-02-10,2026-05-14
+IIFL,IIFL Finance Limited,Financial Services,Credit Services,20128.17,532636,True,False,9,9,9,0,0,0,2026-01-19,2026-05-07
+IKS,Inventurus Knowledge Solutions Limited,Pharma,Health Information Services,28434.61,544309,True,False,17,17,17,0,0,0,2026-01-07,2026-05-14
+INDHOTEL,The Indian Hotels Company Limited,Consumer Cyclical,Lodging,95804.1,500850,True,True,12,12,12,0,0,0,2026-01-15,2026-05-14
+INDIACEM,The India Cements Limited,Basic Materials,Building Materials,19342.21,530005,True,False,8,8,8,0,0,0,2026-01-02,2026-05-02
+INDIANB,Indian Bank,Bank,Nifty PSU Bank,130184.07,532814,True,True,11,11,11,0,0,0,2026-01-14,2026-05-14
+INDIGO,InterGlobe Aviation Limited,Industrials,Airlines,179342.34,539448,True,True,4,4,4,0,0,0,2026-01-22,2026-02-24
+INDIGOPNTS,Indigo Paints Limited,Basic Materials,Specialty Chemicals,4697.48,543258,True,False,0,0,0,0,0,0,,
+INDUSINDBK,IndusInd Bank Limited,Bank,Nifty Private Bank,74073.51,532187,True,True,16,16,16,0,0,0,2026-01-13,2026-04-28
+INDUSTOWER,Indus Towers Limited,Communication Services,Telecom Services,115625.99,534816,True,True,8,8,8,0,0,0,2026-01-22,2026-05-08
+INFY,Infosys Limited,IT Services,Nifty IT,534156.31,500209,True,True,4,4,4,0,0,0,2026-01-19,2026-04-27
+IOB,Indian Overseas Bank,Bank,Nifty PSU Bank,67475.09,532388,True,True,9,9,9,0,0,0,2026-01-09,2026-05-14
+IOC,Indian Oil Corporation Limited,Energy,Nifty Energy,206381.89,530965,True,True,4,4,4,0,0,0,2026-02-02,2026-05-14
+IPCALAB,IPCA Laboratories Limited,Pharma,Nifty Pharma,40719.53,524494,True,False,3,3,3,0,0,0,2026-02-06,2026-02-18
+IRB,IRB Infrastructure Developers Limited,Industrials,Infrastructure Operations,26885.63,532947,True,False,4,4,4,0,0,0,2026-02-11,2026-02-23
+IRCTC,Indian Railway Catering And Tourism Corporation Limited,Consumer Cyclical,Travel Services,45236.0,542830,True,False,3,3,3,0,0,0,2026-02-06,2026-02-18
+IREDA,Indian Renewable Energy Development Agency Limited,Financial Services,Credit Services,38174.64,544026,True,False,0,0,0,0,0,0,,
+IRFC,Indian Railway Finance Corporation Limited,Financial Services,Credit Services,138565.37,543257,True,True,5,5,5,0,0,0,2026-01-12,2026-05-15
+ITC,ITC Limited,FMCG,Nifty FMCG,394928.85,500875,True,True,0,0,0,0,0,0,,
+JBCHEPHARM,JB Chemicals & Pharmaceuticals Limited,Pharma,Nifty Pharma,34516.91,506943,True,False,7,7,7,0,0,0,2026-01-05,2026-05-13
+JINDALSTEL,JINDAL STEEL LIMITED,Metal,Nifty Metal,129780.61,532286,True,True,15,15,15,0,0,0,2026-01-28,2026-05-13
+JIOFIN,Jio Financial Services Limited,Financial Services,Nifty Financial Services,164642.74,543940,True,True,11,11,11,0,0,0,2026-01-12,2026-05-13
+JKCEMENT,JK Cement Limited,Basic Materials,Building Materials,43150.45,532644,True,False,8,8,8,0,0,0,2026-01-13,2026-05-13
+JSL,Jindal Stainless Limited,Metal,Nifty Metal,64934.65,532508,True,True,12,12,12,0,0,0,2026-01-16,2026-05-13
+JSWENERGY,JSW Energy Limited,Energy,Nifty Energy,100309.95,533148,True,True,14,14,14,0,0,0,2025-12-29,2026-05-11
+JSWINFRA,JSW Infrastructure Limited,Industrials,Marine Shipping,59121.43,543994,True,True,12,12,12,0,0,0,2026-01-09,2026-05-12
+JSWSTEEL,JSW Steel Limited,Metal,Nifty Metal,312157.01,500228,True,True,11,11,11,0,0,0,2026-01-14,2026-05-14
+JUBLFOOD,Jubilant Foodworks Limited,Consumer Cyclical,Restaurants,32354.57,533155,True,False,7,7,7,0,0,0,2026-02-03,2026-05-07
+KAJARIACER,Kajaria Ceramics Limited,Industrials,Building Products & Equipment,19290.26,500233,True,False,9,9,9,0,0,0,2025-12-22,2026-05-07
+KALYANKJIL,Kalyan Jewellers India Limited,Consumer Cyclical,Luxury Goods,45610.97,543278,True,False,8,8,8,0,0,0,2026-01-14,2026-05-11
+KANSAINER,Kansai Nerolac Paints Limited,Basic Materials,Specialty Chemicals,17957.87,500165,True,False,13,13,13,0,0,0,2026-01-28,2026-05-12
+KARURVYSYA,Karur Vysya Bank Limited,Financial Services,Banks - Regional,29448.04,590003,True,False,11,11,11,0,0,0,2026-01-14,2026-05-12
+KEI,KEI Industries Limited,Industrials,Electrical Equipment & Parts,48923.6,517569,True,False,14,14,14,0,0,0,2026-01-19,2026-05-12
+KIMS,Krishna Institute of Medical Sciences Limited,Pharma,Medical Care Facilities,30476.58,543308,True,False,13,13,13,0,0,0,2026-02-02,2026-05-16
+KIRLOSENG,Kirloskar Oil Engines Limited,Industrials,Specialty Industrial Machinery,25299.02,533293,True,False,23,23,23,0,0,0,2026-02-09,2026-05-14
+KOTAKBANK,Kotak Mahindra Bank Limited,Bank,Nifty Private Bank,386420.18,500247,True,True,13,13,13,0,0,0,2026-01-16,2026-05-08
+KPIL,Kalpataru Projects International Limited,Industrials,Engineering & Construction,21785.45,522287,True,False,11,11,11,0,0,0,2026-01-28,2026-05-15
+KPITTECH,KPIT Technologies Limited,IT Services,Software - Infrastructure,20711.05,542651,True,False,13,13,13,0,0,0,2026-01-23,2026-05-13
+L&TFH,,,,0.0,500250,True,False,0,0,0,0,0,0,,
+LALPATHLAB,Dr. Lal Path Labs Ltd.,Pharma,Diagnostics & Research,27548.0,539524,True,False,11,11,11,0,0,0,2026-01-08,2026-05-13
+LAURUSLABS,Laurus Labs Limited,Pharma,Nifty Pharma,71472.64,540222,True,True,11,11,11,0,0,0,2026-01-09,2026-05-05
+LENSKART,Lenskart Solutions Limited,Pharma,Medical Instruments & Supplies,94964.13,544600,False,True,8,8,8,0,0,0,2026-02-04,2026-05-12
+LGEINDIA,LG Electronics India Limited,IT Services,Consumer Electronics,108196.32,544576,False,True,9,9,9,0,0,0,2026-02-04,2026-05-13
+LICHSGFIN,LIC Housing Finance Limited,Financial Services,Nifty Financial Services,32005.41,500253,True,False,7,7,7,0,0,0,2026-01-28,2026-05-14
+LICI,Life Insurance Corporation Of India,Financial Services,Insurance - Life,532691.29,543526,True,True,11,11,11,0,0,0,2026-01-30,2026-05-16
+LINDEINDIA,Linde India Limited,Basic Materials,Specialty Chemicals,66594.18,523457,True,True,0,0,0,0,0,0,,
+LLOYDSME,Lloyds Metals And Energy Limited,Metal,Nifty Metal,98897.4,512455,True,True,9,9,9,0,0,0,2026-01-29,2026-05-11
+LODHA,Lodha Developers Limited,Real Estate,Nifty Realty,96105.62,543287,True,True,11,11,11,0,0,0,2026-01-22,2026-05-15
+LT,Larsen & Toubro Limited,Industrials,Engineering & Construction,564696.97,500510,True,True,9,9,9,0,0,0,2026-01-16,2026-05-11
+LTF,L&T Finance Limited,Financial Services,Credit Services,76015.36,533519,True,True,16,16,16,0,0,0,2026-01-08,2026-05-15
+LTIM,,IT Services,Information Technology Services,133515.97,544479,True,False,0,0,0,0,0,0,,
+LTM,LTM Limited,IT Services,Nifty IT,140915.09,540005,False,True,8,8,8,0,0,0,2026-01-19,2026-04-29
+LTTS,L&T Technology Services Limited,IT Services,Information Technology Services,40308.47,540115,True,False,8,8,8,0,0,0,2026-01-15,2026-04-27
+LUPIN,Lupin Limited,Pharma,Nifty Pharma,108794.52,500257,True,True,10,10,10,0,0,0,2026-01-28,2026-05-14
+M&M,Mahindra & Mahindra Limited,Auto,Nifty Auto,399901.85,500520,True,True,0,0,0,0,0,0,,
+M&MFIN,Mahindra & Mahindra Financial Services Limited,Financial Services,Credit Services,47119.48,532720,True,False,0,0,0,0,0,0,,
+MAHABANK,Bank of Maharashtra,Bank,Nifty PSU Bank,64532.15,532525,True,True,9,9,9,0,0,0,2026-01-08,2026-04-27
+MANAPPURAM,Manappuram Finance Limited,Financial Services,Credit Services,29683.02,531213,True,False,6,6,6,0,0,0,2026-01-23,2026-05-11
+MANKIND,Mankind Pharma Limited,Pharma,Nifty Pharma,103330.93,543904,True,True,7,7,7,0,0,0,2026-01-16,2026-05-08
+MARICO,Marico Limited,FMCG,Nifty FMCG,109236.17,531642,True,True,15,15,15,0,0,0,2026-01-09,2026-05-12
+MARUTI,Maruti Suzuki India Limited,Auto,Nifty Auto,431423.2,532500,True,True,13,13,13,0,0,0,2025-12-28,2026-05-13
+MAXHEALTH,Max Healthcare Institute Limited,Pharma,Medical Care Facilities,102200.32,543220,True,True,8,8,8,0,0,0,2026-01-28,2026-05-15
+MAZDOCK,Mazagon Dock Shipbuilders Limited,Industrials,Aerospace & Defense,110445.45,543237,True,True,3,3,3,0,0,0,2026-03-06,2026-04-30
+MCX,Multi Commodity Exchange of India Limited,Financial Services,Financial Data & Stock Exchanges,86305.73,534091,True,True,0,0,0,0,0,0,,
+MEDANTA,Global Health Limited,Pharma,Medical Care Facilities,33385.84,543654,True,False,13,13,13,0,0,0,2026-01-30,2026-05-15
+MEESHO,Meesho Limited,Consumer Cyclical,Internet Retail,91758.13,544632,True,True,11,11,11,0,0,0,2026-01-26,2026-05-13
+METROBRAND,Metro Brands Limited,Consumer Cyclical,Apparel Retail,29892.93,543426,True,False,10,10,10,0,0,0,2026-01-20,2026-05-13
+MFSL,Max Financial Services Limited,Financial Services,Nifty Financial Services,58659.16,500271,True,True,9,9,9,0,0,0,2026-02-05,2026-05-12
+MOTHERSON,Samvardhana Motherson International Limited,Auto,Nifty Auto,139043.84,517334,True,True,12,12,12,0,0,0,2026-01-23,2026-05-14
+MOTILALOFS,Motilal Oswal Financial Services Limited,Financial Services,Capital Markets,53147.44,532892,True,True,10,10,10,0,0,0,2026-01-21,2026-05-13
+MPHASIS,MphasiS Limited,IT Services,Nifty IT,46945.8,526299,True,False,11,11,11,0,0,0,2025-12-24,2026-05-11
+MRF,MRF Limited,Consumer Cyclical,Auto Parts,59314.5,500290,True,True,0,0,0,0,0,0,,
+MRPL,Mangalore Refinery and Petrochemicals Limited,Energy,Oil & Gas Refining & Marketing,32664.94,500109,True,False,3,3,3,0,0,0,2026-01-13,2026-01-23
+MSUMI,Motherson Sumi Wiring India Limited,Consumer Cyclical,Auto Parts,28184.56,543498,True,False,10,10,10,0,0,0,2026-01-07,2026-05-04
+MUTHOOTFIN,Muthoot Finance Limited,Financial Services,Nifty Financial Services,143457.31,533398,True,True,7,7,7,0,0,0,2026-02-07,2026-05-15
+NALCO,,,,0.0,,True,False,0,0,0,0,0,0,,
+NAM-INDIA,Nippon Life India Asset Management Limited,Financial Services,Asset Management,70409.72,540767,True,True,15,15,15,0,0,0,2026-01-07,2026-05-14
+NATCOPHARM,Natco Pharma Limited,Pharma,Drug Manufacturers - Specialty & Generic,21477.06,524816,True,False,5,5,5,0,0,0,2026-02-02,2026-03-06
+NATIONALUM,National Aluminium Company Limited,Metal,Nifty Metal,80671.95,532234,True,True,9,9,9,0,0,0,2026-01-27,2026-05-04
+NAUKRI,Info Edge (India) Limited,Communication Services,Internet Content & Information,68282.16,532777,True,True,15,15,15,0,0,0,2026-02-02,2026-05-14
+NAVINFLUOR,Navin Fluorine International Limited,Basic Materials,Chemicals,36113.01,532504,True,False,9,9,9,0,0,0,2026-02-03,2026-05-04
+NBCC,NBCC (India) Limited,Industrials,Engineering & Construction,27172.8,534309,True,False,4,4,4,0,0,0,2026-02-10,2026-02-20
+NESTLEIND,Nestle India Limited,FMCG,Nifty FMCG,284484.23,500790,True,True,0,0,0,0,0,0,,
+NEULANDLAB,Neuland Laboratories Limited,Pharma,Drug Manufacturers - Specialty & Generic,22665.28,524558,True,False,10,10,10,0,0,0,2026-01-27,2026-05-16
+NH,Narayana Hrudayalaya Ltd.,Pharma,Medical Care Facilities,37392.71,539551,True,False,8,8,8,0,0,0,2026-02-11,2026-03-25
+NHPC,NHPC Limited,Energy,Nifty Energy,83936.31,533098,True,True,4,4,4,0,0,0,2026-01-30,2026-05-13
+NIACL,The New India Assurance Company Limited,Financial Services,Insurance - Diversified,28291.22,540769,True,False,12,12,12,0,0,0,2026-01-28,2026-05-15
+NLCINDIA,NLC India Limited,Energy,Nifty Energy,48920.54,513683,True,False,3,3,3,0,0,0,2026-02-05,2026-02-16
+NMDC,NMDC Limited,Metal,Nifty Metal,80339.63,526371,True,True,1,1,1,0,0,0,2026-02-04,2026-02-04
+NTPC,NTPC Limited,Energy,Nifty Energy,390048.41,532555,True,True,3,3,3,0,0,0,2026-01-23,2026-02-04
+NTPCGREEN,NTPC Green Energy Limited,Energy,Nifty Energy,94796.21,544289,True,True,0,0,0,0,0,0,,
+NUVAMA,Nuvama Wealth Management Limited,Financial Services,Asset Management,29700.07,543988,True,False,6,6,6,0,0,0,2026-01-22,2026-05-12
+NYKAA,FSN E-Commerce Ventures Limited,Consumer Cyclical,Internet Retail,78202.4,543384,True,True,9,9,9,0,0,0,2026-01-20,2026-05-14
+OBEROIRLTY,Oberoi Realty Limited,Real Estate,Nifty Realty,62197.8,533273,True,True,10,10,10,0,0,0,2026-01-14,2026-05-15
+OFSS,Oracle Financial Services Software Limited,IT Services,Nifty IT,84764.0,532466,True,True,0,0,0,0,0,0,,
+OIL,Oil India Limited,Energy,Nifty Energy,84307.08,533106,True,True,4,4,4,0,0,0,2026-02-05,2026-05-15
+ONGC,Oil & Natural Gas Corporation Limited,Energy,Nifty Energy,376905.16,500312,True,True,4,4,4,0,0,0,2026-02-10,2026-02-20
+PAGEIND,Page Industries Limited,Consumer Cyclical,Apparel Manufacturing,42356.84,532827,True,False,6,6,6,0,0,0,2026-01-22,2026-05-06
+PATANJALI,Patanjali Foods Limited,FMCG,Nifty FMCG,51019.25,500368,True,True,5,5,5,0,0,0,2026-01-07,2026-03-09
+PAYTM,One 97 Communications Limited,IT Services,Software - Infrastructure,76053.4,543396,True,True,8,8,8,0,0,0,2026-01-16,2026-05-12
+PEL,,Financial Services,Finance,0.0,517166,True,False,0,0,0,0,0,0,,
+PERSISTENT,Persistent Systems Limited,IT Services,Nifty IT,85452.13,533179,True,True,54,54,54,0,0,0,2025-12-24,2026-05-15
+PETRONET,Petronet LNG Limited,Energy,Nifty Energy,42570.0,532522,True,False,7,7,7,0,0,0,2026-01-23,2026-05-11
+PFC,Power Finance Corporation Limited,Financial Services,Nifty Financial Services,154890.27,532810,True,True,2,2,2,0,0,0,2026-05-08,2026-05-13
+PFIZER,Pfizer Limited,Pharma,Drug Manufacturers - General,22694.08,500680,True,False,0,0,0,0,0,0,,
+PGHH,Procter & Gamble Hygiene and Health Care Limited,Consumer Defensive,Household & Personal Products,33434.56,500459,True,False,0,0,0,0,0,0,,
+PHOENIXLTD,The Phoenix Mills Limited,Real Estate,Nifty Realty,65423.17,503100,True,True,26,26,26,0,0,0,2026-01-22,2026-05-14
+PIDILITIND,Pidilite Industries Limited,Basic Materials,Specialty Chemicals,150020.08,500331,True,True,18,18,18,0,0,0,2026-01-15,2026-05-15
+PIIND,PI Industries Limited,Basic Materials,Agricultural Inputs,47630.26,523642,True,False,19,19,19,0,0,0,2026-02-05,2026-05-12
+PIRAMALFIN,Piramal Finance Limited,Financial Services,Credit Services,45598.75,544597,True,False,25,25,25,0,0,0,2026-01-08,2026-05-14
+PNB,Punjab National Bank,Bank,Nifty PSU Bank,131718.95,532461,True,True,14,14,14,0,0,0,2026-01-13,2026-05-12
+PNBHOUSING,PNB Housing Finance Limited,Financial Services,Mortgage Finance,28373.85,540173,True,False,16,16,16,0,0,0,2026-01-13,2026-04-25
+POLICYBZR,PB Fintech Limited,Financial Services,Insurance Brokers,78590.37,543390,True,True,12,12,12,0,0,0,2026-01-27,2026-05-12
+POLYCAB,Polycab India Limited,Industrials,Electrical Equipment & Parts,137798.88,542652,True,True,6,6,6,0,0,0,2026-01-03,2026-05-08
+POONAWALLA,Poonawalla Fincorp Limited,Financial Services,Credit Services,40473.75,524000,True,False,12,12,12,0,0,0,2026-01-06,2026-05-14
+POWERGRID,Power Grid Corporation of India Limited,Energy,Nifty Energy,297712.33,532898,True,True,10,10,10,0,0,0,2026-01-27,2026-05-12
+POWERINDIA,Hitachi Energy India Limited,Energy,Nifty Energy,151568.32,543187,True,True,9,9,9,0,0,0,2026-01-21,2026-05-15
+PRAJIND,Praj Industries Limited,Industrials,Engineering & Construction,7518.87,522205,True,False,0,0,0,0,0,0,,
+PRESTIGE,Prestige Estates Projects Limited,Real Estate,Nifty Realty,64923.97,533274,True,True,3,3,3,0,0,0,2026-01-30,2026-02-02
+PSB,Punjab & Sind Bank,Bank,Nifty PSU Bank,17935.13,533295,True,False,8,8,8,0,0,0,2026-01-15,2026-05-06
+RADICO,Radico Khaitan Limited,FMCG,Nifty FMCG,46865.26,532497,True,False,17,17,17,0,0,0,2025-12-31,2026-05-12
+RAILTEL,Railtel Corporation Of India Limited,Communication Services,Telecom Services,10995.35,543265,True,False,0,0,0,0,0,0,,
+RAMCOCEM,The Ramco Cements Limited,Basic Materials,Building Materials,23936.42,500260,True,False,0,0,0,0,0,0,,
+RBLBANK,RBL Bank Limited,Bank,Nifty Private Bank,21237.07,540065,True,False,31,31,31,0,0,0,2025-12-23,2026-05-12
+RECLTD,REC Limited,Financial Services,Nifty Financial Services,98680.07,532955,True,True,0,0,0,0,0,0,,
+RELIANCE,Reliance Industries Limited,Energy,Nifty Energy,1943262.99,500325,True,True,13,13,13,0,0,0,2026-01-08,2026-04-26
+RVNL,Rail Vikas Nigam Limited,Industrials,Engineering & Construction,63593.11,542649,True,True,3,3,3,0,0,0,2026-01-29,2026-02-09
+SAGILITY,SAGILITY LIMITED,Pharma,Health Information Services,20686.79,544282,True,False,15,15,15,0,0,0,2026-01-19,2026-05-15
+SAIL,Steel Authority of India Limited,Metal,Nifty Metal,79430.0,500113,True,True,7,7,7,0,0,0,2026-01-27,2026-05-16
+SAILIFE,Sai Life Sciences Limited,Pharma,Diagnostics & Research,23653.34,544306,True,False,9,9,9,0,0,0,2026-01-28,2026-05-15
+SANOFI,Sanofi India Limited,Pharma,Drug Manufacturers - General,8207.47,500674,True,False,0,0,0,0,0,0,,
+SAPPHIRE,Sapphire Foods India Limited,Consumer Cyclical,Restaurants,6592.5,543397,True,False,0,0,0,0,0,0,,
+SBICARD,SBI Cards and Payment Services Limited,Financial Services,Nifty Financial Services,66155.25,543066,True,True,16,16,16,0,0,0,2026-01-20,2026-05-02
+SBILIFE,SBI Life Insurance Company Limited,Financial Services,Nifty Financial Services,197699.42,540719,True,True,7,7,7,0,0,0,2026-01-22,2026-04-28
+SBIN,State Bank of India,Bank,Nifty PSU Bank,1016383.25,500112,True,True,25,25,25,0,0,0,2026-01-23,2026-05-15
+SCHAEFFLER,Schaeffler India Limited,Consumer Cyclical,Auto Parts,67001.13,505790,True,True,10,10,10,0,0,0,2026-02-17,2026-05-06
+SHREECEM,SHREE CEMENT LIMITED,Basic Materials,Building Materials,91284.29,500387,True,True,6,6,6,0,0,0,2026-01-28,2026-05-11
+SHRIRAMFIN,Shriram Finance Limited,Financial Services,Nifty Financial Services,243961.8,511218,True,True,24,24,24,0,0,0,2025-12-24,2026-05-13
+SIEMENS,Siemens Limited,Energy,Nifty Energy,136216.09,500550,True,True,0,0,0,0,0,0,,
+SJVN,SJVN Limited,Energy,Nifty Energy,31068.96,533206,True,False,2,2,2,0,0,0,2026-05-11,2026-05-15
+SOLARINDS,Solar Industries India Limited,Basic Materials,Specialty Chemicals,156674.48,532725,True,True,7,7,7,0,0,0,2026-01-28,2026-05-16
+SONACOMS,Sona BLW Precision Forgings Limited,Auto,Nifty Auto,37643.5,543300,True,False,10,10,10,0,0,0,2026-01-14,2026-05-06
+SRF,SRF Limited,Industrials,Conglomerates,82424.59,503806,True,True,8,8,8,0,0,0,2026-01-14,2026-05-12
+STAR,Strides Pharma Science Limited,Pharma,Drug Manufacturers - Specialty & Generic,10663.46,532531,True,False,0,0,0,0,0,0,,
+STARHEALTH,Star Health and Allied Insurance Company Limited,Financial Services,Insurance - Life,30950.02,543412,True,False,30,30,30,0,0,0,2026-01-14,2026-05-05
+SUNDARMFIN,Sundaram Finance Limited,Financial Services,Credit Services,55423.93,590071,True,True,6,6,6,0,0,0,2026-01-05,2026-03-20
+SUNPHARMA,Sun Pharmaceutical Industries Limited,Pharma,Nifty Pharma,450595.07,524715,True,True,10,10,10,0,0,0,2025-12-26,2026-05-13
+SUNTV,Sun TV Network Limited,Media,Nifty Media,25662.79,532733,True,False,0,0,0,0,0,0,,
+SUPREMEIND,Supreme Industries Limited,Industrials,Building Products & Equipment,48264.39,509930,True,False,7,7,7,0,0,0,2026-01-17,2026-05-04
+SUZLON,Suzlon Energy Limited,Energy,Nifty Energy,76312.96,532667,True,True,5,5,5,0,0,0,2026-01-30,2026-03-19
+SWIGGY,Swiggy Limited,Consumer Cyclical,Internet Retail,74545.1,544285,True,True,10,10,10,0,0,0,2026-01-19,2026-05-14
+SYNGENE,Syngene International Limited,Pharma,Diagnostics & Research,18808.64,539268,True,False,17,17,17,0,0,0,2026-01-17,2026-05-04
+TATACAP,Tata Capital Limited,Financial Services,Asset Management,142460.96,544574,True,True,13,13,13,0,0,0,2026-01-12,2026-04-29
+TATACONSUM,TATA CONSUMER PRODUCTS LIMITED,FMCG,Nifty FMCG,122227.8,500800,True,True,15,15,15,0,0,0,2026-01-20,2026-05-15
+TATAELXSI,Tata Elxsi Limited,IT Services,Software - Application,28609.75,500408,True,False,8,8,8,0,0,0,2026-01-06,2026-04-24
+TATAINVEST,Tata Investment Corporation Limited,Financial Services,Asset Management,36403.31,501301,True,False,0,0,0,0,0,0,,
+TATAMOTORS,,,,0.0,,True,False,0,0,0,0,0,0,,
+TATAPOWER,Tata Power Company Limited,Energy,Nifty Energy,142352.37,500400,True,True,13,13,13,0,0,0,2025-12-29,2026-05-15
+TATASTEEL,Tata Steel Limited,Metal,Nifty Metal,270639.09,500470,True,True,9,9,9,0,0,0,2026-02-02,2026-05-15
+TCS,Tata Consultancy Services Limited,IT Services,Nifty IT,934769.12,532540,True,True,9,9,9,0,0,0,2025-12-23,2026-04-14
+TECHM,Tech Mahindra Limited,IT Services,Nifty IT,134000.02,532755,True,True,12,12,12,0,0,0,2026-01-06,2026-04-28
+THERMAX,Thermax Limited,Energy,Nifty Energy,52691.42,500411,True,True,8,8,8,0,0,0,2026-01-31,2026-05-12
+TIINDIA,Tube Investments of India Limited,Auto,Nifty Auto,59029.76,540762,True,True,6,6,6,0,0,0,2026-01-23,2026-05-13
+TIMKEN,Timken India Limited,Industrials,Tools & Accessories,27041.14,522113,True,False,6,6,6,0,0,0,2026-01-29,2026-05-12
+TITAN,Titan Company Limited,Consumer Cyclical,Luxury Goods,401467.8,500114,True,True,13,13,13,0,0,0,2026-01-02,2026-05-14
+TMCV,Tata Motors Limited,Consumer Cyclical,Auto Manufacturers,161691.18,544569,False,True,13,13,13,0,0,0,2026-01-19,2026-05-14
+TMPV,Tata Motors Passenger Vehicles Limited,Auto,Nifty Auto,132933.83,500570,False,True,12,12,12,0,0,0,2026-01-22,2026-05-14
+TORNTPHARM,Torrent Pharmaceuticals Limited,Pharma,Nifty Pharma,149108.91,500420,True,True,8,8,8,0,0,0,2026-02-02,2026-05-16
+TORNTPOWER,Torrent Power Limited,Energy,Nifty Energy,88183.12,532779,True,True,19,19,19,0,0,0,2025-12-29,2026-05-15
+TRENT,Trent Limited,Consumer Cyclical,Apparel Retail,152763.62,500251,True,True,13,13,13,0,0,0,2026-02-04,2026-05-15
+TVSHLTD,TVS Holdings Limited,Consumer Cyclical,Auto Parts,29625.87,520056,True,False,0,0,0,0,0,0,,
+TVSMOTOR,TVS Motor Company Limited,Auto,Nifty Auto,177644.32,532343,True,True,7,7,7,0,0,0,2026-01-13,2026-05-13
+UBL,United Breweries Limited,FMCG,Nifty FMCG,40152.57,532478,True,False,8,8,8,0,0,0,2026-01-23,2026-05-11
+UCOBANK,UCO Bank,Bank,Nifty PSU Bank,33706.33,532505,True,False,6,6,6,0,0,0,2026-01-14,2026-05-02
+ULTRACEMCO,UltraTech Cement Limited,Basic Materials,Building Materials,352944.73,532538,True,True,15,15,15,0,0,0,2026-01-02,2026-05-08
+UNIONBANK,Union Bank of India,Bank,Nifty PSU Bank,144243.96,532477,True,True,28,28,28,0,0,0,2026-01-09,2026-05-12
+UNITDSPR,United Spirits Limited,FMCG,Nifty FMCG,101246.98,532432,True,True,11,11,11,0,0,0,2026-01-12,2026-05-15
+UNOMINDA,UNO Minda Limited,Auto,Nifty Auto,68072.26,532539,True,True,10,10,10,0,0,0,2026-01-13,2026-05-16
+UPL,UPL Limited,Basic Materials,Agricultural Inputs,56186.04,512070,True,True,11,11,11,0,0,0,2026-01-27,2026-05-15
+VBL,Varun Beverages Limited,FMCG,Nifty FMCG,174627.95,540180,True,True,11,11,11,0,0,0,2026-01-29,2026-05-11
+VEDL,Vedanta Limited,Metal,Nifty Metal,307768.46,500295,True,True,9,9,9,0,0,0,2026-01-23,2026-05-05
+VMM,Vishal Mega Mart Limited,Consumer Cyclical,Department Stores,57915.31,544307,False,True,8,8,8,0,0,0,2026-01-21,2026-05-15
+VOLTAS,Voltas Limited,Consumer Cyclical,"Furnishings, Fixtures & Appliances",48441.52,500575,True,False,9,9,9,0,0,0,2026-01-23,2026-05-14
+WAAREEENER,Waaree Energies Limited,IT Services,Solar,99705.7,544277,False,True,28,28,28,0,0,0,2025-12-23,2026-05-13
+WELCORP,Welspun Corp Limited,Metal,Nifty Metal,34518.85,532144,True,False,7,7,7,0,0,0,2026-01-23,2026-05-16
+WESTLIFE,WESTLIFE FOODWORLD LIMITED,Consumer Cyclical,Restaurants,7838.4,505533,True,False,0,0,0,0,0,0,,
+WHIRLPOOL,Whirlpool of India Limited,Consumer Cyclical,"Furnishings, Fixtures & Appliances",12501.65,500238,True,False,5,5,5,0,0,0,2026-02-03,2026-02-16
+WIPRO,Wipro Limited,IT Services,Nifty IT,214058.09,507685,True,True,9,9,9,0,0,0,2026-01-07,2026-04-17
+WOCKPHARMA,Wockhardt Limited,Pharma,Nifty Pharma,26104.37,532300,True,False,0,0,0,0,0,0,,
+YESBANK,Yes Bank Limited,Bank,Nifty Private Bank,71998.41,532648,True,True,22,22,22,0,0,0,2025-12-22,2026-05-14
+ZFCVINDIA,ZF Commercial Vehicle Control Systems India Limited,Consumer Cyclical,Auto Parts,28455.17,533023,True,False,7,7,7,0,0,0,2026-01-21,2026-05-15
+ZOMATO,,,,0.0,,True,False,0,0,0,0,0,0,,
+ZYDUSLIFE,Zydus Lifesciences Limited,Pharma,Nifty Pharma,101800.69,532321,True,True,7,7,7,0,0,0,2026-01-30,2026-05-13
