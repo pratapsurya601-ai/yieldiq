@@ -894,6 +894,28 @@ MANIFEST: list[dict] = [
             "contingent liabilities / outlook) on the analysis page."
         ),
     },
+    {
+        # Phase I-frontend (Block II): expose bank_operational_kpis
+        # on the public analysis surface for the 38-ticker
+        # PURE_BANK_TICKERS_FOR_DE cohort. Scoped to the new
+        # bank_operational_kpis table + bank_kpis API surface so
+        # existing cached score / verdict / valuation rows for
+        # non-bank tickers are untouched. Bank tickers see a new
+        # BankKpiPanel that degrades gracefully to "—" cells while
+        # the ingest scripts populate the table over time.
+        "version_id": "v_phase_i_bank_kpis_2026_05_26",
+        "applied_at": datetime(2026, 5, 26, 0, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["bank_operational_kpis", "bank_kpis"],
+        },
+        "rationale": (
+            "Phase I-frontend (Block II): expose bank operational KPIs "
+            "(branches / ATMs / customers / GNPA / NNPA / PCR / CASA / "
+            "cost-to-income / credit-deposit) on the analysis surface "
+            "for the 38 commercial banks in PURE_BANK_TICKERS_FOR_DE."
+        ),
+    },
 ]
 
 
