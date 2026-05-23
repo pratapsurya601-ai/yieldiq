@@ -451,21 +451,16 @@ MANIFEST: list[dict] = [
         ),
     },
     {
-        # Day-111b (2026-05-23): bank D/E now includes deposits +
-        # borrowings via the (total_liab - equity)/equity proxy.
-        "version_id": "v_day111b_bank_de_with_deposits_2026_05_23",
-        "applied_at": datetime(2026, 5, 23, 22, 5, 0, tzinfo=timezone.utc),
-        "scope": {
-            "tickers": [
-                "HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK", "SBIN",
-                "INDUSINDBK", "FEDERALBNK", "IDFCFIRSTB", "AUBANK",
-                "BANDHANBNK", "RBLBANK", "BANKBARODA", "PNB",
-            ],
-            "fields": ["de_ratio", "ratios.de_ratio"],
-        },
+        # Day-111c (2026-05-23): bull-side symmetric verdict bypass.
+        # Mirrors bear-side Audit#6 rule. Fixes 19 verdict-mismatch
+        # tickers (LICI at +95% MoS was labeled "fairly_valued").
+        "version_id": "v_day111c_bull_undervalued_bypass_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 22, 10, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["verdict"]},
         "rationale": (
-            "Day-111b: bank D/E now includes deposits + borrowings "
-            "(was just total_debt, gave nonsensical ~0.95 for banks)."
+            "Day-111c: bull-side symmetric bypass to fix verdict "
+            "mismatch when MoS >= 50% (LICI at 95% MoS was labeled "
+            "fairly_valued)."
         ),
     },
 ]
