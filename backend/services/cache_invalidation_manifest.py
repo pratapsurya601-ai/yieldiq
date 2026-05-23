@@ -916,6 +916,27 @@ MANIFEST: list[dict] = [
             "for the 38 commercial banks in PURE_BANK_TICKERS_FOR_DE."
         ),
     },
+    {
+        # Manual AR-signal loader (scripts/load_manual_ar_signals.py)
+        # surfaces 10-20 hand-curated high-traffic AR extractions to
+        # the public ar_intel panel. Bypasses the paid Anthropic API
+        # via the free claude.ai web workflow (see
+        # manual_ar_signals/README.md). Scoped to the same fields the
+        # API-extracted Phase H entry covers so existing
+        # score/verdict/valuation cached rows are untouched.
+        "version_id": "v_manual_ar_signals_load_2026_05_24",
+        "applied_at": datetime(2026, 5, 24, 0, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["ar_signals", "ar_intel"],
+        },
+        "rationale": (
+            "Manual AR-signal loader surfaces hand-curated ar_signals "
+            "rows (claude-ai-web-manual model_version) to the public "
+            "ar_intel panel — invalidate cached ar_intel payloads so "
+            "the new rows show up immediately."
+        ),
+    },
 ]
 
 
