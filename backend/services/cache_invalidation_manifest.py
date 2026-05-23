@@ -590,6 +590,34 @@ MANIFEST: list[dict] = [
             "the 24h in-memory TTL."
         ),
     },
+    {
+        # Phase B.2 (2026-05-24): bull_case sanity gate + Day-111c
+        # threshold tune. Fixes (a) IT-services WIPRO/HCLTECH/TECHM
+        # showing data_limited because the Day-107a WACC drop
+        # (0.1114 → 0.098) ballooned bull_case to ~33× CMP, tripping
+        # the safety net into a Tier-2 rescue path that had no usable
+        # cohort, and (b) HDFCBANK staying fairly_valued at +43% MoS
+        # because the bull-side Day-111c bypass threshold was set at
+        # 50% rather than 40%. See docs/diagnostics/
+        # phase-b-cache-paths-2026-05-24.md §4 / §3.
+        #
+        # Tickers: "*" because the bull-clamp affects ANY generic-DCF
+        # ticker whose bull > 5× CMP (potentially more than just the
+        # three IT names — every cohort that ever gets a low-WACC
+        # tweak in the future) and the verdict tune affects every
+        # ticker in the +40–50% MoS band at moderate confidence.
+        "version_id": "v_phase_b2_bull_sanity_2026_05_24",
+        "applied_at": datetime(2026, 5, 24, 0, 30, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["verdict", "bull_case", "base_case", "bear_case", "data_issues"],
+        },
+        "rationale": (
+            "Phase B.2: bull_case sanity gate (clamp at 5x CMP when "
+            "broken-low-WACC inflates DCF) + Day-111c bull-side "
+            "undervalued bypass threshold lowered 50 → 40."
+        ),
+    },
 ]
 
 

@@ -397,11 +397,138 @@ def attempt_tier2_fallback(
     return fv_f, "tier2_fallback_after_dcf_collapse"
 
 
+# ── Phase B.2 (2026-05-24): bull_case sanity gate ───────────────────
+# Day-107a IT-services cohort dropped WACC from 0.1114 → 0.098 for
+# WIPRO/HCLTECH/TECHM. The lower discount rate ballooned the generic
+# DCF terminal value: WIPRO bull=₹6,734 vs price ₹203 (33x), TECHM
+# bull=₹46,788 vs price ₹1,422 (33x). With base FV also inflated
+# (WIPRO base=858 → 4.23× price) the existing safety net at
+# INFLATED_RATIO_HI=3.5 triggered Tier-2 rescue → rescue rungs
+# returned None (IT cohort had no usable peer cohort because every
+# peer had the same broken-low-WACC base) → caller marked the
+# tickers `data_limited`. End-user impact: sector page showed three
+# of the top-7 IT names as "data_limited" with no FV displayed.
+#
+# Fix: a pre-emptive bull-side sanity clamp. When bull_case exceeds
+# BULL_SANITY_MULTIPLIER × current_price, the DCF has almost certainly
+# been broken by a too-low WACC. Clamp all three scenario values
+# proportionally back to a sane band so:
+#   1. The safety net's iv/price ratio gate (base FV check at L208)
+#      no longer triggers a rescue path that has no usable cohort.
+#   2. The displayed bull_case is honest (not a 33× moonshot).
+#   3. The verdict falls back to the normal mos_pct → undervalued/
+#      fairly_valued/overvalued tree instead of the data_limited
+#      branch at service.py L3462.
+#
+# Asymmetric by design: there is NO bear-side clamp here because
+# bear=0 is already handled by the Day-92 utility floor pattern
+# (regulated utilities get bear_iv = min(0.85*price, iv*0.95)) and
+# the Day-56 cyclical bear-floor at service.py L3768
+# (min(0.5*price, iv*0.95)). A bear that collapses to 0 is a different
+# pathology (terminal-value-near-zero), not a too-low-WACC pathology,
+# and the existing floors are the right rescue.
+#
+# Threshold = 5.0x: chosen as the same number as INFLATED_RATIO_HI
+# would have been at the bull side. 3.5x (the iv gate) is too tight
+# for bull because legitimate growth-stock bull scenarios can land at
+# 3-4× price (NVIDIA-style narratives); 5x is the visible "this is
+# math, not analysis" floor.
+BULL_SANITY_MULTIPLIER: float = 5.0
+
+
+def clamp_inflated_scenarios(
+    base_fv: Optional[float],
+    bull_fv: Optional[float],
+    bear_fv: Optional[float],
+    current_price: Optional[float],
+    *,
+    multiplier: float = BULL_SANITY_MULTIPLIER,
+) -> Optional[Tuple[float, float, float, str]]:
+    """Clamp scenario band when bull_fv is implausibly inflated.
+
+    Detects the low-WACC inflation pattern that produced the IT-services
+    `data_limited` outage (Phase B.0 diagnostic, 2026-05-23). Returns
+    None when no clamp is needed (the common case). Returns a tuple
+    ``(clamped_base, clamped_bull, clamped_bear, reason_str)`` when
+    bull_fv > multiplier × current_price.
+
+    Clamp policy:
+      * bull → multiplier × current_price (the ceiling)
+      * base → max(0.8 * bull_clamped, original base scaled by clamp ratio)
+        — preserves base < bull ordering and prevents a flip
+      * bear → preserved at its original value IF that value sits below
+        the clamped base; otherwise pulled down to 0.8 × base_clamped
+
+    The reason_str slug ``bull_case_clamped_from_implausible_multiple``
+    is what callers append into `data_issues` so analytics / the audit
+    rail can count occurrences.
+    """
+    try:
+        px = float(current_price) if current_price is not None else 0.0
+    except (TypeError, ValueError):
+        return None
+    if px <= 0:
+        return None
+
+    try:
+        bull_f = float(bull_fv) if bull_fv is not None else 0.0
+    except (TypeError, ValueError):
+        return None
+    if bull_f <= 0:
+        return None
+
+    ceiling = multiplier * px
+    if bull_f <= ceiling:
+        return None  # bull is sane → no clamp
+
+    try:
+        base_f = float(base_fv) if base_fv is not None else 0.0
+    except (TypeError, ValueError):
+        base_f = 0.0
+    try:
+        bear_f = float(bear_fv) if bear_fv is not None else 0.0
+    except (TypeError, ValueError):
+        bear_f = 0.0
+
+    clamp_ratio = ceiling / bull_f  # < 1.0
+    bull_clamped = round(ceiling, 2)
+    # Base policy: the downstream safety-net iv/price gate fires when
+    # base/price > INFLATED_RATIO_HI (3.5). To dodge that gate when the
+    # entire scenario band has been inflated by a too-low WACC, we must
+    # land base at <= 3.5 * price. We also want bull > base (preserves
+    # scenario ordering). Pick the LOWER of:
+    #   * 0.85 * bull_clamped (4.25 * price — preserves dispersion vs bull)
+    #   * 3.0 * price          (well below the 3.5 gate, with margin)
+    # …and never above the engine's original base (don't INVENT upside).
+    base_target = min(bull_clamped * 0.85, 3.0 * px)
+    if base_f > 0:
+        base_clamped = round(min(base_f, base_target), 2)
+    else:
+        base_clamped = round(base_target, 2)
+    # Bear: preserve if below clamped base; else pull down.
+    if bear_f > 0 and bear_f <= base_clamped:
+        bear_clamped = round(bear_f, 2)
+    else:
+        bear_clamped = round(base_clamped * 0.8, 2)
+
+    reason = (
+        f"bull_case_clamped_from_implausible_multiple "
+        f"(bull was {bull_f:.0f} = {bull_f/px:.1f}x price, "
+        f"clamped to {bull_clamped:.0f} = {multiplier:.1f}x; "
+        f"base {base_f:.0f}->{base_clamped:.0f}, "
+        f"bear {bear_f:.0f}->{bear_clamped:.0f})"
+    )
+    logger.info("dcf_collapse_safety_net.clamp_inflated_scenarios: %s", reason)
+    return base_clamped, bull_clamped, bear_clamped, reason
+
+
 __all__ = [
     "COLLAPSED_RATIO_LO",
     "INFLATED_RATIO_HI",
+    "BULL_SANITY_MULTIPLIER",
     "SECTOR_ENGINE_AUTHORITATIVE",
     "CYCLICAL_SECTORS_TROUGH_ALLOWED",
     "is_fv_unreasonable",
     "attempt_tier2_fallback",
+    "clamp_inflated_scenarios",
 ]
