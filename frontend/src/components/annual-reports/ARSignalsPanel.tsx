@@ -253,7 +253,10 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
         ) : (
           <ul className="space-y-2">
             {segments.slice(0, 8).map((s, i) => {
-              const label = s.name || s.segment || "segment"
+              const label =
+                (s.name && String(s.name).trim()) ||
+                (s.segment && String(s.segment).trim()) ||
+                "Segment"
               const yoy = formatPct(s.yoy_growth_pct)
               return (
                 <li
@@ -303,26 +306,34 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
           <ul className="space-y-2">
             {capex.slice(0, 6).map((c, i) => {
               const when = c.timeline || c.fy
-              const detail = c.description || c.project
+              const title = c.description || c.project
+              const hasAmount =
+                c.amount_cr !== undefined && c.amount_cr !== null
               return (
                 <li
                   key={i}
                   className="border border-border rounded-lg p-3 bg-surface/40"
                 >
-                  <div className="flex items-center gap-2 mb-1">
-                    {c.amount_cr !== undefined && c.amount_cr !== null && (
+                  <div className="flex items-start justify-between gap-2 mb-1">
+                    {title ? (
                       <span className="text-xs font-medium text-ink">
-                        {formatCr(c.amount_cr)}
+                        {title}
+                      </span>
+                    ) : (
+                      <span className="text-xs font-medium text-ink">
+                        Capex commitment
                       </span>
                     )}
                     {when && (
-                      <span className="text-[10px] uppercase tracking-wide text-caption">
+                      <span className="text-[10px] uppercase tracking-wide text-caption whitespace-nowrap">
                         {when}
                       </span>
                     )}
                   </div>
-                  {detail && (
-                    <p className="text-[11px] text-caption">{detail}</p>
+                  {hasAmount && (
+                    <p className="text-[11px] text-caption">
+                      {formatCr(c.amount_cr)}
+                    </p>
                   )}
                   {c.quote && (
                     <p className="mt-1 text-xs italic text-ink leading-relaxed">
@@ -348,7 +359,10 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
         ) : (
           <ul className="space-y-2">
             {rpts.slice(0, 6).map((r, i) => {
-              const who = r.party || r.counterparty || "counterparty"
+              const who =
+                (r.party && String(r.party).trim()) ||
+                (r.counterparty && String(r.counterparty).trim()) ||
+                "Counterparty"
               return (
                 <li
                   key={i}
@@ -367,10 +381,19 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
                   {r.nature && (
                     <p className="text-[11px] text-caption">{r.nature}</p>
                   )}
-                  <p className="text-[11px] text-caption">
-                    {formatCr(r.amount_cr)}
-                    {r.fy ? ` · ${r.fy}` : ""}
-                  </p>
+                  {(r.amount_cr !== undefined && r.amount_cr !== null) || r.fy ? (
+                    <p className="text-[11px] text-caption">
+                      {r.amount_cr !== undefined && r.amount_cr !== null
+                        ? formatCr(r.amount_cr)
+                        : ""}
+                      {r.amount_cr !== undefined &&
+                      r.amount_cr !== null &&
+                      r.fy
+                        ? " · "
+                        : ""}
+                      {r.fy ?? ""}
+                    </p>
+                  ) : null}
                 </li>
               )
             })}
