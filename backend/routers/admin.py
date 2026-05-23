@@ -2761,3 +2761,159 @@ async def get_cache_manifest_impact(user: dict = Depends(require_admin)):
                 f"{_sanitize_error(exc, 'cache-manifest-impact')}"
             ),
         )
+
+
+# ─────────────────────────────────────────────────────────────────
+# Day-112 (2026-05-23): /admin/price-data-health
+#
+# Operator-visible health of the daily_prices.adj_close pipeline.
+# Surfaces the four red flags that mean "you need to rerun
+# scripts/rebuild_adj_close.py":
+#
+#   1. tickers_with_null_adj_close — should be 0. Non-zero means
+#      the rebuild never ran or some tickers landed in the
+#      dead-letter queue.
+#   2. tickers_adj_equals_close_pct90 — tickers where adj_close
+#      equals close_price for more than 90% of dates. Suspicious:
+#      it usually means the broken populator wrote close into
+#      adj_close (the Day-112 bug). Names without ANY corp action
+#      genuinely have adj_close == close_price for all dates — but
+#      they shouldn't dominate the universe.
+#   3. discrepancies_last_30d — how many times in the last 30 days
+#      yfinance and our corporate_actions table disagreed by >0.5%.
+#      Sudden spikes mean either a new corp action got missed by
+#      one source, or yfinance changed its adjustment math.
+#   4. last_successful_rebuild — most recent timestamp in
+#      price_adjustment_log. If older than ~7 days, the cron is
+#      stuck.
+#
+# Plus a tail of the 10 most-recent adjustments with corp-action
+# JSON for spot inspection.
+#
+# Read-only. Admin-gated.
+# ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/price-data-health")
+async def get_price_data_health(user: dict = Depends(require_admin)):
+    """Health snapshot of daily_prices.adj_close + audit log."""
+    try:
+        import os
+        import psycopg2
+
+        url = os.environ.get("DATABASE_URL")
+        if not url:
+            raise HTTPException(status_code=500, detail="DATABASE_URL not set")
+
+        conn = psycopg2.connect(url)
+        try:
+            cur = conn.cursor()
+
+            # 1. Tickers with NULL adj_close
+            cur.execute(
+                "SELECT COUNT(DISTINCT ticker) FROM daily_prices "
+                "WHERE adj_close IS NULL"
+            )
+            null_tickers = cur.fetchone()[0] or 0
+
+            # 2. Tickers whose adj_close == close_price for >90% of dates
+            cur.execute(
+                """
+                WITH per_ticker AS (
+                    SELECT ticker,
+                           COUNT(*) AS total,
+                           COUNT(*) FILTER (
+                               WHERE adj_close IS NOT NULL
+                                 AND close_price IS NOT NULL
+                                 AND ABS(adj_close - close_price) < 0.01
+                           ) AS equal_rows
+                    FROM daily_prices
+                    GROUP BY ticker
+                    HAVING COUNT(*) >= 30
+                )
+                SELECT COUNT(*) FROM per_ticker
+                WHERE equal_rows::float / NULLIF(total, 0) > 0.90
+                """
+            )
+            adj_eq_close = cur.fetchone()[0] or 0
+
+            # 3. Discrepancies in last 30 days (rows in
+            #    price_adjustment_log with source='reconciled')
+            try:
+                cur.execute(
+                    "SELECT COUNT(*) FROM price_adjustment_log "
+                    "WHERE source = 'reconciled' "
+                    "  AND rebuilt_at >= now() - interval '30 days'"
+                )
+                discrepancies_30d = cur.fetchone()[0] or 0
+            except Exception:
+                conn.rollback()
+                discrepancies_30d = None  # table not yet migrated
+
+            # 4. Last rebuild timestamp
+            try:
+                cur.execute(
+                    "SELECT MAX(rebuilt_at) FROM price_adjustment_log"
+                )
+                last_rebuilt = cur.fetchone()[0]
+            except Exception:
+                conn.rollback()
+                last_rebuilt = None
+
+            # 5. Recent adjustments tail (10 most recent)
+            try:
+                cur.execute(
+                    """
+                    SELECT ticker, trade_date, close_price,
+                           adj_close_before, adj_close_after,
+                           adjustment_factor, source,
+                           corp_actions::text, rebuilt_at
+                    FROM price_adjustment_log
+                    ORDER BY rebuilt_at DESC
+                    LIMIT 10
+                    """
+                )
+                recent = [
+                    {
+                        "ticker": r[0],
+                        "trade_date": r[1].isoformat() if r[1] else None,
+                        "close_price": float(r[2]) if r[2] is not None else None,
+                        "adj_close_before": float(r[3]) if r[3] is not None else None,
+                        "adj_close_after": float(r[4]) if r[4] is not None else None,
+                        "adjustment_factor": float(r[5]) if r[5] is not None else None,
+                        "source": r[6],
+                        "corp_actions": r[7],
+                        "rebuilt_at": r[8].isoformat() if r[8] else None,
+                    }
+                    for r in cur.fetchall()
+                ]
+            except Exception:
+                conn.rollback()
+                recent = []
+
+            cur.close()
+        finally:
+            conn.close()
+
+        return {
+            "ok": True,
+            "tickers_with_null_adj_close": null_tickers,
+            "tickers_adj_equals_close_pct90": adj_eq_close,
+            "discrepancies_last_30d": discrepancies_30d,
+            "last_successful_rebuild": (
+                last_rebuilt.isoformat()
+                if last_rebuilt and hasattr(last_rebuilt, "isoformat")
+                else last_rebuilt
+            ),
+            "recent_adjustments": recent,
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "get_price_data_health failed: "
+                f"{_sanitize_error(exc, 'price-data-health')}"
+            ),
+        )

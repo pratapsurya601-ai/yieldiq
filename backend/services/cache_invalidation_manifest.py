@@ -463,6 +463,32 @@ MANIFEST: list[dict] = [
             "fairly_valued)."
         ),
     },
+    {
+        # Day-112 (2026-05-23): robust adj_close infrastructure.
+        # cagr_service.py now reads adj_close (split/bonus/dividend
+        # adjusted) instead of raw close_price. Affects compounded_
+        # growth.stock.{3y,5y,10y} on every ticker AND adds a new
+        # compounded_growth.stock.status field ("ok" / "partial" /
+        # "rebuild_pending" / "db_unavailable"). Scoped to those two
+        # field families so other cached payload sections (DCF, ratios,
+        # verdict) aren't touched.
+        #
+        # Tickers: "*" because the broken populator wrote close into
+        # adj_close for every ticker — every cached stock-CAGR cell
+        # needs re-emission once the rebuild script runs against prod
+        # daily_prices.
+        "version_id": "v_day112_adj_close_rebuild_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 23, 30, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["compounded_growth.stock", "stock_cagr_status"],
+        },
+        "rationale": (
+            "Day-112: cagr_service.py switched from close_price to "
+            "adj_close (split/bonus adjusted); new stock_cagr_status "
+            "field surfaces rebuild_pending."
+        ),
+    },
 ]
 
 

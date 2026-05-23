@@ -269,20 +269,28 @@ def _window_avg(
 # ──────────────────────────────────────────────────────────────────────
 
 
-def _fetch_close_on_or_before(conn, ticker: str, target: date) -> tuple[date, float] | None:
-    """Most recent close on or before ``target`` for ``ticker``.
+def _fetch_adj_close_on_or_before(conn, ticker: str, target: date) -> tuple[date, float] | None:
+    """Most recent NON-NULL adj_close on or before ``target`` for ``ticker``.
 
-    Trade-date alignment: the user might ask for "10y ago" on a
-    weekend / holiday. We pick the most recent trade-date at or before
-    that target, within a 14-day backstop window so we don't reach into
-    a totally different month if the price archive is sparse.
+    Day-112: we now read adj_close (split + bonus + dividend adjusted)
+    instead of raw close_price. adj_close is populated by
+    scripts/rebuild_adj_close.py and is the canonical series for any
+    return calculation. If adj_close is NULL the row is skipped — we
+    intentionally do NOT fall back to close_price, because doing so
+    silently re-introduces the pre-Day-112 bug (a -7.8% RELIANCE 5y
+    CAGR computed from raw post-bonus close vs raw pre-bonus close).
+
+    Trade-date alignment: weekend/holiday target -> walk back up to
+    14 days; outside that window we return None and the response
+    payload surfaces "stock_cagr_status": "rebuild_pending".
     """
     floor = target - timedelta(days=14)
     cur = conn.cursor()
     try:
         cur.execute(
-            "SELECT trade_date, close_price FROM daily_prices "
+            "SELECT trade_date, adj_close FROM daily_prices "
             "WHERE ticker = %s AND trade_date <= %s AND trade_date >= %s "
+            "  AND adj_close IS NOT NULL "
             "ORDER BY trade_date DESC LIMIT 1",
             (ticker, target, floor),
         )
@@ -291,21 +299,36 @@ def _fetch_close_on_or_before(conn, ticker: str, target: date) -> tuple[date, fl
         cur.close()
     if not row:
         return None
-    td, close = row
-    if close is None:
+    td, adj = row
+    if adj is None:
         return None
     try:
-        return (td, float(close))
+        return (td, float(adj))
     except (TypeError, ValueError):
         return None
 
 
-def _stock_cagr_panel(ticker_full: str, today: date) -> dict[str, float | None]:
-    """3y / 5y / 10y CAGR of close price. Empty dict if DB unreachable."""
+def _stock_cagr_panel(ticker_full: str, today: date) -> dict[str, Any]:
+    """3y / 5y / 10y CAGR of adj_close.
+
+    Day-112 return shape: in addition to the per-window CAGRs, this
+    dict carries a ``status`` field so the caller can surface
+    "rebuild_pending" to ops when adj_close is missing for the
+    requested ticker. Possible status values:
+
+      * ``ok``               — adj_close present and all windows computed
+      * ``partial``          — at least one window resolved, at least one None
+      * ``rebuild_pending``  — no usable adj_close found for this ticker
+                               (the rebuild script never covered it, or it
+                               was added to ``stocks`` after the last rebuild)
+      * ``db_unavailable``   — DATABASE_URL unset or psycopg2 connect failed
+    """
     import os
     url = os.environ.get("DATABASE_URL")
-    out: dict[str, float | None] = {"3y": None, "5y": None, "10y": None}
+    out: dict[str, Any] = {"3y": None, "5y": None, "10y": None,
+                           "status": "rebuild_pending"}
     if not url:
+        out["status"] = "db_unavailable"
         return out
     bare = ticker_full.replace(".NS", "").replace(".BO", "")
     try:
@@ -313,21 +336,38 @@ def _stock_cagr_panel(ticker_full: str, today: date) -> dict[str, float | None]:
         conn = psycopg2.connect(url)
     except Exception as exc:
         logger.info("stock CAGR: psycopg2 connect failed for %s: %s", bare, exc)
+        out["status"] = "db_unavailable"
         return out
     try:
-        # Latest close: most recent trade_date in last 14 days
-        latest = _fetch_close_on_or_before(conn, bare, today)
+        # Latest adj_close: most recent trade_date in last 14 days.
+        latest = _fetch_adj_close_on_or_before(conn, bare, today)
         if latest is None:
+            # No adj_close at all — surface "rebuild_pending" loudly. We
+            # do NOT fall back to close_price (see _fetch_adj_close_on_
+            # or_before docstring).
             return out
         _, end_price = latest
+        any_resolved = False
+        any_missing = False
         for years in _WINDOWS:
             anchor = today - timedelta(days=365 * years)
-            start = _fetch_close_on_or_before(conn, bare, anchor)
+            start = _fetch_adj_close_on_or_before(conn, bare, anchor)
             if start is None:
                 out[f"{years}y"] = None
+                any_missing = True
                 continue
             _, start_price = start
-            out[f"{years}y"] = _cagr(start_price, end_price, years)
+            v = _cagr(start_price, end_price, years)
+            out[f"{years}y"] = v
+            if v is None:
+                any_missing = True
+            else:
+                any_resolved = True
+        if any_resolved and not any_missing:
+            out["status"] = "ok"
+        elif any_resolved:
+            out["status"] = "partial"
+        # else: stays "rebuild_pending"
     finally:
         try:
             conn.close()
@@ -346,7 +386,11 @@ def _empty_panel(as_of_fy: int | None) -> dict[str, Any]:
         "revenue": {"3y": None, "5y": None, "10y": None, "as_of_fy": as_of_fy},
         "profit":  {"3y": None, "5y": None, "10y": None, "as_of_fy": as_of_fy},
         "roe_avg": {"3y": None, "5y": None, "10y": None, "as_of_fy": as_of_fy},
-        "stock":   {"3y": None, "5y": None, "10y": None, "as_of_fy": as_of_fy},
+        # Day-112: stock dict carries `status` (ok / partial /
+        # rebuild_pending / db_unavailable) so the caller knows when
+        # to render the "rebuild needed" badge vs the "—" placeholder.
+        "stock":   {"3y": None, "5y": None, "10y": None, "as_of_fy": as_of_fy,
+                    "status": "rebuild_pending"},
     }
 
 
@@ -355,7 +399,7 @@ def compute_cagr_panel(
     *,
     today: date | None = None,
     points: list[_AnnualPoint] | None = None,
-    stock_panel: dict[str, float | None] | None = None,
+    stock_panel: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return the compounded-growth panel dict for ``ticker``.
 
