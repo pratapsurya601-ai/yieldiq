@@ -101,6 +101,14 @@ jobs:
           if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
           if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
 
+      # Playwright + real Chromium is required by the xbrl phase to
+      # bypass Akamai on the BSE XBRL endpoints. GH runners don't ship
+      # the browser binary by default; install it explicitly here so
+      # the pre-flight (HDFCBANK / SBIN / AXISBANK) can actually fetch.
+      - name: Install Playwright Chromium
+        if: ${{ inputs.phase == 'xbrl' || inputs.phase == 'all' }}
+        run: playwright install --with-deps chromium
+
       - name: Build dry-run flag + clamp top_n_banks
         id: flags
         run: |
