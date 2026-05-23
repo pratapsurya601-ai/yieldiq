@@ -59,7 +59,7 @@ const FULL_PAYLOAD: ConcallSignalsResponse = {
         segment: "consumer",
         direction: "expansion",
         drivers: ["mix improvement", "input cost easing"],
-        quote: "Margins should expand 80-100 bps.",
+        quote: "Margins expanded 80-100 bps in the quarter.",
       },
     ],
     management_tone: "bullish",
@@ -129,7 +129,7 @@ describe("ConcallSignalsPanel", () => {
     // 4. margin
     expect(screen.getByTestId("signals-section-margin")).toBeInTheDocument()
     expect(screen.getByText("consumer")).toBeInTheDocument()
-    expect(screen.getByText(/Margins should expand 80-100 bps/)).toBeInTheDocument()
+    expect(screen.getByText(/Margins expanded 80-100 bps in the quarter/)).toBeInTheDocument()
 
     // 5. key quotes
     expect(screen.getByTestId("signals-section-quotes")).toBeInTheDocument()
@@ -157,7 +157,7 @@ describe("ConcallSignalsPanel", () => {
     const { container } = renderWithClient(
       <ConcallSignalsPanel ticker="UNKNOWN" initialData={EMPTY_PAYLOAD} />,
     )
-    // The panel should produce no output — the sibling ConcallsPanel
+    // The panel must produce no output — the sibling ConcallsPanel
     // already shows an empty-state below.
     expect(container.firstChild).toBeNull()
   })
