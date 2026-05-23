@@ -75,7 +75,10 @@ jobs:
 
       - name: Run data pipeline
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_PUBLIC_URL }}
+          # Fix #166: DATABASE_PUBLIC_URL secret carries the pre-2026-04-29
+          # Neon password and silently auth-fails since the rotation. All
+          # other workflows already use DATABASE_URL (fresh password).
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           MODE="${{ steps.mode.outputs.mode }}"
           DAYS="${{ steps.mode.outputs.days }}"
@@ -101,7 +104,7 @@ jobs:
 
       - name: Check pipeline results
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_PUBLIC_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           python -c "
           from sqlalchemy import create_engine, text
