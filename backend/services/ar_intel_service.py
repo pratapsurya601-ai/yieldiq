@@ -75,7 +75,18 @@ _SEBI_CHECK_FIELD_BASES: frozenset[str] = frozenset({
 
 # Network / size caps. ARs are larger than concalls so the
 # defaults are looser than concall_intel.
-PDF_MAX_BYTES = 8 * 1024 * 1024  # 8 MB hard cap
+#
+# Cap bumped from 8 MB -> 50 MB post-Phase H (PR #581 dry-run, 2026-05-23).
+# Real Indian AR PDFs run 100-300 pages and routinely land at 10-30 MB
+# (observed: TCS 17 MB, LT 30 MB, LTIM 11 MB). The previous 8 MB ceiling
+# was inherited from concall_intel (concalls are 1-3 MB) and rejected
+# 100% of the production AR sample. 50 MB covers >99% of Indian ARs
+# while still bounding worst-case memory: raw bytes (50 MB) + pypdf
+# page-by-page text extraction (~5-10 MB output) is well within the
+# Railway worker envelope, and downstream LLM input is already capped
+# per-chunk at CHUNK_MAX_CHARS (60k chars) so the Anthropic payload
+# never balloons with PDF size.
+PDF_MAX_BYTES = 50 * 1024 * 1024  # 50 MB hard cap
 PDF_DOWNLOAD_TIMEOUT_S = 60
 MIN_TEXT_CHARS = 2000            # bail if pypdf yields almost nothing
 CHUNK_MAX_CHARS = 60_000         # ~15-17k tokens per chunk

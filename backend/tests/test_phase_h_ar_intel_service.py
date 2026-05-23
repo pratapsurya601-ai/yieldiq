@@ -181,6 +181,49 @@ def test_validate_schema_outlook_must_be_string():
         ari.validate_schema(bad)
 
 
+# ---------- PDF size cap (post-Phase H bump to 50 MB) ----------------------
+
+def _fake_httpx_client(content: bytes) -> MagicMock:
+    """Build a minimal httpx-like client whose .get(url) returns a
+    response with .content and a no-op raise_for_status().
+    """
+    resp = MagicMock()
+    resp.content = content
+    resp.raise_for_status = MagicMock()
+    client = MagicMock()
+    client.get.return_value = resp
+    return client
+
+
+def test_pdf_cap_is_50_mb():
+    """Regression guard: cap was bumped from 8 MB to 50 MB in PR #581
+    after real Indian ARs (TCS 17 MB, LT 30 MB, LTIM 11 MB) all
+    exceeded the inherited 8 MB ceiling and failed pre-flight.
+    """
+    assert ari.PDF_MAX_BYTES == 50 * 1024 * 1024
+
+
+def test_download_ar_pdf_accepts_30mb_payload():
+    """A 30 MB AR PDF (well within the observed real-world range)
+    must be accepted under the post-bump 50 MB cap.
+    """
+    payload = b"%PDF-1.4\n" + b"x" * (30 * 1024 * 1024)
+    client = _fake_httpx_client(payload)
+    out = ari.download_ar_pdf("https://example.com/AR.pdf", client=client)
+    assert out == payload
+
+
+def test_download_ar_pdf_rejects_51mb_payload_gracefully():
+    """A 51 MB PDF must be rejected with ValueError (not OOM / not
+    swallowed silently). The batch script catches this as
+    `extract failed` and bumps the pre-flight failure count.
+    """
+    payload = b"%PDF-1.4\n" + b"x" * (51 * 1024 * 1024)
+    client = _fake_httpx_client(payload)
+    with pytest.raises(ValueError, match="cap"):
+        ari.download_ar_pdf("https://example.com/big.pdf", client=client)
+
+
 # ---------- chunking -------------------------------------------------------
 
 def test_chunk_ar_text_empty_returns_empty():
