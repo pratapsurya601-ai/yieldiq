@@ -114,6 +114,44 @@ describe("ManifestHistoryPanel", () => {
     ).not.toBeInTheDocument()
   })
 
+  it(
+    "Task #123: renders sanitized anon shape (no version_id, description copy) " +
+    "without leaking internal cadence tokens",
+    async () => {
+      // Anon-shape fixture: no `version_id`, `description` replaces
+      // `rationale`, and `description` is already stripped of Day-/
+      // Audit#/Phase tokens by the backend `_public_description`.
+      const ANON_FIXTURE = {
+        ticker: "TCS.NS",
+        entries: [
+          {
+            applied_at: "2026-05-23T10:00:00+00:00",
+            description: "IT services cohort overrides (WACC tighten, TG lift, scenario re-weight)",
+            fields_affected: ["*"],
+          },
+          {
+            applied_at: "2026-05-22T19:00:00+00:00",
+            description: "New compounded_growth field on stock-summary",
+            fields_affected: ["compounded_growth"],
+          },
+        ],
+      }
+      mockResponse(ANON_FIXTURE)
+      const { container } = render(<ManifestHistoryPanel ticker="TCS.NS" />)
+      await waitFor(() => {
+        expect(
+          screen.getByText(/IT services cohort overrides/),
+        ).toBeInTheDocument()
+      })
+      // Internal cadence tokens MUST NOT appear on the rendered DOM.
+      expect(container.textContent || "").not.toMatch(/Day-\d+[a-z]?/)
+      expect(container.textContent || "").not.toMatch(/Audit\s*#\s*\d/)
+      expect(container.textContent || "").not.toMatch(/Phase\s+[A-Z]/)
+      // version_id chip must NOT render when the backend omits it.
+      expect(container.querySelector("code")).toBeNull()
+    },
+  )
+
   it("Show all toggle expands the remaining entries and flips label", async () => {
     mockResponse(FIXTURE_5)
     render(<ManifestHistoryPanel ticker="NTPC.NS" />)

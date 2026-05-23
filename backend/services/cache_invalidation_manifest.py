@@ -80,11 +80,118 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Iterable
 
 log = logging.getLogger("yieldiq.cache_manifest")
+
+
+# ─────────────────────────────────────────────────────────────────
+# Task #123 (2026-05-23): public-surface sanitization.
+#
+# Internal cadence tokens — "Day-107a", "Phase B.1", "Audit#7",
+# "PR #498", "#503" — are engineering vocabulary. Leaking them onto
+# anon-facing surfaces (sector landing pages, public manifest-history
+# endpoint) (a) confuses end users who have no model of our release
+# cadence and (b) creates SEBI exposure: a cadence-keyed verb like
+# "Day-107a applied" reads as advisory ("we changed our advice
+# today") even though the underlying entry is a model-engineering
+# note.
+#
+# Authed surfaces (the per-ticker analysis page for a logged-in
+# pro / analyst user) still see the raw version_id + rationale —
+# power users want the receipts and have signed up for the engineering
+# vocabulary.
+# ─────────────────────────────────────────────────────────────────
+
+# Match the internal cadence / release tokens we never want surfaced
+# to anon users. Patterns are intentionally permissive on the trailing
+# punctuation so they sweep up "Day-107a:", "Day-107a." and bare
+# "Day-107a" alike.
+_INTERNAL_TOKEN_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bDay-\d+[a-z]?\b", re.IGNORECASE),
+    re.compile(r"\bPhase\s+[A-Z](?:\.\d+)?\b"),
+    re.compile(r"\bAudit\s*#\s*\d+(?:\s*P\d+[a-z]?)?\b", re.IGNORECASE),
+    re.compile(r"\bPR\s*#\s*\d+\b", re.IGNORECASE),
+    re.compile(r"\bTask\s*#\s*\d+\b", re.IGNORECASE),
+    re.compile(r"#\d+\b"),
+)
+
+
+def _strip_internal_tokens(text: str) -> str:
+    """Strip Day-/Phase/Audit#/PR#/Task#/#NNN tokens from a string.
+
+    Collapses the punctuation/whitespace seam left behind so the
+    output reads cleanly (no double spaces, no leading ": ", no
+    dangling parens). Returns the empty string on falsy input.
+    """
+    if not text:
+        return ""
+    out = text
+    for pat in _INTERNAL_TOKEN_PATTERNS:
+        out = pat.sub("", out)
+    # Collapse whitespace + tidy punctuation seams.
+    out = re.sub(r"\s+", " ", out)
+    # Strip a leading colon/dash left behind by something like
+    # "Day-107a: IT services" → ": IT services".
+    out = re.sub(r"^\s*[:\-–—]\s*", "", out)
+    # Strip ": " immediately following an opening paren, or stray
+    # "()" pairs left after token removal.
+    out = re.sub(r"\(\s*[:\-]\s*", "(", out)
+    out = re.sub(r"\(\s*\)", "", out)
+    # Collapse " ." / " ," seams.
+    out = re.sub(r"\s+([,.;:!?])", r"\1", out)
+    return out.strip()
+
+
+def _public_description(entry: dict) -> str:
+    """Return the SEBI-safe, anon-facing rationale for a manifest entry.
+
+    Strips internal cadence tokens (Day-NNN, Phase X, Audit#N, PR#N,
+    Task#N, #NNN). Falls back to a generic "Model updated" string
+    when the cleaned text is empty (e.g. the rationale was nothing
+    but a cadence tag).
+    """
+    raw = (entry or {}).get("rationale") or ""
+    cleaned = _strip_internal_tokens(raw)
+    if not cleaned:
+        return "Model updated."
+    # Capitalize the first letter so we don't ship sentences that
+    # start lowercase after stripping a leading "Day-107a: " label.
+    return cleaned[0].upper() + cleaned[1:]
+
+
+def public_manifest_entry(entry: dict) -> dict:
+    """Project a manifest entry into its anon-safe shape.
+
+    Strips ``version_id`` (an internal cadence handle), replaces the
+    raw ``rationale`` with the cleaned ``description``, and preserves
+    ``applied_at`` + ``fields_affected`` so the timeline still has
+    timing + scope context.
+    """
+    if not isinstance(entry, dict):
+        return {"applied_at": None, "description": "Model updated.", "fields_affected": ["*"]}
+    applied_at = entry.get("applied_at")
+    try:
+        applied_iso = applied_at.isoformat() if hasattr(applied_at, "isoformat") else (
+            str(applied_at) if applied_at else None
+        )
+    except Exception:
+        applied_iso = str(applied_at) if applied_at else None
+    scope_fields = (entry.get("scope") or {}).get("fields")
+    if scope_fields == "*" or scope_fields is None:
+        fields_affected: list[str] = ["*"]
+    elif isinstance(scope_fields, (list, tuple, set)):
+        fields_affected = [str(f) for f in scope_fields]
+    else:
+        fields_affected = [str(scope_fields)]
+    return {
+        "applied_at": applied_iso,
+        "description": _public_description(entry),
+        "fields_affected": fields_affected,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────

@@ -14,11 +14,25 @@
 // investment advice. The header copy avoids advisory vocabulary.
 
 import { useEffect, useMemo, useState } from "react"
+import Cookies from "js-cookie"
 
+// Task #123 (2026-05-23): the backend now returns one of two shapes
+// from /api/v1/public/manifest-history/{ticker}:
+//
+//   * authed (cookie present) — { version_id, applied_at, rationale,
+//     fields_affected } — the raw "engineering receipts" view.
+//   * anon — { applied_at, description, fields_affected } — the
+//     sanitized view (no version_id, rationale stripped of internal
+//     cadence tokens like "Day-107a", "Audit#7", "PR #498").
+//
+// We render whichever fields are present and never assume the authed
+// keys exist. Display copy normalises to `description` (anon) or
+// `rationale` (authed), in that priority order.
 interface ManifestEntry {
-  version_id: string
+  version_id?: string
   applied_at: string | null
-  rationale: string
+  rationale?: string
+  description?: string
   fields_affected: string[]
 }
 
@@ -67,6 +81,10 @@ function FieldChip({ field }: { field: string }) {
 }
 
 function TimelineCard({ entry }: { entry: ManifestEntry }) {
+  // Task #123: prefer the sanitized `description` (anon shape) over
+  // the raw `rationale` (authed shape). Either is rendered as the
+  // headline copy; we never concatenate them.
+  const copy = entry.description || entry.rationale || "Model updated."
   return (
     <li className="relative pl-6 py-3">
       {/* Dot on the rail. */}
@@ -75,16 +93,18 @@ function TimelineCard({ entry }: { entry: ManifestEntry }) {
         className="absolute left-1 top-4 w-2 h-2 rounded-full bg-brand"
       />
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-        <p className="text-sm text-ink leading-snug">{entry.rationale}</p>
+        <p className="text-sm text-ink leading-snug">{copy}</p>
         <span className="text-[11px] text-caption tabular-nums whitespace-nowrap">
           {fmtApplied(entry.applied_at)}
         </span>
       </div>
       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <code className="text-[10px] font-mono px-1.5 py-0.5 rounded
-                         bg-surface text-caption border border-border">
-          {entry.version_id}
-        </code>
+        {entry.version_id && (
+          <code className="text-[10px] font-mono px-1.5 py-0.5 rounded
+                           bg-surface text-caption border border-border">
+            {entry.version_id}
+          </code>
+        )}
         {entry.fields_affected.map((f) => (
           <FieldChip key={f} field={f} />
         ))}
@@ -109,7 +129,15 @@ export default function ManifestHistoryPanel({ ticker }: { ticker: string }) {
       setLoading(false)
       return
     }
-    fetch(`${base}/api/v1/public/manifest-history/${symbol}`)
+    // Task #123: attach the Bearer token (same cookie the axios
+    // api client uses) so authed users get the un-sanitized shape
+    // with version_id + raw rationale. Anon users get the sanitized
+    // shape (description without internal cadence tokens).
+    const token = Cookies.get("yieldiq_token")
+    const headers: Record<string, string> = token
+      ? { Authorization: `Bearer ${token}` }
+      : {}
+    fetch(`${base}/api/v1/public/manifest-history/${symbol}`, { headers })
       .then((r) => (r.ok ? r.json() : null))
       .then((j: ManifestHistoryResponse | null) => {
         if (cancelled) return
