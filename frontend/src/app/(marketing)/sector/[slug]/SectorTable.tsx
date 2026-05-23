@@ -117,7 +117,7 @@ export default function SectorTable({ rows }: { rows: Row[] }) {
                    ranking of preference. Native title attribute keeps
                    the UI surface unchanged on desktop hover and is
                    exposed to screen readers. */
-                title="Sort order is numerical, not a recommendation. MoS = (fair value − price) / price."
+                title="Sort order is purely numerical. MoS = (fair value − price) / price."
               >MoS %{arrow("mos_pct")}</button>
             </th>
             <th className="py-2 px-3 text-right hidden sm:table-cell">FV</th>

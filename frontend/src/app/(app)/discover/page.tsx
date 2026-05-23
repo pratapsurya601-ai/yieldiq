@@ -209,7 +209,7 @@ export default function DiscoverPage() {
           Discover
         </h1>
         <p className="text-sm text-caption">
-          What looks cheap today &mdash; ranked by margin of safety, not opinion.
+          Today&rsquo;s biggest margin-of-safety readings &mdash; ranked numerically, not by opinion.
         </p>
       </header>
 
