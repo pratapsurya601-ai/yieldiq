@@ -12,50 +12,69 @@
 // Data source: GET /api/v1/annual-reports/signals/by-ticker/{ticker}/latest
 // (per-AR drilldown via GET /api/v1/annual-reports/{ar_id}/signals).
 //
-// SEBI discipline: when the backend marks the row
-// quality_flag='sebi_withheld', the response collapses to
+// Quality discipline: when the backend marks the row
+// quality_flag='withheld', the response collapses to
 // {signals: null, withheld: true}. The panel renders a neutral
 // "Withheld pending review" placeholder rather than any free
 // text from the LLM. When signals are simply absent (no
 // extraction yet for the ticker), the panel renders nothing —
 // the page already has the AnnualReportsPanel below.
+//
+// Field shape: the backend stores signals as the LLM extracted
+// them. The canonical keys (verified against ar_signals rows
+// loaded via load_manual_ar_signals.py) are:
+//   segment_data        -> name, revenue_cr, ebit_cr, yoy_growth_pct, note
+//   capex_commitments   -> timeline, amount_cr, description
+//   related_party_*     -> party, nature, amount_cr
+//   auditor_flags       -> type, summary
+//   contingent_*        -> amount_cr, description
+// We accept legacy aliases (segment/counterparty/project/fy/...) as
+// fall-throughs so a future loader that renames keys does not
+// regress the panel.
 
 import { useQuery } from "@tanstack/react-query"
 
 interface SegmentRow {
+  name?: string
   segment?: string
-  revenue_cr?: number | string
-  ebit_cr?: number | string
-  fy?: string
-  quote?: string
+  revenue_cr?: number | string | null
+  ebit_cr?: number | string | null
+  yoy_growth_pct?: number | string | null
+  note?: string | null
+  fy?: string | null
+  quote?: string | null
 }
 
 interface CapexRow {
-  amount_cr?: number | string
-  fy?: string
-  project?: string
-  quote?: string
+  amount_cr?: number | string | null
+  timeline?: string | null
+  description?: string | null
+  fy?: string | null
+  project?: string | null
+  quote?: string | null
 }
 
 interface RPTRow {
-  counterparty?: string
-  relationship?: string
-  nature?: string
-  amount_cr?: number | string
-  fy?: string
-  quote?: string
+  party?: string | null
+  counterparty?: string | null
+  relationship?: string | null
+  nature?: string | null
+  amount_cr?: number | string | null
+  fy?: string | null
+  quote?: string | null
 }
 
 interface AuditorFlagRow {
-  type?: string
-  description?: string
-  as_of?: string
+  type?: string | null
+  summary?: string | null
+  description?: string | null
+  as_of?: string | null
 }
 
 interface ContingentLiabilityRow {
-  description?: string
-  amount_cr?: number | string
-  as_of?: string
+  description?: string | null
+  amount_cr?: number | string | null
+  as_of?: string | null
 }
 
 export interface ARSignals {
@@ -108,6 +127,21 @@ function formatDate(iso: string | null | undefined): string {
   }
 }
 
+function formatCr(v: number | string | null | undefined): string {
+  if (v === null || v === undefined || v === "") return "—"
+  const n = typeof v === "string" ? Number(v) : v
+  if (!isFinite(n as number)) return String(v)
+  return `Rs ${(n as number).toLocaleString("en-IN", { maximumFractionDigits: 2 })} Cr`
+}
+
+function formatPct(v: number | string | null | undefined): string | null {
+  if (v === null || v === undefined || v === "") return null
+  const n = typeof v === "string" ? Number(v) : v
+  if (!isFinite(n as number)) return null
+  const sign = (n as number) > 0 ? "+" : ""
+  return `${sign}${(n as number).toFixed(1)}% YoY`
+}
+
 interface PanelProps {
   ticker: string
   // Optional injected data for tests / storybook. When provided
@@ -144,7 +178,7 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
         </div>
         <p className="text-xs italic text-caption">
           Withheld pending review. The most recent extraction tripped the
-          SEBI vocabulary check and is queued for operator re-review.
+          quality vocabulary check and is queued for operator re-review.
         </p>
       </div>
     )
@@ -177,7 +211,7 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
   const liabilities = signals.contingent_liabilities ?? []
   const outlook = (signals.management_outlook ?? "").trim()
   const fy = payload?.fiscal_year
-  const published = formatDate(payload?.published_at)
+  const published = formatDate(payload?.published_at ?? payload?.generated_at)
 
   return (
     <div
@@ -218,33 +252,40 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
           </p>
         ) : (
           <ul className="space-y-2">
-            {segments.slice(0, 8).map((s, i) => (
-              <li
-                key={i}
-                className="border border-border rounded-lg p-3 bg-surface/40"
-              >
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <span className="text-xs font-medium text-ink">
-                    {s.segment || "segment"}
-                  </span>
-                  {s.fy && (
-                    <span className="text-[10px] uppercase tracking-wide text-caption">
-                      {s.fy}
+            {segments.slice(0, 8).map((s, i) => {
+              const label = s.name || s.segment || "segment"
+              const yoy = formatPct(s.yoy_growth_pct)
+              return (
+                <li
+                  key={i}
+                  className="border border-border rounded-lg p-3 bg-surface/40"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <span className="text-xs font-medium text-ink">
+                      {label}
                     </span>
-                  )}
-                </div>
-                <p className="text-[11px] text-caption">
-                  Revenue {s.revenue_cr !== undefined ? `Rs ${s.revenue_cr} Cr` : "—"}
-                  {" · "}
-                  EBIT {s.ebit_cr !== undefined ? `Rs ${s.ebit_cr} Cr` : "—"}
-                </p>
-                {s.quote && (
-                  <p className="mt-1 text-xs italic text-ink leading-relaxed">
-                    &ldquo;{s.quote}&rdquo;
+                    {(s.fy || yoy) && (
+                      <span className="text-[10px] uppercase tracking-wide text-caption">
+                        {s.fy || yoy}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-caption">
+                    Revenue {formatCr(s.revenue_cr)}
+                    {" · "}
+                    EBIT {formatCr(s.ebit_cr)}
                   </p>
-                )}
-              </li>
-            ))}
+                  {s.note && (
+                    <p className="mt-1 text-[11px] text-caption">{s.note}</p>
+                  )}
+                  {s.quote && (
+                    <p className="mt-1 text-xs italic text-ink leading-relaxed">
+                      &ldquo;{s.quote}&rdquo;
+                    </p>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>
@@ -260,33 +301,37 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
           </p>
         ) : (
           <ul className="space-y-2">
-            {capex.slice(0, 6).map((c, i) => (
-              <li
-                key={i}
-                className="border border-border rounded-lg p-3 bg-surface/40"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  {c.amount_cr !== undefined && (
-                    <span className="text-xs font-medium text-ink">
-                      Rs {c.amount_cr} Cr
-                    </span>
+            {capex.slice(0, 6).map((c, i) => {
+              const when = c.timeline || c.fy
+              const detail = c.description || c.project
+              return (
+                <li
+                  key={i}
+                  className="border border-border rounded-lg p-3 bg-surface/40"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    {c.amount_cr !== undefined && c.amount_cr !== null && (
+                      <span className="text-xs font-medium text-ink">
+                        {formatCr(c.amount_cr)}
+                      </span>
+                    )}
+                    {when && (
+                      <span className="text-[10px] uppercase tracking-wide text-caption">
+                        {when}
+                      </span>
+                    )}
+                  </div>
+                  {detail && (
+                    <p className="text-[11px] text-caption">{detail}</p>
                   )}
-                  {c.fy && (
-                    <span className="text-[10px] uppercase tracking-wide text-caption">
-                      {c.fy}
-                    </span>
+                  {c.quote && (
+                    <p className="mt-1 text-xs italic text-ink leading-relaxed">
+                      &ldquo;{c.quote}&rdquo;
+                    </p>
                   )}
-                </div>
-                {c.project && (
-                  <p className="text-[11px] text-caption">{c.project}</p>
-                )}
-                {c.quote && (
-                  <p className="mt-1 text-xs italic text-ink leading-relaxed">
-                    &ldquo;{c.quote}&rdquo;
-                  </p>
-                )}
-              </li>
-            ))}
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>
@@ -302,32 +347,33 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
           </p>
         ) : (
           <ul className="space-y-2">
-            {rpts.slice(0, 6).map((r, i) => (
-              <li
-                key={i}
-                className="border border-border rounded-lg p-3 bg-surface/40"
-              >
-                <div className="flex items-center gap-2 mb-1 flex-wrap">
-                  <span className="text-xs font-medium text-ink">
-                    {r.counterparty || "counterparty"}
-                  </span>
-                  {r.relationship && (
-                    <span className="text-[10px] uppercase tracking-wide text-caption">
-                      {r.relationship}
+            {rpts.slice(0, 6).map((r, i) => {
+              const who = r.party || r.counterparty || "counterparty"
+              return (
+                <li
+                  key={i}
+                  className="border border-border rounded-lg p-3 bg-surface/40"
+                >
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
+                    <span className="text-xs font-medium text-ink">
+                      {who}
                     </span>
-                  )}
+                    {r.relationship && (
+                      <span className="text-[10px] uppercase tracking-wide text-caption">
+                        {r.relationship}
+                      </span>
+                    )}
+                  </div>
                   {r.nature && (
-                    <span className="text-[10px] uppercase tracking-wide text-caption">
-                      {r.nature}
-                    </span>
+                    <p className="text-[11px] text-caption">{r.nature}</p>
                   )}
-                </div>
-                <p className="text-[11px] text-caption">
-                  {r.amount_cr !== undefined ? `Rs ${r.amount_cr} Cr` : "—"}
-                  {r.fy ? ` · ${r.fy}` : ""}
-                </p>
-              </li>
-            ))}
+                  <p className="text-[11px] text-caption">
+                    {formatCr(r.amount_cr)}
+                    {r.fy ? ` · ${r.fy}` : ""}
+                  </p>
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>
@@ -343,28 +389,31 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
           </p>
         ) : (
           <ul className="space-y-2">
-            {auditors.slice(0, 6).map((a, i) => (
-              <li
-                key={i}
-                className="border border-border rounded-lg p-3 bg-surface/40"
-              >
-                <div className="flex items-center gap-2 mb-1">
-                  {a.type && (
-                    <span className="text-xs font-medium text-ink">
-                      {a.type}
-                    </span>
+            {auditors.slice(0, 6).map((a, i) => {
+              const body = a.summary || a.description
+              return (
+                <li
+                  key={i}
+                  className="border border-border rounded-lg p-3 bg-surface/40"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    {a.type && (
+                      <span className="text-xs font-medium text-ink">
+                        {a.type}
+                      </span>
+                    )}
+                    {a.as_of && (
+                      <span className="text-[10px] uppercase tracking-wide text-caption">
+                        {a.as_of}
+                      </span>
+                    )}
+                  </div>
+                  {body && (
+                    <p className="text-[11px] text-caption">{body}</p>
                   )}
-                  {a.as_of && (
-                    <span className="text-[10px] uppercase tracking-wide text-caption">
-                      {a.as_of}
-                    </span>
-                  )}
-                </div>
-                {a.description && (
-                  <p className="text-[11px] text-caption">{a.description}</p>
-                )}
-              </li>
-            ))}
+                </li>
+              )
+            })}
           </ul>
         )}
       </section>
@@ -386,9 +435,9 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
                 className="border border-border rounded-lg p-3 bg-surface/40"
               >
                 <div className="flex items-center gap-2 mb-1">
-                  {l.amount_cr !== undefined && (
+                  {l.amount_cr !== undefined && l.amount_cr !== null && (
                     <span className="text-xs font-medium text-ink">
-                      Rs {l.amount_cr} Cr
+                      {formatCr(l.amount_cr)}
                     </span>
                   )}
                   {l.as_of && (
