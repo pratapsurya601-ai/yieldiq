@@ -677,6 +677,32 @@ MANIFEST: list[dict] = [
             "(canonical compute_yieldiq_score is the only score path)."
         ),
     },
+    {
+        # Phase F (2026-05-25): 10-year historical depth backfill for
+        # top-500 / canary-333. F.2 backfilled daily_prices.adj_close
+        # via yfinance period="max" with INSERT-or-UPDATE semantics.
+        # F.3 backfilled the financials table from BSE Peercomp (annual
+        # + quarterly) with browser fallback for Akamai-blocked tickers.
+        # F.4 regenerated ratio_history off the new financials.
+        #
+        # Scope is wildcard tickers + the depth-sensitive fields. Any
+        # cached row computed before this entry's applied_at is invalid
+        # for these fields and will be recomputed against the deeper
+        # history on first read.
+        "version_id": "v_phase_f_historical_depth_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 0, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [
+                "cagr_3y", "cagr_5y", "cagr_10y",
+                "ratio_history", "compounded_growth",
+            ],
+        },
+        "rationale": (
+            "Phase F: 10y historical backfill (adj_close + financials "
+            "+ ratios) for top-500 / canary-333."
+        ),
+    },
 ]
 
 
