@@ -4412,6 +4412,72 @@ class AnalysisService(NarrativeMixin):
         except Exception:
             pass
 
+        # ── Phase C.3 (2026-05-25): build score_breakdown ─────────────
+        # Surface the same components the canonical scoring function
+        # already emits in `yiq_score["components"]` plus any post-
+        # compute modifier (currently just the MoS-dominance cap) so
+        # the frontend "Why this score?" panel can render an
+        # auditable explanation. Field-additive only; existing
+        # numeric `yieldiq_score` is unchanged. See
+        # docs/diagnostics/phase-c-score-formula-2026-05-25.md.
+        _score_breakdown: dict | None = None
+        try:
+            _comp_raw = (yiq_score or {}).get("components") or {}
+            if _comp_raw:
+                # Map: canonical-name -> (weight_max, source_tag)
+                _comp_meta = {
+                    "Business Quality (50pts)": (50, "piotroski+moat"),
+                    "Growth (20pts)": (20, "revenue_growth"),
+                    "Valuation (20pts)": (20, "mos_pct"),
+                    "Sentiment (10pts)": (10, "analyst_upside"),
+                }
+                _comps: list[dict] = []
+                _base_total = 0
+                for _cn, _cp in _comp_raw.items():
+                    _w, _src = _comp_meta.get(_cn, (0, ""))
+                    _pts = int(_cp or 0)
+                    _base_total += _pts
+                    _comps.append({
+                        "name": _cn,
+                        "weight_max": _w,
+                        "points": _pts,
+                        "source": _src,
+                    })
+                _mods: list[dict] = []
+                _final = int(yiq_score.get("score", _base_total))
+                # Modifier: MoS-dominance cap (if it fired)
+                _orig_for_mod = locals().get("_orig_score")
+                if (
+                    _orig_for_mod is not None
+                    and _final < _orig_for_mod
+                ):
+                    _mods.append({
+                        "name": "MoS-dominance cap",
+                        "delta": _final - _orig_for_mod,
+                        "reason": (
+                            f"|MoS|={abs(mos_pct):.0f}% — composite "
+                            f"capped at {_final}."
+                        ),
+                    })
+                _score_breakdown = {
+                    "components": _comps,
+                    "modifiers": _mods,
+                    "base_score": _base_total,
+                    "final_score": _final,
+                    "note": (
+                        "Score is floored, not rounded. See "
+                        "docs/diagnostics/phase-c-score-formula-"
+                        "2026-05-25.md."
+                    ),
+                }
+        except Exception as _sb_exc:
+            import logging as _sb_log
+            _sb_log.getLogger("yieldiq.analysis").debug(
+                "score_breakdown build failed for %s: %s",
+                ticker, _sb_exc,
+            )
+            _score_breakdown = None
+
         # ── DEFERRED STRUCTURED FLAG BUILD (FIX-DAY3-STRENGTHS) ──
         # Inject newly-computed ratios into ``enriched`` so the
         # info-flag rules in utils._add_flags can read them. These
@@ -5150,6 +5216,7 @@ class AnalysisService(NarrativeMixin):
             quality=QualityOutput(
                 yieldiq_score=yiq_score.get("score", 0),
                 grade=yiq_score.get("grade", "C"),
+                score_breakdown=_score_breakdown,
                 piotroski_score=piotroski.get("score", 0),
                 piotroski_grade=piotroski.get("grade", ""),
                 earnings_quality_grade=eq_result.get("grade", "N/A"),

@@ -619,6 +619,23 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        # Phase C.3 (2026-05-25): field-additive score_breakdown.
+        # New `quality.score_breakdown` object on the analysis
+        # response surfaces the components + MoS-dominance cap
+        # modifier the frontend "Why this score?" panel reads.
+        # Numeric `yieldiq_score` is UNCHANGED — this is purely a
+        # transparency surface for state that was previously logged
+        # but never returned. Scope narrowed to score_breakdown so
+        # cohort recomputes aren't forced.
+        "version_id": "v_phase_c3_score_breakdown_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 2, 0, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["score_breakdown"]},
+        "rationale": (
+            "Phase C.3: add quality.score_breakdown (additive only) "
+            "for the 'Why this score?' transparency panel."
+        ),
+    },
+    {
         # Phase C.2 PR 2 (2026-05-25): hard-import the canonical
         # compute_yieldiq_score in backend/services/analysis/service.py.
         # The prior try/except wrapped a MOCK with different weights

@@ -2,7 +2,7 @@
 # Pydantic response models — the API contract for the Next.js frontend.
 from __future__ import annotations
 from pydantic import BaseModel, Field, field_serializer
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 
 
 # ── Shared serialization helpers ──────────────────────────────
@@ -214,9 +214,44 @@ class ValuationOutput(BaseModel):
             return v
 
 
+# ── Phase C.3 (2026-05-25) — score breakdown transparency ──
+# Three small models that explain how the headline yieldiq_score was
+# assembled. All optional / additive — legacy clients ignore them.
+# The frontend "Why this score?" panel reads `QualityOutput.score_breakdown`.
+class ScoreComponent(BaseModel):
+    """One base-formula component (e.g. Valuation, Quality)."""
+    name: str
+    weight_max: int        # max points this component can contribute (e.g. 20, 50)
+    points: int            # actual points awarded (0..weight_max)
+    source: str            # short tag — e.g. "mos_pct", "piotroski+moat"
+
+
+class ScoreModifier(BaseModel):
+    """A post-compute adjustment (e.g. the MoS-dominance cap)."""
+    name: str
+    delta: int             # negative if score was reduced
+    reason: str            # human-readable explanation
+
+
+class ScoreBreakdown(BaseModel):
+    """Full explanation of how `yieldiq_score` was assembled.
+
+    Phase C.3 transparency panel reads this. Field-additive only —
+    existing scores are unchanged; this just surfaces internal state
+    that was previously trapped in service.py logs."""
+    components: List[ScoreComponent] = []
+    modifiers: List[ScoreModifier] = []
+    base_score: int = 0    # sum of component points (pre-modifier)
+    final_score: int = 0   # post-modifier (matches yieldiq_score)
+    note: Optional[str] = None  # e.g. "Score is floored, not rounded."
+
+
 class QualityOutput(BaseModel):
     yieldiq_score: int = 0
     grade: str = "C"
+    # Phase C.3 — optional breakdown of how yieldiq_score was assembled.
+    # `None` on legacy/cached payloads; populated on fresh computes.
+    score_breakdown: Optional[ScoreBreakdown] = None
     piotroski_score: int = 0
     piotroski_grade: str = ""
     earnings_quality_grade: str = ""

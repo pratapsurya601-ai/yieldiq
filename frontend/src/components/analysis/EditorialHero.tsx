@@ -23,6 +23,7 @@ import { useMemo, useState } from "react"
 import Prism from "@/components/prism/Prism"
 import PillarExplainer from "@/components/prism/PillarExplainer"
 import ScoreCard from "@/components/analysis/ScoreCard"
+import ScoreBreakdownPanel from "@/components/analysis/ScoreBreakdownPanel"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
 import FvConfidenceBand from "@/components/analysis/FvConfidenceBand"
 import { verdictColor } from "@/lib/prism"
@@ -528,7 +529,7 @@ export default function EditorialHero({
         {/* ══════════════════════════════════════════════════════════
             Column 3 — ScoreCard (mobile: 1st — most valuable at a glance)
             ══════════════════════════════════════════════════════════ */}
-        <div className="lg:col-span-3 order-1 lg:order-3">
+        <div className="lg:col-span-3 order-1 lg:order-3 flex flex-col gap-3">
           <ScoreCard
             score100={score100}
             grade={grade}
@@ -537,6 +538,11 @@ export default function EditorialHero({
             refractionIndex={data.refraction_index}
             marketCapCr={marketCapCr ?? null}
             redFlags={redFlags}
+          />
+          {/* Phase C.3 — "Why this score?" transparency panel.
+              Renders nothing when score_breakdown is absent. */}
+          <ScoreBreakdownPanel
+            breakdown={data.quality?.score_breakdown}
           />
         </div>
       </div>
