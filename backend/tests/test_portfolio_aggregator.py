@@ -194,6 +194,22 @@ def test_data_limited_when_cache_miss(monkeypatch):
     assert result["summary"]["total_value"] == pytest.approx(1000.0)
 
 
+# PR #236 added `request` + `background_tasks` params to analyze_portfolio
+# for signed-in page-view telemetry. The validation gates run BEFORE the
+# telemetry call, so we pass stand-ins shaped like the real types and the
+# telemetry branch is exercised but never hits the network.
+from types import SimpleNamespace as _SN
+
+
+def _stub_request_and_bg():
+    fake_req = _SN(
+        url=_SN(path="/api/v1/portfolio/analyze"),
+        headers={},
+    )
+    fake_bg = _SN(add_task=lambda *a, **kw: None)
+    return fake_req, fake_bg
+
+
 def test_router_rejects_over_25_holdings(monkeypatch):
     """The router must 400 on >25 holdings — caller never sees the agg."""
     from fastapi import HTTPException
@@ -205,11 +221,13 @@ def test_router_rejects_over_25_holdings(monkeypatch):
             for i in range(26)
         ]
     )
+    fake_req, fake_bg = _stub_request_and_bg()
 
     with pytest.raises(HTTPException) as ei:
         asyncio.run(
             portfolio_router.analyze_portfolio(
-                req, user={"email": "u@example.com", "tier": "free"}
+                req, fake_req, fake_bg,
+                user={"email": "u@example.com", "tier": "free"},
             )
         )
     assert ei.value.status_code == 400
@@ -221,10 +239,12 @@ def test_router_rejects_empty(monkeypatch):
     from backend.routers import portfolio as portfolio_router
 
     req = portfolio_router.PrismAnalyzeRequest(holdings=[])
+    fake_req, fake_bg = _stub_request_and_bg()
     with pytest.raises(HTTPException) as ei:
         asyncio.run(
             portfolio_router.analyze_portfolio(
-                req, user={"email": "u@example.com"}
+                req, fake_req, fake_bg,
+                user={"email": "u@example.com"},
             )
         )
     assert ei.value.status_code == 400
@@ -237,10 +257,12 @@ def test_router_rejects_zero_shares(monkeypatch):
     req = portfolio_router.PrismAnalyzeRequest(
         holdings=[portfolio_router.PrismHolding(ticker="INFY", shares=0)]
     )
+    fake_req, fake_bg = _stub_request_and_bg()
     with pytest.raises(HTTPException) as ei:
         asyncio.run(
             portfolio_router.analyze_portfolio(
-                req, user={"email": "u@example.com"}
+                req, fake_req, fake_bg,
+                user={"email": "u@example.com"},
             )
         )
     assert ei.value.status_code == 400

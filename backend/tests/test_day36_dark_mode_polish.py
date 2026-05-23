@@ -17,6 +17,8 @@ explicit dark: variants needed.
 from __future__ import annotations
 from pathlib import Path
 
+import pytest
+
 
 _F = Path(__file__).resolve().parents[2] / "frontend" / "src"
 
@@ -88,6 +90,18 @@ def test_incident_banner_has_dark_variants():
 # ── Discover warming-up card ─────────────────────────────────
 
 
+@pytest.mark.skip(
+    reason=(
+        "STALE post-Day-68 (2026-05-21). The Discover 'warming up' card "
+        "was REMOVED — the 2026-05-20 audit found YIQ50 + FII/DII rails "
+        "sat in 'warming up' for hours after every deploy; Day-68 "
+        "replaced the placeholder with always-fresh educational content "
+        "so this card no longer exists. See "
+        "frontend/src/app/(app)/discover/page.tsx:16-46. Test should be "
+        "deleted once the Day-68 default-content surface is locked down "
+        "with its own assertions; tracked as Fix-139 follow-up."
+    )
+)
 def test_discover_warming_up_card_has_dark_bg():
     src = _src("app/(app)/discover/page.tsx")
     assert "bg-white dark:bg-surface border border-gray-100 dark:border-border rounded-xl p-6 text-center" in src
