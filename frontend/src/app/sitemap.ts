@@ -33,6 +33,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: "https://yieldiq.in/help/confidence-and-limits", priority: 0.6, changeFrequency: "monthly" },
     { url: "https://yieldiq.in/help/sectors-and-cohorts", priority: 0.6, changeFrequency: "monthly" },
     { url: "https://yieldiq.in/help/pricing-and-tiers", priority: 0.6, changeFrequency: "monthly" },
+    // J-copy-2b (audit item 17): static sector index page.
+    { url: "https://yieldiq.in/sector", priority: 0.7, changeFrequency: "weekly" },
     { url: "https://yieldiq.in/terms", priority: 0.3, changeFrequency: "monthly" },
     { url: "https://yieldiq.in/privacy", priority: 0.3, changeFrequency: "monthly" },
   ]
