@@ -224,6 +224,8 @@ from fastapi.middleware.gzip import GZipMiddleware
 
 from backend.routers import analysis, screener, portfolio, watchlist, alerts, market, auth
 from backend.routers import payments, pipeline, email, referral, admin, public, tax, concall
+# Phase A.2.1 (2026-05-23): admin data-quality dashboard endpoint
+from backend.routers import admin_data_quality as admin_data_quality_router
 # Day-49 (2026-05-20): student verification automation
 from backend.routers import student_verify as student_verify_router
 from backend.routers import account as account_router
@@ -944,6 +946,7 @@ app.include_router(email.router)
 app.include_router(referral.router)
 app.include_router(admin.router)
 app.include_router(admin.debug_router)
+app.include_router(admin_data_quality_router.router)
 app.include_router(public.router)
 app.include_router(analytics_router.router)
 app.include_router(tax.router)

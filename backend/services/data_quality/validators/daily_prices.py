@@ -163,18 +163,24 @@ class DailyPricesValidator:
     ) -> None:
         self._sample_loader = sample_loader or self._load_sample_from_db
 
-    def _load_sample_from_db(self) -> DailyPricesSample:  # pragma: no cover
-        """Production loader — wired in A.2 alongside the cron.
+    def _load_sample_from_db(self) -> DailyPricesSample:
+        """Production loader (Phase A.2.1).
 
-        A.1 ships the validator logic and tests; A.2 wires the live
-        Neon read path. Until then this raises so the orchestrator
-        skips the validator cleanly when DATABASE_URL is unset.
+        Delegates to ``db_loaders.load_daily_prices_sample`` which reads
+        Neon via psycopg2. When DATABASE_URL is unset the helper returns
+        None; we promote that to NotImplementedError so the orchestrator's
+        existing skip path still kicks in cleanly (it logs ``[SKIP]`` and
+        moves on rather than crashing).
         """
-        raise NotImplementedError(
-            "DailyPricesValidator DB loader is wired in A.2 (cron PR). "
-            "For A.1, pass an explicit sample_loader (used by tests and "
-            "by `--dry-run` smoke runs)."
-        )
+        from ..db_loaders import load_daily_prices_sample
+
+        sample = load_daily_prices_sample()
+        if sample is None:
+            raise NotImplementedError(
+                "DATABASE_URL unset; DailyPricesValidator skipped. "
+                "Use --dry-run for local smoke without a DB."
+            )
+        return sample
 
     def run(self) -> HealthCheckResult:
         sample = self._sample_loader()

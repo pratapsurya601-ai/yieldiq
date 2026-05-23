@@ -114,11 +114,18 @@ class StocksValidator:
     ) -> None:
         self._sample_loader = sample_loader or self._load_sample_from_db
 
-    def _load_sample_from_db(self) -> StocksSample:  # pragma: no cover
-        raise NotImplementedError(
-            "StocksValidator DB loader is wired in A.2 (cron PR). "
-            "For A.1, pass an explicit sample_loader."
-        )
+    def _load_sample_from_db(self) -> StocksSample:
+        """Production loader (Phase A.2.1). See daily_prices for the
+        same pattern + DATABASE_URL graceful-skip rationale."""
+        from ..db_loaders import load_stocks_sample
+
+        sample = load_stocks_sample()
+        if sample is None:
+            raise NotImplementedError(
+                "DATABASE_URL unset; StocksValidator skipped. "
+                "Use --dry-run for local smoke without a DB."
+            )
+        return sample
 
     def run(self) -> HealthCheckResult:
         sample = self._sample_loader()

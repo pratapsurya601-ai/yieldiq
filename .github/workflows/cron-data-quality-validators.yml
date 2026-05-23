@@ -1,0 +1,160 @@
+name: Cron — Data-quality validators (daily 03:00 UTC)
+
+# Phase A.2.1 (2026-05-23). Runs the data-quality validator suite
+# nightly against production Neon, persists every result into
+# data_quality_runs (migration 057), and opens a single idempotent
+# GitHub issue if any validator reports red.
+#
+# Why 03:00 UTC: after the daily NSE bhavcopy ingest (which finishes
+# ~22:00 UTC) and the consensus_estimates cron (23:30 UTC) but before
+# the IST morning, so a fresh red finding is visible to the team at
+# the start of the IST workday (~08:30 IST = 03:00 UTC).
+#
+# Idempotent auto-issue strategy:
+#   - We search for an open issue with the exact title
+#     "data-quality: red validator(s) <YYYY-MM-DD>" before creating one.
+#     If found, we comment on it instead of opening a duplicate.
+#   - On all-green runs we DO NOT close existing red issues; an operator
+#     closes those manually after verifying the fix landed. (Auto-close
+#     on green has bitten us before: a transient yellow → green can
+#     close a still-relevant red issue from a different validator.)
+#
+# Secrets required:
+#   - DATABASE_URL : Neon/Aiven Postgres URL
+#   - GITHUB_TOKEN : default; needed for issue create/comment
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      table:
+        description: "Only run this table's validator (blank = all)"
+        required: false
+        default: ""
+
+concurrency:
+  group: cron-data-quality-validators
+  cancel-in-progress: false
+
+jobs:
+  run-validators:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      issues: write
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install minimal deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install "psycopg2-binary" "SQLAlchemy>=2.0"
+
+      - name: Run validators (persist results)
+        id: run
+        # Capture stdout for the issue body. Exit code:
+        #   0 = all green/yellow, 1 = at least one red, 2 = orchestrator
+        # error. We tee to a log file so the issue step can read it even
+        # after pipefail trips. `|| true` is intentional so the issue
+        # step always runs; we re-check the exit code in the next step.
+        run: |
+          set -o pipefail
+          mkdir -p /tmp/dq
+          if [ -n "${{ github.event.inputs.table }}" ]; then
+            python scripts/run_data_quality_validators.py \
+              --table "${{ github.event.inputs.table }}" \
+              2>&1 | tee /tmp/dq/output.log
+          else
+            python scripts/run_data_quality_validators.py \
+              2>&1 | tee /tmp/dq/output.log
+          fi
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+        continue-on-error: true
+
+      - name: Capture orchestrator exit code
+        id: status
+        run: |
+          # `run` ran with continue-on-error; reconstruct status from log.
+          # The orchestrator prints a "summary: ... red=N ..." line.
+          rc=0
+          if grep -qE "summary: .* red=0 " /tmp/dq/output.log; then
+            rc=0
+          elif grep -qE "summary: .* red=[1-9]" /tmp/dq/output.log; then
+            rc=1
+          else
+            # No summary line at all — treat as orchestrator error.
+            rc=2
+          fi
+          echo "rc=$rc" >> "$GITHUB_OUTPUT"
+          echo "Resolved exit code: $rc"
+
+      - name: Open / comment on auto-issue (red only)
+        if: steps.status.outputs.rc != '0'
+        env:
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          DATE_TAG="$(date -u +%Y-%m-%d)"
+          TITLE="data-quality: red validator(s) ${DATE_TAG}"
+
+          # Body: a TL;DR header + the orchestrator log (capped).
+          {
+            echo "## Data-quality red finding (${DATE_TAG})"
+            echo ""
+            echo "Workflow run: ${RUN_URL}"
+            echo ""
+            echo "### Orchestrator output"
+            echo ""
+            echo '```'
+            tail -c 60000 /tmp/dq/output.log
+            echo '```'
+            echo ""
+            echo "_This issue is opened automatically by"
+            echo "\`.github/workflows/cron-data-quality-validators.yml\`._"
+            echo "_It is idempotent: a same-day re-run will comment here_"
+            echo "_rather than open a duplicate. Close it manually once_"
+            echo "_the root-cause fix is verified._"
+          } > /tmp/dq/issue_body.md
+
+          # Idempotent: search for an existing open issue with the exact
+          # day-tagged title before creating a new one.
+          EXISTING=$(gh issue list --repo "$REPO" --state open --search "in:title \"$TITLE\"" --json number -q '.[0].number' || true)
+          if [ -n "$EXISTING" ]; then
+            echo "Existing open issue #$EXISTING — adding comment"
+            gh issue comment "$EXISTING" --repo "$REPO" --body-file /tmp/dq/issue_body.md
+          else
+            echo "No existing issue — creating new"
+            gh issue create --repo "$REPO" \
+              --title "$TITLE" \
+              --label "data-quality,auto-opened" \
+              --body-file /tmp/dq/issue_body.md
+          fi
+
+      - name: Write cron heartbeat
+        # Dead-man monitoring (see cron-deadman-checker.yml). Heartbeat
+        # writes only on a clean orchestrator run — orchestrator errors
+        # (rc=2) leave the heartbeat stale on purpose so dead-man fires.
+        if: steps.status.outputs.rc != '2'
+        run: |
+          python scripts/write_cron_heartbeat.py \
+            --workflow cron-data-quality-validators \
+            --interval-minutes 1440
+
+      - name: Final exit code
+        # Propagate the orchestrator's rc to the job result.
+        run: |
+          rc="${{ steps.status.outputs.rc }}"
+          echo "Exiting with rc=$rc"
+          exit "$rc"
