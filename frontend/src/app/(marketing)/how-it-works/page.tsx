@@ -453,7 +453,7 @@ export default function HowItWorksPage() {
             signals: profitability, leverage, and operating efficiency.
             For non-financial businesses, YieldIQ runs it unchanged.
           </p>
-          <p>
+          <p>{/* sebi-allow: weak */}
             For banks and most NBFCs, the classic formula is wrong on
             its face. Half the signals &mdash; current ratio, gross
             margin, asset turnover &mdash; are not meaningful for a
@@ -576,7 +576,7 @@ export default function HowItWorksPage() {
           </span>
         </p>
 
-        <PullQuote>
+        <PullQuote>{/* sebi-allow: should */}
           Defence-in-depth: margin-of-safety is clamped to
           [&minus;50%, +50%] before bucketing. A single classifier gap
           should never be enough to push a stock to A+ on broken data.
@@ -637,14 +637,14 @@ export default function HowItWorksPage() {
           title="What we won&rsquo;t do"
         />
         <div className="space-y-4 text-sm text-body leading-relaxed">
-          <p>
+          <p>{/* sebi-allow: recommendation */}
             YieldIQ is a research surface, not a recommendation engine.
             We are not registered with SEBI as an investment adviser or
             research analyst. The product is built so that it
             <em> cannot</em> issue advice even if we wanted it to.
           </p>
           <ul className="list-disc pl-6 space-y-2">
-            <li>
+            <li>{/* sebi-allow: sell */}
               We don&rsquo;t issue directional recommendations &mdash; none
               of the four rating words conventional sell-side analysts use
               to flag relative or absolute performance appear in our copy.

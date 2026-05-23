@@ -273,7 +273,7 @@ export default async function PerformancePage() {
       {/* Per-sector breakdown */}
       <section className="mb-12">
         <h2 className="mb-3 font-serif text-2xl">Per-sector breakdown</h2>
-        <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-400">
+        <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-400">{/* sebi-allow: should */}
           Sector-relative is the honest comparison: an IT pick should beat
           Nifty IT, not the broad market. Aggregate outperform-rate above is
           n-weighted across these sectors.
@@ -307,7 +307,7 @@ export default async function PerformancePage() {
 function SectorBreakdown({ rows }: { rows: SectorRow[] | null }) {
   if (!rows || rows.length === 0) {
     return (
-      <div className="rounded-md border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400">
+      <div className="rounded-md border border-dashed border-neutral-300 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-400">{/* sebi-allow: accumulate */}
         Aggregate Nifty 500 only — sector breakdown will appear in the next
         quarterly publication, once enough per-sector predictions accumulate.
       </div>

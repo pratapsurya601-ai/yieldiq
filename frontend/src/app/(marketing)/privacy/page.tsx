@@ -98,7 +98,7 @@ export default function PrivacyPolicyPage() {
               <li>To detect and prevent abuse or fraud</li>
               <li>To comply with legal obligations</li>
             </ul>
-            <p className="text-caption leading-relaxed mt-2">
+            <p className="text-caption leading-relaxed mt-2">{/* sebi-allow: sell */}
               We do not sell your personal data to third parties. We do not use your data to provide
               personalized investment advice or recommendations.
             </p>

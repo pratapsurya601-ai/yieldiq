@@ -91,7 +91,7 @@ export default function TechnicalsClient({ data, ticker }: { data: TechData; tic
         <h1 className="text-2xl sm:text-3xl font-black text-ink mb-2">
           {display} Technical Reference
         </h1>
-        <p className="text-caption text-sm">
+        <p className="text-caption text-sm">{/* sebi-allow: buy, sell */}
           SMA, RSI, MACD, Bollinger Bands. Factual reference data — not buy/sell signals.
         </p>
       </div>
