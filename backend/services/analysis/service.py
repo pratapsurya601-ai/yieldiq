@@ -4108,10 +4108,15 @@ class AnalysisService(NarrativeMixin):
         #      zero (cash-rich IT names like TCS / INFY stay at 0).
         #   3. ``None`` — frontend renders "—".
         #
-        # Bank-like guard: D/E for banks mixes deposits with debt
-        # and is misleading; keep the existing behaviour (do not
-        # special-case banks here — the field stays whatever the
-        # data source provides, consistent with prior shipping).
+        # Bank D/E (Day-111b, 2026-05-23): banks ARE now special-
+        # cased in ``financials_service._compute_de_ratio`` —
+        # commercial banks get D/E = (total_liab - equity) / equity
+        # so deposits + borrowings (the dominant interest-bearing
+        # liabilities) land in the numerator. HDFCBANK previously
+        # surfaced ~0.95 (total_debt / equity, excludes deposits);
+        # now lands at ~7-8, matching Screener.in. Done in the
+        # financials service so the same value flows through every
+        # caller (ratios grid, AI description, sector page).
         _de_db = _fetch_de_ratio(ticker)
         _de_enriched = enriched.get("de_ratio")
         if _de_db is not None:

@@ -729,6 +729,49 @@ BANKING_PSU_TICKERS = _BANKING_PSU_TICKERS
 BANKING_TIER2_TICKERS = _BANKING_TIER2_TICKERS
 
 
+# ─────────────────────────────────────────────────────────────────
+# Day-111b (2026-05-23) — pure-bank detector for D/E numerator
+# ─────────────────────────────────────────────────────────────────
+# The Day-109a banking cohort is scoped to PB-anchoring eligibility
+# (Tier-1 private / PSU / Tier-2). For the Day-111b D/E fix we need a
+# broader "is this a commercial bank?" predicate that also captures
+# the rest of the top-100 PSU bank universe (PNB, BANKBARODA, etc.)
+# whose D/E was being computed as ~0.95 because deposits weren't in
+# the numerator. We deliberately do NOT include NBFCs / insurers /
+# AMCs here — their leverage profile is different and they already
+# carry meaningful `total_debt`. Pure commercial banks only.
+_PURE_BANK_TICKERS_FOR_DE: Final[frozenset[str]] = frozenset({
+    # Tier-1 private (Day-109a)
+    "HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK", "INDUSINDBK",
+    # Tier-2 / regional / mid-cap private (Day-109a)
+    "FEDERALBNK", "IDFCFIRSTB", "AUBANK", "BANDHANBNK", "RBLBANK",
+    # PSU banks (SBIN from Day-109a + the broader top-100 PSU set)
+    "SBIN", "PNB", "BANKBARODA", "CANBK", "BANKINDIA", "IOB",
+    "UCOBANK", "CENTRALBK", "INDIANB", "MAHABANK", "IDBI", "UNIONBANK",
+    # Older private + small-finance banks
+    "YESBANK", "KARURVYSYA", "CUB", "DCBBANK", "SOUTHBANK", "TMB",
+    "CAPITALSFB", "ESAFSFB", "EQUITASBNK", "UJJIVANSFB", "SURYODAY",
+    "FINOPB", "JANASURF", "UTKARSHBNK", "FINCABK", "SFBAJM",
+})
+
+
+def is_pure_bank_for_de(ticker: str | None) -> bool:
+    """True if the ticker is a commercial bank for D/E-numerator purposes.
+
+    Broader than ``is_banking_cohort_ticker`` (which is PB-anchoring
+    scoped). Used by Day-111b to route banks to the
+    "(total_liabilities - equity) / equity" D/E formula instead of
+    the generic "total_debt / equity" — which gives nonsensical ~0.95
+    for banks because deposits live in total_liabilities, not
+    total_debt. Excludes NBFCs / insurers / AMCs by design.
+    """
+    return _bare(ticker) in _PURE_BANK_TICKERS_FOR_DE
+
+
+# Re-export for tests
+PURE_BANK_TICKERS_FOR_DE = _PURE_BANK_TICKERS_FOR_DE
+
+
 # ═══════════════════════════════════════════════════════════════════
 # Day-110c (2026-05-23) — REIT / InvIT sector cohort overrides
 # ═══════════════════════════════════════════════════════════════════
