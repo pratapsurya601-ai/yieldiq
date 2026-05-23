@@ -555,57 +555,56 @@ def main(argv: list[str] | None = None) -> int:
         print(f"scope source: {scope_src}", flush=True)
         print(f"scope: {sorted(scope) if scope else '(none declared)'}", flush=True)
 
-    if scope is None and args.require_scope:
-        # Best-effort: ask sector_scope_suggest.py what it would have
-        # recommended for the current diff, so the PR comment isn't just
-        # "you forgot the line" but "here is the line — paste it".
-        suggested_line = "sector-scope: <add sectors here, or `*` for global>"
+    # Ask the suggester (sector_scope_suggest.py) what scope this diff
+    # actually requires. The workflow's `paths:` trigger is intentionally
+    # broad (backend/services/**, backend/routers/**, ...) because those
+    # trees mix scoring code with non-scoring code. The suggester applies
+    # the narrower truth — GLOBAL_PREFIXES + SECTORAL_PREFIXES + per-file
+    # sector-label scan — and emits the sentinel
+    # `sector-scope: <none - no scoring/data files touched>` when the
+    # actual diff cannot affect any sector.
+    #
+    # We run the suggester unconditionally (not just when scope is None)
+    # because PR bodies often contain documentation-like prose with the
+    # literal substring `sector-scope:` (e.g. THIS PR's own body); that
+    # would otherwise parse to a non-None scope and bypass the no-op
+    # branch, sending us into a 333-stock live fetch for no reason.
+    suggested_line = "sector-scope: <add sectors here, or `*` for global>"
+    try:
+        out = subprocess.check_output(
+            [sys.executable, str(REPO_ROOT / "scripts" / "sector_scope_suggest.py")],
+            stderr=subprocess.DEVNULL,
+            timeout=15,
+        ).decode("utf-8", errors="replace").strip()
+        if out.startswith("sector-scope:"):
+            suggested_line = out
+    except Exception:
+        pass
+
+    if args.require_scope and "no scoring/data files touched" in suggested_line:
+        print(
+            "sector-isolation: diff does not touch scoring/data files "
+            "(per sector_scope_suggest); skipping gate (no-op PASS).",
+            flush=True,
+        )
         try:
-            out = subprocess.check_output(
-                [sys.executable, str(REPO_ROOT / "scripts" / "sector_scope_suggest.py")],
-                stderr=subprocess.DEVNULL,
-                timeout=15,
-            ).decode("utf-8", errors="replace").strip()
-            if out.startswith("sector-scope:"):
-                suggested_line = out
+            md = "\n".join([
+                "# Sector Isolation Report",
+                "",
+                "**STATUS: PASS (no-op)** - diff does not touch any "
+                "scoring or data file the gate cares about.",
+                "",
+                "The workflow `paths:` trigger is deliberately broad. The "
+                "suggester (`scripts/sector_scope_suggest.py`) applies the "
+                "narrower truth and confirmed no sector can shift from this "
+                "diff. No declaration required, no live fetch performed.",
+            ])
+            Path(args.report_md).write_text(md, encoding="utf-8")
         except Exception:
             pass
+        return 0
 
-        # The workflow's `paths:` filter is intentionally broad
-        # (backend/services/**, backend/routers/**, ...) because those
-        # trees mix scoring code with non-scoring code (routers for
-        # observation, intel panels, etc.). The suggester applies the
-        # narrower truth — GLOBAL_PREFIXES + SECTORAL_PREFIXES + per-file
-        # sector-label scan — and emits the sentinel
-        # `sector-scope: <none — no scoring/data files touched>` when the
-        # actual diff cannot affect any sector. In that case the gate has
-        # nothing to gate on, and demanding a declaration just teaches
-        # authors to paste `sector-scope: *` reflexively, which defeats
-        # the gate entirely (PRs that DO need scope review get lost in
-        # the noise). Auto-pass with a log line so the reviewer can audit.
-        if "no scoring/data files touched" in suggested_line:
-            print(
-                "sector-isolation: diff does not touch scoring/data files "
-                "(per sector_scope_suggest); skipping require-scope gate.",
-                flush=True,
-            )
-            try:
-                md = "\n".join([
-                    "# Sector Isolation Report",
-                    "",
-                    "**STATUS: PASS (no-op)** — diff does not touch any "
-                    "scoring or data file the gate cares about.",
-                    "",
-                    "The workflow `paths:` trigger is deliberately broad. The "
-                    "suggester (`scripts/sector_scope_suggest.py`) applies the "
-                    "narrower truth and confirmed no sector can shift from this "
-                    "diff. No declaration required.",
-                ])
-                Path(args.report_md).write_text(md, encoding="utf-8")
-            except Exception:
-                pass
-            return 0
-
+    if scope is None and args.require_scope:
         msg_lines = [
             "ERROR: no `sector-scope:` declaration found.",
             "Every PR touching scoring code must declare:",
