@@ -951,6 +951,9 @@ app.include_router(public.router)
 app.include_router(analytics_router.router)
 app.include_router(tax.router)
 app.include_router(concall.router)
+# Phase H-frontend: AR signals public-read endpoints (no auth).
+from backend.routers import annual_reports as annual_reports_router
+app.include_router(annual_reports_router.router)
 app.include_router(account_router.router)
 app.include_router(notifications_router.router)
 app.include_router(telemetry_router.router)

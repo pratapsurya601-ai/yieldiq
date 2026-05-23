@@ -877,6 +877,23 @@ MANIFEST: list[dict] = [
             "concall_signals on the public analysis surface."
         ),
     },
+    {
+        # Phase H-frontend (Block II): expose Anthropic-extracted AR
+        # signals on the public analysis surface. Scoped to the new
+        # ar_signals / ar_intel fields so existing cached score /
+        # verdict rows are untouched -- this is purely additive.
+        "version_id": "v_phase_h_ar_signals_2026_05_26",
+        "applied_at": datetime(2026, 5, 26, 0, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["ar_signals", "ar_intel"],
+        },
+        "rationale": (
+            "Phase H-frontend (Block II): expose Anthropic-extracted "
+            "ar_signals (segments / capex / RPT / auditor flags / "
+            "contingent liabilities / outlook) on the analysis page."
+        ),
+    },
 ]
 
 
