@@ -451,21 +451,21 @@ MANIFEST: list[dict] = [
         ),
     },
     {
-        # Day-111a (2026-05-23): industry serializer key fix.
-        # local_data_service.py fetched ``industry`` from the stocks
-        # table but collapsed it into ``sector_name``; the response
-        # dict never emitted an ``industry`` key, so 93/97 tickers
-        # showed ``industry: ""`` in the public stock-summary payload.
-        # Unblocks Day-99 percentile cohorts and bank/REIT/holdco
-        # detection that key off industry strings.
-        "version_id": "v_day111a_industry_serializer_2026_05_23",
-        "applied_at": datetime(2026, 5, 23, 22, 0, 0, tzinfo=timezone.utc),
-        "scope": {"tickers": "*", "fields": ["industry", "sector"]},
+        # Day-111b (2026-05-23): bank D/E now includes deposits +
+        # borrowings via the (total_liab - equity)/equity proxy.
+        "version_id": "v_day111b_bank_de_with_deposits_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 22, 5, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK", "SBIN",
+                "INDUSINDBK", "FEDERALBNK", "IDFCFIRSTB", "AUBANK",
+                "BANDHANBNK", "RBLBANK", "BANKBARODA", "PNB",
+            ],
+            "fields": ["de_ratio", "ratios.de_ratio"],
+        },
         "rationale": (
-            "Day-111a: industry serializer key fix — was being dropped "
-            "from local_data_service response. Unblocks Day-99 "
-            "percentile cohorts, bank/REIT/holdco detection, AI "
-            "description ROE/D-E for banks."
+            "Day-111b: bank D/E now includes deposits + borrowings "
+            "(was just total_debt, gave nonsensical ~0.95 for banks)."
         ),
     },
 ]

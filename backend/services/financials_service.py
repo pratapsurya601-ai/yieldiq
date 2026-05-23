@@ -139,6 +139,56 @@ def _book_value_per_share(equity_cr: float | None,
 
 
 # ──────────────────────────────────────────────────────────────────────────
+# Day-111b — Debt/Equity ratio (bank-aware)
+# ──────────────────────────────────────────────────────────────────────────
+def _compute_de_ratio(
+    ticker: str | None,
+    *,
+    total_debt: float | None,
+    total_equity: float | None,
+    total_liabilities: float | None,
+) -> float | None:
+    """Compute D/E with a bank-aware numerator.
+
+    For commercial banks (``is_pure_bank_for_de`` True), deposits +
+    borrowings are interest-bearing liabilities that belong in the
+    D/E numerator. ``company_financials`` does not yet split these
+    out, so we fall back to ``(total_liabilities - total_equity) /
+    total_equity`` — a tight proxy because banks' non-equity, non-
+    deposit, non-borrowing liabilities (other liab / provisions) are
+    a small fraction of the balance sheet. HDFCBANK lands at ~7-8
+    via this path, matching Screener.in.
+
+    For non-banks, behaviour is unchanged: ``total_debt / equity``.
+
+    Returns ``None`` when equity is missing / zero, or when the bank
+    fallback has no usable ``total_liabilities``.
+    """
+    eq = _safe_float(total_equity)
+    if eq is None or eq == 0:
+        return None
+    try:
+        from backend.services.analysis.sector_overrides import (
+            is_pure_bank_for_de,
+        )
+    except Exception:  # pragma: no cover — defensive import
+        is_pure_bank_for_de = lambda _t: False  # noqa: E731
+
+    if is_pure_bank_for_de(ticker):
+        tl = _safe_float(total_liabilities)
+        if tl is None:
+            # Bank with no total_liabilities — return None rather
+            # than the misleading total_debt/equity number.
+            return None
+        return round((tl - eq) / eq, 2)
+
+    td = _safe_float(total_debt)
+    if td is None:
+        return None
+    return round(td / eq, 2)
+
+
+# ──────────────────────────────────────────────────────────────────────────
 # DB query — new company_financials table
 # ──────────────────────────────────────────────────────────────────────────
 def _fetch_from_db(db, db_ticker: str, period_type: str,
@@ -166,10 +216,15 @@ def _fetch_from_db(db, db_ticker: str, period_type: str,
         return []
 
     # ---- BALANCE SHEET ----------------------------------------------
+    # Day-111b: also select total_liabilities so the bank D/E path can
+    # fall back to (total_liab - equity) / equity (deposits +
+    # borrowings live in total_liabilities, not in total_debt — there
+    # are no separate deposits/borrowings columns in
+    # company_financials yet; see Phase-2 ingestion TODO below).
     bs_rows = db.execute(text("""
         SELECT period_end_date, total_assets, total_debt, cash,
                total_equity, current_assets, fixed_assets,
-               net_debt, working_capital
+               net_debt, working_capital, total_liabilities
         FROM company_financials
         WHERE ticker_nse = :t
           AND statement_type = 'balance_sheet'
@@ -234,9 +289,21 @@ def _fetch_from_db(db, db_ticker: str, period_type: str,
             row.ebitda = round(row.ebit + row.depreciation, 2)
 
         # Debt/Equity derived
-        if row.total_debt is not None and row.total_equity \
-                and row.total_equity != 0:
-            row.debt_to_equity = round(row.total_debt / row.total_equity, 2)
+        # Day-111b: banks are structurally leveraged via deposits +
+        # borrowings, which are interest-bearing liabilities that live
+        # in ``total_liabilities`` (not ``total_debt``). Computing D/E
+        # as total_debt/equity for a bank yields a nonsensical ~0.95
+        # for HDFCBANK; the real value (deposits + borrowings) /
+        # equity is ~7-8. Banks deliberately route through the
+        # fallback formula (total_liab - equity) / equity until the
+        # data_pipeline gains separate deposits / borrowings columns
+        # (Phase-2 ingestion).
+        row.debt_to_equity = _compute_de_ratio(
+            db_ticker,
+            total_debt=row.total_debt,
+            total_equity=row.total_equity,
+            total_liabilities=_safe_float(bs.get("total_liabilities")),
+        )
 
         out.append(row)
 
