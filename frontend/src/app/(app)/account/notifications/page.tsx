@@ -240,7 +240,7 @@ function WebPushPanel({ onToast }: { onToast: (msg: string, tone?: "ok" | "err")
         <button
           type="button"
           onClick={enable}
-          disabled={busy || subscribed}
+          disabled={busy || subscribed || permission === "denied"}
           className="text-xs px-3 py-2 rounded-lg bg-blue-600 text-white disabled:opacity-50"
         >
           {subscribed ? "Enabled" : "Enable mobile notifications"}
@@ -254,6 +254,20 @@ function WebPushPanel({ onToast }: { onToast: (msg: string, tone?: "ok" | "err")
           Send test notification
         </button>
       </div>
+      {permission === "denied" && (
+        <div
+          role="status"
+          className="text-xs leading-relaxed text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded-lg p-3"
+        >
+          <p className="font-medium">Notifications are blocked for this site.</p>
+          <p className="mt-1">
+            Browsers do not let pages re-prompt for permission once it has been
+            denied. To enable, click the lock icon in your address bar, find
+            <span className="font-medium"> Notifications</span>, and switch it
+            to <span className="font-medium">Allow</span>. Then reload this page.
+          </p>
+        </div>
+      )}
     </div>
   )
 }
