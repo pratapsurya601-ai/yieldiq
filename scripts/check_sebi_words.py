@@ -212,10 +212,25 @@ _STRING_LITERAL_RE = re.compile(
     re.VERBOSE | re.DOTALL,
 )
 
-# JSX text — anything between > and < that isn't purely whitespace.
-# Extracting perfectly from TSX requires a full parser; this regex catches
-# the obvious cases which is what matters here (the 99% of share-card text).
-_JSX_TEXT_RE = re.compile(r">([^<{}\n]*[A-Za-z][^<{}]*)<")
+# JSX text — anything between > and < that contains at least one letter and
+# is not a JSX expression (``{...}``). Uses DOTALL so multi-line bodies are
+# captured. The earlier single-line variant silently missed banned vocab
+# inside pretty-formatted JSX like::
+#
+#     <p>
+#       <REDACTED-MULTI-LINE-EXAMPLE-IN-FIXTURE>
+#     </p>
+#
+# which broke a real share-card during PR review (Task #134 / PR #571).
+# See ``scripts/_sebi_test_fixtures/multiline_banned.tsx.fixture`` for the
+# canonical regression input. We deliberately allow the captured body to
+# span newlines and skip any body that does not contain at least one letter
+# (pure whitespace, numeric children, etc.). Leading/trailing whitespace is
+# trimmed by the downstream excerpt logic.
+_JSX_TEXT_RE = re.compile(
+    r">\s*([^<{}]*?[A-Za-z][^<{}]*?)\s*<",
+    re.DOTALL,
+)
 
 # Per-line exemption annotations.
 # Accepts both line-comment (`// sebi-allow: buy`) and block/JSX-comment

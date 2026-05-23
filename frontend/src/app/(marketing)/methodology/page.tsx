@@ -167,7 +167,7 @@ export default function MethodologyPage() {
             price. When the implied number is higher than anything the
             business has ever delivered, the reverse DCF says so plainly.
           </p>
-          <p className="text-caption">
+          <p className="text-caption">{/* sebi-allow: should, recommendation */}
             All DCF outputs are model estimates. They are not price
             targets and nothing on this page should be read as a
             recommendation to transact.
@@ -222,7 +222,7 @@ export default function MethodologyPage() {
           eyebrow="03 — Labels"
           title="Verdict bands"
         />
-        <p className="text-sm text-body leading-relaxed mb-6">
+        <p className="text-sm text-body leading-relaxed mb-6">{/* sebi-allow: buy, sell */}
           Verdicts are descriptive, not imperative. They describe where
           the current price sits relative to the modelled fair-value
           distribution. They do not tell anyone to buy or sell.
@@ -394,7 +394,7 @@ export default function MethodologyPage() {
           title="SEBI posture"
         />
         <div className="space-y-4 text-sm text-body leading-relaxed">
-          <p>
+          <p>{/* sebi-allow: recommendation */}
             YieldIQ is not registered with the Securities and Exchange
             Board of India as an Investment Adviser or Research Analyst.
             Nothing on the site is investment advice, a recommendation,

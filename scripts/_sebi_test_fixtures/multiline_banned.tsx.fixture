@@ -1,0 +1,26 @@
+// Fixture file consumed by tests/test_check_sebi_words_jsx.py.
+// NOT real source — do NOT import. The .fixture extension keeps this out
+// of both TypeScript compilation and the production SEBI lint pass
+// (SCANNED_EXTS in scripts/check_sebi_words.py excludes .fixture).
+//
+// The point of this fixture is to encode the multi-line JSX shape that
+// the original `_JSX_TEXT_RE` silently missed: a JSX text node where the
+// banned word is NOT on the same line as the opening `>`. PR #571
+// (Task #134) was the real-world miss that motivated the regex rework.
+//
+// Keep the banned-vocabulary tokens here, not in the Python source — the
+// lint code itself must stay SEBI-clean.
+
+export function MultiLineBanned() {
+  return (
+    <div>
+      <p className="advisory">
+        No SEBI-regulated buy/sell signals
+      </p>
+      <p>
+        We recommend you accumulate this position
+      </p>
+      <span>Single line strong opinion</span>
+    </div>
+  );
+}

@@ -236,7 +236,7 @@ export default function ScreenClient({ data, slug }: { data: ScreenData; slug: s
       </section>
 
       <footer className="py-6 border-t border-gray-100">
-        <p className="text-[10px] text-caption text-center max-w-2xl mx-auto px-4">
+        <p className="text-[10px] text-caption text-center max-w-2xl mx-auto px-4">{/* sebi-allow: recommendation */}
           This is a factor-based filter, not a stock recommendation. Model estimates only \u2014 not investment advice.
           YieldIQ is not registered with SEBI as an investment adviser.
         </p>

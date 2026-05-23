@@ -186,7 +186,7 @@ export default async function SectorPage(
             </Link>
           </li>
         </ul>
-        <p className="text-xs text-caption mt-3">
+        <p className="text-xs text-caption mt-3">{/* sebi-allow: recommendation */}
           Sector medians describe the cohort math, not a recommendation.
           Each per-ticker page links to the full DCF with assumptions.
         </p>
