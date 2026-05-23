@@ -150,16 +150,164 @@ fired:
 2. Body must include the diagnostic doc / postmortem of the missed regression
 3. Add a regression test that fails before the fix and passes after
 
-## A.2 (deferred — separate PR)
+## Per-validator reference
 
-- `.github/workflows/data_quality_validate.yml` cron (4x daily)
-- Live DB loaders for the two A.1 validators
-- Admin endpoint `GET /admin/data-quality/runs?status=red`
-- Admin UI tile (status board + drill-down)
-- 9 additional validators: `ttm_quarterly`, `corporate_actions`,
-  `analyst_estimates`, `compounded_growth`, `peer_groups`,
-  `ratio_history`, `shareholding`, `cron_heartbeats`,
-  `nse_industry_master`
+A.1 + A.2.1 + A.2.2 ship 10 concrete validators. The signal-to-noise
+profile of each one is documented here so triage is fast.
+
+### `daily_prices` (A.1)
+**What it checks:** schema columns, row-count stability, close_price
+null rate, recency (28h), per-canary `adj_close != close_price` on
+pre-2024 rows, plausibility bands on RELIANCE / TCS / HDFCBANK close.
+
+**Common false positives:** none seen yet.
+
+**Suppress when:** never. Any red here is real.
+
+---
+
+### `stocks` (A.1, A.2.2 calibration)
+**What it checks:** row-count, industry/sector null rates, is_active
+NOT NULL invariant, fuzzy industry canaries (HDFCBANK / TCS /
+RELIANCE / NESTLEIND / MARUTI), 168h recency.
+
+**Common false positives:** populator renames a taxonomy label
+(e.g. "Banks - Private Sector" → "Nifty Private Bank"). Mitigated in
+A.2.2 by the fuzzy token-match — add a new token to
+`CANARY_INDUSTRY_TOKENS` if a legitimate new tag surfaces.
+
+**Suppress when:** never. Label changes are a one-line PR to extend
+the token list.
+
+---
+
+### `corporate_actions` (A.2.1)
+**What it checks:** schema, row-count, recency (30d), known-good
+SPLIT/BONUS coverage for RELIANCE/INFY/WIPRO, `adjustment_factor`
+null rate on SPLIT/BONUS rows, `data_quality_rank` coverage.
+
+**Common false positives:** `data_quality_rank` may dip after a
+backfill before reranking lands; a yellow here for <48h is OK.
+
+**Suppress when:** label PR as `wontfix-known-noise` if the
+canary_actions check fires *only* on WIPRO during a known
+yfinance-outage window (rare).
+
+**Known A.2.1 finding (filed separately):** INFY missing 2018 bonus.
+
+---
+
+### `consensus_estimates` (A.2.1)
+**What it checks:** schema, fresh row count over last 24h, recency
+of latest fetched_at, canary coverage (HDFCBANK / TCS / RELIANCE
+have ≥1 row in last 7 days), target_mean null rate.
+
+**Common false positives:** weekend gaps shrink `rows_in_last_24h`
+below the warn threshold without breaking anything. Already handled
+via the warn-vs-fail tier inside the validator.
+
+**Suppress when:** never. Use `force_refresh=true` to bypass the
+admin-endpoint cache after a fresh cron lands.
+
+---
+
+### `ratio_history` (A.2.1)
+**What it checks:** schema, row-count, recency, pe/de null rates on
+latest period, HDFCBANK plausibility on pe_ratio and roe.
+
+**Known A.2.1 finding (filed separately):** `pe_ratio` 50.9% null on
+the latest period. Cause is a non-banking-coverage gap in the
+ratio populator; tracked as a P1 separately.
+
+---
+
+### `peer_groups` (A.2.1)
+**What it checks:** schema, row-count, recency (168h), HDFCBANK and
+TCS have ≥3 peers each.
+
+**Common false positives:** a fresh universe pivot can briefly
+drop a canary below 3 before the next peer-build run; yellow for
+<24h is OK.
+
+---
+
+### `cron_heartbeats` (A.2.2)
+**What it checks:** schema, row-count, per-workflow staleness vs
+`2 × expected_interval_minutes` for the four workflows listed in
+`EXPECTED_WORKFLOWS` (nightly-ingest, weekly-industry-master,
+cron-deadman-checker, data-quality-validate).
+
+**Common false positives:** GitHub Actions cron drift — a workflow
+fires late by 5-15 min routinely. The 2x multiplier absorbs this.
+
+**Suppress when:** never. A red here is *the* "the populator
+silently stopped running" signal this entire framework was built for.
+
+---
+
+### `shareholding_pattern` (A.2.2)
+**What it checks:** schema, row-count, quarterly recency (100d),
+sum-to-100 ± 1 invariant on five canaries, promoter % bands on
+HDFCBANK and KOTAKBANK.
+
+**Common false positives:** during NSE's filing window (within 21d
+of quarter end) some tickers may not yet have the latest quarter;
+the 100d threshold absorbs this.
+
+**Suppress when:** label `wontfix-known-noise` if a single
+non-canary ticker's promoter band fails due to a known corporate
+restructuring announced and parsed within the prior week.
+
+---
+
+### `company_quarterly_results` (A.2.2)
+**What it checks:** schema, row-count, recency, top-10 canary
+quarterly-filing recency (100d), revenue & net_profit null rates on
+canaries' latest 4 quarters, HDFCBANK latest revenue band
+[₹70K, ₹90K] Cr.
+
+**Common false positives:** during the quarter-end filing window, a
+canary may not have filed yet — yellow for <30d is OK.
+
+**Suppress when:** an HDFCBANK band miss is acceptable only with a
+postmortem PR retuning the band; do NOT label as noise.
+
+---
+
+### `cagr_service_output` (A.2.2)
+**What it checks:** runs `compute_cagr_panel` for 5 canaries
+(TCS, INFY, HDFCBANK, RELIANCE, ICICIBANK); ensures ≥3/5 have a
+5y CAGR populated, ≥4/5 have a 3y CAGR populated; checks 5y CAGRs
+for plausibility (very wide band, [-30%, +50%]).
+
+**Common false positives:** a backfill-in-progress will briefly
+drop coverage; yellow for <12h after `rebuild_adj_close.py` is OK.
+
+**Suppress when:** never. Below-floor coverage is exactly the
+Day-112 regression signature we built this for.
+
+---
+
+## Triaging red statuses (admin UI)
+
+1. **Open** `/admin/data-quality`.
+2. **Sort** is already red-first; the offending table is at the top.
+3. **Click** to expand. Read the failing check's `details` field —
+   it's designed to paste into Slack.
+4. **Open** this runbook to the per-validator section above and
+   follow the "common false positives" and "suppress when" hints.
+5. **If real regression:** open a PR via the canary-diff harness;
+   for data fixes, follow the data-fix discipline in root `CLAUDE.md`.
+
+## Labelling `wontfix-known-noise`
+
+A failure should ONLY be labelled `wontfix-known-noise` if:
+- the runbook section above explicitly lists it as a known false
+  positive, OR
+- a separate postmortem PR documents the root cause and proposes a
+  threshold-tuning PR title (`tune: <validator>.<check> threshold`).
+
+Otherwise: treat the red as load-bearing.
 
 ## Discipline notes
 

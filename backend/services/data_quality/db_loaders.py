@@ -188,7 +188,7 @@ def load_daily_prices_sample(conn_factory: Optional[Callable[[], Any]] = None) -
 
 def load_stocks_sample(conn_factory: Optional[Callable[[], Any]] = None) -> Optional[Any]:
     """Load a StocksSample for the live validator."""
-    from .validators.stocks import StocksSample
+    from .validators.stocks import CANARY_INDUSTRY_TOKENS, StocksSample
 
     with _open_connection(conn_factory) as conn:
         if conn is None:
@@ -227,6 +227,14 @@ def load_stocks_sample(conn_factory: Optional[Callable[[], Any]] = None) -> Opti
                 cur,
                 "SELECT MAX(updated_at) FROM stocks",
             )
+            # A.2.2: fetch broader canary industry set.
+            canary_industries: dict[str, Optional[str]] = {}
+            for ticker in CANARY_INDUSTRY_TOKENS:
+                canary_industries[ticker] = _scalar(
+                    cur,
+                    "SELECT industry FROM stocks WHERE ticker = %s LIMIT 1",
+                    (ticker,),
+                )
 
         return StocksSample(
             row_count=row_count,
@@ -237,6 +245,7 @@ def load_stocks_sample(conn_factory: Optional[Callable[[], Any]] = None) -> Opti
             sample_size=sample_size,
             hdfcbank_industry=hdfcbank_industry,
             last_update=last_update,
+            canary_industries=canary_industries,
         )
 
 
