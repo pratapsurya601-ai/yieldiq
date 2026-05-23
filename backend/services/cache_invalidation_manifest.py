@@ -81,10 +81,84 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Iterable
+from datetime import datetime, timedelta, timezone
+from typing import Callable, Iterable
 
 log = logging.getLogger("yieldiq.cache_manifest")
+
+
+# ─────────────────────────────────────────────────────────────────
+# Phase B.1 (2026-05-24) — in-memory drain on manifest apply
+#
+# Background. The Day-94 manifest gates Postgres-tier (tier-2) reads
+# correctly: a new entry invalidates an old `analysis_cache` row on
+# the next read. But three in-memory tiers bypass the manifest:
+#
+#   * tier-0  `analysis:{ticker}:raw`         (24 h TTL, not version-keyed)
+#   * tier-1  `analysis:{ticker}`             (24 h TTL, not version-keyed)
+#   * tier-5  `public:stock-summary:{ticker}` (1 h TTL,  version-keyed)
+#
+# A worker warmed BEFORE a cohort applies keeps serving the pre-cohort
+# payload until its in-memory TTL expires. Authed (tier-0/1) and anon
+# (tier-5) get different verdicts during the drift window. That is the
+# concrete "auth vs anon mismatch" P0 reframed by the Phase B.0 audit
+# (see docs/diagnostics/phase-b-cache-paths-2026-05-24.md).
+#
+# Mechanism. Drain hooks register at module import; on every fresh
+# process start we sweep the manifest for entries applied in the last
+# DRAIN_LOOKBACK_HOURS (default = the worst in-memory TTL, 24 h) and
+# fire each hook for each recent entry. Each hook drains its own tier
+# (cache_service.delete_by_prefix). The sweep is idempotent (delete on
+# an empty store is a no-op) so calling drain twice is safe.
+#
+# Per-worker scope. Each Railway worker has its own in-memory cache —
+# there is no shared store this hook can reach across processes.
+# Cross-process drain would require a Postgres LISTEN/NOTIFY or a
+# Redis pub/sub. The acceptable failure mode here is: every worker
+# drains its own cache as soon as the new code (carrying the new
+# manifest entry) is imported, which happens on every deploy and on
+# every cold start. The remaining worst case is a worker that survives
+# the deploy AND warmed the cache before the new entry's applied_at —
+# in that case the natural ~24h TTL still applies. This is documented
+# at docs/design/cache-consistency-architecture-2026-05-24.md.
+# ─────────────────────────────────────────────────────────────────
+
+#: Hooks fired for each manifest entry detected at import-time sweep.
+#: Signature: ``hook(entry: dict) -> None``. Hooks must not raise.
+MANIFEST_APPLIED_HOOKS: list[Callable[[dict], None]] = []
+
+#: How far back to look for "recently applied" entries on a process
+#: start. Tuned to the worst in-memory TTL (analysis:{ticker}:raw = 24h)
+#: so we cover the full possible stale window.
+DRAIN_LOOKBACK_HOURS = 24
+
+
+def register_manifest_applied_hook(hook: Callable[[dict], None]) -> None:
+    """Register a callable invoked once per recent manifest entry on
+    import-time sweep.
+
+    Idempotent: registering the same callable twice still results in
+    it being stored twice, but the underlying drain operation is itself
+    idempotent (delete-on-empty is a no-op).
+    """
+    MANIFEST_APPLIED_HOOKS.append(hook)
+
+
+def notify_manifest_entry_applied(entry: dict) -> None:
+    """Fire every registered hook for a single manifest entry. Hook
+    exceptions are caught and logged so one misbehaving hook can't
+    take down the others (or the import).
+    """
+    for hook in MANIFEST_APPLIED_HOOKS:
+        try:
+            hook(entry)
+        except Exception as exc:  # noqa: BLE001 — defensive
+            log.warning(
+                "cache_manifest: hook %r raised on entry %s: %s",
+                getattr(hook, "__name__", repr(hook)),
+                (entry or {}).get("version_id"),
+                exc,
+            )
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -489,6 +563,33 @@ MANIFEST: list[dict] = [
             "field surfaces rebuild_pending."
         ),
     },
+    {
+        # Phase B.1 (2026-05-24): in-memory drain on manifest apply.
+        # This entry exists to mark the deploy that wires the drain
+        # hook. On every fresh worker start from this commit forward,
+        # the import-time sweep will drain analysis:* and
+        # public:stock-summary:* before serving the first request,
+        # closing the auth-vs-anon drift window documented in
+        # docs/diagnostics/phase-b-cache-paths-2026-05-24.md.
+        #
+        # Scope is intentionally narrow (the four headline fields the
+        # auth/anon divergence affects) so the entry doesn't force a
+        # tier-2 recompute on payloads that are otherwise still valid;
+        # the drain itself fires on the wildcard prefix regardless of
+        # scope.fields, but the manifest-row gate stays surgical.
+        "version_id": "v_day113_phase_b1_inmem_drain_2026_05_24",
+        "applied_at": datetime(2026, 5, 24, 0, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["score", "verdict", "fair_value", "mos_pct"],
+        },
+        "rationale": (
+            "Phase B.1: drain in-memory analysis:* and "
+            "public:stock-summary:* on every worker start so cohort "
+            "applies propagate within seconds instead of waiting on "
+            "the 24h in-memory TTL."
+        ),
+    },
 ]
 
 
@@ -659,3 +760,113 @@ def summarise_manifest(manifest: list[dict] = None) -> ManifestSummary:
         global_entries_count=global_count,
         scoped_entries_count=len(mfst) - global_count,
     )
+
+
+# ─────────────────────────────────────────────────────────────────
+# Phase B.1 import-time sweep
+#
+# Fires once per process. Replays every manifest entry whose
+# applied_at is within the last DRAIN_LOOKBACK_HOURS so the in-memory
+# tiers get drained before the worker serves its first request.
+# ─────────────────────────────────────────────────────────────────
+
+def _recent_entries(
+    manifest: list[dict],
+    *,
+    lookback_hours: int = DRAIN_LOOKBACK_HOURS,
+    now: "datetime | None" = None,
+) -> list[dict]:
+    """Return manifest entries applied within ``lookback_hours`` of
+    ``now`` (UTC, defaults to actual now)."""
+    now_dt = now or datetime.now(timezone.utc)
+    cutoff = now_dt - timedelta(hours=lookback_hours)
+    out: list[dict] = []
+    for entry in manifest or []:
+        applied = _coerce_datetime(entry.get("applied_at"))
+        if applied is None:
+            continue
+        if applied >= cutoff:
+            out.append(entry)
+    return out
+
+
+def sweep_recent_entries(
+    *,
+    manifest: list[dict] = None,
+    lookback_hours: int = DRAIN_LOOKBACK_HOURS,
+    now: "datetime | None" = None,
+) -> int:
+    """Fire registered hooks for every recently-applied entry. Returns
+    the count of (entry × hook) invocations attempted. Safe to call
+    repeatedly — hook implementations must themselves be idempotent.
+    """
+    if _DISABLED:
+        return 0
+    mfst = manifest if manifest is not None else MANIFEST
+    recent = _recent_entries(mfst, lookback_hours=lookback_hours, now=now)
+    fired = 0
+    for entry in recent:
+        for hook in MANIFEST_APPLIED_HOOKS:
+            try:
+                hook(entry)
+                fired += 1
+            except Exception as exc:  # noqa: BLE001
+                log.warning(
+                    "cache_manifest: sweep hook %r raised on entry %s: %s",
+                    getattr(hook, "__name__", repr(hook)),
+                    entry.get("version_id"),
+                    exc,
+                )
+    if fired:
+        log.info(
+            "cache_manifest: import-time sweep drained %d (entry × hook) "
+            "for %d recent entries",
+            fired, len(recent),
+        )
+    return fired
+
+
+def _register_default_drain_hook() -> None:
+    """Wire the in-memory cache drain hook. Called once at import-time.
+
+    Kept in a function so tests can re-import the module after
+    monkeypatching the cache_service singleton.
+    """
+    try:
+        from backend.services.cache_service import cache as _cache_singleton
+    except Exception as exc:  # noqa: BLE001
+        log.warning(
+            "cache_manifest: cache_service import failed; "
+            "drain hook NOT registered: %s", exc,
+        )
+        return
+
+    def _drain_inmem_for_entry(entry: dict) -> None:
+        # The in-memory drain is intentionally wildcard (all tickers
+        # under the two prefixes) regardless of the entry's
+        # scope.tickers. Reason: in-memory keys are by ticker only;
+        # iterating the scope list and deleting per-ticker keys would
+        # require a per-suffix product (.NS / bare) and would still
+        # miss exotic keys. The store is small (single-worker, per
+        # process), so a prefix sweep is cheap and bulletproof.
+        try:
+            _cache_singleton.delete_by_prefix("analysis:")
+            _cache_singleton.delete_by_prefix("public:stock-summary:")
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "cache_manifest: in-mem drain failed for entry %s: %s",
+                (entry or {}).get("version_id"), exc,
+            )
+
+    register_manifest_applied_hook(_drain_inmem_for_entry)
+
+
+# Register the hook and run the first sweep at import time, so every
+# worker that loads this module — including every Railway worker on
+# deploy and every cold start — starts with a drained in-memory cache
+# whenever a recent manifest entry exists.
+_register_default_drain_hook()
+try:
+    sweep_recent_entries()
+except Exception as _exc:  # noqa: BLE001
+    log.warning("cache_manifest: import-time sweep failed: %s", _exc)

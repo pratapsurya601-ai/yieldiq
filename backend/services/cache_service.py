@@ -145,12 +145,52 @@ class CacheService:
             self._store.clear()
 
     def clear_pattern(self, prefix: str) -> int:
-        """Remove all keys starting with prefix. Returns count."""
+        """Remove all keys starting with prefix. Returns count.
+
+        Matches against the STORED key, so version-keyed entries (which
+        live under ``v{CACHE_VERSION}:{user_key}``) are NOT matched by
+        the bare user-key prefix. Use :meth:`delete_by_prefix` when you
+        want to drain both forms in one call.
+        """
         with self._lock:
             matching = [k for k in self._store if k.startswith(prefix)]
             for k in matching:
                 del self._store[k]
             return len(matching)
+
+    def delete_by_prefix(self, prefix: str) -> int:
+        """Drain entries whose USER key starts with ``prefix``.
+
+        Phase B.1 (2026-05-24) — manifest-drain entry point.
+
+        Unlike :meth:`clear_pattern` (raw stored-key match), this also
+        peels the ``v{N}:`` version-key prefix so both tiers — non-
+        version-keyed (``analysis:{ticker}``) and version-keyed
+        (``public:stock-summary:{ticker}``) — drop in a single call.
+        Cohort applies don't need to know which tier holds the row.
+
+        Returns total count removed across both forms.
+        """
+        removed = 0
+        with self._lock:
+            matching: list[str] = []
+            for k in self._store:
+                if k.startswith(prefix):
+                    matching.append(k)
+                    continue
+                # version-keyed form: v{N}:{user_key}
+                if k.startswith("v") and ":" in k:
+                    try:
+                        _vk_prefix, user_key = k.split(":", 1)
+                    except ValueError:
+                        continue
+                    # cheap shape check: v{digits}
+                    if _vk_prefix[1:].isdigit() and user_key.startswith(prefix):
+                        matching.append(k)
+            for k in matching:
+                del self._store[k]
+                removed += 1
+        return removed
 
     def cleanup(self) -> int:
         """Remove expired entries. Returns count removed."""
