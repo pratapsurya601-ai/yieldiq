@@ -32,6 +32,38 @@ export interface Pillar {
   weight: number
 }
 
+/**
+ * Phase C.3 (2026-05-25) — score-breakdown subtree carried on PrismData
+ * for the "Why this score?" panel rendered by <EditorialHero/>. Mirrors
+ * the relevant slice of backend/models/responses.py::QualityOutput.
+ *
+ * Field-additive and optional at every level — legacy /prism cached
+ * payloads and fixtures simply omit `quality`; <ScoreBreakdownPanel/>
+ * renders nothing when `breakdown` is absent.
+ *
+ * NOTE: This is intentionally NOT importing the heavier `QualityOutput`
+ * from `@/types/api` — PrismData is the lean component contract and we
+ * only want the breakdown subtree to flow through the prism adapter.
+ */
+export interface PrismScoreBreakdownComponent {
+  name: string
+  weight_max: number
+  points: number
+  source: string
+}
+export interface PrismScoreBreakdownModifier {
+  name: string
+  delta: number
+  reason: string
+}
+export interface PrismScoreBreakdown {
+  components: PrismScoreBreakdownComponent[]
+  modifiers: PrismScoreBreakdownModifier[]
+  base_score: number
+  final_score: number
+  note?: string | null
+}
+
 export interface PrismData {
   ticker: string
   company_name: string
@@ -61,4 +93,13 @@ export interface PrismData {
    * history" state rather than fake data when length < 2.
    */
   score_history_12m?: number[]
+  /**
+   * Phase C.3 — optional `quality.score_breakdown` subtree carried
+   * through from the backend so <EditorialHero/> can render the
+   * "Why this score?" panel without a second fetch. Field-additive;
+   * absent on legacy cached payloads.
+   */
+  quality?: {
+    score_breakdown?: PrismScoreBreakdown | null
+  }
 }

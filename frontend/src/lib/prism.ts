@@ -3,6 +3,7 @@ import type {
   Pillar,
   PillarKey,
   PrismData,
+  PrismScoreBreakdown,
   VerdictBand,
 } from "@/components/prism/types"
 
@@ -106,6 +107,16 @@ export function adaptPrismResponse(raw: unknown, fallbackTicker = ""): PrismData
     ? rawHistory.filter((n): n is number => typeof n === "number" && Number.isFinite(n))
     : []
 
+  // Phase C.3 — pass through the optional `quality.score_breakdown`
+  // subtree if the backend included it. The /prism endpoint may or may
+  // not embed it (depends on backend version + cache state); we copy
+  // only the breakdown subtree we actually render, not the full quality
+  // object, to keep PrismData lean. Null-safe at every step.
+  const rawQuality = r.quality as { score_breakdown?: PrismScoreBreakdown | null } | undefined
+  const quality = rawQuality?.score_breakdown
+    ? { score_breakdown: rawQuality.score_breakdown }
+    : undefined
+
   return {
     ticker: String(r.ticker ?? fallbackTicker),
     company_name: String(r.company_name ?? fallbackTicker),
@@ -122,6 +133,7 @@ export function adaptPrismResponse(raw: unknown, fallbackTicker = ""): PrismData
     sector_medians,
     disclaimer: typeof r.disclaimer === "string" ? r.disclaimer : "Model estimate. Not investment advice.",
     score_history_12m,
+    quality,
   }
 }
 

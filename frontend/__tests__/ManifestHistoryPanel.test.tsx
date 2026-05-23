@@ -55,8 +55,9 @@ let fetchMock: ReturnType<typeof vi.fn>
 
 beforeEach(() => {
   fetchMock = vi.fn()
-  // @ts-expect-error — stubbing global fetch in jsdom.
-  global.fetch = fetchMock
+  // Stubbing global fetch in jsdom — typed as unknown because the
+  // jsdom-shimmed signature drifts from lib.dom.d.ts in test runs.
+  ;(global as unknown as { fetch: unknown }).fetch = fetchMock
 })
 
 afterEach(() => {
