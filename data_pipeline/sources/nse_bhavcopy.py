@@ -155,7 +155,13 @@ def store_bhavcopy(df: pd.DataFrame, db: Session) -> int:
                     (ticker, trade_date, open_price, high_price, low_price, close_price,
                      prev_close, volume, turnover_cr, delivery_qty, delivery_pct, trades, vwap, adj_close)
                 SELECT ticker, trade_date, open_price, high_price, low_price, close_price,
-                       prev_close, volume, turnover_cr, delivery_qty, delivery_pct, trades, vwap, adj_close
+                       prev_close, volume, turnover_cr, delivery_qty, delivery_pct, trades, vwap,
+                       -- adj_close is intentionally NULL here (rebuild_adj_close owns it).
+                       -- pandas to_sql infers `object` for the all-None column and Postgres
+                       -- creates it as TEXT in the staging table, so we must cast explicitly
+                       -- to match daily_prices.adj_close (double precision). Otherwise the
+                       -- whole bulk insert fails with DatatypeMismatch and no rows land.
+                       adj_close::double precision AS adj_close
                 FROM _bhavcopy_staging
                 ON CONFLICT (ticker, trade_date) DO NOTHING
             """))
