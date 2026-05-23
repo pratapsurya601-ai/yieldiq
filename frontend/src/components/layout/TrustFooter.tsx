@@ -56,6 +56,17 @@ export default function TrustFooter() {
                   Screener
                 </Link>
               </li>
+              {/* J-copy-2b (audit item 17): expose the sector cohort
+                  pages from the footer so visitors have a browse-by-
+                  sector path from any marketing surface. */}
+              <li>
+                <Link
+                  href="/sector"
+                  className="text-body hover:text-ink transition-colors"
+                >
+                  Sectors
+                </Link>
+              </li>
               <li>
                 <Link
                   href="/portfolio"
