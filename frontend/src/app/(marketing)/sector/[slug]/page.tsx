@@ -20,7 +20,11 @@ type SectorPayload = {
   display_name: string
   cohort_tickers: string[]
   cohort_notes: string
-  manifest_ref: string | null
+  // Task #123: manifest_ref (e.g. "Day-107a") is no longer surfaced
+  // on this public, anon-facing surface. The field may be omitted
+  // entirely by the backend; keep the optional type for backwards
+  // compatibility with any in-flight cached payload.
+  manifest_ref?: string | null
   aggregates: {
     ticker_count: number
     median_fair_value_to_price_ratio: number | null
@@ -167,12 +171,10 @@ export default async function SectorPage(
       <aside className="mt-12 rounded-lg border border-gray-200 bg-gray-50 p-4">
         <h3 className="text-sm font-semibold text-ink mb-2">Related</h3>
         <ul className="text-sm space-y-1">
-          {data.manifest_ref && (
-            <li>
-              <span className="text-caption">Manifest entry: </span>
-              <span className="font-mono text-xs">{data.manifest_ref}</span>
-            </li>
-          )}
+          {/* Task #123 (2026-05-23): manifest_ref intentionally not
+              rendered on this public surface — see
+              backend/services/cache_invalidation_manifest.py
+              `_public_description` for the sanitization contract. */}
           <li>
             <Link href="/help/sectors-and-cohorts" className="text-blue-700 hover:underline">
               How sector cohorts work

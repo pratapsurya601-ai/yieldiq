@@ -4980,7 +4980,10 @@ async def get_fv_accuracy(
 
 
 @router.get("/manifest-history/{ticker}")
-async def get_manifest_history(ticker: str):
+async def get_manifest_history(
+    ticker: str,
+    user: Optional[dict] = Depends(get_current_user_optional),
+):
     """Return the per-ticker subset of MANIFEST, newest first.
 
     Response shape::
@@ -5007,9 +5010,16 @@ async def get_manifest_history(ticker: str):
         from backend.services.cache_invalidation_manifest import (
             MANIFEST,
             _ticker_in_scope,
+            public_manifest_entry,
         )
 
         symbol = (ticker or "").strip()
+        # Task #123 (2026-05-23): anon callers get sanitized entries —
+        # no version_id (internal cadence handle), rationale stripped of
+        # Day-/Phase/Audit#/PR#/Task#/#NNN tokens. Authed callers still
+        # see the raw receipts because power users (pro / analyst tier)
+        # asked for the engineering vocabulary in the trust-signal panel.
+        is_authed = user is not None
         matches: list[dict[str, Any]] = []
         for entry in MANIFEST:
             scope = entry.get("scope") or {}
@@ -5030,12 +5040,19 @@ async def get_manifest_history(ticker: str):
             except Exception:
                 applied_iso = str(applied_at) if applied_at else None
 
-            matches.append({
-                "version_id": entry.get("version_id"),
-                "applied_at": applied_iso,
-                "rationale": entry.get("rationale"),
-                "fields_affected": fields_affected,
-            })
+            if is_authed:
+                matches.append({
+                    "version_id": entry.get("version_id"),
+                    "applied_at": applied_iso,
+                    "rationale": entry.get("rationale"),
+                    "fields_affected": fields_affected,
+                })
+            else:
+                # Anon view: drop version_id, replace rationale with
+                # the cleaned description field. Keep applied_at +
+                # fields_affected so the timeline still reads as a
+                # timeline.
+                matches.append(public_manifest_entry(entry))
 
         # Newest-first. Entries with a missing applied_at sink to the
         # bottom rather than blowing up the comparator.
@@ -5045,7 +5062,23 @@ async def get_manifest_history(ticker: str):
         )
 
         payload = {"ticker": symbol, "entries": matches}
-        return _cached_json(payload, s_maxage=3600, swr=21600)
+        # Vary cache by auth state so the CDN doesn't serve the authed
+        # (un-sanitized) payload back to an anon caller, or vice versa.
+        extra_headers = {"Vary": "Authorization"}
+        if is_authed:
+            # Authed responses must never hit a shared cache — the
+            # payload contains internal version_ids.
+            return _cached_json(
+                payload, s_maxage=0, swr=0,
+                extra_headers={
+                    **extra_headers,
+                    "Cache-Control": "private, no-store",
+                },
+            )
+        return _cached_json(
+            payload, s_maxage=3600, swr=21600,
+            extra_headers=extra_headers,
+        )
     except Exception as exc:
         logger.exception("manifest-history failed for %s", ticker)
         # Degrade to an empty list rather than a 500 — this is a
@@ -5161,12 +5194,21 @@ def _sector_page_aggregate(slug: str) -> dict | None:
 
     aggregates = _sector_page_compute_aggregates(rows)
 
+    # Task #123 (2026-05-23): sector landing pages are unauth, SEO-
+    # facing surfaces. Strip internal cadence tokens (Day-NNN, Phase X,
+    # Audit#N, PR#N, #NNN) from cohort_notes and drop manifest_ref —
+    # both leak engineering vocabulary that confuses end users AND
+    # reads as advisory ("Day-107a applied") on a non-SEBI-registered
+    # surface. The same data is still available, in raw form, to
+    # authed users via /api/v1/public/manifest-history (auth-gated).
+    from backend.services.cache_invalidation_manifest import (
+        _strip_internal_tokens,
+    )
     return {
         "slug": slug,
         "display_name": cohort["display_name"],
         "cohort_tickers": list(suffixed),
-        "cohort_notes": cohort["notes"],
-        "manifest_ref": cohort.get("manifest_ref"),
+        "cohort_notes": _strip_internal_tokens(cohort["notes"]),
         "aggregates": aggregates,
         "tickers": rows,
     }
