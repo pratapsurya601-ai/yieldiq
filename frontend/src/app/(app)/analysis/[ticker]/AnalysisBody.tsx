@@ -17,6 +17,9 @@ import RedFlagInsights from "@/components/analysis/RedFlagInsights"
 import QualityRatios from "@/components/analysis/QualityRatios"
 import PromoterPledgePanel from "@/components/analysis/PromoterPledgePanel"
 import AnnualReportsPanel from "@/components/analysis/AnnualReportsPanel"
+import ARSignalsPanel from "@/components/annual-reports/ARSignalsPanel"
+import BankKpiPanel from "@/components/banks/BankKpiPanel"
+import { isPureBank } from "@/lib/bankTickers"
 import ManifestHistoryPanel from "@/components/analysis/ManifestHistoryPanel"
 import InsiderTradingPanel from "@/components/analysis/InsiderTradingPanel"
 import BulkBlockDealsPanel from "@/components/analysis/BulkBlockDealsPanel"
@@ -29,6 +32,7 @@ import FinancialBars from "@/components/analysis/FinancialBars"
 import FairValueHistory from "@/components/analysis/FairValueHistory"
 import FinancialStatements from "@/components/analysis/FinancialStatements"
 import ConcallsPanel from "@/components/analysis/ConcallsPanel"
+import ConcallSignalsPanel from "@/components/concall/ConcallSignalsPanel"
 import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
 import { FormulasProvider } from "@/components/analysis/MetricTooltip"
@@ -831,6 +835,12 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             ratioHistory={ratiosHistoryQuery.data ?? null}
           />
           <PromoterPledgePanel ticker={ticker} />
+          {/* Phase I-frontend (Block II): per-bank operational + asset-
+              quality KPIs. Only renders for tickers in
+              PURE_BANK_TICKERS_FOR_DE; non-banks skip the fetch entirely
+              via the isPureBank() guard. The panel itself also self-
+              hides if the backend returns is_bank=false. */}
+          {isPureBank(ticker) && <BankKpiPanel ticker={ticker} />}
           <InsiderTradingPanel ticker={ticker} />
           <BulkBlockDealsPanel ticker={ticker} />
           <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
@@ -855,9 +865,18 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               fcfDataSource={valuation.fcf_data_source}
             />
           </div>
+          {/* Phase G-intel-phase1 (c): structured signals extracted via
+              Anthropic from the latest transcript. Renders ABOVE the
+              free-text ConcallsPanel; renders nothing when no signals
+              exist yet (additive surface — never blocks the page). */}
+          <ConcallSignalsPanel ticker={ticker} />
           {/* Day-103a: concall library with AI-summarised quarterly
               earnings calls. Renders empty state until ingestion lands. */}
           <ConcallsPanel ticker={ticker} />
+          {/* Phase H-frontend (Block II): structured AR signals extracted
+              via Anthropic. Renders ABOVE the AnnualReportsPanel link
+              list; renders nothing when no extraction exists yet. */}
+          <ARSignalsPanel ticker={ticker} />
           {/* Day-103b: per-ticker annual report PDF links (Screener.in parity). */}
           <AnnualReportsPanel ticker={ticker} />
         </div>

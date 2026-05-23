@@ -153,12 +153,17 @@ def test_bear_floor_block_present():
 
 
 def test_bear_floor_uses_half_price_clamp():
-    """The clamped bear IV must be `round(0.5 * price, 2)` — not 0.85
-    (that's the trough-anchor band) and not 0.80 (that's the
-    `_enforce_scenario_order` natural clamp). The 0.5 floor is the
-    *display* floor for the twilight zone."""
+    """The clamped bear IV must use the 0.5 × price floor — historically
+    a bare `round(0.5 * price, 2)`. A later refinement at
+    backend/services/analysis/service.py:3801 tightened the clamp to
+    `round(min(0.5 * price, iv * 0.95), 2)` so the floor never *raises*
+    the bear above 95% of the engine IV. The substring assertion below
+    accepts either form: the 0.5 × price half remains in both, and the
+    intent (bear can fall to half price, never zero) is preserved."""
     src = _service_source()
-    assert "_floor_bear_iv = round(0.5 * price, 2)" in src
+    # Tolerant of the 2026-05-22+ min(0.5 * price, iv * 0.95) variant.
+    assert "0.5 * price" in src
+    assert "_floor_bear_iv" in src
 
 
 def test_service_module_parses():

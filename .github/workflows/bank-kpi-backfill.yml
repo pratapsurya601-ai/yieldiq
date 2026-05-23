@@ -1,0 +1,185 @@
+name: Bank KPI Backfill (operator)
+
+# ─────────────────────────────────────────────────────────────────
+# Phase I-operator-workflow (Block II): single button to run the
+# bank operational-KPI backfill for the 38-ticker commercial-bank
+# cohort (PURE_BANK_TICKERS_FOR_DE).
+#
+# !!! OPERATOR CAVEAT (2026-05-24, task #168) !!!
+# The `xbrl` phase (and therefore `all`) WILL ALWAYS FAIL pre-flight
+# on a GitHub-hosted runner because Akamai Bot Manager blocks BSE
+# requests from data-center egress ASNs (Azure GH runners). The
+# Chromium install (PR #605) and xvfb wrap (PR #606) get Chrome to
+# launch and cookies to "warm", but the filings page is then served
+# as a bot-challenge HTML with no XBRL anchors, so the parser sees
+# 0 rows / 0 fields for HDFCBANK / SBIN / AXISBANK and aborts.
+#
+# Supported execution model:
+#   - `phase=xbrl` -> run locally on an operator workstation with an
+#     Indian residential / ISP IP, real Chrome installed, and the
+#     production DATABASE_URL exported. See
+#     `docs/runbooks/phase-i-bank-kpi-backfill.md` ("XBRL phase MUST
+#     run on an Indian residential IP" section).
+#   - `phase=ar`   -> works fine on this hosted runner (Anthropic
+#     API only, no browser dependency).
+#
+# The `xbrl`/`all` options are left in place for parity with the
+# other backfill workflows and for future use with a self-hosted
+# runner on an Indian VPS.
+#
+# Two ingest paths share the bank_operational_kpis table (migration
+# 061), each writing under a different `source` so they coexist on
+# the same (ticker, period_end, period_type) row:
+#
+#   1. xbrl -- scripts/ingest_bank_kpis_from_xbrl.py
+#        Populates the SIX XBRL-reachable fields: gnpa_pct,
+#        nnpa_pct, pcr_pct, casa_pct, cost_to_income_pct,
+#        credit_deposit_pct. Free (no LLM spend). Pre-flight
+#        samples HDFCBANK / SBIN / AXISBANK and refuses to write
+#        unless >=4/6 fields populated on >=2/3 tickers. Default
+#        BSE XBRL provider is a no-op; a real provider must be
+#        registered (see data_pipeline/sources/bse_bank_xbrl.py).
+#
+#   2. ar   -- scripts/extract_bank_ops_from_ar.py
+#        Anthropic-backed AR extractor for the THREE operational
+#        fields not in XBRL: branches (total + tier split), ATMs,
+#        customer base. Per-AR spend ~$0.05-$0.10 with the narrow
+#        800-token output cap; default cost cap $30. Restricted at
+#        the candidate-selection step to bank tickers so Anthropic
+#        spend stays on-scope.
+#
+#   3. all -- runs xbrl then ar in sequence.
+#
+# Secrets required (already configured at repo level):
+#   - DATABASE_URL       -- Neon PG read+write.
+#   - ANTHROPIC_API_KEY  -- used by the ar phase only.
+#
+# Runbook: docs/runbooks/phase-i-bank-kpi-backfill.md
+# ─────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: "Which phase to run"
+        type: choice
+        required: true
+        default: all
+        options:
+          - xbrl
+          - ar
+          - all
+      top_n_banks:
+        description: "Number of banks to process (max 38; clamped)"
+        type: number
+        required: true
+        default: 38
+      cost_cap_usd:
+        description: "Hard-stop USD spend for the ar phase (xbrl is free)"
+        type: number
+        required: true
+        default: 50
+      dry_run:
+        description: "Dry-run (no DB writes, no LLM calls)"
+        type: boolean
+        required: true
+        default: true
+      quarters:
+        description: "Quarters of history to request from XBRL (default 20 = 5y)"
+        type: number
+        required: true
+        default: 20
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    name: ${{ inputs.phase }} (top=${{ inputs.top_n_banks }}, dry=${{ inputs.dry_run }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            backend/requirements.txt
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
+
+      # Playwright + real Chromium is required by the xbrl phase to
+      # bypass Akamai on the BSE XBRL endpoints. GH runners don't ship
+      # the browser binary by default; install it explicitly here so
+      # the pre-flight (HDFCBANK / SBIN / AXISBANK) can actually fetch.
+      - name: Install Playwright Chromium
+        if: ${{ inputs.phase == 'xbrl' || inputs.phase == 'all' }}
+        run: playwright install --with-deps chromium
+
+      # The xbrl phase (data_pipeline/sources/bse_bank_xbrl.py) launches
+      # headed Chrome to bypass Akamai. GH runners have no $DISPLAY, so
+      # xvfb provides a virtual framebuffer without changing the headed
+      # anti-bot posture. AR phase uses pypdf+Anthropic and skips this.
+      - name: Install Xvfb
+        if: ${{ inputs.phase == 'xbrl' || inputs.phase == 'all' }}
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
+      - name: Build dry-run flag + clamp top_n_banks
+        id: flags
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "dry=--dry-run" >> "$GITHUB_OUTPUT"
+          else
+            echo "dry=" >> "$GITHUB_OUTPUT"
+          fi
+          # The xbrl phase walks the full PURE_BANK_TICKERS_FOR_DE
+          # cohort -- top_n_banks gates the ar phase's --max-rows.
+          # Clamp to a sane upper bound; the universe is 38 today.
+          top=${{ inputs.top_n_banks }}
+          if [ "$top" -gt 200 ]; then top=200; fi
+          echo "top=$top" >> "$GITHUB_OUTPUT"
+
+      # Phase 1: xbrl. Free; pre-flight gates writes.
+      - name: "Phase: xbrl"
+        if: ${{ inputs.phase == 'xbrl' || inputs.phase == 'all' }}
+        run: |
+          xvfb-run -a python scripts/ingest_bank_kpis_from_xbrl.py \
+            --tickers all-banks \
+            --quarters ${{ inputs.quarters }} \
+            ${{ steps.flags.outputs.dry }}
+
+      # Phase 2: ar. Cost-capped; only ANTHROPIC_API_KEY required.
+      # The script's universe is intersected against
+      # PURE_BANK_TICKERS_FOR_DE so passing --tickers is a no-op
+      # for this workflow; --max-rows is the row cap.
+      - name: "Phase: ar"
+        if: ${{ inputs.phase == 'ar' || inputs.phase == 'all' }}
+        run: |
+          python scripts/extract_bank_ops_from_ar.py \
+            --max-rows ${{ steps.flags.outputs.top }} \
+            --cost-cap-usd ${{ inputs.cost_cap_usd }} \
+            ${{ steps.flags.outputs.dry }}
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "Phase: ${{ inputs.phase }}"
+          echo "top_n_banks: ${{ inputs.top_n_banks }} (clamped to ${{ steps.flags.outputs.top }})"
+          echo "cost_cap_usd: ${{ inputs.cost_cap_usd }} (ar phase only)"
+          echo "quarters: ${{ inputs.quarters }} (xbrl phase only)"
+          echo "dry_run: ${{ inputs.dry_run }}"

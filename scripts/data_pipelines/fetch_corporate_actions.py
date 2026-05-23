@@ -361,17 +361,50 @@ def _fetch_one(session_factory):
             rows.extend(hist)
             source = source or "nse_historical"
 
-        # 3. yfinance ONLY if NSE has nothing.
-        if not rows:
+        # 3. yfinance fallback fires when NSE has nothing OR when NSE
+        #    rows for this ticker have no SPLIT/BONUS coverage.
+        #
+        #    Why "no SPLIT/BONUS" matters: NSE's per-symbol historical
+        #    feed reliably returns DIVIDEND rows but is intermittently
+        #    missing older split/bonus events (e.g. INFY's 2018-09-04
+        #    1:1 bonus, surfaced by Phase A.2.1's canary_actions_present
+        #    validator on 2026-05-23). Before this change, the presence
+        #    of *any* NSE dividend row was enough to suppress the
+        #    yfinance fallback, so structurally-missing split/bonus
+        #    events stayed missing forever. The ON CONFLICT precedence
+        #    guard above prevents yfinance rows (rank 50) from
+        #    overwriting matching NSE rows (rank <=30), so augmenting
+        #    is safe even when NSE has dividends — yfinance can only
+        #    add NEW (ticker, ex_date, action_type) tuples NSE missed.
+        has_split_or_bonus = any(
+            (r.get("action_type") or "").upper() in {"SPLIT", "BONUS"}
+            for r in rows
+        )
+        if not rows or not has_split_or_bonus:
             sym = C.yf_symbol(ticker)
             yf_rows, yf_err = C.with_retries(
                 lambda: _from_yfinance(sym),
                 label=f"yfinance:{ticker}",
             )
             if yf_rows:
-                rows = yf_rows
-                source = "yfinance"
-            elif yf_err:
+                if not rows:
+                    rows = yf_rows
+                    source = "yfinance"
+                else:
+                    # Augment: only carry forward the SPLIT/BONUS rows
+                    # NSE failed to return. Skip yfinance dividends
+                    # when NSE already returned dividends — NSE is
+                    # canonical for those and we don't want to inflate
+                    # the row count with a noisier source for the same
+                    # event window.
+                    yf_split_bonus = [
+                        r for r in yf_rows
+                        if (r.get("action_type") or "").upper() in {"SPLIT", "BONUS"}
+                    ]
+                    if yf_split_bonus:
+                        rows.extend(yf_split_bonus)
+                        source = f"{source}+yfinance_splits" if source else "yfinance_splits"
+            elif yf_err and not rows:
                 return {"status": "error", "source": "yfinance", "error": yf_err}
 
         if not rows:

@@ -80,11 +80,118 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Iterable
 
 log = logging.getLogger("yieldiq.cache_manifest")
+
+
+# ─────────────────────────────────────────────────────────────────
+# Task #123 (2026-05-23): public-surface sanitization.
+#
+# Internal cadence tokens — "Day-107a", "Phase B.1", "Audit#7",
+# "PR #498", "#503" — are engineering vocabulary. Leaking them onto
+# anon-facing surfaces (sector landing pages, public manifest-history
+# endpoint) (a) confuses end users who have no model of our release
+# cadence and (b) creates SEBI exposure: a cadence-keyed verb like
+# "Day-107a applied" reads as advisory ("we changed our advice
+# today") even though the underlying entry is a model-engineering
+# note.
+#
+# Authed surfaces (the per-ticker analysis page for a logged-in
+# pro / analyst user) still see the raw version_id + rationale —
+# power users want the receipts and have signed up for the engineering
+# vocabulary.
+# ─────────────────────────────────────────────────────────────────
+
+# Match the internal cadence / release tokens we never want surfaced
+# to anon users. Patterns are intentionally permissive on the trailing
+# punctuation so they sweep up "Day-107a:", "Day-107a." and bare
+# "Day-107a" alike.
+_INTERNAL_TOKEN_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bDay-\d+[a-z]?\b", re.IGNORECASE),
+    re.compile(r"\bPhase\s+[A-Z](?:\.\d+)?\b"),
+    re.compile(r"\bAudit\s*#\s*\d+(?:\s*P\d+[a-z]?)?\b", re.IGNORECASE),
+    re.compile(r"\bPR\s*#\s*\d+\b", re.IGNORECASE),
+    re.compile(r"\bTask\s*#\s*\d+\b", re.IGNORECASE),
+    re.compile(r"#\d+\b"),
+)
+
+
+def _strip_internal_tokens(text: str) -> str:
+    """Strip Day-/Phase/Audit#/PR#/Task#/#NNN tokens from a string.
+
+    Collapses the punctuation/whitespace seam left behind so the
+    output reads cleanly (no double spaces, no leading ": ", no
+    dangling parens). Returns the empty string on falsy input.
+    """
+    if not text:
+        return ""
+    out = text
+    for pat in _INTERNAL_TOKEN_PATTERNS:
+        out = pat.sub("", out)
+    # Collapse whitespace + tidy punctuation seams.
+    out = re.sub(r"\s+", " ", out)
+    # Strip a leading colon/dash left behind by something like
+    # "Day-107a: IT services" → ": IT services".
+    out = re.sub(r"^\s*[:\-–—]\s*", "", out)
+    # Strip ": " immediately following an opening paren, or stray
+    # "()" pairs left after token removal.
+    out = re.sub(r"\(\s*[:\-]\s*", "(", out)
+    out = re.sub(r"\(\s*\)", "", out)
+    # Collapse " ." / " ," seams.
+    out = re.sub(r"\s+([,.;:!?])", r"\1", out)
+    return out.strip()
+
+
+def _public_description(entry: dict) -> str:
+    """Return the SEBI-safe, anon-facing rationale for a manifest entry.
+
+    Strips internal cadence tokens (Day-NNN, Phase X, Audit#N, PR#N,
+    Task#N, #NNN). Falls back to a generic "Model updated" string
+    when the cleaned text is empty (e.g. the rationale was nothing
+    but a cadence tag).
+    """
+    raw = (entry or {}).get("rationale") or ""
+    cleaned = _strip_internal_tokens(raw)
+    if not cleaned:
+        return "Model updated."
+    # Capitalize the first letter so we don't ship sentences that
+    # start lowercase after stripping a leading "Day-107a: " label.
+    return cleaned[0].upper() + cleaned[1:]
+
+
+def public_manifest_entry(entry: dict) -> dict:
+    """Project a manifest entry into its anon-safe shape.
+
+    Strips ``version_id`` (an internal cadence handle), replaces the
+    raw ``rationale`` with the cleaned ``description``, and preserves
+    ``applied_at`` + ``fields_affected`` so the timeline still has
+    timing + scope context.
+    """
+    if not isinstance(entry, dict):
+        return {"applied_at": None, "description": "Model updated.", "fields_affected": ["*"]}
+    applied_at = entry.get("applied_at")
+    try:
+        applied_iso = applied_at.isoformat() if hasattr(applied_at, "isoformat") else (
+            str(applied_at) if applied_at else None
+        )
+    except Exception:
+        applied_iso = str(applied_at) if applied_at else None
+    scope_fields = (entry.get("scope") or {}).get("fields")
+    if scope_fields == "*" or scope_fields is None:
+        fields_affected: list[str] = ["*"]
+    elif isinstance(scope_fields, (list, tuple, set)):
+        fields_affected = [str(f) for f in scope_fields]
+    else:
+        fields_affected = [str(scope_fields)]
+    return {
+        "applied_at": applied_iso,
+        "description": _public_description(entry),
+        "fields_affected": fields_affected,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────
@@ -678,6 +785,61 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        # Day-111a (2026-05-23): industry serializer key fix — `industry`
+        # was being dropped at the local-data assembler so cached rows
+        # had `industry=""` even when the DB column was populated. The
+        # serializer now passes both `sector` and `industry` through.
+        # No CACHE_VERSION bump; invalidation rides on this manifest
+        # entry. Cohort code reads `industry` so cached pre-fix rows
+        # mis-classify (e.g. NBFC banks fall back to generic bank
+        # cohort). Scope is wildcard tickers + the two fields that
+        # depend on the serializer output.
+        #
+        # Fix #139 (2026-05-26): manifest entry was omitted when the
+        # Day-111a PR landed; tests in test_day111a_industry_serializer.py
+        # have been failing on main since then. Backfilling the entry
+        # to match the test expectations + the original intent.
+        "version_id": "v_day111a_industry_serializer_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 22, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["industry", "sector"],
+        },
+        "rationale": (
+            "Day-111a: industry serializer key fix — pass both sector "
+            "and industry through the local-data assembler so cohort "
+            "routing reads the right field."
+        ),
+    },
+    {
+        # Day-111b (2026-05-23): bank D/E ratio fix — pure-bank tickers
+        # were computing D/E using `total_debt / total_equity` which
+        # excluded customer deposits + borrowings (the bulk of a bank's
+        # liabilities). The fix routes pure-bank tickers through a
+        # liabilities-based D/E that includes deposits + borrowings,
+        # matching how analysts read bank leverage.
+        #
+        # Fix #139 (2026-05-26): manifest entry was omitted when the
+        # Day-111b PR landed; tests in test_day111b_bank_de_ratio.py
+        # have been failing on main since then. Backfilling the entry
+        # with the scope the tests expect.
+        "version_id": "v_day111b_bank_de_with_deposits_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 22, 5, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK", "SBIN",
+                "INDUSINDBK", "FEDERALBNK", "IDFCFIRSTB", "AUBANK",
+                "BANDHANBNK", "RBLBANK", "BANKBARODA", "PNB",
+            ],
+            "fields": ["de_ratio"],
+        },
+        "rationale": (
+            "Day-111b: pure-bank D/E denominator switched to "
+            "liabilities (deposits + borrowings + other) so the ratio "
+            "matches how analysts read bank leverage."
+        ),
+    },
+    {
         # Phase F (2026-05-25): 10-year historical depth backfill for
         # top-500 / canary-333. F.2 backfilled daily_prices.adj_close
         # via yfinance period="max" with INSERT-or-UPDATE semantics.
@@ -701,6 +863,78 @@ MANIFEST: list[dict] = [
         "rationale": (
             "Phase F: 10y historical backfill (adj_close + financials "
             "+ ratios) for top-500 / canary-333."
+        ),
+    },
+    {
+        "version_id": "v_phase_g_intel_signals_2026_05_26",
+        "applied_at": datetime(2026, 5, 26, 0, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["concall_signals", "concall_intel"],
+        },
+        "rationale": (
+            "Phase G-intel-phase1 (c): expose Anthropic-extracted "
+            "concall_signals on the public analysis surface."
+        ),
+    },
+    {
+        # Phase H-frontend (Block II): expose Anthropic-extracted AR
+        # signals on the public analysis surface. Scoped to the new
+        # ar_signals / ar_intel fields so existing cached score /
+        # verdict rows are untouched -- this is purely additive.
+        "version_id": "v_phase_h_ar_signals_2026_05_26",
+        "applied_at": datetime(2026, 5, 26, 0, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["ar_signals", "ar_intel"],
+        },
+        "rationale": (
+            "Phase H-frontend (Block II): expose Anthropic-extracted "
+            "ar_signals (segments / capex / RPT / auditor flags / "
+            "contingent liabilities / outlook) on the analysis page."
+        ),
+    },
+    {
+        # Phase I-frontend (Block II): expose bank_operational_kpis
+        # on the public analysis surface for the 38-ticker
+        # PURE_BANK_TICKERS_FOR_DE cohort. Scoped to the new
+        # bank_operational_kpis table + bank_kpis API surface so
+        # existing cached score / verdict / valuation rows for
+        # non-bank tickers are untouched. Bank tickers see a new
+        # BankKpiPanel that degrades gracefully to "—" cells while
+        # the ingest scripts populate the table over time.
+        "version_id": "v_phase_i_bank_kpis_2026_05_26",
+        "applied_at": datetime(2026, 5, 26, 0, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["bank_operational_kpis", "bank_kpis"],
+        },
+        "rationale": (
+            "Phase I-frontend (Block II): expose bank operational KPIs "
+            "(branches / ATMs / customers / GNPA / NNPA / PCR / CASA / "
+            "cost-to-income / credit-deposit) on the analysis surface "
+            "for the 38 commercial banks in PURE_BANK_TICKERS_FOR_DE."
+        ),
+    },
+    {
+        # Manual AR-signal loader (scripts/load_manual_ar_signals.py)
+        # surfaces 10-20 hand-curated high-traffic AR extractions to
+        # the public ar_intel panel. Bypasses the paid Anthropic API
+        # via the free claude.ai web workflow (see
+        # manual_ar_signals/README.md). Scoped to the same fields the
+        # API-extracted Phase H entry covers so existing
+        # score/verdict/valuation cached rows are untouched.
+        "version_id": "v_manual_ar_signals_load_2026_05_24",
+        "applied_at": datetime(2026, 5, 24, 0, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["ar_signals", "ar_intel"],
+        },
+        "rationale": (
+            "Manual AR-signal loader surfaces hand-curated ar_signals "
+            "rows (claude-ai-web-manual model_version) to the public "
+            "ar_intel panel — invalidate cached ar_intel payloads so "
+            "the new rows show up immediately."
         ),
     },
 ]

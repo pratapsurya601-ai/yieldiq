@@ -30,6 +30,13 @@ def _import_clean():
 
 
 def test_send_email_passes_tags_and_text(monkeypatch):
+    # The real call path uses lazy `from sendgrid import SendGridAPIClient`
+    # inside _send_email; the package is not pinned in
+    # requirements_backend.txt and is unavailable on dev boxes that don't
+    # pip-install it explicitly. patch("sendgrid.SendGridAPIClient", ...)
+    # fails at the `import sendgrid` step before the patch can substitute.
+    # Skip cleanly when the dep is absent rather than crashing on import.
+    pytest.importorskip("sendgrid")
     es = _import_clean()
     sent_messages = []
 

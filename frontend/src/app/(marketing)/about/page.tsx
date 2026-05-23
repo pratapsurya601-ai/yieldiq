@@ -186,7 +186,7 @@ export default function AboutPage() {
             India (SEBI) as an Investment Adviser (IA) or Research Analyst
             (RA).
           </p>
-          <p>
+          <p>{/* sebi-allow: recommendation, buy, sell */}
             Nothing on this website constitutes investment advice, a
             recommendation to buy or sell any security, or a solicitation of
             any kind. All content is educational.

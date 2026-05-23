@@ -127,7 +127,7 @@ export default function InsiderTradingPanel({ ticker }: { ticker: string }) {
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <h3 className="text-sm font-semibold text-ink">Insider Activity</h3>
-          <p className="text-xs text-caption mt-0.5">
+          <p className="text-xs text-caption mt-0.5">{/* sebi-allow: buy, sell */}
             SEBI PIT Reg 7 disclosures (NSE). Promoter / KMP / designated-person
             buy &amp; sell filings.
           </p>

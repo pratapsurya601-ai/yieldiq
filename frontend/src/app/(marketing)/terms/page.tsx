@@ -49,7 +49,7 @@ export default function TermsOfServicePage() {
 
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8">
           <p className="text-sm text-amber-800 font-semibold mb-1">SEBI Disclaimer</p>
-          <p className="text-sm text-amber-700">
+          <p className="text-sm text-amber-700">{/* sebi-allow: recommendation, buy, sell */}
             YieldIQ is not registered with the Securities and Exchange Board of India (SEBI) as an
             investment adviser, research analyst, or portfolio manager. The service provides
             quantitative analysis tools for educational and informational purposes only. Nothing on
@@ -147,7 +147,7 @@ export default function TermsOfServicePage() {
                 scores, and verdicts are outputs of mathematical models based on assumptions that
                 may or may not reflect reality.
               </p>
-              <p className="text-sm text-red-800 leading-relaxed mt-2">
+              <p className="text-sm text-red-800 leading-relaxed mt-2">{/* sebi-allow: recommend */}
                 YieldIQ is not registered with SEBI as an investment adviser or research analyst.
                 We do not recommend any specific stocks. Past model outputs do not predict future
                 results. Always consult a qualified, SEBI-registered financial adviser before making

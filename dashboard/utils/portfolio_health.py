@@ -66,7 +66,12 @@ def calculate_portfolio_health(holdings: list[dict]) -> dict:
     )
     _overvalued_pct = (_overvalued_value / _total_value) * 100
     _overvalued_count = sum(1 for h in holdings if float(h.get("mos", 0) or 0) < -5)
-    _undervalued_count = sum(1 for h in holdings if float(h.get("mos", 0) or 0) > 5)
+    # UX #130 (2026-05-23): "below fair value" === mos > 0. Aligns the
+    # `undervalued_count` returned to the frontend with the
+    # BelowFairValueBanner threshold so both widgets show the same
+    # number. The score-bucket math above still uses the ±5% deadband
+    # for stability; this count is display-only.
+    _undervalued_count = sum(1 for h in holdings if float(h.get("mos", 0) or 0) > 0)
 
     if _overvalued_pct < 20:
         _oval_pts = 25
@@ -119,9 +124,18 @@ def calculate_portfolio_health(holdings: list[dict]) -> dict:
         _conc_warning = f"{_max_ticker} represents {_max_weight:.0f}% of portfolio value (very high concentration)"
 
     # ── 5. Diversification (10pts max) ─────────────────────────
-    _sectors = set()
+    # UX #129 (2026-05-23): count only KNOWN sectors. "Unknown" is a
+    # data-gap signal, not a real sector — conflating it caused 9-stock
+    # portfolios with mostly-cold cache to render as "1 sector
+    # represented" instead of an honest "couldn't classify N holdings".
+    _sectors: set[str] = set()
+    _unknown_count = 0
     for h in holdings:
-        _s = h.get("sector", h.get("sector_name", "Unknown")) or "Unknown"
+        _s = h.get("sector", h.get("sector_name", "")) or ""
+        _s = str(_s).strip()
+        if not _s or _s.lower() == "unknown":
+            _unknown_count += 1
+            continue
         _sectors.add(_s)
 
     if len(_sectors) >= 3:
@@ -162,8 +176,27 @@ def calculate_portfolio_health(holdings: list[dict]) -> dict:
     if _conc_warning:
         # _conc_warning is already SEBI-safe factual — just strip "consider rebalancing"
         _issues.append(_conc_warning.replace(" — consider rebalancing", "").replace(" is a significant concentration risk", " — concentrated position").replace(" — very high concentration risk", " — highly concentrated"))
-    if len(_sectors) < 3:
-        _issues.append(f"{len(_sectors)} sector{'s' if len(_sectors) > 1 else ''} represented in portfolio")
+    # UX #129 (2026-05-23): if we couldn't classify any holdings,
+    # report that as a data gap instead of falsely claiming "0 sectors
+    # represented". If at least one holding is classified but the rest
+    # are unknown, surface the gap alongside the count so users don't
+    # read "1 sector" as monoculture when it's really missing data.
+    if len(_sectors) == 0 and _unknown_count > 0:
+        _issues.append(
+            f"Sector classification pending for {_unknown_count} "
+            f"holding{'s' if _unknown_count > 1 else ''}"
+        )
+    elif len(_sectors) < 3:
+        _msg = (
+            f"{len(_sectors)} sector"
+            f"{'s' if len(_sectors) != 1 else ''} represented in portfolio"
+        )
+        if _unknown_count > 0:
+            _msg += (
+                f" ({_unknown_count} holding"
+                f"{'s' if _unknown_count > 1 else ''} pending classification)"
+            )
+        _issues.append(_msg)
 
     # Quality score observations (no 'consider replacing' etc.)
     if _weighted_score < 60:
@@ -189,7 +222,8 @@ def calculate_portfolio_health(holdings: list[dict]) -> dict:
 
     # Strengths (observations)
     if _undervalued_count > 0:
-        _uv_tickers = [h.get("ticker", "?") for h in holdings if float(h.get("mos", 0) or 0) > 5][:3]
+        # UX #130: mos > 0 to match BelowFairValueBanner's threshold.
+        _uv_tickers = [h.get("ticker", "?") for h in holdings if float(h.get("mos", 0) or 0) > 0][:3]
         _strengths.append(f"{_undervalued_count} holding{'s' if _undervalued_count > 1 else ''} with CMP below our DCF fair value: {', '.join(_uv_tickers)}")
     if _weighted_score > 70:
         _strengths.append(f"Weighted average YieldIQ score: {_weighted_score:.0f}/100")

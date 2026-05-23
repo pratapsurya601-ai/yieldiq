@@ -75,7 +75,10 @@ jobs:
 
       - name: Run data pipeline
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_PUBLIC_URL }}
+          # Fix #166: DATABASE_PUBLIC_URL secret carries the pre-2026-04-29
+          # Neon password and silently auth-fails since the rotation. All
+          # other workflows already use DATABASE_URL (fresh password).
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           MODE="${{ steps.mode.outputs.mode }}"
           DAYS="${{ steps.mode.outputs.days }}"
@@ -101,7 +104,7 @@ jobs:
 
       - name: Check pipeline results
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_PUBLIC_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           python -c "
           from sqlalchemy import create_engine, text
@@ -118,4 +121,39 @@ jobs:
                       print(f'{table}: {result.scalar()} records')
                   except:
                       print(f'{table}: not found')
+          "
+
+      # Follow-on to PR #603/#604: store_bhavcopy() swallows exceptions and
+      # returns 0 on bulk-insert failure, which silently rotted
+      # daily_prices for 8 days before anyone noticed. Until that contract
+      # is changed, fail the workflow loudly when prices-only/full ran on a
+      # weekday but daily_prices has no row newer than 3 days. 3-day window
+      # tolerates a holiday adjacent to the run; anything staler is a real
+      # incident.
+      - name: Guard against silent bhavcopy failure
+        if: steps.mode.outputs.mode == 'prices-only' || steps.mode.outputs.mode == 'full'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          python -c "
+          from sqlalchemy import create_engine, text
+          from datetime import date, timedelta
+          import os, sys
+          _url = os.environ['DATABASE_URL']
+          if _url.startswith('postgres://'):
+              _url = 'postgresql://' + _url[len('postgres://'):]
+          engine = create_engine(_url)
+          with engine.connect() as conn:
+              latest = conn.execute(text('SELECT MAX(trade_date) FROM daily_prices')).scalar()
+          if latest is None:
+              print('FAIL: daily_prices is empty', file=sys.stderr)
+              sys.exit(1)
+          age_days = (date.today() - latest).days
+          print(f'daily_prices latest trade_date={latest} (age={age_days}d)')
+          if age_days > 3:
+              print(f'FAIL: daily_prices is {age_days} days stale (max=3). '
+                    'store_bhavcopy() likely swallowed an exception — see '
+                    'data_pipeline/sources/nse_bhavcopy.py::store_bhavcopy.',
+                    file=sys.stderr)
+              sys.exit(1)
           "

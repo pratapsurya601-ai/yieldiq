@@ -116,7 +116,7 @@ export default function TeamPage() {
             institutions. We wanted a third option: honest model output
             with every number traceable to a filing.
           </p>
-          <p>
+          <p>{/* sebi-allow: hold */}
             That means publishing the methodology, publishing the bugs
             we know about, and resisting the urge to dress model output
             up as advice. The site is small on purpose &mdash; one

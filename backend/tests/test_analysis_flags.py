@@ -60,11 +60,18 @@ def test_moat_label_bands_are_contiguous():
     assert _moat_label_from_score(70) == "Wide"
 
 
-def test_allowlist_floor_lands_in_moderate_band():
-    """The floor score must map to the Moderate label. If this
-    ever drops back to 42 the TITAN/RELIANCE/HDFCBANK bug returns."""
-    assert ALLOWLIST_MOAT_FLOOR_SCORE == _min_score_for_label("Moderate")
-    assert _moat_label_from_score(ALLOWLIST_MOAT_FLOOR_SCORE) == "Moderate"
+def test_allowlist_floor_lands_in_wide_band():
+    """The floor score must map to the Wide label. Originally the floor
+    was raised from 42 -> Moderate (60) in PR fix/moat-floor-strength-ssot
+    to keep TITAN / RELIANCE / HDFCBANK out of the Narrow band. It was
+    raised again to ALLOWLIST_FLOOR_LABEL="Wide" (70) shortly after — see
+    moat_engine.py:120-129 — because Moderate=15pts vs Wide=25pts in the
+    composite score, and street consensus for the 18-ticker allowlist
+    treats their moats as Wide despite the 5-signal computation dragging
+    on post-merger / capex-cycle / margin-compression years. The label
+    asserted here must track ALLOWLIST_FLOOR_LABEL in moat_engine."""
+    assert ALLOWLIST_MOAT_FLOOR_SCORE == _min_score_for_label("Wide")
+    assert _moat_label_from_score(ALLOWLIST_MOAT_FLOOR_SCORE) == "Wide"
 
 
 # ── Allowlist bellwethers: MCP-audit-confirmed regressions ───────

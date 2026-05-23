@@ -158,13 +158,59 @@ def load_ratio_history_sample(conn_factory: Optional[Callable[[], Any]] = None) 
                 "SELECT MAX(computed_at) FROM ratio_history",
             )
 
-            # Null counts over the LATEST period_end only — that's the
-            # row the percentile engine actually reads for "current"
-            # ratios. Catches a per-period populator regression even if
-            # older periods are full.
-            latest_period: Optional[Any] = _scalar(
-                cur, "SELECT MAX(period_end) FROM ratio_history",
+            # Null counts over the latest *settled* period_end — the
+            # most recent period where ratio_history has rows for a
+            # supermajority of the active universe. Picking MAX(period_end)
+            # naively conflates two failure modes:
+            #
+            #   (i)  the populator silently broke (every ticker null) —
+            #        the case the validator must catch, and
+            #   (ii) filing lag (the freshest quarter end has rows for
+            #        only the early filers; everyone else hasn't reported
+            #        yet so `financials` has no row and pe_ratio is null
+            #        not because of a bug, but because there's no input).
+            #
+            # Surfaced by GH issue #546: pe_ratio null rate read as 50.9%
+            # on a brand-new quarter-end snapshot where only ~half the
+            # universe had filed. Tying the sample to the last "settled"
+            # period (>=80% of active tickers covered) cleanly isolates
+            # the populator-regression signal from the filing-lag noise.
+            #
+            # Threshold note: 80% is empirical — by ~6 weeks past a
+            # quarter end, ~85-90% of NSE-listed Indian companies have
+            # filed, so 80% reliably picks a period the populator has
+            # had time to finish processing, while still flagging a real
+            # regression where every row is null on the chosen period.
+            #
+            # Cap settles_min at the active-universe size from `stocks`
+            # so a backfill that briefly outpaces stock activations
+            # doesn't lock onto a stale period.
+            COVERAGE_THRESHOLD_PCT = 80.0
+            active_universe: int = int(_scalar(
+                cur,
+                "SELECT COUNT(*) FROM stocks WHERE is_active = true",
+            ) or 0)
+            min_rows_for_settled = max(
+                1, int(active_universe * COVERAGE_THRESHOLD_PCT / 100.0)
             )
+            latest_period: Optional[Any] = _scalar(
+                cur,
+                "SELECT period_end FROM ratio_history "
+                "GROUP BY period_end "
+                "HAVING COUNT(*) >= %s "
+                "ORDER BY period_end DESC LIMIT 1",
+                (min_rows_for_settled,),
+            )
+            # If no period meets the coverage threshold (cold-start /
+            # tiny test DB / first-run universe explosion), fall back
+            # to MAX(period_end) so the validator still emits a signal
+            # rather than crashing — but the null-rate threshold will
+            # then legitimately reflect filing lag, which is the only
+            # signal we can produce in that state.
+            if latest_period is None:
+                latest_period = _scalar(
+                    cur, "SELECT MAX(period_end) FROM ratio_history",
+                )
             if latest_period is None:
                 pe_null_count = pe_sample_size = de_null_count = de_sample_size = 0
             else:

@@ -951,6 +951,14 @@ app.include_router(public.router)
 app.include_router(analytics_router.router)
 app.include_router(tax.router)
 app.include_router(concall.router)
+# Phase H-frontend: AR signals public-read endpoints (no auth).
+from backend.routers import annual_reports as annual_reports_router
+app.include_router(annual_reports_router.router)
+# Phase I-frontend (Block II): bank-specific operational KPIs for
+# the PURE_BANK_TICKERS_FOR_DE cohort.
+#   GET /api/v1/banks/{ticker}/kpis
+from backend.routers import banks as banks_router
+app.include_router(banks_router.router)
 app.include_router(account_router.router)
 app.include_router(notifications_router.router)
 app.include_router(telemetry_router.router)
@@ -970,6 +978,14 @@ app.include_router(sectors_router.router)
 # banner. Additive transparency surface; no analysis-math touch.
 from backend.routers import incidents as incidents_router
 app.include_router(incidents_router.router)
+
+# Phase J — session-observation harness. POST /api/v1/internal/session-trace
+# accepts batched UI events from useSessionTrace on auth'd sessions;
+# GET /api/v1/admin/session-traces surfaces them for admin replay during
+# launch-week debugging. No PII, no form contents.
+from backend.routers import internal as internal_router
+app.include_router(internal_router.router)
+app.include_router(internal_router.admin_router)
 
 
 @app.get("/health")

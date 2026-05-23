@@ -41,7 +41,12 @@ on:
 jobs:
   canary:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 25-minute backstop. With the parallelised collect_state (8 workers,
+    # see scripts/canary_diff.py) a clean 180-stock run completes in ~6-8
+    # minutes. The extra headroom absorbs occasional cold-start retries
+    # and one or two stocks hitting the 60s urllib3 cap without forcing
+    # admin-merge.
+    timeout-minutes: 25
     permissions:
       contents: read
       pull-requests: write

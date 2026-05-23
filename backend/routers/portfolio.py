@@ -789,6 +789,57 @@ async def get_portfolio_health(user: dict = Depends(get_current_user)):
     enriched = get_holdings_with_live_data(email)
     live_holdings = enriched.get("holdings", [])
 
+    # UX #129 (2026-05-23): bulk-fetch authoritative sectors from the
+    # `stocks` table for every ticker in one query. This is the only
+    # source that's reliably populated for every active ticker — the
+    # in-memory analysis cache is cold for most users after a Railway
+    # worker restart, and the holdings DB row's `sector` column is
+    # often blank because CSV import writes "" when the cache was cold
+    # at import time (BUG #15, 2026-04-21). Without this, a portfolio
+    # of 9 diverse holdings was rendering as "1 sector represented in
+    # portfolio" because 8/9 tickers fell through to "Unknown".
+    db_sectors: dict[str, str] = {}
+    _sess = None
+    try:
+        from backend.services.analysis_service import _get_pipeline_session
+        from sqlalchemy import text as _sql_text
+        all_tickers = [h.get("ticker", "") for h in live_holdings if h.get("ticker")]
+        if all_tickers:
+            _sess = _get_pipeline_session()
+            if _sess is not None:
+                rows = _sess.execute(
+                    _sql_text(
+                        "SELECT ticker_ns, ticker, sector, industry "
+                        "FROM stocks WHERE ticker_ns = ANY(:t) OR ticker = ANY(:t)"
+                    ),
+                    {"t": all_tickers},
+                ).fetchall()
+                for row in rows or []:
+                    sec = (row[2] or "").strip() if row[2] else ""
+                    ind = (row[3] or "").strip() if row[3] else ""
+                    # Prefer sector; fall back to the granular industry
+                    # (yfinance industry strings like "IT Services") when
+                    # sector is blank — better to render the granular
+                    # bucket than collapse to "Unknown".
+                    canon = sec or ind
+                    if not canon:
+                        continue
+                    # Index by every key the caller might pass us.
+                    if row[0]:
+                        db_sectors[row[0]] = canon
+                    if row[1]:
+                        db_sectors[row[1]] = canon
+    except Exception:
+        # Any DB issue degrades gracefully to the legacy
+        # cache→row→"Unknown" cascade below — never breaks the endpoint.
+        pass
+    finally:
+        if _sess is not None:
+            try:
+                _sess.close()
+            except Exception:
+                pass
+
     # Map to the field names that calculate_portfolio_health expects
     mapped = []
     for h in live_holdings:
@@ -796,11 +847,12 @@ async def get_portfolio_health(user: dict = Depends(get_current_user)):
         # Pull additional context from analysis cache (red flags, moat,
         # sector). We do NOT trust h["sector"] alone because CSV import
         # writes sector="" placeholder when analysis_cache is cold at
-        # import time (BUG #15, 2026-04-21). Prefer the live cached
-        # value; fall back to the DB row; final fallback is "Unknown".
+        # import time (BUG #15, 2026-04-21). Cascade: live cache ->
+        # bulk stocks-table lookup (UX #129) -> DB row -> "Unknown".
         red_flag_count = 0
         moat = "None"
         cached_sector: str | None = None
+        cached_industry: str | None = None
         try:
             cached = _c.get(f"analysis:{ticker}")
             if cached and hasattr(cached, "insights"):
@@ -814,12 +866,22 @@ async def get_portfolio_health(user: dict = Depends(get_current_user)):
                 cs = getattr(cached.company, "sector", None)
                 if cs:
                     cached_sector = str(cs).strip() or None
+                ci = getattr(cached.company, "industry", None)
+                if ci:
+                    cached_industry = str(ci).strip() or None
         except Exception:
             pass
 
-        # Prefer live cache -> holdings row -> "Unknown"
+        # Prefer live cache -> stocks-table lookup -> holdings row
+        # -> cached industry fallback -> "Unknown"
         row_sector = (h.get("sector") or "").strip()
-        sector = cached_sector or row_sector or "Unknown"
+        sector = (
+            cached_sector
+            or db_sectors.get(ticker)
+            or row_sector
+            or cached_industry
+            or "Unknown"
+        )
 
         mapped.append({
             "ticker": h.get("ticker", ""),

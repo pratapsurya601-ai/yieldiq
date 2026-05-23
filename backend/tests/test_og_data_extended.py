@@ -93,7 +93,9 @@ def _call_og(fake) -> dict:
     analysis: cache pre-populated with `fake`. Bypasses coverage-tier
     service (returns None) so the assertions stay focused on the
     new fields."""
-    def _cache_get(key):
+    # cache.get signature picked up an optional `version_keyed` kwarg
+    # post-PR #243; accept and ignore so this mock keeps matching.
+    def _cache_get(key, version_keyed=False):
         if key.startswith("og:"):
             return None
         if key.startswith("analysis:"):

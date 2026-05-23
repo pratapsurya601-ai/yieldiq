@@ -199,6 +199,20 @@ export default function DiscoverPage() {
     //   6. MarketPulse (macro context — least time-sensitive)
     // Frontend-only reorder. No new endpoints. No CACHE_VERSION bump.
     <div className="max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-4 py-6 space-y-8 pb-20">
+      {/* J-copy-2 (audit item 16): page title + contextual subtitle.
+          Cold-read audit found the page opened with "Highest YieldIQ
+          score today" — descriptive of a card, not the page. A
+          first-time visitor needed a one-line answer to "what is this
+          screen for?". */}
+      <header className="space-y-1">
+        <h1 className="font-display text-2xl sm:text-3xl font-black text-ink">
+          Discover
+        </h1>
+        <p className="text-sm text-caption">
+          Today&rsquo;s biggest margin-of-safety readings &mdash; ranked numerically, not by opinion.
+        </p>
+      </header>
+
       {/* Day-81 hero (1/6): Highest-scored stock today (anchor). */}
       {topPick && (
         <section>

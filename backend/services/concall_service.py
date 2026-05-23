@@ -22,6 +22,7 @@ import io
 import json
 import logging
 import os
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -343,6 +344,113 @@ def _groq_client():
 _LIBRARY_SUMMARY_MODEL = "llama-3.3-70b-versatile"
 
 
+# Phase G-cost: per-million-token pricing for Groq-hosted models.
+# Update these when Groq publishes new rates. Keys are model strings
+# returned in the Groq response.
+#
+# Source: https://groq.com/pricing/ (as of 2026-05-23).
+GROQ_PRICING_USD_PER_MTOKEN: dict[str, dict[str, float]] = {
+    "llama-3.3-70b-versatile": {"input": 0.59, "output": 0.79},
+    # Defensive fallback for older / alias names.
+    "llama-3.1-70b-versatile": {"input": 0.59, "output": 0.79},
+}
+
+
+def compute_groq_cost_usd(
+    model: str, input_tokens: int, output_tokens: int
+) -> float:
+    """Return USD cost for a Groq call given the model + token counts.
+
+    Returns 0.0 when the model is unknown — caller decides whether to
+    treat that as an error. Pure / no side effects so tests can call
+    it directly.
+    """
+    rates = GROQ_PRICING_USD_PER_MTOKEN.get(model)
+    if not rates:
+        return 0.0
+    return round(
+        (input_tokens / 1_000_000.0) * rates["input"]
+        + (output_tokens / 1_000_000.0) * rates["output"],
+        4,
+    )
+
+
+# Return type for summarise_concall — keeps the public string-only
+# contract backwards-compatible via the legacy `summarise_concall`
+# wrapper while letting populate_concall_summary persist token usage.
+@dataclass
+class ConcallSummaryResult:
+    summary: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cost_usd: float = 0.0
+    model: str = ""
+
+
+def summarise_concall_with_usage(transcript_text: str) -> ConcallSummaryResult:
+    """Same as summarise_concall but also returns token + cost metadata.
+
+    Used by populate_concall_summary (Phase G-cost) so we can persist
+    per-row spend. The legacy `summarise_concall(...)` wrapper below
+    keeps the string-only signature for any external callers.
+    """
+    empty = ConcallSummaryResult(summary="", model=_LIBRARY_SUMMARY_MODEL)
+    if not transcript_text or len(transcript_text.strip()) < 200:
+        return empty
+    client = _groq_client()
+    if client is None:
+        return empty
+    try:
+        comp = client.chat.completions.create(
+            model=_LIBRARY_SUMMARY_MODEL,
+            messages=[
+                {"role": "system", "content": _LIBRARY_SUMMARY_SYSTEM},
+                {"role": "user", "content": _library_summary_prompt(transcript_text)},
+            ],
+            temperature=0.2,
+            max_tokens=600,
+        )
+        summary = (comp.choices[0].message.content or "").strip()
+        # Groq follows the OpenAI shape: `usage.prompt_tokens` /
+        # `usage.completion_tokens`. Be defensive — older client
+        # versions might omit usage or use a dict instead of an object.
+        usage = getattr(comp, "usage", None)
+        if usage is None:
+            in_tok = out_tok = 0
+        else:
+            in_tok = int(getattr(usage, "prompt_tokens", 0) or
+                         (usage.get("prompt_tokens", 0) if isinstance(usage, dict) else 0))
+            out_tok = int(getattr(usage, "completion_tokens", 0) or
+                          (usage.get("completion_tokens", 0) if isinstance(usage, dict) else 0))
+    except Exception as exc:
+        logger.warning(f"summarise_concall failed: {exc}")
+        return empty
+
+    banned = _contains_banned_vocab(summary)
+    if banned is not None:
+        logger.warning(
+            "summarise_concall: SEBI-banned token '%s' in LLM output; "
+            "withholding summary pending review",
+            banned,
+        )
+        # We STILL paid for the call even though we're not surfacing
+        # the text — record the spend honestly.
+        return ConcallSummaryResult(
+            summary=_SEBI_WITHHELD_MESSAGE,
+            input_tokens=in_tok,
+            output_tokens=out_tok,
+            cost_usd=compute_groq_cost_usd(_LIBRARY_SUMMARY_MODEL, in_tok, out_tok),
+            model=_LIBRARY_SUMMARY_MODEL,
+        )
+    return ConcallSummaryResult(
+        summary=summary,
+        input_tokens=in_tok,
+        output_tokens=out_tok,
+        cost_usd=compute_groq_cost_usd(_LIBRARY_SUMMARY_MODEL, in_tok, out_tok),
+        model=_LIBRARY_SUMMARY_MODEL,
+    )
+
+
 def summarise_concall(transcript_text: str) -> str:
     """Return a 5-bullet structured summary for a concall transcript.
 
@@ -359,35 +467,10 @@ def summarise_concall(transcript_text: str) -> str:
     Returns an empty string when the LLM is unavailable so callers can
     fall back to the source link only.
     """
-    if not transcript_text or len(transcript_text.strip()) < 200:
-        return ""
-    client = _groq_client()
-    if client is None:
-        return ""
-    try:
-        comp = client.chat.completions.create(
-            model=_LIBRARY_SUMMARY_MODEL,
-            messages=[
-                {"role": "system", "content": _LIBRARY_SUMMARY_SYSTEM},
-                {"role": "user", "content": _library_summary_prompt(transcript_text)},
-            ],
-            temperature=0.2,
-            max_tokens=600,
-        )
-        summary = (comp.choices[0].message.content or "").strip()
-    except Exception as exc:
-        logger.warning(f"summarise_concall failed: {exc}")
-        return ""
-
-    banned = _contains_banned_vocab(summary)
-    if banned is not None:
-        logger.warning(
-            "summarise_concall: SEBI-banned token '%s' in LLM output; "
-            "withholding summary pending review",
-            banned,
-        )
-        return _SEBI_WITHHELD_MESSAGE
-    return summary
+    # Thin wrapper around summarise_concall_with_usage; preserves the
+    # legacy string-only contract for any external callers (tests,
+    # scripts) that don't need cost tracking.
+    return summarise_concall_with_usage(transcript_text).summary
 
 
 def _normalise_library_ticker(ticker: str) -> str:
@@ -581,13 +664,20 @@ def populate_concall_summary(concall_id: int) -> None:
                 row.transcript_text = transcript_text
                 session.commit()
 
-            summary = summarise_concall(transcript_text)
-            if not summary:
+            result = summarise_concall_with_usage(transcript_text)
+            if not result.summary:
                 row.ai_summary = _SUMMARY_UNAVAILABLE_MESSAGE
             else:
-                row.ai_summary = summary
-                row.ai_summary_model = _LIBRARY_SUMMARY_MODEL
+                row.ai_summary = result.summary
+                row.ai_summary_model = result.model or _LIBRARY_SUMMARY_MODEL
             row.ai_summary_generated_at = datetime.now(timezone.utc)
+            # Phase G-cost: persist token + USD usage. NULL when the
+            # call short-circuited (transcript too short, Groq down) —
+            # consistent with "we didn't pay, don't record a cost".
+            if result.input_tokens or result.output_tokens:
+                row.ai_input_tokens = result.input_tokens
+                row.ai_output_tokens = result.output_tokens
+                row.ai_cost_usd = result.cost_usd
             session.commit()
         except Exception as exc:
             logger.warning(

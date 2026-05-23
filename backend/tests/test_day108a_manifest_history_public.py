@@ -15,6 +15,15 @@ Locks the contract for
     Day-95 metals cohort is NOT in scope for NTPC.
   * HDFCBANK.NS surfaces only the wildcard entries (no
     banking-specific scoped entries in MANIFEST today).
+
+Task #123 update (2026-05-23): the anon response no longer carries
+the raw ``version_id`` (an internal cadence handle leaking onto a
+public, SEO-facing surface). Membership assertions that previously
+matched on ``version_id`` now match on the engine-stable
+``fields_affected`` projection plus the ``applied_at`` timestamp,
+which are both derived from the same MANIFEST entries but are not
+internal-vocabulary. The "auth-vs-anon shape" contract proper is
+exercised in ``test_phase_g_public_manifest_sanitization.py``.
 """
 from __future__ import annotations
 
@@ -30,6 +39,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from backend.routers import public as public_router  # noqa: E402
+from backend.services.cache_invalidation_manifest import MANIFEST  # noqa: E402
 
 
 @pytest.fixture()
@@ -45,17 +55,35 @@ def _get(client: TestClient, ticker: str) -> dict:
     return r.json()
 
 
+def _applied_at_for(version_id: str) -> str:
+    """Look up a MANIFEST entry's applied_at ISO string by version_id.
+
+    Used as a stable membership probe on the anon response — the anon
+    shape strips ``version_id`` (Task #123) but ``applied_at`` survives
+    and is unique per entry in the live MANIFEST.
+    """
+    for entry in MANIFEST:
+        if entry.get("version_id") == version_id:
+            applied = entry.get("applied_at")
+            return applied.isoformat() if applied else ""
+    raise AssertionError(f"unknown manifest version_id {version_id!r}")
+
+
+def _applied_ats(body: dict) -> set[str]:
+    return {e.get("applied_at") for e in body.get("entries", []) if e.get("applied_at")}
+
+
 def test_ntpc_surfaces_day94_init_wildcard(client: TestClient) -> None:
-    """NTPC.NS is not in any scoped cohort, but the Day-94 init
+    """NTPC.NS is not in any scoped cohort, but the init wildcard
     entry (scope='*') applies to every ticker."""
     body = _get(client, "NTPC.NS")
     assert body["ticker"] == "NTPC.NS"
-    vids = [e["version_id"] for e in body["entries"]]
-    assert "v_init_2026_05_22" in vids
+    ats = _applied_ats(body)
+    assert _applied_at_for("v_init_2026_05_22") in ats
     # NTPC is NOT in the metals cohort or any sector cohort, so
     # the scoped entries must NOT appear.
-    assert "v_day95_metals_sector_pins" not in vids
-    assert "v_day107a_it_services_cohort_2026_05_23" not in vids
+    assert _applied_at_for("v_day95_metals_sector_pins") not in ats
+    assert _applied_at_for("v_day107a_it_services_cohort_2026_05_23") not in ats
 
 
 def test_hdfcbank_surfaces_only_wildcard_entries(client: TestClient) -> None:
@@ -63,19 +91,21 @@ def test_hdfcbank_surfaces_only_wildcard_entries(client: TestClient) -> None:
     only sees the wildcard entries (init, de_ratio null-safety,
     asset_turnover units, CAGR panel)."""
     body = _get(client, "HDFCBANK.NS")
-    vids = [e["version_id"] for e in body["entries"]]
+    ats = _applied_ats(body)
     # Must include the init anchor + at least one wildcard scope.
-    assert "v_init_2026_05_22" in vids
-    assert "v_day103c_cagr_panel_2026_05_22" in vids
-    # Must NOT include any scoped cohort entry.
+    assert _applied_at_for("v_init_2026_05_22") in ats
+    assert _applied_at_for("v_day103c_cagr_panel_2026_05_22") in ats
+    # Must NOT include any non-wildcard cohort entry that doesn't
+    # cover HDFCBANK. (HDFCBANK IS in the v_day109a banking cohort
+    # added 2026-05-23 — that entry IS expected to surface.)
     forbidden = {
-        "v_day95_metals_sector_pins",
-        "v_day107a_it_services_cohort_2026_05_23",
-        "v_day107b_fmcg_cohort_2026_05_23",
-        "v_day107c_auto_cohort_2026_05_23",
-        "v_day107d_capital_goods_cohort_2026_05_23",
+        _applied_at_for("v_day95_metals_sector_pins"),
+        _applied_at_for("v_day107a_it_services_cohort_2026_05_23"),
+        _applied_at_for("v_day107b_fmcg_cohort_2026_05_23"),
+        _applied_at_for("v_day107c_auto_cohort_2026_05_23"),
+        _applied_at_for("v_day107d_capital_goods_cohort_2026_05_23"),
     }
-    assert forbidden.isdisjoint(set(vids))
+    assert forbidden.isdisjoint(ats)
 
 
 def test_unknown_ticker_returns_200_with_wildcards(client: TestClient) -> None:
@@ -101,25 +131,26 @@ def test_entries_ordered_newest_first(client: TestClient) -> None:
 
 
 def test_tcs_surfaces_it_services_cohort(client: TestClient) -> None:
-    """TCS is in the Day-107a IT services cohort — that scoped entry
-    must appear, in addition to the wildcards."""
+    """TCS is in the IT services cohort — that scoped entry must
+    appear, in addition to the wildcards."""
     body = _get(client, "TCS.NS")
-    vids = [e["version_id"] for e in body["entries"]]
-    assert "v_day107a_it_services_cohort_2026_05_23" in vids
-    assert "v_init_2026_05_22" in vids
+    ats = _applied_ats(body)
+    assert _applied_at_for("v_day107a_it_services_cohort_2026_05_23") in ats
+    assert _applied_at_for("v_init_2026_05_22") in ats
     # NOT in metals.
-    assert "v_day95_metals_sector_pins" not in vids
+    assert _applied_at_for("v_day95_metals_sector_pins") not in ats
 
 
 def test_field_scoped_entry_surfaces_fields_affected(
     client: TestClient,
 ) -> None:
-    """The Day-103c CAGR entry has fields=['compounded_growth'].
-    That list must round-trip as fields_affected."""
+    """The CAGR-panel entry has fields=['compounded_growth']. That
+    list must round-trip as fields_affected, matched by stable
+    applied_at (Task #123 anon shape strips version_id)."""
     body = _get(client, "RELIANCE.NS")
+    target_at = _applied_at_for("v_day103c_cagr_panel_2026_05_22")
     cagr = next(
-        (e for e in body["entries"]
-         if e["version_id"] == "v_day103c_cagr_panel_2026_05_22"),
+        (e for e in body["entries"] if e.get("applied_at") == target_at),
         None,
     )
     assert cagr is not None
@@ -127,23 +158,21 @@ def test_field_scoped_entry_surfaces_fields_affected(
 
 
 def test_metals_ticker_surfaces_metals_cohort(client: TestClient) -> None:
-    """HINDZINC is in the Day-95 metals cohort — verifies the bare-
-    ticker matcher works for tickers without an exchange suffix."""
+    """HINDZINC is in the metals cohort — verifies the bare-ticker
+    matcher works for tickers without an exchange suffix."""
     body = _get(client, "HINDZINC")
-    vids = [e["version_id"] for e in body["entries"]]
-    assert "v_day95_metals_sector_pins" in vids
+    ats = _applied_ats(body)
+    assert _applied_at_for("v_day95_metals_sector_pins") in ats
 
 
 def test_bare_ticker_matches_exchange_suffix(client: TestClient) -> None:
     """TCS and TCS.NS and TCS.BO must all return the same entries —
-    the matcher strips exchange suffix before comparing."""
+    the matcher strips exchange suffix before comparing. Compared by
+    applied_at since the anon shape no longer carries version_id."""
     a = _get(client, "TCS")
     b = _get(client, "TCS.NS")
     c = _get(client, "TCS.BO")
-    vids_a = {e["version_id"] for e in a["entries"]}
-    vids_b = {e["version_id"] for e in b["entries"]}
-    vids_c = {e["version_id"] for e in c["entries"]}
-    assert vids_a == vids_b == vids_c
+    assert _applied_ats(a) == _applied_ats(b) == _applied_ats(c)
 
 
 def test_cache_control_header_set(client: TestClient) -> None:

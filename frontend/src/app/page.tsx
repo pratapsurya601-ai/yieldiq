@@ -43,16 +43,38 @@ function FadeIn({ children, delay = 0, className = "" }: {
 
 /* ── Nav now provided by the unified MarketingTopNav component ─────── */
 
-/* ── Demo Card — rotates through real cached analyses ── */
-const FALLBACK_CARDS = [
-  { display_ticker: "RELIANCE", company_name: "Reliance Industries", sector: "Oil & Gas", current_price: 2943, fair_value: 3480, mos: 18.2, verdict: "undervalued", score: 78, grade: "B", moat: "Wide", bear_case: 2810, base_case: 3480, bull_case: 4120 },
-  { display_ticker: "ITC", company_name: "ITC Limited", sector: "FMCG", current_price: 302, fair_value: 458, mos: 51.8, verdict: "undervalued", score: 80, grade: "A", moat: "Wide", bear_case: 380, base_case: 458, bull_case: 540 },
-  { display_ticker: "HDFCBANK", company_name: "HDFC Bank", sector: "Banking", current_price: 1642, fair_value: 1890, mos: 15.1, verdict: "undervalued", score: 74, grade: "B", moat: "Wide", bear_case: 1590, base_case: 1890, bull_case: 2180 },
-  { display_ticker: "TCS", company_name: "Tata Consultancy", sector: "IT Services", current_price: 3650, fair_value: 3580, mos: -2.0, verdict: "fairly_valued", score: 72, grade: "B", moat: "Wide", bear_case: 2980, base_case: 3580, bull_case: 4200 },
-]
+/* ── Demo Card — rotates through real cached analyses ──
+   Phase J-copy-1 (2026-05-26): the hardcoded FALLBACK_CARDS used to
+   carry concrete prices (RELIANCE ₹2943 etc). When /api/v1/public/
+   demo-cards 500s or is slow, first-time visitors saw stale prices
+   that diverged from live quotes within weeks — destroying trust on
+   the most important first-impression surface. New behaviour: empty
+   fallback array means DemoCard returns null until the live endpoint
+   answers. The hero copy still works without the card on mobile (it's
+   `hidden lg:block` anyway), and on desktop the missing card simply
+   reflows the hero to single-column for the < 200ms the fetch takes.
+   This is strictly better than showing a wrong number.
+*/
+type DemoCardData = {
+  display_ticker: string
+  company_name: string
+  sector?: string
+  current_price?: number
+  fair_value?: number
+  mos?: number
+  verdict?: string
+  score?: number
+  grade?: string
+  moat?: string
+  bear_case?: number
+  base_case?: number
+  bull_case?: number
+}
+
+const FALLBACK_CARDS: DemoCardData[] = []
 
 function DemoCard() {
-  const [cards, setCards] = useState(FALLBACK_CARDS)
+  const [cards, setCards] = useState<DemoCardData[]>(FALLBACK_CARDS)
   const [idx, setIdx] = useState(0)
   const [fading, setFading] = useState(false)
 
@@ -84,13 +106,17 @@ function DemoCard() {
   const verdictColor = c.verdict === "undervalued" ? "bg-green-500/10 text-green-400"
     : c.verdict === "overvalued" ? "bg-red-500/10 text-red-400"
     : "bg-blue-500/10 text-blue-400"
-  const fmt = (n: number) => n ? n.toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "\u2014"
+  const fmt = (n: number | undefined) => n ? n.toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "\u2014"
   const mosSign = (c.mos || 0) >= 0 ? "+" : ""
 
+  // J-copy-2 (audit item 12): outer wrapper centers the card and
+  // constrains it to the viewport on mobile (where DemoCard is now
+  // rendered in the hero column above the fold). The inner card keeps
+  // its 320px target width on lg+ but yields to the column on phones.
   return (
-    <div className="relative" style={{ animation: "float 6s ease-in-out infinite" }}>
+    <div className="relative mx-auto max-w-[320px]" style={{ animation: "float 6s ease-in-out infinite" }}>
       <div className="absolute -inset-6 bg-blue-500/5 rounded-3xl blur-2xl" />
-      <div className={`relative bg-[#0F172A] border border-white/10 rounded-2xl p-6 shadow-2xl w-[320px] transition-opacity duration-300 ${fading ? "opacity-0" : "opacity-100"}`}>
+      <div className={`relative bg-[#0F172A] border border-white/10 rounded-2xl p-6 shadow-2xl w-full lg:w-[320px] transition-opacity duration-300 ${fading ? "opacity-0" : "opacity-100"}`}>
         <div className="flex items-center justify-between mb-4">
           <div>
             <div className="flex items-center gap-2">
@@ -149,8 +175,8 @@ function DemoCard() {
           ))}
         </div>
         <div className="flex items-center gap-1.5 mt-3 justify-center">
-          <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-          <span className="text-[10px] text-caption">Recomputed nightly</span>
+          <span className="w-1.5 h-1.5 bg-green-400 rounded-full" />
+          <span className="text-[10px] text-caption">Refreshed each evening</span>
         </div>
       </div>
     </div>
@@ -222,7 +248,12 @@ function LandingContent() {
               </p>
             </div>
 
-            <div className="hidden lg:block flex-shrink-0">
+            {/* J-copy-2 (audit item 12): DemoCard is now visible on
+                mobile as well as desktop. Previously `hidden lg:block`
+                hid the most persuasive single element from ~60% of
+                Indian retail visitors who land on a phone. The card
+                self-rotates and renders compactly on narrow widths. */}
+            <div className="flex-shrink-0 w-full lg:w-auto">
               <DemoCard />
             </div>
           </div>
@@ -391,7 +422,7 @@ function LandingContent() {
           {/* Trust bar */}
           <div className="mt-10 flex items-center justify-center gap-3 flex-wrap text-caption text-xs">
             <span className="text-caption">Data from</span>
-            {["NSE", "BSE", "RBI", "yfinance"].map((s, i) => (
+            {["NSE", "BSE", "RBI"].map((s, i) => (
               <span key={s} className="inline-flex items-center gap-3">
                 {i > 0 && <span className="text-ink">&bull;</span>}
                 <span className="font-mono tracking-wider text-caption font-medium">{s}</span>

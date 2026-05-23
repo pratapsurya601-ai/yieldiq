@@ -84,7 +84,7 @@ export default function StepName({ onContinue }: StepNameProps) {
   return (
     <div className="flex flex-col min-h-[calc(100vh-56px)] px-5 pb-8">
       <header className="pt-6 pb-6">
-        <h1 className="font-editorial text-3xl sm:text-4xl text-ink leading-tight">
+        <h1 className="font-editorial text-3xl sm:text-4xl text-ink leading-tight">{/* sebi-allow: should */}
           What should we call you?
         </h1>
         <p className="mt-2 text-base text-body">

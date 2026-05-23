@@ -32,11 +32,11 @@ jobs:
 
       - name: Run migration
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_PUBLIC_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
           MIGRATION: ${{ inputs.migration }}
         run: python scripts/migrate.py
 
       - name: Verify
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_PUBLIC_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: python scripts/verify_migration.py
