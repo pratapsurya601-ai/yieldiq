@@ -18,6 +18,8 @@ import QualityRatios from "@/components/analysis/QualityRatios"
 import PromoterPledgePanel from "@/components/analysis/PromoterPledgePanel"
 import AnnualReportsPanel from "@/components/analysis/AnnualReportsPanel"
 import ARSignalsPanel from "@/components/annual-reports/ARSignalsPanel"
+import BankKpiPanel from "@/components/banks/BankKpiPanel"
+import { isPureBank } from "@/lib/bankTickers"
 import ManifestHistoryPanel from "@/components/analysis/ManifestHistoryPanel"
 import InsiderTradingPanel from "@/components/analysis/InsiderTradingPanel"
 import BulkBlockDealsPanel from "@/components/analysis/BulkBlockDealsPanel"
@@ -833,6 +835,12 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             ratioHistory={ratiosHistoryQuery.data ?? null}
           />
           <PromoterPledgePanel ticker={ticker} />
+          {/* Phase I-frontend (Block II): per-bank operational + asset-
+              quality KPIs. Only renders for tickers in
+              PURE_BANK_TICKERS_FOR_DE; non-banks skip the fetch entirely
+              via the isPureBank() guard. The panel itself also self-
+              hides if the backend returns is_bank=false. */}
+          {isPureBank(ticker) && <BankKpiPanel ticker={ticker} />}
           <InsiderTradingPanel ticker={ticker} />
           <BulkBlockDealsPanel ticker={ticker} />
           <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
