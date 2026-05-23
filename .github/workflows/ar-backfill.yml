@@ -1,0 +1,141 @@
+name: AR Backfill (operator)
+
+# ─────────────────────────────────────────────────────────────────
+# Phase H-operator-workflow: single button to run any phase of the
+# annual-report (AR) backfill chain from the GitHub Actions UI.
+#
+# Unlike concalls (Phase G), AR has NO middle "summaries" phase —
+# the extractor pulls structured signals directly from the AR PDF.
+#
+# Phases (in execution order when `all` is selected):
+#
+#   1. transcripts — scripts/ingest_annual_reports.py
+#        Fetches AR PDF URLs + metadata from NSE's annual-reports
+#        JSON feed into `company_annual_reports` (migration 027).
+#        No LLM spend. Naming kept symmetric with concall-backfill
+#        even though the artefacts are PDFs, not transcripts.
+#
+#   2. extract — scripts/extract_ar_signals_batch.py
+#        Downloads each AR PDF, pypdf-extracts + chunks the text,
+#        calls Anthropic Sonnet 4.5 per chunk via
+#        backend.services.ar_intel_service.extract_ar_signals_from_url,
+#        merges + validates + SEBI-sanitises, UPSERTs into
+#        `ar_signals` (migration 060 / PR #576). Cost-capped,
+#        resumable, --dry-run safe.
+#
+#        Per-AR spend ~$0.20-$0.30 (Sonnet 4.5, ~100-page AR with
+#        prompt caching). Default --cost-cap-usd 100 permits ~400
+#        ARs per run. A full top-200 × 10y (~2000 ARs) backfill
+#        therefore needs ~5 successive runs at the default cap, or
+#        a single run with cost_cap_usd raised to ~500.
+#
+#   3. all — runs 1 → 2 in sequence.
+#
+# Secrets required (already configured at repo level):
+#   - DATABASE_URL       — Neon PG connection string for read+write.
+#   - ANTHROPIC_API_KEY  — used by the extract phase only.
+#
+# Runbook: docs/runbooks/phase-h-ar-backfill.md
+# ─────────────────────────────────────────────────────────────────
+
+on:
+  workflow_dispatch:
+    inputs:
+      phase:
+        description: "Which phase to run"
+        type: choice
+        required: true
+        default: all
+        options:
+          - transcripts
+          - extract
+          - all
+      top_n:
+        description: "Top-N tickers (by market cap) to target"
+        type: number
+        required: true
+        default: 200
+      cost_cap_usd:
+        description: "Hard-stop USD spend for the extract phase"
+        type: number
+        required: true
+        default: 100
+      dry_run:
+        description: "Dry-run (no DB writes, no LLM calls)"
+        type: boolean
+        required: true
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  backfill:
+    name: ${{ inputs.phase }} (top=${{ inputs.top_n }}, dry=${{ inputs.dry_run }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      PYTHONUNBUFFERED: "1"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            requirements.txt
+            backend/requirements.txt
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f backend/requirements.txt ]; then pip install -r backend/requirements.txt; fi
+
+      - name: Build dry-run flag
+        id: flags
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "dry=--dry-run" >> "$GITHUB_OUTPUT"
+          else
+            echo "dry=" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Phase 1: transcripts. Ingests AR PDF URLs + metadata from
+      # NSE into `company_annual_reports`. No LLM spend, so the
+      # cost-cap flag is not threaded through here. --years-back
+      # is left at the script default (5y) — the operator can run
+      # the script directly if a longer window is needed.
+      - name: "Phase: transcripts"
+        if: ${{ inputs.phase == 'transcripts' || inputs.phase == 'all' }}
+        run: |
+          python scripts/ingest_annual_reports.py \
+            --top ${{ inputs.top_n }} \
+            ${{ steps.flags.outputs.dry }}
+
+      # Phase 2: extract. Anthropic-backed structured extraction
+      # straight from the AR PDF. The script's universe limit is
+      # --max-rows (one row per company_annual_reports row), so the
+      # `top_n` input is reused for the row cap.
+      - name: "Phase: extract"
+        if: ${{ inputs.phase == 'extract' || inputs.phase == 'all' }}
+        run: |
+          python scripts/extract_ar_signals_batch.py \
+            --max-rows ${{ inputs.top_n }} \
+            --cost-cap-usd ${{ inputs.cost_cap_usd }} \
+            ${{ steps.flags.outputs.dry }}
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "Phase: ${{ inputs.phase }}"
+          echo "top_n: ${{ inputs.top_n }}"
+          echo "cost_cap_usd: ${{ inputs.cost_cap_usd }}"
+          echo "dry_run: ${{ inputs.dry_run }}"
