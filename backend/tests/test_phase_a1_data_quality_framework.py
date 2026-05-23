@@ -448,13 +448,14 @@ def test_orchestrator_unknown_table_filter_exits_2():
     assert rc == 2
 
 
-def test_orchestrator_skips_validators_with_unwired_loaders():
-    """A.1 ships validators without DB loaders. Orchestrator should
-    skip cleanly rather than crash, so end-to-end smoke runs are
-    possible before A.2 wires the DB."""
+def test_orchestrator_skips_validators_with_unwired_loaders(monkeypatch):
+    """A.2.1 wired the DB loaders behind ``$DATABASE_URL``; when the env
+    var is unset the loaders return None and validators promote that to
+    NotImplementedError. The orchestrator's skip path then makes the
+    run a no-op rather than a crash, so end-to-end smoke runs are
+    possible without a database."""
+    monkeypatch.delenv("DATABASE_URL", raising=False)
     from scripts import run_data_quality_validators as orch
 
-    # The real registry contains DailyPricesValidator + StocksValidator,
-    # both of which raise NotImplementedError on construction-free run.
     rc = orch.run(dry_run=True)
     assert rc == 0  # zero results -> nothing red -> exit 0
