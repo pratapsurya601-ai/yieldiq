@@ -411,7 +411,7 @@ describe("ARSignalsPanel — original six sub-panels", () => {
     renderWithClient(
       <ARSignalsPanel ticker="HDFCBANK.NS" initialData={CANONICAL_PAYLOAD} />,
     )
-    const rptSection = screen.getByTestId("ar-section-rpt")
+    const rptSection = expandSection("ar-section-rpt")
     expect(rptSection).toHaveTextContent(/HDB Financial Services/)
     expect(rptSection.textContent ?? "").not.toMatch(/\bcounterparty\b/i)
   })
@@ -420,7 +420,7 @@ describe("ARSignalsPanel — original six sub-panels", () => {
     renderWithClient(
       <ARSignalsPanel ticker="HDFCBANK.NS" initialData={CANONICAL_PAYLOAD} />,
     )
-    const capexSection = screen.getByTestId("ar-section-capex")
+    const capexSection = expandSection("ar-section-capex")
     // Description (the primary title) must render.
     expect(capexSection).toHaveTextContent(
       /Aggregate capital expenditure FY2024-25/,
@@ -435,7 +435,7 @@ describe("ARSignalsPanel — original six sub-panels", () => {
     renderWithClient(
       <ARSignalsPanel ticker="HDFCBANK.NS" initialData={CANONICAL_PAYLOAD} />,
     )
-    const clSection = screen.getByTestId("ar-section-liabilities")
+    const clSection = expandSection("ar-section-liabilities")
     // Description still renders.
     expect(clSection).toHaveTextContent(/See Schedule 18 notes/)
     // Empty "Rs Cr" placeholder must not leak through.
