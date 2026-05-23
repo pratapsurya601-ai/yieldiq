@@ -2,8 +2,8 @@
 
 // Account → Notification preferences.
 //
-// Per-channel toggles for weekly digest, band alerts (future PR), and
-// product updates. State is stored on auth.users.user_metadata via
+// Per-channel toggles for weekly digest, band alerts, and product
+// updates. State is stored on auth.users.user_metadata via
 // PUT /api/v1/email/preferences. Defaults are opted-in.
 //
 // Why on /account/notifications rather than /settings/notifications:
@@ -89,7 +89,7 @@ export default function NotificationPreferencesPage() {
         />
         <Toggle
           label="Band alerts"
-          hint="When a stock you own crosses your Below/Above Fair Value band. (Coming in the next release.)"
+          hint="When a stock you own crosses your Below/Above Fair Value band. Delivered as part of the daily 09:00 IST digest email."
           checked={prefs.band_alerts}
           onChange={(v) => update("band_alerts", v)}
           disabled={saving}
