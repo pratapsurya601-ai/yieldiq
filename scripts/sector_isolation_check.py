@@ -571,6 +571,41 @@ def main(argv: list[str] | None = None) -> int:
         except Exception:
             pass
 
+        # The workflow's `paths:` filter is intentionally broad
+        # (backend/services/**, backend/routers/**, ...) because those
+        # trees mix scoring code with non-scoring code (routers for
+        # observation, intel panels, etc.). The suggester applies the
+        # narrower truth — GLOBAL_PREFIXES + SECTORAL_PREFIXES + per-file
+        # sector-label scan — and emits the sentinel
+        # `sector-scope: <none — no scoring/data files touched>` when the
+        # actual diff cannot affect any sector. In that case the gate has
+        # nothing to gate on, and demanding a declaration just teaches
+        # authors to paste `sector-scope: *` reflexively, which defeats
+        # the gate entirely (PRs that DO need scope review get lost in
+        # the noise). Auto-pass with a log line so the reviewer can audit.
+        if "no scoring/data files touched" in suggested_line:
+            print(
+                "sector-isolation: diff does not touch scoring/data files "
+                "(per sector_scope_suggest); skipping require-scope gate.",
+                flush=True,
+            )
+            try:
+                md = "\n".join([
+                    "# Sector Isolation Report",
+                    "",
+                    "**STATUS: PASS (no-op)** — diff does not touch any "
+                    "scoring or data file the gate cares about.",
+                    "",
+                    "The workflow `paths:` trigger is deliberately broad. The "
+                    "suggester (`scripts/sector_scope_suggest.py`) applies the "
+                    "narrower truth and confirmed no sector can shift from this "
+                    "diff. No declaration required.",
+                ])
+                Path(args.report_md).write_text(md, encoding="utf-8")
+            except Exception:
+                pass
+            return 0
+
         msg_lines = [
             "ERROR: no `sector-scope:` declaration found.",
             "Every PR touching scoring code must declare:",
