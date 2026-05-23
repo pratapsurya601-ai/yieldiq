@@ -44,7 +44,9 @@ from backend.services.confidence_service import (
 def test_bull_undervalued_bypass_constants() -> None:
     """Pin the constants — drift here means the API and the
     frontend pill can disagree on a subset of bull-side tickers."""
-    assert BULL_UNDERVALUED_BYPASS_MOS == 50.0
+    # Phase B.2 (2026-05-24): lowered 50 → 40 to clear HDFCBANK at
+    # +43% MoS (was stranded at "fairly_valued").
+    assert BULL_UNDERVALUED_BYPASS_MOS == 40.0
     assert BULL_UNDERVALUED_BYPASS_CONFIDENCE == 30
     assert BULL_NOTABLY_UNDERVALUED_MOS == 80.0
 
@@ -97,14 +99,28 @@ def test_mos60_conf40_undervalued() -> None:
     assert any("intensity_hint='undervalued'" in i for i in issues)
 
 
-def test_mos45_conf80_existing_cap_preserved() -> None:
-    """mos=+45%, conf=80 — but valuation_stability=65 still trips
-    the Layer-3 'any score below 70' cap. mos_pct is below the
-    BULL_UNDERVALUED_BYPASS_MOS=50 threshold, so the bypass does
-    NOT fire and the existing 'fairly_valued' cap holds."""
+def test_mos45_conf80_bypass_fires_post_b2() -> None:
+    """Phase B.2 (2026-05-24): threshold lowered 50 → 40. mos=+45%
+    now clears the bypass (was previously capped to 'fairly_valued').
+    This is the HDFCBANK-shape regression test."""
     verdict, issues = _gate(
         "undervalued",
         mos_pct=45.0,
+        model_confidence=80,
+        data_quality=65,
+    )
+    assert verdict == "undervalued"
+    assert any("Bull-side bypass" in i for i in issues)
+
+
+def test_mos39_conf80_below_b2_threshold_still_capped() -> None:
+    """mos=+39% sits BELOW the new BULL_UNDERVALUED_BYPASS_MOS=40
+    boundary, so the bypass does NOT fire and the Layer-3 'any
+    score below 70' cap still holds — keeps fairly_valued as the
+    floor for sub-40% MoS reads."""
+    verdict, issues = _gate(
+        "undervalued",
+        mos_pct=39.0,
         model_confidence=80,
         data_quality=65,
     )

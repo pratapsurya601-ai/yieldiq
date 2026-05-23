@@ -467,7 +467,15 @@ BEAR_NOTABLY_OVERVALUED_MOS: float = -40.0
 # / under_review / avoid (those need stronger gates than just MoS)
 # and Layer-1 (extreme FV/price ratio) and Layer-2 (triple-low
 # under_review) still fire first.
-BULL_UNDERVALUED_BYPASS_MOS: float = 50.0
+# Phase B.2 (2026-05-24): lowered 50 → 40 after HDFCBANK landed at
+# MoS=+43.1% with model_confidence=90 but the original 50% threshold
+# kept the Layer-3 cap from clearing — verdict surfaced as
+# `fairly_valued` to the public stock-summary endpoint despite a
+# clear +43% margin of safety and a Wide moat + Piotroski 6 + recent
+# Day-109a banking-cohort re-anchor. 40% MoS at conf>=30 is genuinely
+# undervalued territory (the symmetric bear-side BEAR_OVERVALUED_BYPASS
+# clears at |mos| >= 25%); the original 50% bar was over-cautious.
+BULL_UNDERVALUED_BYPASS_MOS: float = 40.0
 BULL_UNDERVALUED_BYPASS_CONFIDENCE: int = 30
 # Threshold above which a bull-side read deepens to
 # `notably_undervalued` instead of plain `undervalued`. Higher than

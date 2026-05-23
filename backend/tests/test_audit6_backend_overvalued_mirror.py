@@ -142,18 +142,24 @@ def test_low_confidence_still_gates() -> None:
     assert verdict == "fairly_valued"
 
 
-def test_bull_side_unchanged_high_mos_low_confidence() -> None:
-    """mos=+48, conf=55 — bull side keeps the original symmetric
-    cap. Notably_undervalued at moderate confidence collapses to
-    fairly_valued so a noisy deep-value signal cannot mislead.
+def test_bull_side_high_mos_moderate_confidence_post_day111c_b2() -> None:
+    """mos=+48, conf=55. Audit#6 (original PR #503) deliberately
+    capped this to fairly_valued because acting on a noisy deep-
+    value signal was treated as a larger trust risk than missing
+    one. Day-111c (2026-05-23) added the symmetric bull-side bypass
+    at MoS>=50. Phase B.2 (2026-05-24) further lowered that bar to
+    MoS>=40 so HDFCBANK at +43% no longer strands at fairly_valued.
 
-    Acting on a noisy "deep value" read is the larger trust risk
-    on the bull side. Bear-side bypass is asymmetric on purpose.
+    At mos=48% / conf=55, both thresholds (mos>=40, conf>=30) are
+    cleared → bypass fires → 'undervalued'. The intensity_hint in
+    issues encodes the engine's original 'notably_undervalued'
+    read for analytics. This test asserts the Phase-B.2 semantics.
     """
-    verdict, _ = _gate(
+    verdict, issues = _gate(
         "notably_undervalued", mos_pct=48.0, model_confidence=55
     )
-    assert verdict == "fairly_valued"
+    assert verdict == "undervalued"
+    assert any("Bull-side bypass" in i for i in issues)
 
 
 # ── Boundary + interaction with other layers ──────────────────────

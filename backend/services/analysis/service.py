@@ -3172,8 +3172,42 @@ class AnalysisService(NarrativeMixin):
         try:
             from backend.services.dcf_collapse_safety_net import (
                 attempt_tier2_fallback as _dcf_safety_fallback,
+                clamp_inflated_scenarios as _dcf_clamp_inflated,
                 is_fv_unreasonable as _dcf_is_unreasonable,
             )
+
+            # ── Phase B.2 (2026-05-24): bull sanity pre-clamp ───────
+            # Day-107a IT-services WACC drop (0.1114 → 0.098) inflated
+            # the WIPRO/HCLTECH/TECHM generic DCF — bulls landed at
+            # 33× CMP, bases at 4× CMP. The base inflation tripped the
+            # safety net's INFLATED_RATIO_HI=3.5 gate, the Tier-2/
+            # platform/story rescue rungs ALL returned None (the IT
+            # cohort itself has the broken-low-WACC contagion), and
+            # `_dcf_collapse_unrescued=True` forced verdict=data_limited
+            # on three of the top-7 IT names. Phase B.0 diagnostic
+            # `docs/diagnostics/phase-b-cache-paths-2026-05-24.md` §4
+            # recommended option (b): pre-clamp at the bull-side
+            # `> 5× CMP` boundary. When bull is implausibly inflated we
+            # proportionally clamp base+bear too so the band stays
+            # ordered and the iv check below sees a sane base FV.
+            if price and price > 0:
+                _clamp = _dcf_clamp_inflated(
+                    base_fv=float(iv),
+                    bull_fv=float(bull_iv or 0),
+                    bear_fv=float(bear_iv or 0),
+                    current_price=float(price),
+                )
+                if _clamp is not None:
+                    _bc, _ubc, _brc, _clamp_reason = _clamp
+                    iv = _bc
+                    bull_iv = _ubc
+                    bear_iv = _brc
+                    _data_issues = list(_data_issues) + [
+                        f"[dcf_collapse_safety_net] {_clamp_reason}. "
+                        "Likely cause: too-low sector WACC. Scenarios "
+                        "re-anchored to current price band to avoid "
+                        "data_limited fallout."
+                    ]
 
             # Mirror the same engine-label logic the response builder
             # uses below so the safety net sees the actual engine that
