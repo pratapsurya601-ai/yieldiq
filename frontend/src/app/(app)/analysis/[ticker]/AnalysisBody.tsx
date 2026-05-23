@@ -17,6 +17,7 @@ import RedFlagInsights from "@/components/analysis/RedFlagInsights"
 import QualityRatios from "@/components/analysis/QualityRatios"
 import PromoterPledgePanel from "@/components/analysis/PromoterPledgePanel"
 import AnnualReportsPanel from "@/components/analysis/AnnualReportsPanel"
+import ARSignalsPanel from "@/components/annual-reports/ARSignalsPanel"
 import ManifestHistoryPanel from "@/components/analysis/ManifestHistoryPanel"
 import InsiderTradingPanel from "@/components/analysis/InsiderTradingPanel"
 import BulkBlockDealsPanel from "@/components/analysis/BulkBlockDealsPanel"
@@ -864,6 +865,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           {/* Day-103a: concall library with AI-summarised quarterly
               earnings calls. Renders empty state until ingestion lands. */}
           <ConcallsPanel ticker={ticker} />
+          {/* Phase H-frontend (Block II): structured AR signals extracted
+              via Anthropic. Renders ABOVE the AnnualReportsPanel link
+              list; renders nothing when no extraction exists yet. */}
+          <ARSignalsPanel ticker={ticker} />
           {/* Day-103b: per-ticker annual report PDF links (Screener.in parity). */}
           <AnnualReportsPanel ticker={ticker} />
         </div>
