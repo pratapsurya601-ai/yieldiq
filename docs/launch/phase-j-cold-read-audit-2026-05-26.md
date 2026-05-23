@@ -379,3 +379,54 @@ J-copy will group these into 3 themed PRs:
 - **J-copy-2 (Landing first-impression):** items 6, 7, 8, 12, 13, 14,
   15.
 - **J-copy-3 (Misc polish + verification):** items 9, 10, 11, 16-22.
+
+---
+
+## Status (2026-05-26 follow-up)
+
+Audit walked by a second pass on 2026-05-26 — J-copy-1 (PR #585) shipped
+Tier-1 items + 7, 13, 14; J-copy-2a/b (PR #594, #596) shipped the
+remaining buildable Tier-2/Tier-3 items; the rest were already done
+post-audit by prior work or are operational-verification tasks deferred
+to the launch runbook.
+
+| # | Tier | Item | Status | Outcome / PR |
+|---|------|------|--------|--------------|
+| 1 | T1 | Rename "Top Pick" card label | DONE | J-copy-1 PR #585 — discover hero now reads "Highest YieldIQ score today" |
+| 2 | T1 | DemoCard `verdict` → `classification` | DONE | J-copy-1 PR #585 |
+| 3 | T1 | Tax-loss harvesting copy audit | DONE | J-copy-1 PR #585 |
+| 4 | T1 | Onboarding questionnaire scrub | DONE | J-copy-1 PR #585 |
+| 5 | T1 | Disclaimer parity check | DONE | J-copy-1 PR #585 |
+| 6 | T2 | Hero search ticker chips | DONE | J-copy-1 PR #585 (chips on `/search`) |
+| 7 | T2 | Drop `FALLBACK_CARDS` stale prices | DONE | J-copy-1 PR #585 — `FALLBACK_CARDS = []` |
+| 8 | T2 | Move "no sign-up" subtext to hero | DONE | J-copy-1 PR #585 |
+| 9 | T2 | Anon `/analysis/:ticker` TTFB ≤ 200ms | DEFER | Operator task — needs prod measurement under realistic network conditions; add to launch-day runbook |
+| 10 | T2 | Invalid ticker not-found page | DONE | Pre-audit — `PublicAnalysis.tsx` isError branch (lines 176-194) renders a clean message + "Search stocks" CTA |
+| 11 | T2 | Day-68 default content for cookie-less visitor | DONE | Pre-audit Day-68 fix — `/discover` renders methodology spotlight + MoS gainers + earnings regardless of yiq50 cold state (see `pickTodayTip`, `mosGainers`, `earningsToday` in `discover/page.tsx`) |
+| 12 | T2 | Mobile DemoCard variant | DONE | J-copy-2a PR #594 — dropped `hidden lg:block`, card now visible in hero on phones |
+| 13 | T3 | Replace `yfinance` in trust bar | DONE | J-copy-1 PR #585 |
+| 14 | T3 | "Recomputed nightly" → "Refreshed each evening" | DONE | J-copy-1 PR #585 (string already in DemoCard) |
+| 15 | T3 | Footer link row below SEBI disclaimer | DONE | Pre-audit — `TrustFooter` already has Terms / Privacy / SLA / Status / About below the disclosure |
+| 16 | T3 | Discover contextual subtitle | DONE | J-copy-2a PR #594 — h1 + "What looks cheap today" subtitle |
+| 17 | T3 | All-sectors index page + footer link | DONE | J-copy-2b PR #596 — new `/sector` route + footer "Sectors" link + sitemap entry |
+| 18 | T3 | MoS column tooltip on sector page | DONE | J-copy-2a PR #594 — native `title` on `SectorTable` MoS header |
+| 19 | T3 | Prism pillar one-line tooltips | DONE | Pre-audit — `PillarExplainer` bottom-sheet renders factual sentence + sector-median comparison on vertex tap (superior to hover-only tooltips, and mobile-tappable) |
+| 20 | T3 | Screener preset names descriptive | DONE | Pre-audit — all 10 presets in `screenerFilters.ts` (Value+Quality, Deep Value, etc.) are descriptive; no superlatives |
+| 21 | T3 | HelpNav on every help subpage | DONE | Pre-audit — all 7 help subpages use `HelpPageShell` which includes `HelpNav` |
+| 22 | T3 | Password reset flow exists | DONE | Pre-audit — `/auth/forgot-password` and `/auth/reset-password` routes exist |
+
+### Deferred items detail
+
+- **Item 9** (anon analysis TTFB perf verification): this is a runtime
+  measurement against prod, not a code change. Belongs on the
+  launch-day runbook with a target of "TTFB ≤ 200ms p50 on the
+  `/analysis/RELIANCE.NS` warm path" — needs to be re-checked after
+  every backend deploy that touches the public prism endpoint or its
+  upstream cache. Not blocking any code PR.
+
+### Net result
+
+- Buildable items shipped: 17 of 22 across PRs #585, #594, #596 plus
+  pre-audit work for items 10, 11, 15, 19, 20, 21, 22.
+- One operational verification task (item 9) deferred to runbook.
+- No items remain blocking the Reddit launch post.
