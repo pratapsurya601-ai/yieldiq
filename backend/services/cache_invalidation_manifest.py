@@ -865,6 +865,18 @@ MANIFEST: list[dict] = [
             "+ ratios) for top-500 / canary-333."
         ),
     },
+    {
+        "version_id": "v_phase_g_intel_signals_2026_05_26",
+        "applied_at": datetime(2026, 5, 26, 0, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["concall_signals", "concall_intel"],
+        },
+        "rationale": (
+            "Phase G-intel-phase1 (c): expose Anthropic-extracted "
+            "concall_signals on the public analysis surface."
+        ),
+    },
 ]
 
 
