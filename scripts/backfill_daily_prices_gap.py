@@ -160,7 +160,10 @@ def main() -> int:
                 "delivery_qty": _num(rec.get("delivery_qty"), int),
                 "delivery_pct": _num(rec.get("delivery_pct")),
                 "vwap": _num(rec.get("vwap")),
-                "adj_close": close,
+                # Day-112: do NOT write close as adj_close. NSE bhavcopy
+                # is unadjusted. Leave NULL — `scripts/rebuild_adj_close.py`
+                # owns this column.
+                "adj_close": None,
             })
 
         if not rows_to_insert:

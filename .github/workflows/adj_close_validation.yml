@@ -1,0 +1,102 @@
+name: Adj-close — Daily Validation
+
+# Day-112 nightly cross-check that daily_prices.adj_close still
+# produces sane 5y stock-CAGR for a curated panel of compounders +
+# under-performers. Catches:
+#   * a regressed populator silently writing close into adj_close,
+#   * yfinance returning a stale/broken series for some ticker,
+#   * a missed corporate action (split / bonus / merger),
+#   * any layer above the data that shifts CAGR out of band.
+#
+# Fail behavior: if >5% of the panel fails the band check, we open a
+# GitHub issue with the offending tickers + their actual CAGR so an
+# operator can run scripts/rebuild_adj_close.py manually.
+#
+# This workflow does NOT run the rebuild itself — that's a multi-hour
+# job (~2-4 hrs) and lives on a developer machine or a long-lived
+# runner. See docs/runbooks/price-data-rebuild-2026-05-23.md.
+
+on:
+  schedule:
+    - cron: "0 2 * * *"  # 02:00 UTC = 07:30 IST, after nightly data ingest
+  workflow_dispatch:
+    inputs:
+      threshold:
+        description: "Min pass-rate (default 0.95)"
+        required: false
+        default: "0.95"
+
+concurrency:
+  group: adj-close-validation
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install psycopg2-binary
+      - name: Run validator
+        id: validate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          set +e
+          THRESHOLD="${{ inputs.threshold || '0.95' }}"
+          python scripts/validate_adj_close.py --threshold "$THRESHOLD" --json > adj_close_validation.json
+          ec=$?
+          echo "exit_code=$ec" >> "$GITHUB_OUTPUT"
+          cat adj_close_validation.json
+          exit 0
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adj_close_validation
+          path: adj_close_validation.json
+          retention-days: 30
+      - name: Open issue on failure
+        if: steps.validate.outputs.exit_code != '0'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const data = JSON.parse(fs.readFileSync('adj_close_validation.json', 'utf8'));
+            const failed = (data.results || []).filter(r => r.status === 'fail');
+            const lines = failed.map(r =>
+              `  - **${r.ticker}** (${r.pool}): cagr=${r.cagr}% expected=[${r.expected[0]}%, ${r.expected[1]}%]`
+            ).join('\n');
+            const body = [
+              `Daily adj_close validation failed. ${failed.length} ticker(s) out of band.`,
+              ``,
+              `**Pass rate**: ${(data.pass_rate * 100).toFixed(1)}% (threshold ${(data.threshold * 100).toFixed(0)}%)`,
+              `**As of**: ${data.today}`,
+              ``,
+              `### Failed tickers`,
+              lines,
+              ``,
+              `### Runbook`,
+              `1. Inspect with: \`DATABASE_URL=... python scripts/validate_adj_close.py\``,
+              `2. If a single ticker is wrong, rebuild it: \`DATABASE_URL=... python scripts/rebuild_adj_close.py --tickers TICKER\``,
+              `3. If many tickers fail, suspect the populator regressed — read docs/runbooks/price-data-rebuild-2026-05-23.md.`,
+              ``,
+              `_Auto-filed by .github/workflows/adj_close_validation.yml_`,
+            ].join('\n');
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `adj_close validator failed — ${failed.length} ticker(s) out of band`,
+              body,
+              labels: ['data-quality', 'day-112'],
+            });
+      - name: Fail workflow on validation failure
+        if: steps.validate.outputs.exit_code != '0'
+        run: exit 1

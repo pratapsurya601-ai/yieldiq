@@ -216,7 +216,10 @@ def main() -> int:
                 "delivery_qty": _num(rec.get("delivery_qty"), int),
                 "delivery_pct": _num(rec.get("delivery_pct")),
                 "vwap": _num(rec.get("vwap")),
-                "adj_close": close,
+                # Day-112: do NOT write close as adj_close. NSE legacy
+                # bhavcopy is unadjusted. Leave NULL — owned by
+                # scripts/rebuild_adj_close.py.
+                "adj_close": None,
             })
 
         if not rows:

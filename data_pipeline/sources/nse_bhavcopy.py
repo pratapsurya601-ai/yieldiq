@@ -130,7 +130,16 @@ def store_bhavcopy(df: pd.DataFrame, db: Session) -> int:
         "delivery_pct": df.get("delivery_pct").apply(_safe_float) if "delivery_pct" in df.columns else None,
         "trades": pd.to_numeric(df.get("trades", 0), errors="coerce").fillna(0).clip(upper=2**31).astype("int64") if "trades" in df.columns else 0,
         "vwap": df.get("vwap").apply(_safe_float) if "vwap" in df.columns else None,
-        "adj_close": df.get("close_price").apply(_safe_float) if "close_price" in df.columns else None,
+        # Day-112: do NOT write adj_close from raw close_price. NSE
+        # bhavcopy is an unadjusted feed — it has no knowledge of splits
+        # or bonuses. Writing close_price into adj_close hid a broken
+        # state for months (RELIANCE 5y CAGR rendered as -7.8% because
+        # the CAGR engine treated raw post-bonus close vs raw pre-bonus
+        # close as a real return). Leave NULL; the dedicated
+        # `scripts/rebuild_adj_close.py` populator (with yfinance Adj
+        # Close + corporate_actions cross-validation + audit log) owns
+        # this column.
+        "adj_close": None,
     })
 
     # Use pandas to_sql with raw engine connection — fast bulk insert
