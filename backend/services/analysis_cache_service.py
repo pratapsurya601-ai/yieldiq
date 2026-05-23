@@ -654,4 +654,55 @@ def get_cached_latest(
             pass
 
 
-__all__ = ["get_cached", "get_cached_latest", "save_cached", "invalidate"]
+def get_canonical_payload(
+    ticker: str,
+    fields_needed: Optional[list] = None,
+    allow_stale: bool = False,
+) -> Optional[dict]:
+    """Unified entry point for any caller reading the cached analysis.
+
+    Phase B.1 (2026-05-24). The pre-B.1 codebase has ~15 call sites
+    spread across `routers/analysis.py`, `routers/public.py`,
+    `services/portfolio_aggregator.py`, and `services/coverage_tier_service.py`
+    that mix raw `cache.get("analysis:{ticker}")` (in-memory tier-1)
+    with `analysis_cache_service.get_cached(ticker)` (Postgres tier-2)
+    and, in one spot, `get_cached_latest()` (manifest-bypassing). The
+    divergence between authed and anon read paths traced back to this
+    fan-out. This helper gives every new caller a single function with
+    one decision (`allow_stale`) and one declared field-set.
+
+    Behavior:
+      - allow_stale=False (default): goes through ``get_cached``, which
+        respects the Day-94 manifest gate. Returns None on miss or
+        manifest-invalidation.
+      - allow_stale=True: falls through to ``get_cached_latest`` on a
+        miss, so a slightly-stale row is preferable to nothing (used
+        by sector aggregator surfaces — see Day-110a).
+
+    ``fields_needed`` is forwarded to the manifest matcher so a
+    scoped invalidation (e.g. ["scenarios.bear"]) doesn't invalidate
+    a caller that only reads ["fair_value"]. Pass ``None`` to mean
+    "I might read anything" — the safer (more-likely-to-invalidate)
+    default for ignorant callers.
+
+    Migration note: existing call sites are NOT rewritten in B.1 (the
+    blast radius would be 15+ files and a separate audit). They keep
+    working unchanged because the drain hook now closes the in-memory
+    drift window directly. New code SHOULD use this helper so the
+    eventual refactor is a single grep.
+    """
+    payload = get_cached(ticker, fields_needed=fields_needed)
+    if payload is not None:
+        return payload
+    if allow_stale:
+        return get_cached_latest(ticker)
+    return None
+
+
+__all__ = [
+    "get_cached",
+    "get_cached_latest",
+    "get_canonical_payload",
+    "save_cached",
+    "invalidate",
+]
