@@ -3358,6 +3358,18 @@ class AnalysisService(NarrativeMixin):
         _analyst_target = (raw.get("finnhub_price_target") or {}).get("mean", 0) or 0
         _analyst_upside = ((_analyst_target - price) / price * 100) if price > 0 and _analyst_target > 0 else 0
 
+        # Phase C.2 PR 1 (2026-05-25): the prior TypeError fallback ran
+        # a DIFFERENT scoring formula (40/30/20 envelopes, no sentiment)
+        # that diverged from the canonical compute_yieldiq_score. Since
+        # the 2026-04-30 hardening (decimal-or-percent rev_growth guard,
+        # None-safe analyst_upside) the canonical function tolerates
+        # every input shape the pipeline emits, so the fallback is
+        # unreachable. Removing it eliminates the silent-divergence
+        # quirk documented in phase-c-score-formula-2026-05-25.md §4 #2.
+        # On the unlikely event of a future TypeError, surface it as a
+        # logged exception with a defensive zero-score (verdict will
+        # already gate via data_limited) rather than producing a
+        # divergent score under the same field name.
         try:
             yiq_score = compute_yieldiq_score(
                 mos_pct=mos_pct,
@@ -3367,29 +3379,18 @@ class AnalysisService(NarrativeMixin):
                 analyst_upside=_analyst_upside,
             )
         except TypeError as _te:
-            # Fallback: calculate inline if function signature doesn't match.
-            # Log so we can see in production whether this fallback fires for
-            # any tickers, and why — a recurrence of this path means the
-            # main scoring function (`compute_yieldiq_score`) is choking on
-            # a None / non-numeric input that needs an upstream guard.
             import logging as _logging
-            _logging.getLogger("yieldiq.analysis").warning(
-                "scoring fallback for ticker=%s due to TypeError: %s — using inline scoring",
-                ticker, _te,
+            _logging.getLogger("yieldiq.analysis").exception(
+                "scoring TypeError for ticker=%s (compute_yieldiq_score "
+                "rejected inputs: mos=%r pio=%r moat=%r rev=%r upside=%r). "
+                "Returning zero score — investigate the upstream guard.",
+                ticker, mos_pct,
+                piotroski.get("score", 0),
+                moat_result.get("grade", "None"),
+                enriched.get("revenue_growth", 0),
+                _analyst_upside,
             )
-            _v = max(0, min(40, int((mos_pct + 40) / 80 * 40)))
-            # FIX (2026-04-30): align fallback moat awards with main scoring
-            # function (Wide=25, Moderate=15, Narrow=18 → proportional within
-            # the fallback's 10-pt cap: Wide=10, Moderate=8, Narrow=5). Prior
-            # version awarded 0 for Moderate, causing TCS-class moats to drop
-            # the score by ~10-15 pts whenever this fallback fired (e.g. TCS
-            # 78 A → 65 B regression observed between audits).
-            _moat_grade = moat_result.get("grade")
-            _moat_pts = {"Wide": 10, "Moderate": 8, "Narrow": 5}.get(_moat_grade, 0)
-            _q = max(0, min(30, int(piotroski.get("score", 0) / 9 * 20 + _moat_pts)))
-            _g = max(0, min(20, int(enriched.get("revenue_growth", 0) * 100)))
-            _total = max(0, min(100, _v + _q + _g))
-            yiq_score = {"score": _total, "grade": "A" if _total >= 75 else "B" if _total >= 55 else "C" if _total >= 35 else "D" if _total >= 20 else "F"}
+            yiq_score = {"score": 0, "grade": "D", "components": {}}
 
         _record_step("step7_quality")
 
