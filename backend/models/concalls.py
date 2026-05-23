@@ -17,7 +17,8 @@ from __future__ import annotations
 from datetime import datetime
 
 from sqlalchemy import (
-    Column, Integer, String, Text, Date, DateTime, UniqueConstraint, Index,
+    Column, Integer, String, Text, Date, DateTime, Numeric,
+    UniqueConstraint, Index,
 )
 from sqlalchemy.sql import func
 
@@ -52,6 +53,12 @@ class ConcallTranscript(Base):
     ai_summary_model = Column(Text, nullable=True)
     ai_summary_generated_at = Column(DateTime(timezone=True), nullable=True)
     transcript_text = Column(Text, nullable=True)
+    # Phase G-cost (migration 058): per-row LLM spend tracking.
+    # NULL for rows summarised before G-cost shipped — by design,
+    # we don't retro-fill since the spend is sunk.
+    ai_input_tokens = Column(Integer, nullable=True)
+    ai_output_tokens = Column(Integer, nullable=True)
+    ai_cost_usd = Column(Numeric(8, 4), nullable=True)
 
 
 # ─────────────────────────────────────────────────────────────────
