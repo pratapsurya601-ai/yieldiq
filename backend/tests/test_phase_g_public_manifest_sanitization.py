@@ -269,3 +269,105 @@ def test_every_live_manifest_entry_sanitizes_to_nonempty_description():
             desc,
             ctx=f"MANIFEST entry version_id={entry.get('version_id')!r}",
         )
+
+
+# ─────────────────────────────────────────────────────────────────
+# Fix #566-followup (2026-05-24): the original Phase pattern
+# matched only "Phase X" / "Phase X.N". Phase G/H/I rationales use
+# the extended forms "Phase G-intel-phase1 (c)" and "Phase
+# H-frontend (Block II)", which leaked the suffix onto the
+# anon-facing analysis page (HDFCBANK.NS "Why we changed"). These
+# tests pin the broader compound-label match and the version_id
+# omission contract for the Phase G/H/I rows specifically.
+# ─────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "rationale",
+    [
+        "Phase G-intel-phase1 (c): expose Anthropic-extracted "
+        "concall_signals on the public analysis surface.",
+        "Phase H-frontend (Block II): expose Anthropic-extracted "
+        "ar_signals (segments / capex / RPT / auditor flags / "
+        "contingent liabilities / outlook) on the analysis page.",
+        "Phase I-frontend (Block II): expose bank operational KPIs "
+        "(branches / ATMs / customers / GNPA / NNPA / PCR / CASA / "
+        "cost-to-income / credit-deposit) on the analysis surface for "
+        "the 38 commercial banks in PURE_BANK_TICKERS_FOR_DE.",
+    ],
+)
+def test_strip_strips_extended_phase_forms(rationale: str) -> None:
+    """The compound `Phase X-suffix (qualifier)` label must be removed
+    wholesale, leaving the substantive description intact."""
+    out = _strip_internal_tokens(rationale)
+    _assert_no_internal_tokens(out, ctx="extended-phase rationale")
+    # The substantive vocabulary (the "expose ..." description) must
+    # survive — we don't want to nuke the entire rationale.
+    assert "expose" in out.lower()
+    # And no stray "frontend (Block II)" / "-intel-phase1 (c)"
+    # suffix is left dangling.
+    assert "Block II" not in out
+    assert "intel-phase1" not in out
+    assert "frontend" not in out.lower().split(":")[0]
+
+
+@pytest.mark.parametrize(
+    "version_id,rationale",
+    [
+        (
+            "v_phase_g_intel_signals_2026_05_26",
+            "Phase G-intel-phase1 (c): expose Anthropic-extracted "
+            "concall_signals on the public analysis surface.",
+        ),
+        (
+            "v_phase_h_ar_signals_2026_05_26",
+            "Phase H-frontend (Block II): expose Anthropic-extracted "
+            "ar_signals on the analysis page.",
+        ),
+        (
+            "v_phase_i_bank_kpis_2026_05_26",
+            "Phase I-frontend (Block II): expose bank operational KPIs "
+            "on the analysis surface.",
+        ),
+    ],
+)
+def test_phase_ghi_entries_drop_version_id_and_internal_tokens(
+    version_id: str, rationale: str
+) -> None:
+    """Phase G / H / I entries must (a) omit ``version_id`` from the
+    anon shape and (b) strip every cadence token from the description.
+    Regression guard for the HDFCBANK.NS leak that motivated this fix.
+    """
+    raw_entry = {
+        "version_id": version_id,
+        "applied_at": None,
+        "scope": {"tickers": "*", "fields": ["ar_signals"]},
+        "rationale": rationale,
+    }
+    public = public_manifest_entry(raw_entry)
+    assert "version_id" not in public, (
+        f"version_id must not surface; got {public!r}"
+    )
+    assert "rationale" not in public
+    assert "description" in public
+    desc = public["description"]
+    _assert_no_internal_tokens(desc, ctx=f"public.description for {version_id}")
+    # The leaked chip-text strings must not appear anywhere in the
+    # description, even as fragments.
+    assert "Phase G" not in desc
+    assert "Phase H" not in desc
+    assert "Phase I" not in desc
+    assert "Block II" not in desc
+    assert "intel-phase1" not in desc
+    # The internal version_id token itself must not leak either.
+    assert "v_phase_" not in desc
+
+
+def test_strip_handles_phase_letter_pr_number_compound() -> None:
+    """`Phase C.2 PR 1: ...` (Phase C.2 PR-1 style cadence) must
+    strip both halves cleanly."""
+    out = _strip_internal_tokens(
+        "Phase C.2 PR 1: drop divergent TypeError scoring fallback."
+    )
+    _assert_no_internal_tokens(out, ctx="phase + bare-PR rationale")
+    assert "TypeError" in out  # substantive vocabulary survives

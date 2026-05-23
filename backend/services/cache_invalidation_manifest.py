@@ -110,11 +110,30 @@ log = logging.getLogger("yieldiq.cache_manifest")
 # to anon users. Patterns are intentionally permissive on the trailing
 # punctuation so they sweep up "Day-107a:", "Day-107a." and bare
 # "Day-107a" alike.
+# Fix #566-followup (2026-05-24): the original Phase pattern only
+# matched "Phase X" or "Phase X.N", but Phase G/H/I rationales use
+# extended forms — "Phase G-intel-phase1 (c)", "Phase H-frontend
+# (Block II)", "Phase I-frontend (Block II)" — which left the
+# suffixes ("-intel-phase1 (c):", "frontend (Block II):") on the
+# anon-facing surface. The new pattern sweeps the entire compound
+# label:
+#   * Phase <Letter>                              (e.g. "Phase F")
+#   * optional dotted/hyphenated subparts         (".1", "-intel-phase1")
+#   * optional adjacent paren labels              ("(c)", "(Block II)")
+# The trailing-paren clause is anchored to the Phase token (no
+# intervening text), so a free-standing parenthetical like the
+# Day-107a rationale's "(WACC tighten, TG lift, ...)" is NOT
+# consumed.
+#
+# Also extended PR to accept the bare "PR 1" form (no '#') because
+# the Phase C.2 rationale writes "Phase C.2 PR 1: …".
 _INTERNAL_TOKEN_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bDay-\d+[a-z]?\b", re.IGNORECASE),
-    re.compile(r"\bPhase\s+[A-Z](?:\.\d+)?\b"),
+    re.compile(
+        r"\bPhase\s+[A-Z](?:[-.][a-zA-Z0-9]+)*(?:\s*\([a-zA-Z0-9 ]+\))*"
+    ),
     re.compile(r"\bAudit\s*#\s*\d+(?:\s*P\d+[a-z]?)?\b", re.IGNORECASE),
-    re.compile(r"\bPR\s*#\s*\d+\b", re.IGNORECASE),
+    re.compile(r"\bPR\s*#?\s*\d+\b", re.IGNORECASE),
     re.compile(r"\bTask\s*#\s*\d+\b", re.IGNORECASE),
     re.compile(r"#\d+\b"),
 )
@@ -143,6 +162,13 @@ def _strip_internal_tokens(text: str) -> str:
     out = re.sub(r"\(\s*\)", "", out)
     # Collapse " ." / " ," seams.
     out = re.sub(r"\s+([,.;:!?])", r"\1", out)
+    # Collapse orphan comma runs left after token removal, e.g.
+    # "(A, , B, , C)" → "(A, B, C)" and "(, A)" → "(A)".
+    out = re.sub(r",(\s*,)+", ",", out)
+    out = re.sub(r"\(\s*,\s*", "(", out)
+    out = re.sub(r"\s*,\s*\)", ")", out)
+    # One more whitespace collapse after the comma surgery.
+    out = re.sub(r"\s+", " ", out)
     return out.strip()
 
 
