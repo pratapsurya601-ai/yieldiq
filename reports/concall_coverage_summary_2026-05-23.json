@@ -1,0 +1,146 @@
+{
+  "canary": {
+    "size": 333,
+    "any_in_1y": 281,
+    "any_in_5y": 281,
+    "any_in_1y_pct": 84.4,
+    "any_in_5y_pct": 84.4,
+    "meets_1y_threshold": 260,
+    "meets_5y_threshold": 16,
+    "meets_1y_pct": 78.1,
+    "meets_5y_pct": 4.8,
+    "hist_5y": {
+      "0": 52,
+      "1-4": 36,
+      "5-9": 103,
+      "10-19": 126,
+      "20-39": 15,
+      "40+": 1
+    }
+  },
+  "top200": {
+    "size": 200,
+    "any_in_1y": 180,
+    "any_in_5y": 180,
+    "any_in_1y_pct": 90.0,
+    "any_in_5y_pct": 90.0,
+    "meets_1y_threshold": 170,
+    "meets_5y_threshold": 11,
+    "meets_1y_pct": 85.0,
+    "meets_5y_pct": 5.5,
+    "hist_5y": {
+      "0": 20,
+      "1-4": 22,
+      "5-9": 59,
+      "10-19": 88,
+      "20-39": 10,
+      "40+": 1
+    }
+  },
+  "union": {
+    "size": 342,
+    "any_in_1y": 290,
+    "any_in_5y": 290,
+    "any_in_1y_pct": 84.8,
+    "any_in_5y_pct": 84.8,
+    "meets_1y_threshold": 269,
+    "meets_5y_threshold": 17,
+    "meets_1y_pct": 78.7,
+    "meets_5y_pct": 5.0,
+    "hist_5y": {
+      "0": 52,
+      "1-4": 37,
+      "5-9": 108,
+      "10-19": 128,
+      "20-39": 16,
+      "40+": 1
+    }
+  },
+  "ai_summary_cache": {
+    "total_rows_in_universe": 3052,
+    "rows_with_summary": 0,
+    "rows_with_summary_pct": 0.0,
+    "rows_withheld": 0,
+    "rows_withheld_pct": 0.0,
+    "rows_with_transcript_text": 0,
+    "rows_with_text_pct": 0.0
+  },
+  "bse_only_blindspots_sample": [
+    {
+      "ticker": "SANOFI",
+      "company_name": "Sanofi India Limited",
+      "sector": "Pharma",
+      "bse_code": "500674",
+      "mcap_cr": 8207.4681344
+    },
+    {
+      "ticker": "BDL",
+      "company_name": "Bharat Dynamics Limited",
+      "sector": "Industrials",
+      "bse_code": "541143",
+      "mcap_cr": 53100.2425344
+    },
+    {
+      "ticker": "GMDCLTD",
+      "company_name": "Gujarat Mineral Development Corporation Limited",
+      "sector": "Energy",
+      "bse_code": "532181",
+      "mcap_cr": 23436.599296
+    },
+    {
+      "ticker": "BAJAJHLDNG",
+      "company_name": "Bajaj Holdings & Investment Limited",
+      "sector": "Financial Services",
+      "bse_code": "500490",
+      "mcap_cr": 118327.2665088
+    },
+    {
+      "ticker": "GODFRYPHLP",
+      "company_name": "Godfrey Phillips India Limited",
+      "sector": "Consumer Defensive",
+      "bse_code": "500163",
+      "mcap_cr": 37824.0139264
+    },
+    {
+      "ticker": "NESTLEIND",
+      "company_name": "Nestle India Limited",
+      "sector": "FMCG",
+      "bse_code": "500790",
+      "mcap_cr": 284484.2262528
+    },
+    {
+      "ticker": "SIEMENS",
+      "company_name": "Siemens Limited",
+      "sector": "Energy",
+      "bse_code": "500550",
+      "mcap_cr": 136216.0910336
+    },
+    {
+      "ticker": "INDIGOPNTS",
+      "company_name": "Indigo Paints Limited",
+      "sector": "Basic Materials",
+      "bse_code": "543258",
+      "mcap_cr": 4697.483264
+    },
+    {
+      "ticker": "GILLETTE",
+      "company_name": "Gillette India Limited",
+      "sector": "Consumer Defensive",
+      "bse_code": "507815",
+      "mcap_cr": 26550.4342016
+    },
+    {
+      "ticker": "SAPPHIRE",
+      "company_name": "Sapphire Foods India Limited",
+      "sector": "Consumer Cyclical",
+      "bse_code": "543397",
+      "mcap_cr": 6592.4993024
+    }
+  ],
+  "thresholds": {
+    "one_year_min": 4,
+    "five_year_min": 20
+  },
+  "verdict": "PROCEED WITH CAUTION",
+  "verdict_reason": "90.0% of top-200 have *some* 5y coverage but only 5.5% clear the \u226520-call cadence threshold. Phase G-cost is worth shipping (cost tracking is needed regardless), but G-intel signal extraction will have a small effective universe."
+}
