@@ -5,6 +5,28 @@ name: Bank KPI Backfill (operator)
 # bank operational-KPI backfill for the 38-ticker commercial-bank
 # cohort (PURE_BANK_TICKERS_FOR_DE).
 #
+# !!! OPERATOR CAVEAT (2026-05-24, task #168) !!!
+# The `xbrl` phase (and therefore `all`) WILL ALWAYS FAIL pre-flight
+# on a GitHub-hosted runner because Akamai Bot Manager blocks BSE
+# requests from data-center egress ASNs (Azure GH runners). The
+# Chromium install (PR #605) and xvfb wrap (PR #606) get Chrome to
+# launch and cookies to "warm", but the filings page is then served
+# as a bot-challenge HTML with no XBRL anchors, so the parser sees
+# 0 rows / 0 fields for HDFCBANK / SBIN / AXISBANK and aborts.
+#
+# Supported execution model:
+#   - `phase=xbrl` -> run locally on an operator workstation with an
+#     Indian residential / ISP IP, real Chrome installed, and the
+#     production DATABASE_URL exported. See
+#     `docs/runbooks/phase-i-bank-kpi-backfill.md` ("XBRL phase MUST
+#     run on an Indian residential IP" section).
+#   - `phase=ar`   -> works fine on this hosted runner (Anthropic
+#     API only, no browser dependency).
+#
+# The `xbrl`/`all` options are left in place for parity with the
+# other backfill workflows and for future use with a self-hosted
+# runner on an Indian VPS.
+#
 # Two ingest paths share the bank_operational_kpis table (migration
 # 061), each writing under a different `source` so they coexist on
 # the same (ticker, period_end, period_type) row:

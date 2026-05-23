@@ -58,6 +58,65 @@ error. The pre-flight gate trips cleanly in that case. Run the
 provider from a workstation with real Chrome installed, the same
 constraint that `bse_quarterly_xbrl.py` documents.
 
+### XBRL phase MUST run on an Indian residential IP (workstation)
+
+> **Operational caveat — 2026-05-24, task #168.**
+>
+> Even with Chromium installed (PR #605) and headed Chrome wrapped
+> in `xvfb-run` (PR #606) so that `BSE XBRL client ready — Akamai
+> cookies warmed` logs cleanly, **the BSE filings page returns
+> zero parseable XBRL anchors when fetched from a GitHub Actions
+> runner.** Repro: workflow run `26339597662` produced the canonical
+> failure footprint:
+>
+> ```
+> INFO BSE XBRL client ready — Akamai cookies warmed
+> INFO pre-flight: HDFCBANK -> 0 rows, best row has 0/6 KPI fields
+> INFO pre-flight: SBIN     -> 0 rows, best row has 0/6 KPI fields
+> INFO pre-flight: AXISBANK -> 0 rows, best row has 0/6 KPI fields
+> ERROR PRE-FLIGHT FAILED ...
+> ```
+>
+> Root cause: Akamai Bot Manager fingerprints the data-center egress
+> ASN (GitHub Actions hosted runners terminate in Azure regions such
+> as `northcentralus`). The challenge page is served instead of the
+> SPA, so `_XBRL_HREF_RE` finds no `Main_Ind_As_<code>_*.xml` links
+> and `list_quarterly_xbrl_urls` returns `[]`. The warmup log line is
+> printed unconditionally after the warmup loop and does NOT
+> indicate that Akamai actually accepted the session — verified by
+> reading `data_pipeline/sources/bse_quarterly_xbrl.py` lines 187-200.
+>
+> This is consistent with the module docstring's original warning
+> (`bse_quarterly_xbrl.py` lines 62-67): *"this module will NOT work
+> as-is in GH Actions `ubuntu-latest` headless ... the production
+> assumption is local execution on a workstation with real Chrome."*
+>
+> **Supported execution model:**
+>
+> 1. `phase=xbrl` — run on the operator workstation
+>    (`python scripts/ingest_bank_kpis_from_xbrl.py --tickers all-banks
+>    --quarters 20`) against the production `DATABASE_URL`. The
+>    workstation needs: a real Indian residential / ISP IP, Playwright,
+>    and desktop Chrome installed. Total runtime ~20-25 min for the
+>    full 38-ticker cohort.
+> 2. `phase=ar`  — run from the GH Actions workflow (Anthropic-only,
+>    no browser dependency, runs cleanly on Azure runners).
+>
+> The bank-kpi GH workflow's `xbrl` and `all` paths are left in
+> place for parity with the other backfill workflows but they will
+> always fail pre-flight on hosted runners until one of the following
+> is in place:
+>   - a self-hosted GH runner on an Indian residential / VPS IP, OR
+>   - a Cloudflare Worker / lightweight reverse proxy on an Indian
+>     PoP that forwards filings-page requests, OR
+>   - a daily local `cron` / Task Scheduler entry on the operator
+>     workstation that runs the XBRL phase and writes to Neon.
+>
+> No client-side fix to `bse_bank_xbrl.py` /
+> `bse_quarterly_xbrl.py` can defeat IP-based blocking — additional
+> warmup hops, header tweaks, or stealth patches do not change the
+> egress ASN that Akamai filters on.
+
 Populates these six fields with `source='bse_xbrl'`:
 
 - `gnpa_pct`, `nnpa_pct`, `pcr_pct`
@@ -178,6 +237,7 @@ least one populated field or quarterly point in the response.
 |---|---|---|
 | `PRE-FLIGHT FAILED: default no-op XBRL provider active` | Someone called `reset_to_default_provider()` or set `BSE_BANK_XBRL_NO_AUTOREGISTER=1`. | Drop the env var / restart the process; the real provider auto-registers on import. |
 | `bse_xbrl_v1: fetch failed for <TICKER>: No module named 'playwright'` | Running on a CI runner / container without Playwright + real-Chrome installed. | Move execution to a workstation with desktop Chrome (same constraint as `bse_quarterly_xbrl.py`); see the dependencies section of that module's docstring. |
+| `pre-flight: <TICKER> -> 0 rows, best row has 0/6 KPI fields` for all 3 pre-flight tickers, immediately after `Akamai cookies warmed` (no nav-fail / non-200 log line in between) | Akamai is serving the bot-challenge page to the data-center egress IP (e.g. GH Actions Azure runner). The XBRL anchor regex matches nothing in the challenge HTML. | Re-run the XBRL phase from an operator workstation on an Indian residential / ISP IP. See the "XBRL phase MUST run on an Indian residential IP" section above. No code change defeats IP-ASN filtering. |
 | `bse_xbrl_v1: no BSE code for <TICKER>` | Ticker not in the hard-coded fallback map and `bse_securities_master.get_bse_code` returned None. | Add the BSE code to `_FALLBACK` in `data_pipeline/sources/bse_bank_xbrl.py` or load the securities master before running. |
 | `pre-flight: best row has 2/6 KPI fields` | Tag-name map incomplete in provider | Expand `_KPI_TAG_CANDIDATES` after sampling live XBRL |
 | `dropping out-of-range gnpa_pct=245` | Provider returned a raw / unnormalised value | Always pass values through `as_percent()` in the provider |
