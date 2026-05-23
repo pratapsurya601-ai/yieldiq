@@ -10,6 +10,7 @@ import HexExplainer from "@/components/hex/HexExplainer"
 import { fetchHex, type HexAxisKey, type HexResponse } from "@/lib/hex"
 import {
   fetchIndustryPercentile,
+  peerCountCaption,
   percentileCaption,
   type IndustryPercentileResponse,
 } from "@/lib/industryPercentile"
@@ -390,6 +391,10 @@ export default function AnalysisHero({
     (percentileMap?.score ?? null) as number | null,
     percentile?.industry ?? null,
   )
+  const peerCaption = peerCountCaption(
+    percentile?.cohort_size ?? null,
+    percentile?.industry ?? null,
+  )
 
   return (
     <section
@@ -449,6 +454,21 @@ export default function AnalysisHero({
                 data-testid="industry-percentile-caption"
               >
                 {scoreCaption}
+              </p>
+            )}
+            {/* Day-127 (2026-05-23): per-user UX bug — the percentile
+                bucket caption alone didn't explain WHAT cohort the
+                ranking is against. This second line surfaces the peer
+                count + industry label pulled from the same payload so
+                users can judge whether the percentile is meaningful
+                (3 peers = noisy, 30 peers = solid). Renders only when
+                the backend returned a usable cohort_size + industry. */}
+            {peerCaption && (
+              <p
+                className="text-[10px] text-caption mt-0.5"
+                data-testid="industry-percentile-peers"
+              >
+                {peerCaption}
               </p>
             )}
           </div>

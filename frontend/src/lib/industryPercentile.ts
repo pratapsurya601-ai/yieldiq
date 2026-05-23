@@ -53,3 +53,26 @@ export function percentileCaption(
   if (percentile >= 25) return `Below ${safeIndustry} median`
   return `Bottom quartile in ${safeIndustry}`
 }
+
+/**
+ * Day-127 (2026-05-23): peer-count caption rendered under the
+ * bucket caption so users know how big the cohort is. A "Top
+ * quartile" label is far more informative against 40 peers than
+ * against 3, and surfacing the count is the cheapest way to let
+ * the user judge. Returns null when the cohort is missing or
+ * empty so callers can hide the line entirely.
+ */
+export function peerCountCaption(
+  cohortSize: number | null | undefined,
+  industry: string | null | undefined,
+): string | null {
+  if (typeof cohortSize !== "number" || !Number.isFinite(cohortSize)) {
+    return null
+  }
+  if (cohortSize <= 0) return null
+  if (!industry) return null
+  const safeIndustry = industry.trim()
+  if (!safeIndustry) return null
+  const noun = cohortSize === 1 ? "peer" : "peers"
+  return `vs. ${cohortSize} ${noun} in ${safeIndustry}`
+}
