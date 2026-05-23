@@ -66,7 +66,12 @@ def calculate_portfolio_health(holdings: list[dict]) -> dict:
     )
     _overvalued_pct = (_overvalued_value / _total_value) * 100
     _overvalued_count = sum(1 for h in holdings if float(h.get("mos", 0) or 0) < -5)
-    _undervalued_count = sum(1 for h in holdings if float(h.get("mos", 0) or 0) > 5)
+    # UX #130 (2026-05-23): "below fair value" === mos > 0. Aligns the
+    # `undervalued_count` returned to the frontend with the
+    # BelowFairValueBanner threshold so both widgets show the same
+    # number. The score-bucket math above still uses the ±5% deadband
+    # for stability; this count is display-only.
+    _undervalued_count = sum(1 for h in holdings if float(h.get("mos", 0) or 0) > 0)
 
     if _overvalued_pct < 20:
         _oval_pts = 25
@@ -189,7 +194,8 @@ def calculate_portfolio_health(holdings: list[dict]) -> dict:
 
     # Strengths (observations)
     if _undervalued_count > 0:
-        _uv_tickers = [h.get("ticker", "?") for h in holdings if float(h.get("mos", 0) or 0) > 5][:3]
+        # UX #130: mos > 0 to match BelowFairValueBanner's threshold.
+        _uv_tickers = [h.get("ticker", "?") for h in holdings if float(h.get("mos", 0) or 0) > 0][:3]
         _strengths.append(f"{_undervalued_count} holding{'s' if _undervalued_count > 1 else ''} with CMP below our DCF fair value: {', '.join(_uv_tickers)}")
     if _weighted_score > 70:
         _strengths.append(f"Weighted average YieldIQ score: {_weighted_score:.0f}/100")
