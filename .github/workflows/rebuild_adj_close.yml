@@ -1,0 +1,62 @@
+name: Adj-close — Full Rebuild (operator)
+
+on:
+  workflow_dispatch:
+    inputs:
+      tickers:
+        description: "Comma-separated tickers, or empty for full active universe"
+        required: false
+        default: ""
+      workers:
+        description: "Parallel worker count"
+        required: false
+        default: "5"
+      resume:
+        description: "Resume from checkpoint (skip done tickers)"
+        type: boolean
+        required: false
+        default: true
+
+concurrency:
+  group: rebuild-adj-close
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    timeout-minutes: 350  # ~5h 50m, generous backstop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Run rebuild
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          TICKER_ARG=""
+          if [ -n "${{ inputs.tickers }}" ]; then
+            TICKER_ARG="--tickers ${{ inputs.tickers }}"
+          fi
+          RESUME_ARG=""
+          if [ "${{ inputs.resume }}" = "true" ]; then
+            RESUME_ARG="--resume"
+          fi
+          python scripts/rebuild_adj_close.py \
+            $TICKER_ARG \
+            --workers ${{ inputs.workers }} \
+            $RESUME_ARG
+      - name: Upload artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rebuild_adj_close_state
+          path: |
+            _rebuild_adj_close.checkpoint
+            _rebuild_adj_close.dead_letter.json
+          retention-days: 14
