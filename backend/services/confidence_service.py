@@ -440,6 +440,42 @@ BEAR_OVERVALUED_BYPASS_CONFIDENCE: int = 40
 # frontend `verdictFromMos` boundary so both layers agree.
 BEAR_NOTABLY_OVERVALUED_MOS: float = -40.0
 
+# ── Day-111c (2026-05-23): symmetric BULL-side undervalued bypass ─
+# Audit-#7 follow-up. The Day-111 top-100 audit surfaced 19 tickers
+# (most egregious: LICI at +95.3% MoS) where the Layer-3 confidence
+# cap collapsed the engine's "undervalued"/"notably_undervalued" read
+# down to "fairly_valued" because ANY of the three confidence scores
+# sat below 70. Labeling a name with +95% MoS as "fairly valued" is
+# a credibility-breaking bug — at that gap, even moderate model
+# confidence is enough to communicate that the engine sees a large
+# discount to fair value. The bear-side bypass already mirrors this
+# logic on the opposite tail (Audit#6 / PR #503). This block adds
+# the symmetric bull-side rule.
+#
+# Asymmetry note (per spec): the bull-side confidence floor is set
+# LOWER than the bear-side floor (30 vs 40). Rationale: being too
+# cautious about "this is cheap" merely declines to surface a value
+# idea (neutral outcome); being too cautious about "this is
+# expensive" reads as a green light to a name the model thinks is
+# rich (harmful outcome). The MoS bar is set HIGHER on the bull
+# side (50 vs 25) because optimistic FVs are easier to over-fit
+# than pessimistic ones — we require a wider gap before bypassing.
+#
+# The bull bypass ONLY overrides "fairly_valued" → "undervalued" /
+# "notably_undervalued" when the inbound verdict was already in the
+# bull intensity band. It NEVER overrides data_limited / unavailable
+# / under_review / avoid (those need stronger gates than just MoS)
+# and Layer-1 (extreme FV/price ratio) and Layer-2 (triple-low
+# under_review) still fire first.
+BULL_UNDERVALUED_BYPASS_MOS: float = 50.0
+BULL_UNDERVALUED_BYPASS_CONFIDENCE: int = 30
+# Threshold above which a bull-side read deepens to
+# `notably_undervalued` instead of plain `undervalued`. Higher than
+# the frontend `verdictFromMos` 25% boundary because the backend
+# only deepens at the extreme tail where the gap is too large for
+# even a moderately uncertain model read to plausibly be wrong.
+BULL_NOTABLY_UNDERVALUED_MOS: float = 80.0
+
 
 def _any_below(threshold: int, *vals: Optional[int]) -> bool:
     return any(isinstance(v, int) and v < threshold for v in vals)
@@ -531,6 +567,55 @@ def _apply_confidence_verdict_gate(
             # Compute MoS from FV/price (the gate already has both
             # for Layer 1) so callers do not have to pass it
             # separately. mos_pct = (fv - price) / price * 100.
+            # Day-111c bull-side symmetric bypass — see module-level
+            # BULL_UNDERVALUED_BYPASS_* docstring. Same shape as the
+            # bear branch below: re-derive mos_pct from FV/price,
+            # require mos_pct >= BULL_UNDERVALUED_BYPASS_MOS AND
+            # model_confidence >= BULL_UNDERVALUED_BYPASS_CONFIDENCE,
+            # clamp output to a valid ValuationOutput.verdict literal
+            # ("undervalued") and surface the intensity_hint in
+            # issues. Fixes the Day-111 audit's 19 verdict-mismatch
+            # tickers (LICI at +95% MoS labeled fairly_valued, etc).
+            if verdict in ("undervalued", "notably_undervalued"):
+                try:
+                    _fv = float(fair_value) if fair_value is not None else 0.0
+                    _px = float(current_price) if current_price is not None else 0.0
+                except (TypeError, ValueError):
+                    _fv = 0.0
+                    _px = 0.0
+                if _fv > 0 and _px > 0:
+                    mos_pct = (_fv - _px) / _px * 100.0
+                    if (
+                        mos_pct >= BULL_UNDERVALUED_BYPASS_MOS
+                        and isinstance(model_confidence, int)
+                        and model_confidence >= BULL_UNDERVALUED_BYPASS_CONFIDENCE
+                    ):
+                        # Clamp to "undervalued" — the only bull
+                        # intensity literal allowed by
+                        # ValuationOutput.verdict (see Audit#7 P0
+                        # comment further down for the bear-side
+                        # parallel). The frontend's verdictFromMos
+                        # derives the "Notably Undervalued" pill
+                        # from mos_pct directly, so the pill still
+                        # shows the deeper intensity client-side.
+                        bypassed = "undervalued"
+                        intensity_hint = (
+                            "notably_undervalued"
+                            if mos_pct >= BULL_NOTABLY_UNDERVALUED_MOS
+                            else "undervalued"
+                        )
+                        issues.append(
+                            "[confidence_gate] Bull-side bypass: "
+                            f"mos={mos_pct:.1f}% >= "
+                            f"{BULL_UNDERVALUED_BYPASS_MOS}% with "
+                            f"mc={model_confidence} >= "
+                            f"{BULL_UNDERVALUED_BYPASS_CONFIDENCE}; "
+                            f"surfaced as '{bypassed}' "
+                            f"(intensity_hint='{intensity_hint}', "
+                            "Day-111c symmetric mirror of "
+                            "BEAR_OVERVALUED_BYPASS rule)."
+                        )
+                        return bypassed, issues
             if verdict in ("overvalued", "notably_overvalued"):
                 try:
                     _fv = float(fair_value) if fair_value is not None else 0.0
