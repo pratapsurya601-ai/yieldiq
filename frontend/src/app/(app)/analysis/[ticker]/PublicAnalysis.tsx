@@ -423,7 +423,7 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
           <li>
             <p className="font-semibold text-ink text-sm mb-1">Descriptive-only</p>
             <p className="text-sm text-body leading-relaxed">
-              No SEBI-regulated buy/sell signals &mdash; a valuation layer you apply your own judgement to.
+              No SEBI-regulated trade signals &mdash; a valuation layer you apply your own judgement to.
             </p>
           </li>
         </ul>

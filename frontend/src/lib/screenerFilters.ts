@@ -158,7 +158,7 @@ export const SCREENER_PRESETS: ScreenerPreset[] = [
   {
     key: "pharma_quality",
     label: "Pharma quality",
-    description: "Strong return on equity across pharma names",
+    description: "High return on equity across pharma names",
     filters: [
       { field: "sector", op: "=", value: "Pharma" },
       { field: "roe", op: ">", value: "15" },
