@@ -109,6 +109,14 @@ jobs:
         if: ${{ inputs.phase == 'xbrl' || inputs.phase == 'all' }}
         run: playwright install --with-deps chromium
 
+      # The xbrl phase (data_pipeline/sources/bse_bank_xbrl.py) launches
+      # headed Chrome to bypass Akamai. GH runners have no $DISPLAY, so
+      # xvfb provides a virtual framebuffer without changing the headed
+      # anti-bot posture. AR phase uses pypdf+Anthropic and skips this.
+      - name: Install Xvfb
+        if: ${{ inputs.phase == 'xbrl' || inputs.phase == 'all' }}
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+
       - name: Build dry-run flag + clamp top_n_banks
         id: flags
         run: |
@@ -128,7 +136,7 @@ jobs:
       - name: "Phase: xbrl"
         if: ${{ inputs.phase == 'xbrl' || inputs.phase == 'all' }}
         run: |
-          python scripts/ingest_bank_kpis_from_xbrl.py \
+          xvfb-run -a python scripts/ingest_bank_kpis_from_xbrl.py \
             --tickers all-banks \
             --quarters ${{ inputs.quarters }} \
             ${{ steps.flags.outputs.dry }}
