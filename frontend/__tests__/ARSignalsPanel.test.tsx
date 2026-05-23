@@ -186,4 +186,106 @@ describe("ARSignalsPanel", () => {
     // already shows the AR link list below.
     expect(container.firstChild).toBeNull()
   })
+
+  // ---------------------------------------------------------------
+  // Follow-on to PR #614 — pins the four label/render bugs that were
+  // visible on /analysis/HDFCBANK.NS after the canonical-field rename:
+  //   - segment label rendered literal "segment" instead of `name`
+  //   - RPT label rendered literal "counterparty" instead of `party`
+  //   - capex rows hid `description`, showed only amount
+  //   - contingent liabilities rendered "Rs Cr" with no amount when
+  //     `amount_cr` was null
+  // The fixture below matches the live backend payload shape exactly
+  // (name/party/timeline/description, with one null amount_cr).
+  // ---------------------------------------------------------------
+  const CANONICAL_PAYLOAD: ARSignalsResponse = {
+    signals: {
+      segment_data: [
+        {
+          name: "Treasury",
+          revenue_cr: 62227.48,
+          ebit_cr: 4605.36,
+          yoy_growth_pct: null,
+        },
+      ],
+      capex_commitments: [
+        {
+          description:
+            "Aggregate capital expenditure FY2024-25 (across all segments)",
+          amount_cr: 5704.01,
+          timeline: "FY25 actual",
+        },
+      ],
+      related_party_transactions: [
+        {
+          party: "HDB Financial Services Limited (subsidiary)",
+          nature:
+            "Receiving of services + interest received + dividend received",
+          amount_cr: 2132.35,
+        },
+      ],
+      auditor_flags: [],
+      contingent_liabilities: [
+        {
+          description:
+            "See Schedule 18 notes for full disclosure of contingent liabilities.",
+          amount_cr: null,
+        },
+      ],
+      management_outlook: null,
+    },
+    withheld: false,
+    ticker: "HDFCBANK.NS",
+    fiscal_year: 2025,
+    annual_report_id: 1234,
+    quality_flag: "ok",
+    generated_at: "2026-05-23T12:00:00+00:00",
+    ar_url: "https://example.invalid/HDFCBANK-AR-2025.pdf",
+    published_at: "2025-08-10",
+  }
+
+  it("renders segment `name` field (not the literal placeholder 'segment')", () => {
+    renderWithClient(
+      <ARSignalsPanel ticker="HDFCBANK.NS" initialData={CANONICAL_PAYLOAD} />,
+    )
+    const segSection = screen.getByTestId("ar-section-segments")
+    expect(segSection).toHaveTextContent("Treasury")
+    // Lower-case placeholder must NOT leak through as a label.
+    expect(segSection.textContent ?? "").not.toMatch(/\bsegment\b(?! data)/)
+  })
+
+  it("renders RPT `party` field (not the literal placeholder 'counterparty')", () => {
+    renderWithClient(
+      <ARSignalsPanel ticker="HDFCBANK.NS" initialData={CANONICAL_PAYLOAD} />,
+    )
+    const rptSection = screen.getByTestId("ar-section-rpt")
+    expect(rptSection).toHaveTextContent(/HDB Financial Services/)
+    expect(rptSection.textContent ?? "").not.toMatch(/\bcounterparty\b/i)
+  })
+
+  it("renders capex `description` as the row title alongside the amount", () => {
+    renderWithClient(
+      <ARSignalsPanel ticker="HDFCBANK.NS" initialData={CANONICAL_PAYLOAD} />,
+    )
+    const capexSection = screen.getByTestId("ar-section-capex")
+    // Description (the primary title) must render.
+    expect(capexSection).toHaveTextContent(
+      /Aggregate capital expenditure FY2024-25/,
+    )
+    // Amount must still render as a secondary line.
+    expect(capexSection).toHaveTextContent(/Rs 5,704\.01 Cr/)
+    // Timeline badge must also render.
+    expect(capexSection).toHaveTextContent(/FY25 actual/)
+  })
+
+  it("omits the 'Rs Cr' amount line for contingent liabilities when amount_cr is null", () => {
+    renderWithClient(
+      <ARSignalsPanel ticker="HDFCBANK.NS" initialData={CANONICAL_PAYLOAD} />,
+    )
+    const clSection = screen.getByTestId("ar-section-liabilities")
+    // Description still renders.
+    expect(clSection).toHaveTextContent(/See Schedule 18 notes/)
+    // Empty "Rs Cr" placeholder must not leak through.
+    expect(clSection.textContent ?? "").not.toMatch(/Rs\s+Cr/)
+  })
 })
