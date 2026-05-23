@@ -34,8 +34,8 @@ interface BelowFairValueBannerProps {
 
 export function BelowFairValueBanner({ holdings }: BelowFairValueBannerProps) {
   // UX #130 (2026-05-23): "below fair value" === mos_pct > 0. The
-  // banner and the backend Health-card strength line both render
-  // "{N} holdings below our model fair value" and MUST agree. They
+  // banner and the backend Health-card positive-observation line both
+  // render "{N} holdings below our model fair value" and MUST agree. They
   // previously used different thresholds (15 vs 5 vs implicit) and
   // the user saw "3 below" in one widget and "4 below" in the other.
   // Both paths now use mos > 0 — the direct, model-aligned definition
