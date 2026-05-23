@@ -98,9 +98,32 @@ export interface ValuationOutput {
   valuation_stability_score?: number | null
 }
 
+// Phase C.3 (2026-05-25) — score breakdown for the "Why this score?"
+// panel. Mirrors backend/models/responses.py::ScoreBreakdown.
+// Field-additive: legacy cached payloads return null/undefined.
+export interface ScoreComponent {
+  name: string
+  weight_max: number
+  points: number
+  source: string
+}
+export interface ScoreModifier {
+  name: string
+  delta: number
+  reason: string
+}
+export interface ScoreBreakdown {
+  components: ScoreComponent[]
+  modifiers: ScoreModifier[]
+  base_score: number
+  final_score: number
+  note?: string | null
+}
+
 export interface QualityOutput {
   yieldiq_score: number
   grade: string
+  score_breakdown?: ScoreBreakdown | null
   piotroski_score: number
   piotroski_grade: string
   earnings_quality_grade: string
