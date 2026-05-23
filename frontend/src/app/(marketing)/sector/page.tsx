@@ -49,7 +49,7 @@ export default function SectorIndexPage() {
         <p className="text-body text-base max-w-2xl leading-relaxed">
           Each sector page shows the cohort median score, median margin
           of safety, and a sortable table of constituents. Sort order is
-          numerical, not a recommendation.
+          purely numerical.
         </p>
       </header>
 
