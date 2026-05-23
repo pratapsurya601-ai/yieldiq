@@ -100,9 +100,17 @@ def test_is_useful_false_when_all_none():
 # ---------- provider dispatch -----------------------------------------------
 
 def test_default_provider_returns_empty():
-    rows = bbx.fetch_bank_kpis_for_quarter("HDFCBANK", 20)
-    assert rows == []
-    assert bbx.is_default_provider() is True
+    # bse_bank_xbrl auto-registers ``bse_xbrl_v1`` at import time
+    # (Phase I-ingest-a Block III). Reset to the no-op default to
+    # exercise the legacy behaviour this test was authored against.
+    original = bbx._PROVIDER  # noqa: SLF001
+    try:
+        bbx.reset_to_default_provider()
+        rows = bbx.fetch_bank_kpis_for_quarter("HDFCBANK", 20)
+        assert rows == []
+        assert bbx.is_default_provider() is True
+    finally:
+        bbx._PROVIDER = original  # noqa: SLF001
 
 
 def test_register_provider_dispatches(monkeypatch):
@@ -154,12 +162,19 @@ def _import_cli():
 
 def test_preflight_fails_on_default_provider():
     cli = _import_cli()
-    passed, per_ticker = cli._run_preflight(20)  # noqa: SLF001
-    assert passed is False
-    # Default provider isn't even called for per-ticker counts -- the
-    # gate trips on is_default_provider() and returns {} per the
-    # current implementation.
-    assert per_ticker == {}
+    # Reset to the no-op default (the real bse_xbrl_v1 provider is
+    # auto-registered on import by Phase I-ingest-a Block III).
+    original = bbx._PROVIDER  # noqa: SLF001
+    try:
+        bbx.reset_to_default_provider()
+        passed, per_ticker = cli._run_preflight(20)  # noqa: SLF001
+        assert passed is False
+        # Default provider isn't even called for per-ticker counts -- the
+        # gate trips on is_default_provider() and returns {} per the
+        # current implementation.
+        assert per_ticker == {}
+    finally:
+        bbx._PROVIDER = original  # noqa: SLF001
 
 
 def test_preflight_passes_when_provider_returns_full_rows():

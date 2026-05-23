@@ -27,18 +27,41 @@ Drives `scripts/ingest_bank_kpis_from_xbrl.py` over the full
 and refuses to write unless at least 4 of 6 fields populate on
 at least 2 of the 3 tickers.
 
-**Today the default no-op provider is still active** (see
-`data_pipeline/sources/bse_bank_xbrl.py` -- the provider-pattern
-module). Running the `xbrl` phase right now will produce a clear
-"PRE-FLIGHT FAILED: default no-op provider active" diagnostic and
-write nothing. That is the expected starting state per the Phase
-I-audit. Register a real provider in `bse_bank_xbrl.register_provider()`
-before the `xbrl` phase will populate any rows.
+**As of Phase I-ingest-a Block III the real `bse_xbrl_v1` provider
+is auto-registered on import** of `data_pipeline.sources.bse_bank_xbrl`.
+It walks the BSE corporate-filings page via the same Playwright +
+real-Chrome session that `bse_quarterly_xbrl.py` uses (Akamai bot
+wall workaround), downloads each `Main_Ind_As_<code>_*.xml`, and
+runs `parse_bank_xbrl` on the bytes. Standalone filings are preferred
+over consolidated for the same period (consolidated bank XBRL files
+zero NPA values per RBI disclosure convention).
+
+Coverage statement (parser v1):
+
+| Field | Source in BSE quarterly XBRL | v1 coverage |
+|---|---|---|
+| `gnpa_pct` | `PercentageOfGrossNpa` (decimal-encoded) | filed |
+| `nnpa_pct` | `PercentageOfNpa` (decimal-encoded) | filed |
+| `pcr_pct` | DERIVED `(GrossNPA - NetNPA) / GrossNPA` | derived from filed absolutes |
+| `casa_pct` | NOT DISCLOSED -- schema only carries aggregate `Deposits` | always `None` (documented gap; sourced from AR-Anthropic instead) |
+| `cost_to_income_pct` | DERIVED `OperatingExpenses / (InterestEarned - InterestExpended + OtherIncome)` | derived |
+| `credit_deposit_pct` | DERIVED `Advances / Deposits` (OneI instant context) | derived |
+
+Expected per-row population on a clean standalone filing: 5 of 6
+(CASA is the documented gap). Consolidated filings: 3 of 6 (NPA
+fields zeroed by filer, CASA gap, but CD ratio and CIR still derive).
+
+Environments without a desktop Chrome install (CI runners,
+containerised one-shots) will see `bse_xbrl_v1: fetch failed for
+<TICKER>: No module named 'playwright'` or a Playwright launch
+error. The pre-flight gate trips cleanly in that case. Run the
+provider from a workstation with real Chrome installed, the same
+constraint that `bse_quarterly_xbrl.py` documents.
 
 Populates these six fields with `source='bse_xbrl'`:
 
 - `gnpa_pct`, `nnpa_pct`, `pcr_pct`
-- `casa_pct`, `cost_to_income_pct`, `credit_deposit_pct`
+- `casa_pct` (always NULL -- schema gap), `cost_to_income_pct`, `credit_deposit_pct`
 
 ### `ar` (Anthropic-backed; cost-capped)
 
@@ -153,7 +176,9 @@ least one populated field or quarterly point in the response.
 
 | Failure | Likely cause | Fix |
 |---|---|---|
-| `PRE-FLIGHT FAILED: default no-op XBRL provider active` | XBRL provider not wired | Register a provider per `data_pipeline/sources/bse_bank_xbrl.py` docstring |
+| `PRE-FLIGHT FAILED: default no-op XBRL provider active` | Someone called `reset_to_default_provider()` or set `BSE_BANK_XBRL_NO_AUTOREGISTER=1`. | Drop the env var / restart the process; the real provider auto-registers on import. |
+| `bse_xbrl_v1: fetch failed for <TICKER>: No module named 'playwright'` | Running on a CI runner / container without Playwright + real-Chrome installed. | Move execution to a workstation with desktop Chrome (same constraint as `bse_quarterly_xbrl.py`); see the dependencies section of that module's docstring. |
+| `bse_xbrl_v1: no BSE code for <TICKER>` | Ticker not in the hard-coded fallback map and `bse_securities_master.get_bse_code` returned None. | Add the BSE code to `_FALLBACK` in `data_pipeline/sources/bse_bank_xbrl.py` or load the securities master before running. |
 | `pre-flight: best row has 2/6 KPI fields` | Tag-name map incomplete in provider | Expand `_KPI_TAG_CANDIDATES` after sampling live XBRL |
 | `dropping out-of-range gnpa_pct=245` | Provider returned a raw / unnormalised value | Always pass values through `as_percent()` in the provider |
 | `PRE-FLIGHT FAILED: 3/5 (60%) extraction failures` (ar phase) | AR PDF URLs are stale or pypdf can't parse | Inspect the failing `ar_id`s in `company_annual_reports`; consider re-ingesting AR URLs from NSE feed |
