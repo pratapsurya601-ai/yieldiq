@@ -307,13 +307,13 @@ export default function BankKpiPanel({ ticker, initialData }: PanelProps) {
           data-testid="bank-kpi-branch-tiers"
         >
           {latest?.branches_tier1 != null && (
-            <span>Tier 1: <strong className="text-ink">{fmtInt(latest.branches_tier1)}</strong></span>
+            <span>Tier 1: <span className="font-semibold text-ink">{fmtInt(latest.branches_tier1)}</span></span>
           )}
           {latest?.branches_tier2 != null && (
-            <span>Tier 2: <strong className="text-ink">{fmtInt(latest.branches_tier2)}</strong></span>
+            <span>Tier 2: <span className="font-semibold text-ink">{fmtInt(latest.branches_tier2)}</span></span>
           )}
           {latest?.branches_tier3 != null && (
-            <span>Tier 3: <strong className="text-ink">{fmtInt(latest.branches_tier3)}</strong></span>
+            <span>Tier 3: <span className="font-semibold text-ink">{fmtInt(latest.branches_tier3)}</span></span>
           )}
         </div>
       )}

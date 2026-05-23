@@ -158,7 +158,7 @@ describe("BankKpiPanel", () => {
     // sparkline. So we expect exactly 3 sparklines.
     expect(screen.getAllByTestId("bank-kpi-sparkline")).toHaveLength(3)
 
-    // Branch tier breakdown appears under the grid.
+    // Branch tier breakdown renders under the grid.
     const tiers = screen.getByTestId("bank-kpi-branch-tiers")
     expect(tiers).toHaveTextContent(/Tier 1.*3,100/)
     expect(tiers).toHaveTextContent(/Tier 2.*2,700/)
