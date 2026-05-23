@@ -33,10 +33,16 @@ interface BelowFairValueBannerProps {
 }
 
 export function BelowFairValueBanner({ holdings }: BelowFairValueBannerProps) {
-  // mos_pct > 15 means price is > 15% below the modelled fair value.
-  // Positions without a fair-value number are skipped (can't be factual
-  // about something the model hasn't produced).
-  const below = holdings.filter((h) => h.fair_value != null && h.mos_pct != null && h.mos_pct > 15)
+  // UX #130 (2026-05-23): "below fair value" === mos_pct > 0. The
+  // banner and the backend Health-card strength line both render
+  // "{N} holdings below our model fair value" and MUST agree. They
+  // previously used different thresholds (15 vs 5 vs implicit) and
+  // the user saw "3 below" in one widget and "4 below" in the other.
+  // Both paths now use mos > 0 — the direct, model-aligned definition
+  // mirrored by the per-row MoS chip's green/amber colouring.
+  // Positions without a fair-value number are skipped (can't be
+  // factual about something the model hasn't produced).
+  const below = holdings.filter((h) => h.fair_value != null && h.mos_pct != null && h.mos_pct > 0)
   if (below.length === 0) return null
 
   const first = below[0]
