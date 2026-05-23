@@ -111,6 +111,13 @@ export default function SectorTable({ rows }: { rows: Row[] }) {
                 type="button"
                 onClick={() => toggle("mos_pct")}
                 className="font-semibold hover:text-ink"
+                /* J-copy-2 (audit item 18): make the sort order's
+                   intent explicit. Cold-read audit flagged the risk
+                   that a MoS-descending sort could be read as a
+                   ranking of preference. Native title attribute keeps
+                   the UI surface unchanged on desktop hover and is
+                   exposed to screen readers. */
+                title="Sort order is purely numerical. MoS = (fair value − price) / price."
               >MoS %{arrow("mos_pct")}</button>
             </th>
             <th className="py-2 px-3 text-right hidden sm:table-cell">FV</th>

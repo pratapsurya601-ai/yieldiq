@@ -109,10 +109,14 @@ function DemoCard() {
   const fmt = (n: number | undefined) => n ? n.toLocaleString("en-IN", { maximumFractionDigits: 0 }) : "\u2014"
   const mosSign = (c.mos || 0) >= 0 ? "+" : ""
 
+  // J-copy-2 (audit item 12): outer wrapper centers the card and
+  // constrains it to the viewport on mobile (where DemoCard is now
+  // rendered in the hero column above the fold). The inner card keeps
+  // its 320px target width on lg+ but yields to the column on phones.
   return (
-    <div className="relative" style={{ animation: "float 6s ease-in-out infinite" }}>
+    <div className="relative mx-auto max-w-[320px]" style={{ animation: "float 6s ease-in-out infinite" }}>
       <div className="absolute -inset-6 bg-blue-500/5 rounded-3xl blur-2xl" />
-      <div className={`relative bg-[#0F172A] border border-white/10 rounded-2xl p-6 shadow-2xl w-[320px] transition-opacity duration-300 ${fading ? "opacity-0" : "opacity-100"}`}>
+      <div className={`relative bg-[#0F172A] border border-white/10 rounded-2xl p-6 shadow-2xl w-full lg:w-[320px] transition-opacity duration-300 ${fading ? "opacity-0" : "opacity-100"}`}>
         <div className="flex items-center justify-between mb-4">
           <div>
             <div className="flex items-center gap-2">
@@ -244,7 +248,12 @@ function LandingContent() {
               </p>
             </div>
 
-            <div className="hidden lg:block flex-shrink-0">
+            {/* J-copy-2 (audit item 12): DemoCard is now visible on
+                mobile as well as desktop. Previously `hidden lg:block`
+                hid the most persuasive single element from ~60% of
+                Indian retail visitors who land on a phone. The card
+                self-rotates and renders compactly on narrow widths. */}
+            <div className="flex-shrink-0 w-full lg:w-auto">
               <DemoCard />
             </div>
           </div>
