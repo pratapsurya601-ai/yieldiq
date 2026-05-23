@@ -113,6 +113,7 @@ def assemble_local(ticker: str, db_session) -> dict | None:
     # ── 2. Company info from stocks table ────────────────────────
     company_name = clean
     sector_name = ""
+    industry_name = ""
     try:
         from sqlalchemy import text
         row = db_session.execute(text(
@@ -121,7 +122,13 @@ def assemble_local(ticker: str, db_session) -> dict | None:
         ), {"t": clean, "tns": ticker}).mappings().first()
         if row:
             company_name = row.get("company_name") or clean
+            # Day-111a: emit ``industry`` distinctly from ``sector``.
+            # Previously both DB columns collapsed into ``sector_name``
+            # and ``industry`` was never returned — analysis/service.py
+            # line 1091 then fell through to "" for 93/97 tickers,
+            # blocking Day-99 percentile cohorts + bank/REIT detection.
             sector_name = row.get("sector") or row.get("industry") or ""
+            industry_name = row.get("industry") or ""
     except Exception:
         pass
 
@@ -442,6 +449,8 @@ def assemble_local(ticker: str, db_session) -> dict | None:
         "interest_cov":     0.0,
         "gross_margin":     0.0,
         "sector_name":      sector_name,
+        "sector":           sector_name,
+        "industry":         industry_name,
         "norm_capex_pct":   None,
         "ebitda":           ebitda * CR if ebitda else 0,  # Cr → raw for compute_metrics
         "enterprise_value": enterprise_value,
