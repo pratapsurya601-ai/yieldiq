@@ -77,17 +77,15 @@ from screener.ev_ebitda import run_ev_ebitda_analysis
 from screener.momentum import calculate_momentum
 from config.countries import get_active_country
 
-# Optional imports (may need streamlit mock)
-try:
-    from dashboard.utils.scoring import compute_yieldiq_score
-except Exception:
-    def compute_yieldiq_score(mos_pct, piotroski, moat_grade, rev_growth, analyst_upside=0):
-        _v = max(0, min(100, (mos_pct + 40) / 80 * 40))
-        _q = max(0, min(100, (piotroski / 9) * 30))
-        _g = max(0, min(100, (rev_growth * 100 + 20) / 60 * 20))
-        _s = max(0, min(100, analyst_upside * 10))
-        _total = int(_v + _q + _g + _s)
-        return {"score": max(0, min(100, _total)), "grade": "A" if _total >= 75 else "B" if _total >= 55 else "C" if _total >= 35 else "D" if _total >= 20 else "F"}
+# Phase C.2 PR 2 (2026-05-25): hard-import the canonical scoring
+# function. The prior `try/except Exception: def compute_yieldiq_score`
+# block hid a 4-line MOCK with different weights (40/30/20/10, no
+# moat awareness) under the same symbol name. The dashboard package
+# ships in the backend Docker image — if this import ever fails it
+# is a deploy bug that must surface at boot, not be papered over
+# with a divergent scoring formula at runtime. See
+# docs/diagnostics/phase-c-score-formula-2026-05-25.md §4 Quirk #3.
+from dashboard.utils.scoring import compute_yieldiq_score
 
 
 # ── Subpackage siblings (constants/utils/db/narrative) ────

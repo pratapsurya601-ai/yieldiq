@@ -619,6 +619,26 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        # Phase C.2 PR 2 (2026-05-25): hard-import the canonical
+        # compute_yieldiq_score in backend/services/analysis/service.py.
+        # The prior try/except wrapped a MOCK with different weights
+        # (40/30/20/10, no moat awareness) under the same symbol name.
+        # See docs/diagnostics/phase-c-score-formula-2026-05-25.md §4
+        # Quirk #3. The dashboard package ships in the backend image
+        # so the import has always succeeded in production — this is
+        # a cleanup that eliminates a silent divergence path.
+        #
+        # Scope: ["score"] because the change only affects the score
+        # field and only on the unreachable mock-fallback branch.
+        "version_id": "v_phase_c2_remove_mock_fallback_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 1, 0, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["score"]},
+        "rationale": (
+            "Phase C.2 PR 2: hard-import canonical scoring; drop "
+            "divergent mock-fallback symbol."
+        ),
+    },
+    {
         # Phase C.2 PR 1 (2026-05-25): remove TypeError fallback in
         # backend/services/analysis/service.py that ran a DIFFERENT
         # scoring formula (40/30/20 envelopes, no sentiment) than the
