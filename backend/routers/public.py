@@ -280,6 +280,32 @@ def _safe_close(session) -> None:
             pass
 
 
+def _sanitize_confidence(raw, ticker: str = "") -> Optional[int]:
+    """Clamp confidence to the documented 0-100 range.
+
+    Phase B.3 (2026-05-24): live probe surfaced LICI / SBILIFE shipping
+    ``confidence`` values of 1089072600041 / 64158800032 — clearly the
+    wrong field leaked into ``ValuationOutput.confidence_score`` (likely
+    a stale cached payload from a pre-fix code path). The Pydantic
+    field is typed ``int`` with no upper bound so the bad value flowed
+    end-to-end. Guard at the public projection so an obviously-wrong
+    value is suppressed (None → frontend hides the chip) rather than
+    served as a 12-digit "confidence". Real confidence scores are 0-100.
+    """
+    if raw is None:
+        return None
+    try:
+        v = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if 0 <= v <= 100:
+        return v
+    logger.warning(
+        "confidence out of range for %s: %s — clamping to None", ticker or "?", raw,
+    )
+    return None
+
+
 def _extract_analysis_summary(result) -> dict:
     """Extract a flat summary dict from a full AnalysisResponse object.
 
@@ -354,7 +380,7 @@ def _extract_analysis_summary(result) -> dict:
         "base_case": round(v.base_case, 2),
         "bull_case": round(v.bull_case, 2),
         "wacc": round(v.wacc, 4),
-        "confidence": v.confidence_score,
+        "confidence": _sanitize_confidence(v.confidence_score, result.ticker),
         # PR-EXTRACT-FIX (2026-04-19): `if x else None` treats 0.0 as
         # missing, which hid real zero-debt cash-rich IT names (TCS,
         # INFY reliably have de_ratio ≈ 0 and were rendering "—").
@@ -1239,7 +1265,7 @@ async def public_compare(
             "moat_score": q.moat_score,
             "wacc": round(v.wacc, 4),
             "fcf_growth": round(v.fcf_growth_rate, 4) if v.fcf_growth_rate else None,
-            "confidence": v.confidence_score,
+            "confidence": _sanitize_confidence(v.confidence_score, analysis.ticker),
             "roe": round(q.roe, 2) if q.roe else None,
             "de_ratio": round(q.de_ratio, 2) if q.de_ratio else None,
             "ev_ebitda": round(ev_ebitda, 2) if ev_ebitda else None,
