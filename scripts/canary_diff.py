@@ -913,19 +913,57 @@ def load_intentional_deltas() -> set[str]:
 def collect_state(
     stocks: list[dict], api_base: str = API_BASE, token: str = AUTH_TOKEN, verbose: bool = True
 ) -> dict[str, dict]:
-    """Fetch public+authed for every stock; return ``{symbol: {public, authed, error}}``."""
-    state: dict[str, dict] = {}
-    for i, spec in enumerate(stocks, 1):
+    """Fetch public+authed for every stock; return ``{symbol: {public, authed, error}}``.
+
+    Parallelised — the v2 universe is 180 stocks × 2 endpoints = 360 GETs.
+    The old sequential loop multiplied any single 60s timeout by 1, but the
+    expected per-call cost (1-3s) summed across 360 calls plus the
+    occasional cold-start retry pushed the 15-minute job timeout over the
+    edge on every PR (observed: every canary_diff run between 2026-05-22
+    and 2026-05-23 was cancelled at exactly 15m18s with zero progress
+    lines emitted because --quiet suppressed the per-ticker prints).
+
+    Pool sizing:
+      - The requests Session above is configured pool_maxsize=10.
+      - We use 8 worker threads to stay under that bound (each worker can
+        be mid-flight on at most one connection, leaving 2 slots for the
+        urllib3 Retry replays).
+      - Override via CANARY_FETCH_WORKERS env var if a CI runner needs to
+        throttle further (e.g. set to 4 if /og-data starts rate-limiting).
+
+    Ordering: the input ``stocks`` order is preserved in the returned
+    dict (insertion-order via the futures dict), so any downstream code
+    that iterates state in stock order keeps the same behaviour.
+    """
+    import concurrent.futures as _f
+    workers = max(1, int(os.environ.get("CANARY_FETCH_WORKERS", "8")))
+    state: dict[str, dict] = {spec["symbol"]: {} for spec in stocks}
+    total = len(stocks)
+    completed = 0
+
+    def _one(spec: dict) -> tuple[str, dict]:
         sym = spec["symbol"]
-        if verbose:
-            print(f"[{i:>2}/{len(stocks)}] fetching {sym}...", flush=True)
         pub, perr = fetch_public(sym, api_base=api_base)
         au, aerr = fetch_authed(sym, token=token, api_base=api_base)
-        state[sym] = {
+        return sym, {
             "public": extract_fields(pub) if pub else None,
             "authed": extract_fields(au) if au else None,
             "error": "; ".join(e for e in (perr, aerr) if e) or None,
         }
+
+    with _f.ThreadPoolExecutor(max_workers=workers) as ex:
+        futures = [ex.submit(_one, spec) for spec in stocks]
+        for fut in _f.as_completed(futures):
+            sym, rec = fut.result()
+            state[sym] = rec
+            completed += 1
+            if verbose:
+                print(f"[{completed:>3}/{total}] fetched {sym}", flush=True)
+            elif completed % 20 == 0 or completed == total:
+                # Even with --quiet, emit periodic heartbeat lines so a
+                # hung run is visible in the CI log (and so we never again
+                # see "cancelled at 15m with zero output").
+                print(f"[canary-diff] progress: {completed}/{total}", flush=True)
     return state
 
 
