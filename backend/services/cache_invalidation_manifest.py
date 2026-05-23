@@ -785,6 +785,61 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        # Day-111a (2026-05-23): industry serializer key fix — `industry`
+        # was being dropped at the local-data assembler so cached rows
+        # had `industry=""` even when the DB column was populated. The
+        # serializer now passes both `sector` and `industry` through.
+        # No CACHE_VERSION bump; invalidation rides on this manifest
+        # entry. Cohort code reads `industry` so cached pre-fix rows
+        # mis-classify (e.g. NBFC banks fall back to generic bank
+        # cohort). Scope is wildcard tickers + the two fields that
+        # depend on the serializer output.
+        #
+        # Fix #139 (2026-05-26): manifest entry was omitted when the
+        # Day-111a PR landed; tests in test_day111a_industry_serializer.py
+        # have been failing on main since then. Backfilling the entry
+        # to match the test expectations + the original intent.
+        "version_id": "v_day111a_industry_serializer_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 22, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["industry", "sector"],
+        },
+        "rationale": (
+            "Day-111a: industry serializer key fix — pass both sector "
+            "and industry through the local-data assembler so cohort "
+            "routing reads the right field."
+        ),
+    },
+    {
+        # Day-111b (2026-05-23): bank D/E ratio fix — pure-bank tickers
+        # were computing D/E using `total_debt / total_equity` which
+        # excluded customer deposits + borrowings (the bulk of a bank's
+        # liabilities). The fix routes pure-bank tickers through a
+        # liabilities-based D/E that includes deposits + borrowings,
+        # matching how analysts read bank leverage.
+        #
+        # Fix #139 (2026-05-26): manifest entry was omitted when the
+        # Day-111b PR landed; tests in test_day111b_bank_de_ratio.py
+        # have been failing on main since then. Backfilling the entry
+        # with the scope the tests expect.
+        "version_id": "v_day111b_bank_de_with_deposits_2026_05_23",
+        "applied_at": datetime(2026, 5, 23, 22, 5, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "HDFCBANK", "ICICIBANK", "KOTAKBANK", "AXISBANK", "SBIN",
+                "INDUSINDBK", "FEDERALBNK", "IDFCFIRSTB", "AUBANK",
+                "BANDHANBNK", "RBLBANK", "BANKBARODA", "PNB",
+            ],
+            "fields": ["de_ratio"],
+        },
+        "rationale": (
+            "Day-111b: pure-bank D/E denominator switched to "
+            "liabilities (deposits + borrowings + other) so the ratio "
+            "matches how analysts read bank leverage."
+        ),
+    },
+    {
         # Phase F (2026-05-25): 10-year historical depth backfill for
         # top-500 / canary-333. F.2 backfilled daily_prices.adj_close
         # via yfinance period="max" with INSERT-or-UPDATE semantics.

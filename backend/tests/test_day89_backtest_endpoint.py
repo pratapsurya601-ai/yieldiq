@@ -24,8 +24,8 @@ import pytest
 _ROOT = Path(__file__).resolve().parents[2]
 _SERVICE = _ROOT / "backend" / "services" / "yiq50_backtest_service.py"
 _PUBLIC = _ROOT / "backend" / "routers" / "public.py"
-_PAGE = _ROOT / "frontend" / "src" / "app" / "(marketing)" / "backtest" / "page.tsx"
-_CHART = _ROOT / "frontend" / "src" / "app" / "(marketing)" / "backtest" / "BacktestChart.tsx"
+_PAGE = _ROOT / "frontend" / "src" / "app" / "(marketing)" / "yiq50-backtest" / "page.tsx"
+_CHART = _ROOT / "frontend" / "src" / "app" / "(marketing)" / "yiq50-backtest" / "BacktestChart.tsx"
 _FOOTER = _ROOT / "frontend" / "src" / "components" / "marketing" / "MarketingFooter.tsx"
 _SITEMAP = _ROOT / "frontend" / "src" / "app" / "sitemap.ts"
 
@@ -223,11 +223,13 @@ def test_page_uses_delta_not_alpha_label():
 
 def test_footer_links_to_backtest_under_learn():
     src = _read(_FOOTER)
-    assert '/backtest' in src
+    # Day-89 fix (commit b3ce229): path moved /backtest -> /yiq50-backtest
+    # to avoid collision with the authenticated /(app)/backtest route.
+    assert '/yiq50-backtest' in src
     # Under the "Learn" column heading — verified by the substring
     # ordering in the file.
     learn_idx = src.find("Learn")
-    bt_idx = src.find("/backtest")
+    bt_idx = src.find("/yiq50-backtest")
     yieldiq_idx = src.find("YieldIQ</h3>")
     assert learn_idx < bt_idx < yieldiq_idx, (
         "backtest link must be under the Learn column"
@@ -236,4 +238,5 @@ def test_footer_links_to_backtest_under_learn():
 
 def test_sitemap_includes_backtest_page():
     src = _read(_SITEMAP)
-    assert "https://yieldiq.in/backtest" in src
+    # Day-89 fix (commit b3ce229): /backtest -> /yiq50-backtest.
+    assert "https://yieldiq.in/yiq50-backtest" in src

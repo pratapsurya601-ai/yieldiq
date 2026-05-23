@@ -19,6 +19,21 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
+# STALE collection error — the `is_wide_moat_compounder` classifier was
+# removed from backend.services.analysis.constants when wide-moat
+# horizon extension was superseded by the cohort-based override system
+# (see Day-107a IT services / Day-107b FMCG / etc. cohort overrides).
+# The whole test module pins behaviour the engine no longer ships, so
+# the rest of the import line crashes collection. Skip cleanly until
+# the test is either rewritten against the cohort path or deleted.
+# Tracked as Fix-139 follow-up.
+pytest.skip(
+    "STALE: is_wide_moat_compounder classifier removed from "
+    "backend.services.analysis.constants; superseded by cohort-based "
+    "overrides. Rewrite or delete (Fix-139 follow-up).",
+    allow_module_level=True,
+)
+
 from backend.services.analysis.constants import (
     is_wide_moat_compounder,
     is_capex_super_cyclical,
