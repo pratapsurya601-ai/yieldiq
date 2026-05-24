@@ -22,7 +22,7 @@ from __future__ import annotations
 import logging
 from fastapi import APIRouter, Depends, Query
 from backend.models.responses import ScreenerResponse, ScreenerStock
-from backend.middleware.auth import get_current_user, require_tier
+from backend.middleware.auth import get_current_user, get_current_user_optional, require_tier
 
 logger = logging.getLogger(__name__)
 
@@ -368,9 +368,19 @@ async def run_screener(
     min_mos: float = Query(-100),
     page: int = Query(1, ge=1),
     page_size: int = Query(25, ge=1, le=100),
-    user: dict = Depends(get_current_user),
+    # task #180 (2026-05-24): switched from get_current_user → optional.
+    # This endpoint feeds the "Quant picks > Quality at a Discount" tile
+    # on /home, which is rendered inside the (app) route group but has
+    # NO auth wall — anonymous visitors land on /home (logo click, OAuth
+    # callback race, deep-link). With the required-auth dep, anon hits
+    # got 401, react-query retried once, and the tile was stuck in its
+    # loading skeleton showing "…" forever instead of the picked
+    # tickers. The handler doesn't reference `user`, so dropping the
+    # 401 floor is a no-op for behaviour — just makes the public path
+    # render data instead of a frozen placeholder.
+    user: dict | None = Depends(get_current_user_optional),
 ):
-    """Run custom screener. Available to all users."""
+    """Run custom screener. Available to all users (anon allowed)."""
     stocks, total = _query_stocks_from_db(min_score, min_mos, page, page_size)
 
     # Filter by min_score and min_mos
@@ -388,7 +398,13 @@ async def run_screener(
 @router.get("/preset/{preset_name}", response_model=ScreenerResponse)
 async def run_preset(
     preset_name: str,
-    user: dict = Depends(get_current_user),
+    # task #180 (2026-05-24): see /run for the full rationale. The three
+    # named presets (buffett / deep-value / growth-quality) back the
+    # first three Quant-Pick tiles on /home, which is reachable by
+    # logged-out users. Required auth here is what produced the
+    # "literal '…' placeholder" symptom on yieldiq.in — the tiles 401'd,
+    # never resolved, and the loading skeleton stayed up indefinitely.
+    user: dict | None = Depends(get_current_user_optional),
 ):
     """Run a pre-built screener preset. Available to all users.
 
