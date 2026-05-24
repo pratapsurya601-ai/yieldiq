@@ -5053,19 +5053,17 @@ async def get_manifest_history(
             except Exception:
                 applied_iso = str(applied_at) if applied_at else None
 
+            # 2026-05-24: always sanitize. The earlier "authed users get
+            # the raw receipts" assumption was wrong — even the owner
+            # finds the engineering vocabulary ("Phase G-intel-phase1",
+            # "Phase H-frontend", "Day-111b") confusing on a public
+            # analysis surface. version_id is still surfaced when authed
+            # for power-user receipts; only the human-facing rationale
+            # gets stripped of cadence tokens.
+            sanitized = public_manifest_entry(entry)
             if is_authed:
-                matches.append({
-                    "version_id": entry.get("version_id"),
-                    "applied_at": applied_iso,
-                    "rationale": entry.get("rationale"),
-                    "fields_affected": fields_affected,
-                })
-            else:
-                # Anon view: drop version_id, replace rationale with
-                # the cleaned description field. Keep applied_at +
-                # fields_affected so the timeline still reads as a
-                # timeline.
-                matches.append(public_manifest_entry(entry))
+                sanitized["version_id"] = entry.get("version_id")
+            matches.append(sanitized)
 
         # Newest-first. Entries with a missing applied_at sink to the
         # bottom rather than blowing up the comparator.

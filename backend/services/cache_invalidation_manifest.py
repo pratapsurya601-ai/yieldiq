@@ -129,9 +129,14 @@ log = logging.getLogger("yieldiq.cache_manifest")
 # the Phase C.2 rationale writes "Phase C.2 PR 1: …".
 _INTERNAL_TOKEN_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bDay-\d+[a-z]?\b", re.IGNORECASE),
+    # Upstream regex (PR #622) handles "Phase X", dotted ".N",
+    # hyphenated "-intel-phase1" / "-frontend", and trailing paren
+    # labels like "(c)", "(Block II)" — all in one match.
     re.compile(
         r"\bPhase\s+[A-Z](?:[-.][a-zA-Z0-9]+)*(?:\s*\([a-zA-Z0-9 ]+\))*"
     ),
+    # Free-standing "Block II" / "Block III" outside a Phase prefix.
+    re.compile(r"\bBlock\s+[IVX]+\b"),
     re.compile(r"\bAudit\s*#\s*\d+(?:\s*P\d+[a-z]?)?\b", re.IGNORECASE),
     re.compile(r"\bPR\s*#?\s*\d+\b", re.IGNORECASE),
     re.compile(r"\bTask\s*#\s*\d+\b", re.IGNORECASE),
@@ -153,13 +158,19 @@ def _strip_internal_tokens(text: str) -> str:
         out = pat.sub("", out)
     # Collapse whitespace + tidy punctuation seams.
     out = re.sub(r"\s+", " ", out)
-    # Strip a leading colon/dash left behind by something like
-    # "Day-107a: IT services" → ": IT services".
-    out = re.sub(r"^\s*[:\-–—]\s*", "", out)
     # Strip ": " immediately following an opening paren, or stray
     # "()" pairs left after token removal.
     out = re.sub(r"\(\s*[:\-]\s*", "(", out)
     out = re.sub(r"\(\s*\)", "", out)
+    # Drop a leading "(c):" / "(2):" sub-label left behind after
+    # stripping the Phase token (e.g. "Phase G PR (c):" → "(c):").
+    out = re.sub(r"^\s*\([A-Za-z0-9]{1,3}\)\s*[:\-]\s*", "", out)
+    # Strip a leading colon/dash left behind by something like
+    # "Day-107a: IT services" → ": IT services" OR
+    # "Phase H-frontend (Block II): expose ..." after paren collapse.
+    # Run this last so earlier paren cleanup gets its chance to
+    # expose the leading punctuation it left behind.
+    out = re.sub(r"^[\s:\-–—]+", "", out)
     # Collapse " ." / " ," seams.
     out = re.sub(r"\s+([,.;:!?])", r"\1", out)
     # Collapse orphan comma runs left after token removal, e.g.
