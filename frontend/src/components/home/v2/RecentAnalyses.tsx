@@ -1,9 +1,10 @@
 "use client"
 // Recent analyses — last 5 tickers user viewed.
-// v1: localStorage-backed. Each ticker analysis page is expected to push
-// its symbol into "yq:recent-views" via a tiny effect — that wiring lives
-// on the analysis page and is OUT OF SCOPE for this PR. This component
-// gracefully renders empty until that list is populated.
+// v1: localStorage-backed. The writer side lives in
+// `app/(app)/analysis/[ticker]/AnalysisBody.tsx`, which pushes
+// {ticker, viewedAt, price, mos} into "yq:recent-views" inside the
+// title/meta effect once `data` has loaded (task #181). Until that
+// push runs at least once, this component renders the empty state.
 // TODO (follow-up): backend `recent_views` table keyed by user, so the
 // list persists across devices.
 
