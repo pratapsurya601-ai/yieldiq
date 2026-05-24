@@ -470,6 +470,40 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         data.valuation.verdict,
         data.quality.yieldiq_score
       )
+      // Task #181 — wire up the writer side of the home page's
+      // "Recent analyses" card. The reader (components/home/v2/
+      // RecentAnalyses.tsx) has always pulled from this localStorage
+      // key, but nothing ever wrote to it, so the card was empty for
+      // every user no matter how many tickers they analysed. We push
+      // the freshly-loaded ticker + price + MoS here (deduped on
+      // symbol, capped at 5) so the next home-page render has real
+      // entries to show. v1 is intentionally localStorage-only — the
+      // backend `recent_views` table TODO in the reader still stands.
+      try {
+        const STORAGE_KEY = "yq:recent-views"
+        const raw = window.localStorage.getItem(STORAGE_KEY)
+        const existing = raw ? JSON.parse(raw) : []
+        const filtered = Array.isArray(existing)
+          ? existing.filter(
+              (e: { ticker?: unknown }) =>
+                e && typeof e.ticker === "string" && e.ticker !== data.ticker,
+            )
+          : []
+        const entry = {
+          ticker: data.ticker,
+          viewedAt: Date.now(),
+          price:
+            typeof data.valuation.current_price === "number"
+              ? data.valuation.current_price
+              : null,
+          mos: mos != null && Number.isFinite(mos) ? mos : null,
+        }
+        const next = [entry, ...filtered].slice(0, 5)
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+      } catch {
+        // localStorage unavailable (Safari private mode, quota, etc.) —
+        // recent-analyses is a nice-to-have, never a hard failure.
+      }
     }
   }, [data])
 
