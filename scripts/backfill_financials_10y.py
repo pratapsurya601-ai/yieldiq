@@ -97,6 +97,15 @@ CANARY_UNIVERSE_PATH = ROOT / "scripts" / "canary_universe_180.json"
 # Audit §7 gate #2: more than this fraction missing bse_code → fail.
 MAX_MISSING_BSE_FRACTION = 0.20
 
+# Pre-flight Peercomp probe — detect Akamai-block (302 → error_Bse.html)
+# before burning N tickers × 4 endpoints × 3 retries on doomed requests.
+# See docs/runbooks/phase-f-bse-fallback.md.
+BSE_PEERCOMP_PROBE_URL = (
+    "https://api.bseindia.com/BseIndiaAPI/api/Peercomp/w"
+    "?scripcode={scrip_code}&type=P&annuallyquarterly=A"
+)
+BSE_FALLBACK_RUNBOOK = "docs/runbooks/phase-f-bse-fallback.md"
+
 
 # ──────────────────────────────────────────────────────────────────────
 # DB helpers
@@ -127,7 +136,6 @@ def _load_top_500(engine) -> list[str]:
             "SELECT s.ticker FROM stocks s "
             "JOIN market_metrics mm ON mm.ticker = s.ticker "
             "WHERE s.is_active = TRUE "
-            "  AND COALESCE(s.shadow, FALSE) = FALSE "
             "  AND mm.market_cap_cr IS NOT NULL "
             "ORDER BY mm.market_cap_cr DESC LIMIT 500"
         )).fetchall()
@@ -202,6 +210,67 @@ def preflight_bse_code_coverage(
         return False, codes
     log.info("pre-flight OK: bse_code coverage gate passed")
     return True, codes
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Pre-flight Peercomp reachability probe (Akamai-block detector)
+# ──────────────────────────────────────────────────────────────────────
+
+
+def preflight_peercomp_reachable(probe_scrip: str, probe_ticker: str) -> bool:
+    """Hit the BSE Peercomp endpoint for ONE ticker without retries.
+
+    Returns True if the endpoint responds with HTTP 200 and a JSON-shaped
+    payload. Returns False on the documented Akamai-block pattern:
+    HTTP 302 redirect (often to ``/error_Bse.html``) or any non-200
+    response. We treat any non-200/non-JSON as "blocked" rather than
+    transient — the operator should investigate before burning a full
+    run of N tickers × 4 endpoints × 3 retries.
+
+    See ``docs/runbooks/phase-f-bse-fallback.md`` for context.
+    """
+    import requests
+    from data_pipeline.sources.bse_xbrl import HEADERS  # noqa: WPS433
+
+    url = BSE_PEERCOMP_PROBE_URL.format(scrip_code=probe_scrip)
+    log.info("pre-flight: probing BSE Peercomp at %s (ticker=%s)",
+             url, probe_ticker)
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=15,
+                         allow_redirects=False)
+    except Exception as exc:  # noqa: BLE001
+        log.error("pre-flight FAIL: BSE Peercomp probe raised %s. "
+                  "See %s", exc, BSE_FALLBACK_RUNBOOK)
+        return False
+    if r.status_code in (301, 302, 303, 307, 308):
+        loc = r.headers.get("Location", "")
+        log.error("pre-flight FAIL: BSE Peercomp endpoint is "
+                  "Akamai-blocked from this IP (HTTP %d → %r). "
+                  "See %s",
+                  r.status_code, loc, BSE_FALLBACK_RUNBOOK)
+        return False
+    if r.status_code != 200:
+        log.error("pre-flight FAIL: BSE Peercomp endpoint returned "
+                  "HTTP %d (expected 200). Treating as Akamai-block. "
+                  "See %s",
+                  r.status_code, BSE_FALLBACK_RUNBOOK)
+        return False
+    try:
+        payload = r.json()
+    except Exception as exc:  # noqa: BLE001
+        log.error("pre-flight FAIL: BSE Peercomp returned 200 but "
+                  "non-JSON body (%s). Likely an HTML error page. "
+                  "See %s", exc, BSE_FALLBACK_RUNBOOK)
+        return False
+    if not isinstance(payload, dict):
+        log.error("pre-flight FAIL: BSE Peercomp JSON has unexpected "
+                  "shape (%s). See %s",
+                  type(payload).__name__, BSE_FALLBACK_RUNBOOK)
+        return False
+    log.info("pre-flight OK: BSE Peercomp probe returned HTTP 200 "
+             "with %d Table rows",
+             len(payload.get("Table", []) or []))
+    return True
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -352,6 +421,10 @@ def main() -> int:
                     help="Extra sleep between tickers (seconds)")
     ap.add_argument("--skip-preflight", action="store_true",
                     help="Skip pre-flight bse_code gate (dangerous)")
+    ap.add_argument("--skip-peercomp-probe", action="store_true",
+                    help="Skip pre-flight BSE Peercomp reachability probe "
+                         "(dangerous — will burn N tickers × 4 endpoints "
+                         "× 3 retries if Akamai is blocking)")
     args = ap.parse_args()
 
     if not os.environ.get("DATABASE_URL"):
@@ -402,6 +475,25 @@ def main() -> int:
     if no_code:
         log.warning("%d tickers have no bse_code and will be skipped",
                     len(no_code))
+
+    # Pre-flight BSE Peercomp reachability probe — fail-fast if Akamai
+    # is blocking the endpoint from this IP. Without this, the operator
+    # burns N tickers × 4 endpoints × 3 retries before realising the
+    # whole run is doomed. See docs/runbooks/phase-f-bse-fallback.md.
+    if not args.skip_peercomp_probe:
+        if not workable:
+            log.error("no workable tickers to probe Peercomp with")
+            return 1
+        probe_ticker, probe_scrip = workable[0]
+        if not preflight_peercomp_reachable(probe_scrip, probe_ticker):
+            log.error("aborting: BSE Peercomp pre-flight failed. "
+                      "See %s for workarounds (skip Phase F.3, "
+                      "yfinance fallback, EODHD, residential proxy).",
+                      BSE_FALLBACK_RUNBOOK)
+            return 1
+    else:
+        log.warning("pre-flight: SKIPPED Peercomp probe "
+                    "(--skip-peercomp-probe)")
 
     log.info("processing %d tickers (dry_run=%s, browser_fallback=%s)",
              len(workable), args.dry_run, not args.no_browser_fallback)
