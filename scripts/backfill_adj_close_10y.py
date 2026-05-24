@@ -131,7 +131,6 @@ def _load_top_500(db_url: str) -> list[str]:
             "SELECT s.ticker FROM stocks s "
             "JOIN market_metrics mm ON mm.ticker = s.ticker "
             "WHERE s.is_active = TRUE "
-            "  AND COALESCE(s.shadow, FALSE) = FALSE "
             "  AND mm.market_cap_cr IS NOT NULL "
             "ORDER BY mm.market_cap_cr DESC LIMIT 500"
         )
