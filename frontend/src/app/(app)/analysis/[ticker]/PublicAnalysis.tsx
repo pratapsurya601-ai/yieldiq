@@ -36,8 +36,6 @@ import {
   formatPct,
   formatCompanyName,
   verdictDisplayLabel,
-  verdictFromMos,
-  shouldGateVerdict,
 } from "@/lib/utils"
 
 /**
@@ -233,49 +231,43 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
   const displayTicker = tickerUpper.replace(/\.(NS|BO)$/i, "")
   const exchange = tickerUpper.endsWith(".BO") ? "BSE" : "NSE"
   const companyDisplay = formatCompanyName(company_name ?? "", tickerUpper)
-  // Single source of truth: derive verdict from MoS so the body pill,
-  // the tab title (set by layout.tsx generateMetadata via verdictFromMos)
-  // and the OG image all stay in lockstep. Backend `verdict_label` enum
-  // is only a fallback when MoS is null/non-finite — it can drift from
-  // MoS during cold-cache or stale-cache conditions and produced the
-  // SBIN/TCS tab-vs-body contradiction (P0, 2026-04-30).
-  // Day-91 (2026-05-22): route the public pill through the same gate
-  // the authenticated hero uses (lib/utils::shouldGateVerdict). Audit
-  // #4 found PublicAnalysis was deriving its pill from verdictFromMos
-  // alone — TCS-class data-limited tickers and RELIANCE/INDIGO at
-  // sub-60% confidence rendered confident "Notably Undervalued"
-  // public pills even when the authenticated hero gated them. The
-  // public payload includes confidence + scenarios so the gate can
-  // run with the same inputs as the authenticated path.
-  const publicGated = shouldGateVerdict({
-    dataLimited:
-      (verdict_label || "").toString().toLowerCase() === "data_limited",
-    confidence,
-    currentPrice: price ?? null,
-    bullCase: scenarios?.bull ?? null,
-    bearCase: scenarios?.bear ?? null,
-    marginOfSafety: mos_pct ?? null,
-  })
-  const verdictText = publicGated
-    ? "Under Review"
-    : typeof mos_pct === "number" && Number.isFinite(mos_pct)
-      ? verdictFromMos(mos_pct)
-      : verdict_label
-        ? verdictDisplayLabel(verdict_label)
-        : "Under Review"
+  // Task #178 (2026-05-24) — single canonical source: render the backend's
+  // `verdict_label` verbatim. Before this fix, three surfaces on the anon
+  // page each derived their own string for the same ticker:
+  //   • tab title  : verdictFromMos(mos)              → "Notably Undervalued"
+  //   • this badge : shouldGateVerdict() + verdictFromMos → "Under Review"
+  //   • Prism alt  : data.verdict_label               → "Deep value region"
+  // The /prism endpoint's `verdict_label` already incorporates band /
+  // confidence / data-limited logic upstream; the frontend must NOT
+  // re-derive locally from mos_pct or score. layout.tsx now also reads
+  // verdict_label from the same endpoint so all three surfaces match.
+  // Fall back to the legacy enum→label map only when `verdict_label`
+  // is missing or blank.
+  const verdictText =
+    verdict_label && verdict_label.trim().length > 0
+      ? verdict_label
+      : verdictDisplayLabel("data_limited")
 
-  // MoS sign determines the tint of the summary pill. Positive = undervalued.
-  // When the gate fires, force neutral tone so the "Under Review" pill
-  // doesn't render with a positive green tint inherited from a 25%+ MoS.
-  const mosTone = publicGated
+  // Tint hint mirrors the verdict_band semantics (deepValue/undervalued
+  // tint positive; overvalued tint negative; data_limited / under_review
+  // stay neutral). We key off the verdict_label text itself rather than
+  // re-deriving from MoS so the pill colour and copy can never disagree.
+  const verdictLower = (verdict_label || "").toLowerCase()
+  const isUnderReviewLabel =
+    verdictLower.includes("under review") ||
+    verdictLower.includes("insufficient") ||
+    verdictLower.includes("unavailable") ||
+    verdictLower.includes("data limited")
+  const mosTone: "positive" | "negative" | "neutral" = isUnderReviewLabel
     ? "neutral"
-    : mos_pct === null || mos_pct === undefined
-      ? "neutral"
-      : mos_pct >= 15
-        ? "positive"
-        : mos_pct <= -15
-          ? "negative"
-          : "neutral"
+    : verdictLower.includes("deep value") ||
+        verdictLower.includes("below fair") ||
+        verdictLower.includes("undervalued")
+      ? "positive"
+      : verdictLower.includes("above fair") ||
+          verdictLower.includes("overvalued")
+        ? "negative"
+        : "neutral"
 
   const mosToneClasses: Record<string, string> = {
     positive: "bg-green-50 text-green-800 border-green-200",

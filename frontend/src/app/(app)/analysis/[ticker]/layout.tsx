@@ -1,5 +1,5 @@
 import type { Metadata } from "next"
-import { verdictFromMos } from "@/lib/utils"
+import { verdictDisplayLabel } from "@/lib/utils"
 
 interface Props {
   params: Promise<{ ticker: string }>
@@ -48,9 +48,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { ticker } = await params
   const displayTicker = ticker.replace(".NS", "").replace(".BO", "")
 
-  // Fetch OG data from API
+  // Fetch OG data from API (description, status, og-image flags). The
+  // canonical verdict label is sourced from /api/v1/prism/{ticker} below
+  // so the tab title, anon hero badge, and Prism alt text all read from
+  // the SAME backend field (`verdict_label`). Task #178 P0 (2026-05-24)
+  // — three different verdict strings were rendering for HDFCBANK:
+  //   • title  = "Notably Undervalued" (derived from MoS locally)
+  //   • badge  = "UNDER REVIEW"        (PublicAnalysis confidence gate)
+  //   • alt    = "Deep value region"   (backend verdict_label)
+  // Day-34 "Verdict-chip consolidation — single source of truth"
+  // missed the title + badge surfaces. Fix: every surface reads
+  // verdict_label from /prism; local re-derivation is banned.
   const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.yieldiq.in"
   let ogData: Record<string, unknown> | null = null
+  let prismData: Record<string, unknown> | null = null
   try {
     // Cache for 60s only — og-data title is derived from MoS, which is
     // recomputed by analysis_cache jobs throughout the day. A 1-hour
@@ -58,10 +69,16 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // MoS=+55.9% (INFY 2026-04-30) was stuck rendering the neutral
     // "Stock Analysis" tab title for up to an hour after the cache
     // recompute. 60s keeps SSR responsive without hammering the API.
-    const res = await fetch(`${API_URL}/api/v1/analysis/${ticker}/og-data`, {
-      next: { revalidate: 60 },
-    })
-    if (res.ok) ogData = await res.json()
+    const [ogRes, prismRes] = await Promise.all([
+      fetch(`${API_URL}/api/v1/analysis/${ticker}/og-data`, {
+        next: { revalidate: 60 },
+      }),
+      fetch(`${API_URL}/api/v1/prism/${ticker}`, {
+        next: { revalidate: 60 },
+      }),
+    ])
+    if (ogRes.ok) ogData = await ogRes.json()
+    if (prismRes.ok) prismData = await prismRes.json()
   } catch {
     // Fall through to defaults
   }
@@ -86,34 +103,41 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   // verdict may still carry a stale value in that payload.
   const backendStatus =
     typeof ogData?.status === "string" ? (ogData.status as string) : ""
+  const prismVerdictLabelRaw =
+    typeof prismData?.verdict_label === "string"
+      ? (prismData.verdict_label as string)
+      : ""
   const isUnderReview =
     UNDER_REVIEW_VERDICTS.has(verdict) ||
     UNDER_REVIEW_VERDICTS.has(backendStatus) ||
-    FORBIDDEN_TITLE_SUBSTRINGS.some((s) => backendTitle.includes(s))
+    FORBIDDEN_TITLE_SUBSTRINGS.some((s) => backendTitle.includes(s)) ||
+    // Task #178: also gate when /prism returned an under-review label —
+    // the canonical verdict_label can carry "Under Review" / "Insufficient
+    // Data" / etc., and now that we render it verbatim in the title we
+    // must not let those leak past the neutralizer.
+    FORBIDDEN_TITLE_SUBSTRINGS.some((s) => prismVerdictLabelRaw.includes(s))
 
-  // Derive the tab title's verdict from MoS (the same number rendered
-  // in the page body) rather than trusting the backend-supplied
-  // `title` string. Pre-launch we shipped HDFCBANK with tab=
-  // "Undervalued" but body="Above Fair Value" at MoS -12.3% because
-  // the og-data title was built from the verdict ENUM (which had
-  // drifted from MoS in cache). verdictFromMos() in lib/utils.ts is
-  // the single source of truth for both surfaces. See the helper's
-  // jsdoc for the canonical thresholds.
-  const mosNumber =
-    typeof ogData?.mos === "number" && Number.isFinite(ogData.mos)
-      ? (ogData.mos as number)
-      : null
-  const mosVerdict =
-    mosNumber == null ? "" : verdictFromMos(mosNumber)
-  // When MoS is missing we cannot trust the backend-supplied title:
-  // og-data has historically returned strings like "INFY.NS Stock
-  // Analysis | YieldIQ" (raw ticker, no verdict). Always rebuild from
-  // displayTicker (which has .NS / .BO stripped) so the tab title is
-  // clean even for tickers in a degraded data state.
+  // Task #178 (2026-05-24): canonical verdict label comes from the
+  // /prism endpoint's `verdict_label` field — the SAME field the anon
+  // hero badge and Prism alt text now read from. Local MoS-derivation
+  // is banned; it produced the HDFCBANK three-strings-for-one-stock
+  // P0 ("Notably Undervalued" in tab title, "UNDER REVIEW" in badge,
+  // "Deep value region" in alt). When prism is unreachable, fall back
+  // to mapping the og-data `verdict` enum through verdictDisplayLabel
+  // — still a label-map, never a local re-derivation from mos/score.
+  const prismVerdictLabel =
+    typeof prismData?.verdict_label === "string" &&
+    (prismData.verdict_label as string).trim().length > 0
+      ? (prismData.verdict_label as string)
+      : verdict
+        ? verdictDisplayLabel(verdict)
+        : ""
+  // Always rebuild from displayTicker (which has .NS / .BO stripped) so
+  // the tab title is clean even for tickers in a degraded data state.
   const title = isUnderReview
     ? neutralTitle(displayTicker)
-    : mosVerdict
-      ? `${displayTicker} — ${mosVerdict} | YieldIQ`
+    : prismVerdictLabel
+      ? `${displayTicker} — ${prismVerdictLabel} | YieldIQ`
       : `${displayTicker} — Stock Analysis | YieldIQ`
 
   const description = isUnderReview
