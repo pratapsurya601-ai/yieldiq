@@ -217,8 +217,8 @@ export default function InsightCards({ quality, insights, valuation, currency, t
     })(),
     {
       title: "Red Flags",
-      value: businessFlags.length === 0 ? "None" : `${businessFlags.length} found`,
-      subtitle: businessFlags.length > 0 ? businessFlags[0] : "No concerns detected",
+      value: businessFlags.length === 0 ? "Clean ✓" : `${businessFlags.length} found`,
+      subtitle: businessFlags.length > 0 ? businessFlags[0] : "No governance, accounting, or solvency concerns flagged",
       color: businessFlags.length === 0 ? "text-blue-700" : "text-red-700",
       icon: "\u{1f6a9}",
       borderColor: businessFlags.length === 0 ? "border-l-blue-500" : "border-l-red-500",
@@ -419,8 +419,8 @@ export default function InsightCards({ quality, insights, valuation, currency, t
       if (analystConsensus && analystConsensus.coverage_count === 0) {
         return {
           title: "Analyst Consensus (third-party)",
-          value: "\u2014",
-          subtitle: "No analyst coverage",
+          value: "Independent",
+          subtitle: "Not tracked by broker research desks \u2014 YieldIQ values this stock from first-principles DCF; broker coverage isn't an input to our fair value.",
           subtitleColor: "text-caption italic",
           source: "Source: Finnhub \u2014 reference data only, not investment advice.",
           color: "text-caption",
@@ -435,12 +435,12 @@ export default function InsightCards({ quality, insights, valuation, currency, t
       title: "Analyst Consensus (third-party)",
       value: insights.wall_street_avg_target !== null && insights.wall_street_avg_target > 0
         ? formatCurrency(insights.wall_street_avg_target, currency)
-        : "No coverage",
+        : "Independent",
       subtitle: insights.wall_street_target_count !== null && insights.wall_street_target_count > 0
         ? `${insights.wall_street_target_count} analyst${insights.wall_street_target_count !== 1 ? "s" : ""}`
         : insights.wall_street_avg_target !== null && insights.wall_street_avg_target > 0
           ? "Analyst consensus"
-          : "No analyst coverage",
+          : "Not tracked by broker research desks — YieldIQ values this stock from first-principles DCF; broker coverage isn't an input to our fair value.",
       source: "Source: Finnhub \u2014 reference data only, not investment advice.",
       // feat/freshness-stamps: tell the user how fresh the consensus
       // number is. Backend stamps with compute time whenever any
@@ -474,11 +474,11 @@ export default function InsightCards({ quality, insights, valuation, currency, t
       }
       return {
         title: "Insider Activity",
-        value: "None",
-        subtitle: "No bulk/block deals in 90 days",
-        color: "text-body" as const,
+        value: "Quiet ✓",
+        subtitle: "No bulk or block deals filed in last 90 days",
+        color: "text-blue-700" as const,
         icon: "\u{1f465}",
-        borderColor: "border-l-border" as const,
+        borderColor: "border-l-blue-500" as const,
       }
     })(),
   // eslint-disable-next-line react-hooks/exhaustive-deps
