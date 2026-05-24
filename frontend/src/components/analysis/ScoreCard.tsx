@@ -97,23 +97,15 @@ function gradeGradient(grade: string): string {
 // here so the tokenised "Lakh Cr" copy stays consistent across the app.
 const fmtMarketCap = formatMarketCap
 
-/** Tiny inline sparkline, 100×24. Last point gets a dot. */
+/** Tiny inline sparkline, 100×24. Last point gets a dot. Returns null
+ *  for < 2 points — callers are expected to gate the surrounding chip
+ *  on `hasTrend` so the "12M trend" label doesn't render against an
+ *  empty value. Earlier this rendered an italic "Insufficient history"
+ *  caption, but on the dark `bg-ink` card the low-contrast caption
+ *  colour made it look like an empty chip (task #190). */
 function Sparkline({ points }: { points: number[] }) {
   const uid = useId()
-  if (!points || points.length < 2) {
-    // Insufficient-history state. Backend returns an empty array when
-    // fewer than three monthly samples exist in fair_value_history. We
-    // render a labelled dashed baseline instead of a near-invisible line
-    // (previous behaviour looked like "empty dots" to users — #20 Day-3).
-    return (
-      <span
-        className="text-[9px] italic text-caption/80 tabular-nums"
-        aria-label="Insufficient price history to draw the 12-month score trend"
-      >
-        Insufficient history
-      </span>
-    )
-  }
+  if (!points || points.length < 2) return null
   const min = Math.min(...points)
   const max = Math.max(...points)
   const span = max - min || 1
@@ -199,13 +191,19 @@ export default function ScoreCard({
         </MetricTooltip>
       </div>
 
-      {/* 12M trend sparkline */}
-      <div className="flex items-center justify-between text-caption">
-        <span className="text-[10px] uppercase tracking-[0.15em]">12M trend</span>
-        <span className="text-bg">
-          <Sparkline points={trend12m ?? []} />
-        </span>
-      </div>
+      {/* 12M trend sparkline — hidden entirely when we don't have at
+          least 2 monthly buckets of score history. Avoids a labelled
+          chip with empty content (task #190). When a backfill cron
+          accumulates ≥2 monthly samples in fair_value_history the
+          chip reappears automatically. */}
+      {trend12m && trend12m.length >= 2 && (
+        <div className="flex items-center justify-between text-caption">
+          <span className="text-[10px] uppercase tracking-[0.15em]">12M trend</span>
+          <span className="text-bg">
+            <Sparkline points={trend12m} />
+          </span>
+        </div>
+      )}
 
       {/* Sector rank */}
       {sectorRank && sectorRank.total > 0 && (
