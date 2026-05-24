@@ -43,24 +43,24 @@ interface ManifestHistoryResponse {
 
 const VISIBLE_DEFAULT = 3
 
-// "May 22, 2026 . 6:00 PM IST" — matches the spec.
+// "26 May 2026, 5:30 AM IST" — single comma separator, uppercase AM/PM.
 function fmtApplied(iso: string | null): string {
   if (!iso) return "—"
   try {
-    const d = new Date(iso)
-    const date = d.toLocaleDateString("en-IN", {
-      year: "numeric",
+    const fmt = new Intl.DateTimeFormat("en-IN", {
+      day: "2-digit",
       month: "short",
-      day: "numeric",
-      timeZone: "Asia/Kolkata",
-    })
-    const time = d.toLocaleTimeString("en-IN", {
-      hour: "numeric",
+      year: "numeric",
+      hour: "2-digit",
       minute: "2-digit",
       hour12: true,
       timeZone: "Asia/Kolkata",
     })
-    return `${date} • ${time} IST`
+    const formatted = fmt
+      .format(new Date(iso))
+      .replace(/\s*am\b/i, " AM")
+      .replace(/\s*pm\b/i, " PM")
+    return `${formatted} IST`
   } catch {
     return iso
   }
