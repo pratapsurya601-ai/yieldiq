@@ -2467,6 +2467,38 @@ async def screener_fields():
     }
 
 
+# ─────────────────────────────────────────────────────────────────
+# Cache-warm must-include set (Day-?, 2026-05-24)
+#
+# Bug surfaced by the 2026-05-24 FV/MoS sanity audit: LT.NS,
+# KOTAKBANK.NS, BAJFINANCE.NS, AXISBANK.NS — all unambiguous top-15
+# large-caps — were absent from analysis_cache after a full warmup
+# cycle. Root cause: the dynamic ORDER BY market_cap_cr DESC query
+# below depends on market_metrics having a fresh, non-null
+# market_cap_cr row for each ticker. When the upstream feed (yfinance
+# / NSE) returns NULL for any reason — auth flip, rate-limit, schema
+# drift — the offending tickers silently drop out of the warm set and
+# users hit cold-compute (~2.7s p50) for hours until the next data
+# refresh.
+#
+# Fix: UNION the dynamic mcap query with a curated allowlist of names
+# that MUST be in the warm set regardless of market_metrics health.
+# These are the 25-or-so names that drive ~30% of user traffic; if
+# upstream data flakes, they should still be warm. Pulled from the
+# canary universe (scripts/canary_universe_180.json) top buckets +
+# the four names that triggered the 2026-05-24 audit.
+# ─────────────────────────────────────────────────────────────────
+TOP_TICKERS_MUST_INCLUDE: tuple[str, ...] = (
+    # Diversified large-caps (top 15 by mcap, durable)
+    "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ICICIBANK.NS",
+    "BHARTIARTL.NS", "ITC.NS", "SBIN.NS", "LT.NS", "HINDUNILVR.NS",
+    "KOTAKBANK.NS", "BAJFINANCE.NS", "AXISBANK.NS", "MARUTI.NS",
+    "ASIANPAINT.NS", "HCLTECH.NS", "WIPRO.NS", "ULTRACEMCO.NS",
+    "TITAN.NS", "SUNPHARMA.NS", "NESTLEIND.NS", "M&M.NS",
+    "BAJAJFINSV.NS", "POWERGRID.NS", "NTPC.NS",
+)
+
+
 @router.get("/top-tickers")
 async def get_public_top_tickers(limit: int = 500):
     """Public list of active NSE tickers sorted by market_cap_cr DESC.
@@ -2476,6 +2508,10 @@ async def get_public_top_tickers(limit: int = 500):
     admin privileges to fetch the warm-set.
 
     Read-only, non-sensitive: just a ticker list.
+
+    The response always includes ``TOP_TICKERS_MUST_INCLUDE`` (prepended,
+    deduped) even if upstream market_metrics is missing rows for those
+    tickers. See module-level docstring for rationale.
     """
     limit = max(1, min(int(limit), 2000))
     _key = f"public:top-tickers:{limit}"
@@ -2506,7 +2542,18 @@ async def get_public_top_tickers(limit: int = 500):
                 "ORDER BY COALESCE(mm.market_cap_cr, 0) DESC "
                 "LIMIT :lim"
             ), {"lim": limit}).fetchall()
-            tickers = [r[0] for r in rows if r and r[0]]
+            dyn_tickers = [r[0] for r in rows if r and r[0]]
+            # Prepend the must-include set, dedupe, preserve order.
+            # Must-include first guarantees they get warmed even if the
+            # caller truncates by `limit` somewhere downstream.
+            seen: set[str] = set()
+            tickers: list[str] = []
+            for t in (*TOP_TICKERS_MUST_INCLUDE, *dyn_tickers):
+                if t and t not in seen:
+                    seen.add(t)
+                    tickers.append(t)
+            # Respect the caller's `limit` after merging.
+            tickers = tickers[:limit]
             out = {"count": len(tickers), "tickers": tickers}
             cache.set(_key, out, ttl=3600)
             return _cached_json(out, s_maxage=3600, swr=14400)
@@ -2514,7 +2561,10 @@ async def get_public_top_tickers(limit: int = 500):
             sess.close()
     except Exception as exc:
         logger.warning(f"public top-tickers failed: {exc}")
-        return {"count": 0, "tickers": []}
+        # Even on DB failure, return the must-include set so cache-warm
+        # can make forward progress on the most-trafficked names.
+        fallback = list(TOP_TICKERS_MUST_INCLUDE)[:limit]
+        return {"count": len(fallback), "tickers": fallback}
 
 
 @router.get("/near-52w-lows")

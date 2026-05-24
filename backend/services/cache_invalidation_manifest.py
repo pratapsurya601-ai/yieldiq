@@ -1017,6 +1017,47 @@ MANIFEST: list[dict] = [
             "absurd '+829% upside'."
         ),
     },
+    {
+        # 2026-05-24 FV/MoS audit fix — three coupled fixes that all
+        # touch the {verdict, fair_value, data_limited} surface:
+        #
+        # 1. service.py verdict block: data_limited (confidence-based)
+        #    now requires BOTH low confidence AND at least one missing
+        #    scenario, not low confidence alone. LT.NS (conf=33,
+        #    MoS=-43.7%, FV=2211.55, full scenarios) was incorrectly
+        #    showing verdict=data_limited despite a complete valuation.
+        #
+        # 2. service.py null_cagr_gate: stop zeroing iv when the gate
+        #    fires. The verdict flag is the signal; zeroing iv wrote
+        #    FV=0 into analysis_cache so any consumer reading the raw
+        #    JSONB (SQL screener, audit tooling) saw FV=0 even though
+        #    the engine had computed a real value. HCLTECH.NS and
+        #    ULTRACEMCO.NS were the canonical cases.
+        #
+        # 3. public.py /top-tickers: prepend a curated must-include
+        #    set so LT/KOTAKBANK/BAJFINANCE/AXISBANK are warmed even
+        #    when market_metrics has stale/null mcap rows. (Universe
+        #    fix — doesn't itself invalidate cache, but the warmup
+        #    pass triggered by this manifest entry will populate the
+        #    previously-missing rows.)
+        #
+        # Invalidate all tickers' verdict + fair_value fields so the
+        # next read forces a recompute under the new gate rules.
+        "version_id": "v_data_limited_gate_tighten_2026_05_24",
+        "applied_at": datetime(2026, 5, 24, 12, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["verdict", "fair_value", "data_limited"],
+        },
+        "rationale": (
+            "Tighten data_limited verdict gate to require missing "
+            "scenarios in addition to low confidence; stop zeroing "
+            "fair_value in null_cagr_gate so the cache row carries the "
+            "canonical computed value; expand cache-warm coverage to "
+            "always include top-25 large-caps. Surfaces honest computed "
+            "FV on LT.NS, HCLTECH.NS, ULTRACEMCO.NS."
+        ),
+    },
 ]
 
 
