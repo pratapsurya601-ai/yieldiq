@@ -15,7 +15,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, R
 from fastapi.responses import JSONResponse
 
 from backend.services.cache_service import cache
-from backend.services.summary_projection import resolve_fair_value
+from backend.services.summary_projection import resolve_display_mos, resolve_fair_value
 from backend.middleware.auth import get_current_user, get_current_user_optional, is_superuser
 
 logger = logging.getLogger("yieldiq.public")
@@ -330,7 +330,20 @@ def _extract_analysis_summary(result) -> dict:
     # so the contract is consistent across endpoints; legacy long-forms stay
     # for back-compat until callers migrate.
     _price = round(v.current_price, 2)
-    _mos = round(v.margin_of_safety, 1)
+    # ── EXTREME_MOS_DISPLAY_SUPPRESSION (2026-05-24) ───────────────
+    # When the analysis pipeline flagged the MoS as extreme (Phase B.2,
+    # `mos_is_extreme=True` — e.g. KALYANI.NS at MoS=829% with verdict
+    # downgraded to `under_review`), surfacing the raw number renders
+    # as a misleading "+829% upside" on the SEO page even though the
+    # verdict chip and `mos_extreme_note` are already telling the user
+    # the valuation is being held back. Suppress to None so the
+    # frontend renders "—" and the user reads the under_review chip +
+    # note instead. The internal valuation.margin_of_safety stays
+    # unsuppressed for canary-diff / admin views — see
+    # backend/services/summary_projection.resolve_display_mos.
+    _mos = resolve_display_mos(
+        v.margin_of_safety, bool(getattr(v, "mos_is_extreme", False)),
+    )
     _score = q.yieldiq_score
     # ── AUDIT5_P0B_FAIR_VALUE_FLOOR (Day-100, 2026-05-22) ──────────
     # Audit #5 flagged ULTRACEMCO.NS shipping `fair_value: 0.0` while

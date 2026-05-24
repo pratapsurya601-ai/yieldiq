@@ -986,6 +986,27 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        # Phase B.2 added `mos_is_extreme` which correctly downgraded
+        # the verdict to `under_review` (KALYANI.NS at MoS=829% / FV=1282
+        # / price=138) but the raw 829 was still surfacing through the
+        # public serializers — frontend rendered "+829% upside" next to
+        # the "Under Review" chip. Public serializers now resolve
+        # display MoS through `summary_projection.resolve_display_mos`
+        # which returns None when the flag fires, so the SEO page
+        # renders "—" and the user reads the verdict chip + note
+        # instead. Internal `valuation.margin_of_safety` stays raw for
+        # canary-diff / admin visibility.
+        "version_id": "v_extreme_mos_display_suppression_2026_05_24",
+        "applied_at": datetime(2026, 5, 24, 0, 0, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["mos", "margin_of_safety_display", "mos_pct"]},
+        "rationale": (
+            "Public serializer now suppresses MoS display when "
+            "mos_is_extreme flag fires — under_review verdict already "
+            "triggers, but the raw number was still surfacing as "
+            "absurd '+829% upside'."
+        ),
+    },
+    {
         # 2026-05-24 FV/MoS audit fix — three coupled fixes that all
         # touch the {verdict, fair_value, data_limited} surface:
         #

@@ -39,6 +39,31 @@ import AnalysisAuthGate from "./AnalysisAuthGate"
 import TickerStrip from "@/components/analysis/TickerStrip"
 import AdrCohortBanner from "@/components/analysis/AdrCohortBanner"
 
+// Task #179 (2026-05-24) — ISR cap on the anon analysis page.
+//
+// Repro: operator opened https://www.yieldiq.in/analysis/HDFCBANK.NS in
+// incognito and saw score=64 / "Notably Undervalued" while both
+// /api/v1/public/stock-summary/HDFCBANK.NS and
+// /api/v1/analysis/HDFCBANK.NS/og-data returned score=50 / "undervalued"
+// identically. The wire-format payload was clean, but the rendered HTML
+// was carrying a pre-recompute score. The only durable cause that fits
+// both surfaces (body score AND tab title verdict are derived in
+// different layers) is a stale Next.js / Vercel CDN render of this
+// segment from before the recompute.
+//
+// This page already opts into dynamic rendering implicitly because we
+// read `cookies()` to seed the SSR auth gate — Next 16 marks the
+// segment as request-time the moment a dynamic API is touched, so the
+// SSR shell itself cannot be CDN-cached. The explicit `revalidate = 60`
+// belt-and-braces this: if a refactor ever drops the `cookies()` call,
+// the page is still capped at one minute of staleness rather than
+// silently flipping to indefinitely-cached static HTML. Combined with
+// `revalidate: 60` on the layout's og-data fetch (which feeds the tab
+// title and og:image), the worst-case end-to-end staleness window any
+// anon visitor can observe is bounded at ~60 s after a backend score
+// recompute. See task #179 for the full investigation trail.
+export const revalidate = 60
+
 export default async function AnalysisPage({
   params,
 }: {
