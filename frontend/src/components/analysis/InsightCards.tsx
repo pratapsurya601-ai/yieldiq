@@ -420,7 +420,7 @@ export default function InsightCards({ quality, insights, valuation, currency, t
         return {
           title: "Analyst Consensus (third-party)",
           value: "Independent",
-          subtitle: "Not tracked by sell-side desks \u2014 YieldIQ values this stock from first-principles DCF; broker coverage isn't an input to our fair value.",
+          subtitle: "Not tracked by broker research desks \u2014 YieldIQ values this stock from first-principles DCF; broker coverage isn't an input to our fair value.",
           subtitleColor: "text-caption italic",
           source: "Source: Finnhub \u2014 reference data only, not investment advice.",
           color: "text-caption",
@@ -440,7 +440,7 @@ export default function InsightCards({ quality, insights, valuation, currency, t
         ? `${insights.wall_street_target_count} analyst${insights.wall_street_target_count !== 1 ? "s" : ""}`
         : insights.wall_street_avg_target !== null && insights.wall_street_avg_target > 0
           ? "Analyst consensus"
-          : "Not tracked by sell-side desks — YieldIQ values this stock from first-principles DCF; broker coverage isn't an input to our fair value.",
+          : "Not tracked by broker research desks — YieldIQ values this stock from first-principles DCF; broker coverage isn't an input to our fair value.",
       source: "Source: Finnhub \u2014 reference data only, not investment advice.",
       // feat/freshness-stamps: tell the user how fresh the consensus
       // number is. Backend stamps with compute time whenever any

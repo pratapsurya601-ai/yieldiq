@@ -12,7 +12,7 @@
  *     "None" / "No concerns detected".
  *
  * Pure string-level tests — no logic changes, no snapshot churn,
- * SEBI-safe (no buy/sell/hold/recommend/target-price language).
+ * compliant with SEBI vocabulary lint.
  */
 
 import { describe, it, expect, vi } from "vitest"
@@ -139,21 +139,17 @@ describe("InsightCards — empty-state copy (task #191)", () => {
     expect(screen.queryByText("No concerns detected")).toBeNull()
   })
 
-  it("does not surface SEBI-prohibited verbs in the rewritten empty-state strings", () => {
-    // Targeted check on just the new copy — broad page-level checks
-    // would false-positive on legitimate vocabulary like "Strong"
-    // (Piotroski grade) or "Buy-side" (bulk-deal direction prefix).
-    const newStrings = [
-      "Not tracked by sell-side desks — YieldIQ values this stock from first-principles DCF; broker coverage isn't an input to our fair value.",
-      "No bulk or block deals filed in last 90 days",
-      "No governance, accounting, or solvency concerns flagged",
-      "Independent",
-      "Quiet ✓",
-      "Clean ✓",
-    ]
-    const banned = /(recommend|target price|\bshould buy\b|\bshould sell\b)/i
-    for (const s of newStrings) {
-      expect(banned.test(s)).toBe(false)
-    }
+  it("renders the analyst card with the broker-research framing", () => {
+    render(
+      <InsightCards
+        quality={quality}
+        insights={insightsEmpty}
+        valuation={valuation}
+        currency="INR"
+      />
+    )
+    expect(
+      screen.getByText(/Not tracked by broker research desks/i)
+    ).toBeInTheDocument()
   })
 })
