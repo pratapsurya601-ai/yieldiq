@@ -673,14 +673,27 @@ async def get_og_data(
         # rendered "₹0 fair value" on ULTRACEMCO.NS OG cards while the
         # public stock-summary endpoint surfaced base_case=3028 — same
         # AnalysisResponse, two different user-facing numbers.
-        from backend.services.summary_projection import resolve_fair_value as _resolve_fv
+        from backend.services.summary_projection import (
+            resolve_display_mos as _resolve_mos,
+            resolve_fair_value as _resolve_fv,
+        )
         _fv_resolved = _resolve_fv(
             result.valuation.fair_value,
             getattr(result.valuation, "base_case", None),
         )
         _fv = float(_fv_resolved if _fv_resolved is not None else 0)
         _px = float(result.valuation.current_price or 0)
-        _mos = float(result.valuation.margin_of_safety or 0)
+        # ── EXTREME_MOS_DISPLAY_SUPPRESSION (2026-05-24) ──────────
+        # Public-surface parity with /public/stock-summary: when the
+        # analysis pipeline flagged `mos_is_extreme=True` (e.g. KALYANI.NS
+        # MoS=829% / verdict=under_review), surface None so the OG card
+        # / share-link consumer renders "—" instead of "+829% upside".
+        # `_suspicious` below still gets to run on the raw value so the
+        # router's defense-in-depth gate keeps catching genuine outliers.
+        _raw_mos = result.valuation.margin_of_safety
+        _mos_extreme_flag = bool(getattr(result.valuation, "mos_is_extreme", False))
+        _mos_display = _resolve_mos(_raw_mos, _mos_extreme_flag)
+        _mos = float(_raw_mos or 0)
         _verdict = result.valuation.verdict
         _suspicious = False
         try:
@@ -711,6 +724,7 @@ async def get_og_data(
             _verdict = "data_limited"
             _fv = 0.0
             _mos = 0.0
+            _mos_display = 0.0
 
         verdict_text = _verdict.replace("_", " ").title()
         if _suspicious:
@@ -734,7 +748,10 @@ async def get_og_data(
             "verdict": _verdict,
             "fair_value": _fv,
             "price": _px,
-            "mos": _mos,
+            # `_mos_display` is None when mos_is_extreme fired (raw _mos
+            # could be 829 in that case — see EXTREME_MOS_DISPLAY_SUPPRESSION
+            # above). Frontend renders "—" for null.
+            "mos": _mos_display,
         }
 
         # ── Scenario + ratio fields (feat/ogdata-add-scenarios-ratios) ──
@@ -854,6 +871,16 @@ async def get_analysis_preview(ticker: str):
         _px = float(result.valuation.current_price or 0)
         _mos = float(result.valuation.margin_of_safety or 0)
         _verdict = result.valuation.verdict
+        # ── EXTREME_MOS_DISPLAY_SUPPRESSION (2026-05-24) ──────────
+        # Parity with /og-data and /public/stock-summary: suppress the
+        # displayed MoS to None when the pipeline flagged it as extreme.
+        from backend.services.summary_projection import (
+            resolve_display_mos as _resolve_mos_preview,
+        )
+        _mos_display = _resolve_mos_preview(
+            result.valuation.margin_of_safety,
+            bool(getattr(result.valuation, "mos_is_extreme", False)),
+        )
         try:
             _suspicious = False
             if _px > 0 and _fv > 0:
@@ -866,6 +893,7 @@ async def get_analysis_preview(ticker: str):
                 _verdict = "data_limited"
                 _fv = 0.0
                 _mos = 0.0
+                _mos_display = 0.0
         except Exception:
             pass
 
@@ -884,7 +912,7 @@ async def get_analysis_preview(ticker: str):
             "valuation": {
                 "fair_value": _fv,
                 "current_price": _px,
-                "margin_of_safety": _mos,
+                "margin_of_safety": _mos_display,
                 "verdict": _verdict,
                 "wacc": result.valuation.wacc,
                 "confidence_score": result.valuation.confidence_score,
