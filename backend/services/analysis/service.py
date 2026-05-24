@@ -3504,9 +3504,43 @@ class AnalysisService(NarrativeMixin):
                 verdict = "fairly_valued"
             else:
                 verdict = "overvalued"
-        elif _confidence in ("low", "unusable") and abs(mos_pct) > 40 and clean_ticker not in INVENTORY_HEAVY_TICKERS:
+        # ── Confidence-based data_limited gate (tightened 2026-05-24) ──
+        # Prior behaviour: any ticker with `_conf_score < 35` (or label in
+        # {"low","unusable"}) AND `|mos|>40` was forced to `data_limited`,
+        # even when the DCF engine produced a complete, well-formed
+        # valuation (iv > 0, scenarios present, wacc/growth all populated).
+        # That hid honest computed numbers on names like LT.NS (conf=33,
+        # MoS=-43.7%, FV=2211.55, bear/base/bull all populated) under a
+        # "we can't compute" label.
+        #
+        # New rule: `data_limited` requires BOTH (a) low confidence AND
+        # (b) at least one of the scenarios genuinely missing (iv<=0 OR
+        # bear/base/bull <= 0). When the engine produced a full scenario
+        # triangle the verdict reverts to the standard MoS bands below;
+        # low confidence on its own is surfaced via the frontend's
+        # `shouldGateVerdict` helper (Day-91) which renders the
+        # "Under Review" pill + caution chip without erasing the numbers.
+        elif (
+            _confidence in ("low", "unusable")
+            and abs(mos_pct) > 40
+            and clean_ticker not in INVENTORY_HEAVY_TICKERS
+            and (
+                iv <= 0
+                or (bear_iv or 0) <= 0
+                or (bull_iv or 0) <= 0
+            )
+        ):
             verdict = "data_limited"
-        elif _conf_score < 35 and abs(mos_pct) > 40 and clean_ticker not in INVENTORY_HEAVY_TICKERS:
+        elif (
+            _conf_score < 35
+            and abs(mos_pct) > 40
+            and clean_ticker not in INVENTORY_HEAVY_TICKERS
+            and (
+                iv <= 0
+                or (bear_iv or 0) <= 0
+                or (bull_iv or 0) <= 0
+            )
+        ):
             verdict = "data_limited"
         elif mos_pct > 15:
             verdict = "undervalued"
@@ -4244,7 +4278,18 @@ class AnalysisService(NarrativeMixin):
         # revenue_cagr_5y are None the model has no growth signal at
         # all; force data_limited regardless of where the verdict
         # block above landed. Peer-cap / DCF outputs are retained for
-        # the audit trail; the response just suppresses fair_value.
+        # the audit trail.
+        #
+        # 2026-05-24 — STOP ZEROING iv/mos_pct here. Earlier behaviour
+        # wrote iv=0 to the cache payload, so any downstream consumer
+        # reading payload->valuation->>fair_value (SQL screener, audit
+        # tooling, OG-card path) saw FV=0 even though the engine had
+        # computed a real number. The summary projection layer already
+        # gates FV display on verdict=="data_limited" + base_case
+        # fallback (see backend/services/summary_projection.py); the
+        # destructive zero-out only hid the canonical computed value
+        # from the rest of the system. Keep iv/mos_pct intact; the
+        # verdict flag is the truthful signal.
         if (
             not is_financial
             and not _is_bellwether_p0
@@ -4253,8 +4298,6 @@ class AnalysisService(NarrativeMixin):
         ):
             verdict = "data_limited"
             _null_cagr_gate_tripped = True
-            iv = 0
-            mos_pct = 0
             _p0_log.info("null_cagr_gate.tripped ticker=%s", ticker)
 
         # FIX 2 — Cross-pillar moat sanity. Declining 5y revenue (CAGR
