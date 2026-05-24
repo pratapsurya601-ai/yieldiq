@@ -51,3 +51,46 @@ def resolve_fair_value(
         return None
     # Engine genuinely produced 0 (or 0 with no base scenario).
     return round(float(engine_fv or 0), 2)
+
+
+def resolve_display_mos(
+    raw_mos: Optional[float],
+    mos_is_extreme: bool,
+) -> Optional[float]:
+    """Return the user-facing margin-of-safety to surface in summaries.
+
+    Policy (extreme-MoS display suppression, 2026-05-24):
+
+      * When the analysis pipeline flagged the MoS as "extreme"
+        (`mos_is_extreme=True` — fires above the Phase B.2 threshold,
+        e.g. KALYANI.NS at MoS=829% which triggered an `under_review`
+        verdict), the raw number is meaningless on a public surface.
+        Returning the literal 829 would render as "+829% upside" even
+        though the verdict chip and note already tell the user the
+        valuation is being held back. Suppress the number by returning
+        None — the frontend renders "—" and the under_review chip
+        carries the actual message.
+      * When the flag is False, pass the raw value through unchanged
+        (rounded to 1 dp for display parity). None propagates as None.
+
+    The internal `valuation.margin_of_safety` field on AnalysisResponse
+    is intentionally left alone so admin / debugging views and the
+    canary-diff harness can still see the unsuppressed number. This
+    helper is for public-facing serializers only.
+
+    Args:
+        raw_mos: The canonical margin_of_safety from the valuation
+            block (may be None).
+        mos_is_extreme: The `valuation.mos_is_extreme` flag set by the
+            analysis pipeline when the MoS crosses the extreme
+            threshold.
+
+    Returns:
+        None when raw_mos is None OR when the extreme flag is set,
+        otherwise the rounded MoS value (1 dp).
+    """
+    if mos_is_extreme:
+        return None
+    if raw_mos is None:
+        return None
+    return round(float(raw_mos), 1)
