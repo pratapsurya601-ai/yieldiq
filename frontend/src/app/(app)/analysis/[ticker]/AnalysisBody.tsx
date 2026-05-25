@@ -58,6 +58,7 @@ import TrustStrip, { type TrustStat } from "@/components/analysis/TrustStrip"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
 import BullsBearsPanel from "@/components/analysis/BullsBearsPanel"
+import HonestCard from "@/components/analysis/HonestCard"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
 import ShareReportCard from "@/components/analysis/ShareReportCard"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
@@ -917,13 +918,28 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             <BullsBearsPanel bulls={data.bulls_say} bears={data.bears_say} />
           </section>
 
-          {/* Section 3 — Compounded Growth. Day-103c (2026-05-22):
+          {/* Section 3 — The Honest Card (Phase 3 manifesto, 2026-05-25).
+              Radical-transparency panel: confident facts, best estimate,
+              uncertainty factors, and 3 invalidating conditions. Self-
+              hides when honest_card is null (legacy cached payloads). */}
+          {data.honest_card ? (
+            <section aria-labelledby="section-honest-card">
+              <NumberedSectionHeader
+                number={3}
+                title="THE HONEST CARD"
+                caption="What we're confident about, our best estimate, where we could be wrong, and what would change our mind."
+              />
+              <HonestCard card={data.honest_card} />
+            </section>
+          ) : null}
+
+          {/* Section 4 — Compounded Growth. Day-103c (2026-05-22):
               Self-fetches from /stock-summary; renders nothing if data
               is absent. The TrustStrip variant shares the same
               react-query key so there's only one fetch. */}
           <section aria-labelledby="section-growth">
             <NumberedSectionHeader
-              number={3}
+              number={4}
               title="COMPOUNDED GROWTH"
               caption="Annualised growth rates over the trailing 3, 5 and 10 years."
             />
@@ -931,10 +947,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             <CompoundedGrowthPanel ticker={ticker} />
           </section>
 
-          {/* Section 4 — Dividends */}
+          {/* Section 5 — Dividends */}
           <section aria-labelledby="section-dividends">
             <NumberedSectionHeader
-              number={4}
+              number={5}
               title="DIVIDENDS"
               caption="Dividend per share history and yield context."
             />
@@ -946,10 +962,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             />
           </section>
 
-          {/* Section 5 — Recent News */}
+          {/* Section 6 — Recent News */}
           <section aria-labelledby="section-news">
             <NumberedSectionHeader
-              number={5}
+              number={6}
               title="RECENT NEWS"
               caption="Latest filings and news, source-tiered for relevance."
             />
