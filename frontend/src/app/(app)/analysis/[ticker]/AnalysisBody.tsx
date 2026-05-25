@@ -40,6 +40,9 @@ import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
 import ConfidenceIndicators from "@/components/analysis/ConfidenceIndicators"
 import ReverseDcfPanel from "@/components/analysis/ReverseDcfPanel"
 import CompoundedGrowthPanel from "@/components/analysis/CompoundedGrowthPanel"
+import CompoundedGrowthTrustStrip from "@/components/analysis/CompoundedGrowthTrustStrip"
+import NumberedSectionHeader from "@/components/analysis/NumberedSectionHeader"
+import TrustStrip, { type TrustStat } from "@/components/analysis/TrustStrip"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
 import BullsBearsPanel from "@/components/analysis/BullsBearsPanel"
@@ -59,6 +62,7 @@ import SeeAlsoPeers from "@/components/analysis/SeeAlsoPeers"
 import { useAuthStore } from "@/store/authStore"
 import {
   formatCurrency,
+  formatPct,
   formatCompanyName,
   verdictDisplayLabel,
   verdictFromMos,
@@ -778,6 +782,75 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     />
   ) : null
 
+  // #ASD-restyle (2026-05-25): TrustStrip data for the Summary tab's
+  // numbered sections. Real fields from the analysis payload only —
+  // no mock values, no fake stars. If a field is null, value renders as
+  // "—" (neutral); if every stat is null upstream, the strip omits itself.
+  const scenarioAccent = (m: number | null | undefined) => {
+    if (m === null || m === undefined || !Number.isFinite(m)) return "neutral" as const
+    return m >= 0 ? ("green" as const) : ("red" as const)
+  }
+  const scenariosTrustStats: TrustStat[] | null = data.scenarios && !dataLimited
+    ? [
+        {
+          label: "Bear MoS",
+          value: Number.isFinite(data.scenarios.bear?.mos_pct)
+            ? formatPct(data.scenarios.bear.mos_pct)
+            : "—",
+          accent: scenarioAccent(data.scenarios.bear?.mos_pct),
+        },
+        {
+          label: "Base MoS",
+          value: Number.isFinite(data.scenarios.base?.mos_pct)
+            ? formatPct(data.scenarios.base.mos_pct)
+            : "—",
+          accent: scenarioAccent(data.scenarios.base?.mos_pct),
+        },
+        {
+          label: "Bull MoS",
+          value: Number.isFinite(data.scenarios.bull?.mos_pct)
+            ? formatPct(data.scenarios.bull.mos_pct)
+            : "—",
+          accent: scenarioAccent(data.scenarios.bull?.mos_pct),
+        },
+        ...(Number.isFinite(valuation.confidence_score)
+          ? [{
+              label: "Model Confidence",
+              value: `${Math.round(valuation.confidence_score)}/100`,
+              accent: "neutral" as const,
+            }]
+          : []),
+      ]
+    : null
+
+  const dividendData = insights?.dividend ?? null
+  const dividendTrustStats: TrustStat[] | null = (() => {
+    if (!dividendData || !dividendData.has_dividends) return null
+    const cards: TrustStat[] = []
+    if (dividendData.current_yield_pct !== null && Number.isFinite(dividendData.current_yield_pct)) {
+      cards.push({
+        label: "Yield",
+        value: `${dividendData.current_yield_pct.toFixed(2)}%`,
+        accent: "neutral",
+      })
+    }
+    if (dividendData.payout_ratio_pct !== null && Number.isFinite(dividendData.payout_ratio_pct)) {
+      cards.push({
+        label: "Payout",
+        value: `${dividendData.payout_ratio_pct.toFixed(0)}%`,
+        accent: "neutral",
+      })
+    }
+    if (dividendData.consecutive_years > 0) {
+      cards.push({
+        label: "Consecutive Years",
+        value: String(dividendData.consecutive_years),
+        accent: "green",
+      })
+    }
+    return cards.length >= 2 ? cards : null
+  })()
+
   const tabs: AnalysisTabDef[] = [
     {
       key: "summary",
@@ -794,26 +867,79 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             analystConsensus={data.analyst_consensus ?? null}
           />
           <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
-          {/* P0 #4 (2026-05-25): Morningstar-style Bulls Say / Bears
-              Say structured narrative. Sits between the per-card
-              summary and the scenario grid so users see both sides of
-              the thesis before diving into the FV scenarios. The
-              component self-hides when both lists are empty (legacy
-              cached payloads pre-bulls_bears manifest entry). */}
-          <BullsBearsPanel bulls={data.bulls_say} bears={data.bears_say} />
-          {scenarioBlock}
-          {/* Day-103c (2026-05-22): compounded-growth panel sits between
-              scenarios and the deeper financials section. Self-fetches
-              from /stock-summary; renders nothing if data is absent. */}
-          <CompoundedGrowthPanel ticker={ticker} />
-          {!dataLimited && <ReverseDcfPanel ticker={ticker} />}
-          <DividendTracker
-            dividend={insights?.dividend ?? null}
-            currency={company.currency}
-            ticker={company.ticker}
-          />
-          <NewsWidget ticker={ticker} />
-          <EarningsCallsWidget ticker={ticker} />
+          {/* #ASD-restyle (2026-05-25): Summary tab restructured into
+              six Alpha-Spread-style numbered sections. Each section
+              gets a large uppercase header + plain-English caption,
+              and (where real data exists) a TrustStrip stat row.
+              Order was changed so VALUATION SCENARIOS lands as #1
+              before BULL / BEAR THESIS — the original "thesis-first"
+              order didn't match the numbered-section narrative. */}
+
+          {/* Section 1 — Valuation Scenarios */}
+          {scenarioBlock ? (
+            <section aria-labelledby="section-scenarios">
+              <NumberedSectionHeader
+                number={1}
+                title="VALUATION SCENARIOS"
+                caption="Bear, base and bull fair value scenarios from a discounted cash flow model with three sensitivity profiles."
+              />
+              {scenariosTrustStats ? <TrustStrip stats={scenariosTrustStats} ariaLabel="Scenario highlights" /> : null}
+              {scenarioBlock}
+              {!dataLimited && <ReverseDcfPanel ticker={ticker} />}
+            </section>
+          ) : null}
+
+          {/* Section 2 — Bull / Bear Thesis. P0 #4 (2026-05-25):
+              Morningstar-style structured narrative. Component
+              self-hides when both lists are empty. */}
+          <section aria-labelledby="section-thesis">
+            <NumberedSectionHeader
+              number={2}
+              title="BULL / BEAR THESIS"
+              caption="Auto-generated thesis bullets pulled from the company's fundamentals."
+            />
+            <BullsBearsPanel bulls={data.bulls_say} bears={data.bears_say} />
+          </section>
+
+          {/* Section 3 — Compounded Growth. Day-103c (2026-05-22):
+              Self-fetches from /stock-summary; renders nothing if data
+              is absent. The TrustStrip variant shares the same
+              react-query key so there's only one fetch. */}
+          <section aria-labelledby="section-growth">
+            <NumberedSectionHeader
+              number={3}
+              title="COMPOUNDED GROWTH"
+              caption="Annualised growth rates over the trailing 3, 5 and 10 years."
+            />
+            <CompoundedGrowthTrustStrip ticker={ticker} />
+            <CompoundedGrowthPanel ticker={ticker} />
+          </section>
+
+          {/* Section 4 — Dividends */}
+          <section aria-labelledby="section-dividends">
+            <NumberedSectionHeader
+              number={4}
+              title="DIVIDENDS"
+              caption="Dividend per share history and yield context."
+            />
+            {dividendTrustStats ? <TrustStrip stats={dividendTrustStats} ariaLabel="Dividend highlights" /> : null}
+            <DividendTracker
+              dividend={insights?.dividend ?? null}
+              currency={company.currency}
+              ticker={company.ticker}
+            />
+          </section>
+
+          {/* Section 5 — Recent News */}
+          <section aria-labelledby="section-news">
+            <NumberedSectionHeader
+              number={5}
+              title="RECENT NEWS"
+              caption="Latest filings and news, source-tiered for relevance."
+            />
+            <NewsWidget ticker={ticker} />
+            <EarningsCallsWidget ticker={ticker} />
+          </section>
         </div>
       ),
     },
@@ -947,6 +1073,12 @@ export default function AnalysisBody({ ticker, prism }: Props) {
 
   return (
     <FormulasProvider value={data.formulas}>
+    {/* #ASD-restyle (2026-05-25): deep-navy gradient backdrop on the
+        analysis page so the Summary-tab section dividers feel like
+        Alpha Spread's linear scroll. Outer div paints the gradient
+        edge-to-edge; the existing max-w wrapper sits inside it so
+        card surfaces (bg-bg / bg-surface) are unaffected. */}
+    <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 min-h-screen">
     <div className="max-w-2xl md:max-w-3xl lg:max-w-6xl mx-auto px-4 pb-20">
       {/* TODO(PR-B, SEBI-compliance): render <PriceTimestamp
            as_of={valuation.as_of ?? null} /> under the current
@@ -1227,9 +1359,16 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             search results as rich snippets. */}
         <AnalysisFAQ data={data} />
 
-        {/* Day-108a: "Why we changed this analysis" — surfaces the
-            Day-94 cache-invalidation manifest as a per-ticker audit
-            log. Trust signal panel; fine to live deep on the page. */}
+        {/* Section 6 — Why We Changed. Day-108a: "Why we changed this
+            analysis" — surfaces the Day-94 cache-invalidation manifest
+            as a per-ticker audit log. Lives outside the tabs so it's
+            visible from any tab. #ASD-restyle: numbered header added so
+            it follows the Summary-tab numbering scheme. */}
+        <NumberedSectionHeader
+          number={6}
+          title="WHY WE CHANGED"
+          caption="Read-only audit log of every model change on this ticker."
+        />
         <ManifestHistoryPanel ticker={ticker} />
 
         <ModelDisclaimer className="mx-4" />
@@ -1242,6 +1381,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           onClose={() => setTimeMachineOpen(false)}
         />
       )}
+    </div>
     </div>
     </FormulasProvider>
   )

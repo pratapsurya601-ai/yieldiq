@@ -47,6 +47,13 @@ is red, an admin-merge is permitted:
   when two test cases compute the same FV; tracked separately.
 - **Vercel /sector pre-render** — Satori HTML overlay rebuild is
   retried up to 3x; first attempt flakes ~10% of the time.
+- **Vercel preview build — `/search` page Suspense bailout**
+  (added 2026-05-25): `/(app)/search/page.tsx` uses
+  `useSearchParams()` without a `<Suspense>` boundary, which fails
+  prerender on every preview deploy (and on the main branch too —
+  confirmed on HEAD commit `de83aa4`). Reproduces on PRs that do
+  not touch `frontend/src/app/(app)/search/**`. Tracked as a
+  separate /search-suspense-fix task.
 
 Admin-merge requires: (a) green check elsewhere, (b) the failing
 signal listed above, (c) a comment on the PR identifying which flake
