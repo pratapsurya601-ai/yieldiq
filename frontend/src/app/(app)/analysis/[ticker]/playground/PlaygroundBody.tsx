@@ -172,7 +172,7 @@ export default function PlaygroundBody({ ticker }: { ticker: string }) {
       cancelled = true
     }
     // Intentionally key only on price + ticker — we don't want to
-    // re-bisect on every slider tweak (expensive + the implied numbers
+    // re-bisect on every slider tweak (costly + the implied numbers
     // would jiggle distractingly).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ticker, result?.current_price])

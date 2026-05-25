@@ -88,7 +88,7 @@ describe("PlaygroundBody", () => {
     await waitFor(() => expect(mockRecompute).toHaveBeenCalledTimes(1))
 
     // simulate three rapid slider changes — only one network call
-    // should happen after the 300ms debounce settles
+    // is expected after the 300ms debounce settles
     const sliders = screen.getAllByRole("slider") as HTMLInputElement[]
     expect(sliders.length).toBeGreaterThan(0)
     fireEvent.change(sliders[0], { target: { value: "0.12" } })
@@ -120,7 +120,7 @@ describe("PlaygroundBody", () => {
     })
     await waitFor(() => expect(mockReverse).toHaveBeenCalled())
     fireEvent.click(screen.getByText("Adopt these assumptions"))
-    // The WACC slider should now reflect the implied value (0.135 → 13.5%)
+    // The WACC slider will now reflect the implied value (0.135 → 13.5%)
     await waitFor(() => {
       expect(screen.getByText("13.5%")).toBeTruthy()
     })

@@ -49,7 +49,7 @@ describe("PlaygroundSlider", () => {
     render(<PlaygroundSlider def={DEF} value={0.11} onChange={() => {}} locked={true} />)
     const input = screen.getByRole("slider") as HTMLInputElement
     expect(input.disabled).toBe(true)
-    // Paywall hint appears
+    // Paywall hint is rendered
     expect(screen.getByText(/Paid feature/i)).toBeTruthy()
   })
 
