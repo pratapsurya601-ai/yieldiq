@@ -402,6 +402,7 @@ export interface AnalysisResponse {
    */
   bulls_say?: string[] | null
   bears_say?: string[] | null
+  /**
    * The Honest Card (Phase 3 manifesto, 2026-05-25). Radical-
    * transparency panel — confident facts, best-estimate sentence,
    * uncertainty factors, and exactly 3 invalidating conditions.
