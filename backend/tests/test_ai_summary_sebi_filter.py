@@ -602,3 +602,74 @@ def test_missing_groq_key_returns_empty(monkeypatch):
         pass
 
     assert _Svc().get_ai_summary("TCS", analysis) == ""
+
+
+# ── Task #195: never render "<label>: n/a" fragments in the
+# deterministic template. Real-world regression: HDFCBANK analysis
+# page leaked "Revenue CAGR (3y): n/a." into the model description
+# paragraph, which read as a template bug to retail users.
+
+def _ctx_with_null_cagr() -> dict:
+    return {
+        "ticker": "HDFCBANK",
+        "company_name": "HDFC Bank Ltd",
+        "current_price": 766.80,
+        "fair_value": 1097.15,
+        "mos_pct": 43.1,
+        "piotroski": 6,
+        "moat": "Narrow",
+        "rev_cagr_3y": None,      # the regression trigger
+        "roe": 8.8,
+    }
+
+
+def test_template_skips_revenue_cagr_when_null():
+    out = deterministic_template(_ctx_with_null_cagr())
+    # The literal n/a leak the bug report cited.
+    assert "Revenue CAGR (3y): n/a" not in out
+    # And no other "<label>: n/a" half-sentence either.
+    assert ": n/a" not in out
+    # Defensive: no bare " n/a." or " n/a " token survived.
+    assert " n/a" not in out
+    # The label itself should be omitted entirely, not just its value.
+    assert "Revenue CAGR" not in out
+    # Sanity: lead sentence + remaining metrics still render.
+    assert "HDFC Bank Ltd" in out
+    assert "Return on equity: 8.8%" in out
+    assert "Piotroski F-score: 6/9" in out
+    assert out.startswith(SEBI_PREFIX)
+    assert find_banned(out) is None
+
+
+def test_template_skips_all_nullable_metric_fragments():
+    """Every nullable trailing metric is independently skippable."""
+    ctx = {
+        "ticker": "TEST",
+        "company_name": "Test Co",
+        "current_price": 100.0,
+        "fair_value": 110.0,
+        "mos_pct": 10.0,
+        "piotroski": None,
+        "moat": None,
+        "rev_cagr_3y": None,
+        "roe": None,
+    }
+    out = deterministic_template(ctx)
+    assert "n/a" not in out
+    assert "Piotroski" not in out
+    assert "Moat label" not in out
+    assert "Revenue CAGR" not in out
+    assert "Return on equity" not in out
+    # Lead sentence still anchors the description.
+    assert "Test Co" in out
+    assert "trades at" in out
+    assert out.startswith(SEBI_PREFIX)
+
+
+def test_template_keeps_non_null_metrics_when_one_is_null():
+    """Partial-null: a missing CAGR must NOT suppress ROE / Piotroski."""
+    ctx = _ctx_with_null_cagr()
+    out = deterministic_template(ctx)
+    assert "Return on equity: 8.8%" in out
+    assert "Piotroski F-score: 6/9" in out
+    assert "Moat label: Narrow" in out
