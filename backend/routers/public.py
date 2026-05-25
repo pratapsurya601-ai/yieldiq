@@ -12,7 +12,7 @@ from datetime import date, timedelta
 from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 from backend.services.cache_service import cache
 from backend.services.summary_projection import resolve_display_mos, resolve_fair_value
@@ -574,6 +574,34 @@ async def get_demo_cards():
 
     cache.set(_cache_key, cards, ttl=120)
     return _cached_json(cards, s_maxage=120, swr=600)
+
+
+# ═══════════════════════════════════════════════════════════════
+# Company image (hero background) — Phase 1 stub
+# ═══════════════════════════════════════════════════════════════
+#
+# Returns a company image suitable for the analysis-page hero
+# background (StockHeroImage component). Three-tier fallback:
+#
+#   1. Cached image at /public/company-images/{ticker}.jpg (operator
+#      backfill — not implemented yet; see follow-up task)
+#   2. Logo URL from stocks.logo_url if populated (also pending backfill)
+#   3. 204 No Content → frontend renders the gradient + giant initial
+#      letter fallback. This is the intended v1 experience.
+#
+# Phase 1 ships the 204 path only. Backfilling company imagery is an
+# operator task flagged in the PR description.
+# ───────────────────────────────────────────────────────────────────
+@router.get("/company-image/{ticker}")
+async def company_image(ticker: str):
+    """Phase 1: always 204. Frontend uses gradient + initial fallback."""
+    # Aggressive edge cache — 204 is cheap and the answer won't change
+    # until the operator backfill ships.
+    headers = {
+        "Cache-Control": "public, s-maxage=86400, stale-while-revalidate=604800",
+        "X-Image-Source": "fallback-gradient",
+    }
+    return Response(status_code=204, headers=headers)
 
 
 # ═══════════════════════════════════════════════════════════════

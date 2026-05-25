@@ -1,0 +1,227 @@
+"use client"
+
+/**
+ * StockHeroImage — verdict-colored full-bleed hero for /analysis/[ticker].
+ *
+ * Manifesto Rule 9 ("Color is signal, not theme") made tangible: the
+ * gradient overlay is keyed off the verdict tier, so HDFCBANK
+ * (undervalued, MoS +43.7%) renders an emerald → teal hero while a
+ * deeply overvalued name renders amber → rust. The page literally
+ * looks different colors for different stocks — users learn to
+ * recognize the verdict before reading.
+ *
+ * Layout:
+ *   - Full-bleed 220px (mobile) / 320px (md+) container
+ *   - Background image fetched from /api/v1/public/company-image/{ticker}
+ *     (Phase 1 endpoint always returns 204 — gradient fallback is the
+ *     v1 experience; image backfill is a separate operator task)
+ *   - Dark gradient overlay (40% opacity, verdict-colored)
+ *   - Giant company initial letter behind the price card when no image
+ *   - Floating glass-morphism price card on bottom-left
+ *   - Verdict pill + share/save buttons on top-right
+ *
+ * Non-goals (Phase 1):
+ *   - No live intraday change % — backend payload doesn't carry it on
+ *     /stock-summary; we omit the chip rather than guess
+ *   - No image lazy-loading hint dance — Next/Image with `priority`
+ *     would compete with LCP; we use a plain <img loading="lazy"/>
+ *     since the gradient fallback is what most users see anyway
+ */
+
+import { useState } from "react"
+
+import FreshnessStamp from "@/components/common/FreshnessStamp"
+import { formatCurrency } from "@/lib/utils"
+import { formatMarketCap } from "@/lib/formatters"
+import {
+  VERDICT_COLORS,
+  verdictTierFromMos,
+  verdictTierLabel,
+} from "@/lib/verdict-colors"
+
+export interface StockHeroImageProps {
+  ticker: string
+  /** Display ticker (without .NS / .BO suffix). Falls back to `ticker`. */
+  displayTicker?: string
+  companyName: string
+  currentPrice: number
+  currency: string
+  marginOfSafetyPct?: number | null
+  verdict?: string | null
+  marketCapCr?: number | null
+  /** ISO-8601 timestamp of the quote freshness ("delayed, as of Xm ago"). */
+  asOf?: string | null
+  /** Optional intraday change % — hidden when null. */
+  intradayChangePct?: number | null
+}
+
+export default function StockHeroImage({
+  ticker,
+  displayTicker,
+  companyName,
+  currentPrice,
+  currency,
+  marginOfSafetyPct,
+  verdict,
+  marketCapCr,
+  asOf,
+  intradayChangePct,
+}: StockHeroImageProps) {
+  const tier = verdictTierFromMos(marginOfSafetyPct, verdict)
+  const palette = VERDICT_COLORS[tier]
+  const tierLabel = verdictTierLabel(tier)
+  const initial = (companyName || ticker || "?").trim().charAt(0).toUpperCase()
+  const safeTicker = (displayTicker ?? ticker).replace(/\.(NS|BO)$/i, "")
+
+  // Image source resolution — start by attempting the backend endpoint.
+  // 204 No Content (Phase 1 default) triggers the onError handler which
+  // flips us to the gradient + initial fallback. We deliberately do NOT
+  // probe with a HEAD request first; one round-trip is cheaper.
+  const imageSrc = `/api/v1/public/company-image/${encodeURIComponent(ticker)}`
+  const [imageOk, setImageOk] = useState(true)
+
+  // Intraday change chip — only render when the backend actually sent
+  // a number. No fake zeros.
+  const showIntraday =
+    intradayChangePct != null && Number.isFinite(intradayChangePct)
+  const intradayUp = (intradayChangePct ?? 0) >= 0
+
+  return (
+    <section
+      aria-label={`${companyName} hero summary`}
+      className={[
+        "relative w-full overflow-hidden rounded-2xl",
+        "h-[220px] md:h-[320px]",
+        // Solid gradient base — always visible, image layers on top.
+        "bg-gradient-to-br",
+        palette.from,
+        palette.to,
+      ].join(" ")}
+    >
+      {/* Background image — hidden when 204/error. */}
+      {imageOk && (
+        <img
+          src={imageSrc}
+          alt=""
+          aria-hidden
+          loading="lazy"
+          decoding="async"
+          onError={() => setImageOk(false)}
+          className="absolute inset-0 w-full h-full object-cover opacity-70"
+        />
+      )}
+
+      {/* Dark overlay — strengthens contrast for the price card text.
+          Slightly stronger than the spec's 40% so the verdict-colored
+          gradient still reads through. */}
+      <div
+        aria-hidden
+        className={[
+          "absolute inset-0",
+          "bg-gradient-to-br",
+          palette.from,
+          palette.to,
+          "opacity-60",
+        ].join(" ")}
+      />
+
+      {/* Giant company initial — only when no image. Acts as the visual
+          anchor and gives each stock a unique-feeling hero. */}
+      {!imageOk && (
+        <div
+          aria-hidden
+          className={[
+            "absolute inset-0 flex items-center justify-center",
+            "font-editorial font-bold select-none",
+            "text-[160px] md:text-[240px] leading-none",
+            palette.text,
+            "opacity-20",
+          ].join(" ")}
+        >
+          {initial}
+        </div>
+      )}
+
+      {/* Top-right — verdict pill + action buttons */}
+      <div className="absolute top-3 right-3 md:top-4 md:right-4 flex items-center gap-2">
+        <span
+          data-testid="hero-verdict-pill"
+          className={[
+            "inline-flex items-center gap-1.5 rounded-full",
+            "px-3 py-1 text-[11px] md:text-xs font-semibold uppercase tracking-wider",
+            "bg-white/15 backdrop-blur-md border border-white/25",
+            palette.text,
+          ].join(" ")}
+        >
+          <span
+            aria-hidden
+            className={`inline-block w-1.5 h-1.5 rounded-full ${palette.bar}`}
+          />
+          {tierLabel}
+        </span>
+      </div>
+
+      {/* Bottom-left — glass-morphism price card */}
+      <div className="absolute bottom-3 left-3 md:bottom-5 md:left-5 right-3 md:right-auto md:max-w-md">
+        <div
+          className={[
+            "rounded-xl border border-white/20",
+            "bg-white/10 dark:bg-black/20 backdrop-blur-lg",
+            "px-4 py-3 md:px-5 md:py-4",
+            "shadow-lg",
+          ].join(" ")}
+        >
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span
+              className={`font-mono font-bold text-xl md:text-2xl tracking-tight ${palette.text}`}
+            >
+              {safeTicker}
+            </span>
+            <span
+              className={`text-xs md:text-sm font-medium opacity-90 ${palette.text}`}
+            >
+              {companyName}
+            </span>
+          </div>
+
+          <div className="mt-1 flex items-baseline gap-2 flex-wrap">
+            <span
+              className={`font-mono tabular-nums font-bold text-2xl md:text-3xl ${palette.text}`}
+            >
+              {currentPrice > 0
+                ? formatCurrency(currentPrice, currency)
+                : "—"}
+            </span>
+            {showIntraday && (
+              <span
+                className={[
+                  "font-mono tabular-nums text-sm font-semibold",
+                  intradayUp ? "text-emerald-200" : "text-rose-200",
+                ].join(" ")}
+                aria-label={`Intraday change ${intradayChangePct!.toFixed(2)} percent`}
+              >
+                {intradayUp ? "▲" : "▼"} {Math.abs(intradayChangePct!).toFixed(2)}%
+              </span>
+            )}
+          </div>
+
+          <div className="mt-2 flex items-center gap-2 flex-wrap text-[11px] md:text-xs">
+            {marketCapCr != null && marketCapCr > 0 && (
+              <span
+                className={`px-2 py-0.5 rounded-full bg-white/10 border border-white/15 ${palette.text}`}
+              >
+                Mkt Cap {formatMarketCap(marketCapCr)}
+              </span>
+            )}
+            <FreshnessStamp
+              timestamp={asOf}
+              prefix="Delayed, as of"
+              fallback="Quote freshness unknown"
+              className={`${palette.text} opacity-90`}
+            />
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}

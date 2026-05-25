@@ -35,6 +35,11 @@ import ConcallsPanel from "@/components/analysis/ConcallsPanel"
 import ConcallSignalsPanel from "@/components/concall/ConcallSignalsPanel"
 import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
+import StockHeroImage from "@/components/analysis/StockHeroImage"
+import {
+  VERDICT_COLORS,
+  verdictTierFromMos,
+} from "@/lib/verdict-colors"
 import { FormulasProvider } from "@/components/analysis/MetricTooltip"
 import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
 import ConfidenceIndicators from "@/components/analysis/ConfidenceIndicators"
@@ -1071,6 +1076,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
 
   const exchange = (company.exchange || "NSE").toUpperCase() as "NSE" | "BSE"
 
+  // Manifesto Rule 9 — verdict-driven color cascade. Computed once so the
+  // sticky 4px page-top bar and the StockHeroImage agree on tier.
+  const heroVerdictTier = verdictTierFromMos(
+    valuation.margin_of_safety,
+    valuation.verdict,
+  )
+  const heroVerdictPalette = VERDICT_COLORS[heroVerdictTier]
+
   return (
     <FormulasProvider value={data.formulas}>
     {/* #ASD-restyle (2026-05-25): deep-navy gradient backdrop on the
@@ -1079,6 +1092,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         edge-to-edge; the existing max-w wrapper sits inside it so
         card surfaces (bg-bg / bg-surface) are unaffected. */}
     <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 min-h-screen">
+    {/* Manifesto Rule 9 — sticky 4px verdict-color indicator. Visible
+        from any scroll position so users always have a "what's this
+        stock's status" anchor in their peripheral vision. */}
+    <div
+      data-testid="hero-verdict-bar"
+      aria-hidden
+      className={`sticky top-0 z-30 h-1 w-full ${heroVerdictPalette.bar}`}
+    />
     <div className="max-w-2xl md:max-w-3xl lg:max-w-6xl mx-auto px-4 pb-20">
       {/* TODO(PR-B, SEBI-compliance): render <PriceTimestamp
            as_of={valuation.as_of ?? null} /> under the current
@@ -1236,6 +1257,27 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           const headlineBuffettMos =
             valuation.buffett_mos_pct ?? null
           return prismResolved ? (
+            <>
+              {/* Manifesto Rule 9 — verdict-colored full-bleed hero. Sits
+                  ABOVE the EditorialHero 3-column grid, doesn't touch it.
+                  Reuses headlineMos/headlineFairValue so the verdict tier
+                  agrees with the headline number even under FV clamp. */}
+              <StockHeroImage
+                ticker={data.ticker}
+                displayTicker={company.ticker}
+                companyName={formatCompanyName(company.company_name)}
+                currentPrice={valuation.current_price}
+                currency={company.currency}
+                marginOfSafetyPct={headlineMos}
+                verdict={valuation.verdict}
+                marketCapCr={marketCapCr}
+                asOf={
+                  data.as_of ??
+                  valuation.as_of ??
+                  valuation.current_price_as_of ??
+                  null
+                }
+              />
             <EditorialHero
               data={prismResolved}
               fairValue={headlineFairValue}
@@ -1263,6 +1305,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               bullCase={valuation.bull_case}
               bearCase={valuation.bear_case}
             />
+            </>
           ) : (
             <AnalysisHero
               score={quality.yieldiq_score}
