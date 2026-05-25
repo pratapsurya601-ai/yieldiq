@@ -1222,6 +1222,21 @@ MANIFEST: list[dict] = [
             "per ticker."
         ),
     },
+    {
+        # Week-3 manifesto: community sentiment voting widget +
+        # aggregated bars + 30d sparkline on the Summary tab. New
+        # table community_sentiment_votes (migration 065). Three
+        # additive public endpoints (POST vote, GET aggregate, GET
+        # history). No FV math touched.
+        "version_id": "v_community_sentiment_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 20, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["community_sentiment", "sentiment_vote"]},
+        "rationale": (
+            "Community sentiment voting (Bearish/Neutral/Bullish) per "
+            "ticker — engagement loop and emotional signal. Labels "
+            "framed as user view, never advice; SEBI-safe vocabulary."
+        ),
+    },
 ]
 
 

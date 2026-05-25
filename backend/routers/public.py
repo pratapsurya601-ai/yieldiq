@@ -13,6 +13,7 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
+from pydantic import BaseModel, Field
 
 from backend.services.cache_service import cache
 from backend.services.summary_projection import resolve_display_mos, resolve_fair_value
@@ -5396,3 +5397,233 @@ async def get_sector_landing(slug: str):
         extra_headers={"X-Source": "analysis_cache_v35", "X-Cache": "MISS"},
     )
 
+
+# ─────────────────────────────────────────────────────────────────
+# Week-3 manifesto: Community sentiment voting widget.
+#
+# Three endpoints, table = community_sentiment_votes (migration 065):
+#   POST /sentiment/{ticker}/vote          — auth required, upsert
+#   GET  /sentiment/{ticker}               — public, aggregated counts
+#   GET  /sentiment/{ticker}/history       — public, daily time-series
+#
+# Labels are SEBI-safe (bearish/neutral/bullish are NOT in the banned
+# list — see backend/services/analysis/sebi_filter.py). All copy on the
+# frontend is framed as "view" / "community is leaning bullish", never
+# as advice. No CACHE_VERSION bump — additive feature, separate table.
+# ─────────────────────────────────────────────────────────────────
+
+_SENTIMENT_VALUES = ("bearish", "neutral", "bullish")
+
+
+class SentimentVoteRequest(BaseModel):
+    sentiment: str = Field(..., description="One of: bearish, neutral, bullish")
+
+
+def _norm_sentiment_ticker(ticker: str) -> str:
+    """Normalize ticker for the votes table — bare symbol (no .NS/.BO).
+
+    We store bare tickers so a vote on HDFCBANK and HDFCBANK.NS aggregates
+    together; matches the convention used by news/concalls endpoints.
+    """
+    t = (ticker or "").upper().strip()
+    for suf in (".NS", ".BO", ".BSE", ".NSE"):
+        if t.endswith(suf):
+            t = t[: -len(suf)]
+    return t
+
+
+def _sentiment_pg_conn():
+    """Open a psycopg2 connection or raise 503. Mirrors screener pattern."""
+    import os
+    import psycopg2
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        raise HTTPException(status_code=503, detail="DB unavailable")
+    try:
+        return psycopg2.connect(url)
+    except Exception as exc:
+        logger.warning("sentiment DB connect failed: %s", exc)
+        raise HTTPException(status_code=503, detail="DB unavailable") from exc
+
+
+def _aggregate_sentiment(ticker_bare: str, user_id: Optional[str]) -> dict:
+    """Return the aggregated counts + percentages payload."""
+    conn = _sentiment_pg_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT sentiment, COUNT(*)::int
+            FROM community_sentiment_votes
+            WHERE ticker = %s
+            GROUP BY sentiment
+            """,
+            (ticker_bare,),
+        )
+        counts = {row[0]: row[1] for row in cur.fetchall()}
+        your_vote: Optional[str] = None
+        if user_id:
+            cur.execute(
+                "SELECT sentiment FROM community_sentiment_votes "
+                "WHERE user_id = %s AND ticker = %s",
+                (user_id, ticker_bare),
+            )
+            row = cur.fetchone()
+            if row:
+                your_vote = row[0]
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    bullish_count = int(counts.get("bullish", 0))
+    neutral_count = int(counts.get("neutral", 0))
+    bearish_count = int(counts.get("bearish", 0))
+    total = bullish_count + neutral_count + bearish_count
+
+    def pct(n: int) -> float:
+        if total <= 0:
+            return 0.0
+        return round((n / total) * 100.0, 1)
+
+    from datetime import datetime, timezone
+    return {
+        "ticker": ticker_bare,
+        "total_votes": total,
+        "bullish_count": bullish_count,
+        "neutral_count": neutral_count,
+        "bearish_count": bearish_count,
+        "bullish_pct": pct(bullish_count),
+        "neutral_pct": pct(neutral_count),
+        "bearish_pct": pct(bearish_count),
+        "your_vote": your_vote,
+        "as_of": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.post("/sentiment/{ticker}/vote")
+async def post_sentiment_vote(
+    ticker: str,
+    body: SentimentVoteRequest,
+    user: dict = Depends(get_current_user),
+):
+    """Upsert the signed-in user's vote for ``ticker``.
+
+    One row per (user, ticker) — re-voting overwrites the prior choice
+    (see migration 065 uq_csv_user_ticker). Returns the freshly
+    aggregated payload so the frontend can update without a second GET.
+    """
+    sentiment = (body.sentiment or "").strip().lower()
+    if sentiment not in _SENTIMENT_VALUES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"sentiment must be one of {_SENTIMENT_VALUES}",
+        )
+    ticker_bare = _norm_sentiment_ticker(ticker)
+    if not ticker_bare:
+        raise HTTPException(status_code=400, detail="ticker required")
+    user_id = str(user.get("user_id") or "").strip()
+    if not user_id:
+        raise HTTPException(status_code=401, detail="user_id required")
+
+    conn = _sentiment_pg_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO community_sentiment_votes (user_id, ticker, sentiment, voted_at)
+            VALUES (%s, %s, %s, now())
+            ON CONFLICT (user_id, ticker)
+            DO UPDATE SET sentiment = EXCLUDED.sentiment, voted_at = now()
+            """,
+            (user_id, ticker_bare, sentiment),
+        )
+        conn.commit()
+    except Exception as exc:
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+        logger.exception("sentiment vote upsert failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to record vote") from exc
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    return _aggregate_sentiment(ticker_bare, user_id)
+
+
+@router.get("/sentiment/{ticker}")
+async def get_sentiment(
+    ticker: str,
+    user: Optional[dict] = Depends(get_current_user_optional),
+):
+    """Aggregated community sentiment for ``ticker``.
+
+    Public — auth is optional. When signed in we additionally return
+    ``your_vote`` so the UI can ring the user's current choice.
+    """
+    ticker_bare = _norm_sentiment_ticker(ticker)
+    if not ticker_bare:
+        raise HTTPException(status_code=400, detail="ticker required")
+    user_id = str((user or {}).get("user_id") or "").strip() or None
+    return _aggregate_sentiment(ticker_bare, user_id)
+
+
+@router.get("/sentiment/{ticker}/history")
+async def get_sentiment_history(
+    ticker: str,
+    days: int = Query(default=30, ge=1, le=180),
+):
+    """Daily sentiment time-series for the trend sparkline.
+
+    Returns one row per UTC day in the requested window with raw
+    counts. Frontend computes pct on the fly. Days with zero votes
+    are omitted (the sparkline interpolates).
+    """
+    ticker_bare = _norm_sentiment_ticker(ticker)
+    if not ticker_bare:
+        raise HTTPException(status_code=400, detail="ticker required")
+
+    conn = _sentiment_pg_conn()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT
+                (voted_at AT TIME ZONE 'UTC')::date AS day,
+                sentiment,
+                COUNT(*)::int
+            FROM community_sentiment_votes
+            WHERE ticker = %s
+              AND voted_at >= now() - (%s || ' days')::interval
+            GROUP BY day, sentiment
+            ORDER BY day ASC
+            """,
+            (ticker_bare, str(days)),
+        )
+        rows = cur.fetchall()
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    # Roll up to one record per day with all three counts.
+    by_day: dict[str, dict] = {}
+    for day, sentiment, count in rows:
+        iso = day.isoformat() if hasattr(day, "isoformat") else str(day)
+        rec = by_day.setdefault(
+            iso,
+            {"date": iso, "bullish": 0, "neutral": 0, "bearish": 0},
+        )
+        if sentiment in _SENTIMENT_VALUES:
+            rec[sentiment] = int(count)
+    return {
+        "ticker": ticker_bare,
+        "days": days,
+        "points": list(by_day.values()),
+    }

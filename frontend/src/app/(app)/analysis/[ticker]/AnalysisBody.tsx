@@ -26,6 +26,7 @@ import BulkBlockDealsPanel from "@/components/analysis/BulkBlockDealsPanel"
 import DividendTracker from "@/components/analysis/DividendTracker"
 import NewsWidget from "@/components/analysis/NewsWidget"
 import EarningsCallsWidget from "@/components/analysis/EarningsCallsWidget"
+import CommunitySentiment from "@/components/analysis/CommunitySentiment"
 import LoadingSteps from "@/components/ui/LoadingSteps"
 import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
@@ -970,6 +971,22 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             />
             <NewsWidget ticker={ticker} />
             <EarningsCallsWidget ticker={ticker} />
+          </section>
+
+          {/* Section 6 — Community View (Week-3 manifesto:
+              "How do you feel?" voting widget + aggregated sentiment).
+              Sits below News and above the collapsed manifest footer
+              so it reads as the closing "your turn" beat of the page. */}
+          <section aria-labelledby="section-community">
+            <NumberedSectionHeader
+              number={6}
+              title="COMMUNITY VIEW"
+              caption="How the YieldIQ community is reading this name. Your view, not investment advice."
+            />
+            <CommunitySentiment
+              ticker={ticker}
+              companyName={company.company_name}
+            />
           </section>
         </div>
       ),
