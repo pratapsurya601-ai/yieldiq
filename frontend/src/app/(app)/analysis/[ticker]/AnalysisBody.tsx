@@ -42,6 +42,7 @@ import ReverseDcfPanel from "@/components/analysis/ReverseDcfPanel"
 import CompoundedGrowthPanel from "@/components/analysis/CompoundedGrowthPanel"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
+import BullsBearsPanel from "@/components/analysis/BullsBearsPanel"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
 import ShareReportCard from "@/components/analysis/ShareReportCard"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
@@ -803,6 +804,13 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             analystConsensus={data.analyst_consensus ?? null}
           />
           <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
+          {/* P0 #4 (2026-05-25): Morningstar-style Bulls Say / Bears
+              Say structured narrative. Sits between the per-card
+              summary and the scenario grid so users see both sides of
+              the thesis before diving into the FV scenarios. The
+              component self-hides when both lists are empty (legacy
+              cached payloads pre-bulls_bears manifest entry). */}
+          <BullsBearsPanel bulls={data.bulls_say} bears={data.bears_say} />
           {scenarioBlock}
           {/* Day-103c (2026-05-22): compounded-growth panel sits between
               scenarios and the deeper financials section. Self-fetches

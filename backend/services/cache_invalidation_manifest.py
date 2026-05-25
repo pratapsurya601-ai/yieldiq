@@ -1092,6 +1092,45 @@ MANIFEST: list[dict] = [
             "in the model description."
         ),
     },
+    {
+        # P0 #4 — Bulls Say / Bears Say structured-narrative bullets
+        # (Morningstar-style 3-bullet per-side thesis). Pure rules +
+        # templates, no LLM. Purely additive on AnalysisResponse —
+        # legacy cached payloads omit the fields and the frontend
+        # renders the "Insufficient data" empty state instead of
+        # erroring. See backend/services/analysis/bulls_bears_generator.py
+        # and backend/tests/test_bulls_bears_generator.py.
+        "version_id": "v_bulls_bears_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 13, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["bulls_say", "bears_say"]},
+        "rationale": (
+            "Auto-generated Bulls Say / Bears Say narratives so users "
+            "see both sides of the thesis without an analyst opinion."
+        ),
+    },
+    {
+        # P0 #2 + P0 #5 — portfolio Sum-of-Parts FV card, holdings
+        # mini-sparklines (price vs FV), and a placeholder return
+        # decomposition strip. Backend additions are READ-ONLY against
+        # existing analysis_cache + fv_history tables — no engine
+        # change, no cached payload shape change. Manifest entry purely
+        # satisfies the backend/services-touched cache-bump gate.
+        "version_id": "v_portfolio_sop_sparklines_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 14, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [
+                "portfolio_sum_of_parts",
+                "holdings_sparkline",
+                "portfolio_returns_decomposition",
+            ],
+        },
+        "rationale": (
+            "Portfolio sum-of-parts fair value card, holdings "
+            "mini-sparklines (price vs FV), and 5-card return "
+            "decomposition strip."
+        ),
+    },
 ]
 
 

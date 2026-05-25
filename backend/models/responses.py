@@ -615,6 +615,15 @@ class AnalysisResponse(BaseModel):
     # surfaces that don't unwrap valuation (e.g. the AnalysisHero
     # FreshnessStamp) can read freshness without coupling.
     as_of: Optional[str] = None
+    # ── Bulls Say / Bears Say (P0 #4, 2026-05-25) ──────────────
+    # Up to 3 short factual bullets each, surfaced by
+    # backend.services.analysis.bulls_bears_generator. Pure
+    # rule + template output (no LLM cost), SEBI-safe by construction
+    # (verified in test_bulls_bears_generator). Purely additive — None
+    # on legacy cached payloads; frontend renders the "Insufficient
+    # data" empty state when either list is missing/empty.
+    bulls_say: Optional[List[str]] = None
+    bears_say: Optional[List[str]] = None
 
 
 # ── Screener response ─────────────────────────────────────────
