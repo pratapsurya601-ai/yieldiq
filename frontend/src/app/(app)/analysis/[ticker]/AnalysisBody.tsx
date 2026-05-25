@@ -31,6 +31,7 @@ import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
 import FairValueHistory from "@/components/analysis/FairValueHistory"
 import FinancialStatements from "@/components/analysis/FinancialStatements"
+import FinancialsKpiGrid from "@/components/analysis/FinancialsKpiGrid"
 import ConcallsPanel from "@/components/analysis/ConcallsPanel"
 import ConcallSignalsPanel from "@/components/concall/ConcallSignalsPanel"
 import PeerComparison from "@/components/analysis/PeerComparison"
@@ -1017,6 +1018,11 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         <EmptyFinancials onRefresh={() => financialsQuery.refetch()} />
       ) : (
         <div className="space-y-5">
+          <FinancialsKpiGrid
+            ticker={ticker}
+            annual={financialsQuery.data}
+            currency={company.currency}
+          />
           <FinancialStatements ticker={ticker} currency={company.currency} />
           <div className="bg-bg rounded-2xl border border-border p-5">
             <h2 className="text-sm font-semibold text-ink mb-3">Financial Overview</h2>
