@@ -24,7 +24,7 @@ function axes(over: Partial<PrismAxes>): PrismAxes {
 }
 
 describe("generatePrismNarrative", () => {
-  it("rule 1 — quality>=7 AND value>=7 → proven value play frame", () => {
+  it("rule 1 — quality>=7 AND value>=7 → both-above-7 frame", () => {
     expect(generatePrismNarrative(axes({ quality: 8, value: 7.5 }))).toBe(
       "Quality and value pillars both score above 7.",
     )
@@ -36,7 +36,7 @@ describe("generatePrismNarrative", () => {
     )
   })
 
-  it("rule 3 — growth>=7 AND value<=4 → growth-at-premium frame", () => {
+  it("rule 3 — growth>=7 AND value<=4 → growth-vs-value-split frame", () => {
     expect(generatePrismNarrative(axes({ growth: 8, value: 3 }))).toBe(
       "Growth scores above 7 while value sits at or below 4.",
     )
@@ -48,19 +48,19 @@ describe("generatePrismNarrative", () => {
     )
   })
 
-  it("rule 5 — quality>=7 AND value<=4 → quality at full value frame", () => {
+  it("rule 5 — quality>=7 AND value<=4 → quality-vs-value-split frame", () => {
     expect(generatePrismNarrative(axes({ quality: 8, value: 3 }))).toBe(
       "Quality scores above 7 while value sits at or below 4.",
     )
   })
 
-  it("rule 6 — value>=7 AND quality<=4 → cheap-for-a-reason frame", () => {
+  it("rule 6 — value>=7 AND quality<=4 → value-vs-quality-split frame", () => {
     expect(generatePrismNarrative(axes({ value: 8, quality: 3 }))).toBe(
       "Value scores above 7 while quality sits at or below 4.",
     )
   })
 
-  it("rule 7 — safety<=4 AND growth>=6 → speculative growth frame", () => {
+  it("rule 7 — safety<=4 AND growth>=6 → growth-vs-safety-split frame", () => {
     expect(generatePrismNarrative(axes({ safety: 3, growth: 7 }))).toBe(
       "Growth is above 6 while safety sits at or below 4.",
     )
@@ -72,7 +72,7 @@ describe("generatePrismNarrative", () => {
     )
   })
 
-  it("rule 9 — growth<=3 AND value>=6 → patience-required frame", () => {
+  it("rule 9 — growth<=3 AND value>=6 → value-vs-growth-split frame", () => {
     expect(generatePrismNarrative(axes({ growth: 2, value: 7 }))).toBe(
       "Value is above 6 while growth sits at or below 3.",
     )

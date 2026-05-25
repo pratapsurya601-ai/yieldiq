@@ -530,23 +530,23 @@ export default function EditorialHero({
 
           {/* Counter chips below the caption — derived from the SAME
               red_flags_structured array EditorialHero already consumes
-              (severity==="info" → strength, otherwise → red flag), so
-              these counts can't drift from the Red Flag Insights panel.
+              (severity==="info" → positive signal, otherwise → red flag),
+              so these counts can't drift from the Red Flag Insights panel.
               Hidden when zero to keep the hero quiet on clean shapes. */}
           {(() => {
             const flags = redFlags ?? []
             const redFlagsCount = flags.filter(
               (f) => f && (f as { severity?: string }).severity !== "info",
             ).length
-            const strengthsCount = flags.filter(
+            const positivesCount = flags.filter(
               (f) => f && (f as { severity?: string }).severity === "info",
             ).length
-            if (redFlagsCount === 0 && strengthsCount === 0) return null
+            if (redFlagsCount === 0 && positivesCount === 0) return null
             return (
               <div
                 data-testid="prism-counter-chips"
                 className="mt-2 flex items-center justify-center gap-2"
-                aria-label="Risk and strength counts"
+                aria-label="Risk and positive-signal counts"
               >
                 {redFlagsCount > 0 && (
                   <span
@@ -558,14 +558,14 @@ export default function EditorialHero({
                     {redFlagsCount}
                   </span>
                 )}
-                {strengthsCount > 0 && (
+                {positivesCount > 0 && (
                   <span
-                    data-testid="prism-strength-chip"
+                    data-testid="prism-positive-chip"
                     className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200"
-                    title={`${strengthsCount} positive signal${strengthsCount === 1 ? "" : "s"}`}
+                    title={`${positivesCount} positive signal${positivesCount === 1 ? "" : "s"}`}
                   >
                     <span aria-hidden>★</span>
-                    {strengthsCount}
+                    {positivesCount}
                   </span>
                 )}
               </div>

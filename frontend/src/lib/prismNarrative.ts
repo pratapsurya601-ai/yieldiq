@@ -5,13 +5,12 @@
 // user what to think about the shape they're seeing.
 //
 // SEBI-safe by construction: copy is purely factual and describes the
-// numeric pillar configuration. No banned words from
-// backend/services/analysis/sebi_filter.py (no "strong", "weak",
-// "cheap", "expensive", "buy", "sell", "should", "appears", "concern",
-// "strength", "weakness", "attractive", "poor", "outperform", etc).
-// Frames are limited to numeric descriptions ("Quality and value
-// pillars both score above 7", "Safety pillar is below 4"), which
-// stays inside SEBI IA's factual-description carve-out.
+// numeric pillar configuration. The banned-vocabulary list lives in
+// backend/services/analysis/sebi_filter.py — no token from that list
+// appears in any output string produced by this module. Frames are
+// limited to numeric descriptions ("Quality and value pillars both
+// score above 7", "Safety pillar is at or below 3"), which stays
+// inside SEBI IA's factual-description carve-out.
 //
 // Pure function — no React, no fetch, deterministic, trivially testable.
 // ═══════════════════════════════════════════════════════════════════
