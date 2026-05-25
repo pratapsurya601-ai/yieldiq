@@ -2690,6 +2690,176 @@ async def recompute_sensitivity(
         raise HTTPException(status_code=500, detail="DCF recompute failed")
 
 
+# ── Reverse-DCF Playground (Week-2 manifesto: killer interactive) ──
+# Five-slider DCF: WACC / Terminal Growth / Revenue CAGR (yrs 1-5) /
+# Operating Margin / Tax Rate. Free tier unlocks only WACC; paid tier
+# unlocks all five. The frontend renders a soft paywall (blur + CTA)
+# on the locked sliders rather than blocking the whole page, so the
+# 403 here only fires when a paid override is actually attempted —
+# the base case (WACC-only, others at base) is reachable by anon /
+# free callers via the same endpoint with default values for the
+# locked inputs.
+class DCFRecomputeRequest(BaseModel):
+    wacc: float = Field(..., ge=0.06, le=0.15, description="Discount rate (6%-15%)")
+    terminal_growth: float = Field(..., ge=0.0, le=0.07, description="Perpetuity growth (0%-7%)")
+    revenue_cagr_yr1_5: float = Field(..., ge=-0.05, le=0.30, description="Revenue/FCF CAGR years 1-5 (-5% .. 30%)")
+    operating_margin: float = Field(..., ge=0.0, le=0.50, description="Operating margin (0%-50%)")
+    tax_rate: float = Field(default=0.25, ge=0.0, le=0.50, description="Tax rate (0%-50%)")
+
+
+class DCFReverseEngineerRequest(BaseModel):
+    market_price: float = Field(..., gt=0.0, description="Current market price to reverse-engineer")
+    wacc: float = Field(..., ge=0.06, le=0.15)
+    terminal_growth: float = Field(..., ge=0.0, le=0.07)
+    revenue_cagr_yr1_5: float = Field(..., ge=-0.05, le=0.30)
+    operating_margin: float = Field(..., ge=0.0, le=0.50)
+    tax_rate: float = Field(default=0.25, ge=0.0, le=0.50)
+
+
+def _is_paid_tier(user: dict | None) -> bool:
+    if not user:
+        return False
+    tier = (user.get("tier") or "free").lower()
+    return tier in ("pro", "starter", "analyst")
+
+
+@router.post("/analysis/{ticker}/dcf-recompute")
+async def dcf_playground_recompute(
+    ticker: str,
+    body: DCFRecomputeRequest,
+    user: Optional[dict] = Depends(get_current_user_optional),
+):
+    """Reverse-DCF playground recompute. Five-input live DCF with
+    bear / base / bull fan-out band.
+
+    Tier policy: free tier is allowed to call with all 5 inputs (the
+    UI gates the locked sliders client-side and the soft paywall is
+    a UX nudge, not a security boundary). If we ever need to enforce
+    paid-only inputs server-side we can compare the body to the cached
+    base inputs and 403 on a delta in a locked field — for now we
+    keep the endpoint open so the manifesto's "free tier wide" rule
+    (rule 7) is honoured at the API layer too.
+    """
+    ticker = ticker.upper().strip()
+    if not ticker.endswith(".NS") and not ticker.endswith(".BO"):
+        ticker = f"{ticker}.NS"
+    ticker = TICKER_ALIASES.get(ticker, ticker)
+
+    # Cache key includes every slider so identical positions reuse
+    # the prior compute. 5-minute TTL — short enough to stay close to
+    # the canonical pipeline, long enough to amortise debounced
+    # slider drags by the same user in one session.
+    _key = (
+        f"dcf_playground:{ticker}:"
+        f"{body.wacc:.4f}:{body.terminal_growth:.4f}:"
+        f"{body.revenue_cagr_yr1_5:.4f}:{body.operating_margin:.4f}:"
+        f"{body.tax_rate:.4f}"
+    )
+    cached = cache.get(_key)
+    if cached:
+        return cached
+
+    try:
+        from backend.services.analysis.dcf_playground import run_playground_with_band
+        import asyncio as _asyncio
+        from datetime import datetime, timezone
+        result = await _asyncio.to_thread(
+            run_playground_with_band,
+            ticker=ticker,
+            wacc=body.wacc,
+            terminal_growth=body.terminal_growth,
+            revenue_cagr_yr1_5=body.revenue_cagr_yr1_5,
+            operating_margin=body.operating_margin,
+            tax_rate=body.tax_rate,
+        )
+        if result.get("error"):
+            raise HTTPException(status_code=400, detail=result["error"])
+
+        # Surface a `base_fv` field (the canonical cached FV) so the
+        # frontend can show a "your slider position vs analyst base"
+        # delta. Best-effort lookup from analysis_cache; the playground
+        # FV still ships even if this fails.
+        base_fv = None
+        try:
+            cached_analysis = analysis_cache_service.get_cached(ticker, fields_needed=["fair_value"])
+            if isinstance(cached_analysis, dict):
+                val = cached_analysis.get("valuation")
+                if isinstance(val, dict):
+                    base_fv = val.get("fair_value")
+        except Exception:
+            base_fv = None
+        result["base_fv"] = float(base_fv) if base_fv else None
+        result["as_of"] = datetime.now(timezone.utc).isoformat()
+        result["ticker"] = ticker
+
+        cache.set(_key, result, ttl=300)
+        return result
+    except TickerNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.getLogger("yieldiq.dcf_playground").error(
+            f"DCF playground failed for {ticker}: {e}", exc_info=True
+        )
+        raise HTTPException(status_code=500, detail="DCF playground compute failed")
+
+
+@router.post("/analysis/{ticker}/dcf-reverse-engineer")
+async def dcf_reverse_engineer(
+    ticker: str,
+    body: DCFReverseEngineerRequest,
+    user: Optional[dict] = Depends(get_current_user_optional),
+):
+    """Solve for the implied WACC / TG / Revenue CAGR (independently)
+    that justify the supplied market_price, holding the other inputs
+    at the supplied base. Capped at 50 bisection iterations per axis."""
+    ticker = ticker.upper().strip()
+    if not ticker.endswith(".NS") and not ticker.endswith(".BO"):
+        ticker = f"{ticker}.NS"
+    ticker = TICKER_ALIASES.get(ticker, ticker)
+
+    _key = (
+        f"dcf_reverse:{ticker}:{body.market_price:.2f}:"
+        f"{body.wacc:.4f}:{body.terminal_growth:.4f}:"
+        f"{body.revenue_cagr_yr1_5:.4f}:{body.operating_margin:.4f}:"
+        f"{body.tax_rate:.4f}"
+    )
+    cached = cache.get(_key)
+    if cached:
+        return cached
+
+    try:
+        from backend.services.analysis.dcf_playground import reverse_engineer_inputs
+        import asyncio as _asyncio
+        from datetime import datetime, timezone
+        result = await _asyncio.to_thread(
+            reverse_engineer_inputs,
+            ticker=ticker,
+            market_price=body.market_price,
+            base_wacc=body.wacc,
+            base_terminal_growth=body.terminal_growth,
+            base_revenue_cagr=body.revenue_cagr_yr1_5,
+            base_operating_margin=body.operating_margin,
+            base_tax_rate=body.tax_rate,
+        )
+        if result.get("error"):
+            raise HTTPException(status_code=400, detail=result["error"])
+        result["as_of"] = datetime.now(timezone.utc).isoformat()
+        result["ticker"] = ticker
+        cache.set(_key, result, ttl=300)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        import logging
+        logging.getLogger("yieldiq.dcf_playground").error(
+            f"Reverse-engineer failed for {ticker}: {e}", exc_info=True
+        )
+        raise HTTPException(status_code=500, detail="Reverse-engineer compute failed")
+
+
 # ── Sensitivity tornado ─────────────────────────────────────────
 # Per-stock ranking of which model input moves FV the most. Re-runs
 # the DCF 7-10× with each input perturbed ±X (200bps for rates,
