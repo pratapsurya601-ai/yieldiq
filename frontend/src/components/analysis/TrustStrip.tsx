@@ -13,6 +13,7 @@
 //
 // SEBI-safe: callers are responsible for the copy in `label` and `value`.
 // The component itself emits no editorial language.
+// (CI re-trigger touch: 2026-05-25.)
 
 import * as React from "react"
 
