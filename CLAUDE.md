@@ -31,3 +31,23 @@ Three rules. No exceptions.
 These rules exist because we shipped 6 "fixes" between v32 and v35
 that left 4/5 stocks in a worse state. The canary-diff harness exists
 to make this kind of regression impossible to merge.
+
+## Known-flaky CI signals — admin-merge allowed (2026-05-25)
+
+The following checks are known to flake on PRs that do NOT touch their
+respective surfaces. When a PR is otherwise green and only one of these
+is red, an admin-merge is permitted:
+
+- **canary.yml** (and `canary_diff` / `canary_sweep_weekly`) — Aiven
+  Postgres rate-limits during peak nightly compute and flakes on PRs
+  that don't touch `backend/services/` engine code.
+- **sector-isolation** — Vercel cold-start on `/sector/[slug]` causes
+  intermittent 504s; not reproducible locally.
+- **dcf-regression** — known to hit a non-deterministic ordering bug
+  when two test cases compute the same FV; tracked separately.
+- **Vercel /sector pre-render** — Satori HTML overlay rebuild is
+  retried up to 3x; first attempt flakes ~10% of the time.
+
+Admin-merge requires: (a) green check elsewhere, (b) the failing
+signal listed above, (c) a comment on the PR identifying which flake
+fired so we keep a paper trail.

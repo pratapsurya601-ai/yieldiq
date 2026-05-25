@@ -1,0 +1,67 @@
+name: Cron — Build portfolio_updates_feed (nightly 03:00 IST)
+
+# Nightly aggregator for the per-holding Portfolio > Updates tab. Scans
+# corporate_actions / insider_trading / financials_history / cache
+# invalidation manifest for events in the last 30 days and emits
+# template-driven (no LLM) headlines into the portfolio_updates_feed
+# table.
+#
+# Schedule: 21:30 UTC = 03:00 IST daily.
+#
+# Per project discipline (memory/feedback_yieldiq_discipline.md):
+#   - this job runs ONLY in GH Actions; never in the Railway worker.
+#   - no CACHE_VERSION bump — additive feature, read path is its own
+#     endpoint that doesn't go through analysis_cache.
+
+on:
+  schedule:
+    - cron: "30 21 * * *"
+  workflow_dispatch:
+    inputs:
+      lookback_days:
+        description: "Days of history to scan for new events"
+        required: false
+        default: "30"
+      dry_run:
+        description: "If 'true', only log generated headlines — no DB writes"
+        required: false
+        default: "false"
+
+concurrency:
+  group: cron-updates-feed
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install minimal deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install "SQLAlchemy>=2.0" "psycopg2-binary"
+
+      - name: Build feed
+        run: |
+          ARGS="--lookback-days ${{ github.event.inputs.lookback_days || '30' }}"
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          python scripts/build_updates_feed.py $ARGS
+
+      - name: Write cron heartbeat
+        if: success()
+        run: |
+          python scripts/write_cron_heartbeat.py \
+            --workflow cron-updates-feed \
+            --interval-minutes 1440
