@@ -1165,6 +1165,22 @@ MANIFEST: list[dict] = [
             "chips on the Financials tab."
         ),
     },
+    {
+        # Phase-2 financials visualisations: Revenue Sankey + Earnings
+        # Waterfall on the Financials tab. The Sankey reads the existing
+        # /analysis/{ticker}/financials payload and derives missing
+        # sub-line items (sg_a, r_d, cost_of_revenue) by subtraction.
+        # The serializer now also surfaces interest_expense (already in
+        # the DB) so the Op-Income → Interest leg renders; this is a
+        # purely additive field — no engine math touched, no FV change.
+        "version_id": "v_sankey_waterfall_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 18, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["sankey", "waterfall"]},
+        "rationale": (
+            "Revenue Sankey + Earnings Waterfall visualisations on the "
+            "Financials tab — flow-of-money pre-attentive."
+        ),
+    },
 ]
 
 
