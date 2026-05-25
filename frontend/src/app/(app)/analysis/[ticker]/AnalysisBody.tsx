@@ -32,6 +32,9 @@ import FinancialBars from "@/components/analysis/FinancialBars"
 import FairValueHistory from "@/components/analysis/FairValueHistory"
 import FinancialStatements from "@/components/analysis/FinancialStatements"
 import FinancialsKpiGrid from "@/components/analysis/FinancialsKpiGrid"
+import RevenueSankey from "@/components/analysis/RevenueSankey"
+import EarningsWaterfall from "@/components/analysis/EarningsWaterfall"
+import { ChartDrawIn, RevealOnScroll } from "@/components/anim"
 import ConcallsPanel from "@/components/analysis/ConcallsPanel"
 import ConcallSignalsPanel from "@/components/concall/ConcallSignalsPanel"
 import PeerComparison from "@/components/analysis/PeerComparison"
@@ -1024,12 +1027,67 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         <EmptyFinancials onRefresh={() => financialsQuery.refetch()} />
       ) : (
         <div className="space-y-5">
-          <FinancialsKpiGrid
-            ticker={ticker}
-            annual={financialsQuery.data}
-            currency={company.currency}
-          />
-          <FinancialStatements ticker={ticker} currency={company.currency} />
+          {/* Section 1 — Financials tab numbered headers
+              (manifesto rule: numbered sections established on
+              Summary tab; propagated here Phase-2). */}
+          <section aria-labelledby="fin-section-kpi">
+            <NumberedSectionHeader
+              number={1}
+              title="KPI OVERVIEW"
+              caption="Headline revenue, profit and cash-flow metrics with growth context."
+            />
+            <FinancialsKpiGrid
+              ticker={ticker}
+              annual={financialsQuery.data}
+              currency={company.currency}
+            />
+          </section>
+
+          {/* Section 2 — Revenue Sankey (feat/sankey-waterfall-phase2). */}
+          <RevealOnScroll>
+            <section aria-labelledby="fin-section-sankey">
+              <NumberedSectionHeader
+                number={2}
+                title="WHERE DOES THE MONEY GO?"
+                caption="A flow view of every rupee of revenue — split between costs, taxes and profit."
+              />
+              <ChartDrawIn cssReveal>
+                <RevenueSankey
+                  ticker={ticker}
+                  annual={financialsQuery.data}
+                  currency={company.currency}
+                />
+              </ChartDrawIn>
+            </section>
+          </RevealOnScroll>
+
+          {/* Section 3 — Earnings Waterfall. */}
+          <RevealOnScroll>
+            <section aria-labelledby="fin-section-waterfall">
+              <NumberedSectionHeader
+                number={3}
+                title="EARNINGS WATERFALL"
+                caption="Step-by-step walk from revenue to net income, with the size of each subtraction visible."
+              />
+              <ChartDrawIn>
+                <EarningsWaterfall
+                  ticker={ticker}
+                  annual={financialsQuery.data}
+                  currency={company.currency}
+                />
+              </ChartDrawIn>
+            </section>
+          </RevealOnScroll>
+
+          {/* Section 4 — detailed statements. */}
+          <section aria-labelledby="fin-section-statements">
+            <NumberedSectionHeader
+              number={4}
+              title="DETAILED STATEMENTS"
+              caption="Income statement, balance sheet and cash flow as reported."
+            />
+            <FinancialStatements ticker={ticker} currency={company.currency} />
+          </section>
           <div className="bg-bg rounded-2xl border border-border p-5">
             <h2 className="text-sm font-semibold text-ink mb-3">Financial Overview</h2>
             <FinancialBars
