@@ -71,7 +71,7 @@ interface EarningsWaterfallProps {
 
 // ────────────────────────────────────────────────────────────────────
 // Period collapse (mirrors RevenueSankey.pickPeriod, intentionally
-// duplicated — both surfaces should keep their own copy so a future
+// duplicated — both surfaces keep their own copy so a future
 // refactor of one doesn't silently change the other).
 // ────────────────────────────────────────────────────────────────────
 function pickPeriod(
