@@ -29,10 +29,11 @@ import type { NextRequest } from "next/server"
  * the three scenarios are layered as absolutely-positioned HTML divs
  * (same trick the analysis/Prism-hex route uses).
  *
- * SEBI vocabulary: no should / appears / strong / weak / cheap / poor /
- * buy / sell / hold / recommend / target. The verdict reads "below
- * fair value" / "near fair value" / "above fair value" — the same
- * neutral phrasing the horizontal Open-Graph route already uses.
+ * SEBI vocabulary: the visible card text avoids every banned verb and
+ * adjective in scripts/check_sebi_words.py (the imperative/affective
+ * list). The verdict reads "below fair value" / "near fair value" /
+ * "above fair value" — the same neutral phrasing the horizontal
+ * Open-Graph route already uses.
  */
 
 export const runtime = "edge"
