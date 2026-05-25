@@ -76,6 +76,16 @@ class ValuationOutput(BaseModel):
     fair_value: float
     current_price: float
     margin_of_safety: float
+    # ── Live quote freshness (feat/as-of-plumbing, 2026-05-24, Task #197) ──
+    # Mirrors the ``live_quotes.as_of`` column from the row that produced
+    # ``current_price`` when the canonical cascade resolved from live_quotes
+    # (refreshed ~5m by the bhavcopy cron). Lets the frontend
+    # FreshnessStamp render the actual quote age (~5-15m → green "Live")
+    # instead of the analysis-recompute age (often hours → red "Stale").
+    # None when the price came from daily_prices / yfinance / a legacy
+    # cached payload — callers fall back to ``current_price_as_of`` or
+    # the "Updated recently" string.
+    as_of: Optional[str] = None
     # ── Buffett MoS (Step B, 2026-05-17) ──────────────────────
     # True Buffett margin of safety = (FV - Price) / FV * 100.
     # Distinct from `margin_of_safety` above which uses Price as
@@ -600,6 +610,11 @@ class AnalysisResponse(BaseModel):
     # NOTE: name avoids leading underscore — Pydantic v2 treats `_foo`
     # as a PrivateAttr which is excluded from serialisation.
     timings_ms: Optional[dict[str, int]] = None
+    # ── Live quote freshness (feat/as-of-plumbing, Task #197) ──
+    # Top-level convenience mirror of ``valuation.as_of`` so frontend
+    # surfaces that don't unwrap valuation (e.g. the AnalysisHero
+    # FreshnessStamp) can read freshness without coupling.
+    as_of: Optional[str] = None
 
 
 # ── Screener response ─────────────────────────────────────────
@@ -617,6 +632,10 @@ class ScreenerStock(BaseModel):
     moat: str = ""
     confidence: str = ""
     sector: str = ""
+    # Live quote freshness (Task #197) — populated from live_quotes.as_of
+    # via get_live_quotes_bulk() in the screener service. None for any
+    # row missing from live_quotes (frontend falls back gracefully).
+    as_of: Optional[str] = None
 
 
 class ScreenerResponse(BaseModel):
@@ -656,6 +675,8 @@ class HoldingResponse(BaseModel):
     saved_at: str = ""
     account_label: str = "default"
     quantity: float = 0
+    # Live quote freshness (Task #197) — see ScreenerStock.as_of.
+    as_of: Optional[str] = None
 
 
 class WatchlistItemResponse(BaseModel):
@@ -674,6 +695,8 @@ class WatchlistItemResponse(BaseModel):
     mos_pct: Optional[float] = None
     buffett_mos_pct: Optional[float] = None
     verdict: Optional[str] = None
+    # Live quote freshness (Task #197) — see ScreenerStock.as_of.
+    as_of: Optional[str] = None
 
 
 # ── Market data response ──────────────────────────────────────
@@ -711,6 +734,10 @@ class SectorOverviewItem(BaseModel):
     avg_score: float = 0
     pct_undervalued: float = 0
     trend: str = ""
+    # Live quote freshness (Task #197) — the max(live_quotes.as_of)
+    # across the sector's constituents, surfaced so the sector overview
+    # chip can render the right freshness tier alongside score/MoS.
+    as_of: Optional[str] = None
 
 
 # ── Alert response ────────────────────────────────────────────

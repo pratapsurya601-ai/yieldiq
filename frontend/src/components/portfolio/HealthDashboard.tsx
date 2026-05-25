@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import type { LiveHolding } from "@/lib/api"
+import FreshnessStamp from "@/components/common/FreshnessStamp"
 
 // Small compositions rendered ABOVE the Holdings/Watchlist/Alerts tabs
 // on the portfolio page. None of these fetch their own data — the parent
@@ -47,6 +48,17 @@ export function BelowFairValueBanner({ holdings }: BelowFairValueBannerProps) {
 
   const first = below[0]
   const count = below.length
+  // Task #197 (feat/as-of-plumbing): the freshest live_quotes.as_of
+  // across the "below FV" holdings, so the banner can chip its
+  // freshness with the correct color tier. Falls back to null (which
+  // makes <FreshnessStamp/> render the neutral fallback) when none of
+  // the holdings carry an as_of.
+  const freshest = below.reduce<string | null>((max, h) => {
+    const v = h.as_of ?? null
+    if (!v) return max
+    if (!max) return v
+    return v > max ? v : max
+  }, null)
   return (
     <Link
       href={`/analysis/${first.ticker}`}
@@ -63,6 +75,12 @@ export function BelowFairValueBanner({ holdings }: BelowFairValueBannerProps) {
           <p className="text-[11px] text-amber-700 dark:text-amber-300 truncate">
             Starting with {first.display_ticker || first.ticker.replace(".NS", "")} &middot; Model estimate
           </p>
+          <FreshnessStamp
+            asOf={freshest}
+            tiered={!!freshest}
+            fallback="Updated recently"
+            className="mt-0.5"
+          />
         </div>
       </div>
       <span className="text-xs font-semibold text-amber-700 shrink-0">Review &rarr;</span>

@@ -102,18 +102,18 @@ export default function MoversRail() {
           when the backend surfaces it; null → stamp collapses. */}
       {cards.length > 0 && (
         <div className="px-4 -mt-1 mb-1">
+          {/* Task #197 (feat/as-of-plumbing): now reads the actual
+              live_quotes.as_of plumbed through the holdings response,
+              so the rail-level chip color-tiers correctly (green <30m,
+              yellow 30m-4h, red >4h). Legacy payloads without as_of
+              fall back to "Updated recently". */}
           <FreshnessStamp
-            timestamp={(holdingsData as { as_of?: string | null } | undefined)?.as_of ?? null}
-            prefix="Prices, delayed, as of"
+            asOf={(holdingsData as { as_of?: string | null } | undefined)?.as_of ?? null}
+            tiered
+            fallback="Updated recently"
           />
         </div>
       )}
-      {/* TODO(PR-B, SEBI-compliance): render <PriceTimestamp
-           as_of={holdingsData?.as_of ?? null} /> once on the rail
-           header row (the cards share one snapshot, so a single
-           header-level timestamp is enough). Blocked on
-           /api/v1/holdings/live surfacing `as_of`; the underlying
-           market_data_service row already has it. */}
       {cards.length === 0 ? (
         <div className="px-4">
           <div className="rounded-xl border border-dashed border-border bg-surface p-4 text-sm text-body">

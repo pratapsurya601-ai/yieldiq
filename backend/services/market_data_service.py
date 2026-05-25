@@ -410,6 +410,74 @@ def get_canonical_price(
     return None
 
 
+def get_canonical_price_with_meta(
+    ticker: str,
+    yf_fallback: float | None = None,
+) -> tuple[float | None, str | None]:
+    """Like :func:`get_canonical_price` but also returns the live_quotes
+    ``as_of`` ISO-8601 string when the cascade resolved from live_quotes.
+
+    Added 2026-05-24 (Task #197 — feat/as-of-plumbing). Lets the analysis
+    pipeline surface the actual quote age (~5-15m) to the FreshnessStamp
+    instead of the analysis-recompute time (often hours).
+
+    Returns ``(price, as_of_iso_or_None)``. ``as_of`` is None when:
+      * The price was resolved from daily_prices / yfinance (not live_quotes).
+      * No DB session / no row.
+      * Any exception in the lookup.
+
+    The price-resolution semantics here intentionally mirror the simpler
+    helper above (live_quotes → fallback chain) — we just keep hold of
+    the timestamp on the live_quotes rung. Callers that don't need the
+    timestamp should keep using :func:`get_canonical_price`.
+    """
+    if not ticker:
+        return (yf_fallback if (yf_fallback or 0) > 0 else None, None)
+
+    bare = ticker.replace(".NS", "").replace(".BO", "")
+    canonical = ticker if ticker.endswith((".NS", ".BO")) else f"{bare}.NS"
+    candidates = [canonical, bare] if canonical != bare else [canonical]
+
+    sess = _get_session()
+    if sess is not None:
+        try:
+            for cand in candidates:
+                try:
+                    row = sess.execute(
+                        text(
+                            "SELECT price, as_of FROM live_quotes "
+                            "WHERE ticker = :t "
+                            "AND price IS NOT NULL AND price > 0 "
+                            "ORDER BY as_of DESC LIMIT 1"
+                        ),
+                        {"t": cand},
+                    ).fetchone()
+                except Exception:
+                    row = None
+                if row and row[0] is not None:
+                    try:
+                        as_of_iso: str | None = None
+                        try:
+                            as_of_iso = (
+                                row[1].isoformat() if row[1] is not None else None
+                            )
+                        except Exception:
+                            as_of_iso = None
+                        return (float(row[0]), as_of_iso)
+                    except Exception:
+                        pass
+        finally:
+            try:
+                sess.close()
+            except Exception:
+                pass
+
+    # No live_quotes hit — defer to the full canonical cascade for the
+    # price (covers daily_prices and yfinance), but the timestamp is None
+    # because those sources aren't live-quote sourced.
+    return (get_canonical_price(ticker, yf_fallback=yf_fallback), None)
+
+
 def get_live_quotes_bulk(tickers: Iterable[str]) -> dict[str, dict]:
     """One-shot bulk read for portfolio pages. Missing tickers are
     simply absent from the returned mapping."""

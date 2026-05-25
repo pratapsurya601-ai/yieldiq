@@ -796,9 +796,20 @@ class AnalysisService(NarrativeMixin):
         # the same windows had ₹1,188 / ₹819. Single source of truth
         # for the `price` snapshot used by both the response
         # `current_price` AND the MoS denominator below.
+        # Task #197 (2026-05-24, feat/as-of-plumbing): also surface the
+        # live_quotes.as_of timestamp so the freshness chip reads actual
+        # quote age (5-15m) instead of analysis-recompute age (5h). The
+        # `_live_quote_as_of` local is consumed by the ValuationOutput
+        # build site further down (see `as_of=` field). None when the
+        # cascade resolved from daily_prices / yfinance instead.
+        _live_quote_as_of: str | None = None
         try:
-            from backend.services.market_data_service import get_canonical_price
-            _canonical_px = get_canonical_price(ticker, yf_fallback=price)
+            from backend.services.market_data_service import (
+                get_canonical_price_with_meta,
+            )
+            _canonical_px, _live_quote_as_of = get_canonical_price_with_meta(
+                ticker, yf_fallback=price
+            )
             if _canonical_px is not None and _canonical_px > 0:
                 if abs((_canonical_px or 0) - (price or 0)) > 0.01:
                     import logging as _px_log
@@ -5104,6 +5115,10 @@ class AnalysisService(NarrativeMixin):
             ticker=ticker,
             company=company,
             timings_ms=_timings_steps if _timings_steps else None,
+            # Task #197: top-level mirror of valuation.as_of so frontend
+            # surfaces that don't unwrap `valuation` (AnalysisHero) can
+            # read freshness directly.
+            as_of=_live_quote_as_of,
             valuation=ValuationOutput(
                 fair_value=round(iv, 2),
                 current_price=round(price, 2),
@@ -5201,6 +5216,13 @@ class AnalysisService(NarrativeMixin):
                 # Parquet). Both are delayed — frontend renders as
                 # "Delayed", never "Live". See FreshnessStamp.tsx.
                 current_price_as_of=_ts,
+                # Task #197 (feat/as-of-plumbing): mirrors live_quotes.as_of
+                # for the row that supplied current_price (None when the
+                # cascade fell through to daily_prices / yfinance). The
+                # frontend FreshnessStamp uses this to pick the right
+                # color tier — recent (<30m) = green, 30m-4h = yellow,
+                # >4h = red. Falls back to current_price_as_of when null.
+                as_of=_live_quote_as_of,
                 # feat/transparency (2026-05-02): per-number provenance.
                 # Additive only — does NOT influence FV/MoS/scoring math.
                 # Surfaced in hero tooltips + freshness widget.

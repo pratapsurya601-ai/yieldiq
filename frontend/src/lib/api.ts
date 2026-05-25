@@ -475,6 +475,15 @@ export interface LiveHolding {
   score: number | null
   saved_at: string
   notes: string
+  /**
+   * Task #197 (feat/as-of-plumbing, 2026-05-24) — actual
+   * live_quotes.as_of for the row that produced current_price. Lets
+   * the per-holding freshness chip read genuine quote age (5-15m)
+   * instead of the recompute time. Null when the canonical cascade
+   * fell through to daily_prices / yfinance (frontend falls back to
+   * a neutral "Updated recently" message).
+   */
+  as_of?: string | null
 }
 
 export interface SampleHolding {
@@ -507,6 +516,13 @@ export interface HoldingsLiveResponse {
     losers: number
     count: number
   }
+  /**
+   * Task #197 (feat/as-of-plumbing) — batch-level freshness: the
+   * freshest live_quotes.as_of across all holdings in this response.
+   * Used by MoversRail to render one tiered FreshnessStamp for the
+   * whole rail. Null when none of the holdings had a live_quotes row.
+   */
+  as_of?: string | null
   /** Day-97: present only on first-session signups with zero real holdings. */
   sample_portfolio?: SamplePortfolio
 }

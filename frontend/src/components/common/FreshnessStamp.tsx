@@ -47,6 +47,60 @@ export interface FreshnessStampProps {
   showTooltip?: boolean
   /** Extra classes for positioning/layout. */
   className?: string
+  /**
+   * Task #197 (feat/as-of-plumbing) — when true, derives a color tier
+   * from the timestamp age and uses tier-specific prefixes. Maintains
+   * SEBI honesty: "Live ~Xm ago" is only used when the source
+   * (live_quotes) is genuinely <30m old, which is the bhavcopy cron's
+   * refresh window. Tiers:
+   *   - age <30m → green "Live ~Xm ago"
+   *   - 30m–4h  → yellow "Delayed ~Xh ago"
+   *   - >4h     → red "Stale — Xh ago"
+   * `prefix` is ignored when `tiered` is true. `fallback` still applies
+   * when the timestamp is null/unparsable.
+   */
+  tiered?: boolean
+  /**
+   * Convenience alias for callers that pass the backend `as_of`
+   * field name directly. Equivalent to `timestamp` — last-write wins
+   * if both are set, with `timestamp` taking precedence (since it's
+   * the older, established prop). Optional.
+   */
+  asOf?: string | Date | null
+}
+
+interface TierResult {
+  prefix: string
+  phrase: string
+  colorCls: string
+}
+
+/**
+ * Pure helper exported for tests (FreshnessStamp.test.tsx asserts the
+ * boundaries at <30m green, 30m-4h yellow, >4h red).
+ */
+export function computeTier(ageMs: number): TierResult {
+  const m = Math.max(0, Math.floor(ageMs / 60000))
+  const h = Math.floor(ageMs / 3600000)
+  if (ageMs < 30 * 60 * 1000) {
+    return {
+      prefix: "Live",
+      phrase: `~${Math.max(1, m)}m ago`,
+      colorCls: "text-emerald-600 dark:text-emerald-400",
+    }
+  }
+  if (ageMs < 4 * 3600 * 1000) {
+    return {
+      prefix: "Delayed",
+      phrase: `~${Math.max(1, h)}h ago`,
+      colorCls: "text-amber-600 dark:text-amber-400",
+    }
+  }
+  return {
+    prefix: "Stale —",
+    phrase: `${Math.max(1, h)}h ago`,
+    colorCls: "text-rose-600 dark:text-rose-400",
+  }
 }
 
 function parse(input: string | Date | null | undefined): Date | null {
@@ -61,16 +115,31 @@ export default function FreshnessStamp({
   fallback,
   showTooltip = true,
   className,
+  tiered = false,
+  asOf,
 }: FreshnessStampProps) {
-  const d = parse(timestamp)
-  const cls = [
-    "text-[11px] leading-snug text-caption",
-    className,
-  ].filter(Boolean).join(" ")
+  const d = parse(timestamp ?? asOf)
+  const baseCls = "text-[11px] leading-snug"
+  const defaultCls = `${baseCls} text-caption`
 
   if (!d) {
     if (!fallback) return null
-    return <span className={cls}>{fallback}</span>
+    return (
+      <span className={[defaultCls, className].filter(Boolean).join(" ")}>
+        {fallback}
+      </span>
+    )
+  }
+
+  if (tiered) {
+    const diffMs = Math.max(0, Date.now() - d.getTime())
+    const tier = computeTier(diffMs)
+    const cls = [baseCls, tier.colorCls, className].filter(Boolean).join(" ")
+    return (
+      <span className={cls} title={showTooltip ? d.toISOString() : undefined}>
+        {`${tier.prefix} ${tier.phrase}`}
+      </span>
+    )
   }
 
   const now = Date.now()
@@ -85,7 +154,7 @@ export default function FreshnessStamp({
 
   return (
     <span
-      className={cls}
+      className={[defaultCls, className].filter(Boolean).join(" ")}
       title={showTooltip ? d.toISOString() : undefined}
     >
       {body}
