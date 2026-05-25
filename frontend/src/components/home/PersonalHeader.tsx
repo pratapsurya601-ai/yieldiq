@@ -58,7 +58,7 @@ export default function PersonalHeader({ email }: { email: string | null }) {
   const streakSuffix = ""
 
   return (
-    <div className="px-4 pt-6 pb-2">
+    <div className="pt-2">
       <h1 className="font-display text-2xl md:text-3xl font-bold text-ink leading-tight">
         {greeting}, {name}.{streakSuffix ? ` ${streakSuffix}` : ""}
       </h1>

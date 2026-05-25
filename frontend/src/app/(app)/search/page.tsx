@@ -1,6 +1,6 @@
 "use client"
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import Fuse from "fuse.js"
 import type { IFuseOptions } from "fuse.js"
@@ -160,9 +160,17 @@ export default function SearchPage() {
   const inputRef = useRef<HTMLInputElement>(null)
   const listboxId = "search-suggestions"
   const router = useRouter()
+  // Task #193 — accept a `?q=...` deep link from the home search bar so the
+  // user's typed query carries through to the dedicated search page instead
+  // of being silently dropped.
+  const searchParams = useSearchParams()
 
   useEffect(() => {
     setRecent(getRecentlyAnalysed())
+    const initialQ = searchParams?.get("q")?.trim()
+    if (initialQ) {
+      setQuery(initialQ)
+    }
     inputRef.current?.focus()
     // Kick off index load immediately so the first keystroke is instant.
     loadFuseIndex().then((fuse) => {
