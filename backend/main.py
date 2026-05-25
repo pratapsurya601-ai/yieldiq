@@ -974,6 +974,13 @@ app.include_router(strategies_router.router)
 from backend.routers import sectors as sectors_router
 app.include_router(sectors_router.router)
 
+# Phase 4 manifesto (Paradigm 11): per-user, per-ticker Memory Lane.
+#   POST /api/v1/me/ticker-visit/{ticker}     — upsert visit + snapshot
+#   GET  /api/v1/me/memory-lane/{ticker}      — personal history payload
+#   PUT  /api/v1/me/memory-lane/{ticker}/note — auto-save personal note
+from backend.routers import me as me_router
+app.include_router(me_router.router)
+
 # Public incident log — backs /status incidents table + recent-incident
 # banner. Additive transparency surface; no analysis-math touch.
 from backend.routers import incidents as incidents_router
