@@ -1212,6 +1212,16 @@ MANIFEST: list[dict] = [
             "'what assumptions justify today's price?' panel."
         ),
     },
+    {
+        "version_id": "v_honest_card_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 17, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["honest_card"]},
+        "rationale": (
+            "Radical-transparency card -- confident facts, best estimate, "
+            "uncertainty factors, and invalidating conditions auto-generated "
+            "per ticker."
+        ),
+    },
 ]
 
 

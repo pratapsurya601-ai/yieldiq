@@ -624,6 +624,27 @@ class AnalysisResponse(BaseModel):
     # data" empty state when either list is missing/empty.
     bulls_say: Optional[List[str]] = None
     bears_say: Optional[List[str]] = None
+    # ── The Honest Card (Phase 3 manifesto, 2026-05-25) ────────
+    # Radical-transparency panel: 2-4 confident facts, one-line
+    # best estimate, 2-3 uncertainty factors, and exactly 3
+    # invalidating conditions. Generated server-side by
+    # backend.services.analysis.honest_card_generator. Pure rules
+    # (no LLM), SEBI-safe by construction. Field-additive — None
+    # on legacy cached payloads; frontend hides the panel when
+    # absent.
+    honest_card: Optional["HonestCardOutput"] = None
+
+
+# ── The Honest Card response model ────────────────────────────
+class HonestCardOutput(BaseModel):
+    """Per-analysis transparency card. See Design Manifesto Rule 10."""
+    confident_facts: List[str] = []
+    best_estimate: str = ""
+    uncertainty_factors: List[str] = []
+    invalidating_conditions: List[str] = []
+
+
+AnalysisResponse.model_rebuild()
 
 
 # ── Screener response ─────────────────────────────────────────
