@@ -1251,6 +1251,28 @@ MANIFEST: list[dict] = [
             "verdict snapshot + days-since stats."
         ),
     },
+    {
+        # Phase 4.2 (2026-05-25): Money Camera — third parallel OG
+        # route at /api/og/money-camera/[ticker] with ?format=horizontal
+        # (1200x630, default) and ?format=story (1080x1920). Set as the
+        # canonical Open Graph image on /analysis/[ticker] in place of
+        # the legacy /api/og/[ticker] route (which stays available for
+        # already-scraped URLs). Single-frame summary: FV + price +
+        # verdict caption + fan-out bear/base/bull chart + prism
+        # narrative + the mandatory 192px SEBI disclaimer banner.
+        # No backend math touched; reads scenarios.bear/base/bull and
+        # prism_narrative off the existing public stock-summary payload.
+        # Scope is `og_image_meta` (advisory invalidation so crawler
+        # caches refresh) — no FV / verdict / score fields are touched.
+        "version_id": "v_money_camera_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 18, 30, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["money_camera", "og_image_meta"]},
+        "rationale": (
+            "Money Camera shareable single-frame summary route — "
+            "horizontal + story formats, set as default OG image per "
+            "analysis page."
+        ),
+    },
 ]
 
 
