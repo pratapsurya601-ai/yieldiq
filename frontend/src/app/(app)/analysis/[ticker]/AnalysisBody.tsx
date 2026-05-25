@@ -48,6 +48,8 @@ import NumberedSectionHeader from "@/components/analysis/NumberedSectionHeader"
 import TrustStrip, { type TrustStat } from "@/components/analysis/TrustStrip"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
+import WorryIndex from "@/components/analysis/WorryIndex"
+import MetricWithContext from "@/components/analysis/MetricWithContext"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
 import ShareReportCard from "@/components/analysis/ShareReportCard"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
@@ -976,6 +978,12 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         // chips are now relocated to a thin strip directly above
         // the FAQ section (outside the tab container).
         <div className="space-y-16 md:space-y-20">
+          {/* Phase-3 (2026-05-25) — The Worry Index sits between the
+              hero / confidence indicators and the numbered sections so
+              the user gets one emotional read before the rest of the
+              page elaborates. Self-hides when worry_index is absent. */}
+          <WorryIndex worry={data.worry_index ?? null} />
+
           {/* #ASD-restyle (2026-05-25): Summary tab restructured into
               six Alpha-Spread-style numbered sections. Each section
               gets a large uppercase header + plain-English caption,
@@ -1141,6 +1149,66 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             ticker={company.ticker}
             analystConsensus={data.analyst_consensus ?? null}
           />
+          {/* Phase-3 (2026-05-25) — Inline comparison sliders. Every
+              key metric shows where it sits vs peer median (and own
+              5y avg where ratiosHistory is loaded). Reads from
+              AnalysisResponse.peer_context; self-hides per-metric
+              when peer sample is < 3 tickers. */}
+          {data.peer_context && Object.keys(data.peer_context).length > 0 && (
+            <div className="bg-surface rounded-2xl border border-border p-5 space-y-2.5">
+              <h3 className="text-sm font-semibold text-ink">
+                Where you stand vs peers
+              </h3>
+              <p className="text-[11px] text-caption mb-2">
+                Slider runs from 5th to 95th peer percentile. Tick = peer
+                median. Dot = this company.
+              </p>
+              {data.peer_context.roe_pct && (
+                <MetricWithContext
+                  label="ROE"
+                  value={data.peer_context.roe_pct.value}
+                  format={(n) => `${n.toFixed(1)}%`}
+                  peerMedian={data.peer_context.roe_pct.median}
+                  peerP5={data.peer_context.roe_pct.p5}
+                  peerP95={data.peer_context.roe_pct.p95}
+                  direction="higher_is_better"
+                />
+              )}
+              {data.peer_context.pe_ratio && (
+                <MetricWithContext
+                  label="PE"
+                  value={data.peer_context.pe_ratio.value}
+                  format={(n) => `${n.toFixed(1)}x`}
+                  peerMedian={data.peer_context.pe_ratio.median}
+                  peerP5={data.peer_context.pe_ratio.p5}
+                  peerP95={data.peer_context.pe_ratio.p95}
+                  direction="lower_is_better"
+                />
+              )}
+              {data.peer_context.debt_to_equity && (
+                <MetricWithContext
+                  label="D/E"
+                  value={data.peer_context.debt_to_equity.value}
+                  format={(n) => n.toFixed(2)}
+                  peerMedian={data.peer_context.debt_to_equity.median}
+                  peerP5={data.peer_context.debt_to_equity.p5}
+                  peerP95={data.peer_context.debt_to_equity.p95}
+                  direction="lower_is_better"
+                />
+              )}
+              {data.peer_context.net_margin_pct && (
+                <MetricWithContext
+                  label="Net margin"
+                  value={data.peer_context.net_margin_pct.value}
+                  format={(n) => `${n.toFixed(1)}%`}
+                  peerMedian={data.peer_context.net_margin_pct.median}
+                  peerP5={data.peer_context.net_margin_pct.p5}
+                  peerP95={data.peer_context.net_margin_pct.p95}
+                  direction="higher_is_better"
+                />
+              )}
+            </div>
+          )}
           <QualityRatios
             quality={quality}
             insights={insights}

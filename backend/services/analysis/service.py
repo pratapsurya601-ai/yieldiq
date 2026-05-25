@@ -636,6 +636,76 @@ class AnalysisService(NarrativeMixin):
                 f"honest card generation crashed for {ticker}: "
                 f"{type(_hce).__name__}: {_hce}"
             )
+
+        # ── Peer context for inline comparison sliders (Phase-3) ───
+        # Pulls the same peer rows used by the Peers tab and reduces
+        # them to {metric: {value, median, p5, p95, n}}. Pure helper
+        # with a defensive try — never blocks the response on failure.
+        peer_context_block: dict[str, dict] = {}
+        try:
+            from backend.services.peers_service import PeersService
+            from backend.services.analysis.peer_context import build_peer_context
+            try:
+                from data_pipeline.db import Session as _PipelineSession
+            except Exception:
+                _PipelineSession = None
+            _peer_db = _PipelineSession() if _PipelineSession is not None else None
+            try:
+                peer_payload = PeersService().get_peer_comparison(
+                    ticker=ticker,
+                    db=_peer_db,
+                    cache=getattr(self, "cache", None),
+                )
+            finally:
+                if _peer_db is not None:
+                    try:
+                        _peer_db.close()
+                    except Exception:
+                        pass
+            if peer_payload and peer_payload.get("has_peers"):
+                peer_context_block = build_peer_context(
+                    ticker, peer_payload.get("peers") or []
+                )
+            if peer_context_block:
+                try:
+                    result.peer_context = peer_context_block
+                except Exception:
+                    result = result.model_copy(
+                        update={"peer_context": peer_context_block}
+                    )
+        except Exception as _pce:
+            import logging as _pcl
+            _pcl.getLogger("yieldiq.peer_context").warning(
+                f"peer_context build crashed for {ticker} "
+                f"(non-fatal, slider falls back to naked values): "
+                f"{type(_pce).__name__}: {_pce}"
+            )
+
+        # ── Worry Index (Phase-3, 2026-05-25) ─────────────────────
+        # 0-100 emotional risk composite + tier copy. Computed AFTER
+        # peer_context so the valuation-stretch sub-score can read
+        # peer-relative PE. Failures are non-fatal — frontend skips
+        # the gauge if the field is absent.
+        try:
+            from backend.services.analysis.worry_index import compute_worry_index
+            wi = compute_worry_index(
+                valuation=getattr(result, "valuation", None),
+                quality=getattr(result, "quality", None),
+                insights=getattr(result, "insights", None),
+                peer_context=peer_context_block or None,
+            )
+            wi_dict = wi.to_dict()
+            try:
+                result.worry_index = wi_dict
+            except Exception:
+                result = result.model_copy(update={"worry_index": wi_dict})
+        except Exception as _wie:
+            import logging as _wil
+            _wil.getLogger("yieldiq.worry_index").warning(
+                f"worry_index compute crashed for {ticker}: "
+                f"{type(_wie).__name__}: {_wie}"
+            )
+
         return result
 
     def _get_full_analysis_inner(self, ticker: str) -> AnalysisResponse:

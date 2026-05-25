@@ -324,6 +324,15 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        "version_id": "v_worry_comparison_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 17, 30, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["worry_index", "peer_context"]},
+        "rationale": (
+            "Worry Index emotional score + inline comparison sliders on "
+            "every key metric — context-by-default."
+        ),
+    },
+    {
         # The migration anchor. Every cached row predating this
         # entry's applied_at gets invalidated once — final global
         # wipe. From this point forward, all bumps are scoped.
