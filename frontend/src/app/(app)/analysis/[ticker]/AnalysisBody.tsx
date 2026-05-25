@@ -37,6 +37,8 @@ import ConcallSignalsPanel from "@/components/concall/ConcallSignalsPanel"
 import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
 import StockHeroImage from "@/components/analysis/StockHeroImage"
+import TimeSlider from "@/components/analysis/TimeSlider"
+import type { AsOfAnalysis } from "@/lib/api"
 import {
   VERDICT_COLORS,
   verdictTierFromMos,
@@ -79,7 +81,7 @@ import { trackStockAnalysed } from "@/lib/analytics"
 import Link from "next/link"
 import dynamic from "next/dynamic"
 import type { PrismData } from "@/components/prism/types"
-import type { AnalysisResponse } from "@/types/api"
+import type { AnalysisResponse, Verdict } from "@/types/api"
 
 // Code-split the Time Machine modal — ~12kb of scrubber + capture code that
 // only loads when the user actually clicks the ⏱ button.
@@ -522,6 +524,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
 
   const [copiedShare, setCopiedShare] = useState(false)
   const [timeMachineOpen, setTimeMachineOpen] = useState(false)
+  // Phase-2 Time Slider snapshot. null = render the live payload as
+  // usual. When non-null, the hero swaps its FV / MoS / verdict to
+  // the historical values so the page reads as a past snapshot.
+  const [asOfData, setAsOfData] = useState<AsOfAnalysis | null>(null)
   const onShare = async () => {
     if (typeof window === "undefined" || !data) return
     const url = window.location.href
@@ -1262,8 +1268,53 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           // payloads lack the field; EditorialHero skips the chip then.
           const headlineBuffettMos =
             valuation.buffett_mos_pct ?? null
+
+          // Phase-2 Time Slider override: when the user has slid the
+          // time machine away from "Today", swap the headline FV / MoS
+          // / price / verdict to the historical snapshot. Live values
+          // are preserved (see the comparison row inside <TimeSlider/>
+          // itself) so the user can still see the "vs today" delta.
+          const inTimeMachine = asOfData != null && asOfData.data_available
+          const displayFairValue = inTimeMachine && asOfData!.fair_value !== null
+            ? asOfData!.fair_value
+            : headlineFairValue
+          const displayMos = inTimeMachine && asOfData!.mos_pct !== null
+            ? asOfData!.mos_pct
+            : headlineMos
+          const displayPrice = inTimeMachine && asOfData!.current_price !== null
+            ? asOfData!.current_price
+            : valuation.current_price
+          // Verdict literal is constrained on the wire ("undervalued" |
+          // "fairly_valued" | "overvalued" | …); the backend as-of
+          // endpoint emits the same vocabulary, so the cast is safe.
+          const VALID_VERDICTS = new Set<Verdict>([
+            "undervalued", "fairly_valued", "overvalued", "avoid",
+            "data_limited", "unavailable", "low_confidence",
+          ])
+          const snapshotVerdict =
+            inTimeMachine && asOfData!.verdict && VALID_VERDICTS.has(asOfData!.verdict as Verdict)
+              ? (asOfData!.verdict as Verdict)
+              : null
+          const displayVerdict: Verdict = snapshotVerdict ?? valuation.verdict
+
           return prismResolved ? (
             <>
+              <TimeSlider
+                ticker={data.ticker}
+                liveFairValue={headlineFairValue}
+                liveMosPct={headlineMos}
+                currency={company.currency}
+                onAsOfChange={setAsOfData}
+              />
+              {inTimeMachine ? (
+                <div
+                  role="status"
+                  className="text-xs font-medium text-brand bg-brand-50 border border-brand/30 rounded-lg px-3 py-2"
+                >
+                  Viewing snapshot from {asOfData!.as_of_date}. Drag the
+                  slider back to “Today” to return to the live analysis.
+                </div>
+              ) : null}
               {/* Manifesto Rule 9 — verdict-colored full-bleed hero. Sits
                   ABOVE the EditorialHero 3-column grid, doesn't touch it.
                   Reuses headlineMos/headlineFairValue so the verdict tier
@@ -1272,10 +1323,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                 ticker={data.ticker}
                 displayTicker={company.ticker}
                 companyName={formatCompanyName(company.company_name)}
-                currentPrice={valuation.current_price}
+                currentPrice={displayPrice}
                 currency={company.currency}
-                marginOfSafetyPct={headlineMos}
-                verdict={valuation.verdict}
+                marginOfSafetyPct={displayMos}
+                verdict={displayVerdict}
                 marketCapCr={marketCapCr}
                 asOf={
                   data.as_of ??
@@ -1286,9 +1337,9 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               />
             <EditorialHero
               data={prismResolved}
-              fairValue={headlineFairValue}
-              currentPrice={valuation.current_price}
-              marginOfSafety={headlineMos}
+              fairValue={displayFairValue}
+              currentPrice={displayPrice}
+              marginOfSafety={displayMos}
               buffettMosPct={headlineBuffettMos}
               moat={quality.moat}
               currency={company.currency}
@@ -1313,14 +1364,31 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             />
             </>
           ) : (
+            <>
+            <TimeSlider
+              ticker={data.ticker}
+              liveFairValue={headlineFairValue}
+              liveMosPct={headlineMos}
+              currency={company.currency}
+              onAsOfChange={setAsOfData}
+            />
+            {inTimeMachine ? (
+              <div
+                role="status"
+                className="text-xs font-medium text-brand bg-brand-50 border border-brand/30 rounded-lg px-3 py-2 mb-3"
+              >
+                Viewing snapshot from {asOfData!.as_of_date}. Drag the
+                slider back to “Today” to return to the live analysis.
+              </div>
+            ) : null}
             <AnalysisHero
               score={quality.yieldiq_score}
               grade={quality.grade}
               confidence={valuation.confidence_score}
-              verdict={valuation.verdict}
-              fairValue={headlineFairValue}
-              currentPrice={valuation.current_price}
-              marginOfSafety={headlineMos}
+              verdict={displayVerdict}
+              fairValue={displayFairValue}
+              currentPrice={displayPrice}
+              marginOfSafety={displayMos}
               moat={quality.moat}
               currency={company.currency}
               thesis={data.ai_summary}
@@ -1338,6 +1406,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               // — the hero degrades to "Updated recently".
               liveQuoteAsOf={data.as_of ?? valuation.as_of ?? null}
             />
+            </>
           )
         })()}
 
