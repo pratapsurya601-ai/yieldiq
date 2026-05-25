@@ -383,6 +383,35 @@ export interface FVHistoryResponse {
 export const getFVHistory = (ticker: string, years: number = 3): Promise<FVHistoryResponse> =>
   api.get(`/api/v1/analysis/${ticker}/fv-history?years=${years}`).then(r => r.data)
 
+/**
+ * Time-machine snapshot for the per-analysis Time Slider (Phase 2,
+ * 2026-05-25). Returns what YieldIQ thought about the ticker on the
+ * requested date — FV / price / MoS / verdict / model version — or
+ * `data_available: false` when the date predates fair-value
+ * coverage for this ticker.
+ */
+export interface AsOfAnalysis {
+  ticker: string
+  as_of_date: string
+  fv_as_of_date?: string | null
+  price_as_of_date?: string | null
+  fair_value: number | null
+  current_price: number | null
+  mos_pct: number | null
+  verdict: string | null
+  model_version: string | null
+  data_available: boolean
+  limitations: string | null
+}
+
+export const getAnalysisAsOf = (
+  ticker: string,
+  isoDate: string,
+): Promise<AsOfAnalysis> =>
+  api
+    .get(`/api/v1/analysis/${ticker}/as-of?date=${isoDate}`)
+    .then((r) => r.data)
+
 export interface FinancialYear {
   year: string
   period_end: string | null

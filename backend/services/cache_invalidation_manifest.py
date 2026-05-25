@@ -1182,15 +1182,28 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        # Phase-2 Time Slider — new /analysis/{ticker}/as-of endpoint +
+        # frontend slider above the hero. Reconstructs a past snapshot
+        # of the analysis by joining fair_value_history + daily_prices
+        # against the most-recent manifest entry on the requested date.
+        # Pure additive surface: no engine change, no existing payload
+        # field touched.
+        "version_id": "v_time_slider_phase2_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 18, 30, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["time_slider", "as_of_analysis"]},
+        "rationale": (
+            "Phase-2 Time Slider — horizontal slider above the hero "
+            "lets users replay the analysis as it stood 6m / 1y / 2y / "
+            "3y ago. Joins fair_value_history + daily_prices + the "
+            "manifest in effect on the requested date."
+        ),
+    },
+    {
         # Reverse-DCF Playground (Week-2 manifesto). Two additive POST
         # endpoints (/dcf-recompute, /dcf-reverse-engineer) wrapping the
-        # existing recompute_dcf engine — no FV math change, no payload
-        # shape change to the canonical /analysis/{ticker}. Manifest
-        # entry exists to record the surface in the timeline and satisfy
-        # the backend/services-touched gate; no field-level invalidation
-        # required because no cached row's contents are affected.
+        # existing recompute_dcf engine — no FV math change.
         "version_id": "v_dcf_playground_2026_05_25",
-        "applied_at": datetime(2026, 5, 25, 16, 30, tzinfo=timezone.utc),
+        "applied_at": datetime(2026, 5, 25, 19, 0, tzinfo=timezone.utc),
         "scope": {"tickers": "*", "fields": ["dcf_playground", "dcf_recompute", "dcf_reverse_engineer"]},
         "rationale": (
             "Interactive Reverse-DCF playground -- users adjust "

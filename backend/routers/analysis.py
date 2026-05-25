@@ -2980,3 +2980,252 @@ async def get_coverage_tier(ticker: str, refresh: int = 0):
             f"Coverage tier failed for {ticker}: {e}", exc_info=True
         )
         raise HTTPException(status_code=500, detail="Coverage tier computation failed")
+
+
+# ─────────────────────────────────────────────────────────────────
+# Time Slider — historical "as-of" analysis snapshot
+# ─────────────────────────────────────────────────────────────────
+#
+# `GET /api/v1/analysis/{ticker}/as-of?date=YYYY-MM-DD`
+#
+# Reconstructs what YieldIQ thought about a ticker on a past date
+# by joining three sources:
+#
+#   1. `fair_value_history`  → the stored FV / MoS / verdict for
+#      the most recent row dated <= requested date.
+#   2. `daily_prices`        → the close price at the requested
+#      date (most-recent row dated <= requested date).
+#   3. `cache_invalidation_manifest.MANIFEST` → the "version of
+#      YieldIQ" in effect at the requested date — i.e. the
+#      newest manifest entry with `applied_at` <= requested date.
+#
+# When the requested date predates the earliest FV-history row for
+# this ticker, the endpoint returns `data_available=false` and a
+# plain-English `limitations` string the frontend can render in a
+# muted state. This is the dominant case at launch (fair_value_
+# history began populating Feb 2026), but the feature gets more
+# powerful with every passing day as history accumulates.
+#
+# Manifest entry: see `cache_invalidation_manifest.py` —
+#   scope = ["time_slider", "as_of_analysis"]
+#
+# Tier note: tier-gating is enforced on the FRONTEND (free users
+# can only slide back 1y; paid users get the full available
+# range). The backend serves the requested date if data exists —
+# we never want to render a 403 in the middle of a drag gesture.
+# ─────────────────────────────────────────────────────────────────
+
+
+@router.get("/analysis/{ticker}/as-of")
+async def get_analysis_as_of(
+    ticker: str,
+    date: str = Query(..., description="YYYY-MM-DD"),
+    user: Optional[dict] = Depends(get_current_user_optional),
+):
+    """Reconstruct the YieldIQ analysis as it stood on a past date.
+
+    Returns a minimal payload — FV, price, MoS, verdict, model
+    version, plus a `data_available` flag and optional
+    `limitations` string when the requested date predates our
+    fair-value coverage for this ticker.
+    """
+    from datetime import date as _date_cls, datetime as _dt
+
+    ticker_norm = (ticker or "").upper().strip()
+    if not ticker_norm:
+        raise HTTPException(status_code=400, detail="Ticker required")
+
+    # Parse the requested date strictly. The slider always emits
+    # ISO-8601 YYYY-MM-DD, so anything else is a client bug worth
+    # surfacing as a 400.
+    try:
+        requested = _date_cls.fromisoformat(date)
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail="date must be in YYYY-MM-DD format",
+        )
+
+    today = _date_cls.today()
+    if requested > today:
+        raise HTTPException(status_code=400, detail="date cannot be in the future")
+
+    # Two-tier cache: as-of payloads are immutable for any (ticker,
+    # date) pair where date < today, so we can cache aggressively.
+    # For date == today we still cache for 5 minutes so a slider
+    # bounce doesn't hammer the DB.
+    _cache_key = f"as-of:{ticker_norm}:{requested.isoformat()}"
+    _mem_hit = cache.get(_cache_key)
+    if _mem_hit is not None:
+        return _mem_hit
+
+    # Resolve the "model version in effect" on the requested date
+    # from the manifest. Always available — the manifest is in-
+    # process code, never a DB call.
+    try:
+        from backend.services.cache_invalidation_manifest import MANIFEST
+        applied_before: list[dict] = []
+        requested_dt = _dt.combine(requested, _dt.max.time())
+        for entry in MANIFEST:
+            ts = entry.get("applied_at")
+            if ts is None:
+                continue
+            # Compare in naive UTC; manifest entries are tz-aware,
+            # so strip tzinfo for the comparison after normalising.
+            try:
+                ts_naive = ts.replace(tzinfo=None) if getattr(ts, "tzinfo", None) else ts
+            except Exception:
+                continue
+            if ts_naive <= requested_dt:
+                applied_before.append(entry)
+        applied_before.sort(
+            key=lambda e: e.get("applied_at") or _dt.min,
+            reverse=True,
+        )
+        model_version = (
+            applied_before[0].get("version_id") if applied_before else None
+        )
+    except Exception:
+        model_version = None
+
+    # Open a pipeline session for the historical FV + price lookup.
+    try:
+        from data_pipeline.db import Session as PipelineSession
+    except Exception:
+        PipelineSession = None
+    if PipelineSession is None:
+        raise HTTPException(status_code=503, detail="Database unavailable")
+
+    db = PipelineSession()
+    try:
+        from data_pipeline.models import FairValueHistory, DailyPrice
+
+        # Earliest row gives us the "coverage start" we report when
+        # the requested date is too far back.
+        earliest = (
+            db.query(FairValueHistory)
+            .filter(FairValueHistory.ticker == ticker_norm)
+            .order_by(FairValueHistory.date.asc())
+            .first()
+        )
+        if earliest is None:
+            _empty = {
+                "ticker": ticker_norm,
+                "as_of_date": requested.isoformat(),
+                "fair_value": None,
+                "current_price": None,
+                "mos_pct": None,
+                "verdict": None,
+                "model_version": model_version,
+                "data_available": False,
+                "limitations": (
+                    "We have not yet tracked a fair value for this ticker. "
+                    "Time-machine history will appear here after the first analysis."
+                ),
+            }
+            cache.set(_cache_key, _empty, ttl=300)
+            return _empty
+
+        if requested < earliest.date:
+            _early = {
+                "ticker": ticker_norm,
+                "as_of_date": requested.isoformat(),
+                "fair_value": None,
+                "current_price": None,
+                "mos_pct": None,
+                "verdict": None,
+                "model_version": model_version,
+                "data_available": False,
+                "limitations": (
+                    f"We started tracking fair value for this ticker on "
+                    f"{earliest.date.isoformat()}."
+                ),
+            }
+            cache.set(_cache_key, _early, ttl=86400)
+            return _early
+
+        # Most-recent FV row dated <= requested.
+        fv_row = (
+            db.query(FairValueHistory)
+            .filter(
+                FairValueHistory.ticker == ticker_norm,
+                FairValueHistory.date <= requested,
+            )
+            .order_by(FairValueHistory.date.desc())
+            .first()
+        )
+
+        # Most-recent close on or before the requested date.
+        price_row = (
+            db.query(DailyPrice)
+            .filter(
+                DailyPrice.ticker == ticker_norm,
+                DailyPrice.trade_date <= requested,
+            )
+            .order_by(DailyPrice.trade_date.desc())
+            .first()
+        )
+
+        # Prefer the live close from daily_prices; fall back to the
+        # price embedded in the FV row (which is what the engine saw
+        # on the day the FV was computed).
+        historical_price: Optional[float] = None
+        if price_row is not None and price_row.close_price is not None:
+            historical_price = float(price_row.close_price)
+        elif fv_row is not None and fv_row.price is not None:
+            historical_price = float(fv_row.price)
+
+        fv_value: Optional[float] = (
+            float(fv_row.fair_value)
+            if (fv_row is not None and fv_row.fair_value is not None)
+            else None
+        )
+
+        # Recompute MoS from the joined inputs so the displayed
+        # number is always consistent with the (FV, price) pair on
+        # screen. MoS = (FV - Price) / Price × 100 (matches the
+        # convention used by `store_today_fair_value`).
+        mos_pct: Optional[float] = None
+        if fv_value is not None and historical_price and historical_price > 0:
+            mos_pct = round((fv_value - historical_price) / historical_price * 100.0, 2)
+        elif fv_row is not None and fv_row.mos_pct is not None:
+            mos_pct = float(fv_row.mos_pct)
+
+        # Derive the verdict bucket from MoS so the on-page label
+        # always matches the chip the live analysis would render
+        # for the same (FV, price). Mirrors the band thresholds in
+        # frontend lib/utils.ts verdictFromMos.
+        def _verdict_from_mos(m: Optional[float]) -> str:
+            if m is None:
+                return "under_review"
+            if m >= 20:
+                return "undervalued"
+            if m >= -10:
+                return "fairly_valued"
+            return "overvalued"
+
+        verdict = _verdict_from_mos(mos_pct)
+
+        payload = {
+            "ticker": ticker_norm,
+            "as_of_date": requested.isoformat(),
+            "fv_as_of_date": fv_row.date.isoformat() if fv_row else None,
+            "price_as_of_date": (
+                price_row.trade_date.isoformat() if price_row else None
+            ),
+            "fair_value": fv_value,
+            "current_price": historical_price,
+            "mos_pct": mos_pct,
+            "verdict": verdict,
+            "model_version": model_version,
+            "data_available": fv_value is not None and historical_price is not None,
+            "limitations": None,
+        }
+
+        # Cache: immutable past = long TTL; today = short TTL so a
+        # mid-day recompute lands quickly.
+        ttl = 300 if requested == today else 86400
+        cache.set(_cache_key, payload, ttl=ttl)
+        return payload
+    finally:
+        db.close()
