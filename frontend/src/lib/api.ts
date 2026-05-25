@@ -530,6 +530,92 @@ export interface HoldingsLiveResponse {
 export const getHoldingsLive = (): Promise<HoldingsLiveResponse> =>
   api.get("/api/v1/portfolio/holdings-live").then(r => r.data)
 
+// ── Portfolio Updates Feed (P0 #1) ──────────────────────────────
+// Per-holding categorised event stream surfaced as the Portfolio >
+// Updates tab. Rows are pre-built nightly by
+// scripts/build_updates_feed.py; this endpoint joins them to the
+// authenticated user's holdings and paginates reverse-chronologically.
+export type PortfolioUpdateCategory =
+  | "earnings"
+  | "valuations"
+  | "intrinsic_updates"
+  | "dividends"
+  | "insider_trading"
+  | "risk_legal"
+  | "other"
+
+export interface PortfolioUpdateItem {
+  id: number
+  ticker: string
+  event_at: string | null
+  category: PortfolioUpdateCategory
+  headline: string
+  detail: string
+  source_ref: unknown
+  created_at: string | null
+}
+
+export interface PortfolioUpdatesResponse {
+  items: PortfolioUpdateItem[]
+  total: number
+  limit?: number
+  offset?: number
+  category?: PortfolioUpdateCategory | null
+  portfolio_id: string
+}
+
+export const getPortfolioUpdates = (
+  opts: { category?: PortfolioUpdateCategory; limit?: number; offset?: number } = {},
+): Promise<PortfolioUpdatesResponse> => {
+  const params = new URLSearchParams()
+  if (opts.category) params.set("category", opts.category)
+  if (opts.limit != null) params.set("limit", String(opts.limit))
+  if (opts.offset != null) params.set("offset", String(opts.offset))
+  const qs = params.toString()
+  const suffix = qs ? `?${qs}` : ""
+  return api.get(`/api/v1/portfolio/me/updates${suffix}`).then(r => r.data)
+}
+
+// ── Portfolio Sum-of-Parts (P0 #2) ──────────────────────────────
+// Read-only aggregation over cached DCF fair values. Backend never
+// triggers a fresh analysis — holdings without cached FV are surfaced
+// via `holdings_without_fv_count` so the card can render a
+// LIMITED DATA chip.
+export interface PortfolioSumOfPartsResponse {
+  market_value: number
+  intrinsic_value: number | null
+  gap_pct: number | null
+  verdict_label: "Overvalued" | "Undervalued" | "Fairly Valued" | null
+  holdings_with_fv_count: number
+  holdings_without_fv_count: number
+  total_holdings: number
+  as_of: string
+}
+
+export const getPortfolioSumOfParts = (): Promise<PortfolioSumOfPartsResponse> =>
+  api.get("/api/v1/portfolio/sum-of-parts").then(r => r.data)
+
+// ── FV-history batch (P0 #5) ────────────────────────────────────
+// One round-trip for every ticker in the holdings table — backend
+// caps at 50 tickers per request and returns 1y of (date, price,
+// fair_value) per ticker for the mini-sparkline.
+// Reuses the existing FVHistoryPoint shape above (same DB rows).
+export interface FVHistoryBatchEntry {
+  has_data: boolean
+  data: FVHistoryPoint[]
+  summary?: Record<string, unknown>
+}
+
+export type FVHistoryBatchResponse = Record<string, FVHistoryBatchEntry>
+
+export const getFVHistoryBatch = (
+  tickers: string[],
+  years = 1,
+): Promise<FVHistoryBatchResponse> =>
+  api
+    .post("/api/v1/analysis/fv-history/batch", { tickers, years })
+    .then(r => r.data)
+
 export const addHolding = (holding: Record<string, unknown>) =>
   api.post("/api/v1/portfolio/holdings", holding).then(r => r.data)
 

@@ -1991,6 +1991,125 @@ async def get_fv_history_endpoint(
         db.close()
 
 
+from pydantic import BaseModel as _BatchBaseModel
+
+
+class FVHistoryBatchRequest(_BatchBaseModel):
+    tickers: list[str]
+    years: int = 1
+
+
+@router.post("/analysis/fv-history/batch")
+async def fv_history_batch(
+    req: FVHistoryBatchRequest,
+    user: dict = Depends(get_current_user_optional),
+):
+    """Batched fair-value vs price history for a list of tickers.
+
+    One call per portfolio render is dramatically cheaper than N calls
+    to ``/analysis/{ticker}/fv-history``: every result is served from
+    the same two-tier cache the singular endpoint uses, and the DB
+    session is opened once for the whole batch.
+
+    Cap: 50 tickers per request. ``years`` is clamped to 1 here so the
+    sparkline payload stays small — full multi-year history is still
+    available via the per-ticker endpoint.
+
+    Response shape:
+        { "<TICKER>": { "has_data": bool, "data": [...], "summary": {...} }, ... }
+    """
+    if not req.tickers:
+        return {}
+    if len(req.tickers) > 50:
+        raise HTTPException(
+            status_code=400,
+            detail="Batch size capped at 50 tickers per request",
+        )
+
+    # Sparklines only ever render 1y; force the clamp regardless of
+    # what the caller asks for. Keeps payload + cache key narrow.
+    years = 1
+    out: dict[str, dict] = {}
+
+    from backend.services import endpoint_cache_service as _ecs
+
+    # Open a single pipeline session for cache-miss tickers.
+    db = None
+    PipelineSession = None
+    try:
+        from data_pipeline.db import Session as PipelineSession  # noqa: F401
+    except Exception:
+        PipelineSession = None
+
+    for raw in req.tickers:
+        ticker = (raw or "").upper().strip()
+        if not ticker:
+            continue
+
+        _key = f"fv-history:{ticker}:{years}"
+
+        # tier 1: in-memory
+        hit = cache.get(_key)
+        if hit is None:
+            # tier 2: shared DB endpoint cache
+            try:
+                hit = _ecs.get(_key)
+            except Exception:
+                hit = None
+            if hit is not None:
+                cache.set(_key, hit, ttl=3600)
+
+        if hit is not None:
+            out[ticker] = {
+                "has_data": bool(hit.get("has_data")),
+                "data": hit.get("data", []) or [],
+                "summary": hit.get("summary", {}),
+            }
+            continue
+
+        # DB miss — pull from pipeline
+        if PipelineSession is None:
+            out[ticker] = {"has_data": False, "data": [], "summary": {}}
+            continue
+        if db is None:
+            db = PipelineSession()
+        try:
+            from data_pipeline.sources.fv_history import (
+                get_fv_history,
+                get_fv_history_summary,
+            )
+            data = get_fv_history(ticker, db, years)
+            summary = get_fv_history_summary(ticker, db, years)
+            payload = {
+                "ticker": ticker,
+                "has_data": bool(data),
+                "years_returned": years if data else 0,
+                "data": data,
+                "summary": summary,
+            }
+            cache.set(_key, payload, ttl=3600)
+            try:
+                _ecs.set(_key, payload, ttl_hours=1 if not data else 6)
+            except Exception:
+                pass
+            out[ticker] = {
+                "has_data": payload["has_data"],
+                "data": payload["data"],
+                "summary": payload["summary"],
+            }
+        except Exception as exc:
+            # Never let one bad ticker poison the batch.
+            out[ticker] = {"has_data": False, "data": [], "summary": {}, "error": str(exc)[:120]}
+
+    if db is not None:
+        try:
+            db.close()
+        except Exception:
+            pass
+
+    return out
+
+
 @router.get("/analysis/{ticker}/financials")
 async def get_financials_endpoint(
     ticker: str,

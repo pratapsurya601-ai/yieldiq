@@ -15,6 +15,8 @@ _DASHBOARD_ROOT = os.path.join(_PROJECT_ROOT, "dashboard")
 if _DASHBOARD_ROOT not in sys.path:
     sys.path.insert(0, _DASHBOARD_ROOT)
 
+from datetime import datetime, timezone
+
 from backend.models.requests import AddHoldingRequest
 from backend.models.responses import (
     HoldingResponse, PortfolioHealthResponse, SuccessResponse,
@@ -771,6 +773,93 @@ async def tlh_suggestions(
     return result
 
 
+@router.get("/sum-of-parts")
+async def portfolio_sum_of_parts(user: dict = Depends(get_current_user)):
+    """Aggregate portfolio Sum-of-Parts fair value vs market value.
+
+    READ-ONLY against the analysis_cache — never triggers a fresh DCF
+    compute (that would be a long job in a request handler and violate
+    the discipline rules in CLAUDE.md). Holdings without a cached fair
+    value are counted in ``holdings_without_fv_count`` so the UI can
+    render a LIMITED DATA chip.
+
+    Response shape:
+        {
+            "market_value": float,
+            "intrinsic_value": float | None,   # None if zero cached FV
+            "gap_pct": float | None,
+            "verdict_label": "Overvalued"|"Undervalued"|"Fairly Valued"|None,
+            "holdings_with_fv_count": int,
+            "holdings_without_fv_count": int,
+            "total_holdings": int,
+            "as_of": iso8601 string,
+        }
+    """
+    from backend.services.portfolio_service import get_holdings_with_live_data
+
+    email = user.get("email", "")
+    if not email:
+        return {
+            "market_value": 0.0,
+            "intrinsic_value": None,
+            "gap_pct": None,
+            "verdict_label": None,
+            "holdings_with_fv_count": 0,
+            "holdings_without_fv_count": 0,
+            "total_holdings": 0,
+            "as_of": datetime.now(timezone.utc).isoformat(),
+        }
+
+    enriched = get_holdings_with_live_data(email)
+    holdings = enriched.get("holdings", []) or []
+
+    total_mv = 0.0
+    total_iv = 0.0
+    with_fv = 0
+    without_fv = 0
+    for h in holdings:
+        qty = float(h.get("quantity") or 0)
+        cp = float(h.get("current_price") or 0)
+        total_mv += qty * cp
+        fv = h.get("fair_value")
+        if fv is not None and float(fv) > 0:
+            total_iv += qty * float(fv)
+            with_fv += 1
+        else:
+            without_fv += 1
+
+    if with_fv == 0 or total_mv <= 0:
+        return {
+            "market_value": round(total_mv, 2),
+            "intrinsic_value": None,
+            "gap_pct": None,
+            "verdict_label": None,
+            "holdings_with_fv_count": with_fv,
+            "holdings_without_fv_count": without_fv,
+            "total_holdings": len(holdings),
+            "as_of": datetime.now(timezone.utc).isoformat(),
+        }
+
+    gap_pct = (total_iv - total_mv) / total_mv * 100.0
+    if gap_pct < -20:
+        verdict = "Overvalued"
+    elif gap_pct > 20:
+        verdict = "Undervalued"
+    else:
+        verdict = "Fairly Valued"
+
+    return {
+        "market_value": round(total_mv, 2),
+        "intrinsic_value": round(total_iv, 2),
+        "gap_pct": round(gap_pct, 2),
+        "verdict_label": verdict,
+        "holdings_with_fv_count": with_fv,
+        "holdings_without_fv_count": without_fv,
+        "total_holdings": len(holdings),
+        "as_of": datetime.now(timezone.utc).isoformat(),
+    }
+
+
 @router.get("/health", response_model=PortfolioHealthResponse)
 async def get_portfolio_health(user: dict = Depends(get_current_user)):
     """Portfolio health score (0-100) for the authenticated user.
@@ -897,3 +986,133 @@ async def get_portfolio_health(user: dict = Depends(get_current_user)):
 
     health = calculate_portfolio_health(mapped)
     return PortfolioHealthResponse(**health)
+
+
+# ── Portfolio Updates Feed (P0 #1, 2026-05-25) ──────────────────
+# Per-holding categorised event stream backing the Portfolio > Updates
+# tab. Rows are pre-built nightly by scripts/build_updates_feed.py into
+# portfolio_updates_feed; this endpoint joins them to the caller's
+# holdings (filtered by user_email) and returns a paginated, reverse-
+# chronological feed.
+#
+# NOTE: the spec uses a /{portfolio_id}/ shape, but the YieldIQ data
+# model is user-keyed (one portfolio per user, identified by email on
+# the JWT). The endpoint accepts the literal "me" (and any other value
+# resolves to the authenticated user's holdings — there is no concept
+# of cross-user access). This is intentional, not a placeholder.
+
+_VALID_CATEGORIES = frozenset({
+    "earnings", "valuations", "intrinsic_updates", "dividends",
+    "insider_trading", "risk_legal", "other",
+})
+
+
+@router.get("/{portfolio_id}/updates")
+async def get_portfolio_updates(
+    portfolio_id: str,
+    category: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    user: dict = Depends(get_current_user),
+):
+    """Paginated, reverse-chrono updates feed for the user's holdings.
+
+    Query params:
+      - category: optional filter (one of the 7 categories)
+      - limit:    1..100 (default 50)
+      - offset:   0..10_000 (default 0)
+
+    Wildcard ("*") rows from the manifest scanner are included for every
+    user (they apply to all tickers — e.g. an engine-level fair-value
+    refresh).
+    """
+    email = (user or {}).get("email", "")
+    if not email:
+        raise HTTPException(status_code=401, detail="auth required")
+
+    # Validate / clamp paging
+    limit = max(1, min(int(limit or 50), 100))
+    offset = max(0, min(int(offset or 0), 10_000))
+    if category is not None and category not in _VALID_CATEGORIES:
+        raise HTTPException(status_code=400, detail="invalid category")
+
+    try:
+        from data_pipeline.db import engine  # type: ignore
+    except Exception as exc:
+        logger.warning("updates feed: pipeline engine import failed: %s", exc)
+        return {"items": [], "total": 0, "portfolio_id": portfolio_id}
+    if engine is None:
+        return {"items": [], "total": 0, "portfolio_id": portfolio_id}
+
+    # Pull the user's tickers from the `portfolio` table (legacy name
+    # for holdings — see db/schema.sql).
+    from backend.services.portfolio_service import get_holdings as _get
+    holdings = _get(email) or []
+    tickers = sorted({(h.get("ticker") or "").strip().upper() for h in holdings if h.get("ticker")})
+
+    if not tickers:
+        return {"items": [], "total": 0, "portfolio_id": portfolio_id}
+
+    # Include wildcard rows (manifest entries scoped to "*") so engine-
+    # wide events still surface even if the user owns none of the
+    # explicitly-named tickers.
+    tickers_with_wildcard = tickers + ["*"]
+
+    conn = engine.raw_connection()
+    cur = conn.cursor()
+    items: list[dict] = []
+    total = 0
+    try:
+        where_extra = ""
+        params: list = [tuple(tickers_with_wildcard)]
+        if category:
+            where_extra = " AND category = %s"
+            params.append(category)
+
+        cur.execute(
+            "SELECT COUNT(*) FROM portfolio_updates_feed "
+            "WHERE ticker IN %s" + where_extra,
+            tuple(params),
+        )
+        total = int((cur.fetchone() or [0])[0])
+
+        cur.execute(
+            "SELECT id, ticker, event_at, category, headline, detail, "
+            "       source_ref, created_at "
+            "FROM portfolio_updates_feed "
+            "WHERE ticker IN %s" + where_extra + " "
+            "ORDER BY event_at DESC, id DESC "
+            "LIMIT %s OFFSET %s",
+            tuple(params) + (limit, offset),
+        )
+        for r in cur.fetchall():
+            items.append({
+                "id": r[0],
+                "ticker": r[1],
+                "event_at": r[2].isoformat() if r[2] is not None else None,
+                "category": r[3],
+                "headline": r[4],
+                "detail": r[5],
+                "source_ref": r[6],
+                "created_at": r[7].isoformat() if r[7] is not None else None,
+            })
+    except Exception as exc:
+        logger.warning("updates feed query failed for %s: %s", email, exc)
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+    return {
+        "items": items,
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "category": category,
+        "portfolio_id": portfolio_id,
+    }
