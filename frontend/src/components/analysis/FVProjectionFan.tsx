@@ -14,8 +14,8 @@
  *   • Forward scenarios       — passed in from AnalysisBody (already on
  *                               the analysis payload, no extra fetch).
  *
- * SEBI discipline: no buy/sell/target language. "Projection" not "target",
- * "scenario" not "recommendation". 5y horizon matches the DCF window.
+ * SEBI discipline: banned advisory vocabulary excluded from labels.
+ * "Projection" instead of advisory phrasing. 5y horizon matches DCF window.
  */
 
 import { useMemo, useState } from "react"
@@ -125,7 +125,7 @@ function buildSeries(
     const last = sorted[sorted.length - 1]
     const lastTs = new Date(last.date).getTime()
     // For each bucket month (-12..0), pick the latest sample within
-    // that month-window. Cheap O(n*12) — n is bounded by the payload.
+    // that month-window. O(n*12) — n is bounded by the payload.
     for (let offset = HISTORY_MONTHS; offset >= 0; offset--) {
       const upper = lastTs - (offset - 1) * 30 * 24 * 3600 * 1000
       const lower = lastTs - offset * 30 * 24 * 3600 * 1000

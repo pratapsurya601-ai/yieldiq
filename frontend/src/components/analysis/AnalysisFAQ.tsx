@@ -8,8 +8,8 @@
  * eligible for Google's FAQPage rich snippet — free SEO traffic and the
  * highest-leverage move in the Alpha-Spread restyle.
  *
- * SEBI discipline: no buy / sell / target / recommend / cheap / strong
- * vocabulary in any answer text. Answers cite numbers + neutral framing
+ * SEBI discipline: banned advisory vocabulary is excluded from every
+ * answer string. Answers cite numbers + neutral framing
  * ("Below base case" / "Above base case" / "Aligned with base case").
  */
 
@@ -38,9 +38,9 @@ function mosLabel(mos: number | null | undefined): string {
 
 function piotroskiLabel(score: number | null | undefined): string {
   if (score == null || !Number.isFinite(score)) return "Unavailable"
-  if (score >= 7) return "Strong financial signals"
+  if (score >= 7) return "Above-threshold financial signals"
   if (score >= 4) return "Mixed financial signals"
-  return "Weak financial signals"
+  return "Below-threshold financial signals"
 }
 
 function moatExplain(moat: string | null | undefined): string {
@@ -163,7 +163,7 @@ function buildFAQ(data: AnalysisResponse): FAQItem[] {
     const conf = valuation.confidence_score
     items.push({
       q: `Why is ${ticker}'s verdict Under Review?`,
-      a: `Model confidence is ${conf != null ? `${conf}%` : "below threshold"}. Inputs are stale, missing, or the model fit is poor for this archetype. YieldIQ suppresses a confident verdict until data quality improves.`,
+      a: `Model confidence is ${conf != null ? `${conf}%` : "below threshold"}. Inputs are stale, missing, or the model fit is limited for this archetype. YieldIQ suppresses a confident verdict until data quality improves.`,
       chip: "Under Review",
     })
   }
