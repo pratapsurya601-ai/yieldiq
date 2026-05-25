@@ -577,6 +577,37 @@ class AnalysisService(NarrativeMixin):
                 f"(non-fatal, English summary intact): "
                 f"{type(_me).__name__}: {_me}"
             )
+
+        # ── Bulls Say / Bears Say (P0 #4, 2026-05-25) ─────────────
+        # Generate 3-bullet structured narratives from the assembled
+        # response. Pure rules + templates (no LLM cost), SEBI-safe
+        # by construction (verified in test_bulls_bears_generator).
+        # Failures are non-fatal — frontend renders an empty state.
+        try:
+            from backend.services.analysis.bulls_bears_generator import (
+                generate_bulls_bears,
+            )
+            bb = generate_bulls_bears(
+                valuation=getattr(result, "valuation", None),
+                quality=getattr(result, "quality", None),
+                insights=getattr(result, "insights", None),
+                scenarios=getattr(result, "scenarios", None),
+                ar_signals=None,  # not currently surfaced on AnalysisResponse
+            )
+            try:
+                result.bulls_say = bb.get("bulls") or None
+                result.bears_say = bb.get("bears") or None
+            except Exception:
+                result = result.model_copy(update={
+                    "bulls_say": bb.get("bulls") or None,
+                    "bears_say": bb.get("bears") or None,
+                })
+        except Exception as _bbe:
+            import logging as _bbl
+            _bbl.getLogger("yieldiq.bulls_bears").warning(
+                f"bulls/bears generation crashed for {ticker}: "
+                f"{type(_bbe).__name__}: {_bbe}"
+            )
         return result
 
     def _get_full_analysis_inner(self, ticker: str) -> AnalysisResponse:
