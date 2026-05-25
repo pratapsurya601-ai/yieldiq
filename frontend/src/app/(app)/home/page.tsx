@@ -11,6 +11,7 @@ import { useEffect, useState } from "react"
 import { useAuthStore } from "@/store/authStore"
 import { TIER_LIMITS } from "@/lib/constants"
 import PersonalHeader from "@/components/home/PersonalHeader"
+import HomeSearchBar from "@/components/home/HomeSearchBar"
 import ErrorBoundary from "@/components/ErrorBoundary"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
 import MarketsStrip from "@/components/home/v2/MarketsStrip"
@@ -106,16 +107,22 @@ export default function HomePage() {
         <MarketsStrip />
       </ErrorBoundary>
 
-      <div className="max-w-7xl mx-auto px-4 pt-4 space-y-6">
+      {/* Task #193 — single spacing scale (space-y-8) across all sections.
+          Prior layout mixed -mb-2, mb-3, gap-4 ad-hoc which made the dashboard
+          feel uneven. Inner section headers still use mb-3 because they're
+          intra-section spacing, not inter-section. */}
+      <div className="max-w-7xl mx-auto px-4 pt-4 space-y-8">
         {showQuotaWarning && mounted && <QuotaBanner remaining={remaining ?? 0} />}
 
-        {/* Greeting — kept compact so the dashboard breathes */}
-        <div className="-mb-2">
+        {/* Greeting + always-visible search bar (Task #193) */}
+        <div className="space-y-3">
           <PersonalHeader email={email} />
+          <HomeSearchBar />
         </div>
 
-        {/* Section 2 — 2-column hero: Portfolio + Watchlist */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Section 2 — 2-column hero: Portfolio + Watchlist.
+            grid-cols-1 → lg:grid-cols-2 stacks cleanly on <lg viewports. */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ErrorBoundary label="PortfolioPanel" fallback={<PanelFallback label="Portfolio" />}>
             <PortfolioPanel />
           </ErrorBoundary>
@@ -150,7 +157,7 @@ export default function HomePage() {
         </ErrorBoundary>
 
         {/* Section 6 + 7 — Recent + Daily insight (side-by-side on desktop) */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <ErrorBoundary label="RecentAnalyses" fallback={<PanelFallback label="Recent analyses" />}>
             <RecentAnalyses />
           </ErrorBoundary>
