@@ -53,10 +53,12 @@ import { usePaygStore } from "@/store/paygStore"
 import SensitivityPanel from "@/components/analysis/SensitivityPanel"
 import SensitivityTornado from "@/components/analysis/SensitivityTornado"
 import TickerSuggestions from "@/components/analysis/TickerSuggestions"
+import FVProjectionFan from "@/components/analysis/FVProjectionFan"
+import AnalysisFAQ from "@/components/analysis/AnalysisFAQ"
+import SeeAlsoPeers from "@/components/analysis/SeeAlsoPeers"
 import { useAuthStore } from "@/store/authStore"
 import {
   formatCurrency,
-  formatPct,
   formatCompanyName,
   verdictDisplayLabel,
   verdictFromMos,
@@ -763,29 +765,17 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       )
     ) : null
 
+  // Alpha-Spread restyle (2026-05-25): the 3 bear/base/bull cards are
+  // replaced by a single fan-out projection chart. Same data, denser
+  // visualization, with a "Show numbers" toggle baked into the chart for
+  // users who want the legacy table view.
   const scenarioBlock = data.scenarios && !dataLimited ? (
-    <div className="bg-bg rounded-2xl border border-border p-5">
-      <h2 className="text-sm font-semibold text-ink mb-4">Scenario Analysis</h2>
-      {/* Day-30 (2026-05-20): added grid-cols-1 mobile default. The
-          old grid-cols-3 squashed Bear/Base/Bull cards to ~100px wide
-          on 375px phones, truncating both the label and the FV value. */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        {(["bear", "base", "bull"] as const).map((key) => {
-          const sc = data.scenarios[key]
-          const label = key === "bear" ? "Bear" : key === "base" ? "Base" : "Bull"
-          const color = key === "bear" ? "text-danger" : key === "bull" ? "text-success" : "text-brand"
-          return (
-            <div key={key} className="text-center p-3 rounded-xl border border-border bg-surface">
-              <p className="text-xs text-caption mb-1">{label} case</p>
-              <p className={`text-lg font-bold font-mono tabular-nums ${color}`}>
-                {formatCurrency(sc.iv, company.currency, ticker)}
-              </p>
-              <p className="text-xs text-caption">MoS: {formatPct(sc.mos_pct)}</p>
-            </div>
-          )
-        })}
-      </div>
-    </div>
+    <FVProjectionFan
+      ticker={ticker}
+      currency={company.currency}
+      currentPrice={valuation.current_price}
+      scenarios={data.scenarios}
+    />
   ) : null
 
   const tabs: AnalysisTabDef[] = [
@@ -1224,6 +1214,18 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             additive — renders any non-null subset, hides itself when
             nothing is available (legacy cached payloads). */}
         <DataFreshnessWidget data={data} />
+
+        {/* Alpha-Spread restyle (2026-05-25): See Also peer mini-cards.
+            Reuses the existing /peers endpoint — no extra backend work.
+            Lives between the deep-dive content and the manifest audit so
+            users have a continuation path before the page tapers off. */}
+        <SeeAlsoPeers ticker={ticker} currency={company.currency} />
+
+        {/* Alpha-Spread restyle (2026-05-25): auto-generated FAQ with
+            schema.org FAQPage JSON-LD. Template-driven, NO LLM. Highest-
+            leverage SEO move in the spec — Google promotes FAQPage in
+            search results as rich snippets. */}
+        <AnalysisFAQ data={data} />
 
         {/* Day-108a: "Why we changed this analysis" — surfaces the
             Day-94 cache-invalidation manifest as a per-ticker audit
