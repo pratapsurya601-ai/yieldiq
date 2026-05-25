@@ -437,6 +437,10 @@ def _build_year(row: _Row, prev: _Row | None) -> dict:
         "ebitda": row.ebitda,
         "operating_income": row.ebit,
         "operating_margin_pct": operating_margin_pct,
+        # Added 2026-05-25 (feat/sankey-waterfall): surfaces the
+        # interest leg for the Revenue Sankey / Earnings Waterfall.
+        # Null when the underlying income row doesn't carry it.
+        "interest_expense": row.interest_expense,
         "net_income": row.pat,
         "net_income_growth_pct": pat_growth,
         "net_margin_pct": net_margin_pct,
