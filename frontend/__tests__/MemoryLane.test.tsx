@@ -193,7 +193,7 @@ describe("MemoryLane — note auto-save", () => {
         target: { value: "First take: NIM compression visible." },
       })
 
-      // Before 1s elapses, no PUT should have fired.
+      // Before 1s elapses, no PUT has fired yet.
       const callsBefore = fetchMock.mock.calls.filter(
         (c) => String(c[1]?.method ?? "GET").toUpperCase() === "PUT",
       ).length
