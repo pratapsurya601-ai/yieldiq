@@ -1181,6 +1181,29 @@ MANIFEST: list[dict] = [
             "Financials tab — flow-of-money pre-attentive."
         ),
     },
+    {
+        # Phase-2 Time Slider — new /analysis/{ticker}/as-of endpoint +
+        # frontend slider above the hero. Reconstructs a past snapshot
+        # of the analysis by joining fair_value_history + daily_prices
+        # against the most-recent manifest entry on the requested date.
+        # Pure additive surface: no engine change, no existing payload
+        # field touched. The manifest entry records when the time-
+        # machine surface shipped so the timeline carries the receipt.
+        #
+        # Fields scope is the symbolic ["time_slider", "as_of_analysis"]
+        # pair — these are not real cache fields (the new endpoint
+        # uses its own `as-of:{ticker}:{date}` cache namespace), but
+        # the convention keeps the timeline self-describing.
+        "version_id": "v_time_slider_phase2_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 18, 30, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["time_slider", "as_of_analysis"]},
+        "rationale": (
+            "Phase-2 Time Slider — horizontal slider above the hero "
+            "lets users replay the analysis as it stood 6m / 1y / 2y / "
+            "3y ago. Joins fair_value_history + daily_prices + the "
+            "manifest in effect on the requested date."
+        ),
+    },
 ]
 
 
