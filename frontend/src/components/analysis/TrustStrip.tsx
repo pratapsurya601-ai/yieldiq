@@ -13,7 +13,7 @@
 //
 // SEBI-safe: callers are responsible for the copy in `label` and `value`.
 // The component itself emits no editorial language.
-// (CI re-trigger touch: 2026-05-25.)
+// (CI re-trigger touch: 2026-05-25 — second nudge.)
 
 import * as React from "react"
 
