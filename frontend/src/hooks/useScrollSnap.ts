@@ -8,7 +8,7 @@ export interface UseScrollSnapResult {
   ref: React.RefObject<HTMLDivElement | null>
   /** Class names to apply to the scroll container. */
   containerClassName: string
-  /** Class names to apply to each direct child that should snap. */
+  /** Class names to apply to each direct child that snaps. */
   itemClassName: string
 }
 

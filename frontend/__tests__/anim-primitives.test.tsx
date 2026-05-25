@@ -83,7 +83,7 @@ describe("CountUp", () => {
     expect(screen.getByText("1,000")).toBeInTheDocument()
     expect(rafSpy).not.toHaveBeenCalled()
 
-    // Trigger viewport entry → RAF should kick in.
+    // Trigger viewport entry → RAF kicks in.
     await act(async () => {
       triggerInView()
     })
