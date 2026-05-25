@@ -408,6 +408,20 @@ def get_holdings_with_live_data(user_email: str) -> dict:
             "score": score,
             "saved_at": h.get("saved_at", ""),
             "notes": h.get("notes", ""),
+            # Task #197 (feat/as-of-plumbing, 2026-05-24): surface the
+            # live_quotes.as_of for the row that produced current_price
+            # so the per-holding freshness chip reads genuine quote age
+            # (5-15m) instead of the recompute time. None when the
+            # ticker is missing from live_quotes.
+            "as_of": (
+                day_quotes[ticker]["as_of"].isoformat()
+                if (
+                    ticker in day_quotes
+                    and day_quotes[ticker].get("as_of") is not None
+                    and hasattr(day_quotes[ticker]["as_of"], "isoformat")
+                )
+                else None
+            ),
         })
 
         total_invested += invested
@@ -418,6 +432,17 @@ def get_holdings_with_live_data(user_email: str) -> dict:
 
     # Sort by current value descending
     enriched.sort(key=lambda x: x["current_value"], reverse=True)
+
+    # Task #197 (feat/as-of-plumbing, 2026-05-24): top-level batch
+    # `as_of` is the freshest live_quotes.as_of across all rendered
+    # holdings. Lets the MoversRail render ONE freshness chip for the
+    # whole rail (cards share the same snapshot). Null only when none
+    # of the holdings had a live_quotes row.
+    batch_as_of = None
+    for row in enriched:
+        v = row.get("as_of")
+        if v and (batch_as_of is None or v > batch_as_of):
+            batch_as_of = v
 
     return {
         "holdings": enriched,
@@ -430,6 +455,7 @@ def get_holdings_with_live_data(user_email: str) -> dict:
             "losers": losers,
             "count": len(enriched),
         },
+        "as_of": batch_as_of,
     }
 
 

@@ -1153,6 +1153,11 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               currentPriceSource={valuation.current_price_source}
               bullCase={valuation.bull_case}
               bearCase={valuation.bear_case}
+              // Task #197 (feat/as-of-plumbing): prefer top-level
+              // `data.as_of` (added in the same PR), fall back to the
+              // valuation-nested copy. Null on legacy cached payloads
+              // — the hero degrades to "Updated recently".
+              liveQuoteAsOf={data.as_of ?? valuation.as_of ?? null}
             />
           )
         })()}

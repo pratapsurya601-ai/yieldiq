@@ -1059,6 +1059,15 @@ MANIFEST: list[dict] = [
         ),
     },
     {
+        "version_id": "v_as_of_plumbing_2026_05_24",
+        "applied_at": datetime(2026, 5, 24, 14, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["as_of", "price_timestamp", "freshness"]},
+        "rationale": (
+            "Live quote timestamp now flows to the analysis surface — "
+            "freshness chip reads actual quote age, not analysis recompute age."
+        ),
+    },
+    {
         # 2026-05-24 — task #195: deterministic AI-summary template
         # in sebi_filter.py used to render half-fragments like
         # "Revenue CAGR (3y): n/a." when the underlying metric was

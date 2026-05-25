@@ -16,6 +16,7 @@ import {
 } from "@/lib/industryPercentile"
 import { formatCurrency, formatPct, shouldGateVerdict } from "@/lib/utils"
 import type { Verdict } from "@/types/api"
+import FreshnessStamp from "@/components/common/FreshnessStamp"
 
 interface AnalysisHeroProps {
   score: number
@@ -44,6 +45,13 @@ interface AnalysisHeroProps {
   valuationEngineUsed?: string | null
   currentPriceAsOf?: string | null
   currentPriceSource?: string | null
+  // Task #197 (feat/as-of-plumbing) — actual live_quotes.as_of for the
+  // hero current price. When present the hero renders a tiered
+  // FreshnessStamp ("Live ~5m ago" / "Delayed ~2h ago" / "Stale — 6h
+  // ago") with color coding. Null when the cascade fell through to
+  // daily_prices / yfinance, in which case we fall back to the existing
+  // currentPriceAsOf (which carries the recompute time, not quote age).
+  liveQuoteAsOf?: string | null
 }
 
 /**
@@ -308,6 +316,7 @@ export default function AnalysisHero({
   currentPriceSource,
   bullCase,
   bearCase,
+  liveQuoteAsOf,
 }: AnalysisHeroProps) {
   // Day-91 (2026-05-22): verdict-pill confidence gate — tightened per
   // audit #4. See lib/utils.ts::shouldGateVerdict for the canonical
@@ -522,6 +531,16 @@ export default function AnalysisHero({
                 source={currentPriceSource}
                 asOf={currentPriceAsOf}
                 label="Delayed"
+              />
+              {/* Task #197: tiered freshness chip driven by the actual
+                  live_quotes.as_of (5-15m fresh in market hours). Renders
+                  the "Updated recently" fallback when null so legacy
+                  payloads degrade gracefully. */}
+              <FreshnessStamp
+                asOf={liveQuoteAsOf ?? currentPriceAsOf}
+                tiered={!!liveQuoteAsOf}
+                fallback="Updated recently"
+                className="mt-0.5"
               />
             </div>
 

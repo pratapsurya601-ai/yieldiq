@@ -70,6 +70,12 @@ export interface ValuationOutput {
   // legacy/degraded payloads. Render via <FreshnessStamp prefix="Delayed" />;
   // never "Live" (SEBI discipline, prices are always delayed).
   current_price_as_of?: string | null
+  // Task #197 (feat/as-of-plumbing, 2026-05-24) — actual live_quotes.as_of
+  // timestamp (refreshed ~5m). Lets the FreshnessStamp pick the right tier:
+  // <30m green "Live", 30m-4h yellow "Delayed", >4h red "Stale". Null when
+  // the canonical cascade fell through to daily_prices / yfinance (frontend
+  // falls back to current_price_as_of, then to "Updated recently").
+  as_of?: string | null
   // feat/transparency (2026-05-02) — per-number provenance surfaced
   // in hero tooltips + freshness widget. Optional for back-compat with
   // pre-PR cached payloads.
@@ -367,6 +373,14 @@ export interface AnalysisResponse {
   analyst_consensus?: AnalystConsensus | null
   cached: boolean
   timestamp: string
+  /**
+   * Task #197 (feat/as-of-plumbing) — top-level mirror of
+   * `valuation.as_of` (the live_quotes.as_of for the row that produced
+   * `valuation.current_price`). Lets the AnalysisHero render the
+   * FreshnessStamp without unwrapping `valuation`. Null when the
+   * canonical cascade fell through to daily_prices / yfinance.
+   */
+  as_of?: string | null
   /**
    * Backend-authored formula metadata, keyed by metric id (e.g.
    * "margin_of_safety", "roce"). Populated from
