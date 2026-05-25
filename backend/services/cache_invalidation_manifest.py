@@ -1149,6 +1149,22 @@ MANIFEST: list[dict] = [
             "since last visit."
         ),
     },
+    {
+        # Tier 1 #4 — 6-card Financials KPI strip on /analysis/[ticker]
+        # Financials tab. Purely additive frontend surface that consumes
+        # the existing /analysis/{ticker}/financials payload (no new
+        # endpoint, no engine change, no payload-shape change). Manifest
+        # entry exists to satisfy the backend/services-touched gate and
+        # so the timeline records when the surface shipped.
+        "version_id": "v_financials_kpi_grid_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 14, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["financials_kpi"]},
+        "rationale": (
+            "6-card financials KPI grid (Revenue / Operating Income / "
+            "Net Income / EPS / OpCF / FCF) with sparklines and CAGR "
+            "chips on the Financials tab."
+        ),
+    },
 ]
 
 
