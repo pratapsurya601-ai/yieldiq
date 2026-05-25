@@ -150,9 +150,8 @@ async function loadFuseIndex(): Promise<Fuse<TickerIndexEntry> | null> {
 export default function SearchPage() {
   // Next.js 15+ requires components that read `useSearchParams()` to be
   // wrapped in a <Suspense> boundary so that prerender can bail out
-  // gracefully. Without this the production build fails with
-  // "useSearchParams() should be wrapped in a suspense boundary" and
-  // Vercel deploys are blocked.
+  // gracefully. Without this the production build fails with a
+  // suspense-boundary error and Vercel deploys are blocked.
   return (
     <Suspense
       fallback={

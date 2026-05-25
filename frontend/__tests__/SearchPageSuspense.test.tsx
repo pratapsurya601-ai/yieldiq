@@ -3,9 +3,8 @@
  *
  * Pins the fix for the Vercel build failure where
  * `useSearchParams()` was used outside a `<Suspense>` boundary,
- * which causes Next.js 15+ production prerender to bail with:
- *
- *   "useSearchParams() should be wrapped in a suspense boundary"
+ * which causes Next.js 15+ production prerender to bail with a
+ * suspense-boundary error.
  *
  * If a future refactor inlines the inner component back into the
  * default export without keeping a Suspense wrapper, this test will
