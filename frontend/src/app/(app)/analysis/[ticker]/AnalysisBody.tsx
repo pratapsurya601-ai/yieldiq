@@ -1359,17 +1359,21 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             search results as rich snippets. */}
         <AnalysisFAQ data={data} />
 
-        {/* Section 6 — Why We Changed. Day-108a: "Why we changed this
-            analysis" — surfaces the Day-94 cache-invalidation manifest
-            as a per-ticker audit log. Lives outside the tabs so it's
-            visible from any tab. #ASD-restyle: numbered header added so
-            it follows the Summary-tab numbering scheme. */}
-        <NumberedSectionHeader
-          number={6}
-          title="WHY WE CHANGED"
-          caption="Read-only audit log of every model change on this ticker."
-        />
-        <ManifestHistoryPanel ticker={ticker} />
+        {/* Day-108a manifest history — collapsed by default per user
+            feedback 2026-05-25 ("dont need this"). Kept accessible
+            via <details> so power users can still open the model-change
+            audit log. No prominent numbered section header. */}
+        <details className="mx-4 mt-12 group">
+          <summary className="cursor-pointer text-xs uppercase tracking-wide text-muted-foreground hover:text-foreground transition-colors py-2 select-none">
+            ▸ Model change log
+            <span className="ml-2 text-muted-foreground/60 group-open:hidden">
+              (read-only audit of every update)
+            </span>
+          </summary>
+          <div className="mt-4">
+            <ManifestHistoryPanel ticker={ticker} />
+          </div>
+        </details>
 
         <ModelDisclaimer className="mx-4" />
       </div>
