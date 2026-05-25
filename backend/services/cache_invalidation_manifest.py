@@ -1058,6 +1058,31 @@ MANIFEST: list[dict] = [
             "FV on LT.NS, HCLTECH.NS, ULTRACEMCO.NS."
         ),
     },
+    {
+        # 2026-05-24 — task #195: deterministic AI-summary template
+        # in sebi_filter.py used to render half-fragments like
+        # "Revenue CAGR (3y): n/a." when the underlying metric was
+        # null. Half-sentences carry no information and read as
+        # template bugs on the analysis page.
+        #
+        # New _is_missing() helper + fragment-skip logic in
+        # deterministic_template() drop the fragment entirely when
+        # the metric is None or non-numeric. Display-only — the
+        # description is rebuilt every response, no cached payload
+        # shape change. Manifest entry purely satisfies the cache-
+        # version-bump gate (backend/services/ touched).
+        "version_id": "v_task195_ai_summary_skip_na_2026_05_24",
+        "applied_at": datetime(2026, 5, 24, 16, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": ["ai_description", "model_description", "summary_description"],
+        },
+        "rationale": (
+            "AI-summary template now skips fragments whose metric is "
+            "missing — no more 'Revenue CAGR (3y): n/a' half-sentences "
+            "in the model description."
+        ),
+    },
 ]
 
 

@@ -135,6 +135,23 @@ def _fmt_cagr_pct(val: Any, dp: int = 1) -> str:
         return "n/a"
 
 
+def _is_missing(val: Any) -> bool:
+    """True if ``val`` should be treated as missing for rendering.
+
+    Skips None and values that would otherwise format as "n/a" (e.g.
+    non-numeric junk). Task #195: never emit half-sentences like
+    "Revenue CAGR (3y): n/a." in user-facing model descriptions —
+    drop the fragment entirely instead.
+    """
+    if val is None:
+        return True
+    try:
+        float(val)
+        return False
+    except (TypeError, ValueError):
+        return True
+
+
 def deterministic_template(ctx: dict) -> str:
     """Deterministic, always-SEBI-safe fallback.
 
@@ -142,20 +159,51 @@ def deterministic_template(ctx: dict) -> str:
     pure numeric description. ``ctx`` keys:
       - company_name, ticker, current_price, fair_value, mos_pct,
         piotroski, moat, rev_cagr_3y, roe
+
+    Task #195: fragments whose underlying metric is missing/null are
+    SKIPPED entirely rather than rendered as "<label>: n/a." — a
+    half-sentence with no informational value that read like a
+    template bug on the analysis page.
     """
     company_name = ctx.get("company_name") or ctx.get("ticker") or ""
     ticker = ctx.get("ticker") or ""
-    body = (
-        f"{company_name} ({ticker}) trades at "
-        f"{_fmt_num(ctx.get('current_price'))} vs a model fair value of "
-        f"{_fmt_num(ctx.get('fair_value'))}, a gap of "
-        f"{_fmt_pct(ctx.get('mos_pct'))}. "
-        f"Piotroski F-score: "
-        f"{ctx.get('piotroski') if ctx.get('piotroski') is not None else 'n/a'}/9. "
-        f"Moat label: {ctx.get('moat') or 'unrated'}. "
-        f"Revenue CAGR (3y): {_fmt_cagr_pct(ctx.get('rev_cagr_3y'))}. "
-        f"Return on equity: {_fmt_pct(ctx.get('roe'))}."
-    )
+
+    # Lead sentence: price + FV + MoS. We keep this even when some
+    # numbers are missing because the gap line is the core anchor of
+    # the description; individual "n/a" tokens here are rare and the
+    # surrounding sentence still reads as a complete thought.
+    fragments: list[str] = [
+        (
+            f"{company_name} ({ticker}) trades at "
+            f"{_fmt_num(ctx.get('current_price'))} vs a model fair value of "
+            f"{_fmt_num(ctx.get('fair_value'))}, a gap of "
+            f"{_fmt_pct(ctx.get('mos_pct'))}."
+        )
+    ]
+
+    # Trailing metric fragments — append ONLY when the underlying
+    # value is present. Skipping a fragment is preferable to printing
+    # "n/a" because the latter reads like a template-rendering bug
+    # (see Task #195 / HDFCBANK regression).
+    _piotroski = ctx.get("piotroski")
+    if _piotroski is not None:
+        fragments.append(f"Piotroski F-score: {_piotroski}/9.")
+
+    _moat = ctx.get("moat")
+    if _moat:
+        fragments.append(f"Moat label: {_moat}.")
+
+    _rev_cagr_3y = ctx.get("rev_cagr_3y")
+    if not _is_missing(_rev_cagr_3y):
+        fragments.append(
+            f"Revenue CAGR (3y): {_fmt_cagr_pct(_rev_cagr_3y)}."
+        )
+
+    _roe = ctx.get("roe")
+    if not _is_missing(_roe):
+        fragments.append(f"Return on equity: {_fmt_pct(_roe)}.")
+
+    body = " ".join(fragments)
     # Defensive: the template is hand-constructed to be banned-free,
     # but if an upstream label ever leaks (e.g. a custom moat label
     # literally spelled "strong"), strip it to "unrated" rather than
