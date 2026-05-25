@@ -398,6 +398,10 @@ export interface FinancialYear {
   net_income_growth_pct: number | null
   net_margin_pct: number | null
   eps_diluted: number | null
+  // Optional — present when the backend's income row carries it.
+  // Used by RevenueSankey / EarningsWaterfall to break out the
+  // Op Income → Interest leg. Older cached payloads omit it.
+  interest_expense?: number | null
   // Balance Sheet
   total_assets: number | null
   total_equity: number | null
