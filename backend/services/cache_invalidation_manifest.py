@@ -1165,6 +1165,24 @@ MANIFEST: list[dict] = [
             "chips on the Financials tab."
         ),
     },
+    {
+        # Reverse-DCF Playground (Week-2 manifesto). Two additive POST
+        # endpoints (/dcf-recompute, /dcf-reverse-engineer) wrapping the
+        # existing recompute_dcf engine — no FV math change, no payload
+        # shape change to the canonical /analysis/{ticker}. Manifest
+        # entry exists to record the surface in the timeline and satisfy
+        # the backend/services-touched gate; no field-level invalidation
+        # required because no cached row's contents are affected.
+        "version_id": "v_dcf_playground_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 16, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["dcf_playground", "dcf_recompute", "dcf_reverse_engineer"]},
+        "rationale": (
+            "Interactive Reverse-DCF playground -- users adjust "
+            "WACC/TG/CAGR/Margin/Tax sliders to see fair value "
+            "recompute live. Plus reverse-engineered "
+            "'what assumptions justify today's price?' panel."
+        ),
+    },
 ]
 
 

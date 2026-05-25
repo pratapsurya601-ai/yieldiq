@@ -225,6 +225,70 @@ export const recomputeDcf = (
 ): Promise<RecomputeResponse> =>
   api.post(`/api/v1/analysis/${ticker}/recompute`, body).then(r => r.data)
 
+// ── Reverse-DCF Playground (Week-2 manifesto) ──────────────────
+// Five-slider interactive DCF. Free tier sees only the WACC slider
+// unlocked; paid tier unlocks all 5. The endpoint accepts every
+// input regardless of tier — gating is a UX nudge, not enforced
+// server-side (see analysis.py docstring for rationale).
+export interface DCFPlaygroundRequest {
+  wacc: number                 // decimal, 0.06 .. 0.15
+  terminal_growth: number      // decimal, 0.0  .. 0.07
+  revenue_cagr_yr1_5: number   // decimal, -0.05 .. 0.30
+  operating_margin: number     // decimal, 0.0  .. 0.50
+  tax_rate?: number            // decimal, 0.0  .. 0.50, default 0.25
+}
+
+export interface DCFPlaygroundResponse {
+  ticker: string
+  fair_value: number
+  bear_fv: number
+  bull_fv: number
+  base_fv: number | null      // canonical cached FV (the analyst base)
+  current_price: number
+  margin_of_safety: number
+  verdict: string | null
+  inputs_echo: DCFPlaygroundRequest
+  as_of: string
+  warnings?: string[]
+}
+
+export const recomputeDcfPlayground = (
+  ticker: string,
+  body: DCFPlaygroundRequest,
+): Promise<DCFPlaygroundResponse> =>
+  api.post(`/api/v1/analysis/${ticker}/dcf-recompute`, body).then(r => r.data)
+
+export interface DCFReverseEngineerRequest {
+  market_price: number
+  wacc: number
+  terminal_growth: number
+  revenue_cagr_yr1_5: number
+  operating_margin: number
+  tax_rate?: number
+}
+
+export interface DCFReverseEngineerResponse {
+  ticker: string
+  market_price: number
+  implied_wacc: number
+  implied_terminal_growth: number
+  implied_revenue_cagr: number
+  iterations: {
+    wacc_converged: boolean
+    terminal_growth_converged: boolean
+    revenue_cagr_converged: boolean
+    max_iters: number
+  }
+  base_inputs: DCFPlaygroundRequest
+  as_of: string
+}
+
+export const reverseEngineerDcf = (
+  ticker: string,
+  body: DCFReverseEngineerRequest,
+): Promise<DCFReverseEngineerResponse> =>
+  api.post(`/api/v1/analysis/${ticker}/dcf-reverse-engineer`, body).then(r => r.data)
+
 // Saved scenarios (Phase-2 of editable-assumptions). Per-user named
 // bundles of {assumptions, result} scoped to a ticker. Read is open
 // to all auth'd users (free tier just sees an empty list); save is
