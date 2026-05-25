@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect, useRef, useCallback, useMemo } from "react"
+import { Suspense, useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import Fuse from "fuse.js"
@@ -148,6 +148,25 @@ async function loadFuseIndex(): Promise<Fuse<TickerIndexEntry> | null> {
 }
 
 export default function SearchPage() {
+  // Next.js 15+ requires components that read `useSearchParams()` to be
+  // wrapped in a <Suspense> boundary so that prerender can bail out
+  // gracefully. Without this the production build fails with
+  // "useSearchParams() should be wrapped in a suspense boundary" and
+  // Vercel deploys are blocked.
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-md md:max-w-xl mx-auto px-4 py-12 animate-pulse text-sm text-caption">
+          Loading search…
+        </div>
+      }
+    >
+      <SearchPageInner />
+    </Suspense>
+  )
+}
+
+function SearchPageInner() {
   const [query, setQuery] = useState("")
   const [suggestions, setSuggestions] = useState<SearchResult[]>([])
   const [showSuggestions, setShowSuggestions] = useState(false)
