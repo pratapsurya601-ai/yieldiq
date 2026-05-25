@@ -1237,6 +1237,20 @@ MANIFEST: list[dict] = [
             "framed as user view, never advice; SEBI-safe vocabulary."
         ),
     },
+    {
+        # Phase 4 manifesto (Paradigm 11): personal Memory Lane layer.
+        # New table user_ticker_visits (migration 066). Two additive
+        # endpoints under /api/v1/me/ (POST visit, GET memory-lane, PUT
+        # note). First-visit snapshot of price/FV/verdict; subsequent
+        # visits bump counters. No FV math touched.
+        "version_id": "v_memory_lane_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 18, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["memory_lane", "user_ticker_visits"]},
+        "rationale": (
+            "Per-user, per-ticker memory layer — first-visit price/FV/"
+            "verdict snapshot + days-since stats."
+        ),
+    },
 ]
 
 

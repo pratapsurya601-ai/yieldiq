@@ -27,6 +27,7 @@ import DividendTracker from "@/components/analysis/DividendTracker"
 import NewsWidget from "@/components/analysis/NewsWidget"
 import EarningsCallsWidget from "@/components/analysis/EarningsCallsWidget"
 import CommunitySentiment from "@/components/analysis/CommunitySentiment"
+import MemoryLane from "@/components/analysis/MemoryLane"
 import LoadingSteps from "@/components/ui/LoadingSteps"
 import PriceChart from "@/components/analysis/PriceChart"
 import FinancialBars from "@/components/analysis/FinancialBars"
@@ -362,8 +363,33 @@ export default function AnalysisBody({ ticker, prism }: Props) {
   // which trips React's hook-order check (#310). See PR #133 (sliders)
   // + the fix in PR #fixme-react310 for the original regression.
   const userTier = useAuthStore((s) => s.tier)
+  const authToken = useAuthStore((s) => s.token)
+  const authUserId = useAuthStore((s) => s.userId)
   const canUseSliders =
     userTier === "starter" || userTier === "pro" || userTier === "analyst"
+
+  // Phase 4 manifesto (Paradigm 11): record a Memory Lane visit for the
+  // signed-in user. Fire-and-forget — never blocks render, never surfaces
+  // errors to the user. Re-fires on ticker change so HDFCBANK → INFY
+  // navigation counts as two visits, not one.
+  useEffect(() => {
+    if (!authToken || !authUserId || !ticker) return
+    const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+    const clean = ticker
+      .toUpperCase()
+      .replace(".NS", "")
+      .replace(".BO", "")
+      .replace(".BSE", "")
+      .replace(".NSE", "")
+    fetch(`${base}/api/v1/me/ticker-visit/${clean}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${authToken}` },
+    }).catch(() => {
+      // Silent — Memory Lane is additive; a missed beacon just delays
+      // the first-visit snapshot by one page load.
+    })
+  }, [ticker, authToken, authUserId])
+
 
   // P0 (2026-04-30): analysis cache + chart + prism all surface live price.
   // Stale prices are the worst UX on this page — drop to 60s so a page that
@@ -1500,6 +1526,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             </>
           )
         })()}
+
+        {/* Phase 4 manifesto (Paradigm 11): personal Memory Lane.
+            Placed just under the hero so the personal context lands
+            immediately after the verdict — it sets the emotional frame
+            ("you've been watching this for 47 days") before the
+            ConfidenceIndicators / tabs. Component returns null for anon
+            users, first-time visitors, or when no prior visit exists. */}
+        <MemoryLane ticker={ticker} companyName={company.company_name} />
 
         {/* Confidence Framework chips + defense-PSU analyst-opinion
             banner. Layer C scores (data quality, model confidence,
