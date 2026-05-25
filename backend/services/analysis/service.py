@@ -608,6 +608,34 @@ class AnalysisService(NarrativeMixin):
                 f"bulls/bears generation crashed for {ticker}: "
                 f"{type(_bbe).__name__}: {_bbe}"
             )
+
+        # ── The Honest Card (Phase 3 manifesto, 2026-05-25) ───────
+        # Build the radical-transparency panel. Pure rules + templates
+        # (no LLM), SEBI-safe by construction. Non-fatal on failure —
+        # frontend simply hides the section when honest_card is None.
+        try:
+            from backend.services.analysis.honest_card_generator import (
+                generate_honest_card,
+            )
+            from backend.models.responses import HonestCardOutput
+            hc = generate_honest_card(
+                valuation=getattr(result, "valuation", None),
+                quality=getattr(result, "quality", None),
+                insights=getattr(result, "insights", None),
+                scenarios=getattr(result, "scenarios", None),
+                company=getattr(result, "company", None),
+            )
+            hc_out = HonestCardOutput(**hc.to_dict())
+            try:
+                result.honest_card = hc_out
+            except Exception:
+                result = result.model_copy(update={"honest_card": hc_out})
+        except Exception as _hce:
+            import logging as _hcl
+            _hcl.getLogger("yieldiq.honest_card").warning(
+                f"honest card generation crashed for {ticker}: "
+                f"{type(_hce).__name__}: {_hce}"
+            )
         return result
 
     def _get_full_analysis_inner(self, ticker: str) -> AnalysisResponse:

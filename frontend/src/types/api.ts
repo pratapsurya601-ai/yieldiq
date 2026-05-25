@@ -340,6 +340,17 @@ export interface AnalystConsensus {
   source: string
 }
 
+/**
+ * The Honest Card payload — see backend/services/analysis/
+ * honest_card_generator.py for rule logic.
+ */
+export interface HonestCardOutput {
+  confident_facts: string[]
+  best_estimate: string
+  uncertainty_factors: string[]
+  invalidating_conditions: string[]
+}
+
 export interface AnalysisResponse {
   ticker: string
   company: CompanyInfo
@@ -391,6 +402,16 @@ export interface AnalysisResponse {
    */
   bulls_say?: string[] | null
   bears_say?: string[] | null
+  /**
+   * The Honest Card (Phase 3 manifesto, 2026-05-25). Radical-
+   * transparency panel — confident facts, best-estimate sentence,
+   * uncertainty factors, and exactly 3 invalidating conditions.
+   * Generated server-side by backend/services/analysis/
+   * honest_card_generator.py (no LLM, SEBI-safe). Optional — legacy
+   * cached payloads predate the field; the <HonestCard /> component
+   * self-hides when absent.
+   */
+  honest_card?: HonestCardOutput | null
   /**
    * Backend-authored formula metadata, keyed by metric id (e.g.
    * "margin_of_safety", "roce"). Populated from
