@@ -41,8 +41,7 @@ describe("WorryIndex", () => {
   it("renders the tier headline and score", () => {
     render(<WorryIndex worry={sample} />)
     expect(screen.getByText(sample.headline)).toBeInTheDocument()
-    // CountUp progressively renders 0 → 35; the final value appears
-    // once the animation settles (jsdom skips to final frame).
+    // CountUp lands on the final value after the jsdom animation tick.
     expect(screen.getByText(/out of 100/i)).toBeInTheDocument()
   })
 
