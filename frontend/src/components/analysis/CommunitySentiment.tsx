@@ -10,8 +10,7 @@
 //
 // SEBI safety: labels (Bearish/Neutral/Bullish) are not in
 // backend/services/analysis/sebi_filter.py BANNED_WORDS. All copy is
-// framed as "view", never advice. Buttons read like a poll, not a
-// recommendation.
+// framed as a user view, never advisory.
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
