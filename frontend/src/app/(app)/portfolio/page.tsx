@@ -1,6 +1,9 @@
 "use client"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { getHoldingsLive, getPortfolioHealth, getWatchlist, removeFromWatchlist, getAlerts, deleteAlert, resetHoldings, getBandShifts } from "@/lib/api"
+import { getHoldingsLive, getPortfolioHealth, getWatchlist, removeFromWatchlist, getAlerts, deleteAlert, resetHoldings, getBandShifts, getFVHistoryBatch } from "@/lib/api"
+import PortfolioSumOfPartsCard from "@/components/portfolio/PortfolioSumOfPartsCard"
+import PortfolioReturnsStrip from "@/components/portfolio/PortfolioReturnsStrip"
+import HoldingSparkline from "@/components/portfolio/HoldingSparkline"
 import EmptyState from "@/components/common/EmptyState"
 import HealthScore from "@/components/portfolio/HealthScore"
 import PortfolioPrism from "@/components/portfolio/PortfolioPrism"
@@ -9,6 +12,7 @@ import SamplePortfolioView, { SAMPLE_DISMISSED_KEY } from "@/components/portfoli
 // hidden until GET /portfolio/history exists. See HealthDashboard.tsx
 // for restore instructions.
 import { BelowFairValueBanner } from "@/components/portfolio/HealthDashboard"
+import UpdatesFeed from "@/components/portfolio/UpdatesFeed"
 import UnlockBadge from "@/components/payg/UnlockBadge"
 import { formatCurrency } from "@/lib/utils"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
@@ -16,10 +20,10 @@ import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 
-type PortfolioTab = "holdings" | "watchlist" | "alerts"
+type PortfolioTab = "holdings" | "watchlist" | "alerts" | "updates"
 
 function isTab(v: string | null): v is PortfolioTab {
-  return v === "holdings" || v === "watchlist" || v === "alerts"
+  return v === "holdings" || v === "watchlist" || v === "alerts" || v === "updates"
 }
 
 function fmtRsCompact(n: number): string {
@@ -72,6 +76,21 @@ function PortfolioInner() {
   const { data: holdingsLive, isError: holdingsError, isLoading: holdingsLoading } = useQuery({ queryKey: ["holdings-live"], queryFn: getHoldingsLive, retry: 1 })
   const holdings = holdingsLive?.holdings || []
   const summary = holdingsLive?.summary
+
+  // P0 #5 — batched 1y FV-history for every holding, fired once per
+  // page load. The backend caps at 50 tickers per request and serves
+  // every entry from the same two-tier cache the per-ticker endpoint
+  // uses, so this is dramatically cheaper than N round-trips.
+  // queryKey includes the sorted ticker list so the query stays stable
+  // across re-renders that don't change the holdings set.
+  const sparklineTickers = holdings.map(h => h.ticker).sort()
+  const { data: sparklineBatch } = useQuery({
+    queryKey: ["fv-history-batch", sparklineTickers.join(",")],
+    queryFn: () => getFVHistoryBatch(sparklineTickers, 1),
+    enabled: sparklineTickers.length > 0 && sparklineTickers.length <= 50,
+    staleTime: 60 * 60 * 1000, // 1h — sparklines are very forgiving
+    retry: 1,
+  })
 
   // Day-97: backend attaches `sample_portfolio` on the FIRST session
   // after signup when the user has zero real holdings. Render the
@@ -191,6 +210,12 @@ function PortfolioInner() {
           noise. Restore once GET /portfolio/history exists — see
           PnLSparklinePlaceholder in components/portfolio/HealthDashboard.tsx. */}
 
+      {/* P0 #2 — Portfolio Sum-of-Parts FV card. Placed ABOVE the tab
+          strip because the SoP analysis applies to the whole portfolio,
+          not just the holdings tab. Self-fetches via React Query and
+          renders nothing when the user has zero holdings. */}
+      <PortfolioSumOfPartsCard />
+
       {/* Tabs — iOS segmented control style */}
       <div className="flex bg-surface rounded-xl p-1">
         <button onClick={() => setTab("holdings")}
@@ -205,7 +230,14 @@ function PortfolioInner() {
           className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "alerts" ? "bg-bg dark:bg-surface text-ink shadow-sm ring-1 ring-black/5" : "text-caption hover:text-gray-700"}`}>
           Alerts{alerts && alerts.length > 0 ? ` (${alerts.length})` : ""}
         </button>
+        <button onClick={() => setTab("updates")}
+          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "updates" ? "bg-bg dark:bg-surface text-ink shadow-sm ring-1 ring-black/5" : "text-caption hover:text-gray-700"}`}>
+          Updates
+        </button>
       </div>
+
+      {/* Updates tab — P0 #1, per-holding categorised event stream. */}
+      {tab === "updates" && <UpdatesFeed />}
 
       {/* Holdings tab */}
       {tab === "holdings" && holdingsError && (
@@ -304,6 +336,13 @@ function PortfolioInner() {
               )
             })()}
 
+            {/* P0 #5 Feature C — return decomposition strip. Sits
+                between the gradient summary and the holdings list so
+                drivers of return are visible at a glance. Most cards
+                show LIMITED DATA today; backend services land in
+                follow-up PRs. */}
+            <PortfolioReturnsStrip />
+
             {/* Holdings List — key includes account_label so two rows of
                 the same ticker (e.g. SILVERBEES held in Zerodha AND ICICI)
                 stay as separate cards instead of colliding on the React key
@@ -346,11 +385,17 @@ function PortfolioInner() {
                 </div>
                 {/* Optional: show fair value & verdict if available */}
                 {h.fair_value != null && h.mos_pct != null && (
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50 text-[10px]">
-                    <span className="text-caption">
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50 text-[10px] gap-2">
+                    <span className="text-caption shrink-0">
                       Fair Value: <span className="font-mono text-ink">{formatCurrency(h.fair_value, "INR")}</span>
                     </span>
-                    <span className={`font-semibold ${h.mos_pct >= 0 ? "text-green-600" : "text-amber-600"}`}>
+                    {/* P0 #5 — 1Y price vs FV mini-sparkline. Fed from
+                        the page-level batched query so we don't make
+                        one network call per row. */}
+                    <div onClick={(e) => e.preventDefault()} className="hidden sm:block">
+                      <HoldingSparkline data={sparklineBatch?.[h.ticker]?.data} />
+                    </div>
+                    <span className={`font-semibold shrink-0 ${h.mos_pct >= 0 ? "text-green-600" : "text-amber-600"}`}>
                       MoS {h.mos_pct >= 0 ? "+" : ""}{h.mos_pct.toFixed(1)}%
                     </span>
                   </div>
