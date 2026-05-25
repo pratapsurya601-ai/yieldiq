@@ -1187,13 +1187,7 @@ MANIFEST: list[dict] = [
         # of the analysis by joining fair_value_history + daily_prices
         # against the most-recent manifest entry on the requested date.
         # Pure additive surface: no engine change, no existing payload
-        # field touched. The manifest entry records when the time-
-        # machine surface shipped so the timeline carries the receipt.
-        #
-        # Fields scope is the symbolic ["time_slider", "as_of_analysis"]
-        # pair — these are not real cache fields (the new endpoint
-        # uses its own `as-of:{ticker}:{date}` cache namespace), but
-        # the convention keeps the timeline self-describing.
+        # field touched.
         "version_id": "v_time_slider_phase2_2026_05_25",
         "applied_at": datetime(2026, 5, 25, 18, 30, tzinfo=timezone.utc),
         "scope": {"tickers": "*", "fields": ["time_slider", "as_of_analysis"]},
@@ -1202,6 +1196,20 @@ MANIFEST: list[dict] = [
             "lets users replay the analysis as it stood 6m / 1y / 2y / "
             "3y ago. Joins fair_value_history + daily_prices + the "
             "manifest in effect on the requested date."
+        ),
+    },
+    {
+        # Reverse-DCF Playground (Week-2 manifesto). Two additive POST
+        # endpoints (/dcf-recompute, /dcf-reverse-engineer) wrapping the
+        # existing recompute_dcf engine — no FV math change.
+        "version_id": "v_dcf_playground_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 19, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["dcf_playground", "dcf_recompute", "dcf_reverse_engineer"]},
+        "rationale": (
+            "Interactive Reverse-DCF playground -- users adjust "
+            "WACC/TG/CAGR/Margin/Tax sliders to see fair value "
+            "recompute live. Plus reverse-engineered "
+            "'what assumptions justify today's price?' panel."
         ),
     },
 ]

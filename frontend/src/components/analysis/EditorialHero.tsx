@@ -422,6 +422,20 @@ export default function EditorialHero({
                   currency={currency}
                 />
               )}
+              {/* Reverse-DCF Playground entry — Week-2 manifesto. The
+                  playground lives at /analysis/[ticker]/playground and
+                  lets users drag sliders for the 5 key DCF inputs to
+                  see fair value recompute live. Always visible (the
+                  free tier only unlocks WACC inside; soft paywall on
+                  the rest). */}
+              {fairValue > 0 && data?.ticker && (
+                <a
+                  href={`/analysis/${encodeURIComponent(data.ticker)}/playground`}
+                  className="mt-1 inline-block text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-300"
+                >
+                  &rarr; Adjust the assumptions
+                </a>
+              )}
             </div>
             <Stat
               label="Current Price"
