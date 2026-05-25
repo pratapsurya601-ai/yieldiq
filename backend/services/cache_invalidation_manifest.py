@@ -1131,6 +1131,24 @@ MANIFEST: list[dict] = [
             "decomposition strip."
         ),
     },
+    {
+        # P0 #1 — per-holding "Updates" feed for the Portfolio page.
+        # Backend additions are purely additive (new table
+        # portfolio_updates_feed + new endpoint
+        # /api/v1/portfolio/{portfolio_id}/updates that reads from it).
+        # No engine change, no cached payload shape change. Manifest
+        # entry purely satisfies the backend/services-touched cache-bump
+        # gate and signals downstream consumers that the new fields
+        # exist.
+        "version_id": "v_portfolio_updates_feed_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 12, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["portfolio_updates", "updates_feed"]},
+        "rationale": (
+            "Per-holding updates feed — categorised event stream with "
+            "template-generated headlines so users see what changed "
+            "since last visit."
+        ),
+    },
 ]
 
 
