@@ -4,7 +4,7 @@
 // numbered sections on the Summary tab (#ASD-restyle, 2026-05-25).
 //
 // Real-data-only: callers MUST pass already-resolved label/value pairs.
-// If a field is null upstream, callers should pass "—" as the value
+// If a field is null upstream, callers can pass "—" as the value
 // (component renders it muted) or omit the card entirely. This is by
 // policy — we do not pad with mock stars or fake accuracy metrics.
 //
@@ -40,7 +40,7 @@ export default function TrustStrip({ stats, ariaLabel = "Key stats" }: Props) {
   // Empty by policy → render nothing rather than an empty container.
   if (!stats || stats.length === 0) return null
 
-  // Cap at 4 cards; defensive — callers should pass 2–4.
+  // Cap at 4 cards; defensive — callers pass 2–4 by convention.
   const cards = stats.slice(0, 4)
 
   // Tailwind safelist: grid-cols-2 sm:grid-cols-2 sm:grid-cols-3 sm:grid-cols-4
