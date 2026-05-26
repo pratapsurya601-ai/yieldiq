@@ -18,8 +18,13 @@ interface Props {
 }
 
 export default function NumberedSectionHeader({ number, title, caption }: Props) {
+  // task-#217 (2026-05-26): dropped `mt-12` — PR-D wraps each Summary
+  // section in a `rounded-2xl border bg-bg p-6` card, and the card's
+  // own `p-6` padding now owns the top breathing room. Outer
+  // `space-y-16 md:space-y-20` between sections keeps the visual
+  // separation between adjacent cards.
   return (
-    <header className="mt-12 mb-6">
+    <header className="mb-6">
       <h2 className="text-2xl md:text-3xl font-bold uppercase tracking-tight text-ink">
         <span className="text-caption opacity-60">{number}.</span>{" "}
         {title}

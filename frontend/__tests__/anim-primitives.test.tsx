@@ -127,6 +127,41 @@ describe("FadeStagger", () => {
     const x = screen.getByText("x").parentElement!
     expect(x.getAttribute("style")).toContain("transition: none")
   })
+
+  // Regression test for task #213 — PR #658 fixed the Honest Card bug
+  // where `<FadeStagger as="li" className="contents">` collapsed the
+  // IntersectionObserver target (`display: contents` removes the
+  // wrapper from the box tree, so its sentinel ref has zero area and
+  // never fires "in view" — items stay permanently at opacity 0).
+  // Pin the rule here so the failure mode cannot re-emerge silently
+  // from a future call-site refactor.
+  it("does not render the outer wrapper with display: contents", () => {
+    const { container } = render(
+      <FadeStagger as="div" className="space-y-2">
+        <span>A</span>
+        <span>B</span>
+      </FadeStagger>,
+    )
+    const wrapper = container.querySelector('[data-anim="fade-stagger"]') as HTMLElement | null
+    expect(wrapper).not.toBeNull()
+    expect(wrapper!.style.display).not.toBe("contents")
+    const classes = (wrapper!.className || "").split(/\s+/)
+    expect(classes).not.toContain("contents")
+  })
+
+  it("never collapses per-child wrappers via display: contents", () => {
+    const { container } = render(
+      <FadeStagger as="div">
+        <span>1</span>
+        <span>2</span>
+      </FadeStagger>,
+    )
+    const items = container.querySelectorAll("[data-stagger-index]")
+    expect(items.length).toBe(2)
+    items.forEach((el) => {
+      expect((el as HTMLElement).style.display).not.toBe("contents")
+    })
+  })
 })
 
 describe("ChartDrawIn", () => {
