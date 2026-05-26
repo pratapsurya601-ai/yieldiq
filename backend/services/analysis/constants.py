@@ -299,6 +299,9 @@ CYCLICAL_TICKERS: set[str] = {
     'CHAMBLFERT', 'COROMANDEL', 'GSFC', 'RCF', 'GNFC',
     # Shipping (BDI cycle)
     'GESHIP', 'SCI',
+    # Autos (cycle-driven FCF: M&M = SUV mix + farm equipment monsoon
+    # dependency; TATAMOTORS = JLR global premium-auto cycle)
+    'M&M', 'TATAMOTORS',
 }
 
 

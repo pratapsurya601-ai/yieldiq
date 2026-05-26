@@ -1300,6 +1300,27 @@ MANIFEST: list[dict] = [
             "until they pick a style."
         ),
     },
+    {
+        # Task #228 (2026-05-26): added M&M + TATAMOTORS to
+        # CYCLICAL_TICKERS so the peak-FCF normalization ladder in
+        # backend/services/analysis/service.py:1217-1267 fires for these
+        # names. Scope narrowed to the two affected tickers and the
+        # downstream fields that recompute off the new normalization.
+        "version_id": "v_228_auto_cyclical_2026_05_26",
+        "applied_at": datetime(2026, 5, 26, 6, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["M&M", "TATAMOTORS"],
+            "fields": [
+                "fair_value", "base_case", "bull_case", "bear_case",
+                "scenarios", "verdict", "mos_pct", "score",
+            ],
+        },
+        "rationale": (
+            "Added M&M + TATAMOTORS to CYCLICAL_TICKERS. Peak-FCF "
+            "normalization ladder (service.py:1217-1267) now fires for "
+            "these names. Task #228."
+        ),
+    },
 ]
 
 
