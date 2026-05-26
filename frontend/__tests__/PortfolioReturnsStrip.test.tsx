@@ -1,10 +1,12 @@
 /**
- * PortfolioReturnsStrip (P0 #5 Feature C, 2026-05-25).
+ * PortfolioReturnsStrip (P0 #5 Feature C, 2026-05-25; updated P0 hotfix 2026-05-26).
  *
- * Today only the Unrealized card is wired to real data; the other
- * four render LIMITED DATA chips and become populated as backend
- * services land. These tests pin that contract so a future change
- * doesn't silently turn a LIMITED chip into a stale zero.
+ * Hotfix #2 (2026-05-26): only the Unrealized card renders today.
+ * Realized / Dividends / Currency / Forward-Dividends are gated behind
+ * backend services that don't exist; rather than rendering four
+ * "LIMITED DATA" placeholders (which read as broken in prod), those
+ * tiles are intentionally not rendered. The LIMITED DATA chip is
+ * reserved for partially-populated values, never for nulls.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, waitFor } from "@testing-library/react"
@@ -30,7 +32,7 @@ beforeEach(() => {
 })
 
 describe("PortfolioReturnsStrip", () => {
-  it("renders five cards with LIMITED DATA chips for the four unbuilt drivers", async () => {
+  it("renders only the Unrealized card while other drivers are unbuilt", async () => {
     getHoldingsLiveMock.mockResolvedValue({
       holdings: [],
       summary: {
@@ -46,15 +48,15 @@ describe("PortfolioReturnsStrip", () => {
     renderWithClient(<PortfolioReturnsStrip />)
     await waitFor(() => expect(screen.getByTestId("returns-strip")).toBeInTheDocument())
 
-    // All 5 cards present.
+    // Only Unrealized is wired today.
     expect(screen.getByTestId("returns-unrealized")).toBeInTheDocument()
-    expect(screen.getByTestId("returns-realized")).toBeInTheDocument()
-    expect(screen.getByTestId("returns-dividends")).toBeInTheDocument()
-    expect(screen.getByTestId("returns-fx")).toBeInTheDocument()
-    expect(screen.getByTestId("returns-forward-div")).toBeInTheDocument()
+    expect(screen.queryByTestId("returns-realized")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("returns-dividends")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("returns-fx")).not.toBeInTheDocument()
+    expect(screen.queryByTestId("returns-forward-div")).not.toBeInTheDocument()
 
-    // Exactly 4 LIMITED DATA chips (the unbuilt cards).
-    expect(screen.getAllByText(/LIMITED DATA/)).toHaveLength(4)
+    // LIMITED DATA chip is reserved for partial values — never null.
+    expect(screen.queryAllByText(/LIMITED DATA/)).toHaveLength(0)
   })
 
   it("formats the Unrealized card with sign + compact rupees", async () => {

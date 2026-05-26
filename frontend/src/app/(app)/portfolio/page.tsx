@@ -41,6 +41,27 @@ function pctColor(n: number): string {
   return "text-caption"
 }
 
+// FIX portfolio-hotfix-#6: strip the trailing `-X` / `-x` / `_X`
+// fallback marker that occasionally leaks from the backend ticker
+// resolver into the holdings UI (e.g. "PREMCO-X"). Display-only —
+// never mutate the underlying ticker used for routing / API keys.
+function displayTicker(raw: string): string {
+  return raw.replace(/[-_][Xx]$/, "")
+}
+
+// FIX portfolio-hotfix-#5: heuristic for "this holding is a
+// commodity / non-equity instrument we never DCF-model". Used only
+// for the user-facing copy under Fair Value when no FV is cached;
+// we never *invent* a fair value for these.
+function isLikelyCommodity(h: { ticker: string; sector?: string }): boolean {
+  const t = (h.ticker || "").toUpperCase()
+  const s = (h.sector || "").toLowerCase()
+  if (s.includes("commod") || s.includes("etf") || s.includes("gold") || s.includes("silver")) {
+    return true
+  }
+  return /(GOLD|SILVER|SILV|GOLDBEES|SILVERBEES|TATSILV|TATAGOLD)/.test(t)
+}
+
 export default function PortfolioPage() {
   return (
     <Suspense fallback={<div className="max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-4 py-6" />}>
@@ -353,7 +374,7 @@ function PortfolioInner() {
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <p className="font-bold text-ink">{h.display_ticker || h.ticker.replace(".NS", "")}</p>
+                      <p className="font-bold text-ink">{displayTicker(h.display_ticker || h.ticker.replace(".NS", ""))}</p>
                       {h.account_label && h.account_label !== "default" && (
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-caption bg-surface px-1.5 py-0.5 rounded">
                           {h.account_label}
@@ -383,8 +404,12 @@ function PortfolioInner() {
                     </p>
                   </div>
                 </div>
-                {/* Optional: show fair value & verdict if available */}
-                {h.fair_value != null && h.mos_pct != null && (
+                {/* Fair value / MoS / sparkline row. FIX portfolio-
+                    hotfix-#5: when a holding has no fair value (e.g.
+                    commodity ETFs like TATSILV / GOLDBEES) render an
+                    explicit "not modeled" line instead of leaving a
+                    blank gap that reads as a broken row. */}
+                {h.fair_value != null && h.mos_pct != null ? (
                   <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50 text-[10px] gap-2">
                     <span className="text-caption shrink-0">
                       Fair Value: <span className="font-mono text-ink">{formatCurrency(h.fair_value, "INR")}</span>
@@ -398,6 +423,10 @@ function PortfolioInner() {
                     <span className={`font-semibold shrink-0 ${h.mos_pct >= 0 ? "text-green-600" : "text-amber-600"}`}>
                       MoS {h.mos_pct >= 0 ? "+" : ""}{h.mos_pct.toFixed(1)}%
                     </span>
+                  </div>
+                ) : (
+                  <div className="mt-2 pt-2 border-t border-gray-50 text-[10px] text-caption">
+                    Fair Value: not modeled{isLikelyCommodity(h) ? " (commodity)" : ""}
                   </div>
                 )}
               </Link>

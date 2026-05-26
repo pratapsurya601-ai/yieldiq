@@ -109,6 +109,15 @@ export default function PortfolioReturnsStrip() {
   const unrealizedClass =
     unrealizedAbs > 0 ? "text-green-600" : unrealizedAbs < 0 ? "text-red-600" : "text-ink"
 
+  // FIX portfolio-hotfix-#2: hide tiles with no real value rather
+  // than rendering "LIMITED DATA" placeholders. The LIMITED DATA
+  // chip is reserved for cases where the value EXISTS but is
+  // partial (e.g. realized P&L computed from a subset of closed
+  // positions). Today only Unrealized is wired; Realized,
+  // Dividends, Currency, and Forward Dividends are backed by
+  // services that don't exist yet, so they stay invisible
+  // until those land — not render as five identical "LIMITED
+  // DATA" rectangles that read as broken.
   return (
     <section
       aria-label="Portfolio return decomposition"
@@ -123,34 +132,13 @@ export default function PortfolioReturnsStrip() {
         secondary={`${unrealizedPct >= 0 ? "+" : ""}${unrealizedPct.toFixed(2)}%`}
         primaryClass={unrealizedClass}
       />
-      <ReturnCard
-        testid="returns-realized"
-        label="Realized"
-        tooltip="Cumulative gain or loss from closed positions this FY."
-        primary="—"
-        limited
-      />
-      <ReturnCard
-        testid="returns-dividends"
-        label="Dividends Received"
-        tooltip="Cash dividends paid into your portfolio (financial year to date)."
-        primary="—"
-        limited
-      />
-      <ReturnCard
-        testid="returns-fx"
-        label="Currency Impact"
-        tooltip="Gain or loss from FX moves on non-INR holdings."
-        primary="—"
-        limited
-      />
-      <ReturnCard
-        testid="returns-forward-div"
-        label="Forward Dividends (12m)"
-        tooltip="Projected dividend income over the next 12 months based on declared payouts."
-        primary="—"
-        limited
-      />
+      {/* Realized / Dividends Received / Currency Impact / Forward
+          Dividends (12m) are intentionally not rendered yet. Each
+          requires a backend service that does not exist today;
+          re-add the corresponding <ReturnCard> here once the
+          service lands and the value can be sourced from `summary`
+          or a sibling query. Keep the LIMITED DATA chip pattern
+          only for partially-populated values, never for nulls. */}
     </section>
   )
 }

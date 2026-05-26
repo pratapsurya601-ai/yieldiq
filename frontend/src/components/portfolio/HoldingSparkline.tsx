@@ -11,7 +11,7 @@
  * `/analysis/fv-history/batch` query so we never make a per-row
  * network request.
  */
-import { LineChart, Line, ResponsiveContainer } from "recharts"
+import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts"
 import type { FVHistoryPoint } from "@/lib/api"
 
 interface Props {
@@ -26,37 +26,44 @@ export default function HoldingSparkline({ data, loading }: Props) {
         aria-busy="true"
         aria-label="Loading sparkline"
         data-testid="sparkline-skeleton"
-        className="skeleton h-[24px] w-[100px] rounded"
+        className="skeleton h-8 w-24 rounded"
       />
     )
   }
 
+  // FIX portfolio-hotfix-#4: no data → render nothing. The previous
+  // em-dash stub left a visible empty box in the row that read as
+  // broken. Sparkline absence is silent.
   if (!data || data.length < 2) {
-    return (
-      <div
-        data-testid="sparkline-empty"
-        className="h-[24px] w-[100px] flex items-center justify-end"
-      >
-        <span className="text-[10px] text-caption">—</span>
-      </div>
-    )
+    return null
   }
 
-  // Recharts handles nulls in `data` gracefully (line breaks), so we
-  // don't need to scrub here. Keep dataKey strings stable for tests.
+  // FIX portfolio-hotfix-#4: explicit min-max normalisation via
+  // Recharts `domain={["dataMin","dataMax"]}` (with a small pad)
+  // so the line uses the full vertical range instead of collapsing
+  // to a flat 1px streak when the y-axis defaults to including 0.
+  // Bumped to h-8 w-24 so the resulting curve is actually readable
+  // inside the holdings row.
   return (
     <div
       data-testid="sparkline"
-      className="h-[24px] w-[100px]"
+      className="h-8 w-24"
       aria-label="1 year price vs fair value sparkline"
     >
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={data} margin={{ top: 2, right: 0, bottom: 2, left: 0 }}>
+          <YAxis
+            hide
+            domain={[
+              (dataMin: number) => dataMin * 0.98,
+              (dataMax: number) => dataMax * 1.02,
+            ]}
+          />
           <Line
             type="monotone"
             dataKey="price"
             stroke="#dc2626"
-            strokeWidth={1.25}
+            strokeWidth={1.5}
             dot={false}
             isAnimationActive={false}
           />

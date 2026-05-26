@@ -89,11 +89,13 @@ export default function PortfolioSumOfPartsCard() {
   const colors = verdictColor(data.verdict_label)
   const mv = data.market_value
   const iv = data.intrinsic_value
-  // Stacked-bar segments are proportional to MV vs IV, clipped at
-  // a 2x ceiling so the bar stays readable when one side blows up.
-  const total = Math.max(mv + iv, 1)
-  const mvPct = Math.min(100, (mv / total) * 100)
-  const ivPct = Math.max(0, 100 - mvPct)
+  // FIX portfolio-hotfix-#3: replaced confusing 100%-wide stacked
+  // bar (which falsely implied MV + IV summed to one whole) with
+  // two parallel bars, each scaled against max(MV, IV). Reads as
+  // an unambiguous comparison instead of a composition.
+  const maxVal = Math.max(mv, iv, 1)
+  const mvBarPct = (mv / maxVal) * 100
+  const ivBarPct = (iv / maxVal) * 100
   const partial = data.holdings_without_fv_count > 0
 
   return (
@@ -125,38 +127,43 @@ export default function PortfolioSumOfPartsCard() {
         )}
       </div>
 
-      {/* Two-segment stacked bar */}
+      {/* Two parallel comparison bars (P0 hotfix #3) — each scaled
+          to its actual value against max(MV, IV). The taller side
+          fills the row; the other reads as obviously shorter. */}
       <div
-        className="h-2 w-full rounded-full overflow-hidden flex"
+        className="space-y-2"
         role="img"
         aria-label={`Market value ${fmtRsCompact(mv)}, intrinsic value ${fmtRsCompact(iv)}`}
       >
-        <div
-          className="bg-orange-400"
-          style={{ width: `${mvPct}%` }}
-          data-testid="sop-bar-market"
-        />
-        <div
-          className="bg-emerald-500"
-          style={{ width: `${ivPct}%` }}
-          data-testid="sop-bar-intrinsic"
-        />
-      </div>
-
-      <div className="flex items-center justify-between text-xs">
-        <div className="flex items-center gap-1.5">
-          <span className="inline-block w-2 h-2 rounded-full bg-orange-400" />
-          <span className="text-caption">Market Value</span>
-          <span className="font-mono font-semibold text-ink ml-1">
-            {fmtRsCompact(mv)}
-          </span>
+        <div>
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className="text-caption">Market Value</span>
+            <span className="font-mono font-semibold text-ink">
+              {fmtRsCompact(mv)}
+            </span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-surface overflow-hidden">
+            <div
+              className="h-full bg-orange-400 rounded-full"
+              style={{ width: `${mvBarPct}%` }}
+              data-testid="sop-bar-market"
+            />
+          </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
-          <span className="text-caption">Intrinsic Value</span>
-          <span className="font-mono font-semibold text-ink ml-1">
-            {fmtRsCompact(iv)}
-          </span>
+        <div>
+          <div className="flex items-center justify-between text-xs mb-1">
+            <span className="text-caption">Intrinsic Value</span>
+            <span className="font-mono font-semibold text-ink">
+              {fmtRsCompact(iv)}
+            </span>
+          </div>
+          <div className="h-2 w-full rounded-full bg-surface overflow-hidden">
+            <div
+              className="h-full bg-emerald-500 rounded-full"
+              style={{ width: `${ivBarPct}%` }}
+              data-testid="sop-bar-intrinsic"
+            />
+          </div>
         </div>
       </div>
 
