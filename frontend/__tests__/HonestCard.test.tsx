@@ -96,4 +96,58 @@ describe("HonestCard", () => {
     const { container } = render(<HonestCard card={MOCK_CARD} />)
     expect(container.firstChild).toMatchSnapshot()
   })
+
+  // ── Regression: P0 hotfix 2026-05-26 ────────────────────────────
+  // PR #651 shipped FadeStagger wrappers with `className="contents"`.
+  // `display: contents` collapses the element's CSS box, so the
+  // IntersectionObserver attached by useInViewOnce never fires
+  // (zero-area elements don't intersect), `inView` stays false, and
+  // the staggered items render at opacity:0 forever. Net effect:
+  // confident_facts / uncertainty_factors / invalidating_conditions
+  // rendered as empty section headers in production.
+  //
+  // Pin: the FadeStagger wrappers used by BulletList / NumberedList
+  // must never use `display: contents` (or any class that strips the
+  // CSS box from the observed element).
+  it("renders all 4 sections with populated data — bullets visible (P0 #651-fix)", () => {
+    const { container } = render(<HonestCard card={MOCK_CARD} />)
+    const staggers = container.querySelectorAll('[data-anim="fade-stagger"]')
+    // Two FadeStagger wrappers: BulletList (confident, uncertainty)
+    // and NumberedList (invalidating) — 3 in total for MOCK_CARD.
+    expect(staggers.length).toBe(3)
+    staggers.forEach((node) => {
+      // The container must have a real layout box so the IO observer
+      // can fire. `contents` (or `display: contents` inline) reproduces
+      // the regression.
+      expect(node.className).not.toMatch(/\bcontents\b/)
+      expect((node as HTMLElement).style.display).not.toBe("contents")
+    })
+    // Each stagger contains the right number of rendered children
+    // (data-stagger-index="0..N-1"). If the wrapper collapsed, the
+    // children would not be enumerable in DOM order either.
+    const totalStaggerItems = container.querySelectorAll(
+      "[data-stagger-index]",
+    ).length
+    expect(totalStaggerItems).toBe(
+      MOCK_CARD.confident_facts.length +
+        MOCK_CARD.uncertainty_factors.length +
+        MOCK_CARD.invalidating_conditions.length,
+    )
+  })
+
+  it("gracefully hides sections with empty arrays", () => {
+    const partial: HonestCardOutput = {
+      confident_facts: ["Only fact we have"],
+      best_estimate: "Fair value ₹100. Bear ₹80, bull ₹120. Model confidence 60/100.",
+      uncertainty_factors: [],
+      invalidating_conditions: [],
+    }
+    render(<HonestCard card={partial} />)
+    expect(screen.getByText(/here's what we're confident about/i)).toBeTruthy()
+    expect(screen.getByText(/here's our best estimate/i)).toBeTruthy()
+    expect(screen.queryByText(/here's where we could be wrong/i)).toBeNull()
+    expect(
+      screen.queryByText(/things that would change our verdict/i),
+    ).toBeNull()
+  })
 })
