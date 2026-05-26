@@ -109,6 +109,7 @@ from backend.services.analysis.constants import (
     TOP_PRIVATE_BANK_COE,
     TOP_PRIVATE_BANKS,
     NEVER_SUPER_CYCLICAL,
+    NULL_CAGR_GATE_EXEMPT,
     TICKER_SECTOR_OVERRIDES,
     _INSURANCE_TICKERS,
 )
@@ -4411,6 +4412,13 @@ class AnalysisService(NarrativeMixin):
             _bare_ticker_p0 in TOP_PRIVATE_BANKS
             or _bare_ticker_p0 in NEVER_SUPER_CYCLICAL
         )
+        # Narrow exemption: applied ONLY at the null-CAGR gate below,
+        # not at FIX 2 (moat sanity) or FIX 3 (score-MoS dominance),
+        # to keep blast radius minimal. See PR diagnosis #230.
+        _null_cagr_gate_exempt = (
+            _is_bellwether_p0
+            or _bare_ticker_p0 in NULL_CAGR_GATE_EXEMPT
+        )
         import logging as _p0_logging
         _p0_log = _p0_logging.getLogger("yieldiq.analysis")
 
@@ -4432,7 +4440,7 @@ class AnalysisService(NarrativeMixin):
         # verdict flag is the truthful signal.
         if (
             not is_financial
-            and not _is_bellwether_p0
+            and not _null_cagr_gate_exempt
             and _rev_cagr_3y is None
             and _rev_cagr_5y is None
         ):

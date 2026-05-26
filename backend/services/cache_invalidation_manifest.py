@@ -1345,6 +1345,27 @@ MANIFEST: list[dict] = [
             "cost of capital. Task #229."
         ),
     },
+    {
+        # Task #230 (2026-05-26): NULL_CAGR_GATE_EXEMPT allowlist —
+        # 8 large caps stop tripping the null-CAGR gate when a full
+        # DCF scenario triangle (bear/base/bull) is already present.
+        "version_id": "v_230_null_cagr_exempt_2026_05_26",
+        "applied_at": datetime(2026, 5, 26, 6, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "LT", "ULTRACEMCO", "WIPRO", "RELIANCE",
+                "INFY", "TCS", "ITC", "BHARTIARTL",
+            ],
+            "fields": [
+                "verdict", "data_limited", "fair_value", "mos_pct", "score",
+            ],
+        },
+        "rationale": (
+            "NULL_CAGR_GATE_EXEMPT allowlist - 8 large caps stop "
+            "tripping null-CAGR gate when full DCF scenario triangle "
+            "is present. Task #230."
+        ),
+    },
 ]
 
 
