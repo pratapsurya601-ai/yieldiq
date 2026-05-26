@@ -97,10 +97,37 @@ function gradeGradient(grade: string): string {
 // here so the tokenised "Lakh Cr" copy stays consistent across the app.
 const fmtMarketCap = formatMarketCap
 
+/** Filters a candidate trend series down to its usable numeric subset.
+ *  Defence-in-depth against payloads where prism.ts's adapter wasn't run
+ *  (e.g. a future caller bypassing `adaptPrismResponse` and handing us
+ *  the raw API array). Drops `null`/`undefined`/`NaN`/`Infinity` so the
+ *  hide-when-empty gate downstream can rely on the cleaned length. */
+function usableTrend(points: number[] | null | undefined): number[] {
+  if (!Array.isArray(points)) return []
+  return points.filter(
+    (n): n is number => typeof n === "number" && Number.isFinite(n),
+  )
+}
+
+/** A series is "renderable" only if we have ≥2 finite points AND at least
+ *  some variance — a flat all-identical series (commonly all-zeros from a
+ *  backfill cron that hasn't populated real scores yet) draws a 1px line
+ *  at the SVG baseline which, against the dark `bg-ink` surface with the
+ *  `text-bg` stroke matching the background contrast, can render as
+ *  visually empty content next to the "12M TREND" label. Task #190
+ *  follow-up: gate on usable variance, not just length. */
+function hasRenderableTrend(points: number[] | null | undefined): boolean {
+  const clean = usableTrend(points)
+  if (clean.length < 2) return false
+  const min = Math.min(...clean)
+  const max = Math.max(...clean)
+  return max - min > 0
+}
+
 /** Tiny inline sparkline, 100×24. Last point gets a dot. Returns null
  *  for < 2 points — callers are expected to gate the surrounding chip
- *  on `hasTrend` so the "12M trend" label doesn't render against an
- *  empty value. Earlier this rendered an italic "Insufficient history"
+ *  on `hasRenderableTrend` so the "12M trend" label doesn't render against
+ *  an empty value. Earlier this rendered an italic "Insufficient history"
  *  caption, but on the dark `bg-ink` card the low-contrast caption
  *  colour made it look like an empty chip (task #190). */
 function Sparkline({ points }: { points: number[] }) {
@@ -192,15 +219,19 @@ export default function ScoreCard({
       </div>
 
       {/* 12M trend sparkline — hidden entirely when we don't have at
-          least 2 monthly buckets of score history. Avoids a labelled
-          chip with empty content (task #190). When a backfill cron
-          accumulates ≥2 monthly samples in fair_value_history the
-          chip reappears automatically. */}
-      {trend12m && trend12m.length >= 2 && (
+          least 2 monthly buckets of score history WITH variance. Avoids a
+          labelled chip with empty content (task #190 + P0 follow-up:
+          "12M TREND" label was still rendering next to invisible content
+          on HDFCBANK because a flat all-equal series cleared the prior
+          length-only gate but the resulting baseline-only sparkline was
+          visually empty against the dark `bg-ink` surface). When a
+          backfill cron accumulates ≥2 monthly samples with real movement
+          in fair_value_history, the chip reappears automatically. */}
+      {hasRenderableTrend(trend12m) && (
         <div className="flex items-center justify-between text-caption">
           <span className="text-[10px] uppercase tracking-[0.15em]">12M trend</span>
           <span className="text-bg">
-            <Sparkline points={trend12m} />
+            <Sparkline points={usableTrend(trend12m)} />
           </span>
         </div>
       )}
