@@ -110,8 +110,13 @@ function SectionHeader({
 
 function BulletList({ items }: { items: string[] }) {
   if (items.length === 0) return null
+  // NOTE: FadeStagger's wrapper must have a real CSS box (not
+  // `display: contents`) — IntersectionObserver only fires for elements
+  // with layout, and `display: contents` collapses the box, so the
+  // stagger animation would never trigger and children stayed at
+  // opacity 0 forever (P0 regression on /analysis pages, 2026-05-26).
   return (
-    <FadeStagger as="li" staggerMs={80} className="contents">
+    <FadeStagger as="div" staggerMs={80} className="space-y-2">
       {items.map((line, i) => (
         <p
           key={i}
@@ -129,8 +134,10 @@ function BulletList({ items }: { items: string[] }) {
 
 function NumberedList({ items }: { items: string[] }) {
   if (items.length === 0) return null
+  // See BulletList NOTE — same `display: contents` regression applied
+  // here (PR #651 shipped both with the same wrapper class).
   return (
-    <FadeStagger as="li" staggerMs={80} className="contents">
+    <FadeStagger as="div" staggerMs={80} className="space-y-2">
       {items.map((line, i) => (
         <p
           key={i}

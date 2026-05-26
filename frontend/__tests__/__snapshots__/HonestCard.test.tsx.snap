@@ -48,10 +48,10 @@ exports[`HonestCard > snapshot — populated card 1`] = `
         class="space-y-2"
       >
         <div
-          class="contents"
+          class="space-y-2"
           data-anim="fade-stagger"
         >
-          <li
+          <div
             data-stagger-index="0"
             style="opacity: 0; transform: translate3d(0,8px,0); transition: opacity 500ms ease-out 0ms, transform 500ms cubic-bezier(0.22,1,0.36,1) 0ms; will-change: opacity, transform;"
           >
@@ -66,8 +66,8 @@ exports[`HonestCard > snapshot — populated card 1`] = `
               </span>
               Market cap: ₹24.00L Cr — derived from latest shares × live price
             </p>
-          </li>
-          <li
+          </div>
+          <div
             data-stagger-index="1"
             style="opacity: 0; transform: translate3d(0,8px,0); transition: opacity 500ms ease-out 80ms, transform 500ms cubic-bezier(0.22,1,0.36,1) 80ms; will-change: opacity, transform;"
           >
@@ -82,8 +82,8 @@ exports[`HonestCard > snapshot — populated card 1`] = `
               </span>
               Dividend declared in last 12 months: ₹19.50/share
             </p>
-          </li>
-          <li
+          </div>
+          <div
             data-stagger-index="2"
             style="opacity: 0; transform: translate3d(0,8px,0); transition: opacity 500ms ease-out 160ms, transform 500ms cubic-bezier(0.22,1,0.36,1) 160ms; will-change: opacity, transform;"
           >
@@ -98,8 +98,8 @@ exports[`HonestCard > snapshot — populated card 1`] = `
               </span>
               Dividend paid for 7 consecutive years
             </p>
-          </li>
-          <li
+          </div>
+          <div
             data-stagger-index="3"
             style="opacity: 0; transform: translate3d(0,8px,0); transition: opacity 500ms ease-out 240ms, transform 500ms cubic-bezier(0.22,1,0.36,1) 240ms; will-change: opacity, transform;"
           >
@@ -114,7 +114,7 @@ exports[`HonestCard > snapshot — populated card 1`] = `
               </span>
               Latest filed financials: period ending 2025-03-31
             </p>
-          </li>
+          </div>
         </div>
       </div>
     </div>
@@ -176,10 +176,10 @@ exports[`HonestCard > snapshot — populated card 1`] = `
         class="space-y-2"
       >
         <div
-          class="contents"
+          class="space-y-2"
           data-anim="fade-stagger"
         >
-          <li
+          <div
             data-stagger-index="0"
             style="opacity: 0; transform: translate3d(0,8px,0); transition: opacity 500ms ease-out 0ms, transform 500ms cubic-bezier(0.22,1,0.36,1) 0ms; will-change: opacity, transform;"
           >
@@ -194,8 +194,8 @@ exports[`HonestCard > snapshot — populated card 1`] = `
               </span>
               Leverage at 0.95 is above sector median 0.60 — debt sensitivity matters here
             </p>
-          </li>
-          <li
+          </div>
+          <div
             data-stagger-index="1"
             style="opacity: 0; transform: translate3d(0,8px,0); transition: opacity 500ms ease-out 80ms, transform 500ms cubic-bezier(0.22,1,0.36,1) 80ms; will-change: opacity, transform;"
           >
@@ -210,7 +210,7 @@ exports[`HonestCard > snapshot — populated card 1`] = `
               </span>
               Model fit on this archetype is limited (confidence 67/100) — wide variance across scenarios
             </p>
-          </li>
+          </div>
         </div>
       </div>
     </div>
@@ -242,10 +242,10 @@ exports[`HonestCard > snapshot — populated card 1`] = `
         class="space-y-2"
       >
         <div
-          class="contents"
+          class="space-y-2"
           data-anim="fade-stagger"
         >
-          <li
+          <div
             data-stagger-index="0"
             style="opacity: 0; transform: translate3d(0,8px,0); transition: opacity 500ms ease-out 0ms, transform 500ms cubic-bezier(0.22,1,0.36,1) 0ms; will-change: opacity, transform;"
           >
@@ -260,8 +260,8 @@ exports[`HonestCard > snapshot — populated card 1`] = `
               </span>
               Fair value drops more than 15% from one quarter's results — re-rating triggered
             </p>
-          </li>
-          <li
+          </div>
+          <div
             data-stagger-index="1"
             style="opacity: 0; transform: translate3d(0,8px,0); transition: opacity 500ms ease-out 80ms, transform 500ms cubic-bezier(0.22,1,0.36,1) 80ms; will-change: opacity, transform;"
           >
@@ -276,8 +276,8 @@ exports[`HonestCard > snapshot — populated card 1`] = `
               </span>
               Loan / advances growth below 8% for 2 consecutive quarters — bear case becomes base
             </p>
-          </li>
-          <li
+          </div>
+          <div
             data-stagger-index="2"
             style="opacity: 0; transform: translate3d(0,8px,0); transition: opacity 500ms ease-out 160ms, transform 500ms cubic-bezier(0.22,1,0.36,1) 160ms; will-change: opacity, transform;"
           >
@@ -292,7 +292,7 @@ exports[`HonestCard > snapshot — populated card 1`] = `
               </span>
               Gross NPA above 2% — solvency concerns enter the model
             </p>
-          </li>
+          </div>
         </div>
       </div>
     </div>
