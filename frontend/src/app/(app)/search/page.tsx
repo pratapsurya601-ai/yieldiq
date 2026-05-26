@@ -435,7 +435,15 @@ function SearchPageInner() {
               onClick={() => handleSelect(s.ticker, s.label)}
               className="px-4 py-2.5 min-h-[40px] bg-bg dark:bg-surface border border-border rounded-lg text-sm font-medium text-ink hover:border-blue-300 hover:text-blue-700 active:scale-[0.97] transition-colors inline-flex items-center gap-1.5"
             >
-              <span className="text-[10px] text-caption font-normal">{SECTOR_LABELS[s.sector] || ""}</span>
+              {/* Sector label hidden when it matches the active filter
+                  chip above (audit 2026-05-26 P1 — "Energy Energy"
+                  visual collision on the All filter). On "All" we hide
+                  the inline tag entirely because the filter row above
+                  already lists the represented sectors; restating it
+                  on every pill creates the appearance of duplication. */}
+              {sectorFilter !== "All" && sectorFilter !== s.sector && (
+                <span className="text-[10px] text-caption font-normal">{SECTOR_LABELS[s.sector] || ""}</span>
+              )}
               {s.label}
             </button>
           ))}
