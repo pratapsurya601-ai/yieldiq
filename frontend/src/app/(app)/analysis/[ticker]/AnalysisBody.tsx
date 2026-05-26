@@ -954,18 +954,23 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       key: "summary",
       label: "Summary",
       content: (
-        <div className="space-y-5">
-          {/* chassis(PR-A) 2026-05-26: removed the standalone InsightCards
-              + RedFlagInsights block that previously sat here between the
-              ConfidenceIndicators and Section 1 (VALUATION SCENARIOS).
-              The HDFCBANK feedback ("reads as 4 different products stacked
-              vertically") traced primarily to this duplication — the same
-              InsightCards already render inside Valuation and Quality tabs,
-              and RedFlagInsights also renders inside the Quality tab. The
-              at-a-glance Analyst Consensus / Insider Activity / Promoter
-              Holding chips are now relocated to a thin strip directly
-              above the FAQ section (outside the tab container). */}
-
+        // PR-D chassis: outer container uses editorial whitespace
+        // (space-y-16 md:space-y-20) so each numbered section reads as
+        // its own beat rather than another row in a stack. Canonical
+        // card surface on section wrappers below.
+        //
+        // chassis(PR-A) 2026-05-26: the standalone InsightCards +
+        // RedFlagInsights block that previously sat here between
+        // ConfidenceIndicators and Section 1 (VALUATION SCENARIOS)
+        // was removed in main. The HDFCBANK feedback ("reads as 4
+        // different products stacked vertically") traced primarily
+        // to that duplication — the same InsightCards already render
+        // inside Valuation and Quality tabs, and RedFlagInsights
+        // also renders inside the Quality tab. The at-a-glance
+        // Analyst Consensus / Insider Activity / Promoter Holding
+        // chips are now relocated to a thin strip directly above
+        // the FAQ section (outside the tab container).
+        <div className="space-y-16 md:space-y-20">
           {/* #ASD-restyle (2026-05-25): Summary tab restructured into
               six Alpha-Spread-style numbered sections. Each section
               gets a large uppercase header + plain-English caption,
@@ -976,7 +981,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
 
           {/* Section 1 — Valuation Scenarios */}
           {scenarioBlock ? (
-            <section aria-labelledby="section-scenarios">
+            <section aria-labelledby="section-scenarios" className="rounded-2xl border border-border bg-bg p-6">
               <NumberedSectionHeader
                 number={1}
                 title="VALUATION SCENARIOS"
@@ -991,7 +996,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           {/* Section 2 — Bull / Bear Thesis. P0 #4 (2026-05-25):
               Morningstar-style structured narrative. Component
               self-hides when both lists are empty. */}
-          <section aria-labelledby="section-thesis">
+          <section aria-labelledby="section-thesis" className="rounded-2xl border border-border bg-bg p-6">
             <NumberedSectionHeader
               number={2}
               title="BULL / BEAR THESIS"
@@ -1005,7 +1010,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               uncertainty factors, and 3 invalidating conditions. Self-
               hides when honest_card is null (legacy cached payloads). */}
           {data.honest_card ? (
-            <section aria-labelledby="section-honest-card">
+            <section aria-labelledby="section-honest-card" className="rounded-2xl border border-border bg-bg p-6">
               <NumberedSectionHeader
                 number={3}
                 title="THE HONEST CARD"
@@ -1019,7 +1024,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               Self-fetches from /stock-summary; renders nothing if data
               is absent. The TrustStrip variant shares the same
               react-query key so there's only one fetch. */}
-          <section aria-labelledby="section-growth">
+          <section aria-labelledby="section-growth" className="rounded-2xl border border-border bg-bg p-6">
             <NumberedSectionHeader
               number={4}
               title="COMPOUNDED GROWTH"
@@ -1037,7 +1042,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           </section>
 
           {/* Section 5 — Dividends */}
-          <section aria-labelledby="section-dividends">
+          <section aria-labelledby="section-dividends" className="rounded-2xl border border-border bg-bg p-6">
             <NumberedSectionHeader
               number={5}
               title="DIVIDENDS"
@@ -1052,7 +1057,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           </section>
 
           {/* Section 6 — Recent News */}
-          <section aria-labelledby="section-news">
+          <section aria-labelledby="section-news" className="rounded-2xl border border-border bg-bg p-6">
             <NumberedSectionHeader
               number={6}
               title="RECENT NEWS"
@@ -1066,7 +1071,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               "How do you feel?" voting widget + aggregated sentiment).
               Sits below News and above the collapsed manifest footer
               so it reads as the closing "your turn" beat of the page. */}
-          <section aria-labelledby="section-community">
+          <section aria-labelledby="section-community" className="rounded-2xl border border-border bg-bg p-6">
             <NumberedSectionHeader
               number={7}
               title="COMMUNITY VIEW"
