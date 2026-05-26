@@ -2,6 +2,21 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    optimizePackageImports: [
+      'lucide-react',
+      'recharts',
+      'framer-motion',
+      '@tanstack/react-query',
+      'date-fns',
+    ],
+  },
+  compiler: {
+    removeConsole:
+      process.env.NODE_ENV === 'production'
+        ? { exclude: ['error', 'warn'] }
+        : false,
+  },
   // 301 redirects: consolidate the old /hex/* surface into the new /prism/*
   // canonical. The /api/og/hex/:ticker route is intentionally NOT redirected —
   // Twitter/LinkedIn crawlers cache OG images by URL and may still fetch the
