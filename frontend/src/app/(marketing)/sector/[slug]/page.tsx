@@ -146,12 +146,25 @@ export default async function SectorPage(
         <p className="text-ink leading-relaxed">{data.cohort_notes}</p>
       </section>
 
+      {/* Hide tiles whose aggregate is null rather than rendering a bare
+          em-dash next to populated tiles (audit 2026-05-26 P1). Tickers
+          is always populated for any cohort that loads at all; the
+          financial medians can legitimately be null when the underlying
+          provider lags. */}
       <section className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
         <Stat label="Tickers" value={String(data.aggregates.ticker_count)} />
-        <Stat label="Median MoS" value={pct(data.aggregates.median_mos_pct)} />
-        <Stat label="Median score" value={num(data.aggregates.median_score, 0)} />
-        <Stat label="Median P/E" value={num(data.aggregates.median_pe, 1)} />
-        <Stat label="Median ROE" value={pct(data.aggregates.median_roe)} />
+        {data.aggregates.median_mos_pct !== null && data.aggregates.median_mos_pct !== undefined && (
+          <Stat label="Median MoS" value={pct(data.aggregates.median_mos_pct)} />
+        )}
+        {data.aggregates.median_score !== null && data.aggregates.median_score !== undefined && (
+          <Stat label="Median score" value={num(data.aggregates.median_score, 0)} />
+        )}
+        {data.aggregates.median_pe !== null && data.aggregates.median_pe !== undefined && (
+          <Stat label="Median P/E" value={num(data.aggregates.median_pe, 1)} />
+        )}
+        {data.aggregates.median_roe !== null && data.aggregates.median_roe !== undefined && (
+          <Stat label="Median ROE" value={pct(data.aggregates.median_roe)} />
+        )}
       </section>
 
       <section className="mb-8">

@@ -54,7 +54,7 @@ export default function AdrCohortBanner({ ticker }: { ticker: string }) {
         <span className="text-lg" aria-hidden="true">ⓘ</span>
         <div className="flex-1 min-w-0 text-sm leading-relaxed">
           <p>
-            <span className="font-bold">Data Limited:</span> {bare} is on our ADR cross-listed
+            <span className="font-bold">Data Limited:</span>{" "}{bare}{" "}is on our ADR cross-listed
             cohort where upstream financial data has known quality issues.
             We&apos;re working on a direct NSE data path. Fair value and score
             may be conservative until the direct NSE data path lands.{" "}

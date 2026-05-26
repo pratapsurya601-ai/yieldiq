@@ -73,16 +73,32 @@ type DemoCardData = {
 
 const FALLBACK_CARDS: DemoCardData[] = []
 
+// Module-level singleton so multiple <DemoCard /> instances (hero +
+// how-it-works section) share one network round-trip, and so React
+// StrictMode's double-mount doesn't double the fetch count. Without
+// this, the landing page hits /api/v1/public/demo-cards 4 times per
+// load (2 mounts x 2 instances), audit 2026-05-26 P1.
+let _demoCardsPromise: Promise<DemoCardData[] | null> | null = null
+function loadDemoCards(): Promise<DemoCardData[] | null> {
+  if (_demoCardsPromise) return _demoCardsPromise
+  _demoCardsPromise = fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/public/demo-cards`)
+    .then(r => r.ok ? r.json() : null)
+    .then(data => (data && data.length >= 2 ? data as DemoCardData[] : null))
+    .catch(() => null)
+  return _demoCardsPromise
+}
+
 function DemoCard() {
   const [cards, setCards] = useState<DemoCardData[]>(FALLBACK_CARDS)
   const [idx, setIdx] = useState(0)
   const [fading, setFading] = useState(false)
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || ""}/api/v1/public/demo-cards`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { if (data && data.length >= 2) setCards(data) })
-      .catch(() => {})
+    let cancelled = false
+    loadDemoCards().then(data => {
+      if (!cancelled && data) setCards(data)
+    })
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {

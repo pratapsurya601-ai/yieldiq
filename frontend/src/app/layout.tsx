@@ -71,7 +71,13 @@ const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID || "";
 const themeInitScript = `(function(){try{var s=localStorage.getItem('yieldiq_theme');if(s!=='dark'&&s!=='light'){try{localStorage.setItem('yieldiq_theme','light');}catch(e){}}var e=document.documentElement;if(s==='dark'){e.classList.add('dark');}else{e.classList.remove('dark');}}catch(e){}})();`;
 
 export const metadata: Metadata = {
-  title: "YieldIQ — Fair-value estimates for Indian stocks",
+  // Root-level default title. Per-route layouts under (app)/ override
+  // this so a user with five tabs open sees five distinct titles
+  // instead of one generic string (audit 2026-05-26 P1).
+  title: {
+    default: "YieldIQ — DCF Stock Analysis for Indian Markets",
+    template: "%s",
+  },
   description:
     "Free DCF valuation for 2,300+ NSE & BSE stocks. Instant fair value, margin of safety, and quality scores.",
   manifest: "/manifest.json",

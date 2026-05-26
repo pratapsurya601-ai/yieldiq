@@ -82,6 +82,21 @@ function PortfolioInner() {
     if (isTab(urlTab) && urlTab !== tab) setTabState(urlTab)
   }, [urlTab, tab])
 
+  // Reflect the active tab in the document title so /watchlist (which
+  // redirects to /portfolio?tab=watchlist) reads "Watchlist — YieldIQ"
+  // in the browser tab rather than the generic Portfolio label
+  // (audit 2026-05-26 P1).
+  useEffect(() => {
+    if (typeof document === "undefined") return
+    const map: Record<PortfolioTab, string> = {
+      holdings: "Portfolio — YieldIQ",
+      watchlist: "Watchlist — YieldIQ",
+      alerts: "Alerts — YieldIQ",
+      updates: "Updates — YieldIQ",
+    }
+    document.title = map[tab]
+  }, [tab])
+
   const setTab = (next: PortfolioTab) => {
     setTabState(next)
     const params = new URLSearchParams(searchParams.toString())
