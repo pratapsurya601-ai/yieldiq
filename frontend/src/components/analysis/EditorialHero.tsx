@@ -140,6 +140,16 @@ export interface EditorialHeroProps {
    * "low" / "unusable" suppress positive verdict labels in the hero.
    */
   dataConfidence?: string | null
+  /**
+   * Single-primary-signal hierarchy (chassis 2026-05-26): when true, the
+   * hero renders ONLY the headline triad — Verdict + Fair Value (with
+   * confidence band) + Discount/Premium to FV. The ScoreCard column,
+   * Buffett MoS chip, and Moat stat are hidden and instead surface
+   * inside the "Confidence and methodology" disclosure below the hero
+   * in AnalysisBody. Mirrors AlphaSpread's one-number + one-pill hero
+   * pattern (see .audit/competitor-walk-hdfcbank-2026-05-26.md).
+   */
+  compactSummary?: boolean
 }
 
 // NOTE: bandCaption() and titleCase() were removed — both produced
@@ -197,6 +207,7 @@ export default function EditorialHero({
   bearCase,
   dcfReliable,
   dataConfidence,
+  compactSummary = false,
 }: EditorialHeroProps) {
   const defaultMode: PrismMode = "spectrum"
   const color = verdictColor(data.verdict_band)
@@ -478,7 +489,13 @@ export default function EditorialHero({
                 }
               </dd>
             </div>
-            {buffettMosPct != null && Number.isFinite(buffettMosPct) && buffettMosPct >= 0 && (
+            {/* Buffett MoS + Moat — demoted from the headline grid into
+                the "Confidence and methodology" disclosure rendered below
+                the hero in AnalysisBody when `compactSummary` is on. This
+                keeps the above-the-fold triad to Verdict + Fair Value +
+                Discount-to-FV. See .audit/competitor-walk-hdfcbank-
+                2026-05-26.md gap #2. */}
+            {!compactSummary && buffettMosPct != null && Number.isFinite(buffettMosPct) && buffettMosPct >= 0 && (
               <div>
                 <dt
                   className="text-[10px] uppercase tracking-[0.15em] text-caption"
@@ -493,7 +510,9 @@ export default function EditorialHero({
                 </dd>
               </div>
             )}
-            <Stat label="Moat" value={moat || "Not rated"} metricKey="moat" />
+            {!compactSummary && (
+              <Stat label="Moat" value={moat || "Not rated"} metricKey="moat" />
+            )}
           </dl>
           )}
 
@@ -505,7 +524,7 @@ export default function EditorialHero({
         {/* ══════════════════════════════════════════════════════════
             Column 2 — The Prism (mobile: 2nd)
             ══════════════════════════════════════════════════════════ */}
-        <div className="lg:col-span-5 order-2 lg:order-2 flex flex-col items-center">
+        <div className={`${compactSummary ? "lg:col-span-8" : "lg:col-span-5"} order-2 lg:order-2 flex flex-col items-center`}>
           {/* Responsive-safe wrapper: on phones the Prism caps at the
               device width (with a small gutter) rather than overflowing
               horizontally. Prism itself now uses width:100% + aspect
@@ -608,23 +627,30 @@ export default function EditorialHero({
 
         {/* ══════════════════════════════════════════════════════════
             Column 3 — ScoreCard (mobile: 1st — most valuable at a glance)
+            Hidden when `compactSummary` is on. ScoreCard +
+            ScoreBreakdownPanel are then rendered inside the
+            "Confidence and methodology" disclosure below the hero in
+            AnalysisBody so the above-the-fold view stays at one
+            primary signal triad (Verdict + FV + MoS).
             ══════════════════════════════════════════════════════════ */}
-        <div className="lg:col-span-3 order-1 lg:order-3 flex flex-col gap-3">
-          <ScoreCard
-            score100={score100}
-            grade={grade}
-            trend12m={trend12m}
-            sectorRank={sectorRank ?? null}
-            refractionIndex={data.refraction_index}
-            marketCapCr={marketCapCr ?? null}
-            redFlags={redFlags}
-          />
-          {/* Phase C.3 — "Why this score?" transparency panel.
-              Renders nothing when score_breakdown is absent. */}
-          <ScoreBreakdownPanel
-            breakdown={data.quality?.score_breakdown}
-          />
-        </div>
+        {!compactSummary && (
+          <div className="lg:col-span-3 order-1 lg:order-3 flex flex-col gap-3">
+            <ScoreCard
+              score100={score100}
+              grade={grade}
+              trend12m={trend12m}
+              sectorRank={sectorRank ?? null}
+              refractionIndex={data.refraction_index}
+              marketCapCr={marketCapCr ?? null}
+              redFlags={redFlags}
+            />
+            {/* Phase C.3 — "Why this score?" transparency panel.
+                Renders nothing when score_breakdown is absent. */}
+            <ScoreBreakdownPanel
+              breakdown={data.quality?.score_breakdown}
+            />
+          </div>
+        )}
       </div>
 
       {/* Tap-to-explain sheet — rendered at section-level so its fixed
