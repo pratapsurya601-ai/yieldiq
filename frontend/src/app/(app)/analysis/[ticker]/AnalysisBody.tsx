@@ -72,6 +72,7 @@ import SensitivityPanel from "@/components/analysis/SensitivityPanel"
 import TickerSuggestions from "@/components/analysis/TickerSuggestions"
 import AnalysisFAQ from "@/components/analysis/AnalysisFAQ"
 import SeeAlsoPeers from "@/components/analysis/SeeAlsoPeers"
+import InlinePeerComparison from "@/components/analysis/InlinePeerComparison"
 import { useAuthStore } from "@/store/authStore"
 import {
   formatCurrency,
@@ -1021,6 +1022,12 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       <BullsBearsPanel bulls={data.bulls_say} bears={data.bears_say} />
     ),
     honest_card: data.honest_card ? <HonestCard card={data.honest_card} /> : null,
+    // Competitor-walk gap #3 (2026-05-26): inline cohort table so users
+    // don't have to leave the page to see peer context. Self-empties to
+    // a neutral notice when the cohort is unavailable.
+    peers: (
+      <InlinePeerComparison ticker={ticker} currency={company.currency} />
+    ),
     compounded_growth: (
       <>
         <CompoundedGrowthTrustStrip ticker={ticker} />

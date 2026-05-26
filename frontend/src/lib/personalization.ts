@@ -37,6 +37,7 @@ export type SectionKey =
   | "news"
   | "earnings_calls"
   | "community"
+  | "peers"
 
 export interface PersonalizationConfig {
   sectionOrder: SectionKey[]
@@ -54,6 +55,7 @@ export const DEFAULT_SECTION_ORDER: SectionKey[] = [
   "scenarios",
   "bulls_bears",
   "honest_card",
+  "peers",
   "compounded_growth",
   "reverse_dcf",
   "dividends",
@@ -88,6 +90,8 @@ export const SECTION_EXPLAINERS: Record<SectionKey, string> = {
     "Management commentary from the latest earnings call — guidance, capital-allocation tone, and analyst pushback. Tone often matters more than the prepared remarks.",
   community:
     "How other YieldIQ users are reading this name. Aggregated views from the community — not investment advice, just a sentiment signal.",
+  peers:
+    "A sortable comparison against the closest cohort by sector and market-cap band. Use it to see how price, fair value, discount-to-FV, P/E and ROE line up across comparable names.",
 }
 
 // Reading-style → display number for the numbered section header. The
@@ -146,6 +150,11 @@ export const SECTION_TITLES: Record<SectionKey, { title: string; caption: string
     caption:
       "How the YieldIQ community is reading this name. Your view, not investment advice.",
   },
+  peers: {
+    title: "PEERS IN THIS COHORT",
+    caption:
+      "How this name compares to its closest cohort on price, fair value, discount-to-FV, P/E and ROE.",
+  },
 }
 
 export const CONFIGS: Record<InvestingStyle, PersonalizationConfig> = {
@@ -154,6 +163,7 @@ export const CONFIGS: Record<InvestingStyle, PersonalizationConfig> = {
       "insight_cards",
       "scenarios",
       "honest_card",
+      "peers",
       "bulls_bears",
       "compounded_growth",
       "reverse_dcf",
@@ -174,6 +184,7 @@ export const CONFIGS: Record<InvestingStyle, PersonalizationConfig> = {
       "bulls_bears",
       "scenarios",
       "compounded_growth",
+      "peers",
       "news",
       "earnings_calls",
       "honest_card",
@@ -193,6 +204,7 @@ export const CONFIGS: Record<InvestingStyle, PersonalizationConfig> = {
       "dividends",
       "honest_card",
       "scenarios",
+      "peers",
       "compounded_growth",
       "bulls_bears",
       "news",
@@ -211,6 +223,7 @@ export const CONFIGS: Record<InvestingStyle, PersonalizationConfig> = {
       "insight_cards",
       "honest_card",
       "bulls_bears",
+      "peers",
       "scenarios",
       "compounded_growth",
       "dividends",
@@ -230,6 +243,7 @@ export const CONFIGS: Record<InvestingStyle, PersonalizationConfig> = {
       "insight_cards",
       "news",
       "scenarios",
+      "peers",
       "bulls_bears",
       "compounded_growth",
       "earnings_calls",
