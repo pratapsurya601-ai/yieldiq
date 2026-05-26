@@ -900,16 +900,17 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       label: "Summary",
       content: (
         <div className="space-y-5">
-          <InsightCards
-            quality={quality}
-            insights={insights}
-            valuation={valuation}
-            currency={company.currency}
-            sector={company.sector}
-            ticker={company.ticker}
-            analystConsensus={data.analyst_consensus ?? null}
-          />
-          <RedFlagInsights flags={insights?.red_flags_structured ?? []} />
+          {/* chassis(PR-A) 2026-05-26: removed the standalone InsightCards
+              + RedFlagInsights block that previously sat here between the
+              ConfidenceIndicators and Section 1 (VALUATION SCENARIOS).
+              The HDFCBANK feedback ("reads as 4 different products stacked
+              vertically") traced primarily to this duplication — the same
+              InsightCards already render inside Valuation and Quality tabs,
+              and RedFlagInsights also renders inside the Quality tab. The
+              at-a-glance Analyst Consensus / Insider Activity / Promoter
+              Holding chips are now relocated to a thin strip directly
+              above the FAQ section (outside the tab container). */}
+
           {/* #ASD-restyle (2026-05-25): Summary tab restructured into
               six Alpha-Spread-style numbered sections. Each section
               gets a large uppercase header + plain-English caption,
@@ -1602,6 +1603,24 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             Lives between the deep-dive content and the manifest audit so
             users have a continuation path before the page tapers off. */}
         <SeeAlsoPeers ticker={ticker} currency={company.currency} />
+
+        {/* chassis(PR-A) 2026-05-26: thin strip of at-a-glance signal
+            chips (Analyst Consensus / Insider Activity / Promoter
+            Holding, plus the rest of the InsightCards row). Relocated
+            here from the standalone Summary-tab block. Sits directly
+            above the FAQ so the page tapers from deep-dive content into
+            quick-reference chips and then auto-generated Q&A. Visible
+            on every tab by design — these are page-level signals, not
+            tab-scoped. */}
+        <InsightCards
+          quality={quality}
+          insights={insights}
+          valuation={valuation}
+          currency={company.currency}
+          sector={company.sector}
+          ticker={company.ticker}
+          analystConsensus={data.analyst_consensus ?? null}
+        />
 
         {/* Alpha-Spread restyle (2026-05-25): auto-generated FAQ with
             schema.org FAQPage JSON-LD. Template-driven, NO LLM. Highest-
