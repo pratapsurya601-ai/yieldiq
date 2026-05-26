@@ -80,7 +80,7 @@ export function formatMoS(mos: number): string {
  *     huge number next to a "may be conservative" disclaimer.
  *
  * Returns: a formatted string ("+43.7%", "\u2265200.0%") or null when
- * the field should not render.
+ * the field must not render.
  */
 export function displayMos(
   mosPct: number | null | undefined,
@@ -104,7 +104,7 @@ export function displayMos(
  * clampMosForDisplay \u2014 numeric variant of displayMos for callers
  * that pass the value into another component (e.g. EditorialHero,
  * JsonLd) and need a bounded number, not a formatted string. Same
- * suppression rule: returns null when the field should not render.
+ * suppression rule: returns null when the field must not render.
  */
 export function clampMosForDisplay(
   mosPct: number | null | undefined,
