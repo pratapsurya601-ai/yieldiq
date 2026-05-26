@@ -20,22 +20,13 @@ import AnnualReportsPanel from "@/components/analysis/AnnualReportsPanel"
 import ARSignalsPanel from "@/components/annual-reports/ARSignalsPanel"
 import BankKpiPanel from "@/components/banks/BankKpiPanel"
 import { isPureBank } from "@/lib/bankTickers"
-import ManifestHistoryPanel from "@/components/analysis/ManifestHistoryPanel"
 import InsiderTradingPanel from "@/components/analysis/InsiderTradingPanel"
 import BulkBlockDealsPanel from "@/components/analysis/BulkBlockDealsPanel"
 import DividendTracker from "@/components/analysis/DividendTracker"
 import NewsWidget from "@/components/analysis/NewsWidget"
 import EarningsCallsWidget from "@/components/analysis/EarningsCallsWidget"
-import CommunitySentiment from "@/components/analysis/CommunitySentiment"
-import MemoryLane from "@/components/analysis/MemoryLane"
 import LoadingSteps from "@/components/ui/LoadingSteps"
-import PriceChart from "@/components/analysis/PriceChart"
-import FinancialBars from "@/components/analysis/FinancialBars"
-import FairValueHistory from "@/components/analysis/FairValueHistory"
 import FinancialStatements from "@/components/analysis/FinancialStatements"
-import FinancialsKpiGrid from "@/components/analysis/FinancialsKpiGrid"
-import RevenueSankey from "@/components/analysis/RevenueSankey"
-import EarningsWaterfall from "@/components/analysis/EarningsWaterfall"
 import { ChartDrawIn, RevealOnScroll } from "@/components/anim"
 import ConcallsPanel from "@/components/analysis/ConcallsPanel"
 import ConcallSignalsPanel from "@/components/concall/ConcallSignalsPanel"
@@ -58,19 +49,14 @@ import NumberedSectionHeader from "@/components/analysis/NumberedSectionHeader"
 import TrustStrip, { type TrustStat } from "@/components/analysis/TrustStrip"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
-import BullsBearsPanel from "@/components/analysis/BullsBearsPanel"
-import HonestCard from "@/components/analysis/HonestCard"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
 import ShareReportCard from "@/components/analysis/ShareReportCard"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
-import ProExcelExportButton from "@/components/analysis/ProExcelExportButton"
 import UnlockCTA from "@/components/payg/UnlockCTA"
 import UnlockBadge from "@/components/payg/UnlockBadge"
 import { usePaygStore } from "@/store/paygStore"
 import SensitivityPanel from "@/components/analysis/SensitivityPanel"
-import SensitivityTornado from "@/components/analysis/SensitivityTornado"
 import TickerSuggestions from "@/components/analysis/TickerSuggestions"
-import FVProjectionFan from "@/components/analysis/FVProjectionFan"
 import AnalysisFAQ from "@/components/analysis/AnalysisFAQ"
 import SeeAlsoPeers from "@/components/analysis/SeeAlsoPeers"
 import { useAuthStore } from "@/store/authStore"
@@ -95,6 +81,75 @@ const PrismTimeMachine = dynamic(
   () => import("@/components/prism/PrismTimeMachine"),
   { ssr: false },
 )
+
+/* ------------------------------------------------------------------ */
+/*  Code-split below-the-fold + non-Summary-tab panels.                */
+/*  Each panel ships in its own chunk and only loads when the user     */
+/*  scrolls to / clicks the tab that renders it. SSR is disabled       */
+/*  because these are all client-only chart/widget components.         */
+/* ------------------------------------------------------------------ */
+const chartSkeleton = () => (
+  <div className="h-64 animate-pulse rounded-lg bg-slate-100" />
+)
+const smallSkeleton = () => (
+  <div className="h-32 animate-pulse rounded-lg bg-slate-100" />
+)
+
+const RevenueSankey = dynamic(() => import("@/components/analysis/RevenueSankey"), {
+  ssr: false,
+  loading: chartSkeleton,
+})
+const EarningsWaterfall = dynamic(() => import("@/components/analysis/EarningsWaterfall"), {
+  ssr: false,
+  loading: chartSkeleton,
+})
+const FinancialsKpiGrid = dynamic(() => import("@/components/analysis/FinancialsKpiGrid"), {
+  ssr: false,
+  loading: chartSkeleton,
+})
+const FairValueHistory = dynamic(() => import("@/components/analysis/FairValueHistory"), {
+  ssr: false,
+  loading: chartSkeleton,
+})
+const FinancialBars = dynamic(() => import("@/components/analysis/FinancialBars"), {
+  ssr: false,
+  loading: chartSkeleton,
+})
+const FVProjectionFan = dynamic(() => import("@/components/analysis/FVProjectionFan"), {
+  ssr: false,
+  loading: chartSkeleton,
+})
+const SensitivityTornado = dynamic(() => import("@/components/analysis/SensitivityTornado"), {
+  ssr: false,
+  loading: chartSkeleton,
+})
+const MemoryLane = dynamic(() => import("@/components/analysis/MemoryLane"), {
+  ssr: false,
+  loading: smallSkeleton,
+})
+const CommunitySentiment = dynamic(() => import("@/components/analysis/CommunitySentiment"), {
+  ssr: false,
+  loading: smallSkeleton,
+})
+const HonestCard = dynamic(() => import("@/components/analysis/HonestCard"), {
+  ssr: false,
+  loading: smallSkeleton,
+})
+const BullsBearsPanel = dynamic(() => import("@/components/analysis/BullsBearsPanel"), {
+  ssr: false,
+  loading: smallSkeleton,
+})
+const ManifestHistoryPanel = dynamic(() => import("@/components/analysis/ManifestHistoryPanel"), {
+  ssr: false,
+  loading: smallSkeleton,
+})
+const ProExcelExportButton = dynamic(() => import("@/components/analysis/ProExcelExportButton"), {
+  ssr: false,
+})
+const PriceChart = dynamic(() => import("@/components/analysis/PriceChart"), {
+  ssr: false,
+  loading: chartSkeleton,
+})
 
 /* ------------------------------------------------------------------ */
 /*  Client body for /analysis/[ticker]. The parent (page.tsx, server   */
