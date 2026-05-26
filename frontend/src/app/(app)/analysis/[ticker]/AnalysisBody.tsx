@@ -41,6 +41,8 @@ import {
 import { FormulasProvider } from "@/components/analysis/MetricTooltip"
 import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
 import ConfidenceIndicators from "@/components/analysis/ConfidenceIndicators"
+import ScoreCard from "@/components/analysis/ScoreCard"
+import ScoreBreakdownPanel from "@/components/analysis/ScoreBreakdownPanel"
 import ReverseDcfPanel from "@/components/analysis/ReverseDcfPanel"
 import CompoundedGrowthPanel from "@/components/analysis/CompoundedGrowthPanel"
 import CompoundedGrowthTrustStrip from "@/components/analysis/CompoundedGrowthTrustStrip"
@@ -638,14 +640,38 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     // subscribers used elsewhere in this file (CountUp, etc.).
     queueMicrotask(() => {
       setActiveStyle(getStyleFromStorage())
-      // First-visit gate: open the picker exactly once across the
-      // user's device. Subsequent skips/saves write to localStorage
-      // so hasUserSeenPicker() flips to true.
-      if (!hasUserSeenPicker()) {
-        setStylePickerOpen(true)
+      // First-paint modal gate (chassis 2026-05-26) — see
+      // .audit/competitor-walk-hdfcbank-2026-05-26.md gap #1.
+      // The picker previously opened on the very first analysis visit
+      // for every visitor (signed-in or anon), covering the verdict
+      // cascade and hero photo. Three conditions must all be true
+      // before we auto-open it now:
+      //   1. The user is signed in (anon visitors never see it — the
+      //      preference is meaningless without an account anyway).
+      //   2. They have actually browsed the product — at least three
+      //      tickers in the local "recent views" log (the same writer
+      //      this component already maintains for the home page card).
+      //   3. They have not already seen or skipped the picker on this
+      //      device.
+      // Users can still open the picker via /account/preferences any
+      // time. This swaps an unconditional first-paint modal for a
+      // delayed nudge to engaged users only.
+      if (!hasUserSeenPicker() && authToken) {
+        try {
+          const raw = window.localStorage.getItem("yq:recent-views")
+          const entries = raw ? JSON.parse(raw) : []
+          const visitCount = Array.isArray(entries) ? entries.length : 0
+          if (visitCount > 2) {
+            setStylePickerOpen(true)
+          }
+        } catch {
+          // localStorage unavailable (Safari private mode, quota) — fall
+          // through. Better to never show the modal than to show it on
+          // first paint by accident.
+        }
       }
     })
-  }, [])
+  }, [authToken])
   // Phase-2 Time Slider snapshot. null = render the live payload as
   // usual. When non-null, the hero swaps its FV / MoS / verdict to
   // the historical values so the page reads as a past snapshot.
@@ -1665,6 +1691,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               dataConfidence={data.data_confidence}
               bullCase={valuation.bull_case}
               bearCase={valuation.bear_case}
+              // chassis 2026-05-26: single-primary-signal hero. ScoreCard,
+              // Buffett MoS chip and Moat stat move into the disclosure
+              // below. See .audit/competitor-walk-hdfcbank-2026-05-26.md.
+              compactSummary
             />
             </>
           ) : (
@@ -1723,19 +1753,51 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           )
         })()}
 
-        {/* Confidence Framework chips + defense-PSU analyst-opinion
-            banner. Layer C scores (data quality, model confidence,
-            valuation stability) ship from PRs #340 + #342; the
-            analyst-opinion-required flag is the defense-PSU NO-FIX
-            caveat from PR #333. The component renders nothing when
-            all four signals are absent on legacy cached payloads. */}
-        <ConfidenceIndicators
-          dataQualityScore={valuation.data_quality_score}
-          modelConfidenceScore={valuation.model_confidence_score}
-          valuationStabilityScore={valuation.valuation_stability_score}
-          analystOpinionRequired={valuation.analyst_opinion_required}
-          dataIssues={data.data_issues}
-        />
+        {/* Confidence and methodology disclosure (chassis 2026-05-26).
+            Collapsed by default per .audit/competitor-walk-hdfcbank-
+            2026-05-26.md gap #2 — the above-the-fold view stays at the
+            primary triad (Verdict + Fair Value + Discount-to-FV).
+            Methodology details — the composite score, grade, sector
+            rank, refraction index, data-quality and model-confidence
+            chips, and valuation-stability band — live in here for
+            readers who want them. Components are unchanged; only the
+            visibility wrapper is new. */}
+        <details className="rounded-2xl border border-border bg-bg dark:bg-surface group">
+          <summary className="cursor-pointer list-none flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-ink [&::-webkit-details-marker]:hidden">
+            <span className="flex items-center gap-2">
+              <span aria-hidden className="text-caption transition-transform group-open:rotate-90">&#9656;</span>
+              Confidence and methodology
+            </span>
+            <span className="text-[11px] text-caption">
+              Composite score, sector rank, data-quality breakdown
+            </span>
+          </summary>
+          <div className="px-4 pb-4 pt-1 space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
+              <ScoreCard
+                score100={quality.yieldiq_score}
+                grade={quality.grade}
+                trend12m={prismResolved?.score_history_12m ?? []}
+                sectorRank={null}
+                refractionIndex={prismResolved?.refraction_index ?? 0}
+                marketCapCr={marketCapCr ?? null}
+                redFlags={insights?.red_flags_structured ?? []}
+              />
+              <div className="lg:col-span-2">
+                <ScoreBreakdownPanel
+                  breakdown={prismResolved?.quality?.score_breakdown}
+                />
+              </div>
+            </div>
+            <ConfidenceIndicators
+              dataQualityScore={valuation.data_quality_score}
+              modelConfidenceScore={valuation.model_confidence_score}
+              valuationStabilityScore={valuation.valuation_stability_score}
+              analystOpinionRequired={valuation.analyst_opinion_required}
+              dataIssues={data.data_issues}
+            />
+          </div>
+        </details>
 
         {/* Analytical notes — backend-emitted contextual disclaimers
             (premium brand, conglomerate, regulated utility, etc.). Sits
