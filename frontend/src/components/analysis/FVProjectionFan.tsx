@@ -3,14 +3,16 @@
 /**
  * FVProjectionFan — Alpha Spread style fan-out projection chart.
  *
- * Renders the last 12 months of actual close prices as a solid line, then
- * three dashed projection lines (bear / base / bull) fanning out from
+ * Renders the trailing 24 months of actual close prices as a solid line,
+ * then three dashed projection lines (bear / base / bull) fanning out from
  * "today" to +60 months. Endpoint labels show terminal price, MoS%, and
  * implied CAGR for each case. Replaces the three bear/base/bull cards
  * with a single information-dense visualization.
  *
  * Data sources:
- *   • Historical close prices — `getFVHistory(ticker, 1)` (last 1y)
+ *   • Historical close prices — `getFVHistory(ticker, 2)` (last 2y).
+ *     If the user's tier only returns 12m (free-tier), the chart auto-
+ *     downscales the x-axis label to `-12m` instead of `-24m`.
  *   • Forward scenarios       — passed in from AnalysisBody (already on
  *                               the analysis payload, no extra fetch).
  *
@@ -67,7 +69,7 @@ interface ChartPoint {
 }
 
 const HORIZON_MONTHS = 60
-const HISTORY_MONTHS = 12
+const HISTORY_MONTHS = 24
 
 function impliedCagr(start: number, end: number, years: number): number {
   if (!start || start <= 0 || !end || end <= 0 || years <= 0) return 0
@@ -196,8 +198,8 @@ export default function FVProjectionFan({
   const [showNumbers, setShowNumbers] = useState(false)
 
   const { data: history, isLoading, isError } = useQuery({
-    queryKey: ["fv-history", ticker, 1],
-    queryFn: () => getFVHistory(ticker, 1),
+    queryKey: ["fv-history", ticker, 2],
+    queryFn: () => getFVHistory(ticker, 2),
     enabled: !!ticker && !historyOverride,
     staleTime: 15 * 60 * 1000,
     retry: 1,
@@ -209,6 +211,24 @@ export default function FVProjectionFan({
   }, [historyOverride, history, currentPrice, scenarios])
 
   const hasAnyActual = points.some((p) => p.actual != null && p.actual > 0)
+  // Determine how far back actual history extends (most-negative m with an
+  // actual sample). Free-tier users may only get ~12m even though we asked
+  // for 24m, so drive the x-axis domain off real data instead of the const.
+  const historyExtent = useMemo(() => {
+    let minM = 0
+    for (const p of points) {
+      if (p.actual != null && p.actual > 0 && p.m < minM) minM = p.m
+    }
+    // Snap to the nearest multiple of 6 (rounded down) so axis ticks align.
+    const snapped = Math.floor(minM / 6) * 6
+    return Math.max(-HISTORY_MONTHS, snapped || -HISTORY_MONTHS)
+  }, [points])
+  const historyTicks = useMemo(() => {
+    // Build symmetric-ish ticks across the historical window: every 6m.
+    const ticks: number[] = []
+    for (let m = historyExtent; m < 0; m += 6) ticks.push(m)
+    return [...ticks, 0, 12, 24, 36, 48, 60]
+  }, [historyExtent])
   const showSkeleton = isLoading && !historyOverride
   const showEmpty =
     !showSkeleton &&
@@ -225,7 +245,7 @@ export default function FVProjectionFan({
         <div>
           <h2 className="text-sm font-semibold text-ink">5-Year Projection</h2>
           <p className="text-xs text-caption">
-            Bear / base / bull scenarios fanned out over the DCF horizon.
+            Actual price (left) and bear / base / bull scenarios over the DCF horizon (right).
           </p>
         </div>
         <button
@@ -255,8 +275,8 @@ export default function FVProjectionFan({
               <XAxis
                 dataKey="m"
                 type="number"
-                domain={[-HISTORY_MONTHS, HORIZON_MONTHS]}
-                ticks={[-12, -6, 0, 12, 24, 36, 48, 60]}
+                domain={[historyExtent, HORIZON_MONTHS]}
+                ticks={historyTicks}
                 tickFormatter={(m) =>
                   m === 0 ? "Today" : m < 0 ? `${m}m` : `+${m / 12}y`
                 }
