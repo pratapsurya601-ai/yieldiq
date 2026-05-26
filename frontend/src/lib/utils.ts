@@ -57,6 +57,73 @@ export function formatMoS(mos: number): string {
   return `${mos >= 0 ? "+" : ""}${mos.toFixed(1)}%`
 }
 
+/**
+ * displayMos \u2014 canonical "show MoS to the user" helper.
+ *
+ * Background: WIPRO +321.5% / KALYANI +829% bug class. The backend
+ * /api/v1/prism payload returns a clamped MoS (`mos_pct`, bounded to
+ * \u00b1200% on cache v74+) AND a raw value (`mos_pct_raw`) plus a
+ * `mos_clamped` boolean indicating whether the bound fired. Historical
+ * fix attempts on the frontend re-derived MoS from the unclamped
+ * base-case scenario (`scenarios.base_unclamped`) to "match the AI
+ * summary," but that bypass produced +321.5% on WIPRO and similar
+ * runaway numbers on data-limited ADR cross-listings.
+ *
+ * Universal rule (PR fix/mos-clamp-enforce, 2026-05-26):
+ *   - Prefer the backend's already-clamped `mos_pct` over any locally
+ *     re-derived (FV \u2212 P) / P arithmetic.
+ *   - Hard-cap the display at \u00b1200% as defense-in-depth against
+ *     stale caches that pre-date the backend clamp.
+ *   - When `dataLimited` is true AND the value sits past the cap (and
+ *     the backend didn't flag it clamped), return null so the caller
+ *     can suppress the field entirely rather than render a misleading
+ *     huge number next to a "may be conservative" disclaimer.
+ *
+ * Returns: a formatted string ("+43.7%", "\u2265200.0%") or null when
+ * the field should not render.
+ */
+export function displayMos(
+  mosPct: number | null | undefined,
+  mosClamped: boolean | null | undefined,
+  dataLimited: boolean | null | undefined,
+): string | null {
+  if (mosPct == null || !Number.isFinite(mosPct)) return null
+  const HARD_CAP = 200
+  if (mosPct > HARD_CAP) {
+    if (dataLimited && !mosClamped) return null
+    return "\u2265200.0%"
+  }
+  if (mosPct < -HARD_CAP) {
+    if (dataLimited && !mosClamped) return null
+    return "\u2264-200.0%"
+  }
+  return `${mosPct >= 0 ? "+" : ""}${mosPct.toFixed(1)}%`
+}
+
+/**
+ * clampMosForDisplay \u2014 numeric variant of displayMos for callers
+ * that pass the value into another component (e.g. EditorialHero,
+ * JsonLd) and need a bounded number, not a formatted string. Same
+ * suppression rule: returns null when the field should not render.
+ */
+export function clampMosForDisplay(
+  mosPct: number | null | undefined,
+  mosClamped: boolean | null | undefined,
+  dataLimited: boolean | null | undefined,
+): number | null {
+  if (mosPct == null || !Number.isFinite(mosPct)) return null
+  const HARD_CAP = 200
+  if (mosPct > HARD_CAP) {
+    if (dataLimited && !mosClamped) return null
+    return HARD_CAP
+  }
+  if (mosPct < -HARD_CAP) {
+    if (dataLimited && !mosClamped) return null
+    return -HARD_CAP
+  }
+  return mosPct
+}
+
 export function formatPct(value: number): string {
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`
 }

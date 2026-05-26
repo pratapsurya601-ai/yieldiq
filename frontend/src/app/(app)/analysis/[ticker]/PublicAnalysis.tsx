@@ -33,9 +33,9 @@ import MetricTooltip from "@/components/analysis/MetricTooltip"
 import FvConfidenceBand from "@/components/analysis/FvConfidenceBand"
 import {
   formatCurrency,
-  formatPct,
   formatCompanyName,
   verdictDisplayLabel,
+  displayMos,
 } from "@/lib/utils"
 
 /**
@@ -52,14 +52,26 @@ interface PrismRaw {
   price?: number | null
   fair_value?: number | null
   mos_pct?: number | null
+  // Backend flag: true when /api/v1/prism clamped mos_pct to the
+  // ±200% sanity bound. Pairs with `mos_pct_raw` (uncapped). The
+  // frontend MUST NOT re-derive an uncapped MoS — see displayMos().
+  mos_clamped?: boolean | null
+  mos_pct_raw?: number | null
+  // Aggregate "ticker failed reliability gates" flag. When true and
+  // mos_pct sits past the ±200% cap, the MoS field hides entirely
+  // rather than render a misleading huge number next to the disclaimer.
+  data_limited?: boolean | null
   verdict_label?: string | null
   yieldiq_score_100?: number | null
   grade?: string | null
   market_cap_cr?: number | null
   // FV-clamp consistency (NOIDATOLL +200% bug — visitor follow-up to PR #108).
   // When true, the backend has clamped fair_value/mos_pct to a plausible
-  // bound; render the unclamped base-case scenario instead so the visitor
-  // hero matches the logged-in EditorialHero fix and the AI summary.
+  // bound. We still promote base_unclamped to the headline FAIR VALUE for
+  // continuity with the AI summary, but the MoS used in the headline
+  // comes from displayMos(mos_pct, mos_clamped, data_limited) — NEVER
+  // recomputed from (base_unclamped − price) / price (the bypass that
+  // produced WIPRO +321.5%).
   fv_clamped?: boolean
   /**
    * DCF model confidence (0–100) — mirrors ValuationOutput.confidence_score
@@ -198,6 +210,8 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
     price,
     fair_value: rawFairValue,
     mos_pct: rawMosPct,
+    mos_clamped,
+    data_limited,
     verdict_label,
     yieldiq_score_100,
     grade,
@@ -206,16 +220,21 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
     confidence,
   } = raw
 
-  // FV-clamp consistency (NOIDATOLL +200% bug — visitor view follow-up
-  // to PR #108): when the backend clamped fair_value to a plausible
-  // bound (FV/PX outside [0.1, 3.0] OR |MoS| ≥ 95%), the headline
-  // fair_value/mos_pct on the prism payload reflect the clamp, while
-  // scenarios.base_unclamped retains the meaningful base-case IV. Promote
-  // base_unclamped to the headline so the visitor hero shows the same
-  // numbers the AI summary + scenario grid (gated, but referenced from
-  // the upsell copy) reason about. Mirrors the AnalysisBody logic added
-  // in PR #108. If the unclamped base is missing or non-positive, fall
-  // back to the clamped headline rather than render "—".
+  // FV-clamp consistency (NOIDATOLL +200% follow-up): when the backend
+  // clamped fair_value to a plausible bound, we still promote
+  // scenarios.base_unclamped to the headline FAIR VALUE so the visitor
+  // hero matches the AI summary + scenario grid the upsell copy
+  // references. Mirrors the AnalysisBody logic added in PR #108.
+  //
+  // What we DO NOT do (anymore — fix/mos-clamp-enforce, 2026-05-26):
+  // re-derive MoS from (base_unclamped − price) / price. That bypass
+  // produced WIPRO +321.5% and KALYANI +829%, sitting directly above
+  // the "may be conservative" data-limited disclaimer. The backend's
+  // `mos_pct` is already clamped to ±200% on cache v74+, and any
+  // residual stale-cache overflow is caught by displayMos()'s
+  // defense-in-depth hard cap below. If the unclamped base FV is
+  // missing or non-positive, fall back to the clamped headline rather
+  // than render "—".
   const baseUnclamped = scenarios?.base_unclamped
   const useUnclamped =
     !!fv_clamped &&
@@ -223,10 +242,9 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
     Number.isFinite(baseUnclamped) &&
     baseUnclamped > 0
   const fair_value = useUnclamped ? (baseUnclamped as number) : rawFairValue
-  const mos_pct =
-    useUnclamped && typeof price === "number" && price > 0
-      ? Math.round((((baseUnclamped as number) - price) / price) * 100 * 100) / 100
-      : rawMosPct
+  // Single source of truth for the MoS we render: backend's clamped
+  // mos_pct. Never recomputed locally from base_unclamped.
+  const mos_pct = rawMosPct
 
   const displayTicker = tickerUpper.replace(/\.(NS|BO)$/i, "")
   const exchange = tickerUpper.endsWith(".BO") ? "BSE" : "NSE"
@@ -359,11 +377,13 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
             />
             <Stat
               label={<MetricTooltip metricKey="mos">Margin of safety</MetricTooltip>}
-              value={
-                mos_pct === null || mos_pct === undefined
-                  ? "—"
-                  : formatPct(mos_pct)
-              }
+              // displayMos() is the canonical render path: prefers the
+              // backend's clamped mos_pct, caps at ±200% as defense in
+              // depth, and returns null on data-limited tickers whose
+              // value would overflow the cap (WIPRO +321% bug class —
+              // fix/mos-clamp-enforce, 2026-05-26). When it returns
+              // null we render "—" rather than a misleading number.
+              value={displayMos(mos_pct, mos_clamped, data_limited) ?? "—"}
               emphasis={mosTone === "positive"}
             />
             <Stat
