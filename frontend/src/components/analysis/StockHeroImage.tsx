@@ -28,11 +28,13 @@
  *     since the gradient fallback is what most users see anyway
  */
 
-import { useState } from "react"
+import Image from "next/image"
+import { useMemo, useState } from "react"
 
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import { formatCurrency } from "@/lib/utils"
 import { formatMarketCap } from "@/lib/formatters"
+import { getLogoFallbackUrl, getLogoUrl } from "@/lib/logoUrl"
 import {
   VERDICT_COLORS,
   verdictTierFromMos,
@@ -80,6 +82,26 @@ export default function StockHeroImage({
   const imageSrc = `/api/v1/public/company-image/${encodeURIComponent(ticker)}`
   const [imageOk, setImageOk] = useState(true)
 
+  // Real-company-logo resolution chain — Brandfetch (when configured)
+  // -> Google favicon -> giant-letter fallback. The chain is driven by
+  // two pieces of state: `logoSrc` is what <Image> is currently asked
+  // to render, and `logoFailed` flips true after we've exhausted both
+  // remote sources, signalling the letter fallback. Tickers absent
+  // from `ticker_domains.json` start with `logoSrc === null` and we
+  // skip straight to the letter (no failed request fired).
+  const initialLogo = useMemo(() => getLogoUrl(ticker, 128), [ticker])
+  const [logoSrc, setLogoSrc] = useState<string | null>(initialLogo)
+  const [logoFailed, setLogoFailed] = useState(false)
+  const handleLogoError = () => {
+    const fallback = getLogoFallbackUrl(ticker, 128)
+    if (fallback && fallback !== logoSrc) {
+      setLogoSrc(fallback)
+    } else {
+      setLogoFailed(true)
+    }
+  }
+  const showLogo = !!logoSrc && !logoFailed
+
   // Intraday change chip — only render when the backend actually sent
   // a number. No fake zeros.
   const showIntraday =
@@ -125,9 +147,44 @@ export default function StockHeroImage({
         ].join(" ")}
       />
 
-      {/* Giant company initial — only when no image. Acts as the visual
-          anchor and gives each stock a unique-feeling hero. */}
-      {!imageOk && (
+      {/* Real company logo — Brandfetch/favicon when the ticker is
+          mapped in ticker_domains.json. Sits centered behind the price
+          card as the visual anchor. We render it INSIDE the same
+          !imageOk branch as the letter so the backend image (when one
+          exists) still wins. The double-onError chain swaps to favicon
+          then surrenders to the letter. */}
+      {!imageOk && showLogo && (
+        <div
+          aria-hidden
+          data-testid="hero-company-logo"
+          className="absolute inset-0 flex items-center justify-center"
+        >
+          <div
+            className={[
+              "relative",
+              "h-20 w-20 md:h-24 md:w-24",
+              "rounded-2xl bg-white/90 dark:bg-white/85",
+              "shadow-lg ring-1 ring-white/40",
+              "p-2 md:p-3",
+            ].join(" ")}
+          >
+            <Image
+              src={logoSrc as string}
+              alt=""
+              fill
+              sizes="(min-width: 768px) 96px, 80px"
+              className="object-contain"
+              onError={handleLogoError}
+              unoptimized
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Giant company initial — only when neither the backend image
+          NOR a real logo is available. Acts as the last-resort visual
+          anchor so the hero is never visually empty. */}
+      {!imageOk && !showLogo && (
         <div
           aria-hidden
           className={[
