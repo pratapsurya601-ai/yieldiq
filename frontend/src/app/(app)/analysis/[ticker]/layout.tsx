@@ -14,8 +14,7 @@ interface Props {
 // reach because they are derived from backend data at request time, not
 // from source-code string literals.
 //
-// SEBI IA Regs 2013 treat any prescriptive valuation verdict ("deep
-// value", "expensive", "buy", "should accumulate", "strong margin") as
+// SEBI IA Regs 2013 treat prescriptive valuation verdicts as
 // investment advice without registration. YieldIQ is not a SEBI-
 // registered IA, so we strip ALL verdict vocabulary from <title>,
 // <meta name="description">, og:title, og:description, twitter:title,
