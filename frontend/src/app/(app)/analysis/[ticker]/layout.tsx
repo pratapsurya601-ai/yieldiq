@@ -145,9 +145,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     : backendDescription ||
       `Free DCF valuation for ${displayTicker}. See its fair-value estimate, margin of safety, and quality scores.`
 
-  // Use the dynamic OG image route — generates a 1200x630 PNG
-  // with the stock's verdict, fair value, score, etc. baked in
-  const ogImageUrl = `https://yieldiq.in/api/og/${ticker}`
+  // Phase 4.2 (2026-05-25): Money Camera is now the canonical share
+  // image. Same 1200x630 dimensions as the legacy /api/og/[ticker]
+  // route, so no crawler-side breakage — Open Graph / Twitter / Slack
+  // / WhatsApp all keep the same large_summary card geometry. The
+  // older route is retained for backward compatibility with already-
+  // scraped URLs in caches we don't control.
+  const ogImageUrl = `https://yieldiq.in/api/og/money-camera/${ticker}?format=horizontal`
 
   // Stale-snippet defense: when the og-data endpoint reports a degraded
   // state (verdict in the under-review family OR an explicit

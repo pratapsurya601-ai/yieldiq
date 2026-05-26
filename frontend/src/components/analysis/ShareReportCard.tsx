@@ -41,22 +41,84 @@ function displayTicker(t: string): string {
   return (t || "").replace(/\.(NS|BO)$/i, "").toUpperCase()
 }
 
+// Phase 4.2 (2026-05-25): the modal now supports two share artefacts.
+//   • prism        — the original 1080x1920 Prism portrait
+//   • money_story  — Money Camera 1080x1920 story format
+//   • money_horiz  — Money Camera 1200x630 horizontal OG card
+// The Prism option is preserved verbatim; Money Camera is added as a
+// new selectable format. Default is `money_story` since Phase 4.2 sets
+// Money Camera as the canonical share image on the analysis page.
+type ShareFormat = "prism" | "money_story" | "money_horiz"
+
+interface FormatDef {
+  key: ShareFormat
+  label: string
+  src: (ticker: string) => string
+  width: number
+  height: number
+  aspect: string
+  downloadSuffix: string
+}
+
+const FORMATS: FormatDef[] = [
+  {
+    key: "money_story",
+    label: "Money Camera · Story",
+    src: (t) =>
+      `/api/og/money-camera/${encodeURIComponent(t)}?format=story`,
+    width: 1080,
+    height: 1920,
+    aspect: "9 / 16",
+    downloadSuffix: "moneycamera_story",
+  },
+  {
+    key: "money_horiz",
+    label: "Money Camera · Wide",
+    src: (t) =>
+      `/api/og/money-camera/${encodeURIComponent(t)}?format=horizontal`,
+    width: 1200,
+    height: 630,
+    aspect: "1200 / 630",
+    downloadSuffix: "moneycamera_wide",
+  },
+  {
+    key: "prism",
+    label: "Prism Card",
+    src: (t) => `/api/og/analysis/${encodeURIComponent(t)}`,
+    width: 1080,
+    height: 1920,
+    aspect: "9 / 16",
+    downloadSuffix: "prism",
+  },
+]
+
 export default function ShareReportCard({
   ticker,
   variant = "primary",
   className,
 }: ShareReportCardProps) {
   const [open, setOpen] = useState(false)
-  const [imgLoaded, setImgLoaded] = useState(false)
-  const [imgError, setImgError] = useState(false)
+  // We track which src has loaded (or errored) instead of a bare bool
+  // so switching format resets the spinner without a setState-in-effect
+  // pattern. `loadedSrc === imgSrc` means the current preview is ready;
+  // `errorSrc === imgSrc` means it failed.
+  const [loadedSrc, setLoadedSrc] = useState<string | null>(null)
+  const [errorSrc, setErrorSrc] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [format, setFormat] = useState<ShareFormat>("money_story")
 
-  // The image path is stable across renders — memoise so the preview
-  // <img> doesn't re-request every time this component re-renders due
-  // to the toast timer.
+  const activeFormat = useMemo(
+    () => FORMATS.find((f) => f.key === format) ?? FORMATS[0],
+    [format]
+  )
+
+  // The image path is stable per (ticker, format) — memoise so the
+  // preview <img> doesn't re-request every time the toast timer fires
+  // a re-render. Changing format intentionally swaps the src, which is
+  // what triggers the preview to reload.
   const imgSrc = useMemo(
-    () => `/api/og/analysis/${encodeURIComponent(ticker)}`,
-    [ticker]
+    () => activeFormat.src(ticker),
+    [activeFormat, ticker]
   )
 
   // ESC closes the modal — mirrors the Prism PillarExplainer pattern.
@@ -76,10 +138,15 @@ export default function ShareReportCard({
     return () => clearTimeout(t)
   }, [toast])
 
+  // Note: when the user switches format we reset the loading state by
+  // remounting the <img> via React's `key` prop (set to `format` below)
+  // rather than calling setState in an effect — the latter is flagged
+  // by react-hooks/set-state-in-effect under the React 19 ruleset.
+
   const handleOpen = useCallback(() => {
     trackExportUsed("prism_card_open", ticker)
-    setImgLoaded(false)
-    setImgError(false)
+    setLoadedSrc(null)
+    setErrorSrc(null)
     setOpen(true)
   }, [ticker])
 
@@ -99,7 +166,7 @@ export default function ShareReportCard({
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
       a.href = url
-      a.download = `YieldIQ_${displayTicker(ticker)}_prism.png`
+      a.download = `YieldIQ_${displayTicker(ticker)}_${activeFormat.downloadSuffix}.png`
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -109,7 +176,7 @@ export default function ShareReportCard({
     } catch {
       setToast("Download failed — try again.")
     }
-  }, [fetchBlob, ticker])
+  }, [fetchBlob, ticker, activeFormat.downloadSuffix])
 
   const handleShare = useCallback(async () => {
     trackExportUsed("prism_card_share", ticker)
@@ -124,7 +191,7 @@ export default function ShareReportCard({
       const blob = await fetchBlob()
       const file = new File(
         [blob],
-        `YieldIQ_${displayTicker(ticker)}_prism.png`,
+        `YieldIQ_${displayTicker(ticker)}_${activeFormat.downloadSuffix}.png`,
         { type: "image/png" }
       )
       const nav = navigator as Navigator & {
@@ -159,7 +226,7 @@ export default function ShareReportCard({
     } catch {
       setToast("Share unavailable on this device.")
     }
-  }, [fetchBlob, ticker])
+  }, [fetchBlob, ticker, activeFormat.downloadSuffix])
 
   // Mobile: enlarge tap target and bump min-height to 44px (a11y baseline).
   const buttonClass =
@@ -212,10 +279,13 @@ export default function ShareReportCard({
                   id="share-report-card-title"
                   className="text-xl font-semibold text-ink mt-0.5"
                 >
-                  {displayTicker(ticker)} Prism Card
+                  {displayTicker(ticker)} &mdash; Share
                 </h3>
                 <p className="text-xs text-caption mt-1">
-                  1080 &times; 1920 &mdash; Instagram Story / Twitter vertical
+                  {activeFormat.width} &times; {activeFormat.height} &mdash;{" "}
+                  {activeFormat.key === "money_horiz"
+                    ? "Open Graph / Twitter / LinkedIn"
+                    : "Instagram Story / Twitter vertical"}
                 </p>
               </div>
               <button
@@ -228,20 +298,51 @@ export default function ShareReportCard({
               </button>
             </div>
 
-            {/* Preview frame — 9:16 aspect box so the image area is
-                stable while the PNG streams in. */}
+            {/* Format selector — Money Camera (story + wide) and the
+                legacy Prism card. Pill-style tabs so the tap targets
+                stay finger-friendly on mobile. */}
+            <div
+              className="mt-4 flex gap-2 overflow-x-auto"
+              role="tablist"
+              aria-label="Share format"
+            >
+              {FORMATS.map((f) => {
+                const active = f.key === format
+                return (
+                  <button
+                    key={f.key}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setFormat(f.key)}
+                    className={[
+                      "shrink-0 px-3 py-1.5 min-h-[36px] text-xs font-semibold rounded-full border transition",
+                      active
+                        ? "bg-brand text-white border-brand"
+                        : "bg-transparent text-ink border-border hover:bg-bg",
+                    ].join(" ")}
+                  >
+                    {f.label}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Preview frame — aspect ratio tracks the active format so
+                the image area stays stable while the PNG streams in.
+                Switching to Money Camera Wide reshapes the box to 1200:630. */}
             <div className="mt-4 rounded-xl overflow-hidden border border-border bg-bg">
               <div
                 className="relative w-full"
-                style={{ aspectRatio: "9 / 16" }}
+                style={{ aspectRatio: activeFormat.aspect }}
               >
-                {!imgLoaded && !imgError && (
+                {loadedSrc !== imgSrc && errorSrc !== imgSrc && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-caption">
                     <div className="h-7 w-7 animate-spin rounded-full border-2 border-brand border-t-transparent" />
                     <span className="text-xs">Generating card&hellip;</span>
                   </div>
                 )}
-                {imgError && (
+                {errorSrc === imgSrc && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-caption px-6 text-center">
                     <p className="text-sm text-ink font-semibold">
                       Preview unavailable
@@ -259,13 +360,14 @@ export default function ShareReportCard({
                     double-fetch through the optimiser. */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
+                  key={format}
                   src={imgSrc}
-                  alt={`YieldIQ Prism report card for ${displayTicker(ticker)}`}
-                  width={1080}
-                  height={1920}
+                  alt={`YieldIQ ${activeFormat.label} for ${displayTicker(ticker)}`}
+                  width={activeFormat.width}
+                  height={activeFormat.height}
                   className="w-full h-full object-contain"
-                  onLoad={() => setImgLoaded(true)}
-                  onError={() => setImgError(true)}
+                  onLoad={() => setLoadedSrc(imgSrc)}
+                  onError={() => setErrorSrc(imgSrc)}
                 />
               </div>
             </div>
@@ -274,7 +376,7 @@ export default function ShareReportCard({
               <button
                 type="button"
                 onClick={handleDownload}
-                disabled={imgError}
+                disabled={errorSrc === imgSrc}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] text-sm font-semibold text-ink bg-bg hover:bg-border rounded-lg border border-border transition disabled:opacity-50"
               >
                 <DownloadIcon />
@@ -283,7 +385,7 @@ export default function ShareReportCard({
               <button
                 type="button"
                 onClick={handleShare}
-                disabled={imgError}
+                disabled={errorSrc === imgSrc}
                 className="inline-flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] text-sm font-semibold text-white bg-brand hover:opacity-90 active:scale-[0.98] rounded-lg transition disabled:opacity-50"
               >
                 <ShareIcon />
