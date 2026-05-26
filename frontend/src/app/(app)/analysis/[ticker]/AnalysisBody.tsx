@@ -33,7 +33,6 @@ import ConcallSignalsPanel from "@/components/concall/ConcallSignalsPanel"
 import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
 import StockHeroImage from "@/components/analysis/StockHeroImage"
-import TimeSlider from "@/components/analysis/TimeSlider"
 import type { AsOfAnalysis } from "@/lib/api"
 import {
   VERDICT_COLORS,
@@ -613,7 +612,13 @@ export default function AnalysisBody({ ticker, prism }: Props) {
   // Phase-2 Time Slider snapshot. null = render the live payload as
   // usual. When non-null, the hero swaps its FV / MoS / verdict to
   // the historical values so the page reads as a past snapshot.
-  const [asOfData, setAsOfData] = useState<AsOfAnalysis | null>(null)
+  // PR-B (chassis): setter is no longer wired up — the wide TimeSlider
+  // that drove setAsOfData was replaced by a chip that opens the
+  // PrismTimeMachine popover. The `asOfData` state + downstream
+  // `inTimeMachine` branches are left in place so the snapshot-replay
+  // path stays ready for a future re-wire without touching hero JSX.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [asOfData, _setAsOfData] = useState<AsOfAnalysis | null>(null)
   const onShare = async () => {
     if (typeof window === "undefined" || !data) return
     const url = window.location.href
@@ -1082,6 +1087,13 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               companyName={company.company_name}
             />
           </section>
+
+          {/* PR-B (chassis): Phase 4 manifesto (Paradigm 11) personal
+              Memory Lane. Relocated from just-under-hero to AFTER the
+              last numbered section so the top-half no longer reads as
+              4 stacked products. Component returns null for anon users,
+              first-time visitors, or when no prior visit exists. */}
+          <MemoryLane ticker={ticker} companyName={company.company_name} />
         </div>
       ),
     },
@@ -1484,13 +1496,25 @@ export default function AnalysisBody({ ticker, prism }: Props) {
 
           return prismResolved ? (
             <>
-              <TimeSlider
-                ticker={data.ticker}
-                liveFairValue={headlineFairValue}
-                liveMosPct={headlineMos}
-                currency={company.currency}
-                onAsOfChange={setAsOfData}
-              />
+              {/* PR-B (chassis): shrunk wide TimeSlider bar to a compact
+                  chip aligned right, near the hero price card. Chip
+                  opens the PrismTimeMachine popover (unchanged). The
+                  asOfData snapshot-replay flow is preserved for callers
+                  that still drive setAsOfData. */}
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setTimeMachineOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg px-3 py-1 text-xs text-body hover:text-ink hover:bg-surface transition"
+                  aria-label="Open Time Machine"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                    <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" />
+                  </svg>
+                  Time Machine
+                </button>
+              </div>
               {inTimeMachine ? (
                 <div
                   role="status"
@@ -1550,13 +1574,22 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             </>
           ) : (
             <>
-            <TimeSlider
-              ticker={data.ticker}
-              liveFairValue={headlineFairValue}
-              liveMosPct={headlineMos}
-              currency={company.currency}
-              onAsOfChange={setAsOfData}
-            />
+            {/* PR-B (chassis): see note above — TimeSlider bar replaced
+                by a small chip that opens the PrismTimeMachine popover. */}
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setTimeMachineOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg px-3 py-1 text-xs text-body hover:text-ink hover:bg-surface transition"
+                aria-label="Open Time Machine"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" />
+                </svg>
+                Time Machine
+              </button>
+            </div>
             {inTimeMachine ? (
               <div
                 role="status"
@@ -1594,14 +1627,6 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             </>
           )
         })()}
-
-        {/* Phase 4 manifesto (Paradigm 11): personal Memory Lane.
-            Placed just under the hero so the personal context lands
-            immediately after the verdict — it sets the emotional frame
-            ("you've been watching this for 47 days") before the
-            ConfidenceIndicators / tabs. Component returns null for anon
-            users, first-time visitors, or when no prior visit exists. */}
-        <MemoryLane ticker={ticker} companyName={company.company_name} />
 
         {/* Confidence Framework chips + defense-PSU analyst-opinion
             banner. Layer C scores (data quality, model confidence,
