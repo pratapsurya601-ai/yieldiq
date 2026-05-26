@@ -540,13 +540,18 @@ export default function Signature({
           // PR-PRISM-OVERLAP: when MANY pillars are data_limited (e.g.
           // a Portfolio Prism with 5/6 n/a), all the n/a pills used to
           // collide with the central composite text. Push minR further
-          // out (32% of maxRadius) so the n/a pills sit clearly outside
-          // the score's typographic footprint (~17% of size = ~21% of
-          // maxRadius once axis-label margin is accounted for).
-          const minR = maxRadius * 0.32
-          // Only nudge data_limited pills outward — real score-0 vertices
-          // belong on the polygon at the centre.
-          const pillR = p.data_limited ? minR : (s / 10) * maxRadius
+          // out so pills sit clearly outside the score's typographic
+          // footprint (~17% of size).
+          // FIX portfolio-hotfix-#1: apply the minR floor to ALL pills
+          // (not just data_limited). Low real scores (e.g. 1.5/10)
+          // were placing the colored vertex circle directly on top of
+          // the central composite number, making the Portfolio Prism
+          // read as "crashed". Pin every pill outside the inner
+          // typographic safe zone; the polygon shape still encodes
+          // the true score via its vertex on the spoke.
+          const minR = maxRadius * 0.55
+          const trueR = (s / 10) * maxRadius
+          const pillR = Math.max(minR, trueR)
           const [x, y] = signatureVertex(cx, cy, pillR, i)
           const color = p.data_limited ? "var(--color-caption)" : pillarColor(p.key)
           const isPulse = p.key === "pulse"
@@ -708,41 +713,12 @@ export default function Signature({
             />
           )
         })()}
-        <text
-          x={cx}
-          y={cy + Math.round(size * 0.11)}
-          textAnchor="middle"
-          dominantBaseline="central"
-          style={{
-            fill: "var(--color-caption)",
-            fontSize: Math.round(size * 0.05),
-            fontWeight: 600,
-            letterSpacing: "0.08em",
-            fontFamily:
-              "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
-          }}
-        >
-          / 10
-        </text>
-        {/* Tiny verdict-band hint under the score so first-time
-            visitors immediately know what 6.3 means without scrolling. */}
-        <text
-          x={cx}
-          y={cy + Math.round(size * 0.18)}
-          textAnchor="middle"
-          dominantBaseline="central"
-          style={{
-            fill: "var(--color-caption)",
-            fontSize: Math.round(size * 0.035),
-            fontWeight: 700,
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-            fontFamily:
-              "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
-          }}
-        >
-          composite
-        </text>
+        {/* FIX portfolio-hotfix-#1: "/ 10" and "COMPOSITE" subtitle
+            used to render inside the SVG, where they ran into the
+            inner hex grid ring and the vertex pills on tight (low-
+            score) prisms. Both labels now live as HTML below the
+            <Prism> in PortfolioPrism so the inner space stays clean
+            for the composite digit alone. */}
       </g>
 
       {/* Injected CSS custom property carrier for --pulse-hz. */}

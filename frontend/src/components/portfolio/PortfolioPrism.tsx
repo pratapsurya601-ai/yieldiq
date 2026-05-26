@@ -374,6 +374,17 @@ export default function PortfolioPrism({ holdings }: Props) {
             />
           )}
         </div>
+        {/* FIX portfolio-hotfix-#1: composite "/ 10" + "COMPOSITE"
+            subtitle moved out of the SVG so the inner hex stays
+            uncluttered on low-score / data-limited prisms. */}
+        {prismData && (
+          <p
+            className="mt-2 text-[10px] font-bold uppercase tracking-[0.18em] text-center"
+            style={{ color: "var(--color-caption)" }}
+          >
+            Composite&nbsp;/&nbsp;10
+          </p>
+        )}
       </div>
 
       {/* Strongest / Weakest lens cards */}
