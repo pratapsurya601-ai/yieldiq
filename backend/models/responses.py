@@ -624,6 +624,19 @@ class AnalysisResponse(BaseModel):
     # data" empty state when either list is missing/empty.
     bulls_say: Optional[List[str]] = None
     bears_say: Optional[List[str]] = None
+    # v_238 (2026-05-26) — paragraph upgrade. Composed bull / bear
+    # narratives: the top-3 bullets joined into a single block of
+    # prose. Useful for surfaces (PDF export, OG card, sector page
+    # summary) that prefer one paragraph over an array of bullets.
+    # Optional — None on legacy cached payloads and whenever the
+    # corresponding bullets array is empty.
+    bull_case_narrative: Optional[str] = None
+    bear_case_narrative: Optional[str] = None
+    # "Updated <Month YYYY>" stamp for the thesis panel — derived
+    # from valuation.fair_value_computed_at on fresh computes. Lets
+    # the frontend render a dated header (matching the convention
+    # competitor research notes use) instead of evergreen copy.
+    thesis_updated: Optional[str] = None
     # ── The Honest Card (Phase 3 manifesto, 2026-05-25) ────────
     # Radical-transparency panel: 2-4 confident facts, one-line
     # best estimate, 2-3 uncertainty factors, and exactly 3

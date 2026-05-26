@@ -403,6 +403,22 @@ export interface AnalysisResponse {
   bulls_say?: string[] | null
   bears_say?: string[] | null
   /**
+   * v_238 (2026-05-26) — paragraph upgrade. Composed bull / bear
+   * narratives: the top-3 bullets joined into a single block of prose.
+   * Useful for surfaces (PDF export, OG card) that prefer one
+   * paragraph over an array of bullets. Optional — None on legacy
+   * cached payloads.
+   */
+  bull_case_narrative?: string | null
+  bear_case_narrative?: string | null
+  /**
+   * "Month YYYY" stamp for the thesis panel (e.g. "April 2026"),
+   * derived from valuation.fair_value_computed_at. Lets the panel
+   * render a dated header (matching the convention competitor
+   * research notes use) instead of evergreen copy. Optional.
+   */
+  thesis_updated?: string | null
+  /**
    * The Honest Card (Phase 3 manifesto, 2026-05-25). Radical-
    * transparency panel — confident facts, best-estimate sentence,
    * uncertainty factors, and exactly 3 invalidating conditions.

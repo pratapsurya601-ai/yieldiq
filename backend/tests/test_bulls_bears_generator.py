@@ -256,7 +256,15 @@ def test_capped_at_three_each_and_ordered_by_strength():
 
 def test_empty_inputs_return_empty_lists():
     out = generate_bulls_bears()
-    assert out == {"bulls": [], "bears": []}
+    # v_238 (2026-05-26) — output bundle now also carries
+    # bull/bear narrative paragraphs and an "Updated <Month YYYY>"
+    # stamp. Empty inputs => empty bullet lists, None narratives,
+    # no date stamp.
+    assert out["bulls"] == []
+    assert out["bears"] == []
+    assert out["bull_case_narrative"] is None
+    assert out["bear_case_narrative"] is None
+    assert out["thesis_updated"] is None
 
 
 def test_none_inputs_do_not_crash():
@@ -264,7 +272,51 @@ def test_none_inputs_do_not_crash():
         valuation=None, quality=None, insights=None,
         scenarios=None, ar_signals=None,
     )
-    assert out == {"bulls": [], "bears": []}
+    assert out["bulls"] == []
+    assert out["bears"] == []
+    assert out["bull_case_narrative"] is None
+    assert out["bear_case_narrative"] is None
+
+
+def test_paragraph_upgrade_emits_multi_sentence_bullets():
+    """v_238 — each firing rule emits 2-3 sentence paragraphs.
+
+    Pick a payload that fires several bull rules and assert that the
+    rendered bullets are paragraphs (multiple periods, ~40+ words)
+    rather than 1-sentence bullets.
+    """
+    out = generate_bulls_bears(
+        valuation={
+            "margin_of_safety": 42,
+            "fair_value": 1420,
+            "current_price": 820,
+        },
+        quality={"yieldiq_score": 78, "moat": "Wide", "roe": 22},
+    )
+    assert out["bulls"], "expected at least one bull bullet to fire"
+    for bullet in out["bulls"]:
+        # Multi-sentence paragraph — at least 2 periods.
+        assert bullet.count(".") >= 2, f"bullet not a paragraph: {bullet!r}"
+        # Roughly 25+ words per bullet (we target 40-50; floor at 25
+        # to leave headroom for short caveats on edge cases).
+        assert len(bullet.split()) >= 25, f"bullet too short: {bullet!r}"
+    # Composed narrative is the joined block.
+    assert out["bull_case_narrative"] == " ".join(out["bulls"])
+
+
+def test_thesis_updated_formats_iso_date():
+    out = generate_bulls_bears(
+        valuation={"margin_of_safety": 42},
+        quality={"yieldiq_score": 78},
+        computed_at="2026-04-12T08:00:00Z",
+    )
+    assert out["thesis_updated"] == "April 2026"
+
+
+def test_thesis_updated_handles_bad_input():
+    for bad in (None, "", "not a date", "abcd-ef-gh"):
+        out = generate_bulls_bears(computed_at=bad)
+        assert out["thesis_updated"] is None, bad
 
 
 def test_works_with_pydantic_models():

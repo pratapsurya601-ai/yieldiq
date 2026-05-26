@@ -1366,6 +1366,32 @@ MANIFEST: list[dict] = [
             "is present. Task #230."
         ),
     },
+    {
+        # v_238 — Bulls Say / Bears Say paragraph upgrade. The bullet
+        # text now ships as 2-3 sentence paragraphs (~40-50 words each)
+        # plus a composed bull_case_narrative / bear_case_narrative
+        # and a "Updated <Month YYYY>" thesis_updated stamp. Pure
+        # rules + templates, SEBI-safe by construction. Field-additive
+        # on AnalysisResponse — legacy payloads omit the new prose
+        # fields; the frontend handles longer bullet text without
+        # truncation. FV math is untouched (narrative-only change).
+        "version_id": "v_238_thesis_paragraphs_2026_05_26",
+        "applied_at": datetime(2026, 5, 26, 12, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [
+                "bulls_say",
+                "bears_say",
+                "bull_case_narrative",
+                "bear_case_narrative",
+            ],
+        },
+        "rationale": (
+            "Upgrade Bulls/Bears bullets from 1-sentence facts to "
+            "dated 2-3 sentence paragraphs so the auto-generated "
+            "thesis reads at parity with competitor research notes."
+        ),
+    },
 ]
 
 

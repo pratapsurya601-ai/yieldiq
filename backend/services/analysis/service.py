@@ -588,21 +588,31 @@ class AnalysisService(NarrativeMixin):
             from backend.services.analysis.bulls_bears_generator import (
                 generate_bulls_bears,
             )
+            # v_238: pass the FV compute timestamp so the generator
+            # can stamp the panel with "Updated <Month YYYY>" (matches
+            # the dated-note convention competitor research notes use).
+            _val = getattr(result, "valuation", None)
+            _computed_at = getattr(_val, "fair_value_computed_at", None)
             bb = generate_bulls_bears(
-                valuation=getattr(result, "valuation", None),
+                valuation=_val,
                 quality=getattr(result, "quality", None),
                 insights=getattr(result, "insights", None),
                 scenarios=getattr(result, "scenarios", None),
                 ar_signals=None,  # not currently surfaced on AnalysisResponse
+                computed_at=_computed_at,
             )
+            _updates = {
+                "bulls_say": bb.get("bulls") or None,
+                "bears_say": bb.get("bears") or None,
+                "bull_case_narrative": bb.get("bull_case_narrative"),
+                "bear_case_narrative": bb.get("bear_case_narrative"),
+                "thesis_updated": bb.get("thesis_updated"),
+            }
             try:
-                result.bulls_say = bb.get("bulls") or None
-                result.bears_say = bb.get("bears") or None
+                for _k, _v in _updates.items():
+                    setattr(result, _k, _v)
             except Exception:
-                result = result.model_copy(update={
-                    "bulls_say": bb.get("bulls") or None,
-                    "bears_say": bb.get("bears") or None,
-                })
+                result = result.model_copy(update=_updates)
         except Exception as _bbe:
             import logging as _bbl
             _bbl.getLogger("yieldiq.bulls_bears").warning(
