@@ -1282,6 +1282,24 @@ MANIFEST: list[dict] = [
             "analysis page."
         ),
     },
+    {
+        # Phase 4 personalization layer — investing-style picker that
+        # reorders Summary-tab sections, sets default-expanded set,
+        # tints accent on numbered headers, and shows Beginner-mode
+        # explainers. Frontend-only; localStorage persisted. No backend
+        # field changes; no FV math touched. Listed here per repo
+        # convention so the public manifest history reflects the change.
+        "version_id": "v_personalization_2026_05_25",
+        "applied_at": datetime(2026, 5, 25, 21, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["personalization_layer", "section_ordering"]},
+        "rationale": (
+            "Investing-style picker (Value / Growth / Income / Beginner / "
+            "Active) reorders the Summary tab so the sections that matter "
+            "to each reader land first. Accent colour and Beginner-mode "
+            "explainers adjust per style. Existing users see zero change "
+            "until they pick a style."
+        ),
+    },
 ]
 
 

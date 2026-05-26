@@ -46,6 +46,18 @@ import CompoundedGrowthPanel from "@/components/analysis/CompoundedGrowthPanel"
 import CompoundedGrowthTrustStrip from "@/components/analysis/CompoundedGrowthTrustStrip"
 import NumberedSectionHeader from "@/components/analysis/NumberedSectionHeader"
 import TrustStrip, { type TrustStat } from "@/components/analysis/TrustStrip"
+import CollapsibleSection from "@/components/personalization/CollapsibleSection"
+import StylePickerModal from "@/components/personalization/StylePickerModal"
+import PersonalizationBanner from "@/components/personalization/PersonalizationBanner"
+import {
+  type InvestingStyle,
+  type SectionKey,
+  CONFIGS,
+  DEFAULT_SECTION_ORDER,
+  SECTION_EXPLAINERS,
+  getStyleFromStorage,
+  hasUserSeenPicker,
+} from "@/lib/personalization"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
 import WorryIndex from "@/components/analysis/WorryIndex"
@@ -611,6 +623,29 @@ export default function AnalysisBody({ ticker, prism }: Props) {
 
   const [copiedShare, setCopiedShare] = useState(false)
   const [timeMachineOpen, setTimeMachineOpen] = useState(false)
+
+  // ─── Phase 4: investing-style personalization ────────────────────
+  // Read once on mount, then react to changes from the picker modal or
+  // a same-tab preferences-page write. We keep this in component state
+  // (not Zustand) because the surface is narrow — only the Summary tab
+  // re-renders when style changes, and SSR must not crash.
+  const [activeStyle, setActiveStyle] = useState<InvestingStyle | null>(null)
+  const [stylePickerOpen, setStylePickerOpen] = useState(false)
+  useEffect(() => {
+    // localStorage is a non-React external system — schedule the read
+    // through a microtask so the eslint rule `set-state-in-effect`
+    // (cascading-render warning) is happy. Same pattern as RAF / IO
+    // subscribers used elsewhere in this file (CountUp, etc.).
+    queueMicrotask(() => {
+      setActiveStyle(getStyleFromStorage())
+      // First-visit gate: open the picker exactly once across the
+      // user's device. Subsequent skips/saves write to localStorage
+      // so hasUserSeenPicker() flips to true.
+      if (!hasUserSeenPicker()) {
+        setStylePickerOpen(true)
+      }
+    })
+  }, [])
   // Phase-2 Time Slider snapshot. null = render the live payload as
   // usual. When non-null, the hero swaps its FV / MoS / verdict to
   // the historical values so the page reads as a past snapshot.
@@ -956,6 +991,68 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     return cards.length >= 2 ? cards : null
   })()
 
+  // ─── Phase 4 personalization: build the Summary-tab section map ────
+  // Each entry is a fully-rendered ReactNode. Sections that don't apply
+  // (e.g. honest_card on legacy cached payloads, scenarios when
+  // dataLimited) resolve to null and get filtered before render.
+  const config = activeStyle ? CONFIGS[activeStyle] : null
+  const sectionOrder: SectionKey[] = config?.sectionOrder ?? DEFAULT_SECTION_ORDER
+
+  const summarySectionMap: Record<SectionKey, React.ReactNode> = {
+    // chassis(PR-A) 2026-05-26: InsightCards + RedFlagInsights are
+    // intentionally not rendered on the Summary tab. They appear on
+    // the Valuation and Quality tabs respectively; surfacing them
+    // here again was the root cause of the "reads as 4 different
+    // products stacked vertically" feedback. The map keys remain
+    // (and the personalization configs still reference them) so the
+    // picker keeps its full vocabulary, but the renderableSections
+    // filter strips null entries before mapping.
+    insight_cards: null,
+    red_flags: null,
+    scenarios: scenarioBlock ? (
+      <>
+        {scenariosTrustStats ? (
+          <TrustStrip stats={scenariosTrustStats} ariaLabel="Scenario highlights" />
+        ) : null}
+        {scenarioBlock}
+      </>
+    ) : null,
+    bulls_bears: (
+      <BullsBearsPanel bulls={data.bulls_say} bears={data.bears_say} />
+    ),
+    honest_card: data.honest_card ? <HonestCard card={data.honest_card} /> : null,
+    compounded_growth: (
+      <>
+        <CompoundedGrowthTrustStrip ticker={ticker} />
+        <CompoundedGrowthPanel ticker={ticker} />
+      </>
+    ),
+    reverse_dcf: !dataLimited ? <ReverseDcfPanel ticker={ticker} /> : null,
+    dividends: (
+      <>
+        {dividendTrustStats ? (
+          <TrustStrip stats={dividendTrustStats} ariaLabel="Dividend highlights" />
+        ) : null}
+        <DividendTracker
+          dividend={insights?.dividend ?? null}
+          currency={company.currency}
+          ticker={company.ticker}
+        />
+      </>
+    ),
+    news: <NewsWidget ticker={ticker} />,
+    earnings_calls: <EarningsCallsWidget ticker={ticker} />,
+    community: (
+      <CommunitySentiment ticker={ticker} companyName={company.company_name} />
+    ),
+  }
+
+  // Filter sections that have no content for this ticker, then renumber
+  // so the visible numerals are always 1..N (no gaps).
+  const renderableSections = sectionOrder.filter(
+    (k) => summarySectionMap[k] != null,
+  )
+
   const tabs: AnalysisTabDef[] = [
     {
       key: "summary",
@@ -963,20 +1060,15 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       content: (
         // PR-D chassis: outer container uses editorial whitespace
         // (space-y-16 md:space-y-20) so each numbered section reads as
-        // its own beat rather than another row in a stack. Canonical
-        // card surface on section wrappers below.
+        // its own beat rather than another row in a stack. Each
+        // CollapsibleSection child is wrapped in the canonical
+        // rounded-2xl card surface below.
         //
-        // chassis(PR-A) 2026-05-26: the standalone InsightCards +
-        // RedFlagInsights block that previously sat here between
-        // ConfidenceIndicators and Section 1 (VALUATION SCENARIOS)
-        // was removed in main. The HDFCBANK feedback ("reads as 4
-        // different products stacked vertically") traced primarily
-        // to that duplication — the same InsightCards already render
-        // inside Valuation and Quality tabs, and RedFlagInsights
-        // also renders inside the Quality tab. The at-a-glance
-        // Analyst Consensus / Insider Activity / Promoter Holding
-        // chips are now relocated to a thin strip directly above
-        // the FAQ section (outside the tab container).
+        // chassis(PR-A) 2026-05-26: InsightCards + RedFlagInsights are
+        // intentionally excluded from the Summary tab (they appear on
+        // Valuation / Quality respectively). The summarySectionMap
+        // returns null for those keys, so the personalization picker's
+        // vocabulary stays whole but the duplicate render is gone.
         <div className="space-y-16 md:space-y-20">
           {/* Phase-3 (2026-05-25) — The Worry Index sits between the
               hero / confidence indicators and the numbered sections so
@@ -984,117 +1076,35 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               page elaborates. Self-hides when worry_index is absent. */}
           <WorryIndex worry={data.worry_index ?? null} />
 
-          {/* #ASD-restyle (2026-05-25): Summary tab restructured into
-              six Alpha-Spread-style numbered sections. Each section
-              gets a large uppercase header + plain-English caption,
-              and (where real data exists) a TrustStrip stat row.
-              Order was changed so VALUATION SCENARIOS lands as #1
-              before BULL / BEAR THESIS — the original "thesis-first"
-              order didn't match the numbered-section narrative. */}
-
-          {/* Section 1 — Valuation Scenarios */}
-          {scenarioBlock ? (
-            <section aria-labelledby="section-scenarios" className="rounded-2xl border border-border bg-bg p-6">
-              <NumberedSectionHeader
-                number={1}
-                title="VALUATION SCENARIOS"
-                caption="Bear, base and bull fair value scenarios from a discounted cash flow model with three sensitivity profiles."
-              />
-              {scenariosTrustStats ? <TrustStrip stats={scenariosTrustStats} ariaLabel="Scenario highlights" /> : null}
-              {scenarioBlock}
-              {!dataLimited && <ReverseDcfPanel ticker={ticker} />}
-            </section>
-          ) : null}
-
-          {/* Section 2 — Bull / Bear Thesis. P0 #4 (2026-05-25):
-              Morningstar-style structured narrative. Component
-              self-hides when both lists are empty. */}
-          <section aria-labelledby="section-thesis" className="rounded-2xl border border-border bg-bg p-6">
-            <NumberedSectionHeader
-              number={2}
-              title="BULL / BEAR THESIS"
-              caption="Auto-generated thesis bullets pulled from the company's fundamentals."
-            />
-            <BullsBearsPanel bulls={data.bulls_say} bears={data.bears_say} />
-          </section>
-
-          {/* Section 3 — The Honest Card (Phase 3 manifesto, 2026-05-25).
-              Radical-transparency panel: confident facts, best estimate,
-              uncertainty factors, and 3 invalidating conditions. Self-
-              hides when honest_card is null (legacy cached payloads). */}
-          {data.honest_card ? (
-            <section aria-labelledby="section-honest-card" className="rounded-2xl border border-border bg-bg p-6">
-              <NumberedSectionHeader
-                number={3}
-                title="THE HONEST CARD"
-                caption="What we're confident about, our best estimate, where we could be wrong, and what would change our mind."
-              />
-              <HonestCard card={data.honest_card} />
-            </section>
-          ) : null}
-
-          {/* Section 4 — Compounded Growth. Day-103c (2026-05-22):
-              Self-fetches from /stock-summary; renders nothing if data
-              is absent. The TrustStrip variant shares the same
-              react-query key so there's only one fetch. */}
-          <section aria-labelledby="section-growth" className="rounded-2xl border border-border bg-bg p-6">
-            <NumberedSectionHeader
-              number={4}
-              title="COMPOUNDED GROWTH"
-              caption="Annualised growth rates over the trailing 3, 5 and 10 years."
-            />
-            <CompoundedGrowthTrustStrip ticker={ticker} />
-            <details className="mt-3 group">
-              <summary className="text-sm text-muted-foreground hover:underline cursor-pointer list-none">
-                Show full 5y / 10y table ▼
-              </summary>
-              <div className="mt-2">
-                <CompoundedGrowthPanel ticker={ticker} />
+          {/* Phase 4 personalization: persisted style controls section
+              order, default-expanded set, and Beginner-mode explainers.
+              Verdict colour cascade still owns the hero — accent only
+              applies to numbered headers and dividers inside this map.
+              When activeStyle is null, defaultExpanded is forced true
+              for every section, preserving the legacy UX exactly.
+              Each item is wrapped in the PR-D canonical card surface
+              (rounded-2xl border border-border bg-bg p-6). */}
+          {renderableSections.map((key, idx) => {
+            const number = idx + 1
+            const defaultExpanded = config
+              ? config.defaultExpanded.includes(key)
+              : true
+            const explainer =
+              config?.showSectionExplainers ? SECTION_EXPLAINERS[key] : null
+            return (
+              <div key={key} className="rounded-2xl border border-border bg-bg p-6">
+                <CollapsibleSection
+                  sectionKey={key}
+                  number={number}
+                  defaultExpanded={defaultExpanded}
+                  accentHue={config?.accentHue}
+                  explainer={explainer}
+                >
+                  {summarySectionMap[key]}
+                </CollapsibleSection>
               </div>
-            </details>
-          </section>
-
-          {/* Section 5 — Dividends */}
-          <section aria-labelledby="section-dividends" className="rounded-2xl border border-border bg-bg p-6">
-            <NumberedSectionHeader
-              number={5}
-              title="DIVIDENDS"
-              caption="Dividend per share history and yield context."
-            />
-            {dividendTrustStats ? <TrustStrip stats={dividendTrustStats} ariaLabel="Dividend highlights" /> : null}
-            <DividendTracker
-              dividend={insights?.dividend ?? null}
-              currency={company.currency}
-              ticker={company.ticker}
-            />
-          </section>
-
-          {/* Section 6 — Recent News */}
-          <section aria-labelledby="section-news" className="rounded-2xl border border-border bg-bg p-6">
-            <NumberedSectionHeader
-              number={6}
-              title="RECENT NEWS"
-              caption="Latest filings and news, source-tiered for relevance."
-            />
-            <NewsWidget ticker={ticker} />
-            <EarningsCallsWidget ticker={ticker} />
-          </section>
-
-          {/* Section 7 — Community View (Week-3 manifesto:
-              "How do you feel?" voting widget + aggregated sentiment).
-              Sits below News and above the collapsed manifest footer
-              so it reads as the closing "your turn" beat of the page. */}
-          <section aria-labelledby="section-community" className="rounded-2xl border border-border bg-bg p-6">
-            <NumberedSectionHeader
-              number={7}
-              title="COMMUNITY VIEW"
-              caption="How the YieldIQ community is reading this name. Your view, not investment advice."
-            />
-            <CommunitySentiment
-              ticker={ticker}
-              companyName={company.company_name}
-            />
-          </section>
+            )
+          })}
 
           {/* PR-B (chassis): Phase 4 manifesto (Paradigm 11) personal
               Memory Lane. Relocated from just-under-hero to AFTER the
@@ -1414,6 +1424,11 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       )}
 
       <div className="py-4 space-y-5">
+        {/* Phase 4 personalization: one-time confirmation banner shown
+            after the user picks a style. Self-hides for users without
+            a style and after dismissal. */}
+        <PersonalizationBanner style={activeStyle} />
+
         {wasAliased && (
           <div className="text-xs text-brand bg-brand-50 border border-border rounded-lg px-3 py-2">
             <span className="font-semibold">{requestedDisplay}</span> has been renamed to{" "}
@@ -1807,6 +1822,17 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           onClose={() => setTimeMachineOpen(false)}
         />
       )}
+
+      {/* Phase 4 personalization: first-visit picker modal. Auto-opens
+          once per device on the first analysis page load; subsequent
+          opens are user-triggered (future Preferences entry point). */}
+      <StylePickerModal
+        open={stylePickerOpen}
+        onClose={(picked) => {
+          setStylePickerOpen(false)
+          setActiveStyle(picked)
+        }}
+      />
     </div>
     </div>
     </FormulasProvider>
