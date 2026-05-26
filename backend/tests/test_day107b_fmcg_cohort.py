@@ -8,18 +8,20 @@ MARICO / COLPAL / GODREJCP / EMAMILTD / TATACONSUM / VBL):
 
   1. Terminal-growth tier lift (5.0% / 4.5% / 4.5% / 4.0%) reflecting
      India's nominal household-consumption baseline.
-  2. WACC floor of 8.5% — these balance sheets are net-cash with
-     beta 0.5-0.7 and CAPM systematically over-charges them.
+  2. WACC floor of 9.5% — these balance sheets are net-cash with
+     beta 0.5-0.7 and CAPM systematically over-charges them; floor
+     aligned with Damodaran India staples reference (task #229).
   3. Moat-pillar floor of 75/100 for the top-4 franchise leaders
      (HUL / NESTLE / ITC / BRITANNIA) — 20%+ category share + 40+
      year distribution moats deserve a higher floor than the broader
      STRONG_BRAND_ALLOWLIST (which floors at 70).
-  4. Slightly bullish scenario weights (40/40/20) for the top-4 —
+  4. Modestly bullish scenario weights (35/45/20) for the top-4 —
      they compound through downturns and the default symmetric
-     30/50/20 weighting is too bearish.
+     30/50/20 weighting is too bearish, but the prior 40/40/20 tilt
+     skewed the blended FV too high (task #229 re-centre).
 
 ITC carries a cigarette tail-risk discount (TG 4.5% not 5.0%) but
-keeps the 8.5% WACC floor and the moat / scenario lifts — the
+keeps the 9.5% WACC floor and the moat / scenario lifts — the
 audit's `_FMCG_ITC_SPECIAL` block isolates this so future tail-risk
 changes (e.g. WHO regulation, India excise duty) can be applied
 without touching the other top-3.
@@ -205,14 +207,15 @@ def test_tier3_tg_at_default():
         )
 
 
-def test_wacc_floor_applies_to_all_eleven_at_85bps():
+def test_wacc_floor_applies_to_all_eleven_at_95bps():
     from backend.services.analysis.sector_overrides import (
         fmcg_wacc_floor, FMCG_WACC_FLOOR,
     )
-    assert FMCG_WACC_FLOOR == pytest.approx(0.085)
+    assert FMCG_WACC_FLOOR == pytest.approx(0.095)
     for t in EXPECTED_COHORT:
-        assert fmcg_wacc_floor(t) == pytest.approx(0.085), (
-            f"{t} must receive the 8.5% WACC floor"
+        assert fmcg_wacc_floor(t) == pytest.approx(0.095), (
+            f"{t} must receive the 9.5% WACC floor "
+            f"(Damodaran India staples reference; task #229)"
         )
 
 
@@ -274,20 +277,20 @@ def test_moat_engine_wires_fmcg_floor():
 # 6. Scenario re-weight applied to top-4 only
 # ─────────────────────────────────────────────────────────────────
 
-def test_scenario_weights_for_top_4_are_40_40_20():
+def test_scenario_weights_for_top_4_are_35_45_20():
     from backend.services.analysis.sector_overrides import (
         fmcg_scenario_weights, FMCG_TOP_SCENARIO_WEIGHTS,
     )
     bull, base, bear = FMCG_TOP_SCENARIO_WEIGHTS
-    assert bull == pytest.approx(0.40)
-    assert base == pytest.approx(0.40)
+    assert bull == pytest.approx(0.35)
+    assert base == pytest.approx(0.45)
     assert bear == pytest.approx(0.20)
     assert bull + base + bear == pytest.approx(1.0)
     for t in ("HINDUNILVR", "NESTLEIND", "ITC", "BRITANNIA"):
         w = fmcg_scenario_weights(t)
-        assert w == (0.40, 0.40, 0.20), (
-            f"{t} top-4 scenario weights must be 40/40/20 "
-            f"(slightly bullish skew for franchise leaders)"
+        assert w == (0.35, 0.45, 0.20), (
+            f"{t} top-4 scenario weights must be 35/45/20 "
+            f"(modest bullish tilt re-centred toward base; task #229)"
         )
 
 
@@ -299,7 +302,7 @@ def test_scenario_weights_none_for_non_top_4():
               "EMAMILTD", "TATACONSUM", "VBL"):
         assert fmcg_scenario_weights(t) is None, (
             f"{t} must use the default scenario weights — the "
-            f"bullish 40/40/20 skew is reserved for the narrow "
+            f"bullish 35/45/20 tilt is reserved for the narrow "
             f"top-4 franchise leaders."
         )
 
