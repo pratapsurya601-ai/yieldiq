@@ -17,6 +17,13 @@ import React from "react"
 interface Props {
   bulls?: string[] | null
   bears?: string[] | null
+  /**
+   * v_238 (2026-05-26) — "Updated <Month YYYY>" stamp shown in the
+   * panel header. Matches the dated-note convention competitor
+   * research notes use. Optional — header falls back to the panel
+   * title alone when absent.
+   */
+  updated?: string | null
 }
 
 function Column({
@@ -54,10 +61,13 @@ function Column({
           {bullets.map((b, i) => (
             <li
               key={i}
-              className="flex gap-2 text-sm text-ink leading-snug"
+              // v_238: bullets are now 2-3 sentence paragraphs (~40-50
+              // words). leading-relaxed + no max-height so they wrap
+              // naturally and the panel grows with content.
+              className="flex gap-2 text-sm text-ink leading-relaxed"
             >
               <span
-                className={`mt-1.5 inline-block w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`}
+                className={`mt-2 inline-block w-1.5 h-1.5 rounded-full shrink-0 ${dotColor}`}
                 aria-hidden="true"
               />
               <span className="min-w-0">{b}</span>
@@ -69,7 +79,7 @@ function Column({
   )
 }
 
-export default function BullsBearsPanel({ bulls, bears }: Props) {
+export default function BullsBearsPanel({ bulls, bears, updated }: Props) {
   const safeBulls = Array.isArray(bulls) ? bulls : []
   const safeBears = Array.isArray(bears) ? bears : []
 
@@ -84,11 +94,20 @@ export default function BullsBearsPanel({ bulls, bears }: Props) {
       className="bg-bg rounded-2xl border border-border p-5"
       aria-label="Bulls and Bears thesis"
     >
-      <div className="flex items-baseline justify-between mb-4">
-        <h2 className="text-sm font-semibold text-ink">
-          Bulls vs Bears
-        </h2>
-        <p className="text-[11px] text-caption">
+      <div className="flex items-baseline justify-between mb-4 gap-3">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <h2 className="text-sm font-semibold text-ink">
+            Bulls vs Bears
+          </h2>
+          {updated ? (
+            // v_238: dated stamp matching the convention competitor
+            // research notes use (e.g. "Updated April 2026").
+            <span className="text-[11px] text-caption">
+              Updated {updated}
+            </span>
+          ) : null}
+        </div>
+        <p className="text-[11px] text-caption shrink-0">
           Auto-generated from financials. Not investment advice.
         </p>
       </div>

@@ -1018,7 +1018,11 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       </>
     ) : null,
     bulls_bears: (
-      <BullsBearsPanel bulls={data.bulls_say} bears={data.bears_say} />
+      <BullsBearsPanel
+        bulls={data.bulls_say}
+        bears={data.bears_say}
+        updated={data.thesis_updated}
+      />
     ),
     honest_card: data.honest_card ? <HonestCard card={data.honest_card} /> : null,
     compounded_growth: (
