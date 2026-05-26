@@ -33,7 +33,7 @@ export default function HoldingSparkline({ data, loading }: Props) {
 
   // FIX portfolio-hotfix-#4: no data → render nothing. The previous
   // em-dash stub left a visible empty box in the row that read as
-  // broken. Sparkline absence should be silent.
+  // broken. Sparkline absence is silent.
   if (!data || data.length < 2) {
     return null
   }

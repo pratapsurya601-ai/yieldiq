@@ -115,7 +115,7 @@ export default function PortfolioReturnsStrip() {
   // partial (e.g. realized P&L computed from a subset of closed
   // positions). Today only Unrealized is wired; Realized,
   // Dividends, Currency, and Forward Dividends are backed by
-  // services that don't exist yet, so they should be invisible
+  // services that don't exist yet, so they stay invisible
   // until those land — not render as five identical "LIMITED
   // DATA" rectangles that read as broken.
   return (

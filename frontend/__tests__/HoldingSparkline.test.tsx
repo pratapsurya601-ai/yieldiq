@@ -1,10 +1,14 @@
 /**
- * HoldingSparkline (P0 #5, 2026-05-25).
+ * HoldingSparkline (P0 #5, 2026-05-25; updated P0 hotfix 2026-05-26).
  *
  * Render-state assertions only — Recharts SVG output is intentionally
  * stripped of axes/tooltips so there's nothing to interrogate beyond
  * the wrapper. The skeleton + empty-state branches are the bits that
  * matter for users on cold workers / brand-new portfolios.
+ *
+ * Hotfix #4 (2026-05-26): when no data is available the component
+ * renders nothing (returns null) rather than an em-dash stub box —
+ * the empty box read as broken inside the holdings row.
  */
 import { describe, it, expect } from "vitest"
 import { render, screen } from "@testing-library/react"
@@ -18,16 +22,15 @@ describe("HoldingSparkline", () => {
     expect(screen.getByTestId("sparkline-skeleton")).toBeInTheDocument()
   })
 
-  it("renders the empty placeholder when data is missing", () => {
-    render(<HoldingSparkline data={undefined} />)
-    expect(screen.getByTestId("sparkline-empty")).toBeInTheDocument()
-    expect(screen.getByText("—")).toBeInTheDocument()
+  it("renders nothing when data is missing", () => {
+    const { container } = render(<HoldingSparkline data={undefined} />)
+    expect(container.firstChild).toBeNull()
   })
 
-  it("renders the empty placeholder when data has fewer than 2 points", () => {
+  it("renders nothing when data has fewer than 2 points", () => {
     const one: FVHistoryPoint[] = [{ date: "2025-06-01", price: 100, fair_value: 110, mos_pct: 10, verdict: "undervalued" }]
-    render(<HoldingSparkline data={one} />)
-    expect(screen.getByTestId("sparkline-empty")).toBeInTheDocument()
+    const { container } = render(<HoldingSparkline data={one} />)
+    expect(container.firstChild).toBeNull()
   })
 
   it("renders the chart wrapper when data has 2+ points", () => {
