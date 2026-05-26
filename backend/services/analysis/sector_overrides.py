@@ -101,17 +101,22 @@ FMCG_TG_TIER2: Final[float] = 0.045
 FMCG_TG_TIER3: Final[float] = 0.040
 
 # WACC floor — FMCG balance sheets are net-cash with beta 0.5-0.7.
-# CAPM systematically over-charges them. Floor at 8.5%.
-FMCG_WACC_FLOOR: Final[float] = 0.085
+# CAPM systematically over-charges them. Floor aligned with Damodaran's
+# India staples cost-of-capital reference (~9.5%, Jan-2026 country /
+# industry tables). Prior value of 8.5% sat below the Damodaran band
+# and inflated FV on the top-tier cohort (task #229 diagnosis).
+FMCG_WACC_FLOOR: Final[float] = 0.095
 
 # Moat pillar floor for top-4 franchise leaders. Above the existing
 # ALLOWLIST_MOAT_FLOOR_SCORE (70 / "Wide") because their moats are
 # durably stronger than the broader allowlist set.
 FMCG_TOP_MOAT_FLOOR: Final[int] = 75
 
-# Scenario weights — slightly bullish skew for top-4 franchise
-# leaders. Default elsewhere is 30/50/20. Top-4 get 40/40/20.
-FMCG_TOP_SCENARIO_WEIGHTS: Final[tuple[float, float, float]] = (0.40, 0.40, 0.20)
+# Scenario weights — modest bullish tilt for top-4 franchise leaders.
+# Default elsewhere is 30/50/20. Top-4 use 35/45/20, re-centred toward
+# the base case (task #229: 40/40/20 skewed the blended FV too high
+# relative to the Damodaran-anchored WACC floor above).
+FMCG_TOP_SCENARIO_WEIGHTS: Final[tuple[float, float, float]] = (0.35, 0.45, 0.20)
 
 
 # ─────────────────────────────────────────────────────────────────
