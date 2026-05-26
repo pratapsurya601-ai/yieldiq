@@ -26,6 +26,14 @@ import ScoreCard from "@/components/analysis/ScoreCard"
 import ScoreBreakdownPanel from "@/components/analysis/ScoreBreakdownPanel"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
 import FvConfidenceBand from "@/components/analysis/FvConfidenceBand"
+// Lazy-load the alert chip so the hero's initial paint isn't blocked
+// on @tanstack/react-query mutation wiring + lucide icons the chip
+// adds. Skeleton-free fallback: the chip is a small strip below the
+// MoS stat, so a brief absence doesn't reflow above-the-fold content.
+const MosAlertChip = dynamic(
+  () => import("@/components/analysis/MosAlertChip"),
+  { ssr: false },
+)
 import { verdictColor } from "@/lib/prism"
 import { timeAgo } from "@/lib/dataFreshness"
 import {
@@ -515,6 +523,27 @@ export default function EditorialHero({
             )}
           </dl>
           )}
+
+          {/* Contextual "Notify me at X% discount" strip (audit #242).
+              Only rendered when compactSummary is on so it occupies
+              part of the vertical space freed by #674 collapsing the
+              8 hero metrics down to 3. Hidden on dataLimited tickers
+              (no reliable FV to anchor the trigger price), on
+              already-overvalued names (negative MoS — alerting "above"
+              the current discount doesn't make sense yet), and when
+              FV is non-positive. Reuses the existing alerts endpoint
+              with kind=mos_above. */}
+          {!dataLimited &&
+            compactSummary &&
+            fairValue > 0 &&
+            Number.isFinite(marginOfSafety) && (
+              <MosAlertChip
+                ticker={data.ticker}
+                fairValue={fairValue}
+                currency={currency}
+                currentMos={marginOfSafety}
+              />
+            )}
 
           <p className="text-[11px] text-caption leading-relaxed mt-2">
             {data.disclaimer}
