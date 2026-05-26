@@ -374,18 +374,6 @@ NEVER_SUPER_CYCLICAL: set[str] = {
 }
 
 
-# Large-cap tickers exempt from the null-CAGR gate (service.py:4433).
-# These have full scenario triangles but trip the gate due to either
-# structural breaks (cement M&A, IT-services restructurings) or the
-# ±50% sanitize_cagr clamp on a single distorted FY. A complete DCF
-# is more trustworthy than a gate that fires on data-prep artifacts.
-NULL_CAGR_GATE_EXEMPT = frozenset({
-    "LT", "ULTRACEMCO", "WIPRO",
-    "RELIANCE", "INFY", "TCS",
-    "ITC", "BHARTIARTL",
-})
-
-
 def is_capex_super_cyclical(
     ticker: str,
     sector: str | None = None,

@@ -1346,27 +1346,6 @@ MANIFEST: list[dict] = [
         ),
     },
     {
-        # Task #230 (2026-05-26): NULL_CAGR_GATE_EXEMPT allowlist —
-        # 8 large caps stop tripping the null-CAGR gate when a full
-        # DCF scenario triangle (bear/base/bull) is already present.
-        "version_id": "v_230_null_cagr_exempt_2026_05_26",
-        "applied_at": datetime(2026, 5, 26, 6, 0, 0, tzinfo=timezone.utc),
-        "scope": {
-            "tickers": [
-                "LT", "ULTRACEMCO", "WIPRO", "RELIANCE",
-                "INFY", "TCS", "ITC", "BHARTIARTL",
-            ],
-            "fields": [
-                "verdict", "data_limited", "fair_value", "mos_pct", "score",
-            ],
-        },
-        "rationale": (
-            "NULL_CAGR_GATE_EXEMPT allowlist - 8 large caps stop "
-            "tripping null-CAGR gate when full DCF scenario triangle "
-            "is present. Task #230."
-        ),
-    },
-    {
         # v_238 — Bulls Say / Bears Say paragraph upgrade. The bullet
         # text now ships as 2-3 sentence paragraphs (~40-50 words each)
         # plus a composed bull_case_narrative / bear_case_narrative
@@ -1390,6 +1369,28 @@ MANIFEST: list[dict] = [
             "Upgrade Bulls/Bears bullets from 1-sentence facts to "
             "dated 2-3 sentence paragraphs so the auto-generated "
             "thesis reads at parity with competitor research notes."
+        ),
+    },
+    {
+        # v_revert_230 — emergency revert of #673 NULL_CAGR_GATE_EXEMPT.
+        # The allowlist caused LT to silently crash (SEO stub fallback)
+        # and WIPRO did not unblock. Reverting affected cache rows for
+        # the 8 allowlisted tickers so they recompute under the
+        # restored gate logic.
+        "version_id": "v_revert_230_null_cagr_2026_05_26",
+        "applied_at": datetime(2026, 5, 26, 14, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "LT", "ULTRACEMCO", "WIPRO", "RELIANCE",
+                "INFY", "TCS", "ITC", "BHARTIARTL",
+            ],
+            "fields": [
+                "verdict", "data_limited", "fair_value", "mos_pct", "score",
+            ],
+        },
+        "rationale": (
+            "Revert of #673 allowlist after LT prod regression and "
+            "WIPRO un-fix detected via dcf-regression baseline audit."
         ),
     },
 ]
