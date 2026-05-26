@@ -970,7 +970,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               caption="Annualised growth rates over the trailing 3, 5 and 10 years."
             />
             <CompoundedGrowthTrustStrip ticker={ticker} />
-            <CompoundedGrowthPanel ticker={ticker} />
+            <details className="mt-3 group">
+              <summary className="text-sm text-muted-foreground hover:underline cursor-pointer list-none">
+                Show full 5y / 10y table ▼
+              </summary>
+              <div className="mt-2">
+                <CompoundedGrowthPanel ticker={ticker} />
+              </div>
+            </details>
           </section>
 
           {/* Section 5 — Dividends */}
@@ -999,13 +1006,13 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             <EarningsCallsWidget ticker={ticker} />
           </section>
 
-          {/* Section 6 — Community View (Week-3 manifesto:
+          {/* Section 7 — Community View (Week-3 manifesto:
               "How do you feel?" voting widget + aggregated sentiment).
               Sits below News and above the collapsed manifest footer
               so it reads as the closing "your turn" beat of the page. */}
           <section aria-labelledby="section-community">
             <NumberedSectionHeader
-              number={6}
+              number={7}
               title="COMMUNITY VIEW"
               caption="How the YieldIQ community is reading this name. Your view, not investment advice."
             />
