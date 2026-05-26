@@ -1321,6 +1321,30 @@ MANIFEST: list[dict] = [
             "these names. Task #228."
         ),
     },
+    {
+        # Task #229 (2026-05-26): FMCG_WACC_FLOOR raised 8.5 -> 9.5 and
+        # top-tier scenario weights shifted 40/40/20 -> 35/45/20.
+        # Aligns with Damodaran India staples cost-of-capital reference.
+        # Scope narrowed to the FMCG cohort and the recomputed fields.
+        "version_id": "v_229_fmcg_wacc_floor_2026_05_26",
+        "applied_at": datetime(2026, 5, 26, 6, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "NESTLEIND", "HINDUNILVR", "BRITANNIA", "ITC", "DABUR",
+                "MARICO", "COLPAL", "GODREJCP", "EMAMILTD", "TATACONSUM",
+                "VBL",
+            ],
+            "fields": [
+                "fair_value", "base_case", "bull_case", "bear_case",
+                "scenarios", "verdict", "mos_pct", "score", "wacc",
+            ],
+        },
+        "rationale": (
+            "FMCG_WACC_FLOOR 8.5->9.5; top-tier scenario weights "
+            "40/40/20->35/45/20. Aligns with Damodaran India staples "
+            "cost of capital. Task #229."
+        ),
+    },
 ]
 
 
