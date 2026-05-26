@@ -11,6 +11,15 @@ const nextConfig: NextConfig = {
       'date-fns',
     ],
   },
+  // Company-logo CDNs whitelisted for next/image optimization. See
+  // frontend/src/lib/logoUrl.ts — Brandfetch is primary (when client
+  // ID is set) and Google's favicon endpoint is the always-on fallback.
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'cdn.brandfetch.io' },
+      { protocol: 'https', hostname: 'www.google.com', pathname: '/s2/favicons' },
+    ],
+  },
   compiler: {
     removeConsole:
       process.env.NODE_ENV === 'production'
