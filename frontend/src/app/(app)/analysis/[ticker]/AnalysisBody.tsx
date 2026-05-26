@@ -33,7 +33,6 @@ import ConcallSignalsPanel from "@/components/concall/ConcallSignalsPanel"
 import PeerComparison from "@/components/analysis/PeerComparison"
 import EditorialHero from "@/components/analysis/EditorialHero"
 import StockHeroImage from "@/components/analysis/StockHeroImage"
-import type { AsOfAnalysis } from "@/lib/api"
 import {
   VERDICT_COLORS,
   verdictTierFromMos,
@@ -673,16 +672,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       }
     })
   }, [authToken])
-  // Phase-2 Time Slider snapshot. null = render the live payload as
-  // usual. When non-null, the hero swaps its FV / MoS / verdict to
-  // the historical values so the page reads as a past snapshot.
-  // PR-B (chassis): setter is no longer wired up — the wide TimeSlider
-  // that drove setAsOfData was replaced by a chip that opens the
-  // PrismTimeMachine popover. The `asOfData` state + downstream
-  // `inTimeMachine` branches are left in place so the snapshot-replay
-  // path stays ready for a future re-wire without touching hero JSX.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const [asOfData, _setAsOfData] = useState<AsOfAnalysis | null>(null)
+  // task-#218 (2026-05-26): the Phase-2 wide TimeSlider was replaced by
+  // the compact Time Machine chip (PR-B chassis), and the `asOfData`
+  // state was left in place with a renamed setter (`_setAsOfData`) +
+  // eslint-disable as a placeholder for a future re-wire. The state
+  // was never re-wired and stayed dead, so the snapshot-replay
+  // branches in the hero JSX have been removed. When the Time Machine
+  // chip needs to drive a snapshot view, re-introduce the state via
+  // `PrismTimeMachine`'s onSelect callback at that point.
   const onShare = async () => {
     if (typeof window === "undefined" || !data) return
     const url = window.location.href
@@ -1598,41 +1595,21 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           const headlineBuffettMos =
             valuation.buffett_mos_pct ?? null
 
-          // Phase-2 Time Slider override: when the user has slid the
-          // time machine away from "Today", swap the headline FV / MoS
-          // / price / verdict to the historical snapshot. Live values
-          // are preserved (see the comparison row inside <TimeSlider/>
-          // itself) so the user can still see the "vs today" delta.
-          const inTimeMachine = asOfData != null && asOfData.data_available
-          const displayFairValue = inTimeMachine && asOfData!.fair_value !== null
-            ? asOfData!.fair_value
-            : headlineFairValue
-          const displayMos = inTimeMachine && asOfData!.mos_pct !== null
-            ? asOfData!.mos_pct
-            : headlineMos
-          const displayPrice = inTimeMachine && asOfData!.current_price !== null
-            ? asOfData!.current_price
-            : valuation.current_price
-          // Verdict literal is constrained on the wire ("undervalued" |
-          // "fairly_valued" | "overvalued" | …); the backend as-of
-          // endpoint emits the same vocabulary, so the cast is safe.
-          const VALID_VERDICTS = new Set<Verdict>([
-            "undervalued", "fairly_valued", "overvalued", "avoid",
-            "data_limited", "unavailable", "low_confidence",
-          ])
-          const snapshotVerdict =
-            inTimeMachine && asOfData!.verdict && VALID_VERDICTS.has(asOfData!.verdict as Verdict)
-              ? (asOfData!.verdict as Verdict)
-              : null
-          const displayVerdict: Verdict = snapshotVerdict ?? valuation.verdict
+          // task-#218 (2026-05-26): removed dead asOfData snapshot-
+          // replay overrides. The hero now renders the live headline
+          // values directly. See the state declaration near the top of
+          // this component for re-wire notes when the Time Machine
+          // chip needs to drive a historical view.
+          const displayFairValue = headlineFairValue
+          const displayMos = headlineMos
+          const displayPrice = valuation.current_price
+          const displayVerdict: Verdict = valuation.verdict
 
           return prismResolved ? (
             <>
-              {/* PR-B (chassis): shrunk wide TimeSlider bar to a compact
-                  chip aligned right, near the hero price card. Chip
-                  opens the PrismTimeMachine popover (unchanged). The
-                  asOfData snapshot-replay flow is preserved for callers
-                  that still drive setAsOfData. */}
+              {/* PR-B (chassis): compact Time Machine chip aligned
+                  right, near the hero price card. Chip opens the
+                  PrismTimeMachine popover (unchanged). */}
               <div className="flex justify-end">
                 <button
                   type="button"
@@ -1647,15 +1624,6 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                   Time Machine
                 </button>
               </div>
-              {inTimeMachine ? (
-                <div
-                  role="status"
-                  className="text-xs font-medium text-brand bg-brand-50 border border-brand/30 rounded-lg px-3 py-2"
-                >
-                  Viewing snapshot from {asOfData!.as_of_date}. Drag the
-                  slider back to “Today” to return to the live analysis.
-                </div>
-              ) : null}
               {/* Manifesto Rule 9 — verdict-colored full-bleed hero. Sits
                   ABOVE the EditorialHero 3-column grid, doesn't touch it.
                   Reuses headlineMos/headlineFairValue so the verdict tier
@@ -1710,8 +1678,8 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             </>
           ) : (
             <>
-            {/* PR-B (chassis): see note above — TimeSlider bar replaced
-                by a small chip that opens the PrismTimeMachine popover. */}
+            {/* PR-B (chassis): compact Time Machine chip that opens the
+                PrismTimeMachine popover. */}
             <div className="flex justify-end">
               <button
                 type="button"
@@ -1726,15 +1694,6 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                 Time Machine
               </button>
             </div>
-            {inTimeMachine ? (
-              <div
-                role="status"
-                className="text-xs font-medium text-brand bg-brand-50 border border-brand/30 rounded-lg px-3 py-2 mb-3"
-              >
-                Viewing snapshot from {asOfData!.as_of_date}. Drag the
-                slider back to “Today” to return to the live analysis.
-              </div>
-            ) : null}
             <AnalysisHero
               score={quality.yieldiq_score}
               grade={quality.grade}

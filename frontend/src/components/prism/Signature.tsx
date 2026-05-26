@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react"
 import {
-  animate,
   motion,
   useMotionValue,
   useReducedMotion,
@@ -139,9 +138,17 @@ function useSweepInRadii(
 }
 
 /**
- * Animated count-up text for a single score. Animates from 0 → target
- * over 500ms on first mount; after that, subsequent target changes are
- * applied instantly to avoid jitter on hover / data refresh.
+ * Animated count-up text for a single score.
+ *
+ * task-#234 (2026-05-26): the motion value is now initialised AT the
+ * target instead of 0, so an SSR snapshot or a slow-JS first paint
+ * always renders the real number rather than a transient "0.0". The
+ * entrance is carried by a separate opacity+scale fade-in on the
+ * `<motion.text>` element over the same 500ms — the digit is never
+ * wrong while the entrance plays.
+ *
+ * Subsequent target changes still apply instantly (no re-animation)
+ * to avoid jitter on hover / data refresh.
  */
 function CountUpText({
   x,
@@ -160,26 +167,17 @@ function CountUpText({
   enabled: boolean
   label: string
 }) {
-  const mv = useMotionValue(enabled ? 0 : target)
+  // Always initialise AT the target. Even when `enabled` is true (first-
+  // view entrance), the digit must read correctly on the very first
+  // paint — only the opacity/scale of the surrounding text animates.
+  const mv = useMotionValue(target)
   const rounded = useTransform(mv, (latest) => latest.toFixed(1))
-  const didAnimateRef = useRef(false)
 
   useEffect(() => {
-    if (!enabled) {
-      mv.set(target)
-      return
-    }
-    if (didAnimateRef.current) {
-      mv.set(target)
-      return
-    }
-    didAnimateRef.current = true
-    const controls = animate(mv, target, {
-      duration: 0.5,
-      ease: "easeOut",
-    })
-    return () => controls.stop()
-  }, [enabled, target, mv])
+    // Keep the motion value in sync with target on any post-mount
+    // change (hover, data refresh). No animation on the digit itself.
+    mv.set(target)
+  }, [target, mv])
 
   // PR-prism-zero-fix: render an em-dash placeholder (with a "Below cohort
   // range" tooltip) instead of the developer-y "n/a" string. The product
@@ -214,12 +212,16 @@ function CountUpText({
       y={y}
       textAnchor="middle"
       dominantBaseline="central"
+      initial={enabled ? { opacity: 0, scale: 0.95 } : false}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
       style={{
         fill: color,
         fontSize,
         fontWeight: 800,
         fontFamily:
           "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
+        transformOrigin: `${x}px ${y}px`,
       }}
     >
       {rounded}
@@ -248,8 +250,9 @@ function CompositeCountUp({
   size: number
   enabled: boolean
 }) {
-  const mv = useMotionValue(enabled ? 0 : target)
-  const didAnimateRef = useRef(false)
+  // task-#234: initialise AT the target so SSR / slow-JS first paint
+  // never shows "0.0". Entrance is the opacity+scale fade-in below.
+  const mv = useMotionValue(target)
   const wholeMv = useTransform(mv, (v) => {
     const clamped = Math.max(0, Math.min(10, v))
     const rounded = Math.round(clamped * 10) / 10
@@ -263,21 +266,8 @@ function CompositeCountUp({
   })
 
   useEffect(() => {
-    if (!enabled) {
-      mv.set(target)
-      return
-    }
-    if (didAnimateRef.current) {
-      mv.set(target)
-      return
-    }
-    didAnimateRef.current = true
-    const controls = animate(mv, target, {
-      duration: 0.5,
-      ease: "easeOut",
-    })
-    return () => controls.stop()
-  }, [enabled, target, mv])
+    mv.set(target)
+  }, [target, mv])
 
   return (
     <motion.text
@@ -285,12 +275,16 @@ function CompositeCountUp({
       y={cy - 2}
       textAnchor="middle"
       dominantBaseline="central"
+      initial={enabled ? { opacity: 0, scale: 0.95 } : false}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.5, ease: "easeOut" }}
       style={{
         fill: "var(--color-ink)",
         fontSize: Math.round(size * 0.17),
         fontWeight: 800,
         fontFamily:
           "var(--font-mono), ui-monospace, SFMono-Regular, monospace",
+        transformOrigin: `${cx}px ${cy - 2}px`,
       }}
     >
       <motion.tspan>{wholeMv}</motion.tspan>

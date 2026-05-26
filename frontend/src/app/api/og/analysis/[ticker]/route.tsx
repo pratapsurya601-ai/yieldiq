@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og"
 import type { NextRequest } from "next/server"
+import { clampMosForDisplay } from "@/lib/utils"
 
 /**
  * 1080 x 1920 "Share Report Card" — the portrait, Instagram-Story /
@@ -39,6 +40,8 @@ interface StockSummary {
   fair_value?: number
   current_price?: number
   mos?: number
+  mos_clamped?: boolean
+  data_limited?: boolean
   verdict?: string
   score?: number
   grade?: string
@@ -146,7 +149,20 @@ export async function GET(
 
   const fairValue = Number(summary.fair_value ?? 0)
   const price = Number(summary.current_price ?? 0)
-  const mos = Number(summary.mos ?? 0)
+  // task-#235 (2026-05-26): defense-in-depth against an unclamped MoS
+  // leaking through /public/stock-summary. Mirrors the on-page hero
+  // fix from PR #668 — runs the raw `mos` field through the canonical
+  // clampMosForDisplay helper so the OG card can never render the
+  // WIPRO +321% / KALYANI +829% class of runaway figures. A null
+  // result (data_limited past the cap with no backend clamp flag)
+  // falls back to 0, which routes the verdict label through the
+  // "UNDER REVIEW" path via `isUnderReview` below.
+  const clampedMos = clampMosForDisplay(
+    Number.isFinite(Number(summary.mos)) ? Number(summary.mos) : null,
+    summary.mos_clamped ?? null,
+    summary.data_limited ?? null,
+  )
+  const mos = clampedMos ?? 0
   const verdict = summary.verdict || "data_limited"
   const score100 = Math.max(0, Math.min(100, Math.round(Number(summary.score ?? 0))))
   const grade = (summary.grade || "").toString().slice(0, 2) || "\u2014"
@@ -158,7 +174,11 @@ export async function GET(
     verdict === "data_limited" ||
     verdict === "unavailable" ||
     !fairValue ||
-    fairValue <= 0
+    fairValue <= 0 ||
+    // task-#235: when displayMos says "suppress entirely" (data_limited
+    // past the cap with no backend clamp flag), surface the card as
+    // Under Review rather than baking a misleading verdict %.
+    clampedMos === null
 
   // ─── Hex geometry ─────────────────────────────────────────────────
   // 1080x1920 portrait. The SVG canvas for the hex is a 900x820 box
