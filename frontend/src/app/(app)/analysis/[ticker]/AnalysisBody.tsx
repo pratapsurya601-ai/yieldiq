@@ -1537,10 +1537,22 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             fvClamped && baseScenario && baseScenario.iv > 0
               ? baseScenario.iv
               : valuation.fair_value
-          const headlineMos =
+          // fix/mos-clamp-enforce (2026-05-26): NEVER let a raw
+          // base-scenario MoS (which is uncapped — `base_unclamped`-class
+          // numbers like WIPRO 321% / KALYANI 829%) reach the hero.
+          // Prefer the backend's already-clamped valuation.margin_of_safety
+          // and hard-cap to ±200% as defense in depth. When fv_clamped is
+          // true and the unclamped base scenario MoS would overflow,
+          // collapse to the clamped headline rather than promote an
+          // implausible value to the hero.
+          const HARD_MOS_CAP = 200
+          const candidateHeadlineMos =
             fvClamped && baseScenario && Number.isFinite(baseScenario.mos_pct)
               ? baseScenario.mos_pct
               : valuation.margin_of_safety
+          const headlineMos = Number.isFinite(candidateHeadlineMos)
+            ? Math.max(-HARD_MOS_CAP, Math.min(HARD_MOS_CAP, candidateHeadlineMos))
+            : valuation.margin_of_safety
 
           // Step B (2026-05-17): pass through the new buffett_mos_pct
           // field so the hero can render the "Margin of Safety (Buffett)"
