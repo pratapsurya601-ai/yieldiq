@@ -633,6 +633,19 @@ class AnalysisResponse(BaseModel):
     # on legacy cached payloads; frontend hides the panel when
     # absent.
     honest_card: Optional["HonestCardOutput"] = None
+    # ── Worry Index (Phase-3, 2026-05-25) ──────────────────────
+    # 0-100 emotional risk composite + tier copy. Computed by
+    # backend/services/analysis/worry_index.py from the assembled
+    # quality / valuation / insights blocks. Purely additive — pre-PR
+    # cached payloads omit this field; the frontend skips the gauge
+    # in that case.
+    worry_index: Optional[dict] = None
+    # ── Inline Comparison Sliders peer context (Phase-3) ───────
+    # Per-metric peer-percentile summary keyed by metric name, e.g.
+    # {"roe_pct": {"value": 8.8, "median": 12.4, "p5": 4.1, "p95": 21.0, "n": 7}}.
+    # Powers the <MetricWithContext /> slider on the Quality tab.
+    # Omitted entirely when no peer rows are available.
+    peer_context: Optional[dict] = None
 
 
 # ── The Honest Card response model ────────────────────────────

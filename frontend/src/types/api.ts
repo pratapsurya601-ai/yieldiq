@@ -413,6 +413,42 @@ export interface AnalysisResponse {
    */
   honest_card?: HonestCardOutput | null
   /**
+   * The Worry Index (Phase-3, 2026-05-25) — 0-100 emotional risk
+   * composite plus tier copy. See backend/services/analysis/worry_index.py.
+   * Renders via <WorryIndex /> on the Summary tab between the hero and
+   * "1. VALUATION SCENARIOS". Optional — pre-PR cached payloads omit it.
+   */
+  worry_index?: {
+    score: number
+    tier:
+      | "sleep_well"
+      | "normal"
+      | "watch_closely"
+      | "read_bears"
+      | "significant_concerns"
+    headline: string
+    contributors: Array<{
+      component: string
+      label: string
+      weight: number
+      score: number
+      detail?: string
+    }>
+  } | null
+  /**
+   * Per-metric peer percentile context for inline comparison sliders.
+   * See backend/services/analysis/peer_context.py. Keyed by metric id
+   * (e.g. "roe_pct", "pe_ratio"). Each block carries {value, median,
+   * p5, p95, n}. Read by <MetricWithContext /> on the Quality tab.
+   */
+  peer_context?: Record<string, {
+    value: number | null
+    median: number
+    p5: number
+    p95: number
+    n: number
+  }> | null
+  /**
    * Backend-authored formula metadata, keyed by metric id (e.g.
    * "margin_of_safety", "roce"). Populated from
    * backend/services/analysis/formulas.py — the single source of
