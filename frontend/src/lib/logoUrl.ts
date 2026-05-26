@@ -76,7 +76,7 @@ export function getLogoFallbackUrl(
 ): string | null {
   // If Brandfetch is configured and we tried it first, fall back to
   // the favicon. Otherwise there is no further URL to try — the caller
-  // should render the letter.
+  // will render the letter.
   if (!process.env.NEXT_PUBLIC_BRANDFETCH_CLIENT_ID) return null
   return getFaviconUrl(ticker, size)
 }
