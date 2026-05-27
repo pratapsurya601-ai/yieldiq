@@ -41,6 +41,7 @@ const ALL_KEYS: SectionKey[] = [
   "bulls_bears",
   "honest_card",
   "scenarios",
+  "peers",
   "compounded_growth",
   "reverse_dcf",
   "dividends",
@@ -100,10 +101,15 @@ describe("personalization CONFIGS", () => {
 })
 
 describe("style-specific section orders (smoke)", () => {
-  it("Value puts scenarios + honest_card + bulls_bears at the top", () => {
+  it("Value puts scenarios + honest_card + bulls_bears in the top 5", () => {
     const order = CONFIGS.value.sectionOrder
-    // insight_cards is always #1 (at-a-glance row), so check positions 2-4.
-    expect(order.slice(1, 4)).toEqual(["scenarios", "honest_card", "bulls_bears"])
+    // insight_cards is always #1. After that, scenarios + honest_card +
+    // bulls_bears must all appear within the first 5 positions (peers
+    // may interleave between them per PR #676).
+    const top5 = order.slice(1, 6)
+    expect(top5).toContain("scenarios")
+    expect(top5).toContain("honest_card")
+    expect(top5).toContain("bulls_bears")
   })
 
   it("Income leads with dividends after insight_cards", () => {
