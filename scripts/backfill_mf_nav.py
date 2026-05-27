@@ -37,10 +37,32 @@ Throttling
 each = ~53 hours of wall-clock for the full universe. The default
 canary set of 50 schemes runs in ~30 minutes.
 
+Dependency: funds table must be populated first
+================================================
+fund_nav_history rows reference funds.scheme_code (logical FK enforced
+by the upsert path in amfi_nav.py). The backfill aborts early if the
+funds table is empty. Two ways to satisfy the dependency:
+
+  1. Run the scheme-master ingest yourself, then rerun the backfill:
+
+       PYTHONPATH=. python -m data_pipeline.sources.amfi_scheme_master
+       python scripts/backfill_mf_nav.py
+
+  2. Pass ``--auto-bootstrap`` to have the backfill run the
+     scheme-master ingest in-process before pulling NAV history.
+
+Note: invoking ``python -m data_pipeline.sources.amfi_scheme_master``
+directly requires ``PYTHONPATH=.`` (the repo has no pyproject.toml /
+setup.py). The two cron workflows set this in their env block.
+
 Usage
 =====
     # Top-50 canary set (operator default for first run):
     DATABASE_URL=postgres://... python scripts/backfill_mf_nav.py
+
+    # First-time setup — populate funds, then backfill NAV:
+    DATABASE_URL=postgres://... python scripts/backfill_mf_nav.py \\
+        --auto-bootstrap
 
     # Full universe (operator only, when ready for the long haul):
     DATABASE_URL=postgres://... python scripts/backfill_mf_nav.py \\
@@ -94,6 +116,35 @@ def _load_canary_schemes() -> list[str]:
             seen.add(sc)
             out.append(sc)
     return out
+
+
+def _funds_row_count(db_url: str) -> int:
+    """Return COUNT(*) from the funds table."""
+    import psycopg2
+    conn = psycopg2.connect(db_url)
+    try:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) FROM funds")
+            return int(cur.fetchone()[0])
+    finally:
+        conn.close()
+
+
+def _run_scheme_master_ingest() -> int:
+    """Invoke the AMFI scheme-master ingest in-process.
+
+    Returns the exit code from its main(). Used by --auto-bootstrap so
+    the operator can populate the funds table without leaving the
+    backfill invocation.
+    """
+    from data_pipeline.sources import amfi_scheme_master
+    logger.info("Bootstrapping funds table via amfi_scheme_master ...")
+    # Pass an empty argv so the scheme-master CLI does not try to
+    # parse this script's flags.
+    rc = amfi_scheme_master.main([])
+    if rc != 0:
+        logger.error("amfi_scheme_master exited with code %d", rc)
+    return rc or 0
 
 
 def _load_funds_table_schemes(db_url: str) -> list[str]:
@@ -180,6 +231,11 @@ def main(argv: list[str] | None = None) -> int:
                    help="Sleep between scheme requests (seconds).")
     p.add_argument("--resume", action="store_true",
                    help="Skip schemes already in the checkpoint file.")
+    p.add_argument("--auto-bootstrap", action="store_true",
+                   help="If the funds table is empty, run the AMFI "
+                        "scheme-master ingest in-process before the NAV "
+                        "backfill. Without this flag, an empty funds "
+                        "table aborts the run with an actionable error.")
     p.add_argument("--dry-run", action="store_true",
                    help="Fetch only; do not write to DB.")
     p.add_argument("--verbose", action="store_true")
@@ -196,6 +252,34 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if db_url and db_url.startswith("postgres://"):
         db_url = "postgresql://" + db_url[len("postgres://"):]
+
+    # Dependency: funds must be populated. fund_nav_history rows
+    # reference funds.scheme_code (logical FK enforced by the upsert
+    # path). If the table is empty, abort with an actionable message —
+    # or auto-bootstrap the scheme-master ingest if the operator opted
+    # in.
+    if db_url:
+        funds_n = _funds_row_count(db_url)
+        if funds_n == 0:
+            if args.auto_bootstrap:
+                rc = _run_scheme_master_ingest()
+                if rc != 0:
+                    return rc
+                funds_n = _funds_row_count(db_url)
+                if funds_n == 0:
+                    logger.error(
+                        "auto-bootstrap completed but funds is still empty; "
+                        "check amfi_scheme_master logs above."
+                    )
+                    return 2
+                logger.info("auto-bootstrap populated %d funds rows", funds_n)
+            else:
+                logger.error(
+                    "ERROR: funds table empty. Run "
+                    "'PYTHONPATH=. python -m data_pipeline.sources.amfi_scheme_master' "
+                    "first (or rerun this script with --auto-bootstrap)."
+                )
+                return 2
 
     if args.schemes_source == "canary":
         schemes = _load_canary_schemes()
