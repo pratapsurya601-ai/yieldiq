@@ -45,14 +45,11 @@ describe("WorryIndex", () => {
     expect(screen.getByText(/out of 100/i)).toBeInTheDocument()
   })
 
-  it("contributors panel toggles on click", () => {
+  it("contributors panel is always visible below the dial", () => {
+    // PR #686 promoted contributors from collapsed toggle to always-visible
+    // breakdown bars — visual richness sprint.
     render(<WorryIndex worry={sample} />)
-    const toggle = screen.getByRole("button", { name: /what drives/i })
-    expect(screen.queryByText("D/E 0.6")).not.toBeInTheDocument()
-    fireEvent.click(toggle)
     expect(screen.getByText("D/E 0.6")).toBeInTheDocument()
-    fireEvent.click(toggle)
-    expect(screen.queryByText("D/E 0.6")).not.toBeInTheDocument()
   })
 
   it("each tier maps to a distinct visual style", () => {
