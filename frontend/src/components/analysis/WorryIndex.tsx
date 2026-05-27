@@ -1,6 +1,7 @@
 "use client"
 
-// WorryIndex — circular gauge + tier copy + expandable contributors.
+// WorryIndex — circular gauge + tier copy + always-visible sub-component
+// bars (Visual Richness #4, 2026-05-27).
 // Phase-3 (2026-05-25) — Design Manifesto rule 2 ("every number has
 // context") expressed as a single 0-100 emotional risk score.
 //
@@ -13,8 +14,10 @@
 //   }
 //
 // Renders nothing when the field is absent (pre-PR cached payloads).
+// When the API doesn't include `contributors` (older cached payloads),
+// the bars render with neutral 50/100 placeholders + a caption noting
+// the breakdown is pending — never fake real numbers.
 
-import { useState } from "react"
 import { CountUp, FadeStagger } from "@/components/anim"
 import { cn } from "@/lib/utils"
 
@@ -85,9 +88,19 @@ const STROKE = 14         // px — ring thickness
 const RADIUS = (SIZE - STROKE) / 2
 const CIRC = 2 * Math.PI * RADIUS
 
-export default function WorryIndex({ worry }: Props) {
-  const [open, setOpen] = useState(false)
+// Fallback skeleton when the API payload predates the contributors
+// field. We render 5 placeholder bars at 50/100 so the layout shape is
+// preserved, and surface a caption so nobody mistakes them for real
+// scores.
+const PLACEHOLDER_CONTRIBUTORS: WorryContributor[] = [
+  { component: "solvency",         label: "Solvency",          weight: 0, score: 50 },
+  { component: "earnings_quality", label: "Earnings quality",  weight: 0, score: 50 },
+  { component: "valuation",        label: "Valuation stretch", weight: 0, score: 50 },
+  { component: "volatility",       label: "Market volatility", weight: 0, score: 50 },
+  { component: "governance",       label: "Governance",        weight: 0, score: 50 },
+]
 
+export default function WorryIndex({ worry }: Props) {
   if (!worry || typeof worry.score !== "number") return null
 
   const score = Math.max(0, Math.min(100, Math.round(worry.score)))
@@ -177,59 +190,94 @@ export default function WorryIndex({ worry }: Props) {
         </div>
       </div>
 
-      {/* Expandable contributors */}
-      {worry.contributors && worry.contributors.length > 0 && (
-        <div className="mt-5 border-t border-border pt-4">
-          <button
-            type="button"
-            onClick={() => setOpen(v => !v)}
-            aria-expanded={open}
-            className="text-xs font-medium text-ink hover:text-ink/80 flex items-center gap-1.5"
-          >
-            <span>{open ? "Hide" : "What drives this score?"}</span>
-            <span aria-hidden className={cn("transition-transform", open && "rotate-90")}>›</span>
-          </button>
+      {/* Sub-component breakdown — always visible as horizontal bars
+          so the "why" sits next to the headline number. The dial stays
+          the centerpiece; bars act as decomposition.
 
-          {open && (
-            <FadeStagger as="div" className="mt-3 space-y-2" staggerMs={70}>
-              {worry.contributors.map((c) => (
-                <div
-                  key={c.component}
-                  className="grid grid-cols-[110px_1fr_44px] sm:grid-cols-[140px_1fr_48px] items-center gap-3 text-xs"
-                >
-                  <span className="text-caption">
-                    {c.label}
-                    <span className="ml-1 text-[10px] text-caption/70">
-                      ({c.weight}%)
-                    </span>
-                  </span>
-                  <div className="h-1.5 rounded-full bg-bg overflow-hidden">
-                    <div
-                      className={cn(
-                        "h-full rounded-full",
-                        c.score < 20 ? "bg-emerald-600" :
-                        c.score < 40 ? "bg-lime-600" :
-                        c.score < 60 ? "bg-amber-500" :
-                        c.score < 80 ? "bg-orange-600" : "bg-rose-700",
+          When the API payload predates the contributors field, we fall
+          back to neutral 50/100 placeholder bars + a caption — never
+          fake real numbers (project discipline). */}
+      {(() => {
+        const hasRealData =
+          Array.isArray(worry.contributors) && worry.contributors.length > 0
+        const rows = hasRealData ? worry.contributors : PLACEHOLDER_CONTRIBUTORS
+
+        return (
+          <div className="mt-5 border-t border-border pt-4">
+            <div className="flex items-baseline justify-between mb-3">
+              <h3 className="text-[11px] font-semibold text-caption uppercase tracking-wide">
+                What drives this score
+              </h3>
+              {!hasRealData && (
+                <span className="text-[10px] text-caption/80 italic">
+                  Component breakdown coming soon
+                </span>
+              )}
+            </div>
+            <FadeStagger as="div" className="space-y-2.5" staggerMs={60}>
+              {rows.map((c) => {
+                const clamped = Math.max(0, Math.min(100, c.score))
+                return (
+                  <div
+                    key={c.component}
+                    className="grid grid-cols-[110px_1fr_36px] sm:grid-cols-[150px_1fr_42px] items-center gap-3 text-xs"
+                  >
+                    <span className="text-caption truncate" title={c.label}>
+                      {c.label}
+                      {hasRealData && c.weight > 0 && (
+                        <span className="ml-1 text-[10px] text-caption/70">
+                          ({c.weight}%)
+                        </span>
                       )}
-                      style={{ width: `${Math.max(0, Math.min(100, c.score))}%` }}
-                      title={c.detail || undefined}
-                    />
-                  </div>
-                  <span className="text-right tabular-nums font-medium text-ink">
-                    {c.score}
-                  </span>
-                  {c.detail && (
-                    <span className="col-span-3 text-[11px] text-caption leading-snug -mt-1">
-                      {c.detail}
                     </span>
-                  )}
-                </div>
-              ))}
+                    {/* Track uses a static green→amber→red gradient so
+                        the colour position itself tells you whether the
+                        score is calm or loud. The filled portion is
+                        opaque; the unfilled tail is dimmed via overlay. */}
+                    <div
+                      className="relative h-2 rounded-full overflow-hidden bg-gradient-to-r from-emerald-500 via-amber-400 to-rose-600"
+                      role="img"
+                      aria-label={`${c.label}: ${clamped} out of 100`}
+                      title={c.detail || undefined}
+                    >
+                      <div
+                        aria-hidden
+                        className={cn(
+                          "absolute inset-y-0 right-0 bg-surface/85 transition-[width] duration-[900ms] ease-out",
+                          !hasRealData && "bg-surface/70",
+                        )}
+                        style={{ width: `${100 - clamped}%` }}
+                      />
+                      <div
+                        aria-hidden
+                        className="absolute top-0 bottom-0 w-px bg-ink/70"
+                        style={{ left: `calc(${clamped}% - 0.5px)` }}
+                      />
+                    </div>
+                    <span
+                      className={cn(
+                        "text-right tabular-nums font-medium",
+                        hasRealData ? "text-ink" : "text-caption/70",
+                      )}
+                    >
+                      {hasRealData ? c.score : "—"}
+                    </span>
+                    {hasRealData && c.detail && (
+                      <span className="col-span-3 text-[11px] text-caption leading-snug -mt-1">
+                        {c.detail}
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
             </FadeStagger>
-          )}
-        </div>
-      )}
+            <p className="mt-3 text-[10px] text-caption/70">
+              Each bar runs 0 (calmer) → 100 (louder). The marker shows
+              where this stock sits.
+            </p>
+          </div>
+        )
+      })()}
     </section>
   )
 }
