@@ -130,6 +130,10 @@ const FinancialBars = dynamic(() => import("@/components/analysis/FinancialBars"
   ssr: false,
   loading: chartSkeleton,
 })
+const FinancialsChartPanel = dynamic(
+  () => import("@/components/analysis/FinancialsChartPanel"),
+  { ssr: false, loading: chartSkeleton },
+)
 const FVProjectionFan = dynamic(() => import("@/components/analysis/FVProjectionFan"), {
   ssr: false,
   loading: chartSkeleton,
@@ -1060,6 +1064,9 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         <CompoundedGrowthTrustStrip ticker={ticker} />
         <CompoundedGrowthPanel ticker={ticker} />
       </>
+    ),
+    financials_chart: (
+      <FinancialsChartPanel ticker={ticker} currency={company.currency} />
     ),
     reverse_dcf: !dataLimited ? <ReverseDcfPanel ticker={ticker} /> : null,
     dividends: (

@@ -43,6 +43,7 @@ const ALL_KEYS: SectionKey[] = [
   "scenarios",
   "peers",
   "compounded_growth",
+  "financials_chart",
   "reverse_dcf",
   "dividends",
   "news",

@@ -32,6 +32,7 @@ export type SectionKey =
   | "honest_card"
   | "scenarios"
   | "compounded_growth"
+  | "financials_chart"
   | "reverse_dcf"
   | "dividends"
   | "news"
@@ -57,6 +58,7 @@ export const DEFAULT_SECTION_ORDER: SectionKey[] = [
   "honest_card",
   "peers",
   "compounded_growth",
+  "financials_chart",
   "reverse_dcf",
   "dividends",
   "news",
@@ -80,6 +82,8 @@ export const SECTION_EXPLAINERS: Record<SectionKey, string> = {
     "Bear, base, and bull scenarios show the range of fair values our DCF model produces under different assumptions. The spread tells you how sensitive the valuation is to inputs.",
   compounded_growth:
     "Compounded annual growth rate (CAGR) shows the average yearly rate at which Revenue, Profit, or ROE grew over time. Higher numbers mean faster expansion; consistency matters as much as the rate.",
+  financials_chart:
+    "A 10-year view of revenue, net profit, and free cash flow side-by-side. Reading the three series together shows whether top-line growth is translating into earnings and cash, or stalling at one of the steps.",
   reverse_dcf:
     "Reverse DCF inverts the question: instead of asking what the stock is worth, it asks what growth rate the current price implies. Compare that to historical growth to judge whether expectations are reasonable.",
   dividends:
@@ -128,6 +132,10 @@ export const SECTION_TITLES: Record<SectionKey, { title: string; caption: string
     title: "COMPOUNDED GROWTH",
     caption: "Annualised growth rates over the trailing 3, 5 and 10 years.",
   },
+  financials_chart: {
+    title: "FINANCIAL STATEMENTS — 10-YEAR",
+    caption: "Revenue, profit, and free cash flow side-by-side across the last 10 years.",
+  },
   reverse_dcf: {
     title: "REVERSE DCF",
     caption:
@@ -166,6 +174,7 @@ export const CONFIGS: Record<InvestingStyle, PersonalizationConfig> = {
       "peers",
       "bulls_bears",
       "compounded_growth",
+      "financials_chart",
       "reverse_dcf",
       "dividends",
       "red_flags",
@@ -184,6 +193,7 @@ export const CONFIGS: Record<InvestingStyle, PersonalizationConfig> = {
       "bulls_bears",
       "scenarios",
       "compounded_growth",
+      "financials_chart",
       "peers",
       "news",
       "earnings_calls",
@@ -206,6 +216,7 @@ export const CONFIGS: Record<InvestingStyle, PersonalizationConfig> = {
       "scenarios",
       "peers",
       "compounded_growth",
+      "financials_chart",
       "bulls_bears",
       "news",
       "red_flags",
@@ -226,6 +237,7 @@ export const CONFIGS: Record<InvestingStyle, PersonalizationConfig> = {
       "peers",
       "scenarios",
       "compounded_growth",
+      "financials_chart",
       "dividends",
       "red_flags",
       "news",
@@ -246,6 +258,7 @@ export const CONFIGS: Record<InvestingStyle, PersonalizationConfig> = {
       "peers",
       "bulls_bears",
       "compounded_growth",
+      "financials_chart",
       "earnings_calls",
       "honest_card",
       "red_flags",
