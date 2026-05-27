@@ -129,7 +129,7 @@ export function ValueBandChip({
           className={[
             "inline-flex items-center rounded-full px-2 py-0.5",
             "text-[10px] font-semibold uppercase tracking-wide",
-            "bg-transparent text-amber-700 border border-dashed border-amber-500",
+            "bg-transparent text-tone-warn-fg border border-dashed border-amber-500",
           ].join(" ")}
         >
           Broad market

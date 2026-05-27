@@ -102,7 +102,7 @@ export default function SeeAlsoPeers({ ticker, currency, limit = 8 }: Props) {
 
   if (isLoading) {
     return (
-      <section className="bg-bg rounded-2xl border border-border p-5">
+      <section className="bg-bg rounded-2xl border border-border p-4">
         <h2 className="text-sm font-semibold text-ink mb-3">See also</h2>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -126,7 +126,7 @@ export default function SeeAlsoPeers({ ticker, currency, limit = 8 }: Props) {
   if (peers.length === 0) return null
 
   return (
-    <section className="bg-bg rounded-2xl border border-border p-5">
+    <section className="bg-bg rounded-2xl border border-border p-4">
       <div className="flex items-baseline justify-between mb-3 gap-2 flex-wrap">
         <h2 className="text-sm font-semibold text-ink">See also</h2>
         {data.sector_label && (

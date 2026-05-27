@@ -86,7 +86,7 @@ export default function CompoundedGrowthPanel({ ticker }: Props) {
 
   return (
     <section
-      className="bg-bg rounded-2xl border border-border p-5"
+      className="bg-bg rounded-2xl border border-border p-4"
       aria-label={`Compounded growth for ${ticker}`}
     >
       <div className="mb-4">

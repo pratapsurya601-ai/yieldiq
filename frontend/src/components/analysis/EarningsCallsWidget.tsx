@@ -86,7 +86,7 @@ export default function EarningsCallsWidget({ ticker }: Props) {
 
   if (isLoading) {
     return (
-      <div className="bg-bg rounded-2xl border border-border p-5">
+      <div className="bg-bg rounded-2xl border border-border p-4">
         <div className="h-4 w-28 bg-surface rounded animate-pulse mb-3" />
         <div className="space-y-2">
           {[0, 1, 2].map((i) => (
@@ -100,7 +100,7 @@ export default function EarningsCallsWidget({ ticker }: Props) {
   const items = (data?.transcripts ?? []).slice(0, 4)
 
   return (
-    <div className="bg-bg rounded-2xl border border-border p-5">
+    <div className="bg-bg rounded-2xl border border-border p-4">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-ink">Earnings Calls</h2>
         <span className="text-[10px] text-caption uppercase tracking-wide">NSE filings</span>

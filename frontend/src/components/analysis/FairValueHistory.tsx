@@ -75,7 +75,7 @@ function FVTooltip({
    blank gaps. */
 function FVPlaceholder({ variant }: { variant: "loading" | "empty" | "error" }) {
   return (
-    <div className="bg-surface rounded-2xl border border-border p-5">
+    <div className="bg-surface rounded-2xl border border-border p-4">
       <h2 className="text-sm font-semibold text-ink mb-3">Historical Fair Value</h2>
       {variant === "loading" ? (
         <div className="space-y-3">
@@ -149,7 +149,7 @@ export default function FairValueHistory({ ticker, companyName, currency = "INR"
   const maxY = Math.max(...allValues) * 1.05
 
   return (
-    <div className="bg-surface rounded-2xl border border-border p-5 space-y-3">
+    <div className="bg-surface rounded-2xl border border-border p-4 space-y-3">
       {/* Header row */}
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-ink">Historical Fair Value</h2>
@@ -265,8 +265,8 @@ export default function FairValueHistory({ ticker, companyName, currency = "INR"
 
       {/* Tier upgrade CTA */}
       {data.tier_limited && (
-        <div className="border border-blue-100 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30 rounded-xl p-3 flex items-center justify-between gap-3">
-          <p className="text-xs text-blue-700 dark:text-blue-300 inline-flex items-center gap-1.5">
+        <div className="border border-blue-100 bg-tone-info-bg dark:border-blue-900 dark:bg-blue-950/30 rounded-xl p-3 flex items-center justify-between gap-3">
+          <p className="text-xs text-tone-info-fg dark:text-blue-300 inline-flex items-center gap-1.5">
             <Lock className="w-3.5 h-3.5" aria-hidden="true" />
             Unlock 3-year history with Starter
           </p>

@@ -206,7 +206,7 @@ export default function ReverseDCFClient({ initialData, ticker }: { initialData:
       {/* Sensitivity Sliders */}
       <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-6 mb-8">
         <h2 className="text-sm font-bold text-ink mb-4">Adjust Assumptions {loading && <span className="text-blue-500 text-xs ml-2">recomputing...</span>}</h2>
-        <div className="space-y-5">
+        <div className="space-y-4">
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm text-caption">WACC (Discount Rate)</label>
@@ -278,7 +278,7 @@ export default function ReverseDCFClient({ initialData, ticker }: { initialData:
 
       {/* DCF Horizon at Historical Growth */}
       {data.historical_growth != null && data.scenarios?.Historical && (
-        <div className="bg-amber-50 border border-amber-100 rounded-xl p-5 mb-8">
+        <div className="bg-amber-50 border border-amber-100 rounded-xl p-4 mb-8">
           <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">At Historical Growth Rate</p>
           <p className="text-sm text-amber-900">
             DCF horizon: <span className="font-bold">10 years</span>. At {pct(data.historical_growth)} growth, the model values {display} at <span className="font-bold">{fmt(data.scenarios.Historical.implied_iv)}</span>, {data.scenarios.Historical.implied_iv >= data.current_price ? "above" : "below"} today&apos;s {fmt(data.current_price)}.

@@ -582,7 +582,7 @@ function CompareContent() {
   const excludedSet = useMemo(() => new Set(tickers), [tickers])
 
   return (
-    <div className="max-w-2xl md:max-w-5xl lg:max-w-6xl mx-auto px-4 py-6 space-y-5 pb-20">
+    <div className="max-w-2xl md:max-w-5xl lg:max-w-6xl mx-auto px-4 py-6 space-y-4 pb-20">
       <div className="text-center">
         <h1 className="text-lg font-bold text-ink mb-1">Side-by-side Comparison</h1>
         <p className="text-xs text-caption">

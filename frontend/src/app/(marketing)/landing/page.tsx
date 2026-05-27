@@ -40,7 +40,7 @@ function MarketingFooter() {
             </div>
           </div>
         </div>
-        <div className="border-t border-white/5 mt-10 pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="border-t border-white/5 mt-8 pt-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-caption text-xs">&copy; 2026 YieldIQ. Made in India.</p>
           <p className="text-caption text-xs">
             Model output only &mdash; not investment advice. YieldIQ is not registered with SEBI as an investment adviser.
@@ -65,7 +65,7 @@ export default function LandingPage() {
             <br />
             <span className="bg-gradient-to-r from-blue-500 to-cyan-400 bg-clip-text text-transparent">Before You Invest.</span>
           </h1>
-          <p className="text-caption text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed">
+          <p className="text-caption text-lg md:text-xl max-w-2xl mx-auto mb-8 leading-relaxed">
             YieldIQ gives Indian retail investors institutional-grade DCF valuation &mdash;
             no spreadsheets, no guesswork. Enter a ticker, get a fair value estimate in seconds.
           </p>
@@ -224,7 +224,7 @@ export default function LandingPage() {
           <h2 className="text-3xl md:text-4xl font-black text-white mb-4">
             Stop Guessing. Start Valuing.
           </h2>
-          <p className="text-caption text-lg mb-10 max-w-xl mx-auto">
+          <p className="text-caption text-lg mb-8 max-w-xl mx-auto">
             Join thousands of Indian investors making smarter decisions with DCF analysis.
           </p>
           <Link

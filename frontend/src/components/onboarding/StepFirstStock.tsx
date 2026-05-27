@@ -135,7 +135,7 @@ export default function StepFirstStock({ onNext }: StepFirstStockProps) {
   }
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-56px)] px-5 pb-8">
+    <div className="flex flex-col min-h-[calc(100vh-56px)] px-4 pb-8">
       <header className="pt-6 pb-4">
         <h1 className="font-editorial text-3xl sm:text-4xl text-ink leading-tight">
           Name a stock you know
@@ -162,7 +162,7 @@ export default function StepFirstStock({ onNext }: StepFirstStockProps) {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Try RELIANCE, TCS, HDFCBANK…"
-                className="w-full min-h-[52px] rounded-full border border-border bg-surface px-5 pr-14 text-base text-ink placeholder:text-caption focus:outline-none focus:ring-2 focus:ring-brand/60 focus:border-brand"
+                className="w-full min-h-[52px] rounded-full border border-border bg-surface px-4 pr-14 text-base text-ink placeholder:text-caption focus:outline-none focus:ring-2 focus:ring-brand/60 focus:border-brand"
               />
               <button
                 type="submit"

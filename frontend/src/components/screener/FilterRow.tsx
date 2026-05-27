@@ -125,7 +125,7 @@ export default function FilterRow({ clause, fields, onChange, onRemove }: Filter
         className={cn(
           "shrink-0 rounded-lg border border-border bg-bg",
           "h-9 w-9 flex items-center justify-center",
-          "text-caption hover:text-red-600 hover:border-red-200 hover:bg-red-50",
+          "text-caption hover:text-red-600 hover:border-tone-bad-bd hover:bg-tone-bad-bg",
           "transition-colors"
         )}
       >

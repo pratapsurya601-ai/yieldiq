@@ -186,7 +186,7 @@ function ScreenerInner() {
   }, [error])
 
   return (
-    <div className="max-w-2xl md:max-w-4xl lg:max-w-6xl mx-auto px-4 py-6 pb-20 space-y-5">
+    <div className="max-w-2xl md:max-w-4xl lg:max-w-6xl mx-auto px-4 py-6 pb-20 space-y-4">
       <header>
         <h1 className="text-xl font-bold text-ink">Screener</h1>
         <p className="text-sm text-caption mt-1">
@@ -237,7 +237,7 @@ function ScreenerInner() {
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_18rem] gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_18rem] gap-4">
           <div className="space-y-4 min-w-0">
             <FilterBuilder
               clauses={clauses}

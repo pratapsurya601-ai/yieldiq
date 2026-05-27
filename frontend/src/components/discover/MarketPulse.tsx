@@ -134,7 +134,7 @@ export default function MarketPulse({ days = 30 }: { days?: number }) {
                         style={{ width: `${fiiPct * 0.5}px` }}
                       />
                       <span
-                        className={`font-mono ${(d.fii_net ?? 0) >= 0 ? "text-blue-700" : "text-red-700"}`}
+                        className={`font-mono ${(d.fii_net ?? 0) >= 0 ? "text-tone-info-fg" : "text-tone-bad-fg"}`}
                       >
                         {fmtCr(d.fii_net)}
                       </span>
@@ -147,7 +147,7 @@ export default function MarketPulse({ days = 30 }: { days?: number }) {
                         style={{ width: `${diiPct * 0.5}px` }}
                       />
                       <span
-                        className={`font-mono ${(d.dii_net ?? 0) >= 0 ? "text-blue-700" : "text-red-700"}`}
+                        className={`font-mono ${(d.dii_net ?? 0) >= 0 ? "text-tone-info-fg" : "text-tone-bad-fg"}`}
                       >
                         {fmtCr(d.dii_net)}
                       </span>

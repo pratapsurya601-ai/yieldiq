@@ -97,7 +97,7 @@ export default function SensitivityTornado({ ticker, currency }: Props) {
 
   if (query.isLoading) {
     return (
-      <div className="bg-bg rounded-2xl border border-border p-5">
+      <div className="bg-bg rounded-2xl border border-border p-4">
         <div className="h-4 w-48 bg-surface rounded animate-pulse mb-3" />
         <div className="h-48 bg-surface rounded animate-pulse" />
       </div>
@@ -117,7 +117,7 @@ export default function SensitivityTornado({ ticker, currency }: Props) {
   const domain: [number, number] = [-(maxAbs + pad), maxAbs + pad]
 
   return (
-    <div className="bg-bg rounded-2xl border border-border p-5">
+    <div className="bg-bg rounded-2xl border border-border p-4">
       <div className="mb-4">
         <h2 className="text-sm font-semibold text-ink">
           What matters most for this stock

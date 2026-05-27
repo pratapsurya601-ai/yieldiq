@@ -78,7 +78,7 @@ export default function ConcallsPanel({ ticker }: Props) {
 
   if (isLoading) {
     return (
-      <div className="bg-bg rounded-2xl border border-border p-5">
+      <div className="bg-bg rounded-2xl border border-border p-4">
         <div className="h-4 w-32 bg-surface rounded animate-pulse mb-4" />
         <div className="space-y-3">
           {[0, 1, 2].map((i) => (
@@ -90,7 +90,7 @@ export default function ConcallsPanel({ ticker }: Props) {
   }
 
   return (
-    <div className="bg-bg rounded-2xl border border-border p-5">
+    <div className="bg-bg rounded-2xl border border-border p-4">
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-sm font-semibold text-ink">Concall Transcripts</h2>

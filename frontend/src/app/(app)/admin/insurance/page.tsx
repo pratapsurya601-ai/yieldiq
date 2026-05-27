@@ -251,7 +251,7 @@ export default function InsuranceAdminPage() {
       {/* Entry form */}
       <form
         onSubmit={onSubmit}
-        className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5 space-y-4"
+        className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-4 space-y-4"
       >
         <h2 className="text-sm font-semibold text-ink">Add / Update Entry</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -386,7 +386,7 @@ export default function InsuranceAdminPage() {
       </form>
 
       {/* Existing rows */}
-      <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-4">
         <h2 className="text-sm font-semibold text-ink mb-3">
           Existing entries ({rows.length})
         </h2>

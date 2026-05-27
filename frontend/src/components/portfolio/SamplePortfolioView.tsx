@@ -42,7 +42,7 @@ export default function SamplePortfolioView({ sample, onDismiss }: Props) {
     >
       {/* Header banner — explicit framing so the fixture is never
           mistaken for the user's real positions. */}
-      <div className="bg-gradient-to-br from-violet-600 to-blue-600 rounded-2xl p-5 text-white">
+      <div className="bg-gradient-to-br from-violet-600 to-blue-600 rounded-2xl p-4 text-white">
         <div className="flex items-center gap-2 mb-2">
           <span
             data-testid="sample-banner-badge"
@@ -61,7 +61,7 @@ export default function SamplePortfolioView({ sample, onDismiss }: Props) {
           <Link
             href="/portfolio/import"
             data-testid="sample-cta-import"
-            className="inline-flex items-center justify-center min-h-[40px] bg-white text-blue-700 text-sm font-bold px-4 py-2 rounded-lg hover:bg-blue-50 active:scale-[0.98] transition"
+            className="inline-flex items-center justify-center min-h-[40px] bg-white text-tone-info-fg text-sm font-bold px-4 py-2 rounded-lg hover:bg-tone-info-bg active:scale-[0.98] transition"
           >
             Import your real holdings &rarr;
           </Link>

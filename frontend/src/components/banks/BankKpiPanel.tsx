@@ -188,7 +188,7 @@ export default function BankKpiPanel({ ticker, initialData }: PanelProps) {
 
   if (isLoading && !payload.latest_annual) {
     return (
-      <div className="bg-bg rounded-2xl border border-border p-5">
+      <div className="bg-bg rounded-2xl border border-border p-4">
         <div className="h-4 w-32 bg-surface rounded animate-pulse mb-4" />
         <div className="grid grid-cols-3 gap-3">
           {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
@@ -221,7 +221,7 @@ export default function BankKpiPanel({ ticker, initialData }: PanelProps) {
 
   return (
     <div
-      className="bg-bg rounded-2xl border border-border p-5"
+      className="bg-bg rounded-2xl border border-border p-4"
       data-testid="bank-kpi-panel"
     >
       <div className="flex items-center justify-between mb-4">

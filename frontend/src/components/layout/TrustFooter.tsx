@@ -30,7 +30,7 @@ export default function TrustFooter() {
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
         {/* ── Link grid ─────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-10 sm:gap-8 mb-10">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-10 sm:gap-8 mb-8">
           {/* Product */}
           <nav aria-labelledby="footer-product">
             <h3

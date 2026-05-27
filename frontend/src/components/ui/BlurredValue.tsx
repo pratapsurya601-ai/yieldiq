@@ -41,7 +41,7 @@ export default function BlurredValue({ value, currency = "INR", label, requiredT
       </span>
       <Link
         href="/account?upgrade=true"
-        className="text-xs font-medium text-blue-600 hover:text-blue-700 underline underline-offset-2"
+        className="text-xs font-medium text-blue-600 hover:text-tone-info-fg underline underline-offset-2"
       >
         Unlock
       </Link>

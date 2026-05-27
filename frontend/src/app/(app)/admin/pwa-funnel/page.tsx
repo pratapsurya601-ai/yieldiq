@@ -157,7 +157,7 @@ export default function PwaFunnelPage() {
       </div>
 
       {/* Daily line chart */}
-      <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-4">
         <h2 className="text-sm font-semibold text-ink mb-3">
           Daily prompted vs installed
         </h2>
@@ -221,7 +221,7 @@ export default function PwaFunnelPage() {
       </div>
 
       {/* Event counts table */}
-      <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-4">
         <h2 className="text-sm font-semibold text-ink mb-3">
           Event counts ({data.window_days}d)
         </h2>

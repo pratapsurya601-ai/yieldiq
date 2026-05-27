@@ -2,6 +2,25 @@
 @plugin "@tailwindcss/typography";
 
 /* ──────────────────────────────────────────────────────────
+   8-step type scale (analysis-page authority)
+   ──────────────────────────────────────────────────────────
+   token         | px / line | Tailwind                                            | use
+   --------------|-----------|-----------------------------------------------------|------------------------------------------
+   caption       | 11 / 16   | text-[11px] leading-4                               | chip labels, axis ticks, "Source: ..."
+   body-sm       | 13 / 18   | text-[13px] leading-[18px]                          | table cells, dense metric rows, footnotes
+   body          | 15 / 22   | text-[15px] leading-[22px]                          | default prose, card body
+   lead          | 17 / 26   | text-[17px] leading-[26px]                          | Honest Card prose, Bull/Bear paragraphs
+   h4            | 18 / 24   | text-[18px] leading-6 font-semibold                 | sub-section labels
+   h3            | 22 / 28   | text-[22px] leading-7 font-semibold                 | section titles
+   h2            | 30 / 36   | text-[30px] leading-9 font-semibold                 | big metric numbers, Worry Index value
+   h1-editorial  | 44 / 48   | text-[44px] leading-[48px] font-editorial           | hero ticker name + primary score
+
+   Letter-spacing: tracking-tight on h1-editorial/h2/h3; tracking-normal on body/lead/h4;
+   tracking-[0.06em] uppercase on caption when used as a section eyebrow.
+   Numbers: prefer the .num utility (tabular-nums + slashed-zero) on every digit/%/currency span.
+   ────────────────────────────────────────────────────────── */
+
+/* ──────────────────────────────────────────────────────────
    Dark mode strategy
    We use Tailwind v4's `@custom-variant` to make `dark:` utilities
    respond to an explicit `.dark` class on <html> instead of the
@@ -35,6 +54,28 @@
   --prism-growth:   #EAB308;
   --prism-value:    #F97316;
 
+  /* Semantic tones — 5 families x 3 facets (bg/fg/bd).
+     Each tone gets a chip background, chip text, and 1px border. */
+  --tone-good-bg:    #ECFDF5;
+  --tone-good-fg:    #047857;
+  --tone-good-bd:    #A7F3D0;
+  --tone-neutral-bg: #F1F5F9;
+  --tone-neutral-fg: #334155;
+  --tone-neutral-bd: #CBD5E1;
+  --tone-warn-bg:    #FFFBEB;
+  --tone-warn-fg:    #B45309;
+  --tone-warn-bd:    #FDE68A;
+  --tone-bad-bg:     #FEF2F2;
+  --tone-bad-fg:     #B91C1C;
+  --tone-bad-bd:     #FECACA;
+  --tone-info-bg:    #EFF6FF;
+  --tone-info-fg:    #1D4ED8;
+  --tone-info-bd:    #BFDBFE;
+
+  /* New surface tokens — sticky rail / sticky scorecard + modal scrim. */
+  --color-raised:    #FFFFFF;
+  --color-overlay:   rgba(15,23,42,0.6);
+
   color-scheme: light;
 }
 
@@ -57,6 +98,27 @@ html.dark {
   --prism-safety:   #60A5FA;
   --prism-growth:   #FACC15;
   --prism-value:    #FB923C;
+
+  /* Semantic tones — dark-mode pair. */
+  --tone-good-bg:    #064E3B;
+  --tone-good-fg:    #6EE7B7;
+  --tone-good-bd:    #065F46;
+  --tone-neutral-bg: #1F2A3F;
+  --tone-neutral-fg: #CBD5E1;
+  --tone-neutral-bd: #334155;
+  --tone-warn-bg:    #451A03;
+  --tone-warn-fg:    #FCD34D;
+  --tone-warn-bd:    #78350F;
+  --tone-bad-bg:     #450A0A;
+  --tone-bad-fg:     #FCA5A5;
+  --tone-bad-bd:     #7F1D1D;
+  --tone-info-bg:    #1E3A8A;
+  --tone-info-fg:    #93C5FD;
+  --tone-info-bd:    #1E40AF;
+
+  /* New surface tokens — dark mode. */
+  --color-raised:    #1A2336;
+  --color-overlay:   rgba(0,0,0,0.7);
 
   color-scheme: dark;
 }
@@ -82,6 +144,28 @@ html.dark {
   --color-success:  var(--color-success);
   --color-warning:  var(--color-warning);
   --color-danger:   var(--color-danger);
+
+  /* New surface tokens exposed as Tailwind utilities: bg-raised, bg-overlay. */
+  --color-raised:   var(--color-raised);
+  --color-overlay:  var(--color-overlay);
+
+  /* Semantic tone tokens exposed as Tailwind utilities.
+     Each tone yields a triplet: bg-tone-<name>-bg, text-tone-<name>-fg, border-tone-<name>-bd. */
+  --color-tone-good-bg:    var(--tone-good-bg);
+  --color-tone-good-fg:    var(--tone-good-fg);
+  --color-tone-good-bd:    var(--tone-good-bd);
+  --color-tone-neutral-bg: var(--tone-neutral-bg);
+  --color-tone-neutral-fg: var(--tone-neutral-fg);
+  --color-tone-neutral-bd: var(--tone-neutral-bd);
+  --color-tone-warn-bg:    var(--tone-warn-bg);
+  --color-tone-warn-fg:    var(--tone-warn-fg);
+  --color-tone-warn-bd:    var(--tone-warn-bd);
+  --color-tone-bad-bg:     var(--tone-bad-bg);
+  --color-tone-bad-fg:     var(--tone-bad-fg);
+  --color-tone-bad-bd:     var(--tone-bad-bd);
+  --color-tone-info-bg:    var(--tone-info-bg);
+  --color-tone-info-fg:    var(--tone-info-fg);
+  --color-tone-info-bd:    var(--tone-info-bd);
 
   --font-sans:      var(--font-sans),      ui-sans-serif, system-ui, sans-serif;
   --font-display:   var(--font-display),   ui-sans-serif, system-ui, sans-serif;
@@ -193,6 +277,13 @@ html, body {
 .tabular-nums {
   font-variant-numeric: tabular-nums;
   font-feature-settings: "tnum";
+}
+
+/* .num — preferred utility for every digit/%/currency span on the analysis page.
+   Adds slashed-zero on top of tabular figures so 0 vs O is unambiguous. */
+.num {
+  font-variant-numeric: tabular-nums slashed-zero;
+  font-feature-settings: "tnum", "zero";
 }
 
 /* ── Tap targets ──────────────────────────────────────────

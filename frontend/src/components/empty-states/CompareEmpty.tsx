@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 export default function CompareEmpty() {
   return (
     <div className="flex flex-col items-center px-6 py-12 text-center">
-      <div className="h-16 w-16 rounded-full bg-blue-50 dark:bg-blue-950/40 flex items-center justify-center mb-4">
+      <div className="h-16 w-16 rounded-full bg-tone-info-bg dark:bg-blue-950/40 flex items-center justify-center mb-4">
         <svg className="h-8 w-8 text-blue-500 dark:text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M3 6l3-3 3 3M6 3v13.5M21 18l-3 3-3-3M18 20.5V7" />
         </svg>
@@ -35,7 +35,7 @@ export default function CompareEmpty() {
 
       <Link
         href="/compare/HDFCBANK-vs-ICICIBANK"
-        className="mt-3 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline font-medium"
+        className="mt-3 text-xs text-blue-600 dark:text-blue-400 hover:text-tone-info-fg dark:hover:text-blue-300 hover:underline font-medium"
       >
         Try HDFCBANK vs ICICIBANK
       </Link>

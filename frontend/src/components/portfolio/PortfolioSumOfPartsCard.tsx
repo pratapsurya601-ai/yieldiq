@@ -29,7 +29,7 @@ function fmtRsCompact(n: number): string {
 }
 
 function verdictColor(label: string | null): { text: string; chip: string } {
-  if (label === "Overvalued") return { text: "text-red-600", chip: "bg-red-50 text-red-700 ring-red-200" }
+  if (label === "Overvalued") return { text: "text-red-600", chip: "bg-tone-bad-bg text-tone-bad-fg ring-red-200" }
   if (label === "Undervalued") return { text: "text-green-600", chip: "bg-green-50 text-green-700 ring-green-200" }
   return { text: "text-ink", chip: "bg-gray-50 text-gray-700 ring-gray-200" }
 }
@@ -62,13 +62,13 @@ export default function PortfolioSumOfPartsCard() {
       <section
         aria-label="Portfolio sum-of-parts (no coverage)"
         data-testid="sop-empty"
-        className="bg-bg dark:bg-surface rounded-2xl border border-border p-5"
+        className="bg-bg dark:bg-surface rounded-2xl border border-border p-4"
       >
         <div className="flex items-center justify-between mb-1">
           <p className="text-xs font-bold uppercase tracking-wider text-caption">
             Sum-of-parts fair value
           </p>
-          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 bg-amber-50 text-amber-700 ring-amber-200">
+          <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 bg-tone-warn-bg text-tone-warn-fg ring-amber-200">
             LIMITED DATA
           </span>
         </div>
@@ -102,7 +102,7 @@ export default function PortfolioSumOfPartsCard() {
     <section
       aria-label="Portfolio sum-of-parts fair value"
       data-testid="sop-card"
-      className="bg-bg dark:bg-surface rounded-2xl border border-border p-5 space-y-3"
+      className="bg-bg dark:bg-surface rounded-2xl border border-border p-4 space-y-3"
     >
       <div className="flex items-start justify-between gap-3">
         <div>

@@ -133,7 +133,7 @@ export default function UpgradeActivationModal() {
         </h2>
         <p className="mt-1 text-sm text-muted">{copy.subtitle}</p>
 
-        <ul className="mt-5 space-y-2">
+        <ul className="mt-4 space-y-2">
           {copy.features.map((f, i) => (
             <li
               key={i}

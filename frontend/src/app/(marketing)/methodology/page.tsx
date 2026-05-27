@@ -188,7 +188,7 @@ export default function MethodologyPage() {
           is rendered as an A&ndash;F grade on a /100 scale for quick
           scanning.
         </p>
-        <div className="rounded-2xl border border-border bg-surface px-5">
+        <div className="rounded-2xl border border-border bg-surface px-4">
           <Pillar
             name="Pulse"
             body="Short-horizon signal from recent price action and sentiment — momentum, volatility regime, and revision direction. Informative, not decisive; it sits alongside the slower-moving pillars rather than overriding them."
@@ -228,7 +228,7 @@ export default function MethodologyPage() {
           distribution. They do not tell anyone to buy or sell.
         </p>
         <ul
-          className="rounded-2xl border border-border bg-surface px-5"
+          className="rounded-2xl border border-border bg-surface px-4"
           aria-label="Verdict bands"
         >
           <Band
@@ -414,7 +414,7 @@ export default function MethodologyPage() {
           </p>
         </div>
 
-        <div className="mt-10 pt-6 border-t border-border flex flex-wrap gap-4 text-sm">
+        <div className="mt-8 pt-6 border-t border-border flex flex-wrap gap-4 text-sm">
           <Link
             href="/pricing"
             className="text-brand hover:underline underline-offset-4"

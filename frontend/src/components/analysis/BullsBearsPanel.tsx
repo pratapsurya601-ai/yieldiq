@@ -91,7 +91,7 @@ export default function BullsBearsPanel({ bulls, bears, updated }: Props) {
 
   return (
     <section
-      className="bg-bg rounded-2xl border border-border p-5"
+      className="bg-bg rounded-2xl border border-border p-4"
       aria-label="Bulls and Bears thesis"
     >
       <div className="flex items-baseline justify-between mb-4 gap-3">

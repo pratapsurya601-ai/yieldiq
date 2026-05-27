@@ -316,7 +316,7 @@ export default function StockHeroImage({
           className={[
             "rounded-xl border border-white/20",
             "bg-white/10 dark:bg-black/20 backdrop-blur-lg",
-            "px-4 py-3 md:px-5 md:py-4",
+            "px-4 py-3 md:px-4 md:py-4",
             "shadow-lg",
           ].join(" ")}
         >

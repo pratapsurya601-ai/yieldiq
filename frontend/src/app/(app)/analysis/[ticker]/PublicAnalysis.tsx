@@ -157,7 +157,7 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
         {/* Summary card + Prism placeholder — mirrors the final grid */}
         <section className="grid lg:grid-cols-[1fr,auto] gap-6 items-start">
           <div
-            className="bg-bg border border-border rounded-2xl p-6 shadow-sm space-y-5"
+            className="bg-bg border border-border rounded-2xl p-6 shadow-sm space-y-4"
             data-testid="public-analysis-loading-skeleton"
           >
             {/* Verdict pill placeholder — rounded-full chip ~28px */}
@@ -195,7 +195,7 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
         </p>
         <Link
           href="/search"
-          className="inline-flex items-center justify-center px-5 py-2.5 bg-brand text-white rounded-lg font-semibold hover:opacity-90 transition"
+          className="inline-flex items-center justify-center px-4 py-2.5 bg-brand text-white rounded-lg font-semibold hover:opacity-90 transition"
         >
           Search stocks
         </Link>
@@ -336,7 +336,7 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
 
       {/* ── Summary card + Prism ─────────────────────────────── */}
       <section className="grid lg:grid-cols-[1fr,auto] gap-6 items-start">
-        <div className="bg-bg border border-border rounded-2xl p-6 shadow-sm space-y-5">
+        <div className="bg-bg border border-border rounded-2xl p-6 shadow-sm space-y-4">
           <div
             className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border text-xs font-bold uppercase tracking-wider ${mosToneClasses[mosTone]}`}
           >
@@ -415,7 +415,7 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
       </section>
 
       {/* ── Why we're different ─────────────────────────────── */}
-      <section className="bg-white border border-border rounded-2xl p-6 sm:p-7">
+      <section className="bg-white border border-border rounded-2xl p-6 sm:p-6">
         <h2 className="font-display text-lg sm:text-xl font-bold text-ink mb-4">
           What makes this different
         </h2>
@@ -457,7 +457,7 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
               href={`/auth/signup?next=${encodeURIComponent(
                 `/analysis/${tickerUpper}`,
               )}`}
-              className="inline-flex items-center justify-center px-5 py-3 min-h-[44px] bg-brand text-white rounded-lg font-semibold hover:opacity-90 active:scale-[0.98] transition"
+              className="inline-flex items-center justify-center px-4 py-3 min-h-[44px] bg-brand text-white rounded-lg font-semibold hover:opacity-90 active:scale-[0.98] transition"
             >
               Create free account
             </Link>
@@ -465,7 +465,7 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
               href={`/auth/login?next=${encodeURIComponent(
                 `/analysis/${tickerUpper}`,
               )}`}
-              className="inline-flex items-center justify-center px-5 py-3 min-h-[44px] border border-brand/40 text-brand rounded-lg font-semibold hover:bg-brand-50 active:scale-[0.98] transition"
+              className="inline-flex items-center justify-center px-4 py-3 min-h-[44px] border border-brand/40 text-brand rounded-lg font-semibold hover:bg-brand-50 active:scale-[0.98] transition"
             >
               Log in
             </Link>
@@ -484,7 +484,7 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
           ))}
         </ul>
 
-        <p className="text-xs text-caption mt-5">
+        <p className="text-xs text-caption mt-4">
           Free tier: 5 deep analyses per day. No card required. Cancel anytime.
         </p>
       </section>

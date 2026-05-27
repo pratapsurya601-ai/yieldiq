@@ -94,7 +94,7 @@ function ScreenerContent() {
   })
 
   return (
-    <div className="max-w-2xl md:max-w-3xl lg:max-w-5xl mx-auto px-4 py-6 pb-20 space-y-5">
+    <div className="max-w-2xl md:max-w-3xl lg:max-w-5xl mx-auto px-4 py-6 pb-20 space-y-4">
       {/* Header */}
       <div>
         <Link href="/discover" className="text-xs text-blue-600 hover:underline mb-2 inline-block">

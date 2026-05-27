@@ -61,7 +61,7 @@ export default function ApiDocsPage() {
         </div>
       </nav>
 
-      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12 space-y-10">
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 py-12 space-y-8">
         <header className="space-y-3">
           <h1 className="text-4xl font-bold">YieldIQ API</h1>
           <p className="text-lg text-gray-300 leading-relaxed">
@@ -107,7 +107,7 @@ export default function ApiDocsPage() {
         <section className="space-y-4">
           <h2 className="text-2xl font-semibold">Endpoint</h2>
 
-          <div className="bg-black/30 border border-white/10 rounded-2xl p-5 space-y-4">
+          <div className="bg-black/30 border border-white/10 rounded-2xl p-4 space-y-4">
             <div className="flex items-center gap-3">
               <span className="px-2.5 py-1 bg-green-600/20 text-green-300 text-xs font-mono font-bold rounded">
                 GET

@@ -104,7 +104,7 @@ export default function PillarExplainer({
       <div
         className="
           absolute left-0 right-0 bottom-0 max-h-[85vh] overflow-y-auto
-          bg-surface border-t border-border rounded-t-2xl p-5
+          bg-surface border-t border-border rounded-t-2xl p-4
           md:left-auto md:right-0 md:top-0 md:bottom-0 md:max-h-none md:w-[420px]
           md:border-l md:rounded-t-none
           animate-in slide-in-from-bottom md:slide-in-from-right
@@ -139,7 +139,7 @@ export default function PillarExplainer({
         </div>
 
         {/* The one factual sentence — exactly what the backend shipped. */}
-        <div className="mt-5 pt-4 border-t border-border">
+        <div className="mt-4 pt-4 border-t border-border">
           <p className="text-[10px] uppercase tracking-[0.12em] text-caption font-semibold">
             Why this score
           </p>
@@ -157,7 +157,7 @@ export default function PillarExplainer({
           </div>
         )}
 
-        <p className="text-[11px] text-caption leading-relaxed mt-5">
+        <p className="text-[11px] text-caption leading-relaxed mt-4">
           Model estimate. Not investment advice.
         </p>
       </div>

@@ -181,7 +181,7 @@ export default function ScoreCard({
 
   return (
     <aside
-      className="rounded-2xl bg-ink text-bg p-5 flex flex-col gap-4 h-full"
+      className="rounded-2xl bg-ink text-bg p-4 flex flex-col gap-4 h-full"
       aria-label="YieldIQ score summary"
     >
       {/* Header label */}

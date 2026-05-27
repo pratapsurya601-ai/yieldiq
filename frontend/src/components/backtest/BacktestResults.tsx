@@ -45,7 +45,7 @@ export default function BacktestResults({
 
   if (result.error && !result.curve) {
     return (
-      <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+      <div className="rounded-2xl border border-tone-warn-bd bg-tone-warn-bg p-4 text-sm text-amber-800">
         {result.error}
       </div>
     )
@@ -174,7 +174,7 @@ export default function BacktestResults({
             <button
               type="button"
               onClick={onSave}
-              className="rounded-lg border border-blue-500 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+              className="rounded-lg border border-blue-500 px-3 py-1.5 text-xs font-medium text-tone-info-fg hover:bg-tone-info-bg"
             >
               Save strategy
             </button>

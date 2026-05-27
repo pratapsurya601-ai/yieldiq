@@ -92,7 +92,7 @@ export default function StudentVerifyPage() {
       <form
         onSubmit={handleSubmit}
         data-testid="student-verify-form"
-        className="space-y-4 rounded-2xl border border-border bg-bg dark:bg-surface p-5"
+        className="space-y-4 rounded-2xl border border-border bg-bg dark:bg-surface p-4"
       >
         <div className="space-y-1">
           <label htmlFor="full_name" className="text-xs font-semibold uppercase tracking-[0.14em] text-caption">

@@ -263,7 +263,7 @@ export default function CompareClient({ data }: { data: CompareData }) {
           return (
             <div
               key={s.ticker}
-              className={`rounded-2xl p-5 border ${isWin ? "border-green-300 bg-green-50/40" : "border-gray-200 bg-white"}`}
+              className={`rounded-2xl p-4 border ${isWin ? "border-green-300 bg-green-50/40" : "border-gray-200 bg-white"}`}
             >
               <Link href={`/stocks/${s.display_ticker}/fair-value`} className="hover:opacity-80 transition block">
                 <p className="text-lg sm:text-xl font-black text-ink">{s.display_ticker}</p>

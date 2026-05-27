@@ -74,8 +74,8 @@ function RatioCard({
   }[tone]
   const valueClass = {
     green:   "text-green-700",
-    amber:   "text-amber-700",
-    red:     "text-red-700",
+    amber:   "text-tone-warn-fg",
+    red:     "text-tone-bad-fg",
     neutral: "text-caption",
   }[tone]
 
@@ -321,7 +321,7 @@ function ShareholdingBar({
           className={cn(
             "text-[11px] font-medium",
             pledgePct > 25 ? "text-red-600"
-            : pledgePct > 10 ? "text-amber-700"
+            : pledgePct > 10 ? "text-tone-warn-fg"
             : "text-caption",
           )}
         >
@@ -400,7 +400,7 @@ export default function QualityRatios({ quality, insights, ratioHistory }: Props
   const limitedFinancialData = missingCoreCount >= 2
 
   return (
-    <div className="bg-surface rounded-2xl border border-border p-5 space-y-4">
+    <div className="bg-surface rounded-2xl border border-border p-4 space-y-4">
       <div className="flex items-baseline justify-between gap-3">
         <h2 className="text-sm font-semibold text-ink">
           {isBank ? "Bank Ratios" : "Quality Ratios"}

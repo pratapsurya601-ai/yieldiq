@@ -113,7 +113,7 @@ export default function DCFSensitivityHeatmap({ ticker, summary }: Props) {
 
   return (
     <section
-      className="rounded-2xl border bg-bg dark:bg-surface p-5 sm:p-6"
+      className="rounded-2xl border bg-bg dark:bg-surface p-4 sm:p-6"
       style={{ borderColor: "var(--color-border, #E2E8F0)" }}
     >
       <header className="mb-4">

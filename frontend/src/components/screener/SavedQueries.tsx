@@ -87,7 +87,7 @@ export default function SavedQueries({ reloadToken, onLoad, pathname }: SavedQue
                   type="button"
                   onClick={() => remove(q.id)}
                   aria-label="Delete saved query"
-                  className="text-xs px-2 py-1 rounded border border-border text-caption hover:text-red-600 hover:border-red-200"
+                  className="text-xs px-2 py-1 rounded border border-border text-caption hover:text-red-600 hover:border-tone-bad-bd"
                 >
                   {"\u00d7"}
                 </button>

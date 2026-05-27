@@ -222,7 +222,7 @@ function RecentFailuresPanel({ rows }: { rows: LatestRow[] }) {
     return (
       <div
         data-testid="recent-failures"
-        className="rounded-2xl border border-gray-100 p-5 bg-bg dark:bg-surface"
+        className="rounded-2xl border border-gray-100 p-4 bg-bg dark:bg-surface"
       >
         <h2 className="text-sm font-semibold text-ink mb-1">Recent failures</h2>
         <p className="text-xs text-caption">No failing checks in the current snapshot.</p>
@@ -232,7 +232,7 @@ function RecentFailuresPanel({ rows }: { rows: LatestRow[] }) {
   return (
     <div
       data-testid="recent-failures"
-      className="rounded-2xl border border-red-100 bg-red-50/40 p-5"
+      className="rounded-2xl border border-red-100 bg-red-50/40 p-4"
     >
       <h2 className="text-sm font-semibold text-ink mb-3">Recent failures (latest snapshot)</h2>
       <ul className="space-y-2">
@@ -346,7 +346,7 @@ export default function AdminDataQualityPage() {
       <RecentFailuresPanel rows={data.latest_per_table} />
 
       {data.history.length > 0 && (
-        <div className="rounded-2xl border border-gray-100 bg-bg dark:bg-surface p-5">
+        <div className="rounded-2xl border border-gray-100 bg-bg dark:bg-surface p-4">
           <h2 className="text-sm font-semibold text-ink mb-3">Last 7 days</h2>
           <div className="space-y-1 text-xs">
             {data.history.slice(0, 20).map((h, idx) => (

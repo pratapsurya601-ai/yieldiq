@@ -107,7 +107,7 @@ export default function MetricVsSectorChip({
 
   const toneClass =
     deltaTone === "green"
-      ? "text-emerald-700 bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950"
+      ? "text-tone-good-fg bg-tone-good-bg dark:text-emerald-300 dark:bg-emerald-950"
       : deltaTone === "red"
         ? "text-rose-700 bg-rose-50 dark:text-rose-300 dark:bg-rose-950"
         : "text-caption bg-surface"

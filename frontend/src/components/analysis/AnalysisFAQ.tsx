@@ -200,7 +200,7 @@ export default function AnalysisFAQ({ data }: Props) {
 
   return (
     <section
-      className="bg-bg rounded-2xl border border-border p-5"
+      className="bg-bg rounded-2xl border border-border p-4"
       aria-label={`Frequently asked questions about ${data.company.ticker}`}
     >
       <h2 className="text-sm font-semibold text-ink mb-3">

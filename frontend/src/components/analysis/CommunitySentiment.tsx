@@ -306,7 +306,7 @@ export default function CommunitySentiment({ ticker, companyName }: Props) {
   const target = companyName || cleanTicker(ticker)
 
   return (
-    <div className="bg-bg rounded-2xl border border-border p-5 sm:p-6 space-y-5">
+    <div className="bg-bg rounded-2xl border border-border p-4 sm:p-6 space-y-4">
       {/* Prompt */}
       <div>
         <h3 className="text-sm sm:text-base font-semibold tracking-wide uppercase text-ink">
@@ -344,7 +344,7 @@ export default function CommunitySentiment({ ticker, companyName }: Props) {
           active={yourVote === "bullish"}
           busy={busy && pendingChoice === "bullish"}
           baseTint="bg-surface border-border text-ink hover:border-emerald-300"
-          activeTint="bg-emerald-50 dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 ring-emerald-400"
+          activeTint="bg-tone-good-bg dark:bg-emerald-900/20 border-emerald-300 dark:border-emerald-700 text-tone-good-fg dark:text-emerald-300 ring-emerald-400"
           onClick={() => handleVote("bullish")}
         />
       </div>
@@ -353,7 +353,7 @@ export default function CommunitySentiment({ ticker, companyName }: Props) {
       {showLoginPrompt && !token ? (
         <div
           role="alert"
-          className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 text-sm text-amber-900 dark:text-amber-200 flex items-start gap-3"
+          className="rounded-xl border border-tone-warn-bd dark:border-amber-800 bg-tone-warn-bg dark:bg-amber-900/20 p-3 text-sm text-amber-900 dark:text-amber-200 flex items-start gap-3"
         >
           <span aria-hidden>🔒</span>
           <div className="flex-1 min-w-0">

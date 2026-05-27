@@ -132,7 +132,7 @@ export default function SavedScenarios({
   })()
 
   return (
-    <div className="mt-5 pt-5 border-t border-border">
+    <div className="mt-4 pt-5 border-t border-border">
       <div className="flex items-baseline justify-between mb-3">
         <div>
           <h3 className="text-xs font-semibold text-ink uppercase tracking-wide">

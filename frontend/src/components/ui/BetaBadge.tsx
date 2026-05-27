@@ -18,7 +18,7 @@ export function BetaBadge() {
   const enabled = useFeatureFlag("beta_ring")
   if (!enabled) return null
   return (
-    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+    <span className="inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold bg-amber-100 text-tone-warn-fg dark:bg-amber-900/30 dark:text-amber-300">
       BETA
     </span>
   )

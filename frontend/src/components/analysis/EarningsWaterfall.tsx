@@ -397,7 +397,7 @@ export default function EarningsWaterfall({
 
   return (
     <div
-      className="bg-bg rounded-2xl border border-border p-5"
+      className="bg-bg rounded-2xl border border-border p-4"
       data-testid="earnings-waterfall"
     >
       <header className="flex items-center justify-between gap-3 mb-4 flex-wrap">

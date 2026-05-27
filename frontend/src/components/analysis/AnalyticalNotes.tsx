@@ -73,7 +73,7 @@ export default function AnalyticalNotes({
             <li
               key={`${note.kind}-${idx}`}
               className={cn(
-                "bg-bg rounded-2xl border border-border border-l-4 px-4 py-3.5 sm:px-5 sm:py-4",
+                "bg-bg rounded-2xl border border-border border-l-4 px-4 py-3.5 sm:px-4 sm:py-4",
                 styles.border,
               )}
             >

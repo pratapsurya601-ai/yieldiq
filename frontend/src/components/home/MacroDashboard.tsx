@@ -139,7 +139,7 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
               <p
                 className={cn(
                   "text-lg font-bold tabular-nums",
-                  fii > 0 ? "text-green-700" : fii < 0 ? "text-red-700" : "text-body",
+                  fii > 0 ? "text-green-700" : fii < 0 ? "text-tone-bad-fg" : "text-body",
                 )}
               >
                 {fii > 0 ? "+" : fii < 0 ? "-" : ""}
@@ -175,7 +175,7 @@ export default function MacroDashboard({ pulse, ai_summary }: Props) {
               <p
                 className={cn(
                   "text-lg font-bold tabular-nums",
-                  dii > 0 ? "text-green-700" : dii < 0 ? "text-red-700" : "text-body",
+                  dii > 0 ? "text-green-700" : dii < 0 ? "text-tone-bad-fg" : "text-body",
                 )}
               >
                 {dii > 0 ? "+" : dii < 0 ? "-" : ""}

@@ -91,7 +91,7 @@ function PillarCard({
   body: string
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface p-5">
+    <div className="rounded-2xl border border-border bg-surface p-4">
       <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-caption mb-2">
         {badge}
       </p>
@@ -238,7 +238,7 @@ export default function HowItWorksPage() {
 
         {/* Honest-status banner */}
         <div
-          className="mb-10 rounded-2xl border border-border bg-surface p-4 text-sm text-body leading-relaxed"
+          className="mb-8 rounded-2xl border border-border bg-surface p-4 text-sm text-body leading-relaxed"
           role="note"
           aria-label="Claim-status legend"
         >
@@ -379,7 +379,7 @@ export default function HowItWorksPage() {
         </p>
 
         <ul
-          className="rounded-2xl border border-border bg-surface px-5 mb-6"
+          className="rounded-2xl border border-border bg-surface px-4 mb-6"
           aria-label="Moat signals"
         >
           <Row
@@ -502,7 +502,7 @@ export default function HowItWorksPage() {
         </p>
 
         <ul
-          className="rounded-2xl border border-border bg-surface px-5 mb-6"
+          className="rounded-2xl border border-border bg-surface px-4 mb-6"
           aria-label="Sector Percentile bands"
         >
           <Row
@@ -558,7 +558,7 @@ export default function HowItWorksPage() {
         </p>
 
         <ul
-          className="rounded-2xl border border-border bg-surface px-5 mb-6"
+          className="rounded-2xl border border-border bg-surface px-4 mb-6"
           aria-label="Grade bands"
         >
           <Row label="A+ / A" body="Top-tier composite. High scores on all axes; no single axis below the cohort median." />
@@ -598,7 +598,7 @@ export default function HowItWorksPage() {
           title="Data sources & discipline"
         />
         <ul
-          className="rounded-2xl border border-border bg-surface px-5 mb-6"
+          className="rounded-2xl border border-border bg-surface px-4 mb-6"
           aria-label="Data sources"
         >
           <Row
@@ -681,7 +681,7 @@ export default function HowItWorksPage() {
           title="What YieldIQ doesn&rsquo;t do"
         />
         <ul
-          className="rounded-2xl border border-border bg-surface px-5 mb-6"
+          className="rounded-2xl border border-border bg-surface px-4 mb-6"
           aria-label="Honest limitations"
         >
           <Row
@@ -722,7 +722,7 @@ export default function HowItWorksPage() {
           .
         </p>
 
-        <div className="mt-10 pt-8 border-t border-border">
+        <div className="mt-8 pt-8 border-t border-border">
           <h3 className="font-editorial text-xl font-semibold text-ink mb-3">
             Why are some features marked &ldquo;Roadmap&rdquo;?
           </h3>
@@ -747,7 +747,7 @@ export default function HowItWorksPage() {
           </p>
         </div>
 
-        <div className="mt-10 pt-6 border-t border-border flex flex-wrap gap-4 text-sm">
+        <div className="mt-8 pt-6 border-t border-border flex flex-wrap gap-4 text-sm">
           <Link
             href="/auth/signup"
             className="rounded-lg bg-brand text-white font-semibold px-4 py-2 hover:opacity-90 transition"

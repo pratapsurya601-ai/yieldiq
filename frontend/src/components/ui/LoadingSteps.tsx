@@ -107,7 +107,7 @@ function HexOutlineSkeleton({ size = 280 }: { size?: number }) {
 export default function LoadingSteps() {
   return (
     <div
-      className="max-w-5xl mx-auto px-4 py-6 space-y-5"
+      className="max-w-5xl mx-auto px-4 py-6 space-y-4"
       aria-busy="true"
       aria-label="Loading analysis"
     >
@@ -146,7 +146,7 @@ export default function LoadingSteps() {
 
         {/* Column 3 — score card placeholder */}
         <div className="lg:col-span-3 order-1 lg:order-3">
-          <div className="bg-ink/90 rounded-2xl p-5 space-y-3 animate-pulse">
+          <div className="bg-ink/90 rounded-2xl p-4 space-y-3 animate-pulse">
             <div className="h-3 w-24 rounded bg-bg/20" />
             <div className="h-10 w-20 rounded bg-bg/20" />
             <div className="h-3 w-28 rounded bg-bg/20" />

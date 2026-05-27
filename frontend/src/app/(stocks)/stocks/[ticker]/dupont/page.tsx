@@ -93,7 +93,7 @@ export default async function DuPontPage(
       </div>
 
       {/* Formula equation */}
-      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-8 text-center">
+      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-8 text-center">
         <p className="text-xs text-blue-700 mb-2">ROE = Net Margin &times; Asset Turnover &times; Equity Multiplier</p>
         <p className="text-2xl sm:text-3xl font-black text-blue-900 font-mono">
           {latest.roe_pct != null ? `${latest.roe_pct.toFixed(1)}%` : "\u2014"} = {latest.net_margin_pct != null ? `${latest.net_margin_pct.toFixed(1)}%` : "\u2014"} &times; {latest.asset_turnover != null ? latest.asset_turnover.toFixed(2) : "\u2014"} &times; {latest.equity_multiplier != null ? latest.equity_multiplier.toFixed(2) : "\u2014"}
@@ -103,7 +103,7 @@ export default async function DuPontPage(
 
       {/* Three pillars */}
       <div className="grid sm:grid-cols-3 gap-4 mb-8">
-        <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5">
+        <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-4">
           <p className="text-[10px] text-caption uppercase tracking-wider mb-1">Profitability</p>
           <p className="text-sm text-caption mb-2">Net Margin</p>
           <p className="text-3xl font-black text-ink mb-1">{latest.net_margin_pct != null ? `${latest.net_margin_pct.toFixed(1)}%` : "\u2014"}</p>
@@ -114,7 +114,7 @@ export default async function DuPontPage(
           )}
           <p className="text-[10px] text-caption mt-2">How much profit per ₹ of revenue</p>
         </div>
-        <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5">
+        <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-4">
           <p className="text-[10px] text-caption uppercase tracking-wider mb-1">Efficiency</p>
           <p className="text-sm text-caption mb-2">Asset Turnover</p>
           <p className="text-3xl font-black text-ink mb-1">{latest.asset_turnover != null ? `${latest.asset_turnover.toFixed(2)}x` : "\u2014"}</p>
@@ -125,7 +125,7 @@ export default async function DuPontPage(
           )}
           <p className="text-[10px] text-caption mt-2">Revenue per ₹ of assets</p>
         </div>
-        <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5">
+        <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-4">
           <p className="text-[10px] text-caption uppercase tracking-wider mb-1">Leverage</p>
           <p className="text-sm text-caption mb-2">Equity Multiplier</p>
           <p className="text-3xl font-black text-ink mb-1">{latest.equity_multiplier != null ? `${latest.equity_multiplier.toFixed(2)}x` : "\u2014"}</p>
@@ -140,7 +140,7 @@ export default async function DuPontPage(
 
       {/* Commentary */}
       {data.commentary && (
-        <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5 mb-8">
+        <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-4 mb-8">
           <p className="text-xs font-bold text-caption uppercase tracking-wider mb-1">Trend Analysis</p>
           <p className="text-sm text-ink leading-relaxed">{data.commentary}</p>
         </div>
@@ -183,7 +183,7 @@ export default async function DuPontPage(
       </div>
 
       {/* Learn */}
-      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-8">
+      <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-8">
         <p className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-2">How to read DuPont</p>
         <ul className="text-xs text-blue-900 space-y-1.5 leading-relaxed">
           <li>&bull; <b>Rising ROE from margin</b> = pricing power, operational improvement (good)</li>

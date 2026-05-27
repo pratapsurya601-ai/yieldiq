@@ -248,7 +248,7 @@ function ComponentCard({
 }) {
   const c = statusClasses(status)
   return (
-    <div className="rounded-2xl border border-border bg-surface p-5 flex flex-col gap-3">
+    <div className="rounded-2xl border border-border bg-surface p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <h3 className="font-editorial text-base font-semibold text-ink">
           {title}
@@ -406,7 +406,7 @@ export default async function StatusPage() {
         ) : (
           <div className="rounded-2xl border border-border bg-surface divide-y divide-border">
             {publicIncidents.map((inc) => (
-              <article key={inc.id} className="p-5">
+              <article key={inc.id} className="p-4">
                 <div className="flex flex-wrap items-center gap-2 mb-2">
                   <time className="font-mono text-xs text-caption">
                     {formatIncidentDateRange(inc.started_at, inc.ended_at)}
@@ -542,7 +542,7 @@ export default async function StatusPage() {
           </p>
         ) : (
           <ul
-            className="rounded-2xl border border-border bg-surface px-5"
+            className="rounded-2xl border border-border bg-surface px-4"
             aria-label="Incidents in the last 30 days"
           >
             {payload.incidents_30d.map((inc, i) => (

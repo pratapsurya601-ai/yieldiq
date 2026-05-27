@@ -169,17 +169,17 @@ export default function PricingPage() {
       <section className="py-10 md:py-16 bg-bg dark:bg-surface">
         <div className="max-w-6xl mx-auto px-4">
           {/* Billing toggle */}
-          <div className="flex justify-center mb-10">
+          <div className="flex justify-center mb-8">
             <div className="inline-flex bg-bg dark:bg-surface border border-border rounded-xl p-1 shadow-sm">
               <button
                 onClick={() => handleBillingToggle("monthly")}
-                className={`px-5 py-2 min-h-[40px] rounded-lg text-sm font-semibold transition ${billing === "monthly" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
+                className={`px-4 py-2 min-h-[40px] rounded-lg text-sm font-semibold transition ${billing === "monthly" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
               >
                 Monthly
               </button>
               <button
                 onClick={() => handleBillingToggle("annual")}
-                className={`px-5 py-2 min-h-[40px] rounded-lg text-sm font-semibold transition inline-flex items-center gap-2 ${billing === "annual" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
+                className={`px-4 py-2 min-h-[40px] rounded-lg text-sm font-semibold transition inline-flex items-center gap-2 ${billing === "annual" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
               >
                 Annual
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${billing === "annual" ? "bg-white text-blue-700" : "bg-green-100 text-green-700"}`}>
@@ -313,7 +313,7 @@ export default function PricingPage() {
                 </div>
                 <a
                   href="mailto:hello@yieldiq.in?subject=Student%20%2F%20CA%20verification%20for%20YieldIQ&body=Hi%20YieldIQ%20team%2C%0A%0AI%27d%20like%20to%20apply%20for%20the%20%E2%82%B9199%2Fmo%20Student%20tier.%20Attached%20is%20my%20current%20student%20ID%20%2F%20articleship%20registration.%0A%0AYieldIQ%20signup%20email%3A%20%0AInstitution%20%2F%20firm%3A%20%0AExpected%20graduation%20%2F%20completion%20date%3A%20%0A%0AThanks."
-                  className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-gray-900 text-white font-semibold text-sm hover:bg-gray-800 transition"
+                  className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-gray-900 text-white font-semibold text-sm hover:bg-gray-800 transition"
                 >
                   Email verification &rarr;
                 </a>
@@ -332,7 +332,7 @@ export default function PricingPage() {
           already favours Analyst — a natural self-serve upsell. */}
       <section className="py-10 md:py-12 bg-gradient-to-br from-gray-50 to-white border-y border-gray-100">
         <div className="max-w-4xl mx-auto px-4">
-          <div className="rounded-2xl border border-border bg-bg dark:bg-surface p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-5 shadow-sm">
+          <div className="rounded-2xl border border-border bg-bg dark:bg-surface p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-4 shadow-sm">
             <div className="flex-1">
               <div className="inline-block text-[10px] font-black uppercase tracking-[0.2em] text-blue-700 bg-blue-50 rounded-full px-3 py-1 mb-2">
                 No subscription?
@@ -354,7 +354,7 @@ export default function PricingPage() {
               </div>
               <Link
                 href="/search"
-                className="inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-gray-900 text-white font-semibold text-sm hover:bg-gray-800 transition"
+                className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-gray-900 text-white font-semibold text-sm hover:bg-gray-800 transition"
               >
                 Browse stocks &rarr;
               </Link>
@@ -367,7 +367,7 @@ export default function PricingPage() {
       <section className="py-12 md:py-16 bg-bg dark:bg-surface">
         <div className="max-w-3xl mx-auto px-4">
           <h2 className="text-2xl font-black text-center mb-8">Frequently Asked Questions</h2>
-          <div className="space-y-5">
+          <div className="space-y-4">
             {faqs.map((faq) => (
               <div key={faq.q} className="border-b border-border pb-4">
                 <h3 className="font-bold mb-1.5 text-sm">{faq.q}</h3>

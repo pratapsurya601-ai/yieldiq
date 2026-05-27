@@ -88,7 +88,7 @@ function IPOCard({ ipo }: { ipo: IPO }) {
   return (
     <Link
       href={`/ipo/${ipo.symbol}`}
-      className="block bg-bg dark:bg-surface border border-border hover:border-blue-300 rounded-2xl p-5 transition shadow-sm hover:shadow-md"
+      className="block bg-bg dark:bg-surface border border-border hover:border-blue-300 rounded-2xl p-4 transition shadow-sm hover:shadow-md"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex-1 min-w-0">

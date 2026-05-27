@@ -101,7 +101,7 @@ export default function AccountProfilePage() {
       </div>
       <h1 className="text-xl font-bold text-ink">Display name</h1>
 
-      <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-5 space-y-4">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-4 space-y-4">
         <div>
           <p className="text-xs uppercase tracking-wide text-caption">Current</p>
           <p className="text-base font-semibold text-ink mt-0.5">

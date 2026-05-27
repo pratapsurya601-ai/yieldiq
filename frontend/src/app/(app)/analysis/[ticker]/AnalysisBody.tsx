@@ -736,7 +736,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             : is404 ? "Ticker not found"
             : `Could not load ${ticker}`}
         </p>
-        <p className="text-sm text-body mb-5 max-w-sm mx-auto">
+        <p className="text-sm text-body mb-4 max-w-sm mx-auto">
           {is429
             ? "You've used all your free analyses for today. Upgrade to Pro for unlimited access."
             : is404
@@ -745,7 +745,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         </p>
         {is429 ? (
           <div className="space-y-4">
-            <a href="/pricing" className="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition">
+            <a href="/pricing" className="inline-flex items-center justify-center px-4 py-2.5 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition">
               Upgrade to Analyst
             </a>
 
@@ -776,10 +776,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                 Renders nothing if the backend returns zero matches,
                 so the Search button remains the visible fallback. */}
             <TickerSuggestions ticker={ticker} />
-            <a href="/search" className="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition">Search again</a>
+            <a href="/search" className="inline-flex items-center justify-center px-4 py-2.5 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition">Search again</a>
           </>
         ) : (
-          <button onClick={() => window.location.reload()} className="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition">Try again</button>
+          <button onClick={() => window.location.reload()} className="inline-flex items-center justify-center px-4 py-2.5 min-h-[44px] bg-brand text-white rounded-lg text-sm font-semibold hover:opacity-90 active:scale-[0.98] transition">Try again</button>
         )}
 
         {paygToast && (
@@ -921,7 +921,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           baseMosPct={valuation.margin_of_safety}
         />
       ) : (
-        <div className="bg-bg rounded-2xl border border-dashed border-border p-5 text-center">
+        <div className="bg-bg rounded-2xl border border-dashed border-border p-4 text-center">
           <h2 className="text-sm font-semibold text-ink mb-1">
             Play with the assumptions
           </h2>
@@ -931,7 +931,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           </p>
           <Link
             href="/account?upgrade=true"
-            className="inline-flex items-center rounded-full px-5 py-2 text-sm font-medium bg-brand text-white hover:opacity-90 transition"
+            className="inline-flex items-center rounded-full px-4 py-2 text-sm font-medium bg-brand text-white hover:opacity-90 transition"
           >
             Upgrade to play with assumptions
           </Link>
@@ -1200,7 +1200,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       key: "valuation",
       label: "Valuation",
       content: (
-        <div className="space-y-5">
+        <div className="space-y-4">
           {scenarioBlock}
           {sensitivityBlock}
           {valuation.dcf_reliable && valuation.fair_value > 0 ? (
@@ -1230,7 +1230,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       key: "quality",
       label: "Quality",
       content: (
-        <div className="space-y-5">
+        <div className="space-y-4">
           <InsightCards
             quality={quality}
             insights={insights}
@@ -1246,7 +1246,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               AnalysisResponse.peer_context; self-hides per-metric
               when peer sample is < 3 tickers. */}
           {data.peer_context && Object.keys(data.peer_context).length > 0 && (
-            <div className="bg-surface rounded-2xl border border-border p-5 space-y-2.5">
+            <div className="bg-surface rounded-2xl border border-border p-4 space-y-2.5">
               <h3 className="text-sm font-semibold text-ink">
                 Where you stand vs peers
               </h3>
@@ -1324,7 +1324,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       content: financialsEmpty ? (
         <EmptyFinancials onRefresh={() => financialsQuery.refetch()} />
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-4">
           {/* Section 1 — Financials tab numbered headers
               (manifesto rule: numbered sections established on
               Summary tab; propagated here Phase-2). */}
@@ -1386,7 +1386,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             />
             <FinancialStatements ticker={ticker} currency={company.currency} />
           </section>
-          <div className="bg-bg rounded-2xl border border-border p-5">
+          <div className="bg-bg rounded-2xl border border-border p-4">
             <h2 className="text-sm font-semibold text-ink mb-3">Financial Overview</h2>
             <FinancialBars
               ticker={ticker}
@@ -1417,13 +1417,13 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       key: "history",
       label: "History",
       content: (
-        <div className="space-y-5">
+        <div className="space-y-4">
           <FairValueHistory
             ticker={ticker}
             companyName={formatCompanyName(company.company_name)}
             currency={company.currency}
           />
-          <div className="bg-bg rounded-2xl border border-border p-5">
+          <div className="bg-bg rounded-2xl border border-border p-4">
             <h2 className="text-sm font-semibold text-ink mb-3">Price History</h2>
             <PriceChart
               ticker={ticker}
@@ -1532,7 +1532,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           redFlagCount={insights?.red_flags_structured?.length ?? null}
         />
 
-      <div className="py-4 space-y-5 lg:flex-1 lg:min-w-0 lg:py-0">
+      <div className="py-4 space-y-4 lg:flex-1 lg:min-w-0 lg:py-0">
         {/* Phase 4 personalization: one-time confirmation banner shown
             after the user picks a style. Self-hides for users without
             a style and after dismissal. */}

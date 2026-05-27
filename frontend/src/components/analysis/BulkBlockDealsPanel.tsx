@@ -69,8 +69,8 @@ function DealsTable({ title, deals }: { title: string; deals: BulkBlockDeal[] })
                   <span
                     className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
                       d.buy_sell === "B"
-                        ? "bg-blue-50 text-blue-700"
-                        : "bg-red-50 text-red-700"
+                        ? "bg-tone-info-bg text-tone-info-fg"
+                        : "bg-tone-bad-bg text-tone-bad-fg"
                     }`}
                   >
                     {d.buy_sell === "B" ? "Buy" : d.buy_sell === "S" ? "Sell" : d.buy_sell}

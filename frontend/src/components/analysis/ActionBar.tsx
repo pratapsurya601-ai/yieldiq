@@ -754,7 +754,7 @@ export default function ActionBar(props: ActionBarProps) {
         className={cn(
           "flex flex-1 flex-col items-center gap-1 rounded-xl py-3 px-2 transition-colors",
           inWatchlist
-            ? "bg-amber-50 text-amber-600 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/50"
+            ? "bg-tone-warn-bg text-amber-600 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300 dark:hover:bg-amber-950/50"
             : "bg-surface text-body hover:bg-bg active:bg-border"
         )}
       >

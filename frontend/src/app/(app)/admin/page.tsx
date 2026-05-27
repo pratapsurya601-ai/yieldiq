@@ -37,7 +37,7 @@ interface DataQualitySummary {
 
 function StatCard({ label, value, sub }: { label: string; value: string | number; sub?: string }) {
   return (
-    <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5">
+    <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-4">
       <p className="text-xs text-caption uppercase tracking-wide">{label}</p>
       <p className="text-2xl font-bold text-ink mt-1">{value}</p>
       {sub && <p className="text-xs text-caption mt-0.5">{sub}</p>}
@@ -132,7 +132,7 @@ export default function AdminPage() {
 
       {/* Top Stocks */}
       {stats.top_stocks_today.length > 0 && (
-        <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5">
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-4">
           <h2 className="text-sm font-semibold text-ink mb-3">Top Analysed Stocks Today</h2>
           <div className="flex flex-wrap gap-2">
             {stats.top_stocks_today.map((ticker) => (
@@ -148,7 +148,7 @@ export default function AdminPage() {
       )}
 
       {/* Operator tools */}
-      <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-4">
         <h2 className="text-sm font-semibold text-ink mb-3">Operator tools</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <a
@@ -223,7 +223,7 @@ export default function AdminPage() {
           deliberate, distinct error types so the Sentry dashboard can
           confirm both backend and client capture end-to-end before
           the first paying user hits the flow. */}
-      <div className="bg-bg dark:bg-surface rounded-2xl border border-amber-100 p-5">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-amber-100 p-4">
         <h2 className="text-sm font-semibold text-ink mb-1">Sentry readiness probes</h2>
         <p className="text-xs text-caption mb-3">
           Admin-only. Each button throws a labeled synthetic exception.

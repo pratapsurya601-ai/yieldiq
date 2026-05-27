@@ -62,7 +62,7 @@ export default function StoryDcfBadge({
     <span
       data-testid="story-dcf-badge"
       data-engine={valuationEngineUsed ?? ""}
-      className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+      className="inline-flex items-center rounded-full border border-amber-500/40 bg-tone-warn-bg px-2 py-0.5 text-[11px] font-medium text-tone-warn-fg dark:bg-amber-950/30 dark:text-amber-300"
       title={title}
     >
       Story-DCF — narrative valuation (confidence cap 50)

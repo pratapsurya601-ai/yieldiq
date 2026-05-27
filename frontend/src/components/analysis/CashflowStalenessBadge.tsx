@@ -123,7 +123,7 @@ export default function CashflowStalenessBadge({
 
   const tone =
     spec.tone === "amber"
-      ? "bg-amber-50 text-amber-800 border-amber-200"
+      ? "bg-tone-warn-bg text-amber-800 border-tone-warn-bd"
       : "bg-gray-50 text-gray-700 border-gray-200"
 
   return (

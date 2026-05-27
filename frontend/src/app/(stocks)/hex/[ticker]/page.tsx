@@ -178,7 +178,7 @@ export default async function HexPage(
                   ? "text-amber-600 border-amber-200 bg-amber-50"
                   : "text-red-600 border-red-200 bg-red-50"
             return (
-              <div key={key} className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-5">
+              <div key={key} className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-lg font-bold text-ink">{AXIS_LABEL[key]}</h2>
                   <span className={`text-sm font-bold px-3 py-1 rounded-full border ${color}`}>

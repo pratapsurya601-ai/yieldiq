@@ -84,7 +84,7 @@ export default function BlogIndexPage() {
             <Link
               key={post.slug}
               href={`/blog/${post.slug}`}
-              className="block bg-bg dark:bg-surface border border-border rounded-xl p-5 hover:border-blue-300 hover:shadow-sm transition group"
+              className="block bg-bg dark:bg-surface border border-border rounded-xl p-4 hover:border-blue-300 hover:shadow-sm transition group"
             >
               <div className="flex items-center gap-2 mb-2">
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${CATEGORY_LABELS[post.category]?.color || "bg-bg dark:bg-surface text-ink border-border"}`}>

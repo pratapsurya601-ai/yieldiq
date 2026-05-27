@@ -145,7 +145,7 @@ function DemoCard() {
             <div className="text-white font-bold text-lg font-mono">&#8377;{fmt(c.current_price)}</div>
           </div>
         </div>
-        <div className="flex items-center gap-5 mb-4">
+        <div className="flex items-center gap-4 mb-4">
           <div className="relative w-[130px] h-[130px] flex-shrink-0">
             <svg viewBox="0 0 140 140" className="w-full h-full -rotate-90">
               <circle cx="70" cy="70" r={r} fill="none" stroke="#1E293B" strokeWidth="8" />
@@ -309,7 +309,7 @@ function LandingContent() {
               </div>
             </FadeIn>
             <FadeIn>
-              <div className="space-y-5">
+              <div className="space-y-4">
                 {[
                   { num: "01", title: "Fair value from a 3-scenario DCF", body: "Bear / base / bull cases with an explicit weighted average \u2014 no single-point estimate hiding the uncertainty." },
                   { num: "02", title: "Margin of safety vs. today\u2019s price", body: "Color-coded, percent-based. You see immediately whether the stock trades below, near, or well above fair value at the current quote." },
@@ -391,7 +391,7 @@ function LandingContent() {
       <section className="py-16 bg-bg dark:bg-surface border-b border-gray-100">
         <div className="max-w-5xl mx-auto px-4 sm:px-6">
           <FadeIn>
-            <h2 className="font-display text-3xl md:text-4xl font-black text-ink text-center mb-10">
+            <h2 className="font-display text-3xl md:text-4xl font-black text-ink text-center mb-8">
               Pricing
             </h2>
           </FadeIn>
@@ -424,7 +424,7 @@ function LandingContent() {
       <section className="relative overflow-hidden bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-20">
         <div className="absolute top-10 left-1/3 w-[400px] h-[400px] bg-blue-600/8 rounded-full blur-3xl" />
         <div className="max-w-4xl mx-auto px-4 text-center relative z-10">
-          <h2 className="font-display text-3xl md:text-4xl font-black text-white leading-tight mb-5">
+          <h2 className="font-display text-3xl md:text-4xl font-black text-white leading-tight mb-4">
             Start with the stock you own.
             <br />You&rsquo;ll see what we mean.
           </h2>
@@ -436,7 +436,7 @@ function LandingContent() {
           </Link>
 
           {/* Trust bar */}
-          <div className="mt-10 flex items-center justify-center gap-3 flex-wrap text-caption text-xs">
+          <div className="mt-8 flex items-center justify-center gap-3 flex-wrap text-caption text-xs">
             <span className="text-caption">Data from</span>
             {["NSE", "BSE", "RBI"].map((s, i) => (
               <span key={s} className="inline-flex items-center gap-3">

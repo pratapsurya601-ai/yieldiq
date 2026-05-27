@@ -43,7 +43,7 @@ export function TierCapUpsell({
   return (
     <div
       role="alert"
-      className="bg-gradient-to-br from-amber-50 to-white border border-amber-200 rounded-xl p-4 mb-4"
+      className="bg-gradient-to-br from-amber-50 to-white border border-tone-warn-bd rounded-xl p-4 mb-4"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1">
@@ -52,7 +52,7 @@ export function TierCapUpsell({
           </p>
           <p className="text-sm text-amber-900 leading-relaxed">{detail.message}</p>
           {detail.current != null && (
-            <p className="text-xs text-amber-700 mt-1">
+            <p className="text-xs text-tone-warn-fg mt-1">
               Currently using {detail.current} of {detail.cap}.
             </p>
           )}
@@ -60,7 +60,7 @@ export function TierCapUpsell({
         {onDismiss && (
           <button
             onClick={onDismiss}
-            className="text-amber-400 hover:text-amber-700 text-xs flex-shrink-0"
+            className="text-amber-400 hover:text-tone-warn-fg text-xs flex-shrink-0"
             aria-label="Dismiss"
           >
             &times;
@@ -77,7 +77,7 @@ export function TierCapUpsell({
           </Link>
           <Link
             href={upgradeHref}
-            className="inline-flex items-center justify-center px-4 py-2 bg-white border border-amber-300 text-amber-800 text-xs font-semibold rounded-lg hover:bg-amber-50 transition"
+            className="inline-flex items-center justify-center px-4 py-2 bg-white border border-amber-300 text-amber-800 text-xs font-semibold rounded-lg hover:bg-tone-warn-bg transition"
           >
             See plans
           </Link>

@@ -407,10 +407,10 @@ export default function AnalysisHero({
 
   return (
     <section
-      className="bg-surface rounded-2xl border border-border p-5 md:p-6"
+      className="bg-surface rounded-2xl border border-border p-4 md:p-6"
       aria-label="Valuation summary"
     >
-      <div className="flex flex-col md:flex-row md:items-center md:gap-8 gap-5">
+      <div className="flex flex-col md:flex-row md:items-center md:gap-8 gap-4">
         {/* Left — hex (fallback: legacy conviction ring) */}
         <div className="flex items-center justify-center md:flex-col md:items-center gap-4 md:gap-2 shrink-0">
           <div className="block md:hidden">

@@ -103,17 +103,17 @@ function ActionCard({
   footnote?: string
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface p-5 md:p-6 shadow-sm">
+    <div className="rounded-2xl border border-border bg-surface p-4 md:p-6 shadow-sm">
       <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-2">
         {label}
       </p>
       <h2 className="font-display text-xl md:text-2xl font-bold text-ink leading-snug mb-2">
         {title}
       </h2>
-      <p className="text-sm text-body leading-relaxed mb-5">{body}</p>
+      <p className="text-sm text-body leading-relaxed mb-4">{body}</p>
       <Link
         href={href}
-        className="inline-flex items-center gap-2 min-h-[44px] bg-brand text-white font-semibold text-sm px-5 py-3 rounded-xl hover:opacity-90 active:scale-[0.98] transition"
+        className="inline-flex items-center gap-2 min-h-[44px] bg-brand text-white font-semibold text-sm px-4 py-3 rounded-xl hover:opacity-90 active:scale-[0.98] transition"
       >
         {ctaLabel} <ArrowRight className="w-4 h-4" />
       </Link>

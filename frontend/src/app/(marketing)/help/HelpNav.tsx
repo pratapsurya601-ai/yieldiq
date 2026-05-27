@@ -71,7 +71,7 @@ export default function HelpNav({ active }: { active?: HelpSlug }) {
   return (
     <nav
       aria-label="Help topics"
-      className="rounded-2xl border border-border bg-bg dark:bg-surface p-5"
+      className="rounded-2xl border border-border bg-bg dark:bg-surface p-4"
     >
       <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-caption mb-3">
         Help topics

@@ -57,7 +57,7 @@ export default function ReportPage() {
         <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-lg overflow-hidden">
 
           {/* Header gradient */}
-          <div className="bg-gradient-to-r from-blue-600 to-cyan-500 px-5 py-4 text-white">
+          <div className="bg-gradient-to-r from-blue-600 to-cyan-500 px-4 py-4 text-white">
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-lg font-bold">{formatCompanyName(company.company_name)}</h1>
@@ -70,7 +70,7 @@ export default function ReportPage() {
           </div>
 
           {/* Score + Verdict */}
-          <div className="px-5 py-4 flex items-center gap-4 border-b border-gray-100">
+          <div className="px-4 py-4 flex items-center gap-4 border-b border-gray-100">
             <div className="flex-shrink-0">
               <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white font-bold text-xl ${gradeColor(quality.grade)}`}>
                 {quality.yieldiq_score}
@@ -133,7 +133,7 @@ export default function ReportPage() {
 
           {/* AI Summary */}
           {data.ai_summary && (
-            <div className="px-5 py-3 border-b border-gray-100">
+            <div className="px-4 py-3 border-b border-gray-100">
               <p className="text-xs text-caption leading-relaxed line-clamp-3">
                 {data.ai_summary}
               </p>
@@ -141,7 +141,7 @@ export default function ReportPage() {
           )}
 
           {/* Footer CTA */}
-          <div className="px-5 py-4 bg-bg dark:bg-surface flex items-center justify-between">
+          <div className="px-4 py-4 bg-bg dark:bg-surface flex items-center justify-between">
             <div>
               <p className="text-[10px] text-caption">Powered by</p>
               <p className="text-sm font-bold text-ink">YieldIQ</p>

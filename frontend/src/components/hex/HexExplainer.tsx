@@ -92,7 +92,7 @@ export default function HexExplainer({
           md:left-auto md:right-0 md:top-0 md:bottom-0 md:max-h-none md:w-[420px]
           overflow-y-auto rounded-t-2xl md:rounded-none
           border md:border-l md:border-t-0
-          p-5 md:p-6
+          p-4 md:p-6
         "
         style={{
           background: "var(--color-bg)",
@@ -252,7 +252,7 @@ export default function HexExplainer({
           </p>
         )}
 
-        <div className="mt-5">
+        <div className="mt-4">
           <Link
             href={`/glossary#${axis}`}
             className="inline-flex items-center gap-1 text-sm font-semibold tap-target"

@@ -219,7 +219,7 @@ function PortfolioInner() {
   }
 
   return (
-    <div className="max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-4 py-6 space-y-5 pb-20">
+    <div className="max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-4 py-6 space-y-4 pb-20">
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs font-medium px-4 py-2 rounded-lg shadow-lg z-50 whitespace-nowrap">
@@ -339,7 +339,7 @@ function PortfolioInner() {
               const winners = holdings.filter((h) => h.pnl_pct >= 0).length
               const losers = holdings.filter((h) => h.pnl_pct < 0).length
               return (
-              <div className="bg-gradient-to-br from-blue-600 to-cyan-500 rounded-2xl p-5 text-white">
+              <div className="bg-gradient-to-br from-blue-600 to-cyan-500 rounded-2xl p-4 text-white">
                 <p className="text-xs font-bold uppercase tracking-wider opacity-80 mb-1">Total Value</p>
                 <p className="text-3xl font-black mb-1">{fmtRsCompact(summary.total_current_value)}</p>
                 <div className="flex items-baseline gap-2">
@@ -512,7 +512,7 @@ function PortfolioInner() {
           onClick={() => !resetHoldingsMut.isPending && setResetConfirm(false)}
         >
           <div
-            className="w-full max-w-sm bg-bg dark:bg-surface rounded-2xl shadow-xl p-5 space-y-4"
+            className="w-full max-w-sm bg-bg dark:bg-surface rounded-2xl shadow-xl p-4 space-y-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div>

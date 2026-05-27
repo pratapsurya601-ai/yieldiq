@@ -52,13 +52,13 @@ export default function FilterBuilder({
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-white dark:bg-surface p-4 sm:p-5 space-y-4">
+    <div className="rounded-2xl border border-border bg-white dark:bg-surface p-4 sm:p-4 space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-semibold text-ink">Filters</h2>
         <button
           type="button"
           onClick={addClause}
-          className="text-xs font-medium text-blue-600 hover:text-blue-700"
+          className="text-xs font-medium text-blue-600 hover:text-tone-info-fg"
         >
           + Add filter
         </button>

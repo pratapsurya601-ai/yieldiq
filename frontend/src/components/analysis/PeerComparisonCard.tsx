@@ -137,7 +137,7 @@ export default function PeerComparisonCard({ ticker, data }: Props) {
                   <td className="py-2 pr-3">
                     <Link
                       href={`/stocks/${peerTicker}/fair-value`}
-                      className="text-blue-600 hover:text-blue-700 font-semibold font-mono"
+                      className="text-blue-600 hover:text-tone-info-fg font-semibold font-mono"
                     >
                       {peerTicker}
                     </Link>

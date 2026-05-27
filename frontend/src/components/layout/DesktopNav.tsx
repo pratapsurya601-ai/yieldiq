@@ -52,7 +52,7 @@ export default function DesktopNav() {
                 className={cn(
                   "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
                   active
-                    ? "bg-blue-50 text-blue-700"
+                    ? "bg-tone-info-bg text-tone-info-fg"
                     : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                 )}
               >
@@ -69,7 +69,7 @@ export default function DesktopNav() {
               className={cn(
                 "hidden lg:inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg transition",
                 isNearLimit
-                  ? "bg-amber-50 text-amber-700 hover:bg-amber-100 ring-1 ring-amber-200"
+                  ? "bg-tone-warn-bg text-tone-warn-fg hover:bg-amber-100 ring-1 ring-amber-200"
                   : "bg-gray-50 text-gray-600 hover:bg-gray-100"
               )}
               aria-label="Analyses used today"
@@ -100,7 +100,7 @@ export default function DesktopNav() {
             className={cn(
               "h-8 w-8 rounded-full flex items-center justify-center transition",
               pathname.startsWith("/account")
-                ? "bg-blue-50 text-blue-700 ring-2 ring-blue-100"
+                ? "bg-tone-info-bg text-tone-info-fg ring-2 ring-blue-100"
                 : "bg-gray-100 text-gray-600 hover:bg-gray-200"
             )}
           >

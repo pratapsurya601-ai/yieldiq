@@ -153,7 +153,7 @@ export default function TaxReportPage() {
 
       {/* Tier gate */}
       {tier === "free" && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
           <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">Analyst Feature</p>
           <p className="text-sm text-amber-900 mb-3">
             Capital gains tax computation + ITR-ready CSV export is an Analyst (&#8377;799/mo) feature.
@@ -198,7 +198,7 @@ export default function TaxReportPage() {
           )}
 
           {/* Help */}
-          <div className="mt-8 bg-bg dark:bg-surface border border-border rounded-xl p-5">
+          <div className="mt-8 bg-bg dark:bg-surface border border-border rounded-xl p-4">
             <h3 className="text-sm font-bold text-ink mb-2">How to get your trades CSV from Zerodha</h3>
             <ol className="text-xs text-caption space-y-1 list-decimal list-inside">
               <li>Log in to <a href="https://console.zerodha.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Zerodha Console</a></li>
@@ -242,7 +242,7 @@ export default function TaxReportPage() {
           {/* Per-FY breakdown */}
           <div className="space-y-4 mb-6">
             {fyEntries.map(([fy, s]) => (
-              <div key={fy} className="bg-bg dark:bg-surface border border-border rounded-2xl p-5">
+              <div key={fy} className="bg-bg dark:bg-surface border border-border rounded-2xl p-4">
                 <div className="flex items-baseline justify-between mb-4">
                   <h2 className="text-lg font-bold text-ink">{fy}</h2>
                   <p className="text-xs text-caption">{s.trade_count} trades</p>

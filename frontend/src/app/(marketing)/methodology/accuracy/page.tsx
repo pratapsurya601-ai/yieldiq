@@ -195,7 +195,7 @@ function MetricCard({
   hint?: string
 }) {
   return (
-    <div className="rounded-lg border border-border bg-card p-5">
+    <div className="rounded-lg border border-border bg-card p-4">
       <div className="text-xs uppercase tracking-wide text-muted-foreground">
         {label}
       </div>
@@ -332,7 +332,7 @@ export default async function AccuracyPage() {
       ) : null}
 
       {/* Headline metrics */}
-      <section className="mt-10">
+      <section className="mt-8">
         <h2 className="font-serif text-xl text-foreground">
           Headline metrics
         </h2>
@@ -385,7 +385,7 @@ export default async function AccuracyPage() {
           For each call we made ~12 months ago, did the price move the
           way our verdict implied?
         </p>
-        <div className="mt-5 overflow-hidden rounded-lg border border-border">
+        <div className="mt-4 overflow-hidden rounded-lg border border-border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left text-xs uppercase tracking-wide text-muted-foreground">
               <tr>
@@ -474,7 +474,7 @@ export default async function AccuracyPage() {
           Mean 12-month price return per verdict band. A model that adds
           value is expected to show below-FV &gt; near-FV &gt; above-FV.
         </p>
-        <div className="mt-5 rounded-lg border border-border bg-card p-4">
+        <div className="mt-4 rounded-lg border border-border bg-card p-4">
           <ReturnAttributionBars data={attributionData} />
         </div>
         {attribution?.monotonic === false ? (
@@ -502,7 +502,7 @@ export default async function AccuracyPage() {
           well-calibrated model produces a roughly monotonic upward
           pattern across the bucket midpoints.
         </p>
-        <div className="mt-5 rounded-lg border border-border bg-card p-4">
+        <div className="mt-4 rounded-lg border border-border bg-card p-4">
           <CalibrationScatter data={calibration?.buckets ?? []} />
         </div>
         <p className="mt-3 text-xs text-muted-foreground">

@@ -170,7 +170,7 @@ export default function TimeSlider({
     <section
       data-testid="time-slider"
       aria-label="Time machine — replay this analysis at a past date"
-      className="bg-bg dark:bg-surface border border-border rounded-2xl p-4 md:p-5 mb-4"
+      className="bg-bg dark:bg-surface border border-border rounded-2xl p-4 md:p-4 mb-4"
     >
       <header className="mb-3">
         <p className="text-[10px] uppercase tracking-wider font-semibold text-caption mb-1">

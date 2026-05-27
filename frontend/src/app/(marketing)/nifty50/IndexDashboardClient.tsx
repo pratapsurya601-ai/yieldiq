@@ -99,15 +99,15 @@ export default function IndexDashboardClient({ data }: { data: DashboardData }) 
 
           {/* Summary stats */}
           <div className="flex flex-wrap justify-center gap-4 sm:gap-8">
-            <div className="bg-bg dark:bg-surface/5 border border-white/10 rounded-xl px-5 py-3 text-center">
+            <div className="bg-bg dark:bg-surface/5 border border-white/10 rounded-xl px-4 py-3 text-center">
               <p className="text-2xl font-black text-green-400">{summary.undervalued}</p>
               <p className="text-xs text-caption">Below Fair Value</p>
             </div>
-            <div className="bg-bg dark:bg-surface/5 border border-white/10 rounded-xl px-5 py-3 text-center">
+            <div className="bg-bg dark:bg-surface/5 border border-white/10 rounded-xl px-4 py-3 text-center">
               <p className="text-2xl font-black text-blue-400">{summary.fairly_valued}</p>
               <p className="text-xs text-caption">Near Fair Value</p>
             </div>
-            <div className="bg-bg dark:bg-surface/5 border border-white/10 rounded-xl px-5 py-3 text-center">
+            <div className="bg-bg dark:bg-surface/5 border border-white/10 rounded-xl px-4 py-3 text-center">
               <p className="text-2xl font-black text-red-400">{summary.overvalued}</p>
               <p className="text-xs text-caption">Above Fair Value</p>
             </div>

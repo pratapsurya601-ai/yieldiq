@@ -136,7 +136,7 @@ function SectionHeading({
 
 function EntryCard({ entry }: { entry: ErrataEntry }) {
   return (
-    <article className="py-5 border-b border-border last:border-b-0">
+    <article className="py-4 border-b border-border last:border-b-0">
       <div className="flex flex-wrap items-center gap-3 mb-2">
         <time className="font-mono text-xs text-caption">{entry.date}</time>
         <span
@@ -227,7 +227,7 @@ export default function ErrataPage() {
           eyebrow="Log"
           title="Entries (most recent first)"
         />
-        <div className="rounded-2xl border border-border bg-surface px-5">
+        <div className="rounded-2xl border border-border bg-surface px-4">
           {ENTRIES.map((entry, idx) => (
             <EntryCard key={`${entry.date}-${idx}`} entry={entry} />
           ))}
@@ -247,7 +247,7 @@ export default function ErrataPage() {
           .
         </p>
 
-        <div className="mt-10 pt-6 border-t border-border flex flex-wrap gap-4 text-sm">
+        <div className="mt-8 pt-6 border-t border-border flex flex-wrap gap-4 text-sm">
           <Link
             href="/methodology"
             className="text-body hover:text-ink transition-colors"

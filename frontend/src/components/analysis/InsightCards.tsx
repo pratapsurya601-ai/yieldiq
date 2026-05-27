@@ -108,17 +108,17 @@ function _promoterCard(
   let borderClass: string
   if (holdingType === "foreign_promoter") {
     label = entity ? `Foreign promoter \u00b7 ${entity}` : "Foreign promoter"
-    colorClass = "text-blue-700"
+    colorClass = "text-tone-info-fg"
     borderClass = "border-l-blue-500"
   } else if (holdingType === "govt_promoter") {
     label = entity ? `Govt promoter \u00b7 ${entity}` : "Govt promoter"
-    colorClass = "text-blue-700"
+    colorClass = "text-tone-info-fg"
     borderClass = "border-l-blue-500"
   } else {
     const band =
-      promoterPct >= 50 ? { c: "text-blue-700", b: "border-l-blue-500", label: "High alignment" }
+      promoterPct >= 50 ? { c: "text-tone-info-fg", b: "border-l-blue-500", label: "High alignment" }
       : promoterPct >= 25 ? { c: "text-body", b: "border-l-border", label: "Moderate" }
-      : { c: "text-amber-700", b: "border-l-amber-500", label: "Low stake" }
+      : { c: "text-tone-warn-fg", b: "border-l-amber-500", label: "Low stake" }
     label = band.label
     colorClass = band.c
     borderClass = band.b
@@ -211,10 +211,10 @@ export default function InsightCards({ quality, insights, valuation, currency, t
       //   None / —  → red    (no durable advantage)
       const m = quality.moat
       const color =
-        m === "Wide"     ? "text-blue-700"
+        m === "Wide"     ? "text-tone-info-fg"
         : m === "Moderate" ? "text-green-700"
-        : m === "Narrow"   ? "text-amber-700"
-        :                    "text-red-700"
+        : m === "Narrow"   ? "text-tone-warn-fg"
+        :                    "text-tone-bad-fg"
       const borderColor =
         m === "Wide"     ? "border-l-blue-500"
         : m === "Moderate" ? "border-l-green-500"
@@ -234,7 +234,7 @@ export default function InsightCards({ quality, insights, valuation, currency, t
       title: "Red Flags",
       value: businessFlags.length === 0 ? "Clean ✓" : `${businessFlags.length} found`,
       subtitle: businessFlags.length > 0 ? businessFlags[0] : "No governance, accounting, or solvency concerns flagged",
-      color: businessFlags.length === 0 ? "text-blue-700" : "text-red-700",
+      color: businessFlags.length === 0 ? "text-tone-info-fg" : "text-tone-bad-fg",
       icon: "\u{1f6a9}",
       borderColor: businessFlags.length === 0 ? "border-l-blue-500" : "border-l-red-500",
     },
@@ -286,7 +286,7 @@ export default function InsightCards({ quality, insights, valuation, currency, t
         subtitle = fp ? `Tentative · ${fp}` : "Tentative · not yet filed"
       } else if (du !== null && du !== undefined && du <= 7) {
         value = `Reports in ${du}d`
-        color = "text-amber-700"
+        color = "text-tone-warn-fg"
         borderColor = "border-l-amber-500"
         subtitle = `${formatted}${fp ? ` · ${fp}` : ""}`
       } else if (du !== null && du !== undefined && du <= 14) {
@@ -401,9 +401,9 @@ export default function InsightCards({ quality, insights, valuation, currency, t
         const rating = analystConsensus.consensus_rating || "Coverage"
         const rl = rating.toLowerCase()
         const ratingColor =
-          rl.includes("favorable") ? "text-blue-700"
-          : rl.includes("neutral")  ? "text-amber-700"
-          : rl.includes("cautious") ? "text-red-700"
+          rl.includes("favorable") ? "text-tone-info-fg"
+          : rl.includes("neutral")  ? "text-tone-warn-fg"
+          : rl.includes("cautious") ? "text-tone-bad-fg"
           : "text-body"
         const ratingBorder =
           rl.includes("highly favorable") ? "border-l-blue-600"
@@ -487,7 +487,7 @@ export default function InsightCards({ quality, insights, valuation, currency, t
           // not advising the user to do the same.
           value: `Deal: ${latestDeal.deal_type === "BUY" ? "Buy-side" : "Sell-side"} (${latestDeal.category})`,
           subtitle: `${clientShort} ${qtyLabel} @ ${currencySymbol(currency, ticker)}${Math.round(latestDeal.price).toLocaleString(currencyLocale(currency, ticker))}`,
-          color: latestDeal.deal_type === "BUY" ? "text-blue-700" : "text-red-700",
+          color: latestDeal.deal_type === "BUY" ? "text-tone-info-fg" : "text-tone-bad-fg",
           icon: "\u{1f465}",
           borderColor: latestDeal.deal_type === "BUY" ? "border-l-blue-500" : "border-l-red-500",
         }
@@ -496,7 +496,7 @@ export default function InsightCards({ quality, insights, valuation, currency, t
         title: "Insider Activity",
         value: "Quiet ✓",
         subtitle: "No bulk or block deals filed in last 90 days",
-        color: "text-blue-700" as const,
+        color: "text-tone-info-fg" as const,
         icon: "\u{1f465}",
         borderColor: "border-l-blue-500" as const,
       }
@@ -592,8 +592,8 @@ export default function InsightCards({ quality, insights, valuation, currency, t
 
       {/* Model / Data Warnings — separated from business red flags */}
       {modelWarnings.length > 0 && (
-        <div className="rounded-xl bg-amber-50 border border-amber-100 dark:bg-amber-950/30 dark:border-amber-900 p-4">
-          <p className="text-xs font-semibold text-amber-700 dark:text-amber-300 mb-2">Data Notes</p>
+        <div className="rounded-xl bg-tone-warn-bg border border-amber-100 dark:bg-amber-950/30 dark:border-amber-900 p-4">
+          <p className="text-xs font-semibold text-tone-warn-fg dark:text-amber-300 mb-2">Data Notes</p>
           <ul className="space-y-1">
             {modelWarnings.map((w, i) => (
               <li key={i} className="text-xs text-amber-600 dark:text-amber-400 flex items-start gap-1.5">
@@ -714,7 +714,7 @@ function AnalystConsensusPanel({ data, currency, ticker: _ticker }: AnalystConse
               {pt.vs_current_pct !== null && pt.vs_current_pct !== undefined ? (
                 <span className={cn(
                   "ml-1 text-xs font-medium",
-                  pt.vs_current_pct >= 0 ? "text-blue-700" : "text-red-700",
+                  pt.vs_current_pct >= 0 ? "text-tone-info-fg" : "text-tone-bad-fg",
                 )}>
                   ({pt.vs_current_pct >= 0 ? "+" : ""}{pt.vs_current_pct.toFixed(1)}%)
                 </span>
