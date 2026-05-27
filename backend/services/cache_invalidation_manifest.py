@@ -324,6 +324,25 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # Tickertape density trick #2 (audit
+        # .audit/tickertape-deep-walk-2026-05-27.md). The analysis
+        # response now carries `sector_medians` (5 cohort medians:
+        # pe/pb/roe/div_yield/op_margin) so the frontend can render
+        # "Sector X" chips beside every primary ratio. The field is
+        # injected at the router boundary on every cache tier so warm
+        # rows surface the chip context without a CACHE_VERSION bump.
+        # Scope-narrow because no existing field changes — purely
+        # additive surface that pre-PR cached payloads also receive
+        # via the injection path.
+        "version_id": "v_sector_medians_in_analysis_payload",
+        "applied_at": datetime(2026, 5, 27, 12, 0, tzinfo=timezone.utc),
+        "scope": {"tickers": "*", "fields": ["sector_medians"]},
+        "rationale": (
+            "Inline sector-median chips on every primary metric — "
+            "context-by-default per Tickertape density trick #2."
+        ),
+    },
+    {
         "version_id": "v_worry_comparison_2026_05_25",
         "applied_at": datetime(2026, 5, 25, 17, 30, tzinfo=timezone.utc),
         "scope": {"tickers": "*", "fields": ["worry_index", "peer_context"]},

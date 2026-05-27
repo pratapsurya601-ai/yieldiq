@@ -465,6 +465,23 @@ export interface AnalysisResponse {
     n: number
   }> | null
   /**
+   * Inline sector-median chips (2026-05-27, Tickertape density trick
+   * #2). Five reference medians for the ticker's Day-108c cohort —
+   * read by <MetricVsSectorChip /> on the analysis page to render
+   * "Sector X" context beside every primary ratio. Each value is null
+   * when the ticker sits outside a curated cohort, when the cohort
+   * has no cached members, or when the underlying metric is missing
+   * on every cohort row. The chip self-hides per metric in that case.
+   * Backend: backend/services/sector_medians_for_ticker.py.
+   */
+  sector_medians?: {
+    pe: number | null
+    pb: number | null
+    roe: number | null
+    div_yield: number | null
+    op_margin: number | null
+  } | null
+  /**
    * Backend-authored formula metadata, keyed by metric id (e.g.
    * "margin_of_safety", "roce"). Populated from
    * backend/services/analysis/formulas.py — the single source of
