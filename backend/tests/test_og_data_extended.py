@@ -219,3 +219,75 @@ def test_og_data_uses_canary_expected_field_names():
     assert expected.issubset(og.keys()), (
         f"missing canary fields: {expected - set(og.keys())}"
     )
+
+
+# ── Test 6: pipeline-failure fallback emits a structured log ────
+#
+# Pre-fix-247 the outer except in get_og_data was a bare
+# `except: pass` that returned the SEO stub on ANY error with no
+# log line. PR #673's LTIMINDTREE silent crash sat in that hole
+# for hours before discovery because Railway/Sentry saw nothing.
+# Lock the structured-log contract so a future regression that
+# re-introduces the swallow fails this test instead of paging
+# on-call on a Saturday.
+
+def test_og_data_fallback_logs_exception(caplog):
+    """When the analysis pipeline raises, the og-data handler must:
+    1. Still return the SEO-stub shape (clients keep working).
+    2. Emit a logger.exception call with structured ticker +
+       exception_type fields so Railway log-search + Sentry can
+       find it.
+    """
+    import logging
+
+    fake_request = SimpleNamespace(
+        url=SimpleNamespace(path="/api/v1/analysis/RELIANCE.NS/og-data"),
+        headers={},
+    )
+    fake_bg = SimpleNamespace(add_task=lambda *a, **kw: None)
+
+    def _boom(*_a, **_kw):
+        raise RuntimeError("simulated upstream failure")
+
+    # cache.get returns None for og: + analysis: so we fall through
+    # to the live-compute path, which we patch to raise. That puts
+    # us in the outer except handler.
+    def _cache_get(key, version_keyed=False):
+        return None
+
+    with caplog.at_level(logging.ERROR, logger="yieldiq.analysis"), \
+         patch("backend.routers.analysis.cache.get", side_effect=_cache_get), \
+         patch("backend.routers.analysis.cache.set", return_value=None), \
+         patch(
+             "backend.routers.analysis.service.get_full_analysis",
+             side_effect=_boom,
+         ), \
+         patch(
+             "backend.services.analysis_cache_service.get_cached",
+             return_value=None,
+         ):
+        og = _run(get_og_data("RELIANCE.NS", fake_request, fake_bg))
+
+    # 1. Stub shape preserved — clients keep working.
+    assert og["title"] == "RELIANCE.NS Stock Analysis | YieldIQ"
+    assert "Free DCF valuation" in og["description"]
+
+    # 2. logger.exception fired with the expected structured fields.
+    matching = [
+        r for r in caplog.records
+        if r.name == "yieldiq.analysis"
+        and r.getMessage() == "og_data_analysis_failed"
+    ]
+    assert matching, (
+        "expected a 'og_data_analysis_failed' log record on the "
+        "yieldiq.analysis logger — bare-except regression?"
+    )
+    rec = matching[-1]
+    assert getattr(rec, "ticker", None) == "RELIANCE.NS"
+    assert getattr(rec, "exception_type", None) == "RuntimeError"
+    # logger.exception (not .error) attaches the active exception
+    # so Sentry + Railway get the full stack trace.
+    assert rec.exc_info is not None, (
+        "logger.exception must be used (not .error) so the stack "
+        "trace reaches Sentry"
+    )

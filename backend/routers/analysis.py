@@ -817,7 +817,31 @@ async def get_og_data(
             return og
         cache.set(_cache_key, og, ttl=3600, version_keyed=True)
         return og
-    except Exception:
+    except Exception as exc:
+        # SEO stub fallback when the analysis pipeline raises.
+        # Historically a bare `except: pass` swallowed every error here,
+        # which is why the LTIMINDTREE silent crash in PR #673 went
+        # undetected for hours — the response shape stayed valid but
+        # Railway/Sentry never saw the underlying traceback. Always
+        # emit a structured log + Sentry capture so a future regression
+        # surfaces immediately. Never let the logging path itself raise.
+        import logging as _logging
+        _log = _logging.getLogger("yieldiq.analysis")
+        try:
+            _log.exception(
+                "og_data_analysis_failed",
+                extra={
+                    "ticker": ticker,
+                    "exception_type": type(exc).__name__,
+                },
+            )
+        except Exception:
+            pass
+        try:
+            import sentry_sdk as _sentry_sdk
+            _sentry_sdk.capture_exception(exc)
+        except Exception:
+            pass
         return {
             "title": f"{ticker} Stock Analysis | YieldIQ",
             "description": "Free DCF valuation for Indian stocks. Know if a stock is undervalued.",
