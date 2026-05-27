@@ -24,6 +24,7 @@
 
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import QuarterlyResultsTable from "@/components/analysis/QuarterlyResultsTable"
 import {
   ResponsiveContainer,
   BarChart,
@@ -105,7 +106,12 @@ function pickRows(years: FinancialYear[]): ChartRow[] {
 }
 
 export default function FinancialsChartPanel({ ticker, currency }: Props) {
-  const [period, setPeriod] = useState<Period>("annual")
+  // `userPeriod` is null until the user clicks a tab themselves. Once
+  // set we honour that choice forever. Before that, the active tab is
+  // derived from has_quarterly (auto-promote Quarterly when the
+  // backend confirms coverage — Tickertape density trick #3 from the
+  // 2026-05-27 audit). This avoids a setState-in-effect cascade.
+  const [userPeriod, setUserPeriod] = useState<Period | null>(null)
 
   // Ask for 10 years upfront. The endpoint will tier-limit free users
   // to fewer rows, in which case we render whatever it returns and the
@@ -120,6 +126,8 @@ export default function FinancialsChartPanel({ ticker, currency }: Props) {
 
   const incomeYears = data?.income ?? []
   const cashflowYears = data?.cash_flow ?? []
+
+  const period: Period = userPeriod ?? (data?.has_quarterly ? "quarterly" : "annual")
 
   // The income payload carries revenue + net_income; cash flow carries
   // FCF. Merge by `year` so a name with mismatched coverage (e.g. FCF
@@ -186,7 +194,7 @@ export default function FinancialsChartPanel({ ticker, currency }: Props) {
               key={p}
               role="tab"
               aria-selected={period === p}
-              onClick={() => setPeriod(p)}
+              onClick={() => setUserPeriod(p)}
               className={
                 period === p
                   ? "text-xs px-2.5 py-1 rounded-lg font-medium bg-brand text-white"
@@ -200,9 +208,7 @@ export default function FinancialsChartPanel({ ticker, currency }: Props) {
       </div>
 
       {period === "quarterly" && (
-        <p className="text-sm text-caption text-center py-10">
-          Quarterly trend coming soon.
-        </p>
+        <QuarterlyResultsTable ticker={ticker} currency={currency} />
       )}
 
       {period === "annual" && isError && (
