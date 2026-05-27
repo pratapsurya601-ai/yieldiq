@@ -32,6 +32,11 @@ jobs:
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
       PYTHONUNBUFFERED: "1"
+      # PYTHONPATH=. so `python -m data_pipeline.sources.amfi_nav`
+      # resolves the in-tree package. The repo has no pyproject.toml /
+      # setup.py, so without this the runner exits with
+      # ModuleNotFoundError: No module named 'data_pipeline'.
+      PYTHONPATH: "."
     steps:
       - uses: actions/checkout@v4
 
