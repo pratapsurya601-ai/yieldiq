@@ -1316,4 +1316,53 @@ export const completeOnboardingRemote = (body?: {
 }): Promise<{ completed: boolean; completed_at: string }> =>
   api.post("/api/v1/auth/complete-onboarding", body ?? {}, { timeout: 4000 }).then(r => r.data)
 
+// ── Mutual Funds (Phase 3-slim) ──────────────────────────────────────
+// Read-only fund detail + landing helpers. SSR-friendly (used inside
+// server components in app/(app)/funds), so we use plain fetch on the
+// SSR path and the axios client on the client path. Both surfaces hit
+// the same backend prefix.
+
+import type {
+  FundDetailResponse,
+  FundListResponse,
+} from "@/types/api"
+
+export const getFund = (scheme_code: string): Promise<FundDetailResponse> =>
+  api.get(`/api/v1/funds/${encodeURIComponent(scheme_code)}`).then((r) => r.data)
+
+export const listFunds = (limit = 20): Promise<FundListResponse> =>
+  api.get(`/api/v1/funds`, { params: { limit } }).then((r) => r.data)
+
+// SSR-side fetch helpers — bypass the axios client (which depends on
+// document cookies) and the BUILD_ID query param. Server components in
+// app/(app)/funds use these directly.
+export async function fetchFundSSR(
+  scheme_code: string,
+): Promise<FundDetailResponse | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/v1/funds/${encodeURIComponent(scheme_code)}`,
+      { next: { revalidate: 300 } },
+    )
+    if (!res.ok) return null
+    return (await res.json()) as FundDetailResponse
+  } catch {
+    return null
+  }
+}
+
+export async function fetchFundListSSR(
+  limit = 20,
+): Promise<FundListResponse> {
+  try {
+    const res = await fetch(`${API_BASE}/api/v1/funds?limit=${limit}`, {
+      next: { revalidate: 300 },
+    })
+    if (!res.ok) return { funds: [], total: 0 }
+    return (await res.json()) as FundListResponse
+  } catch {
+    return { funds: [], total: 0 }
+  }
+}
+
 export default api

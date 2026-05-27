@@ -707,3 +707,80 @@ export interface NotificationsRecentResponse {
 export interface NotificationsUnreadCountResponse {
   count: number
 }
+
+// ── Mutual Funds (Phase 3-slim) ──────────────────────────────────────
+// Mirrors backend/models/fund.py response shapes. The fund detail page
+// is intentionally read-only; no advisory / verdict-band fields exist
+// on these types. Phase 2's returns + cost block is optional because
+// it ships in a separate parallel PR.
+
+export type FundRiskometerLevel =
+  | "Low"
+  | "LowToModerate"
+  | "Moderate"
+  | "ModeratelyHigh"
+  | "High"
+  | "VeryHigh"
+
+export interface Fund {
+  scheme_code: string
+  isin_growth: string | null
+  isin_div: string | null
+  scheme_name: string
+  amc: string
+  plan: "Direct" | "Regular" | null
+  option: "Growth" | "IDCW" | "IDCW-Reinvest" | null
+  category: string | null
+  sub_category: string | null
+  benchmark_index_code: string | null
+  inception_date: string | null
+  riskometer_level: FundRiskometerLevel | null
+  is_active: boolean
+}
+
+export interface FundNavPoint {
+  nav_date: string
+  nav: number
+  aum_cr: number | null
+}
+
+export interface FundBenchmarkPoint {
+  benchmark_index_code: string
+  nav_date: string
+  tri_value: number
+}
+
+export interface FundReturnsCache {
+  ret_1y: number | null
+  ret_3y: number | null
+  ret_5y: number | null
+  ret_10y: number | null
+  ret_si: number | null
+  cagr_3y: number | null
+  cagr_5y: number | null
+  ter_direct: number | null
+  ter_regular: number | null
+  yieldiq_fund_score: number | null
+}
+
+export interface FundDetailResponse {
+  fund: Fund
+  nav_history: FundNavPoint[]
+  benchmark_history: FundBenchmarkPoint[]
+  metrics: FundReturnsCache | null
+}
+
+export interface FundListItem {
+  scheme_code: string
+  scheme_name: string
+  amc: string
+  category: string | null
+  sub_category: string | null
+  riskometer_level: FundRiskometerLevel | null
+  plan: "Direct" | "Regular" | null
+}
+
+export interface FundListResponse {
+  funds: FundListItem[]
+  total: number
+}

@@ -974,6 +974,13 @@ app.include_router(strategies_router.router)
 from backend.routers import sectors as sectors_router
 app.include_router(sectors_router.router)
 
+# Mutual Funds Phase 3-slim: read-only /api/v1/funds index + detail.
+# Composes Phase 1 master + NAV/benchmark history with the (optional)
+# Phase 2 returns cache. Designed to degrade gracefully when Phase 2
+# has not yet populated — see backend/routers/funds.py for the contract.
+from backend.routers import funds as funds_router
+app.include_router(funds_router.router)
+
 # Phase 4 manifesto (Paradigm 11): per-user, per-ticker Memory Lane.
 #   POST /api/v1/me/ticker-visit/{ticker}     — upsert visit + snapshot
 #   GET  /api/v1/me/memory-lane/{ticker}      — personal history payload
