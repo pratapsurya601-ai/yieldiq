@@ -142,7 +142,7 @@ export default function DividendTracker({ dividend, currency, ticker }: Props) {
                 color the metric VALUE, not just the sustainability pill, so
                 an At-Risk payout of 104% reads red instantly. Tone describes
                 the number's quality vs the historical-norm band defined in
-                lib/metricTone.ts — never a buy/sell signal. */}
+                lib/metricTone.ts — never a directional verdict. */}
             <div className="rounded-xl bg-bg p-3">
               <p className="text-[11px] text-caption uppercase tracking-wide">Current Yield</p>
               <p

@@ -222,7 +222,7 @@ export default function InlinePeerComparison({
   //
   // For ROE the helper is absolute (>=20 -> good, etc.), so no cohort
   // median is needed; for P/E the helper deliberately returns 'neutral'
-  // without a sectorMedian to avoid implying "cheap" on raw absolute
+  // without a sectorMedian to avoid a directional read on raw absolute
   // multiples (SEBI lens — see metricTone.ts).
   const cohortPeMedian = useMemo<number | null>(() => {
     const xs = derivedRows

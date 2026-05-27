@@ -3,7 +3,7 @@
  *
  * Tickertape deep walk (.audit/tickertape-deep-walk-2026-05-27.md) trick #4:
  * Tickertape colors ~700 elements on the page; YieldIQ colored ~12. The eye
- * should pick up "good/bad" instantly without reading prose.
+ * picks up "good/bad" instantly without reading prose.
  *
  * This helper returns a 4-tier MetricTone for a given metric+value (and
  * optional sector-median benchmark when the metric is relative). Callers
@@ -14,13 +14,13 @@
  *   norm. It does NOT carry investment merit. Worked examples:
  *     OK: Payout 104% -> 'bad' (unsustainable cash flow)
  *     OK: ROE 45% -> 'good' (top quartile within most cohorts)
- *     NOT OK: MoS +50% -> 'good' (implies "buy")
+ *     NOT OK: MoS +50% -> 'good' (implies action)
  *     NOT OK: P/E 17x -> 'good' without a sector benchmark
  *
  *   Margin of Safety is intentionally NOT handled here. MoS direction is
  *   already colored in EditorialHero via text-success/text-danger as a
  *   sign-of-discount affordance; routing it through this helper would
- *   risk reading as a recommendation tier.
+ *   risk reading as a directional tier.
  *
  * Tailwind utility classes (already in design tokens):
  *   good    -> text-green-600  / dark:text-green-400
@@ -85,9 +85,9 @@
  *     >=  5 -> warn
  *     else  -> bad
  *
- * Callers should treat the returned tone as advisory styling only and MUST
- * still render the underlying number / unit; never collapse the tone into
- * the only signal (a colorblind user must still get the same information).
+ * Callers must treat the returned tone as presentation styling only and
+ * MUST still render the underlying number / unit; never collapse the tone
+ * into the only signal (a colorblind user must still get the same info).
  */
 
 export type MetricTone = "good" | "neutral" | "warn" | "bad"
@@ -160,7 +160,7 @@ export function metricTone(args: MetricToneArgs): MetricTone {
     case "pb": {
       // P/E and P/B are only meaningful against a cohort benchmark. Without
       // one we will not call them good or bad — the SEBI-risky path is to
-      // imply "cheap" on an absolute multiple.
+      // imply a directional verdict on a raw absolute multiple.
       if (value <= 0) return "neutral"
       return relativeTone(value, sectorMedian, true)
     }
