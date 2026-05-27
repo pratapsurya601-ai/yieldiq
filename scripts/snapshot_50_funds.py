@@ -94,6 +94,28 @@ NAV_AT_DATE_QUERY = text(
 )
 
 
+# Phase 2 — fund_returns_cache fields. The query is wrapped in a
+# try/except at call-site so the snapshot still works on a DB where the
+# migration has not been applied yet (e.g. fresh dev clone).
+CACHE_QUERY = text(
+    """
+    SELECT cache_version, computed_at, nav_as_of, history_days,
+           ret_1y, ret_3y, ret_5y, ret_10y, ret_si,
+           cagr_3y, cagr_5y, cagr_10y,
+           rolling_3y_mean, rolling_3y_median, rolling_3y_window_count,
+           stdev_3y, sharpe_3y, sortino_3y, max_dd_3y, max_dd_5y,
+           beta_3y, alpha_3y, info_ratio_3y, tracking_error_3y,
+           upside_capture_3y, downside_capture_3y, benchmark_excess_3y,
+           category_percentile_3y,
+           yieldiq_fund_score,
+           score_component_rolling, score_component_sharpe,
+           score_component_drawdown, score_component_ter, score_component_tenure
+      FROM fund_returns_cache
+     WHERE scheme_code = :sc
+    """
+)
+
+
 def _trailing_return_pct(nav_now: float | None, nav_then: float | None) -> float | None:
     if not nav_now or not nav_then or nav_then <= 0:
         return None
@@ -145,6 +167,13 @@ def main() -> int:
                     entry[f"nav_{yrs}y_ago"] = None
                     entry[f"return_{yrs}y_pct"] = None
 
+            # Phase 2 — capture fund_returns_cache fields when available.
+            try:
+                cache = s.execute(CACHE_QUERY, {"sc": sc}).mappings().fetchone()
+            except Exception:
+                cache = None
+            entry["cache"] = dict(cache) if cache else None
+
             rows.append(entry)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -154,7 +183,7 @@ def main() -> int:
         json.dumps(
             {
                 "snapshot_at": _dt.datetime.now(_dt.timezone.utc).isoformat(),
-                "purpose": "mf_phase1_canary_baseline",
+                "purpose": "mf_phase2_canary_baseline",
                 "scheme_count": len(rows),
                 "rows": rows,
             },

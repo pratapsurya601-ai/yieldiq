@@ -1393,6 +1393,45 @@ MANIFEST: list[dict] = [
             "WIPRO un-fix detected via dcf-regression baseline audit."
         ),
     },
+    {
+        # v_phase2_mf_returns_compute — Phase 2 of the Mutual Funds
+        # pipeline ships a new compute service that populates the new
+        # fund_returns_cache table (migration 075). No equity cache rows
+        # are affected — scope is narrowed to the new MF cache fields so
+        # the equity-side gate logic stays a no-op for stock rows.
+        # Tickers wildcard because fund_returns_cache is keyed on
+        # scheme_code, not ticker; the manifest matcher treats `*` as
+        # "matches every key" which is correct for this surface.
+        "version_id": "v_phase2_mf_returns_compute_2026_05_27",
+        "applied_at": datetime(2026, 5, 27, 12, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [
+                "ret_1y", "ret_3y", "ret_5y", "ret_10y", "ret_si",
+                "cagr_3y", "cagr_5y", "cagr_10y",
+                "rolling_3y_mean", "rolling_3y_median",
+                "rolling_3y_min", "rolling_3y_max", "rolling_3y_window_count",
+                "stdev_3y", "sharpe_3y", "sortino_3y",
+                "max_dd_3y", "max_dd_5y",
+                "beta_3y", "alpha_3y", "info_ratio_3y", "tracking_error_3y",
+                "upside_capture_3y", "downside_capture_3y", "benchmark_excess_3y",
+                "category_percentile_3y",
+                "yieldiq_fund_score",
+                "score_component_rolling", "score_component_sharpe",
+                "score_component_drawdown", "score_component_ter",
+                "score_component_tenure",
+            ],
+        },
+        "rationale": (
+            "Phase 2 ships the rule-based MF compute service: trailing "
+            "returns, CAGR windows, monthly-anchored rolling 3y, stdev, "
+            "Sharpe, Sortino, drawdown, beta, Jensen alpha, info ratio, "
+            "tracking error, up/down capture, category percentile, and "
+            "the YieldIQ Fund Score composite (rules only, NO LLM). "
+            "Scope is the new fund_returns_cache fields only — equity "
+            "rows are untouched."
+        ),
+    },
 ]
 
 

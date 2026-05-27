@@ -106,3 +106,121 @@ class FundBenchmarkPoint(BaseModel):
     benchmark_index_code: str
     nav_date: date
     tri_value: float
+
+
+# ── Phase 2 — compute response shapes ────────────────────────────────
+#
+# These mirror the columns of fund_returns_cache (075_fund_returns_cache.sql).
+# Phase 2 lands the compute service + cache table; Phase 3 will wire the
+# router that hydrates these shapes from the cache row. Keeping the
+# pydantic models alongside the table now lets the Phase 3 frontend
+# author reference a single source-of-truth shape.
+
+
+class FundReturns(BaseModel):
+    """Trailing returns + CAGR + monthly-anchored rolling-window stats.
+
+    Values are decimal fractions (0.12 = 12 percent), per the equity-side
+    convention. Any field may be null when the underlying NAV history is
+    too short for that window.
+    """
+
+    nav_as_of: Optional[date] = None
+    history_days: Optional[int] = None
+    ret_1y: Optional[float] = None
+    ret_3y: Optional[float] = None
+    ret_5y: Optional[float] = None
+    ret_10y: Optional[float] = None
+    ret_si: Optional[float] = Field(
+        None,
+        description="Since-inception. Annualised (CAGR) when inception is "
+                    "older than 1y, simple cumulative return otherwise.",
+    )
+    cagr_3y: Optional[float] = None
+    cagr_5y: Optional[float] = None
+    cagr_10y: Optional[float] = None
+    rolling_3y_mean: Optional[float] = None
+    rolling_3y_median: Optional[float] = None
+    rolling_3y_min: Optional[float] = None
+    rolling_3y_max: Optional[float] = None
+    rolling_3y_window_count: Optional[int] = None
+
+
+class FundRisk(BaseModel):
+    """Risk metrics: dispersion, drawdown, and benchmark-relative stats.
+
+    Benchmark-relative fields (beta, alpha, info ratio, capture, excess)
+    are null when the scheme has no benchmark mapping or the overlap
+    window is too thin.
+    """
+
+    stdev_3y: Optional[float] = Field(
+        None,
+        description="Annualised standard deviation of daily log returns "
+                    "over the trailing 3y window.",
+    )
+    sharpe_3y: Optional[float] = None
+    sortino_3y: Optional[float] = None
+    max_dd_3y: Optional[float] = Field(
+        None,
+        description="Maximum drawdown over the trailing 3y NAV path. "
+                    "Negative fraction (-0.18 = -18 percent peak-to-trough).",
+    )
+    max_dd_5y: Optional[float] = None
+    beta_3y: Optional[float] = None
+    alpha_3y: Optional[float] = Field(
+        None,
+        description="Jensen alpha (annualised regression intercept) on "
+                    "excess returns vs the scheme's TRI benchmark.",
+    )
+    info_ratio_3y: Optional[float] = None
+    tracking_error_3y: Optional[float] = None
+    upside_capture_3y: Optional[float] = None
+    downside_capture_3y: Optional[float] = None
+    benchmark_excess_3y: Optional[float] = Field(
+        None,
+        description="Annualised return minus annualised benchmark return "
+                    "over the trailing 3y window.",
+    )
+
+
+class FundScore(BaseModel):
+    """YieldIQ Fund Score (rule-based composite) + component breakdown.
+
+    The score is 0..100. Each component is 0..100 representing the
+    scheme's percentile rank within its SEBI category for that metric
+    (rolling 3y mean return, Sharpe, max drawdown, TER). The tenure
+    component is a floor cap, not a ranked percentile — see
+    compute_score.TENURE_CAPS for the rule.
+    """
+
+    score: Optional[int] = Field(None, ge=0, le=100)
+    component_rolling: Optional[int] = Field(None, ge=0, le=100)
+    component_sharpe: Optional[int] = Field(None, ge=0, le=100)
+    component_drawdown: Optional[int] = Field(None, ge=0, le=100)
+    component_ter: Optional[int] = Field(None, ge=0, le=100)
+    component_tenure: Optional[int] = Field(None, ge=0, le=100)
+    notes: Optional[str] = Field(
+        None,
+        description="Diagnostic explainer surfaced on the analysis page "
+                    "when one or more components are null.",
+    )
+
+
+class FundReturnsCache(BaseModel):
+    """Combined cache row — everything Phase 3 needs to render the panels.
+
+    Returned by the (future) /api/funds/{scheme_code}/metrics endpoint.
+    """
+
+    scheme_code: str
+    cache_version: Optional[str] = None
+    computed_at: Optional[date] = None
+    returns: FundReturns
+    risk: FundRisk
+    score: FundScore
+    category_percentile_3y: Optional[float] = Field(
+        None,
+        description="Percentile of cagr_3y within funds.category. "
+                    "1.0 = top, 0.0 = bottom.",
+    )
