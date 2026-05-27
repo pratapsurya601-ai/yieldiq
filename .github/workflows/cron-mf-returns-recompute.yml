@@ -1,0 +1,65 @@
+name: Cron — MF returns + risk + score recompute
+
+# Daily recompute of fund_returns_cache (Phase 2).
+#
+# Schedule: 01:00 IST = 19:30 UTC. That's 90 minutes after the daily NAV
+# ingest (cron-mf-nav-daily.yml fires at 17:45 UTC) — the buffer absorbs
+# AMFI parser slack + the 15-minute GH Actions cron-fire jitter and
+# keeps the recompute window outside the daily NAV publish path so a
+# slow nightly NAV run never delays the recompute.
+#
+# Idempotent: ON CONFLICT (scheme_code) DO UPDATE on every row. Re-runs
+# are safe and only over-write the prior row.
+#
+# Cache discipline: the orchestrator stamps ACTIVE_CACHE_VERSION on
+# every row. Bumping the version requires:
+#   1. snapshot_50_funds.py BEFORE
+#   2. canary_diff_funds.py AFTER (must exit 0)
+#   3. manifest entry in cache_invalidation_manifest.py
+#
+# Secrets required:
+#   - DATABASE_URL : Neon Postgres connection string (read+write).
+
+on:
+  schedule:
+    - cron: "30 19 * * 1-6"  # 19:30 UTC = 01:00 IST, Tue-Sun (Mon NAV recompute lands here)
+  workflow_dispatch:
+
+concurrency:
+  group: cron-mf-returns-recompute
+  cancel-in-progress: false
+
+jobs:
+  recompute:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install minimal deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install "psycopg2-binary" "sqlalchemy>=2.0" "numpy>=1.26" "pydantic>=2.0"
+
+      - name: Run recompute
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::DATABASE_URL secret missing"
+            exit 1
+          fi
+          python -m backend.services.funds.recompute
+
+      - name: Write cron heartbeat
+        if: success()
+        run: |
+          python scripts/write_cron_heartbeat.py \
+            --workflow cron-mf-returns-recompute \
+            --interval-minutes 1440
