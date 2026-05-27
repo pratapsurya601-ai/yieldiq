@@ -4,6 +4,7 @@ import { useMemo } from "react"
 import { cn } from "@/lib/utils"
 import { formatCurrency } from "@/lib/utils"
 import { currencySymbol, currencyLocale } from "@/lib/currency"
+import { metricTone, metricToneTextClass } from "@/lib/metricTone"
 import type {
   QualityOutput,
   InsightCards as InsightCardsType,
@@ -178,15 +179,29 @@ export default function InsightCards({ quality, insights, valuation, currency, t
   ])
 
   const cards: CardData[] = useMemo(() => ([
-    {
-      title: "Piotroski F-Score",
-      value: `${quality.piotroski_score}/9`,
-      subtitle: quality.piotroski_grade,
-      color: quality.piotroski_score >= 7 ? "text-blue-700" : quality.piotroski_score >= 4 ? "text-amber-700" : "text-red-700",
-      icon: "\u{1f4ca}",
-      borderColor: quality.piotroski_score >= 7 ? "border-l-blue-500" : quality.piotroski_score >= 4 ? "border-l-amber-500" : "border-l-red-500",
-      metricKey: "piotroski_score",
-    },
+    (() => {
+      // Tickertape trick #4 (.audit/tickertape-deep-walk-2026-05-27.md): route
+      // F-Score color through the canonical metricTone helper so the band
+      // (good/neutral/warn/bad) matches every other metric on the page. The
+      // border still uses the legacy color palette so the visual cascade —
+      // border-left + value-color — feels consistent with the other tiles.
+      const fs = quality.piotroski_score
+      const tone = metricTone({ metric: "fscore", value: fs })
+      const borderColor =
+        tone === "good"    ? "border-l-green-500"
+        : tone === "warn"  ? "border-l-amber-500"
+        : tone === "bad"   ? "border-l-red-500"
+        :                    "border-l-border"
+      return {
+        title: "Piotroski F-Score",
+        value: `${fs}/9`,
+        subtitle: quality.piotroski_grade,
+        color: metricToneTextClass(tone),
+        icon: "\u{1f4ca}",
+        borderColor,
+        metricKey: "piotroski_score",
+      }
+    })(),
     (() => {
       // Moat colouring follows the backend label mapping
       // (`_moat_label_from_score` in screener/moat_engine.py):
@@ -330,7 +345,12 @@ export default function InsightCards({ quality, insights, valuation, currency, t
           value: `${(yieldNum as number).toFixed(1)}%`,
           subtitle: `${sustLabel} \u00b7 Payout ${payoutLabel}`,
           subtitleColor: sustColor,
-          color: "text-body",
+          // Tickertape trick #4: color the yield value itself so the eye
+          // catches "decent payer" vs "token yield" without reading the
+          // sustainability tag below.
+          color: metricToneTextClass(
+            metricTone({ metric: "div_yield", value: yieldNum as number }),
+          ),
           icon: "\u{1f4b0}",
           borderColor,
         }

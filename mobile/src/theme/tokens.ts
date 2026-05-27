@@ -78,5 +78,5 @@ export type Theme = typeof colors.light;
  * Defaults to light for SSR / pre-hydration paint.
  */
 export function getTheme(scheme: 'light' | 'dark' | null | undefined): Theme {
-  return scheme === 'dark' ? colors.dark : colors.light;
+  return (scheme === 'dark' ? colors.dark : colors.light) as Theme;
 }
