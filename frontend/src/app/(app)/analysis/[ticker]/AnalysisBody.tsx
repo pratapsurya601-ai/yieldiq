@@ -41,6 +41,7 @@ import { FormulasProvider } from "@/components/analysis/MetricTooltip"
 import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
 import ConfidenceIndicators from "@/components/analysis/ConfidenceIndicators"
 import ScoreCard from "@/components/analysis/ScoreCard"
+import StickyScorecard from "@/components/analysis/StickyScorecard"
 import ScoreBreakdownPanel from "@/components/analysis/ScoreBreakdownPanel"
 import ReverseDcfPanel from "@/components/analysis/ReverseDcfPanel"
 import CompoundedGrowthPanel from "@/components/analysis/CompoundedGrowthPanel"
@@ -1468,7 +1469,35 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         </div>
       )}
 
-      <div className="py-4 space-y-5">
+      {/* Tickertape-parity 2-column shell (audit:
+          .audit/tickertape-deep-walk-2026-05-27.md, gap #1). At lg: and
+          up the StickyScorecard rail anchors on the left at 336px,
+          sticky top-20, while the existing tab/section content flows in
+          the flex-1 right column. Below lg: the rail self-collapses to
+          a horizontal sticky strip rendered inside the StickyScorecard
+          component itself, so the surrounding markup stays single-
+          column on mobile and the layout never reflows mid-render. */}
+      <div className="lg:flex lg:items-start lg:gap-6 lg:pt-4">
+        <StickyScorecard
+          ticker={data.ticker}
+          displayTicker={canonicalDisplay}
+          companyName={formatCompanyName(company.company_name)}
+          currency={company.currency}
+          currentPrice={valuation.current_price}
+          fairValue={valuation.fair_value}
+          confidence={valuation.confidence_score}
+          marginOfSafety={valuation.margin_of_safety}
+          verdict={valuation.verdict}
+          dataLimited={dataLimited}
+          worryScore={data.worry_index?.score ?? null}
+          worryTier={data.worry_index?.tier ?? null}
+          yieldiqScore={quality.yieldiq_score}
+          grade={quality.grade}
+          moat={quality.moat}
+          redFlagCount={insights?.red_flags_structured?.length ?? null}
+        />
+
+      <div className="py-4 space-y-5 lg:flex-1 lg:min-w-0 lg:py-0">
         {/* Phase 4 personalization: one-time confirmation banner shown
             after the user picks a style. Self-hides for users without
             a style and after dismissal. */}
@@ -1868,6 +1897,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         </details>
 
         <ModelDisclaimer className="mx-4" />
+      </div>
       </div>
 
       {timeMachineOpen && (
