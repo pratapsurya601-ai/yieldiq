@@ -22,7 +22,105 @@
  * is verdict-centric, this panel is implied-axis-centric.
  */
 
+import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+
+// Mirror of backend models/forecaster.py constants. Kept in sync manually
+// (constants haven't changed in 18 months and any change would require a
+// CACHE_VERSION bump which is a coordinated release). If they drift the
+// slider's implied-growth read will diverge from the static headline by
+// at most ~0.5pp at extreme settings — visible but not catastrophic.
+const TERMINAL_FADE_G = 0.04
+const FADE_K = 0.25
+
+function expFade(t: number, g0: number, gT: number): number {
+  return gT + (g0 - gT) * Math.exp(-FADE_K * t)
+}
+
+// Two-stage faded DCF, equity-per-share. Direct port of
+// reverse_dcf_service._dcf_per_share so the slider's iso-curve is
+// directly comparable to the static summary the backend ships.
+function dcfPerShare(
+  fcfBase: number,
+  growthRate: number,
+  wacc: number,
+  terminalG: number,
+  years: number,
+  totalDebt: number,
+  totalCash: number,
+  shares: number,
+): number {
+  if (!(fcfBase > 0) || !(shares > 0)) return 0
+  if (wacc <= terminalG) return 0
+  let fcf = fcfBase
+  let pv = 0
+  let last = fcf
+  for (let t = 1; t <= years; t++) {
+    let g = expFade(t, growthRate, terminalG)
+    if (g < -0.15) g = -0.15
+    if (g > 0.35) g = 0.35
+    fcf = fcf * (1 + g)
+    pv += fcf / Math.pow(1 + wacc, t)
+    last = fcf
+  }
+  const tv = (last * (1 + terminalG)) / (wacc - terminalG)
+  const pvTv = tv / Math.pow(1 + wacc, years)
+  const ev = pv + pvTv
+  const equity = ev - (totalDebt || 0) + (totalCash || 0)
+  if (equity <= 0) return 0
+  return equity / shares
+}
+
+// Bisect for the FCF growth rate that makes dcfPerShare === targetPrice,
+// holding margin (and therefore fcfBase) fixed. Mirrors
+// reverse_dcf_service._binary_search on growth.
+function solveImpliedGrowth(
+  targetPrice: number,
+  fcfBase: number,
+  wacc: number,
+  terminalG: number,
+  years: number,
+  totalDebt: number,
+  totalCash: number,
+  shares: number,
+): { growth: number; converged: boolean; pegged: "high" | "low" | null } {
+  const LO = -0.05
+  const HI = 0.5
+  const f = (g: number) =>
+    dcfPerShare(fcfBase, g, wacc, terminalG, years, totalDebt, totalCash, shares)
+  const fLo = f(LO)
+  const fHi = f(HI)
+  if (targetPrice <= fLo) return { growth: LO, converged: false, pegged: "low" }
+  if (targetPrice >= fHi) return { growth: HI, converged: false, pegged: "high" }
+  let a = LO
+  let b = HI
+  let mid = 0.5 * (a + b)
+  for (let i = 0; i < 80; i++) {
+    mid = 0.5 * (a + b)
+    const fMid = f(mid)
+    if (Math.abs(fMid - targetPrice) / Math.max(Math.abs(targetPrice), 1e-9) < 1e-3) {
+      return { growth: mid, converged: true, pegged: null }
+    }
+    if (fMid < targetPrice) a = mid
+    else b = mid
+  }
+  return { growth: mid, converged: false, pegged: null }
+}
+
+// Extract trailing 5y revenue CAGR from sanity_check_lines[0]. The
+// backend formats it as "trailing 5y revenue CAGR X.X%" and we surface
+// that as a side-by-side comparator on the slider readout.
+function parseTrailing5yCagr(lines: string[] | undefined | null): number | null {
+  if (!lines || lines.length === 0) return null
+  for (const line of lines) {
+    const m = line.match(/trailing 5y revenue CAGR\s+(-?\d+(?:\.\d+)?)%/i)
+    if (m) {
+      const pct = parseFloat(m[1])
+      if (Number.isFinite(pct)) return pct / 100
+    }
+  }
+  return null
+}
 
 interface IsoFvPoint {
   growth: number
@@ -153,6 +251,8 @@ export default function ReverseDcfPanel({ ticker }: Props) {
       ? "off-scale — likely balance-sheet event distortion"
       : null
 
+  const trailing5yCagr = parseTrailing5yCagr(sanity)
+
   return (
     <section
       aria-label="Reverse DCF"
@@ -168,6 +268,14 @@ export default function ReverseDcfPanel({ ticker }: Props) {
         </p>
       </header>
 
+      <ReverseDcfSliders
+        inputs={inputs}
+        trailing5yCagr={trailing5yCagr}
+      />
+
+      <p className="mt-4 pt-4 border-t border-border text-xs uppercase tracking-wider text-caption mb-1">
+        Snapshot at backend defaults
+      </p>
       <p className="text-sm text-body leading-relaxed">{summary}</p>
 
       {offScale && offScaleCaveat && (
@@ -241,5 +349,207 @@ export default function ReverseDcfPanel({ ticker }: Props) {
         </footer>
       )}
     </section>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Interactive WACC / terminal-growth sliders. Reuses the backend
+// `inputs` snapshot (current FCF, debt, cash, shares, price, etc.)
+// and re-solves the bisector client-side on every slider tick.
+// Pure-additive: the static summary above still renders untouched.
+// ─────────────────────────────────────────────────────────────────
+interface SlidersProps {
+  inputs: ReverseDcfInputs
+  trailing5yCagr: number | null
+}
+
+const WACC_MIN = 0.07
+const WACC_MAX = 0.16
+const TG_MIN = 0.0
+const TG_MAX = 0.08
+const STEP = 0.001
+
+function clamp(x: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, x))
+}
+
+function ReverseDcfSliders({ inputs, trailing5yCagr }: SlidersProps) {
+  const defaultWacc = clamp(inputs.wacc, WACC_MIN, WACC_MAX)
+  const defaultTg = clamp(inputs.terminal_g, TG_MIN, TG_MAX)
+  const [wacc, setWacc] = useState<number>(defaultWacc)
+  const [tg, setTg] = useState<number>(defaultTg)
+
+  // Guard: terminal growth must be strictly below WACC for Gordon to
+  // resolve. If the user drags TG above WACC we visually clamp TG to
+  // WACC - 0.5pp so the readout stays finite.
+  const effectiveTg = tg >= wacc ? Math.max(0, wacc - 0.005) : tg
+
+  const result = useMemo(() => {
+    return solveImpliedGrowth(
+      inputs.current_price,
+      inputs.current_fcf,
+      wacc,
+      effectiveTg,
+      inputs.current_fcf > 0 ? inputs.years : 10,
+      inputs.total_debt,
+      inputs.total_cash,
+      inputs.shares,
+    )
+  }, [
+    inputs.current_price,
+    inputs.current_fcf,
+    inputs.years,
+    inputs.total_debt,
+    inputs.total_cash,
+    inputs.shares,
+    wacc,
+    effectiveTg,
+  ])
+
+  const reset = () => {
+    setWacc(defaultWacc)
+    setTg(defaultTg)
+  }
+  const dirty =
+    Math.abs(wacc - defaultWacc) > 1e-9 || Math.abs(tg - defaultTg) > 1e-9
+
+  const growthPct = (result.growth * 100).toFixed(1)
+  const sign = result.pegged === "high" ? "≥ " : result.pegged === "low" ? "≤ " : ""
+
+  return (
+    <div className="mt-3 mb-1 rounded-xl border border-border bg-surface/40 p-4">
+      <div className="flex items-baseline justify-between mb-3 gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5">
+          <h3 className="text-xs font-semibold uppercase tracking-wider text-caption">
+            Interactive — drag to test assumptions
+          </h3>
+          <span
+            aria-label="Solves implied FCF growth client-side from the same two-stage faded DCF the backend uses"
+            title="Solves implied FCF growth client-side from the same two-stage faded DCF the backend uses."
+            className="text-caption cursor-help text-xs"
+          >
+            &#9432;
+          </span>
+        </div>
+        {dirty && (
+          <button
+            type="button"
+            onClick={reset}
+            className="text-[11px] uppercase tracking-wider text-caption hover:text-ink underline-offset-2 hover:underline"
+          >
+            Reset
+          </button>
+        )}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <SliderRow
+          label="WACC"
+          value={wacc}
+          min={WACC_MIN}
+          max={WACC_MAX}
+          step={STEP}
+          defaultValue={defaultWacc}
+          onChange={setWacc}
+        />
+        <SliderRow
+          label="Terminal growth"
+          value={tg}
+          min={TG_MIN}
+          max={TG_MAX}
+          step={STEP}
+          defaultValue={defaultTg}
+          onChange={setTg}
+        />
+      </div>
+
+      <div className="mt-4 rounded-lg bg-bg border border-border px-4 py-3">
+        <p className="text-sm text-body leading-relaxed">
+          At WACC{" "}
+          <span className="font-mono tabular-nums font-semibold text-ink">
+            {(wacc * 100).toFixed(1)}%
+          </span>{" "}
+          and terminal growth{" "}
+          <span className="font-mono tabular-nums font-semibold text-ink">
+            {(effectiveTg * 100).toFixed(1)}%
+          </span>
+          , the market is pricing in an implied FCF growth rate of{" "}
+          <span className="font-mono tabular-nums font-semibold text-ink">
+            {sign}
+            {growthPct}%
+          </span>
+          {trailing5yCagr !== null ? (
+            <>
+              {" "}
+              (vs trailing 5y revenue CAGR{" "}
+              <span className="font-mono tabular-nums">
+                {(trailing5yCagr * 100).toFixed(1)}%
+              </span>
+              ).
+            </>
+          ) : (
+            "."
+          )}
+        </p>
+        {result.pegged !== null && (
+          <p className="mt-2 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+            Off-scale — the implied growth is outside the [−5%, +50%] search
+            window, so the figure above is a bound rather than a point estimate.
+          </p>
+        )}
+        {tg >= wacc && (
+          <p className="mt-2 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+            Terminal growth cannot equal or exceed WACC — clamped to{" "}
+            {(effectiveTg * 100).toFixed(1)}% for this readout.
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+interface SliderRowProps {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  defaultValue: number
+  onChange: (v: number) => void
+}
+
+function SliderRow({
+  label,
+  value,
+  min,
+  max,
+  step,
+  defaultValue,
+  onChange,
+}: SliderRowProps) {
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-1">
+        <label className="text-xs text-caption">{label}</label>
+        <span className="text-sm font-mono tabular-nums font-semibold text-ink">
+          {(value * 100).toFixed(1)}%
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseFloat(e.target.value))}
+        aria-label={`${label} — current ${(value * 100).toFixed(1)} percent, default ${(defaultValue * 100).toFixed(1)} percent`}
+        className="w-full accent-ink cursor-pointer"
+      />
+      <div className="flex justify-between text-[10px] text-caption mt-0.5 font-mono tabular-nums">
+        <span>{(min * 100).toFixed(0)}%</span>
+        <span>default {(defaultValue * 100).toFixed(1)}%</span>
+        <span>{(max * 100).toFixed(0)}%</span>
+      </div>
+    </div>
   )
 }
