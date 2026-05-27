@@ -22,7 +22,7 @@ import BankKpiPanel from "@/components/banks/BankKpiPanel"
 import { isPureBank } from "@/lib/bankTickers"
 import InsiderTradingPanel from "@/components/analysis/InsiderTradingPanel"
 import BulkBlockDealsPanel from "@/components/analysis/BulkBlockDealsPanel"
-import DividendTracker from "@/components/analysis/DividendTracker"
+import DividendBarChart from "@/components/analysis/DividendBarChart"
 import NewsWidget from "@/components/analysis/NewsWidget"
 import EarningsCallsWidget from "@/components/analysis/EarningsCallsWidget"
 import LoadingSteps from "@/components/ui/LoadingSteps"
@@ -1067,7 +1067,11 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         {dividendTrustStats ? (
           <TrustStrip stats={dividendTrustStats} ariaLabel="Dividend highlights" />
         ) : null}
-        <DividendTracker
+        {/* Visual Richness #2: replaced the collapsed DividendTracker
+            details panel with a 10-year DPS bar chart + payout overlay.
+            The 3 KPI tiles (Yield / Payout / Consecutive Years) above
+            are unchanged. */}
+        <DividendBarChart
           dividend={insights?.dividend ?? null}
           currency={company.currency}
           ticker={company.ticker}
