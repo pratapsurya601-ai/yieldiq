@@ -25,6 +25,7 @@
 import { useQuery } from "@tanstack/react-query"
 import { getStockSummary } from "@/lib/api"
 import type { CompoundedGrowthPanel as PanelData } from "@/lib/api"
+import CompoundedGrowthSparklines from "./CompoundedGrowthSparklines"
 
 interface Props {
   ticker: string
@@ -95,7 +96,17 @@ export default function CompoundedGrowthPanel({ ticker }: Props) {
         </p>
       </div>
 
-      <div className="overflow-x-auto">
+      {/* Visual Richness #3 (2026-05-27): sparkline tiles above the
+          full table. Headline number is the longest available window
+          (10y → 5y → 3y); curve is the implied trajectory back-cast
+          from the CAGR values themselves — no extra fetch. */}
+      <CompoundedGrowthSparklines panel={panel} />
+
+      <details className="mt-4 group">
+        <summary className="cursor-pointer text-xs text-caption hover:text-ink select-none">
+          Show full 3y / 5y / 10y breakdown
+        </summary>
+        <div className="mt-3 overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-xs text-caption">
@@ -132,7 +143,8 @@ export default function CompoundedGrowthPanel({ ticker }: Props) {
             })}
           </tbody>
         </table>
-      </div>
+        </div>
+      </details>
 
       <p className="text-[11px] text-caption mt-3">
         {asOfFy
