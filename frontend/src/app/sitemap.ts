@@ -172,6 +172,42 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }))
 
+  // Mutual fund pages (Phase 3-slim). One entry per active scheme.
+  // Endpoint returns at most a few thousand active scheme variants
+  // post-Phase-1 ingest; bounded enough for a single sitemap file.
+  // Static "/funds" landing is always listed; detail URLs are listed
+  // when the backend responds, fall through silently otherwise.
+  const fundsLandingPage: MetadataRoute.Sitemap = [
+    {
+      url: "https://yieldiq.in/funds",
+      lastModified: new Date(),
+      changeFrequency: "daily" as const,
+      priority: 0.7,
+    },
+  ]
+  let fundDetailPages: MetadataRoute.Sitemap = []
+  try {
+    // Bounded LIMIT — sitemap.xml files >50k URLs split per Google's
+    // spec, and we don't yet have detail coverage that would benefit
+    // from indexing tens of thousands of schemes. Stay narrow until
+    // the holdings + score work lands and the detail pages are
+    // information-rich enough to rank.
+    const res = await fetch(`${API_BASE}/api/v1/funds?limit=500`, {
+      next: { revalidate: 3600 },
+    })
+    if (res.ok) {
+      const body: { funds: { scheme_code: string }[] } = await res.json()
+      fundDetailPages = body.funds.map((f) => ({
+        url: `https://yieldiq.in/funds/${encodeURIComponent(f.scheme_code)}`,
+        lastModified: new Date(),
+        changeFrequency: "daily" as const,
+        priority: 0.6,
+      }))
+    }
+  } catch {
+    // Sitemap must never throw — surface the landing-only fallback.
+  }
+
   return [
     ...staticPages,
     ...blogPages,
@@ -179,5 +215,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...comparePages,
     ...prismComparePages,
     ...sectorPages,
+    ...fundsLandingPage,
+    ...fundDetailPages,
   ]
 }
