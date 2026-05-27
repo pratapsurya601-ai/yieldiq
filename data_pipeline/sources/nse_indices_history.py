@@ -220,3 +220,89 @@ def upsert_rows_sqlalchemy(rows: Iterable[dict], session) -> int:
         session.execute(sa_sql, r)
     session.commit()
     return len(rows)
+
+
+# ── TRI benchmark extension (Mutual Funds Phase 1) ───────────────────
+#
+# Mutual fund alpha / excess-return math requires TRI (Total Return
+# Index) values, not the PRI close that nse_index_history stores. NSE
+# publishes TRI variants for the major indices; this extension reuses
+# the existing daily NSE indices ingest path to also populate
+# fund_benchmark_history so the funds pipeline does not need a
+# separate cron workflow.
+#
+# Mapping below records the PRI index name (as it appears in the
+# ind_close_all CSV) to the canonical TRI benchmark code used in
+# 073_fund_categories_seed.sql and the funds pipeline.
+#
+# When the dedicated TRI feed is unavailable, the PRI close is used
+# as a fallback (documented in extract_tri_rows). The real TRI feed
+# should replace this once the operator wires it up.
+
+TRI_BENCHMARK_MAP: dict[str, str] = {
+    "Nifty 50":                        "NIFTY_50_TRI",
+    "Nifty Next 50":                   "NIFTY_NEXT_50_TRI",
+    "Nifty 100":                       "NIFTY_100_TRI",
+    "Nifty 200":                       "NIFTY_200_TRI",
+    "Nifty 500":                       "NIFTY_500_TRI",
+    "Nifty Midcap 150":                "NIFTY_MIDCAP_150_TRI",
+    "Nifty Smallcap 250":              "NIFTY_SMALLCAP_250_TRI",
+    "Nifty LargeMidcap 250":           "NIFTY_LARGEMIDCAP_250_TRI",
+    "Nifty500 Value 50":               "NIFTY_500_VALUE_50_TRI",
+    "Nifty Dividend Opportunities 50": "NIFTY_DIVIDEND_OPPS_50_TRI",
+    "Nifty 50 Arbitrage":              "NIFTY_50_ARBITRAGE_TRI",
+    "Nifty Equity Savings":            "NIFTY_EQUITY_SAVINGS_TRI",
+}
+
+
+TRI_UPSERT_SQL = """
+INSERT INTO fund_benchmark_history (benchmark_index_code, nav_date, tri_value)
+VALUES (%(benchmark_index_code)s, %(nav_date)s, %(tri_value)s)
+ON CONFLICT (benchmark_index_code, nav_date) DO UPDATE SET
+    tri_value = EXCLUDED.tri_value
+"""
+
+
+def extract_tri_rows(
+    pri_rows: Iterable[dict],
+    *,
+    benchmark_map: dict[str, str] = TRI_BENCHMARK_MAP,
+) -> list[dict]:
+    """Map PRI ind_close_all rows into fund_benchmark_history rows.
+
+    Fallback path: when no dedicated TRI feed is wired up, the PRI
+    close is used as a proxy. Callers that have the real TRI series
+    should bypass this and call upsert_tri_rows directly.
+
+    For each PRI row whose index_name is in benchmark_map and whose
+    close is non-null, emit a fund_benchmark_history-shaped row.
+    """
+    out: list[dict] = []
+    for r in pri_rows:
+        bench_code = benchmark_map.get(r.get("index_name"))
+        if not bench_code:
+            continue
+        close = r.get("close")
+        if close is None:
+            continue
+        out.append({
+            "benchmark_index_code": bench_code,
+            "nav_date":             r["trade_date"],
+            "tri_value":            close,
+        })
+    return out
+
+
+def upsert_tri_rows(rows: Iterable[dict], conn) -> int:
+    """Bulk UPSERT into fund_benchmark_history using a psycopg2 conn.
+
+    Idempotent on (benchmark_index_code, nav_date). Returns the count
+    of input rows written.
+    """
+    rows = list(rows)
+    if not rows:
+        return 0
+    with conn.cursor() as cur:
+        cur.executemany(TRI_UPSERT_SQL, rows)
+    conn.commit()
+    return len(rows)
