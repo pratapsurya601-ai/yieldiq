@@ -1,8 +1,10 @@
 import Link from "next/link"
+import { useMemo } from "react"
 import type { PublicPeersResponse } from "@/lib/api"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
 import { verdictClassesWithDark } from "@/lib/constants"
-import { formatNumberWithSuffix, formatPctSigned } from "@/lib/utils"
+import { formatNumberWithSuffix, formatPctSigned, cn } from "@/lib/utils"
+import { metricToneClass } from "@/lib/metricTone"
 
 interface Props {
   ticker: string
@@ -61,6 +63,21 @@ export default function PeerComparisonCard({ ticker, data }: Props) {
   // compat with cached responses that pre-date the 2026-04-29 fix.
   // Fall back to a non-empty `peers` array.
   const hasPeers = data?.has_peers ?? ((data?.peers?.length ?? 0) > 0)
+
+  // Tickertape trick #4 (.audit/tickertape-deep-walk-2026-05-27.md): color
+  // each peer's P/E vs the cohort median rendered in this table. Hook lives
+  // before the early return so React-rules-of-hooks is honored on empty
+  // cohorts (Placeholder branch below).
+  const cohortPeMedian = useMemo<number | null>(() => {
+    const xs = (data?.peers ?? [])
+      .map(p => p.pe_ratio)
+      .filter((v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0)
+      .sort((a, b) => a - b)
+    if (xs.length === 0) return null
+    const mid = Math.floor(xs.length / 2)
+    return xs.length % 2 ? xs[mid] : (xs[mid - 1] + xs[mid]) / 2
+  }, [data])
+
   if (!data || !hasPeers || !data.peers?.length) {
     return <Placeholder ticker={ticker} />
   }
@@ -151,10 +168,24 @@ export default function PeerComparisonCard({ ticker, data }: Props) {
                       {verdictLabel(peer.verdict)}
                     </span>
                   </td>
-                  <td className="py-2 px-2 text-right font-mono tabular-nums text-ink">
+                  <td
+                    className={cn(
+                      "py-2 px-2 text-right font-mono tabular-nums",
+                      metricToneClass({ metric: "roe", value: peer.roe }),
+                    )}
+                  >
                     {fmtNum(peer.roe, 1, "%")}
                   </td>
-                  <td className="py-2 pl-2 text-right font-mono tabular-nums text-ink">
+                  <td
+                    className={cn(
+                      "py-2 pl-2 text-right font-mono tabular-nums",
+                      metricToneClass({
+                        metric: "pe",
+                        value: peer.pe_ratio,
+                        sectorMedian: cohortPeMedian,
+                      }),
+                    )}
+                  >
                     {fmtNum(peer.pe_ratio, 1, "\u00D7")}
                   </td>
                 </tr>

@@ -31,6 +31,7 @@ import {
   formatCompanyName,
   verdictDisplayLabel,
 } from "@/lib/utils"
+import { metricToneClass } from "@/lib/metricTone"
 
 interface Props {
   ticker: string
@@ -212,6 +213,27 @@ export default function InlinePeerComparison({
     }))
   }, [data, upperTicker, limit])
 
+  // Tickertape trick #4 (.audit/tickertape-deep-walk-2026-05-27.md): color
+  // the P/E and ROE values per row against the *cohort* median surfaced in
+  // this very table. Tickertape pairs each ratio with a "Sector PE" so the
+  // implicit delta reads at a glance; we don't ship that secondary number
+  // (yet) but we CAN do the comparison server-side-equivalent here by
+  // taking the median across the visible peer rows.
+  //
+  // For ROE the helper is absolute (>=20 -> good, etc.), so no cohort
+  // median is needed; for P/E the helper deliberately returns 'neutral'
+  // without a sectorMedian to avoid implying "cheap" on raw absolute
+  // multiples (SEBI lens — see metricTone.ts).
+  const cohortPeMedian = useMemo<number | null>(() => {
+    const xs = derivedRows
+      .map(r => r.pe_ratio)
+      .filter((v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0)
+      .sort((a, b) => a - b)
+    if (xs.length === 0) return null
+    const mid = Math.floor(xs.length / 2)
+    return xs.length % 2 ? xs[mid] : (xs[mid - 1] + xs[mid]) / 2
+  }, [derivedRows])
+
   const sortedRows = useMemo<DerivedRow[]>(() => {
     if (derivedRows.length === 0) return derivedRows
     const rows = [...derivedRows]
@@ -354,11 +376,27 @@ export default function InlinePeerComparison({
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-caption">P/E</dt>
-                  <dd className="font-mono tabular-nums text-body">{fmtRatio(row.pe_ratio)}</dd>
+                  <dd
+                    className={cn(
+                      "font-mono tabular-nums",
+                      metricToneClass({
+                        metric: "pe",
+                        value: row.pe_ratio,
+                        sectorMedian: cohortPeMedian,
+                      }),
+                    )}
+                  >
+                    {fmtRatio(row.pe_ratio)}
+                  </dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-caption">ROE</dt>
-                  <dd className="font-mono tabular-nums text-body">
+                  <dd
+                    className={cn(
+                      "font-mono tabular-nums",
+                      metricToneClass({ metric: "roe", value: row.roe_pct }),
+                    )}
+                  >
                     {fmtPctValue(row.roe_pct)}
                   </dd>
                 </div>
@@ -439,10 +477,24 @@ export default function InlinePeerComparison({
                       ? formatPct(row.mos_pct)
                       : "—"}
                   </td>
-                  <td className="py-2 px-2 text-right font-mono tabular-nums text-body">
+                  <td
+                    className={cn(
+                      "py-2 px-2 text-right font-mono tabular-nums",
+                      metricToneClass({
+                        metric: "pe",
+                        value: row.pe_ratio,
+                        sectorMedian: cohortPeMedian,
+                      }),
+                    )}
+                  >
                     {fmtRatio(row.pe_ratio)}
                   </td>
-                  <td className="py-2 px-2 text-right font-mono tabular-nums text-body">
+                  <td
+                    className={cn(
+                      "py-2 px-2 text-right font-mono tabular-nums",
+                      metricToneClass({ metric: "roe", value: row.roe_pct }),
+                    )}
+                  >
                     {fmtPctValue(row.roe_pct)}
                   </td>
                 </tr>

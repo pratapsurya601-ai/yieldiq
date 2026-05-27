@@ -5,6 +5,7 @@ import { Check, AlertTriangle, X as XIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { currencySymbol } from "@/lib/currency"
 import FreshnessStamp from "@/components/common/FreshnessStamp"
+import { metricToneClass } from "@/lib/metricTone"
 import type { DividendData } from "@/types/api"
 
 interface Props {
@@ -137,9 +138,22 @@ export default function DividendTracker({ dividend, currency, ticker }: Props) {
         <div className="px-4 pb-4 pt-1 border-t border-border space-y-4">
           {/* Key metrics grid */}
           <div className="grid grid-cols-2 gap-2 pt-2">
+            {/* Tickertape trick #4 (.audit/tickertape-deep-walk-2026-05-27.md):
+                color the metric VALUE, not just the sustainability pill, so
+                an At-Risk payout of 104% reads red instantly. Tone describes
+                the number's quality vs the historical-norm band defined in
+                lib/metricTone.ts — never a buy/sell signal. */}
             <div className="rounded-xl bg-bg p-3">
               <p className="text-[11px] text-caption uppercase tracking-wide">Current Yield</p>
-              <p className="text-lg font-semibold text-ink mt-0.5">
+              <p
+                className={cn(
+                  "text-lg font-semibold mt-0.5",
+                  metricToneClass({
+                    metric: "div_yield",
+                    value: dividend.current_yield_pct ?? null,
+                  }),
+                )}
+              >
                 {dividend.current_yield_pct !== null && dividend.current_yield_pct !== undefined
                   ? `${dividend.current_yield_pct.toFixed(1)}%`
                   : "—"}
@@ -147,7 +161,15 @@ export default function DividendTracker({ dividend, currency, ticker }: Props) {
             </div>
             <div className="rounded-xl bg-bg p-3">
               <p className="text-[11px] text-caption uppercase tracking-wide">5Y Avg Yield</p>
-              <p className="text-lg font-semibold text-ink mt-0.5">
+              <p
+                className={cn(
+                  "text-lg font-semibold mt-0.5",
+                  metricToneClass({
+                    metric: "div_yield",
+                    value: dividend.five_yr_avg_yield ?? null,
+                  }),
+                )}
+              >
                 {dividend.five_yr_avg_yield !== null && dividend.five_yr_avg_yield !== undefined
                   ? `${dividend.five_yr_avg_yield.toFixed(1)}%`
                   : "—"}
@@ -155,7 +177,15 @@ export default function DividendTracker({ dividend, currency, ticker }: Props) {
             </div>
             <div className="rounded-xl bg-bg p-3">
               <p className="text-[11px] text-caption uppercase tracking-wide">Payout Ratio</p>
-              <p className="text-lg font-semibold text-ink mt-0.5">
+              <p
+                className={cn(
+                  "text-lg font-semibold mt-0.5",
+                  metricToneClass({
+                    metric: "payout",
+                    value: dividend.payout_ratio_pct ?? null,
+                  }),
+                )}
+              >
                 {dividend.payout_ratio_pct !== null && dividend.payout_ratio_pct !== undefined
                   ? `${dividend.payout_ratio_pct.toFixed(0)}%`
                   : "—"}
