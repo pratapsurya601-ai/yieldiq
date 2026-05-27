@@ -140,6 +140,45 @@ KNOWN_BROKEN_TICKERS: dict[str, str] = {
 }
 
 
+def _inject_sector_medians_dict(payload: dict, ticker: str) -> dict:
+    """Mutate-and-return a dict payload with sector_medians populated.
+
+    Called on every return path of GET /analysis/{ticker} so warm cache
+    hits (which were written before this field existed) still surface
+    the chip context. Lookup is in-process + 15-min TTL so the warm
+    path overhead is a single dict copy. Never raises — a lookup
+    failure leaves the field absent (frontend chip self-hides).
+    """
+    if not isinstance(payload, dict):
+        return payload
+    try:
+        from backend.services.sector_medians_for_ticker import (
+            get_sector_medians_for_ticker,
+        )
+        payload["sector_medians"] = get_sector_medians_for_ticker(ticker)
+    except Exception:
+        # Field is descriptive only — never break the response.
+        pass
+    return payload
+
+
+def _inject_sector_medians_model(result: "AnalysisResponse", ticker: str) -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_sector_medians_dict`.
+
+    Used on the cold-compute return path where the response is still a
+    typed `AnalysisResponse` instance. Mutates in place — the field is
+    Optional and additive so no validation re-run is required.
+    """
+    try:
+        from backend.services.sector_medians_for_ticker import (
+            get_sector_medians_for_ticker,
+        )
+        result.sector_medians = get_sector_medians_for_ticker(ticker)
+    except Exception:
+        pass
+    return result
+
+
 @router.get("/analysis/{ticker}", response_model=AnalysisResponse)
 async def get_analysis(
     ticker: str,
@@ -287,8 +326,13 @@ async def get_analysis(
         if not include_summary and _raw_cached.get("ai_summary") is not None:
             _out = dict(_raw_cached)
             _out["ai_summary"] = None
+            _inject_sector_medians_dict(_out, ticker)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
-        return _JSONResponse(content=_raw_cached, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
+        # Shallow-copy so we don't mutate the cached dict in place
+        # (other handlers may read it concurrently).
+        _out = dict(_raw_cached)
+        _inject_sector_medians_dict(_out, ticker)
+        return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
 
     # Tier 1: in-memory Pydantic cache (legacy, for paths that set
     # the object form). Slower than tier-0 because FastAPI re-serializes.
@@ -312,8 +356,10 @@ async def get_analysis(
         # producing the comma-joined "HIT-MEM-RAW, MISS" bug.
         from fastapi.responses import JSONResponse as _JSONResponse
         from fastapi.encoders import jsonable_encoder as _je
+        _enc = _je(cached)
+        _inject_sector_medians_dict(_enc, ticker)
         return _JSONResponse(
-            content=_je(cached),
+            content=_enc,
             headers={"X-Cache": "HIT-MEM", **_usage_headers},
         )
 
@@ -348,7 +394,11 @@ async def get_analysis(
             # from tier-1 for the same reason — the warm-warm path is now
             # dict → JSONResponse, effectively zero-cost serialization.
             cache.set(_cache_key + ":raw", _clean, ttl=86400)
-            return _JSONResponse(content=_clean, headers={"X-Cache": "HIT-DB-FAST", **_usage_headers})
+            # Inject after cache.set so the cached dict stays stable
+            # across requests — only this response carries the field.
+            _out = dict(_clean)
+            _inject_sector_medians_dict(_out, ticker)
+            return _JSONResponse(content=_out, headers={"X-Cache": "HIT-DB-FAST", **_usage_headers})
         except Exception as _exc:
             import logging as _logging
             _logging.getLogger("yieldiq.analysis").warning(
@@ -545,6 +595,7 @@ async def get_analysis(
         # which surfaced as "X-Cache: HIT-MEM-RAW, MISS" at the wire.
         from fastapi.responses import JSONResponse as _JSONResponse
         from fastapi.encoders import jsonable_encoder as _je
+        _inject_sector_medians_model(result, ticker)
         return _JSONResponse(
             content=_je(result),
             headers={"X-Cache": "MISS", **_usage_headers},

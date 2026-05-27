@@ -659,6 +659,21 @@ class AnalysisResponse(BaseModel):
     # Powers the <MetricWithContext /> slider on the Quality tab.
     # Omitted entirely when no peer rows are available.
     peer_context: Optional[dict] = None
+    # ── Inline sector-median chips (2026-05-27, Tickertape density
+    # trick #2 — audit .audit/tickertape-deep-walk-2026-05-27.md).
+    # Five reference medians for the ticker's Day-108c cohort, read by
+    # the <MetricVsSectorChip /> on the analysis page so primary ratios
+    # render with "Sector X" context rather than standalone. Keyed by
+    # canonical metric id: pe, pb, roe, div_yield, op_margin. Each is
+    # a percent or ratio in the same unit the corresponding metric is
+    # rendered in elsewhere on the page. Every value is None when the
+    # ticker sits outside the curated Day-108c cohort set (ADR-cohort
+    # names like TCS-via-ADR, data_limited tickers, fresh listings).
+    # Computed at response time by
+    # backend.services.sector_medians_for_ticker (15-min in-process
+    # cache, per-slug). Purely additive — pre-PR cached payloads
+    # surface this as None and the frontend chip self-hides per metric.
+    sector_medians: Optional[dict] = None
 
 
 # ── The Honest Card response model ────────────────────────────

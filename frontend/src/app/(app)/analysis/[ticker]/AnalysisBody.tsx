@@ -63,6 +63,7 @@ import FreshnessStamp from "@/components/common/FreshnessStamp"
 import NarrativeSummary from "@/components/analysis/NarrativeSummary"
 import WorryIndex from "@/components/analysis/WorryIndex"
 import MetricWithContext from "@/components/analysis/MetricWithContext"
+import MetricVsSectorChip from "@/components/analysis/MetricVsSectorChip"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
 import ShareReportCard from "@/components/analysis/ShareReportCard"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
@@ -1062,6 +1063,21 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     compounded_growth: (
       <>
         <CompoundedGrowthTrustStrip ticker={ticker} />
+        {/* Tickertape density trick #2 (2026-05-27): inline sector
+            context next to the headline ROE so the user gets
+            "vs sector" framing without leaving the page. The chip
+            self-hides when either side is null. */}
+        {data.sector_medians?.roe != null && quality.roe != null && (
+          <div className="mt-2">
+            <MetricVsSectorChip
+              label="ROE"
+              value={quality.roe}
+              unit="%"
+              sectorMedian={data.sector_medians.roe}
+              format="better-higher"
+            />
+          </div>
+        )}
         <CompoundedGrowthPanel ticker={ticker} />
       </>
     ),
@@ -1074,6 +1090,25 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         {dividendTrustStats ? (
           <TrustStrip stats={dividendTrustStats} ariaLabel="Dividend highlights" />
         ) : null}
+        {/* Tickertape density trick #2 (2026-05-27): inline sector
+            context for dividend yield (and payout when available).
+            Each chip self-hides when its sector median is null —
+            sectors with no cohort-level payout signal (banks,
+            cyclical metals) collapse to nothing rather than render
+            "vs sector —". */}
+        {(dividendData?.has_dividends &&
+          ((data.sector_medians?.div_yield != null &&
+            dividendData.current_yield_pct != null))) && (
+          <div className="mt-2 flex flex-wrap gap-x-5 gap-y-2">
+            <MetricVsSectorChip
+              label="Yield"
+              value={dividendData.current_yield_pct}
+              unit="%"
+              sectorMedian={data.sector_medians?.div_yield ?? null}
+              format="better-higher"
+            />
+          </div>
+        )}
         {/* Visual Richness #2: replaced the collapsed DividendTracker
             details panel with a 10-year DPS bar chart + payout overlay.
             The 3 KPI tiles (Yield / Payout / Consecutive Years) above
