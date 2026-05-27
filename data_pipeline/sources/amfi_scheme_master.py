@@ -1,0 +1,248 @@
+"""AMFI scheme master ingest.
+
+Source: https://portal.amfiindia.com/spages/NAVAll.txt
+        (used both for daily NAV and as the de-facto scheme master —
+        AMFI does not publish a separate machine-readable master;
+        the SchemeData CSV requires a session token. Parsing the
+        scheme list out of NAVAll is the standard pragmatic approach.)
+
+This module populates the `funds` table from the same AMFI feed that
+amfi_nav.py reads. It runs weekly (Sunday 06:00 IST) and:
+
+    1. Pulls the current NAVAll snapshot.
+    2. For each scheme row, parses the scheme_name into structured
+       plan (Direct/Regular) + option (Growth/IDCW/IDCW-Reinvest).
+    3. Upserts to `funds` keyed on scheme_code.
+    4. Soft-deactivates schemes that have disappeared from the feed
+       (is_active = FALSE), preserving historical NAV rows.
+
+Naming is messy — there is no AMFI-mandated format. Observed shapes:
+
+    HDFC Mid-Cap Opportunities Fund - Direct Plan - Growth
+    Axis Bluechip Fund - Regular Plan (IDCW)
+    SBI Magnum Children Benefit Fund - Investment Plan - Direct - IDCW Reinvestment
+    Mirae Asset Large Cap Fund Direct Growth
+    Nippon India Small Cap Fund - Growth Plan          (= legacy Regular)
+
+Heuristics in parse_plan_option:
+    * "Direct" anywhere → Direct; else Regular (Regular is the
+      AMFI default when not specified, matching SEBI 2018 rules).
+    * "IDCW Reinvest" / "IDCW-Reinvest" / "Reinvestment" → IDCW-Reinvest
+    * "IDCW" / "Dividend" / "Div" → IDCW
+    * Otherwise → Growth (NAVAll only carries the growth/IDCW split;
+      schemes that exist only as Growth fall through cleanly).
+
+The category, sub_category, benchmark_index_code, inception_date, and
+riskometer_level columns are NOT populated by this module — they are
+operator-curated (top-500 in Phase 1) or scraped from AMC factsheets
+in Phase 4.
+"""
+from __future__ import annotations
+
+import argparse
+import logging
+import os
+import re
+import sys
+from typing import Iterable, Iterator
+
+from data_pipeline.sources.amfi_nav import (
+    fetch_navall_text,
+    parse_navall,
+)
+
+logger = logging.getLogger(__name__)
+
+
+# ── Name parsing ─────────────────────────────────────────────────────
+
+
+_DIRECT_RE = re.compile(r"\bdirect\b", re.IGNORECASE)
+_REGULAR_RE = re.compile(r"\bregular\b", re.IGNORECASE)
+_IDCW_REINVEST_RE = re.compile(
+    r"\b(idcw[\s_-]*reinvest|reinvest(?:ment)?|reinv)\b",
+    re.IGNORECASE,
+)
+_IDCW_RE = re.compile(r"\b(idcw|dividend|div\.?(?:\s|$))\b", re.IGNORECASE)
+
+
+def parse_plan_option(scheme_name: str) -> tuple[str, str]:
+    """Return (plan, option) parsed out of an AMFI scheme name.
+
+    plan   ∈ {'Direct', 'Regular'}        — Regular is the default when
+                                            "Direct" is absent (matches
+                                            SEBI 2018 default-plan rule).
+    option ∈ {'Growth', 'IDCW', 'IDCW-Reinvest'}
+                                          — Growth is the default when
+                                            no payout/reinvest token is
+                                            present.
+
+    Designed to be robust to AMFI's inconsistent formatting (different
+    AMCs use different separators, capitalization, and ordering). See
+    the module docstring for observed name shapes.
+    """
+    if not scheme_name:
+        return ("Regular", "Growth")
+    name = scheme_name
+
+    # Plan
+    if _DIRECT_RE.search(name):
+        plan = "Direct"
+    else:
+        plan = "Regular"
+
+    # Option — check Reinvest BEFORE plain IDCW because the IDCW
+    # regex is a subset of the Reinvest regex.
+    if _IDCW_REINVEST_RE.search(name):
+        option = "IDCW-Reinvest"
+    elif _IDCW_RE.search(name):
+        option = "IDCW"
+    else:
+        option = "Growth"
+
+    return (plan, option)
+
+
+# ── Persistence ─────────────────────────────────────────────────────
+
+
+# AMC is not in the per-row NAVAll data — it's the section header
+# above each block. amfi_nav.parse_navall ignores section headers;
+# we re-parse here capturing AMC banners so funds.amc lands populated.
+
+def iter_scheme_master_rows(text: str) -> Iterator[dict]:
+    """Yield one dict per scheme row WITH amc populated.
+
+    Walks the NAVAll text in order, tracking the most recently seen
+    AMC banner line. The AMC banner is the first non-empty line in
+    each section that contains 'Mutual Fund' and has no pipes/semis.
+    """
+    current_amc: str | None = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        if ";" not in line:
+            # AMC banner candidate. AMFI banners always contain
+            # "Mutual Fund" — filter on that to skip category headers
+            # like "Open Ended Schemes (Equity - Large Cap Fund)".
+            if "Mutual Fund" in line:
+                current_amc = line
+            continue
+        # Hand off to the existing single-line parser via a tiny
+        # iterable so we reuse its column-count / scheme-code /
+        # date validation. parse_navall yields zero or one rows for
+        # a single-line input.
+        for row in parse_navall(line):
+            plan, option = parse_plan_option(row["scheme_name"])
+            yield {
+                "scheme_code":  row["scheme_code"],
+                "isin_growth":  row["isin_growth"],
+                "isin_div":     row["isin_div"],
+                "scheme_name":  row["scheme_name"],
+                "amc":          current_amc or "Unknown",
+                "plan":         plan,
+                "option":       option,
+            }
+
+
+UPSERT_SQL = """
+INSERT INTO funds (
+    scheme_code, isin_growth, isin_div, scheme_name, amc,
+    plan, option, is_active, updated_at
+) VALUES (
+    %(scheme_code)s, %(isin_growth)s, %(isin_div)s, %(scheme_name)s, %(amc)s,
+    %(plan)s, %(option)s, TRUE, now()
+)
+ON CONFLICT (scheme_code) DO UPDATE SET
+    isin_growth = COALESCE(EXCLUDED.isin_growth, funds.isin_growth),
+    isin_div    = COALESCE(EXCLUDED.isin_div,    funds.isin_div),
+    scheme_name = EXCLUDED.scheme_name,
+    amc         = EXCLUDED.amc,
+    plan        = EXCLUDED.plan,
+    option      = EXCLUDED.option,
+    is_active   = TRUE,
+    updated_at  = now()
+"""
+
+# Schemes that were active last run but are absent this run get soft-
+# deactivated. The historical NAV partitions are NOT touched — they
+# stay queryable by scheme_code forever.
+SOFT_DEACTIVATE_SQL = """
+UPDATE funds
+   SET is_active  = FALSE,
+       updated_at = now()
+ WHERE is_active = TRUE
+   AND scheme_code NOT IN %(active_codes)s
+"""
+
+
+def upsert_funds(rows: Iterable[dict], conn) -> tuple[int, int]:
+    """Upsert each row to funds, then soft-deactivate missing schemes.
+
+    Returns (upserted_count, deactivated_count).
+    """
+    rows = list(rows)
+    if not rows:
+        return (0, 0)
+    active_codes = tuple({r["scheme_code"] for r in rows})
+    with conn.cursor() as cur:
+        cur.executemany(UPSERT_SQL, rows)
+        # NOT IN () is a syntax error in psycopg2 if the tuple is
+        # empty — guarded above by the rows-empty early return.
+        cur.execute(SOFT_DEACTIVATE_SQL, {"active_codes": active_codes})
+        deactivated = cur.rowcount
+    conn.commit()
+    return (len(rows), deactivated)
+
+
+# ── CLI ─────────────────────────────────────────────────────────────
+
+
+def main(argv: list[str] | None = None) -> int:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument("--url", default=None,
+                   help="Override the AMFI NAVAll endpoint (test fixture).")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Parse only; do not write to DB.")
+    args = p.parse_args(argv)
+
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
+
+    if args.url:
+        text = fetch_navall_text(args.url)
+    else:
+        text = fetch_navall_text()
+    rows = list(iter_scheme_master_rows(text))
+    logger.info("amfi_scheme_master: parsed %d schemes", len(rows))
+
+    if args.dry_run:
+        for r in rows[:5]:
+            logger.info("sample: %s", r)
+        return 0
+
+    db_url = os.environ.get("DATABASE_URL")
+    if not db_url:
+        logger.error("DATABASE_URL not set")
+        return 2
+    if db_url.startswith("postgres://"):
+        db_url = "postgresql://" + db_url[len("postgres://"):]
+
+    import psycopg2
+    conn = psycopg2.connect(db_url)
+    try:
+        n_up, n_off = upsert_funds(rows, conn)
+        logger.info(
+            "amfi_scheme_master: upserted=%d soft_deactivated=%d",
+            n_up, n_off,
+        )
+    finally:
+        conn.close()
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

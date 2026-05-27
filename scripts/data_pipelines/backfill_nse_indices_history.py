@@ -128,6 +128,21 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 n = nih.upsert_rows_psycopg(rows, conn)
                 total_rows += n
+                # Mutual Funds Phase 1: piggyback TRI benchmark write
+                # on the same per-date fetch. Uses PRI close as a TRI
+                # proxy when no dedicated TRI feed is configured (see
+                # nih.extract_tri_rows docstring). Only the indices
+                # named in TRI_BENCHMARK_MAP are forwarded; everything
+                # else is a no-op for fund_benchmark_history.
+                try:
+                    tri_rows = nih.extract_tri_rows(rows)
+                    if tri_rows:
+                        nih.upsert_tri_rows(tri_rows, conn)
+                except Exception as e:
+                    # Don't let a TRI write failure abort the PRI
+                    # ingest — the PRI table is the older, critical
+                    # path. Log and continue.
+                    log.warning("%s: TRI upsert skipped: %s", d, e)
                 if total_dates % 25 == 0:
                     log.info("%s: %d rows upserted (cum dates=%d, rows=%d, holidays=%d)",
                              d, n, total_dates, total_rows, holiday_skips)

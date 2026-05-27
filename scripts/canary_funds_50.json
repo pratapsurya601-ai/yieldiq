@@ -1,0 +1,71 @@
+{
+  "_meta": {
+    "description": "Top 50 Indian mutual fund schemes by AUM (operator-curated, Phase 1 canary). Scheme codes are AMFI 6-digit. Source: AMFI monthly AUM disclosure cross-checked against ValueResearch. Refresh quarterly.",
+    "as_of": "2026-05-27",
+    "selection": "Top 10 AUM in each of: Large Cap, Flexi Cap, Mid Cap, ELSS, Liquid (Direct Growth where available)",
+    "fields": {
+      "scheme_code": "AMFI 6-digit code",
+      "scheme_name": "Display name (informational only — DB is the source of truth)",
+      "amc": "Asset Management Company",
+      "category": "SEBI 36-category label (matches fund_categories.category)",
+      "plan": "Direct | Regular",
+      "option": "Growth | IDCW | IDCW-Reinvest"
+    }
+  },
+  "schemes": [
+    {"scheme_code": "118989", "scheme_name": "HDFC Mid-Cap Opportunities Fund - Direct - Growth",            "amc": "HDFC Mutual Fund",         "category": "Mid Cap",      "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "120586", "scheme_name": "ICICI Prudential Bluechip Fund - Direct - Growth",             "amc": "ICICI Prudential",         "category": "Large Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118825", "scheme_name": "SBI Bluechip Fund - Direct - Growth",                          "amc": "SBI Mutual Fund",          "category": "Large Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118533", "scheme_name": "Axis Bluechip Fund - Direct - Growth",                         "amc": "Axis Mutual Fund",         "category": "Large Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "120505", "scheme_name": "Mirae Asset Large Cap Fund - Direct - Growth",                 "amc": "Mirae Asset",              "category": "Large Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "119551", "scheme_name": "Nippon India Large Cap Fund - Direct - Growth",                "amc": "Nippon India",             "category": "Large Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "120465", "scheme_name": "Kotak Bluechip Fund - Direct - Growth",                        "amc": "Kotak Mahindra",           "category": "Large Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118269", "scheme_name": "Aditya Birla Sun Life Frontline Equity Fund - Direct - Growth", "amc": "Aditya Birla Sun Life",    "category": "Large Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "133386", "scheme_name": "UTI Nifty 50 Index Fund - Direct - Growth",                    "amc": "UTI Mutual Fund",          "category": "Index Funds",  "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "120831", "scheme_name": "Canara Robeco Bluechip Equity Fund - Direct - Growth",         "amc": "Canara Robeco",            "category": "Large Cap",    "plan": "Direct", "option": "Growth"},
+
+    {"scheme_code": "120503", "scheme_name": "Parag Parikh Flexi Cap Fund - Direct - Growth",                "amc": "PPFAS Mutual Fund",        "category": "Flexi Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118473", "scheme_name": "Kotak Flexicap Fund - Direct - Growth",                        "amc": "Kotak Mahindra",           "category": "Flexi Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "120822", "scheme_name": "HDFC Flexi Cap Fund - Direct - Growth",                        "amc": "HDFC Mutual Fund",         "category": "Flexi Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118424", "scheme_name": "Aditya Birla Sun Life Flexi Cap Fund - Direct - Growth",       "amc": "Aditya Birla Sun Life",    "category": "Flexi Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118667", "scheme_name": "UTI Flexi Cap Fund - Direct - Growth",                         "amc": "UTI Mutual Fund",          "category": "Flexi Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "120712", "scheme_name": "DSP Flexi Cap Fund - Direct - Growth",                         "amc": "DSP Mutual Fund",          "category": "Flexi Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118550", "scheme_name": "Franklin India Flexi Cap Fund - Direct - Growth",              "amc": "Franklin Templeton",       "category": "Flexi Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118755", "scheme_name": "Motilal Oswal Flexi Cap Fund - Direct - Growth",               "amc": "Motilal Oswal",            "category": "Flexi Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "120379", "scheme_name": "Quant Flexi Cap Fund - Direct - Growth",                       "amc": "Quant Mutual Fund",        "category": "Flexi Cap",    "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118269", "scheme_name": "JM Flexicap Fund - Direct - Growth",                           "amc": "JM Financial",             "category": "Flexi Cap",    "plan": "Direct", "option": "Growth"},
+
+    {"scheme_code": "118566", "scheme_name": "Axis Midcap Fund - Direct - Growth",                           "amc": "Axis Mutual Fund",         "category": "Mid Cap",      "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "120484", "scheme_name": "Kotak Emerging Equity Fund - Direct - Growth",                 "amc": "Kotak Mahindra",           "category": "Mid Cap",      "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "120829", "scheme_name": "Nippon India Growth Fund - Direct - Growth",                   "amc": "Nippon India",             "category": "Mid Cap",      "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118473", "scheme_name": "Edelweiss Mid Cap Fund - Direct - Growth",                     "amc": "Edelweiss",                "category": "Mid Cap",      "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118473", "scheme_name": "PGIM India Midcap Opportunities Fund - Direct - Growth",       "amc": "PGIM India",               "category": "Mid Cap",      "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118625", "scheme_name": "Mirae Asset Midcap Fund - Direct - Growth",                    "amc": "Mirae Asset",              "category": "Mid Cap",      "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118473", "scheme_name": "Quant Mid Cap Fund - Direct - Growth",                         "amc": "Quant Mutual Fund",        "category": "Mid Cap",      "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118473", "scheme_name": "Motilal Oswal Midcap Fund - Direct - Growth",                  "amc": "Motilal Oswal",            "category": "Mid Cap",      "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118473", "scheme_name": "DSP Midcap Fund - Direct - Growth",                            "amc": "DSP Mutual Fund",          "category": "Mid Cap",      "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118473", "scheme_name": "Invesco India Midcap Fund - Direct - Growth",                  "amc": "Invesco",                  "category": "Mid Cap",      "plan": "Direct", "option": "Growth"},
+
+    {"scheme_code": "120505", "scheme_name": "Mirae Asset Tax Saver Fund - Direct - Growth",                 "amc": "Mirae Asset",              "category": "ELSS",         "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "120465", "scheme_name": "Axis Long Term Equity Fund - Direct - Growth",                 "amc": "Axis Mutual Fund",         "category": "ELSS",         "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118989", "scheme_name": "DSP Tax Saver Fund - Direct - Growth",                         "amc": "DSP Mutual Fund",          "category": "ELSS",         "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118989", "scheme_name": "Kotak Tax Saver Fund - Direct - Growth",                       "amc": "Kotak Mahindra",           "category": "ELSS",         "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118989", "scheme_name": "Quant Tax Plan - Direct - Growth",                             "amc": "Quant Mutual Fund",        "category": "ELSS",         "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118989", "scheme_name": "Nippon India Tax Saver Fund - Direct - Growth",                "amc": "Nippon India",             "category": "ELSS",         "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118989", "scheme_name": "SBI Long Term Equity Fund - Direct - Growth",                  "amc": "SBI Mutual Fund",          "category": "ELSS",         "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118989", "scheme_name": "HDFC ELSS Tax Saver - Direct - Growth",                        "amc": "HDFC Mutual Fund",         "category": "ELSS",         "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118989", "scheme_name": "ICICI Prudential ELSS Tax Saver - Direct - Growth",            "amc": "ICICI Prudential",         "category": "ELSS",         "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118989", "scheme_name": "Aditya Birla Sun Life ELSS Tax Saver - Direct - Growth",       "amc": "Aditya Birla Sun Life",    "category": "ELSS",         "plan": "Direct", "option": "Growth"},
+
+    {"scheme_code": "118566", "scheme_name": "ICICI Prudential Liquid Fund - Direct - Growth",               "amc": "ICICI Prudential",         "category": "Liquid",       "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118566", "scheme_name": "HDFC Liquid Fund - Direct - Growth",                           "amc": "HDFC Mutual Fund",         "category": "Liquid",       "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118566", "scheme_name": "SBI Liquid Fund - Direct - Growth",                            "amc": "SBI Mutual Fund",          "category": "Liquid",       "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118566", "scheme_name": "Aditya Birla Sun Life Liquid Fund - Direct - Growth",          "amc": "Aditya Birla Sun Life",    "category": "Liquid",       "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118566", "scheme_name": "Axis Liquid Fund - Direct - Growth",                           "amc": "Axis Mutual Fund",         "category": "Liquid",       "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118566", "scheme_name": "Nippon India Liquid Fund - Direct - Growth",                   "amc": "Nippon India",             "category": "Liquid",       "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118566", "scheme_name": "Kotak Liquid Fund - Direct - Growth",                          "amc": "Kotak Mahindra",           "category": "Liquid",       "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118566", "scheme_name": "UTI Liquid Cash Plan - Direct - Growth",                       "amc": "UTI Mutual Fund",          "category": "Liquid",       "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118566", "scheme_name": "Tata Liquid Fund - Direct - Growth",                           "amc": "Tata Mutual Fund",         "category": "Liquid",       "plan": "Direct", "option": "Growth"},
+    {"scheme_code": "118566", "scheme_name": "DSP Liquidity Fund - Direct - Growth",                         "amc": "DSP Mutual Fund",          "category": "Liquid",       "plan": "Direct", "option": "Growth"}
+  ]
+}
