@@ -42,7 +42,7 @@ function buildSummarySheet(s: StockSummary): XLSX.WorkSheet {
     [],
     ["Fair Value (DCF)", num(s.fair_value)],
     ["Current Price", num(s.current_price)],
-    ["Margin of Safety (%)", num(s.mos)],
+    ["Discount to FV (%)", num(s.mos)],
     ["Verdict", s.verdict],
     ["YieldIQ Score (/100)", num(s.score)],
     ["Grade", s.grade],

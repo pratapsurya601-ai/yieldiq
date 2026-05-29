@@ -509,7 +509,7 @@ export default function EditorialHero({
                   className="text-[10px] uppercase tracking-[0.15em] text-caption"
                   title="How much room below current price the model says exists. Buffett-style: (Fair Value - Price) / Fair Value."
                 >
-                  Margin of Safety (Buffett)
+                  Discount to FV (Buffett)
                 </dt>
                 <dd
                   className="font-mono tabular-nums text-lg font-semibold text-success"

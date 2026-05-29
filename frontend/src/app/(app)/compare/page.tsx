@@ -342,7 +342,7 @@ function buildRowSpecs(stocks: StockSummary[]): RowSpec[] {
       noRank: true,
     },
     {
-      label: "MoS",
+      label: "Discount to FV",
       values: map((s) => s.mos),
       rendered: map((s) => (
         <span className={s.mos >= 0 ? "" : ""}>{formatPct(s.mos)}</span>

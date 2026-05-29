@@ -304,7 +304,7 @@ export default function DiscoverPage() {
                       <th className="text-left px-3 py-2">#</th>
                       <th className="text-left px-3 py-2">Ticker</th>
                       <th className="text-right px-3 py-2">Score</th>
-                      <th className="text-right px-3 py-2">MoS</th>
+                      <th className="text-right px-3 py-2">Discount</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -341,7 +341,7 @@ export default function DiscoverPage() {
           // for ~1,700 tickers).
           <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
             <p className="text-xs font-semibold text-ink mb-1">
-              Top 5 MoS gainers
+              Top 5 Discount gainers
             </p>
             <p className="text-[11px] text-caption mb-3">
               Largest discounts to fair value right now. Refreshes with the daily run.

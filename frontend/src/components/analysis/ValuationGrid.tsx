@@ -27,6 +27,7 @@
  */
 
 import { formatCurrency } from "@/lib/utils"
+import { SummaryCard } from "@/components/cards"
 
 export interface ScenarioCase {
   fair_value: number
@@ -98,7 +99,9 @@ export default function ValuationGrid({
   ]
 
   return (
-    <div className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6">
+    // PR-B (design-synthesis §5): scenario grid is a single-headline metric
+    // container surface → SummaryCard. p-6 retained to match prior pixels.
+    <SummaryCard className="p-6 gap-0">
       <div className="flex items-baseline justify-between mb-4">
         <h2 className="text-lg font-bold text-ink">DCF Scenario Analysis</h2>
         <p className="text-xs text-caption">
@@ -120,7 +123,7 @@ export default function ValuationGrid({
                 {formatCurrency(data.fair_value, currency, ticker)}
               </p>
               <p className={`text-xs font-mono mt-1 ${mosTone(data.mos_pct)}`}>
-                MoS {fmtMos(data.mos_pct)}
+                Discount {fmtMos(data.mos_pct)}
               </p>
               {data.verdict ? (
                 <p className="text-[10px] text-caption mt-1 capitalize">
@@ -131,6 +134,6 @@ export default function ValuationGrid({
           )
         })}
       </div>
-    </div>
+    </SummaryCard>
   )
 }

@@ -65,7 +65,7 @@ export const METRIC_CATALOG: MetricCatalogEntry[] = [
     type: "enum",
     options: ["Wide", "Moderate", "Narrow", "None"],
   },
-  { key: "mos", label: "Margin of Safety", type: "number", unit: "%" },
+  { key: "mos", label: "Discount to FV", type: "number", unit: "%" },
   { key: "pe", label: "P/E (TTM)", type: "number" },
   { key: "pb", label: "P/B", type: "number" },
   { key: "roe", label: "ROE", type: "number", unit: "%" },

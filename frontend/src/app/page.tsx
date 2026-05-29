@@ -173,7 +173,7 @@ function DemoCard() {
               <div className="text-white font-bold font-mono">&#8377;{fmt(c.fair_value)}</div>
             </div>
             <div>
-              <div className="text-caption text-[10px] uppercase tracking-wider">Margin of Safety</div>
+              <div className="text-caption text-[10px] uppercase tracking-wider">Discount to FV</div>
               <div className={`font-bold font-mono ${(c.mos || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>{mosSign}{(c.mos || 0).toFixed(1)}%</div>
             </div>
           </div>

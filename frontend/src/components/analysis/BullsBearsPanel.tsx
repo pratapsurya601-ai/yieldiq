@@ -112,12 +112,12 @@ export default function BullsBearsPanel({ bulls, bears, updated }: Props) {
         </p>
       </div>
       <div className="flex flex-col md:flex-row gap-6 md:gap-8">
-        <Column tone="bull" heading="Bulls Say" bullets={safeBulls} />
+        <Column tone="bull" heading="Bull case" bullets={safeBulls} />
         <div
           className="hidden md:block w-px bg-border self-stretch"
           aria-hidden="true"
         />
-        <Column tone="bear" heading="Bears Say" bullets={safeBears} />
+        <Column tone="bear" heading="Bear case" bullets={safeBears} />
       </div>
     </section>
   )

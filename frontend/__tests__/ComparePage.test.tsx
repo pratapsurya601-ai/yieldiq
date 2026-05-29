@@ -188,7 +188,8 @@ describe("ComparePage", () => {
 
     // Core valuation rows must be present.
     expect(screen.getAllByText(/Fair Value/i).length).toBeGreaterThan(0)
-    expect(screen.getAllByText(/MoS/).length).toBeGreaterThan(0)
+    // PR-B microcopy rename: "MoS" → "Discount to FV" as primary label.
+    expect(screen.getAllByText(/Discount to FV/i).length).toBeGreaterThan(0)
     expect(screen.getAllByText(/YieldIQ Score/).length).toBeGreaterThan(0)
   })
 

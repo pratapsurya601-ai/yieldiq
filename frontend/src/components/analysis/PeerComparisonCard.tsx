@@ -5,6 +5,7 @@ import MetricTooltip from "@/components/analysis/MetricTooltip"
 import { verdictClassesWithDark } from "@/lib/constants"
 import { formatNumberWithSuffix, formatPctSigned, cn } from "@/lib/utils"
 import { metricToneClass } from "@/lib/metricTone"
+import { DataCard } from "@/components/cards"
 
 interface Props {
   ticker: string
@@ -44,9 +45,13 @@ const fmtPct = formatPctSigned
 const fmtNum = formatNumberWithSuffix
 
 function Placeholder({ ticker }: { ticker: string }) {
+  // PR-B (design-synthesis §5): peers is data-dense → DataCard variant.
+  // mb-8 stays outside the card to preserve section vertical rhythm.
   return (
-    <section
-      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8"
+    <DataCard
+      hover={false}
+      role="region"
+      className="mb-8 p-6 text-sm leading-normal"
       aria-label={`Peer comparison for ${ticker}`}
     >
       <h2 className="text-lg font-bold text-ink mb-1">Peer Comparison</h2>
@@ -54,7 +59,7 @@ function Placeholder({ ticker }: { ticker: string }) {
         Peers not yet ranked for {ticker}. Comparable companies and side-by-side
         valuation will appear here once the peer set is established.
       </p>
-    </section>
+    </DataCard>
   )
 }
 
@@ -83,8 +88,13 @@ export default function PeerComparisonCard({ ticker, data }: Props) {
   }
 
   return (
-    <section
-      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8"
+    // PR-B (design-synthesis §5): peers table → DataCard.
+    // p-6 + mb-8 retained to preserve section vertical rhythm; hover off
+    // because the card itself is non-interactive (only inner rows are).
+    <DataCard
+      hover={false}
+      role="region"
+      className="mb-8 p-6 text-sm leading-normal"
       aria-label={`Peer comparison for ${ticker}`}
     >
       <div className="mb-4">
@@ -197,6 +207,6 @@ export default function PeerComparisonCard({ ticker, data }: Props) {
       <p className="mt-3 text-[10px] text-caption">
         Click a ticker to view its fair-value analysis.
       </p>
-    </section>
+    </DataCard>
   )
 }

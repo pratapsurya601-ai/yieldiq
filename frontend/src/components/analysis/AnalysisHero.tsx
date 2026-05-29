@@ -546,7 +546,7 @@ export default function AnalysisHero({
 
             {!dataLimited && (
               <div>
-                <dt className="text-xs text-caption">Margin of Safety</dt>
+                <dt className="text-xs text-caption">Discount to FV</dt>
                 <dd
                   className={`font-mono tabular-nums text-lg font-semibold ${
                     marginOfSafety >= 0 ? "text-brand" : "text-warning"

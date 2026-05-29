@@ -87,7 +87,7 @@ export default function ReportPage() {
                   <p className="font-semibold font-mono">{formatCurrency(valuation.fair_value, company.currency, ticker)}</p>
                 </div>
                 <div>
-                  <span className="text-caption">MoS</span>
+                  <span className="text-caption">Discount to FV</span>
                   <p className={`font-semibold ${valuation.margin_of_safety >= 0 ? "text-green-600" : "text-red-600"}`}>
                     {mosSign}{valuation.margin_of_safety.toFixed(1)}%
                   </p>

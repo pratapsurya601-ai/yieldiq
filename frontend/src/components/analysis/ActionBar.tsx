@@ -195,7 +195,7 @@ async function generateShareCard(p: ActionBarProps): Promise<Blob> {
   text(`Current Price: \u20B9${p.currentPrice.toLocaleString("en-IN")}`, 60, 400, 28, "#94A3B8", "500", "left")
   const mosColor = p.mos >= 0 ? "#10B981" : "#EF4444"
   const mosSign = p.mos >= 0 ? "+" : ""
-  text(`Margin of Safety: ${mosSign}${p.mos.toFixed(1)}%`, W - 60, 400, 28, mosColor, "600", "right")
+  text(`Discount to FV: ${mosSign}${p.mos.toFixed(1)}%`, W - 60, 400, 28, mosColor, "600", "right")
 
   // 6. Score ring
   const cx = W / 2, cy = 560, ringR = 90
@@ -441,7 +441,7 @@ function buildCsvContent(p: ActionBarProps): string {
     ["Date", today],
     ["Current Price", p.currentPrice.toFixed(2)],
     ["Fair Value", p.fairValue.toFixed(2)],
-    ["Margin of Safety (%)", p.mos.toFixed(1)],
+    ["Discount to FV (%)", p.mos.toFixed(1)],
     ["Verdict", verdictLabel(p.verdict)],
     ["YieldIQ Score", String(p.score)],
     ["Grade", p.grade],
