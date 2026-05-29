@@ -47,7 +47,8 @@ def _load_risk_free(session) -> float:
     try:
         row = session.execute(
             text(
-                "SELECT rate FROM risk_free_rates ORDER BY as_of DESC LIMIT 1"
+                "SELECT gsec_10yr_yield FROM risk_free_rates "
+                "ORDER BY trade_date DESC LIMIT 1"
             )
         ).fetchone()
         if row and row[0] is not None:
@@ -56,6 +57,12 @@ def _load_risk_free(session) -> float:
             return r / 100.0 if r > 1.0 else r
     except Exception as exc:
         logger.warning("risk_free fetch failed: %s — using default", exc)
+        # Roll back the failed query so subsequent statements in this
+        # session are not blocked by an aborted transaction.
+        try:
+            session.rollback()
+        except Exception:
+            pass
     return DEFAULT_RISK_FREE_ANNUAL
 
 
@@ -67,10 +74,17 @@ def _fetch_scheme_list(session, limit: Optional[int], scheme: Optional[str]) -> 
         )
         rows = session.execute(q, {"sc": scheme}).mappings().fetchall()
     else:
+        # Only iterate schemes that actually have NAV history. Filtering
+        # at the SQL layer avoids wasting a round-trip per empty scheme
+        # (the funds table has ~14k rows; only a small subset has been
+        # ingested into fund_nav_history so far).
         q = text(
-            "SELECT scheme_code, category, benchmark_index_code, inception_date "
-            "FROM funds WHERE is_active = TRUE "
-            "ORDER BY scheme_code "
+            "SELECT f.scheme_code, f.category, f.benchmark_index_code, f.inception_date "
+            "FROM funds f "
+            "WHERE f.is_active = TRUE "
+            "  AND EXISTS (SELECT 1 FROM fund_nav_history n "
+            "              WHERE n.scheme_code = f.scheme_code) "
+            "ORDER BY f.scheme_code "
             + ("LIMIT :lim" if limit else "")
         )
         params = {"lim": limit} if limit else {}
@@ -197,27 +211,44 @@ def recompute_all(
     t0 = time.time()
     for i, s in enumerate(schemes):
         sc = s["scheme_code"]
-        nav_d, nav_v = _fetch_nav_series(session, sc)
-        bench_d, bench_v = _fetch_bench_series(session, s.get("benchmark_index_code"))
-        if not nav_d:
-            logger.info("skip %s: no NAV history", sc)
-            per_scheme[sc] = {"skip": True, "reason": "no NAV history"}
-            continue
-        ret = compute_returns.compute_returns_for_scheme(nav_d, nav_v)
-        risk = compute_risk.compute_risk_for_scheme(
-            nav_d, nav_v,
-            bench_dates=bench_d if bench_d else None,
-            bench_values=bench_v if bench_v else None,
-            risk_free_annual=rf,
-        )
-        per_scheme[sc] = {
-            "skip": False,
-            "category": s.get("category"),
-            "returns": ret,
-            "risk": risk,
-        }
-        if s.get("category"):
-            by_category[s["category"]].append(sc)
+        try:
+            nav_d, nav_v = _fetch_nav_series(session, sc)
+            bench_d, bench_v = _fetch_bench_series(session, s.get("benchmark_index_code"))
+            if not nav_d:
+                logger.info("skip %s: no NAV history", sc)
+                per_scheme[sc] = {"skip": True, "reason": "no NAV history"}
+                continue
+            ret = compute_returns.compute_returns_for_scheme(nav_d, nav_v)
+            risk = compute_risk.compute_risk_for_scheme(
+                nav_d, nav_v,
+                bench_dates=bench_d if bench_d else None,
+                bench_values=bench_v if bench_v else None,
+                risk_free_annual=rf,
+            )
+            per_scheme[sc] = {
+                "skip": False,
+                "category": s.get("category"),
+                "returns": ret,
+                "risk": risk,
+            }
+            if s.get("category"):
+                by_category[s["category"]].append(sc)
+        except Exception as exc:
+            # One bad scheme must not poison the whole batch. Roll back
+            # the failed statement so the session is usable for the
+            # next iteration, then carry on.
+            logger.warning(
+                "recompute_scheme_failed",
+                extra={
+                    "scheme_code": sc,
+                    "exception_type": type(exc).__name__,
+                },
+            )
+            try:
+                session.rollback()
+            except Exception:
+                pass
+            per_scheme[sc] = {"skip": True, "reason": f"error: {type(exc).__name__}"}
         if (i + 1) % 50 == 0:
             logger.info("pass1: %d/%d (%.1fs)", i + 1, len(schemes), time.time() - t0)
 
@@ -307,9 +338,23 @@ def recompute_all(
             "score_component_tenure": score.component_tenure,
             "notes": notes_combined,
         }
-        session.execute(_UPSERT_SQL, params)
-        written += 1
-    session.commit()
+        try:
+            session.execute(_UPSERT_SQL, params)
+            session.commit()
+            written += 1
+        except Exception as exc:
+            logger.warning(
+                "recompute_upsert_failed",
+                extra={
+                    "scheme_code": sc,
+                    "exception_type": type(exc).__name__,
+                },
+            )
+            try:
+                session.rollback()
+            except Exception:
+                pass
+            skipped += 1
     logger.info("recompute_all done: written=%d skipped=%d (%.1fs)",
                 written, skipped, time.time() - t0)
     return {"processed": len(schemes), "written": written, "skipped": skipped}
