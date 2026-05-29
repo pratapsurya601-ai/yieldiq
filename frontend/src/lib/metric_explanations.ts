@@ -63,7 +63,7 @@ export const METRIC_EXPLANATIONS: Record<string, MetricExplanation> = {
   // Valuation — the core "what's it worth?" bucket
   // ───────────────────────────────────────────────────────────────────
   fair_value: {
-    title: "Fair Value (Intrinsic Value)",
+    title: "Fair Value",
     oneLine:
       "Our estimate of what one share is actually worth based on the cash the business is likely to generate in the future.",
     formula: "Discounted Cash Flow (DCF) — future FCF discounted back at WACC",
@@ -87,7 +87,7 @@ export const METRIC_EXPLANATIONS: Record<string, MetricExplanation> = {
       "Price is what you pay, value is what you get. The gap between price and fair value is the margin of safety.",
   },
   mos: {
-    title: "Margin of Safety",
+    title: "Discount to FV",
     oneLine:
       "How much of a discount (or premium) the current price offers versus our fair-value estimate.",
     // Fixed 2026-04-25: was "÷ Fair Value", backend has always

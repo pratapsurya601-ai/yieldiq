@@ -152,7 +152,7 @@ export default function PortfolioSumOfPartsCard() {
         </div>
         <div>
           <div className="flex items-center justify-between text-xs mb-1">
-            <span className="text-caption">Intrinsic Value</span>
+            <span className="text-caption">Fair Value</span>
             <span className="font-mono font-semibold text-ink">
               {fmtRsCompact(iv)}
             </span>

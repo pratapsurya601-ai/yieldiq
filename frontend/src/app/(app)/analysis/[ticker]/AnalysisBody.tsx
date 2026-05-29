@@ -963,21 +963,21 @@ export default function AnalysisBody({ ticker, prism }: Props) {
   const scenariosTrustStats: TrustStat[] | null = data.scenarios && !dataLimited
     ? [
         {
-          label: "Bear MoS",
+          label: "Bear Discount",
           value: Number.isFinite(data.scenarios.bear?.mos_pct)
             ? formatPct(data.scenarios.bear.mos_pct)
             : "—",
           accent: scenarioAccent(data.scenarios.bear?.mos_pct),
         },
         {
-          label: "Base MoS",
+          label: "Base Discount",
           value: Number.isFinite(data.scenarios.base?.mos_pct)
             ? formatPct(data.scenarios.base.mos_pct)
             : "—",
           accent: scenarioAccent(data.scenarios.base?.mos_pct),
         },
         {
-          label: "Bull MoS",
+          label: "Bull Discount",
           value: Number.isFinite(data.scenarios.bull?.mos_pct)
             ? formatPct(data.scenarios.bull.mos_pct)
             : "—",

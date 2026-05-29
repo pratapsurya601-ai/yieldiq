@@ -3,6 +3,7 @@
 // keeps the page-level Promise.all parallelism intact) and degrades to
 // a neutral placeholder when the payload is null / empty.
 import type { DividendHistoryResponse } from "@/lib/api"
+import { DataCard } from "@/components/cards"
 
 interface Props {
   ticker: string
@@ -22,16 +23,19 @@ function fmtINR(n: number | null | undefined, maxFractionDigits = 2): string {
 }
 
 function Placeholder({ ticker }: { ticker: string }) {
+  // PR-B (design-synthesis §5): dividend history → DataCard.
   return (
-    <section
-      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8"
+    <DataCard
+      hover={false}
+      role="region"
+      className="mb-8 p-6 text-sm leading-normal"
       aria-label={`Dividend history for ${ticker}`}
     >
       <h2 className="text-lg font-bold text-ink mb-1">Dividend History</h2>
       <p className="text-sm text-caption">
         No dividend events recorded for {ticker} in the last 10 years.
       </p>
-    </section>
+    </DataCard>
   )
 }
 
@@ -89,8 +93,11 @@ export default function DividendHistorySparkline({ ticker, data, currentPrice }:
   const lastEvent = events[events.length - 1]
 
   return (
-    <section
-      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8"
+    // PR-B (design-synthesis §5): dividend history → DataCard.
+    <DataCard
+      hover={false}
+      role="region"
+      className="mb-8 p-6 text-sm leading-normal"
       aria-label={`Dividend history for ${ticker}`}
     >
       <div className="flex items-start justify-between gap-4 mb-3">
@@ -188,6 +195,6 @@ export default function DividendHistorySparkline({ ticker, data, currentPrice }:
           are converted using the per-ticker face value (defaults to ₹10).
         </p>
       )}
-    </section>
+    </DataCard>
   )
 }

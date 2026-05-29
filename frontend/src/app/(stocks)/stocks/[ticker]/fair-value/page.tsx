@@ -449,7 +449,7 @@ export default async function StockFairValuePage(
                     <p className="text-xl font-bold text-ink font-mono">{fmt(data.fair_value, data.currency, display)}</p>
                   </div>
                   <div>
-                    <p className="text-xs text-caption">Margin of Safety</p>
+                    <p className="text-xs text-caption">Discount to FV</p>
                     <p className={`text-xl font-bold font-mono ${data.mos >= 0 ? "text-green-600" : "text-red-600"}`}>
                       {mosSign}{data.mos.toFixed(1)}%
                     </p>

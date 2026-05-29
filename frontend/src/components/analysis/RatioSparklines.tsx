@@ -1,4 +1,5 @@
 import type { RatioHistoryResponse, RatioHistoryPeriod } from "@/lib/api"
+import { DataCard } from "@/components/cards"
 
 interface Props {
   ticker: string
@@ -82,9 +83,12 @@ function Sparkline({ points }: { points: number[] }) {
 }
 
 function Placeholder({ ticker }: { ticker: string }) {
+  // PR-B (design-synthesis §5): ratio trends → DataCard.
   return (
-    <section
-      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8"
+    <DataCard
+      hover={false}
+      role="region"
+      className="mb-8 p-6 text-sm leading-normal"
       aria-label={`Ratio trends for ${ticker}`}
     >
       <h2 className="text-lg font-bold text-ink mb-1">Ratio Trends</h2>
@@ -93,7 +97,7 @@ function Placeholder({ ticker }: { ticker: string }) {
         will show multi-year trajectories of ROE, ROCE, margins, leverage, and valuation
         multiples.
       </p>
-    </section>
+    </DataCard>
   )
 }
 
@@ -111,8 +115,11 @@ export default function RatioSparklines({ ticker, data }: Props) {
   const windowed = sorted.slice(-10)
 
   return (
-    <section
-      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8"
+    // PR-B (design-synthesis §5): ratio trends → DataCard.
+    <DataCard
+      hover={false}
+      role="region"
+      className="mb-8 p-6 text-sm leading-normal"
       aria-label={`Ratio trends for ${ticker}`}
     >
       <div className="mb-4">
@@ -151,6 +158,6 @@ export default function RatioSparklines({ ticker, data }: Props) {
           )
         })}
       </div>
-    </section>
+    </DataCard>
   )
 }

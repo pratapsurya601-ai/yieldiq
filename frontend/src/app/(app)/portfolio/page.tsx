@@ -436,7 +436,7 @@ function PortfolioInner() {
                       <HoldingSparkline data={sparklineBatch?.[h.ticker]?.data} />
                     </div>
                     <span className={`font-semibold shrink-0 ${h.mos_pct >= 0 ? "text-green-600" : "text-amber-600"}`}>
-                      MoS {h.mos_pct >= 0 ? "+" : ""}{h.mos_pct.toFixed(1)}%
+                      Discount {h.mos_pct >= 0 ? "+" : ""}{h.mos_pct.toFixed(1)}%
                     </span>
                   </div>
                 ) : (

@@ -176,7 +176,9 @@ function Chip({
 interface TileProps {
   label: string
   value: string
-  chipLabel: string
+  /** Optional chip label. When omitted the trailing chip is suppressed
+   * (see Score tile — Grade letter retired per design-synthesis §7). */
+  chipLabel?: string
   tone: ChipTone
 }
 
@@ -191,7 +193,7 @@ function Tile({ label, value, chipLabel, tone }: TileProps) {
           {value}
         </p>
       </div>
-      <Chip tone={tone}>{chipLabel}</Chip>
+      {chipLabel ? <Chip tone={tone}>{chipLabel}</Chip> : null}
     </div>
   )
 }
@@ -261,6 +263,8 @@ function MobileStrip(p: StripProps) {
     >
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
         <Chip tone={p.worryTone}>Worry · {p.worryLabel}</Chip>
+        {/* Grade letter retired per design-synthesis §7 — Score chip shows
+            the numeric value only. */}
         <Chip tone={p.scoreTone}>Score · {p.scoreLabel}</Chip>
         <Chip tone={p.moatTone}>Moat · {p.moatLabel}</Chip>
         <Chip tone={p.redTone}>Flags · {p.redLabel}</Chip>
@@ -389,7 +393,9 @@ export default function StickyScorecard({
         worryTone={wTone}
         worryLabel={wLabel}
         scoreTone={sTone}
-        scoreLabel={sLabel}
+        // Grade letter retired per design-synthesis §7 — surface the numeric
+        // score (e.g. "72/100") instead of the legacy "C" letter chip.
+        scoreLabel={sValue}
         moatTone={mTone}
         moatLabel={mLabel}
         redTone={rTone}
@@ -473,7 +479,9 @@ export default function StickyScorecard({
           {/* Mini scorecard tiles */}
           <div className="px-4 py-3 space-y-2">
             <Tile label="Worry Index" value={wValue} chipLabel={wLabel} tone={wTone} />
-            <Tile label="YieldIQ Score" value={sValue} chipLabel={sLabel} tone={sTone} />
+            {/* Grade letter chip retired per design-synthesis §7 — Manifesto #1
+                (one verdict per page). Numeric Score remains the single signal. */}
+            <Tile label="YieldIQ Score" value={sValue} tone={sTone} />
             <Tile label="Moat" value={mValue} chipLabel={mLabel} tone={mTone} />
             <Tile label="Red Flags" value={rValue} chipLabel={rLabel} tone={rTone} />
           </div>

@@ -2,6 +2,7 @@
 // Server Component — renders segment-level revenue across years.
 // Fetches from /api/v1/public/segments/{ticker}. Renders nothing
 // when the company doesn't disclose segments (graceful degrade).
+import { DataCard } from "@/components/cards"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -83,8 +84,11 @@ export default async function SegmentRevenueTable({ ticker, years = 5 }: Props) 
   }
 
   return (
-    <section
-      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8"
+    // PR-B (design-synthesis §5): segment revenue table → DataCard.
+    <DataCard
+      hover={false}
+      role="region"
+      className="mb-8 p-6 text-sm leading-normal"
       aria-label={`Segment revenue for ${ticker}`}
     >
       <h2 className="text-lg font-bold text-ink mb-1">Segment Revenue</h2>
@@ -130,6 +134,6 @@ export default async function SegmentRevenueTable({ ticker, years = 5 }: Props) 
         Source: company XBRL filings (BSE). Segment definitions are
         company-defined and may change between years.
       </p>
-    </section>
+    </DataCard>
   )
 }

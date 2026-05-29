@@ -149,7 +149,7 @@ export default function CompareClient({ data }: { data: CompareData }) {
       winner: null,
     },
     {
-      label: "Margin of Safety",
+      label: "Discount to FV",
       v1: fmtPct(s1.mos),
       v2: fmtPct(s2.mos),
       winner: winner.value,

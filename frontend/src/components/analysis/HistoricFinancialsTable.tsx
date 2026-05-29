@@ -1,4 +1,5 @@
 import type { HistoricalFinancialsResponse } from "@/lib/api"
+import { DataCard } from "@/components/cards"
 
 interface Props {
   ticker: string
@@ -54,9 +55,12 @@ function cagr(first: number, last: number, years: number): number | null {
 }
 
 function Placeholder({ ticker }: { ticker: string }) {
+  // PR-B (design-synthesis §5): financials is data-dense → DataCard.
   return (
-    <section
-      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8"
+    <DataCard
+      hover={false}
+      role="region"
+      className="mb-8 p-6 text-sm leading-normal"
       aria-label={`Historical financials for ${ticker}`}
     >
       <h2 className="text-lg font-bold text-ink mb-1">Historical Financials</h2>
@@ -64,7 +68,7 @@ function Placeholder({ ticker }: { ticker: string }) {
         Historical financials for {ticker} are being prepared. Check back shortly for a
         5-year view of revenue, earnings, cash flow, and balance-sheet trends.
       </p>
-    </section>
+    </DataCard>
   )
 }
 
@@ -91,8 +95,11 @@ export default function HistoricFinancialsTable({ ticker, data }: Props) {
   const hasAnySource = sources.some(s => s.length > 0)
 
   return (
-    <section
-      className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-6 mb-8 overflow-hidden"
+    // PR-B (design-synthesis §5): financials table → DataCard.
+    <DataCard
+      hover={false}
+      role="region"
+      className="mb-8 p-6 overflow-hidden text-sm leading-normal"
       aria-label={`Historical financials for ${ticker}`}
     >
       <div className="mb-4">
@@ -162,6 +169,6 @@ export default function HistoricFinancialsTable({ ticker, data }: Props) {
       <p className="mt-3 text-[10px] text-caption">
         CAGR computed across the visible window. Signs reverse if start value is zero or negative.
       </p>
-    </section>
+    </DataCard>
   )
 }

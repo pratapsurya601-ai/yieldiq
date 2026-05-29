@@ -401,7 +401,7 @@ export async function GET(
                   display: "flex",
                 }}
               >
-                Margin of Safety
+                Discount to FV
               </span>
               <span
                 style={{

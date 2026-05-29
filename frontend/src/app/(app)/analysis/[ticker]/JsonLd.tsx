@@ -91,7 +91,7 @@ export default function JsonLd({
   if (mosPct !== null && mosPct !== undefined && Number.isFinite(mosPct)) {
     additionalProperty.push({
       "@type": "PropertyValue",
-      name: "Margin of Safety",
+      name: "Discount to FV",
       value: mosPct.toFixed(1),
       unitText: "PERCENT",
     })
