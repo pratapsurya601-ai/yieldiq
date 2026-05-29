@@ -208,14 +208,18 @@ def test_tier3_tg_at_default():
 
 
 def test_wacc_floor_applies_to_all_eleven_at_95bps():
+    # Reverted to 0.085 — PR #672 raised this to 0.095 under
+    # floor-semantics assumption, but the call site uses cap-semantics
+    # (service.py:1517-1520). Semantic rename / operator inversion
+    # deferred to a follow-up; this test tracks the constant's value.
     from backend.services.analysis.sector_overrides import (
         fmcg_wacc_floor, FMCG_WACC_FLOOR,
     )
-    assert FMCG_WACC_FLOOR == pytest.approx(0.095)
+    assert FMCG_WACC_FLOOR == pytest.approx(0.085)
     for t in EXPECTED_COHORT:
-        assert fmcg_wacc_floor(t) == pytest.approx(0.095), (
-            f"{t} must receive the 9.5% WACC floor "
-            f"(Damodaran India staples reference; task #229)"
+        assert fmcg_wacc_floor(t) == pytest.approx(0.085), (
+            f"{t} must receive the 8.5% WACC cap "
+            f"(reverted from PR #672 0.095 — cap-vs-floor semantics)"
         )
 
 
