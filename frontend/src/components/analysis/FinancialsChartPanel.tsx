@@ -83,7 +83,7 @@ const COLOR_FCF = "#f59e0b"
 
 function Skeleton() {
   return (
-    <div className="bg-bg rounded-2xl border border-border p-5 space-y-3">
+    <div className="bg-bg rounded-2xl border border-border p-4 space-y-3">
       <div className="h-5 w-56 bg-border rounded animate-pulse" />
       <div className="h-3 w-72 bg-border/70 rounded animate-pulse" />
       <div className="h-[280px] bg-surface rounded-xl animate-pulse" />
@@ -172,7 +172,7 @@ export default function FinancialsChartPanel({ ticker, currency }: Props) {
 
   return (
     <section
-      className="bg-bg rounded-2xl border border-border p-5"
+      className="bg-bg rounded-2xl border border-border p-4"
       aria-label={`Financial history chart for ${ticker}`}
     >
       <div className="flex items-start justify-between gap-3 mb-4 flex-wrap">

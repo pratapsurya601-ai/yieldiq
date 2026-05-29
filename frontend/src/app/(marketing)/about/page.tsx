@@ -59,7 +59,7 @@ function ModelCard({
   body: string
 }) {
   return (
-    <div className="rounded-2xl border border-border bg-surface p-5">
+    <div className="rounded-2xl border border-border bg-surface p-4">
       <h3 className="font-editorial text-lg font-semibold text-ink mb-2">
         {title}
       </h3>
@@ -100,7 +100,7 @@ export default function AboutPage() {
         >
           Why YieldIQ exists
         </h1>
-        <div className="space-y-5 text-base text-body leading-relaxed">
+        <div className="space-y-4 text-base text-body leading-relaxed">
           <p>
             Indian retail investors deserve the same quality of fundamental
             analysis that Wall Street analysts have had for decades.
@@ -149,7 +149,7 @@ export default function AboutPage() {
           come from.
         </p>
         <ul
-          className="rounded-2xl border border-border bg-surface px-5"
+          className="rounded-2xl border border-border bg-surface px-4"
           aria-label="Data sources and refresh cadence"
         >
           <DataRow
@@ -203,7 +203,7 @@ export default function AboutPage() {
           </p>
         </div>
 
-        <div className="mt-10 pt-6 border-t border-border flex flex-wrap gap-4 text-sm">
+        <div className="mt-8 pt-6 border-t border-border flex flex-wrap gap-4 text-sm">
           <Link
             href="/pricing"
             className="text-brand hover:underline underline-offset-4"

@@ -346,7 +346,7 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
   if (payload && payload.withheld) {
     return (
       <div
-        className="bg-bg rounded-2xl border border-border p-5"
+        className="bg-bg rounded-2xl border border-border p-4"
         data-testid="ar-signals-withheld"
       >
         <div className="flex items-center justify-between mb-2">
@@ -374,7 +374,7 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
 
   if (isLoading || !signals) {
     return (
-      <div className="bg-bg rounded-2xl border border-border p-5">
+      <div className="bg-bg rounded-2xl border border-border p-4">
         <div className="h-4 w-32 bg-surface rounded animate-pulse mb-4" />
         <div className="space-y-3">
           {[0, 1, 2].map((i) => (
@@ -444,7 +444,7 @@ export default function ARSignalsPanel({ ticker, initialData }: PanelProps) {
 
   return (
     <div
-      className="bg-bg rounded-2xl border border-border p-5"
+      className="bg-bg rounded-2xl border border-border p-4"
       data-testid="ar-signals-panel"
     >
       <div className="flex items-center justify-between mb-4">

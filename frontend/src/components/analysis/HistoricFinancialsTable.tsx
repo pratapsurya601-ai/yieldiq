@@ -143,7 +143,7 @@ export default function HistoricFinancialsTable({ ticker, data }: Props) {
                         className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold tabular-nums ${
                           g >= 0
                             ? "bg-green-50 text-green-700 border border-green-100 dark:bg-green-950/40 dark:text-green-300 dark:border-green-900"
-                            : "bg-red-50 text-red-700 border border-red-100 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900"
+                            : "bg-tone-bad-bg text-tone-bad-fg border border-red-100 dark:bg-red-950/40 dark:text-red-300 dark:border-red-900"
                         }`}
                       >
                         {g >= 0 ? "+" : ""}

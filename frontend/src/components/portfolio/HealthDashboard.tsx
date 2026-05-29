@@ -62,7 +62,7 @@ export function BelowFairValueBanner({ holdings }: BelowFairValueBannerProps) {
   return (
     <Link
       href={`/analysis/${first.ticker}`}
-      className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 hover:bg-amber-100 dark:bg-amber-950/30 dark:border-amber-900 dark:hover:bg-amber-950/50 active:scale-[0.99] transition"
+      className="flex items-center justify-between gap-3 bg-tone-warn-bg border border-tone-warn-bd rounded-xl px-4 py-3 hover:bg-amber-100 dark:bg-amber-950/30 dark:border-amber-900 dark:hover:bg-amber-950/50 active:scale-[0.99] transition"
     >
       <div className="flex items-start gap-2 min-w-0">
         <svg className="w-4 h-4 mt-0.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -72,7 +72,7 @@ export function BelowFairValueBanner({ holdings }: BelowFairValueBannerProps) {
           <p className="text-sm font-semibold text-amber-900 dark:text-amber-200 truncate">
             {count} holding{count === 1 ? "" : "s"} trading below our model fair value
           </p>
-          <p className="text-[11px] text-amber-700 dark:text-amber-300 truncate">
+          <p className="text-[11px] text-tone-warn-fg dark:text-amber-300 truncate">
             Starting with {first.display_ticker || first.ticker.replace(".NS", "")} &middot; Model estimate
           </p>
           <FreshnessStamp
@@ -83,7 +83,7 @@ export function BelowFairValueBanner({ holdings }: BelowFairValueBannerProps) {
           />
         </div>
       </div>
-      <span className="text-xs font-semibold text-amber-700 shrink-0">Review &rarr;</span>
+      <span className="text-xs font-semibold text-tone-warn-fg shrink-0">Review &rarr;</span>
     </Link>
   )
 }

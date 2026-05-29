@@ -35,7 +35,7 @@ export default function HexCompareInput({ base }: HexCompareInputProps) {
       />
       <button
         type="submit"
-        className="bg-blue-600 text-white text-sm font-semibold px-5 py-2.5 rounded-xl hover:bg-blue-500 transition"
+        className="bg-blue-600 text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-blue-500 transition"
       >
         Compare
       </button>

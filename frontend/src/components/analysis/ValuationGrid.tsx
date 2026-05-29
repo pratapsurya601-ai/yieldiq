@@ -56,14 +56,14 @@ const CASE_LABEL: Record<CaseKey, string> = {
 
 const CASE_PALETTE: Record<CaseKey, { border: string; bg: string; value: string }> = {
   bear: {
-    border: "border-red-200 dark:border-red-900",
-    bg: "bg-red-50 dark:bg-red-950/30",
-    value: "text-red-700 dark:text-red-300",
+    border: "border-tone-bad-bd dark:border-red-900",
+    bg: "bg-tone-bad-bg dark:bg-red-950/30",
+    value: "text-tone-bad-fg dark:text-red-300",
   },
   base: {
-    border: "border-blue-200 dark:border-blue-900",
-    bg: "bg-blue-50 dark:bg-blue-950/30",
-    value: "text-blue-700 dark:text-blue-300",
+    border: "border-tone-info-bd dark:border-blue-900",
+    bg: "bg-tone-info-bg dark:bg-blue-950/30",
+    value: "text-tone-info-fg dark:text-blue-300",
   },
   bull: {
     border: "border-green-200 dark:border-green-900",

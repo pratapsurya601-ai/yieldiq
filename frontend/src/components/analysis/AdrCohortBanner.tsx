@@ -48,7 +48,7 @@ export default function AdrCohortBanner({ ticker }: { ticker: string }) {
   return (
     <div
       role="status"
-      className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 text-amber-900 dark:text-amber-200 rounded-xl p-4 mb-4 mx-auto max-w-4xl"
+      className="bg-tone-warn-bg dark:bg-amber-950/30 border border-tone-warn-bd dark:border-amber-900 text-amber-900 dark:text-amber-200 rounded-xl p-4 mb-4 mx-auto max-w-4xl"
     >
       <div className="flex items-start gap-3">
         <span className="text-lg" aria-hidden="true">ⓘ</span>

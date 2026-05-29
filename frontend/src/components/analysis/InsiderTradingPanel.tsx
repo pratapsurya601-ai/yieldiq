@@ -95,7 +95,7 @@ export default function InsiderTradingPanel({ ticker }: { ticker: string }) {
 
   if (loading) {
     return (
-      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-5">
+      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-4">
         <h3 className="text-sm font-semibold text-ink mb-2">Insider Activity</h3>
         <div className="text-xs text-caption">Loading…</div>
       </section>
@@ -106,7 +106,7 @@ export default function InsiderTradingPanel({ ticker }: { ticker: string }) {
 
   if (!txns.length) {
     return (
-      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-5">
+      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-4">
         <h3 className="text-sm font-semibold text-ink mb-2">Insider Activity</h3>
         <div className="text-xs text-caption">
           No insider-trading disclosures on file
@@ -121,7 +121,7 @@ export default function InsiderTradingPanel({ ticker }: { ticker: string }) {
 
   return (
     <section
-      className="bg-bg dark:bg-surface rounded-2xl border border-border p-5"
+      className="bg-bg dark:bg-surface rounded-2xl border border-border p-4"
       aria-label={`Insider trading for ${ticker}`}
     >
       <div className="flex items-start justify-between gap-3 mb-3">

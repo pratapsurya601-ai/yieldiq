@@ -140,7 +140,7 @@ export default async function RiskAnalysisPage(
       </div>
 
       {/* Volatility regime explainer */}
-      <div className={`rounded-2xl border p-5 mb-8 ${volColor}`}>
+      <div className={`rounded-2xl border p-4 mb-8 ${volColor}`}>
         <p className="text-xs font-bold uppercase tracking-wider opacity-70 mb-1">Volatility Regime</p>
         <p className="text-lg font-bold mb-2">{volRegime} — {data.volatility_pct.toFixed(1)}% annualised</p>
         <p className="text-sm leading-relaxed opacity-90">

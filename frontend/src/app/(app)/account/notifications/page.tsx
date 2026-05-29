@@ -217,7 +217,7 @@ function WebPushPanel({ onToast }: { onToast: (msg: string, tone?: "ok" | "err")
 
   if (!supported) {
     return (
-      <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-5">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-4">
         <div className="text-sm font-medium text-ink">Mobile notifications</div>
         <p className="text-xs text-caption mt-1">
           This browser does not support Web Push. Install YieldIQ as a PWA on
@@ -228,7 +228,7 @@ function WebPushPanel({ onToast }: { onToast: (msg: string, tone?: "ok" | "err")
   }
 
   return (
-    <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-5 space-y-3">
+    <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-4 space-y-3">
       <div>
         <div className="text-sm font-medium text-ink">Mobile notifications</div>
         <p className="text-xs text-caption mt-1 leading-relaxed">
@@ -286,7 +286,7 @@ function Toggle({
   disabled?: boolean
 }) {
   return (
-    <label className="flex items-start gap-4 p-5 cursor-pointer">
+    <label className="flex items-start gap-4 p-4 cursor-pointer">
       <div className="flex-1 min-w-0">
         <div className="text-sm font-medium text-ink">{label}</div>
         <div className="text-xs text-caption mt-1 leading-relaxed">{hint}</div>

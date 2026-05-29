@@ -44,9 +44,9 @@ const TONE_STYLES: Record<ConfidenceTone, string> = {
   green:
     "bg-green-50 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-100 dark:border-green-800",
   amber:
-    "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-900/20 dark:text-amber-100 dark:border-amber-800",
+    "bg-tone-warn-bg text-amber-800 border-tone-warn-bd dark:bg-amber-900/20 dark:text-amber-100 dark:border-amber-800",
   red:
-    "bg-red-50 text-red-800 border-red-200 dark:bg-red-900/20 dark:text-red-100 dark:border-red-800",
+    "bg-tone-bad-bg text-red-800 border-tone-bad-bd dark:bg-red-900/20 dark:text-red-100 dark:border-red-800",
 }
 
 interface ScoreSpec {
@@ -153,8 +153,8 @@ export default function ConfidenceIndicators({
           data-testid="analyst-opinion-banner"
           role="note"
           className={cn(
-            "rounded-2xl border border-l-4 px-4 py-3.5 sm:px-5 sm:py-4",
-            "bg-amber-50 border-amber-200 border-l-amber-500",
+            "rounded-2xl border border-l-4 px-4 py-3.5 sm:px-4 sm:py-4",
+            "bg-tone-warn-bg border-tone-warn-bd border-l-amber-500",
             "dark:bg-amber-900/20 dark:border-amber-800 dark:border-l-amber-400",
           )}
         >
@@ -163,7 +163,7 @@ export default function ConfidenceIndicators({
               aria-hidden
               className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500"
             />
-            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-amber-700 dark:text-amber-300">
+            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-tone-warn-fg dark:text-amber-300">
               Analyst Opinion Required
             </span>
           </div>

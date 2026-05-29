@@ -58,8 +58,8 @@ function timeAgo(iso: string): string {
 }
 
 function importanceBadge(level: string): { text: string; cls: string } | null {
-  if (level === "critical") return { text: "Critical", cls: "bg-red-50 text-red-700 border-red-200" }
-  if (level === "high") return { text: "High", cls: "bg-amber-50 text-amber-700 border-amber-200" }
+  if (level === "critical") return { text: "Critical", cls: "bg-tone-bad-bg text-tone-bad-fg border-tone-bad-bd" }
+  if (level === "high") return { text: "High", cls: "bg-tone-warn-bg text-tone-warn-fg border-tone-warn-bd" }
   return null
 }
 
@@ -68,7 +68,7 @@ function importanceBadge(level: string): { text: string; cls: string } | null {
 // deprioritize US-aggregator sources without hiding them entirely.
 function sourceTierChip(tier?: string): string {
   if (tier === "C") {
-    return "bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800"
+    return "bg-tone-warn-bg dark:bg-amber-900/20 text-amber-800 dark:text-amber-200 border-tone-warn-bd dark:border-amber-800"
   }
   return "bg-bg dark:bg-surface text-ink border-border"
 }
@@ -106,7 +106,7 @@ export default function NewsWidget({ ticker }: Props) {
 
   if (isLoading) {
     return (
-      <div className="bg-bg rounded-2xl border border-border p-5">
+      <div className="bg-bg rounded-2xl border border-border p-4">
         <div className="h-4 w-24 bg-surface rounded animate-pulse mb-3" />
         <div className="space-y-2">
           {[0, 1, 2].map((i) => (
@@ -129,7 +129,7 @@ export default function NewsWidget({ ticker }: Props) {
   )
 
   return (
-    <div className="bg-bg rounded-2xl border border-border p-5">
+    <div className="bg-bg rounded-2xl border border-border p-4">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-ink">Recent news &amp; filings</h2>
         <Link

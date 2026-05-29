@@ -122,8 +122,8 @@ export default function IncidentBanner() {
   // the top of every page — without dark counterparts it rendered as
   // a glaring light-coloured strip across the dark layout.
   const toneClasses = isOpen
-    ? "bg-red-50 border-red-200 text-red-900 dark:bg-red-950/40 dark:border-red-900 dark:text-red-200"
-    : "bg-amber-50 border-amber-200 text-amber-900 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200"
+    ? "bg-tone-bad-bg border-tone-bad-bd text-red-900 dark:bg-red-950/40 dark:border-red-900 dark:text-red-200"
+    : "bg-tone-warn-bg border-tone-warn-bd text-amber-900 dark:bg-amber-950/40 dark:border-amber-900 dark:text-amber-200"
 
   return (
     <div

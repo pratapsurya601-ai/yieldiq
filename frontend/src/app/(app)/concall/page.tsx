@@ -121,7 +121,7 @@ export default function ConcallPage() {
 
       {/* Tier gate */}
       {tier === "free" && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
           <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">Analyst Feature</p>
           <p className="text-sm text-amber-900 mb-3">
             AI concall analysis is an Analyst (&#8377;799/mo) feature. Upgrade to extract guidance, financial highlights,
@@ -203,7 +203,7 @@ export default function ConcallPage() {
               <ConcallEmpty />
             </div>
           ) : (
-            <div className="bg-bg dark:bg-surface border border-border rounded-xl p-5">
+            <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4">
               <h3 className="text-sm font-bold text-ink mb-2">How to get a transcript</h3>
               <ol className="text-xs text-caption space-y-1 list-decimal list-inside">
                 <li>Visit company&apos;s investor relations page or BSE/NSE filings</li>
@@ -230,7 +230,7 @@ export default function ConcallPage() {
           </div>
 
           {/* Sentiment Card */}
-          <div className={`rounded-2xl border p-5 mb-4 ${sentimentColor(result.sentiment)}`}>
+          <div className={`rounded-2xl border p-4 mb-4 ${sentimentColor(result.sentiment)}`}>
             <div className="flex items-center justify-between mb-2">
               <p className="text-xs font-bold uppercase tracking-wider opacity-70">Tone of the call</p>
               <span className="text-sm font-bold capitalize">{result.sentiment}</span>
@@ -243,7 +243,7 @@ export default function ConcallPage() {
 
           {/* Financial Highlights */}
           {result.financial_highlights.length > 0 && (
-            <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5 mb-4">
+            <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-4 mb-4">
               <h2 className="text-sm font-bold text-ink mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-green-500 rounded-full"></span>
                 Financial Highlights
@@ -258,7 +258,7 @@ export default function ConcallPage() {
 
           {/* Forward Guidance */}
           {result.forward_guidance.length > 0 && (
-            <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5 mb-4">
+            <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-4 mb-4">
               <h2 className="text-sm font-bold text-ink mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
                 Forward Guidance
@@ -279,7 +279,7 @@ export default function ConcallPage() {
 
           {/* Strategic Priorities */}
           {result.strategic_priorities.length > 0 && (
-            <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5 mb-4">
+            <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-4 mb-4">
               <h2 className="text-sm font-bold text-ink mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
                 Strategic Priorities
@@ -294,7 +294,7 @@ export default function ConcallPage() {
 
           {/* Q&A Themes */}
           {result.q_and_a_themes.length > 0 && (
-            <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5 mb-4">
+            <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-4 mb-4">
               <h2 className="text-sm font-bold text-ink mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-cyan-500 rounded-full"></span>
                 What Analysts Asked About
@@ -312,7 +312,7 @@ export default function ConcallPage() {
 
           {/* Concerns Raised */}
           {result.concerns_raised.length > 0 && (
-            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-4">
               <h2 className="text-sm font-bold text-amber-900 mb-3 flex items-center gap-2">
                 <span className="w-2 h-2 bg-amber-500 rounded-full"></span>
                 Concerns Raised

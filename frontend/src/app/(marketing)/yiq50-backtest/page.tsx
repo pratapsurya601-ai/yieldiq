@@ -327,7 +327,7 @@ export default async function BacktestPage({
 
       {/* SEBI disclosure */}
       <section className="max-w-5xl mx-auto px-4 pb-16">
-        <div className="rounded-lg border border-[color:var(--color-warning)] bg-[color:var(--color-surface)] p-5 text-xs text-[color:var(--color-body)] space-y-2">
+        <div className="rounded-lg border border-[color:var(--color-warning)] bg-[color:var(--color-surface)] p-4 text-xs text-[color:var(--color-body)] space-y-2">
           <p className="font-semibold text-[color:var(--color-ink)]">
             Disclosure
           </p>

@@ -97,7 +97,7 @@ function FeedRow({ item }: { item: PortfolioUpdateItem }) {
         <div className="pt-1">
           <Link
             href={`/stocks/${encodeURIComponent(item.ticker)}`}
-            className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+            className="text-xs font-semibold text-blue-600 hover:text-tone-info-fg"
           >
             View analysis →
           </Link>
@@ -152,7 +152,7 @@ export default function UpdatesFeed({ initialCategory = "all" }: UpdatesFeedProp
                   className={
                     "w-full text-left text-sm font-medium px-3 py-2 rounded-lg transition flex items-center gap-2 " +
                     (active
-                      ? "bg-blue-50 text-blue-700 ring-1 ring-blue-200 dark:bg-blue-950 dark:text-blue-300"
+                      ? "bg-tone-info-bg text-tone-info-fg ring-1 ring-blue-200 dark:bg-blue-950 dark:text-blue-300"
                       : "text-caption hover:bg-surface dark:hover:bg-gray-800")
                   }
                 >
@@ -168,7 +168,7 @@ export default function UpdatesFeed({ initialCategory = "all" }: UpdatesFeedProp
       {/* Feed column */}
       <div className="space-y-3" data-testid="updates-feed">
         {isError && (
-          <div className="rounded-xl border border-red-100 bg-red-50 dark:border-red-900 dark:bg-red-950 p-4 text-sm text-red-700 dark:text-red-300">
+          <div className="rounded-xl border border-red-100 bg-tone-bad-bg dark:border-red-900 dark:bg-red-950 p-4 text-sm text-tone-bad-fg dark:text-red-300">
             Couldn&rsquo;t load updates. Please retry in a moment.
           </div>
         )}
@@ -194,7 +194,7 @@ export default function UpdatesFeed({ initialCategory = "all" }: UpdatesFeedProp
                 <button
                   type="button"
                   onClick={() => setPage((p) => p + 1)}
-                  className="w-full text-sm font-semibold text-blue-600 hover:text-blue-700 py-2 rounded-lg border border-blue-200 dark:border-blue-800"
+                  className="w-full text-sm font-semibold text-blue-600 hover:text-tone-info-fg py-2 rounded-lg border border-tone-info-bd dark:border-blue-800"
                 >
                   Load more
                 </button>

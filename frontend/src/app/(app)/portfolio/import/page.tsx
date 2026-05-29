@@ -159,7 +159,7 @@ export default function PortfolioImportPage() {
       )}
 
       {/* Broker selection */}
-      <div className="mb-5">
+      <div className="mb-4">
         <label className="text-xs font-bold text-caption uppercase tracking-wider mb-2 block">1. Select Broker</label>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {BROKER_OPTIONS.map(b => (
@@ -180,7 +180,7 @@ export default function PortfolioImportPage() {
       </div>
 
       {/* Input */}
-      <div className="mb-5">
+      <div className="mb-4">
         <div className="flex items-center justify-between mb-2">
           <label className="text-xs font-bold text-caption uppercase tracking-wider">2. Upload File or Paste CSV</label>
           <div className="flex gap-3 text-xs">
@@ -242,7 +242,7 @@ export default function PortfolioImportPage() {
 
       {/* Success */}
       {result && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-5 mb-4">
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4">
           <p className="text-sm font-bold text-green-800 mb-2">Import complete!</p>
           <ul className="text-sm text-green-900 space-y-1">
             <li>&bull; {result.imported} holdings imported</li>
@@ -267,7 +267,7 @@ export default function PortfolioImportPage() {
       )}
 
       {/* Help */}
-      <div className="mt-8 bg-bg dark:bg-surface border border-border rounded-xl p-5">
+      <div className="mt-8 bg-bg dark:bg-surface border border-border rounded-xl p-4">
         <h3 className="text-sm font-bold text-ink mb-2">How to export from Zerodha</h3>
         <ol className="text-xs text-caption space-y-1 list-decimal list-inside">
           <li>Log in to <a href="https://console.zerodha.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Zerodha Console</a></li>

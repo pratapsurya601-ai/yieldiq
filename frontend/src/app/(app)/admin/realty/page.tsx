@@ -207,7 +207,7 @@ export default function RealtyLandBankAdminPage() {
       {/* Form */}
       <form
         onSubmit={onSubmit}
-        className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5 space-y-4"
+        className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-4 space-y-4"
       >
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold text-ink">
@@ -365,7 +365,7 @@ export default function RealtyLandBankAdminPage() {
 
       {/* List */}
       <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100">
+        <div className="px-4 py-4 border-b border-gray-100">
           <h2 className="text-sm font-semibold text-ink">
             Curated entries ({rows.length}/{REALTY_TICKERS.length})
           </h2>

@@ -67,7 +67,7 @@ export default function EmptyState({
       )}
     >
       {illustration && (
-        <div className="relative w-full max-w-[240px] h-[160px] mb-5">
+        <div className="relative w-full max-w-[240px] h-[160px] mb-4">
           <Image
             src={illustration}
             alt={illustrationAlt}
@@ -82,7 +82,7 @@ export default function EmptyState({
       <h2 className="text-lg font-semibold text-ink mb-1">{title}</h2>
 
       {description && (
-        <p className="text-sm text-caption mb-5 max-w-sm">{description}</p>
+        <p className="text-sm text-caption mb-4 max-w-sm">{description}</p>
       )}
 
       {children ? (
@@ -94,7 +94,7 @@ export default function EmptyState({
               <Link
                 href={actionHref}
                 className={cn(
-                  "inline-flex items-center justify-center rounded-full px-5 py-2.5 min-h-[44px]",
+                  "inline-flex items-center justify-center rounded-full px-4 py-2.5 min-h-[44px]",
                   "bg-blue-600 text-white text-sm font-semibold",
                   "hover:bg-blue-700 active:bg-blue-800 active:scale-[0.97] transition",
                   "shadow-sm",
@@ -107,9 +107,9 @@ export default function EmptyState({
               <Link
                 href={secondaryHref}
                 className={cn(
-                  "inline-flex items-center justify-center rounded-full px-5 py-2.5 min-h-[44px]",
+                  "inline-flex items-center justify-center rounded-full px-4 py-2.5 min-h-[44px]",
                   "bg-bg dark:bg-surface border border-border text-ink text-sm font-semibold",
-                  "hover:border-blue-300 hover:text-blue-700 active:scale-[0.97] transition",
+                  "hover:border-blue-300 hover:text-tone-info-fg active:scale-[0.97] transition",
                 )}
               >
                 {secondaryLabel}

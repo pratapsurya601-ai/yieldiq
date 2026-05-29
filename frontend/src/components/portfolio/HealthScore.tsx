@@ -19,7 +19,7 @@ export default function HealthScore({ score, grade, summary, issues, strengths }
     score >= 70 ? "bg-blue-600" : score >= 50 ? "bg-amber-500" : "bg-red-500"
 
   const gradeColor =
-    score >= 70 ? "text-blue-700" : score >= 50 ? "text-amber-700" : "text-red-700"
+    score >= 70 ? "text-tone-info-fg" : score >= 50 ? "text-tone-warn-fg" : "text-tone-bad-fg"
 
   return (
     <div className={cn("rounded-xl bg-surface border border-border shadow-sm p-4")}>

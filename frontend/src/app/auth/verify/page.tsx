@@ -80,7 +80,7 @@ function VerifyInner() {
             </p>
             <Link
               href="/home"
-              className="inline-block py-2.5 px-5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition"
+              className="inline-block py-2.5 px-4 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition"
             >
               Return to YieldIQ
             </Link>
@@ -95,7 +95,7 @@ function VerifyInner() {
             <p className="text-sm text-red-700 dark:text-red-300">{message}</p>
             <Link
               href="/account"
-              className="inline-block py-2.5 px-5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition"
+              className="inline-block py-2.5 px-4 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition"
             >
               Go to account
             </Link>

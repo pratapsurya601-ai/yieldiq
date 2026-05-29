@@ -123,7 +123,7 @@ function cashflowRows(currency: string | null | undefined): RowDef[] {
 /* ------------------------------------------------------------------ */
 function Skeleton() {
   return (
-    <div className="bg-surface rounded-2xl border border-border p-5 space-y-3">
+    <div className="bg-surface rounded-2xl border border-border p-4 space-y-3">
       <div className="h-5 w-48 bg-border rounded animate-pulse" />
       <div className="flex gap-2">
         <div className="h-6 w-20 bg-bg rounded-full animate-pulse" />
@@ -190,7 +190,7 @@ export default function FinancialStatements({ ticker, currency }: Props) {
 
   if (isError) {
     return (
-      <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-5">
+      <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-4">
         <h2 className="text-sm font-semibold text-ink mb-2">Financial Statements</h2>
         <p className="text-sm text-caption text-center py-6">Financial data unavailable</p>
         <div className="text-center">
@@ -216,7 +216,7 @@ export default function FinancialStatements({ ticker, currency }: Props) {
   const currencySym = currencySymbol(currency, ticker)
 
   return (
-    <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-5 space-y-3">
+    <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-4 space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-sm font-semibold text-ink">Financial Statements</h2>
@@ -368,8 +368,8 @@ export default function FinancialStatements({ ticker, currency }: Props) {
 
       {/* Tier CTA */}
       {data?.tier_limited && period === "annual" && years.length > 0 && (
-        <div className="border border-blue-100 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30 rounded-xl p-3 flex items-center justify-between gap-3">
-          <p className="text-xs text-blue-700 dark:text-blue-300 inline-flex items-center gap-1.5">
+        <div className="border border-blue-100 bg-tone-info-bg dark:border-blue-900 dark:bg-blue-950/30 rounded-xl p-3 flex items-center justify-between gap-3">
+          <p className="text-xs text-tone-info-fg dark:text-blue-300 inline-flex items-center gap-1.5">
             <Lock className="w-3.5 h-3.5" aria-hidden="true" />
             Unlock 5-year history with Starter
           </p>

@@ -95,10 +95,10 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
   const linkBase = isDark
     ? "text-gray-400 hover:text-white transition"
     : "text-gray-600 hover:text-gray-900 transition"
-  const linkActive = isDark ? "text-white font-semibold" : "text-blue-700 font-semibold"
+  const linkActive = isDark ? "text-white font-semibold" : "text-tone-info-fg font-semibold"
 
   const ctaLink = isDark
-    ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold px-5 py-2 rounded-lg hover:opacity-90 transition shadow-lg shadow-blue-500/20"
+    ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition shadow-lg shadow-blue-500/20"
     : "bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition"
 
   const signinLink = isDark

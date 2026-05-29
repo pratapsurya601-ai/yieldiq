@@ -57,7 +57,7 @@ export default function HelpIndexPage() {
             <li key={t.slug}>
               <Link
                 href={`/help/${t.slug}`}
-                className="block rounded-2xl border border-border bg-bg dark:bg-surface p-5 hover:border-ink/40 transition-colors"
+                className="block rounded-2xl border border-border bg-bg dark:bg-surface p-4 hover:border-ink/40 transition-colors"
               >
                 <div className="flex items-baseline gap-3 mb-1">
                   <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-caption">

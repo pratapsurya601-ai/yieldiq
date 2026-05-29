@@ -49,7 +49,7 @@ export default function OfflinePage() {
         <div className="flex items-center justify-center">
           <Link
             href="/"
-            className="inline-flex items-center justify-center px-5 py-2.5 min-h-[44px] bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 active:scale-[0.98] transition"
+            className="inline-flex items-center justify-center px-4 py-2.5 min-h-[44px] bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 active:scale-[0.98] transition"
           >
             Try home page
           </Link>

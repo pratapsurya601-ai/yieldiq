@@ -131,7 +131,7 @@ export default function MosAlertChip({
         data-testid="mos-alert-chip-confirmed"
         role="status"
         aria-live="polite"
-        className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-[12px] dark:border-emerald-900 dark:bg-emerald-950/30"
+        className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-emerald-300 bg-tone-good-bg px-3 py-2 text-[12px] dark:border-emerald-900 dark:bg-emerald-950/30"
       >
         <span className="inline-flex items-center gap-1.5 text-emerald-900 dark:text-emerald-200">
           <BellRing className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
@@ -156,7 +156,7 @@ export default function MosAlertChip({
         <button
           type="button"
           onClick={onReset}
-          className="text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-300"
+          className="text-[11px] font-semibold text-tone-good-fg hover:underline dark:text-emerald-300"
         >
           Change
         </button>

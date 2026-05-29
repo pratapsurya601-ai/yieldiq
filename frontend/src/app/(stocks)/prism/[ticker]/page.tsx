@@ -214,7 +214,7 @@ export default async function PrismPage(
             const score = hasScore ? Math.max(0, Math.min(10, pillar.score as number)) : 0
             const color = hasScore ? scoreClass(score) : "text-caption border-border bg-bg dark:bg-surface"
             return (
-              <div key={key} className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-5">
+              <div key={key} className="bg-bg dark:bg-surface rounded-2xl border border-border shadow-sm p-4">
                 <div className="flex items-center justify-between mb-2">
                   <h2 className="text-lg font-bold text-ink">{PILLAR_LABEL[key]}</h2>
                   <span className={`text-sm font-bold px-3 py-1 rounded-full border ${color}`}>

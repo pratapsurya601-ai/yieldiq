@@ -139,7 +139,7 @@ export default function TaxHarvestingPage() {
       {/* Free-tier gate with sample preview */}
       {isGated && (
         <>
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-6">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
             <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">
               Analyst Feature
             </p>
@@ -155,7 +155,7 @@ export default function TaxHarvestingPage() {
             </Link>
           </div>
 
-          <div className="bg-bg dark:bg-surface border border-border rounded-xl p-5 mb-6">
+          <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4 mb-6">
             <p className="text-xs font-bold text-caption uppercase tracking-wider mb-3">
               Sample preview
             </p>
@@ -166,7 +166,7 @@ export default function TaxHarvestingPage() {
 
       {/* Inputs */}
       {!isGated && (
-        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-5 mb-6">
+        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-4 mb-6">
           <p className="text-xs font-bold text-caption uppercase tracking-wider mb-3">
             Realized FY gains so far (optional)
           </p>

@@ -120,7 +120,7 @@ export default function EmailVerifyBanner() {
   return (
     <div
       role="status"
-      className="w-full bg-amber-50 dark:bg-amber-950/40 border-b border-amber-200 dark:border-amber-900"
+      className="w-full bg-tone-warn-bg dark:bg-amber-950/40 border-b border-tone-warn-bd dark:border-amber-900"
     >
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex flex-wrap items-center gap-x-4 gap-y-2">
         <p className="text-sm text-amber-900 dark:text-amber-100 flex-1 min-w-[16rem]">
@@ -151,7 +151,7 @@ export default function EmailVerifyBanner() {
               "w-full text-xs " +
               (msg.tone === "ok"
                 ? "text-amber-800 dark:text-amber-200"
-                : "text-red-700 dark:text-red-300")
+                : "text-tone-bad-fg dark:text-red-300")
             }
             role={msg.tone === "err" ? "alert" : undefined}
           >

@@ -228,7 +228,7 @@ export default function MemoryLane({ ticker, companyName }: Props) {
     <RevealOnScroll>
       <section
         aria-labelledby="memory-lane-heading"
-        className="bg-bg rounded-2xl border border-border p-5 sm:p-6 space-y-4"
+        className="bg-bg rounded-2xl border border-border p-4 sm:p-6 space-y-4"
       >
         <header>
           <h3

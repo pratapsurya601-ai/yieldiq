@@ -5,7 +5,7 @@ export default function MarketingFooter() {
     <footer className="bg-[#0F172A] text-gray-300 border-t border-white/5 mt-16">
       <div className="max-w-6xl mx-auto px-4 py-12">
         {/* Top row — link grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 mb-10">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-8 mb-8">
           {/* Discover */}
           <div>
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">Discover</h3>

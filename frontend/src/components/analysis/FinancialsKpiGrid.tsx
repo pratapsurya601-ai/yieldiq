@@ -196,7 +196,7 @@ function trendTone(yoy: number | null): "up" | "down" | "neutral" {
 function KpiCard({ spec, derived, currency, hasData }: CardProps) {
   const tone = trendTone(derived.yoy)
   const trendColor =
-    tone === "up" ? "text-emerald-700 bg-emerald-50"
+    tone === "up" ? "text-tone-good-fg bg-tone-good-bg"
       : tone === "down" ? "text-rust-800 bg-rust-50"
         : "text-slate-600 bg-slate-100"
   const barColor =
@@ -251,7 +251,7 @@ function KpiCard({ spec, derived, currency, hasData }: CardProps) {
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <div className="h-full w-full rounded bg-slate-50" />
+          <div className="h-full w-full rounded bg-tone-neutral-bg" />
         )}
       </div>
 
@@ -263,7 +263,7 @@ function KpiCard({ spec, derived, currency, hasData }: CardProps) {
         ].map(c => (
           <span
             key={c.label}
-            className="text-[11px] tabular-nums px-2 py-0.5 rounded-md bg-slate-50 text-slate-700"
+            className="text-[11px] tabular-nums px-2 py-0.5 rounded-md bg-tone-neutral-bg text-tone-neutral-fg"
             title={`${c.label} compounded annual growth`}
           >
             <span className="text-muted mr-1">{c.label}</span>
@@ -314,7 +314,7 @@ export default function FinancialsKpiGrid({
 
   return (
     <section
-      className="bg-bg rounded-2xl border border-border p-5"
+      className="bg-bg rounded-2xl border border-border p-4"
       data-testid="financials-kpi-grid"
     >
       <header className="flex items-center justify-between gap-3 mb-4 flex-wrap">

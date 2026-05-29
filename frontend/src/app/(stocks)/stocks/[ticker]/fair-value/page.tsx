@@ -487,7 +487,7 @@ export default async function StockFairValuePage(
             {/* Power-user actions: deep-dive sensitivity heatmap + offline Excel.
                 Kept in the hero so they're discoverable without competing with
                 the primary verdict copy. */}
-            <div className="mt-5 flex flex-wrap items-center gap-3">
+            <div className="mt-4 flex flex-wrap items-center gap-3">
               {/* DCF Sensitivity heatmap is meaningless for the bank model
                   (no WACC/g sensitivity surface). Hide for pb_ratio. */}
               {!isBankModel(data) && !isFVSuppressed && (
@@ -643,7 +643,7 @@ export default async function StockFairValuePage(
           {!isBankModel(data) && !isFVSuppressed && (
             <Link
               href={`/stocks/${display}/reverse-dcf`}
-              className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+              className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-4 transition group"
             >
               <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Reverse DCF</p>
               <h3 className="font-bold text-ink mb-1 group-hover:text-blue-700 transition">Market-implied growth</h3>
@@ -652,7 +652,7 @@ export default async function StockFairValuePage(
           )}
           <Link
             href={`/stocks/${display}/risk-analysis`}
-            className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+            className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-4 transition group"
           >
             <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Risk Analysis</p>
             <h3 className="font-bold text-ink mb-1 group-hover:text-blue-700 transition">Volatility & drawdown</h3>
@@ -660,7 +660,7 @@ export default async function StockFairValuePage(
           </Link>
           <Link
             href={`/stocks/${display}/dupont`}
-            className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+            className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-4 transition group"
           >
             <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">DuPont</p>
             <h3 className="font-bold text-ink mb-1 group-hover:text-blue-700 transition">ROE decomposition</h3>
@@ -668,7 +668,7 @@ export default async function StockFairValuePage(
           </Link>
           <Link
             href={`/stocks/${display}/technicals`}
-            className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+            className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-4 transition group"
           >
             <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Technicals</p>
             <h3 className="font-bold text-ink mb-1 group-hover:text-blue-700 transition">RSI, MACD, MAs</h3>
@@ -678,7 +678,7 @@ export default async function StockFairValuePage(
         <div className="grid sm:grid-cols-2 gap-4 mb-8">
           <Link
             href={`/stocks/${display}/news`}
-            className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+            className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-4 transition group"
           >
             <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">News & Filings</p>
             <h3 className="font-bold text-ink mb-1 group-hover:text-blue-700 transition">Recent activity</h3>
@@ -686,7 +686,7 @@ export default async function StockFairValuePage(
           </Link>
           <Link
             href={`/compare/${display}-vs-RELIANCE`}
-            className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-5 transition group"
+            className="block bg-bg dark:bg-surface border-2 border-blue-100 hover:border-blue-300 rounded-2xl p-4 transition group"
           >
             <p className="text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">Compare</p>
             <h3 className="font-bold text-ink mb-1 group-hover:text-blue-700 transition">Head-to-head with peers</h3>

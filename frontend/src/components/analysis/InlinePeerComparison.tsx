@@ -155,7 +155,7 @@ function SortHeader({ label, sortKey, align = "right", sort, onSort }: HeaderPro
 
 function EmptyState({ message }: { message: string }) {
   return (
-    <section className="bg-bg rounded-2xl border border-border p-5">
+    <section className="bg-bg rounded-2xl border border-border p-4">
       <h2 className="text-sm font-semibold text-ink mb-1">Peers in this cohort</h2>
       <p className="text-xs text-caption">{message}</p>
     </section>
@@ -164,7 +164,7 @@ function EmptyState({ message }: { message: string }) {
 
 function LoadingSkeleton() {
   return (
-    <section className="bg-bg rounded-2xl border border-border p-5">
+    <section className="bg-bg rounded-2xl border border-border p-4">
       <div className="h-4 w-40 bg-surface rounded animate-pulse mb-3" />
       <div className="space-y-2">
         {Array.from({ length: 5 }).map((_, i) => (
@@ -306,7 +306,7 @@ export default function InlinePeerComparison({
 
   return (
     <section
-      className="bg-bg rounded-2xl border border-border p-5"
+      className="bg-bg rounded-2xl border border-border p-4"
       aria-labelledby="inline-peer-comparison-heading"
     >
       <div className="flex items-baseline justify-between gap-2 flex-wrap mb-3">

@@ -100,7 +100,7 @@ export default async function StockNewsPage(
 
       {/* AI Summary */}
       {data.ai_summary && (
-        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-5 mb-6">
+        <div className="bg-blue-50 border border-blue-100 rounded-2xl p-4 mb-6">
           <p className="text-xs font-bold text-blue-700 uppercase tracking-wider mb-2">AI Summary</p>
           <p className="text-sm text-blue-900 leading-relaxed">{data.ai_summary}</p>
         </div>

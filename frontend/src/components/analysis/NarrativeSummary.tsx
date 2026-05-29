@@ -43,7 +43,7 @@ export default function NarrativeSummary({
         // Rounded container that sits comfortably above the editorial hero.
         "relative rounded-2xl border border-border bg-gradient-to-br " +
           "from-[color:var(--color-brand-50)] via-surface to-surface " +
-          "px-4 py-3.5 sm:px-5 sm:py-4",
+          "px-4 py-3.5 sm:px-4 sm:py-4",
         className,
       )}
       role="note"

@@ -187,7 +187,7 @@ export default async function PerformancePage() {
     <main className="mx-auto max-w-4xl px-6 py-12">
       {/* SEBI caveat — at the very top, non-collapsible. */}
       <aside
-        className="mb-10 rounded-md border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-200"
+        className="mb-8 rounded-md border border-amber-300/60 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-700/40 dark:bg-amber-950/30 dark:text-amber-200"
         role="note"
       >
         <p className="font-medium">Past results are not indicative of future returns.</p>
@@ -215,7 +215,7 @@ export default async function PerformancePage() {
       )}
 
       {/* Hero */}
-      <header className="mb-10 max-w-3xl">
+      <header className="mb-8 max-w-3xl">
         <p className="mb-2 text-xs uppercase tracking-wider text-neutral-500">
           Performance Retrospective · {summary.period.label}
         </p>

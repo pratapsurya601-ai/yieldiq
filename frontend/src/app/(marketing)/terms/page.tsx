@@ -15,7 +15,7 @@ function MarketingNav() {
         <div className="hidden md:flex items-center gap-8 text-sm">
           <Link href="/features" className="text-caption hover:text-white transition">Features</Link>
           <Link href="/pricing" className="text-caption hover:text-white transition">Pricing</Link>
-          <Link href="/auth/signup" className="bg-gradient-to-r from-blue-700 to-cyan-500 text-white font-semibold px-5 py-2 rounded-lg hover:opacity-90 transition">
+          <Link href="/auth/signup" className="bg-gradient-to-r from-blue-700 to-cyan-500 text-white font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition">
             Launch App &rarr;
           </Link>
         </div>
@@ -29,7 +29,7 @@ function MarketingNav() {
         <div className="md:hidden px-4 pb-4 space-y-3">
           <Link href="/features" className="block text-caption hover:text-white text-sm">Features</Link>
           <Link href="/pricing" className="block text-caption hover:text-white text-sm">Pricing</Link>
-          <Link href="/auth/signup" className="block bg-gradient-to-r from-blue-700 to-cyan-500 text-white font-semibold px-5 py-2 rounded-lg text-center text-sm">
+          <Link href="/auth/signup" className="block bg-gradient-to-r from-blue-700 to-cyan-500 text-white font-semibold px-4 py-2 rounded-lg text-center text-sm">
             Launch App &rarr;
           </Link>
         </div>

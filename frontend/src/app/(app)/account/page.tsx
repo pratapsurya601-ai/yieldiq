@@ -47,7 +47,7 @@ function ReferralSection() {
   if (!referralCode) return null
 
   return (
-    <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-5 space-y-3">
+    <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-4 space-y-3">
       <h2 className="text-sm font-semibold text-ink">Invite friends, get rewards</h2>
       <p className="text-xs text-caption">Share your link. When a friend signs up, you get +5 bonus analyses.</p>
       <div className="flex items-center gap-2">
@@ -261,7 +261,7 @@ function AccountInner() {
       <h1 className="text-xl font-bold text-ink">Account</h1>
 
       {/* Profile */}
-      <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-5 space-y-3">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-4 space-y-3">
         <div className="flex items-center gap-4">
           {/* YieldIQ logo */}
           <img src="/logo-new.svg" alt="YieldIQ" className="w-14 h-14 rounded-xl flex-shrink-0 shadow-md" />
@@ -322,7 +322,7 @@ function AccountInner() {
       </div>
 
       {/* Settings */}
-      <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-5 space-y-4">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-4 space-y-4">
         <h2 className="text-sm font-semibold text-ink">Settings</h2>
         <div className="flex items-center justify-between">
           <span className="text-sm text-body">Theme</span>
@@ -352,7 +352,7 @@ function AccountInner() {
           <h2 className="text-sm font-semibold text-ink">Upgrade your plan</h2>
 
           {/* Analyst — sweet-spot tier, most users start here */}
-          <div className={`relative bg-bg dark:bg-surface rounded-2xl border-2 p-5 transition ${upgradeHint === "analyst" ? "border-blue-500 ring-4 ring-blue-100 dark:ring-blue-900/40" : "border-blue-200 dark:border-blue-900"}`}>
+          <div className={`relative bg-bg dark:bg-surface rounded-2xl border-2 p-4 transition ${upgradeHint === "analyst" ? "border-blue-500 ring-4 ring-blue-100 dark:ring-blue-900/40" : "border-blue-200 dark:border-blue-900"}`}>
             <span className="absolute -top-3 left-1/2 -translate-x-1/2 bg-blue-600 text-white text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-full shadow-sm">
               Most Popular
             </span>
@@ -384,7 +384,7 @@ function AccountInner() {
           {/* dark-mode-allow: card is intentionally always-dark (premium "midnight"
               treatment) so the from-gray-900/to-gray-800 + text-gray-300/400 stays
               fixed in both modes. */}
-          <div className={`bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-5 text-white transition ${upgradeHint === "pro" ? "ring-4 ring-blue-400" : ""}`}>
+          <div className={`bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-4 text-white transition ${upgradeHint === "pro" ? "ring-4 ring-blue-400" : ""}`}>
             <div className="flex items-center justify-between mb-3">
               <div>
                 <h3 className="font-bold">Pro</h3>
@@ -412,7 +412,7 @@ function AccountInner() {
       )}
 
       {tier !== "free" && (
-        <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-5 text-center">
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-border p-4 text-center">
           <p className="text-sm text-caption">Current plan</p>
           <p className="text-lg font-bold text-blue-700 dark:text-blue-300 uppercase">{tier}</p>
           <p className="text-xs text-body mt-1">

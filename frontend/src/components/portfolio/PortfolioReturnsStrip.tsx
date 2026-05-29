@@ -70,7 +70,7 @@ function ReturnCard({
       </div>
       <p className={`text-base font-bold font-mono ${primaryClass}`}>{primary}</p>
       {limited ? (
-        <span className="mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 bg-amber-50 text-amber-700 ring-amber-200">
+        <span className="mt-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 bg-tone-warn-bg text-tone-warn-fg ring-amber-200">
           LIMITED DATA
         </span>
       ) : secondary ? (

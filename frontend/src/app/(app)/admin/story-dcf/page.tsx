@@ -244,7 +244,7 @@ export default function StoryDcfAdminPage() {
 
       {/* ── Audit ─────────────────────────────────────────── */}
       <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-100 flex items-baseline justify-between">
+        <div className="px-4 py-4 border-b border-gray-100 flex items-baseline justify-between">
           <div>
             <h2 className="text-sm font-semibold text-ink">
               Override back-test audit
@@ -318,7 +318,7 @@ export default function StoryDcfAdminPage() {
 
       {/* ── Industry defaults reference ───────────────────── */}
       {overrides && (
-        <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5">
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-4">
           <h2 className="text-sm font-semibold text-ink mb-3">
             Industry defaults
           </h2>
@@ -342,7 +342,7 @@ export default function StoryDcfAdminPage() {
       {/* ── Preview simulator ─────────────────────────────── */}
       <form
         onSubmit={runPreview}
-        className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-5 space-y-4"
+        className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 p-4 space-y-4"
       >
         <div>
           <h2 className="text-sm font-semibold text-ink">

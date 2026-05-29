@@ -107,7 +107,7 @@ export default function PortfolioHex({ holdings }: Props) {
     return (
       <section
         aria-labelledby="portfolio-hex-heading"
-        className="bg-surface rounded-2xl border border-border p-5"
+        className="bg-surface rounded-2xl border border-border p-4"
       >
         <h2
           id="portfolio-hex-heading"
@@ -133,7 +133,7 @@ export default function PortfolioHex({ holdings }: Props) {
     return (
       <section
         aria-labelledby="portfolio-hex-heading"
-        className="bg-surface rounded-2xl border border-border p-5"
+        className="bg-surface rounded-2xl border border-border p-4"
       >
         <h2
           id="portfolio-hex-heading"
@@ -143,7 +143,7 @@ export default function PortfolioHex({ holdings }: Props) {
         </h2>
         <div
           role="alert"
-          className="mt-2 text-sm text-amber-700 bg-amber-50 border border-amber-100 dark:text-amber-200 dark:bg-amber-950/30 dark:border-amber-900 rounded-lg px-3 py-2"
+          className="mt-2 text-sm text-tone-warn-fg bg-tone-warn-bg border border-amber-100 dark:text-amber-200 dark:bg-amber-950/30 dark:border-amber-900 rounded-lg px-3 py-2"
         >
           Couldn&apos;t compute your Portfolio Hex right now. Please try again in a moment.
         </div>
@@ -163,7 +163,7 @@ export default function PortfolioHex({ holdings }: Props) {
   return (
     <section
       aria-labelledby="portfolio-hex-heading"
-      className="bg-surface rounded-2xl border border-border p-5"
+      className="bg-surface rounded-2xl border border-border p-4"
     >
       <div className="flex items-start justify-between gap-3 mb-1">
         <h2
@@ -255,7 +255,7 @@ export default function PortfolioHex({ holdings }: Props) {
             onClick={() => setShareOpen(false)}
             className="absolute inset-0 bg-black/40"
           />
-          <div className="relative bg-surface rounded-t-2xl md:rounded-2xl border border-border p-5 w-full md:max-w-md mx-auto max-h-[90vh] overflow-y-auto">
+          <div className="relative bg-surface rounded-t-2xl md:rounded-2xl border border-border p-4 w-full md:max-w-md mx-auto max-h-[90vh] overflow-y-auto">
             <div className="flex items-start justify-between">
               <h3 id="share-hex-title" className="text-base font-bold text-ink">
                 Share your Portfolio Hex

@@ -21,8 +21,8 @@ export default function DataUnderReview({
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-16 sm:py-24">
-      <div className="bg-bg dark:bg-surface rounded-2xl border border-amber-200 shadow-sm p-8 sm:p-10">
-        <div className="flex items-center gap-3 mb-5">
+      <div className="bg-bg dark:bg-surface rounded-2xl border border-tone-warn-bd shadow-sm p-8 sm:p-10">
+        <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-lg">
             !
           </div>

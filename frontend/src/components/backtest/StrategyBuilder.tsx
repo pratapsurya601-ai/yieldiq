@@ -27,7 +27,7 @@ function rid() {
 }
 
 const SECTION_CARD =
-  "rounded-2xl border border-border bg-white p-4 sm:p-5 space-y-3"
+  "rounded-2xl border border-border bg-white p-4 sm:p-4 space-y-3"
 const LABEL = "block text-xs font-medium text-caption mb-1"
 const INPUT =
   "w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -89,7 +89,7 @@ export default function StrategyBuilder({ value, onChange, onRun, isRunning }: P
               className={cn(
                 "rounded-lg border px-3 py-2 text-xs font-medium",
                 value.universe.kind === k
-                  ? "border-blue-500 bg-blue-50 text-blue-700"
+                  ? "border-blue-500 bg-tone-info-bg text-tone-info-fg"
                   : "border-border bg-white text-ink hover:bg-gray-50",
               )}
             >
@@ -148,7 +148,7 @@ export default function StrategyBuilder({ value, onChange, onRun, isRunning }: P
             <button
               type="button"
               onClick={addRule}
-              className="text-xs font-medium text-blue-600 hover:text-blue-700"
+              className="text-xs font-medium text-blue-600 hover:text-tone-info-fg"
             >
               + Add rule
             </button>
@@ -278,7 +278,7 @@ export default function StrategyBuilder({ value, onChange, onRun, isRunning }: P
           onClick={onRun}
           disabled={isRunning}
           className={cn(
-            "rounded-xl px-5 py-2.5 text-sm font-semibold text-white shadow-sm",
+            "rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-sm",
             isRunning
               ? "bg-gray-400 cursor-not-allowed"
               : "bg-blue-600 hover:bg-blue-700",
@@ -376,7 +376,7 @@ function RuleRow({
       <button
         type="button"
         onClick={onRemove}
-        className="ml-auto text-[11px] text-red-600 hover:text-red-700"
+        className="ml-auto text-[11px] text-red-600 hover:text-tone-bad-fg"
       >
         Remove
       </button>

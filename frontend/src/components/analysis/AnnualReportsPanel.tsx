@@ -90,7 +90,7 @@ export default function AnnualReportsPanel({ ticker }: { ticker: string }) {
 
   if (loading) {
     return (
-      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-5">
+      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-4">
         <h3 className="text-sm font-semibold text-ink mb-2">Annual Reports</h3>
         <div className="text-xs text-caption">Loading…</div>
       </section>
@@ -99,7 +99,7 @@ export default function AnnualReportsPanel({ ticker }: { ticker: string }) {
 
   if (rows.length === 0) {
     return (
-      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-5">
+      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-4">
         <h3 className="text-sm font-semibold text-ink mb-2">Annual Reports</h3>
         <div className="text-xs text-caption">
           Annual reports coming soon for this ticker
@@ -111,7 +111,7 @@ export default function AnnualReportsPanel({ ticker }: { ticker: string }) {
 
   return (
     <section
-      className="bg-bg dark:bg-surface rounded-2xl border border-border p-5"
+      className="bg-bg dark:bg-surface rounded-2xl border border-border p-4"
       aria-label={`Annual reports for ${ticker}`}
     >
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -133,7 +133,7 @@ export default function AnnualReportsPanel({ ticker }: { ticker: string }) {
               <span
                 className="inline-flex items-center justify-center px-2 py-0.5 rounded-full
                            text-[10px] font-semibold tracking-wide uppercase
-                           bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300
+                           bg-tone-info-bg text-tone-info-fg dark:bg-blue-900/40 dark:text-blue-300
                            tabular-nums"
                 aria-label={`Fiscal year ${row.fiscal_year}`}
               >

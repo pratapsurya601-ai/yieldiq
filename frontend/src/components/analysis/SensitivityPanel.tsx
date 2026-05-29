@@ -202,7 +202,7 @@ export default function SensitivityPanel({
   }, [mutation.error])
 
   return (
-    <div className="bg-bg rounded-2xl border border-border p-5">
+    <div className="bg-bg rounded-2xl border border-border p-4">
       <div className="flex items-baseline justify-between mb-4">
         <div>
           <h2 className="text-sm font-semibold text-ink">Play with assumptions</h2>
@@ -221,7 +221,7 @@ export default function SensitivityPanel({
       </div>
 
       {/* Headline: FV + MoS so the user sees impact above the sliders */}
-      <div className="grid grid-cols-2 gap-3 mb-5">
+      <div className="grid grid-cols-2 gap-3 mb-4">
         <div className="rounded-xl border border-border bg-surface p-3 text-center">
           <p className="text-[11px] uppercase tracking-wide text-caption">
             Fair value

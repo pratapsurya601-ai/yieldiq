@@ -154,7 +154,7 @@ export default function TeamPage() {
           </p>
         </div>
 
-        <div className="mt-10 pt-6 border-t border-border flex flex-wrap gap-4 text-sm">
+        <div className="mt-8 pt-6 border-t border-border flex flex-wrap gap-4 text-sm">
           <a
             href="mailto:hiring@yieldiq.in"
             className="text-brand hover:underline underline-offset-4"

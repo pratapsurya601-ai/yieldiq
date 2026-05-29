@@ -198,7 +198,7 @@ export default function PrismTimeMachine({
         className="bg-bg w-full h-full sm:h-auto sm:max-w-xl sm:rounded-2xl border border-border shadow-2xl flex flex-col overflow-hidden"
       >
         {/* Header row: title + close */}
-        <div className="flex items-start justify-between px-5 pt-5 pb-3 border-b border-border">
+        <div className="flex items-start justify-between px-4 pt-5 pb-3 border-b border-border">
           <div className="min-w-0">
             <p className="font-display text-base font-semibold text-ink">
               Time Machine · {ticker.replace(".NS", "").replace(".BO", "")}
@@ -232,7 +232,7 @@ export default function PrismTimeMachine({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
+        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
           {status === "loading" && (
             <div className="flex flex-col items-center justify-center py-10">
               <div className="w-[280px] h-[280px] rounded-full bg-surface animate-pulse" />
@@ -241,7 +241,7 @@ export default function PrismTimeMachine({
           )}
 
           {status === "error" && (
-            <div className="rounded-xl border border-border bg-surface p-5 text-center">
+            <div className="rounded-xl border border-border bg-surface p-4 text-center">
               <p className="text-sm font-medium text-ink">
                 Time Machine data not available for this stock yet.
               </p>

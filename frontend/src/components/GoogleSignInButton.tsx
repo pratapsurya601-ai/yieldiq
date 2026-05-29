@@ -90,7 +90,7 @@ export function GoogleSignInButton({ label = "Continue with Google", redirectTo 
         <span>{loading ? "Redirecting to Google..." : label}</span>
       </button>
       {error && (
-        <p className="text-xs text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>
+        <p className="text-xs text-red-600 bg-tone-bad-bg rounded-lg px-3 py-2">{error}</p>
       )}
     </div>
   )

@@ -256,7 +256,7 @@ export default function ReverseDcfPanel({ ticker }: Props) {
   return (
     <section
       aria-label="Reverse DCF"
-      className="bg-bg rounded-2xl border border-border p-5"
+      className="bg-bg rounded-2xl border border-border p-4"
     >
       <header className="mb-3">
         <h2 className="text-sm font-semibold text-ink tracking-tight uppercase">
@@ -279,7 +279,7 @@ export default function ReverseDcfPanel({ ticker }: Props) {
       <p className="text-sm text-body leading-relaxed">{summary}</p>
 
       {offScale && offScaleCaveat && (
-        <p className="mt-2 text-xs leading-relaxed rounded-md border border-amber-300/40 bg-amber-50 dark:bg-amber-950/20 text-amber-900 dark:text-amber-200 px-3 py-2">
+        <p className="mt-2 text-xs leading-relaxed rounded-md border border-amber-300/40 bg-tone-warn-bg dark:bg-amber-950/20 text-amber-900 dark:text-amber-200 px-3 py-2">
           <span className="font-bold">Note:</span> {offScaleCaveat}. The
           implied-growth figure above is a bound, not a point estimate.
         </p>
@@ -492,13 +492,13 @@ function ReverseDcfSliders({ inputs, trailing5yCagr }: SlidersProps) {
           )}
         </p>
         {result.pegged !== null && (
-          <p className="mt-2 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+          <p className="mt-2 text-xs leading-relaxed text-tone-warn-fg dark:text-amber-300">
             Off-scale — the implied growth is outside the [−5%, +50%] search
             window, so the figure above is a bound rather than a point estimate.
           </p>
         )}
         {tg >= wacc && (
-          <p className="mt-2 text-xs leading-relaxed text-amber-700 dark:text-amber-300">
+          <p className="mt-2 text-xs leading-relaxed text-tone-warn-fg dark:text-amber-300">
             Terminal growth cannot equal or exceed WACC — clamped to{" "}
             {(effectiveTg * 100).toFixed(1)}% for this readout.
           </p>

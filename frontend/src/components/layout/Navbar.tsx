@@ -216,7 +216,7 @@ export default function Navbar() {
                     onClick={() => setMoreOpen(false)}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 text-sm",
-                      isActive ? "bg-blue-50 text-blue-600" : "text-ink hover:bg-surface"
+                      isActive ? "bg-tone-info-bg text-blue-600" : "text-ink hover:bg-surface"
                     )}
                   >
                     {item.icon}

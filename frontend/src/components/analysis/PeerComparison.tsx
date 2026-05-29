@@ -19,7 +19,7 @@ interface Props {
 /* ------------------------------------------------------------------ */
 function Skeleton() {
   return (
-    <div className="bg-surface rounded-2xl border border-border p-5 space-y-3">
+    <div className="bg-surface rounded-2xl border border-border p-4 space-y-3">
       <div className="h-5 w-40 bg-border rounded animate-pulse" />
       <div className="h-3 w-24 bg-bg rounded animate-pulse" />
       <div className="space-y-2 pt-2">
@@ -275,7 +275,7 @@ export default function PeerComparison({ ticker, currency }: Props) {
 
   if (isError) {
     return (
-      <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-5">
+      <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-4">
         <h2 className="text-sm font-semibold text-ink mb-2">Compare with Peers</h2>
         <p className="text-sm text-caption text-center py-6">Peer data unavailable</p>
         <div className="text-center">
@@ -292,7 +292,7 @@ export default function PeerComparison({ ticker, currency }: Props) {
 
   if (!hasPeers || !data?.peers?.length) {
     return (
-      <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-5">
+      <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-4">
         <h2 className="text-sm font-semibold text-ink mb-2">Compare with Peers</h2>
         <p className="text-xs text-caption text-center py-6">
           {data?.message ?? "Peer comparison coming soon for this sector."}
@@ -304,7 +304,7 @@ export default function PeerComparison({ ticker, currency }: Props) {
   const rows = data.peers
 
   return (
-    <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-5 space-y-3">
+    <div ref={containerRef} className="bg-surface rounded-2xl border border-border p-4 space-y-3">
       {/* Header */}
       <div>
         <h2 className="text-sm font-semibold text-ink">Compare with Peers</h2>

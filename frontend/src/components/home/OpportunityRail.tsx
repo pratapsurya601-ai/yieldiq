@@ -34,7 +34,7 @@ function FallbackCard({
         </h2>
       </div>
       <div className="px-4">
-        <div className="bg-bg rounded-2xl border border-border p-5">
+        <div className="bg-bg rounded-2xl border border-border p-4">
           <p className="text-sm text-body">{message}</p>
           {ctaHref && ctaLabel && (
             <Link

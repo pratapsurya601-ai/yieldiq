@@ -90,9 +90,9 @@ async function fetchSignals(ticker: string): Promise<ConcallSignalsResponse | nu
 function toneClass(tone: string | null | undefined): string {
   switch ((tone || "").toLowerCase()) {
     case "bullish":
-      return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+      return "bg-emerald-500/10 text-tone-good-fg dark:text-emerald-300"
     case "cautious":
-      return "bg-amber-500/10 text-amber-700 dark:text-amber-300"
+      return "bg-amber-500/10 text-tone-warn-fg dark:text-amber-300"
     case "defensive":
       return "bg-rose-500/10 text-rose-700 dark:text-rose-300"
     case "neutral":
@@ -135,7 +135,7 @@ export default function ConcallSignalsPanel({ ticker, initialData }: PanelProps)
   if (payload && payload.withheld) {
     return (
       <div
-        className="bg-bg rounded-2xl border border-border p-5"
+        className="bg-bg rounded-2xl border border-border p-4"
         data-testid="concall-signals-withheld"
       >
         <div className="flex items-center justify-between mb-2">
@@ -161,7 +161,7 @@ export default function ConcallSignalsPanel({ ticker, initialData }: PanelProps)
 
   if (isLoading || !signals) {
     return (
-      <div className="bg-bg rounded-2xl border border-border p-5">
+      <div className="bg-bg rounded-2xl border border-border p-4">
         <div className="h-4 w-32 bg-surface rounded animate-pulse mb-4" />
         <div className="space-y-3">
           {[0, 1, 2].map((i) => (
@@ -181,7 +181,7 @@ export default function ConcallSignalsPanel({ ticker, initialData }: PanelProps)
 
   return (
     <div
-      className="bg-bg rounded-2xl border border-border p-5"
+      className="bg-bg rounded-2xl border border-border p-4"
       data-testid="concall-signals-panel"
     >
       <div className="flex items-center justify-between mb-4">

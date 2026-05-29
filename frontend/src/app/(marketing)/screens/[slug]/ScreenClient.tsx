@@ -394,7 +394,7 @@ function BacktestSection({ slug }: { slug: string }) {
         )}
 
         {!hasRun && !loading && !error && (
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-5 text-center">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-center">
             <p className="text-sm text-blue-900 mb-2">
               Click <b>Run Backtest</b> to see how these {SCREENS_LIST.length} stocks would have performed vs Nifty.
             </p>

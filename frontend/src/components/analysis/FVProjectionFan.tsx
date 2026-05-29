@@ -240,7 +240,7 @@ export default function FVProjectionFan({
   const bullCagr = impliedCagr(currentPrice, scenarios.bull.iv, 5)
 
   return (
-    <div className="bg-bg rounded-2xl border border-border p-5">
+    <div className="bg-bg rounded-2xl border border-border p-4">
       <div className="flex items-start justify-between gap-3 mb-3">
         <div>
           <h2 className="text-sm font-semibold text-ink">5-Year Projection</h2>

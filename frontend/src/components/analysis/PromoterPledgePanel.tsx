@@ -134,7 +134,7 @@ export default function PromoterPledgePanel({ ticker }: { ticker: string }) {
 
   if (loading) {
     return (
-      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-5">
+      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-4">
         <h3 className="text-sm font-semibold text-ink mb-2">Promoter Pledge</h3>
         <div className="text-xs text-caption">Loading…</div>
       </section>
@@ -145,7 +145,7 @@ export default function PromoterPledgePanel({ ticker }: { ticker: string }) {
   // muted "no pledge on file" line so the user knows we checked.
   if (!data || !data.latest || data.latest.pledged_pct == null) {
     return (
-      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-5">
+      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-4">
         <h3 className="text-sm font-semibold text-ink mb-2">Promoter Pledge</h3>
         <div className="text-xs text-caption">
           No promoter-pledge disclosure on file
@@ -163,7 +163,7 @@ export default function PromoterPledgePanel({ ticker }: { ticker: string }) {
 
   return (
     <section
-      className="bg-bg dark:bg-surface rounded-2xl border border-border p-5"
+      className="bg-bg dark:bg-surface rounded-2xl border border-border p-4"
       aria-label={`Promoter pledge data for ${ticker}`}
     >
       <div className="flex items-start justify-between gap-3 mb-3">
@@ -179,7 +179,7 @@ export default function PromoterPledgePanel({ ticker }: { ticker: string }) {
             <span
               className="inline-flex items-center px-2 py-0.5 rounded-full
                          text-[10px] font-semibold tracking-wide uppercase
-                         bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                         bg-red-100 text-tone-bad-fg dark:bg-red-900/40 dark:text-red-300"
             >
               High Pledge
             </span>
@@ -188,7 +188,7 @@ export default function PromoterPledgePanel({ ticker }: { ticker: string }) {
             <span
               className="inline-flex items-center px-2 py-0.5 rounded-full
                          text-[10px] font-semibold tracking-wide uppercase
-                         bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"
+                         bg-amber-100 text-tone-warn-fg dark:bg-amber-900/40 dark:text-amber-300"
             >
               Recent Change
             </span>

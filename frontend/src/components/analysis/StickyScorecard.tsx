@@ -58,11 +58,11 @@ export type WorryTier =
 type ChipTone = "good" | "ok" | "warn" | "bad" | "neutral"
 
 const CHIP_STYLES: Record<ChipTone, string> = {
-  good: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  good: "bg-tone-good-bg text-tone-good-fg border-tone-good-bd",
   ok: "bg-lime-50 text-lime-700 border-lime-200",
-  warn: "bg-amber-50 text-amber-700 border-amber-200",
+  warn: "bg-tone-warn-bg text-tone-warn-fg border-tone-warn-bd",
   bad: "bg-rose-50 text-rose-700 border-rose-200",
-  neutral: "bg-slate-50 text-slate-600 border-slate-200",
+  neutral: "bg-tone-neutral-bg text-slate-600 border-tone-neutral-bd",
 }
 
 const DOT_STYLES: Record<ChipTone, string> = {
@@ -458,7 +458,7 @@ export default function StickyScorecard({
                   className={cn(
                     "font-mono tabular-nums text-base mt-0.5",
                     mosTone === "good"
-                      ? "text-emerald-700"
+                      ? "text-tone-good-fg"
                       : mosTone === "bad"
                         ? "text-rose-700"
                         : "text-ink",

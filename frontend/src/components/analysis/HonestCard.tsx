@@ -65,7 +65,7 @@ const ICON_PATHS: Record<SectionTone, React.ReactNode> = {
 const TONE_COLORS: Record<SectionTone, { icon: string; heading: string }> = {
   confident: {
     icon: "text-emerald-600 dark:text-emerald-400",
-    heading: "text-emerald-700 dark:text-emerald-300",
+    heading: "text-tone-good-fg dark:text-emerald-300",
   },
   estimate: {
     icon: "text-sky-600 dark:text-sky-400",
@@ -73,7 +73,7 @@ const TONE_COLORS: Record<SectionTone, { icon: string; heading: string }> = {
   },
   uncertain: {
     icon: "text-amber-600 dark:text-amber-400",
-    heading: "text-amber-700 dark:text-amber-300",
+    heading: "text-tone-warn-fg dark:text-amber-300",
   },
   invalidating: {
     icon: "text-rose-600 dark:text-rose-400",
@@ -166,10 +166,10 @@ export default function HonestCard({ card }: Props) {
   return (
     <section
       data-testid="honest-card"
-      className="rounded-2xl border border-border bg-slate-50 dark:bg-slate-900 p-5 md:p-6"
+      className="rounded-2xl border border-border bg-tone-neutral-bg dark:bg-slate-900 p-4 md:p-6"
       aria-label="The Honest Card — transparency panel"
     >
-      <header className="flex items-start justify-between gap-3 mb-5 pb-4 border-b border-border">
+      <header className="flex items-start justify-between gap-3 mb-4 pb-4 border-b border-border">
         <h2 className="text-base md:text-lg font-semibold text-ink tracking-tight">
           The Honest Card
         </h2>
@@ -249,7 +249,7 @@ export default function HonestCard({ card }: Props) {
         )}
       </div>
 
-      <footer className="mt-5 pt-4 border-t border-border">
+      <footer className="mt-4 pt-4 border-t border-border">
         <p className="text-[11px] text-caption italic leading-snug">
           Auto-generated. Computed at response time from publicly filed
           financials. Not investment advice.

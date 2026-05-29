@@ -54,8 +54,8 @@ const TIER_STYLES: Record<
   sleep_well: {
     ring:  "stroke-emerald-600",
     track: "stroke-emerald-100",
-    text:  "text-emerald-700",
-    chip:  "bg-emerald-50 text-emerald-700 border-emerald-200",
+    text:  "text-tone-good-fg",
+    chip:  "bg-tone-good-bg text-tone-good-fg border-tone-good-bd",
   },
   normal: {
     ring:  "stroke-lime-600",
@@ -66,8 +66,8 @@ const TIER_STYLES: Record<
   watch_closely: {
     ring:  "stroke-amber-500",
     track: "stroke-amber-100",
-    text:  "text-amber-700",
-    chip:  "bg-amber-50 text-amber-700 border-amber-200",
+    text:  "text-tone-warn-fg",
+    chip:  "bg-tone-warn-bg text-tone-warn-fg border-tone-warn-bd",
   },
   read_bears: {
     ring:  "stroke-orange-600",
@@ -111,7 +111,7 @@ export default function WorryIndex({ worry }: Props) {
   return (
     <section
       aria-labelledby="worry-index-heading"
-      className="bg-surface rounded-2xl border border-border p-5 sm:p-6"
+      className="bg-surface rounded-2xl border border-border p-4 sm:p-6"
     >
       <div className="flex items-start justify-between gap-3 mb-4">
         <div>
@@ -135,7 +135,7 @@ export default function WorryIndex({ worry }: Props) {
         </span>
       </div>
 
-      <div className="flex flex-col sm:flex-row items-center gap-5">
+      <div className="flex flex-col sm:flex-row items-center gap-4">
         {/* Circular gauge */}
         <div className="relative shrink-0" style={{ width: SIZE, height: SIZE }}>
           <svg
@@ -203,7 +203,7 @@ export default function WorryIndex({ worry }: Props) {
         const rows = hasRealData ? worry.contributors : PLACEHOLDER_CONTRIBUTORS
 
         return (
-          <div className="mt-5 border-t border-border pt-4">
+          <div className="mt-4 border-t border-border pt-4">
             <div className="flex items-baseline justify-between mb-3">
               <h3 className="text-[11px] font-semibold text-caption uppercase tracking-wide">
                 What drives this score

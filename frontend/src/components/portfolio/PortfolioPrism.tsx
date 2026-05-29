@@ -253,7 +253,7 @@ export default function PortfolioPrism({ holdings }: Props) {
     return (
       <section
         aria-labelledby="portfolio-prism-heading"
-        className="rounded-2xl border border-border p-5"
+        className="rounded-2xl border border-border p-4"
         style={{ background: "var(--color-surface)" }}
       >
         <h2
@@ -288,7 +288,7 @@ export default function PortfolioPrism({ holdings }: Props) {
     return (
       <section
         aria-labelledby="portfolio-prism-heading"
-        className="rounded-2xl border border-border p-5"
+        className="rounded-2xl border border-border p-4"
         style={{ background: "var(--color-surface)" }}
       >
         <h2
@@ -316,7 +316,7 @@ export default function PortfolioPrism({ holdings }: Props) {
   return (
     <section
       aria-labelledby="portfolio-prism-heading"
-      className="rounded-2xl border border-border p-5"
+      className="rounded-2xl border border-border p-4"
       style={{ background: "var(--color-surface)" }}
     >
       <div className="flex items-start justify-between gap-3 mb-1">
@@ -389,7 +389,7 @@ export default function PortfolioPrism({ holdings }: Props) {
 
       {/* Strongest / Weakest lens cards */}
       {prismData && strongest && weakest && strongest.key !== weakest.key && (
-        <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div
             className="rounded-xl border p-4"
             style={{
@@ -481,7 +481,7 @@ export default function PortfolioPrism({ holdings }: Props) {
             style={{ background: "rgba(0,0,0,0.4)" }}
           />
           <div
-            className="relative rounded-t-2xl md:rounded-2xl border border-border p-5 w-full md:max-w-md mx-auto max-h-[90vh] overflow-y-auto"
+            className="relative rounded-t-2xl md:rounded-2xl border border-border p-4 w-full md:max-w-md mx-auto max-h-[90vh] overflow-y-auto"
             style={{ background: "var(--color-surface)" }}
           >
             <div className="flex items-start justify-between">

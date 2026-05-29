@@ -265,7 +265,7 @@ export default function ShareReportCard({
           <div
             className="
               absolute left-0 right-0 bottom-0 max-h-[92vh] overflow-y-auto
-              bg-surface border-t border-border rounded-t-2xl p-5
+              bg-surface border-t border-border rounded-t-2xl p-4
               md:left-1/2 md:right-auto md:top-1/2 md:bottom-auto md:-translate-x-1/2 md:-translate-y-1/2
               md:max-h-[92vh] md:w-[520px] md:rounded-2xl md:border
             "

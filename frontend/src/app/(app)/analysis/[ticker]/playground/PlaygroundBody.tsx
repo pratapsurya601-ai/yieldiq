@@ -225,7 +225,7 @@ export default function PlaygroundBody({ ticker }: { ticker: string }) {
         {/* ── LEFT: Sliders ──────────────────────────────────── */}
         <section
           aria-label="DCF input sliders"
-          className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
         >
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wider text-ink">
@@ -251,7 +251,7 @@ export default function PlaygroundBody({ ticker }: { ticker: string }) {
             ))}
           </div>
           {!isPaid && (
-            <div className="mt-5 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs dark:border-emerald-900 dark:bg-emerald-950/30">
+            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs dark:border-emerald-900 dark:bg-emerald-950/30">
               <p className="font-medium text-emerald-900 dark:text-emerald-200">
                 Free plan: only the WACC slider is unlocked.
               </p>
@@ -268,7 +268,7 @@ export default function PlaygroundBody({ ticker }: { ticker: string }) {
         {/* ── RIGHT: Live FV + band ─────────────────────────── */}
         <section
           aria-label="Live fair value"
-          className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+          className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
         >
           <h2 className="text-sm font-semibold uppercase tracking-wider text-ink">
             Fair Value
@@ -315,7 +315,7 @@ export default function PlaygroundBody({ ticker }: { ticker: string }) {
           {/* Bear / Base / Bull mini fan-out */}
           {fv > 0 && (
             <div
-              className="mt-5"
+              className="mt-4"
               aria-label="Fair value range under one-sigma input shifts"
             >
               <div className="mb-1 flex justify-between text-[10px] uppercase tracking-wider text-muted">
@@ -348,7 +348,7 @@ export default function PlaygroundBody({ ticker }: { ticker: string }) {
       {reverse && price > 0 && (
         <section
           aria-label="Market-implied assumptions"
-          className="mt-6 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:to-slate-950"
+          className="mt-6 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:to-slate-950"
         >
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted">
             What the market is pricing in

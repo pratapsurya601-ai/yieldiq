@@ -163,7 +163,7 @@ export default function ManifestHistoryPanel({ ticker }: { ticker: string }) {
 
   if (loading) {
     return (
-      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-5">
+      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-4">
         <h3 className="text-sm font-semibold text-ink mb-2">Why we changed this analysis</h3>
         <div className="text-xs text-caption">Loading model update history…</div>
       </section>
@@ -172,7 +172,7 @@ export default function ManifestHistoryPanel({ ticker }: { ticker: string }) {
 
   if (entries.length === 0) {
     return (
-      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-5">
+      <section className="bg-bg dark:bg-surface rounded-2xl border border-border p-4">
         <h3 className="text-sm font-semibold text-ink mb-2">Why we changed this analysis</h3>
         <p className="text-xs text-caption">
           No model updates have applied to this ticker since YieldIQ launched
@@ -184,7 +184,7 @@ export default function ManifestHistoryPanel({ ticker }: { ticker: string }) {
 
   return (
     <section
-      className="bg-bg dark:bg-surface rounded-2xl border border-border p-5"
+      className="bg-bg dark:bg-surface rounded-2xl border border-border p-4"
       aria-label={`Model update history for ${ticker}`}
     >
       <div className="mb-3">

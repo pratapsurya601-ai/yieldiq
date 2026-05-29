@@ -104,7 +104,7 @@ export default function RatioTrendModal({
         className="bg-surface rounded-2xl border border-border shadow-xl w-full max-w-xl max-h-[90vh] overflow-auto"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between p-5 border-b border-border">
+        <div className="flex items-start justify-between p-4 border-b border-border">
           <div>
             <h3 id="ratio-trend-modal-title" className="text-base font-semibold text-ink">
               {title}
@@ -128,7 +128,7 @@ export default function RatioTrendModal({
           </button>
         </div>
 
-        <div className="p-5">
+        <div className="p-4">
           {series.length < 2 ? (
             <p className="text-sm text-caption py-8 text-center">
               Not enough historical data to plot a trend.

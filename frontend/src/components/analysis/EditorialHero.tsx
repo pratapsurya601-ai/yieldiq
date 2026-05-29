@@ -301,7 +301,7 @@ export default function EditorialHero({
 
   return (
     <section
-      className="bg-bg rounded-2xl border border-border p-5 md:p-6"
+      className="bg-bg rounded-2xl border border-border p-4 md:p-6"
       aria-label="Valuation summary"
     >
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8">
@@ -323,7 +323,7 @@ export default function EditorialHero({
               <span
                 data-testid="editorial-hero-region"
                 className={`text-[11px] uppercase tracking-[0.15em] ${
-                  isUnreliable ? "text-amber-700 dark:text-amber-300" : "text-body"
+                  isUnreliable ? "text-tone-warn-fg dark:text-amber-300" : "text-body"
                 }`}
               >
                 {/* Single source of truth: derive verdict from MoS (the
@@ -354,7 +354,7 @@ export default function EditorialHero({
             <div
               role="note"
               aria-label="Possible value trap"
-              className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200 px-3 py-2 text-[12px] leading-snug text-amber-900"
+              className="flex items-start gap-2 rounded-lg border border-amber-300 bg-tone-warn-bg dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200 px-3 py-2 text-[12px] leading-snug text-amber-900"
             >
               <svg className="w-4 h-4 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3m0 3.5h.01M10.29 3.86l-8.4 14.42A2 2 0 003.61 21h16.78a2 2 0 001.72-2.72L13.71 3.86a2 2 0 00-3.42 0z" />
@@ -403,7 +403,7 @@ export default function EditorialHero({
             <div
               role="note"
               aria-label="Under Review"
-              className="mt-1 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200 px-3 py-2 text-[12px] leading-snug text-amber-900"
+              className="mt-1 rounded-lg border border-amber-300 bg-tone-warn-bg dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200 px-3 py-2 text-[12px] leading-snug text-amber-900"
             >
               <span className="font-semibold">Under Review</span> &mdash; not enough
               reliable data to publish a fair value, margin of safety, or composite
@@ -450,7 +450,7 @@ export default function EditorialHero({
               {fairValue > 0 && data?.ticker && (
                 <a
                   href={`/analysis/${encodeURIComponent(data.ticker)}/playground`}
-                  className="mt-1 inline-block text-[11px] font-semibold text-emerald-700 hover:underline dark:text-emerald-300"
+                  className="mt-1 inline-block text-[11px] font-semibold text-tone-good-fg hover:underline dark:text-emerald-300"
                 >
                   &rarr; Adjust the assumptions
                 </a>
@@ -613,7 +613,7 @@ export default function EditorialHero({
                 {redFlagsCount > 0 && (
                   <span
                     data-testid="prism-red-flag-chip"
-                    className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
+                    className="inline-flex items-center gap-1 rounded-full border border-amber-300 bg-tone-warn-bg px-2 py-0.5 text-[11px] font-medium text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200"
                     title={`${redFlagsCount} red flag${redFlagsCount === 1 ? "" : "s"}`}
                   >
                     <span aria-hidden>⚠</span>
@@ -623,7 +623,7 @@ export default function EditorialHero({
                 {positivesCount > 0 && (
                   <span
                     data-testid="prism-positive-chip"
-                    className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200"
+                    className="inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-tone-good-bg px-2 py-0.5 text-[11px] font-medium text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-200"
                     title={`${positivesCount} positive signal${positivesCount === 1 ? "" : "s"}`}
                   >
                     <span aria-hidden>★</span>

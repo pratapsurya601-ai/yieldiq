@@ -34,7 +34,7 @@ export default function StepInterests({ initial = [], onContinue }: StepInterest
   const canContinue = selected.length > 0
 
   return (
-    <div className="flex flex-col min-h-[calc(100vh-56px)] px-5 pb-8">
+    <div className="flex flex-col min-h-[calc(100vh-56px)] px-4 pb-8">
       <header className="pt-6 pb-6">
         <h1 className="font-editorial text-3xl sm:text-4xl text-ink leading-tight">
           What matters to you?

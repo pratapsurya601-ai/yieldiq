@@ -60,7 +60,7 @@ export default function StylePickerModal({ open, onClose }: Props) {
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50"
     >
       <div className="bg-bg w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl border border-border shadow-2xl">
-        <div className="p-5 sm:p-6">
+        <div className="p-4 sm:p-6">
           <h2
             id="style-picker-title"
             className="font-display text-xl sm:text-2xl font-semibold text-ink"
@@ -73,7 +73,7 @@ export default function StylePickerModal({ open, onClose }: Props) {
             time in Preferences.
           </p>
 
-          <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
             {STYLES.map((s) => {
               const meta = STYLE_META[s]
               const isSel = selected === s
@@ -115,7 +115,7 @@ export default function StylePickerModal({ open, onClose }: Props) {
               type="button"
               onClick={handleSave}
               disabled={!selected}
-              className="bg-brand text-white text-sm font-semibold px-5 py-2.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition"
+              className="bg-brand text-white text-sm font-semibold px-4 py-2.5 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition"
             >
               Save my preference
             </button>

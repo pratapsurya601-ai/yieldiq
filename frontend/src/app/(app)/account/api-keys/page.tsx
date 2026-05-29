@@ -200,7 +200,7 @@ export default function ApiKeysPage() {
           </p>
           <Link
             href="/pricing"
-            className="inline-block py-3 px-5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition"
+            className="inline-block py-3 px-4 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition"
           >
             See pricing
           </Link>
@@ -236,7 +236,7 @@ export default function ApiKeysPage() {
 
       {/* Just-created key — show ONCE */}
       {justCreated && (
-        <div className="bg-blue-50 dark:bg-blue-950/30 border-2 border-blue-400 dark:border-blue-700 rounded-2xl p-5 space-y-3">
+        <div className="bg-blue-50 dark:bg-blue-950/30 border-2 border-blue-400 dark:border-blue-700 rounded-2xl p-4 space-y-3">
           <div className="flex items-center gap-2">
             <span className="text-lg" aria-hidden>
               {"⚠️"}
@@ -272,7 +272,7 @@ export default function ApiKeysPage() {
 
       {/* Create modal */}
       {showCreate && (
-        <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-5 space-y-3">
+        <div className="bg-bg dark:bg-surface border border-border rounded-2xl p-4 space-y-3">
           <h2 className="text-sm font-semibold text-ink">Create new key</h2>
           <label className="block">
             <span className="text-xs text-caption">Label (for your reference)</span>

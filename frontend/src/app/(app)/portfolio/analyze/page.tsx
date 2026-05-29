@@ -279,7 +279,7 @@ export default function PortfolioAnalyzePage() {
             type="button"
             onClick={onAnalyze}
             disabled={loading}
-            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm font-medium rounded-lg"
+            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 text-white text-sm font-medium rounded-lg"
           >
             {loading ? "Analyzing…" : "Analyze"}
           </button>

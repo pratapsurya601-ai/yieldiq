@@ -122,7 +122,7 @@ export default function PortfolioUploader() {
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-2xl border bg-bg dark:bg-surface p-5 sm:p-6"
+      className="rounded-2xl border bg-bg dark:bg-surface p-4 sm:p-6"
       style={{ borderColor: "var(--color-border, #E2E8F0)" }}
     >
       <h2 className="text-lg font-bold mb-1" style={{ color: "var(--color-ink, #0F172A)" }}>
@@ -172,7 +172,7 @@ export default function PortfolioUploader() {
       {errors.length > 0 && (
         <ul
           role="alert"
-          className="mt-3 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300 list-disc list-inside space-y-0.5"
+          className="mt-3 rounded-xl border border-tone-bad-bd bg-tone-bad-bg p-3 text-xs text-tone-bad-fg dark:border-red-900 dark:bg-red-950/30 dark:text-red-300 list-disc list-inside space-y-0.5"
         >
           {errors.map((e, i) => (
             <li key={i}>{e}</li>
@@ -184,7 +184,7 @@ export default function PortfolioUploader() {
         <button
           type="submit"
           disabled={busy || !text.trim()}
-          className="rounded-xl px-5 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
+          className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
           style={{ background: "var(--color-brand, #2563EB)" }}
         >
           {busy ? "Parsing…" : "Build summary →"}

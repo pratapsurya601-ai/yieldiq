@@ -215,7 +215,7 @@ export default function ResultsTable({ rows, total, isLoading, pageSize = 50, er
                            tight in the row (h-7 w-7) and triggers per-
                            ticker membership check on render. */
                         <span className="inline-flex items-center gap-1">
-                          <Link href={href} className="font-semibold text-blue-700 hover:underline">
+                          <Link href={href} className="font-semibold text-tone-info-fg hover:underline">
                             {tickerClean}
                           </Link>
                           <WatchlistButton
