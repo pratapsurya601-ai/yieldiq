@@ -1451,6 +1451,34 @@ MANIFEST: list[dict] = [
             "rows are untouched."
         ),
     },
+    {
+        # v_244 — Sanity-clamp window for revenue CAGR widened from
+        # ±50% to ±80%. WIPRO and other tickers with a single
+        # restructuring fiscal year inside the trailing 3y/5y window
+        # were landing in the 50-80% absolute range, getting nulled
+        # by the old clamp, and then tripping the null-CAGR gate at
+        # data_limited. The HCLTECH-class -75% artifact that
+        # motivated the original ±50% bound is still caught by the
+        # wider window. Scope is the verdict surface for any ticker
+        # whose CAGR was previously clipped at the narrower bound;
+        # tickers list uses WIPRO + wildcard so every cached row
+        # whose previous compute hit the old clamp recomputes.
+        "version_id": "v_244_cagr_clamp_loosened_2026_05_29",
+        "applied_at": datetime(2026, 5, 29, 12, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["WIPRO", "*"],
+            "fields": [
+                "verdict", "data_limited", "fair_value", "mos_pct", "score",
+            ],
+        },
+        "rationale": (
+            "Loosen _sanitize_cagr clamp ±50% → ±80% so a single "
+            "restructured fiscal year inside the trailing CAGR window "
+            "no longer collapses revenue_cagr_3y AND revenue_cagr_5y "
+            "to None and trips the null-CAGR data_limited gate. "
+            "Task #244 fix-forward after #673 / revert #679."
+        ),
+    },
 ]
 
 

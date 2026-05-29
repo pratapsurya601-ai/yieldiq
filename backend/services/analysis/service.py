@@ -4394,18 +4394,28 @@ class AnalysisService(NarrativeMixin):
                     _rev_cagr_5y = _rcagr(_rev_series, 5)
         except Exception:
             pass
-        # Sanity clamp: CAGR outside ±50% is almost certainly a data
+        # Sanity clamp: CAGR outside ±80% is almost certainly a data
         # artifact (currency conversion error, one-off spinoff/demerger,
         # bad yfinance row). Audit feedback: HCLTECH showed -75.5% 3y
         # CAGR, but its real 3y CAGR is +7-10%. Clamp to None so the
-        # UI renders "—" instead of an obviously-wrong -75%. Real
-        # business CAGR outside ±50% for established companies would
+        # UI renders "—" instead of an obviously-wrong reading. Real
+        # business CAGR outside ±80% for established companies would
         # have a manual review anyway (likely a special situation).
+        #
+        # Task #244 (2026-05-29): widened ±50% → ±80% so a single
+        # restructuring fiscal year (e.g. WIPRO FY23 segment
+        # reorganisation where the trailing 3y/5y windows pick up a
+        # one-off base distortion of ~55-65%) does not null out both
+        # CAGR series and trip the downstream null-CAGR gate at
+        # data_limited. The HCLTECH-class -75% artifact is still caught
+        # by the wider bound. The narrower ±50% bound previously
+        # collapsed restructured-FY tickers to data_limited even when
+        # the rest of the engine had produced a complete valuation.
         def _sanitize_cagr(v):
             if v is None:
                 return None
             try:
-                return None if abs(float(v)) > 0.50 else v
+                return None if abs(float(v)) > 0.80 else v
             except (TypeError, ValueError):
                 return None
         _rev_cagr_3y = _sanitize_cagr(_rev_cagr_3y)
