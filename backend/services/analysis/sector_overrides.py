@@ -102,10 +102,16 @@ FMCG_TG_TIER3: Final[float] = 0.040
 
 # WACC floor — FMCG balance sheets are net-cash with beta 0.5-0.7.
 # CAPM systematically over-charges them. Floor aligned with Damodaran's
-# India staples cost-of-capital reference (~9.5%, Jan-2026 country /
-# industry tables). Prior value of 8.5% sat below the Damodaran band
-# and inflated FV on the top-tier cohort (task #229 diagnosis).
-FMCG_WACC_FLOOR: Final[float] = 0.095
+# India staples cost-of-capital reference, originally 8.5%.
+#
+# This constant gates WACC via cap semantics, NOT floor semantics.
+# The call site at service.py:1517-1520 does: if wacc > target: wacc = target
+# i.e., it CAPS WACC from above. Raising this value would loosen the cap
+# (allow higher WACC inputs, but clamp them lower). The original PR #672
+# intent (raise WACC to lower FMCG FVs) requires either renaming this to
+# FMCG_WACC_CAP or inverting the operator. Reverted to 0.085 pending
+# semantic fix in a separate PR.
+FMCG_WACC_FLOOR: Final[float] = 0.085
 
 # Moat pillar floor for top-4 franchise leaders. Above the existing
 # ALLOWLIST_MOAT_FLOOR_SCORE (70 / "Wide") because their moats are

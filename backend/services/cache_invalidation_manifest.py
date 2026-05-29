@@ -1452,17 +1452,14 @@ MANIFEST: list[dict] = [
         ),
     },
     {
-        # v_244 — Sanity-clamp window for revenue CAGR widened from
+# v_244 — Sanity-clamp window for revenue CAGR widened from
         # ±50% to ±80%. WIPRO and other tickers with a single
         # restructuring fiscal year inside the trailing 3y/5y window
         # were landing in the 50-80% absolute range, getting nulled
         # by the old clamp, and then tripping the null-CAGR gate at
         # data_limited. The HCLTECH-class -75% artifact that
         # motivated the original ±50% bound is still caught by the
-        # wider window. Scope is the verdict surface for any ticker
-        # whose CAGR was previously clipped at the narrower bound;
-        # tickers list uses WIPRO + wildcard so every cached row
-        # whose previous compute hit the old clamp recomputes.
+        # wider window.
         "version_id": "v_244_cagr_clamp_loosened_2026_05_29",
         "applied_at": datetime(2026, 5, 29, 12, 0, tzinfo=timezone.utc),
         "scope": {
@@ -1477,6 +1474,34 @@ MANIFEST: list[dict] = [
             "no longer collapses revenue_cagr_3y AND revenue_cagr_5y "
             "to None and trips the null-CAGR data_limited gate. "
             "Task #244 fix-forward after #673 / revert #679."
+        ),
+    },
+    {
+        # Revert PR #672 FMCG_WACC_FLOOR change. The constant gates WACC
+        # via cap semantics (call site: if wacc > target: wacc = target).
+        # PR #672 raised it 0.085 -> 0.095 under floor-semantics
+        # assumption, which loosened the cap and inflated FMCG FVs
+        # (ITC +104%). Constant reverted to 0.085; semantic rename to
+        # FMCG_WACC_CAP deferred to a follow-up. Scenario weights
+        # (35/45/20) from PR #672 remain in place — separate rationale.
+        "version_id": "v_revert_229_fmcg_cap_wrong_direction_2026_05_29",
+        "applied_at": datetime(2026, 5, 29, 6, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "NESTLEIND", "HINDUNILVR", "BRITANNIA", "ITC", "DABUR",
+                "MARICO", "COLPAL", "GODREJCP", "EMAMILTD", "TATACONSUM",
+                "VBL",
+            ],
+            "fields": [
+                "fair_value", "base_case", "bull_case", "bear_case",
+                "scenarios", "verdict", "mos_pct", "score", "wacc",
+            ],
+        },
+        "rationale": (
+            "Reverted FMCG_WACC_FLOOR 0.095->0.085 — PR #672 raised it "
+            "under floor-semantics assumption, but the call site uses "
+            "cap-semantics, so the change inflated FVs (ITC +104%). "
+            "Semantic fix deferred to follow-up."
         ),
     },
 ]
