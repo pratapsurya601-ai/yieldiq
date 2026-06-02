@@ -167,6 +167,87 @@ def store_today_fair_value(
             pass
 
 
+def store_today_fair_value_superset(
+    ticker: str,
+    fv: float,
+    bear_iv: float | None,
+    bull_iv: float | None,
+    scenario_weights: dict | None,
+    model_version: str,
+    manifest_id: str | None,
+    db: Session,
+) -> None:
+    """Phase 1 superset write — populates the new annotation-driving
+    columns on ``fair_value_history`` with provenance='live'.
+
+    Runs alongside :func:`store_today_fair_value` (which owns the
+    legacy columns + EMA smoothing). On (ticker, date, provenance)
+    conflict the row is updated. Same-day recomputes overwrite the
+    'live' row; pre-existing 'snapshot' / 'golden' rows for the same
+    ticker+date remain untouched because the conflict key includes
+    provenance.
+
+    Never raises — a failure here must not block the analysis
+    response or the legacy FV write. Logs at WARN.
+    """
+    from datetime import date as _date
+
+    import json as _json
+    from sqlalchemy import text
+
+    today = _date.today()
+    try:
+        sw_json = _json.dumps(scenario_weights) if scenario_weights else None
+        db.execute(
+            text(
+                """
+                INSERT INTO fair_value_history (
+                    ticker, date, fair_value, price, mos_pct,
+                    bear_iv, bull_iv, scenario_weights,
+                    model_version, provenance, manifest_id,
+                    written_at, updated_at
+                )
+                VALUES (
+                    :ticker, :date, :fv, 0, 0,
+                    :bear_iv, :bull_iv, CAST(:scenario_weights AS jsonb),
+                    :model_version, 'live', :manifest_id,
+                    now(), now()
+                )
+                ON CONFLICT (ticker, date) DO UPDATE SET
+                    -- DO NOT overwrite fair_value/price/mos_pct/verdict/wacc/
+                    -- confidence — those are owned by store_today_fair_value
+                    -- (with EMA smoothing). This hook only fills the new
+                    -- annotation-driving columns. provenance stays 'live'.
+                    bear_iv          = EXCLUDED.bear_iv,
+                    bull_iv          = EXCLUDED.bull_iv,
+                    scenario_weights = EXCLUDED.scenario_weights,
+                    model_version    = EXCLUDED.model_version,
+                    manifest_id      = EXCLUDED.manifest_id,
+                    written_at       = now()
+                """
+            ),
+            {
+                "ticker": ticker,
+                "date": today,
+                "fv": round(float(fv), 4),
+                "bear_iv": round(float(bear_iv), 4) if bear_iv else None,
+                "bull_iv": round(float(bull_iv), 4) if bull_iv else None,
+                "scenario_weights": sw_json,
+                "model_version": model_version,
+                "manifest_id": manifest_id,
+            },
+        )
+        db.commit()
+    except Exception as exc:
+        log.warning(
+            "store_today_fair_value_superset failed for %s: %s", ticker, exc
+        )
+        try:
+            db.rollback()
+        except Exception:
+            pass
+
+
 def get_fv_history(
     ticker: str,
     db: Session,

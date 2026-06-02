@@ -202,6 +202,39 @@ from backend.services.tier2_cohort_valuation_service import (
 )
 
 
+# ── Phase 1 FV-history hook resolvers (Agent A) ───────────────────
+# Identify the engine version + most-recent manifest entry so the
+# new fair_value_history.model_version / manifest_id columns can be
+# populated on every recompute. Both are best-effort — failure
+# returns a sentinel so the FV write hook still runs.
+def _resolve_engine_version_slug() -> str:
+    """Engine version slug. We don't have a single canonical version
+    string today; the most-recent manifest entry's version_id is the
+    closest proxy because every engine change must add a manifest entry.
+    """
+    try:
+        from backend.services.cache_invalidation_manifest import MANIFEST
+        if MANIFEST:
+            return str(MANIFEST[0].get("version_id") or "unknown")
+    except Exception:
+        pass
+    return "unknown"
+
+
+def _resolve_latest_manifest_version_id() -> str | None:
+    """Most-recent manifest entry's version_id. Used as the manifest_id
+    foreign-key-ish tag on rows written by the recompute hook.
+    """
+    try:
+        from backend.services.cache_invalidation_manifest import MANIFEST
+        if MANIFEST:
+            vid = MANIFEST[0].get("version_id")
+            return str(vid) if vid else None
+    except Exception:
+        pass
+    return None
+
+
 def _fetch_tier2_peer_metrics_map(
     peer_tickers: list[str],
 ) -> dict[str, dict]:
@@ -4067,16 +4100,41 @@ class AnalysisService(NarrativeMixin):
                     confidence=int(confidence.get("score", 50)),
                 )
 
+                # Phase 1 superset hook (Agent A): also populate the new
+                # annotation-driving columns (bear_iv, bull_iv,
+                # scenario_weights, model_version, manifest_id, provenance='live').
+                # The superset write runs AFTER store_today_fair_value so the
+                # legacy row exists for the ON CONFLICT (ticker, date) update.
+                # Failure in either path is logged and swallowed; the analysis
+                # response has already returned by the time this thread runs.
+                _fv_super_args = dict(
+                    bear_iv=float(bear_iv) if (bear_iv and bear_iv > 0) else None,
+                    bull_iv=float(bull_iv) if (bull_iv and bull_iv > 0) else None,
+                    scenario_weights=None,  # engine does not expose weights today
+                    model_version=_resolve_engine_version_slug(),
+                    manifest_id=_resolve_latest_manifest_version_id(),
+                )
+
                 def _bg_store_fv():
                     try:
                         from data_pipeline.sources.fv_history import (
                             store_today_fair_value,
+                            store_today_fair_value_superset,
                         )
                         _db = _get_pipeline_session()
                         if _db is None:
                             return
                         try:
                             store_today_fair_value(db=_db, **_fv_args)
+                            try:
+                                store_today_fair_value_superset(
+                                    ticker=_fv_args["ticker"],
+                                    fv=_fv_args["fv"],
+                                    db=_db,
+                                    **_fv_super_args,
+                                )
+                            except Exception:
+                                pass  # already logged by superset hook
                         finally:
                             _db.close()
                     except Exception:
