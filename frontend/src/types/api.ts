@@ -801,3 +801,38 @@ export interface FundListResponse {
   funds: FundListItem[]
   total: number
 }
+
+// ── Phase 1 — Fair-Value History contract (Agent B) ──────────────
+// Mirrors backend/models/fair_value_history.py exactly. Treat the
+// shapes as locked: Agent A wires the data layer, Agent C builds the
+// chart, Agent D writes the tests — all against this contract.
+export type FVHistoryProvenance = "snapshot" | "golden" | "live"
+export type FVAnnotationConfidence = "high" | "inferred" | "data_refresh"
+
+export interface FairValueHistoryPoint {
+  date: string                // ISO date, YYYY-MM-DD
+  fair_value: number          // ₹ per share, base-case scenario
+  bear_iv: number | null
+  bull_iv: number | null
+  scenario_weights: Record<string, number> | null
+  model_version: string       // engine version slug at compute time
+  provenance: FVHistoryProvenance
+  manifest_id: string | null  // version_id of the linked manifest entry
+}
+
+export interface FairValueAnnotation {
+  date: string                // ISO date, YYYY-MM-DD
+  fv_delta_pct: number        // (this_fv - prev_fv) / prev_fv * 100
+  manifest_id: string | null
+  cause_label: string         // short neutral noun phrase, SEBI-clean
+  confidence: FVAnnotationConfidence
+}
+
+export interface FairValueHistoryResponse {
+  ticker: string
+  points: FairValueHistoryPoint[]
+  annotations: FairValueAnnotation[]
+  starts_at: string | null    // ISO date of earliest point, or null
+  points_count: number
+  is_sparse: boolean          // true when series has < 3 points
+}

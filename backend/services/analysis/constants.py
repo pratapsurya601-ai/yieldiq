@@ -1755,3 +1755,14 @@ def it_services_tier(ticker: str | None) -> str | None:
         return "tier2"
     return None
 
+
+# ─────────────────────────────────────────────────────────────────────
+# Phase 1 — Fair-Value History annotation threshold (2026-06-02, Agent B)
+#
+# Material-move threshold for FV-history annotations. Drives annotation
+# emission off the FV series itself, not the manifest. Past annotations
+# (sparse backfill) cannot compute day-over-day deltas and fall back to
+# explicit-ticker manifest matches only. Comment locked by Phase 1
+# contract; do not change without coordination.
+# ─────────────────────────────────────────────────────────────────────
+FV_ANNOTATION_THRESHOLD_PCT = 2.0

@@ -1001,6 +1001,13 @@ from backend.routers import internal as internal_router
 app.include_router(internal_router.router)
 app.include_router(internal_router.admin_router)
 
+# Phase 1 — historical fair-value series + material-move annotations.
+#   GET /api/valuation-history/{ticker}
+# Contract-first stub (Agent B). Returns empty shape until Agent A
+# wires the fair_value_history query in the follow-up PR.
+from backend.routers import valuation_history as valuation_history_router
+app.include_router(valuation_history_router.router)
+
 
 @app.get("/health")
 async def health_check():

@@ -1504,6 +1504,27 @@ MANIFEST: list[dict] = [
             "Semantic fix deferred to follow-up."
         ),
     },
+    {
+        # Phase 1 contract PR: added FV_ANNOTATION_THRESHOLD_PCT constant
+        # to backend/services/analysis/constants.py. The constant is a
+        # display-only threshold for the new /api/valuation-history
+        # endpoint annotation visibility — it does NOT affect any
+        # cached field. No tickers' analysis output changes.
+        # Entry exists only to satisfy the cache-version-bump CI gate
+        # which is mechanical on services/ changes. Empty fields list
+        # documents the no-op intent.
+        "version_id": "v_phase1_fv_history_contract_2026_05_29",
+        "applied_at": datetime(2026, 5, 29, 18, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [],
+            "fields": [],
+        },
+        "rationale": (
+            "Phase 1 FV-history contract: new annotation threshold "
+            "constant + new isolated router. No cached field affected; "
+            "manifest entry is a documentation no-op for the CI gate."
+        ),
+    },
 ]
 
 
