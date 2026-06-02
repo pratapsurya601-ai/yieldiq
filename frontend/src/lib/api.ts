@@ -1365,4 +1365,12 @@ export async function fetchFundListSSR(
   }
 }
 
+// ── Phase 1 — Fair-Value History contract (Agent B) ──────────────
+// Mirrors the existing getAnalysis pattern. Backend stub returns the
+// empty shape until Agent A wires the query off fair_value_history.
+import type { FairValueHistoryResponse } from "@/types/api"
+
+export const getValuationHistory = (ticker: string): Promise<FairValueHistoryResponse> =>
+  api.get(`/api/valuation-history/${ticker}`).then(r => r.data)
+
 export default api
