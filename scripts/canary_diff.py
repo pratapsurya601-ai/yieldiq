@@ -1332,7 +1332,100 @@ def main(argv: list[str] | None = None) -> int:
     if drift_notes:
         print(f"Snapshot drift notes (advisory): {len(drift_notes)}")
     print(f"Reports: {args.report_json}, {args.report_md}")
+
+    # ── Opt-in: Phase 1 fair-value-history shape gate ───────────────
+    # Runs the empty-but-valid shape check against
+    # /api/valuation-history/{ticker} for every canary stock. Does
+    # NOT change the script exit code (the endpoint is too new for
+    # value baselines and Agent A's backfill has not run for every
+    # ticker yet). Promote to a hard gate once the backfill is
+    # universal.
+    if os.environ.get("CANARY_FV_HISTORY_GATE", "1") != "0":
+        try:
+            run_fv_history_shape_check(stocks, api_base=args.api_base)
+        except Exception as e:  # noqa: BLE001
+            print(
+                f"[fv-history-shape] check skipped due to error: "
+                f"{type(e).__name__}: {e}"
+            )
+
     return 0 if report["passed"] else 1
+
+
+# ---------------------------------------------------------------------------
+# Phase 1 — fair-value-history shape gate (opt-in, advisory)
+# ---------------------------------------------------------------------------
+#
+# Verifies that GET /api/valuation-history/{ticker} returns the
+# empty-but-valid shape pinned by `FairValueHistoryResponse`. Asserts:
+#   - HTTP 200 (never 404 or 500)
+#   - Response parses against the Pydantic model
+#   - `points` is a list (empty until Agent A's backfill runs for
+#     the ticker — that is acceptable)
+#
+# Value baselines are intentionally NOT asserted. The endpoint is
+# too new and the data layer is in flight on a parallel branch.
+# Exit code is unaffected; the function prints a PASS / FAIL line
+# per stock plus a summary. Caller can promote to hard once
+# universal backfill lands.
+
+
+def run_fv_history_shape_check(
+    stocks: list[dict],
+    api_base: str = API_BASE,
+) -> dict[str, int]:
+    """Probe /api/valuation-history/{ticker} per stock; print results.
+
+    Returns a counters dict {"pass": N, "fail": N, "total": N}. Never
+    raises (network errors are reported as fails, not exceptions).
+    """
+    try:
+        from backend.models.fair_value_history import (
+            FairValueHistoryResponse,
+        )
+    except Exception as e:  # noqa: BLE001
+        print(
+            f"[fv-history-shape] cannot import FairValueHistoryResponse: "
+            f"{type(e).__name__}: {e} — gate skipped."
+        )
+        return {"pass": 0, "fail": 0, "total": 0}
+
+    passed = 0
+    failed = 0
+    failures: list[str] = []
+    total = len(stocks)
+    for spec in stocks:
+        sym = spec["symbol"]
+        url = f"{api_base}/api/valuation-history/{sym}"
+        payload, err = _http_get(url)
+        if err is not None or payload is None:
+            failed += 1
+            failures.append(f"{sym}: fetch error: {err}")
+            continue
+        try:
+            model = FairValueHistoryResponse(**payload)
+        except Exception as e:  # noqa: BLE001
+            failed += 1
+            failures.append(
+                f"{sym}: schema parse failed: {type(e).__name__}: {e}"
+            )
+            continue
+        if not isinstance(model.points, list):
+            failed += 1
+            failures.append(f"{sym}: points is not a list")
+            continue
+        passed += 1
+
+    print()
+    print(
+        f"[fv-history-shape] OPT-IN gate (advisory): "
+        f"PASS {passed}/{total}, FAIL {failed}/{total}"
+    )
+    if failures:
+        print("[fv-history-shape] sample failures:")
+        for line in failures[:5]:
+            print(f"  - {line}")
+    return {"pass": passed, "fail": failed, "total": total}
 
 
 if __name__ == "__main__":
