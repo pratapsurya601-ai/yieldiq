@@ -1,3 +1,36 @@
+> ## ⚠️ SUPERSEDED — DO NOT USE THE NUMBERS IN THIS DOCUMENT
+>
+> The headline numbers in this diagnosis (41 duplicate tickers via
+> `db_writer.py`, 24 |YoY|>50% anomalies, 5 zero-row tickers, 64
+> total corrupt) have all been **falsified or substantially
+> mis-counted** by subsequent source-aware verification on
+> 2026-06-03. See **`corruption-recount-2026-06-03.md`** for the
+> corrected figures (71 true dups, 146 |YoY|>50%, 1 zero-row, 185
+> total corrupt), and **`large-move-vs-corruption-corroboration-tracker.md`**
+> for the strategic implications.
+>
+> Specifically:
+> - The "missing `ON CONFLICT` in `data_pipeline/xbrl/db_writer.py`"
+>   premise was **WRONG** — the writer already has correct
+>   `ON CONFLICT … DO UPDATE`. The 71 true dups come from some
+>   OTHER write path (see `71-true-dups-investigation-tracker.md`).
+> - The "5 zero-row tickers" claim was **WRONG** — only 1 ticker
+>   (PEL) is genuinely zero-row in `company_financials` AND
+>   non-zero in `financials`. The other 4 had zero rows in BOTH
+>   tables (HTTP-layer scan artifacts).
+> - The "64 total corrupt" claim was **3× UNDER-COUNTED** — the
+>   actual figure under source-aware grouping is 185.
+>
+> The view design (`v_financials_unified`) and the recommendation
+> (path C — pick-one-with-fallback) are STILL CORRECT and are
+> shipping in PR #703. Only the diagnostic numbers below are
+> superseded.
+>
+> This document is retained for audit trail. Do not derive new
+> decisions from its numbers.
+>
+> ---
+
 # Financials-table reconciliation diagnosis (READ-ONLY)
 
 Date: 2026-06-03
