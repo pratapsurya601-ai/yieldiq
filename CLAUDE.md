@@ -58,3 +58,97 @@ is red, an admin-merge is permitted:
 Admin-merge requires: (a) green check elsewhere, (b) the failing
 signal listed above, (c) a comment on the PR identifying which flake
 fired so we keep a paper trail.
+
+## Manifest invariants (added 2026-06-03 after FV-history audit)
+
+The `cache_invalidation_manifest` exists to record WHEN engine or
+data behavior changed, so downstream gates (cache_version_check,
+fair_value_history_gate, etc.) can corroborate observed differences
+against a documented event. Its value rests on one property:
+
+**Corroboration must be contemporaneous. Retroactive manifest entries
+are forgery and are forbidden.**
+
+Concretely:
+- A manifest entry's `applied_at` MUST be the actual date the engine
+  change was deployed. Never backdate.
+- When a historical row, FV step, or cache divergence cannot be
+  corroborated by an entry that already existed at the time of the
+  change, the correct response is NEVER to add a backdated entry to
+  make the gate go green. The correct responses are: (a) recompute
+  today and let the new row pass the gate on its own merits, (b)
+  quarantine-mark the unverifiable historical row at rest, or (c)
+  accept the gate's red signal as informative.
+- This rule is why the manifest means anything. The day someone is
+  under deadline pressure and a backdated entry would turn a red
+  canary green, that is exactly the day this rule earns its place.
+  No exceptions, no carve-outs.
+
+The `fair_value_history` table contains a documented pre-manifest
+epoch (rows dated before `v_init_2026_05_22`) for which no
+corroboration is possible by construction. Those rows are handled by
+at-rest quarantine marking, not by retroactive manifest entries.
+
+## Agent-dispatch standing rules (added 2026-06-03 after primitives stale-base + main-worktree-contamination incident)
+
+These apply to EVERY agent dispatch — primitives, clusters,
+diagnoses, fixes — without exception. Bake into the prompt template.
+
+1. **Base-SHA verification before first edit.** The agent runs
+   `git fetch origin main && git rev-parse HEAD && git rev-parse origin/main`
+   BEFORE reading or writing any file beyond what is needed to verify
+   the base. Both SHAs must match. If not, recreate the branch off
+   the verified fresh tip and re-verify. The base SHA goes in the
+   final report verbatim.
+
+2. **Fresh worktree, never the main repo working tree.** The agent
+   creates its own `git worktree add` under
+   `.agent-worktrees/<task>/` off the verified `origin/main` SHA.
+   Never default into `E:\Projects\yieldiq_v7` directly — that
+   worktree is shared, mutable, and frequently in a transient state
+   (mid-rebase, dirty, on someone else's branch). Cost: ~200–500ms
+   plus a worktree path to clean up. Benefit: deterministic
+   isolation, no contamination cascades.
+
+3. **Retire by behavior, not by filename.** When a task asks for an
+   end-state invariant (e.g. "exactly one sticky scorecard surface"),
+   the agent enumerates every candidate component matching the
+   BEHAVIOR (grep for `position: sticky` plus scorecard-class data),
+   classifies each, then proves the invariant against current main
+   AFTER edits. Never retire a file because its name happens to
+   match the task description.
+
+These three exist because in one session each was violated and each
+produced an incident that would have shipped broken work absent a
+diff review.
+
+4. **Migration filenames use timestamp prefixes, not sequential
+   integers.** Pattern:
+   `YYYYMMDDHHMM_<descriptive_name>.sql` — e.g.
+   `202606031145_fair_value_history_quarantine_columns.sql`.
+
+   Sequential integer prefixes (`076_*.sql`) generate collisions when
+   parallel agents independently grab "the next slot." This is not
+   hypothetical — on 2026-06-03 three parallel agents (Agent A v3
+   superset, FV-history quarantine, `v_financials_unified` view) all
+   claimed slot 076 simultaneously; PR #703 "won" only by being
+   first to push, the others required renumbering or were killed.
+
+   Timestamp prefixes are monotonic enough for migration-runner
+   lexicographic ordering and collision-free by construction (two
+   agents would have to start the same minute on the same name).
+   The operator is removed from the critical path as slot allocator.
+
+   Existing integer-prefixed migrations (`001_*.sql` through
+   `076_v_financials_unified.sql` as of 2026-06-03) are NOT
+   renumbered — the scheme applies to all NEW migrations from
+   2026-06-03 forward. Lexicographic ordering preserves the
+   integer-prefixed migrations as the earliest batch, with
+   timestamp-prefixed migrations naturally sorting after them
+   (`076_…` < `2026…`).
+
+   Standing rule: any agent creating a migration file MUST use the
+   timestamp prefix and MUST report the chosen filename in their
+   final report. Any agent reading a brief that specifies an integer
+   slot for a new migration MUST flag the brief as out-of-date and
+   STOP rather than create the conflict.
