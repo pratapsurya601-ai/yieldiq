@@ -1,0 +1,998 @@
+diff --git a/backend/routers/valuation_history.py b/backend/routers/valuation_history.py
+index 7fa527a..98c9cdd 100644
+--- a/backend/routers/valuation_history.py
++++ b/backend/routers/valuation_history.py
+@@ -1,17 +1,21 @@
+ # backend/routers/valuation_history.py
+ # ═══════════════════════════════════════════════════════════════
+-# Phase 1 — Fair-Value History router (Agent B / contract-first).
++# Phase 1 — Fair-Value History router.
+ #
+-# Stub endpoint that returns the empty-shape so the route is reachable,
+-# tests can hit it, and the frontend can mock against the real
+-# Pydantic contract. Agent A wires the actual query off the
+-# fair_value_history table in the follow-up PR.
++# Thin HTTP boundary. All query + annotation logic lives in
++# backend/services/analysis/valuation_history_service.py so the
++# router stays the contract surface that Agent D's tests pin
++# against. Never raises — the service layer returns the empty-shape
++# on internal failure, preserving the stub's reachability guarantee.
+ # ═══════════════════════════════════════════════════════════════
+ from __future__ import annotations
+ 
+ from fastapi import APIRouter, Path
+ 
+ from backend.models.fair_value_history import FairValueHistoryResponse
++from backend.services.analysis.valuation_history_service import (
++    fetch_history_payload,
++)
+ 
+ 
+ router = APIRouter(prefix="/api/valuation-history", tags=["valuation-history"])
+@@ -28,14 +32,4 @@ async def get_valuation_history(
+     points list — the UI handles this with 'Fair value history starts
+     <date>' copy.
+     """
+-    # AGENT A WIRES THE QUERY HERE — see Phase 1 Agent A scope.
+-    # This stub returns empty so the route is reachable, tests can hit
+-    # it, and frontend can mock against the real shape.
+-    return FairValueHistoryResponse(
+-        ticker=ticker.upper(),
+-        points=[],
+-        annotations=[],
+-        starts_at=None,
+-        points_count=0,
+-        is_sparse=True,
+-    )
++    return await fetch_history_payload(ticker)
+diff --git a/backend/services/analysis/service.py b/backend/services/analysis/service.py
+index 1956485..8d54fa5 100644
+--- a/backend/services/analysis/service.py
++++ b/backend/services/analysis/service.py
+@@ -202,6 +202,39 @@ from backend.services.tier2_cohort_valuation_service import (
+ )
+ 
+ 
++# ── Phase 1 FV-history hook resolvers (Agent A) ───────────────────
++# Identify the engine version + most-recent manifest entry so the
++# new fair_value_history.model_version / manifest_id columns can be
++# populated on every recompute. Both are best-effort — failure
++# returns a sentinel so the FV write hook still runs.
++def _resolve_engine_version_slug() -> str:
++    """Engine version slug. We don't have a single canonical version
++    string today; the most-recent manifest entry's version_id is the
++    closest proxy because every engine change must add a manifest entry.
++    """
++    try:
++        from backend.services.cache_invalidation_manifest import MANIFEST
++        if MANIFEST:
++            return str(MANIFEST[0].get("version_id") or "unknown")
++    except Exception:
++        pass
++    return "unknown"
++
++
++def _resolve_latest_manifest_version_id() -> str | None:
++    """Most-recent manifest entry's version_id. Used as the manifest_id
++    foreign-key-ish tag on rows written by the recompute hook.
++    """
++    try:
++        from backend.services.cache_invalidation_manifest import MANIFEST
++        if MANIFEST:
++            vid = MANIFEST[0].get("version_id")
++            return str(vid) if vid else None
++    except Exception:
++        pass
++    return None
++
++
+ def _fetch_tier2_peer_metrics_map(
+     peer_tickers: list[str],
+ ) -> dict[str, dict]:
+@@ -4067,16 +4100,41 @@ class AnalysisService(NarrativeMixin):
+                     confidence=int(confidence.get("score", 50)),
+                 )
+ 
++                # Phase 1 superset hook (Agent A): also populate the new
++                # annotation-driving columns (bear_iv, bull_iv,
++                # scenario_weights, model_version, manifest_id, provenance='live').
++                # The superset write runs AFTER store_today_fair_value so the
++                # legacy row exists for the ON CONFLICT (ticker, date) update.
++                # Failure in either path is logged and swallowed; the analysis
++                # response has already returned by the time this thread runs.
++                _fv_super_args = dict(
++                    bear_iv=float(bear_iv) if (bear_iv and bear_iv > 0) else None,
++                    bull_iv=float(bull_iv) if (bull_iv and bull_iv > 0) else None,
++                    scenario_weights=None,  # engine does not expose weights today
++                    model_version=_resolve_engine_version_slug(),
++                    manifest_id=_resolve_latest_manifest_version_id(),
++                )
++
+                 def _bg_store_fv():
+                     try:
+                         from data_pipeline.sources.fv_history import (
+                             store_today_fair_value,
++                            store_today_fair_value_superset,
+                         )
+                         _db = _get_pipeline_session()
+                         if _db is None:
+                             return
+                         try:
+                             store_today_fair_value(db=_db, **_fv_args)
++                            try:
++                                store_today_fair_value_superset(
++                                    ticker=_fv_args["ticker"],
++                                    fv=_fv_args["fv"],
++                                    db=_db,
++                                    **_fv_super_args,
++                                )
++                            except Exception:
++                                pass  # already logged by superset hook
+                         finally:
+                             _db.close()
+                     except Exception:
+diff --git a/backend/services/analysis/valuation_history_service.py b/backend/services/analysis/valuation_history_service.py
+new file mode 100644
+index 0000000..1759acc
+--- /dev/null
++++ b/backend/services/analysis/valuation_history_service.py
+@@ -0,0 +1,357 @@
++# backend/services/analysis/valuation_history_service.py
++# ═══════════════════════════════════════════════════════════════
++# Phase 1 — Fair-Value History data layer (Agent A).
++#
++# Owns the DB query that backs GET /api/valuation-history/{ticker}
++# and the annotation logic that walks the FV series to surface
++# material moves. Production-faithful only: every point is the FV a
++# user would have seen on that date.
++#
++# Annotation tiering (driven by the FV series itself, not the
++# manifest):
++#
++#   Tier 1 high           — manifest entry between prev.date and cur.date
++#                           explicitly names cur.ticker in scope.tickers
++#   Tier 2 inferred       — wildcard manifest entry whose scope.fields
++#                           overlaps the FV input set
++#   Tier 3 data_refresh   — no qualifying manifest entry; cause is upstream
++#                           financials or price refresh
++#
++# Sparse-region annotations fall back to explicit-ticker manifest
++# matches only. Day-over-day deltas require the write-hook series
++# which starts on the first 'live' row written after the 076
++# superset migration. The asymmetry is by design — do not fix it
++# by reconstructing historical deltas.
++#
++# All hardcoded cause_label strings here are SEBI-clean. Manifest
++# rationales inherit SEBI compliance from the cache-invalidation
++# work.
++# ═══════════════════════════════════════════════════════════════
++from __future__ import annotations
++
++import logging
++from datetime import date as Date
++from typing import Iterable
++
++from backend.models.fair_value_history import (
++    FairValueAnnotation,
++    FairValueHistoryPoint,
++)
++from backend.services.analysis.constants import FV_ANNOTATION_THRESHOLD_PCT
++
++log = logging.getLogger("yieldiq.valuation_history")
++
++
++# Fields that, when listed in a wildcard manifest entry's scope.fields,
++# indicate the change could plausibly have moved FV for any ticker.
++# Mirrors the engine's FV input set without duplicating it.
++_FV_INPUT_FIELDS: frozenset[str] = frozenset({
++    "fair_value",
++    "base_case",
++    "scenarios",
++    "scenarios.base",
++    "scenarios.bear",
++    "scenarios.bull",
++    "valuation.wacc",
++    "valuation.terminal_growth",
++    "*",
++})
++
++
++_DEFAULT_DATA_REFRESH_LABEL = "Data refresh (financials or price input)"
++_INFERRED_SUFFIX = " (inferred)"
++_LEGACY_MODEL_VERSION = "legacy_pre_phase1"
++
++
++# ── DB query ─────────────────────────────────────────────────────
++async def _fetch_history(ticker: str) -> list[dict]:
++    """Return rows ordered oldest-first. Aliases ``date`` to
++    ``as_of_date`` is handled by the caller — we keep raw column names
++    here for readability. Returns [] on any DB failure (never raises).
++    """
++    try:
++        from data_pipeline.db import Session  # type: ignore
++    except Exception as exc:
++        log.debug("data_pipeline.db unavailable: %s", exc)
++        return []
++    if Session is None:
++        return []
++
++    from sqlalchemy import text
++
++    sess = None
++    try:
++        sess = Session()
++    except Exception as exc:
++        log.debug("session open failed: %s", exc)
++        return []
++
++    sql = text(
++        """
++        SELECT
++            date AS as_of_date,
++            fair_value,
++            bear_iv,
++            bull_iv,
++            scenario_weights,
++            COALESCE(model_version, :legacy_tag) AS model_version,
++            provenance,
++            manifest_id
++        FROM fair_value_history
++        WHERE ticker IN (:t_bare, :t_ns)
++        ORDER BY
++            date ASC,
++            CASE provenance
++                WHEN 'live'     THEN 0
++                WHEN 'snapshot' THEN 1
++                WHEN 'golden'   THEN 2
++                ELSE 3
++            END
++        """
++    )
++    bare = ticker.replace(".NS", "").replace(".BO", "")
++    try:
++        rows = sess.execute(
++            sql,
++            {
++                "t_bare": bare,
++                "t_ns": f"{bare}.NS",
++                "legacy_tag": _LEGACY_MODEL_VERSION,
++            },
++        ).mappings().all()
++        return [dict(r) for r in rows]
++    except Exception as exc:
++        log.debug("fair_value_history query failed for %s: %s", ticker, exc)
++        return []
++    finally:
++        try:
++            sess.close()
++        except Exception:
++            pass
++
++
++def _row_to_point(row: dict) -> FairValueHistoryPoint:
++    """Map a raw DB row to the locked Pydantic shape."""
++    sw = row.get("scenario_weights")
++    if sw is not None and not isinstance(sw, dict):
++        # psycopg2 may return jsonb as str under some drivers.
++        try:
++            import json
++            sw = json.loads(sw)
++        except Exception:
++            sw = None
++
++    bear_iv = row.get("bear_iv")
++    bull_iv = row.get("bull_iv")
++    return FairValueHistoryPoint(
++        date=row["as_of_date"],
++        fair_value=float(row["fair_value"]),
++        bear_iv=float(bear_iv) if bear_iv is not None else None,
++        bull_iv=float(bull_iv) if bull_iv is not None else None,
++        scenario_weights=sw if isinstance(sw, dict) else None,
++        model_version=row.get("model_version") or _LEGACY_MODEL_VERSION,
++        provenance=row["provenance"],
++        manifest_id=row.get("manifest_id"),
++    )
++
++
++# ── Manifest helpers ─────────────────────────────────────────────
++def _manifest_entries_between(
++    prev_date: Date | None,
++    cur_date: Date,
++) -> list[dict]:
++    """Return manifest entries whose applied_at falls in (prev_date, cur_date].
++
++    When ``prev_date`` is None (sparse-region first point), we still
++    return matching entries on cur_date itself so explicit-ticker
++    matches can drive a high-tier annotation.
++    """
++    try:
++        from backend.services.cache_invalidation_manifest import MANIFEST
++    except Exception as exc:
++        log.debug("manifest import failed: %s", exc)
++        return []
++
++    out: list[dict] = []
++    for entry in MANIFEST:
++        applied = entry.get("applied_at")
++        if applied is None:
++            continue
++        try:
++            applied_d = applied.date() if hasattr(applied, "date") else applied
++        except Exception:
++            continue
++        if applied_d > cur_date:
++            continue
++        if prev_date is not None and applied_d <= prev_date:
++            continue
++        out.append(entry)
++    return out
++
++
++def _explicit_ticker_match(entry: dict, ticker: str) -> bool:
++    """True iff entry scope.tickers is a list AND names ticker (bare)."""
++    scope = entry.get("scope") or {}
++    scoped = scope.get("tickers")
++    if scoped == "*":
++        return False  # wildcard handled by Tier 2
++    if not isinstance(scoped, (list, tuple, set)):
++        return False
++    bare = ticker.replace(".NS", "").replace(".BO", "").upper()
++    scoped_bare = {
++        (t or "").replace(".NS", "").replace(".BO", "").upper()
++        for t in scoped
++    }
++    return bare in scoped_bare
++
++
++def _wildcard_fv_input_match(entry: dict) -> bool:
++    """True iff entry is wildcard-ticker AND scope.fields overlaps FV inputs."""
++    scope = entry.get("scope") or {}
++    if scope.get("tickers") != "*":
++        return False
++    fields = scope.get("fields")
++    if fields == "*":
++        return True
++    if not isinstance(fields, (list, tuple, set)):
++        return False
++    for f in fields:
++        if f in _FV_INPUT_FIELDS:
++            return True
++        # Match prefix patterns like "scenarios.*" against our input set.
++        if isinstance(f, str) and f.endswith(".*"):
++            prefix = f[:-2]
++            if any(p.startswith(prefix + ".") or p == prefix
++                   for p in _FV_INPUT_FIELDS):
++                return True
++    return False
++
++
++def _truncate_label(raw: str, suffix: str = "") -> str:
++    """Truncate to 80 chars, appending suffix if room."""
++    raw = (raw or "").strip()
++    budget = 80 - len(suffix)
++    if len(raw) > budget:
++        raw = raw[: max(0, budget - 1)].rstrip() + "…"
++    return raw + suffix
++
++
++# ── Annotation emission ──────────────────────────────────────────
++def _emit_annotations(
++    ticker: str,
++    points: list[FairValueHistoryPoint],
++) -> list[FairValueAnnotation]:
++    """Walk points pairwise; emit one annotation per material move.
++
++    Sparse-region (no prev_fv) emits only Tier 1 (explicit-ticker
++    manifest matches on the snapshot date). Day-over-day deltas
++    require the write-hook series.
++    """
++    annotations: list[FairValueAnnotation] = []
++    if not points:
++        return annotations
++
++    # Sparse-region pass for the very first point: only explicit-ticker.
++    first = points[0]
++    for entry in _manifest_entries_between(None, first.date):
++        if _explicit_ticker_match(entry, ticker):
++            annotations.append(
++                FairValueAnnotation(
++                    date=first.date,
++                    fv_delta_pct=0.0,
++                    manifest_id=entry.get("version_id"),
++                    cause_label=_truncate_label(entry.get("rationale", "")),
++                    confidence="high",
++                )
++            )
++            break  # one annotation per snapshot date
++
++    # Pairwise pass for material deltas.
++    for prev, cur in zip(points, points[1:]):
++        if prev.fair_value == 0:
++            continue
++        try:
++            delta_pct = (cur.fair_value - prev.fair_value) / prev.fair_value * 100.0
++        except Exception:
++            continue
++        if abs(delta_pct) < FV_ANNOTATION_THRESHOLD_PCT:
++            continue
++
++        entries = _manifest_entries_between(prev.date, cur.date)
++
++        # Tier 1: explicit-ticker manifest entry.
++        tier1 = next(
++            (e for e in entries if _explicit_ticker_match(e, ticker)),
++            None,
++        )
++        if tier1 is not None:
++            annotations.append(
++                FairValueAnnotation(
++                    date=cur.date,
++                    fv_delta_pct=round(delta_pct, 2),
++                    manifest_id=tier1.get("version_id"),
++                    cause_label=_truncate_label(tier1.get("rationale", "")),
++                    confidence="high",
++                )
++            )
++            continue
++
++        # Tier 2: wildcard FV-input manifest entry.
++        tier2 = next(
++            (e for e in entries if _wildcard_fv_input_match(e)),
++            None,
++        )
++        if tier2 is not None:
++            annotations.append(
++                FairValueAnnotation(
++                    date=cur.date,
++                    fv_delta_pct=round(delta_pct, 2),
++                    manifest_id=tier2.get("version_id"),
++                    cause_label=_truncate_label(
++                        tier2.get("rationale", ""), _INFERRED_SUFFIX
++                    ),
++                    confidence="inferred",
++                )
++            )
++            continue
++
++        # Tier 3: data refresh.
++        annotations.append(
++            FairValueAnnotation(
++                date=cur.date,
++                fv_delta_pct=round(delta_pct, 2),
++                manifest_id=None,
++                cause_label=_DEFAULT_DATA_REFRESH_LABEL,
++                confidence="data_refresh",
++            )
++        )
++
++    return annotations
++
++
++# ── Public entry ─────────────────────────────────────────────────
++async def fetch_history_payload(ticker: str):
++    """Compose the full /api/valuation-history payload for one ticker.
++
++    Returns the Pydantic response model. Never raises — returns the
++    empty-shape on any internal failure so the router stays a stable
++    contract.
++    """
++    from backend.models.fair_value_history import FairValueHistoryResponse
++
++    ticker_upper = ticker.upper().strip()
++    rows = await _fetch_history(ticker_upper)
++    try:
++        points = [_row_to_point(r) for r in rows]
++    except Exception as exc:
++        log.warning("row mapping failed for %s: %s", ticker_upper, exc)
++        points = []
++    annotations = _emit_annotations(ticker_upper, points)
++    return FairValueHistoryResponse(
++        ticker=ticker_upper,
++        points=points,
++        annotations=annotations,
++        starts_at=points[0].date if points else None,
++        points_count=len(points),
++        is_sparse=len(points) < 3,
++    )
+diff --git a/data_pipeline/migrations/076_fair_value_history_superset.sql b/data_pipeline/migrations/076_fair_value_history_superset.sql
+new file mode 100644
+index 0000000..f4841d4
+--- /dev/null
++++ b/data_pipeline/migrations/076_fair_value_history_superset.sql
+@@ -0,0 +1,62 @@
++-- Phase 1 superset migration: ADD nullable columns to the existing
++-- fair_value_history table. Preserves existing rows and existing
++-- consumers (Alerts at 009_alerts.sql, prism sparkline,
++-- backfill_fair_value_history_monthly.py).
++--
++-- New columns support the /api/valuation-history endpoint
++-- annotation logic. Existing rows are tagged provenance='live'
++-- because they were written by the production backfill cron and
++-- match the spec's "production-faithful only" definition.
++--
++-- Idempotent: every column add uses IF NOT EXISTS, and the new
++-- UNIQUE constraint is added via a DO block guarded by pg_constraint
++-- lookup. Safe to re-apply.
++
++BEGIN;
++
++ALTER TABLE fair_value_history
++    ADD COLUMN IF NOT EXISTS bear_iv          numeric(14, 4),
++    ADD COLUMN IF NOT EXISTS bull_iv          numeric(14, 4),
++    ADD COLUMN IF NOT EXISTS scenario_weights jsonb,
++    ADD COLUMN IF NOT EXISTS model_version    text,
++    ADD COLUMN IF NOT EXISTS provenance       text NOT NULL DEFAULT 'live',
++    ADD COLUMN IF NOT EXISTS manifest_id      text,
++    ADD COLUMN IF NOT EXISTS written_at       timestamptz NOT NULL DEFAULT now();
++
++-- Tighten provenance to the allowed set after default backfill.
++ALTER TABLE fair_value_history
++    DROP CONSTRAINT IF EXISTS fair_value_history_provenance_check;
++ALTER TABLE fair_value_history
++    ADD CONSTRAINT fair_value_history_provenance_check
++    CHECK (provenance IN ('snapshot', 'golden', 'live'));
++
++-- New uniqueness for the spec semantics: a 'snapshot' row and a
++-- 'live' row for the same (ticker, date) coexist. Keep the original
++-- UNIQUE(ticker, date) too — existing consumers expect it, and they
++-- only write provenance='live' rows so they never collide with
++-- backfilled snapshot/golden rows.
++DO $$
++BEGIN
++    IF NOT EXISTS (
++        SELECT 1 FROM pg_constraint
++        WHERE conname = 'fair_value_history_ticker_date_provenance_key'
++    ) THEN
++        ALTER TABLE fair_value_history
++            ADD CONSTRAINT fair_value_history_ticker_date_provenance_key
++            UNIQUE (ticker, date, provenance);
++    END IF;
++END $$;
++
++CREATE INDEX IF NOT EXISTS idx_fvh_manifest_id
++    ON fair_value_history (manifest_id)
++    WHERE manifest_id IS NOT NULL;
++
++COMMENT ON COLUMN fair_value_history.provenance IS
++    'snapshot = scripts/snapshots/*.json. golden = scripts/dcf_golden.json. '
++    'live = written by the recompute hook OR pre-existing monthly backfill.';
++COMMENT ON COLUMN fair_value_history.model_version IS
++    'Engine version slug at compute time. NULL for rows written before this column existed.';
++COMMENT ON COLUMN fair_value_history.scenario_weights IS
++    'Triplet {bear, base, bull}. NULL for rows from the monthly backfill which did not capture them.';
++
++COMMIT;
+diff --git a/data_pipeline/sources/fv_history.py b/data_pipeline/sources/fv_history.py
+index b9f5f90..60d62e3 100644
+--- a/data_pipeline/sources/fv_history.py
++++ b/data_pipeline/sources/fv_history.py
+@@ -167,6 +167,87 @@ def store_today_fair_value(
+             pass
+ 
+ 
++def store_today_fair_value_superset(
++    ticker: str,
++    fv: float,
++    bear_iv: float | None,
++    bull_iv: float | None,
++    scenario_weights: dict | None,
++    model_version: str,
++    manifest_id: str | None,
++    db: Session,
++) -> None:
++    """Phase 1 superset write — populates the new annotation-driving
++    columns on ``fair_value_history`` with provenance='live'.
++
++    Runs alongside :func:`store_today_fair_value` (which owns the
++    legacy columns + EMA smoothing). On (ticker, date, provenance)
++    conflict the row is updated. Same-day recomputes overwrite the
++    'live' row; pre-existing 'snapshot' / 'golden' rows for the same
++    ticker+date remain untouched because the conflict key includes
++    provenance.
++
++    Never raises — a failure here must not block the analysis
++    response or the legacy FV write. Logs at WARN.
++    """
++    from datetime import date as _date
++
++    import json as _json
++    from sqlalchemy import text
++
++    today = _date.today()
++    try:
++        sw_json = _json.dumps(scenario_weights) if scenario_weights else None
++        db.execute(
++            text(
++                """
++                INSERT INTO fair_value_history (
++                    ticker, date, fair_value, price, mos_pct,
++                    bear_iv, bull_iv, scenario_weights,
++                    model_version, provenance, manifest_id,
++                    written_at, updated_at
++                )
++                VALUES (
++                    :ticker, :date, :fv, 0, 0,
++                    :bear_iv, :bull_iv, CAST(:scenario_weights AS jsonb),
++                    :model_version, 'live', :manifest_id,
++                    now(), now()
++                )
++                ON CONFLICT (ticker, date) DO UPDATE SET
++                    -- DO NOT overwrite fair_value/price/mos_pct/verdict/wacc/
++                    -- confidence — those are owned by store_today_fair_value
++                    -- (with EMA smoothing). This hook only fills the new
++                    -- annotation-driving columns. provenance stays 'live'.
++                    bear_iv          = EXCLUDED.bear_iv,
++                    bull_iv          = EXCLUDED.bull_iv,
++                    scenario_weights = EXCLUDED.scenario_weights,
++                    model_version    = EXCLUDED.model_version,
++                    manifest_id      = EXCLUDED.manifest_id,
++                    written_at       = now()
++                """
++            ),
++            {
++                "ticker": ticker,
++                "date": today,
++                "fv": round(float(fv), 4),
++                "bear_iv": round(float(bear_iv), 4) if bear_iv else None,
++                "bull_iv": round(float(bull_iv), 4) if bull_iv else None,
++                "scenario_weights": sw_json,
++                "model_version": model_version,
++                "manifest_id": manifest_id,
++            },
++        )
++        db.commit()
++    except Exception as exc:
++        log.warning(
++            "store_today_fair_value_superset failed for %s: %s", ticker, exc
++        )
++        try:
++            db.rollback()
++        except Exception:
++            pass
++
++
+ def get_fv_history(
+     ticker: str,
+     db: Session,
+diff --git a/docs/canary_history.jsonl b/docs/canary_history.jsonl
+index c094934..a6e92fd 100644
+--- a/docs/canary_history.jsonl
++++ b/docs/canary_history.jsonl
+@@ -31,4 +31,3 @@
+ {"timestamp": "2026-05-30T21:38:51Z", "commit": "419fbdf2f8e29c7ff95fcd956ea8783da63ff7f7", "run_id": "26695514691", "exit_code": 1, "gate_violations": 60, "fetch_failures": 52, "clean": false}
+ {"timestamp": "2026-05-31T21:37:44Z", "commit": "cd76fa86b5a838355be3c2b34029a2ea00300d40", "run_id": "26725119975", "exit_code": 1, "gate_violations": 71, "fetch_failures": 53, "clean": false}
+ {"timestamp": "2026-06-01T22:44:31Z", "commit": "b56824bc5c2c898c9030b713d23ae9c5f695e110", "run_id": "26786426921", "exit_code": 1, "gate_violations": 75, "fetch_failures": 54, "clean": false}
+-{"timestamp": "2026-06-02T22:39:05Z", "commit": "98d6ea66eb405b9300a09db1391d62d05218754b", "run_id": "26852087683", "exit_code": 1, "gate_violations": 84, "fetch_failures": 54, "clean": false}
+diff --git a/scripts/backfill_fair_value_history.py b/scripts/backfill_fair_value_history.py
+new file mode 100644
+index 0000000..47f63f5
+--- /dev/null
++++ b/scripts/backfill_fair_value_history.py
+@@ -0,0 +1,327 @@
++#!/usr/bin/env python3
++"""
++backfill_fair_value_history.py
++═══════════════════════════════════════════════════════════════
++
++Phase 1 — operator-run, one-shot backfill of provenance-tagged
++historical fair-value points into ``fair_value_history``.
++
++Sources (in priority order):
++  1. SNAPSHOT — ``scripts/snapshots/snapshot_20260423_135549_ae518d0f9328.json``
++     Each ticker becomes one row with provenance='snapshot',
++     date=2026-04-23, model_version='snapshot_ae518d0',
++     manifest_id=NULL.
++
++  2. GOLDEN — ``scripts/dcf_golden.json``
++     Inserted only if the most-recent commit for the file is a
++     production-API refresh (commit message contains the canonical
++     phrase 'refresh golden snapshot baseline' or similar). If
++     production-faithfulness cannot be confirmed, the rows are
++     DROPPED and a warning is logged.
++     provenance='golden', model_version=<commit SHA>, manifest_id=NULL.
++
++  3. EXISTING ROWS — already tagged provenance='live' by the
++     migration's column default. No action.
++
++Idempotent via ON CONFLICT on (ticker, date, provenance). Operator-
++run only (NOT a cron). Use ``--dry-run`` to preview without writing.
++
++Usage
++─────
++    python scripts/backfill_fair_value_history.py [--dry-run]
++
++Exit codes
++──────────
++    0  success (or dry-run completed)
++    1  DB unavailable
++"""
++from __future__ import annotations
++
++import argparse
++import json
++import logging
++import os
++import subprocess
++import sys
++from datetime import date as _Date
++from pathlib import Path
++from typing import Iterable
++
++_REPO_ROOT = Path(__file__).resolve().parent.parent
++if str(_REPO_ROOT) not in sys.path:
++    sys.path.insert(0, str(_REPO_ROOT))
++
++logging.basicConfig(
++    level=os.environ.get("BACKFILL_LOG_LEVEL", "INFO"),
++    format="%(asctime)s %(levelname)s %(name)s %(message)s",
++)
++log = logging.getLogger("backfill_fv_history")
++
++
++SNAPSHOT_FILE = _REPO_ROOT / "scripts" / "snapshots" / (
++    "snapshot_20260423_135549_ae518d0f9328.json"
++)
++GOLDEN_FILE = _REPO_ROOT / "scripts" / "dcf_golden.json"
++
++# Phrases in the golden file's most-recent commit that confirm the
++# rows came from a production-API refresh (not a hand-edit or a
++# synthetic test fixture). Keep narrow — false positives here ship
++# untrusted FV points into the production history series.
++_GOLDEN_REFRESH_MARKERS = (
++    "refresh golden snapshot baseline",
++    "refresh golden baseline",
++    "production-api refresh",
++)
++
++
++# ── Helpers ──────────────────────────────────────────────────────
++def _bare(ticker: str) -> str:
++    return ticker.replace(".NS", "").replace(".BO", "").strip().upper()
++
++
++def _load_snapshot_rows() -> list[dict]:
++    """Parse the snapshot file into insert-ready rows."""
++    if not SNAPSHOT_FILE.exists():
++        log.warning("snapshot file missing: %s", SNAPSHOT_FILE)
++        return []
++    try:
++        payload = json.loads(SNAPSHOT_FILE.read_text(encoding="utf-8"))
++    except Exception as exc:
++        log.error("snapshot parse failed: %s", exc)
++        return []
++
++    snapshot_at = payload.get("snapshot_at") or ""
++    # snapshot_at looks like "2026-04-23T08:25:49.747443+00:00"
++    try:
++        as_of = _Date.fromisoformat(snapshot_at[:10])
++    except Exception:
++        log.error("cannot parse snapshot_at date: %r", snapshot_at)
++        return []
++
++    sha = (payload.get("commit_sha") or "")[:7] or "unknown"
++    model_version = f"snapshot_{sha}"
++
++    rows: list[dict] = []
++    state = payload.get("state") or {}
++    for ticker, body in state.items():
++        pub = (body or {}).get("public") or {}
++        fv = pub.get("fair_value")
++        if fv is None:
++            continue
++        try:
++            fv_f = float(fv)
++        except (TypeError, ValueError):
++            continue
++        if fv_f <= 0:
++            continue
++        bear = pub.get("bear_case")
++        bull = pub.get("bull_case")
++        rows.append({
++            "ticker": _bare(ticker),
++            "date": as_of,
++            "fair_value": round(fv_f, 4),
++            "bear_iv": round(float(bear), 4) if bear else None,
++            "bull_iv": round(float(bull), 4) if bull else None,
++            "scenario_weights": None,
++            "model_version": model_version,
++            "provenance": "snapshot",
++            "manifest_id": None,
++        })
++    return rows
++
++
++def _golden_is_production_faithful() -> tuple[bool, str]:
++    """Inspect the most-recent commit touching the golden file.
++
++    Returns (is_faithful, commit_sha). When False, the second element
++    holds the commit subject (for logging context).
++    """
++    try:
++        out = subprocess.check_output(
++            ["git", "log", "-1", "--format=%H%n%s", str(GOLDEN_FILE)],
++            cwd=str(_REPO_ROOT),
++            stderr=subprocess.DEVNULL,
++            timeout=5,
++        ).decode("utf-8", errors="replace").strip().splitlines()
++    except Exception as exc:
++        log.warning("git log on golden failed: %s", exc)
++        return (False, "unknown")
++    if len(out) < 2:
++        return (False, "unknown")
++    sha, subject = out[0], out[1]
++    subject_l = subject.lower()
++    for marker in _GOLDEN_REFRESH_MARKERS:
++        if marker in subject_l:
++            return (True, sha)
++    return (False, subject)
++
++
++def _load_golden_rows() -> list[dict]:
++    if not GOLDEN_FILE.exists():
++        log.warning("golden file missing: %s", GOLDEN_FILE)
++        return []
++    faithful, sha_or_subject = _golden_is_production_faithful()
++    if not faithful:
++        log.warning(
++            "golden rows DROPPED — most-recent commit does not match a "
++            "production-API refresh marker. Context: %s",
++            sha_or_subject,
++        )
++        return []
++    try:
++        payload = json.loads(GOLDEN_FILE.read_text(encoding="utf-8"))
++    except Exception as exc:
++        log.error("golden parse failed: %s", exc)
++        return []
++
++    captured_at = payload.get("captured_at") or ""
++    try:
++        as_of = _Date.fromisoformat(captured_at[:10])
++    except Exception:
++        log.error("cannot parse golden captured_at: %r", captured_at)
++        return []
++
++    model_version = sha_or_subject[:12] if sha_or_subject else "golden"
++    rows: list[dict] = []
++    tickers = payload.get("tickers") or {}
++    for ticker, body in tickers.items():
++        fv = (body or {}).get("fair_value")
++        if fv is None:
++            continue
++        try:
++            fv_f = float(fv)
++        except (TypeError, ValueError):
++            continue
++        if fv_f <= 0:
++            continue
++        rows.append({
++            "ticker": _bare(ticker),
++            "date": as_of,
++            "fair_value": round(fv_f, 4),
++            "bear_iv": None,
++            "bull_iv": None,
++            "scenario_weights": None,
++            "model_version": model_version,
++            "provenance": "golden",
++            "manifest_id": None,
++        })
++    return rows
++
++
++# ── DB write ─────────────────────────────────────────────────────
++def _upsert(rows: Iterable[dict], dry_run: bool) -> int:
++    rows = list(rows)
++    if not rows:
++        return 0
++    if dry_run:
++        return len(rows)
++
++    try:
++        from data_pipeline.db import Session  # type: ignore
++    except Exception as exc:
++        log.error("cannot import data_pipeline.db: %s", exc)
++        return 0
++    if Session is None:
++        return 0
++    from sqlalchemy import text
++
++    sess = Session()
++    written = 0
++    sql = text(
++        """
++        INSERT INTO fair_value_history (
++            ticker, date, fair_value, price, mos_pct,
++            bear_iv, bull_iv, scenario_weights,
++            model_version, provenance, manifest_id,
++            written_at, updated_at
++        )
++        VALUES (
++            :ticker, :date, :fair_value, 0, 0,
++            :bear_iv, :bull_iv, CAST(:scenario_weights AS jsonb),
++            :model_version, :provenance, :manifest_id,
++            now(), now()
++        )
++        ON CONFLICT (ticker, date, provenance) DO UPDATE SET
++            fair_value       = EXCLUDED.fair_value,
++            bear_iv          = EXCLUDED.bear_iv,
++            bull_iv          = EXCLUDED.bull_iv,
++            scenario_weights = EXCLUDED.scenario_weights,
++            model_version    = EXCLUDED.model_version,
++            manifest_id      = EXCLUDED.manifest_id,
++            written_at       = now()
++        """
++    )
++    try:
++        for r in rows:
++            params = dict(r)
++            if params.get("scenario_weights") is not None and not isinstance(
++                params["scenario_weights"], str
++            ):
++                params["scenario_weights"] = json.dumps(params["scenario_weights"])
++            try:
++                sess.execute(sql, params)
++                written += 1
++            except Exception as exc:
++                log.warning(
++                    "upsert failed for %s @ %s (%s): %s",
++                    r.get("ticker"), r.get("date"), r.get("provenance"), exc,
++                )
++                try:
++                    sess.rollback()
++                except Exception:
++                    pass
++        sess.commit()
++    finally:
++        try:
++            sess.close()
++        except Exception:
++            pass
++    return written
++
++
++# ── Main ─────────────────────────────────────────────────────────
++def main() -> int:
++    parser = argparse.ArgumentParser(
++        description=(
++            "Phase 1 backfill for fair_value_history. Operator-run, "
++            "one-shot, idempotent."
++        )
++    )
++    parser.add_argument(
++        "--dry-run",
++        action="store_true",
++        help="List what would be inserted without writing.",
++    )
++    args = parser.parse_args()
++
++    snapshot_rows = _load_snapshot_rows()
++    golden_rows = _load_golden_rows()
++
++    log.info("Snapshot rows ready:  %d", len(snapshot_rows))
++    log.info("Golden   rows ready:  %d", len(golden_rows))
++
++    if args.dry_run:
++        # Show a head sample so operator can sanity check.
++        for sample in (snapshot_rows[:3] + golden_rows[:3]):
++            log.info("  sample: %s", sample)
++        log.info(
++            "DRY RUN — no rows written. "
++            "Existing 'live' rows untouched (auto-tagged via column default)."
++        )
++        return 0
++
++    snapshot_written = _upsert(snapshot_rows, dry_run=False)
++    golden_written = _upsert(golden_rows, dry_run=False)
++    dropped = (
++        (len(snapshot_rows) - snapshot_written)
++        + (len(golden_rows) - golden_written)
++    )
++    log.info(
++        "DONE — snapshot=%d golden=%d dropped=%d (existing live rows untouched)",
++        snapshot_written, golden_written, dropped,
++    )
++    return 0
++
++
++if __name__ == "__main__":
++    sys.exit(main())

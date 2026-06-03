@@ -1,0 +1,711 @@
+diff --git a/frontend/src/app/(app)/analysis/[ticker]/AnalysisBody.tsx b/frontend/src/app/(app)/analysis/[ticker]/AnalysisBody.tsx
+index 3dcaa82..7a224d5 100644
+--- a/frontend/src/app/(app)/analysis/[ticker]/AnalysisBody.tsx
++++ b/frontend/src/app/(app)/analysis/[ticker]/AnalysisBody.tsx
+@@ -36,6 +36,7 @@ import StockHeroImage from "@/components/analysis/StockHeroImage"
+ import {
+   VERDICT_COLORS,
+   verdictTierFromMos,
++  verdictTierLabel,
+ } from "@/lib/verdict-colors"
+ import { FormulasProvider } from "@/components/analysis/MetricTooltip"
+ import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
+@@ -87,7 +88,8 @@ import {
+   shouldGateVerdict,
+ } from "@/lib/utils"
+ import { trackStockAnalysed } from "@/lib/analytics"
+-import Link from "next/link"
++// PR-C §6.6: next/link import removed alongside the "Compare ->" link-out.
++// The inline peers DataCard keeps cross-sectional context on this page.
+ import dynamic from "next/dynamic"
+ import type { PrismData } from "@/components/prism/types"
+ import type { AnalysisResponse, Verdict } from "@/types/api"
+@@ -1064,22 +1066,16 @@ export default function AnalysisBody({ ticker, prism }: Props) {
+     compounded_growth: (
+       <>
+         <CompoundedGrowthTrustStrip ticker={ticker} />
+-        {/* Tickertape density trick #2 (2026-05-27): inline sector
+-            context next to the headline ROE so the user gets
+-            "vs sector" framing without leaving the page. The chip
+-            self-hides when either side is null. */}
+-        {data.sector_medians?.roe != null && quality.roe != null && (
+-          <div className="mt-2">
+-            <MetricVsSectorChip
+-              label="ROE"
+-              value={quality.roe}
+-              unit="%"
+-              sectorMedian={data.sector_medians.roe}
+-              format="better-higher"
+-            />
+-          </div>
+-        )}
+-        <CompoundedGrowthPanel ticker={ticker} />
++        {/* PR-C §6.4: the inline sector-median chip moved INTO
++            CompoundedGrowthSparklines so it sits beside the ROE
++            CAGR tile rather than floating above the whole panel.
++            sector_medians is plumbed through CompoundedGrowthPanel
++            so the chip continues to self-hide when the cohort median
++            is null. */}
++        <CompoundedGrowthPanel
++          ticker={ticker}
++          sectorMedians={data.sector_medians ?? null}
++        />
+       </>
+     ),
+     financials_chart: (
+@@ -1579,9 +1575,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
+           </div>
+           <div className="shrink-0 flex items-center gap-3 sm:self-start">
+             <ShareReportCard ticker={ticker} variant="compact" />
+-            <Link href={`/compare?stock1=${ticker}`} className="text-sm sm:text-xs text-brand hover:underline whitespace-nowrap py-2 sm:py-0">
+-              Compare →
+-            </Link>
++            {/* PR-C §6.6: the "Compare ->" link-out is retired in
++                favour of the inline peers DataCard (InlinePeerComparison)
++                rendered on the Summary tab. Cross-sectional context now
++                stays on this page; users don't have to navigate away. */}
+           </div>
+         </div>
+ 
+@@ -1682,6 +1679,65 @@ export default function AnalysisBody({ ticker, prism }: Props) {
+ 
+           return prismResolved ? (
+             <>
++              {/* PR-C §6.1 — Manifesto Rule 1 ("one verdict per page")
++                  made tangible. Above the fold renders ONLY the four
++                  primary signals: ticker, company name, Fair Value, and
++                  the Verdict pill. Current Price, Discount to FV,
++                  Confidence band, Bear / Bull range and the rest of the
++                  rich Prism / ScoreCard layout move INTO the "How we
++                  got here" disclosure below — collapsed by default so
++                  the reader gets the verdict in one glance, then opts
++                  in to the evidence. The sticky scorecard (PR #691)
++                  continues to anchor the page as the user scrolls. */}
++              <section
++                aria-label="Verdict summary"
++                className="rounded-2xl border border-border bg-raised p-6 md:p-8 flex flex-col gap-2"
++                data-testid="minimal-hero"
++              >
++                <div className="flex items-baseline gap-3 flex-wrap">
++                  <span className="font-mono text-base font-semibold text-ink tracking-tight">
++                    {(company.ticker || data.ticker).replace(/\.(NS|BO)$/i, "")}
++                  </span>
++                  <span className="text-sm text-body">
++                    {formatCompanyName(company.company_name)}
++                  </span>
++                </div>
++                <div className="flex items-baseline justify-between gap-4 flex-wrap mt-1">
++                  <div className="flex flex-col">
++                    <span className="text-[11px] uppercase tracking-[0.06em] text-caption">
++                      Fair Value
++                    </span>
++                    <span className="text-[30px] leading-9 font-semibold text-ink num tracking-tight">
++                      {displayFairValue > 0
++                        ? formatCurrency(displayFairValue, company.currency, data.ticker)
++                        : "—"}
++                    </span>
++                  </div>
++                  {(() => {
++                    const tier = verdictTierFromMos(displayMos, displayVerdict)
++                    const palette = VERDICT_COLORS[tier]
++                    const label = verdictTierLabel(tier)
++                    return (
++                      <span
++                        data-testid="minimal-hero-verdict-pill"
++                        className={[
++                          "inline-flex items-center gap-2 rounded-full",
++                          "px-4 py-1.5 text-xs font-semibold uppercase tracking-wider",
++                          "border",
++                          palette.text,
++                        ].join(" ")}
++                      >
++                        <span
++                          aria-hidden
++                          className={`inline-block w-2 h-2 rounded-full ${palette.bar}`}
++                        />
++                        {label}
++                      </span>
++                    )
++                  })()}
++                </div>
++              </section>
++
+               {/* PR-B (chassis): compact Time Machine chip aligned
+                   right, near the hero price card. Chip opens the
+                   PrismTimeMachine popover (unchanged). */}
+@@ -1699,6 +1755,26 @@ export default function AnalysisBody({ ticker, prism }: Props) {
+                   Time Machine
+                 </button>
+               </div>
++              {/* PR-C §6.1: "How we got here" disclosure. Collapsed by
++                  default so the minimal hero above is the only signal
++                  above the fold. Expanding reveals the verdict-colored
++                  StockHeroImage, the full EditorialHero (Prism, current
++                  price, discount-to-FV chip, confidence band, bear /
++                  bull range, narrator), and the existing sticky
++                  scorecard (PR #691) remains pinned through the scroll. */}
++              <details className="group rounded-2xl border border-border bg-bg dark:bg-surface">
++                <summary className="cursor-pointer list-none flex items-center justify-between gap-3 px-4 py-3 text-[11px] uppercase tracking-[0.06em] text-caption [&::-webkit-details-marker]:hidden">
++                  <span className="flex items-center gap-2">
++                    <span aria-hidden className="transition-transform group-open:rotate-90">
++                      &#9656;
++                    </span>
++                    How we got here
++                  </span>
++                  <span className="text-caption normal-case tracking-normal">
++                    Current price, discount to FV, confidence and bear / bull range
++                  </span>
++                </summary>
++                <div className="px-4 pb-4 pt-1 space-y-4">
+               {/* Manifesto Rule 9 — verdict-colored full-bleed hero. Sits
+                   ABOVE the EditorialHero 3-column grid, doesn't touch it.
+                   Reuses headlineMos/headlineFairValue so the verdict tier
+@@ -1750,6 +1826,8 @@ export default function AnalysisBody({ ticker, prism }: Props) {
+               // below. See .audit/competitor-walk-hdfcbank-2026-05-26.md.
+               compactSummary
+             />
++                </div>
++              </details>
+             </>
+           ) : (
+             <>
+diff --git a/frontend/src/components/analysis/BullsBearsPanel.tsx b/frontend/src/components/analysis/BullsBearsPanel.tsx
+index 5997415..b415fc5 100644
+--- a/frontend/src/components/analysis/BullsBearsPanel.tsx
++++ b/frontend/src/components/analysis/BullsBearsPanel.tsx
+@@ -13,6 +13,13 @@
+ // (and so the layout doesn't jump once the cache catches up).
+ 
+ import React from "react"
++import { NarrativeCard } from "@/components/cards"
++
++// Stable IST-locale date formatter — runs at render time so the stamp
++// always reflects "today" without needing the backend to emit a
++// thesis_updated value. Memoised at module scope so we don't rebuild
++// the Intl instance on every render.
++const DATE_FMT = new Intl.DateTimeFormat("en-IN", { dateStyle: "long" })
+ 
+ interface Props {
+   bulls?: string[] | null
+@@ -30,28 +37,40 @@ function Column({
+   tone,
+   heading,
+   bullets,
++  updatedLabel,
+ }: {
+   tone: "bull" | "bear"
+   heading: string
+   bullets: string[]
++  updatedLabel: string
+ }) {
+   const isBull = tone === "bull"
+   const dotColor = isBull
+     ? "bg-success"
+     : "bg-danger"
+   const headingColor = isBull ? "text-success" : "text-danger"
++  const eyebrow = isBull ? "BULL CASE" : "BEAR CASE"
+ 
+   return (
+-    <div className="flex-1 min-w-0">
+-      <h3
+-        className={`text-sm font-semibold ${headingColor} mb-3 flex items-center gap-2`}
+-      >
+-        <span
+-          className={`inline-block w-2 h-2 rounded-full ${dotColor}`}
+-          aria-hidden="true"
+-        />
+-        {heading}
+-      </h3>
++    <NarrativeCard
++      eyebrow={eyebrow}
++      className="flex-1 min-w-0 max-w-none"
++      aria-label={`${heading} thesis`}
++    >
++      <div className="flex items-baseline justify-between gap-3 mb-3">
++        <h3
++          className={`text-sm font-semibold ${headingColor} flex items-center gap-2`}
++        >
++          <span
++            className={`inline-block w-2 h-2 rounded-full ${dotColor}`}
++            aria-hidden="true"
++          />
++          {heading}
++        </h3>
++        <span className="text-[11px] text-caption">
++          {updatedLabel}
++        </span>
++      </div>
+       {bullets.length === 0 ? (
+         <p className="text-xs text-caption italic">
+           Insufficient data for {isBull ? "bull" : "bear"} analysis
+@@ -75,7 +94,7 @@ function Column({
+           ))}
+         </ul>
+       )}
+-    </div>
++    </NarrativeCard>
+   )
+ }
+ 
+@@ -89,35 +108,35 @@ export default function BullsBearsPanel({ bulls, bears, updated }: Props) {
+   // bulls_bears manifest entry), one or both sides will render.
+   if (safeBulls.length === 0 && safeBears.length === 0) return null
+ 
++  // PR-C §6.3: each side now lives in its own NarrativeCard with an
++  // "Updated <date>" stamp. When the backend supplies a thesis_updated
++  // string we surface it verbatim; otherwise fall back to today's date
++  // in en-IN long form.
++  const updatedLabel = updated
++    ? `Updated ${updated}`
++    : `Updated ${DATE_FMT.format(new Date())}`
++
+   return (
+     <section
+-      className="bg-bg rounded-2xl border border-border p-4"
++      className=""
+       aria-label="Bulls and Bears thesis"
+     >
+-      <div className="flex items-baseline justify-between mb-4 gap-3">
+-        <div className="flex items-baseline gap-2 min-w-0">
+-          <h2 className="text-sm font-semibold text-ink">
+-            Bulls vs Bears
+-          </h2>
+-          {updated ? (
+-            // v_238: dated stamp matching the convention competitor
+-            // research notes use (e.g. "Updated April 2026").
+-            <span className="text-[11px] text-caption">
+-              Updated {updated}
+-            </span>
+-          ) : null}
+-        </div>
+-        <p className="text-[11px] text-caption shrink-0">
+-          Auto-generated from financials. Not investment advice.
+-        </p>
+-      </div>
+-      <div className="flex flex-col md:flex-row gap-6 md:gap-8">
+-        <Column tone="bull" heading="Bull case" bullets={safeBulls} />
+-        <div
+-          className="hidden md:block w-px bg-border self-stretch"
+-          aria-hidden="true"
++      <p className="text-[11px] text-caption mb-3">
++        Auto-generated from financials. Not investment advice.
++      </p>
++      <div className="flex flex-col md:flex-row gap-3 md:gap-4">
++        <Column
++          tone="bull"
++          heading="Bull case"
++          bullets={safeBulls}
++          updatedLabel={updatedLabel}
++        />
++        <Column
++          tone="bear"
++          heading="Bear case"
++          bullets={safeBears}
++          updatedLabel={updatedLabel}
+         />
+-        <Column tone="bear" heading="Bear case" bullets={safeBears} />
+       </div>
+     </section>
+   )
+diff --git a/frontend/src/components/analysis/CompoundedGrowthPanel.tsx b/frontend/src/components/analysis/CompoundedGrowthPanel.tsx
+index 4705b6a..3d7b625 100644
+--- a/frontend/src/components/analysis/CompoundedGrowthPanel.tsx
++++ b/frontend/src/components/analysis/CompoundedGrowthPanel.tsx
+@@ -29,6 +29,14 @@ import CompoundedGrowthSparklines from "./CompoundedGrowthSparklines"
+ 
+ interface Props {
+   ticker: string
++  /**
++   * PR-C §6.4: optional sector-median bag (currently just ROE; backend
++   * has no cohort median for revenue / profit / stock CAGR yet). Passed
++   * through to the sparkline tiles so each row can render an inline
++   * "Sector X" chip alongside the headline CAGR. The chip self-hides
++   * silently when the median is null.
++   */
++  sectorMedians?: { roe?: number | null } | null
+ }
+ 
+ type WindowKey = "3y" | "5y" | "10y"
+@@ -60,7 +68,7 @@ function formatCell(value: number | null): string {
+ }
+ 
+ 
+-export default function CompoundedGrowthPanel({ ticker }: Props) {
++export default function CompoundedGrowthPanel({ ticker, sectorMedians }: Props) {
+   const query = useQuery({
+     queryKey: ["stock-summary-cagr", ticker],
+     queryFn: () => getStockSummary(ticker),
+@@ -100,7 +108,7 @@ export default function CompoundedGrowthPanel({ ticker }: Props) {
+           full table. Headline number is the longest available window
+           (10y → 5y → 3y); curve is the implied trajectory back-cast
+           from the CAGR values themselves — no extra fetch. */}
+-      <CompoundedGrowthSparklines panel={panel} />
++      <CompoundedGrowthSparklines panel={panel} sectorMedians={sectorMedians} />
+ 
+       <details className="mt-4 group">
+         <summary className="cursor-pointer text-xs text-caption hover:text-ink select-none">
+diff --git a/frontend/src/components/analysis/CompoundedGrowthSparklines.tsx b/frontend/src/components/analysis/CompoundedGrowthSparklines.tsx
+index f27ccfd..d6f912e 100644
+--- a/frontend/src/components/analysis/CompoundedGrowthSparklines.tsx
++++ b/frontend/src/components/analysis/CompoundedGrowthSparklines.tsx
+@@ -22,9 +22,20 @@
+ 
+ import { LineChart, Line, ResponsiveContainer, YAxis } from "recharts"
+ import type { CompoundedGrowthPanel as PanelData } from "@/lib/api"
++import MetricVsSectorChip from "@/components/analysis/MetricVsSectorChip"
++
++// PR-C §6.4: optional sector-median bag (matches data.sector_medians on
++// the analysis payload). Only the ROE entry maps to a sparkline tile;
++// Revenue / Profit / Stock CAGR have no cohort-median equivalent yet,
++// so those tiles render without a chip. Per spec, missing medians are
++// silently skipped (no "vs sector —").
++interface SectorMedians {
++  roe?: number | null
++}
+ 
+ interface Props {
+   panel: PanelData
++  sectorMedians?: SectorMedians | null
+ }
+ 
+ type RowKey = "revenue" | "profit" | "roe_avg" | "stock"
+@@ -102,11 +113,11 @@ function formatCagr(value: number): string {
+   return `${sign}${value.toFixed(1)}%`
+ }
+ 
+-function Tile({ spec, metric }: { spec: TileSpec; metric: {
++function Tile({ spec, metric, sectorMedian }: { spec: TileSpec; metric: {
+   "3y": number | null
+   "5y": number | null
+   "10y": number | null
+-} | undefined }) {
++} | undefined; sectorMedian?: number | null }) {
+   const headline = metric ? pickHeadline(metric) : null
+ 
+   if (!headline) {
+@@ -196,11 +207,25 @@ function Tile({ spec, metric }: { spec: TileSpec; metric: {
+       <div className="text-[10px] text-caption">
+         Implied trend over {headline.windowYears}y
+       </div>
++      {/* PR-C §6.4: inline sector-median chip. Renders only when this
++          tile maps to a cohort metric we publish AND the median is a
++          finite number — otherwise the chip self-hides silently. */}
++      {sectorMedian != null && Number.isFinite(sectorMedian) && (
++        <div className="mt-2">
++          <MetricVsSectorChip
++            label={spec.label}
++            value={headline.cagr}
++            unit="%"
++            sectorMedian={sectorMedian}
++            format="better-higher"
++          />
++        </div>
++      )}
+     </div>
+   )
+ }
+ 
+-export default function CompoundedGrowthSparklines({ panel }: Props) {
++export default function CompoundedGrowthSparklines({ panel, sectorMedians }: Props) {
+   // If every tile would be empty, render nothing — the parent will
+   // still show the textual section header.
+   const anyValue = TILES.some((t) => {
+@@ -219,9 +244,21 @@ export default function CompoundedGrowthSparklines({ panel }: Props) {
+       className="grid grid-cols-2 md:grid-cols-4 gap-3"
+       aria-label="Compounded growth sparkline tiles"
+     >
+-      {TILES.map((t) => (
+-        <Tile key={t.key} spec={t} metric={panel[t.key]} />
+-      ))}
++      {TILES.map((t) => {
++        // Only ROE has a cohort median in sector_medians. Other tiles
++        // (Revenue / Profit / Stock CAGR) get undefined and the chip
++        // self-hides.
++        const median =
++          t.key === "roe_avg" ? sectorMedians?.roe ?? null : null
++        return (
++          <Tile
++            key={t.key}
++            spec={t}
++            metric={panel[t.key]}
++            sectorMedian={median}
++          />
++        )
++      })}
+     </div>
+   )
+ }
+diff --git a/frontend/src/components/analysis/DividendBarChart.tsx b/frontend/src/components/analysis/DividendBarChart.tsx
+index a95b67d..82cd976 100644
+--- a/frontend/src/components/analysis/DividendBarChart.tsx
++++ b/frontend/src/components/analysis/DividendBarChart.tsx
+@@ -30,6 +30,7 @@ import {
+ } from "recharts"
+ import { currencySymbol } from "@/lib/currency"
+ import type { DividendData } from "@/types/api"
++import { DataCard } from "@/components/cards"
+ 
+ interface Props {
+   dividend?: DividendData | null
+@@ -76,7 +77,7 @@ export default function DividendBarChart({ dividend, currency, ticker }: Props)
+ 
+   if (noHistory) {
+     return (
+-      <div className="bg-surface rounded-2xl border border-border p-4">
++      <DataCard hover={false}>
+         <h3 className="text-sm font-semibold text-ink">
+           Dividend per share — 10 year history
+         </h3>
+@@ -84,7 +85,7 @@ export default function DividendBarChart({ dividend, currency, ticker }: Props)
+           No dividend history available — this stock has not paid
+           dividends in our window.
+         </p>
+-      </div>
++      </DataCard>
+     )
+   }
+ 
+@@ -93,7 +94,7 @@ export default function DividendBarChart({ dividend, currency, ticker }: Props)
+   const yMax = maxDps > 0 ? maxDps * 1.15 : 1
+ 
+   return (
+-    <div className="bg-surface rounded-2xl border border-border p-4">
++    <DataCard hover={false}>
+       <div className="flex items-baseline justify-between gap-3 mb-3">
+         <h3 className="text-sm font-semibold text-ink">
+           Dividend per share — 10 year history
+@@ -207,6 +208,6 @@ export default function DividendBarChart({ dividend, currency, ticker }: Props)
+         Bars: dividend per share by financial year. Dashed line: most
+         recent payout ratio (per-year payout history not yet available).
+       </p>
+-    </div>
++    </DataCard>
+   )
+ }
+diff --git a/frontend/src/components/analysis/FinancialsChartPanel.tsx b/frontend/src/components/analysis/FinancialsChartPanel.tsx
+index bcbff5c..7775667 100644
+--- a/frontend/src/components/analysis/FinancialsChartPanel.tsx
++++ b/frontend/src/components/analysis/FinancialsChartPanel.tsx
+@@ -225,6 +225,57 @@ export default function FinancialsChartPanel({ ticker, currency }: Props) {
+ 
+       {period === "annual" && hasRows && (
+         <>
++          {/* PR-C §6.8: plain-English caption above the chart. We
++              compute a single descriptive sentence from the two most
++              recent annual rows — revenue YoY growth and operating-
++              margin change (basis-point delta of net_profit / revenue).
++              Strictly neutral / factual; no banned vocabulary. */}
++          {(() => {
++            const n = rows.length
++            if (n < 2) {
++              return (
++                <p className="text-[12px] text-body mb-2 leading-relaxed">
++                  Financial performance over the last {n} fiscal year
++                  {n === 1 ? "" : "s"}.
++                </p>
++              )
++            }
++            const latest = rows[n - 1]
++            const prior = rows[n - 2]
++            const revYoY =
++              latest.revenue != null &&
++              prior.revenue != null &&
++              prior.revenue > 0
++                ? ((latest.revenue - prior.revenue) / prior.revenue) * 100
++                : null
++            const latestMargin =
++              latest.revenue != null &&
++              latest.revenue > 0 &&
++              latest.net_profit != null
++                ? (latest.net_profit / latest.revenue) * 100
++                : null
++            const priorMargin =
++              prior.revenue != null &&
++              prior.revenue > 0 &&
++              prior.net_profit != null
++                ? (prior.net_profit / prior.revenue) * 100
++                : null
++            const marginBps =
++              latestMargin != null && priorMargin != null
++                ? Math.round((latestMargin - priorMargin) * 100)
++                : null
++            let caption = `Financial performance over the last ${rows.length} fiscal years.`
++            if (revYoY != null && revYoY > 15) {
++              caption = "Revenue growth accelerated in the latest fiscal year."
++            } else if (marginBps != null && marginBps < -100) {
++              caption = `Margins compressed ${Math.abs(marginBps)} bps in the latest fiscal year.`
++            }
++            return (
++              <p className="text-[12px] text-body mb-2 leading-relaxed">
++                {caption}
++              </p>
++            )
++          })()}
+           <div className="text-[11px] text-caption mb-1">Values in {unitLabel}</div>
+           <div className="h-[280px]">
+             <ResponsiveContainer width="100%" height="100%">
+diff --git a/frontend/src/components/analysis/HonestCard.tsx b/frontend/src/components/analysis/HonestCard.tsx
+index c463c23..7299a57 100644
+--- a/frontend/src/components/analysis/HonestCard.tsx
++++ b/frontend/src/components/analysis/HonestCard.tsx
+@@ -16,6 +16,7 @@
+ import React from "react"
+ import type { HonestCardOutput } from "@/types/api"
+ import { FadeStagger } from "@/components/anim"
++import { NarrativeCard } from "@/components/cards"
+ 
+ interface Props {
+   card?: HonestCardOutput | null
+@@ -163,11 +164,16 @@ export default function HonestCard({ card }: Props) {
+     (card.invalidating_conditions?.length ?? 0) > 0
+   if (!hasAny) return null
+ 
++  // PR-C §6: HonestCard is wrapped in NarrativeCard so the 4-section
++  // prose layout breathes inside the canonical narrative shell. The
++  // outer container (rounded-2xl border + bg-tone-neutral-bg) is
++  // retired in favour of NarrativeCard's bg-surface + card-lg padding.
+   return (
+-    <section
++    <NarrativeCard
+       data-testid="honest-card"
+-      className="rounded-2xl border border-border bg-tone-neutral-bg dark:bg-slate-900 p-4 md:p-6"
++      eyebrow="THE HONEST CARD"
+       aria-label="The Honest Card — transparency panel"
++      className="max-w-none"
+     >
+       <header className="flex items-start justify-between gap-3 mb-4 pb-4 border-b border-border">
+         <h2 className="text-base md:text-lg font-semibold text-ink tracking-tight">
+@@ -255,6 +261,6 @@ export default function HonestCard({ card }: Props) {
+           financials. Not investment advice.
+         </p>
+       </footer>
+-    </section>
++    </NarrativeCard>
+   )
+ }
+diff --git a/frontend/src/components/analysis/InlinePeerComparison.tsx b/frontend/src/components/analysis/InlinePeerComparison.tsx
+index e6e3f7e..871bd7d 100644
+--- a/frontend/src/components/analysis/InlinePeerComparison.tsx
++++ b/frontend/src/components/analysis/InlinePeerComparison.tsx
+@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation"
+ import { useQuery } from "@tanstack/react-query"
+ import { ChevronDown, ChevronUp } from "lucide-react"
+ import { getPeers, type PeerRow, type PeersResponse } from "@/lib/api"
++import { DataCard } from "@/components/cards"
+ import {
+   cn,
+   formatCurrency,
+@@ -155,23 +156,23 @@ function SortHeader({ label, sortKey, align = "right", sort, onSort }: HeaderPro
+ 
+ function EmptyState({ message }: { message: string }) {
+   return (
+-    <section className="bg-bg rounded-2xl border border-border p-4">
++    <DataCard hover={false} role="region" aria-label="Peers in this cohort">
+       <h2 className="text-sm font-semibold text-ink mb-1">Peers in this cohort</h2>
+       <p className="text-xs text-caption">{message}</p>
+-    </section>
++    </DataCard>
+   )
+ }
+ 
+ function LoadingSkeleton() {
+   return (
+-    <section className="bg-bg rounded-2xl border border-border p-4">
++    <DataCard hover={false}>
+       <div className="h-4 w-40 bg-surface rounded animate-pulse mb-3" />
+       <div className="space-y-2">
+         {Array.from({ length: 5 }).map((_, i) => (
+           <div key={i} className="h-8 bg-surface rounded animate-pulse" />
+         ))}
+       </div>
+-    </section>
++    </DataCard>
+   )
+ }
+ 
+@@ -305,8 +306,9 @@ export default function InlinePeerComparison({
+   }
+ 
+   return (
+-    <section
+-      className="bg-bg rounded-2xl border border-border p-4"
++    <DataCard
++      hover={false}
++      role="region"
+       aria-labelledby="inline-peer-comparison-heading"
+     >
+       <div className="flex items-baseline justify-between gap-2 flex-wrap mb-3">
+@@ -508,6 +510,6 @@ export default function InlinePeerComparison({
+         Click a peer row to open its analysis. Current price is derived from
+         fair value and discount-to-FV on the cohort snapshot.
+       </p>
+-    </section>
++    </DataCard>
+   )
+ }
+diff --git a/frontend/src/components/analysis/ReverseDcfPanel.tsx b/frontend/src/components/analysis/ReverseDcfPanel.tsx
+index de36d6b..4301700 100644
+--- a/frontend/src/components/analysis/ReverseDcfPanel.tsx
++++ b/frontend/src/components/analysis/ReverseDcfPanel.tsx
+@@ -24,6 +24,7 @@
+ 
+ import { useMemo, useState } from "react"
+ import { useQuery } from "@tanstack/react-query"
++import { NarrativeCard } from "@/components/cards"
+ 
+ // Mirror of backend models/forecaster.py constants. Kept in sync manually
+ // (constants haven't changed in 18 months and any change would require a
+@@ -210,9 +211,10 @@ export default function ReverseDcfPanel({ ticker }: Props) {
+   // legible rather than mysteriously missing.
+   if (data.applicable === false) {
+     return (
+-      <section
++      <NarrativeCard
++        eyebrow="REVERSE DCF"
+         aria-label="Reverse DCF — not applicable"
+-        className="bg-bg dark:bg-surface rounded-2xl border border-border p-4"
++        className="max-w-none"
+       >
+         <header className="mb-1">
+           <h2 className="text-sm font-semibold text-ink tracking-tight uppercase">
+@@ -224,7 +226,7 @@ export default function ReverseDcfPanel({ ticker }: Props) {
+           Banks, NBFCs and insurers use ROE / RoA / NIM instead of FCF-based
+           valuation. See the Quality panel for those metrics.
+         </p>
+-      </section>
++      </NarrativeCard>
+     )
+   }
+ 
+@@ -254,9 +256,10 @@ export default function ReverseDcfPanel({ ticker }: Props) {
+   const trailing5yCagr = parseTrailing5yCagr(sanity)
+ 
+   return (
+-    <section
++    <NarrativeCard
++      eyebrow="REVERSE DCF"
+       aria-label="Reverse DCF"
+-      className="bg-bg rounded-2xl border border-border p-4"
++      className="max-w-none"
+     >
+       <header className="mb-3">
+         <h2 className="text-sm font-semibold text-ink tracking-tight uppercase">
+@@ -348,7 +351,7 @@ export default function ReverseDcfPanel({ ticker }: Props) {
+           </ul>
+         </footer>
+       )}
+-    </section>
++    </NarrativeCard>
+   )
+ }
+ 
+ .../app/(app)/analysis/[ticker]/AnalysisBody.tsx   | 118 +++++++++++++++++----
+ .../src/components/analysis/BullsBearsPanel.tsx    |  89 ++++++++++------
+ .../components/analysis/CompoundedGrowthPanel.tsx  |  12 ++-
+ .../analysis/CompoundedGrowthSparklines.tsx        |  49 +++++++--
+ .../src/components/analysis/DividendBarChart.tsx   |   9 +-
+ .../components/analysis/FinancialsChartPanel.tsx   |  51 +++++++++
+ frontend/src/components/analysis/HonestCard.tsx    |  12 ++-
+ .../components/analysis/InlinePeerComparison.tsx   |  16 +--
+ .../src/components/analysis/ReverseDcfPanel.tsx    |  15 +--
+ 9 files changed, 288 insertions(+), 83 deletions(-)
