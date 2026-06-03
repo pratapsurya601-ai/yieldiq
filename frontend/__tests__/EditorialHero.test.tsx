@@ -35,9 +35,7 @@ vi.mock("@/components/prism/Prism", () => ({
 vi.mock("@/components/prism/PillarExplainer", () => ({
   default: () => null,
 }))
-vi.mock("@/components/analysis/ScoreCard", () => ({
-  default: () => null,
-}))
+// Stage-2 redesign: ScoreCard component retired. Mock removed.
 vi.mock("@/components/analysis/MetricTooltip", () => ({
   default: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }))

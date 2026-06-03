@@ -40,8 +40,14 @@ import {
 import { FormulasProvider } from "@/components/analysis/MetricTooltip"
 import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
 import ConfidenceIndicators from "@/components/analysis/ConfidenceIndicators"
-import ScoreCard from "@/components/analysis/ScoreCard"
-import StickyScorecard from "@/components/analysis/StickyScorecard"
+// Stage-2 redesign (spec §1 Fold 1): ScoreCard + StickyScorecard are
+// retired. Their data (Score / Grade / Moat / Red flags / Worry / Market
+// cap / distress-flag grade-cap) is absorbed into <HonestHero>'s sticky
+// side rail at ≥1024 and into <MobileScoreStrip> below 1024. ScoreCard.tsx
+// and StickyScorecard.tsx are deleted in this PR.
+import HonestHero from "@/components/analysis/HonestHero"
+import MobileScoreStrip from "@/components/analysis/MobileScoreStrip"
+import { useHeroSignals } from "@/lib/useHeroSignals"
 import ScoreBreakdownPanel from "@/components/analysis/ScoreBreakdownPanel"
 import ReverseDcfPanel from "@/components/analysis/ReverseDcfPanel"
 import CompoundedGrowthPanel from "@/components/analysis/CompoundedGrowthPanel"
@@ -481,6 +487,12 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       return failureCount < 1
     },
   })
+
+  // Stage-2 redesign (spec §1 Fold 1): single source of truth resolver
+  // for HonestHero AND MobileScoreStrip. Hook runs above every early
+  // return so render-order is consistent across loading / error /
+  // success states; resolver returns an all-null bag for null payloads.
+  const heroSignals = useHeroSignals(data ?? null)
 
   const { data: chartData } = useQuery({
     queryKey: ["chart-data", ticker, "1m"],
@@ -1504,35 +1516,19 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         </div>
       )}
 
-      {/* Tickertape-parity 2-column shell (audit:
-          .audit/tickertape-deep-walk-2026-05-27.md, gap #1). At lg: and
-          up the StickyScorecard rail anchors on the left at 336px,
-          sticky top-20, while the existing tab/section content flows in
-          the flex-1 right column. Below lg: the rail self-collapses to
-          a horizontal sticky strip rendered inside the StickyScorecard
-          component itself, so the surrounding markup stays single-
-          column on mobile and the layout never reflows mid-render. */}
-      <div className="lg:flex lg:items-start lg:gap-6 lg:pt-4">
-        <StickyScorecard
-          ticker={data.ticker}
-          displayTicker={canonicalDisplay}
-          companyName={formatCompanyName(company.company_name)}
-          currency={company.currency}
-          currentPrice={valuation.current_price}
-          fairValue={valuation.fair_value}
-          confidence={valuation.confidence_score}
-          marginOfSafety={valuation.margin_of_safety}
-          verdict={valuation.verdict}
-          dataLimited={dataLimited}
-          worryScore={data.worry_index?.score ?? null}
-          worryTier={data.worry_index?.tier ?? null}
-          yieldiqScore={quality.yieldiq_score}
-          grade={quality.grade}
-          moat={quality.moat}
-          redFlagCount={insights?.red_flags_structured?.length ?? null}
-        />
+      {/* Stage-2 redesign (spec §1 / §1.1): legacy 2-column StickyScorecard
+          shell is retired. The new HonestHero owns the sticky side rail
+          (THE single position:sticky scorecard-class surface on the page);
+          MobileScoreStrip below 1024 reads from the same `useHeroSignals`
+          bag so desktop / mobile cannot drift. Outer container reverts to
+          a single column — HonestHero handles its own internal flex split. */}
+      <MobileScoreStrip
+        ticker={data.ticker}
+        currency={company.currency}
+        signals={heroSignals}
+      />
 
-      <div className="py-4 space-y-4 lg:flex-1 lg:min-w-0 lg:py-0">
+      <div className="py-4 space-y-4">
         {/* Phase 4 personalization: one-time confirmation banner shown
             after the user picks a style. Self-hides for users without
             a style and after dismissal. */}
@@ -1557,33 +1553,36 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           </div>
         )}
 
-        {/* Company name + breadcrumb header.
-            Mobile fix: stack vertically so the H1 gets full width and
-            doesn't truncate to "Relian..." when the action row competes
-            for space. From sm: revert to side-by-side layout. */}
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-          <div className="min-w-0 space-y-1.5">
-            <h1 className="font-editorial text-2xl md:text-3xl font-semibold text-ink leading-tight">
-              {formatCompanyName(company.company_name)}
-            </h1>
-            <p className="text-xs text-caption truncate flex items-center gap-2 flex-wrap">
-              <span>{company.ticker}</span>
-              <UnlockBadge ticker={company.ticker} size="sm" />
-            </p>
-            <Breadcrumb
-              exchange={exchange}
-              sector={company.sector}
-              marketCapBucket={marketCapBucket}
-              indices={[]}
-            />
-          </div>
-          <div className="shrink-0 flex items-center gap-3 sm:self-start">
-            <ShareReportCard ticker={ticker} variant="compact" />
-            <Link href={`/compare?stock1=${ticker}`} className="text-sm sm:text-xs text-brand hover:underline whitespace-nowrap py-2 sm:py-0">
-              Compare →
-            </Link>
-          </div>
+        {/* Company name header — Stage-2 redesign §3 rows C3 / C4: the
+            Breadcrumb classification-chips row and the Share/Compare
+            buttons row are CUT. Breadcrumb data already lives in the
+            ticker row + EditorialHero band; Compare migrates into the
+            AnalysisTabs adjacent slot (cluster C will rewire), and Share
+            already lives in the StickyHeader icon set. */}
+        <div className="min-w-0 space-y-1.5">
+          <h1 className="font-editorial text-2xl md:text-3xl font-semibold text-ink leading-tight">
+            {formatCompanyName(company.company_name)}
+          </h1>
+          <p className="text-xs text-caption truncate flex items-center gap-2 flex-wrap">
+            <span>{company.ticker}</span>
+            <UnlockBadge ticker={company.ticker} size="sm" />
+          </p>
         </div>
+
+        {/* Stage-2 redesign (spec §1 / §1.1): HonestHero is the new above-
+            the-fold hero. Single source of truth for verdict / FV / discount
+            / worry / score / moat / red flags. Sticky side rail at ≥1024 is
+            THE single position:sticky scorecard-class surface on the page. */}
+        <HonestHero
+          ticker={data.ticker}
+          displayTicker={canonicalDisplay}
+          companyName={formatCompanyName(company.company_name)}
+          currency={company.currency}
+          signals={heroSignals}
+          payload={data}
+          rawFairValue={data.scenarios?.base?.iv ?? null}
+          honestCardTeaser={data.honest_card?.best_estimate ?? null}
+        />
 
         {/* Per-ticker model caveat banner — surfaced for conglomerates,
             holdcos, turnarounds, and pre-profit names where the generic
@@ -1609,11 +1608,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           )
         })()}
 
-        {/* AI narrative summary — one-sentence conclusion rendered above
-            the Prism hex so users can grasp the verdict in ~2 seconds
-            without decoding the full card array. Component returns null
-            when data.ai_summary is empty, so no reserved blank space. */}
-        <NarrativeSummary summary={data.ai_summary} />
+        {/* Stage-2 redesign (spec §3 row C2): NarrativeSummary above-the-
+            fold is CUT. The model-blurb prose absorbs into BullsBearsPanel
+            as the lead-in (cluster E owns that fold-in). NarrativeSummary
+            import retained so cluster E can pick it up. */}
 
         {/* Editorial hero — Prism-driven. Uses server-rendered prism payload
             when available; falls back to the legacy AnalysisHero when the
@@ -1818,21 +1816,17 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             </span>
           </summary>
           <div className="px-4 pb-4 pt-1 space-y-4">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-              <ScoreCard
-                score100={quality.yieldiq_score}
-                grade={quality.grade}
-                trend12m={prismResolved?.score_history_12m ?? []}
-                sectorRank={null}
-                refractionIndex={prismResolved?.refraction_index ?? 0}
-                marketCapCr={marketCapCr ?? null}
-                redFlags={insights?.red_flags_structured ?? []}
+            {/* Stage-2 redesign (spec §1 Fold 1 + §3 row C6): the
+                standalone ScoreCard mount here is RETIRED. Score / Grade /
+                Sector Rank / Refraction / Market cap / 12M sparkline /
+                distress-flag grade-cap all moved into HonestHero's
+                sticky side rail above the fold. ScoreBreakdownPanel
+                stays — it earns its space as the "Why this score?"
+                disclosure for users who want the per-component breakdown. */}
+            <div>
+              <ScoreBreakdownPanel
+                breakdown={prismResolved?.quality?.score_breakdown}
               />
-              <div className="lg:col-span-2">
-                <ScoreBreakdownPanel
-                  breakdown={prismResolved?.quality?.score_breakdown}
-                />
-              </div>
             </div>
             <ConfidenceIndicators
               dataQualityScore={valuation.data_quality_score}
@@ -1932,7 +1926,6 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         </details>
 
         <ModelDisclaimer className="mx-4" />
-      </div>
       </div>
 
       {timeMachineOpen && (
