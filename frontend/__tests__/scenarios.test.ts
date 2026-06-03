@@ -128,7 +128,7 @@ describe("isFairValueClamped", () => {
       ),
     ).toBe(true)
   })
-  it("respects a future typed flag if one appears", () => {
+  it("respects a future typed flag when present", () => {
     const p = basePayload()
     ;(p.valuation as unknown as { fair_value_clamped?: boolean }).fair_value_clamped = true
     expect(isFairValueClamped(p)).toBe(true)

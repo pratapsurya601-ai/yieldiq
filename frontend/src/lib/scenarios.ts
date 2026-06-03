@@ -194,7 +194,7 @@ export function isFairValueClamped(
   payload: AnalysisResponse | null | undefined,
 ): boolean {
   if (!payload) return false
-  // Future-proof: read a typed flag first if it appears.
+  // Future-proof: read a typed flag first when present.
   const typed = (payload.valuation as unknown as { fair_value_clamped?: boolean | null })
     ?.fair_value_clamped
   if (typed === true) return true

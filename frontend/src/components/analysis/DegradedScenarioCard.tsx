@@ -21,10 +21,10 @@
  *   • Left edge accent bar = caution amber (mirrors AnalyticalNotes).
  *   • Caption chip in card header: "CLAMP CEILING".
  *
- * SEBI lens: no `should` / `appears` / `strong` / `weak` / `cheap` /
- * `poor` / `buy` / `sell` / `hold` / `recommend` / `target` /
- * `expensive`. `Possible` is permitted (factual hedge, not directive).
- * `Acting` is operator-permitted in this context (spec §2.2 verbatim).
+ * SEBI lens: see CLAUDE.md and memory/feedback_yieldiq_discipline.md
+ * for the banned vocabulary list. `Possible` is permitted (factual
+ * hedge, not directive). `Acting` is operator-permitted in this
+ * context (spec section 2.2 verbatim).
  */
 
 import * as React from "react"
