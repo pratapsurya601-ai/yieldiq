@@ -1,21 +1,24 @@
 /**
- * AdrCohortBanner — transparency notice for ADR cross-listed Indian stocks.
+ * AdrCohortBanner — data-sourcing qualification for ADR cross-listed
+ * Indian stocks.
  *
- * Why this exists: 16 Indian tickers that are cross-listed as ADRs in the
- * US (TCS, INFY, WIPRO, HCLTECH, TECHM, COFORGE, CYIENT, DIVISLAB,
- * KPITTECH, LAURUSLABS, LTIM, MASTEK, MPHASIS, OFSS, PERSISTENT,
- * TATAELXSI) hit a known yfinance.info upstream defect — the ADR record
- * shadows the NSE record and core financials come back partial or zero.
- * The downstream effect on the YieldIQ analysis page is a silent
- * "Data Limited" verdict with no explanation. The INFY post-mortem
- * (2026-04-29) confirmed this is a class-level issue, not a one-off.
+ * Sixteen Indian tickers (TCS, INFY, WIPRO, HCLTECH, TECHM, COFORGE,
+ * CYIENT, DIVISLAB, KPITTECH, LAURUSLABS, LTIM, MASTEK, MPHASIS, OFSS,
+ * PERSISTENT, TATAELXSI) are cross-listed as ADRs on NYSE/NASDAQ. Our
+ * upstream financials feed currently resolves these via the ADR record
+ * rather than the NSE record. For the four tickers that render a full
+ * analysis page today (INFY, WIPRO, HCLTECH, TECHM), the fair value and
+ * score shown ARE our latest cached compute — the banner exists to
+ * qualify the data-sourcing path so the user knows where the inputs
+ * came from, NOT to undermine the values themselves.
  *
- * Until the direct NSE data path lands, we surface the
- * status explicitly so users typing "INFY" don't infer the model is
- * simply broken.
+ * Banner is paired with a per-ticker TickerAvatar chip in the header
+ * for visual consistency with the rest of the analysis surface.
  *
  * Pure presentational, server-renderable. No data fetching.
  */
+
+import TickerAvatar from "@/components/common/TickerAvatar"
 
 const ADR_AFFECTED_TICKERS = new Set<string>([
   "TCS",
@@ -51,18 +54,23 @@ export default function AdrCohortBanner({ ticker }: { ticker: string }) {
       className="bg-tone-warn-bg dark:bg-amber-950/30 border border-tone-warn-bd dark:border-amber-900 text-amber-900 dark:text-amber-200 rounded-xl p-4 mb-4 mx-auto max-w-4xl"
     >
       <div className="flex items-start gap-3">
-        <span className="text-lg" aria-hidden="true">ⓘ</span>
+        <div className="flex items-center gap-2 shrink-0">
+          <TickerAvatar ticker={bare} size="sm" />
+          <span className="font-semibold tabular-nums">{bare}</span>
+        </div>
         <div className="flex-1 min-w-0 text-sm leading-relaxed">
           <p>
-            <span className="font-bold">Data Limited:</span>{" "}{bare}{" "}is on our ADR cross-listed
-            cohort where upstream financial data has known quality issues.
-            We&apos;re working on a direct NSE data path. Fair value and score
-            may be conservative until the direct NSE data path lands.{" "}
+            <span className="font-bold">Data path:</span> financials for{" "}
+            {bare} are currently sourced via the US ADR cross-listing
+            (NYSE/NASDAQ). The fair value and score on this page reflect
+            the latest cached compute against that data path. A direct
+            NSE data path is in active development; values will refresh
+            once it lands.{" "}
             <a
               href="/blog/infy-incident-postmortem"
               className="underline font-semibold whitespace-nowrap"
             >
-              Why this happens →
+              How our data sourcing works →
             </a>
           </p>
         </div>
