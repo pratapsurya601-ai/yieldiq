@@ -38,10 +38,14 @@ from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[2] / "frontend" / "src"
 _UTILS = _ROOT / "lib" / "utils.ts"
-_HERO = _ROOT / "components" / "analysis" / "AnalysisHero.tsx"
+# PR-3 (acquisition four-hero retire, 2026-06-04): AnalysisHero.tsx
+# was deleted (dead-code else branch in AnalysisBody). The shared
+# gate is still pinned via _UTILS, _EDITORIAL, _BODY and _PUBLIC; the
+# AnalysisHero-scoped assertions below are retired with the file.
 _EDITORIAL = _ROOT / "components" / "analysis" / "EditorialHero.tsx"
 _BODY = _ROOT / "app" / "(app)" / "analysis" / "[ticker]" / "AnalysisBody.tsx"
 _PUBLIC = _ROOT / "app" / "(app)" / "analysis" / "[ticker]" / "PublicAnalysis.tsx"
+_HONEST = _ROOT / "components" / "analysis" / "HonestHero.tsx"
 
 
 # ── Shared gate helper: thresholds + signature ──────────────
@@ -74,13 +78,16 @@ def test_shared_gate_helper_present_with_band_ratio_logic():
 # ── All four render paths import the shared gate ────────────
 
 
-def test_analysis_hero_uses_shared_gate():
-    src = _HERO.read_text(encoding="utf-8")
-    assert "shouldGateVerdict" in src
-    # The hero plumbs bull/bear case through so the band-ratio gate
-    # has its inputs
-    assert "bullCase" in src
-    assert "bearCase" in src
+def test_honest_hero_consumes_shared_gate_via_signals():
+    """PR-3 (2026-06-04) replaced AnalysisHero with HonestHero in the
+    AnalysisBody render path. HonestHero reads `signals.verdictGated`
+    from useHeroSignals — which calls shouldGateVerdict internally —
+    and collapses the verdict label to "Under Review" when the gate
+    fires. This pins the wire-through: the rail title must consume
+    verdictGated, never derive its own gate."""
+    src = _HONEST.read_text(encoding="utf-8")
+    assert "verdictGated" in src
+    assert '"Under Review"' in src
 
 
 def test_editorial_hero_uses_shared_gate():
@@ -103,9 +110,11 @@ def test_analysis_body_title_uses_shared_gate():
     assert "shouldGateVerdict" in src
     # Title cascade: gate -> MoS -> backend label -> neutral
     assert 'gated\n        ? "Under Review"' in src
-    # Body wires bull/bear case to both AnalysisHero and EditorialHero
-    assert "bullCase={valuation.bull_case}" in src
-    assert "bearCase={valuation.bear_case}" in src
+    # PR-3 (2026-06-04): EditorialHero (with its bull/bear plumbing)
+    # is retired from AnalysisBody. The shared gate is exercised
+    # against HonestHero via useHeroSignals (covered by the dedicated
+    # HonestHero assertion above); the bull/bear-prop pin is no
+    # longer applicable to this file.
 
 
 def test_public_analysis_pill_uses_shared_gate():
@@ -125,15 +134,21 @@ def test_public_analysis_pill_uses_shared_gate():
 
 
 def test_effective_verdict_cascade_pins_data_limited_first():
-    """The cascade must be: dataLimited (outer) -> low_confidence ->
+    """The cascade must be: dataLimited (outer) -> verdictGated ->
     verdict. Reordering would let a low-confidence name with a Data
-    Limited banner render the wrong pill (TCS-class regression)."""
-    src = _HERO.read_text(encoding="utf-8")
-    # dataLimited branch wins first
-    assert "dataLimited\n    ? \"data_limited\"" in src
-    # then lowConfidence
-    assert "lowConfidence" in src
-    assert '? "low_confidence"' in src
+    Limited banner render the wrong pill (TCS-class regression).
+
+    PR-3 (2026-06-04): AnalysisHero.tsx is deleted; the cascade now
+    lives inside HonestHero via the verdictGated signal. dataLimited
+    must short-circuit FIRST so an under-review ticker can't render
+    a "low_confidence" label that hides the harder caveat."""
+    src = _HONEST.read_text(encoding="utf-8")
+    # dataLimited branch wins first inside the tier resolution.
+    assert "signals.dataLimited" in src
+    assert '"data_limited"' in src
+    # Then verdictGated produces the "Under Review" label.
+    assert "verdictGated" in src
+    assert '"Under Review"' in src
 
 
 # ── SEBI vocabulary regression ──────────────────────────────

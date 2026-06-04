@@ -23,7 +23,15 @@ _ROOT = Path(__file__).resolve().parents[2] / "frontend" / "src"
 _TYPES = _ROOT / "types" / "api.ts"
 _CONSTS = _ROOT / "lib" / "constants.ts"
 _CHIP = _ROOT / "components" / "analysis" / "VerdictChip.tsx"
-_HERO = _ROOT / "components" / "analysis" / "AnalysisHero.tsx"
+# PR-3 (acquisition four-hero retire, 2026-06-04): AnalysisHero.tsx is
+# DELETED — it was the dead-code else-branch fallback in AnalysisBody
+# (prismResolved is non-null on every code path that ships). The
+# low-confidence gate behaviour is now guarded inside <EditorialHero>
+# (test_day91_verdict_gate_tighten) and <HonestHero> (which derives
+# its "Under Review" label from signals.verdictGated, populated by
+# the same shouldGateVerdict() helper). The two hero-scoped assertions
+# below are retired; the type / constants / chip wire-contract
+# assertions remain.
 
 
 # ── Type union extended ─────────────────────────────────────
@@ -63,26 +71,7 @@ def test_verdict_chip_renders_low_confidence_label():
 
 
 # ── Hero gate logic ─────────────────────────────────────────
-
-
-def test_hero_routes_low_confidence_via_shared_gate():
-    """Day-91 (2026-05-22) tightened the gate: threshold lifted to 60
-    and routed through the shared shouldGateVerdict() helper in
-    lib/utils.ts. The hero now delegates the decision to the helper
-    instead of inlining the comparison."""
-    src = _HERO.read_text(encoding="utf-8")
-    # The hero imports the shared gate helper
-    assert "shouldGateVerdict" in src
-    # The gate fires only when NOT already data_limited (so dataLimited
-    # remains the stricter outer gate)
-    assert "!dataLimited &&" in src
-    # And the verdict assignment uses lowConfidence -> 'low_confidence'
-    assert '? "low_confidence"' in src
-
-
-def test_hero_fallback_thesis_handles_low_confidence():
-    src = _HERO.read_text(encoding="utf-8")
-    # Honest framing rather than the generic "review model inputs"
-    assert 'verdict === "low_confidence"' in src
-    # Day-91 raised the threshold to 60% — copy reflects the new floor
-    assert "60%" in src
+# Retired in PR-3 (acquisition four-hero retire, 2026-06-04). See the
+# `_HERO` removal comment above. EditorialHero gate coverage lives in
+# test_day91_verdict_gate_tighten; HonestHero consumes the same
+# shouldGateVerdict() helper via useHeroSignals().
