@@ -32,10 +32,24 @@
  * before this fix, those users (including paying ANALYST subscribers)
  * were being shown the anon signup wall on every analysis page. See
  * `components/CookieAuthSync.tsx` for the long-term cookie-refresh fix.
+ *
+ * 2026-06-04 — JSON-LD SSR relocation (acquisition PR-2). Previously
+ * <JsonLd /> was mounted inside the "use client" PublicAnalysis body,
+ * which meant (a) no JSON-LD shipped in the SSR HTML stream the
+ * Googlebot crawler sees, and (b) the authed AnalysisBody path didn't
+ * mount it at all. Phase-0 audit confirmed 0 / 32 analysis URLs
+ * emitted JSON-LD in SSR HTML. Fix: SSR-fetch /api/v1/prism here
+ * (same payload `generateMetadata` in layout.tsx already pulls — Next
+ * dedupes the fetch when the URL + revalidate window match), then
+ * render <JsonLd /> directly in the server tree above
+ * AnalysisAuthGate. Schema CONTENT is unchanged; only the mount point
+ * moved. Both anon and authed paths now ship the structured data in
+ * the initial HTML response, regardless of cookie state.
  */
 
 import { cookies } from "next/headers"
 import AnalysisAuthGate from "./AnalysisAuthGate"
+import JsonLd from "./JsonLd"
 import TickerStrip from "@/components/analysis/TickerStrip"
 import AdrCohortBanner from "@/components/analysis/AdrCohortBanner"
 
@@ -64,6 +78,40 @@ import AdrCohortBanner from "@/components/analysis/AdrCohortBanner"
 // recompute. See task #179 for the full investigation trail.
 export const revalidate = 60
 
+// Shape of the /api/v1/prism payload — narrowed to the fields the
+// JSON-LD emitter needs. Mirrors the subset already consumed by
+// layout.tsx::generateMetadata and PublicAnalysis (PrismRaw there).
+interface PrismSsrPayload {
+  ticker?: string
+  company_name?: string
+  sector?: string | null
+  price?: number | null
+  fair_value?: number | null
+  mos_pct?: number | null
+  verdict_label?: string | null
+  yieldiq_score_100?: number | null
+}
+
+async function fetchPrismForJsonLd(
+  ticker: string,
+): Promise<PrismSsrPayload | null> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://api.yieldiq.in"
+  try {
+    // Same URL + revalidate as layout.tsx's generateMetadata fetch so
+    // Next.js fetch-dedupe collapses both calls to one upstream request
+    // per render window.
+    const res = await fetch(`${apiUrl}/api/v1/prism/${ticker}`, {
+      next: { revalidate: 60 },
+    })
+    if (!res.ok) return null
+    return (await res.json()) as PrismSsrPayload
+  } catch {
+    // Never throw from a server component — degrade silently. JSON-LD
+    // is a progressive enhancement; the page still renders without it.
+    return null
+  }
+}
+
 export default async function AnalysisPage({
   params,
 }: {
@@ -73,8 +121,28 @@ export default async function AnalysisPage({
   const cookieStore = await cookies()
   const ssrAuthenticated = Boolean(cookieStore.get("yieldiq_token")?.value)
 
+  // SSR JSON-LD fetch (PR-2). Runs in parallel with the cookie read
+  // above by virtue of being awaited on the same async boundary.
+  const prism = await fetchPrismForJsonLd(ticker)
+  const tickerUpper = ticker.toUpperCase()
+  const displayTicker = tickerUpper.replace(/\.(NS|BO)$/i, "")
+  const exchange: "NSE" | "BSE" = tickerUpper.endsWith(".BO") ? "BSE" : "NSE"
+
   return (
     <>
+      {prism && (
+        <JsonLd
+          ticker={tickerUpper}
+          companyName={prism.company_name ?? displayTicker}
+          sector={prism.sector}
+          currentPrice={prism.price}
+          fairValue={prism.fair_value}
+          mosPct={prism.mos_pct}
+          yieldiqScore={prism.yieldiq_score_100}
+          verdict={prism.verdict_label ?? ""}
+          exchange={exchange}
+        />
+      )}
       <TickerStrip />
       <AdrCohortBanner ticker={ticker} />
       <AnalysisAuthGate ticker={ticker} ssrAuthenticated={ssrAuthenticated} />
