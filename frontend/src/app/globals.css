@@ -171,6 +171,41 @@ html.dark {
   --font-display:   var(--font-display),   ui-sans-serif, system-ui, sans-serif;
   --font-mono:      var(--font-mono),      ui-monospace, SFMono-Regular, monospace;
   --font-editorial: var(--font-editorial), "Fraunces", Georgia, serif;
+
+  /* Display-XL type token — acquisition-surface hero headings.
+     Fluid clamp from 44px (mobile) → 72px (xl). Tight line-height
+     for poster-style hero copy; tight letter-spacing to match the
+     editorial display cut. Exposed as Tailwind utility
+     `text-display-xl` (Tailwind v4 reads --font-size-*). */
+  --font-size-display-xl: clamp(2.75rem, 5vw + 1rem, 4.5rem);
+  --line-height-display-xl: 1.05;
+  --letter-spacing-display-xl: -0.02em;
+}
+
+/* `text-display-xl` utility — composed manually so the line-height
+   + letter-spacing travel together with the font-size. Tailwind v4
+   wires --font-size-display-xl → text-display-xl class, but does
+   not auto-link line-height / letter-spacing siblings; we hand-roll
+   to ensure the trio stays together. */
+.text-display-xl {
+  font-size: var(--font-size-display-xl);
+  line-height: var(--line-height-display-xl);
+  letter-spacing: var(--letter-spacing-display-xl);
+}
+
+/* `text-display-accent` — gradient-accent span for the highlighted
+   phrase inside a display-xl heading. Uses existing color tokens
+   only (--color-brand + --prism-moat) — no new colors introduced.
+   bg-clip-text needs `color: transparent` on the same element. */
+.text-display-accent {
+  background: linear-gradient(
+    90deg,
+    var(--color-brand) 0%,
+    var(--prism-moat) 100%
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* Editorial serif utility — used for the Morningstar-grade hero headings
