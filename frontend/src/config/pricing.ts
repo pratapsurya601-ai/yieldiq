@@ -11,8 +11,8 @@
 // to mint a subscription using the env-var plan IDs.
 //
 // SEBI note: copy in this file is user-facing. Stick to neutral, descriptive
-// tier and feature vocabulary — describe what the tier includes, not what a
-// user should do with their money. (See scripts/check_sebi_words.py for the
+// tier and feature vocabulary — describe what the tier includes, not what an
+// end user might do with their money. (See scripts/check_sebi_words.py for the
 // enforced vocabulary categories.)
 
 export type TierId = "free" | "analyst" | "pro" | "payg" | "student"

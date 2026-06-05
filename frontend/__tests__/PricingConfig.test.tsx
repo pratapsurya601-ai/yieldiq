@@ -65,7 +65,7 @@ describe("pricing config — defaults", () => {
 
   it("priceLabel resolves missing variants to 'Coming soon'", () => {
     expect(priceLabel("analyst", "monthly")).toBe("₹799")
-    // payg has no monthly variant — should fall through to "Coming soon"
+    // payg has no monthly variant — falls through to "Coming soon"
     expect(priceLabel("payg", "monthly")).toBe("Coming soon")
   })
 
@@ -163,9 +163,9 @@ describe("pricing page — null priceInr renders 'Coming soon'", () => {
     const { default: PricingPage } = await import("@/app/(marketing)/pricing/page")
     render(<PricingPage />)
 
-    // Monthly is the default billing toggle, so Analyst should render "Coming soon".
+    // Monthly is the default billing toggle, so Analyst must render "Coming soon".
     expect(screen.getAllByText(/Coming soon/i).length).toBeGreaterThan(0)
-    // Pro tier monthly should still show its configured price.
+    // Pro tier monthly must still show its configured price.
     expect(screen.getAllByText((c) => c.includes("₹1,499")).length).toBeGreaterThan(0)
   })
 })
