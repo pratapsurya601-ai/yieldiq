@@ -22,7 +22,14 @@ import { useMemo, useState } from "react"
 
 import Prism from "@/components/prism/Prism"
 import PillarExplainer from "@/components/prism/PillarExplainer"
-import ScoreCard from "@/components/analysis/ScoreCard"
+// Stage-2 redesign (cluster A): ScoreCard is retired into HonestHero's
+// side rail (spec §1 Fold 1) and the file is deleted in this PR. The
+// `!compactSummary` branch below referenced <ScoreCard /> + the score-
+// breakdown panel; that branch is now dead code because every caller in
+// AnalysisBody passes `compactSummary` going forward. Cluster A owns
+// the full EditorialHero refactor (Option-A slim band per spec §5);
+// this is a minimal import drop only — DO NOT lift the broader rework
+// here.
 import ScoreBreakdownPanel from "@/components/analysis/ScoreBreakdownPanel"
 import MetricTooltip from "@/components/analysis/MetricTooltip"
 import FvConfidenceBand from "@/components/analysis/FvConfidenceBand"
@@ -663,16 +670,15 @@ export default function EditorialHero({
             primary signal triad (Verdict + FV + MoS).
             ══════════════════════════════════════════════════════════ */}
         {!compactSummary && (
+          // Stage-2 redesign (cluster A): ScoreCard absorbed into
+          // HonestHero side rail. AnalysisBody no longer passes
+          // compactSummary=false, so this branch is unreachable
+          // in production; left intact so cluster A's broader §5
+          // EditorialHero rework can replace the column wholesale
+          // without re-deriving the grid math. Renders only the
+          // score-breakdown disclosure (the score itself lives on
+          // HonestHero now).
           <div className="lg:col-span-3 order-1 lg:order-3 flex flex-col gap-3">
-            <ScoreCard
-              score100={score100}
-              grade={grade}
-              trend12m={trend12m}
-              sectorRank={sectorRank ?? null}
-              refractionIndex={data.refraction_index}
-              marketCapCr={marketCapCr ?? null}
-              redFlags={redFlags}
-            />
             {/* Phase C.3 — "Why this score?" transparency panel.
                 Renders nothing when score_breakdown is absent. */}
             <ScoreBreakdownPanel

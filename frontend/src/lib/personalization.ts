@@ -48,22 +48,39 @@ export interface PersonalizationConfig {
   showTechnicals: boolean // forward-looking, currently no-op
 }
 
-// Legacy / "no style picked" canonical order. Mirrors the order rendered
-// today in AnalysisBody.tsx Summary tab so existing users see zero diff.
+// Redesign Stage 2 (spec §4) — new DEFAULT_SECTION_ORDER. Promotes the
+// honest-first triad (bulls_bears, honest_card, reverse_dcf) and demotes
+// scenarios to slot 4 by default. Cluster B owns the §4.2 conditional
+// reshuffle (when isHealthyScenarioSpread(payload) === true, splice
+// scenarios from slot 4 to slot 1); cluster A only owns the nominal
+// order plus the predicates in lib/scenarios.ts.
+//
+// Flag-3 (spec §4) — intentional null on `insight_cards` and `red_flags`:
+// these two keys appear in `AnalysisBody.tsx`'s `summarySectionMap` only
+// as nulled-out entries. They are retained on purpose so the
+// personalization picker's vocabulary (`StylePickerModal`) keeps its
+// complete set of toggleable terms and existing user style profiles
+// do not break when loaded. A future agent MUST NOT "discover" that
+// these slots render nothing and revive them as numbered sections —
+// `insights` is surfaced through the per-section AnalyticalNotes +
+// HonestCard panels, and red flags surface through the side-rail
+// `Red flags` tile and the Quality detail accordion (T5). This is
+// documentation only; the keys stay in the array for vocabulary
+// preservation.
 export const DEFAULT_SECTION_ORDER: SectionKey[] = [
-  "insight_cards",
-  "red_flags",
-  "scenarios",
-  "bulls_bears",
-  "honest_card",
-  "peers",
-  "compounded_growth",
+  "insight_cards",          // (nulled on Summary tab — vocabulary only; Flag-3 above)
+  "red_flags",              // (nulled on Summary tab — vocabulary only; Flag-3 above)
+  "bulls_bears",            // PROMOTED — slot 1 (ceded to scenarios when spread healthy; §4.2)
+  "honest_card",            // PROMOTED — slot 2 — full card, hero teaser previews it
+  "reverse_dcf",            // PROMOTED — slot 3 — interactive differentiator
+  "scenarios",              // CONDITIONAL — slot 1 when healthy (§4.2), slot 4 (or collapsed) when degenerate
+  "peers",                  // KEPT — slot 5
+  "compounded_growth",      // collapsed default — slot 6
   "financials_chart",
-  "reverse_dcf",
-  "dividends",
-  "news",
-  "earnings_calls",
-  "community",
+  "dividends",              // KEPT for payers — slot 7
+  "news",                   // collapsed default — slot 8
+  "earnings_calls",         // collapsed default — slot 9
+  "community",              // collapsed default — slot 10
 ]
 
 // Plain-English, SEBI-safe explainers. Shown only in Beginner mode under

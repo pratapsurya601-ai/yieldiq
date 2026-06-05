@@ -32,3 +32,5 @@
 {"timestamp": "2026-05-31T21:37:44Z", "commit": "cd76fa86b5a838355be3c2b34029a2ea00300d40", "run_id": "26725119975", "exit_code": 1, "gate_violations": 71, "fetch_failures": 53, "clean": false}
 {"timestamp": "2026-06-01T22:44:31Z", "commit": "b56824bc5c2c898c9030b713d23ae9c5f695e110", "run_id": "26786426921", "exit_code": 1, "gate_violations": 75, "fetch_failures": 54, "clean": false}
 {"timestamp": "2026-06-02T22:39:05Z", "commit": "98d6ea66eb405b9300a09db1391d62d05218754b", "run_id": "26852087683", "exit_code": 1, "gate_violations": 84, "fetch_failures": 54, "clean": false}
+{"timestamp": "2026-06-03T22:41:54Z", "commit": "d71e783eaeacdcb39d642fd2c0509fc4a39ca657", "run_id": "26917435945", "exit_code": 1, "gate_violations": 165, "fetch_failures": 54, "clean": false}
+{"timestamp": "2026-06-04T22:10:14Z", "commit": "aa7f849090837221186080e477383677d1a22d46", "run_id": "26982463971", "exit_code": 1, "gate_violations": 82, "fetch_failures": 54, "clean": false}

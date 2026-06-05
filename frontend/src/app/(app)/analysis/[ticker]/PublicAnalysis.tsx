@@ -28,7 +28,10 @@ import Prism from "@/components/prism/Prism"
 import PrismSkeleton from "@/components/prism/PrismSkeleton"
 import Breadcrumb, { bucketFromMarketCapCr } from "@/components/analysis/Breadcrumb"
 import WatchlistButton from "@/components/watchlist/WatchlistButton"
-import JsonLd from "@/app/(app)/analysis/[ticker]/JsonLd"
+// JsonLd is mounted from the server component page.tsx (PR-2, 2026-06-04)
+// so the structured data ships in the SSR HTML stream regardless of
+// anon-vs-authed state. Do NOT re-import + render it here — that would
+// emit duplicate <script type="application/ld+json"> tags after hydration.
 import MetricTooltip from "@/components/analysis/MetricTooltip"
 import FvConfidenceBand from "@/components/analysis/FvConfidenceBand"
 import {
@@ -295,21 +298,9 @@ export default function PublicAnalysis({ ticker }: { ticker: string }) {
 
   return (
     <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-8">
-      {/* Day-40 (2026-05-20): JSON-LD structured data (FinancialProduct
-          + BreadcrumbList). Renders pure <script> tags via SSR so Google's
-          Rich Results crawler can index FV / MoS / score as financial
-          data rather than plain text. */}
-      <JsonLd
-        ticker={tickerUpper}
-        companyName={company_name ?? displayTicker}
-        sector={sector}
-        currentPrice={price}
-        fairValue={fair_value}
-        mosPct={mos_pct}
-        yieldiqScore={yieldiq_score_100}
-        verdict={verdictText}
-        exchange={exchange as "NSE" | "BSE"}
-      />
+      {/* JSON-LD structured data (FinancialProduct + BreadcrumbList) is
+          mounted in the server component page.tsx since PR-2 (2026-06-04)
+          so it ships in the SSR HTML stream Googlebot crawls. */}
 
       {/* ── Breadcrumb + title ───────────────────────────────── */}
       <header className="space-y-3">
