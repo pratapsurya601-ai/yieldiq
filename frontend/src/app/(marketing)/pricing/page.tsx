@@ -8,6 +8,7 @@ import {
   trackBillingToggled,
   trackUpgradeClicked,
 } from "@/lib/analytics"
+import { variantFor, priceLabel } from "@/config/pricing"
 
 // Nav is now provided by (marketing)/layout.tsx via the unified MarketingTopNav.
 
@@ -17,8 +18,11 @@ type Billing = "monthly" | "annual"
 interface Plan {
   id: Tier
   name: string
-  monthly: number
-  annual: number // per-year price; display as /year
+  // null → variant not yet priced; the card renders "Coming soon" instead
+  // of a numeric price. Useful for tiers in transition between price
+  // revisions or while a new variant (e.g. annual) is being staged.
+  monthly: number | null
+  annual: number | null // per-year price; display as /year
   subtitle: string
   highlighted: boolean
   badge: string | null
@@ -32,12 +36,17 @@ interface Plan {
 // discount — Analyst ₹4,999/yr (~48% off vs ₹799×12) and Pro ₹9,999/yr
 // (~44% off vs ₹1,499×12). Old ₹6,999 / ₹13,999 anchors retired.
 // Rationale is in docs/pricing_analysis.md (see this PR).
+// Price values are read from @/config/pricing — see PRICING_TIERS for the
+// canonical source. Tier names, taglines, and feature lists are kept inline
+// here because the pricing-page layout is bespoke (highlighted card, "Most
+// Popular" badge, per-feature included/excluded affordances) and goes well
+// beyond what the shared config exposes.
 const plans: Plan[] = [
   {
     id: "free",
     name: "Free",
-    monthly: 0,
-    annual: 0,
+    monthly: variantFor("free", "monthly")?.priceInr ?? 0,
+    annual: variantFor("free", "annual")?.priceInr ?? 0, // Free has no annual variant — fall back to 0 so the toggle still renders ₹0/year.
     subtitle: "No credit card required",
     highlighted: false,
     badge: null,
@@ -55,8 +64,8 @@ const plans: Plan[] = [
   {
     id: "analyst",
     name: "Analyst",
-    monthly: 799,
-    annual: 4999,
+    monthly: variantFor("analyst", "monthly")?.priceInr ?? null,
+    annual: variantFor("analyst", "annual")?.priceInr ?? null,
     subtitle: "The sweet spot for serious DIY investors.",
     highlighted: true,
     badge: "Most Popular",
@@ -76,8 +85,8 @@ const plans: Plan[] = [
   {
     id: "pro",
     name: "Pro",
-    monthly: 1499,
-    annual: 9999,
+    monthly: variantFor("pro", "monthly")?.priceInr ?? null,
+    annual: variantFor("pro", "annual")?.priceInr ?? null,
     subtitle: "For power users, bloggers, and advisors.",
     highlighted: false,
     badge: null,
@@ -195,8 +204,12 @@ export default function PricingPage() {
               const period = plan.id === "free"
                 ? "/forever"
                 : billing === "annual" ? "/year" : "/month"
-              const priceStr = price === 0 ? "\u20B90" : `\u20B9${price.toLocaleString("en-IN")}`
-              const subtitle = plan.id !== "free" && billing === "annual"
+              // null \u2192 tier variant not yet priced (e.g. mid-revision). Card
+              // shows "Coming soon" in place of the numeric headline.
+              const priceStr = price === null
+                ? "Coming soon"
+                : price === 0 ? "\u20B90" : `\u20B9${price.toLocaleString("en-IN")}`
+              const subtitle = plan.id !== "free" && billing === "annual" && price !== null && price > 0
                 ? `That\u2019s \u20B9${Math.round(price / 12).toLocaleString("en-IN")}/mo. Cancel anytime.`
                 : plan.subtitle
               const cta = ctaFor(plan, billing, (tier as Tier | null) ?? null, loggedIn)
@@ -273,7 +286,7 @@ export default function PricingPage() {
                   Verified students &amp; CA articleship
                 </div>
                 <h3 className="text-xl md:text-2xl font-black text-ink mb-1">
-                  Student / CA articleship — &#8377;199/mo
+                  Student / CA articleship — {priceLabel("student", "monthly")}/mo
                 </h3>
                 <p className="text-sm text-caption mb-4">
                   ~75% off Analyst. For verified students and articleship
@@ -308,7 +321,7 @@ export default function PricingPage() {
               </div>
               <div className="shrink-0 flex flex-col items-stretch gap-2 md:min-w-[200px]">
                 <div className="flex items-baseline justify-center gap-1">
-                  <span className="text-4xl font-black text-ink">&#8377;199</span>
+                  <span className="text-4xl font-black text-ink">{priceLabel("student", "monthly")}</span>
                   <span className="text-xs text-caption font-semibold">/ month</span>
                 </div>
                 <a
@@ -338,7 +351,7 @@ export default function PricingPage() {
                 No subscription?
               </div>
               <h3 className="text-xl md:text-2xl font-black text-ink mb-1">
-                Just one analysis — ₹99
+                Just one analysis — {priceLabel("payg", "one_time")}
               </h3>
               <p className="text-sm text-caption leading-relaxed">
                 24-hour full access to a single stock: Prism, Fair Value,
@@ -349,7 +362,7 @@ export default function PricingPage() {
             </div>
             <div className="shrink-0 flex flex-col items-stretch gap-2 md:min-w-[180px]">
               <div className="flex items-baseline justify-center gap-1">
-                <span className="text-3xl md:text-4xl font-black text-ink">&#8377;99</span>
+                <span className="text-3xl md:text-4xl font-black text-ink">{priceLabel("payg", "one_time")}</span>
                 <span className="text-xs text-caption font-semibold">/ analysis</span>
               </div>
               <Link
