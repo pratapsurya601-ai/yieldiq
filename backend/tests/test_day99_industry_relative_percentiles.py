@@ -228,9 +228,10 @@ def test_cache_returns_same_payload_within_ttl():
 
 _REPO_ROOT = _pathlib.Path(__file__).resolve().parents[2]
 _HEX_TSX = _REPO_ROOT / "frontend" / "src" / "components" / "hex" / "Hex.tsx"
-_HERO_TSX = (
-    _REPO_ROOT / "frontend" / "src" / "components" / "analysis" / "AnalysisHero.tsx"
-)
+# PR-3 (acquisition four-hero retire, 2026-06-04): AnalysisHero.tsx
+# is deleted. The industry-percentile caption rendering is pinned
+# against <Hex/> + the helper instead — the hero composition
+# (HonestHero) intentionally does not re-emit the per-axis caption.
 _LIB_TS = _REPO_ROOT / "frontend" / "src" / "lib" / "industryPercentile.ts"
 
 
@@ -250,12 +251,10 @@ def test_hex_renders_percentile_caption_block():
     assert "ordinal(" in src
 
 
-def test_analysis_hero_renders_industry_caption():
-    """SEBI-safe one-liner under the Score. Implemented via the
-    `percentileCaption` helper in lib/industryPercentile.ts."""
-    src = _HERO_TSX.read_text(encoding="utf-8")
-    assert "industry-percentile-caption" in src
-    assert "percentileCaption" in src
+# test_analysis_hero_renders_industry_caption: retired in PR-3
+# (2026-06-04) with the deletion of AnalysisHero.tsx. The Hex
+# component still uses percentileCaption (covered above); the
+# hero-level guard is no longer applicable.
 
 
 def test_caption_helper_uses_sebi_safe_vocabulary():

@@ -10,7 +10,6 @@ import {
   getRatiosHistory,
 } from "@/lib/api"
 import { fetchPrism } from "@/lib/prism"
-import AnalysisHero from "@/components/analysis/AnalysisHero"
 import AnalysisTabs, { type AnalysisTabDef } from "@/components/analysis/AnalysisTabs"
 import InsightCards from "@/components/analysis/InsightCards"
 import RedFlagInsights from "@/components/analysis/RedFlagInsights"
@@ -31,7 +30,16 @@ import { ChartDrawIn, RevealOnScroll } from "@/components/anim"
 import ConcallsPanel from "@/components/analysis/ConcallsPanel"
 import ConcallSignalsPanel from "@/components/concall/ConcallSignalsPanel"
 import PeerComparison from "@/components/analysis/PeerComparison"
-import EditorialHero from "@/components/analysis/EditorialHero"
+// Stage-2 redesign / PR-3 (acquisition four-hero retire): the full
+// 3-column EditorialHero is retired from the analysis page render path.
+// Its verdict / FV / discount / score columns contradicted HonestHero
+// above the fold ("Under Review" vs "UNDERVALUED" within ~800px).
+// The Prism imagery + Signature/Spectrum toggle + MosAlertChip are
+// preserved in the demoted EditorialHeroBand band per spec §5 hybrid
+// (full ≥1280, slim 1024–1279, hidden <1024). EditorialHero.tsx file
+// itself is left in place for the public/visitor `/stock/[slug]` path;
+// the authenticated analysis page no longer imports it.
+import EditorialHeroBand from "@/components/analysis/EditorialHeroBand"
 import StockHeroImage from "@/components/analysis/StockHeroImage"
 import {
   VERDICT_COLORS,
@@ -39,7 +47,14 @@ import {
 } from "@/lib/verdict-colors"
 import { FormulasProvider } from "@/components/analysis/MetricTooltip"
 import AnalyticalNotes from "@/components/analysis/AnalyticalNotes"
-import ConfidenceIndicators from "@/components/analysis/ConfidenceIndicators"
+// PR-3 (acquisition four-hero retire): ConfidenceIndicators is removed
+// from the analysis page render path. Its three score chips
+// (data_quality / model_confidence / valuation_stability) and the
+// defense-PSU analyst-opinion banner are re-emitted INSIDE HonestHero's
+// composition (just below the headline triad) via the dedicated
+// confidence-chips block below — so the data is not lost, only its
+// "fourth hero" surface is. The component file itself is retained for
+// the public /stock/[slug] surface and for future absorption.
 // Stage-2 redesign (spec §1 Fold 1): ScoreCard + StickyScorecard are
 // retired. Their data (Score / Grade / Moat / Red flags / Worry / Market
 // cap / distress-flag grade-cap) is absorbed into <HonestHero>'s sticky
@@ -502,9 +517,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
   })
 
   // PR1 SSR fix (Option C): Prism is now hydrated client-side instead of
-  // SSR-fetched. The legacy <AnalysisHero/> renders immediately while this
-  // query resolves; once it lands, <EditorialHero/> takes over. Long
-  // staleTime + cacheTime so route-level navigations re-use the payload.
+  // SSR-fetched. HonestHero renders the verdict triad immediately from
+  // the analysis payload; the EditorialHeroBand (Prism imagery) lights
+  // up once this query resolves. Long staleTime + cacheTime so route-
+  // level navigations re-use the payload.
   const { data: prismLive } = useQuery({
     queryKey: ["prism", ticker],
     queryFn: () => fetchPrism(ticker),
@@ -1556,7 +1572,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         {/* Company name header — Stage-2 redesign §3 rows C3 / C4: the
             Breadcrumb classification-chips row and the Share/Compare
             buttons row are CUT. Breadcrumb data already lives in the
-            ticker row + EditorialHero band; Compare migrates into the
+            ticker row + EditorialHeroBand; Compare migrates into the
             AnalysisTabs adjacent slot (cluster C will rewire), and Share
             already lives in the StickyHeader icon set. */}
         <div className="min-w-0 space-y-1.5">
@@ -1613,9 +1629,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             as the lead-in (cluster E owns that fold-in). NarrativeSummary
             import retained so cluster E can pick it up. */}
 
-        {/* Editorial hero — Prism-driven. Uses server-rendered prism payload
-            when available; falls back to the legacy AnalysisHero when the
-            Prism endpoint is unreachable so users still see something.
+        {/* Demoted editorial band — Prism-driven. Uses the server-
+            rendered prism payload when available; when the Prism
+            endpoint is unreachable the band is simply omitted and
+            HonestHero (above) carries the page on its own.
 
             FV-clamp consistency fix (NOIDATOLL-class bug, 2026-04-27): when
             the backend router clamped fair_value to a plausible bound
@@ -1661,12 +1678,13 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             ? Math.max(-HARD_MOS_CAP, Math.min(HARD_MOS_CAP, candidateHeadlineMos))
             : valuation.margin_of_safety
 
-          // Step B (2026-05-17): pass through the new buffett_mos_pct
-          // field so the hero can render the "Margin of Safety (Buffett)"
-          // chip alongside the legacy upside-% chip. Pre-PR cached
-          // payloads lack the field; EditorialHero skips the chip then.
-          const headlineBuffettMos =
-            valuation.buffett_mos_pct ?? null
+          // Step B (2026-05-17): the buffett_mos_pct passthrough into
+          // the retired EditorialHero "Margin of Safety (Buffett)" chip
+          // is dropped — EditorialHeroBand intentionally does not
+          // re-emit MoS-class numbers (HonestHero owns the triad).
+          // When HonestHero needs a Buffett-MoS chip in the future,
+          // read `valuation.buffett_mos_pct` here and plumb it into
+          // <HonestHero> directly.
 
           // task-#218 (2026-05-26): removed dead asOfData snapshot-
           // replay overrides. The hero now renders the live headline
@@ -1678,11 +1696,12 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           const displayPrice = valuation.current_price
           const displayVerdict: Verdict = valuation.verdict
 
-          return prismResolved ? (
+          return (
             <>
               {/* PR-B (chassis): compact Time Machine chip aligned
                   right, near the hero price card. Chip opens the
-                  PrismTimeMachine popover (unchanged). */}
+                  PrismTimeMachine popover (unchanged). Rendered on
+                  both Prism-resolved and Prism-unavailable paths. */}
               <div className="flex justify-end">
                 <button
                   type="button"
@@ -1697,10 +1716,13 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                   Time Machine
                 </button>
               </div>
-              {/* Manifesto Rule 9 — verdict-colored full-bleed hero. Sits
-                  ABOVE the EditorialHero 3-column grid, doesn't touch it.
-                  Reuses headlineMos/headlineFairValue so the verdict tier
-                  agrees with the headline number even under FV clamp. */}
+              {/* Manifesto Rule 9 — verdict-colored full-bleed hero
+                  image. Sits BELOW HonestHero's triad (HonestHero owns
+                  the verdict pill itself); this is brand-texture
+                  imagery only, no verdict-class data emission.
+                  Reuses headlineMos/headlineFairValue so the verdict
+                  tier agrees with the headline number even under FV
+                  clamp. */}
               <StockHeroImage
                 ticker={data.ticker}
                 displayTicker={company.ticker}
@@ -1717,81 +1739,33 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                   null
                 }
               />
-            <EditorialHero
-              data={prismResolved}
-              fairValue={displayFairValue}
-              currentPrice={displayPrice}
-              marginOfSafety={displayMos}
-              buffettMosPct={headlineBuffettMos}
-              moat={quality.moat}
-              currency={company.currency}
-              score100={quality.yieldiq_score}
-              grade={quality.grade}
-              sectorRank={null}
-              trend12m={prismResolved.score_history_12m ?? []}
-              marketCapCr={marketCapCr}
-              dataLimited={dataLimited}
-              redFlags={insights?.red_flags_structured ?? []}
-              valuationVerdict={valuation.verdict}
-              confidence={valuation.confidence_score}
-              // MUTHOOTFIN P0 (2026-05-17): plumb through the reliability
-              // signals so the hero can collapse to "Under Review" instead
-              // of rendering "Notably Below Fair Value" above the yellow
-              // caution banner. See EditorialHero `isUnreliable` guard.
-              fvClamped={fvClamped}
-              dcfReliable={valuation.dcf_reliable}
-              dataConfidence={data.data_confidence}
-              bullCase={valuation.bull_case}
-              bearCase={valuation.bear_case}
-              // chassis 2026-05-26: single-primary-signal hero. ScoreCard,
-              // Buffett MoS chip and Moat stat move into the disclosure
-              // below. See .audit/competitor-walk-hdfcbank-2026-05-26.md.
-              compactSummary
-            />
-            </>
-          ) : (
-            <>
-            {/* PR-B (chassis): compact Time Machine chip that opens the
-                PrismTimeMachine popover. */}
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setTimeMachineOpen(true)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg px-3 py-1 text-xs text-body hover:text-ink hover:bg-surface transition"
-                aria-label="Open Time Machine"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <circle cx="12" cy="12" r="9" strokeLinecap="round" strokeLinejoin="round" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 7v5l3 2" />
-                </svg>
-                Time Machine
-              </button>
-            </div>
-            <AnalysisHero
-              score={quality.yieldiq_score}
-              grade={quality.grade}
-              confidence={valuation.confidence_score}
-              verdict={displayVerdict}
-              fairValue={displayFairValue}
-              currentPrice={displayPrice}
-              marginOfSafety={displayMos}
-              moat={quality.moat}
-              currency={company.currency}
-              thesis={data.ai_summary}
-              dataLimited={dataLimited}
-              ticker={ticker}
-              fairValueComputedAt={valuation.fair_value_computed_at ?? data.timestamp}
-              valuationEngineUsed={valuation.valuation_engine_used}
-              currentPriceAsOf={valuation.current_price_as_of}
-              currentPriceSource={valuation.current_price_source}
-              bullCase={valuation.bull_case}
-              bearCase={valuation.bear_case}
-              // Task #197 (feat/as-of-plumbing): prefer top-level
-              // `data.as_of` (added in the same PR), fall back to the
-              // valuation-nested copy. Null on legacy cached payloads
-              // — the hero degrades to "Updated recently".
-              liveQuoteAsOf={data.as_of ?? valuation.as_of ?? null}
-            />
+              {/* PR-3: EditorialHero (full 3-column hero) is RETIRED
+                  from the analysis page render path. Demoted to
+                  <EditorialHeroBand> per spec §5 hybrid — Prism
+                  imagery + Signature/Spectrum toggle + counter chips
+                  + MosAlertChip ("Notify me when discount reaches…").
+                  No verdict / FV / discount / score data is re-emitted
+                  here — HonestHero above is the single source of truth.
+                  When the Prism endpoint is unreachable (prismResolved
+                  is null) the band is simply omitted; HonestHero
+                  remains, so the page never goes blank. The legacy
+                  AnalysisHero fallback in this slot is deleted (dead
+                  code — file removed in this PR).
+                  Read-only `headlineBuffettMos` reference retained to
+                  keep the destructured display values consistent and
+                  to document the data path for a future Buffett-MoS
+                  chip in HonestHero. */}
+              {prismResolved ? (
+                <EditorialHeroBand
+                  data={prismResolved}
+                  fairValue={displayFairValue}
+                  currentPrice={displayPrice}
+                  marginOfSafety={displayMos}
+                  currency={company.currency}
+                  redFlags={insights?.red_flags_structured ?? []}
+                  dataLimited={dataLimited}
+                />
+              ) : null}
             </>
           )
         })()}
@@ -1828,7 +1802,16 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                 breakdown={prismResolved?.quality?.score_breakdown}
               />
             </div>
-            <ConfidenceIndicators
+            {/* PR-3 (acquisition four-hero retire): the standalone
+                <ConfidenceIndicators> mount is RETIRED. Its data —
+                three 0-100 confidence scores + the defense-PSU
+                analyst-opinion banner — is absorbed inline here so
+                the dedicated "fourth hero" surface disappears while
+                the methodology disclosure keeps the underlying
+                signals. Tone bands and labels are preserved verbatim
+                from the original component so screen-reader strings
+                and visual contracts don't regress. */}
+            <ConfidenceMethodologyBlock
               dataQualityScore={valuation.data_quality_score}
               modelConfidenceScore={valuation.model_confidence_score}
               valuationStabilityScore={valuation.valuation_stability_score}
@@ -1949,5 +1932,154 @@ export default function AnalysisBody({ ticker, prism }: Props) {
     </div>
     </div>
     </FormulasProvider>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  ConfidenceMethodologyBlock                                        */
+/*  PR-3 (acquisition four-hero retire): inline replacement for the   */
+/*  retired <ConfidenceIndicators> mount. Lives inside the            */
+/*  "Confidence and methodology" disclosure only — never above the    */
+/*  fold. Tone bands + label copy preserved verbatim from the         */
+/*  original component (see frontend/src/components/analysis/         */
+/*  ConfidenceIndicators.tsx, retained for the public /stock route).  */
+/* ------------------------------------------------------------------ */
+
+interface ConfidenceMethodologyBlockProps {
+  dataQualityScore?: number | null
+  modelConfidenceScore?: number | null
+  valuationStabilityScore?: number | null
+  analystOpinionRequired?: boolean | null
+  dataIssues?: string[] | null
+}
+
+function ConfidenceMethodologyBlock({
+  dataQualityScore,
+  modelConfidenceScore,
+  valuationStabilityScore,
+  analystOpinionRequired,
+  dataIssues,
+}: ConfidenceMethodologyBlockProps) {
+  const hasAnyScore =
+    dataQualityScore != null ||
+    modelConfidenceScore != null ||
+    valuationStabilityScore != null
+  const showAnalystBanner = analystOpinionRequired === true
+  if (!hasAnyScore && !showAnalystBanner) return null
+
+  const caveat = showAnalystBanner
+    ? (dataIssues ?? []).find((s) => {
+        const lower = (s || "").toLowerCase()
+        return (
+          lower.includes("defense") ||
+          lower.includes("analyst opinion") ||
+          lower.includes("order book") ||
+          lower.includes("make in india")
+        )
+      }) ?? null
+    : null
+
+  const specs: Array<{
+    key: string
+    label: string
+    tooltip: string
+    score: number | null | undefined
+  }> = [
+    {
+      key: "data_quality",
+      label: "Data Quality",
+      tooltip:
+        "How complete and fresh the financial inputs are (filings, " +
+        "price feeds, ratio history). Higher is better.",
+      score: dataQualityScore,
+    },
+    {
+      key: "model_confidence",
+      label: "Model Confidence",
+      tooltip:
+        "How well the valuation engine (DCF / P/B / Residual Income) " +
+        "fits this kind of business. Lower for cyclicals, conglomerates, " +
+        "and order-book-driven names.",
+      score: modelConfidenceScore,
+    },
+    {
+      key: "valuation_stability",
+      label: "Valuation Stability",
+      tooltip:
+        "Variance of the fair-value estimate over the last several " +
+        "weeks. Lower scores mean the FV has been swinging — treat the " +
+        "headline number as a range rather than a point estimate.",
+      score: valuationStabilityScore,
+    },
+  ]
+
+  const toneClass = (score: number): string => {
+    if (score >= 80)
+      return "bg-green-50 text-green-800 border-green-200 dark:bg-green-900/20 dark:text-green-100 dark:border-green-800"
+    if (score >= 50)
+      return "bg-tone-warn-bg text-amber-800 border-tone-warn-bd dark:bg-amber-900/20 dark:text-amber-100 dark:border-amber-800"
+    return "bg-tone-bad-bg text-red-800 border-tone-bad-bd dark:bg-red-900/20 dark:text-red-100 dark:border-red-800"
+  }
+  const toneName = (score: number): "green" | "amber" | "red" =>
+    score >= 80 ? "green" : score >= 50 ? "amber" : "red"
+
+  return (
+    <section
+      className="space-y-3"
+      aria-label="Confidence indicators"
+      data-testid="confidence-indicators"
+    >
+      <h2 className="text-sm font-semibold text-ink">Confidence indicators</h2>
+
+      {showAnalystBanner && (
+        <div
+          data-testid="analyst-opinion-banner"
+          role="note"
+          className="rounded-2xl border border-l-4 px-4 py-3.5 sm:px-4 sm:py-4 bg-tone-warn-bg border-tone-warn-bd border-l-amber-500 dark:bg-amber-900/20 dark:border-amber-800 dark:border-l-amber-400"
+        >
+          <div className="flex items-center gap-2 mb-1">
+            <span aria-hidden className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
+            <span className="text-[0.68rem] font-semibold uppercase tracking-[0.08em] text-tone-warn-fg dark:text-amber-300">
+              Analyst Opinion Required
+            </span>
+          </div>
+          <p className="text-sm font-semibold text-amber-900 dark:text-amber-100 leading-snug">
+            Trailing-financials DCF may understate this name.
+          </p>
+          <p className="mt-1 text-sm font-normal text-amber-900/90 dark:text-amber-100/90 leading-relaxed">
+            {caveat ??
+              "This ticker's forward earning power is driven by a regime change (order-book, policy, or capacity ramp) that trailing financials don't yet reflect. Treat the headline fair value as a floor and consult forward analyst estimates before acting."}
+          </p>
+        </div>
+      )}
+
+      {hasAnyScore && (
+        <div
+          data-testid="confidence-score-chips"
+          className="flex flex-wrap gap-2"
+        >
+          {specs.map((spec) => {
+            if (spec.score == null) return null
+            const tone = toneName(spec.score)
+            return (
+              <span
+                key={spec.key}
+                data-testid={`confidence-chip-${spec.key}`}
+                data-tone={tone}
+                title={`${spec.label}: ${spec.score}/100 — ${spec.tooltip}`}
+                aria-label={`${spec.label} ${spec.score} out of 100. ${spec.tooltip}`}
+                className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium leading-none ${toneClass(spec.score)}`}
+              >
+                <span className="font-semibold">{spec.label}</span>
+                <span className="font-mono tabular-nums font-bold">
+                  {spec.score}
+                  <span className="opacity-60">/100</span>
+                </span>
+              </span>
+            )
+          })}
+        </div>
+      )}
+    </section>
   )
 }
