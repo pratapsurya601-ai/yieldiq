@@ -10,6 +10,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { useAuthStore } from "@/store/authStore"
 import { TIER_LIMITS } from "@/lib/constants"
+import { priceLabel } from "@/config/pricing"
 import PersonalHeader from "@/components/home/PersonalHeader"
 import HomeSearchBar from "@/components/home/HomeSearchBar"
 import ErrorBoundary from "@/components/ErrorBoundary"
@@ -41,7 +42,7 @@ function QuotaBanner({ remaining }: { remaining: number }) {
         <p className="text-[11px] text-amber-800 mt-0.5">
           {remaining === 0
             ? "Monthly quota resets on the 1st. Upgrade to Analyst for unlimited analyses."
-            : "Make it count — or upgrade to Analyst for unlimited analyses (₹799/mo)."}
+            : `Make it count — or upgrade to Analyst for unlimited analyses (${priceLabel("analyst", "monthly")}/mo).`}
         </p>
       </div>
       <Link

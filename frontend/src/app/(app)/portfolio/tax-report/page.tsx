@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import api from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
+import { priceLabel } from "@/config/pricing"
 
 interface Trade {
   ticker: string
@@ -131,7 +132,7 @@ export default function TaxReportPage() {
       const err = e as { response?: { data?: { detail?: string }; status?: number } }
       const status = err.response?.status
       if (status === 402) {
-        setError("CSV export requires Analyst tier (₹799/mo).")
+        setError(`CSV export requires Analyst tier (${priceLabel("analyst", "monthly")}/mo).`)
       } else {
         setError("Export failed. Try again.")
       }
@@ -156,7 +157,7 @@ export default function TaxReportPage() {
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
           <p className="text-xs font-bold text-amber-800 uppercase tracking-wider mb-1">Analyst Feature</p>
           <p className="text-sm text-amber-900 mb-3">
-            Capital gains tax computation + ITR-ready CSV export is an Analyst (&#8377;799/mo) feature.
+            Capital gains tax computation + ITR-ready CSV export is an Analyst ({priceLabel("analyst", "monthly")}/mo) feature.
           </p>
           <Link href="/pricing" className="inline-block bg-amber-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-amber-700 transition">
             See pricing &rarr;
@@ -375,7 +376,7 @@ export default function TaxReportPage() {
           {tier !== "analyst" && (
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
               <p className="text-sm text-blue-900">
-                <b>Upgrade to Analyst (&#8377;799/mo)</b> for ITR-ready CSV export.{" "}
+                <b>Upgrade to Analyst ({priceLabel("analyst", "monthly")}/mo)</b> for ITR-ready CSV export.{" "}
                 <Link href="/pricing" className="underline font-semibold">See pricing &rarr;</Link>
               </p>
             </div>
