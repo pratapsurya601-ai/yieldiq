@@ -152,3 +152,49 @@ diff review.
    final report. Any agent reading a brief that specifies an integer
    slot for a new migration MUST flag the brief as out-of-date and
    STOP rather than create the conflict.
+
+5. **Read-only by default. Prod state changes require explicit
+   per-action operator authorization.** (Added 2026-06-05 after a
+   diagnosis agent burned an irreversible lifetime counter on the
+   operator's account by clicking Save without per-action approval.)
+
+   Diagnosis, audit, premise-validation, and code-reading tasks are
+   read-only. An operator approval to "diagnose" or "investigate"
+   does NOT extend to clicking destructive UI elements, submitting
+   forms that create real user records, completing OAuth flows that
+   mint sessions, writing to prod tables, or any action whose effect
+   on production state cannot be undone without admin intervention.
+
+   When a diagnosis appears to require a destructive action to
+   complete, the agent MUST stop and request explicit authorization
+   for that specific action — naming what will change, what's
+   reversible, and what's not. "I'm going to click Save to capture
+   the response" requires its own yes, separate from the diagnosis
+   authorization that got the agent into the page.
+
+   This applies whether the action is via Chrome MCP UI clicks, a
+   curl POST, a direct DB write, or any other path to prod state.
+   The mechanism doesn't matter; the irreversibility does.
+
+   Categories that ALWAYS need per-action authorization:
+   - Form submission to a backend endpoint that writes to prod
+   - OAuth completion (creates auth.users rows + sessions)
+   - Any UI click that decrements a counter, uses a lifetime quota,
+     consumes a credit, or triggers a side-effect
+   - INSERT / UPDATE / DELETE / ALTER against any prod database
+   - Razorpay / payment / subscription actions of any kind
+   - Email sends, push notifications, webhooks fired at third parties
+
+   Read-only operations that DO NOT need per-action authorization:
+   - Navigate, snapshot, screenshot, scroll, hover
+   - Read DOM, cookies, localStorage, response headers
+   - Inspect network requests AFTER they fire naturally
+   - SELECT queries against prod (with SET TRANSACTION READ ONLY)
+   - Read code, grep, file inspection
+   - Fill form fields WITHOUT submitting them
+
+   This rule exists because the read-only / write-prod boundary is
+   the line where "let me check" silently becomes "I changed
+   something you'll have to manually undo." The agent that triggered
+   this rule was honest about the cost AFTER the click; the rule
+   makes the honesty mandatory BEFORE.
