@@ -30,7 +30,7 @@ const body = readFileSync(BODY, "utf-8")
 /** Strip /* ... *​/ block comments and // line comments so retire-
  * rationale text that happens to mention a forbidden tag name
  * doesn't trip the JSX-mount guards. Imperfect by design — we err
- * on the side of false negatives (test passes when it should fail)
+ * on the side of false negatives (test passes when it must fail)
  * for in-string mentions, but JSX angle-brackets inside strings are
  * vanishingly rare in this file. */
 function stripBlockComments(src: string): string {
