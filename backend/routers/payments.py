@@ -459,6 +459,30 @@ async def verify_subscription(
                 user.get("email"), _eml_exc,
             )
 
+        # Operator push-alert: this is the day-14 success signal for the
+        # content-acquisition experiment. Fires after the DB write
+        # succeeds; failures are caught inside notify_payment_event and
+        # never break the payment flow.
+        try:
+            from backend.services.payment_alerts import notify_payment_event
+            from datetime import datetime, timezone
+            _plan_amount_paise = PLANS.get(new_tier, {}).get("amount") or 0
+            notify_payment_event("first_payment", {
+                "user_email": user.get("email"),
+                "tier": new_tier,
+                "amount_inr": (_plan_amount_paise / 100.0) if _plan_amount_paise else None,
+                "razorpay_payment_id": razorpay_payment_id,
+                "occurred_at": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception as _alert_exc:
+            # Defence in depth — notify_payment_event already swallows
+            # its own failures, but a stray ImportError or similar must
+            # not bubble up past the tier-grant return.
+            logger.warning(
+                "verify-subscription: payment alert dispatch failed for %s: %s: %s",
+                user.get("email"), type(_alert_exc).__name__, _alert_exc,
+            )
+
         return {
             "ok": True,
             "tier": new_tier,
@@ -1112,6 +1136,19 @@ async def razorpay_webhook(request: Request):
                 user_email, type(uid_exc).__name__, uid_exc,
             )
 
+        # Map webhook events to operator-alert types. Built once outside
+        # the branch so each handler can decide whether to push.
+        # subscription.activated is intentionally NOT mapped here — the
+        # synchronous /verify-subscription path already fires the
+        # 'first_payment' alert on the same charge, and the webhook
+        # 'activated' arrives milliseconds later. Avoiding a double-alert.
+        _alert_event_map = {
+            "subscription.charged": "renewal",
+            "subscription.cancelled": "cancellation",
+            "subscription.completed": "cancellation",
+            "subscription.halted": "failed",
+        }
+
         if event == "subscription.activated":
             new_tier = tier_hint if tier_hint in ("analyst", "pro") else stored_tier
             client_sb.table("users_meta").update({
@@ -1193,6 +1230,28 @@ async def razorpay_webhook(request: Request):
         else:
             # subscription.pending, subscription.paused, etc. — ack.
             logger.info("webhook event not handled: %s", event)
+
+        # Operator push-alert for renewals / cancellations / halted
+        # cards. The DB writes above succeeded by the time we reach
+        # this point. notify_payment_event swallows its own failures.
+        _alert_event = _alert_event_map.get(event)
+        if _alert_event:
+            try:
+                from backend.services.payment_alerts import notify_payment_event
+                from datetime import datetime, timezone
+                notify_payment_event(_alert_event, {
+                    "user_email": user_email,
+                    "tier": stored_tier,
+                    "amount_inr": (amount_paise / 100.0) if amount_paise else None,
+                    "razorpay_payment_id": subscription_id,
+                    "occurred_at": datetime.now(timezone.utc).isoformat(),
+                })
+            except Exception as _alert_exc:
+                logger.warning(
+                    "webhook: payment alert dispatch failed for %s event=%s: %s: %s",
+                    user_email, event,
+                    type(_alert_exc).__name__, _alert_exc,
+                )
 
     except Exception as e:
         # Don't 500 — Razorpay would retry forever. Log loudly and ack.
