@@ -29,6 +29,7 @@ import FinancialStatements from "@/components/analysis/FinancialStatements"
 import { ChartDrawIn, RevealOnScroll } from "@/components/anim"
 import ConcallsPanel from "@/components/analysis/ConcallsPanel"
 import ConcallSignalsPanel from "@/components/concall/ConcallSignalsPanel"
+import EarningsImpactPanel from "@/components/analysis/EarningsImpactPanel"
 import PeerComparison from "@/components/analysis/PeerComparison"
 // Stage-2 redesign / PR-3 (acquisition four-hero retire): the full
 // 3-column EditorialHero is retired from the analysis page render path.
@@ -1402,6 +1403,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
               fcfDataSource={valuation.fcf_data_source}
             />
           </div>
+          {/* Earnings-impact estimator: bridges the latest quarterly
+              print to a HEURISTIC range of likely FV impact at the
+              next nightly recompute. Renders above the concall panels
+              so a reader landing on the page on a beat / miss day
+              gets the numerical bridge first, then the concall
+              colour beneath it. is_heuristic flag from the API is
+              echoed in the panel header — this is NOT a recompute. */}
+          <EarningsImpactPanel ticker={ticker} />
           {/* Phase G-intel-phase1 (c): structured signals extracted via
               Anthropic from the latest transcript. Renders ABOVE the
               free-text ConcallsPanel; renders nothing when no signals
