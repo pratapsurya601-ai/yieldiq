@@ -84,11 +84,50 @@ function applyHeader(ws: XLSX.WorkSheet, row: number, ncols: number): void {
 }
 
 function applyAssumptionStyle(ws: XLSX.WorkSheet, addr: string): void {
+  // Editable input cells — light blue fill + blue font so analysts can see
+  // at a glance which cells they're allowed to edit. The convention is
+  // not labelled with a legend block; the styling itself is the cue and
+  // analysts know it.
   const cell = ws[addr]
   if (cell) {
     cell.s = {
-      font: { color: { rgb: "1D4ED8" }, bold: true },
-      fill: { fgColor: { rgb: "EFF6FF" } },
+      font: { color: { rgb: "1E40AF" }, bold: true },
+      fill: { fgColor: { rgb: "DBEAFE" } },
+    }
+  }
+}
+
+function applySectionHeaderStyle(ws: XLSX.WorkSheet, addr: string): void {
+  // Light-gray section header band — bold text on a subtle grey fill.
+  const cell = ws[addr]
+  if (cell) {
+    cell.s = {
+      font: { bold: true, color: { rgb: "111827" } },
+      fill: { fgColor: { rgb: "F3F4F6" } },
+      alignment: { horizontal: "left" },
+    }
+  }
+}
+
+function applyHeadlineOutputStyle(ws: XLSX.WorkSheet, addr: string): void {
+  // Headline output cell — bold + slight yellow tint, marks the
+  // equity-value-per-share result as the deliverable of the model.
+  const cell = ws[addr]
+  if (cell) {
+    cell.s = {
+      font: { bold: true, color: { rgb: "111827" } },
+      fill: { fgColor: { rgb: "FEF9C3" } },
+    }
+  }
+}
+
+function applyComputedBoldStyle(ws: XLSX.WorkSheet, addr: string): void {
+  // Computed cells emphasized (e.g. final WACC) — bold only, no fill,
+  // so they remain visually distinct from input cells.
+  const cell = ws[addr]
+  if (cell) {
+    cell.s = {
+      font: { bold: true, color: { rgb: "111827" } },
     }
   }
 }
@@ -233,32 +272,35 @@ function buildDCFModelSheet(s: StockSummary, ann: HistoricalFinancialsResponse |
   // the editable-assumption cell style so the user sees it is overridable.
   const sharesOutValue = sharesOutCr != null && isFinite(sharesOutCr) && sharesOutCr > 0 ? sharesOutCr : 100
 
-  // The sheet layout — assumptions in rows 2-12, projection in 14+
+  // The sheet layout — assumptions in rows 2-11, WACC build in 13-16,
+  // projection table in 18-23, terminal/equity block in 24-28. Row
+  // positions are kept stable so the formula references (and the unit
+  // tests that assert them) don't have to shift.
   const rows: (string | number)[][] = [
     ["Assumption", "Value", "Unit", "Note"],
-    ["Latest FCF (₹Cr)", latestFCF, "₹Cr", "Anchor — most recent annual FCF"],
-    ["FCF growth, years 1-5 (%)", 8, "% p.a.", "Edit to flex growth"],
-    ["Terminal growth (%)", 4, "%", "Long-run nominal GDP proxy"],
-    ["Risk-free rate (%)", 7.0, "%", "10Y G-Sec"],
-    ["Equity risk premium (%)", 6.0, "%", "India ERP"],
-    ["Levered beta", 1.0, "x", "Sector beta"],
-    ["Pre-tax cost of debt (%)", 9.0, "%", "Credit-adjusted"],
-    ["Tax rate (%)", 25.0, "%", "Effective corporate"],
-    ["Debt weight", 0.30, "ratio", "D / (D+E)"],
-    ["Shares outstanding (Cr)", sharesOutValue, "Cr", "Diluted (from latest XBRL filing or mcap/price fallback)"],
+    ["Latest FCF (₹Cr)", latestFCF, "₹Cr", "Anchor — most recent annual reported FCF, source: Financials Annual sheet"],
+    ["FCF growth, years 1-5 (%)", 8, "% p.a.", "Base = blended 3y/5y revenue CAGR; edit cell to flex"],
+    ["Terminal growth (%)", 4, "%", "Long-run India nominal GDP proxy — hard-capped at 4%"],
+    ["Risk-free rate (%)", 7.0, "%", "RBI 10Y G-Sec yield (current)"],
+    ["Equity risk premium (%)", 6.0, "%", "Damodaran India ERP (latest update)"],
+    ["Levered beta", 1.0, "x", "5Y monthly regression vs Nifty 50, floored at 0.8"],
+    ["Pre-tax cost of debt (%)", 9.0, "%", "Interest expense / avg total debt, or credit-adjusted sector estimate"],
+    ["Tax rate (%)", 25.0, "%", "Effective tax rate from latest annual P&L"],
+    ["Debt weight", 0.30, "ratio", "Total debt / (total debt + market cap), market-value basis"],
+    ["Shares outstanding (Cr)", sharesOutValue, "Cr", "Diluted (from latest XBRL filing; mcap/price fallback when filing missing)"],
     [],
-    ["WACC build", "", "", ""],
+    ["WACC BUILD", "", "", ""],
     ["Cost of equity (%)", "", "%", "Rf + Beta * ERP"],
     ["After-tax cost of debt (%)", "", "%", "Kd * (1-T)"],
     ["WACC (%)", "", "%", "Wd * Kd_at + We * Ke"],
-    [],
+    ["5-YEAR FCF PROJECTION", "", "", ""],
     ["Year", "FCF (₹Cr)", "Discount factor", "PV (₹Cr)"],
     [1, "", "", ""],
     [2, "", "", ""],
     [3, "", "", ""],
     [4, "", "", ""],
     [5, "", "", ""],
-    [],
+    ["TERMINAL VALUE & EQUITY VALUE", "", "", ""],
     ["Terminal value (₹Cr)", "", "", ""],
     ["PV of terminal (₹Cr)", "", "", ""],
     ["Sum of PVs (₹Cr)", "", "", ""],
@@ -313,9 +355,24 @@ function buildDCFModelSheet(s: StockSummary, ann: HistoricalFinancialsResponse |
   // Equity per share = Sum of PVs / shares out
   ws["B28"] = { t: "n", f: "B27/B11" }
 
-  // Style — mark editable assumption cells
+  // Style — mark editable assumption cells (light-blue fill + blue font)
   const assumptions = ["B2", "B3", "B4", "B5", "B6", "B7", "B8", "B9", "B10", "B11"]
   for (const addr of assumptions) applyAssumptionStyle(ws, addr)
+
+  // Computed cells inside WACC build — bold final WACC so it stands out
+  // against the input cells above.
+  applyComputedBoldStyle(ws, "B16")
+
+  // Headline output — bold + slight yellow tint on equity value per share.
+  applyHeadlineOutputStyle(ws, "B28")
+
+  // Section header bands (light-gray fill, bold). Row 13 = WACC BUILD,
+  // row 17 = 5-YEAR FCF PROJECTION, row 24 = TERMINAL VALUE & EQUITY VALUE.
+  for (const headerRow of [13, 17, 24]) {
+    for (const col of ["A", "B", "C", "D"]) {
+      applySectionHeaderStyle(ws, `${col}${headerRow}`)
+    }
+  }
 
   // Number formats
   applyNumberFormat(ws, "B2", "#,##0.00")
@@ -336,11 +393,20 @@ function buildDCFModelSheet(s: StockSummary, ann: HistoricalFinancialsResponse |
   applyNumberFormat(ws, "B27", "#,##0.00")
   applyNumberFormat(ws, "B28", "₹#,##0.00")
 
-  // Headers (row 1 and row 18)
+  // Table column headers — row 1 (Assumption|Value|Unit|Note) and
+  // row 18 (Year|FCF|Discount factor|PV). Row 18 in Excel = index 17.
   applyHeader(ws, 0, 4)
   applyHeader(ws, 17, 4)
 
-  setColWidths(ws, [32, 16, 12, 36])
+  // Merge section header bands across all four columns. Zero-indexed
+  // row numbers: row 13 = idx 12, row 17 = idx 16, row 24 = idx 23.
+  ws["!merges"] = [
+    { s: { r: 12, c: 0 }, e: { r: 12, c: 3 } },
+    { s: { r: 16, c: 0 }, e: { r: 16, c: 3 } },
+    { s: { r: 23, c: 0 }, e: { r: 23, c: 3 } },
+  ]
+
+  setColWidths(ws, [32, 16, 12, 56])
   // Anchor a note about which cells are editable
   void s
   return ws
