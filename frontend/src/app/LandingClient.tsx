@@ -357,8 +357,7 @@ function LandingContent() {
               {/* Headline reshaped 2026-06-07 (AlphaSpread audit P0):
                   question-form framing so the hero reads as "type your
                   ticker, get an answer" rather than a product tagline.
-                  SEBI-safe — this is a question about analytical lookup,
-                  not a recommendation. */}
+                  SEBI-safe — a question about analytical lookup. */}
               <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-black text-white leading-[1.1] mb-6 tracking-tight">
                 Which Indian stock
                 <br />
