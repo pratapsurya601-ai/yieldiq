@@ -1,11 +1,11 @@
 /**
- * Detailed Excel export — 10-sheet analyst-grade workbook (Pro tier).
+ * Detailed Excel export — 11-sheet analyst-grade workbook (Pro tier).
  * --------------------------------------------------------------------------
  * Builds a multi-sheet .xlsx workbook entirely in the browser. The basic
  * 5-sheet workbook lives in `lib/excel.ts` and is still used by the free
- * one-click ExcelExportButton; this module adds the Pro-tier 10-sheet
+ * one-click ExcelExportButton; this module adds the Pro-tier 11-sheet
  * workbook driven by FORMULA cells (editing assumptions in the DCF sheet
- * recomputes downstream cells).
+ * recomputes downstream cells, including the 5x5 Sensitivity Matrix).
  *
  * Library choice
  * --------------
@@ -325,7 +325,172 @@ function buildDCFModelSheet(s: StockSummary, ann: HistoricalFinancialsResponse |
   return ws
 }
 
-// ── 4. 10y Financials Annual sheet ───────────────────────────────
+// ── 4. Sensitivity Matrix sheet — 5x5 WACC x terminal-growth grid ──
+function buildSensitivityMatrixSheet(): XLSX.WorkSheet {
+  // Layout:
+  //   A1: title
+  //   A2: subtitle
+  //   row 4 (Excel-1-indexed) = column headers (g offsets)
+  //   rows 5..9 = WACC offset rows, columns B..F = grid cells
+  //   A11: footnote
+  //
+  // Every grid cell is a LIVE FORMULA referencing 'DCF Model' assumption
+  // cells: B2 (latest FCF), B3 (growth %), B4 (terminal g %), B11 (shares),
+  // B16 (base WACC %). The flexed WACC = B16 + dw, flexed g = B4 + dg
+  // (both already in percent — divide by 100 to convert to a fraction,
+  // matching the convention used in the DCF Model sheet).
+  //
+  // Per-share fair value at offset (dw, dg):
+  //   sum_{t=1..5} ( B2*(1+B3/100)^t / (1+(B16+dw)/100)^t )
+  //   + ( B2*(1+B3/100)^5 * (1+(B4+dg)/100) / ((B16+dw-B4-dg)/100) )
+  //     / (1+(B16+dw)/100)^5
+  //   then divided by B11.
+  //
+  // Offsets are in percentage POINTS, so dw = -2, -1, 0, 1, 2 etc.
+  const offsets = [-2, -1, 0, 1, 2]
+
+  // Build a sensitivity cell formula for a given (dw, dg) offset pair.
+  function cellFormula(dw: number, dg: number): string {
+    // Helper to render an offset as a signed numeric literal: 0 → "",
+    // positive → "+2", negative → "-2". Keeps the formula readable when
+    // the offset is zero.
+    const sw = dw === 0 ? "" : dw > 0 ? `+${dw}` : `${dw}`
+    const sg = dg === 0 ? "" : dg > 0 ? `+${dg}` : `${dg}`
+    // (B16 + dw) — flexed WACC (in %), and (B4 + dg) — flexed terminal g.
+    const w = `('DCF Model'!B16${sw})`
+    const g = `('DCF Model'!B4${sg})`
+    // Per-year PV terms — inlined because Excel has no SUM-over-expression.
+    const fcf = `'DCF Model'!B2`
+    const gr = `'DCF Model'!B3`
+    const shares = `'DCF Model'!B11`
+    // (1 + B3/100)^t pre-folded numerically would defeat live recompute;
+    // keep it symbolic.
+    const pv = (t: number): string =>
+      `${fcf}*POWER(1+${gr}/100,${t})/POWER(1+${w}/100,${t})`
+    const sumPVs = [1, 2, 3, 4, 5].map(pv).join("+")
+    const tv = `${fcf}*POWER(1+${gr}/100,5)*(1+${g}/100)/((${w}-${g})/100)`
+    const pvTerminal = `(${tv})/POWER(1+${w}/100,5)`
+    return `(${sumPVs}+${pvTerminal})/${shares}`
+  }
+
+  const colHeaderLabel = (dg: number): string => {
+    if (dg === 0) return "g0%"
+    return dg > 0 ? `g+${dg}%` : `g${dg}%`
+  }
+  const rowHeaderLabel = (dw: number): string => {
+    if (dw === 0) return "WACC +0%"
+    return dw > 0 ? `WACC +${dw}%` : `WACC ${dw}%`
+  }
+
+  // Seed the sheet with text labels — formula cells are written separately
+  // because xlsx aoa_to_sheet can't carry { f: ... } payloads.
+  const rows: (string | number)[][] = [
+    ["Sensitivity Analysis — Intrinsic Value per Share (₹)"],
+    ["Rows: WACC ±2% in 1% steps  |  Columns: Terminal growth ±2% in 1% steps"],
+    [],
+    ["", ...offsets.map(colHeaderLabel)],
+    [rowHeaderLabel(offsets[0])],
+    [rowHeaderLabel(offsets[1])],
+    [rowHeaderLabel(offsets[2])],
+    [rowHeaderLabel(offsets[3])],
+    [rowHeaderLabel(offsets[4])],
+    [],
+    ["Centre cell is the base case from the DCF Model sheet. Move ±1% on WACC, ±2% on terminal growth — Excel recomputes live."],
+  ]
+  const ws = XLSX.utils.aoa_to_sheet(rows)
+
+  // Write the 25 formula cells. Row index in Excel: 5..9 (1-indexed).
+  // Col index in Excel: B..F.
+  const colLetters = ["B", "C", "D", "E", "F"]
+  for (let i = 0; i < offsets.length; i++) {
+    const dw = offsets[i]
+    const excelRow = 5 + i // rows 5..9
+    for (let j = 0; j < offsets.length; j++) {
+      const dg = offsets[j]
+      const addr = `${colLetters[j]}${excelRow}`
+      ws[addr] = { t: "n", f: cellFormula(dw, dg) }
+      applyNumberFormat(ws, addr, "₹#,##0")
+      // Standard right-aligned border style for non-centre cells.
+      ws[addr].s = {
+        alignment: { horizontal: "right" },
+        border: {
+          top: { style: "thin", color: { rgb: "D1D5DB" } },
+          bottom: { style: "thin", color: { rgb: "D1D5DB" } },
+          left: { style: "thin", color: { rgb: "D1D5DB" } },
+          right: { style: "thin", color: { rgb: "D1D5DB" } },
+        },
+      }
+    }
+  }
+
+  // Highlight the centre cell (D7 = base WACC × base g) with blue fill +
+  // bold text so it stands out as the base case anchor.
+  const centre = ws["D7"]
+  if (centre) {
+    centre.s = {
+      font: { bold: true, color: { rgb: "1E3A8A" } },
+      fill: { fgColor: { rgb: "DBEAFE" } },
+      alignment: { horizontal: "right" },
+      border: {
+        top: { style: "medium", color: { rgb: "1E3A8A" } },
+        bottom: { style: "medium", color: { rgb: "1E3A8A" } },
+        left: { style: "medium", color: { rgb: "1E3A8A" } },
+        right: { style: "medium", color: { rgb: "1E3A8A" } },
+      },
+    }
+  }
+
+  // Style the title row.
+  const title = ws["A1"]
+  if (title) {
+    title.s = {
+      font: { bold: true, sz: 14, color: { rgb: "1E3A8A" } },
+    }
+  }
+  const subtitle = ws["A2"]
+  if (subtitle) {
+    subtitle.s = {
+      font: { bold: true, italic: true, color: { rgb: "374151" } },
+    }
+  }
+
+  // Header row (row 4) — column headers in B4..F4 and the row headers in
+  // A5..A9 — bold, centered for columns, left for rows.
+  for (let j = 0; j < colLetters.length; j++) {
+    const addr = `${colLetters[j]}4`
+    const cell = ws[addr]
+    if (cell) {
+      cell.s = {
+        font: { bold: true, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "1E3A8A" } },
+        alignment: { horizontal: "center" },
+      }
+    }
+  }
+  for (let i = 0; i < offsets.length; i++) {
+    const addr = `A${5 + i}`
+    const cell = ws[addr]
+    if (cell) {
+      cell.s = {
+        font: { bold: true, color: { rgb: "FFFFFF" } },
+        fill: { fgColor: { rgb: "1E3A8A" } },
+        alignment: { horizontal: "left" },
+      }
+    }
+  }
+
+  // Merge the title, subtitle, and footnote across the matrix width.
+  ws["!merges"] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 5 } },
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 5 } },
+    { s: { r: 10, c: 0 }, e: { r: 10, c: 5 } },
+  ]
+
+  setColWidths(ws, [14, 14, 14, 14, 14, 14])
+  return ws
+}
+
+// ── 5. 10y Financials Annual sheet ───────────────────────────────
 function buildAnnualFinancialsSheet(f: HistoricalFinancialsResponse | null): XLSX.WorkSheet {
   if (!f || !f.periods?.length) {
     return XLSX.utils.aoa_to_sheet([["No annual financials available"]])
@@ -657,6 +822,7 @@ export function buildDetailedWorkbook(bundle: DetailedExcelBundle): XLSX.WorkBoo
   XLSX.utils.book_append_sheet(wb, buildCoverSheet(bundle.summary), "Cover")
   XLSX.utils.book_append_sheet(wb, buildValuationSummarySheet(bundle.summary), "Valuation Summary")
   XLSX.utils.book_append_sheet(wb, buildDCFModelSheet(bundle.summary, bundle.annualFinancials), "DCF Model")
+  XLSX.utils.book_append_sheet(wb, buildSensitivityMatrixSheet(), "Sensitivity Matrix")
   XLSX.utils.book_append_sheet(wb, buildAnnualFinancialsSheet(bundle.annualFinancials), "Financials Annual")
   XLSX.utils.book_append_sheet(wb, buildQuarterlyFinancialsSheet(bundle.quarterlyFinancials), "Financials Quarterly")
   XLSX.utils.book_append_sheet(wb, buildRatiosSheet(bundle.ratios), "Ratios 10y")

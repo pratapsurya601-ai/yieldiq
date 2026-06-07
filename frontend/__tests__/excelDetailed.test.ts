@@ -1,10 +1,11 @@
 /**
  * Detailed Excel export — structural unit tests.
  *
- * Asserts the workbook has the expected 10 sheets, that the DCF Model
+ * Asserts the workbook has the expected 11 sheets, that the DCF Model
  * sheet contains formula cells (so editing assumptions actually
  * recomputes downstream values in Excel, rather than being hardcoded),
- * and that the Cover sheet carries the SEBI disclaimer.
+ * that the Sensitivity Matrix sheet ships live formulas + a styled
+ * centre cell, and that the Cover sheet carries the SEBI disclaimer.
  */
 import { describe, it, expect } from "vitest"
 import * as XLSX from "xlsx"
@@ -126,12 +127,13 @@ const EMPTY_BUNDLE: DetailedExcelBundle = {
 }
 
 describe("buildDetailedWorkbook", () => {
-  it("emits exactly the 10 named sheets in order", () => {
+  it("emits exactly the 11 named sheets in order", () => {
     const wb = buildDetailedWorkbook(EMPTY_BUNDLE)
     expect(wb.SheetNames).toEqual([
       "Cover",
       "Valuation Summary",
       "DCF Model",
+      "Sensitivity Matrix",
       "Financials Annual",
       "Financials Quarterly",
       "Ratios 10y",
@@ -140,6 +142,29 @@ describe("buildDetailedWorkbook", () => {
       "Quality & Moat",
       "Methodology",
     ])
+  })
+
+  it("Sensitivity Matrix ships a 5x5 grid of LIVE formulas referencing the DCF Model sheet", () => {
+    const wb = buildDetailedWorkbook(EMPTY_BUNDLE)
+    const ws = wb.Sheets["Sensitivity Matrix"]
+    expect(ws).toBeDefined()
+    // Corner cells must be formula cells, not hardcoded numbers.
+    expect(typeof ws.B5?.f).toBe("string")
+    expect(typeof ws.F9?.f).toBe("string")
+    // Formulas reference the DCF Model assumption cells we expect.
+    expect(ws.B5.f).toContain("'DCF Model'!B16")
+    expect(ws.B5.f).toContain("'DCF Model'!B4")
+    expect(ws.B5.f).toContain("'DCF Model'!B11")
+    // Centre cell (D7) carries the highlight fill — base case anchor.
+    expect(ws.D7).toBeDefined()
+    expect(ws.D7.s?.fill?.fgColor?.rgb).toBe("DBEAFE")
+    // And the centre cell is itself a formula (the base case re-derived).
+    expect(typeof ws.D7.f).toBe("string")
+    // Column / row headers populated.
+    expect(ws.B4?.v).toBe("g-2%")
+    expect(ws.F4?.v).toBe("g+2%")
+    expect(ws.A5?.v).toBe("WACC -2%")
+    expect(ws.A9?.v).toBe("WACC +2%")
   })
 
   it("DCF Model uses Excel FORMULAS for WACC, projected FCF, terminal, and equity value", () => {
