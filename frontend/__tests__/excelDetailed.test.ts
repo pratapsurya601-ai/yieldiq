@@ -229,6 +229,32 @@ describe("buildDetailedWorkbook", () => {
     }
   })
 
+  it("DCF Model B11 shares-outstanding is sourced from data, not the literal 100", () => {
+    // BUG-FIX: previously hardcoded to 100 Cr, which made per-share FV
+    // wrong for every ticker except a coincidental one. Now pulled
+    // from latest annual shares_outstanding (or mcap/price fallback).
+    const wb = buildDetailedWorkbook(EMPTY_BUNDLE)
+    const ws = wb.Sheets["DCF Model"]
+    // Fixture's latest annual shares_outstanding = 20 (already in Cr)
+    expect(ws.B11.v).toBe(20)
+  })
+
+  it("DCF Model B11 falls back to market_cap / current_price when shares are missing", () => {
+    const bundle: DetailedExcelBundle = {
+      ...EMPTY_BUNDLE,
+      summary: makeSummary({ market_cap: 4.5e11, current_price: 1000 }),
+      // strip shares_outstanding from the periods
+      annualFinancials: {
+        ...makeAnnual(),
+        periods: makeAnnual().periods.map((p) => ({ ...p, shares_outstanding: null })),
+      },
+    }
+    const wb = buildDetailedWorkbook(bundle)
+    const ws = wb.Sheets["DCF Model"]
+    // mcap (4.5e11 rupees) / price (1000) / 1e7 = 45 Cr shares
+    expect(ws.B11.v).toBeCloseTo(45, 2)
+  })
+
   it("Annual Financials sheet writes the year column as text (no comma separators)", () => {
     const wb = buildDetailedWorkbook(EMPTY_BUNDLE)
     const ws = wb.Sheets["Financials Annual"]
