@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og"
 import type { NextRequest } from "next/server"
+import { fetchCompanyLogoDataUrl } from "../../_lib/companyLogo"
 
 /**
  * Money Camera — single-frame, scroll-stopping share artefact.
@@ -150,17 +151,26 @@ export async function GET(
   // stock-summary payload (per Phase 4.2 decision (e): no new backend
   // endpoint). 8s timeout matches the analysis OG route.
   let summary: StockSummary = {}
-  try {
-    const res = await fetch(
-      `${API_BASE}/api/v1/public/stock-summary/${encodeURIComponent(fullTicker)}`,
-      { signal: AbortSignal.timeout(8000) }
-    )
-    if (res.ok) {
-      summary = (await res.json()) as StockSummary
-    }
-  } catch {
-    // Fall through — "Under review" layout below absorbs the failure.
-  }
+  // Parallel: summary + Clearbit logo. Logo helper has 2s timeout and
+  // never throws; null falls back to no-logo (just ticker text).
+  const [summaryResult, logoDataUrl] = await Promise.all([
+    (async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/v1/public/stock-summary/${encodeURIComponent(fullTicker)}`,
+          { signal: AbortSignal.timeout(8000) }
+        )
+        if (res.ok) {
+          return (await res.json()) as StockSummary
+        }
+      } catch {
+        // Fall through — "Under review" layout below absorbs the failure.
+      }
+      return {} as StockSummary
+    })(),
+    fetchCompanyLogoDataUrl(cleanTicker),
+  ])
+  summary = summaryResult
 
   const fairValue = Number(summary.fair_value ?? 0)
   const price = Number(summary.current_price ?? 0)
@@ -243,18 +253,52 @@ export async function GET(
   const hasChart = !isUnderReview && vals.every((v) => v > 0) && vMax > vMin
 
   // ─── Common JSX helpers ──────────────────────────────────────────
+  // Logo plate sizes are format-specific: story-format ticker is much
+  // larger so the logo scales with it; horizontal stays compact.
+  const logoPlateSize = isStory ? 120 : 80
+  const logoImgSize = isStory ? 96 : 64
+  const logoRadius = isStory ? 24 : 16
+
   const tickerBlock = (
     <div style={{ display: "flex", flexDirection: "column", lineHeight: 1 }}>
-      <div
-        style={{
-          color: "#FFFFFF",
-          fontSize: isStory ? 120 : 72,
-          fontWeight: 900,
-          letterSpacing: -3,
-          display: "flex",
-        }}
-      >
-        {cleanTicker}
+      <div style={{ display: "flex", alignItems: "center", gap: isStory ? 24 : 18 }}>
+        {logoDataUrl ? (
+          /* Company logo (Clearbit, server-fetched). White plate so
+             transparent SVG/PNG logos read against the dark background. */
+          <div
+            style={{
+              width: logoPlateSize,
+              height: logoPlateSize,
+              borderRadius: logoRadius,
+              background: "#FFFFFF",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              padding: isStory ? 12 : 8,
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={logoDataUrl}
+              width={logoImgSize}
+              height={logoImgSize}
+              alt=""
+              style={{ objectFit: "contain" }}
+            />
+          </div>
+        ) : null}
+        <div
+          style={{
+            color: "#FFFFFF",
+            fontSize: isStory ? 120 : 72,
+            fontWeight: 900,
+            letterSpacing: -3,
+            display: "flex",
+          }}
+        >
+          {cleanTicker}
+        </div>
       </div>
       <div
         style={{

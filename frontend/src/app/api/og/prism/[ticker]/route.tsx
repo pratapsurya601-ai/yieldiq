@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og"
 import type { NextRequest } from "next/server"
+import { fetchCompanyLogoDataUrl } from "../../_lib/companyLogo"
 
 export const runtime = "edge"
 export const revalidate = 3600
@@ -72,19 +73,28 @@ export async function GET(
 
   let data: PrismPayload = {}
   let fetchOk = false
-  try {
-    const full = tickerUpper.includes(".") ? tickerUpper : `${tickerUpper}.NS`
-    const res = await fetch(
-      `${API_BASE}/api/v1/prism/${encodeURIComponent(full)}`,
-      { signal: AbortSignal.timeout(8000) }
-    )
-    if (res.ok) {
-      data = (await res.json()) as PrismPayload
-      fetchOk = true
-    }
-  } catch {
-    // fall through to fallback layout
-  }
+  const full = tickerUpper.includes(".") ? tickerUpper : `${tickerUpper}.NS`
+  // Parallel: prism data + Clearbit logo. Logo helper has 2s timeout
+  // and never throws; null falls back to no-logo layout.
+  const [prismResult, logoDataUrl] = await Promise.all([
+    (async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/v1/prism/${encodeURIComponent(full)}`,
+          { signal: AbortSignal.timeout(8000) }
+        )
+        if (res.ok) {
+          return { data: (await res.json()) as PrismPayload, ok: true }
+        }
+      } catch {
+        // fall through
+      }
+      return { data: {} as PrismPayload, ok: false }
+    })(),
+    fetchCompanyLogoDataUrl(cleanTicker),
+  ])
+  data = prismResult.data
+  fetchOk = prismResult.ok
 
   // CONSISTENCY FIX (radar=text on Prism pillars): the live page reads
   // `hex.axes[key].score` via adaptPrismResponse(); the OG card was
@@ -222,37 +232,65 @@ export async function GET(
               </span>
             </div>
           </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "flex-end",
-            }}
-          >
-            <span
+          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+            {logoDataUrl ? (
+              /* Company logo (Clearbit). 64x64 white plate sized to
+                 match the 80px header strip. */
+              <div
+                style={{
+                  width: 64,
+                  height: 64,
+                  borderRadius: 14,
+                  background: "#FFFFFF",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  padding: 6,
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={logoDataUrl}
+                  width={52}
+                  height={52}
+                  alt=""
+                  style={{ objectFit: "contain" }}
+                />
+              </div>
+            ) : null}
+            <div
               style={{
-                color: "white",
-                fontSize: 52,
-                fontWeight: 900,
-                lineHeight: 1,
-                letterSpacing: -2,
                 display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-end",
               }}
             >
-              {cleanTicker}
-            </span>
-            <span
-              style={{
-                color: "#CBD5E1",
-                fontSize: 18,
-                fontWeight: 500,
-                marginTop: 6,
-                display: "flex",
-                maxWidth: 520,
-              }}
-            >
-              {company}
-            </span>
+              <span
+                style={{
+                  color: "white",
+                  fontSize: 52,
+                  fontWeight: 900,
+                  lineHeight: 1,
+                  letterSpacing: -2,
+                  display: "flex",
+                }}
+              >
+                {cleanTicker}
+              </span>
+              <span
+                style={{
+                  color: "#CBD5E1",
+                  fontSize: 18,
+                  fontWeight: 500,
+                  marginTop: 6,
+                  display: "flex",
+                  maxWidth: 520,
+                }}
+              >
+                {company}
+              </span>
+            </div>
           </div>
         </div>
 

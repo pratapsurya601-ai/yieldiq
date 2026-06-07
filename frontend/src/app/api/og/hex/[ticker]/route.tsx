@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og"
 import type { NextRequest } from "next/server"
+import { fetchCompanyLogoDataUrl } from "../../_lib/companyLogo"
 
 export const runtime = "edge"
 export const revalidate = 3600
@@ -46,19 +47,28 @@ export async function GET(
 
   let data: HexPayload = {}
   let fetchOk = false
-  try {
-    const full = tickerUpper.includes(".") ? tickerUpper : `${tickerUpper}.NS`
-    const res = await fetch(
-      `${API_BASE}/api/v1/hex/${encodeURIComponent(full)}`,
-      { signal: AbortSignal.timeout(8000) }
-    )
-    if (res.ok) {
-      data = (await res.json()) as HexPayload
-      fetchOk = true
-    }
-  } catch {
-    // fall through to fallback
-  }
+  // Parallel fetch: hex data + Clearbit logo. Logo helper has own 2s
+  // timeout and returns null on any failure (caller stays unaware).
+  const full = tickerUpper.includes(".") ? tickerUpper : `${tickerUpper}.NS`
+  const [hexResult, logoDataUrl] = await Promise.all([
+    (async () => {
+      try {
+        const res = await fetch(
+          `${API_BASE}/api/v1/hex/${encodeURIComponent(full)}`,
+          { signal: AbortSignal.timeout(8000) }
+        )
+        if (res.ok) {
+          return { data: (await res.json()) as HexPayload, ok: true }
+        }
+      } catch {
+        // fall through
+      }
+      return { data: {} as HexPayload, ok: false }
+    })(),
+    fetchCompanyLogoDataUrl(cleanTicker),
+  ])
+  data = hexResult.data
+  fetchOk = hexResult.ok
 
   const overall = Math.max(0, Math.min(10, Number(data.overall ?? 0)))
   const company = (data.company_name || cleanTicker).toString().slice(0, 60)
@@ -178,18 +188,46 @@ export async function GET(
 
         {/* Ticker + company */}
         <div style={{ display: "flex", flexDirection: "column", marginTop: 30 }}>
-          <span
-            style={{
-              color: "white",
-              fontSize: 92,
-              fontWeight: 900,
-              lineHeight: 1,
-              letterSpacing: -3,
-              display: "flex",
-            }}
-          >
-            {cleanTicker}
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+            {logoDataUrl ? (
+              /* Company logo (Clearbit). White plate so transparent
+                 logos read against the dark gradient. */
+              <div
+                style={{
+                  width: 100,
+                  height: 100,
+                  borderRadius: 20,
+                  background: "#FFFFFF",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  padding: 10,
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={logoDataUrl}
+                  width={80}
+                  height={80}
+                  alt=""
+                  style={{ objectFit: "contain" }}
+                />
+              </div>
+            ) : null}
+            <span
+              style={{
+                color: "white",
+                fontSize: 92,
+                fontWeight: 900,
+                lineHeight: 1,
+                letterSpacing: -3,
+                display: "flex",
+              }}
+            >
+              {cleanTicker}
+            </span>
+          </div>
           <span
             style={{
               color: "#CBD5E1",

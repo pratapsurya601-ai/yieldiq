@@ -1,5 +1,6 @@
 import { ImageResponse } from "next/og"
 import type { NextRequest } from "next/server"
+import { fetchCompanyLogoDataUrl } from "../_lib/companyLogo"
 
 // Edge runtime for fast OG image rendering (Satori + Resvg).
 export const runtime = "edge"
@@ -87,16 +88,26 @@ export async function GET(
   // render a branded "Under Review" card instead of 500ing — OG scrapers
   // cache failures aggressively, so we must always return an image.
   let ogData: OgData = {}
-  try {
-    const fullTicker = tickerUpper.includes(".") ? tickerUpper : `${tickerUpper}.NS`
-    const res = await fetch(
-      `${API_BASE}/api/v1/analysis/${encodeURIComponent(fullTicker)}/og-data`,
-      { signal: AbortSignal.timeout(8000) }
-    )
-    if (res.ok) ogData = (await res.json()) as OgData
-  } catch {
-    // fall through to safe defaults
-  }
+  // Kick off og-data and company-logo fetches in parallel so the logo
+  // hop doesn't add to overall render latency on the critical path.
+  // fetchCompanyLogoDataUrl has its own 2s timeout and never throws;
+  // worst case the logo is null and we fall back to the letter mark.
+  const [ogDataRes, logoDataUrl] = await Promise.all([
+    (async () => {
+      try {
+        const fullTicker = tickerUpper.includes(".") ? tickerUpper : `${tickerUpper}.NS`
+        const res = await fetch(
+          `${API_BASE}/api/v1/analysis/${encodeURIComponent(fullTicker)}/og-data`,
+          { signal: AbortSignal.timeout(8000) }
+        )
+        return res.ok ? ((await res.json()) as OgData) : {}
+      } catch {
+        return {}
+      }
+    })(),
+    fetchCompanyLogoDataUrl(cleanTicker),
+  ])
+  ogData = ogDataRes
 
   const verdict = ogData.verdict || "data_limited"
   const fairValueNum = ogData.fair_value ?? 0
@@ -222,18 +233,48 @@ export async function GET(
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", maxWidth: 760 }}>
-            <span
-              style={{
-                color: "white",
-                fontSize: 108,
-                fontWeight: 900,
-                lineHeight: 1,
-                letterSpacing: -3,
-                display: "flex",
-              }}
-            >
-              {cleanTicker}
-            </span>
+            <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+              {logoDataUrl ? (
+                /* Company logo (Clearbit hot-link, fetched server-side
+                   into a base64 data URL). 96x96 white-on-dark plate
+                   so transparent SVG/PNG logos read against the dark
+                   gradient background. */
+                <div
+                  style={{
+                    width: 96,
+                    height: 96,
+                    borderRadius: 20,
+                    background: "#FFFFFF",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    padding: 10,
+                  }}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={logoDataUrl}
+                    width={76}
+                    height={76}
+                    alt=""
+                    style={{ objectFit: "contain" }}
+                  />
+                </div>
+              ) : null}
+              <span
+                style={{
+                  color: "white",
+                  fontSize: 108,
+                  fontWeight: 900,
+                  lineHeight: 1,
+                  letterSpacing: -3,
+                  display: "flex",
+                }}
+              >
+                {cleanTicker}
+              </span>
+            </div>
             <span
               style={{
                 color: "#CBD5E1",
