@@ -173,6 +173,8 @@ describe("buildDetailedWorkbook", () => {
 
   it("does not include any banned SEBI vocabulary in the sheet text", () => {
     const wb = buildDetailedWorkbook(EMPTY_BUNDLE)
+    // sebi-allow: buy, sell, outperform, underperform, expensive, cheap, undervalued, overvalued, attractive, investable
+    // sebi-allow: buy, sell, outperform, underperform, expensive, cheap, undervalued, overvalued, attractive, investable
     const banned = [
       "buy", "sell", "outperform", "underperform", "expensive", "cheap",
       "undervalued", "overvalued", "attractive", "investable",
