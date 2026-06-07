@@ -19,7 +19,7 @@
  *
  * After the sibling PR (`feat/ticker-avatar-sitewide-v2`) lands the
  * shared module at `frontend/src/components/common/tickerDomains.ts`,
- * THIS file's NSE_TICKER_DOMAINS literal should be deleted and the
+ * THIS file's NSE_TICKER_DOMAINS literal can be deleted and the
  * import switched to that shared module. The de-dupe is a follow-up
  * cleanup; both lists are byte-identical so it's a mechanical change.
  *
