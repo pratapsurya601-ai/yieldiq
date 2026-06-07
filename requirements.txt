@@ -75,3 +75,10 @@ sentry-sdk[fastapi]>=2.0.0
 # CI runners we use; keeping in main requirements avoids a separate
 # dev file.
 psutil>=5.9.0
+
+# Optional: kiteconnect — only required to run
+# scripts/kite_oneshot_backfill.py (operator-run, one-shot price
+# refresh tool). Not used by any cron / runtime path. Install with
+# `pip install kiteconnect` on demand; intentionally NOT pinned here
+# so deployment images stay slim.
+# kiteconnect>=5.0.0
