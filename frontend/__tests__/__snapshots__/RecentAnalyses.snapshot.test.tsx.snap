@@ -55,6 +55,7 @@ exports[`RecentAnalyses (snapshot) > renders TickerAvatar chips for each recent 
             decoding="async"
             height="24"
             loading="lazy"
+            referrerpolicy="no-referrer"
             src="https://www.google.com/s2/favicons?domain=hdfcbank.com&sz=128"
             width="24"
           />
@@ -98,7 +99,8 @@ exports[`RecentAnalyses (snapshot) > renders TickerAvatar chips for each recent 
             decoding="async"
             height="24"
             loading="lazy"
-            src="https://www.google.com/s2/favicons?domain=tcs.com&sz=128"
+            referrerpolicy="no-referrer"
+            src="https://www.google.com/s2/favicons?domain=tata.com&sz=128"
             width="24"
           />
         </span>
