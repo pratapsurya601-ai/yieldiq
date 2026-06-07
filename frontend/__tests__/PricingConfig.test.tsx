@@ -153,7 +153,7 @@ describe("pricing config — Pro tier hidden", () => {
     expect(pro).toBeDefined()
     expect(pro?.name).toBe("Pro")
     expect(pro?.variants.find((v) => v.cadence === "monthly")?.priceInr).toBe(699)
-    expect(pro?.variants.find((v) => v.cadence === "annual")?.priceInr).toBe(9999)
+    expect(pro?.variants.find((v) => v.cadence === "annual")?.priceInr).toBe(6990)
   })
 
   it("flags Pro as hidden so render surfaces filter it out", () => {
