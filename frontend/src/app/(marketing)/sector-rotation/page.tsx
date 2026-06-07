@@ -6,7 +6,7 @@
 // discounted" callout.
 //
 // This page is read-only over the Day-108c cohort aggregator — no FV
-// math, no recommendations, no buy/sell vocabulary. The wording is
+// math, no advice vocabulary. The wording is
 // strictly descriptive ("the model's median MoS estimate"), matching
 // the backend disclosure surfaced in `notes`.
 import type { Metadata } from "next"
@@ -199,7 +199,7 @@ export default async function SectorRotationPage() {
       </section>
 
       {/* Top 5 most discounted callout. Renders descriptively — "median
-          MoS shows X% upside vs price" — not "buy now". */}
+          MoS shows X% upside vs price". */}
       {topSectors.length > 0 && (
         <section className="mb-10">
           <h2 className="text-lg font-semibold text-ink mb-3">
@@ -295,7 +295,7 @@ export default async function SectorRotationPage() {
         <h3 className="text-sm font-semibold text-ink mb-2">How to read this</h3>
         <ul className="text-sm space-y-1 text-body leading-relaxed">
           <li>
-            Each tile shows the <strong>median margin of safety</strong> of the
+            Each tile shows the <span className="font-semibold">median margin of safety</span> of the
             cohort — the model&apos;s fair value minus current price, as a
             percentage of fair value.
           </li>
