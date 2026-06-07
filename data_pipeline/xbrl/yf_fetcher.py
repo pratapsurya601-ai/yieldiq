@@ -269,6 +269,36 @@ def extract_income_records(data, period_type='annual'):
             except Exception:
                 return None
 
+        # Issue #206 (2026-06-07): bank-format aliases (Schedule III Div I).
+        # yfinance exposes these as discrete rows for commercial banks
+        # (HDFCBANK/ICICIBANK/SBIN/AXISBANK observed FY22+). The values
+        # are NULL for non-banks because the rows don't exist. Populating
+        # them on every record (None when absent) gives the service layer
+        # the inputs it needs for derive_bank_operating_income() without
+        # requiring the fetcher to know is_bank.
+        #
+        # yfinance bank field-name conventions (observed):
+        #   "Interest Income"                  → interest_earned
+        #   "Interest Expense"                 → interest_expended  (alias of GAAP interest_expense)
+        #   "Net Non Interest Income"          → non-interest income (preferred for banks)
+        #   "Other Income Expense"             → fallback non-interest income
+        #   "Total Operating Expenses"         → operating_expenses  (preferred for banks)
+        #   "Operating Expense"                → GAAP operating_expense (industrial alias)
+        #   "Total Revenue"                    → Bank "Total Income" (NII + non-interest)
+        interest_earned_yf = g('Interest Income') or g('Interest Income Non Operating')
+        # For Schedule III Div I, ``other_income`` slot carries non-interest
+        # income. Use the bank-specific row when yfinance provides one;
+        # fall back to the generic "Other Income Expense" so behaviour for
+        # non-banks is unchanged.
+        non_interest_inc_yf = (
+            g('Net Non Interest Income')
+            or g('Non Interest Income')
+            or g('Other Income Expense')
+        )
+        operating_expense_yf = (
+            g('Total Operating Expenses')
+            or g('Operating Expense')
+        )
         record = {
             'ticker_nse': ticker,
             'period_type': period_type,
@@ -279,7 +309,7 @@ def extract_income_records(data, period_type='annual'):
             'ebit': g('EBIT') or g('Operating Income'),
             'depreciation': g('Depreciation') or g('Reconciled Depreciation'),
             'interest_expense': g('Interest Expense') or g('Interest Expense Non Operating'),
-            'other_income': g('Other Income Expense'),
+            'other_income': non_interest_inc_yf,
             'pretax_income': g('Pretax Income') or g('Normalized Pre Tax Income'),
             'tax_provision': g('Tax Provision'),
             'net_income': g('Net Income') or g('Net Income Common Stockholders'),
@@ -287,7 +317,22 @@ def extract_income_records(data, period_type='annual'):
             'eps_basic': gr('Basic EPS'),
             'eps_diluted': gr('Diluted EPS'),
             'total_expenses': g('Total Expenses'),
-            'operating_expense': g('Operating Expense'),
+            'operating_expense': operating_expense_yf,
+            # Bank-format aliases (Schedule III Div I). NULL for non-banks.
+            # ``interest_expended`` mirrors ``interest_expense`` because
+            # yfinance does not split them for banks — the GAAP row IS the
+            # bank "InterestExpended".
+            'interest_earned': interest_earned_yf,
+            'interest_expended': (
+                g('Interest Expense') or g('Interest Expense Non Operating')
+            ) if interest_earned_yf is not None else None,
+            # "Total Income" for banks = revenue (yfinance Total Revenue is
+            # already the bank Total Income line). Only emit when we have
+            # the bank signal (interest_earned populated) so non-bank rows
+            # don't get a duplicate "total_income" alias.
+            'total_income': (
+                g('Total Revenue') or g('Operating Revenue')
+            ) if interest_earned_yf is not None else None,
             'source': 'yfinance',
             'statement_type': 'income',
         }

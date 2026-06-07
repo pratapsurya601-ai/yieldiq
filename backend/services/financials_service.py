@@ -131,10 +131,70 @@ class _Row:
     interest_earned: float | None = None
     interest_expended: float | None = None
     total_income: float | None = None
+    # Issue #204 (2026-06-07): non-interest income + operating expenses
+    # for banks so the service layer can derive operating_income (Banks
+    # don't carry a single "operating income" line in Schedule III Div I;
+    # the standard derivation is
+    #   op_income = (interest_earned - interest_expended)
+    #             + non_interest_income - operating_expenses
+    # See derive_bank_operating_income() below.)
+    non_interest_income: float | None = None    # company_financials.other_income
+    operating_expenses: float | None = None     # company_financials.operating_expense
     # Metadata
     roe: float | None = None
     debt_to_equity: float | None = None
     net_margin: float | None = None          # pct; only used for legacy compat
+
+
+def derive_bank_operating_income(
+    *,
+    interest_earned: float | None,
+    interest_expended: float | None,
+    non_interest_income: float | None,
+    operating_expenses: float | None,
+    total_income: float | None = None,
+) -> float | None:
+    """Derive operating_income for a bank when the source row doesn't
+    carry it directly.
+
+    Schedule III Division I (RBI banking format) does not publish a
+    single "operating income" line; the line is constructed from the
+    parts. Two equivalent derivations exist:
+
+      (A) op_income = NII + non_interest_income - operating_expenses
+          where NII = interest_earned - interest_expended
+
+      (B) op_income = total_income - interest_expended - operating_expenses
+          (since total_income = interest_earned + non_interest_income
+          for banks under Schedule III Div I)
+
+    This helper applies (A) when the four interest / fee / expense
+    fields are all populated, and falls back to (B) when
+    non_interest_income is missing but total_income is present.
+    Returns ``None`` if any required input is missing (callers should
+    surface ``None`` rather than a partial / wrong figure).
+
+    All inputs are in Crores (the DB unit). Output is in Crores.
+
+    Issue #204.
+    """
+    ie = _safe_float(interest_earned)
+    iex = _safe_float(interest_expended)
+    nii_other = _safe_float(non_interest_income)
+    op_exp = _safe_float(operating_expenses)
+    tot = _safe_float(total_income)
+
+    # Path A: NII + non-interest income - opex
+    if ie is not None and iex is not None and nii_other is not None and op_exp is not None:
+        return round((ie - iex) + nii_other - op_exp, 2)
+
+    # Path B: total_income - interest_expended - opex
+    # Useful when ingestion populates total_income but not the
+    # interest_earned / non_interest_income split (some older rows).
+    if tot is not None and iex is not None and op_exp is not None:
+        return round(tot - iex - op_exp, 2)
+
+    return None
 
 
 def _book_value_per_share(equity_cr: float | None,
@@ -251,9 +311,16 @@ def _fetch_from_db(db, db_ticker: str, period_type: str,
                COALESCE(yf_eps_basic,         xbrl_eps_basic,        nse_eps_basic)        AS eps_basic,
                COALESCE(yf_eps_diluted,       xbrl_eps_diluted,      nse_eps_diluted)      AS eps_diluted,
                -- Bank format — surfaced from whichever ingest populates them.
-               COALESCE(yf_interest_earned,   xbrl_interest_earned,  nse_interest_earned)   AS interest_earned,
-               COALESCE(yf_interest_expended, xbrl_interest_expended, nse_interest_expended) AS interest_expended,
-               COALESCE(yf_total_income,      xbrl_total_income,     nse_total_income)      AS total_income
+               COALESCE(yf_interest_earned,    xbrl_interest_earned,    nse_interest_earned)    AS interest_earned,
+               COALESCE(yf_interest_expended,  xbrl_interest_expended,  nse_interest_expended)  AS interest_expended,
+               COALESCE(yf_total_income,       xbrl_total_income,       nse_total_income)       AS total_income,
+               -- Issue #204: non-interest income + operating expenses for the
+               -- bank operating_income derivation. ``other_income`` is the
+               -- non-interest line for Schedule III Div I banks (fees +
+               -- commission + treasury/exchange + misc); ``operating_expense``
+               -- is the staff + premises + admin block.
+               COALESCE(yf_other_income,       xbrl_other_income,       nse_other_income)       AS non_interest_income,
+               COALESCE(yf_operating_expense,  xbrl_operating_expense,  nse_operating_expense)  AS operating_expenses
         FROM (
             SELECT period_end_date,
                    MAX(CASE WHEN source='yfinance' THEN revenue           END) AS yf_revenue,
@@ -291,7 +358,16 @@ def _fetch_from_db(db, db_ticker: str, period_type: str,
                    MAX(CASE WHEN source='nse'      THEN interest_expended END) AS nse_interest_expended,
                    MAX(CASE WHEN source='yfinance' THEN total_income      END) AS yf_total_income,
                    MAX(CASE WHEN source='NSE_XBRL' THEN total_income      END) AS xbrl_total_income,
-                   MAX(CASE WHEN source='nse'      THEN total_income      END) AS nse_total_income
+                   MAX(CASE WHEN source='nse'      THEN total_income      END) AS nse_total_income,
+                   -- Issue #204: non-interest income (= other_income for banks)
+                   -- and operating_expense (the staff/premises/admin block)
+                   -- feed derive_bank_operating_income() at the service layer.
+                   MAX(CASE WHEN source='yfinance' THEN other_income      END) AS yf_other_income,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN other_income      END) AS xbrl_other_income,
+                   MAX(CASE WHEN source='nse'      THEN other_income      END) AS nse_other_income,
+                   MAX(CASE WHEN source='yfinance' THEN operating_expense END) AS yf_operating_expense,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN operating_expense END) AS xbrl_operating_expense,
+                   MAX(CASE WHEN source='nse'      THEN operating_expense END) AS nse_operating_expense
             FROM company_financials
             WHERE ticker_nse = :t
               AND statement_type = 'income'
@@ -436,6 +512,9 @@ def _fetch_from_db(db, db_ticker: str, period_type: str,
             interest_earned=_safe_float(inc.get("interest_earned")),
             interest_expended=_safe_float(inc.get("interest_expended")),
             total_income=_safe_float(inc.get("total_income")),
+            # Issue #204 — bank operating_income inputs.
+            non_interest_income=_safe_float(inc.get("non_interest_income")),
+            operating_expenses=_safe_float(inc.get("operating_expenses")),
         )
 
         # Derived: fill EBITDA from EBIT+Depreciation if missing
@@ -557,13 +636,40 @@ def _yfinance_fallback(ticker_ns: str, years: int) -> list[_Row]:
 # ──────────────────────────────────────────────────────────────────────────
 # Year builder (response shape)
 # ──────────────────────────────────────────────────────────────────────────
-def _build_year(row: _Row, prev: _Row | None) -> dict:
+def _build_year(row: _Row, prev: _Row | None,
+                ticker: str | None = None) -> dict:
     rev_growth = _yoy_growth(row.revenue, prev.revenue) if prev else None
     pat_growth = _yoy_growth(row.pat, prev.pat) if prev else None
 
+    # Issue #204 (2026-06-07) — bank operating_income derivation.
+    # For commercial banks the source ``ebit`` column is almost
+    # always NULL (Schedule III Div I doesn't carry a single
+    # operating-income line). Derive it from the four bank inputs
+    # and serve the derived value alongside the GAAP-style ``ebit``
+    # for non-banks. Detection routes through the existing pure-bank
+    # taxonomy (same gate used by the D/E bank fallback).
+    operating_income_val = row.ebit
+    if operating_income_val is None:
+        try:
+            from backend.services.analysis.sector_overrides import (
+                is_pure_bank_for_de,
+            )
+        except Exception:  # pragma: no cover — defensive
+            is_pure_bank_for_de = lambda _t: False  # noqa: E731
+        if ticker is not None and is_pure_bank_for_de(ticker):
+            operating_income_val = derive_bank_operating_income(
+                interest_earned=row.interest_earned,
+                interest_expended=row.interest_expended,
+                non_interest_income=row.non_interest_income,
+                operating_expenses=row.operating_expenses,
+                total_income=row.total_income,
+            )
+
     net_margin_pct = _pct(row.pat, row.revenue)
     gross_margin_pct = _pct(row.gross_profit, row.revenue)
-    operating_margin_pct = _pct(row.ebit, row.revenue)
+    # Operating margin: use the derived operating_income for banks so
+    # the margin populates instead of staying NULL.
+    operating_margin_pct = _pct(operating_income_val, row.revenue)
     fcf_margin_pct = _pct(row.free_cash_flow, row.revenue)
 
     # Debt/Equity
@@ -590,7 +696,7 @@ def _build_year(row: _Row, prev: _Row | None) -> dict:
         "gross_profit": row.gross_profit,
         "gross_margin_pct": gross_margin_pct,
         "ebitda": row.ebitda,
-        "operating_income": row.ebit,
+        "operating_income": operating_income_val,
         "operating_margin_pct": operating_margin_pct,
         # Added 2026-05-25 (feat/sankey-waterfall): surfaces the
         # interest leg for the Revenue Sankey / Earnings Waterfall.
@@ -708,7 +814,10 @@ class FinancialsService:
         years_data: list[dict] = []
         for i, r in enumerate(rows):
             prev = rows[i + 1] if i + 1 < len(rows) else None
-            years_data.append(_build_year(r, prev))
+            # Issue #204: pass ticker so _build_year can route to the
+            # bank operating_income derivation when the GAAP ebit line
+            # is null (Schedule III Div I banks).
+            years_data.append(_build_year(r, prev, ticker=db_ticker))
 
         summary = _compute_summary(years_data)
 

@@ -324,6 +324,33 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # Issue #204 — service-layer derivation of operating_income for
+        # banks (Schedule III Div I doesn't carry a single op-income line;
+        # we derive it from interest_earned − interest_expended +
+        # non_interest_income − operating_expenses). Bumps any cached row
+        # that surfaced a NULL operating_income / operating_margin for a
+        # bank so the new derived value flows. Scope is "*" (wildcard)
+        # because bank tickers vary by the sector_overrides taxonomy and
+        # enumerating them in the manifest entry is more error-prone than
+        # the cheap revalidation on next read.
+        "version_id": "v_bank_op_income_derive_2026_06_07",
+        "applied_at": datetime(2026, 6, 7, 12, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [
+                "operating_income",
+                "ebit_margin",
+                "interest_coverage",
+            ],
+        },
+        "rationale": (
+            "Issue #204: derive operating_income for banks at the service "
+            "layer from interest_earned/expended + non-interest income − "
+            "operating expenses so EBIT margin + interest coverage stop "
+            "rendering NULL on the Schedule III Div I bank cohort."
+        ),
+    },
+    {
         # Tickertape density trick #2 (audit
         # .audit/tickertape-deep-walk-2026-05-27.md). The analysis
         # response now carries `sector_medians` (5 cohort medians:
