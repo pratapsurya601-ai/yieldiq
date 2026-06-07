@@ -22,9 +22,12 @@ import DailyInsightCard from "@/components/home/v2/DailyInsightCard"
 
 // Below-the-fold panels: lazy-load to keep the initial JS bundle small
 // and prioritise LCP for the markets strip + hero columns.
-const QuantPicksGrid = dynamic(() => import("@/components/home/v2/QuantPicksGrid"), { ssr: false })
-const SectorHeatmap = dynamic(() => import("@/components/home/v2/SectorHeatmap"), { ssr: false })
-const EarningsWeekStrip = dynamic(() => import("@/components/home/v2/EarningsWeekStrip"), { ssr: false })
+// Anon-safe panels: SSR enabled so unauthenticated visitors see content,
+// not empty containers (Phase 0 audit: placeholder-audit-phase0.md).
+const QuantPicksGrid = dynamic(() => import("@/components/home/v2/QuantPicksGrid"))
+const SectorHeatmap = dynamic(() => import("@/components/home/v2/SectorHeatmap"))
+const EarningsWeekStrip = dynamic(() => import("@/components/home/v2/EarningsWeekStrip"))
+// User-specific: keep ssr:false (depends on client-only auth store).
 const RecentAnalyses = dynamic(() => import("@/components/home/v2/RecentAnalyses"), { ssr: false })
 
 function QuotaBanner({ remaining }: { remaining: number }) {

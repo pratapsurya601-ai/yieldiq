@@ -5,10 +5,15 @@ import { useAuthStore } from "@/store/authStore"
 import { TIER_LIMITS } from "@/lib/constants"
 
 export default function AnalysisCounter() {
+  const token = useAuthStore((s) => s.token)
   const analysesToday = useAuthStore((s) => s.analysesToday)
   const tier = useAuthStore((s) => s.tier)
   const limit = TIER_LIMITS[tier]
 
+  // Auth store defaults to tier="free", analysesToday=0 for unauthenticated
+  // visitors. Without this gate the "0/5 analyses today" counter SSRs for
+  // strangers and reads as broken product. Token presence = authenticated.
+  if (!token) return null
   if (tier !== "free") return null
 
   const pct = Math.min((analysesToday / (limit as number)) * 100, 100)

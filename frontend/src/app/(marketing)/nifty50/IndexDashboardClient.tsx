@@ -191,7 +191,14 @@ export default function IndexDashboardClient({ data }: { data: DashboardData }) 
               {sorted.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-4 py-12 text-center text-caption">
-                    No data available yet. Cache is warming up — check back in a few minutes.
+                    <p className="font-semibold text-ink mb-1">
+                      Nifty 50 fair-value snapshot
+                    </p>
+                    <p className="text-xs max-w-md mx-auto">
+                      A ranked view of the Nifty 50 by DCF margin-of-safety,
+                      score, and verdict. Click any ticker for full
+                      fair-value analysis.
+                    </p>
                   </td>
                 </tr>
               )}
