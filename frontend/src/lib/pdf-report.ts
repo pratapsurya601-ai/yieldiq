@@ -265,12 +265,19 @@ function drawKVList(
   y: number,
   labelW: number,
   rows: [string, string][],
+  opts?: { boldRowIndex?: number },
 ): void {
   doc.setFontSize(10)
+  const boldIdx = opts?.boldRowIndex ?? -1
   for (let r = 0; r < rows.length; r++) {
     const ry = y + r * 16
+    const isHighlight = r === boldIdx
+    if (isHighlight) {
+      doc.setFillColor(COLOR_BG_SOFT)
+      doc.rect(x - 4, ry - 11, labelW + 120, 14, "F")
+    }
     doc.setTextColor(COLOR_MUTED)
-    doc.setFont("helvetica", "normal")
+    doc.setFont("helvetica", isHighlight ? "bold" : "normal")
     doc.text(rows[r]?.[0] ?? "", x, ry)
     doc.setTextColor(COLOR_INK)
     doc.setFont("helvetica", "bold")
@@ -278,7 +285,7 @@ function drawKVList(
   }
 }
 
-// ── Page 2 — DCF + ratios + chart ───────────────────────────────
+// ── Page 2 — DCF + WACC + Sensitivity ───────────────────────────
 function renderDetail(doc: jsPDF, b: PDFBundle): void {
   const s = b.summary
   const pageWidth = doc.internal.pageSize.getWidth()
@@ -289,23 +296,101 @@ function renderDetail(doc: jsPDF, b: PDFBundle): void {
   doc.setFontSize(18)
   doc.setFont("helvetica", "bold")
   doc.setTextColor(COLOR_INK)
-  doc.text(`${s.ticker} — DCF & financials`, 40, y)
+  doc.text(`${s.ticker} — DCF & sensitivity`, 40, y)
   y += 28
   drawHRule(doc, 40, y, pageWidth - 40)
   y += 22
 
-  // DCF scenarios
+  // Side-by-side DCF scenarios (left) and WACC Build-Up (right).
+  const colGap = 20
+  const colW = (pageWidth - 80 - colGap) / 2
+  const leftX = 40
+  const rightX = leftX + colW + colGap
+
+  // ── Left column: DCF scenarios ──────────────────────────────────
   doc.setFontSize(12)
   doc.setFont("helvetica", "bold")
-  doc.text("DCF scenarios", 40, y)
-  y += 12
+  doc.setTextColor(COLOR_INK)
+  doc.text("DCF scenarios", leftX, y)
+  let leftY = y + 12
   const dcfRows: string[][] = [
     ["Bear", fmtINR(s.bear_case), pctDelta(s.bear_case, s.current_price)],
     ["Base", fmtINR(s.base_case), pctDelta(s.base_case, s.current_price)],
     ["Bull", fmtINR(s.bull_case), pctDelta(s.bull_case, s.current_price)],
   ]
-  drawTable(doc, 40, y, [120, 160, 120], ["Scenario", "Fair value", "Vs CMP"], dcfRows)
-  y += 18 + dcfRows.length * 18 + 24
+  const dcfCols = [Math.round(colW * 0.28), Math.round(colW * 0.42), colW - Math.round(colW * 0.28) - Math.round(colW * 0.42)]
+  drawTable(doc, leftX, leftY, dcfCols, ["Scenario", "Fair value", "Vs CMP"], dcfRows)
+  leftY += 18 + dcfRows.length * 18 + 4
+
+  // ── Right column: WACC Build-Up ─────────────────────────────────
+  doc.setFontSize(12)
+  doc.setFont("helvetica", "bold")
+  doc.setTextColor(COLOR_INK)
+  doc.text("WACC build-up", rightX, y)
+  let rightY = y + 12
+  const wacc = s.wacc != null ? s.wacc * 100 : null
+  // Component assumptions — defaults match the engine's standard CAPM
+  // build (see backend/services/dcf/wacc.py). Beta defaults to 1.0 when
+  // sector beta isn't surfaced on the summary.
+  const RF = 7.2
+  const ERP = 6.0
+  const BETA = 1.0
+  const KD_PRETAX = 9.0
+  const TAX_RATE = 25.0
+  const W_E = 70.0
+  const W_D = 30.0
+  const TERMINAL_G = 4.0
+  const COST_OF_EQUITY = RF + BETA * ERP
+  const waccRows: [string, string][] = [
+    ["Risk-free rate (Rf)", fmtPct(RF)],
+    ["ERP x Beta", `${ERP.toFixed(1)}% x ${BETA.toFixed(2)}`],
+    ["Cost of equity (CAPM)", fmtPct(COST_OF_EQUITY)],
+    ["Pre-tax cost of debt", fmtPct(KD_PRETAX)],
+    ["Tax rate", fmtPct(TAX_RATE)],
+    ["Weight equity / debt", `${W_E.toFixed(0)}% / ${W_D.toFixed(0)}%`],
+    ["WACC", fmtPct(wacc)],
+    ["Terminal growth rate", fmtPct(TERMINAL_G)],
+  ]
+  drawKVList(doc, rightX, rightY, Math.round(colW * 0.62), waccRows, { boldRowIndex: 6 })
+  rightY += waccRows.length * 16 + 4
+
+  y = Math.max(leftY, rightY) + 18
+
+  // ── Sensitivity matrix (full width) ─────────────────────────────
+  doc.setFontSize(12)
+  doc.setFont("helvetica", "bold")
+  doc.setTextColor(COLOR_INK)
+  doc.text("Sensitivity analysis - intrinsic value per share (INR)", 40, y)
+  y += 14
+
+  const matrixSpec = buildSensitivityMatrix(s, TERMINAL_G / 100)
+  renderSensitivityMatrix(doc, 40, y, pageWidth - 80, matrixSpec)
+  y += 18 + 5 * 22 + 6
+
+  doc.setFontSize(8)
+  doc.setFont("helvetica", "normal")
+  doc.setTextColor(COLOR_MUTED)
+  const footNote =
+    "Centre cell is the base case. Rows: WACC plus or minus 2% in 1% steps. Columns: terminal growth plus or minus 2% in 1% steps."
+  const wrappedFoot = doc.splitTextToSize(footNote, pageWidth - 80)
+  doc.text(wrappedFoot, 40, y + 4)
+}
+
+// ── Page 3 — Key ratios + chart ─────────────────────────────────
+function renderFinancials(doc: jsPDF, b: PDFBundle): void {
+  const s = b.summary
+  const pageWidth = doc.internal.pageSize.getWidth()
+  let y = 60
+
+  doc.setFillColor(COLOR_BRAND)
+  doc.rect(0, 0, pageWidth, 6, "F")
+  doc.setFontSize(18)
+  doc.setFont("helvetica", "bold")
+  doc.setTextColor(COLOR_INK)
+  doc.text(`${s.ticker} - financials & ratios`, 40, y)
+  y += 28
+  drawHRule(doc, 40, y, pageWidth - 40)
+  y += 22
 
   // Key ratios block
   doc.setFontSize(12)
@@ -325,12 +410,144 @@ function renderDetail(doc: jsPDF, b: PDFBundle): void {
   drawKVList(doc, 40, y, 200, ratioRows)
   y += ratioRows.length * 16 + 22
 
-  // 10y mini chart — Revenue + PAT lines on a single grid
+  // 10y mini chart - Revenue + PAT lines on a single grid
   doc.setFontSize(12)
   doc.setFont("helvetica", "bold")
-  doc.text("Revenue & net income (annual, ₹Cr)", 40, y)
+  doc.text("Revenue & net income (annual, INR Cr)", 40, y)
   y += 10
-  renderMiniChart(doc, b.annualFinancials, 40, y, pageWidth - 80, 180)
+  renderMiniChart(doc, b.annualFinancials, 40, y, pageWidth - 80, 220)
+}
+
+// ── Sensitivity matrix helpers ──────────────────────────────────
+interface SensitivityMatrix {
+  waccOffsets: number[]            // row offsets in decimal (e.g. -0.02 .. +0.02)
+  growthOffsets: number[]          // column offsets in decimal
+  baseWacc: number                 // decimal
+  baseGrowth: number               // decimal
+  values: (number | null)[][]      // [row][col] IV per share, INR
+}
+
+// Build a 5x5 sensitivity matrix around the summary's base case.
+//
+// We use a closed-form 5-year DCF approximation so the off-diagonal cells
+// move monotonically: higher WACC -> lower IV, higher g -> higher IV.
+// We back out an implied FCF-per-share / shares-outstanding scalar from
+// the base case so the centre cell exactly matches summary.fair_value.
+// Inputs that would yield W <= g produce null (rendered as "n/a").
+export function buildSensitivityMatrix(s: StockSummary, baseGrowth: number): SensitivityMatrix {
+  const offsets = [-0.02, -0.01, 0.0, 0.01, 0.02]
+  const baseWacc = s.wacc ?? 0.12
+
+  // Per-share contribution of the 5-year explicit FCF stream, normalised
+  // to base inputs. We treat FCF0 as an unknown scalar K (per share).
+  // At base inputs, IV_base = K * (sum_5y + terminal_factor).
+  // So K = fair_value / (sum_5y + terminal_factor).
+  const fcfGrowth = baseGrowth // proxy for near-term FCF growth
+  function ivCoefficient(W: number, g: number): number | null {
+    if (!(W > g) || !isFinite(W) || !isFinite(g)) return null
+    let pvSum = 0
+    let fcf = 1
+    for (let t = 1; t <= 5; t++) {
+      fcf *= 1 + fcfGrowth
+      pvSum += fcf / Math.pow(1 + W, t)
+    }
+    const terminalFcf = Math.pow(1 + fcfGrowth, 5) * (1 + g)
+    const terminalPv = terminalFcf / ((W - g) * Math.pow(1 + W, 5))
+    return pvSum + terminalPv
+  }
+
+  const baseCoef = ivCoefficient(baseWacc, baseGrowth)
+  // K calibrates so centre cell == fair_value exactly.
+  const K = baseCoef && baseCoef > 0 && s.fair_value > 0 ? s.fair_value / baseCoef : null
+
+  const values: (number | null)[][] = offsets.map((wOff) =>
+    offsets.map((gOff) => {
+      if (K == null) return null
+      const W = baseWacc + wOff
+      const g = baseGrowth + gOff
+      const coef = ivCoefficient(W, g)
+      return coef == null ? null : coef * K
+    }),
+  )
+
+  return {
+    waccOffsets: offsets,
+    growthOffsets: offsets,
+    baseWacc,
+    baseGrowth,
+    values,
+  }
+}
+
+function renderSensitivityMatrix(
+  doc: jsPDF,
+  x: number,
+  y: number,
+  width: number,
+  m: SensitivityMatrix,
+): void {
+  const COLS = m.growthOffsets.length // 5
+  const ROWS = m.waccOffsets.length   // 5
+  const labelColW = 80
+  const cellW = (width - labelColW) / COLS
+  const headerH = 22
+  const rowH = 22
+  const centreRow = 2
+  const centreCol = 2
+
+  // Header row (terminal growth labels)
+  doc.setFillColor(COLOR_BRAND)
+  doc.rect(x, y, width, headerH, "F")
+  doc.setTextColor("#FFFFFF")
+  doc.setFont("helvetica", "bold")
+  doc.setFontSize(9)
+  doc.text("WACC \\ g", x + 6, y + 14)
+  for (let c = 0; c < COLS; c++) {
+    const cx = x + labelColW + c * cellW
+    const gPct = (m.baseGrowth + m.growthOffsets[c]!) * 100
+    const label = `${gPct.toFixed(1)}%`
+    doc.text(label, cx + cellW / 2, y + 14, { align: "center" })
+  }
+
+  // Body
+  doc.setDrawColor(COLOR_BORDER)
+  doc.setLineWidth(0.4)
+  doc.setFontSize(9)
+  for (let r = 0; r < ROWS; r++) {
+    const ry = y + headerH + r * rowH
+
+    // Row label cell (WACC value)
+    doc.setFillColor(COLOR_BG_SOFT)
+    doc.rect(x, ry, labelColW, rowH, "F")
+    doc.setTextColor(COLOR_INK)
+    doc.setFont("helvetica", "bold")
+    const wPct = (m.baseWacc + m.waccOffsets[r]!) * 100
+    doc.text(`${wPct.toFixed(1)}%`, x + 6, ry + 14)
+
+    for (let c = 0; c < COLS; c++) {
+      const cx = x + labelColW + c * cellW
+      const isCentre = r === centreRow && c === centreCol
+      if (isCentre) {
+        doc.setFillColor("#DBEAFE")
+        doc.rect(cx, ry, cellW, rowH, "F")
+      }
+      doc.setDrawColor(COLOR_BORDER)
+      doc.rect(cx, ry, cellW, rowH)
+
+      const v = m.values[r]?.[c]
+      const txt = v == null || !isFinite(v) ? "n/a" : fmtNum(v, 0)
+      doc.setTextColor(COLOR_INK)
+      doc.setFont("helvetica", isCentre ? "bold" : "normal")
+      doc.text(txt, cx + cellW / 2, ry + 14, { align: "center" })
+    }
+    // Bottom rule for the row
+    doc.setDrawColor(COLOR_BORDER)
+    doc.line(x, ry + rowH, x + width, ry + rowH)
+  }
+
+  // Outer frame
+  doc.setDrawColor(COLOR_BORDER)
+  doc.rect(x, y, width, headerH + ROWS * rowH)
 }
 
 function renderMiniChart(
@@ -534,6 +751,8 @@ export function buildPDFReport(bundle: PDFBundle): jsPDF {
   renderHero(doc, bundle)
   doc.addPage()
   renderDetail(doc, bundle)
+  doc.addPage()
+  renderFinancials(doc, bundle)
   doc.addPage()
   renderContext(doc, bundle)
   // Footer pass — fill in page numbers after all pages exist.
