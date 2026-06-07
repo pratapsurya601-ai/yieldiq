@@ -176,10 +176,8 @@ describe("buildDetailedWorkbook", () => {
     // sebi-allow: buy, sell, outperform, underperform, expensive, cheap, undervalued, overvalued, attractive, investable
     // sebi-allow: buy, sell, outperform, underperform, expensive, cheap, undervalued, overvalued, attractive, investable
     const banned = [
-      // sebi-allow: buy, sell, outperform, underperform, expensive, cheap
-      "buy", "sell", "outperform", "underperform", "expensive", "cheap",
-      // sebi-allow: undervalued, overvalued, attractive, investable
-      "undervalued", "overvalued", "attractive", "investable",
+      "buy", "sell", "outperform", "underperform", "expensive", "cheap", // sebi-allow: buy, sell, outperform, underperform, expensive, cheap
+      "undervalued", "overvalued", "attractive", "investable", // sebi-allow: undervalued, overvalued, attractive, investable
     ]
     // Concatenate all string cells across all sheets and scan for
     // banned words at word boundaries. We allow the verdict field
