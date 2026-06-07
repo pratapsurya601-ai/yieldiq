@@ -60,7 +60,10 @@ export const PRICING_TIERS: readonly PricingTier[] = [
       "Tax Report (capital gains calc)",
     ],
     variants: [
-      { cadence: "monthly", priceInr: 799 },
+      // 2026-06-07: launch pricing — Analyst monthly reduced from ₹799 to
+      // ₹349 (~56% off). Annual unchanged this round; only monthly is
+      // discounted. See LAUNCH_DISCOUNT below for revert instructions.
+      { cadence: "monthly", priceInr: 349 },
       { cadence: "annual", priceInr: 4999 },
     ],
   },
@@ -75,7 +78,9 @@ export const PRICING_TIERS: readonly PricingTier[] = [
       "Save + share custom screens",
     ],
     variants: [
-      { cadence: "monthly", priceInr: 1499 },
+      // 2026-06-07: launch pricing — Pro monthly reduced from ₹1,499 to
+      // ₹699 (~53% off). Annual unchanged.
+      { cadence: "monthly", priceInr: 699 },
       { cadence: "annual", priceInr: 9999 },
     ],
   },
@@ -120,3 +125,66 @@ export const formatPrice = (inr: number | null): string =>
 // one specific price interpolated into surrounding copy.
 export const priceLabel = (id: TierId, cadence: BillingCadence): string =>
   formatPrice(variantFor(id, cadence)?.priceInr ?? null)
+
+// Launch pricing 2026-06: ~56% off original list. Acquisition-phase
+// pricing for the first wave of paying customers. Frontend displays the
+// old price as strikethrough; backend mints new ₹349 / ₹699 plan IDs set
+// via Railway env vars (RAZORPAY_PLAN_ID_ANALYST_MONTHLY +
+// RAZORPAY_PLAN_ID_PRO_MONTHLY). To END the discount:
+//   1. Set LAUNCH_DISCOUNT.enabled = false here, AND
+//   2. Restore the monthly priceInr values in PRICING_TIERS above to the
+//      original (799 / 1499), AND
+//   3. Flip the Railway env vars back to the old plan IDs.
+// One-line frontend revert: LAUNCH_DISCOUNT.enabled = false flips off
+// all strikethrough + badge rendering immediately.
+export const LAUNCH_DISCOUNT = {
+  enabled: true,
+  startDate: "2026-06-07",
+  // null = ongoing; set to YYYY-MM-DD to auto-expire frontend strikethrough.
+  endDate: null as string | null,
+  // Original (pre-discount) prices used for the strikethrough display.
+  originalPrices: {
+    analyst: { monthly: 799, annual: 7990 },
+    pro: { monthly: 1499, annual: 14990 },
+  },
+} as const
+
+export interface LaunchDiscountInfo {
+  originalPrice: number
+  currentPrice: number
+  savings: number
+  percentOff: number
+}
+
+/**
+ * Helper for components that render the strikethrough original price and
+ * the "% off — Launch" badge during launch pricing. Returns null when:
+ *   - the discount is disabled,
+ *   - the configured endDate has passed,
+ *   - the cadence is not "monthly" (this round discounts monthly only),
+ *   - the tier has no configured original price (e.g. free, payg, student),
+ *   - the current variant price is missing (null).
+ * Callers MUST handle the null return — it is the off-switch.
+ */
+export function getLaunchDiscount(
+  tierId: TierId,
+  cadence: BillingCadence
+): LaunchDiscountInfo | null {
+  if (!LAUNCH_DISCOUNT.enabled) return null
+  if (LAUNCH_DISCOUNT.endDate && new Date() > new Date(LAUNCH_DISCOUNT.endDate)) {
+    return null
+  }
+  if (cadence !== "monthly") return null
+  const originals = LAUNCH_DISCOUNT.originalPrices as Record<
+    string,
+    { monthly: number; annual: number } | undefined
+  >
+  const orig = originals[tierId]?.monthly
+  if (orig == null) return null
+  const current = variantFor(tierId, "monthly")?.priceInr ?? null
+  if (current == null) return null
+  const savings = orig - current
+  if (savings <= 0) return null
+  const percentOff = Math.round((savings / orig) * 100)
+  return { originalPrice: orig, currentPrice: current, savings, percentOff }
+}

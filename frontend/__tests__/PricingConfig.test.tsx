@@ -19,6 +19,8 @@ import {
   formatPrice,
   priceLabel,
   tierById,
+  getLaunchDiscount,
+  LAUNCH_DISCOUNT,
 } from "@/config/pricing"
 
 // next/link → plain anchor for jsdom.
@@ -48,9 +50,12 @@ afterEach(() => {
 
 describe("pricing config — defaults", () => {
   it("preserves the prices currently shown on /pricing (no accidental changes)", () => {
-    expect(variantFor("analyst", "monthly")?.priceInr).toBe(799)
+    // 2026-06-07 launch pricing: Analyst & Pro monthly are reduced
+    // (~56% off). Annual unchanged. Pinned here so any further price
+    // edit lands consciously rather than accidentally.
+    expect(variantFor("analyst", "monthly")?.priceInr).toBe(349)
     expect(variantFor("analyst", "annual")?.priceInr).toBe(4999)
-    expect(variantFor("pro", "monthly")?.priceInr).toBe(1499)
+    expect(variantFor("pro", "monthly")?.priceInr).toBe(699)
     expect(variantFor("pro", "annual")?.priceInr).toBe(9999)
     expect(variantFor("student", "monthly")?.priceInr).toBe(199)
     expect(variantFor("payg", "one_time")?.priceInr).toBe(99)
@@ -64,7 +69,7 @@ describe("pricing config — defaults", () => {
   })
 
   it("priceLabel resolves missing variants to 'Coming soon'", () => {
-    expect(priceLabel("analyst", "monthly")).toBe("₹799")
+    expect(priceLabel("analyst", "monthly")).toBe("₹349")
     // payg has no monthly variant — falls through to "Coming soon"
     expect(priceLabel("payg", "monthly")).toBe("Coming soon")
   })
@@ -83,24 +88,24 @@ describe("home QuotaBanner copy reads from config", () => {
   // future hardcoding regression would fail this test.
   it("interpolates the configured Analyst monthly price into the banner string", () => {
     const banner = `Make it count — or upgrade to Analyst for unlimited analyses (${priceLabel("analyst", "monthly")}/mo).`
-    expect(banner).toContain("₹799/mo")
+    expect(banner).toContain("₹349/mo")
   })
 })
 
 describe("tax-report paywall reads from config", () => {
-  it("composes the paywall string from config (not a hardcoded ₹799)", () => {
+  it("composes the paywall string from config (not a hardcoded price)", () => {
     const paywall = `Capital gains tax computation + ITR-ready CSV export is an Analyst (${priceLabel("analyst", "monthly")}/mo) feature.`
-    expect(paywall).toContain("₹799/mo")
+    expect(paywall).toContain("₹349/mo")
   })
 
   it("composes the error message from config", () => {
     const err = `CSV export requires Analyst tier (${priceLabel("analyst", "monthly")}/mo).`
-    expect(err).toBe("CSV export requires Analyst tier (₹799/mo).")
+    expect(err).toBe("CSV export requires Analyst tier (₹349/mo).")
   })
 })
 
 describe("pricing page — default config renders current prices", () => {
-  it("renders Analyst ₹799 and Pro ₹1,499 on the monthly view", async () => {
+  it("renders Analyst ₹349 and Pro ₹699 on the monthly view", async () => {
     // Re-establish required mocks after potential resetModules elsewhere.
     vi.doMock("next/link", () => ({
       default: ({ href, children, ...rest }: { href: string; children: React.ReactNode } & Record<string, unknown>) => (
@@ -120,8 +125,8 @@ describe("pricing page — default config renders current prices", () => {
     render(<PricingPage />)
     // Price headlines may appear in multiple places (card headline, FAQ
     // copy). Match presence-of-substring, not exact-text equality.
-    expect(screen.getAllByText((c) => c.includes("₹799")).length).toBeGreaterThan(0)
-    expect(screen.getAllByText((c) => c.includes("₹1,499")).length).toBeGreaterThan(0)
+    expect(screen.getAllByText((c) => c.includes("₹349")).length).toBeGreaterThan(0)
+    expect(screen.getAllByText((c) => c.includes("₹699")).length).toBeGreaterThan(0)
   })
 })
 
@@ -166,6 +171,44 @@ describe("pricing page — null priceInr renders 'Coming soon'", () => {
     // Monthly is the default billing toggle, so Analyst must render "Coming soon".
     expect(screen.getAllByText(/Coming soon/i).length).toBeGreaterThan(0)
     // Pro tier monthly must still show its configured price.
-    expect(screen.getAllByText((c) => c.includes("₹1,499")).length).toBeGreaterThan(0)
+    expect(screen.getAllByText((c) => c.includes("₹699")).length).toBeGreaterThan(0)
+  })
+})
+
+describe("launch pricing — getLaunchDiscount", () => {
+  it("returns the right shape for Analyst monthly when discount is enabled", () => {
+    // Default config has LAUNCH_DISCOUNT.enabled = true and Analyst
+    // monthly = ₹349 with original ₹799 → 56% off, ₹450 saved.
+    expect(LAUNCH_DISCOUNT.enabled).toBe(true)
+    const d = getLaunchDiscount("analyst", "monthly")
+    expect(d).not.toBeNull()
+    expect(d).toEqual({
+      originalPrice: 799,
+      currentPrice: 349,
+      savings: 450,
+      percentOff: 56,
+    })
+  })
+
+  it("returns the right shape for Pro monthly when discount is enabled", () => {
+    const d = getLaunchDiscount("pro", "monthly")
+    expect(d).not.toBeNull()
+    expect(d?.originalPrice).toBe(1499)
+    expect(d?.currentPrice).toBe(699)
+    expect(d?.savings).toBe(800)
+    // (1499 - 699) / 1499 = 53.36% → rounds to 53
+    expect(d?.percentOff).toBe(53)
+  })
+
+  it("returns null for tiers not configured in originalPrices (free, payg, student)", () => {
+    expect(getLaunchDiscount("free", "monthly")).toBeNull()
+    expect(getLaunchDiscount("payg", "monthly")).toBeNull()
+    expect(getLaunchDiscount("student", "monthly")).toBeNull()
+  })
+
+  it("returns null for non-monthly cadences (discount is monthly-only this round)", () => {
+    expect(getLaunchDiscount("analyst", "annual")).toBeNull()
+    expect(getLaunchDiscount("pro", "annual")).toBeNull()
+    expect(getLaunchDiscount("payg", "one_time")).toBeNull()
   })
 })
