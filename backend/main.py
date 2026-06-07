@@ -954,6 +954,13 @@ app.include_router(concall.router)
 # Phase H-frontend: AR signals public-read endpoints (no auth).
 from backend.routers import annual_reports as annual_reports_router
 app.include_router(annual_reports_router.router)
+# Earnings-impact estimator (heuristic, public-read, no auth).
+#   GET /api/v1/analysis/{ticker}/earnings-impact
+# Bridges fresh quarterly result → rough sense of how the next
+# nightly FV recompute may move. NOT a recompute; payload is
+# labelled is_heuristic=true at every layer.
+from backend.routers import earnings_impact as earnings_impact_router
+app.include_router(earnings_impact_router.router)
 # Phase I-frontend (Block II): bank-specific operational KPIs for
 # the PURE_BANK_TICKERS_FOR_DE cohort.
 #   GET /api/v1/banks/{ticker}/kpis
