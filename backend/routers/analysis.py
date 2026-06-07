@@ -2228,8 +2228,16 @@ async def get_financials_endpoint(
     Full financial statements (5y annual / 8q quarterly).
 
     Tier limits:
-      - free       → 3 years max (annual); quarterly unaffected
+      - free       → 5 years max (annual); quarterly unaffected
       - starter+   → 5 years max
+
+    Issue #205 (2026-06-07): raised the free-tier annual cap from
+    3y → 5y. The 3y CAGR computation in ``_compute_summary`` needs
+    4 data points (latest + 3 prior) to land a real 3-year CAGR;
+    capping at 3 left anonymous users with a perpetually-null
+    ``revenue_cagr_3y`` and broke the "Show 3Y CAGR" UI badge.
+    Bumping to 5 leaves a paid-tier delta for the deeper history /
+    quarterly slice while unblocking the free-tier surface.
     """
     ticker = ticker.upper().strip()
 
@@ -2237,9 +2245,9 @@ async def get_financials_endpoint(
     tier_order = {"free": 0, "starter": 1, "pro": 2}
     tier_level = tier_order.get(tier, 0)
     tier_limited = tier_level == 0
-    if period == "annual" and tier_level == 0:
-        years = min(years, 3)
-    elif period == "annual":
+    # Issue #205: free tier annual cap raised 3y → 5y so CAGR populates.
+    # Quarterly cap is untouched. Paid tiers continue to receive 5y.
+    if period == "annual":
         years = min(years, 5)
 
     _cache_key = f"financials:{ticker}:{period}:{years}"
