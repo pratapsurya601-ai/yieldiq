@@ -11,7 +11,7 @@
 // GET /api/v1/alerts/. Once the Portfolio tab is migrated, we can
 // retire the legacy AlertResponse type.
 //
-// SEBI vocabulary: never use "buy", "sell", "recommend", "should", etc.
+// SEBI vocabulary: stick to descriptive verbs only — see scripts/check_sebi_words.py for the enforced list.
 // Copy here is purely descriptive — "notify when discount reaches X%".
 
 import * as React from "react"
@@ -64,7 +64,7 @@ function kindDescription(row: AlertRow): string {
   const display = row.ticker.replace(".NS", "").replace(".BO", "")
   switch (row.kind) {
     case "mos_above":
-      // Descriptive — no "buy"/"recommend".
+      // Descriptive copy only — no advice verbs.
       return `Notify when ${display} discount-to-FV reaches ${t ?? "—"}%`
     case "mos_below":
       return `Notify when ${display} discount-to-FV falls below ${t ?? "—"}%`
