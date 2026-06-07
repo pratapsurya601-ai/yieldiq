@@ -12,6 +12,14 @@ on:
       - "frontend/**"
       - ".github/workflows/frontend-tests.yml"
 
+# ci-cost-opt 2026-06-07: cancel in-progress PR runs on rebase. Vitest is
+# ~5 min and rebase storms are common during frontend redesign work.
+# Push-to-main runs are preserved (different ref).
+# Estimated savings: ~25-50 min/month.
+concurrency:
+  group: frontend-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   vitest:
     runs-on: ubuntu-latest

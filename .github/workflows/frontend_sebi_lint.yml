@@ -31,6 +31,15 @@ on:
       - ".github/workflows/frontend_sebi_lint.yml"
   workflow_dispatch:
 
+# ci-cost-opt 2026-06-07: cancel in-progress PR runs on rebase. SEBI lint
+# is fast (~2 min) but fires on almost every PR — rebase savings still
+# add up to ~15-25 min/month. Push-to-main and manual runs unaffected.
+# NOTE: paths are intentionally broad (**/*.py, **/*.ts, **/*.tsx) — SEBI
+# vocab can leak into any user-facing string and must catch it. Not tightening.
+concurrency:
+  group: sebi-lint-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   sebi-lint:
     runs-on: ubuntu-latest

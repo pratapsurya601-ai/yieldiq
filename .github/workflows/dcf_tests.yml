@@ -42,6 +42,14 @@ on:
         required: false
         default: "3"
 
+# ci-cost-opt 2026-06-07: cancel in-progress PR runs on rebase only.
+# dcf_tests hits prod at 2 req/s — a wasted ~9-min run on free tier is
+# expensive. DCF baseline (dcf_golden.json) and trigger semantics unchanged.
+# Estimated savings: ~40-80 min/month.
+concurrency:
+  group: dcf-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   dcf-regression:
     runs-on: ubuntu-latest

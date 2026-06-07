@@ -13,13 +13,31 @@ name: Memory Profile Check
 
 on:
   pull_request:
+    # ci-cost-opt 2026-06-07: tightened from `backend/**` to the four
+    # runtime-loaded subdirs. The previous filter triggered this ~15-min
+    # workflow on every PR that touched `backend/tests/`, `backend/CLAUDE.md`,
+    # `backend/migrations/*.sql`, none of which can affect runtime memory.
+    # Same memory-relevant changes (services / routers / models / validators
+    # under backend/, and the standalone models/ directory) still trigger.
+    # Estimated savings: ~600-900 min/month — by far the largest single fix.
     paths:
-      - "backend/**"
+      - "backend/services/**"
+      - "backend/routers/**"
+      - "backend/models/**"
+      - "backend/validators/**"
       - "models/**"
       - "scripts/profile_memory_anchors.py"
       - "scripts/memory_baseline.json"
       - ".github/workflows/memory-profile-check.yml"
   workflow_dispatch:
+
+# ci-cost-opt 2026-06-07: cancel in-progress PR runs on rebase. This is the
+# heaviest PR-triggered workflow (~12 min/run, installs full backend deps).
+# A wasted run during a rebase storm is the single biggest per-event burn.
+# Estimated additional savings: ~60-120 min/month.
+concurrency:
+  group: memory-profile-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   memory-profile:

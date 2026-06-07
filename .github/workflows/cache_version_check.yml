@@ -15,6 +15,21 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, edited]
+    # ci-cost-opt 2026-06-07: skip doc-only PRs (~30 min/month saved).
+    # cache_version_check has no positive paths: filter (by design — every
+    # code PR needs the gate). paths-ignore lets pure-docs PRs skip it.
+    paths-ignore:
+      - '**.md'
+      - 'redesign/**'
+      - '.audit/**'
+      - 'docs/**'
+
+# ci-cost-opt 2026-06-07: cancel in-progress run on rebase / force-push.
+# A re-pushed PR makes the prior run's result moot — wasting it on free tier
+# is pure burn. Saves ~10-20 min/month on this workflow during sprints.
+concurrency:
+  group: cache-version-check-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
