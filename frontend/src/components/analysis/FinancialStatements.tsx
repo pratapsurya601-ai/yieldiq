@@ -77,44 +77,96 @@ function GrowthArrow({ value }: { value: number | null }) {
 type RowDef = {
   label: string
   render: (y: FinancialYear) => React.ReactNode
+  /**
+   * Raw numeric accessor used by the all-null-row filter. When every
+   * rendered period returns null/undefined for this row, the row is
+   * hidden — eliminates the wall-to-wall em-dash columns banks show on
+   * non-applicable rows (Gross Profit / EBITDA / Operating Income /
+   * Capex / FCF). Cluster D, analysis-page-ui-audit-phase0, 2026-06-07.
+   * Also benefits any non-bank ticker with missing fields.
+   */
+  value: (y: FinancialYear) => number | null | undefined
   emphasis?: boolean
 }
 
 function incomeRows(currency: string | null | undefined, ticker?: string): RowDef[] {
   return [
-    { label: "Revenue", emphasis: true, render: y => fmtCurrency(y.revenue, currency) },
-    { label: "  YoY Growth", render: y => <GrowthArrow value={y.revenue_growth_pct} /> },
-    { label: "Gross Profit", render: y => fmtCurrency(y.gross_profit, currency) },
-    { label: "  Gross Margin", render: y => fmtPct(y.gross_margin_pct) },
-    { label: "EBITDA", render: y => fmtCurrency(y.ebitda, currency) },
-    { label: "Operating Income", render: y => fmtCurrency(y.operating_income, currency) },
-    { label: "  Operating Margin", render: y => fmtPct(y.operating_margin_pct) },
-    { label: "Net Income", emphasis: true, render: y => fmtCurrency(y.net_income, currency) },
-    { label: "  YoY Growth", render: y => <GrowthArrow value={y.net_income_growth_pct} /> },
-    { label: "  Net Margin", render: y => fmtPct(y.net_margin_pct) },
-    { label: "EPS (Diluted)", render: y => fmtPerShare(y.eps_diluted, currency, ticker) },
+    { label: "Revenue", emphasis: true,
+      render: y => fmtCurrency(y.revenue, currency),
+      value: y => y.revenue },
+    { label: "  YoY Growth",
+      render: y => <GrowthArrow value={y.revenue_growth_pct} />,
+      value: y => y.revenue_growth_pct },
+    { label: "Gross Profit",
+      render: y => fmtCurrency(y.gross_profit, currency),
+      value: y => y.gross_profit },
+    { label: "  Gross Margin",
+      render: y => fmtPct(y.gross_margin_pct),
+      value: y => y.gross_margin_pct },
+    { label: "EBITDA",
+      render: y => fmtCurrency(y.ebitda, currency),
+      value: y => y.ebitda },
+    { label: "Operating Income",
+      render: y => fmtCurrency(y.operating_income, currency),
+      value: y => y.operating_income },
+    { label: "  Operating Margin",
+      render: y => fmtPct(y.operating_margin_pct),
+      value: y => y.operating_margin_pct },
+    { label: "Net Income", emphasis: true,
+      render: y => fmtCurrency(y.net_income, currency),
+      value: y => y.net_income },
+    { label: "  YoY Growth",
+      render: y => <GrowthArrow value={y.net_income_growth_pct} />,
+      value: y => y.net_income_growth_pct },
+    { label: "  Net Margin",
+      render: y => fmtPct(y.net_margin_pct),
+      value: y => y.net_margin_pct },
+    { label: "EPS (Diluted)",
+      render: y => fmtPerShare(y.eps_diluted, currency, ticker),
+      value: y => y.eps_diluted },
   ]
 }
 
 function balanceRows(currency: string | null | undefined, ticker?: string): RowDef[] {
   return [
-    { label: "Total Assets", render: y => fmtCurrency(y.total_assets, currency) },
-    { label: "Total Equity", emphasis: true, render: y => fmtCurrency(y.total_equity, currency) },
-    { label: "Total Debt", render: y => fmtCurrency(y.total_debt, currency) },
-    { label: "Cash & Equivalents", render: y => fmtCurrency(y.cash, currency) },
-    { label: "Net Debt", render: y => fmtCurrency(y.net_debt, currency) },
-    { label: "Debt / Equity", render: y => fmtRatio(y.debt_to_equity) },
-    { label: "Book Value / Share", render: y => fmtPerShare(y.book_value_per_share, currency, ticker) },
+    { label: "Total Assets",
+      render: y => fmtCurrency(y.total_assets, currency),
+      value: y => y.total_assets },
+    { label: "Total Equity", emphasis: true,
+      render: y => fmtCurrency(y.total_equity, currency),
+      value: y => y.total_equity },
+    { label: "Total Debt",
+      render: y => fmtCurrency(y.total_debt, currency),
+      value: y => y.total_debt },
+    { label: "Cash & Equivalents",
+      render: y => fmtCurrency(y.cash, currency),
+      value: y => y.cash },
+    { label: "Net Debt",
+      render: y => fmtCurrency(y.net_debt, currency),
+      value: y => y.net_debt },
+    { label: "Debt / Equity",
+      render: y => fmtRatio(y.debt_to_equity),
+      value: y => y.debt_to_equity },
+    { label: "Book Value / Share",
+      render: y => fmtPerShare(y.book_value_per_share, currency, ticker),
+      value: y => y.book_value_per_share },
   ]
 }
 
 function cashflowRows(currency: string | null | undefined): RowDef[] {
   return [
-    { label: "Operating Cash Flow", render: y => fmtCurrency(y.operating_cash_flow, currency) },
+    { label: "Operating Cash Flow",
+      render: y => fmtCurrency(y.operating_cash_flow, currency),
+      value: y => y.operating_cash_flow },
     { label: "Capital Expenditure",
-      render: y => <span className="text-red-600">{fmtCapex(y.capex, currency)}</span> },
-    { label: "Free Cash Flow", emphasis: true, render: y => fmtCurrency(y.free_cash_flow, currency) },
-    { label: "  FCF Margin", render: y => fmtPct(y.fcf_margin_pct) },
+      render: y => <span className="text-red-600">{fmtCapex(y.capex, currency)}</span>,
+      value: y => y.capex },
+    { label: "Free Cash Flow", emphasis: true,
+      render: y => fmtCurrency(y.free_cash_flow, currency),
+      value: y => y.free_cash_flow },
+    { label: "  FCF Margin",
+      render: y => fmtPct(y.fcf_margin_pct),
+      value: y => y.fcf_margin_pct },
   ]
 }
 
@@ -174,10 +226,28 @@ export default function FinancialStatements({ ticker, currency }: Props) {
 
   const years = data?.income ?? []
   const rows: RowDef[] = useMemo(() => {
-    if (tab === "income") return incomeRows(currency, ticker)
-    if (tab === "balance") return balanceRows(currency, ticker)
-    return cashflowRows(currency)
-  }, [tab, currency, ticker])
+    const base =
+      tab === "income"
+        ? incomeRows(currency, ticker)
+        : tab === "balance"
+          ? balanceRows(currency, ticker)
+          : cashflowRows(currency)
+    // Cluster D (analysis-page-ui-audit-phase0, 2026-06-07): hide any
+    // row whose value is null/undefined across every rendered period.
+    // Banks (BANKBARODA, HDFCBANK) return null for Gross Profit /
+    // EBITDA / Operating Income / Capex / FCF — without this filter the
+    // panel renders wall-to-wall em-dashes for those rows. Mirrors the
+    // is_bank pattern in QualityRatios.tsx but applies generically so
+    // any non-bank ticker with missing fields also benefits. With zero
+    // years the filter is a no-op (empty-state UI handles that case).
+    if (years.length === 0) return base
+    return base.filter(row =>
+      years.some(y => {
+        const v = row.value(y)
+        return v !== null && v !== undefined
+      }),
+    )
+  }, [tab, currency, ticker, years])
 
   /* ---------- Render states ---------- */
   if (!visible || isLoading) {

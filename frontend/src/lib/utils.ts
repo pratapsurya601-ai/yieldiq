@@ -231,13 +231,24 @@ export function verdictFromMos(mos: number | null | undefined): string {
  *
  * The gate fires when ANY of these is true:
  *   - dataLimited === true
- *   - confidence < 60 (was 50)
+ *   - confidence < 70 (was 50 → 60 → 70 — see threshold history below)
  *   - (bull_case - bear_case) / current_price > 0.25
  *
  * Returns true when the caller renders an "Under Review" /
  * "Low Confidence" label instead of a directional verdict.
+ *
+ * Threshold history:
+ *   - 50: original
+ *   - 60 (Day-91, 2026-05-22): TCS at 67% confidence still passed and
+ *     rendered a confident directional verdict alongside the
+ *     AdrCohortBanner's "data limited" warning — two contradictory
+ *     statements on screen for any ADR ticker.
+ *   - 70 (2026-06-07, cluster G of analysis-page-ui-audit-phase0):
+ *     raise to catch TCS-class confidence-67 reads. The Day-91 comment
+ *     above ("TCS at 67% confidence … still renders 'Under Review'")
+ *     was the stated intent but the threshold was off by one tier.
  */
-export const LOW_CONFIDENCE_THRESHOLD = 60
+export const LOW_CONFIDENCE_THRESHOLD = 70
 export const WIDE_BAND_RATIO_THRESHOLD = 0.25
 
 /**

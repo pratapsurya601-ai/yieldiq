@@ -36,8 +36,11 @@ describe("shouldGateVerdict — Day-94 bear-side bypass", () => {
   it("exports the bear-side bypass thresholds as named constants", () => {
     expect(BEAR_OVERVALUED_BYPASS_MOS).toBe(-25)
     expect(BEAR_OVERVALUED_BYPASS_CONFIDENCE).toBe(40)
-    // Sanity: bull side untouched.
-    expect(LOW_CONFIDENCE_THRESHOLD).toBe(60)
+    // Sanity: bull side untouched. Threshold bumped 60 → 70 on
+    // 2026-06-07 (analysis-page-ui-audit-phase0 cluster G) to catch
+    // TCS-class confidence-67 reads that contradicted the
+    // AdrCohortBanner's "data limited" warning.
+    expect(LOW_CONFIDENCE_THRESHOLD).toBe(70)
     expect(WIDE_BAND_RATIO_THRESHOLD).toBe(0.25)
   })
 
