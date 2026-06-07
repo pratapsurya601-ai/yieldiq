@@ -16,14 +16,35 @@ const PREFERRED_ORDER = [
   "NIFTY AUTO",
 ]
 
+// 2026-06-07: per-index drill-down. Operator caught the "Markets →" link
+// sending users to /discover (random stock picks). Same root cause for
+// the cells themselves — they rendered as static divs even though each
+// index has its own dashboard page. Map index names to existing routes;
+// fall back to a static cell when no dashboard exists yet (SENSEX, etc).
+const INDEX_ROUTES: Record<string, string> = {
+  "NIFTY 50": "/nifty50",
+  "NIFTY BANK": "/nifty-bank",
+  "NIFTY IT": "/nifty-it",
+}
+
+function indexHref(label: string): string | null {
+  const upper = label.toUpperCase()
+  for (const [key, href] of Object.entries(INDEX_ROUTES)) {
+    if (upper.includes(key)) return href
+  }
+  return null
+}
+
 function Cell({
   label,
   value,
   pct,
+  href,
 }: {
   label: string
   value: string
   pct: number | null
+  href?: string | null
 }) {
   const up = pct !== null && pct >= 0
   const color =
@@ -32,8 +53,8 @@ function Cell({
       : up
         ? "text-green-600 dark:text-green-400"
         : "text-red-600 dark:text-red-400"
-  return (
-    <div className="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0">
+  const inner = (
+    <>
       <span className="text-[9px] font-bold uppercase tracking-wider text-caption truncate">
         {label}
       </span>
@@ -45,8 +66,18 @@ function Cell({
           {pct === null ? "—" : formatPct(pct)}
         </span>
       </div>
-    </div>
+    </>
   )
+  const className =
+    "flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0"
+  if (href) {
+    return (
+      <Link href={href} className={`${className} hover:bg-bg/30 transition`}>
+        {inner}
+      </Link>
+    )
+  }
+  return <div className={className}>{inner}</div>
 }
 
 function Skeleton() {
@@ -91,6 +122,7 @@ export default function MarketsStrip() {
             label={idx.name}
             value={idx.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
             pct={idx.change_pct ?? null}
+            href={indexHref(idx.name)}
           />
         ))}
         {pulse.usd_inr != null && (
@@ -108,7 +140,7 @@ export default function MarketsStrip() {
           />
         )}
         <Link
-          href="/discover"
+          href="/markets"
           className="flex items-center px-3 text-[11px] font-semibold text-brand hover:underline whitespace-nowrap"
         >
           Markets →

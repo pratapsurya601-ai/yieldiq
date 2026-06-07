@@ -1173,6 +1173,53 @@ export const getStockSummary = async (
 }
 
 // ---------------------------------------------------------------------------
+// Stock summary with status — preserves the under_review signal so callers
+// (e.g. RecentAnalyses home tile) can render "Under Review" instead of
+// dropping the entry. The plain getStockSummary above drops under_review
+// silently which is correct for Excel-export / heatmap callers, but the
+// home tile needs to honor the recalibration status visibly.
+//
+// Root-cause discipline (2026-06-07): RecentAnalyses previously rendered
+// price + MoS from a localStorage cache written at view-time. That cache
+// never invalidated, never honored under_review, and froze unclamped raw
+// MoS values (the +200% ITC bug operator caught on /home). The fix is to
+// stop caching display data — localStorage holds identity only, and the
+// tile re-fetches fresh status per ticker on mount.
+// ---------------------------------------------------------------------------
+
+export type StockSummaryStatus =
+  | { kind: "ok"; summary: StockSummary }
+  | { kind: "under_review"; ticker: string; message?: string }
+  | { kind: "unavailable"; ticker: string }
+
+export const getStockSummaryStatus = async (
+  ticker: string,
+): Promise<StockSummaryStatus> => {
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
+  try {
+    const res = await fetch(`${base}/api/v1/public/stock-summary/${ticker}`, {
+      next: { revalidate: 300 },
+    })
+    if (!res.ok) return { kind: "unavailable", ticker }
+    const data = await res.json()
+    if (data && data.status === "under_review") {
+      return {
+        kind: "under_review",
+        ticker,
+        message:
+          typeof data.message === "string" ? data.message : undefined,
+      }
+    }
+    if (data && typeof data.current_price === "number") {
+      return { kind: "ok", summary: data as StockSummary }
+    }
+    return { kind: "unavailable", ticker }
+  } catch {
+    return { kind: "unavailable", ticker }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // PAYG (Pay-as-you-go) — ₹99 for 24h access to a single analysis.
 // Backend: POST /create-order → Razorpay modal → POST /verify → ticker unlocked.
 // Unlock state lives in Postgres; /payg-unlocks returns only unlocks within

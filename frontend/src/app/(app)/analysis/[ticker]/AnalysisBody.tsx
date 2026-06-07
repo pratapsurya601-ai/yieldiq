@@ -624,11 +624,22 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       // "Recent analyses" card. The reader (components/home/v2/
       // RecentAnalyses.tsx) has always pulled from this localStorage
       // key, but nothing ever wrote to it, so the card was empty for
-      // every user no matter how many tickers they analysed. We push
-      // the freshly-loaded ticker + price + MoS here (deduped on
-      // symbol, capped at 5) so the next home-page render has real
-      // entries to show. v1 is intentionally localStorage-only — the
-      // backend `recent_views` table TODO in the reader still stands.
+      // every user no matter how many tickers they analysed.
+      //
+      // 2026-06-07 root-cause refactor: previously this writer ALSO
+      // cached `price` and `mos` from the view-time analysis payload.
+      // Two failure modes followed: (1) the cached price+mos never
+      // refreshed, so a user who viewed ITC weeks ago would see weeks-
+      // old numbers on /home forever, and (2) the cached `mos` was the
+      // raw unclamped `valuation.margin_of_safety`, which on data-
+      // limited tickers can be +300% / +800% and survives the per-page
+      // displayMos() clamp by being snapshotted before the clamp.
+      // Operator caught a +200% ITC tile on 2026-06-07 — ITC was
+      // already flagged `under_review` by the validators but the tile
+      // happily rendered stale lies. Fix: store identity only here;
+      // RecentAnalyses re-fetches `/public/stock-summary/<ticker>` per
+      // entry on mount, honors `under_review`, and uses the canonical
+      // displayMos() clamp.
       try {
         const STORAGE_KEY = "yq:recent-views"
         const raw = window.localStorage.getItem(STORAGE_KEY)
@@ -642,11 +653,6 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         const entry = {
           ticker: data.ticker,
           viewedAt: Date.now(),
-          price:
-            typeof data.valuation.current_price === "number"
-              ? data.valuation.current_price
-              : null,
-          mos: mos != null && Number.isFinite(mos) ? mos : null,
         }
         const next = [entry, ...filtered].slice(0, 5)
         window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
