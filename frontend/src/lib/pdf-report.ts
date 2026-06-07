@@ -31,6 +31,11 @@ import type {
 } from "@/lib/api"
 import { SEBI_DISCLAIMER } from "@/lib/excel-detailed"
 import { isPureBank } from "@/lib/bankTickers"
+import {
+  generateDataRisks,
+  type DataRisk,
+  type DataRisksBundle,
+} from "@/lib/pdf-data-risks"
 
 export interface PDFBundle {
   ticker: string
@@ -38,6 +43,14 @@ export interface PDFBundle {
   annualFinancials: HistoricalFinancialsResponse | null
   ratios: RatioHistoryResponse | null
   peers: PublicPeersResponse | null
+  /**
+   * Optional extended signal fields used by the data-driven risks panel.
+   * Every field is independently optional; absent fields cause the
+   * corresponding detector to stay silent rather than fabricate a risk.
+   * See {@link DataRisksBundle} for the per-field schema and the
+   * `// TODO(backend)` markers tracking when each field lights up.
+   */
+  signals?: Omit<DataRisksBundle, "summary">
 }
 
 const COLOR_INK = "#0F172A"
@@ -707,7 +720,87 @@ function renderMiniChart(
   doc.text("Net income", x + w - 58, y + 15)
 }
 
-// ── Page 3 — Peers + methodology + sources + SEBI ───────────────
+// ── Page 3 — Data-flagged risks ─────────────────────────────────
+// Sits BEFORE methodology / disclaimer so a reader scanning to the end
+// sees the data-grounded caveats next to the FV number, not buried
+// after the boilerplate sources block.
+
+const SEVERITY_DOT_COLOR: Record<DataRisk["severity"], string> = {
+  high: "#DC2626",
+  medium: "#D97706",
+  info: "#2563EB",
+}
+
+function renderDataRisks(doc: jsPDF, b: PDFBundle): void {
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  let y = 60
+
+  doc.setFillColor(COLOR_BRAND)
+  doc.rect(0, 0, pageWidth, 6, "F")
+  doc.setFontSize(18)
+  doc.setFont("helvetica", "bold")
+  doc.setTextColor(COLOR_INK)
+  doc.text(`${b.summary.ticker} — Key Risks Flagged from Data`, 40, y)
+  y += 22
+
+  doc.setFontSize(9)
+  doc.setFont("helvetica", "normal")
+  doc.setTextColor(COLOR_MUTED)
+  const lede = doc.splitTextToSize(
+    "Generated from current data signals — news tier, AR extraction, " +
+      "corporate-action feed, peer cohort. Not a complete risk inventory; " +
+      "read the latest annual report for the full picture.",
+    pageWidth - 80,
+  )
+  doc.text(lede, 40, y)
+  y += lede.length * 11 + 8
+
+  drawHRule(doc, 40, y, pageWidth - 40)
+  y += 18
+
+  const risks = generateDataRisks({ summary: b.summary, ...(b.signals ?? {}) })
+
+  if (risks.length === 0) {
+    doc.setFillColor(COLOR_BG_SOFT)
+    doc.setDrawColor(COLOR_BORDER)
+    const emptyLines = doc.splitTextToSize(
+      "No data-flagged risks at this scan. Risks always exist — please " +
+        "read the most recent annual report and quarterly transcripts for " +
+        "context.",
+      pageWidth - 100,
+    )
+    const boxH = emptyLines.length * 12 + 24
+    doc.roundedRect(40, y, pageWidth - 80, boxH, 6, 6, "FD")
+    doc.setFontSize(10)
+    doc.setTextColor(COLOR_INK)
+    doc.text(emptyLines, 50, y + 18)
+    return
+  }
+
+  // Each risk: severity dot + bold headline + small-text wrapped evidence.
+  for (const r of risks) {
+    if (y > pageHeight - 120) break // safety: never spill into footer
+    doc.setFillColor(SEVERITY_DOT_COLOR[r.severity])
+    doc.circle(46, y - 3, 4, "F")
+
+    doc.setFontSize(11)
+    doc.setFont("helvetica", "bold")
+    doc.setTextColor(COLOR_INK)
+    const headLines = doc.splitTextToSize(r.headline, pageWidth - 100)
+    doc.text(headLines, 58, y)
+    y += headLines.length * 13 + 2
+
+    doc.setFontSize(9)
+    doc.setFont("helvetica", "normal")
+    doc.setTextColor(COLOR_MUTED)
+    const evLines = doc.splitTextToSize(r.evidence, pageWidth - 100)
+    doc.text(evLines, 58, y)
+    y += evLines.length * 11 + 14
+  }
+}
+
+// ── Page 4 — Peers + methodology + sources + SEBI ───────────────
 function renderContext(doc: jsPDF, b: PDFBundle): void {
   const pageWidth = doc.internal.pageSize.getWidth()
   let y = 60
@@ -815,6 +908,8 @@ export function buildPDFReport(bundle: PDFBundle): jsPDF {
   renderDetail(doc, bundle)
   doc.addPage()
   renderFinancials(doc, bundle)
+  doc.addPage()
+  renderDataRisks(doc, bundle)
   doc.addPage()
   renderContext(doc, bundle)
   // Footer pass — fill in page numbers after all pages exist.
