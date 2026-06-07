@@ -98,9 +98,9 @@ const BUNDLE: PDFBundle = {
 }
 
 describe("buildPDFReport", () => {
-  it("produces a 3-page A4 document", () => {
+  it("produces a 4-page A4 document", () => {
     const doc = buildPDFReport(BUNDLE)
-    expect(doc.getNumberOfPages()).toBe(3)
+    expect(doc.getNumberOfPages()).toBe(4)
     const w = doc.internal.pageSize.getWidth()
     const h = doc.internal.pageSize.getHeight()
     // A4 in points: 595 x 842 (jsPDF default at pt unit)
