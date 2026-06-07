@@ -39,6 +39,7 @@ import { useEffect, useState } from "react"
 import { History } from "lucide-react"
 import { getStockSummaryStatus, type StockSummaryStatus } from "@/lib/api"
 import { displayMos } from "@/lib/utils"
+import TickerAvatar from "@/components/common/TickerAvatar"
 
 const STORAGE_KEY = "yq:recent-views"
 
@@ -131,7 +132,10 @@ export default function RecentAnalyses() {
                 href={`/analysis/${display}`}
                 className="flex items-center justify-between px-4 py-2.5 hover:bg-bg/50 transition"
               >
-                <span className="text-xs font-semibold text-ink font-mono">{display}</span>
+                <span className="flex items-center gap-2 min-w-0">
+                  <TickerAvatar ticker={it.ticker} size="sm" />
+                  <span className="text-xs font-semibold text-ink font-mono truncate">{display}</span>
+                </span>
                 <div className="flex items-center gap-3 text-[11px] font-mono">
                   {renderStatus(row, loading)}
                   <span className="text-brand">View →</span>

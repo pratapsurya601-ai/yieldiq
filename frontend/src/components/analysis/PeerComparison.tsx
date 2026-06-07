@@ -8,6 +8,7 @@ import { getPeers, type PeerRow, type PeersResponse } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { currencySymbol, currencyLocale } from "@/lib/currency"
 import { formatMarketCap } from "@/lib/formatters"
+import TickerAvatar from "@/components/common/TickerAvatar"
 
 interface Props {
   ticker: string
@@ -134,16 +135,19 @@ const buildColumns = (currency: string | null | undefined, ticker: string): Colu
     key: "company",
     label: "Company",
     render: row => (
-      <div className="flex flex-col">
-        <span className="text-xs font-medium text-ink inline-flex items-center gap-1">
-          {row.is_main && (
-            <Star className="w-3 h-3 text-amber-500 fill-amber-500" aria-label="Main ticker" />
-          )}
-          {truncate(row.company_name, 14)}
-        </span>
-        <span className="text-[10px] text-caption">
-          {row.ticker.replace(".NS", "").replace(".BO", "")}
-        </span>
+      <div className="flex items-center gap-2">
+        <TickerAvatar ticker={row.ticker} size="sm" />
+        <div className="flex flex-col min-w-0">
+          <span className="text-xs font-medium text-ink inline-flex items-center gap-1">
+            {row.is_main && (
+              <Star className="w-3 h-3 text-amber-500 fill-amber-500" aria-label="Main ticker" />
+            )}
+            {truncate(row.company_name, 14)}
+          </span>
+          <span className="text-[10px] text-caption">
+            {row.ticker.replace(".NS", "").replace(".BO", "")}
+          </span>
+        </div>
       </div>
     ),
   },

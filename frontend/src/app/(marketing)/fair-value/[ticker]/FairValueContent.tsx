@@ -150,7 +150,11 @@ function FairValuePanel({ vm }: PanelProps) {
       className="rounded-xl border border-border bg-raised p-6 sm:p-8 my-8"
     >
       <div className="flex items-center gap-3 mb-6">
-        <TickerAvatar ticker={vm.ticker} size="md" />
+        {/* size="sm" → 24px, preserves the visual size from the
+            pre-2026-06 component when "md" mapped to 24px. The sitewide
+            scale was widened (xs/sm/md/lg = 16/24/32/48) so size names
+            shifted; the visual here stays the same. */}
+        <TickerAvatar ticker={vm.ticker} size="sm" />
         <div className="text-sm text-caption">
           {vm.displayTicker}
           {vm.sector ? ` · ${vm.sector}` : ""}

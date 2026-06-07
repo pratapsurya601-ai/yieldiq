@@ -6,6 +6,7 @@ import { verdictClassesWithDark } from "@/lib/constants"
 import { formatNumberWithSuffix, formatPctSigned, cn } from "@/lib/utils"
 import { metricToneClass } from "@/lib/metricTone"
 import { DataCard } from "@/components/cards"
+import TickerAvatar from "@/components/common/TickerAvatar"
 
 interface Props {
   ticker: string
@@ -145,17 +146,22 @@ export default function PeerComparisonCard({ ticker, data }: Props) {
                   className="border-b border-border last:border-0 hover:bg-surface dark:hover:bg-bg transition"
                 >
                   <td className="py-2 pr-3">
-                    <Link
-                      href={`/stocks/${peerTicker}/fair-value`}
-                      className="text-blue-600 hover:text-tone-info-fg font-semibold font-mono"
-                    >
-                      {peerTicker}
-                    </Link>
-                    {peer.company_name ? (
-                      <p className="text-[10px] text-caption truncate max-w-[200px]">
-                        {peer.company_name}
-                      </p>
-                    ) : null}
+                    <div className="flex items-center gap-2">
+                      <TickerAvatar ticker={peerTicker ?? ""} size="sm" />
+                      <div className="min-w-0">
+                        <Link
+                          href={`/stocks/${peerTicker}/fair-value`}
+                          className="text-blue-600 hover:text-tone-info-fg font-semibold font-mono"
+                        >
+                          {peerTicker}
+                        </Link>
+                        {peer.company_name ? (
+                          <p className="text-[10px] text-caption truncate max-w-[200px]">
+                            {peer.company_name}
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
                   </td>
                   <td
                     className={`py-2 px-2 text-right font-mono tabular-nums ${

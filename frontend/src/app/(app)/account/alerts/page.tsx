@@ -20,6 +20,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import { Bell, BellOff, Trash2 } from "lucide-react"
 
 import api from "@/lib/api"
+import TickerAvatar from "@/components/common/TickerAvatar"
 
 // ── Types (mirror backend/routers/alerts.py response shape) ──
 
@@ -184,6 +185,7 @@ export default function AccountAlertsPage() {
                 key={row.id}
                 className="flex items-start gap-3 rounded-xl border border-border bg-surface p-4"
               >
+                <TickerAvatar ticker={row.ticker} size="md" className="mt-0.5" />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <Link

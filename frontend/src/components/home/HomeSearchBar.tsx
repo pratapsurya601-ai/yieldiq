@@ -15,6 +15,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import Fuse from "fuse.js"
 import type { IFuseOptions } from "fuse.js"
+import TickerAvatar from "@/components/common/TickerAvatar"
 
 interface TickerIndexEntry {
   ticker: string
@@ -233,11 +234,14 @@ export default function HomeSearchBar() {
                   idx === highlightIdx ? "bg-brand/10" : "hover:bg-brand/5"
                 }`}
               >
-                <span className="flex flex-col min-w-0">
-                  <span className="text-sm font-semibold text-ink truncate">
-                    {s.displayTicker}
+                <span className="flex items-center gap-2 min-w-0">
+                  <TickerAvatar ticker={s.ticker} size="sm" />
+                  <span className="flex flex-col min-w-0">
+                    <span className="text-sm font-semibold text-ink truncate">
+                      {s.displayTicker}
+                    </span>
+                    <span className="text-xs text-body truncate">{s.name}</span>
                   </span>
-                  <span className="text-xs text-body truncate">{s.name}</span>
                 </span>
                 <span className="text-caption text-xs" aria-hidden="true">
                   &rsaquo;

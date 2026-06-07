@@ -7,6 +7,7 @@ import api from "@/lib/api"
 import Link from "next/link"
 import { useAuthStore } from "@/store/authStore"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
+import TickerAvatar from "@/components/common/TickerAvatar"
 
 interface ScreenerStock {
   ticker: string
@@ -164,6 +165,7 @@ function ScreenerContent() {
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-caption w-6 text-right">{i + 1}</span>
+                    <TickerAvatar ticker={stock.ticker} size="sm" />
                     <span className="text-sm font-semibold text-blue-700">{cleanTicker}</span>
                   </div>
                   <div className="flex items-center gap-6">
