@@ -14,6 +14,7 @@ import { useQuery } from "@tanstack/react-query"
 import { getWatchlist } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
 import { Eye, Plus } from "lucide-react"
+import TickerAvatar from "@/components/common/TickerAvatar"
 
 function Skeleton() {
   return (
@@ -79,11 +80,14 @@ export default function WatchlistPanel() {
                 href={`/analysis/${display}`}
                 className="flex items-center justify-between px-4 py-2.5 hover:bg-bg/50 transition"
               >
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-ink truncate">{display}</p>
-                  {w.company_name && (
-                    <p className="text-[10px] text-caption truncate">{w.company_name}</p>
-                  )}
+                <div className="flex items-center gap-2 min-w-0">
+                  <TickerAvatar ticker={w.ticker} size="md" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-ink truncate">{display}</p>
+                    {w.company_name && (
+                      <p className="text-[10px] text-caption truncate">{w.company_name}</p>
+                    )}
+                  </div>
                 </div>
                 <span className="text-[11px] text-brand font-semibold">View →</span>
               </Link>

@@ -22,6 +22,7 @@ import {
   formatCompanyName,
   verdictDisplayLabel,
 } from "@/lib/utils"
+import TickerAvatar from "@/components/common/TickerAvatar"
 
 interface Props {
   ticker: string
@@ -63,8 +64,11 @@ function PeerCard({
       className="group block rounded-xl border border-border bg-bg hover:border-brand hover:bg-surface transition p-3"
     >
       <div className="flex items-baseline justify-between gap-2 mb-1">
-        <span className="font-display text-sm font-semibold text-ink truncate group-hover:text-brand">
-          {t}
+        <span className="flex items-center gap-1.5 min-w-0">
+          <TickerAvatar ticker={peer.ticker} size="sm" />
+          <span className="font-display text-sm font-semibold text-ink truncate group-hover:text-brand">
+            {t}
+          </span>
         </span>
         {derivedPrice != null && derivedPrice > 0 && (
           <span className="font-mono tabular-nums text-xs text-body shrink-0">

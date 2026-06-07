@@ -14,6 +14,7 @@ import SamplePortfolioView, { SAMPLE_DISMISSED_KEY } from "@/components/portfoli
 import { BelowFairValueBanner } from "@/components/portfolio/HealthDashboard"
 import UpdatesFeed from "@/components/portfolio/UpdatesFeed"
 import UnlockBadge from "@/components/payg/UnlockBadge"
+import TickerAvatar from "@/components/common/TickerAvatar"
 import { formatCurrency } from "@/lib/utils"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
 import { Suspense, useEffect, useState } from "react"
@@ -555,20 +556,23 @@ function PortfolioInner() {
             {watchlist.map((w: { ticker: string; company_name: string; target_price: number; added_price: number }) => (
               <div key={w.ticker} className="flex items-center bg-bg dark:bg-surface rounded-xl border border-gray-100 hover:border-blue-200 transition">
                 <Link href={`/analysis/${w.ticker}`} className="flex-1 flex items-center justify-between p-4">
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-medium text-ink">{w.ticker.replace(".NS", "")}</p>
-                      <UnlockBadge ticker={w.ticker} size="sm" />
-                      {tickersWithBandShift.has(w.ticker.toUpperCase()) && (
-                        <span
-                          className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-200"
-                          title="Sector-percentile valuation band shifted recently"
-                        >
-                          New band shift
-                        </span>
-                      )}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <TickerAvatar ticker={w.ticker} size="md" />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-medium text-ink">{w.ticker.replace(".NS", "")}</p>
+                        <UnlockBadge ticker={w.ticker} size="sm" />
+                        {tickersWithBandShift.has(w.ticker.toUpperCase()) && (
+                          <span
+                            className="inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700 ring-1 ring-amber-200"
+                            title="Sector-percentile valuation band shifted recently"
+                          >
+                            New band shift
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-caption">{w.company_name}</p>
                     </div>
-                    <p className="text-xs text-caption">{w.company_name}</p>
                   </div>
                   <div className="text-right">
                     {w.added_price > 0 && (

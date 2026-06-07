@@ -4,6 +4,7 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import type { ScreenerStock } from "@/types/api"
 import UnlockBadge from "@/components/payg/UnlockBadge"
+import TickerAvatar from "@/components/common/TickerAvatar"
 
 // The three rails on /discover. SectorLeaders composes existing YieldIQ 50
 // data (no backend work). NearLowsRail + LowestPERail fetch from new public
@@ -55,6 +56,7 @@ export function SectorLeaders({ stocks }: SectorLeadersProps) {
           >
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-1.5 min-w-0">
+                <TickerAvatar ticker={stock.ticker} size="sm" />
                 <p className="text-sm font-bold text-ink truncate">{stock.ticker.replace(".NS", "")}</p>
                 <UnlockBadge ticker={stock.ticker} size="sm" />
               </div>
@@ -134,7 +136,10 @@ export function NearLowsRail() {
               className="bg-surface rounded-xl border border-border p-3 hover:border-brand hover:shadow-sm active:scale-[0.98] transition"
             >
               <div className="flex items-center justify-between mb-1">
-                <p className="text-sm font-bold text-ink truncate">{s.ticker.replace(".NS", "")}</p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <TickerAvatar ticker={s.ticker} size="sm" />
+                  <p className="text-sm font-bold text-ink truncate">{s.ticker.replace(".NS", "")}</p>
+                </div>
                 <span className="text-[9px] font-semibold text-success bg-bg rounded px-1.5 py-0.5 uppercase tracking-wider">Score {s.yieldiq_score}</span>
               </div>
               <p className="text-base font-bold text-ink font-mono tabular-nums">
@@ -218,7 +223,10 @@ export function LowestPERail({ stocks: _unused }: LowestPERailProps) {
               className="bg-surface rounded-xl border border-border p-3 hover:border-brand hover:shadow-sm active:scale-[0.98] transition"
             >
               <div className="flex items-center justify-between mb-1">
-                <p className="text-sm font-bold text-ink truncate">{s.ticker.replace(".NS", "")}</p>
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <TickerAvatar ticker={s.ticker} size="sm" />
+                  <p className="text-sm font-bold text-ink truncate">{s.ticker.replace(".NS", "")}</p>
+                </div>
                 <span className="text-[9px] font-semibold text-success bg-bg rounded px-1.5 py-0.5 uppercase tracking-wider">Score {s.yieldiq_score}</span>
               </div>
               <p className="text-base font-bold text-ink font-mono tabular-nums">

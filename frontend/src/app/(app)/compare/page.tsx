@@ -41,6 +41,7 @@ import {
 import { SCORE_COLOR, VERDICT_COLORS } from "@/lib/constants"
 import type { Verdict } from "@/types/api"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
+import TickerAvatar from "@/components/common/TickerAvatar"
 
 const MAX_STOCKS = 5
 const MIN_STOCKS = 2
@@ -157,10 +158,13 @@ function AddStockInput({
                 setQuery("")
                 setOpen(false)
               }}
-              className="w-full text-left px-4 py-3 hover:bg-blue-50 transition flex items-center justify-between border-b border-gray-50 last:border-0"
+              className="w-full text-left px-4 py-3 hover:bg-blue-50 transition flex items-center justify-between gap-3 border-b border-gray-50 last:border-0"
             >
-              <span className="font-medium text-ink text-sm truncate">{s.name}</span>
-              <span className="text-xs text-caption font-mono ml-3 shrink-0">
+              <span className="flex items-center gap-2 min-w-0">
+                <TickerAvatar ticker={s.ticker} size="sm" />
+                <span className="font-medium text-ink text-sm truncate">{s.name}</span>
+              </span>
+              <span className="text-xs text-caption font-mono shrink-0">
                 {displayTicker(s.ticker)}
               </span>
             </button>
@@ -799,6 +803,9 @@ function CompareContent() {
               </span>
               {orderedStocks.map((s) => (
                 <div key={s.ticker} className="text-center min-w-0">
+                  <div className="flex items-center justify-center gap-1.5 mb-1">
+                    <TickerAvatar ticker={s.ticker} size="md" />
+                  </div>
                   <Link
                     href={`/analysis/${s.ticker}`}
                     className="text-sm font-semibold text-ink hover:text-blue-600 transition truncate block"

@@ -32,6 +32,7 @@ import {
   verdictDisplayLabel,
 } from "@/lib/utils"
 import { metricToneClass } from "@/lib/metricTone"
+import TickerAvatar from "@/components/common/TickerAvatar"
 
 interface Props {
   ticker: string
@@ -340,13 +341,16 @@ export default function InlinePeerComparison({
               )}
             >
               <div className="flex items-baseline justify-between gap-2 mb-1">
-                <span className="font-display text-sm font-semibold text-ink">
-                  {displayTicker(row.ticker)}
-                  {isSubject ? (
-                    <span className="ml-2 text-[10px] uppercase tracking-wide text-brand">
-                      This stock
-                    </span>
-                  ) : null}
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <TickerAvatar ticker={row.ticker} size="sm" />
+                  <span className="font-display text-sm font-semibold text-ink">
+                    {displayTicker(row.ticker)}
+                    {isSubject ? (
+                      <span className="ml-2 text-[10px] uppercase tracking-wide text-brand">
+                        This stock
+                      </span>
+                    ) : null}
+                  </span>
                 </span>
                 <span className={cn("text-xs font-mono tabular-nums", mosToneClass(row.mos_pct))}>
                   {row.mos_pct != null && Number.isFinite(row.mos_pct)
@@ -440,18 +444,21 @@ export default function InlinePeerComparison({
                   )}
                 >
                   <td className="py-2 pl-3 pr-2">
-                    <div className="flex flex-col">
-                      <span className="font-display text-xs font-semibold text-ink">
-                        {displayTicker(row.ticker)}
-                        {isSubject ? (
-                          <span className="ml-2 text-[9px] uppercase tracking-wide text-brand">
-                            This stock
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="text-[10px] text-caption truncate max-w-[180px]">
-                        {formatCompanyName(row.company_name)}
-                      </span>
+                    <div className="flex items-center gap-2">
+                      <TickerAvatar ticker={row.ticker} size="sm" />
+                      <div className="flex flex-col min-w-0">
+                        <span className="font-display text-xs font-semibold text-ink">
+                          {displayTicker(row.ticker)}
+                          {isSubject ? (
+                            <span className="ml-2 text-[9px] uppercase tracking-wide text-brand">
+                              This stock
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="text-[10px] text-caption truncate max-w-[180px]">
+                          {formatCompanyName(row.company_name)}
+                        </span>
+                      </div>
                     </div>
                   </td>
                   <td className="py-2 px-2 text-[11px] text-body">
