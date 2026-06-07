@@ -102,10 +102,7 @@ import {
   formatCurrency,
   formatPct,
   formatCompanyName,
-  verdictDisplayLabel,
-  verdictFromMos,
   formatRelativeTime,
-  shouldGateVerdict,
 } from "@/lib/utils"
 import { trackStockAnalysed } from "@/lib/analytics"
 import Link from "next/link"
@@ -570,40 +567,15 @@ export default function AnalysisBody({ ticker, prism }: Props) {
 
   useEffect(() => {
     if (data) {
-      const displayTicker = data.ticker.replace(".NS", "").replace(".BO", "")
-      // Tab title verdict is derived from MoS (the same number rendered
-      // in the hero) via verdictFromMos() so tab and body can never
-      // disagree. Falls back to the verdict-string label if MoS is
-      // missing/non-finite (e.g. data_limited / unavailable states).
-      const mos = data.valuation.margin_of_safety
-      // Day-91 (2026-05-22): route the tab title through the same
-      // verdict-pill gate the hero uses. Before this, TCS at 67%
-      // confidence + Data Limited banner rendered "TCS — Notably
-      // Undervalued | YieldIQ" in the browser tab — directly
-      // contradicting the page's own data-limited banner. RELIANCE /
-      // INDIGO at 41-45% confidence rendered confident verdicts in
-      // the tab too. The gate collapses both to "Under Review" /
-      // "Low Confidence" using the shared lib/utils helper.
-      const gated = shouldGateVerdict({
-        dataLimited:
-          (data.valuation.verdict || "").toString().toLowerCase() === "data_limited",
-        confidence: data.valuation.confidence_score,
-        currentPrice: data.valuation.current_price,
-        bullCase: data.valuation.bull_case,
-        bearCase: data.valuation.bear_case,
-        marginOfSafety: mos,
-      })
-      // Fallback chain: gate > MoS-derived verdict > backend verdict
-      // label > neutral "Stock Analysis". The neutral form catches
-      // tickers where price / FV / verdict are all null (e.g. data
-      // outage on INFY 2026-04-30) so we never render "INFY —  | YieldIQ".
-      const mosVerdict =
-        mos != null && Number.isFinite(mos) ? verdictFromMos(mos) : ""
-      const fallbackVerdict = verdictDisplayLabel(data.valuation.verdict)
-      const verdict = gated
-        ? "Under Review"
-        : mosVerdict || fallbackVerdict || "Stock Analysis"
-      document.title = `${displayTicker} — ${verdict} | YieldIQ`
+      // Tab title is set by the SSR `generateMetadata` in
+      // analysis/[ticker]/layout.tsx — a SEBI-safe neutral form
+      // ("<Company> (<TICKER>) — Analysis | YieldIQ"). We deliberately
+      // do NOT overwrite document.title on hydration: doing so leaked
+      // verdict vocabulary ("Notably Undervalued", etc.) into the
+      // browser tab and history for authed users, defeating the SSR
+      // fix that already protects crawlers + anon visitors. The hero
+      // and verdict pill on the page surface the verdict visibly;
+      // the tab does not need to repeat it.
 
       const desc = `${data.company.company_name} (${data.ticker}) fair value ₹${data.valuation.fair_value.toFixed(0)} vs price ₹${data.valuation.current_price.toFixed(0)}. YieldIQ Score: ${data.quality.yieldiq_score}/100. ${data.quality.moat} moat.`
       const metaDesc = document.querySelector('meta[name="description"]')
