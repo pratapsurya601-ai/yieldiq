@@ -1,18 +1,30 @@
-name: Cron — Refresh index_snapshots (every 15min)
+name: Cron — Refresh index_snapshots (every 30min, market hours)
 
 # Replaces the in-process APScheduler "market_index_snapshots" job.
 # Pulls quotes for NIFTY/SENSEX/sector benchmarks/gold/silver/VIX from
-# yfinance and UPSERTs into index_snapshots. 24x7 (off-hours rows are
-# stale-but-correct and used by the sector retrospective endpoints).
+# yfinance and UPSERTs into index_snapshots.
 #
-# Schedule: every 15 minutes.
+# Schedule: every 30 minutes during NSE market hours (Mon-Fri,
+# 09:15-15:30 IST = 03:45-10:00 UTC). Indices move slower than
+# individual stocks and the sector retrospective / public market
+# endpoints consume index_snapshots at-rest with no minute-grain
+# staleness gate, so 30-min cadence is sufficient.
+#
+# Cost reduction (2026-06-07, infra cost audit phase 0):
+#   - Was: */15 * * * *  -> 96 runs/day × 30d ≈ 2,880 runs/mo × ~1 min
+#                           ≈ 2,880 min/mo
+#   - Now: */30 3-10 * * 1-5 -> 16 ticks × 5d × 4.3wk ≈ 344 runs/mo × ~1 min
+#                                ≈ 344 min/mo
+#   - Saves ~2,500 min/mo.
 #
 # Secrets required:
 #   - DATABASE_URL : Neon/Aiven Postgres URL
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    # */30 between 03:00-10:00 UTC, Mon-Fri (covers 09:00 IST pre-open
+    # through 15:30 IST close + 15:30 IST close + 16:00 IST cleanup).
+    - cron: "*/30 3-10 * * 1-5"
   workflow_dispatch:
 
 concurrency:
@@ -53,4 +65,4 @@ jobs:
         run: |
           python scripts/write_cron_heartbeat.py \
             --workflow cron-market-index-snapshots \
-            --interval-minutes 15
+            --interval-minutes 30
