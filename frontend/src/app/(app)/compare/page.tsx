@@ -26,13 +26,14 @@ import { useSearchParams, useRouter } from "next/navigation"
 import { useQueries, useQuery } from "@tanstack/react-query"
 import Link from "next/link"
 import api, {
-  getStockSummary,
+  getStockSummaryStatus,
   getPublicPeers,
   type StockSummary,
+  type StockSummaryStatus,
 } from "@/lib/api"
 import {
   formatCurrency,
-  formatPct,
+  displayMos,
   formatPercentage,
   cn,
   verdictDisplayLabel,
@@ -343,10 +344,17 @@ function buildRowSpecs(stocks: StockSummary[]): RowSpec[] {
     },
     {
       label: "Discount to FV",
+      // Use the canonical displayMos helper for defense-in-depth clamping
+      // (±200% cap) on top of the backend's already-clamped mos. Falls back
+      // to "—" when displayMos returns null (suppressed) so we don't render
+      // a misleading runaway number. StockSummary doesn't surface
+      // mos_clamped / data_limited, so we pass null for both flags —
+      // displayMos still applies the hard cap path.
       values: map((s) => s.mos),
-      rendered: map((s) => (
-        <span className={s.mos >= 0 ? "" : ""}>{formatPct(s.mos)}</span>
-      )),
+      rendered: map((s) => {
+        const formatted = displayMos(s.mos, null, null)
+        return <span>{formatted ?? "—"}</span>
+      }),
       higherIsBetter: true,
     },
     {
@@ -501,10 +509,16 @@ function CompareContent() {
 
   // Parallel fetches — useQueries lets us request N tickers at once,
   // each cached independently in the React Query store.
+  //
+  // We use getStockSummaryStatus (not getStockSummary) so the under_review
+  // signal is preserved per-ticker. getStockSummary silently drops
+  // under_review, which is correct for Excel-export callers but wrong here:
+  // the compare table needs to tell the user "KOTAKBANK is under review,
+  // not unavailable" rather than just dropping it into the failed bucket.
   const summaryQueries = useQueries({
     queries: tickers.map((t) => ({
-      queryKey: ["stock-summary", t],
-      queryFn: () => getStockSummary(t),
+      queryKey: ["stock-summary-status", t],
+      queryFn: () => getStockSummaryStatus(t),
       staleTime: 5 * 60 * 1000,
       retry: 1,
     })),
@@ -513,12 +527,28 @@ function CompareContent() {
   const isLoading = summaryQueries.some((q) => q.isLoading)
   const stocks = summaryQueries
     .map((q) => q.data)
-    .filter((s): s is StockSummary => !!s)
+    .filter((s): s is StockSummaryStatus => !!s && s.kind === "ok")
+    .map((s) => (s as Extract<StockSummaryStatus, { kind: "ok" }>).summary)
 
-  // Track which tickers failed to load so we can show a soft warning.
-  const failedTickers = tickers.filter(
-    (t, i) => !summaryQueries[i].isLoading && !summaryQueries[i].data,
-  )
+  // Partition non-ok tickers into under-review vs unavailable so the
+  // warning bar can use accurate language. under_review is a transient
+  // state (recalibration window); unavailable is "we don't have this
+  // ticker right now or the request failed".
+  const underReviewTickers: string[] = []
+  const unavailableTickers: string[] = []
+  summaryQueries.forEach((q, i) => {
+    if (q.isLoading) return
+    const data = q.data
+    if (!data) {
+      unavailableTickers.push(tickers[i])
+      return
+    }
+    if (data.kind === "under_review") {
+      underReviewTickers.push(tickers[i])
+    } else if (data.kind === "unavailable") {
+      unavailableTickers.push(tickers[i])
+    }
+  })
 
   // Sector-peer suggestions: pull peers of the FIRST ticker once we have
   // at least one stock loaded. Hide ones the user already added.
@@ -700,10 +730,25 @@ function CompareContent() {
         </div>
       )}
 
-      {/* Failed tickers warning */}
-      {failedTickers.length > 0 && (
-        <div className="text-xs text-rose-700 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2">
-          Could not load: {failedTickers.map(displayTicker).join(", ")} (under review or unknown)
+      {/* Under-review tickers — neutral amber, not error red.
+          Recalibration is a transient backend state, not a failure. */}
+      {underReviewTickers.length > 0 && (
+        <div
+          data-testid="compare-under-review-warning"
+          className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2"
+        >
+          Under review (excluded from comparison):{" "}
+          {underReviewTickers.map(displayTicker).join(", ")}
+        </div>
+      )}
+
+      {/* Unavailable tickers — actual fetch failure or unknown ticker. */}
+      {unavailableTickers.length > 0 && (
+        <div
+          data-testid="compare-unavailable-warning"
+          className="text-xs text-rose-700 bg-rose-50 border border-rose-100 rounded-lg px-3 py-2"
+        >
+          Could not load: {unavailableTickers.map(displayTicker).join(", ")}
         </div>
       )}
 
