@@ -8,7 +8,7 @@ import { useSettingsStore } from "@/store/settingsStore"
 import Link from "next/link"
 import { ArrowRight, Play } from "lucide-react"
 import MarketingTopNav from "@/components/marketing/MarketingTopNav"
-import { priceLabel, getLaunchDiscount } from "@/config/pricing"
+import { priceLabel, getLaunchDiscount, tierById } from "@/config/pricing"
 
 /* ── Scroll animation hook ───────────────────────────── */
 function useInView(threshold = 0.15) {
@@ -212,11 +212,20 @@ type PricingTeaser = {
   tagline: string
   highlight?: boolean
 }
+// 2026-06-07: tiers flagged `hidden: true` in @/config/pricing are
+// filtered out of `visiblePricingPlans` below before render \u2014 Pro is
+// hidden for the simplification launch but remains in this array so
+// re-enabling is a single config flip. Filter happens at render time
+// (not at array-definition time) so the source-of-truth stays in
+// pricing.ts.
 const pricingPlans: PricingTeaser[] = [
   { id: "free",    name: "Free",    price: "\u20B90",                          period: "/forever", tagline: "5 deep analyses per day. All core features." },
   { id: "analyst", name: "Analyst", price: priceLabel("analyst", "monthly"),   period: "/month",   tagline: "Unlimited analyses, Portfolio Prism, AI summaries.", highlight: true },
   { id: "pro",     name: "Pro",     price: priceLabel("pro", "monthly"),       period: "/month",   tagline: "CSV/PDF export, API access, priority compute." },
 ]
+const visiblePricingPlans: PricingTeaser[] = pricingPlans.filter(
+  (p) => !tierById(p.id)?.hidden
+)
 
 /* ═════════════════════════════════════════════════════════
    Landing content — 5 sections, ~3500px target
@@ -407,8 +416,18 @@ function LandingContent() {
               Pricing
             </h2>
           </FadeIn>
-          <div className="grid md:grid-cols-3 gap-4">
-            {pricingPlans.map((p) => {
+          {/* 2026-06-07: grid cols sized to `visiblePricingPlans.length`
+              so the layout stays balanced when a tier is hidden. With
+              Pro hidden we render 2 cards (Free + Analyst); when Pro
+              is re-exposed the grid grows back to 3. Capped at md:cols-3. */}
+          <div
+            className={
+              visiblePricingPlans.length >= 3
+                ? "grid md:grid-cols-3 gap-4 max-w-3xl mx-auto"
+                : "grid md:grid-cols-2 gap-4 max-w-2xl mx-auto"
+            }
+          >
+            {visiblePricingPlans.map((p) => {
               // Launch-pricing strikethrough + badge applies to the paid
               // monthly tiers (analyst, pro). Returns null for "free".
               const launch = p.id === "free" ? null : getLaunchDiscount(p.id, "monthly")

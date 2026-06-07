@@ -107,7 +107,7 @@ describe("tax-report paywall reads from config", () => {
 })
 
 describe("pricing page — default config renders current prices", () => {
-  it("renders Analyst ₹349 and Pro ₹699 on the monthly view", async () => {
+  it("renders Analyst ₹349 on the monthly view and hides Pro (₹699 not in cards)", async () => {
     // Re-establish required mocks after potential resetModules elsewhere.
     vi.doMock("next/link", () => ({
       default: ({ href, children, ...rest }: { href: string; children: React.ReactNode } & Record<string, unknown>) => (
@@ -125,10 +125,57 @@ describe("pricing page — default config renders current prices", () => {
     }))
     const { default: PricingPage } = await import("@/app/(marketing)/pricing/page")
     render(<PricingPage />)
-    // Price headlines may appear in multiple places (card headline, FAQ
-    // copy). Match presence-of-substring, not exact-text equality.
+    // Analyst price headline still renders.
     expect(screen.getAllByText((c) => c.includes("₹349")).length).toBeGreaterThan(0)
-    expect(screen.getAllByText((c) => c.includes("₹699")).length).toBeGreaterThan(0)
+    // 2026-06-07: Pro is hidden from the customer display, so its
+    // ₹699 monthly price MUST NOT appear anywhere on /pricing — not
+    // in cards, not in the FAQ, not in the launch strikethrough.
+    expect(screen.queryAllByText((c) => c.includes("₹699")).length).toBe(0)
+    // And the literal "Pro" tier name must not appear as a tier
+    // headline. (The word may still appear in the SEBI footer or
+    // unrelated tier copy, so we look specifically for the bold tier
+    // label rendered by the card render loop — a testid would be
+    // cleaner, but the existing card markup does not expose one. The
+    // substring check is sufficient: in the visible card grid, "Pro"
+    // appeared only as a tier label.)
+    const proLabels = screen.queryAllByText((c) => c.trim() === "Pro")
+    expect(proLabels.length).toBe(0)
+  })
+})
+
+describe("pricing config — Pro tier hidden", () => {
+  it("keeps Pro tier in PRICING_TIERS (config preserved for backend env-var paths)", () => {
+    // Backend reads Razorpay plan IDs via env vars
+    // (RAZORPAY_PLAN_ID_PRO_MONTHLY / _ANNUAL); the frontend tier
+    // entry must remain so display prices stay in lockstep with those
+    // plan IDs the moment Pro is re-exposed.
+    const pro = tierById("pro")
+    expect(pro).toBeDefined()
+    expect(pro?.name).toBe("Pro")
+    expect(pro?.variants.find((v) => v.cadence === "monthly")?.priceInr).toBe(699)
+    expect(pro?.variants.find((v) => v.cadence === "annual")?.priceInr).toBe(9999)
+  })
+
+  it("flags Pro as hidden so render surfaces filter it out", () => {
+    // The off-switch for the simplification launch — flip to false to
+    // re-expose Pro across /pricing + landing teaser.
+    expect(tierById("pro")?.hidden).toBe(true)
+  })
+
+  it("does not flag Free or Analyst as hidden", () => {
+    expect(tierById("free")?.hidden).toBeFalsy()
+    expect(tierById("analyst")?.hidden).toBeFalsy()
+  })
+
+  it("still computes a launch discount for Pro (math is independent of display)", () => {
+    // getLaunchDiscount must keep working for Pro even while hidden —
+    // the discount config is the source of truth for the strikethrough
+    // math and must not be coupled to display visibility. (If we
+    // re-expose Pro tomorrow the strikethrough must still render.)
+    const d = getLaunchDiscount("pro", "monthly")
+    expect(d).not.toBeNull()
+    expect(d?.originalPrice).toBe(1499)
+    expect(d?.currentPrice).toBe(699)
   })
 })
 
@@ -172,8 +219,14 @@ describe("pricing page — null priceInr renders 'Coming soon'", () => {
 
     // Monthly is the default billing toggle, so Analyst must render "Coming soon".
     expect(screen.getAllByText(/Coming soon/i).length).toBeGreaterThan(0)
-    // Pro tier monthly must still show its configured price.
-    expect(screen.getAllByText((c) => c.includes("₹699")).length).toBeGreaterThan(0)
+    // 2026-06-07: Pro is hidden via `hidden: true` in PRICING_TIERS,
+    // so its ₹699 monthly price MUST NOT render on /pricing even
+    // when other tier variants are mocked to null. (Previously this
+    // test pinned Pro's price as a "other tiers unaffected" probe;
+    // since the cards no longer render Pro at all, the Free tier
+    // ₹0/forever headline serves the same role.)
+    expect(screen.queryAllByText((c) => c.includes("₹699")).length).toBe(0)
+    expect(screen.getAllByText((c) => c.includes("₹0")).length).toBeGreaterThan(0)
   })
 })
 

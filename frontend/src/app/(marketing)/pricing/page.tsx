@@ -8,7 +8,7 @@ import {
   trackBillingToggled,
   trackUpgradeClicked,
 } from "@/lib/analytics"
-import { variantFor, priceLabel, getLaunchDiscount } from "@/config/pricing"
+import { variantFor, priceLabel, getLaunchDiscount, tierById } from "@/config/pricing"
 
 // Nav is now provided by (marketing)/layout.tsx via the unified MarketingTopNav.
 
@@ -45,6 +45,10 @@ interface Plan {
 // here because the pricing-page layout is bespoke (highlighted card, "Most
 // Popular" badge, per-feature included/excluded affordances) and goes well
 // beyond what the shared config exposes.
+// 2026-06-07: tiers flagged `hidden: true` in @/config/pricing are filtered
+// out of `visiblePlans` below before render — Pro is hidden for the
+// simplification launch but remains in `plans` so Razorpay plan-id wiring
+// stays intact. Flip the config flag back to re-expose.
 const plans: Plan[] = [
   {
     id: "free",
@@ -109,9 +113,14 @@ const plans: Plan[] = [
   },
 ]
 
+// 2026-06-07: Pro-specific FAQ entries ("Analyst vs Pro?" and the
+// Pro annual price mention in "Do you have annual plans?") removed
+// as part of the Pro-tier hide. The remaining entries are tier-
+// agnostic or Analyst-only. If Pro is re-exposed later (flip
+// `hidden: false` in @/config/pricing), restore the "Analyst vs Pro"
+// comparison entry and add Pro back to the annual-plans answer.
 const faqs = [
   { q: "Can I cancel anytime?", a: "Yes. No lock-in on monthly plans — cancel from your account settings and you won\u2019t be charged next cycle. Annual plans are non-refundable beyond the 7-day money-back window (below)." },
-  { q: "What\u2019s the difference between Analyst and Pro?", a: "Analyst covers unlimited analyses, the Portfolio Prism, multi-account import, AI summaries, and Concall AI \u2014 the sweet spot for most serious DIY investors. Pro adds CSV/PDF export, API access (100 req/day), save-and-share custom screens, and priority compute \u2014 built for bloggers, newsletter writers, and advisors." },
   { q: "How does the ₹99 per-analysis option work?", a: "Pay ₹99 once for 24-hour full access to one stock \u2014 Prism, Fair Value, scenarios, Moat, AI summary, Compare, Report Card. Great if you\u2019re weighing a single decision. Upgrade to Analyst anytime; what you\u2019ve already paid for stays unlocked." },
   { q: "Do you have annual plans?", a: "Yes. Analyst is ₹3,490/year (₹291/mo equivalent) and Pro is ₹6,990/year (₹583/mo equivalent) — about 17% off vs paying monthly (the standard \"two months free\" pattern). Annual users get priority support and first access to new features." },
   { q: "Why annual?", a: "It signals you trust us with a year. We give you the equivalent of two months free (~17% off vs paying monthly). Simple deal — less churn for us, materially cheaper for you." },
@@ -203,7 +212,12 @@ export default function PricingPage() {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {plans.map((plan) => {
+            {/* 2026-06-07: filter out tiers flagged `hidden: true` in
+                @/config/pricing. Currently hides Pro for the
+                simplification launch; the tier itself stays in `plans`
+                and in PRICING_TIERS so backend Razorpay wiring + future
+                reactivation remain a single-flag flip. */}
+            {plans.filter((p) => !tierById(p.id)?.hidden).map((plan) => {
               const price = billing === "annual" ? plan.annual : plan.monthly
               const period = plan.id === "free"
                 ? "/forever"
