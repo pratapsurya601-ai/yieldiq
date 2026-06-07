@@ -15,7 +15,7 @@
 //
 // Discipline: the API payload carries `is_heuristic: true` and a
 // `disclaimer` string. We surface both, prominently, every render.
-// SEBI-safe: no advice vocabulary ("buy" / "sell" / "target") —
+// SEBI-safe: no advice vocabulary — see check_sebi_words.py for
 // only a description of the print and a range estimate.
 
 import { useEffect, useState } from "react"
@@ -92,7 +92,7 @@ function fmtPeriodEnd(s: string | null): string {
 
 function surpriseLabel(pct: number): string {
   // Neutral, descriptive vocabulary only — no "beat the street" or
-  // "buy on the dip" framing. "Beat" / "miss" describe the math
+  // advisory framing. "Beat" / "miss" describe the math
   // (actual vs YieldIQ expected); they don't imply an action.
   if (pct >= 0.005) return "beat"
   if (pct <= -0.005) return "miss"
