@@ -1,17 +1,32 @@
-name: Cron — Refresh fx_rates (every 15min)
+name: Cron — Refresh fx_rates (hourly, market hours)
 
 # Replaces the in-process APScheduler "market_fx_rates" job. Pulls
 # USDINR (and any other pair in FX_PAIRS) from yfinance and UPSERTs
-# into fx_rates. 24x7.
+# into fx_rates.
 #
-# Schedule: every 15 minutes.
+# Schedule: hourly during NSE market hours (Mon-Fri,
+# 09:15-15:30 IST = 03:45-10:00 UTC). FX is referenced at-rest by
+# currency_conversion_service / macro_service — no minute-grain
+# staleness gate consumes this table, so hourly cadence is sufficient.
+# USDINR rarely moves more than ~0.3% intraday and no downstream
+# computation is fx-tick-sensitive.
+#
+# Cost reduction (2026-06-07, infra cost audit phase 0):
+#   - Was: */15 * * * *  -> 96 runs/day × 30d ≈ 2,880 runs/mo × ~1 min
+#                           ≈ 2,880 min/mo
+#   - Now: 0 3-10 * * 1-5 -> 8 ticks × 5d × 4.3wk ≈ 172 runs/mo × ~1 min
+#                            ≈ 172 min/mo
+#   - Saves ~2,700 min/mo.
 #
 # Secrets required:
 #   - DATABASE_URL : Neon/Aiven Postgres URL
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    # Top-of-hour, 03:00-10:00 UTC, Mon-Fri (covers pre-open through
+    # post-close including 09:00 IST = 03:30 UTC pre-market and
+    # 15:35 IST = 10:05 UTC close cleanup via the 10:00 UTC tick).
+    - cron: "0 3-10 * * 1-5"
   workflow_dispatch:
 
 concurrency:
@@ -52,4 +67,4 @@ jobs:
         run: |
           python scripts/write_cron_heartbeat.py \
             --workflow cron-market-fx-rates \
-            --interval-minutes 15
+            --interval-minutes 60

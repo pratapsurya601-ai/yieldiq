@@ -12,13 +12,26 @@ name: Cron — Refresh live_quotes (market hours)
 # POWERGRID and most mid/small-caps unrefreshed during market hours.
 # Top-1500 now matches the pulse_daily universe (Nifty500 + mid/small
 # watch). Throughput: parallel fast_info at 20 workers finishes ~1500
-# tickers in ~3-4 min on GH-hosted runners — under the 5-min cron tick
+# tickers in ~3-4 min on GH-hosted runners — under the 10-min cron tick
 # and 8-min workflow timeout.
 #
-# Schedule: every 5 minutes during NSE market hours (Mon-Fri,
+# Schedule: every 10 minutes during NSE market hours (Mon-Fri,
 # 09:15-15:30 IST = 03:45-10:00 UTC). The wrapper inside
 # market_data_refresher.refresh_live_quotes is itself idempotent, so a
 # duplicate fire from a late cron tick is harmless.
+#
+# Cost reduction (2026-06-07, infra cost audit phase 0):
+#   - Was: */5 3-10 * * 1-5  -> ~7 ticks/hr × 6.25h × 5d × 4.3wk
+#                              ≈ 938 runs/mo × ~4 min  ≈ 3,750 min/mo
+#   - Now: */10 3-10 * * 1-5 -> ~4 ticks/hr × 6.25h × 5d × 4.3wk
+#                              ≈ 537 runs/mo × ~4 min  ≈ 2,150 min/mo
+#   - Saves ~1,600 min/mo on this workflow alone; coupled with the
+#     fx-rates and index-snapshots cuts (sibling PR commits) total
+#     audit savings ≈ 13k min/mo.
+#
+# Safety: market_data_service._HARD_STALE_THRESHOLD is 2 days and
+# _FRESHNESS_THRESHOLD (warn-only) is 4 hours. A 10-min refresh
+# cadence is nowhere near either gate.
 #
 # Secrets required:
 #   - DATABASE_URL          : Neon/Aiven Postgres URL
@@ -27,10 +40,11 @@ name: Cron — Refresh live_quotes (market hours)
 
 on:
   schedule:
-    # */5 between 03:45-10:00 UTC, Mon-Fri. Cron can't express :45 offsets
-    # cleanly, so we run */5 from 03..10 UTC and rely on the function's
-    # own no-op guard (collect_refresh_tickers returns [] off-hours-safe).
-    - cron: "*/5 3-10 * * 1-5"
+    # */10 between 03:45-10:00 UTC, Mon-Fri. Cron can't express :45
+    # offsets cleanly, so we run */10 from 03..10 UTC and rely on the
+    # function's own no-op guard (collect_refresh_tickers returns []
+    # off-hours-safe).
+    - cron: "*/10 3-10 * * 1-5"
   workflow_dispatch:
     inputs:
       limit_fv:
@@ -76,7 +90,7 @@ jobs:
           # (YIELDIQ_QUOTES_LIMIT_FV / YIELDIQ_QUOTES_WORKERS). Defaults
           # to 1500 tickers @ 20 workers. The wall-time print at the end
           # is intentional — future operators can grep workflow logs to
-          # confirm the runtime stays under the 5-min cron tick.
+          # confirm the runtime stays under the 10-min cron tick.
           python -c "
           import os, time
           from backend.workers.market_data_refresher import collect_refresh_tickers, refresh_live_quotes
@@ -88,11 +102,11 @@ jobs:
               elapsed = time.time() - t0
               print(f'stats: {stats}')
               print(f'wall_time_seconds={elapsed:.1f}')
-              # Soft alarm: if a single tick ever exceeds 4 min we are
-              # one bad yfinance day away from blowing through the 5-min
-              # cron interval. Surface as a warning annotation.
-              if elapsed > 240:
-                  print(f'::warning::live_quotes refresh took {elapsed:.0f}s — close to 5-min cron interval. Consider lowering YIELDIQ_QUOTES_LIMIT_FV or splitting into two staggered workflows.')
+              # Soft alarm: if a single tick ever exceeds 8 min we are
+              # one bad yfinance day away from blowing through the
+              # 10-min cron interval. Surface as a warning annotation.
+              if elapsed > 480:
+                  print(f'::warning::live_quotes refresh took {elapsed:.0f}s — close to 10-min cron interval. Consider lowering YIELDIQ_QUOTES_LIMIT_FV or splitting into two staggered workflows.')
           else:
               print('no tickers — no-op')
           "
@@ -105,4 +119,4 @@ jobs:
         run: |
           python scripts/write_cron_heartbeat.py \
             --workflow cron-market-live-quotes \
-            --interval-minutes 5
+            --interval-minutes 10
