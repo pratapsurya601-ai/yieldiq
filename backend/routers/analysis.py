@@ -12,6 +12,7 @@ if _DASHBOARD_ROOT not in sys.path:
     sys.path.insert(0, _DASHBOARD_ROOT)
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request, Response
+from fastapi.responses import JSONResponse as _FastAPIJSONResponse
 from backend.models.responses import AnalysisResponse, ScreenerResponse, ScreenerStock
 from backend.services.analysis_service import AnalysisService, TickerNotFoundError
 from backend.services.cache_service import cache
@@ -616,7 +617,24 @@ async def get_analysis(
         raise HTTPException(status_code=500, detail=f"Analysis failed: {type(e).__name__}")
 
 
-@router.get("/analysis/{ticker}/og-data")
+class _UTF8JSONResponse(_FastAPIJSONResponse):
+    """JSONResponse that declares `charset=utf-8` on the Content-Type.
+
+    FastAPI's stock JSONResponse sets `media_type = "application/json"`
+    with NO charset parameter. The body bytes are UTF-8 (json.dumps
+    default), but downstream consumers without an explicit charset
+    declaration may fall back to latin-1 — which decodes the UTF-8
+    bytes `e2 82 b9` (₹) as the three latin-1 chars `â‚¹`. See the
+    `get_og_data` docstring for the boundary this fixes.
+    """
+
+    media_type = "application/json; charset=utf-8"
+
+
+@router.get(
+    "/analysis/{ticker}/og-data",
+    response_class=_UTF8JSONResponse,
+)
 async def get_og_data(
     ticker: str,
     request: Request,
@@ -624,6 +642,20 @@ async def get_og_data(
     user: Optional[dict] = Depends(get_current_user_optional),
 ):
     """Return Open Graph data for social sharing. No auth required.
+
+    Encoding boundary (2026-06-07, fix/og-data-utf8-mojibake):
+        The response body contains literal ₹ (U+20B9) in the `description`
+        field. FastAPI's default `application/json` Content-Type does NOT
+        include a `charset=utf-8` parameter, and downstream consumers
+        (Next.js Satori Edge runtime fetch, OG scrapers like WhatsApp /
+        Twitterbot / Slackbot) fall back to latin-1 when no charset is
+        declared, decoding the UTF-8 bytes `e2 82 b9` as the three latin-1
+        chars `â‚¹`. Result: OG-image titles on yieldiq.in rendered
+        "â‚¹1,146" instead of "₹1,146" on every social share preview.
+        Fix: explicit `application/json; charset=utf-8` on every return
+        path below via `_OG_JSON_MEDIA_TYPE`. Bytes in the body are
+        unchanged; only the Content-Type header gains the charset
+        parameter so consumers stop guessing.
 
     Cache-source unification (2026-04-22):
         Previously called `service.get_full_analysis()` directly and
