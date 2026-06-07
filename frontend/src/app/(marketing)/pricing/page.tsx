@@ -33,9 +33,13 @@ interface Plan {
 // 2026-04-21 restructure: dropped ₹299 Starter, added ₹99 pay-as-you-go,
 // kept ₹799 Analyst as the sweet spot, added ₹1,499 Pro for power users.
 // 2026-05-02: rebased Annual plans to a sharper "trust us with a year"
-// discount — Analyst ₹4,999/yr (~48% off vs ₹799×12) and Pro ₹9,999/yr
-// (~44% off vs ₹1,499×12). Old ₹6,999 / ₹13,999 anchors retired.
-// Rationale is in docs/pricing_analysis.md (see this PR).
+// discount — Analyst ₹4,999/yr and Pro ₹9,999/yr.
+// 2026-06-07: monthly launch pricing (#726) cut Analyst to ₹349 and Pro
+// to ₹699. Annual rebased to the standard "two months free" SaaS pattern
+// against the new monthly: Analyst ₹3,490/yr (₹291/mo equiv, ~17% off
+// vs ₹349×12 = ₹4,188) and Pro ₹6,990/yr (₹583/mo equiv, ~17% off vs
+// ₹699×12 = ₹8,388). Annual is NOT bundled into the launch discount
+// strikethrough — that remains monthly-only (see LAUNCH_DISCOUNT).
 // Price values are read from @/config/pricing — see PRICING_TIERS for the
 // canonical source. Tier names, taglines, and feature lists are kept inline
 // here because the pricing-page layout is bespoke (highlighted card, "Most
@@ -109,8 +113,8 @@ const faqs = [
   { q: "Can I cancel anytime?", a: "Yes. No lock-in on monthly plans — cancel from your account settings and you won\u2019t be charged next cycle. Annual plans are non-refundable beyond the 7-day money-back window (below)." },
   { q: "What\u2019s the difference between Analyst and Pro?", a: "Analyst covers unlimited analyses, the Portfolio Prism, multi-account import, AI summaries, and Concall AI \u2014 the sweet spot for most serious DIY investors. Pro adds CSV/PDF export, API access (100 req/day), save-and-share custom screens, and priority compute \u2014 built for bloggers, newsletter writers, and advisors." },
   { q: "How does the ₹99 per-analysis option work?", a: "Pay ₹99 once for 24-hour full access to one stock \u2014 Prism, Fair Value, scenarios, Moat, AI summary, Compare, Report Card. Great if you\u2019re weighing a single decision. Upgrade to Analyst anytime; what you\u2019ve already paid for stays unlocked." },
-  { q: "Do you have annual plans?", a: "Yes. Analyst is ₹4,999/year (save ~48% vs monthly × 12) and Pro is ₹9,999/year (save ~44%). Annual users get priority support and first access to new features." },
-  { q: "Why annual?", a: "It signals you trust us with a year. We give you ~half off in return. Simple deal — less churn for us, materially cheaper for you." },
+  { q: "Do you have annual plans?", a: "Yes. Analyst is ₹3,490/year (₹291/mo equivalent) and Pro is ₹6,990/year (₹583/mo equivalent) — about 17% off vs paying monthly (the standard \"two months free\" pattern). Annual users get priority support and first access to new features." },
+  { q: "Why annual?", a: "It signals you trust us with a year. We give you the equivalent of two months free (~17% off vs paying monthly). Simple deal — less churn for us, materially cheaper for you." },
   { q: "Can I switch between monthly and annual?", a: "Yes — switch either direction from your account settings. Switches are prorated: when you upgrade monthly → annual we credit the unused portion of your current cycle against the annual price; downgrades take effect at the next renewal." },
   { q: "How does student / CA verification work?", a: "Email a photo of your current student ID OR articleship registration to hello@yieldiq.in from the same address you signed up with. We approve within 24 hours and your account flips to the ₹199/mo Student tier. The tier auto-expires when your graduation or articleship completion date passes — you can renew with updated proof or roll onto Analyst." },
   { q: "What payment methods do you accept?", a: "UPI, credit/debit cards, and net banking via Razorpay. All prices in INR; GST is included." },
@@ -192,7 +196,7 @@ export default function PricingPage() {
               >
                 Annual
                 <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${billing === "annual" ? "bg-white text-blue-700" : "bg-green-100 text-green-700"}`}>
-                  Save up to 48%
+                  Save ~17%
                 </span>
               </button>
             </div>
@@ -213,6 +217,14 @@ export default function PricingPage() {
               // monthly view, and only for tiers configured in
               // LAUNCH_DISCOUNT.originalPrices (analyst, pro).
               const launch = billing === "monthly" ? getLaunchDiscount(plan.id, "monthly") : null
+              // Annual-vs-monthly savings sub-text. Only renders on the
+              // annual tab for paid tiers with both prices configured.
+              // NOT a launch-discount strikethrough \u2014 annual is a steady
+              // "two months free" pattern against the current monthly.
+              const annualSavings =
+                billing === "annual" && plan.id !== "free" && plan.monthly !== null && plan.annual !== null && plan.annual > 0
+                  ? plan.monthly * 12 - plan.annual
+                  : null
               const subtitle = plan.id !== "free" && billing === "annual" && price !== null && price > 0
                 ? `That\u2019s \u20B9${Math.round(price / 12).toLocaleString("en-IN")}/mo. Cancel anytime.`
                 : plan.subtitle
@@ -260,6 +272,14 @@ export default function PricingPage() {
                     className={`text-xs font-semibold mb-2 ${plan.highlighted ? "text-cyan-200" : "text-orange-700"}`}
                   >
                     Save ₹{launch.savings.toLocaleString("en-IN")}/mo during launch
+                  </p>
+                )}
+                {annualSavings !== null && annualSavings > 0 && (
+                  <p
+                    data-testid={`annual-savings-${plan.id}`}
+                    className={`text-xs font-semibold mb-2 ${plan.highlighted ? "text-cyan-200" : "text-green-700"}`}
+                  >
+                    Save ₹{annualSavings.toLocaleString("en-IN")}/year vs monthly (~17% off)
                   </p>
                 )}
                 <p className={`text-sm mb-8 ${plan.highlighted ? "text-blue-200" : "text-gray-400"}`}>{subtitle}</p>

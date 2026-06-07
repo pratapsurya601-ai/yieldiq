@@ -61,10 +61,13 @@ export const PRICING_TIERS: readonly PricingTier[] = [
     ],
     variants: [
       // 2026-06-07: launch pricing — Analyst monthly reduced from ₹799 to
-      // ₹349 (~56% off). Annual unchanged this round; only monthly is
-      // discounted. See LAUNCH_DISCOUNT below for revert instructions.
+      // ₹349 (~56% off). See LAUNCH_DISCOUNT below for revert instructions.
       { cadence: "monthly", priceInr: 349 },
-      { cadence: "annual", priceInr: 4999 },
+      // 2026-06-07 follow-up: rebased annual to the standard "2 months
+      // free" SaaS pattern against the new ₹349 monthly. ₹349 × 12 =
+      // ₹4,188 → annual ₹3,490 saves ₹698 (~17%). Annual is NOT bundled
+      // into the launch discount strikethrough — that's monthly-only.
+      { cadence: "annual", priceInr: 3490 },
     ],
   },
   {
@@ -79,9 +82,12 @@ export const PRICING_TIERS: readonly PricingTier[] = [
     ],
     variants: [
       // 2026-06-07: launch pricing — Pro monthly reduced from ₹1,499 to
-      // ₹699 (~53% off). Annual unchanged.
+      // ₹699 (~53% off).
       { cadence: "monthly", priceInr: 699 },
-      { cadence: "annual", priceInr: 9999 },
+      // 2026-06-07 follow-up: annual rebased to "2 months free" against
+      // ₹699 monthly. ₹699 × 12 = ₹8,388 → annual ₹6,990 saves ₹1,398
+      // (~17%). Annual is NOT part of the launch discount.
+      { cadence: "annual", priceInr: 6990 },
     ],
   },
   {

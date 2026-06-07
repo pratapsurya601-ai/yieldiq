@@ -51,19 +51,21 @@ afterEach(() => {
 describe("pricing config — defaults", () => {
   it("preserves the prices currently shown on /pricing (no accidental changes)", () => {
     // 2026-06-07 launch pricing: Analyst & Pro monthly are reduced
-    // (~56% off). Annual unchanged. Pinned here so any further price
-    // edit lands consciously rather than accidentally.
+    // (~56% off). 2026-06-07 follow-up: annual rebased to the standard
+    // "two months free" pattern against the new monthly — Analyst
+    // ₹3,490/yr (~17% off vs ₹349×12), Pro ₹6,990/yr (~17% off vs
+    // ₹699×12). Pinned here so any further price edit lands consciously.
     expect(variantFor("analyst", "monthly")?.priceInr).toBe(349)
-    expect(variantFor("analyst", "annual")?.priceInr).toBe(4999)
+    expect(variantFor("analyst", "annual")?.priceInr).toBe(3490)
     expect(variantFor("pro", "monthly")?.priceInr).toBe(699)
-    expect(variantFor("pro", "annual")?.priceInr).toBe(9999)
+    expect(variantFor("pro", "annual")?.priceInr).toBe(6990)
     expect(variantFor("student", "monthly")?.priceInr).toBe(199)
     expect(variantFor("payg", "one_time")?.priceInr).toBe(99)
   })
 
   it("formatPrice uses en-IN grouping and handles null", () => {
     expect(formatPrice(799)).toBe("₹799")
-    expect(formatPrice(9999)).toBe("₹9,999")
+    expect(formatPrice(3490)).toBe("₹3,490")
     expect(formatPrice(125000)).toBe("₹1,25,000")
     expect(formatPrice(null)).toBe("Coming soon")
   })
