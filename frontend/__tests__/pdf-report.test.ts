@@ -101,7 +101,7 @@ describe("buildSensitivityMatrix", () => {
 })
 
 describe("buildPDFReport", () => {
-  it("renders 4 pages and does not throw on a minimal bundle", () => {
+  it("renders 5 pages and does not throw on a minimal bundle", () => {
     const bundle: PDFBundle = {
       ticker: "TEST",
       summary: makeSummary(),
@@ -110,6 +110,6 @@ describe("buildPDFReport", () => {
       peers: null,
     }
     const doc = buildPDFReport(bundle)
-    expect(doc.getNumberOfPages()).toBe(4)
+    expect(doc.getNumberOfPages()).toBe(5)
   })
 })

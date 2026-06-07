@@ -98,9 +98,12 @@ const BUNDLE: PDFBundle = {
 }
 
 describe("buildPDFReport", () => {
-  it("produces a 4-page A4 document", () => {
+  it("produces a 5-page A4 document", () => {
+    // Page count bumped to 5 on 2026-06-07: page 2 added sensitivity
+    // matrix + WACC build (PR #735), then a 4th page added for
+    // data-flagged risks (this PR).
     const doc = buildPDFReport(BUNDLE)
-    expect(doc.getNumberOfPages()).toBe(4)
+    expect(doc.getNumberOfPages()).toBe(5)
     const w = doc.internal.pageSize.getWidth()
     const h = doc.internal.pageSize.getHeight()
     // A4 in points: 595 x 842 (jsPDF default at pt unit)
