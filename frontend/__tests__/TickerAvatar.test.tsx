@@ -1,18 +1,17 @@
 /**
  * TickerAvatar smoke tests.
  *
- * Locks the new sitewide-chip behavior:
- *   - Known curated NSE ticker (HDFCBANK) → Clearbit URL on first render
+ * Locks the post-2026-06-07-hotfix sitewide-chip behavior:
+ *   - Known curated NSE ticker (HDFCBANK) → Google s2/favicons URL on
+ *     first render (Clearbit was the previous primary; it died).
  *   - .NS / .BO / .NSE / .BSE suffixes are stripped before lookup
- *   - Brandfetch CDN serves US-style tickers (GOOGL) that aren't in the
- *     curated NSE map
- *   - Unknown ticker eventually falls through to the sector-colored
- *     letter mark
+ *   - Non-curated ticker (GOOGL) → `<ticker>.com`-guess Google favicon URL
+ *   - URL builder NEVER emits a `logo.clearbit.com` URL
  *   - Size prop maps xs/sm/md/lg → 16/24/32/48px
  *
- * Notes on mocking: we don't stub the network — `next/image` in jsdom
- * never actually fetches the URL, so we assert on the `src` attribute
- * the component emits, which is sufficient to lock the fallback chain.
+ * Notes on mocking: we don't stub the network — jsdom never actually
+ * fetches the URL, so we assert on the `src` attribute the component
+ * emits, which is sufficient to lock the fallback chain.
  */
 import { describe, it, expect } from "vitest"
 import { render, screen } from "@testing-library/react"
@@ -20,13 +19,17 @@ import { render, screen } from "@testing-library/react"
 import TickerAvatar from "@/components/common/TickerAvatar"
 
 describe("TickerAvatar", () => {
-  it("renders a Clearbit URL for a curated NSE ticker (HDFCBANK)", () => {
+  it("renders a Google s2/favicons URL for a curated NSE ticker (HDFCBANK)", () => {
     render(<TickerAvatar ticker="HDFCBANK" />)
     const wrap = screen.getByTestId("ticker-avatar-image")
     const img = wrap.querySelector("img")
     expect(img).not.toBeNull()
-    // Clearbit hop uses the curated domain from NSE_TICKER_DOMAINS.
-    expect(img?.getAttribute("src")).toMatch(/logo\.clearbit\.com\/hdfcbank\.com/)
+    // Primary hop uses the curated domain from data/ticker_domains.json.
+    expect(img?.getAttribute("src")).toMatch(
+      /www\.google\.com\/s2\/favicons\?domain=hdfcbank\.com/,
+    )
+    // Hotfix invariant: never emit the dead Clearbit URL.
+    expect(img?.getAttribute("src")).not.toMatch(/logo\.clearbit\.com/)
   })
 
   it("strips the .NS suffix before the curated-map lookup", () => {
@@ -34,7 +37,9 @@ describe("TickerAvatar", () => {
     const img = screen
       .getByTestId("ticker-avatar-image")
       .querySelector("img")
-    expect(img?.getAttribute("src")).toMatch(/logo\.clearbit\.com\/hdfcbank\.com/)
+    expect(img?.getAttribute("src")).toMatch(
+      /www\.google\.com\/s2\/favicons\?domain=hdfcbank\.com/,
+    )
   })
 
   it("strips .BSE / .NSE / .BO suffixes too", () => {
@@ -45,29 +50,30 @@ describe("TickerAvatar", () => {
     expect(img?.getAttribute("src")).toMatch(/hdfcbank\.com/)
   })
 
-  it("falls through to Brandfetch CDN for a US-style ticker (GOOGL)", () => {
-    // GOOGL isn't in NSE_TICKER_DOMAINS, so stage 0 (Clearbit) is null
-    // and the component renders Brandfetch on the first paint.
+  it("falls through to a `<ticker>.com`-guess Google favicon for non-curated US-style tickers (GOOGL)", () => {
+    // GOOGL isn't in ticker_domains.json, so stage 0 (curated-domain
+    // Google favicon) and stage 1 (curated-domain DDG) are both null,
+    // and the component renders the stage-2 `<ticker>.com` guess on
+    // the first paint.
     render(<TickerAvatar ticker="GOOGL" />)
     const img = screen
       .getByTestId("ticker-avatar-image")
       .querySelector("img")
-    expect(img?.getAttribute("src")).toMatch(/cdn\.brandfetch\.io\/GOOGL/)
+    expect(img?.getAttribute("src")).toMatch(
+      /www\.google\.com\/s2\/favicons\?domain=googl\.com/,
+    )
   })
 
-  it("renders the letter-mark fallback when all URL layers are exhausted", () => {
-    // For an unknown ticker we DO get a Brandfetch URL on first paint
-    // (the CDN happily serves anything). The component only renders the
-    // letter-mark branch once onError has cascaded past stage 2. We
-    // exercise that path directly by passing a known-letter ticker
-    // through the cleanTicker → letterMarkFor helpers (XYZUNKNOWN > 4
-    // chars → 2-letter "XY") and asserting the image branch's onError
-    // wiring is in place to advance the stage.
+  it("renders a Google favicon URL on first paint for unknown tickers and wires onError", () => {
     render(<TickerAvatar ticker="XYZUNKNOWN" />)
     const wrap = screen.getByTestId("ticker-avatar-image")
     const img = wrap.querySelector("img")
-    // First paint: Brandfetch URL (stage 1) for unknown ticker.
-    expect(img?.getAttribute("src")).toMatch(/cdn\.brandfetch\.io\/XYZUNKNOWN/)
+    // First paint: stage-2 favicon-of-guessed-domain for non-curated tickers.
+    expect(img?.getAttribute("src")).toMatch(
+      /www\.google\.com\/s2\/favicons\?domain=xyzunknown\.com/,
+    )
+    // Never the dead Clearbit URL.
+    expect(img?.getAttribute("src")).not.toMatch(/logo\.clearbit\.com/)
     // onError wiring exists so the cascade can advance at runtime.
     expect(img?.getAttribute("loading")).toBe("lazy")
   })

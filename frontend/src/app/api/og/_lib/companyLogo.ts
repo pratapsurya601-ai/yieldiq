@@ -1,9 +1,14 @@
 /**
  * companyLogo — server-side helper for the 5 OG image routes under
  * `frontend/src/app/api/og/**`. Resolves a curated NSE ticker to a
- * corporate domain, fetches the Clearbit logo with a tight 2s timeout,
+ * corporate domain, fetches the Google favicon with a tight 2s timeout,
  * and returns it as a base64 data URL suitable for embedding directly
  * inside a Satori `<img src=...>` element.
+ *
+ * 2026-06-07 HOTFIX: was Clearbit; Clearbit's free Logo API was
+ * decommissioned (returns HTTP 000 / connection refused). Switched to
+ * Google's s2/favicons endpoint — same call shape, same timeout, same
+ * data-URL conversion, same graceful-null contract.
  *
  * Why a curated 50-entry map instead of the wider
  * `frontend/src/data/ticker_domains.json` dict used by `lib/logoUrl.ts`
@@ -24,19 +29,20 @@
  * cleanup; both lists are byte-identical so it's a mechanical change.
  *
  * Fallback chain (per brief):
- *   1. Ticker not in curated map           → return null (letter mark)
- *   2. Clearbit fetch fails / 404 / >2s    → return null (letter mark)
- *   3. Clearbit OK                         → base64 data URL
+ *   1. Ticker not in curated map               → return null (letter mark)
+ *   2. Google favicon fails / 404 / >2s        → return null (letter mark)
+ *   3. Google favicon OK                       → base64 data URL
  *
  * Edge-runtime constraints respected:
  *   - No Node `Buffer` import (uses `btoa` + `Uint8Array`).
  *   - `AbortSignal.timeout(2000)` (Web API, edge-safe).
  *   - No throws — callers can blindly trust the return shape.
  *
- * Performance: first call per (ticker, edge-pop) pays Clearbit latency;
- * subsequent calls inside the 30-minute `s-maxage` window of the OG
- * routes are served from Vercel's edge cache (the buffer is folded
- * into the PNG, so caching the PNG caches the logo too).
+ * Performance: first call per (ticker, edge-pop) pays a one-shot
+ * Google-favicon latency; subsequent calls inside the 30-minute
+ * `s-maxage` window of the OG routes are served from Vercel's edge
+ * cache (the buffer is folded into the PNG, so caching the PNG caches
+ * the logo too).
  */
 
 // USER-APPROVED top-50 NSE ticker → corporate domain map.
@@ -134,12 +140,16 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 /**
- * Fetch the Clearbit logo for a ticker and return it as a base64 data
- * URL. Never throws. Returns null when:
+ * Fetch the Google s2/favicons logo for a ticker and return it as a
+ * base64 data URL. Never throws. Returns null when:
  *   - ticker is not in the curated NSE_TICKER_DOMAINS map
- *   - Clearbit returns a non-2xx (404 means "we don't have one")
+ *   - Google returns a non-2xx (rare; the endpoint usually serves a
+ *     generic globe rather than 404, but we still guard)
  *   - the request exceeds the 2s timeout
  *   - the response body is empty or unreadable
+ *   - the response content-type isn't an image (defends against the
+ *     "served an HTML preview page" failure mode that killed the old
+ *     bare-domain Brandfetch URL)
  *
  * Caller pattern:
  *
@@ -154,17 +164,23 @@ export async function fetchCompanyLogoDataUrl(
   if (!domain) return null
 
   try {
-    const url = `https://logo.clearbit.com/${domain}`
+    // 2026-06-07 HOTFIX: was `https://logo.clearbit.com/${domain}` —
+    // Clearbit shut down its free Logo API and that endpoint now
+    // refuses connections. Google s2/favicons is the always-on free
+    // replacement, returns ~32-128px PNG.
+    const url = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`
     const res = await fetch(url, {
       signal: AbortSignal.timeout(2000),
-      // Clearbit hot-link works fine without an API key on the free
-      // tier; no auth header needed. Identify ourselves so the Clearbit
-      // dashboards see a real referrer.
+      // Identify ourselves so the dashboards see a real referrer.
       headers: { "User-Agent": "YieldIQ-OG/1.0 (+https://yieldiq.in)" },
     })
     if (!res.ok) return null
 
     const ct = res.headers.get("content-type") || "image/png"
+    // Defence-in-depth: reject HTML/text bodies so we never accidentally
+    // embed a preview page as the OG logo (the Brandfetch failure mode).
+    if (!ct.startsWith("image/")) return null
+
     const buf = await res.arrayBuffer()
     if (!buf || buf.byteLength === 0) return null
 
