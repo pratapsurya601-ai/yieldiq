@@ -371,3 +371,87 @@ def test_analysis_cache_get_cached_calls_manifest():
     assert "manifest check failed" in src
     # New signature accepts fields_needed kwarg
     assert "fields_needed=None" in src
+
+
+# ── v_244 scope-typo regression guards (2026-06-07) ─────────
+#
+# History: v_244_cagr_clamp_loosened_2026_05_29 originally shipped
+# with scope.tickers = ["WIPRO", "*"]. The matcher treats a list as
+# literal-membership ({"WIPRO", "*"}), so only WIPRO invalidated;
+# the literal "*" element was effectively a hypothetical ticker
+# named asterisk. Every other ticker affected by the engine's
+# widened ±50%→±80% _sanitize_cagr clamp (PR #697) kept serving
+# stale pre-2026-05-29 cache rows. The fix replaced the list with
+# the bare-string wildcard "*". These tests lock in:
+#
+#  1. Bare-string "*" really does wildcard-match a non-WIPRO ticker.
+#  2. The list-with-literal-"*" shape does NOT wildcard-match
+#     (regression test — the exact bug we just fixed).
+#  3. The real v_244 entry currently in MANIFEST is wildcard-scoped,
+#     not the broken list form.
+
+
+def test_v244_wildcard_string_matches_non_wipro_ticker():
+    """Bare-string '*' invalidates AMBUJACEM (and every other ticker)."""
+    m = _fresh_manifest_module()
+    assert m._ticker_in_scope("AMBUJACEM", "*") is True
+    assert m._ticker_in_scope("AMBUJACEM.NS", "*") is True
+    assert m._ticker_in_scope("JSWSTEEL", "*") is True
+
+
+def test_v244_list_with_literal_asterisk_does_not_wildcard():
+    """Regression: ['WIPRO', '*'] is literal membership, NOT wildcard.
+
+    This is the exact shape the v_244 entry had before the 2026-06-07
+    typo fix. Locks the matcher's documented behaviour in so a future
+    refactor cannot silently start treating '*' inside a list as a
+    wildcard (which would mask manifest authoring mistakes).
+    """
+    m = _fresh_manifest_module()
+    broken_scope = ["WIPRO", "*"]
+    assert m._ticker_in_scope("WIPRO", broken_scope) is True
+    assert m._ticker_in_scope("AMBUJACEM", broken_scope) is False
+    assert m._ticker_in_scope("JSWSTEEL", broken_scope) is False
+    assert m._ticker_in_scope("IOC.NS", broken_scope) is False
+
+
+def test_v244_entry_in_real_manifest_is_wildcard_scoped():
+    """The shipped v_244 entry must be bare-string '*' wildcard.
+
+    If anyone re-introduces the ['WIPRO', '*'] form (or any other
+    list shape that includes a literal '*' element) this test
+    catches it before merge.
+    """
+    m = _fresh_manifest_module()
+    v244 = next(
+        (e for e in m.MANIFEST
+         if e.get("version_id") == "v_244_cagr_clamp_loosened_2026_05_29"),
+        None,
+    )
+    assert v244 is not None, "v_244 entry missing from manifest"
+    assert v244["scope"]["tickers"] == "*", (
+        "v_244 scope.tickers must be the bare-string wildcard '*'; "
+        f"got {v244['scope']['tickers']!r}"
+    )
+
+
+def test_no_manifest_entry_has_list_with_literal_asterisk():
+    """Lint-style guard: no entry should have ['X', '*', ...] shape.
+
+    Any list containing a literal '*' is almost certainly a typo —
+    the matcher will treat it as a literal-ticker named asterisk and
+    silently fail to wildcard. If a genuine wildcard is intended, use
+    the bare string '*' instead.
+    """
+    m = _fresh_manifest_module()
+    offenders = []
+    for entry in m.MANIFEST:
+        scope = entry.get("scope") or {}
+        tickers = scope.get("tickers")
+        if isinstance(tickers, (list, tuple, set)) and "*" in tickers:
+            offenders.append(entry.get("version_id"))
+    assert not offenders, (
+        "These manifest entries have a literal '*' inside a list, which "
+        "the matcher treats as a literal ticker, not a wildcard. Replace "
+        f"with bare-string '*': {offenders}"
+    )
