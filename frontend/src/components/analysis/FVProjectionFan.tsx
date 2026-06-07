@@ -10,11 +10,19 @@
  * with a single information-dense visualization.
  *
  * Data sources:
- *   • Historical close prices — `getFVHistory(ticker, 2)` (last 2y).
- *     If the user's tier only returns 12m (free-tier), the chart auto-
- *     downscales the x-axis label to `-12m` instead of `-24m`.
+ *   • Historical close prices — `getChartData(ticker, "1y")` (daily_prices
+ *     table, ~12m of NSE bhavcopy-sourced closes). Falls back to the
+ *     `getFVHistory` `price` column when chart-data is unavailable
+ *     (network error, tier limit, missing ticker).
+ *   • FV overlay context      — `getFVHistory(ticker, 2)` retained for the
+ *     fair-value overlay column (read elsewhere) and as a fallback source
+ *     of `price` samples when chart-data is empty.
  *   • Forward scenarios       — passed in from AnalysisBody (already on
  *                               the analysis payload, no extra fetch).
+ *
+ * Both fetches run in parallel via independent useQuery hooks so the
+ * network round-trips overlap. See PR fix(analysis): 5Y projection
+ * actual-price line reads daily_prices, not fair_value_history.
  *
  * SEBI discipline: banned advisory vocabulary excluded from labels.
  * "Projection" instead of advisory phrasing. 5y horizon matches DCF window.
@@ -34,8 +42,21 @@ import {
   ReferenceDot,
   Label,
 } from "recharts"
-import { getFVHistory, type FVHistoryPoint } from "@/lib/api"
+import { getChartData, getFVHistory, type FVHistoryPoint } from "@/lib/api"
 import { formatCurrency, formatPct } from "@/lib/utils"
+
+/** Subset of `/chart-data` we read. The endpoint returns more fields
+ *  (financials etc.) but we only need the price series here. */
+interface ChartDataResponse {
+  prices?: Array<{ date: string; price: number }>
+}
+
+/** Minimal shape used by buildSeries to populate the `actual` line.
+ *  Both chart-data points and fv-history points coerce into this. */
+interface PricePoint {
+  date: string
+  price: number
+}
 
 interface ScenarioCase {
   iv: number
@@ -113,11 +134,11 @@ function FanTooltip({
 }
 
 function buildSeries(
-  history: FVHistoryPoint[],
+  history: PricePoint[],
   currentPrice: number,
   scenarios: FVProjectionFanProps["scenarios"],
 ): ChartPoint[] {
-  // Bucket history into the most recent ~12 monthly samples.
+  // Bucket history into the most recent ~24 monthly samples.
   const monthly: { m: number; actual: number; label: string }[] = []
   if (history.length > 0) {
     // Sort ascending by date.
@@ -126,8 +147,9 @@ function buildSeries(
     )
     const last = sorted[sorted.length - 1]
     const lastTs = new Date(last.date).getTime()
-    // For each bucket month (-12..0), pick the latest sample within
-    // that month-window. O(n*12) — n is bounded by the payload.
+    // For each bucket month (-24..0), pick the latest sample within
+    // that month-window. O(n*24) — n is bounded by the payload
+    // (~250 trading days/year ⇒ ~500 rows for 2y of daily_prices).
     for (let offset = HISTORY_MONTHS; offset >= 0; offset--) {
       const upper = lastTs - (offset - 1) * 30 * 24 * 3600 * 1000
       const lower = lastTs - offset * 30 * 24 * 3600 * 1000
@@ -197,7 +219,11 @@ export default function FVProjectionFan({
 }: FVProjectionFanProps) {
   const [showNumbers, setShowNumbers] = useState(false)
 
-  const { data: history, isLoading, isError } = useQuery({
+  // Two independent useQuery hooks fire in parallel — React Query
+  // dispatches both fetches on the same render, so the network round-
+  // trips overlap. We deliberately don't gate one on the other: a
+  // failure in one must not block the other from rendering.
+  const fvHistoryQuery = useQuery({
     queryKey: ["fv-history", ticker, 2],
     queryFn: () => getFVHistory(ticker, 2),
     enabled: !!ticker && !historyOverride,
@@ -205,10 +231,53 @@ export default function FVProjectionFan({
     retry: 1,
   })
 
+  // 1y is the longest period the chart-data endpoint currently
+  // supports (_PERIOD_MAP in backend/routers/analysis.py). It feeds
+  // the X-axis's leftmost ~12 monthly buckets cleanly — far more
+  // than the ~65d fv_history table covered. If/when chart-data
+  // grows a 2y/5y option, bump this string.
+  const chartDataQuery = useQuery<ChartDataResponse>({
+    queryKey: ["chart-data", ticker, "1y"],
+    queryFn: () => getChartData(ticker, "1y") as Promise<ChartDataResponse>,
+    enabled: !!ticker && !historyOverride,
+    staleTime: 15 * 60 * 1000,
+    retry: 1,
+  })
+
   const points = useMemo(() => {
-    const src = historyOverride ?? history?.data ?? []
-    return buildSeries(src, currentPrice, scenarios)
-  }, [historyOverride, history, currentPrice, scenarios])
+    if (historyOverride) {
+      return buildSeries(historyOverride, currentPrice, scenarios)
+    }
+    // Prefer chart-data (daily_prices, ~12m of trading-day closes).
+    // Fall back to fv-history's `price` column when chart-data is
+    // unavailable (network error, free-tier limit, or ticker missing
+    // from daily_prices). Either source feeds the same PricePoint
+    // shape; buildSeries handles the rest.
+    const chartPrices = chartDataQuery.data?.prices ?? []
+    if (chartPrices.length > 0) {
+      const src: PricePoint[] = chartPrices
+        .filter((p) => p && Number.isFinite(p.price) && p.price > 0 && p.date)
+        .map((p) => ({ date: p.date, price: p.price }))
+      return buildSeries(src, currentPrice, scenarios)
+    }
+    const fvPoints = fvHistoryQuery.data?.data ?? []
+    const fallback: PricePoint[] = fvPoints
+      .filter((p) => p && Number.isFinite(p.price) && p.price > 0 && p.date)
+      .map((p) => ({ date: p.date, price: p.price }))
+    return buildSeries(fallback, currentPrice, scenarios)
+  }, [
+    historyOverride,
+    chartDataQuery.data,
+    fvHistoryQuery.data,
+    currentPrice,
+    scenarios,
+  ])
+
+  // Loading: still loading while at least one source is in-flight AND
+  // we don't yet have any data to render. Both errored is the only
+  // "real" error state (we can survive one source failing).
+  const isLoading = chartDataQuery.isLoading || fvHistoryQuery.isLoading
+  const isError = chartDataQuery.isError && fvHistoryQuery.isError
 
   const hasAnyActual = points.some((p) => p.actual != null && p.actual > 0)
   // Determine how far back actual history extends (most-negative m with an
