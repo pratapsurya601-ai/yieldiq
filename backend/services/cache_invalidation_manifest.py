@@ -1463,7 +1463,14 @@ MANIFEST: list[dict] = [
         "version_id": "v_244_cagr_clamp_loosened_2026_05_29",
         "applied_at": datetime(2026, 5, 29, 12, 0, tzinfo=timezone.utc),
         "scope": {
-            "tickers": ["WIPRO", "*"],
+            # Typo correction (2026-06-07): was ["WIPRO", "*"] — the
+            # matcher treats a list as literal membership, so only
+            # WIPRO invalidated. The rationale below already says the
+            # change is global (HCLTECH-class artifact, wider window).
+            # Bare-string "*" is the wildcard sentinel _ticker_in_scope
+            # recognises. applied_at unchanged — this is a typo fix,
+            # not a backdate (see CLAUDE.md "Manifest invariants").
+            "tickers": "*",
             "fields": [
                 "verdict", "data_limited", "fair_value", "mos_pct", "score",
             ],
