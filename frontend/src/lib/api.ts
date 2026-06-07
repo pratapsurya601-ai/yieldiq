@@ -431,6 +431,18 @@ export interface FinancialYear {
   // Used by RevenueSankey / EarningsWaterfall to break out the
   // Op Income → Interest leg. Older cached payloads omit it.
   interest_expense?: number | null
+  // Bank Schedule III Div III fields (optional — present when the
+  // financials_service reader surfaces bank-format columns; sibling
+  // backend PR adds these to the response). Today they're undefined
+  // for every ticker, which means FinancialStatements' all-null-row
+  // filter hides the bank rows until the backend lands the data.
+  // See redesign/followups/financial-statements-bugs-phase0.md Bug 3.
+  interest_earned?: number | null
+  interest_expended?: number | null
+  net_interest_income?: number | null
+  non_interest_income?: number | null
+  total_income?: number | null
+  operating_expenses?: number | null
   // Balance Sheet
   total_assets: number | null
   total_equity: number | null
