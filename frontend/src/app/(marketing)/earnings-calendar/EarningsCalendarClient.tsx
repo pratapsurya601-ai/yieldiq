@@ -140,6 +140,28 @@ export default function EarningsCalendarClient({ data }: { data: CalendarData })
           </div>
         )}
 
+        {/* 2026-06-07 sparse-data banner. The NSE event-calendar ingest
+            produces 0-1 events on some days when the upstream source
+            (corp-events feed) returns an empty payload. Showing "1
+            result" for a 7-day window made the page look broken
+            (operator caught this via 1 lone BCG entry for Sun 7 Jun).
+            Surface the recalibration state honestly rather than hiding
+            it. Threshold: 7-day window with ≤2 events is below the
+            historical floor for any working ingest. */}
+        {grouped.length > 0 && data.total <= 2 && data.window_days >= 5 && (
+          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-sm">
+            <p className="font-semibold text-amber-900 dark:text-amber-300 mb-1">
+              Calendar refreshing
+            </p>
+            <p className="text-amber-800 dark:text-amber-400 text-xs">
+              Only {data.total} {data.total === 1 ? "event" : "events"} returned
+              for the next {data.window_days} days. The NSE event feed is
+              being refreshed — full week of confirmed earnings will return
+              once the next ingest completes (within 24h).
+            </p>
+          </div>
+        )}
+
         {grouped.map(([date, events]) => {
           const daysAway = events[0].days_away
           return (

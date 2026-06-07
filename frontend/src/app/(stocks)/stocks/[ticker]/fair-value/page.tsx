@@ -109,8 +109,27 @@ async function getStockData(ticker: string): Promise<StockResponse | null> {
     const res = await fetch(`${API_BASE}/api/v1/public/stock-summary/${ticker}`, {
       next: { revalidate: 300 },
     })
-    if (!res.ok) return null
-    return res.json()
+    // 2026-06-07 root-cause fix: backend returns 503 + `status:under_review`
+    // body for tickers the validators have flagged (BCG hit this from the
+    // earnings-calendar link). The previous `!res.ok` short-circuit dropped
+    // the body, so the page rendered notFound() instead of the
+    // DataUnderReview surface that's imported and ready below. Parse the
+    // body on 503 too — only fall through to null on transport errors or
+    // truly unrecognised shapes. The downstream `isUnderReview` guard
+    // distinguishes the two payload shapes safely.
+    if (res.ok || res.status === 503) {
+      try {
+        const body = await res.json()
+        if (body && typeof body === "object") {
+          // Either a full StockSummary or an UnderReviewPayload — both
+          // route through the type guards in the caller.
+          return body as StockResponse
+        }
+      } catch {
+        // Body unparseable — fall through to null.
+      }
+    }
+    return null
   } catch {
     return null
   }
