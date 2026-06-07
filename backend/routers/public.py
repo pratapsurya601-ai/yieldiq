@@ -5398,6 +5398,47 @@ async def get_sector_landing(slug: str):
     )
 
 
+# ═══════════════════════════════════════════════════════════════
+# Sector rotation lens (2026-06-07).
+#
+# Cross-sector aggregator that ranks the Day-108c cohort slugs by
+# the current median margin-of-safety. Powers the /sector-rotation
+# marketing page — a single snapshot of "where is the model pricing
+# fundamentals at a discount today" across the cohort universe.
+#
+# Read-only. Reuses the per-sector aggregator (_sector_page_aggregate)
+# so no FV math, verdict thresholds, or cache version is touched.
+# Cache 30min like the per-sector landing page.
+# ═══════════════════════════════════════════════════════════════
+@router.get("/sector-rotation")
+async def get_sector_rotation():
+    """Sector rotation lens — median MoS per cohort, ranked.
+
+    Always returns 200. Empty-cohort sectors render with median_mos_pct
+    = None and sort to the bottom; the UI distinguishes "insufficient
+    data" from "fair value" using that null.
+
+    Cache TTL: 1800s (matches the per-sector landing page). The
+    underlying analysis_cache moves nightly so a 30min window is well
+    within tolerance and removes 99% of the recompute cost.
+    """
+    from backend.services.sector_rotation import build_sector_rotation
+
+    cache_key = "public:sector-rotation:v1"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return _cached_json(
+            cached, s_maxage=1800, swr=3600,
+            extra_headers={"X-Source": "analysis_cache_v35", "X-Cache": "HIT"},
+        )
+    payload = build_sector_rotation(_sector_page_aggregate)
+    cache.set(cache_key, payload, ttl=1800)
+    return _cached_json(
+        payload, s_maxage=1800, swr=3600,
+        extra_headers={"X-Source": "analysis_cache_v35", "X-Cache": "MISS"},
+    )
+
+
 # ─────────────────────────────────────────────────────────────────
 # Week-3 manifesto: Community sentiment voting widget.
 #

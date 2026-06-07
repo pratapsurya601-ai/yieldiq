@@ -51,6 +51,14 @@ export default function SectorIndexPage() {
           of safety, and a sortable table of constituents. Sort order is
           purely numerical.
         </p>
+        <p className="text-sm mt-4">
+          <Link
+            href="/sector-rotation"
+            className="text-blue-700 dark:text-blue-400 hover:underline"
+          >
+            See the cross-sector rotation lens →
+          </Link>
+        </p>
       </header>
 
       <ul className="grid gap-3 sm:grid-cols-2">

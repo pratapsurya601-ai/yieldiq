@@ -35,6 +35,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: "https://yieldiq.in/help/pricing-and-tiers", priority: 0.6, changeFrequency: "monthly" },
     // J-copy-2b (audit item 17): static sector index page.
     { url: "https://yieldiq.in/sector", priority: 0.7, changeFrequency: "weekly" },
+    // Sector rotation lens (2026-06-07): cross-sector valuation snapshot.
+    { url: "https://yieldiq.in/sector-rotation", priority: 0.7, changeFrequency: "daily" },
     { url: "https://yieldiq.in/terms", priority: 0.3, changeFrequency: "monthly" },
     { url: "https://yieldiq.in/privacy", priority: 0.3, changeFrequency: "monthly" },
   ]
