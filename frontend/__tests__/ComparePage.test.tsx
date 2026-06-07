@@ -19,7 +19,7 @@ import type { StockSummary } from "@/lib/api"
 // ── Mocks ───────────────────────────────────────────────────────────────
 
 const replaceMock = vi.fn()
-const getStockSummaryMock = vi.fn()
+const getStockSummaryStatusMock = vi.fn()
 const getPublicPeersMock = vi.fn()
 const apiGetMock = vi.fn()
 
@@ -52,7 +52,7 @@ vi.mock("@/lib/api", async () => {
   return {
     ...actual,
     default: { get: (...a: unknown[]) => apiGetMock(...a) },
-    getStockSummary: (t: string) => getStockSummaryMock(t),
+    getStockSummaryStatus: (t: string) => getStockSummaryStatusMock(t),
     getPublicPeers: (t: string, n: number) => getPublicPeersMock(t, n),
   }
 })
@@ -159,13 +159,15 @@ async function loadPage() {
 
 beforeEach(() => {
   replaceMock.mockReset()
-  getStockSummaryMock.mockReset()
+  getStockSummaryStatusMock.mockReset()
   getPublicPeersMock.mockReset()
   apiGetMock.mockReset()
 
-  getStockSummaryMock.mockImplementation((t: string) => {
+  getStockSummaryStatusMock.mockImplementation((t: string) => {
     const key = t.toUpperCase()
-    return Promise.resolve(SUMMARIES[key] ?? null)
+    const summary = SUMMARIES[key]
+    if (summary) return Promise.resolve({ kind: "ok", summary })
+    return Promise.resolve({ kind: "unavailable", ticker: t })
   })
   // Peers suggestion is a nice-to-have, not under test here.
   getPublicPeersMock.mockResolvedValue({ ticker: "", peers: [] })
@@ -234,6 +236,73 @@ describe("ComparePage", () => {
     // URL should reflect the surviving ticker.
     const lastCall = replaceMock.mock.calls.at(-1)
     expect(lastCall?.[0]).toBe("/compare?tickers=HDFCBANK")
+  })
+
+  it("honors under_review tickers with the neutral amber warning (not the red error)", async () => {
+    // KOTAKBANK gets the under_review payload; the other two are ok.
+    getStockSummaryStatusMock.mockImplementation((t: string) => {
+      const key = t.toUpperCase()
+      if (key === "KOTAKBANK" || key === "KOTAKBANK.NS") {
+        return Promise.resolve({
+          kind: "under_review",
+          ticker: t,
+          message: "Recalibrating after FY26 Q1 results.",
+        })
+      }
+      const summary = SUMMARIES[key]
+      if (summary) return Promise.resolve({ kind: "ok", summary })
+      return Promise.resolve({ kind: "unavailable", ticker: t })
+    })
+
+    searchParamsImpl = new URLSearchParams(
+      "tickers=HDFCBANK,ICICIBANK,KOTAKBANK",
+    )
+    const ComparePage = await loadPage()
+    renderWithClient(<ComparePage />)
+
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("compare-under-review-warning"),
+      ).toHaveTextContent(/KOTAKBANK/i)
+    })
+    // Under-review tickers must NOT show in the red unavailable bar.
+    expect(
+      screen.queryByTestId("compare-unavailable-warning"),
+    ).not.toBeInTheDocument()
+    // KOTAKBANK column must be excluded from the table.
+    expect(screen.queryAllByText("Kotak Mahindra Bank").length).toBe(0)
+    // The two ok tickers still render.
+    expect(screen.getAllByText("HDFC Bank").length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText("ICICI Bank").length).toBeGreaterThanOrEqual(1)
+  })
+
+  it("clamps a runaway MoS via displayMos (defense-in-depth +200% cap)", async () => {
+    // Simulate a stale-cache payload with raw +321% MoS — pre-clamp era.
+    const runaway = mkSummary({
+      ticker: "RUNAWAY.NS",
+      company_name: "Runaway Corp",
+      mos: 321.5,
+    })
+    getStockSummaryStatusMock.mockImplementation((t: string) => {
+      const key = t.toUpperCase()
+      if (key === "RUNAWAY" || key === "RUNAWAY.NS") {
+        return Promise.resolve({ kind: "ok", summary: runaway })
+      }
+      const summary = SUMMARIES[key]
+      if (summary) return Promise.resolve({ kind: "ok", summary })
+      return Promise.resolve({ kind: "unavailable", ticker: t })
+    })
+
+    searchParamsImpl = new URLSearchParams("tickers=HDFCBANK,RUNAWAY")
+    const ComparePage = await loadPage()
+    renderWithClient(<ComparePage />)
+
+    await waitFor(() => {
+      expect(screen.getAllByText("Runaway Corp").length).toBeGreaterThanOrEqual(1)
+    })
+    // Display must show the clamped sentinel, NOT the raw +321.5%.
+    expect(screen.queryAllByText(/321\.5%/).length).toBe(0)
+    expect(screen.getAllByText(/≥200\.0%/).length).toBeGreaterThan(0)
   })
 
   it("shows the empty prompt and populates the trio when clicked", async () => {
