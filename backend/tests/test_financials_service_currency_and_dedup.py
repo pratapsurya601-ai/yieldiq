@@ -195,21 +195,23 @@ class TestQuarterlyDedupClusterE:
         )
         return executed
 
-    def test_every_statement_uses_distinct_on(self):
-        """The structural fix — DISTINCT ON (period_end_date) for all 3
-        statement-type queries (income, balance_sheet, cashflow)."""
+    def test_every_statement_groups_by_period_end_date(self):
+        """Structural fix (fix/financials-source-priority, 2026-06-07):
+        each query collapses to one row per period via GROUP BY +
+        per-source MAX(CASE) aggregation, then COALESCE picks the
+        highest-priority non-null per field. This replaces the older
+        DISTINCT ON approach that lost data when the priority source
+        had NULL fields the lower-priority source carried."""
         sqls = self._all_executed_sql()
 
-        # We expect 3 queries but the cashflow path early-returns when
-        # the income result is empty. With our FakeSession returning
-        # empty, the function returns after the income query. So check
-        # the SQL text for the structural fix in the income path AND
-        # re-run with a non-empty fake to capture all three.
-        assert any("DISTINCT ON (period_end_date)" in s for s in sqls), (
-            f"income query missing DISTINCT ON: {sqls}"
+        assert any("GROUP BY period_end_date" in s for s in sqls), (
+            f"income query missing GROUP BY period_end_date: {sqls}"
+        )
+        assert any("COALESCE(yf_" in s for s in sqls), (
+            f"income query missing per-source COALESCE: {sqls}"
         )
 
-    def test_all_three_queries_use_distinct_on(self):
+    def test_all_three_queries_use_group_by_and_coalesce(self):
         """Force the function past the early-return so we see all 3."""
         executed: list[str] = []
 
@@ -240,6 +242,9 @@ class TestQuarterlyDedupClusterE:
                         "depreciation": None, "interest_expense": None,
                         "net_income": 5000.0,
                         "eps_basic": None, "eps_diluted": 10.08,
+                        "interest_earned": None,
+                        "interest_expended": None,
+                        "total_income": None,
                     }])
                 return FakeResult([])
 
@@ -254,56 +259,239 @@ class TestQuarterlyDedupClusterE:
             f"expected 3 SQL calls (income/BS/CF), got {len(executed)}"
         )
         for i, sql in enumerate(executed):
-            assert "DISTINCT ON (period_end_date)" in sql, (
-                f"query #{i} missing DISTINCT ON: {sql}"
+            assert "GROUP BY period_end_date" in sql, (
+                f"query #{i} missing GROUP BY period_end_date: {sql}"
             )
-            # Source priority — NSE wins.
-            assert "WHEN 'nse' THEN 0" in sql, (
-                f"query #{i} missing NSE source priority"
+            # Source priority — yfinance wins (richest data), then
+            # NSE_XBRL (xbrl_), then nse (nse_).
+            assert "yf_" in sql and "xbrl_" in sql and "nse_" in sql, (
+                f"query #{i} missing per-source MAX(CASE) aggregates"
+            )
+            # COALESCE ordering: yfinance first.
+            assert "COALESCE(yf_" in sql, (
+                f"query #{i} missing COALESCE prioritizing yfinance"
             )
 
-    def test_distinct_on_collapses_triplet_to_single_period(self):
+    def test_python_simulation_yfinance_wins_then_xbrl_then_nse(self):
         """
-        Behavioural contract: when the SAME (ticker, period_end_date)
-        appears under 3 sources, the result must contain exactly ONE
-        row for that period, and it must be the NSE row (highest
-        priority per the ORDER BY).
+        Behavioural contract: per-field COALESCE in source-priority
+        order. yfinance value wins when present; falls through to
+        NSE_XBRL then nse for fields the higher-priority source
+        leaves null. Simulates what the SQL does in Postgres.
         """
-        # Simulate what DISTINCT ON + source-priority ORDER BY does in
-        # Postgres: group by period_end_date, pick the row whose source
-        # has the lowest priority number.
-        triplet = [
-            {"period_end_date": date(2024, 12, 31), "source": "yfinance",
-             "eps_diluted": 29.58},
-            {"period_end_date": date(2024, 12, 31), "source": "xbrl",
-             "eps_diluted": 9.35},
-            {"period_end_date": date(2024, 12, 31), "source": "nse",
-             "eps_diluted": 10.08},
-            {"period_end_date": date(2024, 9, 30), "source": "nse",
-             "eps_diluted": 9.00},
+        # Three rows for the same period, each carrying different
+        # subsets of fields — exactly the real-world pattern per the
+        # diagnostic on company_financials.
+        rows = [
+            {"source": "nse",
+             "gross_profit": None, "ebitda": None, "ebit": None,
+             "net_income": 100.0, "eps_diluted": 10.08,
+             "interest_earned": 50.0, "total_income": 200.0},
+            {"source": "NSE_XBRL",
+             "gross_profit": None, "ebitda": 120.0, "ebit": 90.0,
+             "net_income": 100.0, "eps_diluted": 9.35,
+             "interest_earned": None, "total_income": None},
+            {"source": "yfinance",
+             "gross_profit": 300.0, "ebitda": None, "ebit": None,
+             "net_income": 100.0, "eps_diluted": 29.58,
+             "interest_earned": None, "total_income": None},
         ]
-        priority = {"nse": 0, "xbrl": 1, "yfinance": 2}
-        # Mimic the SQL: ORDER BY period_end_date DESC, priority ASC,
-        # then DISTINCT ON keeps the first per period_end_date.
-        triplet.sort(key=lambda r: (
-            -r["period_end_date"].toordinal(),
-            priority.get(r["source"], 99),
-        ))
-        seen: set[date] = set()
-        deduped = []
-        for r in triplet:
-            if r["period_end_date"] in seen:
-                continue
-            seen.add(r["period_end_date"])
-            deduped.append(r)
+        priority = ["yfinance", "NSE_XBRL", "nse"]
+        by_src = {r["source"]: r for r in rows}
 
-        # One row per period.
-        period_ends = [r["period_end_date"] for r in deduped]
-        assert len(period_ends) == len(set(period_ends))
-        assert len(deduped) == 2
+        def coalesce(field):
+            for s in priority:
+                v = by_src.get(s, {}).get(field)
+                if v is not None:
+                    return v
+            return None
 
-        # The Q3FY25 row is the NSE one.
-        q3 = next(r for r in deduped
-                  if r["period_end_date"] == date(2024, 12, 31))
-        assert q3["source"] == "nse"
-        assert q3["eps_diluted"] == pytest.approx(10.08)
+        # yfinance has gp → win.
+        assert coalesce("gross_profit") == pytest.approx(300.0)
+        # yfinance has no ebitda → fall through to NSE_XBRL.
+        assert coalesce("ebitda") == pytest.approx(120.0)
+        # yfinance has no interest_earned, NSE_XBRL doesn't either
+        # → fall through to nse (bank-format field).
+        assert coalesce("interest_earned") == pytest.approx(50.0)
+        # yfinance wins eps_diluted even when the value diverges from
+        # nse — yfinance is the authoritative source for this fix.
+        assert coalesce("eps_diluted") == pytest.approx(29.58)
+
+
+# ───────────────────────────────────────────────────────────────────
+# fix/financials-source-priority (2026-06-07) — end-to-end contract
+# tests for the source-priority + per-field COALESCE reader and the
+# newly-surfaced bank-format columns.
+#
+# These run against the actual ``_fetch_from_db`` function with a
+# fake SQLAlchemy session that returns the rows the merged SQL would
+# return given a particular table state. The SQL is exercised
+# separately by the canary-diff harness against live Postgres; here
+# we lock in the reader contract that ``analysis/chart-data`` and
+# the FE consume.
+# ───────────────────────────────────────────────────────────────────
+class _FakeSession:
+    """Reusable SQLAlchemy-shaped fake. Caller queues row payloads
+    in order: [income_rows, balance_rows, cashflow_rows]."""
+
+    def __init__(self, payloads: list[list[dict]]):
+        self._payloads = list(payloads)
+        self._idx = 0
+
+    def execute(self, stmt, params=None):
+        rows = self._payloads[self._idx] if self._idx < len(self._payloads) else []
+        self._idx += 1
+
+        class _Result:
+            def __init__(self, r):
+                self._r = r
+
+            def mappings(self):
+                return self
+
+            def all(self):
+                return self._r
+
+        return _Result(rows)
+
+    def close(self):
+        pass
+
+
+class TestSourcePriorityReaderContract:
+    """fix/financials-source-priority — end-to-end reader behaviour."""
+
+    def test_source_priority_yfinance_wins_over_nse_stub(self):
+        """Insert two rows for the same period — yfinance with full
+        data, nse with PAT/EPS-only. Reader must return the yfinance
+        values, not the nse stub.
+
+        This simulates Postgres returning a single merged row per
+        period_end_date (after the COALESCE-of-MAX-CASE collapse),
+        which is what live Postgres would return given that source-
+        mix. The contract here is that the resulting _Row carries the
+        yfinance values."""
+        # The merged SQL row (what Postgres returns after COALESCE).
+        # yfinance has full data; nse PAT/EPS-only would be masked.
+        income_merged = [{
+            "period_end_date": date(2025, 3, 31),
+            "revenue": 10000.0,
+            "gross_profit": 4000.0,      # yfinance only
+            "ebitda": 2500.0,             # yfinance only
+            "ebit": 2000.0,               # yfinance only
+            "depreciation": 500.0,
+            "interest_expense": 300.0,    # yfinance only
+            "net_income": 1500.0,         # both have it, COALESCE → yfinance
+            "eps_basic": 15.0,
+            "eps_diluted": 14.5,
+            "interest_earned": None,
+            "interest_expended": None,
+            "total_income": None,
+        }]
+        # Reader requires SOME BS row to derive a fully-populated _Row.
+        balance_merged = [{
+            "period_end_date": date(2025, 3, 31),
+            "total_assets": 50000.0, "total_debt": 5000.0,
+            "cash": 1000.0, "total_equity": 20000.0,
+            "current_assets": None, "fixed_assets": None,
+            "net_debt": 4000.0, "working_capital": None,
+            "total_liabilities": 30000.0,
+        }]
+        cashflow_merged: list[dict] = []  # CF is annual + may be empty
+
+        sess = _FakeSession([income_merged, balance_merged, cashflow_merged])
+        rows = fs._fetch_from_db(sess, "RELIANCE", "annual", limit=5)
+
+        assert len(rows) == 1
+        r = rows[0]
+        # yfinance-sourced rich fields are present (would be None
+        # if the old nse-priority reader had won).
+        assert r.gross_profit == pytest.approx(4000.0)
+        assert r.ebitda == pytest.approx(2500.0)
+        assert r.ebit == pytest.approx(2000.0)
+        assert r.interest_expense == pytest.approx(300.0)
+        assert r.pat == pytest.approx(1500.0)
+
+    def test_field_coalesce_yfinance_gp_plus_xbrl_ebitda_both_kept(self):
+        """yfinance row has gp but no ebitda; NSE_XBRL row has ebitda
+        but no gp. Merged response must carry BOTH — that's the
+        whole point of per-field COALESCE vs whole-row dedup."""
+        # What Postgres returns after the per-source MAX(CASE) + outer
+        # COALESCE: yf_gp wins gp; xbrl_ebitda fills in for the
+        # null-in-yfinance ebitda.
+        income_merged = [{
+            "period_end_date": date(2024, 12, 31),
+            "revenue": 8000.0,
+            "gross_profit": 3000.0,    # COALESCE(yf=3000, xbrl=NULL, nse=NULL)
+            "ebitda": 1800.0,           # COALESCE(yf=NULL, xbrl=1800, nse=NULL)
+            "ebit": 1400.0,             # COALESCE(yf=NULL, xbrl=1400, nse=NULL)
+            "depreciation": 400.0,
+            "interest_expense": None,
+            "net_income": 1000.0,
+            "eps_basic": None,
+            "eps_diluted": 10.0,
+            "interest_earned": None,
+            "interest_expended": None,
+            "total_income": None,
+        }]
+        sess = _FakeSession([income_merged, [], []])
+        rows = fs._fetch_from_db(sess, "TCS", "quarterly", limit=8)
+
+        assert len(rows) == 1
+        r = rows[0]
+        # Both fields populated — neither lost to the other source's NULL.
+        assert r.gross_profit == pytest.approx(3000.0)
+        assert r.ebitda == pytest.approx(1800.0)
+        assert r.ebit == pytest.approx(1400.0)
+
+    def test_bank_format_columns_surfaced_in_response(self):
+        """HDFC-bank-style row: interest_earned + total_income
+        populated, gp/ebitda null (banks don't report them).
+        Reader must surface the bank-format fields to the API
+        response, and the GAAP fields stay null (no faking)."""
+        income_merged = [{
+            "period_end_date": date(2024, 12, 31),
+            "revenue": None,             # banks report total_income instead
+            "gross_profit": None,
+            "ebitda": None,
+            "ebit": None,
+            "depreciation": None,
+            "interest_expense": None,
+            "net_income": 16000.0,
+            "eps_basic": 21.0,
+            "eps_diluted": 21.0,
+            "interest_earned": 70000.0,  # the bank-format leg
+            "interest_expended": 35000.0,
+            "total_income": 80000.0,
+        }]
+        balance_merged = [{
+            "period_end_date": date(2024, 12, 31),
+            "total_assets": 2500000.0, "total_debt": None,
+            "cash": 200000.0, "total_equity": 320000.0,
+            "current_assets": None, "fixed_assets": None,
+            "net_debt": None, "working_capital": None,
+            "total_liabilities": 2180000.0,
+        }]
+        sess = _FakeSession([income_merged, balance_merged, []])
+        rows = fs._fetch_from_db(sess, "HDFCBANK", "quarterly", limit=8)
+
+        assert len(rows) == 1
+        r = rows[0]
+        # Bank-format fields surfaced.
+        assert r.interest_earned == pytest.approx(70000.0)
+        assert r.interest_expended == pytest.approx(35000.0)
+        assert r.total_income == pytest.approx(80000.0)
+        # GAAP fields stay null (not faked).
+        assert r.gross_profit is None
+        assert r.ebitda is None
+        assert r.ebit is None
+
+        # And the same fields surface in the API-shape dict that
+        # ``FinancialsService.get_financials`` returns to callers.
+        prev = None
+        year_dict = fs._build_year(r, prev)
+        assert year_dict["interest_earned"] == pytest.approx(70000.0)
+        assert year_dict["interest_expended"] == pytest.approx(35000.0)
+        assert year_dict["total_income"] == pytest.approx(80000.0)
+        assert year_dict["gross_profit"] is None
+        assert year_dict["ebitda"] is None
