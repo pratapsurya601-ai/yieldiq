@@ -8,6 +8,7 @@ import { useSettingsStore } from "@/store/settingsStore"
 import Link from "next/link"
 import { ArrowRight, Play } from "lucide-react"
 import MarketingTopNav from "@/components/marketing/MarketingTopNav"
+import { priceLabel, getLaunchDiscount } from "@/config/pricing"
 
 /* ── Scroll animation hook ───────────────────────────── */
 function useInView(threshold = 0.15) {
@@ -200,10 +201,21 @@ function DemoCard() {
 }
 
 /* ── Pricing teaser data ──────────────────────────────── */
-const pricingPlans = [
-  { name: "Free",    price: "\u20B90",     period: "/forever", tagline: "5 deep analyses per day. All core features." },
-  { name: "Analyst", price: "\u20B9799",   period: "/month",   tagline: "Unlimited analyses, Portfolio Prism, AI summaries.", highlight: true },
-  { name: "Pro",     price: "\u20B91,499", period: "/month",   tagline: "CSV/PDF export, API access, priority compute." },
+// Prices are pulled from @/config/pricing so the landing teaser stays
+// in sync with the canonical /pricing page and any future config
+// changes (incl. the LAUNCH_DISCOUNT toggle) ripple through here too.
+type PricingTeaser = {
+  id: "free" | "analyst" | "pro"
+  name: string
+  price: string
+  period: string
+  tagline: string
+  highlight?: boolean
+}
+const pricingPlans: PricingTeaser[] = [
+  { id: "free",    name: "Free",    price: "\u20B90",                          period: "/forever", tagline: "5 deep analyses per day. All core features." },
+  { id: "analyst", name: "Analyst", price: priceLabel("analyst", "monthly"),   period: "/month",   tagline: "Unlimited analyses, Portfolio Prism, AI summaries.", highlight: true },
+  { id: "pro",     name: "Pro",     price: priceLabel("pro", "monthly"),       period: "/month",   tagline: "CSV/PDF export, API access, priority compute." },
 ]
 
 /* ═════════════════════════════════════════════════════════
@@ -396,7 +408,11 @@ function LandingContent() {
             </h2>
           </FadeIn>
           <div className="grid md:grid-cols-3 gap-4">
-            {pricingPlans.map((p) => (
+            {pricingPlans.map((p) => {
+              // Launch-pricing strikethrough + badge applies to the paid
+              // monthly tiers (analyst, pro). Returns null for "free".
+              const launch = p.id === "free" ? null : getLaunchDiscount(p.id, "monthly")
+              return (
               <div
                 key={p.name}
                 className={`rounded-2xl p-6 border ${p.highlight ? "border-blue-500 ring-1 ring-blue-500/20 bg-white" : "border-gray-100 bg-white"}`}
@@ -404,13 +420,38 @@ function LandingContent() {
                 <p className="text-sm font-bold text-caption uppercase tracking-wider">
                   {p.name}
                 </p>
+                {launch && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <span
+                      data-testid={`landing-launch-strikethrough-${p.id}`}
+                      className="line-through text-sm font-semibold text-caption"
+                    >
+                      ₹{launch.originalPrice.toLocaleString("en-IN")}
+                    </span>
+                    <span
+                      data-testid={`landing-launch-badge-${p.id}`}
+                      className="bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                    >
+                      {launch.percentOff}% off — Launch
+                    </span>
+                  </div>
+                )}
                 <p className="mt-2">
                   <span className="font-display text-3xl font-black text-ink font-mono">{p.price}</span>
                   <span className="text-caption text-sm">{p.period}</span>
                 </p>
+                {launch && (
+                  <p
+                    data-testid={`landing-launch-savings-${p.id}`}
+                    className="text-[11px] font-semibold text-orange-700 mt-1"
+                  >
+                    Save ₹{launch.savings.toLocaleString("en-IN")}/mo during launch
+                  </p>
+                )}
                 <p className="text-caption text-sm mt-3 leading-relaxed">{p.tagline}</p>
               </div>
-            ))}
+              )
+            })}
           </div>
           <div className="text-center mt-6">
             <Link href="/pricing" className="text-blue-600 font-semibold text-sm inline-flex items-center gap-1">

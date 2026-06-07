@@ -8,7 +8,7 @@ import {
   trackBillingToggled,
   trackUpgradeClicked,
 } from "@/lib/analytics"
-import { variantFor, priceLabel } from "@/config/pricing"
+import { variantFor, priceLabel, getLaunchDiscount } from "@/config/pricing"
 
 // Nav is now provided by (marketing)/layout.tsx via the unified MarketingTopNav.
 
@@ -209,6 +209,10 @@ export default function PricingPage() {
               const priceStr = price === null
                 ? "Coming soon"
                 : price === 0 ? "\u20B90" : `\u20B9${price.toLocaleString("en-IN")}`
+              // Launch-pricing strikethrough + badge. Only applies to
+              // monthly view, and only for tiers configured in
+              // LAUNCH_DISCOUNT.originalPrices (analyst, pro).
+              const launch = billing === "monthly" ? getLaunchDiscount(plan.id, "monthly") : null
               const subtitle = plan.id !== "free" && billing === "annual" && price !== null && price > 0
                 ? `That\u2019s \u20B9${Math.round(price / 12).toLocaleString("en-IN")}/mo. Cancel anytime.`
                 : plan.subtitle
@@ -230,10 +234,34 @@ export default function PricingPage() {
                 <div className={`text-sm font-bold uppercase tracking-wider mb-3 ${plan.highlighted ? "text-blue-200" : "text-gray-500"}`}>
                   {plan.name}
                 </div>
+                {launch && (
+                  <div className="flex items-center gap-2 mb-2">
+                    <span
+                      data-testid={`launch-strikethrough-${plan.id}`}
+                      className={`line-through text-lg font-semibold ${plan.highlighted ? "text-blue-200/70" : "text-caption"}`}
+                    >
+                      ₹{launch.originalPrice.toLocaleString("en-IN")}
+                    </span>
+                    <span
+                      data-testid={`launch-badge-${plan.id}`}
+                      className="bg-orange-100 text-orange-800 px-2 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider"
+                    >
+                      {launch.percentOff}% off — Launch
+                    </span>
+                  </div>
+                )}
                 <div className="flex items-baseline gap-1 mb-2">
                   <span className="text-5xl font-black">{priceStr}</span>
                   <span className={plan.highlighted ? "text-blue-200" : "text-gray-400"}>{period}</span>
                 </div>
+                {launch && (
+                  <p
+                    data-testid={`launch-savings-${plan.id}`}
+                    className={`text-xs font-semibold mb-2 ${plan.highlighted ? "text-cyan-200" : "text-orange-700"}`}
+                  >
+                    Save ₹{launch.savings.toLocaleString("en-IN")}/mo during launch
+                  </p>
+                )}
                 <p className={`text-sm mb-8 ${plan.highlighted ? "text-blue-200" : "text-gray-400"}`}>{subtitle}</p>
 
                 <ul className="space-y-3 mb-8">
