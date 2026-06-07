@@ -1,13 +1,15 @@
 "use client"
 // TODO: swap to design tokens
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useRef, useState, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import { useAuthStore } from "@/store/authStore"
 import { useSettingsStore } from "@/store/settingsStore"
 import Link from "next/link"
-import { ArrowRight, Play } from "lucide-react"
+import { ArrowRight, Play, History } from "lucide-react"
 import MarketingTopNav from "@/components/marketing/MarketingTopNav"
+import HomeSearchBar from "@/components/home/HomeSearchBar"
+import TickerAvatar from "@/components/common/TickerAvatar"
 import { priceLabel, getLaunchDiscount, tierById } from "@/config/pricing"
 
 /* ── Scroll animation hook ───────────────────────────── */
@@ -200,6 +202,115 @@ function DemoCard() {
   )
 }
 
+/* ── Recently Viewed chip row ─────────────────────────
+   Anon-friendly above-the-fold re-engagement hook (audit
+   2026-06-07 — AlphaSpread parity P0). Reads identity-only
+   from the same `yq:recent-views` localStorage key written by
+   AnalysisBody.tsx, so a returning anon visitor sees the
+   tickers they previously analysed without any backend round-
+   trip. Falls back to a curated set of well-known Indian
+   blue-chips for first-time visitors so the row is never
+   empty (an empty row would look broken under the search bar).
+   Logos resolve via TickerAvatar's existing
+   Brandfetch→favicon→monogram chain. */
+const RECENTLY_VIEWED_FALLBACK = [
+  "RELIANCE.NS",
+  "HDFCBANK.NS",
+  "TCS.NS",
+  "INFY.NS",
+  "ITC.NS",
+  "TATAMOTORS.NS",
+]
+
+// Cached snapshot key — `useSyncExternalStore` requires `getSnapshot`
+// to return a stable reference between calls when nothing changed
+// (otherwise React will infinite-loop). We re-read localStorage once
+// and memoize until a `storage` event tells us another tab wrote.
+let _recentsCache: string | null = null
+let _recentsValue: { tickers: string[]; isFallback: boolean } = {
+  tickers: RECENTLY_VIEWED_FALLBACK,
+  isFallback: true,
+}
+
+function computeRecentsSnapshot(): { tickers: string[]; isFallback: boolean } {
+  if (typeof window === "undefined") {
+    return { tickers: RECENTLY_VIEWED_FALLBACK, isFallback: true }
+  }
+  let raw: string | null = null
+  try {
+    raw = window.localStorage.getItem("yq:recent-views")
+  } catch {
+    raw = null
+  }
+  if (raw === _recentsCache) return _recentsValue
+  _recentsCache = raw
+  try {
+    const parsed = raw ? JSON.parse(raw) : []
+    if (Array.isArray(parsed)) {
+      const next = parsed
+        .filter((e: { ticker?: unknown }) => e && typeof e.ticker === "string")
+        .map((e: { ticker: string }) => e.ticker)
+        .slice(0, 6)
+      if (next.length > 0) {
+        _recentsValue = { tickers: next, isFallback: false }
+        return _recentsValue
+      }
+    }
+  } catch {
+    /* fall through */
+  }
+  _recentsValue = { tickers: RECENTLY_VIEWED_FALLBACK, isFallback: true }
+  return _recentsValue
+}
+
+function subscribeRecents(onChange: () => void): () => void {
+  if (typeof window === "undefined") return () => {}
+  const handler = (e: StorageEvent) => {
+    if (e.key === "yq:recent-views") onChange()
+  }
+  window.addEventListener("storage", handler)
+  return () => window.removeEventListener("storage", handler)
+}
+
+function serverRecentsSnapshot(): { tickers: string[]; isFallback: boolean } {
+  return { tickers: RECENTLY_VIEWED_FALLBACK, isFallback: true }
+}
+
+function RecentlyViewedChips() {
+  // `useSyncExternalStore` is the project's preferred pattern for
+  // SSR-safe, lint-clean client-only data (mirrors
+  // components/anim/useReducedMotion.ts). SSR + first client paint
+  // see the fallback; subsequent renders see the localStorage value
+  // if any, all without violating react-hooks/set-state-in-effect.
+  const { tickers, isFallback } = useSyncExternalStore(
+    subscribeRecents,
+    computeRecentsSnapshot,
+    serverRecentsSnapshot,
+  )
+
+  return (
+    <div className="flex flex-wrap items-center gap-2 justify-center lg:justify-start">
+      <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+        <History className="w-3.5 h-3.5" />
+        {isFallback ? "Popular:" : "Recently viewed:"}
+      </span>
+      {tickers.map(t => {
+        const display = t.replace(/\.(NS|BO)$/i, "")
+        return (
+          <Link
+            key={t}
+            href={`/analysis/${display}`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20 transition text-xs font-medium text-gray-200"
+          >
+            <TickerAvatar ticker={t} size="sm" />
+            <span className="font-mono">{display}</span>
+          </Link>
+        )
+      })}
+    </div>
+  )
+}
+
 /* ── Pricing teaser data ──────────────────────────────── */
 // Prices are pulled from @/config/pricing so the landing teaser stays
 // in sync with the canonical /pricing page and any future config
@@ -243,29 +354,52 @@ function LandingContent() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-16 md:py-24 relative z-10">
           <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
             <div className="flex-1 text-center lg:text-left">
+              {/* Headline reshaped 2026-06-07 (AlphaSpread audit P0):
+                  question-form framing so the hero reads as "type your
+                  ticker, get an answer" rather than a product tagline.
+                  SEBI-safe — this is a question about analytical lookup,
+                  not a recommendation. */}
               <h1 className="font-display text-4xl md:text-5xl lg:text-6xl font-black text-white leading-[1.1] mb-6 tracking-tight">
-                A transparent DCF valuation
+                Which Indian stock
                 <br />
+                do you want to
+                {" "}
                 <span className="bg-gradient-to-r from-blue-400 via-cyan-300 to-blue-500 bg-clip-text text-transparent">
-                  for Indian equities.
+                  value?
                 </span>
               </h1>
 
-              <p className="text-gray-300 text-lg md:text-xl max-w-xl mx-auto lg:mx-0 mb-4 leading-relaxed">
-                Built for self-directed long-term investors &mdash; every assumption is editable, every number links to the source filing.
-              </p>
-              <p className="text-caption text-sm md:text-base max-w-xl mx-auto lg:mx-0 mb-8 leading-relaxed">
-                Not a broker. Not a chart tool. Not a tipster service. A valuation layer that sits on top of the fundamentals you already read on Screener.in.
+              <p className="text-gray-300 text-lg md:text-xl max-w-xl mx-auto lg:mx-0 mb-6 leading-relaxed">
+                A transparent DCF for 2,300+ NSE &amp; BSE tickers &mdash; every assumption editable, every number linked to its source filing.
               </p>
 
+              {/* Hero search — primary action above the fold (audit P0).
+                  HomeSearchBar uses light surface tokens by design; we
+                  wrap it in a white-on-dark frame so the input still
+                  pops against the dark gradient hero without forking
+                  the component. */}
+              <div className="mb-4 max-w-xl mx-auto lg:mx-0">
+                <div className="rounded-2xl bg-white/95 dark:bg-surface/95 p-1.5 shadow-xl shadow-blue-500/10 ring-1 ring-white/10">
+                  <HomeSearchBar />
+                </div>
+                <p className="mt-2 text-[11px] text-caption text-center lg:text-left">
+                  Press Enter to analyse &middot; no sign-up to browse
+                </p>
+              </div>
+
+              {/* Recently viewed / popular chips — re-engagement hook. */}
+              <div className="mb-6">
+                <RecentlyViewedChips />
+              </div>
+
               <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-6">
-                <Link href="/search"
-                  className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold px-8 py-4 rounded-xl text-lg hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-lg shadow-blue-500/25 inline-flex items-center justify-center gap-2">
-                  Analyse any stock free <ArrowRight className="w-5 h-5" />
+                <Link href="/discover"
+                  className="bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-bold px-6 py-3 rounded-xl text-base hover:opacity-90 hover:-translate-y-0.5 transition-all shadow-lg shadow-blue-500/25 inline-flex items-center justify-center gap-2">
+                  Browse all stocks <ArrowRight className="w-4 h-4" />
                 </Link>
                 <Link href="#how-it-works"
-                  className="inline-flex items-center justify-center gap-2 border border-white/10 text-white font-semibold px-6 py-4 rounded-xl text-lg hover:bg-white/5 transition">
-                  <Play className="w-5 h-5" /> See how it works
+                  className="inline-flex items-center justify-center gap-2 border border-white/10 text-white font-semibold px-5 py-3 rounded-xl text-base hover:bg-white/5 transition">
+                  <Play className="w-4 h-4" /> See how it works
                 </Link>
               </div>
 
