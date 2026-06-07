@@ -55,7 +55,7 @@ exports[`RecentAnalyses (snapshot) > renders TickerAvatar chips for each recent 
             decoding="async"
             height="24"
             loading="lazy"
-            src="https://logo.clearbit.com/hdfcbank.com"
+            src="https://www.google.com/s2/favicons?domain=hdfcbank.com&sz=128"
             width="24"
           />
         </span>
@@ -98,7 +98,7 @@ exports[`RecentAnalyses (snapshot) > renders TickerAvatar chips for each recent 
             decoding="async"
             height="24"
             loading="lazy"
-            src="https://logo.clearbit.com/tcs.com"
+            src="https://www.google.com/s2/favicons?domain=tcs.com&sz=128"
             width="24"
           />
         </span>

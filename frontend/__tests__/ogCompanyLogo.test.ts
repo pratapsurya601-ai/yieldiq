@@ -1,11 +1,14 @@
 /**
  * Unit tests for the shared OG-image companyLogo helper.
  *
- * Covers the fallback chain:
- *   - unknown ticker → null (no Clearbit hop fired)
- *   - Clearbit 404 → null
- *   - Clearbit timeout → null
- *   - Clearbit 200 → base64 data URL with correct content-type
+ * Covers the post-2026-06-07-hotfix fallback chain:
+ *   - unknown ticker → null (no Google favicon hop fired)
+ *   - Google favicon 404 → null
+ *   - Google favicon timeout → null
+ *   - Google favicon 200 but non-image content-type → null
+ *     (defends against the Brandfetch HTML-preview failure mode)
+ *   - Google favicon 200 → base64 data URL with correct content-type
+ *   - Helper NEVER targets `logo.clearbit.com`
  *
  * The full ImageResponse render isn't covered here — Satori runs on
  * the edge runtime which vitest's jsdom env doesn't emulate. The
@@ -71,9 +74,21 @@ describe("companyLogo helpers", () => {
       expect(spy).not.toHaveBeenCalled()
     })
 
-    it("returns null on Clearbit 404 (logo missing for this domain)", async () => {
+    it("returns null on Google favicon 404 (logo missing for this domain)", async () => {
       globalThis.fetch = vi.fn(async () =>
         new Response(null, { status: 404 }),
+      ) as unknown as typeof fetch
+      const result = await fetchCompanyLogoDataUrl("HDFCBANK")
+      expect(result).toBeNull()
+    })
+
+    it("returns null when the response is text/html (defends against the Brandfetch HTML-preview failure mode)", async () => {
+      globalThis.fetch = vi.fn(
+        async () =>
+          new Response("<html>not an image</html>", {
+            status: 200,
+            headers: { "content-type": "text/html" },
+          }),
       ) as unknown as typeof fetch
       const result = await fetchCompanyLogoDataUrl("HDFCBANK")
       expect(result).toBeNull()
@@ -113,7 +128,7 @@ describe("companyLogo helpers", () => {
       expect(result).toBe("data:image/png;base64,AQID")
     })
 
-    it("uses the Clearbit endpoint with the curated domain", async () => {
+    it("uses the Google s2/favicons endpoint with the curated domain (NOT the dead Clearbit URL)", async () => {
       const spy = vi.fn(
         async () =>
           new Response(new Uint8Array([0]), {
@@ -129,7 +144,11 @@ describe("companyLogo helpers", () => {
       // the URL the helper passed to fetch.
       const calls = spy.mock.calls as unknown as Array<unknown[]>
       const calledWith = calls[0]?.[0] as string | undefined
-      expect(calledWith).toBe("https://logo.clearbit.com/infosys.com")
+      expect(calledWith).toBe(
+        "https://www.google.com/s2/favicons?domain=infosys.com&sz=128",
+      )
+      // Hotfix invariant: the dead Clearbit URL is never emitted.
+      expect(calledWith).not.toMatch(/logo\.clearbit\.com/)
     })
   })
 })

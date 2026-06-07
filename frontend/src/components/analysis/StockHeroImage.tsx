@@ -118,7 +118,7 @@ export default function StockHeroImage({
   const [logoSrc, setLogoSrc] = useState<string | null>(initialLogo)
   const [logoFailed, setLogoFailed] = useState(false)
   const handleLogoError = () => {
-    const fallback = getLogoFallbackUrl(ticker, 128)
+    const fallback = getLogoFallbackUrl(ticker)
     if (fallback && fallback !== logoSrc) {
       setLogoSrc(fallback)
     } else {

@@ -12,12 +12,14 @@ const nextConfig: NextConfig = {
     ],
   },
   // Company-logo CDNs whitelisted for next/image optimization. See
-  // frontend/src/lib/logoUrl.ts — Brandfetch is primary (when client
-  // ID is set) and Google's favicon endpoint is the always-on fallback.
+  // frontend/src/lib/logoUrl.ts. 2026-06-07 HOTFIX: Clearbit and the
+  // bare-domain Brandfetch endpoint were both retired/broken; the
+  // active chain is Google s2/favicons (primary) → DuckDuckGo icons
+  // (fallback) → letter mark.
   images: {
     remotePatterns: [
-      { protocol: 'https', hostname: 'cdn.brandfetch.io' },
       { protocol: 'https', hostname: 'www.google.com', pathname: '/s2/favicons' },
+      { protocol: 'https', hostname: 'icons.duckduckgo.com', pathname: '/ip3/**' },
     ],
   },
   compiler: {

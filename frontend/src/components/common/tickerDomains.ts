@@ -19,7 +19,7 @@
  */
 
 // Sector hint used to color the letter-mark fallback when neither the
-// Clearbit, Brandfetch, nor favicon hops produce a usable logo.
+// Google favicon nor the DuckDuckGo icon hops produce a usable logo.
 export type TickerSector =
   | "banking"
   | "tech"

@@ -10,16 +10,18 @@
  * Fallback chain (each layer can be skipped if the URL is unknown; the
  * <img onError> handler advances to the next layer at runtime):
  *
- *   (a) Clearbit hot-link for the canonical 261-entry domain map
+ *   (a) Google s2/favicons for the canonical 261-entry domain map
  *       (`getCompanyDomain` in `lib/logoUrl.ts`, reading
- *       `data/ticker_domains.json`). Highest fidelity for the curated
- *       NSE universe. Free-tier rate-limit ~100 req/day per IP; if
- *       rate-limited, layer (b) takes over via onError.
- *   (b) Brandfetch CDN keyed by clean ticker — works for US tickers
- *       (e.g. GOOGL/MSFT) where the symbol IS the brand.
- *   (c) Google favicon service for the same domain (or `<cleanTicker>.com`
- *       guess when no curated entry exists). Always-on, bulletproof,
- *       lower fidelity (~32-128px).
+ *       `data/ticker_domains.json`). Always-on, free, returns a real
+ *       PNG (~32-128px). 2026-06-07 HOTFIX: this layer replaces the
+ *       defunct Clearbit hot-link, which started returning HTTP 000 /
+ *       connection refused after Clearbit's free Logo API was retired.
+ *   (b) DuckDuckGo icon service for the same domain
+ *       (`icons.duckduckgo.com/ip3/{domain}.ico`). Independent crawler;
+ *       saves the day when Google's favicon index is stale.
+ *   (c) Google favicon for a `<cleanTicker>.com` guess when no curated
+ *       entry exists. Helps US-style tickers whose symbol IS the brand
+ *       (GOOGL → google.com).
  *   (d) Sector-colored letter mark — final fallback. 1 letter for
  *       <=4-char tickers, 2 letters for longer (e.g. "HD" for HDFCBANK).
  *
@@ -86,7 +88,7 @@ const SECTOR_BG: Record<TickerSector, string> = {
 }
 
 // Module-level cache of the LAST successful URL we resolved for a given
-// clean ticker. Lets us skip dead Clearbit hops on re-renders within the
+// clean ticker. Lets us skip dead favicon hops on re-renders within the
 // same page lifecycle. Keyed by clean ticker, value is the resolved
 // chip-stage index so re-renders pick up at the right layer.
 const logoStageCache = new Map<string, number>()
@@ -101,10 +103,18 @@ function letterMarkFor(cleaned: string): string {
  * Resolve the URL for a given fallback stage. Returns null when that
  * stage has no usable URL, signalling the caller to skip to the next.
  *
- *   stage 0 → Clearbit (needs curated NSE_TICKER_DOMAINS entry)
- *   stage 1 → Brandfetch CDN (works on bare ticker — e.g. GOOGL)
- *   stage 2 → Google favicon (domain OR `<ticker>.com` guess)
+ *   stage 0 → Google s2/favicons keyed on the curated domain
+ *             (preferred — high hit rate for the NSE universe).
+ *   stage 1 → DuckDuckGo icons keyed on the curated domain
+ *             (independent fallback for stale Google index entries).
+ *   stage 2 → Google s2/favicons keyed on a `<cleanTicker>.com` guess
+ *             — last-chance hop for non-curated US-style tickers.
  *   stage 3+ → null (letter-mark fallback)
+ *
+ * 2026-06-07 HOTFIX: stages 0 and 1 used to be Clearbit + bare-domain
+ * Brandfetch. Both endpoints died (Clearbit shut down its free Logo
+ * API, Brandfetch's bare-domain URL now returns HTML, not an image).
+ * The new stages use only image-returning endpoints.
  */
 function urlForStage(cleaned: string, stage: number): string | null {
   // Single source of truth for the curated ticker → domain map: the
@@ -114,16 +124,20 @@ function urlForStage(cleaned: string, stage: number): string | null {
   const domain = getCompanyDomain(cleaned)
   switch (stage) {
     case 0:
-      return domain ? `https://logo.clearbit.com/${domain}` : null
+      return domain
+        ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128`
+        : null
     case 1:
-      // Brandfetch CDN — keyed by the brand/ticker itself. We pass the
-      // clean ticker which works for US listings whose symbol IS the
-      // brand (GOOGL → google logo). For Indian tickers this layer is
-      // usually a 404 and onError advances to layer (c).
-      return `https://cdn.brandfetch.io/${cleaned}`
+      return domain
+        ? `https://icons.duckduckgo.com/ip3/${domain}.ico`
+        : null
     case 2: {
-      const guess = domain || `${cleaned.toLowerCase()}.com`
-      return `https://www.google.com/s2/favicons?domain=${guess}&sz=64`
+      // Non-curated ticker rescue — guess `<ticker>.com` and ask
+      // Google. Works for US-style listings whose symbol IS the brand
+      // (GOOGL → google.com). Skip when we already had a curated domain
+      // since stages 0/1 already covered it.
+      if (domain) return null
+      return `https://www.google.com/s2/favicons?domain=${cleaned.toLowerCase()}.com&sz=64`
     }
     default:
       return null
@@ -153,7 +167,8 @@ export default function TickerAvatar({
 
   // Start at the cached stage if one exists; otherwise walk forward
   // from stage 0 to find the first layer that has a URL for this ticker
-  // (skips the Clearbit hop instantly when the ticker isn't curated).
+  // (skips the curated-domain hops instantly when the ticker isn't in
+  // the 261-entry map).
   const cachedStage = logoStageCache.get(cleaned)
   const initialStage =
     cachedStage !== undefined ? cachedStage : firstUsableStage(cleaned, 0)
@@ -209,9 +224,9 @@ export default function TickerAvatar({
       {/*
        * Plain <img> rather than next/image: these chips appear inline
        * in dense lists where Next's optimizer would compete with LCP
-       * candidates higher on the page AND proxy every Brandfetch/
-       * Clearbit URL through /_next/image — net zero perf benefit at
-       * 16-48px while ballooning origin bandwidth.
+       * candidates higher on the page AND proxy every favicon URL
+       * through /_next/image — net zero perf benefit at 16-48px while
+       * ballooning origin bandwidth.
        *
        * `loading="lazy"` keeps the chip off the critical path.
        */}
