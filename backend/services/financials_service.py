@@ -122,6 +122,15 @@ class _Row:
     cfo: float | None = None                 # operating_cf
     capex: float | None = None
     free_cash_flow: float | None = None
+    # Bank format (Schedule III Division I — NSE/NSE_XBRL ingest only)
+    # Added 2026-06-07 by fix/financials-source-priority. Banks
+    # populate these instead of the GAAP gross_profit / ebit /
+    # interest_expense triple. Surfaced in the API so the FE can
+    # render bank-format rows when ready. See db_writer.py lines
+    # 86-89 for the source-of-truth column list.
+    interest_earned: float | None = None
+    interest_expended: float | None = None
+    total_income: float | None = None
     # Metadata
     roe: float | None = None
     debt_to_equity: float | None = None
@@ -197,41 +206,99 @@ def _fetch_from_db(db, db_ticker: str, period_type: str,
     Read up to ``limit`` periods for a ticker from the new table.
     Runs 3 queries (income / balance_sheet / cashflow), merges by
     period_end_date, returns rows newest→oldest.
+
+    Source-priority + field-coalesce (fix/financials-source-priority,
+    2026-06-07): ``company_financials`` carries up to 3 rows per
+    (ticker, period_end_date, statement_type) because the UNIQUE
+    constraint includes ``source``. Sources differ in coverage:
+
+      - ``yfinance`` — rich rows, full GAAP fields (gross_profit,
+        ebitda, ebit, interest_expense). Range 2024-09-30 onward.
+      - ``NSE_XBRL`` — XBRL ingest; has ebitda/ebit/op_income,
+        no gross_profit. Range 2016-12-31 → 2024-12-31.
+      - ``nse``     — PAT/EPS-only stubs from corp announcements;
+        gross_profit/ebitda/ebit/interest_expense all NULL.
+        Also carries bank-format fields (interest_earned,
+        interest_expended, total_income) for Schedule III Div I
+        banks.
+
+    Old reader did ``DISTINCT ON`` with the wrong priority
+    (``nse`` first), so newer yfinance-only quarters were either
+    masked by a thin NSE stub or showed the latest insert's source
+    arbitrarily. The fix:
+
+      1. Aggregate per ``period_end_date`` with
+         ``MAX(CASE WHEN source='X' THEN col END)`` per source.
+      2. ``COALESCE(yfinance, NSE_XBRL, nse)`` in the outer SELECT so
+         each field is sourced from the highest-priority row that has
+         a non-NULL value. yfinance wins by default; missing fields
+         fall through to NSE_XBRL then nse.
+      3. Bank-format columns (``interest_earned``,
+         ``interest_expended``, ``total_income``) are surfaced from
+         the nse / NSE_XBRL rows that populate them (yfinance never
+         does).
     """
     # ---- INCOME ------------------------------------------------------
-    # Dedup (Cluster E, 2026-06-07): company_financials' UNIQUE constraint
-    # spans (ticker_nse, period_type, period_end_date, statement_type,
-    # source) — so the same fiscal period can carry multiple rows from
-    # different ingestion sources (NSE corp announcements + yfinance +
-    # XBRL). The frontend rendered every row as a separate column,
-    # producing duplicate "Q3FY25, Q3FY25" headers and occasional unit-
-    # mismatch artifacts (eps_diluted 29.58 vs 10.08 for BANKBARODA).
-    # Collapse to exactly one row per period via DISTINCT ON with a
-    # deterministic source priority: NSE first (authoritative for Indian
-    # listings), then xbrl/yfinance, with updated_at as the tiebreaker.
     inc_rows = db.execute(text("""
-        SELECT period_end_date, revenue, gross_profit, ebitda, ebit,
-               depreciation, interest_expense,
-               net_income, eps_basic, eps_diluted
+        SELECT period_end_date,
+               COALESCE(yf_revenue,           xbrl_revenue,          nse_revenue)          AS revenue,
+               COALESCE(yf_gross_profit,      xbrl_gross_profit,     nse_gross_profit)     AS gross_profit,
+               COALESCE(yf_ebitda,            xbrl_ebitda,           nse_ebitda)           AS ebitda,
+               COALESCE(yf_ebit,              xbrl_ebit,             nse_ebit)             AS ebit,
+               COALESCE(yf_depreciation,      xbrl_depreciation,     nse_depreciation)     AS depreciation,
+               COALESCE(yf_interest_expense,  xbrl_interest_expense, nse_interest_expense) AS interest_expense,
+               COALESCE(yf_net_income,        xbrl_net_income,       nse_net_income)       AS net_income,
+               COALESCE(yf_eps_basic,         xbrl_eps_basic,        nse_eps_basic)        AS eps_basic,
+               COALESCE(yf_eps_diluted,       xbrl_eps_diluted,      nse_eps_diluted)      AS eps_diluted,
+               -- Bank format — surfaced from whichever ingest populates them.
+               COALESCE(yf_interest_earned,   xbrl_interest_earned,  nse_interest_earned)   AS interest_earned,
+               COALESCE(yf_interest_expended, xbrl_interest_expended, nse_interest_expended) AS interest_expended,
+               COALESCE(yf_total_income,      xbrl_total_income,     nse_total_income)      AS total_income
         FROM (
-            SELECT DISTINCT ON (period_end_date)
-                   period_end_date, revenue, gross_profit, ebitda, ebit,
-                   depreciation, interest_expense,
-                   net_income, eps_basic, eps_diluted
+            SELECT period_end_date,
+                   MAX(CASE WHEN source='yfinance' THEN revenue           END) AS yf_revenue,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN revenue           END) AS xbrl_revenue,
+                   MAX(CASE WHEN source='nse'      THEN revenue           END) AS nse_revenue,
+                   MAX(CASE WHEN source='yfinance' THEN gross_profit      END) AS yf_gross_profit,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN gross_profit      END) AS xbrl_gross_profit,
+                   MAX(CASE WHEN source='nse'      THEN gross_profit      END) AS nse_gross_profit,
+                   MAX(CASE WHEN source='yfinance' THEN ebitda            END) AS yf_ebitda,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN ebitda            END) AS xbrl_ebitda,
+                   MAX(CASE WHEN source='nse'      THEN ebitda            END) AS nse_ebitda,
+                   MAX(CASE WHEN source='yfinance' THEN ebit              END) AS yf_ebit,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN ebit              END) AS xbrl_ebit,
+                   MAX(CASE WHEN source='nse'      THEN ebit              END) AS nse_ebit,
+                   MAX(CASE WHEN source='yfinance' THEN depreciation      END) AS yf_depreciation,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN depreciation      END) AS xbrl_depreciation,
+                   MAX(CASE WHEN source='nse'      THEN depreciation      END) AS nse_depreciation,
+                   MAX(CASE WHEN source='yfinance' THEN interest_expense  END) AS yf_interest_expense,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN interest_expense  END) AS xbrl_interest_expense,
+                   MAX(CASE WHEN source='nse'      THEN interest_expense  END) AS nse_interest_expense,
+                   MAX(CASE WHEN source='yfinance' THEN net_income        END) AS yf_net_income,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN net_income        END) AS xbrl_net_income,
+                   MAX(CASE WHEN source='nse'      THEN net_income        END) AS nse_net_income,
+                   MAX(CASE WHEN source='yfinance' THEN eps_basic         END) AS yf_eps_basic,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN eps_basic         END) AS xbrl_eps_basic,
+                   MAX(CASE WHEN source='nse'      THEN eps_basic         END) AS nse_eps_basic,
+                   MAX(CASE WHEN source='yfinance' THEN eps_diluted       END) AS yf_eps_diluted,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN eps_diluted       END) AS xbrl_eps_diluted,
+                   MAX(CASE WHEN source='nse'      THEN eps_diluted       END) AS nse_eps_diluted,
+                   MAX(CASE WHEN source='yfinance' THEN interest_earned   END) AS yf_interest_earned,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN interest_earned   END) AS xbrl_interest_earned,
+                   MAX(CASE WHEN source='nse'      THEN interest_earned   END) AS nse_interest_earned,
+                   MAX(CASE WHEN source='yfinance' THEN interest_expended END) AS yf_interest_expended,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN interest_expended END) AS xbrl_interest_expended,
+                   MAX(CASE WHEN source='nse'      THEN interest_expended END) AS nse_interest_expended,
+                   MAX(CASE WHEN source='yfinance' THEN total_income      END) AS yf_total_income,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN total_income      END) AS xbrl_total_income,
+                   MAX(CASE WHEN source='nse'      THEN total_income      END) AS nse_total_income
             FROM company_financials
             WHERE ticker_nse = :t
               AND statement_type = 'income'
               AND period_type = :p
               AND period_end_date IS NOT NULL
-            ORDER BY period_end_date DESC,
-                     CASE source
-                         WHEN 'nse' THEN 0
-                         WHEN 'xbrl' THEN 1
-                         WHEN 'yfinance' THEN 2
-                         ELSE 3
-                     END,
-                     updated_at DESC NULLS LAST
-        ) dedup
+            GROUP BY period_end_date
+        ) agg
         ORDER BY period_end_date DESC
         LIMIT :lim
     """), {"t": db_ticker, "p": period_type, "lim": limit}).mappings().all()
@@ -240,63 +307,94 @@ def _fetch_from_db(db, db_ticker: str, period_type: str,
         return []
 
     # ---- BALANCE SHEET ----------------------------------------------
-    # Day-111b: also select total_liabilities so the bank D/E path can
-    # fall back to (total_liab - equity) / equity (deposits +
-    # borrowings live in total_liabilities, not in total_debt — there
-    # are no separate deposits/borrowings columns in
-    # company_financials yet; see Phase-2 ingestion TODO below).
-    # Same DISTINCT ON dedup as income — see Cluster E note above.
     bs_rows = db.execute(text("""
-        SELECT period_end_date, total_assets, total_debt, cash,
-               total_equity, current_assets, fixed_assets,
-               net_debt, working_capital, total_liabilities
+        SELECT period_end_date,
+               COALESCE(yf_total_assets,       xbrl_total_assets,       nse_total_assets)       AS total_assets,
+               COALESCE(yf_total_debt,         xbrl_total_debt,         nse_total_debt)         AS total_debt,
+               COALESCE(yf_cash,               xbrl_cash,               nse_cash)               AS cash,
+               COALESCE(yf_total_equity,       xbrl_total_equity,       nse_total_equity)       AS total_equity,
+               COALESCE(yf_current_assets,     xbrl_current_assets,     nse_current_assets)     AS current_assets,
+               COALESCE(yf_fixed_assets,       xbrl_fixed_assets,       nse_fixed_assets)       AS fixed_assets,
+               COALESCE(yf_net_debt,           xbrl_net_debt,           nse_net_debt)           AS net_debt,
+               COALESCE(yf_working_capital,    xbrl_working_capital,    nse_working_capital)    AS working_capital,
+               COALESCE(yf_total_liabilities,  xbrl_total_liabilities,  nse_total_liabilities)  AS total_liabilities
         FROM (
-            SELECT DISTINCT ON (period_end_date)
-                   period_end_date, total_assets, total_debt, cash,
-                   total_equity, current_assets, fixed_assets,
-                   net_debt, working_capital, total_liabilities
+            SELECT period_end_date,
+                   MAX(CASE WHEN source='yfinance' THEN total_assets      END) AS yf_total_assets,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN total_assets      END) AS xbrl_total_assets,
+                   MAX(CASE WHEN source='nse'      THEN total_assets      END) AS nse_total_assets,
+                   MAX(CASE WHEN source='yfinance' THEN total_debt        END) AS yf_total_debt,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN total_debt        END) AS xbrl_total_debt,
+                   MAX(CASE WHEN source='nse'      THEN total_debt        END) AS nse_total_debt,
+                   MAX(CASE WHEN source='yfinance' THEN cash              END) AS yf_cash,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN cash              END) AS xbrl_cash,
+                   MAX(CASE WHEN source='nse'      THEN cash              END) AS nse_cash,
+                   MAX(CASE WHEN source='yfinance' THEN total_equity      END) AS yf_total_equity,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN total_equity      END) AS xbrl_total_equity,
+                   MAX(CASE WHEN source='nse'      THEN total_equity      END) AS nse_total_equity,
+                   MAX(CASE WHEN source='yfinance' THEN current_assets    END) AS yf_current_assets,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN current_assets    END) AS xbrl_current_assets,
+                   MAX(CASE WHEN source='nse'      THEN current_assets    END) AS nse_current_assets,
+                   MAX(CASE WHEN source='yfinance' THEN fixed_assets      END) AS yf_fixed_assets,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN fixed_assets      END) AS xbrl_fixed_assets,
+                   MAX(CASE WHEN source='nse'      THEN fixed_assets      END) AS nse_fixed_assets,
+                   MAX(CASE WHEN source='yfinance' THEN net_debt          END) AS yf_net_debt,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN net_debt          END) AS xbrl_net_debt,
+                   MAX(CASE WHEN source='nse'      THEN net_debt          END) AS nse_net_debt,
+                   MAX(CASE WHEN source='yfinance' THEN working_capital   END) AS yf_working_capital,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN working_capital   END) AS xbrl_working_capital,
+                   MAX(CASE WHEN source='nse'      THEN working_capital   END) AS nse_working_capital,
+                   MAX(CASE WHEN source='yfinance' THEN total_liabilities END) AS yf_total_liabilities,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN total_liabilities END) AS xbrl_total_liabilities,
+                   MAX(CASE WHEN source='nse'      THEN total_liabilities END) AS nse_total_liabilities
             FROM company_financials
             WHERE ticker_nse = :t
               AND statement_type = 'balance_sheet'
               AND period_type = :p
               AND period_end_date IS NOT NULL
-            ORDER BY period_end_date DESC,
-                     CASE source
-                         WHEN 'nse' THEN 0
-                         WHEN 'xbrl' THEN 1
-                         WHEN 'yfinance' THEN 2
-                         ELSE 3
-                     END,
-                     updated_at DESC NULLS LAST
-        ) dedup
+            GROUP BY period_end_date
+        ) agg
         ORDER BY period_end_date DESC
         LIMIT :lim
     """), {"t": db_ticker, "p": period_type, "lim": limit}).mappings().all()
 
     # ---- CASH FLOW (annual only in our pipeline) --------------------
     cf_period = "annual"   # our pipeline writes CF as annual only
-    # Same DISTINCT ON dedup as income — see Cluster E note above.
     cf_rows = db.execute(text("""
-        SELECT period_end_date, operating_cf, investing_cf, financing_cf,
-               capex, free_cash_flow, dividends_paid
+        SELECT period_end_date,
+               COALESCE(yf_operating_cf,    xbrl_operating_cf,    nse_operating_cf)    AS operating_cf,
+               COALESCE(yf_investing_cf,    xbrl_investing_cf,    nse_investing_cf)    AS investing_cf,
+               COALESCE(yf_financing_cf,    xbrl_financing_cf,    nse_financing_cf)    AS financing_cf,
+               COALESCE(yf_capex,           xbrl_capex,           nse_capex)           AS capex,
+               COALESCE(yf_free_cash_flow,  xbrl_free_cash_flow,  nse_free_cash_flow)  AS free_cash_flow,
+               COALESCE(yf_dividends_paid,  xbrl_dividends_paid,  nse_dividends_paid)  AS dividends_paid
         FROM (
-            SELECT DISTINCT ON (period_end_date)
-                   period_end_date, operating_cf, investing_cf, financing_cf,
-                   capex, free_cash_flow, dividends_paid
+            SELECT period_end_date,
+                   MAX(CASE WHEN source='yfinance' THEN operating_cf   END) AS yf_operating_cf,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN operating_cf   END) AS xbrl_operating_cf,
+                   MAX(CASE WHEN source='nse'      THEN operating_cf   END) AS nse_operating_cf,
+                   MAX(CASE WHEN source='yfinance' THEN investing_cf   END) AS yf_investing_cf,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN investing_cf   END) AS xbrl_investing_cf,
+                   MAX(CASE WHEN source='nse'      THEN investing_cf   END) AS nse_investing_cf,
+                   MAX(CASE WHEN source='yfinance' THEN financing_cf   END) AS yf_financing_cf,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN financing_cf   END) AS xbrl_financing_cf,
+                   MAX(CASE WHEN source='nse'      THEN financing_cf   END) AS nse_financing_cf,
+                   MAX(CASE WHEN source='yfinance' THEN capex          END) AS yf_capex,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN capex          END) AS xbrl_capex,
+                   MAX(CASE WHEN source='nse'      THEN capex          END) AS nse_capex,
+                   MAX(CASE WHEN source='yfinance' THEN free_cash_flow END) AS yf_free_cash_flow,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN free_cash_flow END) AS xbrl_free_cash_flow,
+                   MAX(CASE WHEN source='nse'      THEN free_cash_flow END) AS nse_free_cash_flow,
+                   MAX(CASE WHEN source='yfinance' THEN dividends_paid END) AS yf_dividends_paid,
+                   MAX(CASE WHEN source='NSE_XBRL' THEN dividends_paid END) AS xbrl_dividends_paid,
+                   MAX(CASE WHEN source='nse'      THEN dividends_paid END) AS nse_dividends_paid
             FROM company_financials
             WHERE ticker_nse = :t
               AND statement_type = 'cashflow'
               AND period_type = :p
               AND period_end_date IS NOT NULL
-            ORDER BY period_end_date DESC,
-                     CASE source
-                         WHEN 'nse' THEN 0
-                         WHEN 'xbrl' THEN 1
-                         WHEN 'yfinance' THEN 2
-                         ELSE 3
-                     END,
-                     updated_at DESC NULLS LAST
-        ) dedup
+            GROUP BY period_end_date
+        ) agg
         ORDER BY period_end_date DESC
         LIMIT :lim
     """), {"t": db_ticker, "p": cf_period, "lim": limit}).mappings().all()
@@ -334,6 +432,10 @@ def _fetch_from_db(db, db_ticker: str, period_type: str,
             cfo=_safe_float(cf.get("operating_cf")),
             capex=_safe_float(cf.get("capex")),
             free_cash_flow=_safe_float(cf.get("free_cash_flow")),
+            # Bank format (Schedule III Division I)
+            interest_earned=_safe_float(inc.get("interest_earned")),
+            interest_expended=_safe_float(inc.get("interest_expended")),
+            total_income=_safe_float(inc.get("total_income")),
         )
 
         # Derived: fill EBITDA from EBIT+Depreciation if missing
@@ -515,6 +617,13 @@ def _build_year(row: _Row, prev: _Row | None) -> dict:
         "capex": row.capex,
         "free_cash_flow": row.free_cash_flow,
         "fcf_margin_pct": fcf_margin_pct,
+
+        # Bank format (Schedule III Division I) — only populated for
+        # banks; null for non-banks. Added 2026-06-07 by
+        # fix/financials-source-priority. FE can ignore until ready.
+        "interest_earned": row.interest_earned,
+        "interest_expended": row.interest_expended,
+        "total_income": row.total_income,
     }
 
 
