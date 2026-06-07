@@ -182,7 +182,7 @@ describe("FairValueJsonLd — emits three SSR schemas", () => {
     expect(html).toContain('"@type":"FAQPage"')
     expect(html).toContain('"@type":"Question"')
     expect(html).toContain('"@type":"Answer"')
-    // Each FAQ question should appear in the serialised payload.
+    // Every FAQ question must appear in the serialised payload.
     for (const qa of faq) {
       // JSON-escape the apostrophes the same way JSON.stringify does
       // before substring-searching.

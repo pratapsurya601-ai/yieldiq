@@ -2,7 +2,7 @@
  * /fair-value/[ticker] — programmatic SEO content page (server component).
  *
  * Built to test one hypothesis on a 4-week clock from Search-Console
- * submission: do these pages accumulate impressions for the
+ * submission: do these pages earn impressions for the
  * `[ticker] fair value` / `[ticker] intrinsic value` /
  * `[ticker] dcf analysis` query family for the 12 chosen NIFTY-50
  * large-caps. The one metric is Search Console impressions. The

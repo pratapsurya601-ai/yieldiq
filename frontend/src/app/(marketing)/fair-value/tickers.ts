@@ -9,14 +9,14 @@
  * programmatic content surface amplifying any vocab leak.
  *
  * The hypothesis under test (4-week window from Search-Console
- * submission): impressions accumulate on `[ticker] fair value` /
+ * submission): impressions add up on `[ticker] fair value` /
  * `[ticker] intrinsic value` / `[ticker] dcf analysis` queries on
  * multiple tickers. If yes → programmatic content is a real growth
  * lever and we extend. If no → SEO is not the channel and we pivot.
  *
  * Per-ticker `moatPhrase` is a hand-authored, descriptive sentence
  * about the firm's economic moat in factual terms (no advisory
- * language, no "should" / "strong" / "weak" framing). The DCF /
+ * language, none of the banned-vocabulary qualifiers). The DCF /
  * quality numbers come from the live /api/v1/prism payload at SSR
  * time — only the prose framing is static here.
  */

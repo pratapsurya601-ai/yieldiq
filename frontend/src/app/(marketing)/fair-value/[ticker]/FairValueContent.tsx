@@ -7,11 +7,11 @@
  * about whether a reader ought to act.
  *
  * SEBI lint runs on this file. The banned-vocabulary list is in
- * scripts/check_sebi_words.py — do not introduce any of the following
- * into the prose (or any descendant component): predictive direction
- * verbs, recommendation verbs, subjective valuation adjectives, and
- * the standalone qualifiers `strong` / `weak` outside their
- * wire-format usage. Use descriptive metric language instead — e.g.
+ * scripts/check_sebi_words.py — do not introduce any banned predictive
+ * direction verbs, advisory verbs, subjective valuation adjectives, or
+ * standalone qualifiers outside their wire-format usage into the prose
+ * (or any descendant component). Use descriptive metric language
+ * instead — e.g.
  * "the model's fair-value estimate is 12% above the current price"
  * rather than any directional framing.
  */
@@ -130,12 +130,10 @@ export function buildFaq(vm: FairValueViewModel): FaqEntry[] {
         // Disclaimer language: SEBI-compliance disclosure deliberately
         // names what the page is NOT. Allowlisted per check_sebi_words.
         `No. YieldIQ is not a SEBI-registered investment adviser and ` +
-        // sebi-allow: recommendation
-        `nothing on this page is investment advice or a recommendation to ` +
+        `nothing on this page is investment advice or a recommendation to ` + // sebi-allow: recommendation
         `transact in ${company} or any other security. The fair-value ` +
         `figure is a model output, published for educational and ` +
-        // sebi-allow: should
-        `informational use. Readers should consult a SEBI-registered ` +
+        `informational use. Readers should consult a SEBI-registered ` + // sebi-allow: should
         `investment adviser before making any investment decision.`,
     },
   ]
@@ -392,12 +390,11 @@ export default function FairValueContent({ vm }: { vm: FairValueViewModel }) {
           .
         </p>
         <p className="text-sm text-caption">
-          {/* sebi-allow: recommendation, should */}
           YieldIQ is not a SEBI-registered investment adviser. The fair-value
           figure above is a model output published for educational and
           informational use. It is not investment advice and is not a
-          recommendation to transact in {vm.companyName} or any other
-          security. Readers should consult a SEBI-registered investment
+          recommendation to transact in {vm.companyName} or any other {/* sebi-allow: recommendation */}
+          security. Readers should consult a SEBI-registered investment {/* sebi-allow: should */}
           adviser before making any investment decision.
         </p>
         <p className="text-sm">
