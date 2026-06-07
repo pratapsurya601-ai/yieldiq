@@ -35,12 +35,12 @@ describe("RecentAnalyses (snapshot)", () => {
 
   it("renders TickerAvatar chips for each recent entry", () => {
     const { container } = render(<RecentAnalyses />)
-    // Two entries → at least two avatar wrappers should be present.
+    // Two entries → at least two avatar wrappers must be present.
     const avatars = container.querySelectorAll(
       "[data-testid='ticker-avatar-image'], [data-testid='ticker-avatar-monogram']",
     )
     expect(avatars.length).toBeGreaterThanOrEqual(2)
-    // Lock the chip shape: the section heading and links should
+    // Lock the chip shape: the section heading and links must
     // remain in this exact structural arrangement.
     expect(container.querySelector("section")).toMatchSnapshot()
   })
