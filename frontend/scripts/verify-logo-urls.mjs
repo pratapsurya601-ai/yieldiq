@@ -22,7 +22,7 @@ function duckduckgoIconUrl(domain) {
 
 const DOMAINS = {
   HDFCBANK: "hdfcbank.com",
-  TCS: "tcs.com",
+  TCS: "tata.com",
   INFY: "infosys.com",
   MARUTI: "marutisuzuki.com",
   RELIANCE: "ril.com",

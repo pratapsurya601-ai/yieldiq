@@ -237,6 +237,7 @@ export default function TickerAvatar({
         height={px}
         loading="lazy"
         decoding="async"
+        referrerPolicy="no-referrer"
         onError={handleError}
         className="h-full w-full object-contain"
       />

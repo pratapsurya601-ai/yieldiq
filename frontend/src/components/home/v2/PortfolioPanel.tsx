@@ -10,6 +10,7 @@ import { getHoldingsLive, type LiveHolding } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
 import { ArrowUpDown, Plus } from "lucide-react"
 import { formatPct } from "@/lib/utils"
+import TickerAvatar from "@/components/common/TickerAvatar"
 
 type SortKey = "ticker" | "current_price" | "day_change_pct" | "fair_value" | "mos_pct" | "pnl_pct"
 type SortDir = "asc" | "desc"
@@ -204,9 +205,10 @@ export default function PortfolioPanel() {
                 <td className="px-2 py-2">
                   <Link
                     href={`/analysis/${h.display_ticker}`}
-                    className="text-xs font-semibold text-ink hover:text-brand"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink hover:text-brand"
                   >
-                    {h.display_ticker}
+                    <TickerAvatar ticker={h.ticker} sector={h.sector} size="sm" />
+                    <span>{h.display_ticker}</span>
                   </Link>
                 </td>
                 <td className="px-2 py-2 text-right">
