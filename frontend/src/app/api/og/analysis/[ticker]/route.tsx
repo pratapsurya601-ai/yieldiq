@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og"
 import type { NextRequest } from "next/server"
 import { clampMosForDisplay } from "@/lib/utils"
+import { fetchCompanyLogoDataUrl } from "../../_lib/companyLogo"
 
 /**
  * 1080 x 1920 "Share Report Card" — the portrait, Instagram-Story /
@@ -131,15 +132,23 @@ export async function GET(
   // at 8s so a slow upstream doesn't 504 the image entirely; we fall
   // back to an "Under Review" layout rather than surfacing the error,
   // because OG scrapers cache failures aggressively.
-  const [summaryRes, hexRes] = await Promise.allSettled([
-    fetch(
-      `${API_BASE}/api/v1/public/stock-summary/${encodeURIComponent(fullTicker)}`,
-      { signal: AbortSignal.timeout(8000) }
-    ).then((r) => (r.ok ? (r.json() as Promise<StockSummary>) : null)),
-    fetch(
-      `${API_BASE}/api/v1/hex/${encodeURIComponent(fullTicker)}`,
-      { signal: AbortSignal.timeout(8000) }
-    ).then((r) => (r.ok ? (r.json() as Promise<HexPayload>) : null)),
+  // Logo fetch runs in parallel with the data fetches; never throws,
+  // own 2s timeout. Null when ticker not in curated map or Clearbit
+  // failed — the JSX falls back to no-logo layout.
+  const [summaryRes, hexRes, logoDataUrl] = await Promise.all([
+    Promise.allSettled([
+      fetch(
+        `${API_BASE}/api/v1/public/stock-summary/${encodeURIComponent(fullTicker)}`,
+        { signal: AbortSignal.timeout(8000) }
+      ).then((r) => (r.ok ? (r.json() as Promise<StockSummary>) : null)),
+    ]).then((arr) => arr[0]),
+    Promise.allSettled([
+      fetch(
+        `${API_BASE}/api/v1/hex/${encodeURIComponent(fullTicker)}`,
+        { signal: AbortSignal.timeout(8000) }
+      ).then((r) => (r.ok ? (r.json() as Promise<HexPayload>) : null)),
+    ]).then((arr) => arr[0]),
+    fetchCompanyLogoDataUrl(cleanTicker),
   ])
 
   const summary: StockSummary =
@@ -413,17 +422,47 @@ export async function GET(
             padding: "42px 64px 0 64px",
           }}
         >
-          <div
-            style={{
-              color: "#ffffff",
-              fontSize: 128,
-              fontWeight: 900,
-              lineHeight: 1,
-              letterSpacing: -4,
-              display: "flex",
-            }}
-          >
-            {cleanTicker}
+          <div style={{ display: "flex", alignItems: "center", gap: 28 }}>
+            {logoDataUrl ? (
+              /* Company logo (Clearbit, base64 data URL fetched at
+                 request time). White-plate ensures transparent logos
+                 read against the dark gradient. 120x120 sits next to
+                 the giant ticker text without overpowering it. */
+              <div
+                style={{
+                  width: 120,
+                  height: 120,
+                  borderRadius: 24,
+                  background: "#FFFFFF",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  flexShrink: 0,
+                  padding: 12,
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={logoDataUrl}
+                  width={96}
+                  height={96}
+                  alt=""
+                  style={{ objectFit: "contain" }}
+                />
+              </div>
+            ) : null}
+            <div
+              style={{
+                color: "#ffffff",
+                fontSize: 128,
+                fontWeight: 900,
+                lineHeight: 1,
+                letterSpacing: -4,
+                display: "flex",
+              }}
+            >
+              {cleanTicker}
+            </div>
           </div>
           <div
             style={{
