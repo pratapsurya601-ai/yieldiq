@@ -222,7 +222,7 @@ export default function FVProjectionFan({
   // Two independent useQuery hooks fire in parallel — React Query
   // dispatches both fetches on the same render, so the network round-
   // trips overlap. We deliberately don't gate one on the other: a
-  // failure in either should not block the other from rendering.
+  // failure in one must not block the other from rendering.
   const fvHistoryQuery = useQuery({
     queryKey: ["fv-history", ticker, 2],
     queryFn: () => getFVHistory(ticker, 2),
