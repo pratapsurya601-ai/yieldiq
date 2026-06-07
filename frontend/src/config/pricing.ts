@@ -30,6 +30,13 @@ export interface PricingTier {
   tagline: string // One-line description
   features: readonly string[] // Feature bullets (display-only; pricing page uses its own structured list)
   variants: readonly PriceVariant[]
+  // When true, the tier stays in config (so backend env-var paths and
+  // Razorpay plan IDs remain wired) but is filtered out of customer-
+  // facing rendering — /pricing cards, /pricing FAQ, landing-page
+  // teaser, etc. Flip back to false to re-expose the tier. This is the
+  // simplification-launch off-switch for Pro: kept in the config so we
+  // can reactivate it when demand justifies the 2× Analyst price.
+  hidden?: boolean
 }
 
 // Initial values preserve the prices currently rendered on /pricing as of
@@ -74,6 +81,11 @@ export const PRICING_TIERS: readonly PricingTier[] = [
     id: "pro",
     name: "Pro",
     tagline: "For power users, bloggers, and advisors.",
+    // 2026-06-07: Pro is HIDDEN from the customer display while we
+    // simplify to Free + Analyst for launch. The tier and its Razorpay
+    // plan IDs stay wired on the backend — flip `hidden: false` to
+    // re-expose the cards on /pricing and the home teaser.
+    hidden: true,
     features: [
       "Everything in Analyst",
       "CSV + PDF export of any analysis",
