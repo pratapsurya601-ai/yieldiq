@@ -7,7 +7,22 @@ vi.mock("@/store/authStore", () => ({
     selector({ tier: "pro" }),
 }))
 
-// Mock API client
+// Mock next/navigation — the body uses useSearchParams / useRouter /
+// usePathname to round-trip the slider state through the URL. The
+// tests don't exercise navigation but we need the hooks to return
+// something non-null.
+const mockReplace = vi.fn()
+vi.mock("next/navigation", () => ({
+  useSearchParams: () => new URLSearchParams(""),
+  useRouter: () => ({ replace: mockReplace, push: vi.fn() }),
+  usePathname: () => "/analysis/HDFCBANK.NS/playground",
+}))
+
+// Mock API client. The body calls `recomputeDcfPlayground` TWICE on
+// mount (canonical + perturbed-WACC anchors) to calibrate the
+// client-side DCF, then NEVER again — every slider drag is computed
+// locally. The reverse-engineer fetch fires once after calibration
+// resolves.
 const mockRecompute = vi.fn()
 const mockReverse = vi.fn()
 vi.mock("@/lib/api", () => ({
@@ -27,7 +42,7 @@ class MockIO {
 
 import PlaygroundBody from "@/app/(app)/analysis/[ticker]/playground/PlaygroundBody"
 
-const FAKE_RECOMPUTE = {
+const ANCHOR_A = {
   ticker: "HDFCBANK.NS",
   fair_value: 1131,
   bear_fv: 950,
@@ -45,6 +60,12 @@ const FAKE_RECOMPUTE = {
   },
   as_of: "2026-05-25T00:00:00Z",
 }
+
+// Anchor B is the +2pp WACC perturbation — the body uses these two
+// points to solve for K (= fcf/share base) and offset (= net debt /
+// share). Distinct FV from anchor A is required so the linear system
+// is non-degenerate.
+const ANCHOR_B = { ...ANCHOR_A, fair_value: 900, base_fv: 1131 }
 
 const FAKE_REVERSE = {
   ticker: "HDFCBANK.NS",
@@ -73,6 +94,7 @@ async function flushPromises() {
     await Promise.resolve()
     await Promise.resolve()
     await Promise.resolve()
+    await Promise.resolve()
   })
 }
 
@@ -81,7 +103,11 @@ describe("PlaygroundBody", () => {
     vi.stubGlobal("IntersectionObserver", MockIO)
     mockRecompute.mockReset()
     mockReverse.mockReset()
-    mockRecompute.mockResolvedValue(FAKE_RECOMPUTE)
+    mockReplace.mockReset()
+    // First call returns anchor A, second returns anchor B.
+    mockRecompute
+      .mockResolvedValueOnce(ANCHOR_A)
+      .mockResolvedValueOnce(ANCHOR_B)
     mockReverse.mockResolvedValue(FAKE_REVERSE)
   })
 
@@ -93,47 +119,65 @@ describe("PlaygroundBody", () => {
     render(<PlaygroundBody ticker="HDFCBANK.NS" />)
     const sliders = screen.getAllByRole("slider") as HTMLInputElement[]
     expect(sliders.length).toBe(5)
-    // none disabled
     sliders.forEach((s) => expect(s.disabled).toBe(false))
   })
 
-  it("debounces slider changes with a 300ms timer (only one fetch fires)", async () => {
-    vi.useFakeTimers()
-    try {
-      render(<PlaygroundBody ticker="HDFCBANK.NS" />)
-      // initial mount schedules a debounce
-      await act(async () => {
-        vi.advanceTimersByTime(310)
-      })
-      await act(async () => {
-        await Promise.resolve()
-      })
-      expect(mockRecompute).toHaveBeenCalledTimes(1)
-
-      const sliders = screen.getAllByRole("slider") as HTMLInputElement[]
-      fireEvent.change(sliders[0], { target: { value: "0.12" } })
-      fireEvent.change(sliders[0], { target: { value: "0.13" } })
-      fireEvent.change(sliders[0], { target: { value: "0.14" } })
-      // before debounce settles, no additional call
-      expect(mockRecompute).toHaveBeenCalledTimes(1)
-      await act(async () => {
-        vi.advanceTimersByTime(310)
-      })
-      await act(async () => {
-        await Promise.resolve()
-      })
-      expect(mockRecompute).toHaveBeenCalledTimes(2)
-    } finally {
-      vi.useRealTimers()
-    }
+  it("calibrates with exactly two backend calls on mount", async () => {
+    render(<PlaygroundBody ticker="HDFCBANK.NS" />)
+    await flushPromises()
+    // Two anchor recomputes — and that's it. Subsequent slider drags
+    // must not hit the network.
+    expect(mockRecompute).toHaveBeenCalledTimes(2)
   })
 
-  it("renders reverse-engineered panel after recompute resolves", async () => {
+  it("slider drags do NOT trigger additional backend recomputes", async () => {
     render(<PlaygroundBody ticker="HDFCBANK.NS" />)
-    // Wait for natural setTimeout (300ms) — use real timers, just sleep
-    await new Promise((r) => setTimeout(r, 400))
     await flushPromises()
-    expect(mockRecompute).toHaveBeenCalled()
+    expect(mockRecompute).toHaveBeenCalledTimes(2)
+    const sliders = screen.getAllByRole("slider") as HTMLInputElement[]
+    fireEvent.change(sliders[0], { target: { value: "0.12" } })
+    fireEvent.change(sliders[0], { target: { value: "0.13" } })
+    fireEvent.change(sliders[0], { target: { value: "0.14" } })
+    await flushPromises()
+    // No new network call — math runs in-browser.
+    expect(mockRecompute).toHaveBeenCalledTimes(2)
+  })
+
+  it("renders preset scenario buttons", () => {
+    render(<PlaygroundBody ticker="HDFCBANK.NS" />)
+    expect(screen.getByText(/Growth halved/i)).toBeTruthy()
+    expect(screen.getByText(/Margins compress/i)).toBeTruthy()
+    expect(screen.getByText(/Higher rates/i)).toBeTruthy()
+  })
+
+  it("preset button mutates slider state (Growth halved cuts CAGR)", async () => {
+    render(<PlaygroundBody ticker="HDFCBANK.NS" />)
+    await flushPromises()
+    const cagrSlider = document.getElementById(
+      "slider-revenue_cagr_yr1_5",
+    ) as HTMLInputElement
+    expect(cagrSlider).toBeTruthy()
+    const before = Number(cagrSlider.value)
+    fireEvent.click(screen.getByText(/Growth halved/i))
+    const after = Number(cagrSlider.value)
+    expect(after).toBeLessThan(before)
+  })
+
+  it("renders the side-by-side YieldIQ-base vs your-FV labels", async () => {
+    render(<PlaygroundBody ticker="HDFCBANK.NS" />)
+    await flushPromises()
+    expect(screen.getByText(/YieldIQ base/i)).toBeTruthy()
+    expect(screen.getByText(/Your assumptions/i)).toBeTruthy()
+  })
+
+  it("renders Reset to YieldIQ defaults button", () => {
+    render(<PlaygroundBody ticker="HDFCBANK.NS" />)
+    expect(screen.getByText(/Reset to YieldIQ defaults/i)).toBeTruthy()
+  })
+
+  it("renders reverse-engineered panel after calibration resolves", async () => {
+    render(<PlaygroundBody ticker="HDFCBANK.NS" />)
+    await flushPromises()
     expect(mockReverse).toHaveBeenCalled()
     expect(screen.getByText(/What the market is pricing in/i)).toBeTruthy()
     expect(screen.getByText("Adopt these assumptions")).toBeTruthy()
@@ -141,12 +185,8 @@ describe("PlaygroundBody", () => {
 
   it("Adopt-assumptions click pushes implied WACC into the slider", async () => {
     render(<PlaygroundBody ticker="HDFCBANK.NS" />)
-    await new Promise((r) => setTimeout(r, 400))
     await flushPromises()
     fireEvent.click(screen.getByText("Adopt these assumptions"))
-    // 0.135 → 13.5%. Asserts on the WACC slider's aria-valuetext so we
-    // don't collide with any other "13.5%" string that may render in
-    // the reverse-engineered card.
     const waccSlider = document.getElementById("slider-wacc") as HTMLInputElement
     expect(waccSlider).toBeTruthy()
     expect(Number(waccSlider.value)).toBeCloseTo(0.135, 3)
