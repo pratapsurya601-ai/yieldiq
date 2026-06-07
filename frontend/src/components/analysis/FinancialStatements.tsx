@@ -6,6 +6,7 @@ import { Lock } from "lucide-react"
 import { getFinancials, type FinancialYear, type FinancialsResponse } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { currencySymbol, currencyLocale } from "@/lib/currency"
+import { isPureBank } from "@/lib/bankTickers"
 
 type Period = "annual" | "quarterly"
 type Tab = "income" | "balance" | "cashflow"
@@ -127,6 +128,64 @@ function incomeRows(currency: string | null | undefined, ticker?: string): RowDe
   ]
 }
 
+/**
+ * Bank-format P&L row schema (Schedule III, Div III).
+ *
+ * Banks report Interest Earned / Interest Expended / Net Interest
+ * Income / Non-Interest Income / Total Income / Operating Expenses
+ * — NOT Revenue / Gross Profit / EBITDA / Operating Income. Rendering
+ * the generic schema for banks gives wall-to-wall em-dashes because
+ * the underlying columns are null by construction (the bank XBRL
+ * schema uses different field names). Sibling backend PR adds the
+ * bank fields to the FinancialYear response; until then these rows
+ * show em-dashes and the all-null-row filter hides them.
+ *
+ * Net Margin recomputes as net_income / total_income when both are
+ * present, since net_margin_pct from the backend is keyed off
+ * revenue, which isn't the right denominator for a bank.
+ */
+function bankIncomeRows(currency: string | null | undefined, ticker?: string): RowDef[] {
+  const bankNetMargin = (y: FinancialYear): number | null => {
+    const ni = y.net_income
+    const ti = y.total_income
+    if (ni === null || ni === undefined) return null
+    if (ti === null || ti === undefined || ti === 0) return null
+    return (ni / ti) * 100
+  }
+  return [
+    { label: "Interest Earned", emphasis: true,
+      render: y => fmtCurrency(y.interest_earned ?? null, currency),
+      value: y => y.interest_earned ?? null },
+    { label: "Interest Expended",
+      render: y => fmtCurrency(y.interest_expended ?? null, currency),
+      value: y => y.interest_expended ?? null },
+    { label: "Net Interest Income (NII)", emphasis: true,
+      render: y => fmtCurrency(y.net_interest_income ?? null, currency),
+      value: y => y.net_interest_income ?? null },
+    { label: "Non-Interest Income",
+      render: y => fmtCurrency(y.non_interest_income ?? null, currency),
+      value: y => y.non_interest_income ?? null },
+    { label: "Total Income", emphasis: true,
+      render: y => fmtCurrency(y.total_income ?? null, currency),
+      value: y => y.total_income ?? null },
+    { label: "Operating Expenses",
+      render: y => fmtCurrency(y.operating_expenses ?? null, currency),
+      value: y => y.operating_expenses ?? null },
+    { label: "Net Income", emphasis: true,
+      render: y => fmtCurrency(y.net_income, currency),
+      value: y => y.net_income },
+    { label: "  YoY Growth",
+      render: y => <GrowthArrow value={y.net_income_growth_pct} />,
+      value: y => y.net_income_growth_pct },
+    { label: "  Net Margin",
+      render: y => fmtPct(bankNetMargin(y)),
+      value: y => bankNetMargin(y) },
+    { label: "EPS (Diluted)",
+      render: y => fmtPerShare(y.eps_diluted, currency, ticker),
+      value: y => y.eps_diluted },
+  ]
+}
+
 function balanceRows(currency: string | null | undefined, ticker?: string): RowDef[] {
   return [
     { label: "Total Assets",
@@ -225,10 +284,11 @@ export default function FinancialStatements({ ticker, currency }: Props) {
   })
 
   const years = data?.income ?? []
+  const isBank = isPureBank(ticker)
   const rows: RowDef[] = useMemo(() => {
     const base =
       tab === "income"
-        ? incomeRows(currency, ticker)
+        ? (isBank ? bankIncomeRows(currency, ticker) : incomeRows(currency, ticker))
         : tab === "balance"
           ? balanceRows(currency, ticker)
           : cashflowRows(currency)
@@ -247,7 +307,7 @@ export default function FinancialStatements({ ticker, currency }: Props) {
         return v !== null && v !== undefined
       }),
     )
-  }, [tab, currency, ticker, years])
+  }, [tab, currency, ticker, years, isBank])
 
   /* ---------- Render states ---------- */
   if (!visible || isLoading) {
@@ -369,8 +429,17 @@ export default function FinancialStatements({ ticker, currency }: Props) {
         </p>
       )}
 
+      {/* Edge case: periods exist but every row was filtered out by the
+          all-null-row guard. Show the empty-state copy instead of an
+          empty card. Cluster D follow-up, 2026-06-07. */}
+      {years.length > 0 && rows.length === 0 && (
+        <p className="text-sm text-caption text-center py-8">
+          Financial data not available for this ticker.
+        </p>
+      )}
+
       {/* Table */}
-      {years.length > 0 && (
+      {years.length > 0 && rows.length > 0 && (
         <>
           <div className="text-[11px] text-caption">
             Values in {currencySym} {unitLabel}
