@@ -288,6 +288,21 @@ function AccountInner() {
           </div>
           <span className="text-sm text-caption" aria-hidden>›</span>
         </a>
+        {/* Alerts management — /account/alerts surfaces the user's
+            active MoS / price / verdict alerts (migration 009's
+            user_alerts table) with pause / resume / delete. The chip
+            on each analysis page is the creator surface; this page is
+            the manager. */}
+        <a
+          href="/account/alerts"
+          className="flex items-center justify-between rounded-xl border border-border px-3 py-3 hover:bg-surface dark:hover:bg-bg transition"
+        >
+          <div className="flex flex-col">
+            <span className="text-sm font-medium text-ink">Alerts</span>
+            <span className="text-xs text-caption">MoS, price, and verdict-change alerts</span>
+          </div>
+          <span className="text-sm text-caption" aria-hidden>›</span>
+        </a>
         {/* Display-name editor link (PR #72). Sub-route /account/profile
             handles the input + 3-edit lifetime cap. */}
         <a
