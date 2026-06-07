@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
+import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { CountUp } from "@/components/anim"
 import {
   recomputeDcfPlayground,
@@ -9,6 +10,14 @@ import {
   type DCFPlaygroundResponse,
   type DCFReverseEngineerResponse,
 } from "@/lib/api"
+import {
+  calibrateFromSingleAnchor,
+  calibrateFromTwoAnchors,
+  computeFairValue,
+  type DcfCalibration,
+  type PlaygroundInputs,
+} from "@/lib/dcfClient"
+import { formatCurrency } from "@/lib/utils"
 import { useAuthStore } from "@/store/authStore"
 import PlaygroundSlider from "./PlaygroundSlider"
 
@@ -24,6 +33,10 @@ export interface SliderDef {
   paidOnly: boolean
 }
 
+// Default slider positions. The "Reset to YieldIQ defaults" button
+// snaps every slider back here — these mirror the bounds enforced by
+// `backend/services/analysis/dcf_playground.py` BASE_TAX_RATE and the
+// recompute call we issue on mount to calibrate the client engine.
 const SLIDERS: SliderDef[] = [
   {
     key: "wacc",
@@ -82,6 +95,47 @@ const SLIDERS: SliderDef[] = [
   },
 ]
 
+// "What if…?" preset scenarios. Each preset returns a partial override
+// to fold into the current slider state — keys not in the override stay
+// at their current values. The labels stay strictly descriptive of the
+// assumption tweak (no advisory vocabulary), in line with the SEBI lint.
+interface Preset {
+  key: string
+  label: string
+  blurb: string
+  apply: (defaults: SliderState) => Partial<SliderState>
+}
+
+const PRESETS: Preset[] = [
+  {
+    key: "growth_halved",
+    label: "Growth halved",
+    blurb: "Revenue CAGR cut in half",
+    apply: (d) => ({ revenue_cagr_yr1_5: d.revenue_cagr_yr1_5 / 2 }),
+  },
+  {
+    key: "margins_compress",
+    label: "Margins compress",
+    blurb: "Operating margin down ~30%",
+    apply: (d) => ({ operating_margin: Math.max(0.0, d.operating_margin * 0.7) }),
+  },
+  {
+    key: "higher_rates",
+    label: "Higher rates",
+    blurb: "WACC +2pp, terminal growth -1pp",
+    apply: (d) => ({
+      wacc: Math.min(0.15, d.wacc + 0.02),
+      terminal_growth: Math.max(0.0, d.terminal_growth - 0.01),
+    }),
+  },
+  {
+    key: "tax_reform",
+    label: "Tax cut",
+    blurb: "Effective tax rate to 20%",
+    apply: () => ({ tax_rate: 0.20 }),
+  },
+]
+
 interface SliderState {
   wacc: number
   terminal_growth: number
@@ -90,10 +144,49 @@ interface SliderState {
   tax_rate: number
 }
 
-const INITIAL_STATE: SliderState = SLIDERS.reduce(
+const ANALYST_DEFAULTS: SliderState = SLIDERS.reduce(
   (acc, s) => ({ ...acc, [s.key]: s.defaultValue }),
   {} as SliderState,
 )
+
+// ── URL <-> state plumbing ────────────────────────────────────────
+// We serialise the slider state into the query string so a user can
+// share their model. Keys are short to keep the URL readable:
+//   ?w=0.11&tg=0.04&g=0.10&om=0.20&t=0.25
+// Values are decimals with up to 4 sig figs (slider step is 0.001).
+const URL_KEYS: Record<keyof SliderState, string> = {
+  wacc: "w",
+  terminal_growth: "tg",
+  revenue_cagr_yr1_5: "g",
+  operating_margin: "om",
+  tax_rate: "t",
+}
+
+function inputsToQueryString(s: SliderState): string {
+  const params = new URLSearchParams()
+  ;(Object.keys(URL_KEYS) as (keyof SliderState)[]).forEach((k) => {
+    params.set(URL_KEYS[k], s[k].toFixed(4))
+  })
+  return params.toString()
+}
+
+function inputsFromSearchParams(
+  sp: URLSearchParams,
+  fallback: SliderState,
+): SliderState {
+  const out = { ...fallback }
+  ;(Object.keys(URL_KEYS) as (keyof SliderState)[]).forEach((k) => {
+    const raw = sp.get(URL_KEYS[k])
+    if (raw == null) return
+    const v = Number(raw)
+    if (!Number.isFinite(v)) return
+    const def = SLIDERS.find((s) => s.key === k)
+    if (!def) return
+    // Clamp to slider bounds — defensive against hand-edited URLs.
+    out[k] = Math.max(def.min, Math.min(def.max, v))
+  })
+  return out
+}
 
 export default function PlaygroundBody({ ticker }: { ticker: string }) {
   const tier = useAuthStore((s) => s.tier)
@@ -102,83 +195,159 @@ export default function PlaygroundBody({ ticker }: { ticker: string }) {
     return t === "pro" || t === "starter" || t === "analyst"
   }, [tier])
 
-  const [inputs, setInputs] = useState<SliderState>(INITIAL_STATE)
-  const [result, setResult] = useState<DCFPlaygroundResponse | null>(null)
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+
+  // Initial state: URL params if present, else analyst defaults.
+  const [inputs, setInputs] = useState<SliderState>(() =>
+    inputsFromSearchParams(
+      new URLSearchParams(searchParams?.toString() ?? ""),
+      ANALYST_DEFAULTS,
+    ),
+  )
+
+  // Calibration is fetched once via the existing recompute endpoint —
+  // we call it twice on mount (canonical inputs + one perturbed WACC)
+  // to solve for both FCF base and net debt per share. Every subsequent
+  // slider drag is a pure client-side recompute (~50µs).
+  const [calibration, setCalibration] = useState<DcfCalibration | null>(null)
+  const [analystFv, setAnalystFv] = useState<number>(0)
+  const [marketPrice, setMarketPrice] = useState<number>(0)
   const [reverse, setReverse] = useState<DCFReverseEngineerResponse | null>(null)
-  const [loading, setLoading] = useState<boolean>(false)
+  const [calibrating, setCalibrating] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
+  const calibratedRef = useRef(false)
 
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-
-  // ── Slider change with 300ms debounce ──────────────────────────
-  const onSliderChange = useCallback((key: keyof SliderState, value: number) => {
-    setInputs((prev) => ({ ...prev, [key]: value }))
-  }, [])
-
-  // Debounced POST. Runs whenever `inputs` changes; cancels prior
-  // pending call so a fast drag fires exactly one network round-trip
-  // 300ms after the user stops moving.
+  // ── One-shot calibration on mount ───────────────────────────────
+  // `calibrating` initialises to `true` and `error` to `null` so we
+  // don't need synchronous setState calls in the effect body (the
+  // `react-hooks/set-state-in-effect` lint rule would flag them). Only
+  // the async .then() / .catch() / .finally() callbacks update state.
   useEffect(() => {
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      let cancelled = false
-      setLoading(true)
-      setError(null)
-      recomputeDcfPlayground(ticker, inputs)
-        .then((r) => {
-          if (cancelled) return
-          setResult(r)
-        })
-        .catch((e) => {
-          if (cancelled) return
-          const msg =
-            (e && typeof e === "object" && "message" in e
-              ? String((e as { message?: unknown }).message)
-              : null) || "Recompute failed"
-          setError(msg)
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false)
-        })
-      return () => {
-        cancelled = true
-      }
-    }, 300)
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (calibratedRef.current) return
+    calibratedRef.current = true
+    let cancelled = false
+
+    const anchorAInputs: PlaygroundInputs = { ...ANALYST_DEFAULTS }
+    // Perturb WACC by +2pp for the second anchor — large enough to
+    // separate the two factor values, small enough to stay realistic.
+    const anchorBInputs: PlaygroundInputs = {
+      ...ANALYST_DEFAULTS,
+      wacc: Math.min(0.15, ANALYST_DEFAULTS.wacc + 0.02),
     }
-  }, [ticker, inputs])
 
-  // ── Reverse-engineer once we have a current_price ─────────────
+    Promise.all([
+      recomputeDcfPlayground(ticker, anchorAInputs),
+      recomputeDcfPlayground(ticker, anchorBInputs),
+    ])
+      .then(([respA, respB]: [DCFPlaygroundResponse, DCFPlaygroundResponse]) => {
+        if (cancelled) return
+        const fvA = Number(respA?.fair_value) || 0
+        const fvB = Number(respB?.fair_value) || 0
+        const price = Number(respA?.current_price) || 0
+        const baseFv = Number(respA?.base_fv ?? respA?.fair_value) || 0
+        setMarketPrice(price)
+        setAnalystFv(baseFv)
+
+        let calib =
+          fvA > 0 && fvB > 0
+            ? calibrateFromTwoAnchors(
+                { inputs: anchorAInputs, fairValue: fvA },
+                { inputs: anchorBInputs, fairValue: fvB },
+              )
+            : null
+
+        if (!calib && fvA > 0) {
+          // Two-anchor solve failed (degenerate corner); fall back to
+          // a single-anchor calibration with zero net debt.
+          calib = calibrateFromSingleAnchor({
+            inputs: anchorAInputs,
+            fairValue: fvA,
+          })
+        }
+        setCalibration(calib)
+      })
+      .catch((e) => {
+        if (cancelled) return
+        const msg =
+          (e && typeof e === "object" && "message" in e
+            ? String((e as { message?: unknown }).message)
+            : null) || "Could not load DCF baseline"
+        setError(msg)
+      })
+      .finally(() => {
+        if (!cancelled) setCalibrating(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [ticker])
+
+  // ── Reverse-engineer once we have a market price ─────────────────
+  // Fired once on mount; the implied numbers are anchored to the
+  // analyst-default sliders, so they don't jiggle as the user drags.
   useEffect(() => {
-    if (!result?.current_price || result.current_price <= 0) return
+    if (marketPrice <= 0) return
     let cancelled = false
     reverseEngineerDcf(ticker, {
-      market_price: result.current_price,
-      wacc: inputs.wacc,
-      terminal_growth: inputs.terminal_growth,
-      revenue_cagr_yr1_5: inputs.revenue_cagr_yr1_5,
-      operating_margin: inputs.operating_margin,
-      tax_rate: inputs.tax_rate,
+      market_price: marketPrice,
+      wacc: ANALYST_DEFAULTS.wacc,
+      terminal_growth: ANALYST_DEFAULTS.terminal_growth,
+      revenue_cagr_yr1_5: ANALYST_DEFAULTS.revenue_cagr_yr1_5,
+      operating_margin: ANALYST_DEFAULTS.operating_margin,
+      tax_rate: ANALYST_DEFAULTS.tax_rate,
     })
       .then((r) => {
         if (cancelled) return
         setReverse(r)
       })
       .catch(() => {
-        // Reverse panel is additive — silently degrade
+        // Reverse panel is additive; silently degrade on failure.
       })
     return () => {
       cancelled = true
     }
-    // Intentionally key only on price + ticker — we don't want to
-    // re-bisect on every slider tweak (costly + the implied numbers
-    // would jiggle distractingly).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ticker, result?.current_price])
+  }, [ticker, marketPrice])
 
-  const resetAll = useCallback(() => {
-    setInputs(INITIAL_STATE)
+  // ── URL sync (debounced 250ms) ──────────────────────────────────
+  // Updating the URL on every keystroke would spam the History API.
+  // 250ms is below the perception threshold for "this is interactive"
+  // but high enough that a quick drag flushes one entry, not 60.
+  const urlDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (urlDebounceRef.current) clearTimeout(urlDebounceRef.current)
+    urlDebounceRef.current = setTimeout(() => {
+      const qs = inputsToQueryString(inputs)
+      const currentQs = searchParams?.toString() ?? ""
+      if (qs === currentQs) return
+      const target = `${pathname}?${qs}`
+      // replace() not push() — drag scrubbing must not pollute back-button.
+      router.replace(target, { scroll: false })
+    }, 250)
+    return () => {
+      if (urlDebounceRef.current) clearTimeout(urlDebounceRef.current)
+    }
+  }, [inputs, pathname, router, searchParams])
+
+  // ── Client-side recompute on every slider change ─────────────────
+  // Pure synchronous math — no debounce, no network, no jank.
+  const userFv = useMemo(() => {
+    if (!calibration) return 0
+    return computeFairValue(inputs, calibration)
+  }, [inputs, calibration])
+
+  const onSliderChange = useCallback((key: keyof SliderState, value: number) => {
+    setInputs((prev) => ({ ...prev, [key]: value }))
+  }, [])
+
+  const resetToAnalyst = useCallback(() => {
+    setInputs(ANALYST_DEFAULTS)
+  }, [])
+
+  const applyPreset = useCallback((p: Preset) => {
+    setInputs((prev) => ({ ...prev, ...p.apply(prev) }))
   }, [])
 
   const adoptMarketImplied = useCallback(() => {
@@ -191,11 +360,33 @@ export default function PlaygroundBody({ ticker }: { ticker: string }) {
     }))
   }, [reverse])
 
-  const fv = result?.fair_value ?? 0
-  const bear = result?.bear_fv ?? 0
-  const bull = result?.bull_fv ?? 0
-  const price = result?.current_price ?? 0
-  const upsidePct = price > 0 && fv > 0 ? ((fv - price) / price) * 100 : 0
+  const copyShareLink = useCallback(async () => {
+    if (typeof window === "undefined") return
+    const url = `${window.location.origin}${pathname}?${inputsToQueryString(
+      inputs,
+    )}`
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch {
+      // Older browsers / insecure origin — fall back to a prompt.
+      window.prompt("Copy this URL", url)
+    }
+  }, [inputs, pathname])
+
+  const isAtAnalystDefaults = useMemo(
+    () =>
+      (Object.keys(URL_KEYS) as (keyof SliderState)[]).every(
+        (k) => Math.abs(inputs[k] - ANALYST_DEFAULTS[k]) < 1e-6,
+      ),
+    [inputs],
+  )
+
+  const fvDeltaPct =
+    analystFv > 0 && userFv > 0 ? ((userFv - analystFv) / analystFv) * 100 : 0
+  const upsidePct =
+    marketPrice > 0 && userFv > 0
+      ? ((userFv - marketPrice) / marketPrice) * 100
+      : 0
 
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:py-12">
@@ -209,8 +400,9 @@ export default function PlaygroundBody({ ticker }: { ticker: string }) {
             {ticker.replace(".NS", "").replace(".BO", "")} &middot; What if&hellip;?
           </h1>
           <p className="mt-1 max-w-prose text-sm text-muted">
-            Drag the five inputs. Watch the fair value recompute live. See what
-            the market is implicitly assuming below.
+            Drag the five inputs. The fair value recomputes locally in your
+            browser. See how YieldIQ&rsquo;s base case compares to your tweaks,
+            and what the market is implicitly assuming below.
           </p>
         </div>
         <Link
@@ -219,6 +411,32 @@ export default function PlaygroundBody({ ticker }: { ticker: string }) {
         >
           &larr; Back to full analysis
         </Link>
+      </div>
+
+      {/* Preset scenario buttons */}
+      <div className="mb-5 flex flex-wrap items-center gap-2">
+        <span className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+          What if&hellip;
+        </span>
+        {PRESETS.map((p) => (
+          <button
+            key={p.key}
+            type="button"
+            onClick={() => applyPreset(p)}
+            title={p.blurb}
+            className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-ink shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/30"
+          >
+            {p.label}
+          </button>
+        ))}
+        <button
+          type="button"
+          onClick={copyShareLink}
+          className="ml-auto rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-ink shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-emerald-700 dark:hover:bg-emerald-950/30"
+          aria-label="Copy a shareable link with your current assumptions"
+        >
+          Copy share link
+        </button>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -233,10 +451,11 @@ export default function PlaygroundBody({ ticker }: { ticker: string }) {
             </h2>
             <button
               type="button"
-              onClick={resetAll}
-              className="text-xs font-medium text-slate-600 hover:text-emerald-700 dark:text-slate-300 dark:hover:text-emerald-300"
+              onClick={resetToAnalyst}
+              disabled={isAtAnalystDefaults}
+              className="text-xs font-medium text-slate-600 hover:text-emerald-700 disabled:cursor-not-allowed disabled:opacity-40 dark:text-slate-300 dark:hover:text-emerald-300"
             >
-              Reset all
+              Reset to YieldIQ defaults
             </button>
           </div>
           <div className="flex flex-col gap-4">
@@ -265,7 +484,7 @@ export default function PlaygroundBody({ ticker }: { ticker: string }) {
           )}
         </section>
 
-        {/* ── RIGHT: Live FV + band ─────────────────────────── */}
+        {/* ── RIGHT: Live FV side-by-side ─────────────────────── */}
         <section
           aria-label="Live fair value"
           className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
@@ -273,79 +492,94 @@ export default function PlaygroundBody({ ticker }: { ticker: string }) {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-ink">
             Fair Value
           </h2>
-          <div className="mt-2 flex items-baseline gap-3">
-            <span className="font-mono text-4xl font-bold tabular-nums text-ink sm:text-5xl">
-              {fv > 0 ? (
-                <>
-                  &#x20B9;
-                  <CountUp to={fv} decimals={0} duration={0.6} />
-                </>
-              ) : (
-                <span className="text-2xl text-muted">—</span>
-              )}
-            </span>
-            {price > 0 && fv > 0 && (
-              <span
-                className={
-                  upsidePct >= 0
-                    ? "rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
-                    : "rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-                }
-              >
-                {upsidePct >= 0 ? "+" : ""}
-                {upsidePct.toFixed(1)}% vs market
-              </span>
-            )}
-          </div>
-          {price > 0 && (
-            <p className="mt-1 text-xs text-muted">
-              Market price: &#x20B9;
-              {price.toLocaleString("en-IN", { maximumFractionDigits: 0 })}
-            </p>
-          )}
-          {result?.base_fv ? (
-            <p className="mt-1 text-xs text-muted">
-              Analyst base FV: &#x20B9;
-              {Number(result.base_fv).toLocaleString("en-IN", {
-                maximumFractionDigits: 0,
-              })}
-            </p>
-          ) : null}
 
-          {/* Bear / Base / Bull mini fan-out */}
-          {fv > 0 && (
-            <div
-              className="mt-4"
-              aria-label="Fair value range under one-sigma input shifts"
-            >
-              <div className="mb-1 flex justify-between text-[10px] uppercase tracking-wider text-muted">
-                <span>Pessimistic</span>
-                <span>Optimistic</span>
+          {/* Side-by-side: YieldIQ base FV vs Your tweaked FV */}
+          <div className="mt-3 grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">
+                YieldIQ base
+              </p>
+              <p className="mt-1 font-mono text-2xl font-semibold tabular-nums text-ink sm:text-3xl">
+                {analystFv > 0 ? (
+                  formatCurrency(analystFv, "INR", ticker)
+                ) : (
+                  <span className="text-base text-muted">—</span>
+                )}
+              </p>
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                  Your assumptions
+                </p>
               </div>
-              <FanOutBar bear={bear} base={fv} bull={bull} />
-              <div className="mt-1 flex justify-between font-mono text-xs tabular-nums text-ink">
-                <span>&#x20B9;{Math.round(bear).toLocaleString("en-IN")}</span>
-                <span className="font-semibold">
-                  &#x20B9;{Math.round(fv).toLocaleString("en-IN")}
+              <p className="mt-1 font-mono text-2xl font-bold tabular-nums text-ink sm:text-3xl">
+                {userFv > 0 ? (
+                  <CountUp
+                    to={userFv}
+                    duration={0.4}
+                    format={(n) => formatCurrency(n, "INR", ticker)}
+                  />
+                ) : (
+                  <span className="text-base text-muted">—</span>
+                )}
+              </p>
+              {analystFv > 0 && userFv > 0 && Math.abs(fvDeltaPct) >= 0.05 && (
+                <p
+                  className={
+                    fvDeltaPct >= 0
+                      ? "mt-1 text-xs font-semibold text-emerald-700 dark:text-emerald-300"
+                      : "mt-1 text-xs font-semibold text-amber-700 dark:text-amber-300"
+                  }
+                >
+                  {fvDeltaPct >= 0 ? "+" : ""}
+                  {fvDeltaPct.toFixed(1)}% vs YieldIQ base
+                </p>
+              )}
+            </div>
+          </div>
+
+          {marketPrice > 0 && (
+            <div className="mt-4 flex items-baseline justify-between border-t border-slate-100 pt-3 dark:border-slate-800">
+              <p className="text-xs text-muted">
+                Market price: {formatCurrency(marketPrice, "INR", ticker)}
+              </p>
+              {userFv > 0 && (
+                <span
+                  className={
+                    upsidePct >= 0
+                      ? "rounded-md bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300"
+                      : "rounded-md bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+                  }
+                >
+                  {upsidePct >= 0 ? "+" : ""}
+                  {upsidePct.toFixed(1)}% vs market
                 </span>
-                <span>&#x20B9;{Math.round(bull).toLocaleString("en-IN")}</span>
-              </div>
+              )}
             </div>
           )}
 
-          {loading && (
-            <p className="mt-3 text-xs italic text-muted">Recomputing&hellip;</p>
+          {calibrating && (
+            <p className="mt-3 text-xs italic text-muted">
+              Loading baseline DCF&hellip;
+            </p>
           )}
           {error && (
             <p className="mt-3 text-xs text-rose-700 dark:text-rose-300">
               {error}
             </p>
           )}
+          {!calibrating && !error && calibration && (
+            <p className="mt-3 text-[11px] italic text-muted">
+              Recomputed locally in your browser. Numbers update instantly as
+              you drag.
+            </p>
+          )}
         </section>
       </div>
 
       {/* ── BELOW: Reverse-engineered card ─────────────────────── */}
-      {reverse && price > 0 && (
+      {reverse && marketPrice > 0 && (
         <section
           aria-label="Market-implied assumptions"
           className="mt-6 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:to-slate-950"
@@ -354,9 +588,8 @@ export default function PlaygroundBody({ ticker }: { ticker: string }) {
             What the market is pricing in
           </p>
           <p className="mt-2 text-base leading-relaxed text-ink sm:text-lg">
-            At &#x20B9;
-            {price.toLocaleString("en-IN", { maximumFractionDigits: 0 })}, the
-            market is implicitly assuming&hellip;
+            At {formatCurrency(marketPrice, "INR", ticker)}, the market is
+            implicitly assuming&hellip;
           </p>
           <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
             <ImpliedStat
@@ -377,7 +610,7 @@ export default function PlaygroundBody({ ticker }: { ticker: string }) {
           </dl>
           <p className="mt-3 text-[11px] italic text-muted">
             Each input was solved independently &mdash; holding the other four
-            at your current slider positions.
+            at YieldIQ&rsquo;s default positions.
           </p>
           <button
             type="button"
@@ -399,22 +632,6 @@ function clamp(v: number, lo: number, hi: number): number {
 
 function pct(v: number): string {
   return `${(v * 100).toFixed(1)}%`
-}
-
-function FanOutBar({ bear, base, bull }: { bear: number; base: number; bull: number }) {
-  const span = Math.max(bull - bear, 1e-6)
-  const baseFrac = clamp((base - bear) / span, 0, 1)
-  return (
-    <div
-      className="relative h-2 w-full rounded-full bg-gradient-to-r from-amber-300 via-slate-300 to-emerald-400 dark:from-amber-700 dark:via-slate-700 dark:to-emerald-600"
-      role="presentation"
-    >
-      <div
-        className="absolute -top-1 h-4 w-1 rounded-sm bg-slate-900 dark:bg-white"
-        style={{ left: `calc(${(baseFrac * 100).toFixed(2)}% - 2px)` }}
-      />
-    </div>
-  )
 }
 
 function ImpliedStat({
