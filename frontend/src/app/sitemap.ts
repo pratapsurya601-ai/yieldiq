@@ -3,6 +3,11 @@ import { BLOG_POSTS } from "@/lib/blog"
 // Day-108c (2026-05-23) — sector landing-page slugs surfaced for SEO.
 // Slug set MUST mirror backend/services/sector_pages.py SECTOR_PAGE_SLUGS.
 import { SECTOR_PAGE_SLUGS } from "./(marketing)/sector/[slug]/sectorCohorts"
+// 2026-06-04 — programmatic content experiment: 12 NIFTY-50 large-cap
+// fair-value SEO pages at /fair-value/<TICKER>. Curated list, not
+// derived from /all-tickers, so the sitemap entry stays scoped to the
+// hand-authored content.
+import { FAIR_VALUE_TICKERS } from "./(marketing)/fair-value/tickers"
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"
 
@@ -210,6 +215,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // Sitemap must never throw — surface the landing-only fallback.
   }
 
+  // Content-experiment fair-value SEO pages — one per curated ticker.
+  // weekly cadence + 0.7 priority matches the brief and keeps these
+  // pages from outranking the canonical /analysis/<TICKER> surface
+  // (priority 0.9) on tied queries.
+  const fairValueContentPages: MetadataRoute.Sitemap = FAIR_VALUE_TICKERS.map(
+    (c) => ({
+      url: `https://yieldiq.in/fair-value/${encodeURIComponent(c.ticker)}`,
+      lastModified: new Date(),
+      changeFrequency: "weekly" as const,
+      priority: 0.7,
+    }),
+  )
+
   return [
     ...staticPages,
     ...blogPages,
@@ -219,5 +237,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...sectorPages,
     ...fundsLandingPage,
     ...fundDetailPages,
+    ...fairValueContentPages,
   ]
 }
