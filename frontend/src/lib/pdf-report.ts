@@ -30,6 +30,7 @@ import type {
   PublicPeersResponse,
 } from "@/lib/api"
 import { SEBI_DISCLAIMER } from "@/lib/excel-detailed"
+import { isPureBank } from "@/lib/bankTickers"
 
 export interface PDFBundle {
   ticker: string
@@ -73,6 +74,64 @@ function fmtNum(v: number | null | undefined, decimals = 2): string {
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   })
+}
+
+// Market cap is stored in absolute rupees in StockSummary (see
+// useHeroSignals.ts which divides by 1e7 to display Cr). Convert and
+// label as Cr with Indian comma grouping. Returns an em-dash for
+// missing values to match the rest of the report's "n/a -> —" polish.
+function fmtMarketCapCr(v: number | null | undefined): string {
+  if (v == null || !isFinite(v) || v <= 0) return "—"
+  const cr = v / 1e7
+  return `INR ${cr.toLocaleString("en-IN", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })} Cr`
+}
+
+// Prefer 5y revenue CAGR; fall back to 3y if 5y is missing. Returns
+// the value as a percentage (engine stores it as a decimal fraction).
+function revCagrPct(s: StockSummary): number | null {
+  const five = s.revenue_cagr_5y
+  if (five != null && isFinite(five)) return five * 100
+  const three = s.revenue_cagr_3y
+  if (three != null && isFinite(three)) return three * 100
+  return null
+}
+
+// Bank-aware key-ratio row. For banks, the conventional industrial
+// ratios (ROCE / Debt-to-EBITDA / Interest coverage / Current ratio /
+// EV-to-EBITDA) are not meaningful — banks report Tier-1 capital,
+// NIM, CASA, and P-to-BV instead. We don't currently surface those
+// fields on StockSummary, so for banks we render the em-dash with a
+// short label substitution that makes the gap explicit rather than
+// showing "n/a" which paying customers (correctly) read as broken
+// data. When the backend starts populating tier1/nim/casa/pb_ratio
+// on StockSummary, plug them in here.
+type RatioRow = [string, string]
+function buildKeyRatioRows(s: StockSummary): RatioRow[] {
+  const bank = isPureBank(s.ticker)
+  const dash = "—"
+  if (bank) {
+    return [
+      ["ROE", fmtPct(s.roe)],
+      ["ROCE (n/a for banks; use ROE / ROA)", dash],
+      ["Debt / Equity", fmtNum(s.de_ratio)],
+      ["Tier 1 capital ratio", dash],
+      ["NIM (net interest margin)", dash],
+      ["CASA ratio", dash],
+      ["P / BV", dash],
+    ]
+  }
+  return [
+    ["ROE", fmtPct(s.roe)],
+    ["ROCE", fmtPct(s.roce)],
+    ["Debt / Equity", fmtNum(s.de_ratio)],
+    ["Debt / EBITDA", fmtNum(s.debt_ebitda)],
+    ["Interest coverage", fmtNum(s.interest_coverage)],
+    ["Current ratio", fmtNum(s.current_ratio)],
+    ["EV / EBITDA", fmtNum(s.ev_ebitda)],
+  ]
 }
 /* eslint-enable no-restricted-syntax */
 
@@ -201,7 +260,7 @@ function renderHero(doc: jsPDF, b: PDFBundle): void {
   doc.setTextColor(COLOR_MUTED)
   const bullets = [
     `Reported ROE of ${fmtPct(s.roe)} and ROCE of ${fmtPct(s.roce)} against a debt-to-equity ratio of ${fmtNum(s.de_ratio)}.`,
-    `5-year revenue CAGR of ${fmtPct(s.revenue_cagr_5y != null ? s.revenue_cagr_5y * 100 : null)} with market capitalisation of INR ${fmtNum(s.market_cap, 0)} Cr.`,
+    `5-year revenue CAGR of ${fmtPct(revCagrPct(s))} with market capitalisation of ${fmtMarketCapCr(s.market_cap)}.`,
     "Model-generated description of metrics. Not investment advice.",
   ]
   for (const line of bullets) {
@@ -313,16 +372,8 @@ function renderDetail(doc: jsPDF, b: PDFBundle): void {
   doc.setTextColor(COLOR_INK)
   doc.text("Key ratios", 40, y)
   y += 12
-  const ratioRows: [string, string][] = [
-    ["ROE", fmtPct(s.roe)],
-    ["ROCE", fmtPct(s.roce)],
-    ["Debt / Equity", fmtNum(s.de_ratio)],
-    ["Debt / EBITDA", fmtNum(s.debt_ebitda)],
-    ["Interest coverage", fmtNum(s.interest_coverage)],
-    ["Current ratio", fmtNum(s.current_ratio)],
-    ["EV / EBITDA", fmtNum(s.ev_ebitda)],
-  ]
-  drawKVList(doc, 40, y, 200, ratioRows)
+  const ratioRows = buildKeyRatioRows(s)
+  drawKVList(doc, 40, y, 240, ratioRows)
   y += ratioRows.length * 16 + 22
 
   // 10y mini chart — Revenue + PAT lines on a single grid
@@ -347,9 +398,20 @@ function renderMiniChart(
     doc.text("No historical financial series available.", x, y + 20)
     return
   }
-  const sorted = [...f.periods].sort((a, b) =>
+  const sortedAll = [...f.periods].sort((a, b) =>
     (a.period_end ?? "").localeCompare(b.period_end ?? ""),
   )
+  // Trim leading periods where BOTH revenue AND pat are null. The
+  // chart's X-axis starts at the first year that actually has data —
+  // otherwise it draws a 2019-2021 hole for tickers whose history
+  // only goes back to 2022 (e.g. recent IPOs, banks with truncated
+  // XBRL coverage). Do not extrapolate to fill the hole.
+  const firstWithData = sortedAll.findIndex((p) => {
+    const r = p.revenue
+    const pat = p.pat
+    return (r != null && isFinite(r)) || (pat != null && isFinite(pat))
+  })
+  const sorted = firstWithData >= 0 ? sortedAll.slice(firstWithData) : sortedAll
   const revs = sorted.map((p) => p.revenue).filter((v): v is number => v != null && isFinite(v))
   const pats = sorted.map((p) => p.pat).filter((v): v is number => v != null && isFinite(v))
   if (revs.length === 0) {

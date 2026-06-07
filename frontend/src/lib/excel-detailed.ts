@@ -203,6 +203,7 @@ function buildDCFModelSheet(s: StockSummary, ann: HistoricalFinancialsResponse |
   // otherwise fall back to a synthesized number derived from EBITDA/EBIT
   // estimates. Editable so the user can override.
   let latestFCF = 0
+  let sharesOutCr: number | null = null
   if (ann && ann.periods?.length) {
     // periods are sorted newest first in most callers; defensive sort
     const sorted = [...ann.periods].sort((a, b) =>
@@ -210,7 +211,27 @@ function buildDCFModelSheet(s: StockSummary, ann: HistoricalFinancialsResponse |
     )
     const latest = sorted[0]
     latestFCF = latest.free_cash_flow ?? latest.cfo ?? 0
+    // Pull shares outstanding from the latest annual period. The XBRL
+    // ingestor stores shares as an absolute count, so convert to Cr
+    // (the unit used throughout this sheet) by dividing by 1e7.
+    if (latest.shares_outstanding != null && isFinite(latest.shares_outstanding) && latest.shares_outstanding > 0) {
+      const raw = latest.shares_outstanding
+      // Heuristic: if the value is already small (< 1e5), treat it as
+      // already-in-crores; otherwise treat it as an absolute count.
+      sharesOutCr = raw < 1e5 ? raw : raw / 1e7
+    }
   }
+  // Fallback: derive shares from market_cap / current_price. market_cap
+  // is in absolute rupees in StockSummary (see useHeroSignals.ts which
+  // divides by 1e7 to display Cr), so the quotient is share count in
+  // absolute units — divide by 1e7 for crores.
+  if (sharesOutCr == null && s.market_cap > 0 && s.current_price > 0) {
+    sharesOutCr = s.market_cap / s.current_price / 1e7
+  }
+  // Final fallback if nothing usable — leave as 100 Cr placeholder so
+  // the formula chain still evaluates rather than #DIV/0!. Mark it via
+  // the editable-assumption cell style so the user sees it is overridable.
+  const sharesOutValue = sharesOutCr != null && isFinite(sharesOutCr) && sharesOutCr > 0 ? sharesOutCr : 100
 
   // The sheet layout — assumptions in rows 2-12, projection in 14+
   const rows: (string | number)[][] = [
@@ -224,7 +245,7 @@ function buildDCFModelSheet(s: StockSummary, ann: HistoricalFinancialsResponse |
     ["Pre-tax cost of debt (%)", 9.0, "%", "Credit-adjusted"],
     ["Tax rate (%)", 25.0, "%", "Effective corporate"],
     ["Debt weight", 0.30, "ratio", "D / (D+E)"],
-    ["Shares outstanding (Cr)", 100, "Cr", "Diluted"],
+    ["Shares outstanding (Cr)", sharesOutValue, "Cr", "Diluted (from latest XBRL filing or mcap/price fallback)"],
     [],
     ["WACC build", "", "", ""],
     ["Cost of equity (%)", "", "%", "Rf + Beta * ERP"],
