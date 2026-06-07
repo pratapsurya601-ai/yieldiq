@@ -36,6 +36,13 @@ on:
       - "scripts/canary_check.py"
       - ".github/workflows/canary.yml"
 
+# ci-cost-opt 2026-06-07: cancel in-progress PR runs on rebase. Does NOT
+# affect schedule / push runs (group key contains github.ref which is the
+# PR ref for pull_request and refs/heads/main for push). ~50 min/month saved.
+concurrency:
+  group: canary-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   canary:
     runs-on: ubuntu-latest

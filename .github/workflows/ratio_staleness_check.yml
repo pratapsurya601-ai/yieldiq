@@ -17,6 +17,13 @@ on:
       - "scripts/weekly_ratio_history_maintenance.py"
   workflow_dispatch:
 
+# ci-cost-opt 2026-06-07: cancel in-progress PR runs on rebase. Warn-only
+# workflow, ~2 min/run; modest savings (~5-10 min/month) but consistent
+# with the cross-workflow concurrency pattern.
+concurrency:
+  group: ratio-staleness-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   staleness:
     runs-on: ubuntu-latest

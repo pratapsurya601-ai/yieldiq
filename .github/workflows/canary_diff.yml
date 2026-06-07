@@ -38,6 +38,15 @@ on:
     - cron: '30 2 * * *'   # 02:30 UTC == 08:00 IST daily
   workflow_dispatch:
 
+# ci-cost-opt 2026-06-07: cancel in-progress PR runs on rebase only.
+# Scheduled cron / manual dispatch runs are preserved (different ref).
+# This is the single biggest saver — canary_diff is the slowest PR gate
+# (~12 min/run hitting prod). Rebases waste an entire run today.
+# Estimated savings: ~80-150 min/month during active dev.
+concurrency:
+  group: canary-diff-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   canary:
     runs-on: ubuntu-latest

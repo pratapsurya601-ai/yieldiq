@@ -7,6 +7,24 @@ name: Sector-scope suggestion (advisory PR comment)
 on:
   pull_request:
     branches: [main]
+    # ci-cost-opt 2026-06-07: this workflow had NO path filter previously,
+    # firing ~4-5 min for every PR including pure-docs / pure-redesign PRs.
+    # The suggester only adds value when scoring code is touched. Apply
+    # paths-ignore for docs-style dirs; keep the trigger broad otherwise
+    # because the suggester is meant to be advisory across many surfaces.
+    # Estimated savings: ~30-60 min/month.
+    paths-ignore:
+      - '**.md'
+      - 'redesign/**'
+      - '.audit/**'
+      - 'docs/**'
+
+# ci-cost-opt 2026-06-07: cancel in-progress runs on rebase. Advisory
+# comment becomes redundant the moment a new commit lands; no reason to
+# burn ~4 min finishing a stale one.
+concurrency:
+  group: sector-scope-suggest-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   suggest:

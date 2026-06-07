@@ -10,6 +10,15 @@ on:
     paths:
       - 'mobile/**'
 
+# ci-cost-opt 2026-06-07: cancel in-progress PR runs on rebase. Mobile
+# builds run npm install + expo prebuild dry — ~6 min per run. Push-to-main
+# runs preserved. NOTE: npm cache still NOT enabled — lockfile is still
+# absent (see comment in steps below); re-evaluate once committed.
+# Estimated savings: ~15-30 min/month.
+concurrency:
+  group: mobile-build-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   typecheck-lint-test:
     runs-on: ubuntu-latest

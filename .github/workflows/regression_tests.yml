@@ -35,6 +35,14 @@ on:
       - ".github/workflows/regression_tests.yml"
   workflow_dispatch:
 
+# ci-cost-opt 2026-06-07: cancel in-progress PR runs on rebase. Push-to-main
+# runs preserved. Each test in tests/regression/ pins a shipped fix —
+# semantics unchanged, just stops billing for rebased-over runs.
+# Estimated savings: ~15-30 min/month.
+concurrency:
+  group: regression-tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   regression:
     runs-on: ubuntu-latest

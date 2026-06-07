@@ -34,6 +34,15 @@ on:
     - cron: '0 3 * * *'   # 03:00 UTC == 08:30 IST daily (30m after canary-diff)
   workflow_dispatch:
 
+# ci-cost-opt 2026-06-07: cancel in-progress PR runs on rebase. Scheduled /
+# manual runs preserved (different ref). Note this workflow is on the
+# CLAUDE.md flaky-list (Vercel cold-start 504s); cancel-on-rebase doesn't
+# affect retry behavior, only kills wasted in-flight work.
+# Estimated savings: ~40-80 min/month.
+concurrency:
+  group: sector-isolation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   sector-isolation:
     runs-on: ubuntu-latest

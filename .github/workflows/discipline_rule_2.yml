@@ -24,6 +24,12 @@ on:
     paths:
       - 'backend/services/cache_service.py'
 
+# ci-cost-opt 2026-06-07: cancel in-progress runs on rebase. Trigger is
+# already extremely narrow (one file) so volume is low; ~3 min/month saved.
+concurrency:
+  group: discipline-rule-2-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   snapshot-required:
     runs-on: ubuntu-latest
