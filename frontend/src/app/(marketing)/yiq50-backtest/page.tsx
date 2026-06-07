@@ -190,7 +190,15 @@ export default async function BacktestPage({
       ) : (
         <section className="max-w-5xl mx-auto px-4 pb-10">
           <div className="rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-6 text-sm">
-            Backtest data is warming up. Refresh in a few minutes.
+            <p className="font-semibold text-[color:var(--color-ink)] mb-2">
+              What the YIQ-50 backtest measures
+            </p>
+            <p className="text-[color:var(--color-caption)] leading-relaxed">
+              An indexed equity curve of YieldIQ&rsquo;s 50-stock canary
+              basket against a Nifty proxy, rebalanced annually. Use it
+              to gauge whether the engine&rsquo;s fair-value picks have
+              compounded ahead of or behind the broad market.
+            </p>
           </div>
         </section>
       )}

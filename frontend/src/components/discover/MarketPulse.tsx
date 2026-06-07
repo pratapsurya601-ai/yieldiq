@@ -56,34 +56,31 @@ export default function MarketPulse({ days = 30 }: { days?: number }) {
     retry: 2,
   })
 
-  if (isLoading) {
-    return (
-      <section>
-        <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-3">
-          Market Pulse — FII vs DII
-        </p>
-        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-6 text-center">
-          <p className="text-xs text-caption">Loading flows…</p>
-        </div>
-      </section>
-    )
-  }
-
   const flows = data?.flows ?? []
   const days_ = groupByDate(flows).slice(0, 10)
 
-  if (days_.length === 0) {
+  // Loading + zero-row branches collapsed into one calm explainer card.
+  // The daily NSE cron is currently producing zero rows; rendering
+  // "Loading flows…" or "warming up" reads as broken product to anon
+  // visitors. When data lands the live table below renders normally.
+  if (isLoading || days_.length === 0) {
     return (
       <section>
         <p className="text-[10px] font-bold text-caption uppercase tracking-widest mb-3">
           Market Pulse — FII vs DII
         </p>
-        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-6 text-center">
-          <p className="text-sm font-semibold text-ink mb-1">
-            FII / DII flows are warming up
+        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-6">
+          <p className="text-sm font-semibold text-ink mb-2">
+            Foreign vs domestic institutional flows
           </p>
-          <p className="text-xs text-caption max-w-xs mx-auto">
-            NSE only publishes a current-day snapshot. Daily archive starts the day this feature ships — check back tomorrow.
+          <p className="text-xs text-caption leading-relaxed">
+            Tracks net daily flow (in ₹ crore) from Foreign Institutional
+            Investors (FII) and Domestic Institutional Investors (DII) on
+            NSE. Use it to read where large-pool money is leaning on any
+            given session.
+          </p>
+          <p className="text-[10px] text-caption mt-3">
+            Source: NSE FII/DII snapshot, archived daily by YieldIQ.
           </p>
         </div>
       </section>
