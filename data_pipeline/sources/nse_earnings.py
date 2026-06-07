@@ -1,10 +1,24 @@
 # data_pipeline/sources/nse_earnings.py
-# Downloads upcoming earnings / financial results dates from NSE event calendar.
+# Downloads upcoming earnings / financial results dates from NSE.
+#
+# Phase 1 (2026-06-07): The original `event-calendar` endpoint is structurally
+# tiny — a small forward-looking board-meeting agenda slice (13 events total,
+# ~4 of which are Financial Results). It is NOT an earnings firehose.
+#
+# The real earnings stream lives at:
+#   https://www.nseindia.com/api/corporate-announcements
+#     ?index=equities&category=Financial Results
+#
+# We now treat `corporate-announcements` as the PRIMARY source (confirmed
+# intimations of upcoming results) and `event-calendar` as a CORROBORATOR.
+# Both are merged and deduped on (ticker, event_date).
+#
 # Uses curl_cffi to impersonate Chrome (NSE blocks plain requests).
 from __future__ import annotations
 
 import io
 import logging
+import time
 from datetime import date, datetime, timedelta
 
 import pandas as pd
@@ -16,9 +30,19 @@ logger = logging.getLogger(__name__)
 
 NSE_BASE = "https://www.nseindia.com"
 NSE_EVENT_CALENDAR_URL = "https://www.nseindia.com/api/event-calendar?index=equities"
+NSE_CORP_ANNOUNCEMENTS_URL = "https://www.nseindia.com/api/corporate-announcements"
 NSE_CORP_ACTIONS_CSV = (
     "https://archives.nseindia.com/content/equities/corporateActions.csv"
 )
+
+# Source labels (stored in UpcomingEarnings.source)
+SOURCE_EVENT_CALENDAR = "nse_event_calendar"
+SOURCE_CORP_ANNOUNCEMENTS = "nse_corporate_announcements"
+
+# Politeness sleep between paginated NSE requests (seconds)
+NSE_PAGINATION_SLEEP_SEC = 0.7
+# Max pages we will walk before giving up — defensive cap
+NSE_CORP_ANN_MAX_PAGES = 50
 
 
 def _get_nse_session():
@@ -112,6 +136,238 @@ def _fetch_csv_fallback(session) -> list[dict]:
         return []
 
 
+def _is_results_intimation(subject: str, desc: str) -> bool:
+    """
+    Decide whether a corporate-announcements item is a forward-looking
+    Financial Results INTIMATION (board meeting notice) rather than a
+    past-results filing.
+
+    NSE marks the same `category=Financial Results` for both:
+      * "Intimation of Board Meeting to consider … audited results"
+      * "Outcome of Board Meeting" / "Financial Results for the quarter ended …"
+
+    We want the first kind — the upcoming-event signal. Heuristic:
+    look for "intimation", "notice", "board meeting", "to consider",
+    "schedul" — and reject clear past-results markers ("outcome",
+    "results for the quarter ended", "audited financial results for").
+    """
+    blob = f"{subject or ''} {desc or ''}".lower()
+    if not blob.strip():
+        return False
+
+    past_markers = (
+        "outcome of board",
+        "results for the quarter ended",
+        "results for the year ended",
+        "audited financial results for",
+        "unaudited financial results for",
+        "un-audited financial results for",
+    )
+    for m in past_markers:
+        if m in blob:
+            return False
+
+    intimation_markers = (
+        "intimation",
+        "notice of board",
+        "to consider",
+        "scheduled to be held",
+        "board meeting",  # broad, but combined with non-past gate above
+    )
+    return any(m in blob for m in intimation_markers)
+
+
+def _extract_meeting_date(subject: str, desc: str) -> date | None:
+    """
+    Try to extract the scheduled board-meeting date from the subject/desc
+    of an intimation. NSE intimations typically embed the date as
+    "on Monday, May 12, 2025" / "on 12.05.2025" / "on 12/05/2025".
+
+    Returns None when no usable date can be parsed.
+    """
+    import re
+
+    blob = f"{subject or ''} {desc or ''}"
+    if not blob.strip():
+        return None
+
+    # Try common date patterns. Order matters (most specific first).
+    patterns = [
+        # 12-May-2025 / 12 May 2025 / May 12, 2025
+        r"\b(\d{1,2})[\s\-/](Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s\-/,]+(\d{4})\b",
+        r"\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2}),?\s+(\d{4})\b",
+        # 12.05.2025 / 12/05/2025 / 12-05-2025
+        r"\b(\d{1,2})[./-](\d{1,2})[./-](\d{4})\b",
+        # 2025-05-12
+        r"\b(\d{4})-(\d{1,2})-(\d{1,2})\b",
+    ]
+
+    for pat in patterns:
+        m = re.search(pat, blob, re.IGNORECASE)
+        if not m:
+            continue
+        candidate = m.group(0)
+        parsed = _parse_event_date(candidate)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def fetch_from_corporate_announcements(
+    session, days_window: int = 90
+) -> list[dict]:
+    """
+    Fetch upcoming Financial Results intimations from NSE's
+    corporate-announcements endpoint.
+
+    Endpoint:
+        GET https://www.nseindia.com/api/corporate-announcements
+            ?index=equities
+            &category=Financial Results
+            &from_date=DD-MM-YYYY
+            &to_date=DD-MM-YYYY
+
+    Response shape (each item, observed fields):
+        symbol       — NSE symbol
+        an_dt        — announcement datetime
+        attchmntFile — PDF link
+        desc / sm_name / smIndustry — description text
+        subject      — short subject line (when present)
+
+    Returns a list of dicts: {ticker, event_date, purpose, source}.
+    On any failure returns []. NEVER raises — the caller treats an empty
+    list as "fall back to event-calendar only".
+
+    Note: we paginate defensively. If the upstream returns a flat list
+    (no pagination marker), we accept it as a single page.
+    """
+    today = date.today()
+    # NSE accepts DD-MM-YYYY for announcement window. We pull a slightly
+    # wider lookback (the intimation is typically issued 7–14d before the
+    # meeting) so we don't miss imminent events.
+    from_date = (today - timedelta(days=14)).strftime("%d-%m-%Y")
+    to_date = (today + timedelta(days=days_window)).strftime("%d-%m-%Y")
+
+    collected: list[dict] = []
+    cutoff = today + timedelta(days=days_window)
+
+    for page in range(1, NSE_CORP_ANN_MAX_PAGES + 1):
+        params = {
+            "index": "equities",
+            "category": "Financial Results",
+            "from_date": from_date,
+            "to_date": to_date,
+        }
+        # Page parameter — some NSE endpoints accept `page`/`pageNo`.
+        # We include `page` defensively; if the endpoint ignores it,
+        # the same payload comes back and we break out below.
+        if page > 1:
+            params["page"] = page
+
+        try:
+            resp = session.get(
+                NSE_CORP_ANNOUNCEMENTS_URL,
+                params=params,
+                timeout=30,
+            )
+        except Exception as e:
+            logger.error(
+                f"NSE corporate-announcements fetch failed on page {page}: {e}"
+            )
+            break
+
+        if resp.status_code != 200:
+            logger.warning(
+                f"NSE corporate-announcements returned HTTP "
+                f"{resp.status_code} on page {page}"
+            )
+            break
+
+        try:
+            payload = resp.json()
+        except Exception as e:
+            logger.error(
+                f"NSE corporate-announcements JSON parse failed on page "
+                f"{page}: {e}"
+            )
+            break
+
+        # Response can be a bare list or {"rows": [...]} / {"data": [...]}
+        if isinstance(payload, dict):
+            rows = (
+                payload.get("rows")
+                or payload.get("data")
+                or payload.get("results")
+                or []
+            )
+        elif isinstance(payload, list):
+            rows = payload
+        else:
+            rows = []
+
+        if not rows:
+            break
+
+        page_items = 0
+        for item in rows:
+            if not isinstance(item, dict):
+                continue
+            symbol = str(item.get("symbol", "") or "").strip().upper()
+            if not symbol:
+                continue
+
+            subject = str(item.get("subject", "") or item.get("subjectLine", "") or "")
+            desc = str(
+                item.get("desc", "")
+                or item.get("smIndustry", "")
+                or item.get("attchmntText", "")
+                or ""
+            )
+
+            if not _is_results_intimation(subject, desc):
+                continue
+
+            event_date = _extract_meeting_date(subject, desc)
+            if event_date is None:
+                # Fall back to announcement date if we can't parse a
+                # meeting date — but only if it's still forward-looking.
+                an_dt = str(item.get("an_dt", "") or "").strip()
+                event_date = _parse_event_date(an_dt.split(" ")[0]) if an_dt else None
+                if event_date is None:
+                    continue
+
+            if event_date < today or event_date > cutoff:
+                continue
+
+            purpose = (subject or desc or "Financial Results").strip()[:500]
+            collected.append(
+                {
+                    "ticker": symbol,
+                    "event_date": event_date,
+                    "event_type": "Financial Results",
+                    "purpose": purpose,
+                    "source": SOURCE_CORP_ANNOUNCEMENTS,
+                    "confirmed": True,
+                }
+            )
+            page_items += 1
+
+        # Heuristic stop: if the endpoint doesn't paginate the same payload
+        # will repeat. We stop after a page with zero new items OR when
+        # fewer rows than a typical page (50) come back.
+        if page_items == 0 or len(rows) < 20:
+            break
+
+        # Polite delay before next page
+        time.sleep(NSE_PAGINATION_SLEEP_SEC)
+
+    logger.info(
+        f"NSE corporate-announcements: {len(collected)} intimations found "
+        f"(window {from_date} → {to_date})"
+    )
+    return collected
+
+
 def _parse_event_date(date_str: str) -> date | None:
     """Parse event dates from NSE (various formats)."""
     if not date_str:
@@ -127,12 +383,91 @@ def _parse_event_date(date_str: str) -> date | None:
         return None
 
 
+def _collect_event_calendar_items(session, today: date, cutoff: date) -> list[dict]:
+    """
+    Pull Financial-Results items from the small `event-calendar` agenda.
+    Used as a CORROBORATOR to corporate-announcements (Phase 1, 2026-06-07).
+    """
+    events = _fetch_json_calendar(session)
+    items: list[dict] = []
+    if not events:
+        return items
+
+    for ev in events:
+        purpose = str(ev.get("purpose", "") or ev.get("bm_desc", "") or "")
+        if not _is_financial_results(purpose):
+            continue
+
+        symbol = str(ev.get("symbol", "") or "").strip().upper()
+        date_str = str(ev.get("date", "") or ev.get("bm_date", "") or "").strip()
+        if not symbol or not date_str:
+            continue
+
+        event_date = _parse_event_date(date_str)
+        if event_date is None:
+            continue
+
+        if event_date < today or event_date > cutoff:
+            continue
+
+        items.append(
+            {
+                "ticker": symbol,
+                "event_date": event_date,
+                "event_type": "Financial Results",
+                "purpose": purpose[:500],
+                "source": SOURCE_EVENT_CALENDAR,
+                "confirmed": False,  # event-calendar is a soft agenda hint
+            }
+        )
+
+    logger.info(f"NSE event-calendar: {len(items)} Financial Results items")
+    return items
+
+
+def _merge_and_dedupe(
+    primary: list[dict], corroborator: list[dict]
+) -> list[dict]:
+    """
+    Merge two earnings-event lists.
+
+    Dedupe key: (ticker, event_date).
+    When the same (ticker, event_date) exists in both:
+      * keep the PRIMARY (corporate-announcements) row
+      * set confirmed=True (primary is a confirmed intimation; corroborator
+        bumps confidence but does not downgrade it)
+
+    Order of arguments matters: `primary` wins on collisions.
+    """
+    merged: dict[tuple[str, date], dict] = {}
+    for item in primary:
+        key = (item["ticker"], item["event_date"])
+        merged[key] = dict(item)
+
+    for item in corroborator:
+        key = (item["ticker"], item["event_date"])
+        if key in merged:
+            # Both sources agree → confirmed
+            merged[key]["confirmed"] = True
+            continue
+        merged[key] = dict(item)
+
+    return list(merged.values())
+
+
 def fetch_earnings_dates(db: Session) -> int:
     """
     Fetch upcoming earnings dates from NSE and store in the database.
-    Tries JSON event calendar first, falls back to CSV.
-    Only stores events within the next 90 days.
-    Returns total number of earnings events stored.
+
+    Phase 1 (2026-06-07): two-source strategy.
+      1. PRIMARY: `corporate-announcements?category=Financial Results`
+         — the actual stream of board-meeting intimations.
+      2. CORROBORATOR: `event-calendar` — small forward-looking agenda;
+         when it agrees with primary on (ticker, event_date), the row is
+         marked confirmed=True.
+
+    Only stores events within the next 90 days. Returns total number of
+    earnings events stored (insert + update).
     """
     try:
         session = _get_nse_session()
@@ -145,47 +480,34 @@ def fetch_earnings_dates(db: Session) -> int:
     stored = 0
     errors = 0
 
-    # ── Try JSON calendar first ──────────────────────────────
-    events = _fetch_json_calendar(session)
-    earnings_items: list[dict] = []
+    # ── PRIMARY: corporate-announcements (Financial Results intimations) ─
+    try:
+        primary_items = fetch_from_corporate_announcements(session, days_window=90)
+    except Exception as e:
+        # NEVER fail the whole sync because the new source choked —
+        # fall back to event-calendar only, as Phase 0 recommended.
+        logger.error(
+            f"corporate-announcements fetch raised; falling back to "
+            f"event-calendar only: {e}"
+        )
+        primary_items = []
 
-    if events:
-        for ev in events:
-            purpose = str(ev.get("purpose", "") or ev.get("bm_desc", "") or "")
-            if not _is_financial_results(purpose):
-                continue
+    # ── CORROBORATOR: event-calendar ─────────────────────────────────────
+    corroborator_items = _collect_event_calendar_items(session, today, cutoff)
 
-            symbol = str(ev.get("symbol", "") or "").strip()
-            date_str = str(ev.get("date", "") or ev.get("bm_date", "") or "").strip()
-            if not symbol or not date_str:
-                continue
+    earnings_items = _merge_and_dedupe(primary_items, corroborator_items)
+    logger.info(
+        f"NSE earnings merge: {len(primary_items)} primary + "
+        f"{len(corroborator_items)} corroborator → {len(earnings_items)} unique"
+    )
 
-            event_date = _parse_event_date(date_str)
-            if event_date is None:
-                continue
-
-            # Only store future events within 90 days
-            if event_date < today or event_date > cutoff:
-                continue
-
-            earnings_items.append(
-                {
-                    "ticker": symbol,
-                    "event_date": event_date,
-                    "event_type": "Financial Results",
-                    "purpose": purpose[:500],
-                }
-            )
-
-        logger.info(f"NSE JSON calendar: {len(earnings_items)} earnings events found")
-
-    # ── CSV fallback if JSON yielded nothing ─────────────────
+    # ── CSV fallback ONLY if both NSE JSON sources yielded nothing ──────
     if not earnings_items:
-        logger.info("JSON calendar empty, trying CSV fallback")
+        logger.info("Both NSE JSON sources empty, trying CSV fallback")
         csv_events = _fetch_csv_fallback(session)
 
         for ev in csv_events:
-            symbol = ev["symbol"]
+            symbol = ev["symbol"].strip().upper()
             event_date = _parse_event_date(ev["date"])
             if event_date is None:
                 continue
@@ -198,6 +520,8 @@ def fetch_earnings_dates(db: Session) -> int:
                     "event_date": event_date,
                     "event_type": "Financial Results",
                     "purpose": ev.get("purpose", "")[:500],
+                    "source": "nse_corporate_actions_csv",
+                    "confirmed": False,
                 }
             )
 
@@ -208,6 +532,7 @@ def fetch_earnings_dates(db: Session) -> int:
         return 0
 
     # ── Store in DB ──────────────────────────────────────────
+    now_utc = datetime.utcnow()
     for item in earnings_items:
         try:
             existing = (
@@ -219,7 +544,10 @@ def fetch_earnings_dates(db: Session) -> int:
             if existing:
                 existing.event_type = item["event_type"]
                 existing.purpose = item["purpose"]
-                existing.updated_at = datetime.utcnow()
+                existing.updated_at = now_utc
+                existing.source = item.get("source")
+                existing.confirmed = bool(item.get("confirmed", False))
+                existing.fetched_at = now_utc
             else:
                 db.add(
                     UpcomingEarnings(
@@ -227,7 +555,10 @@ def fetch_earnings_dates(db: Session) -> int:
                         event_date=item["event_date"],
                         event_type=item["event_type"],
                         purpose=item["purpose"],
-                        updated_at=datetime.utcnow(),
+                        updated_at=now_utc,
+                        source=item.get("source"),
+                        confirmed=bool(item.get("confirmed", False)),
+                        fetched_at=now_utc,
                     )
                 )
             stored += 1
