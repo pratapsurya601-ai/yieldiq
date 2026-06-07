@@ -185,6 +185,9 @@ const ManifestHistoryPanel = dynamic(() => import("@/components/analysis/Manifes
 const ProExcelExportButton = dynamic(() => import("@/components/analysis/ProExcelExportButton"), {
   ssr: false,
 })
+const DetailedExportButton = dynamic(() => import("@/components/analysis/DetailedExportButton"), {
+  ssr: false,
+})
 const PriceChart = dynamic(() => import("@/components/analysis/PriceChart"), {
   ssr: false,
   loading: chartSkeleton,
@@ -1829,6 +1832,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                 returns null for free / unauthenticated users so the
                 button is invisible to them — matches PR_LADDER spec. */}
             <ProExcelExportButton ticker={ticker} />
+            {/* Pro-tier multi-format analyst export — 10-sheet Excel,
+                3-page PDF, or CSV bundle. In-browser generation; no
+                backend changes. Also returns null for free users. */}
+            <DetailedExportButton ticker={ticker} />
           </div>
         </div>
 
