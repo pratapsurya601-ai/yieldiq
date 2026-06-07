@@ -199,15 +199,39 @@ def _fetch_from_db(db, db_ticker: str, period_type: str,
     period_end_date, returns rows newest→oldest.
     """
     # ---- INCOME ------------------------------------------------------
+    # Dedup (Cluster E, 2026-06-07): company_financials' UNIQUE constraint
+    # spans (ticker_nse, period_type, period_end_date, statement_type,
+    # source) — so the same fiscal period can carry multiple rows from
+    # different ingestion sources (NSE corp announcements + yfinance +
+    # XBRL). The frontend rendered every row as a separate column,
+    # producing duplicate "Q3FY25, Q3FY25" headers and occasional unit-
+    # mismatch artifacts (eps_diluted 29.58 vs 10.08 for BANKBARODA).
+    # Collapse to exactly one row per period via DISTINCT ON with a
+    # deterministic source priority: NSE first (authoritative for Indian
+    # listings), then xbrl/yfinance, with updated_at as the tiebreaker.
     inc_rows = db.execute(text("""
         SELECT period_end_date, revenue, gross_profit, ebitda, ebit,
                depreciation, interest_expense,
                net_income, eps_basic, eps_diluted
-        FROM company_financials
-        WHERE ticker_nse = :t
-          AND statement_type = 'income'
-          AND period_type = :p
-          AND period_end_date IS NOT NULL
+        FROM (
+            SELECT DISTINCT ON (period_end_date)
+                   period_end_date, revenue, gross_profit, ebitda, ebit,
+                   depreciation, interest_expense,
+                   net_income, eps_basic, eps_diluted
+            FROM company_financials
+            WHERE ticker_nse = :t
+              AND statement_type = 'income'
+              AND period_type = :p
+              AND period_end_date IS NOT NULL
+            ORDER BY period_end_date DESC,
+                     CASE source
+                         WHEN 'nse' THEN 0
+                         WHEN 'xbrl' THEN 1
+                         WHEN 'yfinance' THEN 2
+                         ELSE 3
+                     END,
+                     updated_at DESC NULLS LAST
+        ) dedup
         ORDER BY period_end_date DESC
         LIMIT :lim
     """), {"t": db_ticker, "p": period_type, "lim": limit}).mappings().all()
@@ -221,29 +245,58 @@ def _fetch_from_db(db, db_ticker: str, period_type: str,
     # borrowings live in total_liabilities, not in total_debt — there
     # are no separate deposits/borrowings columns in
     # company_financials yet; see Phase-2 ingestion TODO below).
+    # Same DISTINCT ON dedup as income — see Cluster E note above.
     bs_rows = db.execute(text("""
         SELECT period_end_date, total_assets, total_debt, cash,
                total_equity, current_assets, fixed_assets,
                net_debt, working_capital, total_liabilities
-        FROM company_financials
-        WHERE ticker_nse = :t
-          AND statement_type = 'balance_sheet'
-          AND period_type = :p
-          AND period_end_date IS NOT NULL
+        FROM (
+            SELECT DISTINCT ON (period_end_date)
+                   period_end_date, total_assets, total_debt, cash,
+                   total_equity, current_assets, fixed_assets,
+                   net_debt, working_capital, total_liabilities
+            FROM company_financials
+            WHERE ticker_nse = :t
+              AND statement_type = 'balance_sheet'
+              AND period_type = :p
+              AND period_end_date IS NOT NULL
+            ORDER BY period_end_date DESC,
+                     CASE source
+                         WHEN 'nse' THEN 0
+                         WHEN 'xbrl' THEN 1
+                         WHEN 'yfinance' THEN 2
+                         ELSE 3
+                     END,
+                     updated_at DESC NULLS LAST
+        ) dedup
         ORDER BY period_end_date DESC
         LIMIT :lim
     """), {"t": db_ticker, "p": period_type, "lim": limit}).mappings().all()
 
     # ---- CASH FLOW (annual only in our pipeline) --------------------
     cf_period = "annual"   # our pipeline writes CF as annual only
+    # Same DISTINCT ON dedup as income — see Cluster E note above.
     cf_rows = db.execute(text("""
         SELECT period_end_date, operating_cf, investing_cf, financing_cf,
                capex, free_cash_flow, dividends_paid
-        FROM company_financials
-        WHERE ticker_nse = :t
-          AND statement_type = 'cashflow'
-          AND period_type = :p
-          AND period_end_date IS NOT NULL
+        FROM (
+            SELECT DISTINCT ON (period_end_date)
+                   period_end_date, operating_cf, investing_cf, financing_cf,
+                   capex, free_cash_flow, dividends_paid
+            FROM company_financials
+            WHERE ticker_nse = :t
+              AND statement_type = 'cashflow'
+              AND period_type = :p
+              AND period_end_date IS NOT NULL
+            ORDER BY period_end_date DESC,
+                     CASE source
+                         WHEN 'nse' THEN 0
+                         WHEN 'xbrl' THEN 1
+                         WHEN 'yfinance' THEN 2
+                         ELSE 3
+                     END,
+                     updated_at DESC NULLS LAST
+        ) dedup
         ORDER BY period_end_date DESC
         LIMIT :lim
     """), {"t": db_ticker, "p": cf_period, "lim": limit}).mappings().all()
@@ -557,7 +610,31 @@ class FinancialsService:
                 rows[0].pat / rows[0].total_equity * 100, 1
             )
 
-        is_indian = ticker.endswith(".NS") or ticker.endswith(".BO")
+        # Currency inference (Cluster B, 2026-06-07).
+        #
+        # Old code used ``ticker.endswith(".NS")`` which silently
+        # fell through to USD/M when the frontend passed a bare canonical
+        # ticker (e.g. "BANKBARODA") — the resulting "Values in ₹ M"
+        # header on Indian rows read 10× wrong because the underlying
+        # numbers are in CRORES (per the module docstring) but were
+        # labelled MILLIONS, and ``analysis.chart-data`` then multiplied
+        # by 1e6 instead of 1e7.
+        #
+        # Source of truth: the data_pipeline writes ONLY Indian listings
+        # into ``company_financials`` keyed by ``ticker_nse``. So any
+        # row served from the DB path is, by construction, INR / Crores.
+        # The yfinance fallback path is the only way a non-Indian ticker
+        # (e.g. "AAPL") reaches this function — for that we still need
+        # a suffix check, but we apply it to the resolved ticker rather
+        # than the raw user input.
+        is_indian = (
+            data_source == "db"
+            or ticker.endswith(".NS")
+            or ticker.endswith(".BO")
+            or not ("." in ticker)  # bare canonical (BANKBARODA, TCS)
+                                    # — DB has no fallback for non-Indian
+                                    # bare tickers, so this is safe
+        )
         currency = "INR" if is_indian else "USD"
         currency_unit = "Cr" if is_indian else "M"
 
