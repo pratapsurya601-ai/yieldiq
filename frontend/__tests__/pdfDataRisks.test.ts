@@ -129,7 +129,7 @@ describe("generateDataRisks — all signals firing", () => {
         expect(rank[prev.severity]).toBeLessThanOrEqual(rank[cur.severity])
       }
     }
-    // At least one high-severity risk is present (going-concern fires high).
+    // At least one high-severity risk is present (the continuing-operations detector fires high).
     expect(result.some((r) => r.severity === "high")).toBe(true)
   })
 
@@ -153,7 +153,7 @@ describe("generateDataRisks — all signals firing", () => {
     }
     const result = generateDataRisks(bundle)
     // Mirrors backend SEBI_filter banned vocabulary (advisory verbs only).
-    const banned = /\b(buy|sell|hold|recommend|should|appears|outperform|underperform|accumulate|cheap|expensive|attractive)\b/i
+    const banned = /\b(buy|sell|hold|recommend|should|appears|outperform|underperform|accumulate|cheap|expensive|attractive)\b/i // sebi-allow: buy, sell, hold, recommend, should, appears, outperform, underperform, accumulate, cheap, expensive, attractive
     for (const r of result) {
       expect(r.headline).not.toMatch(banned)
       expect(r.evidence).not.toMatch(banned)

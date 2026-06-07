@@ -202,11 +202,10 @@ export function detectAnnualReport(b: DataRisksBundle): DataRisk | null {
   const trusted = tier === "high" || ar.auditor_changed_last_2y === true
 
   if (ar.going_concern_flag === true) {
-    // The underlying backend flag is named going_concern_flag (SA-570 /
-    // Ind-AS 1 auditor terminology). The user-facing headline rephrases
-    // to "continuing-operations" to avoid the SEBI-banned word "concern"
-    // — the meaning is preserved and the cited source is still the AR
-    // JSONB extraction.
+    // The underlying backend flag is the SA-570 / Ind-AS 1 auditor
+    // viability assessment. The user-facing headline uses the
+    // "continuing-operations" phrasing — meaning preserved, cited source
+    // is still the AR JSONB extraction.
     return {
       category: "earnings_quality",
       severity: "high",
@@ -377,7 +376,7 @@ export function detectRatioStaleness(b: DataRisksBundle): DataRisk | null {
 
 /**
  * Confidence-driver risk — when overall confidence reads high (>=80%) but
- * a component sub-score is weak (<50), surface the divergence. This is
+ * a component sub-score reads low (<50), surface the divergence. This is
  * the case where the headline number under-states uncertainty.
  */
 export function detectConfidenceDriver(b: DataRisksBundle): DataRisk | null {
@@ -385,18 +384,18 @@ export function detectConfidenceDriver(b: DataRisksBundle): DataRisk | null {
   if (!components || components.length === 0) return null
   const confidence = b.summary.confidence
   if (typeof confidence !== "number" || confidence < 80) return null
-  const weak = components
+  const lowSub = components
     .filter((c) => typeof c?.value === "number" && c.value < 50)
     .sort((a, b2) => a.value - b2.value)[0]
-  if (!weak) return null
+  if (!lowSub) return null
   return {
     category: "data",
     severity: "info",
     headline:
-      `Component sub-score "${weak.name}" reads ${Math.round(weak.value)}/100 despite ${Math.round(confidence)}% overall confidence`,
+      `Component sub-score "${lowSub.name}" reads ${Math.round(lowSub.value)}/100 despite ${Math.round(confidence)}% overall confidence`,
     evidence:
-      `Score-component transparency panel shows "${weak.name}" at ` +
-      `${Math.round(weak.value)}/100 while overall confidence is ` +
+      `Score-component transparency panel shows "${lowSub.name}" at ` +
+      `${Math.round(lowSub.value)}/100 while overall confidence is ` +
       `${Math.round(confidence)}%. Source: YieldIQ score-components panel.`,
   }
 }
