@@ -38,6 +38,19 @@ ONE_SHOT_KINDS: frozenset[str] = frozenset(
     {"mos_above", "mos_below", "price_above", "price_below", "verdict_change"}
 )
 
+# Verdicts the engine itself does not trust enough to act on. Firing a
+# "discount reached 25%" alert on a ticker whose verdict is `under_review`
+# would tell the user about an apparent discount that the engine has
+# already flagged as untrustworthy (extreme ratios, triple-low confidence,
+# missing financials, etc.). The evaluator skips MoS-direction alerts on
+# these verdicts entirely. Verdict_change alerts are allowed to fire from
+# a trustworthy verdict INTO `under_review` (that's a useful signal) but
+# not the other way (avoids spamming the user every time a thinly-covered
+# ticker oscillates between under_review and back).
+UNTRUSTED_VERDICTS: frozenset[str] = frozenset(
+    {"data_limited", "unavailable", "under_review", "avoid"}
+)
+
 
 @dataclass
 class TickerSnapshot:
@@ -126,8 +139,15 @@ def _should_fire(
     if kind == "price_below":
         return snap.price is not None and threshold is not None and snap.price <= threshold
     if kind == "mos_above":
+        # Suppress MoS alerts when the engine doesn't trust the ticker's
+        # current snapshot (extreme ratios, low confidence, etc.). The
+        # surfaced MoS is meaningless in those states.
+        if snap.verdict in UNTRUSTED_VERDICTS:
+            return False
         return snap.mos_pct is not None and threshold is not None and snap.mos_pct >= threshold
     if kind == "mos_below":
+        if snap.verdict in UNTRUSTED_VERDICTS:
+            return False
         return snap.mos_pct is not None and threshold is not None and snap.mos_pct <= threshold
     if kind == "verdict_change":
         # Fire when we have a current verdict AND it differs from the
@@ -258,7 +278,8 @@ class EvaluationResult:
     kind: str
     threshold: Optional[float]
     fired: bool
-    reason: str  # 'fired', 'cooldown', 'no_data', 'condition_not_met', 'no_email'
+    reason: str  # 'fired', 'cooldown', 'no_data', 'condition_not_met',
+    #              'no_email', 'untrusted_verdict'
 
 
 def evaluate_alerts(session: OrmSession, *, dry_run: bool = False) -> list[EvaluationResult]:
@@ -338,9 +359,15 @@ def evaluate_alerts(session: OrmSession, *, dry_run: bool = False) -> list[Evalu
         condition_met = _should_fire(alert.kind, threshold, snap, prev_verdict)
 
         if not condition_met:
+            # Distinguish "the engine doesn't trust this read" from a
+            # genuine "condition not met" so the operator can see in
+            # logs why a watched ticker isn't firing.
+            mos_kind = alert.kind in ("mos_above", "mos_below")
+            untrusted = mos_kind and snap.verdict in UNTRUSTED_VERDICTS
+            reason = "untrusted_verdict" if untrusted else "condition_not_met"
             results.append(EvaluationResult(
                 alert.id, alert.user_id, ticker, alert.kind, threshold,
-                fired=False, reason="condition_not_met",
+                fired=False, reason=reason,
             ))
             if not dry_run:
                 alert.last_checked_at = now

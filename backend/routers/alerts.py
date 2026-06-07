@@ -14,6 +14,9 @@ from __future__ import annotations
 import logging
 import os
 import sys
+import threading
+import time
+from collections import deque
 from pathlib import Path
 from typing import Optional
 
@@ -80,6 +83,48 @@ class AlertPatchPayload(BaseModel):
     notify_push: Optional[bool] = None
 
 
+# ── Rate limit ────────────────────────────────────────────────
+# Simple per-user sliding-window cap on POST. The router is one of two
+# write surfaces (PATCH being the other, narrower because it requires a
+# pre-existing row); we cap CREATE because that's the only path that
+# can grow user_alerts row count unboundedly. The DB-level UNIQUE
+# constraint on (user_id, ticker, kind) means a user can't actually
+# create > N_TICKERS × N_KINDS rows, but a runaway client could still
+# burn through CPU on a tight retry loop before that ceiling. Window
+# is small + in-process — we run Railway-single-replica today, and if
+# we ever go multi-replica the right fix is Redis, not a bigger window.
+_RATE_LIMIT_MAX = int(os.environ.get("ALERTS_CREATE_RATE_LIMIT", "20"))
+_RATE_LIMIT_WINDOW_S = int(os.environ.get("ALERTS_CREATE_RATE_WINDOW_S", "60"))
+_rate_lock = threading.Lock()
+_rate_buckets: dict[str, deque[float]] = {}
+
+
+def _check_rate_limit(uid: str) -> None:
+    """Raise 429 if the user has exceeded the create-alert quota.
+
+    Keeps a per-uid deque of recent timestamps; trims entries older than
+    the window on every call so the dict bounded by active users only.
+    """
+    now = time.monotonic()
+    cutoff = now - _RATE_LIMIT_WINDOW_S
+    with _rate_lock:
+        bucket = _rate_buckets.get(uid)
+        if bucket is None:
+            bucket = deque()
+            _rate_buckets[uid] = bucket
+        while bucket and bucket[0] < cutoff:
+            bucket.popleft()
+        if len(bucket) >= _RATE_LIMIT_MAX:
+            raise HTTPException(
+                status_code=429,
+                detail=(
+                    f"Too many alert creates ({_RATE_LIMIT_MAX} per "
+                    f"{_RATE_LIMIT_WINDOW_S}s). Try again shortly."
+                ),
+            )
+        bucket.append(now)
+
+
 def _user_id(user: dict) -> str:
     """Extract the stable user identifier from the JWT payload."""
     uid = user.get("user_id") or user.get("sub") or user.get("email")
@@ -135,6 +180,7 @@ async def create_alert(
     db: OrmSession = Depends(_get_db),
 ):
     uid = _user_id(user)
+    _check_rate_limit(uid)
     ticker = (payload.ticker or "").strip().upper()
     kind = (payload.kind or "").strip().lower()
 

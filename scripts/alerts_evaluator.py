@@ -103,6 +103,7 @@ def main() -> int:
     no_data = [r for r in results if r.reason == "no_data"]
     condition_not_met = [r for r in results if r.reason == "condition_not_met"]
     no_email = [r for r in results if r.reason == "no_email"]
+    untrusted = [r for r in results if r.reason == "untrusted_verdict"]
 
     if args.dry_run:
         log.info("DRY-RUN: would fire %d alerts", len(fired))
@@ -110,9 +111,9 @@ def main() -> int:
         log.info("Fired %d alerts", len(fired))
     log.info(
         "Breakdown: fired=%d cooldown=%d no_data=%d "
-        "condition_not_met=%d no_email=%d (total=%d)",
+        "condition_not_met=%d no_email=%d untrusted_verdict=%d (total=%d)",
         len(fired), len(cooldown), len(no_data),
-        len(condition_not_met), len(no_email), len(results),
+        len(condition_not_met), len(no_email), len(untrusted), len(results),
     )
     for r in fired:
         log.info(
