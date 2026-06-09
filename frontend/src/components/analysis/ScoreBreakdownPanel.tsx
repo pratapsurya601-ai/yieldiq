@@ -15,6 +15,7 @@
  */
 
 import type { ScoreBreakdown } from "@/types/api"
+import MetricTooltip from "@/components/common/MetricTooltip"
 
 interface ScoreBreakdownPanelProps {
   breakdown?: ScoreBreakdown | null
@@ -39,9 +40,18 @@ export default function ScoreBreakdownPanel({
                    text-caption hover:text-ink"
       >
         <span>Why this score?</span>
-        <span className="font-mono text-xs tabular-nums">
-          {final_score}/100
-        </span>
+        {/* Premium Feel R2 — the final score number itself becomes a
+            hover explainer so users can read what the composite means. */}
+        <MetricTooltip
+          metric="yieldiq_score"
+          label="YieldIQ Score"
+          showLabel={false}
+          value={
+            <span className="font-mono text-xs tabular-nums">
+              {final_score}/100
+            </span>
+          }
+        />
       </summary>
 
       <div className="mt-3 flex flex-col gap-3">

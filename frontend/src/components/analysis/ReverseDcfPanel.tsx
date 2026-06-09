@@ -24,6 +24,7 @@
 
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
+import MetricTooltip from "@/components/common/MetricTooltip"
 
 // Mirror of backend models/forecaster.py constants. Kept in sync manually
 // (constants haven't changed in 18 months and any change would require a
@@ -451,6 +452,7 @@ function ReverseDcfSliders({ inputs, trailing5yCagr }: SlidersProps) {
           step={STEP}
           defaultValue={defaultWacc}
           onChange={setWacc}
+          metricKey="wacc"
         />
         <SliderRow
           label="Terminal growth"
@@ -460,6 +462,7 @@ function ReverseDcfSliders({ inputs, trailing5yCagr }: SlidersProps) {
           step={STEP}
           defaultValue={defaultTg}
           onChange={setTg}
+          metricKey="terminal_growth"
         />
       </div>
 
@@ -516,6 +519,8 @@ interface SliderRowProps {
   step: number
   defaultValue: number
   onChange: (v: number) => void
+  /** Premium Feel R2 — optional metric key for the hover explainer. */
+  metricKey?: string
 }
 
 function SliderRow({
@@ -526,11 +531,26 @@ function SliderRow({
   step,
   defaultValue,
   onChange,
+  metricKey,
 }: SliderRowProps) {
   return (
     <div>
       <div className="flex items-baseline justify-between mb-1">
-        <label className="text-xs text-caption">{label}</label>
+        {/* Premium Feel R2 — wrap the slider label with a hover
+            explainer so users can read what WACC / terminal growth
+            mean before tuning them. */}
+        {metricKey ? (
+          <label className="text-xs text-caption">
+            <MetricTooltip
+              metric={metricKey}
+              label={label}
+              showLabel={false}
+              value={<span>{label}</span>}
+            />
+          </label>
+        ) : (
+          <label className="text-xs text-caption">{label}</label>
+        )}
         <span className="text-sm font-mono tabular-nums font-semibold text-ink">
           {(value * 100).toFixed(1)}%
         </span>

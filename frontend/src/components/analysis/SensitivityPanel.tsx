@@ -14,6 +14,7 @@ import { useMutation } from "@tanstack/react-query"
 import { recomputeDcf, type RecomputeResponse, type SavedScenario } from "@/lib/api"
 import { formatCurrency, formatPct } from "@/lib/utils"
 import SavedScenarios from "@/components/analysis/SavedScenarios"
+import MetricTooltip from "@/components/common/MetricTooltip"
 import { useAuthStore } from "@/store/authStore"
 
 interface Props {
@@ -43,16 +44,31 @@ interface SliderRowProps {
   onChange: (v: number) => void
   format: (v: number) => string
   ariaLabel: string
+  /** Premium Feel R2 — optional metric key for the hover explainer. */
+  metricKey?: string
 }
 
 function SliderRow({
   label, hint, min, max, step, value, onChange, format, ariaLabel,
+  metricKey,
 }: SliderRowProps) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between">
         <label className="text-xs font-semibold text-ink">
-          {label}
+          {/* Premium Feel R2 — wrap the slider label with a hover
+              explainer so users can read what WACC / growth / margin
+              mean before tuning them. */}
+          {metricKey ? (
+            <MetricTooltip
+              metric={metricKey}
+              label={label}
+              showLabel={false}
+              value={<span className="font-semibold">{label}</span>}
+            />
+          ) : (
+            label
+          )}
           <span className="ml-2 text-[10px] uppercase tracking-wider text-caption font-normal">
             {hint}
           </span>
@@ -251,6 +267,7 @@ export default function SensitivityPanel({
           onChange={setWacc}
           format={(v) => `${(v * 100).toFixed(1)}%`}
           ariaLabel="Weighted average cost of capital"
+          metricKey="wacc"
         />
         <SliderRow
           label="5-yr FCF growth"
@@ -262,6 +279,7 @@ export default function SensitivityPanel({
           onChange={setGrowth}
           format={(v) => `${(v * 100).toFixed(1)}%`}
           ariaLabel="Five-year free cash flow growth rate"
+          metricKey="fcf_revenue"
         />
         <SliderRow
           label="Operating margin"
