@@ -1289,11 +1289,33 @@ export interface CompoundedGrowthMetric {
   as_of_fy: number | null
 }
 
+/**
+ * Stock-CAGR variant: carries a `status` field emitted by the backend
+ * (`backend/services/cagr_service.py::_stock_cagr_panel`). Possible
+ * values:
+ *   - "ok"               — adj_close present and all windows computed
+ *   - "partial"          — at least one window resolved
+ *   - "rebuild_pending"  — adj_close not yet populated for this ticker
+ *   - "db_unavailable"   — DATABASE_URL unset / connect failed
+ *
+ * 2026-06-09 fix/analysis-ux-fixbatch: HDFCBANK on prod returned
+ * `{3y: null, 5y: null, 10y: null, status: "rebuild_pending"}` because
+ * the daily_prices.adj_close column hasn't been backfilled for the
+ * banking universe yet. The frontend was rendering "Insufficient
+ * history" — misleading copy for a 30-year-listed name. Optional
+ * `status` lets the sparkline tile distinguish "we genuinely don't
+ * have enough years" (a young listing) from "the backfill hasn't run
+ * yet" (data-pipeline state, not a stock fact).
+ */
+export interface CompoundedGrowthStockMetric extends CompoundedGrowthMetric {
+  status?: "ok" | "partial" | "rebuild_pending" | "db_unavailable" | null
+}
+
 export interface CompoundedGrowthPanel {
   revenue: CompoundedGrowthMetric
   profit: CompoundedGrowthMetric
   roe_avg: CompoundedGrowthMetric
-  stock: CompoundedGrowthMetric
+  stock: CompoundedGrowthStockMetric
 }
 
 export const getStockSummary = async (

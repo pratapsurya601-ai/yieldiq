@@ -207,9 +207,16 @@ export default function StockHeroImage({
                 Market {marketOpen ? "Open" : "Closed"}
               </span>
             )}
+            {/* 2026-06-09 fix/analysis-ux-fixbatch: prefix re-labelled
+                from "Delayed, as of" to "Price quote" so this stamp is
+                visibly distinct from the toolbar's "Model recomputed"
+                stamp. Prior copy and the toolbar copy were near-
+                identical ("Delayed, as of 13h ago" vs "Delayed, as of
+                23h ago") which read as a single stamp rendered twice
+                with two different ages. */}
             <FreshnessStamp
               timestamp={asOf}
-              prefix="Delayed, as of"
+              prefix="Price quote"
               fallback="Quote freshness unknown"
               className="text-xs text-zinc-300"
             />

@@ -346,91 +346,127 @@ export default function HonestHero({
               MetricTooltip wraps the value with a subtle dotted underline;
               hovering opens an explainer popover sourced from
               metric-explainers.ts. */}
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
-              YieldIQ Score
-            </span>
-            <MetricTooltip
-              metric="yieldiq_score"
-              label="YieldIQ Score"
-              showLabel={false}
-              value={
-                <span className="font-mono tabular-nums text-base text-ink">
-                  {signals.score != null ? `${Math.round(signals.score)} / 100` : "—"}
+          {/* 2026-06-09 fix/analysis-ux-fixbatch: each side-rail tile
+              now passes an explicit `ariaValueText` so the trigger's
+              aria-label reads e.g. "YieldIQ Score: 64 / 100" instead
+              of the previous "YieldIQ Score: YieldIQ Score" (the
+              fallback that fired whenever `value` was a JSX node and
+              not a plain string). Chrome MCP audit on
+              /analysis/HDFCBANK (2026-06-09) flagged all five tiles
+              as label-only to assistive tech. */}
+          {(() => {
+            const scoreText =
+              signals.score != null ? `${Math.round(signals.score)} / 100` : "—"
+            return (
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
+                  YieldIQ Score
                 </span>
-              }
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
-              Grade
-            </span>
-            <MetricTooltip
-              label="Grade"
-              showLabel={false}
-              title="Grade"
-              description="A letter shorthand (A/B/C/D/F) mapped from the YieldIQ Score so the rail can be scanned at a glance."
-              threshold="A: top decile across pillars. B: healthy composite. C: mixed with trade-offs. D/F: one or more pillars failing badly."
-              caveat="A grade is a label, not a verdict. Distress-flag businesses are capped at B regardless of the underlying score."
-              value={
-                <span className="font-mono tabular-nums text-base text-ink">
-                  {capGrade(signals.grade, distress)}
+                <MetricTooltip
+                  metric="yieldiq_score"
+                  label="YieldIQ Score"
+                  showLabel={false}
+                  ariaValueText={scoreText}
+                  value={
+                    <span className="font-mono tabular-nums text-base text-ink">
+                      {scoreText}
+                    </span>
+                  }
+                />
+              </div>
+            )
+          })()}
+          {(() => {
+            const gradeText = capGrade(signals.grade, distress)
+            return (
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
+                  Grade
                 </span>
-              }
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
-              Moat
-            </span>
-            <MetricTooltip
-              label="Moat"
-              showLabel={false}
-              title="Moat"
-              description="How durable the firm's competitive advantage looks — whether it can defend profit margins from rivals over the next 5-10 years."
-              threshold="Wide: pricing power proven over a full cycle. Moderate: some defenses. Narrow: limited and eroding. None: commodity-like economics."
-              value={
-                <span className="text-[13px] text-ink">
-                  {signals.moat ?? "—"}
+                <MetricTooltip
+                  label="Grade"
+                  showLabel={false}
+                  title="Grade"
+                  description="A letter shorthand (A/B/C/D/F) mapped from the YieldIQ Score so the rail can be scanned at a glance."
+                  threshold="A: top decile across pillars. B: healthy composite. C: mixed with trade-offs. D/F: one or more pillars failing badly."
+                  caveat="A grade is a label, not a verdict. Distress-flag businesses are capped at B regardless of the underlying score."
+                  ariaValueText={gradeText}
+                  value={
+                    <span className="font-mono tabular-nums text-base text-ink">
+                      {gradeText}
+                    </span>
+                  }
+                />
+              </div>
+            )
+          })()}
+          {(() => {
+            const moatText = signals.moat ?? "—"
+            return (
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
+                  Moat
                 </span>
-              }
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
-              Red flags
-            </span>
-            <MetricTooltip
-              label="Red flags"
-              showLabel={false}
-              title="Red flags"
-              description="Count of structured red-flag signals raised by our quality engine — governance, accounting, leverage, and operating-trend issues."
-              caveat="A non-zero count means the engine raised at least one flag; the Risk & Quality deep-dive below explains each one in plain English."
-              value={
-                <span className="font-mono tabular-nums text-[13px] text-ink">
-                  {signals.redFlags != null ? signals.redFlags : "—"}
+                <MetricTooltip
+                  label="Moat"
+                  showLabel={false}
+                  title="Moat"
+                  description="How durable the firm's competitive advantage looks — whether it can defend profit margins from rivals over the next 5-10 years."
+                  threshold="Wide: pricing power proven over a full cycle. Moderate: some defenses. Narrow: limited and eroding. None: commodity-like economics."
+                  ariaValueText={moatText}
+                  value={
+                    <span className="text-[13px] text-ink">{moatText}</span>
+                  }
+                />
+              </div>
+            )
+          })()}
+          {(() => {
+            const redFlagsText =
+              signals.redFlags != null ? String(signals.redFlags) : "—"
+            return (
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
+                  Red flags
                 </span>
-              }
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
-              Worry
-            </span>
-            <MetricTooltip
-              label="Worry"
-              showLabel={false}
-              title="Worry signal"
-              description="Our holder-experience tier — translates a basket of volatility, drawdown, and quality inputs into a one-line owner-of-this-stock label."
-              threshold="Sleep well: low realized volatility, durable fundamentals. Watch closely: meaningful flags or volatility. Read bears: read the bear case before adding."
-              caveat="A label, not a forecast. The tier reflects historical risk-of-experience, not the next move in the price."
-              value={
-                <span className="text-[13px] text-ink">
-                  {worryRailLabel(signals.worry)}
+                <MetricTooltip
+                  label="Red flags"
+                  showLabel={false}
+                  title="Red flags"
+                  description="Count of structured red-flag signals raised by our quality engine — governance, accounting, leverage, and operating-trend issues."
+                  caveat="A non-zero count means the engine raised at least one flag; the Risk and Quality deep-dive below explains each one in plain English."
+                  ariaValueText={redFlagsText}
+                  value={
+                    <span className="font-mono tabular-nums text-[13px] text-ink">
+                      {redFlagsText}
+                    </span>
+                  }
+                />
+              </div>
+            )
+          })()}
+          {(() => {
+            const worryText = worryRailLabel(signals.worry)
+            return (
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
+                  Worry
                 </span>
-              }
-            />
-          </div>
+                <MetricTooltip
+                  label="Worry"
+                  showLabel={false}
+                  title="Worry signal"
+                  description="Our holder-experience tier — translates a basket of volatility, drawdown, and quality inputs into a one-line owner-of-this-stock label."
+                  threshold="Sleep well: low realized volatility, durable fundamentals. Watch closely: meaningful flags or volatility. Read bears: read the bear case before adding."
+                  caveat="A label, not a forecast. The tier reflects historical risk-of-experience, not the next move in the price."
+                  ariaValueText={worryText}
+                  value={
+                    <span className="text-[13px] text-ink">{worryText}</span>
+                  }
+                />
+              </div>
+            )
+          })()}
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
               Market cap

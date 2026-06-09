@@ -27,6 +27,8 @@ import { describe, it, expect } from "vitest"
 import {
   BEAR_OVERVALUED_BYPASS_CONFIDENCE,
   BEAR_OVERVALUED_BYPASS_MOS,
+  BULL_UNDERVALUED_BYPASS_CONFIDENCE,
+  BULL_UNDERVALUED_BYPASS_MOS,
   LOW_CONFIDENCE_THRESHOLD,
   WIDE_BAND_RATIO_THRESHOLD,
   shouldGateVerdict,
@@ -193,5 +195,109 @@ describe("shouldGateVerdict — Day-94 bear-side bypass", () => {
         confidence: 80,
       }),
     ).toBe(false)
+  })
+})
+
+describe("shouldGateVerdict — 2026-06-09 bull-side bypass", () => {
+  it("exports the bull-side bypass thresholds as named constants", () => {
+    expect(BULL_UNDERVALUED_BYPASS_MOS).toBe(25)
+    // Bull-side threshold piggybacks on LOW_CONFIDENCE_THRESHOLD — a
+    // bull bypass requires AT LEAST the confidence ceiling the
+    // standard low-confidence gate enforces.
+    expect(BULL_UNDERVALUED_BYPASS_CONFIDENCE).toBe(LOW_CONFIDENCE_THRESHOLD)
+  })
+
+  // ── HDFCBANK on 2026-06-09 (Chrome MCP audit reference) ─────
+  it("does NOT gate HDFCBANK-class (MoS +52.9, confidence 90, bear above price)", () => {
+    // Bear=941 / bull=1505 / price=738.65 — band/price = 0.76, which
+    // would normally fire the wide-band gate. The bull-side bypass
+    // must take priority because the bear case ALREADY trades above
+    // the current price (no noisy-signal risk to gate against).
+    expect(
+      shouldGateVerdict({
+        dataLimited: false,
+        confidence: 90,
+        marginOfSafety: 52.9,
+        currentPrice: 738.65,
+        bullCase: 1505.71,
+        bearCase: 941.07,
+      }),
+    ).toBe(false)
+  })
+
+  it("does NOT gate at the exact bypass boundary (MoS +25, confidence 70, bear == price)", () => {
+    expect(
+      shouldGateVerdict({
+        dataLimited: false,
+        confidence: 70,
+        marginOfSafety: 25,
+        currentPrice: 100,
+        bullCase: 150,
+        bearCase: 100, // bear exactly at price
+      }),
+    ).toBe(false)
+  })
+
+  // ── Bull-side guards: bypass is INTENTIONALLY stricter than bear-side ──
+  it("STILL gates TCS-class (MoS +48, confidence 67) — confidence below threshold", () => {
+    expect(
+      shouldGateVerdict({
+        dataLimited: false,
+        confidence: 67, // below LOW_CONFIDENCE_THRESHOLD (70)
+        marginOfSafety: 48,
+        currentPrice: 100,
+        bullCase: 180,
+        bearCase: 110, // bear above price
+      }),
+    ).toBe(true)
+  })
+
+  it("STILL gates when bear case sits BELOW current price (noisy-signal guard)", () => {
+    // Same MoS / confidence as HDFCBANK but with bear < price → the
+    // bypass refuses to fire because the bear scenario flips the sign.
+    expect(
+      shouldGateVerdict({
+        dataLimited: false,
+        confidence: 90,
+        marginOfSafety: 30,
+        currentPrice: 100,
+        bullCase: 200,
+        bearCase: 90, // bear UNDER price → noisy-signal risk
+      }),
+    ).toBe(true)
+  })
+
+  it("STILL gates a bull-side read with insufficient MoS (MoS +20, confidence 80, bear above price)", () => {
+    // +20 MoS sits below the BULL_UNDERVALUED_BYPASS_MOS floor (25).
+    // Standard wide-band gate kicks in.
+    expect(
+      shouldGateVerdict({
+        dataLimited: false,
+        confidence: 80,
+        marginOfSafety: 20,
+        currentPrice: 100,
+        bullCase: 160,
+        bearCase: 105,
+      }),
+    ).toBe(true)
+  })
+
+  it("does NOT bypass when bearCase is missing AND wide-band gate would fire", () => {
+    // The bull-side bypass requires bearCase to be a finite number.
+    // Without bearCase the bypass clause cannot evaluate the
+    // "bear above price" condition, so the function falls through to
+    // the standard gates. Here we need to manufacture a case where
+    // the standard gates WOULD have fired (confidence < threshold)
+    // to confirm the bypass doesn't pull a true gate to false.
+    expect(
+      shouldGateVerdict({
+        dataLimited: false,
+        confidence: 65, // below LOW_CONFIDENCE_THRESHOLD (70)
+        marginOfSafety: 50,
+        currentPrice: 100,
+        bullCase: 200,
+        // bearCase intentionally omitted → bypass cannot fire
+      }),
+    ).toBe(true)
   })
 })
