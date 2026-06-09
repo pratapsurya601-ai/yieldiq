@@ -177,6 +177,62 @@ describe("Reveal", () => {
     expect(wrapper.style.transitionDelay).toBe("240ms")
   })
 
+  it("renders immediately visible when element height exceeds 1.5x viewport (skips observer)", async () => {
+    // P0 regression guard. The analyze page's tabs region is a 5,426px
+    // Reveal-wrapped block in a 533-900px viewport, which can never
+    // satisfy a non-zero IO threshold (only ~10-16% visible at peak).
+    // For any element taller than 1.5x viewport the wrapper must skip
+    // the observer entirely and reveal on mount, otherwise the entire
+    // tabs region stays opacity-0 forever.
+    Object.defineProperty(window, "innerHeight", {
+      value: 600,
+      writable: true,
+      configurable: true,
+    })
+    // Stub getBoundingClientRect on the prototype so the wrapper's
+    // first measurement after mount returns a height > 1.5 * 600 = 900.
+    const originalGetBoundingClientRect =
+      HTMLElement.prototype.getBoundingClientRect
+    HTMLElement.prototype.getBoundingClientRect = function () {
+      return {
+        x: 0,
+        y: 0,
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: 0,
+        height: 1000,
+        toJSON: () => ({}),
+      } as DOMRect
+    }
+    try {
+      const { container } = render(
+        <Reveal direction="up">
+          <p>tall child</p>
+        </Reveal>,
+      )
+      // Two microtask flushes: one for mounted=true, one for the visible
+      // flip inside the observer-setup effect.
+      await act(async () => {
+        await Promise.resolve()
+      })
+      await act(async () => {
+        await Promise.resolve()
+      })
+      const wrapper = container.querySelector('[data-reveal="up"]') as HTMLElement
+      expect(wrapper).toBeTruthy()
+      expect(wrapper.getAttribute("data-reveal-visible")).toBe("true")
+      expect(wrapper.className).toMatch(/opacity-100/)
+      // Critical invariant: no observer was instantiated. If this regresses
+      // we are back to the P0 — tall blocks rely on the short-circuit and
+      // must NEVER fall through to IntersectionObserver.
+      expect(lastIOCallback).toBeNull()
+    } finally {
+      HTMLElement.prototype.getBoundingClientRect = originalGetBoundingClientRect
+    }
+  })
+
   it("server-side renders the shown state (SSR safety)", async () => {
     const { renderToString } = await import("react-dom/server")
     const html = renderToString(

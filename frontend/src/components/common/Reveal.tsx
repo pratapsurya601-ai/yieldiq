@@ -17,7 +17,14 @@ export interface RevealProps {
   direction?: RevealDirection
   /** Extra delay in milliseconds before the reveal kicks off. Default 0. */
   delay?: number
-  /** Fraction of the element that must be visible to trigger. Default 0.12. */
+  /**
+   * Legacy prop. Kept for source-compat with PR #769 call-sites but
+   * intentionally ignored: the observer now uses `threshold: 0` so
+   * elements taller than the viewport (which can never satisfy a
+   * non-zero threshold) reveal correctly. The viewport-height
+   * short-circuit handles the multi-screen case directly. Safe to
+   * remove from call-sites at any time.
+   */
   threshold?: number
   /**
    * Optional className applied to the wrapper. Lets callers add margin
@@ -83,6 +90,25 @@ export default function Reveal({
       queueMicrotask(() => setVisible(true))
       return
     }
+    // Short-circuit: blocks taller than 1.5x viewport never animate.
+    // For very tall wrappers (e.g. the analysis tabs region — 5,426px
+    // in a 533-900px viewport) only ~10-16% of the element is ever in
+    // view at once, which sits below any non-zero IO threshold and the
+    // intersect callback never fires. The animation is also pointless
+    // on multi-screen elements (the user can see only a slice anyway),
+    // so the failure mode (invisible content) is strictly worse than
+    // skipping the reveal. Reveal immediately and skip the observer.
+    if (typeof window !== "undefined") {
+      const elHeight = node.getBoundingClientRect().height
+      if (elHeight > window.innerHeight * 1.5) {
+        queueMicrotask(() => setVisible(true))
+        return
+      }
+    }
+    // threshold: 0 — any pixel visible triggers, safest for blocks that
+    // approach but never fully cross the viewport. rootMargin's negative
+    // bottom inset gives a small extra safety margin so the trigger
+    // zone reaches up into the lower 10% of the viewport.
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
@@ -93,7 +119,7 @@ export default function Reveal({
           }
         }
       },
-      { threshold, rootMargin: "0px 0px -40px 0px" },
+      { threshold: 0, rootMargin: "0px 0px -10% 0px" },
     )
     observer.observe(node)
     return () => observer.disconnect()
