@@ -4,16 +4,16 @@
     "token_prefix": "pk_SNF…",
     "size_px": 192,
     "format": "png",
-    "fetched_at": "2026-06-09T07:15:14.481Z",
+    "fetched_at": "2026-06-09T08:00:00.000Z",
     "summary": {
-      "total": 980,
-      "saved": 890,
-      "placeholder": 33,
-      "too_small": 56,
+      "total": 1266,
+      "saved": 1092,
+      "placeholder": 88,
+      "too_small": 85,
       "bad_type": 0,
       "http_error": 1,
       "network": 0,
-      "total_bytes": 16174839
+      "total_bytes": 29328337
     }
   },
   "logos": {
@@ -34,6 +34,15 @@
       "fetched_at": "2026-06-09T07:02:06.970Z",
       "status": "saved",
       "filename": "3MINDIA.png"
+    },
+    "63MOONS": {
+      "domain": "63moons.com",
+      "source_url": "https://img.logo.dev/63moons.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 25773,
+      "hash": "b71fcb17d1fdbfa9",
+      "fetched_at": "2026-06-09T07:35:39.290Z",
+      "status": "saved",
+      "filename": "63MOONS.png"
     },
     "AARTIDRUGS": {
       "domain": "aartidrugs.com",
@@ -371,6 +380,15 @@
       "status": "saved",
       "filename": "ALOKINDS.png"
     },
+    "ALPHAGEO": {
+      "domain": "alphageo.com",
+      "source_url": "https://img.logo.dev/alphageo.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2266,
+      "hash": "a783a2b7b0818454",
+      "fetched_at": "2026-06-09T07:35:53.195Z",
+      "status": "saved",
+      "filename": "ALPHAGEO.png"
+    },
     "AMARAJABAT": {
       "domain": "amararajabatteries.com",
       "source_url": "https://img.logo.dev/amararajabatteries.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -433,6 +451,15 @@
       "fetched_at": "2026-06-09T07:02:38.336Z",
       "status": "saved",
       "filename": "ANANTRAJ.png"
+    },
+    "ANDHRACEMT": {
+      "domain": "andhracements.com",
+      "source_url": "https://img.logo.dev/andhracements.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2266,
+      "hash": "a783a2b7b0818454",
+      "fetched_at": "2026-06-09T07:35:55.037Z",
+      "status": "saved",
+      "filename": "ANDHRACEMT.png"
     },
     "ANDHRAPAP": {
       "domain": "andhrapaper.com",
@@ -521,6 +548,15 @@
       "status": "saved",
       "filename": "APOLLOHOSP.png"
     },
+    "APOLLOPIPE": {
+      "domain": "apollopipes.com",
+      "source_url": "https://img.logo.dev/apollopipes.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16528,
+      "hash": "fa85ceb4d54897ac",
+      "fetched_at": "2026-06-09T07:36:00.633Z",
+      "status": "saved",
+      "filename": "APOLLOPIPE.png"
+    },
     "APOLLOTYRE": {
       "domain": "apollotyres.com",
       "source_url": "https://img.logo.dev/apollotyres.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -557,6 +593,24 @@
       "status": "saved",
       "filename": "ARMANFIN.png"
     },
+    "ARROWGREEN": {
+      "domain": "arrowgreen.com",
+      "source_url": "https://img.logo.dev/arrowgreen.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2266,
+      "hash": "a783a2b7b0818454",
+      "fetched_at": "2026-06-09T07:36:02.882Z",
+      "status": "saved",
+      "filename": "ARROWGREEN.png"
+    },
+    "ARSSINFRA": {
+      "domain": "arssgroup.com",
+      "source_url": "https://img.logo.dev/arssgroup.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2266,
+      "hash": "a783a2b7b0818454",
+      "fetched_at": "2026-06-09T07:36:06.253Z",
+      "status": "saved",
+      "filename": "ARSSINFRA.png"
+    },
     "ARTEMISMED": {
       "domain": "artemishospitals.com",
       "source_url": "https://img.logo.dev/artemishospitals.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -565,6 +619,24 @@
       "fetched_at": "2026-06-09T07:02:46.291Z",
       "status": "saved",
       "filename": "ARTEMISMED.png"
+    },
+    "ARVIND": {
+      "domain": "arvind.com",
+      "source_url": "https://img.logo.dev/arvind.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15829,
+      "hash": "ed151018d219a56e",
+      "fetched_at": "2026-06-09T07:36:06.985Z",
+      "status": "saved",
+      "filename": "ARVIND.png"
+    },
+    "ARVINDFASN": {
+      "domain": "arvindfashions.com",
+      "source_url": "https://img.logo.dev/arvindfashions.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6290,
+      "hash": "6c15b19fa3915fec",
+      "fetched_at": "2026-06-09T07:36:09.984Z",
+      "status": "saved",
+      "filename": "ARVINDFASN.png"
     },
     "ARVSMART": {
       "domain": "arvindsmartspaces.com",
@@ -610,6 +682,15 @@
       "fetched_at": "2026-06-09T07:02:49.646Z",
       "status": "saved",
       "filename": "ASHOKLEY.png"
+    },
+    "ASIANENE": {
+      "domain": "asianenergy.com",
+      "source_url": "https://img.logo.dev/asianenergy.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 25828,
+      "hash": "411cf1280ed6fe03",
+      "fetched_at": "2026-06-09T07:36:16.720Z",
+      "status": "saved",
+      "filename": "ASIANENE.png"
     },
     "ASIANPAINT": {
       "domain": "asianpaints.com",
@@ -736,6 +817,15 @@
       "fetched_at": "2026-06-09T07:02:57.658Z",
       "status": "saved",
       "filename": "AUTOAXLES.png"
+    },
+    "AUTOLITIND": {
+      "domain": "autolite.com",
+      "source_url": "https://img.logo.dev/autolite.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9924,
+      "hash": "0d80e8a965d492bb",
+      "fetched_at": "2026-06-09T07:36:36.129Z",
+      "status": "saved",
+      "filename": "AUTOLITIND.png"
     },
     "AVALON": {
       "domain": "avalontec.com",
@@ -917,6 +1007,12 @@
       "status": "saved",
       "filename": "BALRAMCHIN.png"
     },
+    "BANARISUG": {
+      "domain": "banarisugar.com",
+      "fetched_at": "2026-06-09T07:37:05.882Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "BANCOINDIA": {
       "domain": "bancoindia.com",
       "source_url": "https://img.logo.dev/bancoindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -953,6 +1049,15 @@
       "status": "saved",
       "filename": "BANKINDIA.png"
     },
+    "BANSWRAS": {
+      "domain": "banswarasyntex.com",
+      "source_url": "https://img.logo.dev/banswarasyntex.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17265,
+      "hash": "c087a789a6ee58d6",
+      "fetched_at": "2026-06-09T07:37:15.081Z",
+      "status": "saved",
+      "filename": "BANSWRAS.png"
+    },
     "BASF": {
       "domain": "basf.com",
       "source_url": "https://img.logo.dev/basf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -988,6 +1093,15 @@
       "fetched_at": "2026-06-09T07:03:13.600Z",
       "status": "saved",
       "filename": "BAYERCROP.png"
+    },
+    "BBL": {
+      "domain": "bharatbijlee.com",
+      "source_url": "https://img.logo.dev/bharatbijlee.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15817,
+      "hash": "42aac2183e4f6bba",
+      "fetched_at": "2026-06-09T07:37:22.854Z",
+      "status": "saved",
+      "filename": "BBL.png"
     },
     "BBTC": {
       "domain": "bombayburmah.com",
@@ -1042,6 +1156,15 @@
       "fetched_at": "2026-06-09T07:03:15.775Z",
       "status": "saved",
       "filename": "BERGEPAINT.png"
+    },
+    "BHAGYANGR": {
+      "domain": "bhagyanagarindia.com",
+      "source_url": "https://img.logo.dev/bhagyanagarindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 13526,
+      "hash": "7be4007df2171910",
+      "fetched_at": "2026-06-09T07:37:35.041Z",
+      "status": "saved",
+      "filename": "BHAGYANGR.png"
     },
     "BHARATFORG": {
       "domain": "bharatforge.com",
@@ -1106,6 +1229,21 @@
       "status": "saved",
       "filename": "BIOCON.png"
     },
+    "BIOFIL": {
+      "domain": "biofiltrum.com",
+      "fetched_at": "2026-06-09T07:37:48.650Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "BIRLACABLE": {
+      "domain": "birlacable.com",
+      "source_url": "https://img.logo.dev/birlacable.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 24135,
+      "hash": "2da9f2d82df8acc7",
+      "fetched_at": "2026-06-09T07:37:50.685Z",
+      "status": "saved",
+      "filename": "BIRLACABLE.png"
+    },
     "BIRLACORPN": {
       "domain": "birlacorporation.com",
       "source_url": "https://img.logo.dev/birlacorporation.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -1114,6 +1252,15 @@
       "fetched_at": "2026-06-09T07:03:19.672Z",
       "status": "saved",
       "filename": "BIRLACORPN.png"
+    },
+    "BIRLAMONEY": {
+      "domain": "birlamoney.com",
+      "source_url": "https://img.logo.dev/birlamoney.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2093,
+      "hash": "690f5a117bcfa183",
+      "fetched_at": "2026-06-09T07:37:53.027Z",
+      "status": "saved",
+      "filename": "BIRLAMONEY.png"
     },
     "BIRLASOFT": {
       "domain": "birlasoft.com",
@@ -1237,6 +1384,15 @@
       "fetched_at": "2026-06-09T07:03:27.488Z",
       "status": "saved",
       "filename": "BUTTERFLY.png"
+    },
+    "CADILAHC": {
+      "domain": "zyduslife.com",
+      "source_url": "https://img.logo.dev/zyduslife.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14496,
+      "hash": "8a76420753984adf",
+      "fetched_at": "2026-06-09T07:38:12.196Z",
+      "status": "saved",
+      "filename": "CADILAHC.png"
     },
     "CAMLINFINE": {
       "domain": "camlinfs.com",
@@ -1562,6 +1718,15 @@
       "status": "saved",
       "filename": "CIGNITITEC.png"
     },
+    "CINELINE": {
+      "domain": "cinelineindia.com",
+      "source_url": "https://img.logo.dev/cinelineindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2512,
+      "hash": "9cb239fde0910007",
+      "fetched_at": "2026-06-09T07:38:57.776Z",
+      "status": "saved",
+      "filename": "CINELINE.png"
+    },
     "CIPLA": {
       "domain": "cipla.com",
       "source_url": "https://img.logo.dev/cipla.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -1615,6 +1780,15 @@
       "fetched_at": "2026-06-09T07:03:53.384Z",
       "status": "saved",
       "filename": "COCHINSHIP.png"
+    },
+    "COFFEEDAY": {
+      "domain": "coffeeday.com",
+      "source_url": "https://img.logo.dev/coffeeday.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 26624,
+      "hash": "0b1d4ddb1b468357",
+      "fetched_at": "2026-06-09T07:39:06.502Z",
+      "status": "saved",
+      "filename": "COFFEEDAY.png"
     },
     "COFORGE": {
       "domain": "coforge.com",
@@ -1702,6 +1876,15 @@
       "fetched_at": "2026-06-09T07:03:59.139Z",
       "status": "saved",
       "filename": "COSMOFILMS.png"
+    },
+    "COSMOFIRST": {
+      "domain": "cosmofilms.com",
+      "source_url": "https://img.logo.dev/cosmofilms.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 25638,
+      "hash": "7cb1d42fae5d34de",
+      "fetched_at": "2026-06-09T07:39:18.788Z",
+      "status": "saved",
+      "filename": "COSMOFIRST.png"
     },
     "CRAFTSMAN": {
       "domain": "craftsmanautomation.com",
@@ -1820,6 +2003,15 @@
       "status": "saved",
       "filename": "DALBHARAT.png"
     },
+    "DALMIASUG": {
+      "domain": "dalmiasugar.com",
+      "source_url": "https://img.logo.dev/dalmiasugar.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 19634,
+      "hash": "0f9b959b563d94a7",
+      "fetched_at": "2026-06-09T07:39:37.413Z",
+      "status": "saved",
+      "filename": "DALMIASUG.png"
+    },
     "DATAPATTNS": {
       "domain": "datapatternsindia.com",
       "source_url": "https://img.logo.dev/datapatternsindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -1838,6 +2030,15 @@
       "status": "saved",
       "filename": "DBCORP.png"
     },
+    "DBL": {
+      "domain": "dilipbuildcon.com",
+      "source_url": "https://img.logo.dev/dilipbuildcon.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 30417,
+      "hash": "afe7a104db5a85e2",
+      "fetched_at": "2026-06-09T07:39:41.423Z",
+      "status": "saved",
+      "filename": "DBL.png"
+    },
     "DBREALTY": {
       "domain": "dbrealty.co.in",
       "source_url": "https://img.logo.dev/dbrealty.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -1846,6 +2047,15 @@
       "fetched_at": "2026-06-09T07:04:10.857Z",
       "status": "saved",
       "filename": "DBREALTY.png"
+    },
+    "DBSTOCKBRO": {
+      "domain": "dbcorp.in",
+      "source_url": "https://img.logo.dev/dbcorp.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2052,
+      "hash": "431dbf3c39954679",
+      "fetched_at": "2026-06-09T07:39:45.034Z",
+      "status": "saved",
+      "filename": "DBSTOCKBRO.png"
     },
     "DCBBANK": {
       "domain": "dcbbank.com",
@@ -1856,6 +2066,15 @@
       "status": "saved",
       "filename": "DCBBANK.png"
     },
+    "DCMNVL": {
+      "domain": "dcmnouvelle.com",
+      "source_url": "https://img.logo.dev/dcmnouvelle.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 25709,
+      "hash": "c6e3823fe1047d5a",
+      "fetched_at": "2026-06-09T07:39:47.347Z",
+      "status": "saved",
+      "filename": "DCMNVL.png"
+    },
     "DCMSHRIRAM": {
       "domain": "dcmshriram.com",
       "source_url": "https://img.logo.dev/dcmshriram.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -1864,6 +2083,15 @@
       "fetched_at": "2026-06-09T07:04:12.096Z",
       "status": "saved",
       "filename": "DCMSHRIRAM.png"
+    },
+    "DECCANCE": {
+      "domain": "deccancements.com",
+      "source_url": "https://img.logo.dev/deccancements.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12676,
+      "hash": "8a4dcd75dd847be2",
+      "fetched_at": "2026-06-09T07:39:51.805Z",
+      "status": "saved",
+      "filename": "DECCANCE.png"
     },
     "DEEPAKFERT": {
       "domain": "dfpcl.com",
@@ -1901,6 +2129,15 @@
       "status": "saved",
       "filename": "DELTACORP.png"
     },
+    "DENORA": {
+      "domain": "denoraindia.com",
+      "source_url": "https://img.logo.dev/denoraindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 26665,
+      "hash": "b187363c34b3e671",
+      "fetched_at": "2026-06-09T07:40:00.699Z",
+      "status": "saved",
+      "filename": "DENORA.png"
+    },
     "DEVYANI": {
       "domain": "devyani-international.com",
       "source_url": "https://img.logo.dev/devyani-international.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -1910,6 +2147,33 @@
       "status": "saved",
       "filename": "DEVYANI.png"
     },
+    "DGCONTENT": {
+      "domain": "digicontent.in",
+      "source_url": "https://img.logo.dev/digicontent.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2052,
+      "hash": "431dbf3c39954679",
+      "fetched_at": "2026-06-09T07:40:05.329Z",
+      "status": "saved",
+      "filename": "DGCONTENT.png"
+    },
+    "DHAMPURBIO": {
+      "domain": "dhampurbio.com",
+      "source_url": "https://img.logo.dev/dhampurbio.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2052,
+      "hash": "431dbf3c39954679",
+      "fetched_at": "2026-06-09T07:40:07.460Z",
+      "status": "saved",
+      "filename": "DHAMPURBIO.png"
+    },
+    "DHAMPURSUG": {
+      "domain": "dhampursugar.com",
+      "source_url": "https://img.logo.dev/dhampursugar.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6473,
+      "hash": "389d177871ae33f7",
+      "fetched_at": "2026-06-09T07:40:09.931Z",
+      "status": "saved",
+      "filename": "DHAMPURSUG.png"
+    },
     "DHANBANK": {
       "domain": "dhanbank.com",
       "source_url": "https://img.logo.dev/dhanbank.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -1918,6 +2182,15 @@
       "fetched_at": "2026-06-09T07:04:15.163Z",
       "status": "saved",
       "filename": "DHANBANK.png"
+    },
+    "DIGISPICE": {
+      "domain": "digispice.com",
+      "source_url": "https://img.logo.dev/digispice.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14957,
+      "hash": "ab33af5ebfed7d2e",
+      "fetched_at": "2026-06-09T07:40:12.472Z",
+      "status": "saved",
+      "filename": "DIGISPICE.png"
     },
     "DIVGIITTS": {
       "domain": "divgitorqtransfer.com",
@@ -2009,6 +2282,24 @@
       "status": "saved",
       "filename": "DRREDDY.png"
     },
+    "DWARKESH": {
+      "domain": "dwarikesh.com",
+      "source_url": "https://img.logo.dev/dwarikesh.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 34694,
+      "hash": "0145c0aeac7b5915",
+      "fetched_at": "2026-06-09T07:40:25.351Z",
+      "status": "saved",
+      "filename": "DWARKESH.png"
+    },
+    "DYNAMATECH": {
+      "domain": "dynamatics.com",
+      "source_url": "https://img.logo.dev/dynamatics.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11146,
+      "hash": "0aeaba7dd8eb27d2",
+      "fetched_at": "2026-06-09T07:40:28.388Z",
+      "status": "saved",
+      "filename": "DYNAMATECH.png"
+    },
     "EASEMYTRIP": {
       "domain": "easemytrip.com",
       "source_url": "https://img.logo.dev/easemytrip.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -2026,6 +2317,15 @@
       "fetched_at": "2026-06-09T07:04:23.516Z",
       "status": "saved",
       "filename": "EBIX.png"
+    },
+    "EBIXFOREX": {
+      "domain": "ebixcash.com",
+      "source_url": "https://img.logo.dev/ebixcash.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12844,
+      "hash": "c2ca5a4486b2f30e",
+      "fetched_at": "2026-06-09T07:40:30.095Z",
+      "status": "saved",
+      "filename": "EBIXFOREX.png"
     },
     "ECLERX": {
       "domain": "eclerx.com",
@@ -2375,6 +2675,12 @@
       "status": "saved",
       "filename": "FEDFINA.png"
     },
+    "FIBERWEB": {
+      "domain": "fiberwebindia.com",
+      "fetched_at": "2026-06-09T07:41:12.343Z",
+      "status": "too_small",
+      "bytes": 739
+    },
     "FIEMIND": {
       "domain": "fiemindustries.com",
       "source_url": "https://img.logo.dev/fiemindustries.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -2383,6 +2689,15 @@
       "fetched_at": "2026-06-09T07:04:54.667Z",
       "status": "saved",
       "filename": "FIEMIND.png"
+    },
+    "FILATEX": {
+      "domain": "filatex.com",
+      "source_url": "https://img.logo.dev/filatex.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6783,
+      "hash": "9de68f322aad8d64",
+      "fetched_at": "2026-06-09T07:41:15.943Z",
+      "status": "saved",
+      "filename": "FILATEX.png"
     },
     "FINCABLES": {
       "domain": "finolexcables.com",
@@ -2534,6 +2849,15 @@
       "status": "saved",
       "filename": "GANDHAR.png"
     },
+    "GANESHHOUC": {
+      "domain": "ganeshhousing.com",
+      "source_url": "https://img.logo.dev/ganeshhousing.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 30944,
+      "hash": "fd165f9b03a3673f",
+      "fetched_at": "2026-06-09T07:41:38.101Z",
+      "status": "saved",
+      "filename": "GANESHHOUC.png"
+    },
     "GATEWAY": {
       "domain": "gateway-distriparks.com",
       "source_url": "https://img.logo.dev/gateway-distriparks.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -2560,6 +2884,15 @@
       "fetched_at": "2026-06-09T07:05:08.836Z",
       "status": "saved",
       "filename": "GEEKAYWIRE.png"
+    },
+    "GENESYS": {
+      "domain": "genesysinternational.com",
+      "source_url": "https://img.logo.dev/genesysinternational.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 5204,
+      "hash": "4c69e01c709b7d01",
+      "fetched_at": "2026-06-09T07:41:39.891Z",
+      "status": "saved",
+      "filename": "GENESYS.png"
     },
     "GENESYSIN": {
       "domain": "genesysinternational.com",
@@ -2678,11 +3011,29 @@
       "status": "saved",
       "filename": "GLENMARK.png"
     },
+    "GLENMARKLIFE": {
+      "domain": "glenmarklifesciences.com",
+      "source_url": "https://img.logo.dev/glenmarklifesciences.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15704,
+      "hash": "980e11c0384b33b6",
+      "fetched_at": "2026-06-09T07:41:54.328Z",
+      "status": "saved",
+      "filename": "GLENMARKLIFE.png"
+    },
     "GLOBALHEAL": {
       "domain": "globalhealth.in",
       "fetched_at": "2026-06-09T07:05:19.979Z",
       "status": "placeholder",
       "http_status": 202
+    },
+    "GLOBE": {
+      "domain": "globeinternational.com",
+      "source_url": "https://img.logo.dev/globeinternational.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2601,
+      "hash": "56f85d66693b6d4b",
+      "fetched_at": "2026-06-09T07:41:59.593Z",
+      "status": "saved",
+      "filename": "GLOBE.png"
     },
     "GLOBUSSPR": {
       "domain": "globusspirits.com",
@@ -2843,6 +3194,15 @@
       "status": "saved",
       "filename": "GOKEX.png"
     },
+    "GOLDIAM": {
+      "domain": "goldiam.com",
+      "source_url": "https://img.logo.dev/goldiam.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 40675,
+      "hash": "199d276a1a9f34d0",
+      "fetched_at": "2026-06-09T07:42:26.148Z",
+      "status": "saved",
+      "filename": "GOLDIAM.png"
+    },
     "GOODLUCK": {
       "domain": "goodluckindia.com",
       "source_url": "https://img.logo.dev/goodluckindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -2933,6 +3293,15 @@
       "status": "saved",
       "filename": "GREAVESCOT.png"
     },
+    "GREENLAM": {
+      "domain": "greenlamindustries.com",
+      "source_url": "https://img.logo.dev/greenlamindustries.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17187,
+      "hash": "54be0fc26295750e",
+      "fetched_at": "2026-06-09T07:42:48.494Z",
+      "status": "saved",
+      "filename": "GREENLAM.png"
+    },
     "GREENPANEL": {
       "domain": "greenpanel.com",
       "source_url": "https://img.logo.dev/greenpanel.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -2986,6 +3355,15 @@
       "fetched_at": "2026-06-09T07:05:46.907Z",
       "status": "saved",
       "filename": "GSFC.png"
+    },
+    "GSKCONS": {
+      "domain": "gsk.com",
+      "source_url": "https://img.logo.dev/gsk.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9636,
+      "hash": "6e35e91a74595fe6",
+      "fetched_at": "2026-06-09T07:42:57.030Z",
+      "status": "saved",
+      "filename": "GSKCONS.png"
     },
     "GSPL": {
       "domain": "gspcgroup.com",
@@ -3049,6 +3427,15 @@
       "fetched_at": "2026-06-09T07:05:55.316Z",
       "status": "saved",
       "filename": "GULFOILLUB.png"
+    },
+    "GVKPIL": {
+      "domain": "gvkpil.com",
+      "source_url": "https://img.logo.dev/gvkpil.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2601,
+      "hash": "56f85d66693b6d4b",
+      "fetched_at": "2026-06-09T07:43:02.169Z",
+      "status": "saved",
+      "filename": "GVKPIL.png"
     },
     "GVT&D": {
       "domain": "gegridsolutions.com",
@@ -3245,6 +3632,12 @@
       "status": "saved",
       "filename": "HEIDELBERG.png"
     },
+    "HEMIPROP": {
+      "domain": "hemisphereproperties.in",
+      "fetched_at": "2026-06-09T07:43:16.267Z",
+      "status": "too_small",
+      "bytes": 757
+    },
     "HEMISPHERE": {
       "domain": "hemisphereproperties.in",
       "fetched_at": "2026-06-09T07:06:17.535Z",
@@ -3302,6 +3695,15 @@
       "status": "placeholder",
       "http_status": 202
     },
+    "HGS": {
+      "domain": "teamhgs.com",
+      "source_url": "https://img.logo.dev/teamhgs.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 19622,
+      "hash": "9f958fa699d3388e",
+      "fetched_at": "2026-06-09T07:43:22.223Z",
+      "status": "saved",
+      "filename": "HGS.png"
+    },
     "HIKAL": {
       "domain": "hikal.com",
       "source_url": "https://img.logo.dev/hikal.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -3310,6 +3712,24 @@
       "fetched_at": "2026-06-09T07:06:24.294Z",
       "status": "saved",
       "filename": "HIKAL.png"
+    },
+    "HIL": {
+      "domain": "hil.in",
+      "source_url": "https://img.logo.dev/hil.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 7909,
+      "hash": "cfd6643c201f1492",
+      "fetched_at": "2026-06-09T07:43:23.538Z",
+      "status": "saved",
+      "filename": "HIL.png"
+    },
+    "HIMATSEIDE": {
+      "domain": "himatsingka.com",
+      "source_url": "https://img.logo.dev/himatsingka.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 31978,
+      "hash": "54d54f021c8f03d4",
+      "fetched_at": "2026-06-09T07:43:25.210Z",
+      "status": "saved",
+      "filename": "HIMATSEIDE.png"
     },
     "HINDALCO": {
       "domain": "hindalco.com",
@@ -3328,6 +3748,15 @@
       "fetched_at": "2026-06-09T07:06:24.936Z",
       "status": "saved",
       "filename": "HINDCOPPER.png"
+    },
+    "HINDMOTORS": {
+      "domain": "hindmotor.com",
+      "source_url": "https://img.logo.dev/hindmotor.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 28233,
+      "hash": "8fe541e8f8649bde",
+      "fetched_at": "2026-06-09T07:43:28.207Z",
+      "status": "saved",
+      "filename": "HINDMOTORS.png"
     },
     "HINDOILEXP": {
       "domain": "hindustanoilexploration.com",
@@ -3419,6 +3848,15 @@
       "status": "saved",
       "filename": "HONAUT.png"
     },
+    "HONDAPOWER": {
+      "domain": "hondaindiapower.com",
+      "source_url": "https://img.logo.dev/hondaindiapower.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10346,
+      "hash": "28afe829188366e5",
+      "fetched_at": "2026-06-09T07:43:31.066Z",
+      "status": "saved",
+      "filename": "HONDAPOWER.png"
+    },
     "HONDAPOWR": {
       "domain": "hondaindiapower.com",
       "source_url": "https://img.logo.dev/hondaindiapower.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -3460,6 +3898,12 @@
       "fetched_at": "2026-06-09T07:06:35.337Z",
       "status": "saved",
       "filename": "HSCL.png"
+    },
+    "HSIL": {
+      "domain": "hindwaregroup.com",
+      "fetched_at": "2026-06-09T07:43:32.680Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "HTMEDIA": {
       "domain": "hindustantimes.com",
@@ -3620,6 +4064,12 @@
       "status": "saved",
       "filename": "IFCI.png"
     },
+    "IFGLEXPOR": {
+      "domain": "ifgl.in",
+      "fetched_at": "2026-06-09T07:43:44.904Z",
+      "status": "too_small",
+      "bytes": 624
+    },
     "IGARASHI": {
       "domain": "igarashimotors.com",
       "source_url": "https://img.logo.dev/igarashimotors.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -3689,6 +4139,15 @@
       "status": "saved",
       "filename": "IKS.png"
     },
+    "IL&FSTRANS": {
+      "domain": "ilfsindia.com",
+      "source_url": "https://img.logo.dev/ilfsindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16120,
+      "hash": "e37a39a5456c747d",
+      "fetched_at": "2026-06-09T07:43:47.414Z",
+      "status": "saved",
+      "filename": "IL_AND_FSTRANS.png"
+    },
     "IMFA": {
       "domain": "imfa.in",
       "source_url": "https://img.logo.dev/imfa.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -3716,6 +4175,15 @@
       "status": "saved",
       "filename": "INDIACEM.png"
     },
+    "INDIAGLYCO": {
+      "domain": "indiaglycols.com",
+      "source_url": "https://img.logo.dev/indiaglycols.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14775,
+      "hash": "5c2526dd6e62ec27",
+      "fetched_at": "2026-06-09T07:43:52.590Z",
+      "status": "saved",
+      "filename": "INDIAGLYCO.png"
+    },
     "INDIAMART": {
       "domain": "indiamart.com",
       "source_url": "https://img.logo.dev/indiamart.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -3733,6 +4201,12 @@
       "fetched_at": "2026-06-09T07:07:01.391Z",
       "status": "saved",
       "filename": "INDIANB.png"
+    },
+    "INDIANCARD": {
+      "domain": "indiacards.in",
+      "fetched_at": "2026-06-09T07:43:56.582Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "INDIANHOTL": {
       "domain": "tajhotels.com",
@@ -3770,6 +4244,24 @@
       "status": "saved",
       "filename": "INDOCO.png"
     },
+    "INDORAMA": {
+      "domain": "indoramaindia.com",
+      "source_url": "https://img.logo.dev/indoramaindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16727,
+      "hash": "03ecbc4a73e06d97",
+      "fetched_at": "2026-06-09T07:44:00.165Z",
+      "status": "saved",
+      "filename": "INDORAMA.png"
+    },
+    "INDOSTAR": {
+      "domain": "indostarcapital.com",
+      "source_url": "https://img.logo.dev/indostarcapital.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9421,
+      "hash": "05cb14d197231058",
+      "fetched_at": "2026-06-09T07:44:00.783Z",
+      "status": "saved",
+      "filename": "INDOSTAR.png"
+    },
     "INDUSINDBK": {
       "domain": "indusind.com",
       "source_url": "https://img.logo.dev/indusind.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -3784,6 +4276,12 @@
       "fetched_at": "2026-06-09T07:07:03.935Z",
       "status": "too_small",
       "bytes": 624
+    },
+    "INEOSSTYRO": {
+      "domain": "ineosstyrolution.in",
+      "fetched_at": "2026-06-09T07:44:02.900Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "INFY": {
       "domain": "infosys.com",
@@ -3803,6 +4301,15 @@
       "status": "saved",
       "filename": "INOXWIND.png"
     },
+    "INSECTICID": {
+      "domain": "insecticidesindia.com",
+      "source_url": "https://img.logo.dev/insecticidesindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 25307,
+      "hash": "5f0c871d4dfad3e4",
+      "fetched_at": "2026-06-09T07:44:08.932Z",
+      "status": "saved",
+      "filename": "INSECTICID.png"
+    },
     "INTELLECT": {
       "domain": "intellectdesign.com",
       "source_url": "https://img.logo.dev/intellectdesign.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -3811,6 +4318,12 @@
       "fetched_at": "2026-06-09T07:07:04.947Z",
       "status": "saved",
       "filename": "INTELLECT.png"
+    },
+    "INTLCONV": {
+      "domain": "internationalconveyors.in",
+      "fetched_at": "2026-06-09T07:44:09.871Z",
+      "status": "too_small",
+      "bytes": 624
     },
     "IOB": {
       "domain": "iob.in",
@@ -3839,6 +4352,15 @@
       "status": "saved",
       "filename": "IOLCP.png"
     },
+    "ION": {
+      "domain": "ionexchangeglobal.com",
+      "source_url": "https://img.logo.dev/ionexchangeglobal.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14495,
+      "hash": "1f91cbe7155baa0f",
+      "fetched_at": "2026-06-09T07:44:14.025Z",
+      "status": "saved",
+      "filename": "ION.png"
+    },
     "IONEXCHANG": {
       "domain": "ionexchangeglobal.com",
       "source_url": "https://img.logo.dev/ionexchangeglobal.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -3856,6 +4378,15 @@
       "fetched_at": "2026-06-09T07:07:08.432Z",
       "status": "saved",
       "filename": "IPCALAB.png"
+    },
+    "IPRINGLTD": {
+      "domain": "iprings.com",
+      "source_url": "https://img.logo.dev/iprings.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22998,
+      "hash": "e8914f32ed4fe93f",
+      "fetched_at": "2026-06-09T07:44:16.198Z",
+      "status": "saved",
+      "filename": "IPRINGLTD.png"
     },
     "IRB": {
       "domain": "irb.co.in",
@@ -3989,6 +4520,15 @@
       "status": "saved",
       "filename": "JAGRAN.png"
     },
+    "JAGSONPAL": {
+      "domain": "jagsonpal.com",
+      "source_url": "https://img.logo.dev/jagsonpal.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 45517,
+      "hash": "1649697de2c85d38",
+      "fetched_at": "2026-06-09T07:44:22.018Z",
+      "status": "saved",
+      "filename": "JAGSONPAL.png"
+    },
     "JAMNAAUTO": {
       "domain": "jamnaauto.com",
       "fetched_at": "2026-06-09T07:07:17.846Z",
@@ -4004,6 +4544,12 @@
       "status": "saved",
       "filename": "JANABANK.png"
     },
+    "JAYAGROGN": {
+      "domain": "jayagrogenics.com",
+      "fetched_at": "2026-06-09T07:44:23.600Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "JBCHEPHARM": {
       "domain": "jbpharma.com",
       "source_url": "https://img.logo.dev/jbpharma.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -4013,6 +4559,15 @@
       "status": "saved",
       "filename": "JBCHEPHARM.png"
     },
+    "JBM": {
+      "domain": "jbm-group.com",
+      "source_url": "https://img.logo.dev/jbm-group.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 35724,
+      "hash": "27e437e4dc9a281b",
+      "fetched_at": "2026-06-09T07:44:25.812Z",
+      "status": "saved",
+      "filename": "JBM.png"
+    },
     "JBMA": {
       "domain": "jbm-group.com",
       "source_url": "https://img.logo.dev/jbm-group.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -4021,6 +4576,42 @@
       "fetched_at": "2026-06-09T07:07:21.236Z",
       "status": "saved",
       "filename": "JBMA.png"
+    },
+    "JBMINDIA": {
+      "domain": "jbm-group.com",
+      "source_url": "https://img.logo.dev/jbm-group.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 35724,
+      "hash": "27e437e4dc9a281b",
+      "fetched_at": "2026-06-09T07:44:27.718Z",
+      "status": "saved",
+      "filename": "JBMINDIA.png"
+    },
+    "JCHAC": {
+      "domain": "johnsoncontrols.com",
+      "source_url": "https://img.logo.dev/johnsoncontrols.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 29195,
+      "hash": "d62084f600c1e697",
+      "fetched_at": "2026-06-09T07:44:29.399Z",
+      "status": "saved",
+      "filename": "JCHAC.png"
+    },
+    "JINDALPHOT": {
+      "domain": "jindalpoly.com",
+      "source_url": "https://img.logo.dev/jindalpoly.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 38130,
+      "hash": "a8ecf90e58f74e4a",
+      "fetched_at": "2026-06-09T07:44:30.382Z",
+      "status": "saved",
+      "filename": "JINDALPHOT.png"
+    },
+    "JINDALPOLY": {
+      "domain": "jindalpoly.com",
+      "source_url": "https://img.logo.dev/jindalpoly.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 38130,
+      "hash": "a8ecf90e58f74e4a",
+      "fetched_at": "2026-06-09T07:44:30.795Z",
+      "status": "saved",
+      "filename": "JINDALPOLY.png"
     },
     "JINDALSAW": {
       "domain": "jindalsaw.com",
@@ -4040,11 +4631,44 @@
       "status": "saved",
       "filename": "JINDALSTEL.png"
     },
+    "JINDWORLD": {
+      "domain": "jindalworldwide.com",
+      "fetched_at": "2026-06-09T07:44:33.485Z",
+      "status": "too_small",
+      "bytes": 1102
+    },
     "JIOFIN": {
       "domain": "jiofinancialservices.com",
       "fetched_at": "2026-06-09T07:07:22.558Z",
       "status": "too_small",
       "bytes": 1102
+    },
+    "JISLDVREQS": {
+      "domain": "jains.com",
+      "source_url": "https://img.logo.dev/jains.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17480,
+      "hash": "8c60afa52c94b198",
+      "fetched_at": "2026-06-09T07:44:36.818Z",
+      "status": "saved",
+      "filename": "JISLDVREQS.png"
+    },
+    "JISLJALEQS": {
+      "domain": "jains.com",
+      "source_url": "https://img.logo.dev/jains.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17480,
+      "hash": "8c60afa52c94b198",
+      "fetched_at": "2026-06-09T07:44:37.350Z",
+      "status": "saved",
+      "filename": "JISLJALEQS.png"
+    },
+    "JKBANK": {
+      "domain": "jkbank.com",
+      "source_url": "https://img.logo.dev/jkbank.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 68810,
+      "hash": "e62f74ff7ed08985",
+      "fetched_at": "2026-06-09T07:44:38.576Z",
+      "status": "saved",
+      "filename": "JKBANK.png"
     },
     "JKCEMENT": {
       "domain": "jkcement.com",
@@ -4058,6 +4682,12 @@
     "JKIL": {
       "domain": "jkillimited.com",
       "fetched_at": "2026-06-09T07:07:23.682Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "JKINFRA": {
+      "domain": "jkinfraprojects.com",
+      "fetched_at": "2026-06-09T07:44:41.115Z",
       "status": "placeholder",
       "http_status": 202
     },
@@ -4105,6 +4735,12 @@
       "fetched_at": "2026-06-09T07:07:27.718Z",
       "status": "saved",
       "filename": "JMFINANCIL.png"
+    },
+    "JPASSOCIAT": {
+      "domain": "jaiprakash.in",
+      "fetched_at": "2026-06-09T07:44:46.587Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "JPPOWER": {
       "domain": "jaypeegroup.com",
@@ -4166,6 +4802,12 @@
       "status": "saved",
       "filename": "JTEKTINDIA.png"
     },
+    "JTLIND": {
+      "domain": "jtlindia.com",
+      "fetched_at": "2026-06-09T07:44:52.776Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "JUBLFOOD": {
       "domain": "jubilantfoodworks.com",
       "source_url": "https://img.logo.dev/jubilantfoodworks.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -4211,6 +4853,21 @@
       "status": "saved",
       "filename": "JUSTDIAL.png"
     },
+    "JWL": {
+      "domain": "jupiterwagons.com",
+      "source_url": "https://img.logo.dev/jupiterwagons.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11042,
+      "hash": "6fd2236177031fb6",
+      "fetched_at": "2026-06-09T07:44:59.345Z",
+      "status": "saved",
+      "filename": "JWL.png"
+    },
+    "JYOTHYAMC": {
+      "domain": "jyothyamc.com",
+      "fetched_at": "2026-06-09T07:45:00.139Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "JYOTHYLAB": {
       "domain": "jyothylabs.com",
       "source_url": "https://img.logo.dev/jyothylabs.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -4228,6 +4885,12 @@
       "fetched_at": "2026-06-09T07:07:34.599Z",
       "status": "saved",
       "filename": "JYOTICNC.png"
+    },
+    "JYOTISTRUC": {
+      "domain": "jyotistructures.com",
+      "fetched_at": "2026-06-09T07:45:01.650Z",
+      "status": "too_small",
+      "bytes": 1102
     },
     "KAJARIACER": {
       "domain": "kajariaceramics.com",
@@ -4247,6 +4910,12 @@
       "status": "saved",
       "filename": "KALPATPOWR.png"
     },
+    "KALYANIFRG": {
+      "domain": "kalyaniforge.in",
+      "fetched_at": "2026-06-09T07:45:03.314Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "KALYANKJIL": {
       "domain": "kalyanjewellers.net",
       "source_url": "https://img.logo.dev/kalyanjewellers.net?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -4262,9 +4931,21 @@
       "status": "placeholder",
       "http_status": 202
     },
+    "KAMAT": {
+      "domain": "kamatholidays.com",
+      "fetched_at": "2026-06-09T07:45:04.366Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "KAMATHOTEL": {
       "domain": "kamathotels.com",
       "fetched_at": "2026-06-09T07:07:40.476Z",
+      "status": "too_small",
+      "bytes": 1935
+    },
+    "KAMDHENU": {
+      "domain": "kamdhenuispat.com",
+      "fetched_at": "2026-06-09T07:45:08.535Z",
       "status": "too_small",
       "bytes": 1935
     },
@@ -4304,6 +4985,15 @@
       "status": "saved",
       "filename": "KAVERISEED.png"
     },
+    "KAYACEAN": {
+      "domain": "kayatech.in",
+      "source_url": "https://img.logo.dev/kayatech.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 7352,
+      "hash": "43440718b7c340a9",
+      "fetched_at": "2026-06-09T07:45:12.810Z",
+      "status": "saved",
+      "filename": "KAYACEAN.png"
+    },
     "KAYNES": {
       "domain": "kaynestechnology.co.in",
       "source_url": "https://img.logo.dev/kaynestechnology.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -4321,6 +5011,24 @@
       "fetched_at": "2026-06-09T07:07:46.112Z",
       "status": "saved",
       "filename": "KAYNESTECH.png"
+    },
+    "KCP": {
+      "domain": "kcp.co.in",
+      "source_url": "https://img.logo.dev/kcp.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 43415,
+      "hash": "fe9bc0ff4fa02c13",
+      "fetched_at": "2026-06-09T07:45:15.470Z",
+      "status": "saved",
+      "filename": "KCP.png"
+    },
+    "KCPSUGIND": {
+      "domain": "kcpsugar.com",
+      "source_url": "https://img.logo.dev/kcpsugar.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 38527,
+      "hash": "a6f5627106cfa136",
+      "fetched_at": "2026-06-09T07:45:17.082Z",
+      "status": "saved",
+      "filename": "KCPSUGIND.png"
     },
     "KEC": {
       "domain": "kecrpg.com",
@@ -4352,6 +5060,12 @@
     "KESORAM": {
       "domain": "kesoramindustries.com",
       "fetched_at": "2026-06-09T07:07:48.567Z",
+      "status": "too_small",
+      "bytes": 1935
+    },
+    "KESORAMIND": {
+      "domain": "kesoram.net",
+      "fetched_at": "2026-06-09T07:45:20.515Z",
       "status": "too_small",
       "bytes": 1935
     },
@@ -4451,6 +5165,24 @@
       "status": "saved",
       "filename": "KIRLOSIND.png"
     },
+    "KIRLPNU": {
+      "domain": "kirloskarpneumatic.com",
+      "source_url": "https://img.logo.dev/kirloskarpneumatic.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8372,
+      "hash": "178e126bb827b93a",
+      "fetched_at": "2026-06-09T07:45:22.368Z",
+      "status": "saved",
+      "filename": "KIRLPNU.png"
+    },
+    "KITEX": {
+      "domain": "kitexgarments.com",
+      "source_url": "https://img.logo.dev/kitexgarments.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8349,
+      "hash": "93dbc8bfabb361f1",
+      "fetched_at": "2026-06-09T07:45:23.073Z",
+      "status": "saved",
+      "filename": "KITEX.png"
+    },
     "KKCL": {
       "domain": "kewalkiran.com",
       "source_url": "https://img.logo.dev/kewalkiran.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -4459,6 +5191,15 @@
       "fetched_at": "2026-06-09T07:08:00.038Z",
       "status": "saved",
       "filename": "KKCL.png"
+    },
+    "KMSUGAR": {
+      "domain": "kmsugar.com",
+      "source_url": "https://img.logo.dev/kmsugar.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 62578,
+      "hash": "1bc7b6286d5beb5f",
+      "fetched_at": "2026-06-09T07:45:24.926Z",
+      "status": "saved",
+      "filename": "KMSUGAR.png"
     },
     "KNRCON": {
       "domain": "knrcl.com",
@@ -4504,6 +5245,12 @@
       "fetched_at": "2026-06-09T07:08:04.816Z",
       "status": "saved",
       "filename": "KOTAKBANK.png"
+    },
+    "KOTHARISUG": {
+      "domain": "kotharisugars.com",
+      "fetched_at": "2026-06-09T07:45:28.065Z",
+      "status": "too_small",
+      "bytes": 1935
     },
     "KPI": {
       "domain": "kpigreenenergy.com",
@@ -4601,6 +5348,12 @@
       "status": "saved",
       "filename": "LALPATHLAB.png"
     },
+    "LAOPALA": {
+      "domain": "laopala.com",
+      "fetched_at": "2026-06-09T07:45:32.257Z",
+      "status": "too_small",
+      "bytes": 665
+    },
     "LATENTVIEW": {
       "domain": "latentview.com",
       "source_url": "https://img.logo.dev/latentview.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -4628,6 +5381,15 @@
       "status": "saved",
       "filename": "LEMONTREE.png"
     },
+    "LIBERTSHO": {
+      "domain": "libertyshoes.com",
+      "source_url": "https://img.logo.dev/libertyshoes.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6928,
+      "hash": "038f3b4eaf0376b3",
+      "fetched_at": "2026-06-09T07:45:33.580Z",
+      "status": "saved",
+      "filename": "LIBERTSHO.png"
+    },
     "LICHSGFIN": {
       "domain": "lichousing.com",
       "source_url": "https://img.logo.dev/lichousing.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -4645,6 +5407,12 @@
       "fetched_at": "2026-06-09T07:08:16.532Z",
       "status": "saved",
       "filename": "LICI.png"
+    },
+    "LIKHITHA": {
+      "domain": "likhithainfra.com",
+      "fetched_at": "2026-06-09T07:45:35.844Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "LINCOLN": {
       "domain": "lincoln-india.com",
@@ -4784,6 +5552,15 @@
       "status": "saved",
       "filename": "LXCHEM.png"
     },
+    "LYKALABS": {
+      "domain": "lykalabs.com",
+      "source_url": "https://img.logo.dev/lykalabs.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22830,
+      "hash": "f67b5fcce68973ee",
+      "fetched_at": "2026-06-09T07:45:42.404Z",
+      "status": "saved",
+      "filename": "LYKALABS.png"
+    },
     "M&M": {
       "domain": "mahindra.com",
       "source_url": "https://img.logo.dev/mahindra.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -4810,6 +5587,24 @@
       "fetched_at": "2026-06-09T07:08:28.505Z",
       "status": "saved",
       "filename": "MADRAS.png"
+    },
+    "MAGADH": {
+      "domain": "magadhsugar.com",
+      "source_url": "https://img.logo.dev/magadhsugar.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20315,
+      "hash": "192233f20d11b9e2",
+      "fetched_at": "2026-06-09T07:45:45.423Z",
+      "status": "saved",
+      "filename": "MAGADH.png"
+    },
+    "MAGADSUGAR": {
+      "domain": "magadhsugar.com",
+      "source_url": "https://img.logo.dev/magadhsugar.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20315,
+      "hash": "192233f20d11b9e2",
+      "fetched_at": "2026-06-09T07:45:46.874Z",
+      "status": "saved",
+      "filename": "MAGADSUGAR.png"
     },
     "MAGMA": {
       "domain": "magmahdi.com",
@@ -4871,6 +5666,15 @@
       "status": "saved",
       "filename": "MAITHANALL.png"
     },
+    "MAJESCO": {
+      "domain": "majesco.com",
+      "source_url": "https://img.logo.dev/majesco.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17662,
+      "hash": "a281c8798b8dc819",
+      "fetched_at": "2026-06-09T07:45:48.840Z",
+      "status": "saved",
+      "filename": "MAJESCO.png"
+    },
     "MAKEMYTRIP": {
       "domain": "makemytrip.com",
       "source_url": "https://img.logo.dev/makemytrip.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -4879,6 +5683,12 @@
       "fetched_at": "2026-06-09T07:08:34.136Z",
       "status": "saved",
       "filename": "MAKEMYTRIP.png"
+    },
+    "MAN": {
+      "domain": "manindustries.com",
+      "fetched_at": "2026-06-09T07:45:50.383Z",
+      "status": "too_small",
+      "bytes": 1799
     },
     "MANAPPURAM": {
       "domain": "manappuram.com",
@@ -4889,6 +5699,18 @@
       "status": "saved",
       "filename": "MANAPPURAM.png"
     },
+    "MANCOUPON": {
+      "domain": "mancouponholdings.in",
+      "fetched_at": "2026-06-09T07:45:52.001Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "MANGCHEFER": {
+      "domain": "mangaloreports.in",
+      "fetched_at": "2026-06-09T07:45:52.592Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "MANGLMCEM": {
       "domain": "mangalamcement.com",
       "source_url": "https://img.logo.dev/mangalamcement.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -4897,6 +5719,15 @@
       "fetched_at": "2026-06-09T07:08:36.528Z",
       "status": "saved",
       "filename": "MANGLMCEM.png"
+    },
+    "MANINFRA": {
+      "domain": "maninfra.com",
+      "source_url": "https://img.logo.dev/maninfra.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 29199,
+      "hash": "7c24f04e3b29076b",
+      "fetched_at": "2026-06-09T07:45:53.986Z",
+      "status": "saved",
+      "filename": "MANINFRA.png"
     },
     "MANKIND": {
       "domain": "mankindpharma.com",
@@ -4924,6 +5755,12 @@
       "fetched_at": "2026-06-09T07:08:37.616Z",
       "status": "saved",
       "filename": "MAPMYINDIA.png"
+    },
+    "MARALOVER": {
+      "domain": "maral.in",
+      "fetched_at": "2026-06-09T07:45:55.663Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "MARICO": {
       "domain": "marico.com",
@@ -4979,6 +5816,24 @@
       "status": "saved",
       "filename": "MAXHEALTH.png"
     },
+    "MAYUR": {
+      "domain": "mayuruniquoters.com",
+      "source_url": "https://img.logo.dev/mayuruniquoters.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 23612,
+      "hash": "d8aa4218e41e5537",
+      "fetched_at": "2026-06-09T07:45:57.534Z",
+      "status": "saved",
+      "filename": "MAYUR.png"
+    },
+    "MAZDA": {
+      "domain": "mazdalimited.com",
+      "source_url": "https://img.logo.dev/mazdalimited.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 18848,
+      "hash": "f7af9c1c8366eb3e",
+      "fetched_at": "2026-06-09T07:45:58.765Z",
+      "status": "saved",
+      "filename": "MAZDA.png"
+    },
     "MAZDOCK": {
       "domain": "mazagondock.in",
       "source_url": "https://img.logo.dev/mazagondock.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -4987,6 +5842,33 @@
       "fetched_at": "2026-06-09T07:08:41.352Z",
       "status": "saved",
       "filename": "MAZDOCK.png"
+    },
+    "MBLINFRA": {
+      "domain": "mblinfra.com",
+      "source_url": "https://img.logo.dev/mblinfra.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16272,
+      "hash": "9db26ae3b70d9c76",
+      "fetched_at": "2026-06-09T07:46:02.605Z",
+      "status": "saved",
+      "filename": "MBLINFRA.png"
+    },
+    "MCDOWELL-N": {
+      "domain": "diageo.com",
+      "source_url": "https://img.logo.dev/diageo.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 4830,
+      "hash": "dd446dfbab4a5c0c",
+      "fetched_at": "2026-06-09T07:46:04.343Z",
+      "status": "saved",
+      "filename": "MCDOWELL_N.png"
+    },
+    "MCLEODRUSS": {
+      "domain": "mcleodrussel.com",
+      "source_url": "https://img.logo.dev/mcleodrussel.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 31290,
+      "hash": "6a3dfce573b40ce2",
+      "fetched_at": "2026-06-09T07:46:05.258Z",
+      "status": "saved",
+      "filename": "MCLEODRUSS.png"
     },
     "MCX": {
       "domain": "mcxindia.com",
@@ -5108,6 +5990,15 @@
       "status": "too_small",
       "bytes": 1799
     },
+    "MIRZAINT": {
+      "domain": "mirza.co.in",
+      "source_url": "https://img.logo.dev/mirza.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 5588,
+      "hash": "f192f7fa3281c14b",
+      "fetched_at": "2026-06-09T07:46:13.466Z",
+      "status": "saved",
+      "filename": "MIRZAINT.png"
+    },
     "MMTC": {
       "domain": "mmtclimited.com",
       "source_url": "https://img.logo.dev/mmtclimited.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -5126,6 +6017,15 @@
       "status": "saved",
       "filename": "MOIL.png"
     },
+    "MOLDTECH": {
+      "domain": "moldtekgroup.com",
+      "source_url": "https://img.logo.dev/moldtekgroup.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17174,
+      "hash": "4acedf0bb93ac55a",
+      "fetched_at": "2026-06-09T07:46:18.975Z",
+      "status": "saved",
+      "filename": "MOLDTECH.png"
+    },
     "MOLDTKPAC": {
       "domain": "moldtekpackaging.com",
       "source_url": "https://img.logo.dev/moldtekpackaging.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -5143,6 +6043,15 @@
       "fetched_at": "2026-06-09T07:08:50.317Z",
       "status": "saved",
       "filename": "MOLDTKTECH.png"
+    },
+    "MONTECARLO": {
+      "domain": "montecarlo.in",
+      "source_url": "https://img.logo.dev/montecarlo.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16131,
+      "hash": "1d127b4a73583d21",
+      "fetched_at": "2026-06-09T07:46:20.882Z",
+      "status": "saved",
+      "filename": "MONTECARLO.png"
     },
     "MOSCHIP": {
       "domain": "moschip.com",
@@ -5171,6 +6080,12 @@
       "status": "saved",
       "filename": "MOTILALOFS.png"
     },
+    "MOTOGENERA": {
+      "domain": "motorgenfin.com",
+      "fetched_at": "2026-06-09T07:46:25.665Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "MPHASIS": {
       "domain": "mphasis.com",
       "source_url": "https://img.logo.dev/mphasis.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -5179,6 +6094,15 @@
       "fetched_at": "2026-06-09T07:08:52.341Z",
       "status": "saved",
       "filename": "MPHASIS.png"
+    },
+    "MPSLTD": {
+      "domain": "mpsl.in",
+      "source_url": "https://img.logo.dev/mpsl.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6729,
+      "hash": "e8c282d0e436ecf8",
+      "fetched_at": "2026-06-09T07:46:27.585Z",
+      "status": "saved",
+      "filename": "MPSLTD.png"
     },
     "MRF": {
       "domain": "mrftyres.com",
@@ -5198,6 +6122,12 @@
       "status": "saved",
       "filename": "MRPL.png"
     },
+    "MSPL": {
+      "domain": "mspl.com",
+      "fetched_at": "2026-06-09T07:46:29.570Z",
+      "status": "too_small",
+      "bytes": 1799
+    },
     "MSUMI": {
       "domain": "motherson.com",
       "source_url": "https://img.logo.dev/motherson.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -5216,6 +6146,15 @@
       "status": "saved",
       "filename": "MTAR.png"
     },
+    "MUKANDLTD": {
+      "domain": "mukand.com",
+      "source_url": "https://img.logo.dev/mukand.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10068,
+      "hash": "dc6bfc64ec734403",
+      "fetched_at": "2026-06-09T07:46:30.536Z",
+      "status": "saved",
+      "filename": "MUKANDLTD.png"
+    },
     "MUKKA": {
       "domain": "mukkaproteins.com",
       "source_url": "https://img.logo.dev/mukkaproteins.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -5224,6 +6163,24 @@
       "fetched_at": "2026-06-09T07:08:55.618Z",
       "status": "saved",
       "filename": "MUKKA.png"
+    },
+    "MUKTAARTS": {
+      "domain": "muktaarts.com",
+      "source_url": "https://img.logo.dev/muktaarts.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 40286,
+      "hash": "b6d021ff3a8ebcf7",
+      "fetched_at": "2026-06-09T07:46:31.484Z",
+      "status": "saved",
+      "filename": "MUKTAARTS.png"
+    },
+    "MUNJALAU": {
+      "domain": "munjalauto.com",
+      "source_url": "https://img.logo.dev/munjalauto.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 35112,
+      "hash": "fa9f201997bf36a0",
+      "fetched_at": "2026-06-09T07:46:33.851Z",
+      "status": "saved",
+      "filename": "MUNJALAU.png"
     },
     "MUNJALSHOW": {
       "domain": "munjalshowa.net",
@@ -5234,6 +6191,15 @@
       "status": "saved",
       "filename": "MUNJALSHOW.png"
     },
+    "MUTHOOTCAP": {
+      "domain": "muthootcap.com",
+      "source_url": "https://img.logo.dev/muthootcap.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17467,
+      "hash": "99703417a71063b6",
+      "fetched_at": "2026-06-09T07:46:35.530Z",
+      "status": "saved",
+      "filename": "MUTHOOTCAP.png"
+    },
     "MUTHOOTFIN": {
       "domain": "muthootfinance.com",
       "source_url": "https://img.logo.dev/muthootfinance.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -5242,6 +6208,15 @@
       "fetched_at": "2026-06-09T07:08:57.096Z",
       "status": "saved",
       "filename": "MUTHOOTFIN.png"
+    },
+    "NAINIETLTD": {
+      "domain": "nainital.bank.co.in",
+      "source_url": "https://img.logo.dev/nainital.bank.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2093,
+      "hash": "690f5a117bcfa183",
+      "fetched_at": "2026-06-09T07:46:37.700Z",
+      "status": "saved",
+      "filename": "NAINIETLTD.png"
     },
     "NALCO": {
       "domain": "nalcoindia.com",
@@ -5336,6 +6311,24 @@
       "status": "too_small",
       "bytes": 1807
     },
+    "NCL": {
+      "domain": "nclind.com",
+      "source_url": "https://img.logo.dev/nclind.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 31080,
+      "hash": "7d6bf2067f25a727",
+      "fetched_at": "2026-06-09T07:46:46.014Z",
+      "status": "saved",
+      "filename": "NCL.png"
+    },
+    "NDR": {
+      "domain": "ndrauto.com",
+      "source_url": "https://img.logo.dev/ndrauto.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 58545,
+      "hash": "4536c3002a01db91",
+      "fetched_at": "2026-06-09T07:46:48.059Z",
+      "status": "saved",
+      "filename": "NDR.png"
+    },
     "NDTV": {
       "domain": "ndtv.com",
       "source_url": "https://img.logo.dev/ndtv.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -5371,6 +6364,21 @@
       "fetched_at": "2026-06-09T07:09:05.720Z",
       "status": "saved",
       "filename": "NESTLEIND.png"
+    },
+    "NESTOR": {
+      "domain": "nestor.co.in",
+      "fetched_at": "2026-06-09T07:46:50.912Z",
+      "status": "too_small",
+      "bytes": 1807
+    },
+    "NETMEDS": {
+      "domain": "netmeds.com",
+      "source_url": "https://img.logo.dev/netmeds.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17835,
+      "hash": "0995220a6d8399bd",
+      "fetched_at": "2026-06-09T07:46:52.858Z",
+      "status": "saved",
+      "filename": "NETMEDS.png"
     },
     "NETWEB": {
       "domain": "netwebindia.com",
@@ -5426,6 +6434,15 @@
       "status": "saved",
       "filename": "NFL.png"
     },
+    "NGLFINE": {
+      "domain": "nglfinechem.com",
+      "source_url": "https://img.logo.dev/nglfinechem.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 24873,
+      "hash": "93bc07d0bf59679b",
+      "fetched_at": "2026-06-09T07:46:55.248Z",
+      "status": "saved",
+      "filename": "NGLFINE.png"
+    },
     "NH": {
       "domain": "narayanahealth.org",
       "source_url": "https://img.logo.dev/narayanahealth.org?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -5434,6 +6451,12 @@
       "fetched_at": "2026-06-09T07:09:10.317Z",
       "status": "saved",
       "filename": "NH.png"
+    },
+    "NHIT": {
+      "domain": "nhitllp.com",
+      "fetched_at": "2026-06-09T07:46:58.194Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "NHPC": {
       "domain": "nhpcindia.com",
@@ -5452,6 +6475,12 @@
       "fetched_at": "2026-06-09T07:09:11.013Z",
       "status": "saved",
       "filename": "NIACL.png"
+    },
+    "NIBE": {
+      "domain": "nibeltd.com",
+      "fetched_at": "2026-06-09T07:47:00.970Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "NIITLTD": {
       "domain": "niit.com",
@@ -5479,6 +6508,15 @@
       "fetched_at": "2026-06-09T07:09:12.954Z",
       "status": "saved",
       "filename": "NIPPONLIFE.png"
+    },
+    "NITINSPIN": {
+      "domain": "nitinspinners.com",
+      "source_url": "https://img.logo.dev/nitinspinners.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 34750,
+      "hash": "1b9d0e4039b4d5fb",
+      "fetched_at": "2026-06-09T07:47:02.513Z",
+      "status": "saved",
+      "filename": "NITINSPIN.png"
     },
     "NIVABUPA": {
       "domain": "nivabupa.com",
@@ -5512,6 +6550,21 @@
       "fetched_at": "2026-06-09T07:09:16.374Z",
       "status": "saved",
       "filename": "NOCIL.png"
+    },
+    "NOIDATOLL": {
+      "domain": "noidatollbridge.com",
+      "fetched_at": "2026-06-09T07:47:03.825Z",
+      "status": "too_small",
+      "bytes": 1807
+    },
+    "NRBBEARING": {
+      "domain": "nrbbearings.com",
+      "source_url": "https://img.logo.dev/nrbbearings.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 18884,
+      "hash": "f4f10c3a36c79c34",
+      "fetched_at": "2026-06-09T07:47:04.798Z",
+      "status": "saved",
+      "filename": "NRBBEARING.png"
     },
     "NRBBEARINGS": {
       "domain": "nrbbearings.com",
@@ -5570,6 +6623,15 @@
       "status": "saved",
       "filename": "NYKAA.png"
     },
+    "OAL": {
+      "domain": "orientcement.com",
+      "source_url": "https://img.logo.dev/orientcement.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14117,
+      "hash": "26e6888ec6669ae0",
+      "fetched_at": "2026-06-09T07:47:10.801Z",
+      "status": "saved",
+      "filename": "OAL.png"
+    },
     "OBEROIRLTY": {
       "domain": "oberoirealty.com",
       "source_url": "https://img.logo.dev/oberoirealty.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -5615,6 +6677,33 @@
       "status": "saved",
       "filename": "OLECTRA.png"
     },
+    "OMAXAUTO": {
+      "domain": "omaxauto.com",
+      "source_url": "https://img.logo.dev/omaxauto.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 24250,
+      "hash": "b2c6210f18fbdbcf",
+      "fetched_at": "2026-06-09T07:47:14.750Z",
+      "status": "saved",
+      "filename": "OMAXAUTO.png"
+    },
+    "OMAXE": {
+      "domain": "omaxe.com",
+      "source_url": "https://img.logo.dev/omaxe.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12954,
+      "hash": "6acaa16bc65a8795",
+      "fetched_at": "2026-06-09T07:47:16.323Z",
+      "status": "saved",
+      "filename": "OMAXE.png"
+    },
+    "ONEPOINT": {
+      "domain": "onepointone.com",
+      "source_url": "https://img.logo.dev/onepointone.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 35137,
+      "hash": "7c9abd8942476e2e",
+      "fetched_at": "2026-06-09T07:47:18.600Z",
+      "status": "saved",
+      "filename": "ONEPOINT.png"
+    },
     "ONGC": {
       "domain": "ongcindia.com",
       "source_url": "https://img.logo.dev/ongcindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -5642,6 +6731,21 @@
       "status": "saved",
       "filename": "ONWARDTEC.png"
     },
+    "OPTIEMUS": {
+      "domain": "optiemus.com",
+      "source_url": "https://img.logo.dev/optiemus.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17765,
+      "hash": "ff71f919c1086fc3",
+      "fetched_at": "2026-06-09T07:47:21.646Z",
+      "status": "saved",
+      "filename": "OPTIEMUS.png"
+    },
+    "ORBTEXP": {
+      "domain": "orbittour.com",
+      "fetched_at": "2026-06-09T07:47:23.693Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "ORCHPHARMA": {
       "domain": "orchidpharma.com",
       "source_url": "https://img.logo.dev/orchidpharma.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -5650,6 +6754,21 @@
       "fetched_at": "2026-06-09T07:09:27.156Z",
       "status": "saved",
       "filename": "ORCHPHARMA.png"
+    },
+    "ORICONENT": {
+      "domain": "oricon.com",
+      "source_url": "https://img.logo.dev/oricon.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2984,
+      "hash": "ebeed617257fded0",
+      "fetched_at": "2026-06-09T07:47:26.165Z",
+      "status": "saved",
+      "filename": "ORICONENT.png"
+    },
+    "ORIENTABRA": {
+      "domain": "orientabrasive.in",
+      "fetched_at": "2026-06-09T07:47:27.799Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "ORIENTBELL": {
       "domain": "orientbell.com",
@@ -5678,6 +6797,15 @@
       "status": "saved",
       "filename": "ORIENTELEC.png"
     },
+    "ORIENTHOT": {
+      "domain": "orientalhotels.com",
+      "source_url": "https://img.logo.dev/orientalhotels.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2984,
+      "hash": "ebeed617257fded0",
+      "fetched_at": "2026-06-09T07:47:28.415Z",
+      "status": "saved",
+      "filename": "ORIENTHOT.png"
+    },
     "ORIENTPPR": {
       "domain": "orientpaperindia.com",
       "source_url": "https://img.logo.dev/orientpaperindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -5687,6 +6815,21 @@
       "status": "saved",
       "filename": "ORIENTPPR.png"
     },
+    "OSWALAGRO": {
+      "domain": "oswalindia.in",
+      "source_url": "https://img.logo.dev/oswalindia.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 7786,
+      "hash": "d42255e2931c7521",
+      "fetched_at": "2026-06-09T07:47:29.099Z",
+      "status": "saved",
+      "filename": "OSWALAGRO.png"
+    },
+    "OSWALGREEN": {
+      "domain": "oswal.org",
+      "fetched_at": "2026-06-09T07:47:30.195Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "PAGEIND": {
       "domain": "jockeyindia.com",
       "source_url": "https://img.logo.dev/jockeyindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -5695,6 +6838,15 @@
       "fetched_at": "2026-06-09T07:09:31.979Z",
       "status": "saved",
       "filename": "PAGEIND.png"
+    },
+    "PAISALO": {
+      "domain": "paisalo.in",
+      "source_url": "https://img.logo.dev/paisalo.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 5968,
+      "hash": "abff203a3925ab06",
+      "fetched_at": "2026-06-09T07:47:31.105Z",
+      "status": "saved",
+      "filename": "PAISALO.png"
     },
     "PANACEABIO": {
       "domain": "panaceabiotec.com",
@@ -5738,6 +6890,21 @@
       "status": "saved",
       "filename": "PARAS.png"
     },
+    "PARASDEFENCE": {
+      "domain": "parasdefence.com",
+      "source_url": "https://img.logo.dev/parasdefence.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 37312,
+      "hash": "912d97a13be226eb",
+      "fetched_at": "2026-06-09T07:47:32.004Z",
+      "status": "saved",
+      "filename": "PARASDEFENCE.png"
+    },
+    "PARASPETRO": {
+      "domain": "paraspetrofils.com",
+      "fetched_at": "2026-06-09T07:47:32.908Z",
+      "status": "too_small",
+      "bytes": 1544
+    },
     "PARK": {
       "domain": "parkhotels.com",
       "source_url": "https://img.logo.dev/parkhotels.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -5746,6 +6913,15 @@
       "fetched_at": "2026-06-09T07:09:36.460Z",
       "status": "saved",
       "filename": "PARK.png"
+    },
+    "PARSVNATH": {
+      "domain": "parsvnath.com",
+      "source_url": "https://img.logo.dev/parsvnath.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15478,
+      "hash": "705f9407b2a0487e",
+      "fetched_at": "2026-06-09T07:47:34.271Z",
+      "status": "saved",
+      "filename": "PARSVNATH.png"
     },
     "PATANJALI": {
       "domain": "patanjaliayurved.org",
@@ -5801,11 +6977,32 @@
       "status": "saved",
       "filename": "PCJEWELLER.png"
     },
+    "PDMJEPAPER": {
+      "domain": "pdmjepaper.com",
+      "fetched_at": "2026-06-09T07:47:36.194Z",
+      "status": "too_small",
+      "bytes": 1544
+    },
     "PEARL": {
       "domain": "pearlglobalind.com",
       "fetched_at": "2026-06-09T07:09:41.315Z",
       "status": "placeholder",
       "http_status": 202
+    },
+    "PEARLGLOB": {
+      "domain": "pearlglobalind.com",
+      "fetched_at": "2026-06-09T07:47:38.095Z",
+      "status": "too_small",
+      "bytes": 1544
+    },
+    "PEARLPOLY": {
+      "domain": "pearlpolymers.com",
+      "source_url": "https://img.logo.dev/pearlpolymers.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 25709,
+      "hash": "c6e3823fe1047d5a",
+      "fetched_at": "2026-06-09T07:47:39.477Z",
+      "status": "saved",
+      "filename": "PEARLPOLY.png"
     },
     "PEL": {
       "domain": "piramal.com",
@@ -5815,6 +7012,12 @@
       "fetched_at": "2026-06-09T07:09:41.618Z",
       "status": "saved",
       "filename": "PEL.png"
+    },
+    "PENINLAND": {
+      "domain": "peninsulalandindia.com",
+      "fetched_at": "2026-06-09T07:47:41.553Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "PERSISTENT": {
       "domain": "persistent.com",
@@ -5909,6 +7112,21 @@
       "status": "placeholder",
       "http_status": 202
     },
+    "PILANIINVS": {
+      "domain": "pilaniinvest.com",
+      "fetched_at": "2026-06-09T07:47:46.644Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "PIONEEREMB": {
+      "domain": "pioneerembroideries.com",
+      "source_url": "https://img.logo.dev/pioneerembroideries.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22504,
+      "hash": "8c8e8e6fc3804d2d",
+      "fetched_at": "2026-06-09T07:47:48.938Z",
+      "status": "saved",
+      "filename": "PIONEEREMB.png"
+    },
     "PIRAMALFIN": {
       "domain": "piramalfinance.com",
       "source_url": "https://img.logo.dev/piramalfinance.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -5917,6 +7135,12 @@
       "fetched_at": "2026-06-09T07:09:46.325Z",
       "status": "saved",
       "filename": "PIRAMALFIN.png"
+    },
+    "PIXTRANS": {
+      "domain": "pixtransmissions.com",
+      "fetched_at": "2026-06-09T07:47:51.821Z",
+      "status": "too_small",
+      "bytes": 1544
     },
     "PNB": {
       "domain": "pnbindia.in",
@@ -5996,6 +7220,15 @@
       "status": "saved",
       "filename": "POLYPLEX.png"
     },
+    "PONNIERODE": {
+      "domain": "ponni.in",
+      "source_url": "https://img.logo.dev/ponni.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 33448,
+      "hash": "c6ec957c8d117b8d",
+      "fetched_at": "2026-06-09T07:48:00.290Z",
+      "status": "saved",
+      "filename": "PONNIERODE.png"
+    },
     "POONAWALLA": {
       "domain": "poonawallafincorp.com",
       "source_url": "https://img.logo.dev/poonawallafincorp.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6074,6 +7307,15 @@
       "status": "too_small",
       "bytes": 1544
     },
+    "PRECWIRE": {
+      "domain": "precisionwires.com",
+      "source_url": "https://img.logo.dev/precisionwires.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 32497,
+      "hash": "2d768375f58b2541",
+      "fetched_at": "2026-06-09T07:48:05.505Z",
+      "status": "saved",
+      "filename": "PRECWIRE.png"
+    },
     "PREMIERENE": {
       "domain": "premierenergies.com",
       "source_url": "https://img.logo.dev/premierenergies.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6101,6 +7343,15 @@
       "status": "saved",
       "filename": "PRICOLLTD.png"
     },
+    "PRIME": {
+      "domain": "primeindustries.com",
+      "source_url": "https://img.logo.dev/primeindustries.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11809,
+      "hash": "8a8928aaa6678132",
+      "fetched_at": "2026-06-09T07:48:07.286Z",
+      "status": "saved",
+      "filename": "PRIME.png"
+    },
     "PRIMEFOCUS": {
       "domain": "primefocus.com",
       "source_url": "https://img.logo.dev/primefocus.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6127,6 +7378,27 @@
       "fetched_at": "2026-06-09T07:10:03.763Z",
       "status": "saved",
       "filename": "PRISMJOHNS.png"
+    },
+    "PRIVISCL": {
+      "domain": "privi.com",
+      "source_url": "https://img.logo.dev/privi.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9560,
+      "hash": "cf2b3ad7196f6e63",
+      "fetched_at": "2026-06-09T07:48:07.975Z",
+      "status": "saved",
+      "filename": "PRIVISCL.png"
+    },
+    "PROMACT": {
+      "domain": "promactisotemp.com",
+      "fetched_at": "2026-06-09T07:48:08.651Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "PROSOLAR": {
+      "domain": "prosolarcap.com",
+      "fetched_at": "2026-06-09T07:48:09.589Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "PROTEAN": {
       "domain": "proteantech.in",
@@ -6190,6 +7462,12 @@
       "fetched_at": "2026-06-09T07:10:09.719Z",
       "status": "saved",
       "filename": "PTCIL.png"
+    },
+    "PUNJABCHEM": {
+      "domain": "punjabchemicals.co",
+      "fetched_at": "2026-06-09T07:48:15.889Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "PURVA": {
       "domain": "puravankara.com",
@@ -6344,6 +7622,21 @@
       "status": "saved",
       "filename": "RAMCOSYS.png"
     },
+    "RAMKY": {
+      "domain": "ramky.com",
+      "source_url": "https://img.logo.dev/ramky.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 23126,
+      "hash": "5a93ba58480559c2",
+      "fetched_at": "2026-06-09T07:48:22.327Z",
+      "status": "saved",
+      "filename": "RAMKY.png"
+    },
+    "RAMRAT": {
+      "domain": "ramratan.com",
+      "fetched_at": "2026-06-09T07:48:23.389Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "RANEHOLDIN": {
       "domain": "raneholdings.com",
       "fetched_at": "2026-06-09T07:10:26.076Z",
@@ -6395,6 +7688,21 @@
       "status": "saved",
       "filename": "RAYMONDLSL.png"
     },
+    "RBA": {
+      "domain": "rba.in",
+      "fetched_at": "2026-06-09T07:48:25.929Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "RBL": {
+      "domain": "rblbank.com",
+      "source_url": "https://img.logo.dev/rblbank.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11182,
+      "hash": "e7b9cc3a4c0cea62",
+      "fetched_at": "2026-06-09T07:48:27.131Z",
+      "status": "saved",
+      "filename": "RBL.png"
+    },
     "RBLBANK": {
       "domain": "rblbank.com",
       "source_url": "https://img.logo.dev/rblbank.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6412,6 +7720,12 @@
       "fetched_at": "2026-06-09T07:10:29.850Z",
       "status": "saved",
       "filename": "RCF.png"
+    },
+    "RCOM": {
+      "domain": "rcom.co.in",
+      "fetched_at": "2026-06-09T07:48:31.393Z",
+      "status": "too_small",
+      "bytes": 550
     },
     "RECLTD": {
       "domain": "recindia.nic.in",
@@ -6485,6 +7799,24 @@
       "status": "saved",
       "filename": "REPRO.png"
     },
+    "RESPONIND": {
+      "domain": "responsiveindustries.com",
+      "source_url": "https://img.logo.dev/responsiveindustries.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 35198,
+      "hash": "9805c4e965d68ad7",
+      "fetched_at": "2026-06-09T07:48:36.830Z",
+      "status": "saved",
+      "filename": "RESPONIND.png"
+    },
+    "RGL": {
+      "domain": "renaissanceglobal.com",
+      "source_url": "https://img.logo.dev/renaissanceglobal.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15065,
+      "hash": "d8a13f49d6e24c3b",
+      "fetched_at": "2026-06-09T07:48:37.602Z",
+      "status": "saved",
+      "filename": "RGL.png"
+    },
     "RHIM": {
       "domain": "rhimagnesita.com",
       "source_url": "https://img.logo.dev/rhimagnesita.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6500,6 +7832,12 @@
       "status": "too_small",
       "bytes": 1999
     },
+    "RIIL": {
+      "domain": "reliance.in",
+      "fetched_at": "2026-06-09T07:48:39.302Z",
+      "status": "too_small",
+      "bytes": 1999
+    },
     "RITES": {
       "domain": "rites.com",
       "source_url": "https://img.logo.dev/rites.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6509,6 +7847,12 @@
       "status": "saved",
       "filename": "RITES.png"
     },
+    "RKEC": {
+      "domain": "rkecprojects.com",
+      "fetched_at": "2026-06-09T07:48:41.884Z",
+      "status": "too_small",
+      "bytes": 597
+    },
     "RKFORGE": {
       "domain": "ramkrishnaforgings.com",
       "source_url": "https://img.logo.dev/ramkrishnaforgings.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6517,6 +7861,18 @@
       "fetched_at": "2026-06-09T07:10:38.251Z",
       "status": "saved",
       "filename": "RKFORGE.png"
+    },
+    "RNAVAL": {
+      "domain": "rnaval.in",
+      "fetched_at": "2026-06-09T07:48:45.325Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "ROHLTD": {
+      "domain": "roltagroup.com",
+      "fetched_at": "2026-06-09T07:48:46.996Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "ROLEXRINGS": {
       "domain": "rolexrings.com",
@@ -6587,6 +7943,15 @@
       "status": "saved",
       "filename": "RRKABEL.png"
     },
+    "RSWM": {
+      "domain": "rswm.in",
+      "source_url": "https://img.logo.dev/rswm.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20519,
+      "hash": "664d80de216d387e",
+      "fetched_at": "2026-06-09T07:48:50.417Z",
+      "status": "saved",
+      "filename": "RSWM.png"
+    },
     "RSYSTEMS": {
       "domain": "rsystems.com",
       "source_url": "https://img.logo.dev/rsystems.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6620,6 +7985,24 @@
       "status": "saved",
       "filename": "RTNPOWER.png"
     },
+    "RUBYMILLS": {
+      "domain": "rubymills.com",
+      "source_url": "https://img.logo.dev/rubymills.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10493,
+      "hash": "d5e1695e5d94dc32",
+      "fetched_at": "2026-06-09T07:48:51.597Z",
+      "status": "saved",
+      "filename": "RUBYMILLS.png"
+    },
+    "RUCHIRA": {
+      "domain": "ruchirapapers.com",
+      "source_url": "https://img.logo.dev/ruchirapapers.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20162,
+      "hash": "2e639ff8e46245ca",
+      "fetched_at": "2026-06-09T07:48:52.716Z",
+      "status": "saved",
+      "filename": "RUCHIRA.png"
+    },
     "RUPA": {
       "domain": "rupa.co.in",
       "source_url": "https://img.logo.dev/rupa.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6629,6 +8012,12 @@
       "status": "saved",
       "filename": "RUPA.png"
     },
+    "RUSHIL": {
+      "domain": "rushildecor.com",
+      "fetched_at": "2026-06-09T07:48:53.309Z",
+      "status": "too_small",
+      "bytes": 1999
+    },
     "RVNL": {
       "domain": "rvnl.org",
       "source_url": "https://img.logo.dev/rvnl.org?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6637,6 +8026,15 @@
       "fetched_at": "2026-06-09T07:10:48.156Z",
       "status": "saved",
       "filename": "RVNL.png"
+    },
+    "SADBHAV": {
+      "domain": "sadbhav.com",
+      "source_url": "https://img.logo.dev/sadbhav.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21037,
+      "hash": "68dcaa32b7c1da92",
+      "fetched_at": "2026-06-09T07:48:57.190Z",
+      "status": "saved",
+      "filename": "SADBHAV.png"
     },
     "SAFARI": {
       "domain": "safariindustries.com",
@@ -6665,6 +8063,21 @@
       "status": "saved",
       "filename": "SAGILITY.png"
     },
+    "SAH": {
+      "domain": "sah-petroleums.com",
+      "fetched_at": "2026-06-09T07:48:58.629Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "SAHYADRI": {
+      "domain": "sahyadrihospitals.com",
+      "source_url": "https://img.logo.dev/sahyadrihospitals.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11254,
+      "hash": "51ae807f24de805c",
+      "fetched_at": "2026-06-09T07:48:59.338Z",
+      "status": "saved",
+      "filename": "SAHYADRI.png"
+    },
     "SAIL": {
       "domain": "sail.co.in",
       "source_url": "https://img.logo.dev/sail.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6692,6 +8105,39 @@
       "status": "saved",
       "filename": "SAKAR.png"
     },
+    "SAKHTISUG": {
+      "domain": "sakthisugars.com",
+      "source_url": "https://img.logo.dev/sakthisugars.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20898,
+      "hash": "d24ae6a2827ad65e",
+      "fetched_at": "2026-06-09T07:49:01.198Z",
+      "status": "saved",
+      "filename": "SAKHTISUG.png"
+    },
+    "SAKUMA": {
+      "domain": "sakumaexports.in",
+      "source_url": "https://img.logo.dev/sakumaexports.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2572,
+      "hash": "f62fa75b327ca693",
+      "fetched_at": "2026-06-09T07:49:02.199Z",
+      "status": "saved",
+      "filename": "SAKUMA.png"
+    },
+    "SALSTEEL": {
+      "domain": "salasarttwl.com",
+      "fetched_at": "2026-06-09T07:49:02.880Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "SAMHI": {
+      "domain": "samhi.co.in",
+      "source_url": "https://img.logo.dev/samhi.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15098,
+      "hash": "2a0c15bfc784fe74",
+      "fetched_at": "2026-06-09T07:49:04.260Z",
+      "status": "saved",
+      "filename": "SAMHI.png"
+    },
     "SAMMAANCAP": {
       "domain": "sammaancapital.com",
       "source_url": "https://img.logo.dev/sammaancapital.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6700,6 +8146,30 @@
       "fetched_at": "2026-06-09T07:10:57.810Z",
       "status": "saved",
       "filename": "SAMMAANCAP.png"
+    },
+    "SANGHIIND": {
+      "domain": "sanghicement.com",
+      "source_url": "https://img.logo.dev/sanghicement.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 29947,
+      "hash": "8a2f197fcacef833",
+      "fetched_at": "2026-06-09T07:49:07.883Z",
+      "status": "saved",
+      "filename": "SANGHIIND.png"
+    },
+    "SANGHVIFOR": {
+      "domain": "sanghviforgings.com",
+      "fetched_at": "2026-06-09T07:49:09.934Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "SANGHVIMOV": {
+      "domain": "sanghvicranes.com",
+      "source_url": "https://img.logo.dev/sanghvicranes.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21505,
+      "hash": "e372bc00127703da",
+      "fetched_at": "2026-06-09T07:49:12.029Z",
+      "status": "saved",
+      "filename": "SANGHVIMOV.png"
     },
     "SANOFI": {
       "domain": "sanofi.in",
@@ -6746,6 +8216,21 @@
       "status": "saved",
       "filename": "SAREGAMA.png"
     },
+    "SARLAPOLY": {
+      "domain": "sarlafibers.com",
+      "source_url": "https://img.logo.dev/sarlafibers.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 18000,
+      "hash": "414fb9fa14c83696",
+      "fetched_at": "2026-06-09T07:49:15.135Z",
+      "status": "saved",
+      "filename": "SARLAPOLY.png"
+    },
+    "SAROJAPHAR": {
+      "domain": "sarojaagri.com",
+      "fetched_at": "2026-06-09T07:49:15.831Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "SASKEN": {
       "domain": "sasken.com",
       "source_url": "https://img.logo.dev/sasken.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6754,6 +8239,24 @@
       "fetched_at": "2026-06-09T07:11:07.818Z",
       "status": "saved",
       "filename": "SASKEN.png"
+    },
+    "SBC": {
+      "domain": "sbcl.in",
+      "source_url": "https://img.logo.dev/sbcl.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 57063,
+      "hash": "c9c0cd0b55c061c4",
+      "fetched_at": "2026-06-09T07:49:16.856Z",
+      "status": "saved",
+      "filename": "SBC.png"
+    },
+    "SBCEXPORTS": {
+      "domain": "sbcexports.com",
+      "source_url": "https://img.logo.dev/sbcexports.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2572,
+      "hash": "f62fa75b327ca693",
+      "fetched_at": "2026-06-09T07:49:17.539Z",
+      "status": "saved",
+      "filename": "SBCEXPORTS.png"
     },
     "SBFC": {
       "domain": "sbfc.com",
@@ -6833,6 +8336,15 @@
       "status": "placeholder",
       "http_status": 202
     },
+    "SEAMECLTD": {
+      "domain": "seamec.in",
+      "source_url": "https://img.logo.dev/seamec.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2572,
+      "hash": "f62fa75b327ca693",
+      "fetched_at": "2026-06-09T07:49:21.921Z",
+      "status": "saved",
+      "filename": "SEAMECLTD.png"
+    },
     "SELAN": {
       "domain": "selanoil.com",
       "source_url": "https://img.logo.dev/selanoil.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6857,6 +8369,33 @@
       "status": "placeholder",
       "http_status": 202
     },
+    "SESHAPAPER": {
+      "domain": "sespl.com",
+      "fetched_at": "2026-06-09T07:49:23.569Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "SETCO": {
+      "domain": "setcoauto.com",
+      "source_url": "https://img.logo.dev/setcoauto.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 27925,
+      "hash": "4e9847ced19ec88f",
+      "fetched_at": "2026-06-09T07:49:24.966Z",
+      "status": "saved",
+      "filename": "SETCO.png"
+    },
+    "SETUINFRA": {
+      "domain": "setuinfratech.com",
+      "fetched_at": "2026-06-09T07:49:26.304Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "SFL": {
+      "domain": "sherafinance.com",
+      "fetched_at": "2026-06-09T07:49:27.094Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "SHAKTIPUMP": {
       "domain": "shaktipumps.com",
       "source_url": "https://img.logo.dev/shaktipumps.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6874,6 +8413,15 @@
       "fetched_at": "2026-06-09T07:11:26.483Z",
       "status": "saved",
       "filename": "SHALBY.png"
+    },
+    "SHANKARA": {
+      "domain": "shankarabuildpro.com",
+      "source_url": "https://img.logo.dev/shankarabuildpro.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15507,
+      "hash": "f46302039b899600",
+      "fetched_at": "2026-06-09T07:49:27.780Z",
+      "status": "saved",
+      "filename": "SHANKARA.png"
     },
     "SHANTIGEAR": {
       "domain": "shantigears.com",
@@ -6917,6 +8465,30 @@
       "status": "saved",
       "filename": "SHIVAMAUT.png"
     },
+    "SHIVAMAUTO": {
+      "domain": "shivamautotech.com",
+      "source_url": "https://img.logo.dev/shivamautotech.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 24809,
+      "hash": "0a2dd44739188192",
+      "fetched_at": "2026-06-09T07:49:28.132Z",
+      "status": "saved",
+      "filename": "SHIVAMAUTO.png"
+    },
+    "SHIVATEX": {
+      "domain": "shivatex.com",
+      "source_url": "https://img.logo.dev/shivatex.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22558,
+      "hash": "7eb8d00d7111c950",
+      "fetched_at": "2026-06-09T07:49:29.254Z",
+      "status": "saved",
+      "filename": "SHIVATEX.png"
+    },
+    "SHK": {
+      "domain": "shahalloys.in",
+      "fetched_at": "2026-06-09T07:49:31.381Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "SHOPERSTOP": {
       "domain": "shoppersstop.com",
       "source_url": "https://img.logo.dev/shoppersstop.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6934,6 +8506,54 @@
       "fetched_at": "2026-06-09T07:11:32.962Z",
       "status": "saved",
       "filename": "SHREECEM.png"
+    },
+    "SHREEDIGCEM": {
+      "domain": "digvijaycement.com",
+      "source_url": "https://img.logo.dev/digvijaycement.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2052,
+      "hash": "431dbf3c39954679",
+      "fetched_at": "2026-06-09T07:49:32.515Z",
+      "status": "saved",
+      "filename": "SHREEDIGCEM.png"
+    },
+    "SHREEPUSHK": {
+      "domain": "shreepushkar.com",
+      "source_url": "https://img.logo.dev/shreepushkar.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 34973,
+      "hash": "ba5b1870cd87d420",
+      "fetched_at": "2026-06-09T07:49:33.404Z",
+      "status": "saved",
+      "filename": "SHREEPUSHK.png"
+    },
+    "SHREERAMA": {
+      "domain": "shrirenuka.com",
+      "fetched_at": "2026-06-09T07:49:34.949Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "SHRENIK": {
+      "domain": "shreniklimited.com",
+      "fetched_at": "2026-06-09T07:49:36.493Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "SHREYAS": {
+      "domain": "shreyas.com",
+      "source_url": "https://img.logo.dev/shreyas.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2572,
+      "hash": "f62fa75b327ca693",
+      "fetched_at": "2026-06-09T07:49:37.805Z",
+      "status": "saved",
+      "filename": "SHREYAS.png"
+    },
+    "SHRIPISTON": {
+      "domain": "shriramgroup.in",
+      "source_url": "https://img.logo.dev/shriramgroup.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2572,
+      "hash": "f62fa75b327ca693",
+      "fetched_at": "2026-06-09T07:49:38.820Z",
+      "status": "saved",
+      "filename": "SHRIPISTON.png"
     },
     "SHRIRAMFIN": {
       "domain": "shriramfinance.in",
@@ -6971,6 +8591,33 @@
       "status": "saved",
       "filename": "SIGNATURE.png"
     },
+    "SIMPLEX": {
+      "domain": "simplexinfra.com",
+      "source_url": "https://img.logo.dev/simplexinfra.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 24960,
+      "hash": "2945e900f72c9d0f",
+      "fetched_at": "2026-06-09T07:49:41.228Z",
+      "status": "saved",
+      "filename": "SIMPLEX.png"
+    },
+    "SINTERCOM": {
+      "domain": "sintercom.in",
+      "source_url": "https://img.logo.dev/sintercom.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2572,
+      "hash": "f62fa75b327ca693",
+      "fetched_at": "2026-06-09T07:49:41.859Z",
+      "status": "saved",
+      "filename": "SINTERCOM.png"
+    },
+    "SIRCA": {
+      "domain": "sircapaints.com",
+      "source_url": "https://img.logo.dev/sircapaints.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11094,
+      "hash": "101e1ac337d8512f",
+      "fetched_at": "2026-06-09T07:49:42.751Z",
+      "status": "saved",
+      "filename": "SIRCA.png"
+    },
     "SIS": {
       "domain": "sisindia.com",
       "source_url": "https://img.logo.dev/sisindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -6979,6 +8626,15 @@
       "fetched_at": "2026-06-09T07:11:38.423Z",
       "status": "saved",
       "filename": "SIS.png"
+    },
+    "SIYSIL": {
+      "domain": "siyaramsilkmills.com",
+      "source_url": "https://img.logo.dev/siyaramsilkmills.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2572,
+      "hash": "f62fa75b327ca693",
+      "fetched_at": "2026-06-09T07:49:43.634Z",
+      "status": "saved",
+      "filename": "SIYSIL.png"
     },
     "SJVN": {
       "domain": "sjvn.nic.in",
@@ -7006,6 +8662,15 @@
       "fetched_at": "2026-06-09T07:11:44.183Z",
       "status": "saved",
       "filename": "SKIPPER.png"
+    },
+    "SMARTLINK": {
+      "domain": "smartlinkholdings.com",
+      "source_url": "https://img.logo.dev/smartlinkholdings.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10619,
+      "hash": "dd368301bdce6111",
+      "fetched_at": "2026-06-09T07:49:45.786Z",
+      "status": "saved",
+      "filename": "SMARTLINK.png"
     },
     "SNOWMAN": {
       "domain": "snowman.in",
@@ -7042,6 +8707,15 @@
       "fetched_at": "2026-06-09T07:11:51.777Z",
       "status": "saved",
       "filename": "SOMANY.png"
+    },
+    "SOMANYCERA": {
+      "domain": "somanyceramics.com",
+      "source_url": "https://img.logo.dev/somanyceramics.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10079,
+      "hash": "ec26c2203659f64c",
+      "fetched_at": "2026-06-09T07:49:48.078Z",
+      "status": "saved",
+      "filename": "SOMANYCERA.png"
     },
     "SOMICONVEY": {
       "domain": "somiconveyor.com",
@@ -7088,6 +8762,30 @@
       "status": "saved",
       "filename": "SPANDANA.png"
     },
+    "SPIC": {
+      "domain": "spic.in",
+      "source_url": "https://img.logo.dev/spic.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20312,
+      "hash": "04bb7fe55324f85f",
+      "fetched_at": "2026-06-09T07:49:51.896Z",
+      "status": "saved",
+      "filename": "SPIC.png"
+    },
+    "SPMLINFRA": {
+      "domain": "spml.co.in",
+      "source_url": "https://img.logo.dev/spml.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 28145,
+      "hash": "3599eaa1b69df520",
+      "fetched_at": "2026-06-09T07:49:53.304Z",
+      "status": "saved",
+      "filename": "SPMLINFRA.png"
+    },
+    "SREEL": {
+      "domain": "sreelinfra.com",
+      "fetched_at": "2026-06-09T07:49:55.152Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "SRF": {
       "domain": "srf.com",
       "source_url": "https://img.logo.dev/srf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -7096,6 +8794,21 @@
       "fetched_at": "2026-06-09T07:12:02.339Z",
       "status": "saved",
       "filename": "SRF.png"
+    },
+    "SRHHYPOLTD": {
+      "domain": "stuartharrissons.com",
+      "fetched_at": "2026-06-09T07:49:58.696Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "STAMPEDE": {
+      "domain": "stampedecap.com",
+      "source_url": "https://img.logo.dev/stampedecap.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 40172,
+      "hash": "5ea706587f634142",
+      "fetched_at": "2026-06-09T07:49:59.704Z",
+      "status": "saved",
+      "filename": "STAMPEDE.png"
     },
     "STANLEY": {
       "domain": "stanleylifestyles.com",
@@ -7124,6 +8837,15 @@
       "status": "saved",
       "filename": "STARCEMENT.png"
     },
+    "STARCRP": {
+      "domain": "starcement.co.in",
+      "source_url": "https://img.logo.dev/starcement.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 30554,
+      "hash": "04bf142cfc82aaf1",
+      "fetched_at": "2026-06-09T07:50:01.080Z",
+      "status": "saved",
+      "filename": "STARCRP.png"
+    },
     "STARHEALTH": {
       "domain": "starhealth.in",
       "source_url": "https://img.logo.dev/starhealth.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -7133,11 +8855,29 @@
       "status": "saved",
       "filename": "STARHEALTH.png"
     },
+    "STARHFL": {
+      "domain": "starhfl.com",
+      "source_url": "https://img.logo.dev/starhfl.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 40539,
+      "hash": "8f53100d3879f8b4",
+      "fetched_at": "2026-06-09T07:50:03.077Z",
+      "status": "saved",
+      "filename": "STARHFL.png"
+    },
     "STARTECK": {
       "domain": "starteckinfo.com",
       "fetched_at": "2026-06-09T07:12:05.170Z",
       "status": "placeholder",
       "http_status": 202
+    },
+    "STEELXIND": {
+      "domain": "steelexchangeindia.com",
+      "source_url": "https://img.logo.dev/steelexchangeindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11094,
+      "hash": "8c2bee18ff7fcda7",
+      "fetched_at": "2026-06-09T07:50:03.837Z",
+      "status": "saved",
+      "filename": "STEELXIND.png"
     },
     "STERLINGT": {
       "domain": "sterlingtools.in",
@@ -7147,6 +8887,21 @@
       "fetched_at": "2026-06-09T07:12:06.096Z",
       "status": "saved",
       "filename": "STERLINGT.png"
+    },
+    "STERLINGTOOLS": {
+      "domain": "sterlingtools.com",
+      "source_url": "https://img.logo.dev/sterlingtools.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 25709,
+      "hash": "c6e3823fe1047d5a",
+      "fetched_at": "2026-06-09T07:50:05.303Z",
+      "status": "saved",
+      "filename": "STERLINGTOOLS.png"
+    },
+    "STERSIM": {
+      "domain": "sterlinghosp.com",
+      "fetched_at": "2026-06-09T07:50:06.210Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "STLTECH": {
       "domain": "stl.tech",
@@ -7184,6 +8939,24 @@
       "status": "saved",
       "filename": "STYLAM.png"
     },
+    "STYLAMIND": {
+      "domain": "stylam.com",
+      "source_url": "https://img.logo.dev/stylam.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9183,
+      "hash": "c1a5063a085add07",
+      "fetched_at": "2026-06-09T07:50:06.821Z",
+      "status": "saved",
+      "filename": "STYLAMIND.png"
+    },
+    "STYLEBAAZA": {
+      "domain": "stylebaazar.com",
+      "source_url": "https://img.logo.dev/stylebaazar.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15891,
+      "hash": "725db2f6db8b2eb7",
+      "fetched_at": "2026-06-09T07:50:07.544Z",
+      "status": "saved",
+      "filename": "STYLEBAAZA.png"
+    },
     "STYRENIX": {
       "domain": "styrenix.com",
       "source_url": "https://img.logo.dev/styrenix.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -7220,6 +8993,15 @@
       "status": "saved",
       "filename": "SUDARSCHEM.png"
     },
+    "SUKHJIT": {
+      "domain": "sukhjitstarch.com",
+      "source_url": "https://img.logo.dev/sukhjitstarch.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2572,
+      "hash": "f62fa75b327ca693",
+      "fetched_at": "2026-06-09T07:50:08.169Z",
+      "status": "saved",
+      "filename": "SUKHJIT.png"
+    },
     "SULA": {
       "domain": "sulavineyards.com",
       "source_url": "https://img.logo.dev/sulavineyards.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -7228,6 +9010,15 @@
       "fetched_at": "2026-06-09T07:12:15.626Z",
       "status": "saved",
       "filename": "SULA.png"
+    },
+    "SUMEET": {
+      "domain": "sumeetindustries.com",
+      "source_url": "https://img.logo.dev/sumeetindustries.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 29359,
+      "hash": "17c7393dd491355f",
+      "fetched_at": "2026-06-09T07:50:08.900Z",
+      "status": "saved",
+      "filename": "SUMEET.png"
     },
     "SUMICHEM": {
       "domain": "sumichem.co.in",
@@ -7238,6 +9029,21 @@
       "status": "saved",
       "filename": "SUMICHEM.png"
     },
+    "SUMMITSEC": {
+      "domain": "summitsec.in",
+      "fetched_at": "2026-06-09T07:50:10.906Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "SUNCLAYLTD": {
+      "domain": "sunclay.com",
+      "source_url": "https://img.logo.dev/sunclay.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11809,
+      "hash": "8a8928aaa6678132",
+      "fetched_at": "2026-06-09T07:50:12.182Z",
+      "status": "saved",
+      "filename": "SUNCLAYLTD.png"
+    },
     "SUNDARAMFI": {
       "domain": "sundaramfinance.in",
       "source_url": "https://img.logo.dev/sundaramfinance.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -7246,6 +9052,15 @@
       "fetched_at": "2026-06-09T07:12:16.244Z",
       "status": "saved",
       "filename": "SUNDARAMFI.png"
+    },
+    "SUNDARMFAS": {
+      "domain": "sundaramfasteners.com",
+      "source_url": "https://img.logo.dev/sundaramfasteners.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2572,
+      "hash": "f62fa75b327ca693",
+      "fetched_at": "2026-06-09T07:50:12.483Z",
+      "status": "saved",
+      "filename": "SUNDARMFAS.png"
     },
     "SUNDARMFAST": {
       "domain": "sundaramfasteners.com",
@@ -7264,6 +9079,24 @@
       "fetched_at": "2026-06-09T07:12:18.588Z",
       "status": "saved",
       "filename": "SUNDARMFIN.png"
+    },
+    "SUNDARMHLD": {
+      "domain": "sundaramholdings.in",
+      "source_url": "https://img.logo.dev/sundaramholdings.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 38021,
+      "hash": "0d70162af04755db",
+      "fetched_at": "2026-06-09T07:50:14.135Z",
+      "status": "saved",
+      "filename": "SUNDARMHLD.png"
+    },
+    "SUNDRMBRAK": {
+      "domain": "brakesindia.com",
+      "source_url": "https://img.logo.dev/brakesindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12647,
+      "hash": "63f7b3587c9d931e",
+      "fetched_at": "2026-06-09T07:50:15.215Z",
+      "status": "saved",
+      "filename": "SUNDRMBRAK.png"
     },
     "SUNDRMFAST": {
       "domain": "sundram.com",
@@ -7328,6 +9161,21 @@
       "status": "saved",
       "filename": "SUPREMEIND.png"
     },
+    "SURAJEST": {
+      "domain": "surajestates.com",
+      "fetched_at": "2026-06-09T07:50:19.222Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "SURYAROSNI": {
+      "domain": "suryaroshni.com",
+      "source_url": "https://img.logo.dev/suryaroshni.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 13353,
+      "hash": "30c5237ef2d3e3cd",
+      "fetched_at": "2026-06-09T07:50:20.238Z",
+      "status": "saved",
+      "filename": "SURYAROSNI.png"
+    },
     "SURYODAY": {
       "domain": "suryodaybank.com",
       "source_url": "https://img.logo.dev/suryodaybank.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -7336,6 +9184,24 @@
       "fetched_at": "2026-06-09T07:12:29.684Z",
       "status": "saved",
       "filename": "SURYODAY.png"
+    },
+    "SUTLEJTEX": {
+      "domain": "sutlejtextiles.com",
+      "source_url": "https://img.logo.dev/sutlejtextiles.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15171,
+      "hash": "c686b9c60ce3379e",
+      "fetched_at": "2026-06-09T07:50:21.000Z",
+      "status": "saved",
+      "filename": "SUTLEJTEX.png"
+    },
+    "SUVEN": {
+      "domain": "suven.com",
+      "source_url": "https://img.logo.dev/suven.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 41931,
+      "hash": "ddd88c7373df7848",
+      "fetched_at": "2026-06-09T07:50:21.695Z",
+      "status": "saved",
+      "filename": "SUVEN.png"
     },
     "SUVENPHAR": {
       "domain": "suvenpharm.com",
@@ -7346,6 +9212,15 @@
       "status": "saved",
       "filename": "SUVENPHAR.png"
     },
+    "SUYOG": {
+      "domain": "suyogtelematics.com",
+      "source_url": "https://img.logo.dev/suyogtelematics.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2572,
+      "hash": "f62fa75b327ca693",
+      "fetched_at": "2026-06-09T07:50:23.843Z",
+      "status": "saved",
+      "filename": "SUYOG.png"
+    },
     "SUZLON": {
       "domain": "suzlon.com",
       "source_url": "https://img.logo.dev/suzlon.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -7355,6 +9230,15 @@
       "status": "saved",
       "filename": "SUZLON.png"
     },
+    "SWAN": {
+      "domain": "swanenergy.com",
+      "source_url": "https://img.logo.dev/swanenergy.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17232,
+      "hash": "68327e063d51da44",
+      "fetched_at": "2026-06-09T07:50:24.394Z",
+      "status": "saved",
+      "filename": "SWAN.png"
+    },
     "SWANENERGY": {
       "domain": "swanenergy.com",
       "source_url": "https://img.logo.dev/swanenergy.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -7363,6 +9247,15 @@
       "fetched_at": "2026-06-09T07:12:34.963Z",
       "status": "saved",
       "filename": "SWANENERGY.png"
+    },
+    "SWARAJENG": {
+      "domain": "swarajengines.com",
+      "source_url": "https://img.logo.dev/swarajengines.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2572,
+      "hash": "f62fa75b327ca693",
+      "fetched_at": "2026-06-09T07:50:25.333Z",
+      "status": "saved",
+      "filename": "SWARAJENG.png"
     },
     "SWELECT": {
       "domain": "swelectes.com",
@@ -7400,6 +9293,15 @@
       "status": "saved",
       "filename": "SYMPHONY.png"
     },
+    "SYNCOM": {
+      "domain": "syncomf.com",
+      "source_url": "https://img.logo.dev/syncomf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2572,
+      "hash": "f62fa75b327ca693",
+      "fetched_at": "2026-06-09T07:50:26.876Z",
+      "status": "saved",
+      "filename": "SYNCOM.png"
+    },
     "SYNGENE": {
       "domain": "syngeneintl.com",
       "source_url": "https://img.logo.dev/syngeneintl.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -7418,11 +9320,23 @@
       "status": "saved",
       "filename": "SYRMA.png"
     },
+    "TAINWALCHM": {
+      "domain": "tainwalachem.com",
+      "fetched_at": "2026-06-09T07:50:28.729Z",
+      "status": "too_small",
+      "bytes": 701
+    },
     "TAJGVK": {
       "domain": "tajgvk.in",
       "fetched_at": "2026-06-09T07:12:44.157Z",
       "status": "too_small",
       "bytes": 701
+    },
+    "TAKE": {
+      "domain": "ramcorrgi.com",
+      "fetched_at": "2026-06-09T07:50:30.457Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "TANFAC": {
       "domain": "tanfac.com",
@@ -7442,6 +9356,12 @@
       "status": "saved",
       "filename": "TANLA.png"
     },
+    "TANTIACONS": {
+      "domain": "tantiacons.com",
+      "fetched_at": "2026-06-09T07:50:32.821Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "TARC": {
       "domain": "tarc.in",
       "source_url": "https://img.logo.dev/tarc.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -7450,6 +9370,24 @@
       "fetched_at": "2026-06-09T07:12:49.986Z",
       "status": "saved",
       "filename": "TARC.png"
+    },
+    "TARSONS": {
+      "domain": "tarsons.in",
+      "source_url": "https://img.logo.dev/tarsons.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 19226,
+      "hash": "40b13ad6324d3d29",
+      "fetched_at": "2026-06-09T07:50:33.964Z",
+      "status": "saved",
+      "filename": "TARSONS.png"
+    },
+    "TASTYBITE": {
+      "domain": "tastybite.com",
+      "source_url": "https://img.logo.dev/tastybite.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 33417,
+      "hash": "24d5069246dcfbed",
+      "fetched_at": "2026-06-09T07:50:34.993Z",
+      "status": "saved",
+      "filename": "TASTYBITE.png"
     },
     "TATACAP": {
       "domain": "tatacapital.com",
@@ -7468,6 +9406,15 @@
       "fetched_at": "2026-06-09T07:12:51.184Z",
       "status": "saved",
       "filename": "TATACHEM.png"
+    },
+    "TATACOFFEE": {
+      "domain": "tatacoffee.com",
+      "source_url": "https://img.logo.dev/tatacoffee.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 13315,
+      "hash": "eeda86c50d19c631",
+      "fetched_at": "2026-06-09T07:50:36.309Z",
+      "status": "saved",
+      "filename": "TATACOFFEE.png"
     },
     "TATACOMM": {
       "domain": "tatacommunications.com",
@@ -7625,6 +9572,15 @@
       "status": "saved",
       "filename": "TDPOWERSYS.png"
     },
+    "TEAMLEASE": {
+      "domain": "teamlease.com",
+      "source_url": "https://img.logo.dev/teamlease.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12890,
+      "hash": "0f784fd3006b4ccc",
+      "fetched_at": "2026-06-09T07:50:40.312Z",
+      "status": "saved",
+      "filename": "TEAMLEASE.png"
+    },
     "TECHM": {
       "domain": "techmahindra.com",
       "source_url": "https://img.logo.dev/techmahindra.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -7670,6 +9626,15 @@
       "status": "saved",
       "filename": "TEXMACO.png"
     },
+    "TEXMOPIPES": {
+      "domain": "texmopipes.com",
+      "source_url": "https://img.logo.dev/texmopipes.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 39426,
+      "hash": "a386c93b7622c878",
+      "fetched_at": "2026-06-09T07:50:43.273Z",
+      "status": "saved",
+      "filename": "TEXMOPIPES.png"
+    },
     "TEXRAIL": {
       "domain": "texmacorail.com",
       "fetched_at": "2026-06-09T07:13:12.128Z",
@@ -7685,11 +9650,26 @@
       "status": "saved",
       "filename": "TFCILTD.png"
     },
+    "TGBHOTELS": {
+      "domain": "tgbhotels.com",
+      "source_url": "https://img.logo.dev/tgbhotels.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16499,
+      "hash": "39f1f6191d49b340",
+      "fetched_at": "2026-06-09T07:50:45.321Z",
+      "status": "saved",
+      "filename": "TGBHOTELS.png"
+    },
     "THANGAMAYL": {
       "domain": "thangamayl.com",
       "fetched_at": "2026-06-09T07:13:14.715Z",
       "status": "too_small",
       "bytes": 701
+    },
+    "THEINVEST": {
+      "domain": "theinvestmenttrust.com",
+      "fetched_at": "2026-06-09T07:50:47.785Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "THEMISMED": {
       "domain": "themismedicare.com",
@@ -7733,6 +9713,15 @@
       "status": "placeholder",
       "http_status": 202
     },
+    "TIIL": {
+      "domain": "tiindia.com",
+      "source_url": "https://img.logo.dev/tiindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 28842,
+      "hash": "733fc8342682567f",
+      "fetched_at": "2026-06-09T07:50:50.996Z",
+      "status": "saved",
+      "filename": "TIIL.png"
+    },
     "TIINDIA": {
       "domain": "tiindia.com",
       "source_url": "https://img.logo.dev/tiindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -7747,6 +9736,15 @@
       "fetched_at": "2026-06-09T07:13:25.311Z",
       "status": "too_small",
       "bytes": 701
+    },
+    "TIMETECHNO": {
+      "domain": "timetechnoplast.com",
+      "source_url": "https://img.logo.dev/timetechnoplast.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21536,
+      "hash": "f85b086cb11980d7",
+      "fetched_at": "2026-06-09T07:50:53.970Z",
+      "status": "saved",
+      "filename": "TIMETECHNO.png"
     },
     "TIMEX": {
       "domain": "timexgroup.com",
@@ -7793,6 +9791,15 @@
       "status": "saved",
       "filename": "TIRUMALCHM.png"
     },
+    "TIRUPATI": {
+      "domain": "tirupatigraphite.co.uk",
+      "source_url": "https://img.logo.dev/tirupatigraphite.co.uk?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12564,
+      "hash": "ee91e7dd11cf70de",
+      "fetched_at": "2026-06-09T07:50:55.354Z",
+      "status": "saved",
+      "filename": "TIRUPATI.png"
+    },
     "TITAGARH": {
       "domain": "titagarh.in",
       "source_url": "https://img.logo.dev/titagarh.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -7820,6 +9827,15 @@
       "status": "saved",
       "filename": "TMB.png"
     },
+    "TNPL": {
+      "domain": "tnpl.com",
+      "source_url": "https://img.logo.dev/tnpl.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12402,
+      "hash": "0606663221896072",
+      "fetched_at": "2026-06-09T07:50:56.912Z",
+      "status": "saved",
+      "filename": "TNPL.png"
+    },
     "TORNTPHARM": {
       "domain": "torrentpharma.com",
       "source_url": "https://img.logo.dev/torrentpharma.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -7846,6 +9862,12 @@
       "fetched_at": "2026-06-09T07:13:35.190Z",
       "status": "saved",
       "filename": "TORRENT.png"
+    },
+    "TPLPLASTEH": {
+      "domain": "tplastech.com",
+      "fetched_at": "2026-06-09T07:50:58.434Z",
+      "status": "too_small",
+      "bytes": 701
     },
     "TRACXN": {
       "domain": "tracxn.com",
@@ -7922,6 +9944,15 @@
       "status": "saved",
       "filename": "TTKHEALTH.png"
     },
+    "TTKHLTCARE": {
+      "domain": "ttkhealthcare.com",
+      "source_url": "https://img.logo.dev/ttkhealthcare.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 39981,
+      "hash": "56943eb94c6368f9",
+      "fetched_at": "2026-06-09T07:51:00.946Z",
+      "status": "saved",
+      "filename": "TTKHLTCARE.png"
+    },
     "TTKPRESTIG": {
       "domain": "ttkprestige.com",
       "source_url": "https://img.logo.dev/ttkprestige.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -7946,6 +9977,12 @@
       "status": "too_small",
       "bytes": 1807
     },
+    "TVSELECT": {
+      "domain": "tvselectronics.com",
+      "fetched_at": "2026-06-09T07:51:04.267Z",
+      "status": "too_small",
+      "bytes": 701
+    },
     "TVSHLTD": {
       "domain": "tvsholdings.com",
       "fetched_at": "2026-06-09T07:13:54.723Z",
@@ -7969,6 +10006,15 @@
       "fetched_at": "2026-06-09T07:13:56.847Z",
       "status": "saved",
       "filename": "TVSSCS.png"
+    },
+    "TVSSRICHAK": {
+      "domain": "srichakra.com",
+      "source_url": "https://img.logo.dev/srichakra.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2572,
+      "hash": "f62fa75b327ca693",
+      "fetched_at": "2026-06-09T07:51:08.577Z",
+      "status": "saved",
+      "filename": "TVSSRICHAK.png"
     },
     "TVTODAY": {
       "domain": "intoday.in",
@@ -8015,6 +10061,21 @@
       "status": "saved",
       "filename": "UFOMOVIEZ.png"
     },
+    "UGARSUGAR": {
+      "domain": "ugarsugar.com",
+      "fetched_at": "2026-06-09T07:51:14.631Z",
+      "status": "too_small",
+      "bytes": 1618
+    },
+    "UJJIVAN": {
+      "domain": "ujjivan.com",
+      "source_url": "https://img.logo.dev/ujjivan.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 13358,
+      "hash": "701f2963ee116166",
+      "fetched_at": "2026-06-09T07:51:15.661Z",
+      "status": "saved",
+      "filename": "UJJIVAN.png"
+    },
     "UJJIVANSFB": {
       "domain": "ujjivansfb.in",
       "source_url": "https://img.logo.dev/ujjivansfb.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -8042,6 +10103,12 @@
       "status": "saved",
       "filename": "UNICHEMLAB.png"
     },
+    "UNIENTER": {
+      "domain": "unitedenterprises.com",
+      "fetched_at": "2026-06-09T07:51:16.913Z",
+      "status": "too_small",
+      "bytes": 1618
+    },
     "UNIONBANK": {
       "domain": "unionbankofindia.co.in",
       "source_url": "https://img.logo.dev/unionbankofindia.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -8051,6 +10118,12 @@
       "status": "saved",
       "filename": "UNIONBANK.png"
     },
+    "UNIPHOS": {
+      "domain": "unitedphosphorus.com",
+      "fetched_at": "2026-06-09T07:51:18.926Z",
+      "status": "too_small",
+      "bytes": 1618
+    },
     "UNITDSPR": {
       "domain": "diageoindia.com",
       "source_url": "https://img.logo.dev/diageoindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -8059,6 +10132,12 @@
       "fetched_at": "2026-06-09T07:14:13.150Z",
       "status": "saved",
       "filename": "UNITDSPR.png"
+    },
+    "UNIVCABLES": {
+      "domain": "universalcables.in",
+      "fetched_at": "2026-06-09T07:51:21.857Z",
+      "status": "too_small",
+      "bytes": 1618
     },
     "UNOMINDA": {
       "domain": "unomindagroup.com",
@@ -8074,6 +10153,15 @@
       "fetched_at": "2026-06-09T07:14:13.951Z",
       "status": "saved",
       "filename": "UPL.png"
+    },
+    "URJA": {
+      "domain": "urjaglobal.in",
+      "source_url": "https://img.logo.dev/urjaglobal.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22289,
+      "hash": "72b5fbab0027a591",
+      "fetched_at": "2026-06-09T07:51:25.163Z",
+      "status": "saved",
+      "filename": "URJA.png"
     },
     "USHAMART": {
       "domain": "ushamartin.com",
@@ -8108,6 +10196,15 @@
       "status": "saved",
       "filename": "V2RETAIL.png"
     },
+    "VADILALIND": {
+      "domain": "vadilalgroup.com",
+      "source_url": "https://img.logo.dev/vadilalgroup.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17962,
+      "hash": "b6a12f127992db47",
+      "fetched_at": "2026-06-09T07:51:26.391Z",
+      "status": "saved",
+      "filename": "VADILALIND.png"
+    },
     "VAIBHAVGBL": {
       "domain": "vaibhavglobal.com",
       "source_url": "https://img.logo.dev/vaibhavglobal.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -8116,6 +10213,27 @@
       "fetched_at": "2026-06-09T07:14:18.081Z",
       "status": "saved",
       "filename": "VAIBHAVGBL.png"
+    },
+    "VAKRANGEE": {
+      "domain": "vakrangee.in",
+      "source_url": "https://img.logo.dev/vakrangee.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 26921,
+      "hash": "5aeb2959b8e419d5",
+      "fetched_at": "2026-06-09T07:51:27.326Z",
+      "status": "saved",
+      "filename": "VAKRANGEE.png"
+    },
+    "VAL": {
+      "domain": "vasconenergy.com",
+      "fetched_at": "2026-06-09T07:51:28.577Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "VARDHACRLC": {
+      "domain": "vardhmancrlc.com",
+      "fetched_at": "2026-06-09T07:51:29.890Z",
+      "status": "placeholder",
+      "http_status": 202
     },
     "VARDMNPOLY": {
       "domain": "vardhman.com",
@@ -8135,6 +10253,12 @@
       "status": "saved",
       "filename": "VARROC.png"
     },
+    "VASCONEQ": {
+      "domain": "vasconenergy.com",
+      "fetched_at": "2026-06-09T07:51:30.814Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
     "VBL": {
       "domain": "varunpepsi.com",
       "source_url": "https://img.logo.dev/varunpepsi.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -8152,6 +10276,15 @@
       "fetched_at": "2026-06-09T07:14:20.799Z",
       "status": "saved",
       "filename": "VEDL.png"
+    },
+    "VENKEYS": {
+      "domain": "venkys.com",
+      "source_url": "https://img.logo.dev/venkys.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 5423,
+      "hash": "074bd04f2ca34ef6",
+      "fetched_at": "2026-06-09T07:51:33.454Z",
+      "status": "saved",
+      "filename": "VENKEYS.png"
     },
     "VENUSPIPES": {
       "domain": "venuspipes.com",
@@ -8189,6 +10322,15 @@
       "status": "saved",
       "filename": "VGUARD.png"
     },
+    "VHL": {
+      "domain": "vardhmanholdings.com",
+      "source_url": "https://img.logo.dev/vardhmanholdings.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22504,
+      "hash": "8c8e8e6fc3804d2d",
+      "fetched_at": "2026-06-09T07:51:34.462Z",
+      "status": "saved",
+      "filename": "VHL.png"
+    },
     "VIJAYA": {
       "domain": "vijayadiagnostic.com",
       "source_url": "https://img.logo.dev/vijayadiagnostic.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -8197,6 +10339,15 @@
       "fetched_at": "2026-06-09T07:14:25.734Z",
       "status": "saved",
       "filename": "VIJAYA.png"
+    },
+    "VIKASLIFE": {
+      "domain": "vikaslifecare.com",
+      "source_url": "https://img.logo.dev/vikaslifecare.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2304,
+      "hash": "af238d069f4f1b7d",
+      "fetched_at": "2026-06-09T07:51:35.604Z",
+      "status": "saved",
+      "filename": "VIKASLIFE.png"
     },
     "VIMTALABS": {
       "domain": "vimta.com",
@@ -8216,6 +10367,30 @@
       "status": "saved",
       "filename": "VINATIORGA.png"
     },
+    "VINDHYATEL": {
+      "domain": "vindhyatelelinks.com",
+      "source_url": "https://img.logo.dev/vindhyatelelinks.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 13390,
+      "hash": "8cd727a20592337a",
+      "fetched_at": "2026-06-09T07:51:38.100Z",
+      "status": "saved",
+      "filename": "VINDHYATEL.png"
+    },
+    "VINYLINDIA": {
+      "domain": "vinylsulfur.com",
+      "fetched_at": "2026-06-09T07:51:39.471Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "VIPCLOTHNG": {
+      "domain": "vipclothing.in",
+      "source_url": "https://img.logo.dev/vipclothing.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 29123,
+      "hash": "9e6fb8a36b4684a5",
+      "fetched_at": "2026-06-09T07:51:41.250Z",
+      "status": "saved",
+      "filename": "VIPCLOTHNG.png"
+    },
     "VIPIND": {
       "domain": "vipindustries.co.in",
       "source_url": "https://img.logo.dev/vipindustries.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -8224,6 +10399,24 @@
       "fetched_at": "2026-06-09T07:14:28.900Z",
       "status": "saved",
       "filename": "VIPIND.png"
+    },
+    "VISAKAIND": {
+      "domain": "visaka.in",
+      "source_url": "https://img.logo.dev/visaka.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 25137,
+      "hash": "692c676269e03313",
+      "fetched_at": "2026-06-09T07:51:43.913Z",
+      "status": "saved",
+      "filename": "VISAKAIND.png"
+    },
+    "VLSFINANCE": {
+      "domain": "vlsfinance.com",
+      "source_url": "https://img.logo.dev/vlsfinance.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 18280,
+      "hash": "c9c060556433af10",
+      "fetched_at": "2026-06-09T07:51:45.600Z",
+      "status": "saved",
+      "filename": "VLSFINANCE.png"
     },
     "VMART": {
       "domain": "vmart.co.in",
@@ -8270,6 +10463,21 @@
       "status": "saved",
       "filename": "VRLLOG.png"
     },
+    "VSTIND": {
+      "domain": "vstindia.com",
+      "fetched_at": "2026-06-09T07:51:47.149Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "VSTTILLERS": {
+      "domain": "vsttillers.com",
+      "source_url": "https://img.logo.dev/vsttillers.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2304,
+      "hash": "af238d069f4f1b7d",
+      "fetched_at": "2026-06-09T07:51:48.163Z",
+      "status": "saved",
+      "filename": "VSTTILLERS.png"
+    },
     "VTL": {
       "domain": "vardhman.com",
       "source_url": "https://img.logo.dev/vardhman.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -8306,6 +10514,33 @@
       "status": "saved",
       "filename": "WABAG.png"
     },
+    "WALCHANNAG": {
+      "domain": "walchand.com",
+      "source_url": "https://img.logo.dev/walchand.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 28470,
+      "hash": "aeb129712d7aebe8",
+      "fetched_at": "2026-06-09T07:51:50.781Z",
+      "status": "saved",
+      "filename": "WALCHANNAG.png"
+    },
+    "WANBURY": {
+      "domain": "wanbury.com",
+      "source_url": "https://img.logo.dev/wanbury.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 19598,
+      "hash": "a1d15a209dc64066",
+      "fetched_at": "2026-06-09T07:51:51.900Z",
+      "status": "saved",
+      "filename": "WANBURY.png"
+    },
+    "WEBELSOLAR": {
+      "domain": "websolenergy.com",
+      "source_url": "https://img.logo.dev/websolenergy.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11803,
+      "hash": "1c14078a6313bcf2",
+      "fetched_at": "2026-06-09T07:51:53.584Z",
+      "status": "saved",
+      "filename": "WEBELSOLAR.png"
+    },
     "WELCORP": {
       "domain": "welspuncorp.com",
       "source_url": "https://img.logo.dev/welspuncorp.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -8320,6 +10555,24 @@
       "fetched_at": "2026-06-09T07:14:44.151Z",
       "status": "placeholder",
       "http_status": 202
+    },
+    "WELINV": {
+      "domain": "welspun.com",
+      "source_url": "https://img.logo.dev/welspun.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 18563,
+      "hash": "fb8093925209edd4",
+      "fetched_at": "2026-06-09T07:51:55.230Z",
+      "status": "saved",
+      "filename": "WELINV.png"
+    },
+    "WELSPUNCORP": {
+      "domain": "welspuncorp.com",
+      "source_url": "https://img.logo.dev/welspuncorp.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12863,
+      "hash": "09320fe2fcdd43b7",
+      "fetched_at": "2026-06-09T07:51:55.527Z",
+      "status": "saved",
+      "filename": "WELSPUNCORP.png"
     },
     "WELSPUNIND": {
       "domain": "welspunindia.com",
@@ -8338,6 +10591,15 @@
       "fetched_at": "2026-06-09T07:14:48.557Z",
       "status": "saved",
       "filename": "WELSPUNLIV.png"
+    },
+    "WENDT": {
+      "domain": "wendtindia.com",
+      "source_url": "https://img.logo.dev/wendtindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9720,
+      "hash": "b691c1cca455d610",
+      "fetched_at": "2026-06-09T07:51:56.527Z",
+      "status": "saved",
+      "filename": "WENDT.png"
     },
     "WESTLIFE": {
       "domain": "westlife.co.in",
@@ -8384,6 +10646,21 @@
       "status": "saved",
       "filename": "WINDLAS.png"
     },
+    "WINSOME": {
+      "domain": "winsomediamonds.com",
+      "fetched_at": "2026-06-09T07:51:57.823Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "WIPL": {
+      "domain": "wipl.in",
+      "source_url": "https://img.logo.dev/wipl.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16364,
+      "hash": "7176036e1d43a39e",
+      "fetched_at": "2026-06-09T07:51:59.464Z",
+      "status": "saved",
+      "filename": "WIPL.png"
+    },
     "WIPRO": {
       "domain": "wipro.com",
       "source_url": "https://img.logo.dev/wipro.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -8420,6 +10697,15 @@
       "status": "saved",
       "filename": "WONDERLA.png"
     },
+    "WPIL": {
+      "domain": "wpil.co.in",
+      "source_url": "https://img.logo.dev/wpil.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 38911,
+      "hash": "3d077af7eb1587d0",
+      "fetched_at": "2026-06-09T07:52:01.030Z",
+      "status": "saved",
+      "filename": "WPIL.png"
+    },
     "WSTCSTPAPR": {
       "domain": "westcoastpaper.com",
       "source_url": "https://img.logo.dev/westcoastpaper.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
@@ -8428,6 +10714,33 @@
       "fetched_at": "2026-06-09T07:15:01.415Z",
       "status": "saved",
       "filename": "WSTCSTPAPR.png"
+    },
+    "XCHANGING": {
+      "domain": "xchanging.com",
+      "source_url": "https://img.logo.dev/xchanging.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21140,
+      "hash": "b899d75ef0c3aa36",
+      "fetched_at": "2026-06-09T07:52:02.450Z",
+      "status": "saved",
+      "filename": "XCHANGING.png"
+    },
+    "XPROINDIA": {
+      "domain": "xproindia.com",
+      "source_url": "https://img.logo.dev/xproindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20719,
+      "hash": "fbd3b60fd78c44a9",
+      "fetched_at": "2026-06-09T07:52:03.955Z",
+      "status": "saved",
+      "filename": "XPROINDIA.png"
+    },
+    "YAARI": {
+      "domain": "yaaridigital.com",
+      "source_url": "https://img.logo.dev/yaaridigital.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17452,
+      "hash": "6d24e454d63dc5af",
+      "fetched_at": "2026-06-09T07:52:04.688Z",
+      "status": "saved",
+      "filename": "YAARI.png"
     },
     "YASHO": {
       "domain": "yashoindustries.com",
@@ -8515,6 +10828,15 @@
       "fetched_at": "2026-06-09T07:15:09.080Z",
       "status": "saved",
       "filename": "ZFCVINDIA.png"
+    },
+    "ZIM": {
+      "domain": "zimtechnologies.com",
+      "source_url": "https://img.logo.dev/zimtechnologies.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 25709,
+      "hash": "c6e3823fe1047d5a",
+      "fetched_at": "2026-06-09T07:52:06.635Z",
+      "status": "saved",
+      "filename": "ZIM.png"
     },
     "ZODIAC": {
       "domain": "zodiaconline.com",
