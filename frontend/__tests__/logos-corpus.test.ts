@@ -9,8 +9,8 @@
  *      build to fail, not the avatar chip to silently fall back to
  *      the lower-res Google favicon.
  *   2. `_manifest.json` exists, is valid JSON, and records at least
- *      400 saved entries (post NIFTY 500 expansion the Logo.dev fetch
- *      lands ~440-490/531; the 400 threshold leaves headroom for
+ *      700 saved entries (post NIFTY 501-1000 expansion the Logo.dev
+ *      fetch lands ~720-820/980; the 700 threshold leaves headroom for
  *      tickers flipping in and out of placeholder coverage over
  *      time).
  *
@@ -36,13 +36,13 @@ describe("self-hosted logo corpus", () => {
     },
   )
 
-  it("has a valid _manifest.json with at least 400 saved entries", () => {
+  it("has a valid _manifest.json with at least 700 saved entries", () => {
     const manifestPath = resolve(LOGOS_DIR, "_manifest.json")
     expect(existsSync(manifestPath)).toBe(true)
     const raw = readFileSync(manifestPath, "utf8")
     const parsed = JSON.parse(raw)
     expect(parsed._meta).toBeDefined()
     expect(parsed._meta.source).toMatch(/logo\.dev/i)
-    expect(parsed._meta.summary.saved).toBeGreaterThanOrEqual(400)
+    expect(parsed._meta.summary.saved).toBeGreaterThanOrEqual(700)
   })
 })
