@@ -314,6 +314,18 @@ class QualityOutput(BaseModel):
     # Frontend can use `is_bank` as the render switch without
     # re-deriving sector.
     is_bank: bool = False
+    # ── Holdco flag (fix/holdco-classification, 2026-06-09) ─────
+    # True when the ticker is a pure holding company / SPV / pure
+    # investment vehicle. Single source of truth propagated from
+    # `backend.services.analysis.constants.is_holding_company`. The
+    # frontend and the rule-engines (Honest Card, Worry Index,
+    # ELI15 thesis, Pulse Spectrum) MUST branch on this flag rather
+    # than try to re-derive it from sector / industry — pure holdcos
+    # routinely sit in a yfinance "Financial Services" bucket, so a
+    # sector-text re-derive would render bank-template copy on a
+    # company with no loan book. Field-additive: legacy payloads
+    # default to False (which preserves pre-fix behavior).
+    is_holdco: bool = False
     roa: Optional[float] = None                   # percent, net_income / total_assets × 100
     cost_to_income: Optional[float] = None        # percent, opex / total_income × 100
     advances_yoy: Optional[float] = None          # percent, total_assets YoY (proxy)

@@ -83,12 +83,50 @@ def _fmt_rupees_cr(value_cr: float) -> str:
 
 
 def _is_bank_like(company: Any, quality: Any) -> bool:
+    # Holdco precedence (2026-06-09) — a pure holding company can sit
+    # in a yfinance "Financial Services" bucket (BAJAJHLDNG does).
+    # Without this guard, the bank branch in _build_invalidating_conditions
+    # would render "Loan / advances growth below 8%" and "Gross NPA above
+    # 2%" triggers on a holdco that has no loan book. The dedicated
+    # _is_holdco() helper below is the holdco branch's entry gate.
+    if _is_holdco(company, quality):
+        return False
     if bool(_get(quality, "is_bank")):
         return True
     sector = (_get(company, "sector") or "").lower()
     industry = (_get(company, "industry") or "").lower()
     haystack = f"{sector} {industry}"
     return any(tok in haystack for tok in ("bank", "nbfc", "financial services"))
+
+
+def _is_holdco(company: Any, quality: Any) -> bool:
+    """Return True if the analysed ticker is a pure holding company.
+
+    Three signals — match on any:
+      1. ``quality.is_holdco`` boolean (the propagated single source of
+         truth, set in service.py from ``is_holding_company``).
+      2. Ticker membership in the curated ``HOLDING_COMPANIES`` set.
+      3. ``valuation.valuation_method`` equals the canonical
+         ``holding_company_sotp_required`` engine label.
+
+    The third signal is the safety net for cached payloads that pre-
+    date the propagation of the ``is_holdco`` field.
+    """
+    if bool(_get(quality, "is_holdco")):
+        return True
+    ticker = _get(company, "ticker") or ""
+    try:
+        from backend.services.analysis.constants import HOLDING_COMPANIES
+        bare = (
+            str(ticker).upper()
+            .replace(".NS", "")
+            .replace(".BO", "")
+        )
+        if bare in HOLDING_COMPANIES:
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def _is_cyclical(company: Any) -> bool:
@@ -293,6 +331,7 @@ def _build_invalidating_conditions(
         "Fair value drops more than 15% from one quarter's results — re-rating triggered"
     )
 
+    is_holdco = _is_holdco(company, quality)
     is_bank = _is_bank_like(company, quality)
     cagr = _as_float(_get(quality, "revenue_cagr_3y"))
     if cagr is not None:
@@ -300,7 +339,22 @@ def _build_invalidating_conditions(
     else:
         cagr_pct = None
 
-    if is_bank:
+    if is_holdco:
+        # Holdco invalidating conditions — value is driven by the
+        # underlying operating businesses, NOT by operating-company
+        # metrics (loan growth, revenue CAGR, gross margin). Express
+        # the triggers in NAV / holdco-discount / underlying-earnings
+        # terms so the section is honest about what would re-rate the
+        # holdco.
+        out.append(
+            "Underlying investee earnings cut by 20% — holdco NAV "
+            "impaired in proportion"
+        )
+        out.append(
+            "Holdco discount to NAV widens beyond 30% — typical "
+            "re-rating risk"
+        )
+    elif is_bank:
         # Bank-specific triggers
         out.append(
             "Loan / advances growth below 8% for 2 consecutive quarters — "

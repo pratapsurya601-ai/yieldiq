@@ -119,7 +119,18 @@ _NBFC_INSURANCE_BANKLIKE: set[str] = {
     'MANAPPURAM', 'M&MFIN', 'SHRIRAMFIN', 'LICHSGFIN',
     'PNBHOUSING', 'CANFINHOME',
     'POONAWALLA', 'AAVAS', 'HOMEFIRST',
-    'SBICARD', 'SUNDARMFIN', 'CREDITACC', 'BAJAJHLDNG',
+    'SBICARD', 'SUNDARMFIN', 'CREDITACC',
+    # NOTE: BAJAJHLDNG was previously in this set, which caused the
+    # is_bank_like() classifier to claim it as a bank/NBFC and leak
+    # bank-template copy ("Loan / advances growth below 8%",
+    # "Gross NPA above 2%", "bank ROA …%") into the bear-thesis,
+    # Worry Index Solvency driver, and Honest Card "would change our
+    # verdict" lists on the BAJAJHLDNG analysis page. It is a PURE
+    # HOLDING COMPANY (no loan book, no advances, no NPAs) — its
+    # value is driven by stakes in Bajaj Auto / Bajaj Finance /
+    # Bajaj Finserv. The canonical classifier is `is_holding_company`
+    # below, and `is_bank_like` now early-exits to False when the
+    # ticker is in HOLDING_COMPANIES.
     # PSU lender-NBFCs (regulated utilities of credit)
     'PFC', 'RECLTD', 'IRFC',
     # Insurance — life + general + health + reinsurance
@@ -163,6 +174,14 @@ def is_bank_like(
     Returning True routes the ticker to the P/B-multiple valuation
     path (banks have negative FCF by design; FCF-DCF is meaningless)
     and to the bank-mode 4-signal Piotroski.
+
+    Holdco precedence (2026-06-09): if `ticker` is in HOLDING_COMPANIES,
+    return False unconditionally. A pure holding company can sit inside
+    a yfinance "Financial Services" bucket (BAJAJHLDNG does) — without
+    this guard the bank classifier wins, the `is_bank` flag propagates
+    into QualityOutput, and the Honest Card / Worry Index / bear-thesis
+    paths render bank-template copy ("Loan / advances growth below 8%",
+    "bank ROA …%") for a stock that has no loan book.
     """
     if ticker:
         clean = (
@@ -170,6 +189,10 @@ def is_bank_like(
             .replace('.BO', '')
             .upper()
         )
+        # Holdco precedence — see docstring. HOLDING_COMPANIES is the
+        # single source of truth for "this is not an operating bank".
+        if clean in HOLDING_COMPANIES:
+            return False
         if clean in _NBFC_INSURANCE_BANKLIKE or clean in FINANCIAL_COMPANIES:
             return True
         # Legacy convention: BANK.NS / FIN.NS suffix.

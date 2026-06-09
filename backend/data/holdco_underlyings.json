@@ -1,0 +1,25 @@
+{
+  "_meta": {
+    "version": "v_holdco_underlyings_2026_06_09",
+    "description": "Per-holdco mapping to the underlying listed operating businesses whose value drives the holdco NAV. Used by the analysis page to surface 'Underlying holdings' in place of a peer cohort for pure holding companies (DCF on the holdco itself is meaningless — SOTP on the underlying is the right framework). Tickers are NSE bare symbols (no .NS suffix). Empty list = constituents are unlisted / private (still classified as holdco; just no link-out is provided).",
+    "source": "NSE filings + financial press coverage of pure investment companies (2026-06-09).",
+    "caveats": [
+      "The list is not exhaustive — promoter group cross-holdings and small unlisted stakes are intentionally omitted to keep the surface focused on what a retail user can themselves analyze.",
+      "When a holdco's primary underlying is itself unlisted, the array is empty rather than seeded with a parent group name — emitting an unlisted symbol would break the link-out.",
+      "Maintained in sync with backend/services/analysis/constants.py::HOLDING_COMPANIES — every key here MUST also be in HOLDING_COMPANIES (test guards this)."
+    ]
+  },
+  "BAJAJHLDNG": ["BAJAJ-AUTO", "BAJFINANCE", "BAJAJFINSV"],
+  "TATAINVEST": ["TCS", "TATAMOTORS", "TATASTEEL", "TATAPOWER", "TITAN"],
+  "MAHSCOOTER": ["BAJFINANCE", "BAJAJFINSV", "BAJAJ-AUTO"],
+  "PILANIINVS": ["GRASIM", "ULTRACEMCO"],
+  "KAMAHOLD": ["SRF"],
+  "SUMMITSEC": [],
+  "WILLIAMAGR": ["MCLEODRUSS"],
+  "MCLEODRUSS": [],
+  "NDTV": [],
+  "NETWORK18": [],
+  "GAYAHWS": [],
+  "MOIL": [],
+  "GRASIM": ["ULTRACEMCO"]
+}

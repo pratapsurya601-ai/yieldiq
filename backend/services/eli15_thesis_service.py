@@ -192,6 +192,12 @@ class ThesisContext:
     moat_score: Optional[float] = None
     confidence_pct: Optional[int] = None
     top_confidence_driver: str = ""
+    # Holdco propagation (2026-06-09) — drives the b1 branch in
+    # deterministic_template_bullets so a pure holding company
+    # surfaces the SOTP framing instead of a "model fair value
+    # reference is Rs 0" line that contradicts the model caveat.
+    is_holdco: bool = False
+    holdco_underlyings: tuple = ()
 
 
 def build_context_from_analysis(payload: dict) -> ThesisContext:
@@ -252,6 +258,32 @@ def build_context_from_analysis(payload: dict) -> ThesisContext:
             top_val = iv
             top_driver = label
 
+    # Holdco propagation (2026-06-09) — read the is_holdco flag off
+    # the QualityOutput. Fall back to the curated HOLDING_COMPANIES
+    # set so cached payloads predating the flag still branch into
+    # the holdco template instead of "model fair value reference is
+    # Rs 0" against the SOTP caveat. The underlyings hint comes
+    # from backend/data/holdco_underlyings.json — empty tuple for
+    # holdcos whose constituents are unlisted or unknown.
+    is_holdco = bool(quality.get("is_holdco"))
+    if not is_holdco:
+        try:
+            from backend.services.analysis.constants import HOLDING_COMPANIES
+            _bare = (
+                str(ticker).upper()
+                .replace(".NS", "")
+                .replace(".BO", "")
+            )
+            if _bare in HOLDING_COMPANIES:
+                is_holdco = True
+        except Exception:
+            pass
+    holdco_underlyings: tuple = ()
+    if is_holdco:
+        try:
+            holdco_underlyings = tuple(_lookup_holdco_underlyings(ticker))
+        except Exception:
+            holdco_underlyings = ()
     return ThesisContext(
         ticker=ticker,
         company_name=company_name,
@@ -272,7 +304,52 @@ def build_context_from_analysis(payload: dict) -> ThesisContext:
         moat_score=_safe_float(quality.get("moat_score")),
         confidence_pct=_safe_int(valuation.get("confidence_score")),
         top_confidence_driver=top_driver,
+        is_holdco=is_holdco,
+        holdco_underlyings=holdco_underlyings,
     )
+
+
+# ── Holdco underlying-constituent map (2026-06-09) ─────────────
+# Read once on first use, then cached at module scope. Source:
+# backend/data/holdco_underlyings.json. The map drives the b1
+# bullet for pure holdcos so the ELI15 narrative can name the
+# underlying listed businesses that actually carry the value
+# (BAJAJ-AUTO / BAJFINANCE / BAJAJFINSV for BAJAJHLDNG).
+_HOLDCO_UNDERLYINGS_CACHE: Optional[dict] = None
+
+
+def _lookup_holdco_underlyings(ticker: str) -> list:
+    """Return the list of underlying constituent tickers for a holdco.
+
+    Empty list when the holdco's constituents are unlisted, unknown,
+    or the ticker is not curated. Tolerant of missing JSON file.
+    """
+    global _HOLDCO_UNDERLYINGS_CACHE
+    if _HOLDCO_UNDERLYINGS_CACHE is None:
+        try:
+            import json as _json
+            import pathlib as _pathlib
+            _path = (
+                _pathlib.Path(__file__).resolve().parent.parent
+                / "data" / "holdco_underlyings.json"
+            )
+            with open(_path, "r", encoding="utf-8") as _fh:
+                _HOLDCO_UNDERLYINGS_CACHE = _json.load(_fh) or {}
+        except Exception as _exc:
+            logger.debug(
+                "holdco_underlyings.json load failed: %s "
+                "(returning empty map)", _exc,
+            )
+            _HOLDCO_UNDERLYINGS_CACHE = {}
+    bare = (
+        str(ticker or "").upper()
+        .replace(".NS", "")
+        .replace(".BO", "")
+    )
+    raw = _HOLDCO_UNDERLYINGS_CACHE.get(bare)
+    if not isinstance(raw, list):
+        return []
+    return [str(x) for x in raw if isinstance(x, str)]
 
 
 def _safe_float(v: Any) -> Optional[float]:
@@ -432,7 +509,28 @@ def deterministic_template_bullets(ctx: ThesisContext) -> list[str]:
     fv_str = _fmt_money(ctx.fair_value)
     gap_str = _fmt_pct(abs(ctx.mos_pct)) if ctx.mos_pct is not None else "n/a"
     verdict_lc = (ctx.verdict or "").lower()
-    if ctx.fair_value is None or ctx.mos_pct is None:
+    # Holdco branch (2026-06-09) — pure holding companies cannot have
+    # a legitimate parent-level DCF FV. Emit a SOTP-framed bullet that
+    # names the underlying listed constituents when known, instead of
+    # the previous "model fair value reference is Rs 0" line that
+    # contradicts the model_caveat printed elsewhere on the page.
+    if ctx.is_holdco:
+        if ctx.holdco_underlyings:
+            _underlying_str = ", ".join(ctx.holdco_underlyings)
+            b1 = (
+                f"{name} is a pure holding company. The parent-level "
+                f"DCF is not applicable — value comes from stakes in "
+                f"{_underlying_str}. Analyse those underlyings on a "
+                f"sum-of-parts basis for an honest read."
+            )
+        else:
+            b1 = (
+                f"{name} is a pure holding company. The parent-level "
+                f"DCF is not applicable — value comes from stakes in "
+                f"underlying operating businesses. A sum-of-parts "
+                f"(SOTP) read on those underlyings is the honest path."
+            )
+    elif ctx.fair_value is None or ctx.mos_pct is None:
         # Edge case: the model couldn't produce a fair value or MoS.
         # Fall back to a verdict-only sentence; never invent numbers.
         b1 = (
