@@ -119,7 +119,9 @@ function RatioCard({
         onClick={onExpand}
         className={cn(
           "text-left w-full rounded-xl bg-surface border border-border border-l-[3px] p-3",
-          "hover:border-ink/20 hover:shadow-sm transition focus:outline-none",
+          "hover:border-ink/20 hover:shadow-md transition focus:outline-none",
+          // Premium Feel R1 — subtle 1.5% scale on hover plus shadow lift.
+          "transition-transform duration-200 ease-out hover:scale-[1.015]",
           "focus-visible:ring-2 focus-visible:ring-ink/20",
           toneClass,
         )}
@@ -134,6 +136,10 @@ function RatioCard({
     <div
       className={cn(
         "rounded-xl bg-surface border border-border border-l-[3px] p-3",
+        // Premium Feel R1 — hover lift matches the clickable variant so
+        // the whole grid reads consistently even when individual cards
+        // aren't interactive.
+        "transition-transform duration-200 ease-out hover:scale-[1.015] hover:shadow-md",
         toneClass,
       )}
     >

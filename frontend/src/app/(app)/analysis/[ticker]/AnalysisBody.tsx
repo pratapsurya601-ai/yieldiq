@@ -10,7 +10,9 @@ import {
   getRatiosHistory,
 } from "@/lib/api"
 import { fetchPrism } from "@/lib/prism"
-import AnalysisTabs, { type AnalysisTabDef } from "@/components/analysis/AnalysisTabs"
+import AnalysisTabs, { type AnalysisTabDef, type AnalysisTabKey } from "@/components/analysis/AnalysisTabs"
+import StickyAnalysisNav from "@/components/analysis/StickyAnalysisNav"
+import Reveal from "@/components/common/Reveal"
 import InsightCards from "@/components/analysis/InsightCards"
 import RedFlagInsights from "@/components/analysis/RedFlagInsights"
 import QualityRatios from "@/components/analysis/QualityRatios"
@@ -445,6 +447,10 @@ export default function AnalysisBody({ ticker, prism }: Props) {
   // fires when the tab is opened, at which point the user expects a
   // fraction-of-a-second wait.
   const [openedTabs, setOpenedTabs] = useState<Set<string>>(() => new Set(["summary"]))
+  // Premium Feel R1: controlled tab key so the sticky pill-nav can drive
+  // tab switches in lockstep with smooth-scroll jumps. AnalysisTabs still
+  // owns its own state — this is just the external override.
+  const [activeTabKey, setActiveTabKey] = useState<AnalysisTabKey>("summary")
 
   // Toast for PAYG flow (reuses the styling pattern from account/page.tsx).
   // Lives here so the 429 gate and any inline unlock can share it.
@@ -1588,16 +1594,18 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             the-fold hero. Single source of truth for verdict / FV / discount
             / worry / score / moat / red flags. Sticky side rail at ≥1024 is
             THE single position:sticky scorecard-class surface on the page. */}
-        <HonestHero
-          ticker={data.ticker}
-          displayTicker={canonicalDisplay}
-          companyName={formatCompanyName(company.company_name)}
-          currency={company.currency}
-          signals={heroSignals}
-          payload={data}
-          rawFairValue={data.scenarios?.base?.iv ?? null}
-          honestCardTeaser={data.honest_card?.best_estimate ?? null}
-        />
+        <Reveal direction="up" delay={0}>
+          <HonestHero
+            ticker={data.ticker}
+            displayTicker={canonicalDisplay}
+            companyName={formatCompanyName(company.company_name)}
+            currency={company.currency}
+            signals={heroSignals}
+            payload={data}
+            rawFairValue={data.scenarios?.base?.iv ?? null}
+            honestCardTeaser={data.honest_card?.best_estimate ?? null}
+          />
+        </Reveal>
 
         {/* Per-ticker model caveat banner — surfaced for conglomerates,
             holdcos, turnarounds, and pre-profit names where the generic
@@ -1771,13 +1779,50 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           )
         })()}
 
+        {/* Premium Feel R1: sticky horizontal pill-nav. Sits directly
+            below the hero so users always have a 1-click route to the
+            section they care about. The nav drives AnalysisTabs via the
+            controlled `active` prop and scrolls to the target section's
+            id (#section-<tab> emitted by AnalysisTabs, #section-ai for
+            the ELI15 thesis block). data-hero-anchor on the hero band
+            below tells the nav when to attach the glass background. */}
+        <div id="section-hero-anchor" data-hero-anchor aria-hidden />
+        <StickyAnalysisNav
+          sections={[
+            { id: "section-summary", label: "Summary" },
+            { id: "section-valuation", label: "Valuation" },
+            { id: "section-quality", label: "Quality" },
+            { id: "section-financials", label: "Financials" },
+            { id: "section-history", label: "History" },
+            { id: "section-peers", label: "Peers" },
+            { id: "section-ai", label: "AI" },
+          ]}
+          heroSelector="[data-hero-anchor]"
+          defaultActive={`section-${activeTabKey}`}
+          onSelect={(id) => {
+            // section-<tabKey> -> drive the controlled tab. The "ai"
+            // anchor scrolls to the ELI15 thesis panel without flipping
+            // the tab so the user stays inside whichever deep-dive they
+            // were reading.
+            const key = id.replace(/^section-/, "")
+            if (key === "ai") return
+            const tabKey = key as AnalysisTabKey
+            setActiveTabKey(tabKey)
+            setOpenedTabs((prev) => new Set(prev).add(tabKey))
+          }}
+        />
+
         {/* ELI15 thesis panel — "Why the model sees it this way".
             Sits directly below the hero band / verdict pill and ABOVE
             the confidence / methodology disclosure so non-experts get
             the plain-English thesis BEFORE the deep-dive numbers.
             Server-side SEBI-filtered with a deterministic template
             fallback; hides itself on error / empty payload. */}
-        <ELI15ThesisPanel ticker={ticker} />
+        <Reveal direction="up" delay={0}>
+          <div id="section-ai">
+            <ELI15ThesisPanel ticker={ticker} />
+          </div>
+        </Reveal>
 
         {/* Confidence and methodology disclosure (chassis 2026-05-26).
             Collapsed by default per .audit/competitor-walk-hdfcbank-
@@ -1788,6 +1833,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             chips, and valuation-stability band — live in here for
             readers who want them. Components are unchanged; only the
             visibility wrapper is new. */}
+        <Reveal direction="up" delay={80}>
         <details className="rounded-2xl border border-border bg-bg dark:bg-surface group">
           <summary className="cursor-pointer list-none flex items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-ink [&::-webkit-details-marker]:hidden">
             <span className="flex items-center gap-2">
@@ -1829,20 +1875,30 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             />
           </div>
         </details>
+        </Reveal>
 
         {/* Analytical notes — backend-emitted contextual disclaimers
             (premium brand, conglomerate, regulated utility, etc.). Sits
             between the hero and the deep-dive tabs so the caveats land
             in the user's eye before they read the numbers. Renders
             nothing when the array is empty/undefined. */}
-        <AnalyticalNotes notes={data.analytical_notes} />
+        <Reveal direction="left" delay={160}>
+          <AnalyticalNotes notes={data.analytical_notes} />
+        </Reveal>
 
-        <AnalysisTabs
-          tabs={tabs}
-          initial="summary"
-          onTabChange={(key) => setOpenedTabs((prev) => new Set(prev).add(key))}
-        />
+        <Reveal direction="up" delay={0}>
+          <AnalysisTabs
+            tabs={tabs}
+            initial="summary"
+            active={activeTabKey}
+            onTabChange={(key) => {
+              setOpenedTabs((prev) => new Set(prev).add(key))
+              setActiveTabKey(key)
+            }}
+          />
+        </Reveal>
 
+        <Reveal direction="up" delay={80}>
         <div className="bg-gradient-to-r from-[color:var(--color-brand-50)] to-surface border border-border rounded-xl p-4 flex items-center justify-between gap-3 flex-wrap">
           <div className="min-w-0">
             <p className="text-sm font-semibold text-ink">Share this analysis</p>
@@ -1866,6 +1922,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             <DetailedExportButton ticker={ticker} />
           </div>
         </div>
+        </Reveal>
 
         {/* feat/transparency (2026-05-02): "Data Freshness" widget.
             Summarises every per-number provenance / freshness field
@@ -1873,13 +1930,17 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             audit data lineage without hunting through tooltips. Purely
             additive — renders any non-null subset, hides itself when
             nothing is available (legacy cached payloads). */}
-        <DataFreshnessWidget data={data} />
+        <Reveal direction="up" delay={160}>
+          <DataFreshnessWidget data={data} />
+        </Reveal>
 
         {/* Alpha-Spread restyle (2026-05-25): See Also peer mini-cards.
             Reuses the existing /peers endpoint — no extra backend work.
             Lives between the deep-dive content and the manifest audit so
             users have a continuation path before the page tapers off. */}
-        <SeeAlsoPeers ticker={ticker} currency={company.currency} />
+        <Reveal direction="up" delay={0}>
+          <SeeAlsoPeers ticker={ticker} currency={company.currency} />
+        </Reveal>
 
         {/* chassis(PR-A) 2026-05-26: thin strip of at-a-glance signal
             chips (Analyst Consensus / Insider Activity / Promoter
@@ -1889,21 +1950,25 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             quick-reference chips and then auto-generated Q&A. Visible
             on every tab by design — these are page-level signals, not
             tab-scoped. */}
-        <InsightCards
-          quality={quality}
-          insights={insights}
-          valuation={valuation}
-          currency={company.currency}
-          sector={company.sector}
-          ticker={company.ticker}
-          analystConsensus={data.analyst_consensus ?? null}
-        />
+        <Reveal direction="up" delay={80}>
+          <InsightCards
+            quality={quality}
+            insights={insights}
+            valuation={valuation}
+            currency={company.currency}
+            sector={company.sector}
+            ticker={company.ticker}
+            analystConsensus={data.analyst_consensus ?? null}
+          />
+        </Reveal>
 
         {/* Alpha-Spread restyle (2026-05-25): auto-generated FAQ with
             schema.org FAQPage JSON-LD. Template-driven, NO LLM. Highest-
             leverage SEO move in the spec — Google promotes FAQPage in
             search results as rich snippets. */}
-        <AnalysisFAQ data={data} />
+        <Reveal direction="up" delay={0}>
+          <AnalysisFAQ data={data} />
+        </Reveal>
 
         {/* Day-108a manifest history — collapsed by default per user
             feedback 2026-05-25 ("dont need this"). Kept accessible
