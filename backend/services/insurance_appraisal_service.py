@@ -51,9 +51,61 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass, field
 from typing import Optional
 
 logger = logging.getLogger("yieldiq.insurance_appraisal")
+
+
+# ── Insurer-type ticker classification (T3.3) ──────────────────
+# Single source of truth for which Indian listed insurers are
+# eligible for the EV + VNB appraisal framework. Mirrors the
+# tickers already routed through ``_INSURANCE_TICKERS`` in
+# backend/services/analysis/constants.py, narrowed to the LIFE
+# subset (the only subset where annual EV + VNB disclosure makes
+# the appraisal math applicable).
+#
+# General + health insurers (ICICI Lombard, Star Health, Niva
+# Bupa, GIC Re, etc.) do NOT report EV / VNB. Their published
+# valuation primitives are float-investment income, combined
+# ratio (CoR = loss ratio + expense ratio) and underwriting
+# margin — these belong in a separate float-PE / DDM cohort.
+#
+# Sources for the multiplier band:
+#   - HDFC Life FY24 / FY25 investor decks (consensus VNB-mult ~22x)
+#   - ICICI Pru Life FY24 disclosures (~20x consensus)
+#   - SBI Life FY24 (~24x — distribution moat premium)
+#   - LICI FY24 (lower ~12x — sovereign mix + lower growth)
+#   - Damodaran "Valuation of Financial Service Firms" (2014):
+#     life-insurance appraisal-value multiple of new-business
+#     creation should sit in 15-30x absent franchise distortions.
+LIFE_INSURERS: frozenset[str] = frozenset({
+    "HDFCLIFE", "ICICIPRULI", "SBILIFE", "MAXFIN", "LICI",
+})
+GENERAL_HEALTH_INSURERS: frozenset[str] = frozenset({
+    "ICICIGI", "STARHEALTH", "NIVABUPA",
+    # Re-insurers + PSU general — float-income framework, not EV/VNB.
+    "GICRE", "NIACL", "GODIGIT",
+})
+
+
+# Default multipliers per life insurer — calibrated to the published
+# multiplier each insurer trades at in the sell-side consensus VNB-
+# valuation tables. Mid-point of the 15-30x Damodaran band.
+_LIFE_INSURER_VNB_MULT_DEFAULTS: dict[str, float] = {
+    "HDFCLIFE":   22.0,
+    "ICICIPRULI": 20.0,
+    "SBILIFE":    24.0,
+    "MAXFIN":     18.0,
+    "LICI":       12.0,
+}
+
+# Mid-point default when ticker is unknown but is_ev_vnb_applicable
+# was overridden by the caller (rare — typically the caller will
+# gate on the LIFE_INSURERS frozenset first).
+_DEFAULT_VNB_MULT = 20.0
+_VNB_MULT_FLOOR = 15.0
+_VNB_MULT_CEILING = 30.0
 
 
 # ── N multiplier clamp ──────────────────────────────────────────
@@ -298,3 +350,359 @@ def get_appraisal_fair_value_for_ticker(
     meta["entered_by"] = row.get("entered_by")
     meta["vnb_margin_pct"] = row.get("vnb_margin_pct")
     return out
+
+
+# ═══════════════════════════════════════════════════════════════
+# T3.3 — Embedded-Value + Value-of-New-Business appraisal math
+#
+# A pure-compute API (no DB, no I/O) that exposes the standard
+# insurance valuation framework:
+#
+#     Appraisal Value = EV + VNB × N
+#     FV per share    = Appraisal Value / shares_outstanding
+#
+# Two key differences from ``compute_appraisal_fair_value`` above:
+#
+#   1. It accepts ABSOLUTE Rs values (Crore-scale typical, but the
+#      caller's units flow through unchanged). The pre-existing
+#      ``compute_appraisal_fair_value`` accepts PER-SHARE inputs
+#      derived from the admin-entry table at the persistence layer.
+#
+#   2. The N multiplier is selected from a published-multiplier
+#      table (calibrated to each insurer's sell-side consensus
+#      VNB-mult) rather than derived from a Gordon-style g/RDR
+#      formula. Both approaches converge in the 15-25x band for
+#      the Indian listed life cohort; this API exposes the
+#      published-multiplier framing because that is how broker
+#      research notes and investor decks state the math.
+#
+# Phase A delivery (T3.3): this extension is purely additive — no
+# routing branch in backend/services/analysis/service.py is wired
+# to call ``compute_ev_vnb_appraisal``. The existing
+# ``get_appraisal_fair_value_for_ticker`` -> ``compute_appraisal_
+# fair_value`` path remains the sole production caller. Phase B
+# (separate PR, post canary-diff confirmation) will wire this API
+# into the analysis route as an alternate framing alongside the
+# operator-entry path.
+# ═══════════════════════════════════════════════════════════════
+
+
+@dataclass
+class EVVNBInputs:
+    """Aggregate-Rs (NOT per-share) appraisal-value inputs.
+
+    All Rs amounts are in the caller's chosen unit (typically
+    Indian Crores; 1 Cr = 1e7 INR). The formula is unit-agnostic
+    — what comes in flows out. If shares_outstanding is also
+    passed in matching units (i.e. count of shares), the per-share
+    output divides cleanly.
+
+    Attributes:
+        embedded_value: Latest reported EV (most recent annual
+            EV / IEV / TEV report). Aggregate Rs, not per-share.
+        new_business_value: VNB for the latest reporting year
+            (TTM or FY, caller's choice). Aggregate Rs.
+        vnb_multiple: N — the capitalisation multiple applied to
+            VNB. Default 20x = mid-point of the Damodaran [15, 30]
+            band; callers should typically obtain this via
+            ``select_vnb_multiple`` so the per-insurer default
+            (HDFCLIFE 22x, LICI 12x, etc.) is picked up.
+        new_business_growth: Optional forward growth used for
+            projected-VNB sanity checks. Not used in the headline
+            ``appraisal_value`` calculation — that is one-period.
+        forward_years: How many years of forward VNB projection
+            the caller intends to use downstream (informational
+            only at this layer).
+    """
+    embedded_value: float
+    new_business_value: float
+    vnb_multiple: float = 20.0
+    new_business_growth: Optional[float] = None
+    forward_years: int = 5
+
+
+@dataclass
+class EVVNBResult:
+    """Structured appraisal-value output."""
+    appraisal_value: Optional[float]
+    appraisal_per_share: Optional[float]
+    components: dict
+    method: str
+    sanity_warnings: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return {
+            "appraisal_value": self.appraisal_value,
+            "appraisal_per_share": self.appraisal_per_share,
+            "components": dict(self.components),
+            "method": self.method,
+            "sanity_warnings": list(self.sanity_warnings),
+        }
+
+
+def compute_ev_vnb_appraisal(
+    inputs: EVVNBInputs,
+    shares_outstanding: Optional[float] = None,
+) -> EVVNBResult:
+    """Insurance appraisal value via EV + (VNB × Multiple).
+
+    Two return modes:
+
+      * ``method = "ev_plus_vnb_capitalized"`` — the standard case:
+        EV > 0, VNB > 0, multiple > 0. Returns
+        ``appraisal_value = ev + vnb * multiple``.
+
+      * ``method = "ev_only"`` — when VNB <= 0 (loss-making new
+        business or zero disclosure). Returns ``appraisal_value =
+        ev`` and adds a sanity warning. This is the right fallback
+        when an insurer has paused growth or written off a cohort
+        of new business — EV captures the run-off value.
+
+      * ``method = "unavailable"`` — when EV is missing / <= 0.
+        No appraisal is possible. ``appraisal_value`` is None.
+
+    When ``shares_outstanding`` is supplied and positive, also
+    populates ``appraisal_per_share``. Otherwise that field is
+    None and the caller can read ``appraisal_value`` as an
+    aggregate.
+
+    Args:
+        inputs: Aggregate-Rs EV/VNB inputs (see EVVNBInputs).
+        shares_outstanding: Optional diluted-share count. When
+            absent, only the aggregate value is returned.
+
+    Returns:
+        ``EVVNBResult`` with method-tagged components dict so the
+        caller can render a transparency panel ("EV ₹50,000 Cr +
+        VNB ₹3,500 Cr × 22 = ₹127,000 Cr appraisal value").
+
+    Notes:
+        - Negative EV is rejected (returns ``unavailable``). A real
+          insurer with negative EV is technically insolvent —
+          appraisal-value math is meaningless.
+        - Multiplier outside [15, 30] generates a sanity warning
+          but does NOT override the caller's choice. The clamp is
+          documented at the broker-research level; specific
+          insurer overrides (e.g. LICI 12x) intentionally sit
+          below the floor and the caller (``select_vnb_multiple``)
+          is the right place to make that judgement.
+    """
+    warnings: list[str] = []
+
+    ev = float(inputs.embedded_value or 0)
+    vnb = float(inputs.new_business_value or 0)
+    mult = float(inputs.vnb_multiple or 0)
+
+    if ev <= 0:
+        return EVVNBResult(
+            appraisal_value=None,
+            appraisal_per_share=None,
+            components={"ev": ev, "vnb_capitalized": 0.0, "vnb_multiple": mult},
+            method="unavailable",
+            sanity_warnings=[
+                "Embedded Value missing or non-positive — appraisal value "
+                "cannot be computed.",
+            ],
+        )
+
+    # Multiplier band check — surface a warning but honour the caller's
+    # choice. The 15-30x band is the Damodaran / sell-side consensus
+    # range; LICI-like sovereign-mix names legitimately trade below 15x.
+    if mult and mult < _VNB_MULT_FLOOR:
+        warnings.append(
+            f"VNB multiple {mult:.1f}x is below the typical [15, 30] band "
+            f"— acceptable for sovereign-mix or low-growth insurers but "
+            f"verify the calibration source."
+        )
+    elif mult > _VNB_MULT_CEILING:
+        warnings.append(
+            f"VNB multiple {mult:.1f}x exceeds the typical [15, 30] band "
+            f"— sell-side research caps at 30x even for top-tier growth."
+        )
+
+    if vnb <= 0 or mult <= 0:
+        # EV-only fallback. Most common reason: TTM VNB turned negative
+        # (rare — happens during product-mix transitions) or the caller
+        # did not pass a multiple.
+        if vnb <= 0:
+            warnings.append(
+                "Value of New Business is non-positive — appraisal value "
+                "defaults to Embedded Value alone (no VNB capitalisation)."
+            )
+        if mult <= 0 and vnb > 0:
+            warnings.append(
+                "VNB multiple is non-positive — appraisal value defaults "
+                "to Embedded Value alone."
+            )
+        appraisal = ev
+        components = {
+            "ev": ev,
+            "vnb_capitalized": 0.0,
+            "vnb_multiple": mult,
+            "vnb_input": vnb,
+        }
+        method = "ev_only"
+    else:
+        vnb_capitalized = vnb * mult
+        appraisal = ev + vnb_capitalized
+        components = {
+            "ev": ev,
+            "vnb_capitalized": vnb_capitalized,
+            "vnb_multiple": mult,
+            "vnb_input": vnb,
+        }
+        method = "ev_plus_vnb_capitalized"
+
+    per_share: Optional[float] = None
+    if shares_outstanding and float(shares_outstanding) > 0:
+        per_share = appraisal / float(shares_outstanding)
+
+    # Forward-projection sanity check — purely informational.
+    if inputs.new_business_growth is not None and inputs.forward_years > 0:
+        g = float(inputs.new_business_growth)
+        components["forward_growth"] = g
+        components["forward_years"] = int(inputs.forward_years)
+        if g > 0.30:
+            warnings.append(
+                f"New business growth {g * 100:.1f}% is unusually high — "
+                f"sustained >25% VNB growth is rare even for India life."
+            )
+        elif g < -0.10:
+            warnings.append(
+                f"New business growth {g * 100:.1f}% is sharply negative — "
+                f"appraisal value will deteriorate quickly absent recovery."
+            )
+
+    return EVVNBResult(
+        appraisal_value=appraisal,
+        appraisal_per_share=per_share,
+        components=components,
+        method=method,
+        sanity_warnings=warnings,
+    )
+
+
+def select_vnb_multiple(
+    insurer_type: str,
+    new_business_growth: Optional[float] = None,
+    market_share_trend: Optional[str] = None,
+    ticker: Optional[str] = None,
+) -> float:
+    """Pick a VNB multiple based on insurer characteristics.
+
+    Life insurers: 18-25x typical. Per-ticker defaults reflect
+    sell-side consensus VNB-multiples:
+
+      * HDFCLIFE  22x (brand + bancassurance premium)
+      * ICICIPRULI 20x (mixed channel)
+      * SBILIFE    24x (distribution moat via SBI branches)
+      * MAXFIN     18x (smaller distribution footprint)
+      * LICI       12x (sovereign mix, lower secular growth —
+                        legitimately below the 15x floor)
+
+    General + health insurers: returns a sentinel ``0.0`` — the EV/VNB
+    framework does NOT apply (they don't publish EV or VNB). The
+    correct framing is float-investment-income PE or DDM.
+
+    Adjustments:
+      * Market-share gainers: +2x to +3x
+      * Market-share losers:  -3x to -5x
+      * New-business-growth above 25%: +2x boost
+      * New-business-growth below 5%:  -2x penalty
+
+    Args:
+        insurer_type: One of {"life", "general", "health"}. The
+            caller is expected to derive this from
+            ``LIFE_INSURERS`` / ``GENERAL_HEALTH_INSURERS``.
+        new_business_growth: Optional fractional growth (0.15 for
+            15%) — pulls the multiplier up for growth-tilted names.
+        market_share_trend: One of {"gaining", "stable", "losing",
+            None}. Optional qualitative input.
+        ticker: Optional bare ticker. When provided AND a
+            per-insurer default exists, that default is used as
+            the base before growth / market-share adjustments.
+
+    Returns:
+        Multiple as a float. Returns 0.0 for general / health
+        insurers (sentinel — caller must check before use).
+    """
+    itype = (insurer_type or "").strip().lower()
+    if itype in ("general", "health", "general_insurance", "health_insurance",
+                 "reinsurance", "non_life"):
+        # Sentinel — caller must NOT apply this to compute_ev_vnb_appraisal.
+        return 0.0
+    if itype not in ("life", "life_insurance"):
+        # Unknown insurer type — return mid-point default but log so the
+        # caller can investigate.
+        logger.debug(
+            "select_vnb_multiple: unknown insurer_type=%r; defaulting to "
+            "mid-point %.1fx", insurer_type, _DEFAULT_VNB_MULT,
+        )
+        return _DEFAULT_VNB_MULT
+
+    # Per-ticker default if known. Otherwise mid-point.
+    clean = _clean_ticker(ticker or "")
+    base = _LIFE_INSURER_VNB_MULT_DEFAULTS.get(clean, _DEFAULT_VNB_MULT)
+
+    # Market-share adjustment.
+    if market_share_trend:
+        trend = market_share_trend.strip().lower()
+        if trend in ("gaining", "gain", "+"):
+            base += 2.5
+        elif trend in ("losing", "lose", "-"):
+            base -= 4.0
+        # "stable" → no adjustment.
+
+    # Growth adjustment — symmetric ±2x at the 25%/5% thresholds.
+    if new_business_growth is not None:
+        g = float(new_business_growth)
+        if g >= 0.25:
+            base += 2.0
+        elif g <= 0.05:
+            base -= 2.0
+
+    # Honour LICI / similar sovereign-mix legitimate-low overrides:
+    # if the per-ticker default is already below the [15, 30] band
+    # (only LICI today at 12x), keep the under-band value rather
+    # than clamping. For everyone else, enforce the band.
+    per_ticker_default = _LIFE_INSURER_VNB_MULT_DEFAULTS.get(clean)
+    if per_ticker_default is not None and per_ticker_default < _VNB_MULT_FLOOR:
+        # Allow the result to drift downward but cap upside at the
+        # ceiling so an adjustment can't push a sovereign-mix name
+        # above 30x.
+        return max(0.0, min(_VNB_MULT_CEILING, base))
+    return max(_VNB_MULT_FLOOR, min(_VNB_MULT_CEILING, base))
+
+
+def is_ev_vnb_applicable(ticker: str, sector: Optional[str] = None) -> bool:
+    """True iff the EV + VNB appraisal framework is appropriate.
+
+    Returns True for the five listed Indian life insurers
+    (``LIFE_INSURERS`` frozenset). Returns False for general /
+    health insurers (they don't disclose EV / VNB), banks, and
+    everything else.
+
+    The ``sector`` argument is accepted for API symmetry with
+    other cohort-classifier helpers in the analysis pipeline but
+    is currently unused — ticker membership is the authoritative
+    signal, because yfinance / NSE sector strings for insurers
+    ("Insurance — Life", "Insurance — General", "Financial
+    Services") are too coarse to distinguish the two cohorts.
+
+    Args:
+        ticker: Either bare ("HDFCLIFE") or canonical
+            ("HDFCLIFE.NS") form.
+        sector: Currently ignored — see note above. Accepted for
+            future-proofing when sector taxonomy stabilises.
+
+    Returns:
+        True for life insurers, False otherwise.
+    """
+    clean = _clean_ticker(ticker)
+    if not clean:
+        return False
+    if clean in LIFE_INSURERS:
+        return True
+    if clean in GENERAL_HEALTH_INSURERS:
+        return False
+    return False

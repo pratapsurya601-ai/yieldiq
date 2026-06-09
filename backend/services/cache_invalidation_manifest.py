@@ -1932,6 +1932,43 @@ MANIFEST: list[dict] = [
             "byte-identical; this is purely additive."
         ),
     },
+    {
+        # T3.3 (2026-06-09) — Embedded Value + Value of New Business
+        # appraisal-math extension to insurance_appraisal_service.py.
+        # Phase A delivery: additive pure-compute API (EVVNBInputs /
+        # EVVNBResult / compute_ev_vnb_appraisal / select_vnb_multiple
+        # / is_ev_vnb_applicable / LIFE_INSURERS frozenset). No routing
+        # branch is wired into backend/services/analysis/service.py —
+        # the existing operator-DB Gordon-style path
+        # (compute_appraisal_fair_value /
+        #  get_appraisal_fair_value_for_ticker) remains the sole
+        # production caller for life insurers. Phase B (separate PR,
+        # post canary-diff confirmation) will wire this API into the
+        # analysis route as an alternate framing.
+        #
+        # scope.fields = [] because no cached field shape changes in
+        # Phase A — the entry exists to record WHEN the EV/VNB extension
+        # landed so a future Phase B routing change has a contemporaneous
+        # anchor to corroborate against.
+        "version_id": "v_t3_3_insurance_ev_vnb_2026_06_10",
+        "applied_at": datetime(2026, 6, 9, 19, 1, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["HDFCLIFE", "ICICIPRULI", "SBILIFE", "MAXFIN", "LICI"],
+            "fields": [],
+        },
+        "rationale": (
+            "T3.3 — EV + VNB appraisal math added to insurance_appraisal_"
+            "service. Routes life insurers (HDFCLIFE, ICICIPRULI, SBILIFE, "
+            "MAXFIN, LICI) through the appraisal framework that aligns "
+            "with how insurers themselves report value via the annual EV "
+            "+ VNB disclosure. General + health insurers (ICICIGI, "
+            "STARHEALTH, NIVABUPA, GICRE, NIACL, GODIGIT) excluded — "
+            "they do not publish EV / VNB, the appropriate frame for "
+            "them is float-investment-income PE or DDM. Phase A "
+            "additive — no analysis-route wiring; cached field shapes "
+            "unchanged."
+        ),
+    },
 ]
 
 
