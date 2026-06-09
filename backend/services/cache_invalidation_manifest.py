@@ -2000,6 +2000,36 @@ MANIFEST: list[dict] = [
             "in a separate PR."
         ),
     },
+    {
+        # T3.5 Phase A — pharma pipeline rNPV standalone service
+        # (backend/services/pharma_pipeline_service.py) lands in this
+        # PR. The service computes per-asset risk-adjusted NPV with
+        # POA scaling by development phase (discovery 3% → filed 87%)
+        # and is gated behind a hand-curated seed
+        # (backend/data/pharma_pipeline_seed.json, three tickers
+        # SUNPHARMA / DRREDDY / BIOCON). No wiring into the analysis
+        # route happens this PR — that lands in Phase B once the
+        # pipeline data ingestion is built. Output of standard pharma
+        # franchise DCF is unchanged. The scope here is therefore
+        # narrow (the three curated tickers) and fields-empty (no
+        # cached field shifts) — the entry exists as a contemporaneous
+        # paper trail of the engine-surface addition so the manifest-
+        # history timeline records when the optionality engine first
+        # entered the codebase.
+        "version_id": "v_t3_5_pharma_pipeline_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": ["SUNPHARMA", "DRREDDY", "BIOCON"],
+            "fields": [],
+        },
+        "rationale": (
+            "T3.5 Phase A — pharma pipeline rNPV standalone service "
+            "added. Per-asset risk-adjusted NPV with POA scaling by "
+            "development phase. Phase B wires into pharma route "
+            "(separate PR) after pipeline data ingestion is built."
+        ),
+    },
+    
 ]
 
 
