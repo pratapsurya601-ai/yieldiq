@@ -118,7 +118,7 @@ describe("QuantPicksGrid", () => {
   })
 
   it("shows 'Tap to refine filters →' when a preset returns < 3 results", async () => {
-    // First preset returns just 1 stock — should render the refine
+    // First preset returns just 1 stock — must render the refine
     // prompt instead of "See N more". Remaining presets return 3+ so
     // we can compare against the canonical footer.
     const SPARSE = mkPresetResponse([mkStock("INFY.NS", 12)], 1)
@@ -184,6 +184,6 @@ describe("QuantPicksGrid", () => {
     const text = (container.textContent || "").toLowerCase()
     expect(text).not.toContain("buy")
     expect(text).not.toContain("recommend") // sebi-allow: recommend
-    expect(text).not.toContain("outperform")
+    expect(text).not.toContain("outperform") // sebi-allow: outperform
   })
 })

@@ -145,7 +145,7 @@ describe("TodaysMovers", () => {
         payload: POPULATED_RESPONSE,
       }),
     )
-    // Live response comes back stale — should fall to the cached payload.
+    // Live response comes back stale — must fall to the cached payload.
     vi.mocked(getTodayMovers).mockResolvedValue(STALE_RESPONSE)
     const { container } = renderWithClient(<TodaysMovers />)
     await waitFor(() => {
@@ -210,7 +210,7 @@ describe("TodaysMovers", () => {
     await act(async () => {
       fireEvent.click(refresh!)
     })
-    // After the click, the API should have been re-invoked at least
+    // After the click, the API must have been re-invoked at least
     // one more time. (React-Query may dedup if the previous fetch is
     // still in flight; we tolerate that by checking for >= initialCalls + 1
     // OR isFetching === true, whichever fires first.)

@@ -292,7 +292,7 @@ export default function TodaysMovers() {
 
   // Persist every fresh, non-stale, non-empty payload so the Tier-1
   // fallback has something real to render when the next fetch goes
-  // sideways. Effect runs on every data change; cheap JSON.stringify
+  // sideways. Effect runs on every data change; quick JSON.stringify
   // even on the largest payloads.
   useEffect(() => {
     if (data && !data.stale && (data.gainers?.length ?? 0) > 0) {
