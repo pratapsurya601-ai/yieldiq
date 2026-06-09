@@ -1,0 +1,2346 @@
+{
+  "_meta": {
+    "source": "logo.dev (free tier, public token)",
+    "token_prefix": "pk_SNF…",
+    "size_px": 192,
+    "format": "png",
+    "fetched_at": "2026-06-09T04:32:55.054Z",
+    "summary": {
+      "total": 261,
+      "saved": 253,
+      "placeholder": 3,
+      "too_small": 5,
+      "bad_type": 0,
+      "http_error": 0,
+      "network": 0,
+      "total_bytes": 4579320
+    }
+  },
+  "logos": {
+    "RELIANCE": {
+      "domain": "ril.com",
+      "source_url": "https://img.logo.dev/ril.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22733,
+      "hash": "df0c93ca8d35378c",
+      "fetched_at": "2026-06-09T04:27:55.574Z",
+      "status": "saved",
+      "filename": "RELIANCE.png"
+    },
+    "TCS": {
+      "domain": "tata.com",
+      "source_url": "https://img.logo.dev/tata.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16230,
+      "hash": "fe4aa3ca398be5df",
+      "fetched_at": "2026-06-09T04:27:56.421Z",
+      "status": "saved",
+      "filename": "TCS.png"
+    },
+    "INFY": {
+      "domain": "infosys.com",
+      "source_url": "https://img.logo.dev/infosys.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 13302,
+      "hash": "b5206ef070908e04",
+      "fetched_at": "2026-06-09T04:27:57.529Z",
+      "status": "saved",
+      "filename": "INFY.png"
+    },
+    "ITC": {
+      "domain": "itcportal.com",
+      "source_url": "https://img.logo.dev/itcportal.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21024,
+      "hash": "b16d621141ab1bc8",
+      "fetched_at": "2026-06-09T04:27:58.447Z",
+      "status": "saved",
+      "filename": "ITC.png"
+    },
+    "HCLTECH": {
+      "domain": "hcltech.com",
+      "source_url": "https://img.logo.dev/hcltech.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9316,
+      "hash": "0f6cb582fcc33846",
+      "fetched_at": "2026-06-09T04:27:59.132Z",
+      "status": "saved",
+      "filename": "HCLTECH.png"
+    },
+    "BHARTIARTL": {
+      "domain": "airtel.in",
+      "source_url": "https://img.logo.dev/airtel.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9396,
+      "hash": "44fc7e6a2949731a",
+      "fetched_at": "2026-06-09T04:28:00.029Z",
+      "status": "saved",
+      "filename": "BHARTIARTL.png"
+    },
+    "LT": {
+      "domain": "larsentoubro.com",
+      "source_url": "https://img.logo.dev/larsentoubro.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15396,
+      "hash": "e0208148a4698f1f",
+      "fetched_at": "2026-06-09T04:28:00.987Z",
+      "status": "saved",
+      "filename": "LT.png"
+    },
+    "MARUTI": {
+      "domain": "marutisuzuki.com",
+      "source_url": "https://img.logo.dev/marutisuzuki.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9294,
+      "hash": "038fd4d04ffeb5c5",
+      "fetched_at": "2026-06-09T04:28:02.202Z",
+      "status": "saved",
+      "filename": "MARUTI.png"
+    },
+    "WIPRO": {
+      "domain": "wipro.com",
+      "source_url": "https://img.logo.dev/wipro.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20631,
+      "hash": "ea4053af55100c89",
+      "fetched_at": "2026-06-09T04:28:03.103Z",
+      "status": "saved",
+      "filename": "WIPRO.png"
+    },
+    "TITAN": {
+      "domain": "titancompany.in",
+      "source_url": "https://img.logo.dev/titancompany.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16019,
+      "hash": "c2d17fc9c6ee8551",
+      "fetched_at": "2026-06-09T04:28:03.864Z",
+      "status": "saved",
+      "filename": "TITAN.png"
+    },
+    "ULTRACEMCO": {
+      "domain": "ultratechcement.com",
+      "source_url": "https://img.logo.dev/ultratechcement.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9509,
+      "hash": "1a820c844d24c4a4",
+      "fetched_at": "2026-06-09T04:28:04.676Z",
+      "status": "saved",
+      "filename": "ULTRACEMCO.png"
+    },
+    "HINDUNILVR": {
+      "domain": "hul.co.in",
+      "source_url": "https://img.logo.dev/hul.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 25044,
+      "hash": "10b7155e80304f76",
+      "fetched_at": "2026-06-09T04:28:05.823Z",
+      "status": "saved",
+      "filename": "HINDUNILVR.png"
+    },
+    "NESTLEIND": {
+      "domain": "nestle.in",
+      "source_url": "https://img.logo.dev/nestle.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 25918,
+      "hash": "f6e7a6aef6e177cb",
+      "fetched_at": "2026-06-09T04:28:06.577Z",
+      "status": "saved",
+      "filename": "NESTLEIND.png"
+    },
+    "BRITANNIA": {
+      "domain": "britannia.co.in",
+      "source_url": "https://img.logo.dev/britannia.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2770,
+      "hash": "a8a99621d1bd1525",
+      "fetched_at": "2026-06-09T04:28:07.294Z",
+      "status": "saved",
+      "filename": "BRITANNIA.png"
+    },
+    "DABUR": {
+      "domain": "dabur.com",
+      "source_url": "https://img.logo.dev/dabur.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 47407,
+      "hash": "d056140a3b1ace56",
+      "fetched_at": "2026-06-09T04:28:08.820Z",
+      "status": "saved",
+      "filename": "DABUR.png"
+    },
+    "GODREJCP": {
+      "domain": "godrejcp.com",
+      "source_url": "https://img.logo.dev/godrejcp.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6547,
+      "hash": "62caf70a2cb03c08",
+      "fetched_at": "2026-06-09T04:28:09.540Z",
+      "status": "saved",
+      "filename": "GODREJCP.png"
+    },
+    "PIDILITIND": {
+      "domain": "pidilite.com",
+      "source_url": "https://img.logo.dev/pidilite.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22497,
+      "hash": "7d77a9cb8aed99e6",
+      "fetched_at": "2026-06-09T04:28:10.603Z",
+      "status": "saved",
+      "filename": "PIDILITIND.png"
+    },
+    "TECHM": {
+      "domain": "techmahindra.com",
+      "source_url": "https://img.logo.dev/techmahindra.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 5936,
+      "hash": "9ae7b63c01b5db62",
+      "fetched_at": "2026-06-09T04:28:12.916Z",
+      "status": "saved",
+      "filename": "TECHM.png"
+    },
+    "GRASIM": {
+      "domain": "grasim.com",
+      "source_url": "https://img.logo.dev/grasim.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2601,
+      "hash": "56f85d66693b6d4b",
+      "fetched_at": "2026-06-09T04:28:21.522Z",
+      "status": "saved",
+      "filename": "GRASIM.png"
+    },
+    "EICHERMOT": {
+      "domain": "eicher.in",
+      "source_url": "https://img.logo.dev/eicher.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9367,
+      "hash": "d92f6618449d282f",
+      "fetched_at": "2026-06-09T04:28:22.820Z",
+      "status": "saved",
+      "filename": "EICHERMOT.png"
+    },
+    "TATACONSUM": {
+      "domain": "tataconsumer.com",
+      "source_url": "https://img.logo.dev/tataconsumer.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21961,
+      "hash": "8a4458bf421cdc5b",
+      "fetched_at": "2026-06-09T04:28:25.373Z",
+      "status": "saved",
+      "filename": "TATACONSUM.png"
+    },
+    "ASIANPAINT": {
+      "domain": "asianpaints.com",
+      "source_url": "https://img.logo.dev/asianpaints.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12245,
+      "hash": "ff4a3cd7a72a5174",
+      "fetched_at": "2026-06-09T04:28:26.263Z",
+      "status": "saved",
+      "filename": "ASIANPAINT.png"
+    },
+    "BAJAJ-AUTO": {
+      "domain": "bajajauto.com",
+      "source_url": "https://img.logo.dev/bajajauto.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 5464,
+      "hash": "8162aa9308f955a5",
+      "fetched_at": "2026-06-09T04:28:27.223Z",
+      "status": "saved",
+      "filename": "BAJAJ_AUTO.png"
+    },
+    "M&M": {
+      "domain": "mahindra.com",
+      "source_url": "https://img.logo.dev/mahindra.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10550,
+      "hash": "5b96eb23c309ad42",
+      "fetched_at": "2026-06-09T04:28:27.935Z",
+      "status": "saved",
+      "filename": "M_AND_M.png"
+    },
+    "HEROMOTOCO": {
+      "domain": "heromotocorp.com",
+      "source_url": "https://img.logo.dev/heromotocorp.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10180,
+      "hash": "7f420aa1f73ae1ce",
+      "fetched_at": "2026-06-09T04:28:28.803Z",
+      "status": "saved",
+      "filename": "HEROMOTOCO.png"
+    },
+    "TATAMOTORS": {
+      "domain": "tatamotors.com",
+      "source_url": "https://img.logo.dev/tatamotors.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20433,
+      "hash": "8c700d798d10971a",
+      "fetched_at": "2026-06-09T04:28:29.977Z",
+      "status": "saved",
+      "filename": "TATAMOTORS.png"
+    },
+    "BAJFINANCE": {
+      "domain": "bajajfinserv.in",
+      "source_url": "https://img.logo.dev/bajajfinserv.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9086,
+      "hash": "3fa0e4ed99ff34bb",
+      "fetched_at": "2026-06-09T04:28:31.057Z",
+      "status": "saved",
+      "filename": "BAJFINANCE.png"
+    },
+    "BAJAJFINSV": {
+      "domain": "bajajfinserv.in",
+      "source_url": "https://img.logo.dev/bajajfinserv.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9086,
+      "hash": "3fa0e4ed99ff34bb",
+      "fetched_at": "2026-06-09T04:28:31.400Z",
+      "status": "saved",
+      "filename": "BAJAJFINSV.png"
+    },
+    "BAJAJHLDNG": {
+      "domain": "bajajauto.com",
+      "source_url": "https://img.logo.dev/bajajauto.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 5464,
+      "hash": "8162aa9308f955a5",
+      "fetched_at": "2026-06-09T04:28:31.749Z",
+      "status": "saved",
+      "filename": "BAJAJHLDNG.png"
+    },
+    "HDFCLIFE": {
+      "domain": "hdfclife.com",
+      "fetched_at": "2026-06-09T04:28:32.533Z",
+      "status": "too_small",
+      "bytes": 375
+    },
+    "SBILIFE": {
+      "domain": "sbilife.co.in",
+      "source_url": "https://img.logo.dev/sbilife.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12339,
+      "hash": "15ece96322738ef1",
+      "fetched_at": "2026-06-09T04:28:33.638Z",
+      "status": "saved",
+      "filename": "SBILIFE.png"
+    },
+    "ICICIPRULI": {
+      "domain": "iciciprulife.com",
+      "source_url": "https://img.logo.dev/iciciprulife.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15032,
+      "hash": "9d1d7eee67254b59",
+      "fetched_at": "2026-06-09T04:28:34.354Z",
+      "status": "saved",
+      "filename": "ICICIPRULI.png"
+    },
+    "ICICIGI": {
+      "domain": "icicilombard.com",
+      "source_url": "https://img.logo.dev/icicilombard.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22034,
+      "hash": "4bfbc200f3b2c99b",
+      "fetched_at": "2026-06-09T04:28:35.230Z",
+      "status": "saved",
+      "filename": "ICICIGI.png"
+    },
+    "LICI": {
+      "domain": "licindia.in",
+      "source_url": "https://img.logo.dev/licindia.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 31481,
+      "hash": "8993cc0512a03614",
+      "fetched_at": "2026-06-09T04:28:36.231Z",
+      "status": "saved",
+      "filename": "LICI.png"
+    },
+    "ADANIPORTS": {
+      "domain": "adaniports.com",
+      "source_url": "https://img.logo.dev/adaniports.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8649,
+      "hash": "53509947aeb0e8f5",
+      "fetched_at": "2026-06-09T04:28:37.127Z",
+      "status": "saved",
+      "filename": "ADANIPORTS.png"
+    },
+    "ADANIENT": {
+      "domain": "adanienterprises.com",
+      "source_url": "https://img.logo.dev/adanienterprises.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8649,
+      "hash": "53509947aeb0e8f5",
+      "fetched_at": "2026-06-09T04:28:39.287Z",
+      "status": "saved",
+      "filename": "ADANIENT.png"
+    },
+    "ADANIGREEN": {
+      "domain": "adanigreenenergy.com",
+      "source_url": "https://img.logo.dev/adanigreenenergy.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 23817,
+      "hash": "ea87e41606ac5283",
+      "fetched_at": "2026-06-09T04:28:40.250Z",
+      "status": "saved",
+      "filename": "ADANIGREEN.png"
+    },
+    "ADANIPOWER": {
+      "domain": "adanipower.com",
+      "source_url": "https://img.logo.dev/adanipower.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17597,
+      "hash": "6bcbe6dbe049877c",
+      "fetched_at": "2026-06-09T04:28:40.989Z",
+      "status": "saved",
+      "filename": "ADANIPOWER.png"
+    },
+    "DLF": {
+      "domain": "dlf.in",
+      "source_url": "https://img.logo.dev/dlf.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6250,
+      "hash": "0ef51818ab3f1ee3",
+      "fetched_at": "2026-06-09T04:28:41.703Z",
+      "status": "saved",
+      "filename": "DLF.png"
+    },
+    "GODREJPROP": {
+      "domain": "godrejproperties.com",
+      "source_url": "https://img.logo.dev/godrejproperties.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6025,
+      "hash": "21fcb6196eaf8aa5",
+      "fetched_at": "2026-06-09T04:28:42.572Z",
+      "status": "saved",
+      "filename": "GODREJPROP.png"
+    },
+    "OBEROIRLTY": {
+      "domain": "oberoirealty.com",
+      "source_url": "https://img.logo.dev/oberoirealty.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14008,
+      "hash": "cb4610ec995f6349",
+      "fetched_at": "2026-06-09T04:28:43.533Z",
+      "status": "saved",
+      "filename": "OBEROIRLTY.png"
+    },
+    "TRENT": {
+      "domain": "trentlimited.com",
+      "source_url": "https://img.logo.dev/trentlimited.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14710,
+      "hash": "6f825ce13a804277",
+      "fetched_at": "2026-06-09T04:28:44.431Z",
+      "status": "saved",
+      "filename": "TRENT.png"
+    },
+    "DMART": {
+      "domain": "dmartindia.com",
+      "source_url": "https://img.logo.dev/dmartindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 18452,
+      "hash": "69b5e7cc7b99fe30",
+      "fetched_at": "2026-06-09T04:28:45.529Z",
+      "status": "saved",
+      "filename": "DMART.png"
+    },
+    "ZOMATO": {
+      "domain": "zomato.com",
+      "source_url": "https://img.logo.dev/zomato.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 5338,
+      "hash": "6d6a8dbc832407fe",
+      "fetched_at": "2026-06-09T04:28:50.664Z",
+      "status": "saved",
+      "filename": "ZOMATO.png"
+    },
+    "PAYTM": {
+      "domain": "paytm.com",
+      "source_url": "https://img.logo.dev/paytm.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12304,
+      "hash": "17a29f03db9150b6",
+      "fetched_at": "2026-06-09T04:28:51.598Z",
+      "status": "saved",
+      "filename": "PAYTM.png"
+    },
+    "NYKAA": {
+      "domain": "nykaa.com",
+      "source_url": "https://img.logo.dev/nykaa.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17926,
+      "hash": "60ae29d06b28d3d4",
+      "fetched_at": "2026-06-09T04:28:52.883Z",
+      "status": "saved",
+      "filename": "NYKAA.png"
+    },
+    "POLICYBZR": {
+      "domain": "policybazaar.com",
+      "source_url": "https://img.logo.dev/policybazaar.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10026,
+      "hash": "ee8291fa2fff5e52",
+      "fetched_at": "2026-06-09T04:28:53.776Z",
+      "status": "saved",
+      "filename": "POLICYBZR.png"
+    },
+    "INDIGO": {
+      "domain": "goindigo.in",
+      "source_url": "https://img.logo.dev/goindigo.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12622,
+      "hash": "9b4ab5b640bfc063",
+      "fetched_at": "2026-06-09T04:28:54.867Z",
+      "status": "saved",
+      "filename": "INDIGO.png"
+    },
+    "LTIM": {
+      "domain": "ltimindtree.com",
+      "source_url": "https://img.logo.dev/ltimindtree.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 41148,
+      "hash": "988492cc0a8806e3",
+      "fetched_at": "2026-06-09T04:28:56.133Z",
+      "status": "saved",
+      "filename": "LTIM.png"
+    },
+    "MPHASIS": {
+      "domain": "mphasis.com",
+      "source_url": "https://img.logo.dev/mphasis.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20020,
+      "hash": "476d9f41aec9a7a4",
+      "fetched_at": "2026-06-09T04:28:57.043Z",
+      "status": "saved",
+      "filename": "MPHASIS.png"
+    },
+    "COFORGE": {
+      "domain": "coforge.com",
+      "source_url": "https://img.logo.dev/coforge.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8900,
+      "hash": "7db5fa020eea2ae7",
+      "fetched_at": "2026-06-09T04:28:57.927Z",
+      "status": "saved",
+      "filename": "COFORGE.png"
+    },
+    "PERSISTENT": {
+      "domain": "persistent.com",
+      "source_url": "https://img.logo.dev/persistent.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 5408,
+      "hash": "53931300c7089b99",
+      "fetched_at": "2026-06-09T04:28:58.651Z",
+      "status": "saved",
+      "filename": "PERSISTENT.png"
+    },
+    "KPITTECH": {
+      "domain": "kpit.com",
+      "source_url": "https://img.logo.dev/kpit.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9604,
+      "hash": "cef895132ce73412",
+      "fetched_at": "2026-06-09T04:28:59.541Z",
+      "status": "saved",
+      "filename": "KPITTECH.png"
+    },
+    "TATAELXSI": {
+      "domain": "tataelxsi.com",
+      "source_url": "https://img.logo.dev/tataelxsi.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16077,
+      "hash": "4c762d6fa1604e97",
+      "fetched_at": "2026-06-09T04:29:00.757Z",
+      "status": "saved",
+      "filename": "TATAELXSI.png"
+    },
+    "OFSS": {
+      "domain": "oracle.com",
+      "source_url": "https://img.logo.dev/oracle.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 7496,
+      "hash": "eec157747ce607e6",
+      "fetched_at": "2026-06-09T04:29:03.454Z",
+      "status": "saved",
+      "filename": "OFSS.png"
+    },
+    "LTTS": {
+      "domain": "ltts.com",
+      "source_url": "https://img.logo.dev/ltts.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 18829,
+      "hash": "82cae1176729c188",
+      "fetched_at": "2026-06-09T04:29:04.781Z",
+      "status": "saved",
+      "filename": "LTTS.png"
+    },
+    "HAVELLS": {
+      "domain": "havells.com",
+      "source_url": "https://img.logo.dev/havells.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11096,
+      "hash": "f394c3b8b9971a8c",
+      "fetched_at": "2026-06-09T04:29:05.528Z",
+      "status": "saved",
+      "filename": "HAVELLS.png"
+    },
+    "VOLTAS": {
+      "domain": "voltas.com",
+      "source_url": "https://img.logo.dev/voltas.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12934,
+      "hash": "dfcbc7166bdc77b2",
+      "fetched_at": "2026-06-09T04:29:06.891Z",
+      "status": "saved",
+      "filename": "VOLTAS.png"
+    },
+    "BLUESTARCO": {
+      "domain": "bluestarindia.com",
+      "source_url": "https://img.logo.dev/bluestarindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6796,
+      "hash": "c85718c1d3e289e9",
+      "fetched_at": "2026-06-09T04:29:07.635Z",
+      "status": "saved",
+      "filename": "BLUESTARCO.png"
+    },
+    "CROMPTON": {
+      "domain": "crompton.co.in",
+      "source_url": "https://img.logo.dev/crompton.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8365,
+      "hash": "063ea004e7ebba3d",
+      "fetched_at": "2026-06-09T04:29:09.200Z",
+      "status": "saved",
+      "filename": "CROMPTON.png"
+    },
+    "WHIRLPOOL": {
+      "domain": "whirlpoolindia.com",
+      "source_url": "https://img.logo.dev/whirlpoolindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2727,
+      "hash": "bb5dd97d9f5ea7aa",
+      "fetched_at": "2026-06-09T04:29:10.731Z",
+      "status": "saved",
+      "filename": "WHIRLPOOL.png"
+    },
+    "DIXON": {
+      "domain": "dixoninfo.com",
+      "source_url": "https://img.logo.dev/dixoninfo.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9807,
+      "hash": "aaedadea051b44c1",
+      "fetched_at": "2026-06-09T04:29:11.562Z",
+      "status": "saved",
+      "filename": "DIXON.png"
+    },
+    "AMBER": {
+      "domain": "ambergroupindia.com",
+      "source_url": "https://img.logo.dev/ambergroupindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12358,
+      "hash": "c8a30beb49ffa57c",
+      "fetched_at": "2026-06-09T04:29:12.250Z",
+      "status": "saved",
+      "filename": "AMBER.png"
+    },
+    "SIEMENS": {
+      "domain": "siemens.com",
+      "source_url": "https://img.logo.dev/siemens.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 4527,
+      "hash": "6db7cdd0161d0527",
+      "fetched_at": "2026-06-09T04:29:12.917Z",
+      "status": "saved",
+      "filename": "SIEMENS.png"
+    },
+    "ABB": {
+      "domain": "abb.com",
+      "source_url": "https://img.logo.dev/abb.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 7412,
+      "hash": "7a5ce61adb40eef0",
+      "fetched_at": "2026-06-09T04:29:13.547Z",
+      "status": "saved",
+      "filename": "ABB.png"
+    },
+    "BOSCHLTD": {
+      "domain": "bosch.in",
+      "source_url": "https://img.logo.dev/bosch.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 24673,
+      "hash": "3c8e5c4e67e3d20f",
+      "fetched_at": "2026-06-09T04:29:14.674Z",
+      "status": "saved",
+      "filename": "BOSCHLTD.png"
+    },
+    "CUMMINSIND": {
+      "domain": "cumminsindia.com",
+      "source_url": "https://img.logo.dev/cumminsindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9501,
+      "hash": "cd91f64e14a7ab5c",
+      "fetched_at": "2026-06-09T04:29:16.042Z",
+      "status": "saved",
+      "filename": "CUMMINSIND.png"
+    },
+    "BHARATFORG": {
+      "domain": "bharatforge.com",
+      "source_url": "https://img.logo.dev/bharatforge.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12422,
+      "hash": "8fdf3f23624295bf",
+      "fetched_at": "2026-06-09T04:29:18.910Z",
+      "status": "saved",
+      "filename": "BHARATFORG.png"
+    },
+    "MOTHERSON": {
+      "domain": "motherson.com",
+      "source_url": "https://img.logo.dev/motherson.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17585,
+      "hash": "286d39beb8128b79",
+      "fetched_at": "2026-06-09T04:29:20.111Z",
+      "status": "saved",
+      "filename": "MOTHERSON.png"
+    },
+    "BALKRISIND": {
+      "domain": "bkt-tires.com",
+      "source_url": "https://img.logo.dev/bkt-tires.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17345,
+      "hash": "1804f53a5f6bdc61",
+      "fetched_at": "2026-06-09T04:29:20.975Z",
+      "status": "saved",
+      "filename": "BALKRISIND.png"
+    },
+    "MRF": {
+      "domain": "mrftyres.com",
+      "source_url": "https://img.logo.dev/mrftyres.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 41473,
+      "hash": "1ea64b2473dce4b6",
+      "fetched_at": "2026-06-09T04:29:22.092Z",
+      "status": "saved",
+      "filename": "MRF.png"
+    },
+    "APOLLOTYRE": {
+      "domain": "apollotyres.com",
+      "source_url": "https://img.logo.dev/apollotyres.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14248,
+      "hash": "fef2803aeef43228",
+      "fetched_at": "2026-06-09T04:29:23.668Z",
+      "status": "saved",
+      "filename": "APOLLOTYRE.png"
+    },
+    "ESCORTS": {
+      "domain": "escortskubota.com",
+      "source_url": "https://img.logo.dev/escortskubota.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10716,
+      "hash": "9c109de33c8945e8",
+      "fetched_at": "2026-06-09T04:29:24.385Z",
+      "status": "saved",
+      "filename": "ESCORTS.png"
+    },
+    "ASHOKLEY": {
+      "domain": "ashokleyland.com",
+      "source_url": "https://img.logo.dev/ashokleyland.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 7517,
+      "hash": "fef1706fc950ea5a",
+      "fetched_at": "2026-06-09T04:29:25.444Z",
+      "status": "saved",
+      "filename": "ASHOKLEY.png"
+    },
+    "TVSMOTOR": {
+      "domain": "tvsmotor.com",
+      "source_url": "https://img.logo.dev/tvsmotor.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11531,
+      "hash": "fc005114077103a7",
+      "fetched_at": "2026-06-09T04:29:26.413Z",
+      "status": "saved",
+      "filename": "TVSMOTOR.png"
+    },
+    "PAGEIND": {
+      "domain": "jockeyindia.com",
+      "source_url": "https://img.logo.dev/jockeyindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 5089,
+      "hash": "2b1300da134d8d66",
+      "fetched_at": "2026-06-09T04:29:27.700Z",
+      "status": "saved",
+      "filename": "PAGEIND.png"
+    },
+    "VBL": {
+      "domain": "varunpepsi.com",
+      "source_url": "https://img.logo.dev/varunpepsi.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12600,
+      "hash": "fd0c0c2c404b39c5",
+      "fetched_at": "2026-06-09T04:29:28.649Z",
+      "status": "saved",
+      "filename": "VBL.png"
+    },
+    "COLPAL": {
+      "domain": "colgatepalmolive.co.in",
+      "source_url": "https://img.logo.dev/colgatepalmolive.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10139,
+      "hash": "d4c3ebae4f4b7249",
+      "fetched_at": "2026-06-09T04:29:29.804Z",
+      "status": "saved",
+      "filename": "COLPAL.png"
+    },
+    "MARICO": {
+      "domain": "marico.com",
+      "source_url": "https://img.logo.dev/marico.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11917,
+      "hash": "1f844574ec1e1794",
+      "fetched_at": "2026-06-09T04:29:30.900Z",
+      "status": "saved",
+      "filename": "MARICO.png"
+    },
+    "EMAMILTD": {
+      "domain": "emamiltd.in",
+      "source_url": "https://img.logo.dev/emamiltd.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14395,
+      "hash": "d95765b8b88350a8",
+      "fetched_at": "2026-06-09T04:29:32.087Z",
+      "status": "saved",
+      "filename": "EMAMILTD.png"
+    },
+    "GILLETTE": {
+      "domain": "gillette.co.in",
+      "source_url": "https://img.logo.dev/gillette.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9400,
+      "hash": "cfb093812576db37",
+      "fetched_at": "2026-06-09T04:29:32.893Z",
+      "status": "saved",
+      "filename": "GILLETTE.png"
+    },
+    "PGHH": {
+      "domain": "pg.com",
+      "source_url": "https://img.logo.dev/pg.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 38626,
+      "hash": "033bf49703ce59a2",
+      "fetched_at": "2026-06-09T04:29:35.242Z",
+      "status": "saved",
+      "filename": "PGHH.png"
+    },
+    "JUBLFOOD": {
+      "domain": "jubilantfoodworks.com",
+      "source_url": "https://img.logo.dev/jubilantfoodworks.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 29996,
+      "hash": "a4d6eb31e60994af",
+      "fetched_at": "2026-06-09T04:29:36.487Z",
+      "status": "saved",
+      "filename": "JUBLFOOD.png"
+    },
+    "DEVYANI": {
+      "domain": "devyani-international.com",
+      "source_url": "https://img.logo.dev/devyani-international.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 2052,
+      "hash": "431dbf3c39954679",
+      "fetched_at": "2026-06-09T04:29:37.211Z",
+      "status": "saved",
+      "filename": "DEVYANI.png"
+    },
+    "WESTLIFE": {
+      "domain": "westlife.co.in",
+      "source_url": "https://img.logo.dev/westlife.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15397,
+      "hash": "11afbe14fee0b868",
+      "fetched_at": "2026-06-09T04:29:38.143Z",
+      "status": "saved",
+      "filename": "WESTLIFE.png"
+    },
+    "BERGEPAINT": {
+      "domain": "bergerpaints.com",
+      "source_url": "https://img.logo.dev/bergerpaints.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 18055,
+      "hash": "1be34daefdd7cecb",
+      "fetched_at": "2026-06-09T04:29:39.283Z",
+      "status": "saved",
+      "filename": "BERGEPAINT.png"
+    },
+    "AKZOINDIA": {
+      "domain": "akzonobel.co.in",
+      "source_url": "https://img.logo.dev/akzonobel.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 30131,
+      "hash": "30bf96bd3e3ac59c",
+      "fetched_at": "2026-06-09T04:29:40.577Z",
+      "status": "saved",
+      "filename": "AKZOINDIA.png"
+    },
+    "KANSAINER": {
+      "domain": "nerolac.com",
+      "source_url": "https://img.logo.dev/nerolac.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21396,
+      "hash": "6d62dcbe96f23d45",
+      "fetched_at": "2026-06-09T04:29:41.704Z",
+      "status": "saved",
+      "filename": "KANSAINER.png"
+    },
+    "INDIGOPNTS": {
+      "domain": "indigopaints.com",
+      "source_url": "https://img.logo.dev/indigopaints.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 26594,
+      "hash": "6929873ad2ce4675",
+      "fetched_at": "2026-06-09T04:29:42.666Z",
+      "status": "saved",
+      "filename": "INDIGOPNTS.png"
+    },
+    "PRAJIND": {
+      "domain": "praj.net",
+      "source_url": "https://img.logo.dev/praj.net?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 31362,
+      "hash": "400ff4217dea53ae",
+      "fetched_at": "2026-06-09T04:29:43.939Z",
+      "status": "saved",
+      "filename": "PRAJIND.png"
+    },
+    "ABCAPITAL": {
+      "domain": "adityabirlacapital.com",
+      "source_url": "https://img.logo.dev/adityabirlacapital.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 30298,
+      "hash": "a9b29d98dc779a9f",
+      "fetched_at": "2026-06-09T04:29:44.940Z",
+      "status": "saved",
+      "filename": "ABCAPITAL.png"
+    },
+    "MUTHOOTFIN": {
+      "domain": "muthootfinance.com",
+      "source_url": "https://img.logo.dev/muthootfinance.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 33250,
+      "hash": "0c69ef22f141992d",
+      "fetched_at": "2026-06-09T04:29:46.101Z",
+      "status": "saved",
+      "filename": "MUTHOOTFIN.png"
+    },
+    "MANAPPURAM": {
+      "domain": "manappuram.com",
+      "source_url": "https://img.logo.dev/manappuram.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 19987,
+      "hash": "dd8df235a643bb3b",
+      "fetched_at": "2026-06-09T04:29:47.602Z",
+      "status": "saved",
+      "filename": "MANAPPURAM.png"
+    },
+    "CHOLAFIN": {
+      "domain": "cholamandalam.com",
+      "source_url": "https://img.logo.dev/cholamandalam.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10966,
+      "hash": "d7c7679b1afb4c16",
+      "fetched_at": "2026-06-09T04:29:48.872Z",
+      "status": "saved",
+      "filename": "CHOLAFIN.png"
+    },
+    "SHRIRAMFIN": {
+      "domain": "shriramfinance.in",
+      "source_url": "https://img.logo.dev/shriramfinance.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 13536,
+      "hash": "98c6fdba978af78a",
+      "fetched_at": "2026-06-09T04:29:49.880Z",
+      "status": "saved",
+      "filename": "SHRIRAMFIN.png"
+    },
+    "UPL": {
+      "domain": "upl-ltd.com",
+      "source_url": "https://img.logo.dev/upl-ltd.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10059,
+      "hash": "4db2d4b506bcde4d",
+      "fetched_at": "2026-06-09T04:29:50.777Z",
+      "status": "saved",
+      "filename": "UPL.png"
+    },
+    "PEL": {
+      "domain": "piramal.com",
+      "source_url": "https://img.logo.dev/piramal.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11573,
+      "hash": "f350001ba38be0d9",
+      "fetched_at": "2026-06-09T04:29:51.803Z",
+      "status": "saved",
+      "filename": "PEL.png"
+    },
+    "NAUKRI": {
+      "domain": "infoedge.in",
+      "source_url": "https://img.logo.dev/infoedge.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11174,
+      "hash": "ef6a7d47a6246e8e",
+      "fetched_at": "2026-06-09T04:29:52.726Z",
+      "status": "saved",
+      "filename": "NAUKRI.png"
+    },
+    "ETERNAL": {
+      "domain": "eternal.com",
+      "source_url": "https://img.logo.dev/eternal.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 4507,
+      "hash": "955a7a1671067a19",
+      "fetched_at": "2026-06-09T04:29:53.482Z",
+      "status": "saved",
+      "filename": "ETERNAL.png"
+    },
+    "BSE": {
+      "domain": "bseindia.com",
+      "source_url": "https://img.logo.dev/bseindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8795,
+      "hash": "bd05285a68ffd38e",
+      "fetched_at": "2026-06-09T04:29:54.653Z",
+      "status": "saved",
+      "filename": "BSE.png"
+    },
+    "SOLARINDS": {
+      "domain": "solargroup.com",
+      "source_url": "https://img.logo.dev/solargroup.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 7888,
+      "hash": "c1314bd3b817e162",
+      "fetched_at": "2026-06-09T04:29:55.567Z",
+      "status": "saved",
+      "filename": "SOLARINDS.png"
+    },
+    "JIOFIN": {
+      "domain": "jiofinancialservices.com",
+      "fetched_at": "2026-06-09T04:29:56.251Z",
+      "status": "too_small",
+      "bytes": 1102
+    },
+    "PFC": {
+      "domain": "pfcindia.com",
+      "source_url": "https://img.logo.dev/pfcindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 36652,
+      "hash": "a50031ebf1c1ed44",
+      "fetched_at": "2026-06-09T04:29:57.878Z",
+      "status": "saved",
+      "filename": "PFC.png"
+    },
+    "IRFC": {
+      "domain": "irfc.co.in",
+      "source_url": "https://img.logo.dev/irfc.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22507,
+      "hash": "648d9284ea571170",
+      "fetched_at": "2026-06-09T04:30:03.837Z",
+      "status": "saved",
+      "filename": "IRFC.png"
+    },
+    "INDUSTOWER": {
+      "domain": "indusotwers.com",
+      "fetched_at": "2026-06-09T04:30:04.926Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "HDFCAMC": {
+      "domain": "hdfcfund.com",
+      "source_url": "https://img.logo.dev/hdfcfund.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8924,
+      "hash": "77d5c00db48765f1",
+      "fetched_at": "2026-06-09T04:30:05.622Z",
+      "status": "saved",
+      "filename": "HDFCAMC.png"
+    },
+    "UNITDSPR": {
+      "domain": "diageoindia.com",
+      "source_url": "https://img.logo.dev/diageoindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 7628,
+      "hash": "092cfb8c09ae4dfa",
+      "fetched_at": "2026-06-09T04:30:06.666Z",
+      "status": "saved",
+      "filename": "UNITDSPR.png"
+    },
+    "INDHOTEL": {
+      "domain": "tajhotels.com",
+      "source_url": "https://img.logo.dev/tajhotels.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11184,
+      "hash": "3b379651f2590ee5",
+      "fetched_at": "2026-06-09T04:30:07.767Z",
+      "status": "saved",
+      "filename": "INDHOTEL.png"
+    },
+    "RECLTD": {
+      "domain": "recindia.nic.in",
+      "source_url": "https://img.logo.dev/recindia.nic.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 44129,
+      "hash": "520aee4f56ca545a",
+      "fetched_at": "2026-06-09T04:30:08.840Z",
+      "status": "saved",
+      "filename": "RECLTD.png"
+    },
+    "NAM-INDIA": {
+      "domain": "nipponindiamf.com",
+      "fetched_at": "2026-06-09T04:30:09.608Z",
+      "status": "too_small",
+      "bytes": 1807
+    },
+    "GICRE": {
+      "domain": "gicofindia.com",
+      "source_url": "https://img.logo.dev/gicofindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 39608,
+      "hash": "ec25a6756d812887",
+      "fetched_at": "2026-06-09T04:30:11.851Z",
+      "status": "saved",
+      "filename": "GICRE.png"
+    },
+    "SBICARD": {
+      "domain": "sbicard.com",
+      "source_url": "https://img.logo.dev/sbicard.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8263,
+      "hash": "dd68442ff7b80681",
+      "fetched_at": "2026-06-09T04:30:13.056Z",
+      "status": "saved",
+      "filename": "SBICARD.png"
+    },
+    "MFSL": {
+      "domain": "maxfinancialservices.com",
+      "source_url": "https://img.logo.dev/maxfinancialservices.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6967,
+      "hash": "185eb3e783d292b5",
+      "fetched_at": "2026-06-09T04:30:15.067Z",
+      "status": "saved",
+      "filename": "MFSL.png"
+    },
+    "SUNDARMFIN": {
+      "domain": "sundaramfinance.in",
+      "source_url": "https://img.logo.dev/sundaramfinance.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12814,
+      "hash": "700655b8d13bc03f",
+      "fetched_at": "2026-06-09T04:30:16.212Z",
+      "status": "saved",
+      "filename": "SUNDARMFIN.png"
+    },
+    "PATANJALI": {
+      "domain": "patanjaliayurved.org",
+      "source_url": "https://img.logo.dev/patanjaliayurved.org?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 13770,
+      "hash": "3181b0b9d31c08d1",
+      "fetched_at": "2026-06-09T04:30:17.181Z",
+      "status": "saved",
+      "filename": "PATANJALI.png"
+    },
+    "M&MFIN": {
+      "domain": "mahindrafinance.com",
+      "source_url": "https://img.logo.dev/mahindrafinance.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12408,
+      "hash": "fb8b362a2bbe5bdf",
+      "fetched_at": "2026-06-09T04:30:20.378Z",
+      "status": "saved",
+      "filename": "M_AND_MFIN.png"
+    },
+    "RADICO": {
+      "domain": "radicokhaitan.com",
+      "source_url": "https://img.logo.dev/radicokhaitan.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9997,
+      "hash": "48d0249f4e37606e",
+      "fetched_at": "2026-06-09T04:30:21.132Z",
+      "status": "saved",
+      "filename": "RADICO.png"
+    },
+    "HUDCO": {
+      "domain": "hudco.org.in",
+      "source_url": "https://img.logo.dev/hudco.org.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16301,
+      "hash": "f66da2ee20dd5763",
+      "fetched_at": "2026-06-09T04:30:22.458Z",
+      "status": "saved",
+      "filename": "HUDCO.png"
+    },
+    "GODREJIND": {
+      "domain": "godrejindustries.com",
+      "source_url": "https://img.logo.dev/godrejindustries.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15327,
+      "hash": "6d62117a526c1e97",
+      "fetched_at": "2026-06-09T04:30:23.562Z",
+      "status": "saved",
+      "filename": "GODREJIND.png"
+    },
+    "UBL": {
+      "domain": "unitedbreweries.com",
+      "source_url": "https://img.logo.dev/unitedbreweries.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9787,
+      "hash": "7fca86c349d9dd3c",
+      "fetched_at": "2026-06-09T04:30:24.549Z",
+      "status": "saved",
+      "filename": "UBL.png"
+    },
+    "POONAWALLA": {
+      "domain": "poonawallafincorp.com",
+      "source_url": "https://img.logo.dev/poonawallafincorp.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 3999,
+      "hash": "fd4974c23b2b6320",
+      "fetched_at": "2026-06-09T04:30:25.334Z",
+      "status": "saved",
+      "filename": "POONAWALLA.png"
+    },
+    "IREDA": {
+      "domain": "iredaltd.com",
+      "fetched_at": "2026-06-09T04:30:27.209Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "LICHSGFIN": {
+      "domain": "lichousing.com",
+      "source_url": "https://img.logo.dev/lichousing.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14887,
+      "hash": "b65a92afd5d5e9e4",
+      "fetched_at": "2026-06-09T04:30:28.601Z",
+      "status": "saved",
+      "filename": "LICHSGFIN.png"
+    },
+    "STARHEALTH": {
+      "domain": "starhealth.in",
+      "source_url": "https://img.logo.dev/starhealth.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11256,
+      "hash": "62e94983acb432c5",
+      "fetched_at": "2026-06-09T04:30:29.769Z",
+      "status": "saved",
+      "filename": "STARHEALTH.png"
+    },
+    "CRISIL": {
+      "domain": "crisil.com",
+      "source_url": "https://img.logo.dev/crisil.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11575,
+      "hash": "d48840eff33c5654",
+      "fetched_at": "2026-06-09T04:30:30.976Z",
+      "status": "saved",
+      "filename": "CRISIL.png"
+    },
+    "CAMS": {
+      "domain": "camsonline.com",
+      "source_url": "https://img.logo.dev/camsonline.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21692,
+      "hash": "d400686a39490b5c",
+      "fetched_at": "2026-06-09T04:30:32.722Z",
+      "status": "saved",
+      "filename": "CAMS.png"
+    },
+    "SUNTV": {
+      "domain": "suntv.in",
+      "source_url": "https://img.logo.dev/suntv.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 25225,
+      "hash": "0f91201f5edc56a6",
+      "fetched_at": "2026-06-09T04:30:33.626Z",
+      "status": "saved",
+      "filename": "SUNTV.png"
+    },
+    "HDFCBANK": {
+      "domain": "hdfcbank.com",
+      "source_url": "https://img.logo.dev/hdfcbank.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 3047,
+      "hash": "b1b862a615946a0f",
+      "fetched_at": "2026-06-09T04:30:34.884Z",
+      "status": "saved",
+      "filename": "HDFCBANK.png"
+    },
+    "ICICIBANK": {
+      "domain": "icicibank.com",
+      "source_url": "https://img.logo.dev/icicibank.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15383,
+      "hash": "74cc57a808eec215",
+      "fetched_at": "2026-06-09T04:30:35.856Z",
+      "status": "saved",
+      "filename": "ICICIBANK.png"
+    },
+    "SBIN": {
+      "domain": "sbi.co.in",
+      "source_url": "https://img.logo.dev/sbi.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9758,
+      "hash": "0e278215a4bf01ec",
+      "fetched_at": "2026-06-09T04:30:36.735Z",
+      "status": "saved",
+      "filename": "SBIN.png"
+    },
+    "KOTAKBANK": {
+      "domain": "kotak.com",
+      "source_url": "https://img.logo.dev/kotak.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 13733,
+      "hash": "c1194531b15f54dd",
+      "fetched_at": "2026-06-09T04:30:37.821Z",
+      "status": "saved",
+      "filename": "KOTAKBANK.png"
+    },
+    "AXISBANK": {
+      "domain": "axisbank.com",
+      "source_url": "https://img.logo.dev/axisbank.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6719,
+      "hash": "c32ac552a261556c",
+      "fetched_at": "2026-06-09T04:30:39.068Z",
+      "status": "saved",
+      "filename": "AXISBANK.png"
+    },
+    "INDUSINDBK": {
+      "domain": "indusind.com",
+      "source_url": "https://img.logo.dev/indusind.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21314,
+      "hash": "bd436c714e1ce377",
+      "fetched_at": "2026-06-09T04:30:40.263Z",
+      "status": "saved",
+      "filename": "INDUSINDBK.png"
+    },
+    "PNB": {
+      "domain": "pnbindia.in",
+      "source_url": "https://img.logo.dev/pnbindia.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 68810,
+      "hash": "e62f74ff7ed08985",
+      "fetched_at": "2026-06-09T04:30:41.648Z",
+      "status": "saved",
+      "filename": "PNB.png"
+    },
+    "BANKBARODA": {
+      "domain": "bankofbaroda.in",
+      "source_url": "https://img.logo.dev/bankofbaroda.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8865,
+      "hash": "d8b90383a7b425da",
+      "fetched_at": "2026-06-09T04:30:42.489Z",
+      "status": "saved",
+      "filename": "BANKBARODA.png"
+    },
+    "CANBK": {
+      "domain": "canarabank.com",
+      "source_url": "https://img.logo.dev/canarabank.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20172,
+      "hash": "cf6f4a8cb8b3a69e",
+      "fetched_at": "2026-06-09T04:30:43.657Z",
+      "status": "saved",
+      "filename": "CANBK.png"
+    },
+    "UNIONBANK": {
+      "domain": "unionbankofindia.co.in",
+      "source_url": "https://img.logo.dev/unionbankofindia.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 19024,
+      "hash": "fe076dd3f1619e1b",
+      "fetched_at": "2026-06-09T04:30:45.253Z",
+      "status": "saved",
+      "filename": "UNIONBANK.png"
+    },
+    "BANKINDIA": {
+      "domain": "bankofindia.co.in",
+      "source_url": "https://img.logo.dev/bankofindia.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17342,
+      "hash": "b21ed460234808ef",
+      "fetched_at": "2026-06-09T04:30:46.483Z",
+      "status": "saved",
+      "filename": "BANKINDIA.png"
+    },
+    "IOB": {
+      "domain": "iob.in",
+      "source_url": "https://img.logo.dev/iob.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 68810,
+      "hash": "e62f74ff7ed08985",
+      "fetched_at": "2026-06-09T04:30:47.553Z",
+      "status": "saved",
+      "filename": "IOB.png"
+    },
+    "CENTRALBK": {
+      "domain": "centralbankofindia.co.in",
+      "source_url": "https://img.logo.dev/centralbankofindia.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21021,
+      "hash": "becdc58e74e78400",
+      "fetched_at": "2026-06-09T04:30:48.339Z",
+      "status": "saved",
+      "filename": "CENTRALBK.png"
+    },
+    "IDBI": {
+      "domain": "idbibank.in",
+      "source_url": "https://img.logo.dev/idbibank.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 40795,
+      "hash": "90c6fba15db72bf6",
+      "fetched_at": "2026-06-09T04:30:49.400Z",
+      "status": "saved",
+      "filename": "IDBI.png"
+    },
+    "FEDERALBNK": {
+      "domain": "federalbank.co.in",
+      "source_url": "https://img.logo.dev/federalbank.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 4026,
+      "hash": "962c72ad31febfb6",
+      "fetched_at": "2026-06-09T04:30:50.254Z",
+      "status": "saved",
+      "filename": "FEDERALBNK.png"
+    },
+    "RBLBANK": {
+      "domain": "rblbank.com",
+      "source_url": "https://img.logo.dev/rblbank.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11182,
+      "hash": "e7b9cc3a4c0cea62",
+      "fetched_at": "2026-06-09T04:30:51.210Z",
+      "status": "saved",
+      "filename": "RBLBANK.png"
+    },
+    "IDFCFIRSTB": {
+      "domain": "idfcfirstbank.com",
+      "source_url": "https://img.logo.dev/idfcfirstbank.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 7991,
+      "hash": "c1a21834482c6cd8",
+      "fetched_at": "2026-06-09T04:30:52.166Z",
+      "status": "saved",
+      "filename": "IDFCFIRSTB.png"
+    },
+    "BANDHANBNK": {
+      "domain": "bandhanbank.com",
+      "source_url": "https://img.logo.dev/bandhanbank.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 23239,
+      "hash": "e33e119d4ac47f8a",
+      "fetched_at": "2026-06-09T04:30:53.118Z",
+      "status": "saved",
+      "filename": "BANDHANBNK.png"
+    },
+    "AUBANK": {
+      "domain": "aubank.in",
+      "source_url": "https://img.logo.dev/aubank.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6769,
+      "hash": "fcd0e38e95ac2617",
+      "fetched_at": "2026-06-09T04:30:54.376Z",
+      "status": "saved",
+      "filename": "AUBANK.png"
+    },
+    "CUB": {
+      "domain": "cityunionbank.com",
+      "source_url": "https://img.logo.dev/cityunionbank.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 44689,
+      "hash": "b570cb5d692d5bd4",
+      "fetched_at": "2026-06-09T04:30:55.413Z",
+      "status": "saved",
+      "filename": "CUB.png"
+    },
+    "INDIANB": {
+      "domain": "indianbank.in",
+      "source_url": "https://img.logo.dev/indianbank.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10721,
+      "hash": "672808c435a3364e",
+      "fetched_at": "2026-06-09T04:30:56.167Z",
+      "status": "saved",
+      "filename": "INDIANB.png"
+    },
+    "YESBANK": {
+      "domain": "yesbank.in",
+      "source_url": "https://img.logo.dev/yesbank.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 7530,
+      "hash": "03f7a2e5a009f627",
+      "fetched_at": "2026-06-09T04:30:57.151Z",
+      "status": "saved",
+      "filename": "YESBANK.png"
+    },
+    "MAHABANK": {
+      "domain": "bankofmaharashtra.in",
+      "source_url": "https://img.logo.dev/bankofmaharashtra.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 50190,
+      "hash": "dabff467b346b57a",
+      "fetched_at": "2026-06-09T04:30:59.191Z",
+      "status": "saved",
+      "filename": "MAHABANK.png"
+    },
+    "UCOBANK": {
+      "domain": "ucobank.com",
+      "source_url": "https://img.logo.dev/ucobank.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 68810,
+      "hash": "e62f74ff7ed08985",
+      "fetched_at": "2026-06-09T04:31:00.877Z",
+      "status": "saved",
+      "filename": "UCOBANK.png"
+    },
+    "KARURVYSYA": {
+      "domain": "kvb.co.in",
+      "source_url": "https://img.logo.dev/kvb.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 19425,
+      "hash": "8ce28130dc15a14b",
+      "fetched_at": "2026-06-09T04:31:01.888Z",
+      "status": "saved",
+      "filename": "KARURVYSYA.png"
+    },
+    "POWERGRID": {
+      "domain": "powergrid.in",
+      "source_url": "https://img.logo.dev/powergrid.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 24199,
+      "hash": "dffb1586615fe4c2",
+      "fetched_at": "2026-06-09T04:31:02.995Z",
+      "status": "saved",
+      "filename": "POWERGRID.png"
+    },
+    "NTPC": {
+      "domain": "ntpc.co.in",
+      "source_url": "https://img.logo.dev/ntpc.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 18634,
+      "hash": "17509ece75b0760b",
+      "fetched_at": "2026-06-09T04:31:04.144Z",
+      "status": "saved",
+      "filename": "NTPC.png"
+    },
+    "ONGC": {
+      "domain": "ongcindia.com",
+      "source_url": "https://img.logo.dev/ongcindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17753,
+      "hash": "8d67fb6520abf7ab",
+      "fetched_at": "2026-06-09T04:31:05.066Z",
+      "status": "saved",
+      "filename": "ONGC.png"
+    },
+    "COALINDIA": {
+      "domain": "coalindia.in",
+      "source_url": "https://img.logo.dev/coalindia.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20198,
+      "hash": "66781d740ce8fc81",
+      "fetched_at": "2026-06-09T04:31:05.994Z",
+      "status": "saved",
+      "filename": "COALINDIA.png"
+    },
+    "BPCL": {
+      "domain": "bharatpetroleum.in",
+      "source_url": "https://img.logo.dev/bharatpetroleum.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 29673,
+      "hash": "4e55022e3ece15bb",
+      "fetched_at": "2026-06-09T04:31:07.091Z",
+      "status": "saved",
+      "filename": "BPCL.png"
+    },
+    "IOC": {
+      "domain": "iocl.com",
+      "source_url": "https://img.logo.dev/iocl.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22470,
+      "hash": "f671b3397279dda1",
+      "fetched_at": "2026-06-09T04:31:08.159Z",
+      "status": "saved",
+      "filename": "IOC.png"
+    },
+    "HPCL": {
+      "domain": "hindustanpetroleum.com",
+      "source_url": "https://img.logo.dev/hindustanpetroleum.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 23668,
+      "hash": "1f9ca96c8dd9c113",
+      "fetched_at": "2026-06-09T04:31:09.235Z",
+      "status": "saved",
+      "filename": "HPCL.png"
+    },
+    "GAIL": {
+      "domain": "gailonline.com",
+      "source_url": "https://img.logo.dev/gailonline.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 41085,
+      "hash": "76377a3f71ac5b94",
+      "fetched_at": "2026-06-09T04:31:10.653Z",
+      "status": "saved",
+      "filename": "GAIL.png"
+    },
+    "OIL": {
+      "domain": "oil-india.com",
+      "source_url": "https://img.logo.dev/oil-india.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12220,
+      "hash": "56742a96dc39792d",
+      "fetched_at": "2026-06-09T04:31:11.323Z",
+      "status": "saved",
+      "filename": "OIL.png"
+    },
+    "BHEL": {
+      "domain": "bhel.com",
+      "source_url": "https://img.logo.dev/bhel.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 33385,
+      "hash": "2425f221451f9406",
+      "fetched_at": "2026-06-09T04:31:12.541Z",
+      "status": "saved",
+      "filename": "BHEL.png"
+    },
+    "BEL": {
+      "domain": "bel-india.in",
+      "source_url": "https://img.logo.dev/bel-india.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 18790,
+      "hash": "bd92f63fdb8c5ee6",
+      "fetched_at": "2026-06-09T04:31:13.307Z",
+      "status": "saved",
+      "filename": "BEL.png"
+    },
+    "HAL": {
+      "domain": "hal-india.co.in",
+      "source_url": "https://img.logo.dev/hal-india.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 57781,
+      "hash": "77f6827164f75cda",
+      "fetched_at": "2026-06-09T04:31:14.342Z",
+      "status": "saved",
+      "filename": "HAL.png"
+    },
+    "MAZDOCK": {
+      "domain": "mazagondock.in",
+      "source_url": "https://img.logo.dev/mazagondock.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21449,
+      "hash": "58a175eeceecbd71",
+      "fetched_at": "2026-06-09T04:31:15.288Z",
+      "status": "saved",
+      "filename": "MAZDOCK.png"
+    },
+    "COCHINSHIP": {
+      "domain": "cochinshipyard.in",
+      "source_url": "https://img.logo.dev/cochinshipyard.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 45087,
+      "hash": "8b6a983d370cf56c",
+      "fetched_at": "2026-06-09T04:31:16.364Z",
+      "status": "saved",
+      "filename": "COCHINSHIP.png"
+    },
+    "GRSE": {
+      "domain": "grse.in",
+      "source_url": "https://img.logo.dev/grse.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 29215,
+      "hash": "f64df072d1a37eb7",
+      "fetched_at": "2026-06-09T04:31:17.054Z",
+      "status": "saved",
+      "filename": "GRSE.png"
+    },
+    "RVNL": {
+      "domain": "rvnl.org",
+      "source_url": "https://img.logo.dev/rvnl.org?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 19920,
+      "hash": "bec8de8288cc9ca5",
+      "fetched_at": "2026-06-09T04:31:17.767Z",
+      "status": "saved",
+      "filename": "RVNL.png"
+    },
+    "IRCTC": {
+      "domain": "irctc.co.in",
+      "source_url": "https://img.logo.dev/irctc.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16869,
+      "hash": "268abc4ff9c97af7",
+      "fetched_at": "2026-06-09T04:31:18.859Z",
+      "status": "saved",
+      "filename": "IRCTC.png"
+    },
+    "CONCOR": {
+      "domain": "concorindia.com",
+      "source_url": "https://img.logo.dev/concorindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 42035,
+      "hash": "66474a18b96755c3",
+      "fetched_at": "2026-06-09T04:31:19.997Z",
+      "status": "saved",
+      "filename": "CONCOR.png"
+    },
+    "TATAPOWER": {
+      "domain": "tatapower.com",
+      "source_url": "https://img.logo.dev/tatapower.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20278,
+      "hash": "ca342e52e26d2d76",
+      "fetched_at": "2026-06-09T04:31:21.755Z",
+      "status": "saved",
+      "filename": "TATAPOWER.png"
+    },
+    "CGPOWER": {
+      "domain": "cgglobal.com",
+      "source_url": "https://img.logo.dev/cgglobal.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6371,
+      "hash": "2c2f1fa755308454",
+      "fetched_at": "2026-06-09T04:31:23.355Z",
+      "status": "saved",
+      "filename": "CGPOWER.png"
+    },
+    "HINDPETRO": {
+      "domain": "hindustanpetroleum.com",
+      "source_url": "https://img.logo.dev/hindustanpetroleum.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 23668,
+      "hash": "1f9ca96c8dd9c113",
+      "fetched_at": "2026-06-09T04:31:23.729Z",
+      "status": "saved",
+      "filename": "HINDPETRO.png"
+    },
+    "NHPC": {
+      "domain": "nhpcindia.com",
+      "source_url": "https://img.logo.dev/nhpcindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 37932,
+      "hash": "2b2503cf6ecc068c",
+      "fetched_at": "2026-06-09T04:31:25.426Z",
+      "status": "saved",
+      "filename": "NHPC.png"
+    },
+    "TORNTPOWER": {
+      "domain": "torrentpower.com",
+      "source_url": "https://img.logo.dev/torrentpower.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17313,
+      "hash": "a7f2799963ec3663",
+      "fetched_at": "2026-06-09T04:31:26.727Z",
+      "status": "saved",
+      "filename": "TORNTPOWER.png"
+    },
+    "SUZLON": {
+      "domain": "suzlon.com",
+      "source_url": "https://img.logo.dev/suzlon.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15382,
+      "hash": "b62ba9709bb7b6c8",
+      "fetched_at": "2026-06-09T04:31:27.455Z",
+      "status": "saved",
+      "filename": "SUZLON.png"
+    },
+    "JSWENERGY": {
+      "domain": "jsw.in",
+      "source_url": "https://img.logo.dev/jsw.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14927,
+      "hash": "d8b2474b07168d51",
+      "fetched_at": "2026-06-09T04:31:28.648Z",
+      "status": "saved",
+      "filename": "JSWENERGY.png"
+    },
+    "ATGL": {
+      "domain": "adanigas.com",
+      "source_url": "https://img.logo.dev/adanigas.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8649,
+      "hash": "53509947aeb0e8f5",
+      "fetched_at": "2026-06-09T04:31:29.679Z",
+      "status": "saved",
+      "filename": "ATGL.png"
+    },
+    "NATIONALUM": {
+      "domain": "nalcoindia.com",
+      "source_url": "https://img.logo.dev/nalcoindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8210,
+      "hash": "b19e5fd7efab5f08",
+      "fetched_at": "2026-06-09T04:31:30.350Z",
+      "status": "saved",
+      "filename": "NATIONALUM.png"
+    },
+    "BDL": {
+      "domain": "bdl-india.in",
+      "source_url": "https://img.logo.dev/bdl-india.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8690,
+      "hash": "1387072e3e2523e3",
+      "fetched_at": "2026-06-09T04:31:31.052Z",
+      "status": "saved",
+      "filename": "BDL.png"
+    },
+    "THERMAX": {
+      "domain": "thermaxglobal.com",
+      "source_url": "https://img.logo.dev/thermaxglobal.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12314,
+      "hash": "8078218ca8e6893a",
+      "fetched_at": "2026-06-09T04:31:31.726Z",
+      "status": "saved",
+      "filename": "THERMAX.png"
+    },
+    "NLCINDIA": {
+      "domain": "nlcindia.in",
+      "fetched_at": "2026-06-09T04:31:32.383Z",
+      "status": "too_small",
+      "bytes": 1807
+    },
+    "PETRONET": {
+      "domain": "petronetlng.in",
+      "source_url": "https://img.logo.dev/petronetlng.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 26617,
+      "hash": "5075251b6a5c3514",
+      "fetched_at": "2026-06-09T04:31:33.453Z",
+      "status": "saved",
+      "filename": "PETRONET.png"
+    },
+    "SJVN": {
+      "domain": "sjvn.nic.in",
+      "source_url": "https://img.logo.dev/sjvn.nic.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21251,
+      "hash": "1e488ee71612ac18",
+      "fetched_at": "2026-06-09T04:31:34.472Z",
+      "status": "saved",
+      "filename": "SJVN.png"
+    },
+    "GUJGASLTD": {
+      "domain": "gujaratgas.com",
+      "source_url": "https://img.logo.dev/gujaratgas.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20697,
+      "hash": "b2a035187ef8d6f7",
+      "fetched_at": "2026-06-09T04:31:35.251Z",
+      "status": "saved",
+      "filename": "GUJGASLTD.png"
+    },
+    "IGL": {
+      "domain": "iglonline.net",
+      "source_url": "https://img.logo.dev/iglonline.net?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 34207,
+      "hash": "0b688bc24f7f4176",
+      "fetched_at": "2026-06-09T04:31:36.421Z",
+      "status": "saved",
+      "filename": "IGL.png"
+    },
+    "NBCC": {
+      "domain": "nbccindia.in",
+      "source_url": "https://img.logo.dev/nbccindia.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 33771,
+      "hash": "58a0a67d25215cb4",
+      "fetched_at": "2026-06-09T04:31:37.269Z",
+      "status": "saved",
+      "filename": "NBCC.png"
+    },
+    "CESC": {
+      "domain": "cesc.co.in",
+      "source_url": "https://img.logo.dev/cesc.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 36428,
+      "hash": "f541475d2cabe84b",
+      "fetched_at": "2026-06-09T04:31:38.399Z",
+      "status": "saved",
+      "filename": "CESC.png"
+    },
+    "TATASTEEL": {
+      "domain": "tatasteel.com",
+      "source_url": "https://img.logo.dev/tatasteel.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10221,
+      "hash": "1523785e4968cb6d",
+      "fetched_at": "2026-06-09T04:31:39.210Z",
+      "status": "saved",
+      "filename": "TATASTEEL.png"
+    },
+    "JSWSTEEL": {
+      "domain": "jsw.in",
+      "source_url": "https://img.logo.dev/jsw.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14927,
+      "hash": "d8b2474b07168d51",
+      "fetched_at": "2026-06-09T04:31:39.533Z",
+      "status": "saved",
+      "filename": "JSWSTEEL.png"
+    },
+    "HINDALCO": {
+      "domain": "hindalco.com",
+      "source_url": "https://img.logo.dev/hindalco.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 54435,
+      "hash": "834a92c7b9d5f6db",
+      "fetched_at": "2026-06-09T04:31:40.359Z",
+      "status": "saved",
+      "filename": "HINDALCO.png"
+    },
+    "VEDL": {
+      "domain": "vedantalimited.com",
+      "source_url": "https://img.logo.dev/vedantalimited.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10622,
+      "hash": "7d16e9fe38cdb9ba",
+      "fetched_at": "2026-06-09T04:31:41.128Z",
+      "status": "saved",
+      "filename": "VEDL.png"
+    },
+    "JINDALSTEL": {
+      "domain": "jindalsteelpower.com",
+      "source_url": "https://img.logo.dev/jindalsteelpower.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9189,
+      "hash": "d21eb899e972e84c",
+      "fetched_at": "2026-06-09T04:31:42.317Z",
+      "status": "saved",
+      "filename": "JINDALSTEL.png"
+    },
+    "SAIL": {
+      "domain": "sail.co.in",
+      "source_url": "https://img.logo.dev/sail.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14860,
+      "hash": "f00d43e0e52b1527",
+      "fetched_at": "2026-06-09T04:31:43.014Z",
+      "status": "saved",
+      "filename": "SAIL.png"
+    },
+    "NMDC": {
+      "domain": "nmdc.co.in",
+      "source_url": "https://img.logo.dev/nmdc.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 37345,
+      "hash": "6d6c31a98bb2c0be",
+      "fetched_at": "2026-06-09T04:31:43.908Z",
+      "status": "saved",
+      "filename": "NMDC.png"
+    },
+    "NALCO": {
+      "domain": "nalcoindia.com",
+      "source_url": "https://img.logo.dev/nalcoindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8210,
+      "hash": "b19e5fd7efab5f08",
+      "fetched_at": "2026-06-09T04:31:44.267Z",
+      "status": "saved",
+      "filename": "NALCO.png"
+    },
+    "APLAPOLLO": {
+      "domain": "aplapollo.com",
+      "source_url": "https://img.logo.dev/aplapollo.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 30089,
+      "hash": "29b6424575143ffb",
+      "fetched_at": "2026-06-09T04:31:45.126Z",
+      "status": "saved",
+      "filename": "APLAPOLLO.png"
+    },
+    "SHREECEM": {
+      "domain": "shreecement.com",
+      "source_url": "https://img.logo.dev/shreecement.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10186,
+      "hash": "7107e91ede47e2b9",
+      "fetched_at": "2026-06-09T04:31:45.757Z",
+      "status": "saved",
+      "filename": "SHREECEM.png"
+    },
+    "JKCEMENT": {
+      "domain": "jkcement.com",
+      "source_url": "https://img.logo.dev/jkcement.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 7013,
+      "hash": "82b403adbbfe1b29",
+      "fetched_at": "2026-06-09T04:31:46.439Z",
+      "status": "saved",
+      "filename": "JKCEMENT.png"
+    },
+    "AMBUJACEM": {
+      "domain": "ambujacement.com",
+      "source_url": "https://img.logo.dev/ambujacement.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 48675,
+      "hash": "0cde6998e5295e7e",
+      "fetched_at": "2026-06-09T04:31:47.608Z",
+      "status": "saved",
+      "filename": "AMBUJACEM.png"
+    },
+    "RAMCOCEM": {
+      "domain": "ramcocements.in",
+      "source_url": "https://img.logo.dev/ramcocements.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 43191,
+      "hash": "787ef5b1dc62d379",
+      "fetched_at": "2026-06-09T04:31:48.599Z",
+      "status": "saved",
+      "filename": "RAMCOCEM.png"
+    },
+    "ACC": {
+      "domain": "acclimited.com",
+      "source_url": "https://img.logo.dev/acclimited.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17167,
+      "hash": "7c2e725da495f6f5",
+      "fetched_at": "2026-06-09T04:31:49.235Z",
+      "status": "saved",
+      "filename": "ACC.png"
+    },
+    "DALBHARAT": {
+      "domain": "dalmiabharat.com",
+      "source_url": "https://img.logo.dev/dalmiabharat.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 15761,
+      "hash": "350593c50ce09000",
+      "fetched_at": "2026-06-09T04:31:50.015Z",
+      "status": "saved",
+      "filename": "DALBHARAT.png"
+    },
+    "HINDZINC": {
+      "domain": "hindustanzinc.com",
+      "fetched_at": "2026-06-09T04:31:50.717Z",
+      "status": "too_small",
+      "bytes": 757
+    },
+    "HYUNDAI": {
+      "domain": "hyundai.com",
+      "source_url": "https://img.logo.dev/hyundai.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21754,
+      "hash": "04c11a9079bc95a6",
+      "fetched_at": "2026-06-09T04:31:51.452Z",
+      "status": "saved",
+      "filename": "HYUNDAI.png"
+    },
+    "POLYCAB": {
+      "domain": "polycab.com",
+      "source_url": "https://img.logo.dev/polycab.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16192,
+      "hash": "f8e9bfead428c18f",
+      "fetched_at": "2026-06-09T04:31:52.710Z",
+      "status": "saved",
+      "filename": "POLYCAB.png"
+    },
+    "LODHA": {
+      "domain": "lodhagroup.in",
+      "source_url": "https://img.logo.dev/lodhagroup.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 6434,
+      "hash": "b13c8a3494606aef",
+      "fetched_at": "2026-06-09T04:31:53.682Z",
+      "status": "saved",
+      "filename": "LODHA.png"
+    },
+    "SRF": {
+      "domain": "srf.com",
+      "source_url": "https://img.logo.dev/srf.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17743,
+      "hash": "fde3e2773e7a560a",
+      "fetched_at": "2026-06-09T04:31:55.000Z",
+      "status": "saved",
+      "filename": "SRF.png"
+    },
+    "UNOMINDA": {
+      "domain": "unomindagroup.com",
+      "fetched_at": "2026-06-09T04:31:55.615Z",
+      "status": "placeholder",
+      "http_status": 202
+    },
+    "LINDEINDIA": {
+      "domain": "linde.in",
+      "source_url": "https://img.logo.dev/linde.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17057,
+      "hash": "d589bc79699d502a",
+      "fetched_at": "2026-06-09T04:31:56.619Z",
+      "status": "saved",
+      "filename": "LINDEINDIA.png"
+    },
+    "COROMANDEL": {
+      "domain": "coromandel.biz",
+      "source_url": "https://img.logo.dev/coromandel.biz?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9631,
+      "hash": "97c424116fc8a7cd",
+      "fetched_at": "2026-06-09T04:31:57.456Z",
+      "status": "saved",
+      "filename": "COROMANDEL.png"
+    },
+    "PIIND": {
+      "domain": "piindustries.com",
+      "source_url": "https://img.logo.dev/piindustries.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11366,
+      "hash": "30ae399944ed8625",
+      "fetched_at": "2026-06-09T04:32:01.373Z",
+      "status": "saved",
+      "filename": "PIIND.png"
+    },
+    "SUPREMEIND": {
+      "domain": "supreme.co.in",
+      "source_url": "https://img.logo.dev/supreme.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 23852,
+      "hash": "9ae34296a4f3315b",
+      "fetched_at": "2026-06-09T04:32:02.584Z",
+      "status": "saved",
+      "filename": "SUPREMEIND.png"
+    },
+    "KEI": {
+      "domain": "kei-ind.com",
+      "source_url": "https://img.logo.dev/kei-ind.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12399,
+      "hash": "ee3c848a94df1be4",
+      "fetched_at": "2026-06-09T04:32:03.533Z",
+      "status": "saved",
+      "filename": "KEI.png"
+    },
+    "ASTRAL": {
+      "domain": "astralpipes.com",
+      "source_url": "https://img.logo.dev/astralpipes.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 16968,
+      "hash": "35bee101f5d97735",
+      "fetched_at": "2026-06-09T04:32:04.685Z",
+      "status": "saved",
+      "filename": "ASTRAL.png"
+    },
+    "KALYANKJIL": {
+      "domain": "kalyanjewellers.net",
+      "source_url": "https://img.logo.dev/kalyanjewellers.net?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12159,
+      "hash": "03ddd4f00a1f1bbe",
+      "fetched_at": "2026-06-09T04:32:05.864Z",
+      "status": "saved",
+      "filename": "KALYANKJIL.png"
+    },
+    "ENDURANCE": {
+      "domain": "endurancegroup.com",
+      "source_url": "https://img.logo.dev/endurancegroup.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22112,
+      "hash": "04a267e1378214a9",
+      "fetched_at": "2026-06-09T04:32:06.838Z",
+      "status": "saved",
+      "filename": "ENDURANCE.png"
+    },
+    "SONACOMS": {
+      "domain": "sonacomstar.com",
+      "source_url": "https://img.logo.dev/sonacomstar.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 19750,
+      "hash": "251080539c324daf",
+      "fetched_at": "2026-06-09T04:32:07.953Z",
+      "status": "saved",
+      "filename": "SONACOMS.png"
+    },
+    "EXIDEIND": {
+      "domain": "exideindustries.com",
+      "source_url": "https://img.logo.dev/exideindustries.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 18977,
+      "hash": "c7dac02eaac77284",
+      "fetched_at": "2026-06-09T04:32:09.289Z",
+      "status": "saved",
+      "filename": "EXIDEIND.png"
+    },
+    "METROBRAND": {
+      "domain": "metrobrands.com",
+      "source_url": "https://img.logo.dev/metrobrands.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 18254,
+      "hash": "217e17d2ddfda988",
+      "fetched_at": "2026-06-09T04:32:10.108Z",
+      "status": "saved",
+      "filename": "METROBRAND.png"
+    },
+    "FORCEMOT": {
+      "domain": "forcemotors.com",
+      "source_url": "https://img.logo.dev/forcemotors.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12636,
+      "hash": "fb6a0b3e3ce9aca2",
+      "fetched_at": "2026-06-09T04:32:10.825Z",
+      "status": "saved",
+      "filename": "FORCEMOT.png"
+    },
+    "HONAUT": {
+      "domain": "honeywell.com",
+      "source_url": "https://img.logo.dev/honeywell.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9907,
+      "hash": "08af972b16ead2fe",
+      "fetched_at": "2026-06-09T04:32:12.020Z",
+      "status": "saved",
+      "filename": "HONAUT.png"
+    },
+    "SUNPHARMA": {
+      "domain": "sunpharma.com",
+      "source_url": "https://img.logo.dev/sunpharma.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22850,
+      "hash": "b41ebe056da4b925",
+      "fetched_at": "2026-06-09T04:32:13.203Z",
+      "status": "saved",
+      "filename": "SUNPHARMA.png"
+    },
+    "DRREDDY": {
+      "domain": "drreddys.com",
+      "source_url": "https://img.logo.dev/drreddys.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10640,
+      "hash": "562cb8e3979ffaf3",
+      "fetched_at": "2026-06-09T04:32:13.952Z",
+      "status": "saved",
+      "filename": "DRREDDY.png"
+    },
+    "CIPLA": {
+      "domain": "cipla.com",
+      "source_url": "https://img.logo.dev/cipla.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 27951,
+      "hash": "90d7af8b14901dfc",
+      "fetched_at": "2026-06-09T04:32:15.708Z",
+      "status": "saved",
+      "filename": "CIPLA.png"
+    },
+    "DIVISLAB": {
+      "domain": "divislabs.com",
+      "source_url": "https://img.logo.dev/divislabs.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14887,
+      "hash": "77a5388bdbe754b1",
+      "fetched_at": "2026-06-09T04:32:16.463Z",
+      "status": "saved",
+      "filename": "DIVISLAB.png"
+    },
+    "LUPIN": {
+      "domain": "lupin.com",
+      "source_url": "https://img.logo.dev/lupin.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 8566,
+      "hash": "d18a134125bff1ca",
+      "fetched_at": "2026-06-09T04:32:19.030Z",
+      "status": "saved",
+      "filename": "LUPIN.png"
+    },
+    "AUROPHARMA": {
+      "domain": "aurobindo.com",
+      "source_url": "https://img.logo.dev/aurobindo.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 35978,
+      "hash": "1a3cdce83b4e63e3",
+      "fetched_at": "2026-06-09T04:32:20.278Z",
+      "status": "saved",
+      "filename": "AUROPHARMA.png"
+    },
+    "TORNTPHARM": {
+      "domain": "torrentpharma.com",
+      "source_url": "https://img.logo.dev/torrentpharma.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17002,
+      "hash": "95ff04ce13315f88",
+      "fetched_at": "2026-06-09T04:32:21.219Z",
+      "status": "saved",
+      "filename": "TORNTPHARM.png"
+    },
+    "ZYDUSLIFE": {
+      "domain": "zyduslife.com",
+      "source_url": "https://img.logo.dev/zyduslife.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14496,
+      "hash": "8a76420753984adf",
+      "fetched_at": "2026-06-09T04:32:21.896Z",
+      "status": "saved",
+      "filename": "ZYDUSLIFE.png"
+    },
+    "ALKEM": {
+      "domain": "alkemlabs.com",
+      "source_url": "https://img.logo.dev/alkemlabs.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17152,
+      "hash": "f25d1098a8f201bb",
+      "fetched_at": "2026-06-09T04:32:23.688Z",
+      "status": "saved",
+      "filename": "ALKEM.png"
+    },
+    "BIOCON": {
+      "domain": "biocon.com",
+      "source_url": "https://img.logo.dev/biocon.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 50524,
+      "hash": "c0457dc93f16a483",
+      "fetched_at": "2026-06-09T04:32:25.806Z",
+      "status": "saved",
+      "filename": "BIOCON.png"
+    },
+    "GLENMARK": {
+      "domain": "glenmarkpharma.com",
+      "source_url": "https://img.logo.dev/glenmarkpharma.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 23632,
+      "hash": "16c306b27bb47053",
+      "fetched_at": "2026-06-09T04:32:27.271Z",
+      "status": "saved",
+      "filename": "GLENMARK.png"
+    },
+    "MANKIND": {
+      "domain": "mankindpharma.com",
+      "source_url": "https://img.logo.dev/mankindpharma.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21156,
+      "hash": "d07230170081694a",
+      "fetched_at": "2026-06-09T04:32:28.003Z",
+      "status": "saved",
+      "filename": "MANKIND.png"
+    },
+    "LAURUSLABS": {
+      "domain": "lauruslabs.com",
+      "source_url": "https://img.logo.dev/lauruslabs.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 17144,
+      "hash": "4ba5ab9b421858e1",
+      "fetched_at": "2026-06-09T04:32:28.906Z",
+      "status": "saved",
+      "filename": "LAURUSLABS.png"
+    },
+    "IPCALAB": {
+      "domain": "ipca.com",
+      "source_url": "https://img.logo.dev/ipca.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22166,
+      "hash": "f2782d0688d515b6",
+      "fetched_at": "2026-06-09T04:32:31.004Z",
+      "status": "saved",
+      "filename": "IPCALAB.png"
+    },
+    "ABBOTINDIA": {
+      "domain": "abbott.in",
+      "source_url": "https://img.logo.dev/abbott.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 10247,
+      "hash": "c303d43e1105d54c",
+      "fetched_at": "2026-06-09T04:32:31.766Z",
+      "status": "saved",
+      "filename": "ABBOTINDIA.png"
+    },
+    "PFIZER": {
+      "domain": "pfizerindia.com",
+      "source_url": "https://img.logo.dev/pfizerindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 27851,
+      "hash": "528ae859a0e078af",
+      "fetched_at": "2026-06-09T04:32:32.728Z",
+      "status": "saved",
+      "filename": "PFIZER.png"
+    },
+    "GLAXO": {
+      "domain": "gsk-india.com",
+      "source_url": "https://img.logo.dev/gsk-india.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9636,
+      "hash": "6e35e91a74595fe6",
+      "fetched_at": "2026-06-09T04:32:33.868Z",
+      "status": "saved",
+      "filename": "GLAXO.png"
+    },
+    "SANOFI": {
+      "domain": "sanofi.in",
+      "source_url": "https://img.logo.dev/sanofi.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 7206,
+      "hash": "fe0651466755b733",
+      "fetched_at": "2026-06-09T04:32:35.109Z",
+      "status": "saved",
+      "filename": "SANOFI.png"
+    },
+    "APOLLOHOSP": {
+      "domain": "apollohospitals.com",
+      "source_url": "https://img.logo.dev/apollohospitals.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21838,
+      "hash": "dbb561a4336d4130",
+      "fetched_at": "2026-06-09T04:32:36.374Z",
+      "status": "saved",
+      "filename": "APOLLOHOSP.png"
+    },
+    "MAXHEALTH": {
+      "domain": "maxhealthcare.in",
+      "source_url": "https://img.logo.dev/maxhealthcare.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14885,
+      "hash": "f42b5a0b5d69a694",
+      "fetched_at": "2026-06-09T04:32:38.252Z",
+      "status": "saved",
+      "filename": "MAXHEALTH.png"
+    },
+    "FORTIS": {
+      "domain": "fortishealthcare.com",
+      "source_url": "https://img.logo.dev/fortishealthcare.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11100,
+      "hash": "8fceaff7e61d656a",
+      "fetched_at": "2026-06-09T04:32:39.209Z",
+      "status": "saved",
+      "filename": "FORTIS.png"
+    },
+    "AJANTPHARM": {
+      "domain": "ajantapharma.com",
+      "source_url": "https://img.logo.dev/ajantapharma.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 21532,
+      "hash": "d7d68510cdfc8388",
+      "fetched_at": "2026-06-09T04:32:40.107Z",
+      "status": "saved",
+      "filename": "AJANTPHARM.png"
+    },
+    "ASTERDM": {
+      "domain": "asterdmhealthcare.com",
+      "source_url": "https://img.logo.dev/asterdmhealthcare.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 26758,
+      "hash": "b8be7630007aad45",
+      "fetched_at": "2026-06-09T04:32:41.224Z",
+      "status": "saved",
+      "filename": "ASTERDM.png"
+    },
+    "JBCHEPHARM": {
+      "domain": "jbpharma.com",
+      "source_url": "https://img.logo.dev/jbpharma.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 37500,
+      "hash": "6e7084408589c47f",
+      "fetched_at": "2026-06-09T04:32:42.226Z",
+      "status": "saved",
+      "filename": "JBCHEPHARM.png"
+    },
+    "MEDANTA": {
+      "domain": "medanta.org",
+      "source_url": "https://img.logo.dev/medanta.org?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14756,
+      "hash": "5bdce2a29a6e188f",
+      "fetched_at": "2026-06-09T04:32:43.352Z",
+      "status": "saved",
+      "filename": "MEDANTA.png"
+    },
+    "EMCURE": {
+      "domain": "emcure.com",
+      "source_url": "https://img.logo.dev/emcure.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20493,
+      "hash": "449f6cadde1986ee",
+      "fetched_at": "2026-06-09T04:32:44.067Z",
+      "status": "saved",
+      "filename": "EMCURE.png"
+    },
+    "LALPATHLAB": {
+      "domain": "lalpathlabs.com",
+      "source_url": "https://img.logo.dev/lalpathlabs.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12132,
+      "hash": "d18f0b5954fe0040",
+      "fetched_at": "2026-06-09T04:32:44.922Z",
+      "status": "saved",
+      "filename": "LALPATHLAB.png"
+    },
+    "NATCOPHARM": {
+      "domain": "natcopharma.co.in",
+      "source_url": "https://img.logo.dev/natcopharma.co.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 13689,
+      "hash": "1e1bc0ec70e66f81",
+      "fetched_at": "2026-06-09T04:32:45.677Z",
+      "status": "saved",
+      "filename": "NATCOPHARM.png"
+    },
+    "SYNGENE": {
+      "domain": "syngeneintl.com",
+      "source_url": "https://img.logo.dev/syngeneintl.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 11013,
+      "hash": "c5e60dbcec69abdd",
+      "fetched_at": "2026-06-09T04:32:47.145Z",
+      "status": "saved",
+      "filename": "SYNGENE.png"
+    },
+    "GRANULES": {
+      "domain": "granulesindia.com",
+      "source_url": "https://img.logo.dev/granulesindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 12049,
+      "hash": "9995404bd0291b9d",
+      "fetched_at": "2026-06-09T04:32:48.013Z",
+      "status": "saved",
+      "filename": "GRANULES.png"
+    },
+    "MEESHO": {
+      "domain": "meesho.com",
+      "source_url": "https://img.logo.dev/meesho.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14574,
+      "hash": "e454c697bdc069b8",
+      "fetched_at": "2026-06-09T04:32:48.718Z",
+      "status": "saved",
+      "filename": "MEESHO.png"
+    },
+    "SWIGGY": {
+      "domain": "swiggy.com",
+      "source_url": "https://img.logo.dev/swiggy.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 14280,
+      "hash": "2f67cd9111ed452b",
+      "fetched_at": "2026-06-09T04:32:49.452Z",
+      "status": "saved",
+      "filename": "SWIGGY.png"
+    },
+    "NUVAMA": {
+      "domain": "nuvama.com",
+      "source_url": "https://img.logo.dev/nuvama.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 18210,
+      "hash": "86b025bf47e39e81",
+      "fetched_at": "2026-06-09T04:32:50.331Z",
+      "status": "saved",
+      "filename": "NUVAMA.png"
+    },
+    "GROWW": {
+      "domain": "groww.in",
+      "source_url": "https://img.logo.dev/groww.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 13550,
+      "hash": "3bbaaa372ec51111",
+      "fetched_at": "2026-06-09T04:32:51.155Z",
+      "status": "saved",
+      "filename": "GROWW.png"
+    },
+    "ANGELONE": {
+      "domain": "angelone.in",
+      "source_url": "https://img.logo.dev/angelone.in?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 20341,
+      "hash": "b739b9dbba61fbd1",
+      "fetched_at": "2026-06-09T04:32:51.851Z",
+      "status": "saved",
+      "filename": "ANGELONE.png"
+    },
+    "MOTILALOFS": {
+      "domain": "motilaloswal.com",
+      "source_url": "https://img.logo.dev/motilaloswal.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 22726,
+      "hash": "f1c23e1526cf720a",
+      "fetched_at": "2026-06-09T04:32:52.657Z",
+      "status": "saved",
+      "filename": "MOTILALOFS.png"
+    },
+    "360ONE": {
+      "domain": "360.one",
+      "source_url": "https://img.logo.dev/360.one?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 4764,
+      "hash": "3f338c12bb06ffc1",
+      "fetched_at": "2026-06-09T04:32:53.349Z",
+      "status": "saved",
+      "filename": "360ONE.png"
+    },
+    "CDSL": {
+      "domain": "cdslindia.com",
+      "source_url": "https://img.logo.dev/cdslindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 9331,
+      "hash": "6b55f6a9eca2e419",
+      "fetched_at": "2026-06-09T04:32:54.182Z",
+      "status": "saved",
+      "filename": "CDSL.png"
+    },
+    "MCX": {
+      "domain": "mcxindia.com",
+      "source_url": "https://img.logo.dev/mcxindia.com?token=pk_SNFK_ZzwSiq032W9M6TmJg&size=192&format=png",
+      "bytes": 7870,
+      "hash": "c2b9d2db0185fcb4",
+      "fetched_at": "2026-06-09T04:32:55.054Z",
+      "status": "saved",
+      "filename": "MCX.png"
+    }
+  }
+}

@@ -1,21 +1,30 @@
 /**
  * logoUrl — resolve a real company logo URL for a given NSE ticker.
  *
- * 2026-06-07 HOTFIX: Clearbit's free Logo API (`logo.clearbit.com`) was
- * decommissioned. Bare-domain Brandfetch (`cdn.brandfetch.io/{domain}`)
- * now returns an HTML preview page rather than an image, so it is no
- * longer usable as an `<img src>` either. The chain has been rebuilt
- * around two free, stable, image-returning endpoints:
+ * 2026-06-09 UPGRADE: self-hosted retina-sharp 192px PNGs from Logo.dev
+ * are now stage 0. We mass-fetched the full 261-entry domain map via
+ * `frontend/scripts/fetch-logos-logodev.mjs` and committed the PNGs to
+ * `frontend/public/logos/{TICKER}.png`. Served directly from the CDN
+ * edge — no per-render hop to a third-party favicon endpoint, and
+ * sharper than the 64-128px Google s2/favicons we were using.
  *
- *   PRIMARY:  Google s2/favicons — `https://www.google.com/s2/favicons?domain={d}&sz={n}`
- *             Always-on, no key, real PNG (~32-128px). Lower fidelity
- *             than the old Clearbit hop but bulletproof.
- *   FALLBACK: DuckDuckGo icons — `https://icons.duckduckgo.com/ip3/{d}.ico`
+ * 2026-06-07 HOTFIX (still relevant for stages 1+): Clearbit's free
+ * Logo API was decommissioned. Bare-domain Brandfetch returns HTML
+ * now, not an image. The remaining fallback chain is built around two
+ * free, stable, image-returning endpoints:
+ *
+ *   STAGE 0:  Self-hosted /logos/{TICKER}.png — Logo.dev mass-fetched
+ *             at build time, 192px PNG, ~10-30KB each.
+ *   STAGE 1:  Google s2/favicons — `https://www.google.com/s2/favicons?domain={d}&sz={n}`
+ *             Always-on, no key, real PNG (~32-128px). Bulletproof
+ *             long-tail fallback for any ticker whose Logo.dev fetch
+ *             missed (placeholder or fail).
+ *   STAGE 2:  DuckDuckGo icons — `https://icons.duckduckgo.com/ip3/{d}.ico`
  *             Independent source, sidesteps the rare case where Google's
  *             favicon crawler hasn't indexed the domain.
  *
- * If both resolve to null OR the <img onError> fires past the last
- * stage, the caller MUST fall through to the existing giant-letter
+ * If every stage resolves to null OR the <img onError> fires past the
+ * last stage, the caller MUST fall through to the existing giant-letter
  * fallback — see StockHeroImage.tsx / TickerAvatar.tsx. Never throw
  * from here.
  *
@@ -36,6 +45,36 @@ export function getCompanyDomain(ticker: string): string | null {
   const domain = DOMAINS[key]
   if (!domain || key === "_META") return null
   return domain
+}
+
+/**
+ * Convert a clean NSE ticker to the on-disk filename used by the
+ * mass-fetched `frontend/public/logos/` corpus. Mirrors the
+ * `tickerToFsSafe` helper in `frontend/scripts/fetch-logos-logodev.mjs`
+ * — both sides MUST apply identical transformations or the chip will
+ * 404 and skip past the self-hosted stage even when the file exists.
+ */
+export function tickerToLogoFilename(ticker: string): string {
+  return ticker.replace(/&/g, "_AND_").replace(/-/g, "_")
+}
+
+/**
+ * Self-hosted logo URL — first hop in the chain. Returns a relative
+ * path that Next.js / Vercel serves from `frontend/public/logos/` with
+ * an edge cache. On 404 the `<img onError>` cascade advances to the
+ * Google favicon stage; we deliberately do NOT pre-check `Map`-style
+ * existence here because (a) the file list would have to be regenerated
+ * each build, (b) a per-render check costs more than a single 404.
+ *
+ * Returns null when the ticker has no curated domain — that ticker
+ * never had a Logo.dev fetch attempt, so there's no point asking the
+ * CDN for a file we know doesn't exist.
+ */
+export function getSelfHostedLogoUrl(ticker: string): string | null {
+  if (!ticker) return null
+  const key = ticker.toUpperCase().replace(/\.(NS|BO)$/i, "")
+  if (key === "_META" || !DOMAINS[key]) return null
+  return `/logos/${tickerToLogoFilename(key)}.png`
 }
 
 /**

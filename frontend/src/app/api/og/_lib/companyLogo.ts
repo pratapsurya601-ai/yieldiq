@@ -28,10 +28,12 @@
  * import switched to that shared module. The de-dupe is a follow-up
  * cleanup; both lists are byte-identical so it's a mechanical change.
  *
- * Fallback chain (per brief):
+ * Fallback chain (updated 2026-06-09):
  *   1. Ticker not in curated map               → return null (letter mark)
- *   2. Google favicon fails / 404 / >2s        → return null (letter mark)
- *   3. Google favicon OK                       → base64 data URL
+ *   2. Self-hosted /logos/{TICKER}.png OK      → base64 data URL (NEW)
+ *   3. Self-hosted fails / 404 / >1.5s         → try Google favicon
+ *   4. Google favicon OK                       → base64 data URL
+ *   5. Google favicon fails / 404 / >2s        → return null (letter mark)
  *
  * Edge-runtime constraints respected:
  *   - No Node `Buffer` import (uses `btoa` + `Uint8Array`).
@@ -140,16 +142,46 @@ function bytesToBase64(bytes: Uint8Array): string {
 }
 
 /**
- * Fetch the Google s2/favicons logo for a ticker and return it as a
- * base64 data URL. Never throws. Returns null when:
+ * Resolve the public-origin URL used to fetch a self-hosted logo PNG
+ * from `/public/logos/`. Order of preference:
+ *   1. `NEXT_PUBLIC_SITE_URL` — set in Vercel project env to the
+ *      canonical apex (`https://yieldiq.in`).
+ *   2. `VERCEL_URL` — auto-injected for preview deploys.
+ *   3. `https://yieldiq.in` — hard-coded production fallback.
+ *
+ * The `https://` prefix is added when `VERCEL_URL` is bare (Vercel
+ * convention — it ships without a scheme).
+ */
+function getOriginBase(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/+$/, "")
+  if (fromEnv) return fromEnv
+  const vercel = process.env.VERCEL_URL?.replace(/\/+$/, "")
+  if (vercel) {
+    return vercel.startsWith("http") ? vercel : `https://${vercel}`
+  }
+  return "https://yieldiq.in"
+}
+
+/**
+ * Filename sanitisation for self-hosted /logos/{TICKER}.png — mirrors
+ * `tickerToFsSafe` in `frontend/scripts/fetch-logos-logodev.mjs` and
+ * `tickerToLogoFilename` in `frontend/src/lib/logoUrl.ts`. Three
+ * locations, one rule.
+ */
+function tickerToLogoFilename(cleaned: string): string {
+  return cleaned.replace(/&/g, "_AND_").replace(/-/g, "_")
+}
+
+/**
+ * Try the self-hosted /logos/{TICKER}.png first, fall through to the
+ * Google s2/favicons hop on miss. Returns a base64 data URL or null.
+ * Never throws.
+ *
+ * Returns null when:
  *   - ticker is not in the curated NSE_TICKER_DOMAINS map
- *   - Google returns a non-2xx (rare; the endpoint usually serves a
- *     generic globe rather than 404, but we still guard)
- *   - the request exceeds the 2s timeout
- *   - the response body is empty or unreadable
- *   - the response content-type isn't an image (defends against the
- *     "served an HTML preview page" failure mode that killed the old
- *     bare-domain Brandfetch URL)
+ *   - both the self-hosted hop AND the Google favicon hop fail
+ *   - any request exceeds its timeout (1.5s self-hosted, 2s Google)
+ *   - response body is empty or content-type isn't an image
  *
  * Caller pattern:
  *
@@ -163,6 +195,35 @@ export async function fetchCompanyLogoDataUrl(
   const domain = getCuratedDomain(ticker)
   if (!domain) return null
 
+  const cleaned = cleanTickerForLogo(ticker)
+  const fsSafe = tickerToLogoFilename(cleaned)
+
+  // STAGE 0 — self-hosted retina-sharp 192px PNG from /public/logos/.
+  // Mass-fetched from Logo.dev at build time; served from the Vercel
+  // edge with no third-party hop. 1.5s timeout per brief.
+  try {
+    const selfHostedUrl = `${getOriginBase()}/logos/${fsSafe}.png`
+    const res = await fetch(selfHostedUrl, {
+      signal: AbortSignal.timeout(1500),
+      headers: { "User-Agent": "YieldIQ-OG/1.0 (+https://yieldiq.in)" },
+    })
+    if (res.ok) {
+      const ct = res.headers.get("content-type") || "image/png"
+      if (ct.startsWith("image/")) {
+        const buf = await res.arrayBuffer()
+        if (buf && buf.byteLength > 0) {
+          const b64 = bytesToBase64(new Uint8Array(buf))
+          return `data:${ct};base64,${b64}`
+        }
+      }
+    }
+    // 404 / non-image / empty → fall through to Google favicon.
+  } catch {
+    // Timeout or network error on the self-hosted hop — fall through.
+  }
+
+  // STAGE 1 — Google s2/favicons. Long-tail fallback for tickers whose
+  // Logo.dev fetch hit a placeholder (HTTP 202) or failed.
   try {
     // 2026-06-07 HOTFIX: was `https://logo.clearbit.com/${domain}` —
     // Clearbit shut down its free Logo API and that endpoint now

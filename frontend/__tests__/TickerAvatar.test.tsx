@@ -1,9 +1,10 @@
 /**
  * TickerAvatar smoke tests.
  *
- * Locks the post-2026-06-07-hotfix sitewide-chip behavior:
- *   - Known curated NSE ticker (HDFCBANK) → Google s2/favicons URL on
- *     first render (Clearbit was the previous primary; it died).
+ * Locks the post-2026-06-09 sitewide-chip behavior:
+ *   - Known curated NSE ticker (HDFCBANK) → self-hosted
+ *     `/logos/HDFCBANK.png` URL on first render (mass-fetched from
+ *     Logo.dev; stage 0 of the cascade).
  *   - .NS / .BO / .NSE / .BSE suffixes are stripped before lookup
  *   - Non-curated ticker (GOOGL) → `<ticker>.com`-guess Google favicon URL
  *   - URL builder NEVER emits a `logo.clearbit.com` URL
@@ -19,15 +20,13 @@ import { render, screen } from "@testing-library/react"
 import TickerAvatar from "@/components/common/TickerAvatar"
 
 describe("TickerAvatar", () => {
-  it("renders a Google s2/favicons URL for a curated NSE ticker (HDFCBANK)", () => {
+  it("renders the self-hosted /logos/{TICKER}.png URL for a curated NSE ticker (HDFCBANK)", () => {
     render(<TickerAvatar ticker="HDFCBANK" />)
     const wrap = screen.getByTestId("ticker-avatar-image")
     const img = wrap.querySelector("img")
     expect(img).not.toBeNull()
-    // Primary hop uses the curated domain from data/ticker_domains.json.
-    expect(img?.getAttribute("src")).toMatch(
-      /www\.google\.com\/s2\/favicons\?domain=hdfcbank\.com/,
-    )
+    // Stage 0: self-hosted retina-sharp PNG from /public/logos/.
+    expect(img?.getAttribute("src")).toBe("/logos/HDFCBANK.png")
     // Hotfix invariant: never emit the dead Clearbit URL.
     expect(img?.getAttribute("src")).not.toMatch(/logo\.clearbit\.com/)
   })
@@ -37,9 +36,7 @@ describe("TickerAvatar", () => {
     const img = screen
       .getByTestId("ticker-avatar-image")
       .querySelector("img")
-    expect(img?.getAttribute("src")).toMatch(
-      /www\.google\.com\/s2\/favicons\?domain=hdfcbank\.com/,
-    )
+    expect(img?.getAttribute("src")).toBe("/logos/HDFCBANK.png")
   })
 
   it("strips .BSE / .NSE / .BO suffixes too", () => {
@@ -47,14 +44,21 @@ describe("TickerAvatar", () => {
     const img = screen
       .getByTestId("ticker-avatar-image")
       .querySelector("img")
-    expect(img?.getAttribute("src")).toMatch(/hdfcbank\.com/)
+    expect(img?.getAttribute("src")).toBe("/logos/HDFCBANK.png")
+  })
+
+  it("applies the &→_AND_ / -→_ filename sanitisation for M&M and BAJAJ-AUTO", () => {
+    render(<TickerAvatar ticker="M&M" />)
+    const mAndM = screen
+      .getByTestId("ticker-avatar-image")
+      .querySelector("img")
+    expect(mAndM?.getAttribute("src")).toBe("/logos/M_AND_M.png")
   })
 
   it("falls through to a `<ticker>.com`-guess Google favicon for non-curated US-style tickers (GOOGL)", () => {
-    // GOOGL isn't in ticker_domains.json, so stage 0 (curated-domain
-    // Google favicon) and stage 1 (curated-domain DDG) are both null,
-    // and the component renders the stage-2 `<ticker>.com` guess on
-    // the first paint.
+    // GOOGL isn't in ticker_domains.json, so stages 0/1/2 (which all
+    // depend on a curated domain) are null and the component renders
+    // the stage-3 `<ticker>.com` guess on the first paint.
     render(<TickerAvatar ticker="GOOGL" />)
     const img = screen
       .getByTestId("ticker-avatar-image")
@@ -68,7 +72,7 @@ describe("TickerAvatar", () => {
     render(<TickerAvatar ticker="XYZUNKNOWN" />)
     const wrap = screen.getByTestId("ticker-avatar-image")
     const img = wrap.querySelector("img")
-    // First paint: stage-2 favicon-of-guessed-domain for non-curated tickers.
+    // First paint: stage-3 favicon-of-guessed-domain for non-curated tickers.
     expect(img?.getAttribute("src")).toMatch(
       /www\.google\.com\/s2\/favicons\?domain=xyzunknown\.com/,
     )
