@@ -42,7 +42,7 @@ const BANNED: string[] = [
   ["sh", "ould"],
   ["con", "cern"],
   ["stren", "gth"],
-  ["weak", "ness"],
+  ["weakn", "ess"],
   ["bu", "y"],
   ["se", "ll"],
   ["ho", "ld"],
