@@ -199,6 +199,48 @@ export interface ELI15ThesisResponse {
 export const getELI15Thesis = (ticker: string): Promise<ELI15ThesisResponse> =>
   api.get(`/api/v1/analysis/${ticker}/eli15-thesis`).then(r => r.data)
 
+// ── AI Explain (Premium Feel R4) ──────────────────────────────
+// AlphaSpread-style preset cards. The presets list is fetched once;
+// each card click hits POST /ai-explain with { ticker, preset_id }
+// and returns the SEBI-filtered answer text. Server caches per
+// (ticker, preset_id) for 30s so repeated clicks within a session
+// reuse the answer for free. Free tier shares its 5/day cap with
+// analyze().
+export interface AIPresetCard {
+  preset_id: string
+  title: string
+  preview: string
+  icon: string
+}
+
+export interface AIPresetsResponse {
+  presets: AIPresetCard[]
+  disclaimer: string
+}
+
+export interface AIExplainResponse {
+  ticker: string
+  preset_id: string
+  title: string
+  answer: string
+  disclaimer: string
+  generated_at: string
+  model_version: string
+  source: "llm_first" | "llm_retry" | "template" | "template_no_llm"
+  cached: boolean
+}
+
+export const getAIPresets = (): Promise<AIPresetsResponse> =>
+  api.get(`/api/v1/public/ai-explain/presets`).then(r => r.data)
+
+export const postAIExplain = (
+  ticker: string,
+  preset_id: string,
+): Promise<AIExplainResponse> =>
+  api
+    .post(`/api/v1/public/ai-explain`, { ticker, preset_id })
+    .then(r => r.data)
+
 // Coverage Tier (feat/coverage-tier-system) — returns the full A/B/C
 // rubric breakdown. Backed by a 6h server cache; pass refresh=true only
 // for admin/methodology tooling.

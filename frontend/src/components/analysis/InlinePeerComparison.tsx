@@ -164,12 +164,50 @@ function EmptyState({ message }: { message: string }) {
 }
 
 function LoadingSkeleton() {
+  // Premium Feel R4 — shape-matching skeleton. The final table has a
+  // header row (Ticker / MoS / Score / PE / ROE) and ~6 sortable
+  // ranking rows. The skeleton mirrors that exact 5-column structure
+  // so the loading state already reads as the eventual ranking view.
   return (
-    <section className="bg-bg rounded-2xl border border-border p-4">
-      <div className="h-4 w-40 bg-surface rounded animate-pulse mb-3" />
-      <div className="space-y-2">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-8 bg-surface rounded animate-pulse" />
+    <section
+      data-testid="inline-peers-skeleton"
+      aria-busy="true"
+      aria-label="Loading"
+      className="bg-bg rounded-2xl border border-border p-4"
+    >
+      <div className="h-4 w-40 bg-border/60 rounded animate-pulse mb-3" />
+      {/* Header row (5 columns). */}
+      <div className="grid grid-cols-5 gap-2 pb-2 border-b border-border">
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div
+            key={`h-${i}`}
+            className="h-3 bg-border/60 rounded animate-pulse"
+            style={{
+              animationDelay: `${i * 30}ms`,
+              gridColumn: i === 0 ? "span 2 / span 2" : undefined,
+            }}
+          />
+        ))}
+      </div>
+      {/* Six ranked rows. The 0th row gets a slightly brighter shade so
+          it reads as the highlighted subject row. */}
+      <div className="space-y-2 mt-2">
+        {Array.from({ length: 6 }).map((_, row) => (
+          <div
+            key={`r-${row}`}
+            className="grid grid-cols-5 gap-2 items-center"
+          >
+            {[0, 1, 2, 3, 4].map((col) => (
+              <div
+                key={col}
+                className={`h-4 rounded animate-pulse ${row === 0 ? "bg-brand-50" : "bg-border/60"}`}
+                style={{
+                  animationDelay: `${row * 50 + col * 20}ms`,
+                  gridColumn: col === 0 ? "span 2 / span 2" : undefined,
+                }}
+              />
+            ))}
+          </div>
         ))}
       </div>
     </section>

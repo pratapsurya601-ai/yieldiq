@@ -126,11 +126,53 @@ const PrismTimeMachine = dynamic(
 /*  scrolls to / clicks the tab that renders it. SSR is disabled       */
 /*  because these are all client-only chart/widget components.         */
 /* ------------------------------------------------------------------ */
+// Premium Feel R4 — generic skeletons for dynamic()-loaded panels.
+// Each lazy-loaded chart / widget supplies its own shape-matched
+// skeleton internally; these are the OUTER placeholders shown while
+// the bundle itself is downloading (network latency, not data latency).
+// They mirror the final card surface — rounded-2xl border + a chip
+// row + a body block — so even bundle-fetch latency reads as the
+// eventual card, not a flat gray rectangle.
 const chartSkeleton = () => (
-  <div className="h-64 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
+  <div
+    aria-busy="true"
+    aria-label="Loading"
+    className="rounded-2xl border border-border bg-bg p-4 space-y-3"
+  >
+    <div className="flex gap-2">
+      {[0, 1, 2].map((i) => (
+        <div
+          key={i}
+          className="h-6 w-20 rounded-full bg-border/60 animate-pulse"
+          style={{ animationDelay: `${i * 40}ms` }}
+        />
+      ))}
+    </div>
+    <div className="relative h-56 rounded-lg bg-surface flex items-end gap-1 p-2">
+      {[...Array(20)].map((_, i) => (
+        <div
+          key={i}
+          className="flex-1 bg-border/60 animate-pulse rounded-t"
+          style={{
+            height: `${30 + ((i * 7) % 60)}%`,
+            animationDelay: `${i * 30}ms`,
+          }}
+        />
+      ))}
+    </div>
+  </div>
 )
 const smallSkeleton = () => (
-  <div className="h-32 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
+  <div
+    aria-busy="true"
+    aria-label="Loading"
+    className="rounded-2xl border border-border bg-bg p-4 space-y-2.5"
+  >
+    <div className="h-4 w-48 rounded bg-border/60 animate-pulse" />
+    <div className="h-3 w-full rounded bg-border/60 animate-pulse" style={{ animationDelay: "60ms" }} />
+    <div className="h-3 w-5/6 rounded bg-border/60 animate-pulse" style={{ animationDelay: "120ms" }} />
+    <div className="h-3 w-3/4 rounded bg-border/60 animate-pulse" style={{ animationDelay: "180ms" }} />
+  </div>
 )
 
 const RevenueSankey = dynamic(() => import("@/components/analysis/RevenueSankey"), {
@@ -187,6 +229,14 @@ const BullsBearsPanel = dynamic(() => import("@/components/analysis/BullsBearsPa
 // numbered sections. Server-side SEBI-filtered; the component hides
 // itself on error.
 const ELI15ThesisPanel = dynamic(() => import("@/components/analysis/ELI15ThesisPanel"), {
+  ssr: false,
+  loading: smallSkeleton,
+})
+// AIPromptPresetsPanel — Premium Feel R4 (2026-06-09). AlphaSpread-
+// style 3-card grid of preset questions about this stock. Each card
+// expands inline to show a SEBI-filtered LLM answer when clicked.
+// Lives in the same AI section as ELI15ThesisPanel.
+const AIPromptPresetsPanel = dynamic(() => import("@/components/analysis/AIPromptPresetsPanel"), {
   ssr: false,
   loading: smallSkeleton,
 })
@@ -1829,10 +1879,16 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             the confidence / methodology disclosure so non-experts get
             the plain-English thesis BEFORE the deep-dive numbers.
             Server-side SEBI-filtered with a deterministic template
-            fallback; hides itself on error / empty payload. */}
+            fallback; hides itself on error / empty payload.
+
+            Premium Feel R4 (2026-06-09): the section-ai anchor now
+            covers BOTH the ELI15 thesis (auto-generated 3-bullet) AND
+            the new AIPromptPresetsPanel (3-card preset-question grid).
+            The sticky pill-nav AI button scrolls here. */}
         <Reveal direction="up" delay={0}>
-          <div id="section-ai">
+          <div id="section-ai" className="space-y-4">
             <ELI15ThesisPanel ticker={ticker} />
+            <AIPromptPresetsPanel ticker={ticker} />
           </div>
         </Reveal>
 
