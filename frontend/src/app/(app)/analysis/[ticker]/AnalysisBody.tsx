@@ -1183,18 +1183,23 @@ export default function AnalysisBody({ ticker, prism }: Props) {
           <WorryIndex worry={data.worry_index ?? null} />
 
           {/* Phase 4 personalization: persisted style controls section
-              order, default-expanded set, and Beginner-mode explainers.
-              Verdict colour cascade still owns the hero — accent only
-              applies to numbered headers and dividers inside this map.
-              When activeStyle is null, defaultExpanded is forced true
-              for every section, preserving the legacy UX exactly.
-              Each item is wrapped in the PR-D canonical card surface
-              (rounded-2xl border border-border bg-bg p-6). */}
+              order and Beginner-mode explainers. Verdict colour cascade
+              still owns the hero — accent only applies to numbered
+              headers and dividers inside this map.
+
+              Sprint A1 (2026-06-09 competitor audit, gap "9/11 collapsed
+              by default reads as hostile UX"): the FIRST 5 visible
+              sections always default-expanded regardless of the active
+              personalization style, with sections 6+ collapsed. The
+              previous policy let a picked style hide most of the page
+              (Value style expanded only 3 of 13 sections by default),
+              which buried our best work. Users can still toggle every
+              section freely; the picker still controls ORDER and which
+              accent is used. Each item is wrapped in the PR-D canonical
+              card surface (rounded-2xl border border-border bg-bg p-6). */}
           {renderableSections.map((key, idx) => {
             const number = idx + 1
-            const defaultExpanded = config
-              ? config.defaultExpanded.includes(key)
-              : true
+            const defaultExpanded = idx < 5
             const explainer =
               config?.showSectionExplainers ? SECTION_EXPLAINERS[key] : null
             return (

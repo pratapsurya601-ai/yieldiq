@@ -25,6 +25,8 @@
  *     wiring site, not hidden inside this component.
  */
 
+import { useState } from "react"
+import { useReducedMotion } from "@/components/anim/useReducedMotion"
 import { formatRelativeTime, formatAbsoluteShort } from "@/lib/utils"
 
 export interface FreshnessStampProps {
@@ -109,6 +111,40 @@ function parse(input: string | Date | null | undefined): Date | null {
   return Number.isFinite(d.getTime()) ? d : null
 }
 
+/**
+ * Sprint A1 (2026-06-09 competitor audit gap "freshness reads as plain
+ * text — no signal that the page is live"): a leading 8px dot whose
+ * colour + motion encodes the staleness of the stamp at a glance.
+ * Tiers match the brief:
+ *   - age < 5min   → green, animated pulse ("live")
+ *   - 5min – 1h    → yellow, static ("recent")
+ *   - > 1h         → gray, static ("stale")
+ * The thresholds are deliberately tighter than the `tiered` mode's
+ * 30m/4h boundaries — the dot is a "is this current?" indicator, not
+ * the "Live/Delayed/Stale" prefix tier. Memoised by ageMs so it
+ * doesn't recompute on every parent render.
+ *
+ * Exported for FreshnessStamp.test.tsx.
+ */
+export interface PulseInfo {
+  /** Tailwind background colour for the 8px dot. */
+  colorCls: string
+  /** Whether the dot should animate (overridden by prefers-reduced-motion). */
+  pulse: boolean
+  /** Plain-English staleness band — drives aria-label for screen readers. */
+  band: "live" | "recent" | "stale"
+}
+
+export function computePulse(ageMs: number): PulseInfo {
+  if (ageMs < 5 * 60 * 1000) {
+    return { colorCls: "bg-emerald-500", pulse: true, band: "live" }
+  }
+  if (ageMs < 60 * 60 * 1000) {
+    return { colorCls: "bg-amber-500", pulse: false, band: "recent" }
+  }
+  return { colorCls: "bg-slate-400 dark:bg-slate-500", pulse: false, band: "stale" }
+}
+
 export default function FreshnessStamp({
   timestamp,
   prefix = "Updated",
@@ -121,6 +157,19 @@ export default function FreshnessStamp({
   const d = parse(timestamp ?? asOf)
   const baseCls = "text-[11px] leading-snug"
   const defaultCls = `${baseCls} text-caption`
+  const reducedMotion = useReducedMotion()
+  // Snapshot the current wall-clock ONCE per mount. React 19's
+  // `react-hooks/purity` rule disallows raw `Date.now()` during
+  // render; the blessed escape hatch is a lazy `useState` initializer
+  // (impurity allowed inside the initialiser callback). This snapshot
+  // drives the relative-time phrase, the optional `tiered` color
+  // band, AND the Sprint A1 pulse-dot — all three stay stable across
+  // re-renders so the dot never flickers between bands when a parent
+  // prop changes. The trade-off is that a long-mounted page will not
+  // promote a "Live" dot to "Recent" until a refetch causes the
+  // parent to remount this stamp; that's an acceptable cost for the
+  // freshness UX (this is a freshness STAMP, not a live counter).
+  const [renderedAtMs] = useState<number>(() => Date.now())
 
   if (!d) {
     if (!fallback) return null
@@ -131,19 +180,42 @@ export default function FreshnessStamp({
     )
   }
 
+  // Sprint A1 — leading pulse-dot. The dot is hidden from assistive
+  // tech (the relative-time phrase is the canonical accessible label)
+  // and respects prefers-reduced-motion by dropping the animation
+  // while keeping the colour so motion-averse users still get the
+  // signal.
+  const pulseAgeMs = Math.max(0, renderedAtMs - d.getTime())
+  const pulse = computePulse(pulseAgeMs)
+  const dotAnimate = pulse.pulse && !reducedMotion
+  const dot = (
+    <span
+      aria-hidden
+      data-pulse-band={pulse.band}
+      data-pulse-animated={dotAnimate ? "true" : "false"}
+      className={[
+        "inline-block w-2 h-2 rounded-full mr-1.5 align-middle",
+        pulse.colorCls,
+        dotAnimate ? "animate-pulse" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    />
+  )
+
   if (tiered) {
-    const diffMs = Math.max(0, Date.now() - d.getTime())
+    const diffMs = Math.max(0, renderedAtMs - d.getTime())
     const tier = computeTier(diffMs)
     const cls = [baseCls, tier.colorCls, className].filter(Boolean).join(" ")
     return (
       <span className={cls} title={showTooltip ? d.toISOString() : undefined}>
+        {dot}
         {`${tier.prefix} ${tier.phrase}`}
       </span>
     )
   }
 
-  const now = Date.now()
-  const diffMs = now - d.getTime()
+  const diffMs = renderedAtMs - d.getTime()
   const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
   const isAbsolute = diffMs >= sevenDaysMs || diffMs < 0
   const phrase = isAbsolute ? formatAbsoluteShort(d) : formatRelativeTime(d)
@@ -157,6 +229,7 @@ export default function FreshnessStamp({
       className={[defaultCls, className].filter(Boolean).join(" ")}
       title={showTooltip ? d.toISOString() : undefined}
     >
+      {dot}
       {body}
     </span>
   )

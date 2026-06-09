@@ -224,11 +224,22 @@ export default function MemoryLane({ ticker, companyName }: Props) {
     }
   }
 
+  // Sprint A1 (2026-06-09 competitor audit): on a user's FIRST visit
+  // every delta is 0% by construction (first_visit == current_visit), so
+  // the legacy copy ("Fair value moved 538 → 538 (0.0%)", "if you had
+  // bought ₹10,000 it would be worth ₹10,000") reads as a bug. Detect
+  // visit_count === 1 and surface a forward-looking empty state instead.
+  // Visits 2+ keep the full delta breakdown. The user_note textarea is
+  // shown in both states so first-time users can leave a future-you
+  // memo immediately.
+  const isFirstVisit = data.visit_count <= 1
+
   return (
     <RevealOnScroll>
       <section
         aria-labelledby="memory-lane-heading"
         className="bg-bg rounded-2xl border border-border p-4 sm:p-6 space-y-4"
+        data-first-visit={isFirstVisit ? "true" : "false"}
       >
         <header>
           <h3
@@ -239,74 +250,98 @@ export default function MemoryLane({ ticker, companyName }: Props) {
           </h3>
         </header>
 
-        <p className="text-sm sm:text-base text-ink leading-relaxed max-w-prose">
-          You first analyzed{" "}
-          <span className="font-semibold">{target}</span>{" "}
-          <span className="font-semibold">{fmtDaysAgo(data.days_ago)}</span>
-          {firstPrice !== null ? (
-            <>
-              {" "}
-              at <span className="font-semibold tabular-nums">{fmtRupee(firstPrice, 0)}</span>.
-            </>
-          ) : (
-            "."
-          )}
-        </p>
+        {isFirstVisit ? (
+          <>
+            <p className="text-sm sm:text-base text-ink leading-relaxed max-w-prose">
+              Welcome — we&rsquo;ll start tracking from here.
+            </p>
+            <p className="text-sm sm:text-base text-ink leading-relaxed max-w-prose">
+              You analyzed{" "}
+              <span className="font-semibold">{target}</span> today
+              {firstPrice !== null ? (
+                <>
+                  {" "}
+                  at <span className="font-semibold tabular-nums">{fmtRupee(firstPrice, 0)}</span>.
+                </>
+              ) : (
+                "."
+              )}{" "}
+              Come back in a few weeks to see how the model&rsquo;s fair
+              value and your hypothetical position evolved.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-sm sm:text-base text-ink leading-relaxed max-w-prose">
+              You first analyzed{" "}
+              <span className="font-semibold">{target}</span>{" "}
+              <span className="font-semibold">{fmtDaysAgo(data.days_ago)}</span>
+              {firstPrice !== null ? (
+                <>
+                  {" "}
+                  at <span className="font-semibold tabular-nums">{fmtRupee(firstPrice, 0)}</span>.
+                </>
+              ) : (
+                "."
+              )}
+            </p>
 
-        {(firstFv !== null && curFv !== null) ||
-        (firstPrice !== null && curPrice !== null) ||
-        verdictLine ? (
-          <ul className="text-sm text-ink space-y-1.5 list-none pl-0">
-            {firstFv !== null && curFv !== null ? (
-              <li className="flex items-baseline gap-2 flex-wrap">
-                <span className="text-caption">Fair value moved</span>
-                <span className="tabular-nums font-medium">
-                  {fmtRupee(firstFv, 0)} → {fmtRupee(curFv, 0)}
-                </span>
-                {fvDelta !== null ? (
-                  <span className={`tabular-nums font-semibold ${deltaColor(fvDelta)}`}>
-                    (<CountUp to={fvDelta} duration={1.0} decimals={1} />%)
-                  </span>
+            {(firstFv !== null && curFv !== null) ||
+            (firstPrice !== null && curPrice !== null) ||
+            verdictLine ? (
+              <ul className="text-sm text-ink space-y-1.5 list-none pl-0">
+                {firstFv !== null && curFv !== null ? (
+                  <li className="flex items-baseline gap-2 flex-wrap">
+                    <span className="text-caption">Fair value moved</span>
+                    <span className="tabular-nums font-medium">
+                      {fmtRupee(firstFv, 0)} → {fmtRupee(curFv, 0)}
+                    </span>
+                    {fvDelta !== null ? (
+                      <span className={`tabular-nums font-semibold ${deltaColor(fvDelta)}`}>
+                        (<CountUp to={fvDelta} duration={1.0} decimals={1} />%)
+                      </span>
+                    ) : null}
+                  </li>
                 ) : null}
-              </li>
-            ) : null}
 
-            {firstPrice !== null && curPrice !== null ? (
-              <li className="flex items-baseline gap-2 flex-wrap">
-                <span className="text-caption">Price moved</span>
-                <span className="tabular-nums font-medium">
-                  {fmtRupee(firstPrice, 0)} → {fmtRupee(curPrice, 0)}
-                </span>
-                {priceDelta !== null ? (
-                  <span className={`tabular-nums font-semibold ${deltaColor(priceDelta)}`}>
-                    (<CountUp to={priceDelta} duration={1.0} decimals={1} />%)
-                  </span>
+                {firstPrice !== null && curPrice !== null ? (
+                  <li className="flex items-baseline gap-2 flex-wrap">
+                    <span className="text-caption">Price moved</span>
+                    <span className="tabular-nums font-medium">
+                      {fmtRupee(firstPrice, 0)} → {fmtRupee(curPrice, 0)}
+                    </span>
+                    {priceDelta !== null ? (
+                      <span className={`tabular-nums font-semibold ${deltaColor(priceDelta)}`}>
+                        (<CountUp to={priceDelta} duration={1.0} decimals={1} />%)
+                      </span>
+                    ) : null}
+                  </li>
                 ) : null}
-              </li>
+
+                {verdictLine ? (
+                  <li className="text-caption italic">{verdictLine}</li>
+                ) : null}
+              </ul>
             ) : null}
 
-            {verdictLine ? (
-              <li className="text-caption italic">{verdictLine}</li>
+            {hypo10k !== null && firstPrice !== null ? (
+              <p className="text-sm text-ink leading-relaxed max-w-prose">
+                If you had bought{" "}
+                <span className="font-semibold tabular-nums">₹10,000</span> worth
+                that day, it would be worth{" "}
+                <span className="font-semibold tabular-nums text-ink">
+                  <CountUp
+                    to={hypo10k}
+                    duration={1.4}
+                    decimals={0}
+                    format={(n) => fmtRupee(n, 0)}
+                  />
+                </span>{" "}
+                today.
+              </p>
             ) : null}
-          </ul>
-        ) : null}
-
-        {hypo10k !== null && firstPrice !== null ? (
-          <p className="text-sm text-ink leading-relaxed max-w-prose">
-            If you had bought{" "}
-            <span className="font-semibold tabular-nums">₹10,000</span> worth
-            that day, it would be worth{" "}
-            <span className="font-semibold tabular-nums text-ink">
-              <CountUp
-                to={hypo10k}
-                duration={1.4}
-                decimals={0}
-                format={(n) => fmtRupee(n, 0)}
-              />
-            </span>{" "}
-            today.
-          </p>
-        ) : null}
+          </>
+        )}
 
         <div className="space-y-1">
           <label

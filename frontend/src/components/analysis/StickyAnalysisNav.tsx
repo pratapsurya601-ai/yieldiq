@@ -107,37 +107,53 @@ export default function StickyAnalysisNav({
   }, [heroSelector])
 
   // ── Active-section tracking ─────────────────────────────────────
+  //
+  // Sprint A1 (2026-06-09 competitor audit): the previous "highest
+  // intersection ratio wins" pick was unreliable when sections have
+  // very different heights — a short section with 100% visibility
+  // would beat a much taller section currently dominating the
+  // viewport. We now use a thin horizontal "activation band" sitting
+  // ~30% from the top of the viewport. Whichever section's top is
+  // currently INSIDE that band is active; the band is small enough
+  // that at most one section sits in it at a time, so ratio
+  // arbitration becomes unnecessary.
+  //
+  // When NO section is currently in the band (between section bursts,
+  // or while the user is on an oversized panel), we keep the previous
+  // active state — no flicker back to section 1.
   useEffect(() => {
     if (typeof window === "undefined") return
     if (typeof IntersectionObserver === "undefined") return
-    // Track which sections are visible and pick the topmost.
-    const visibility = new Map<string, number>()
+    // Track current "in band" set across IO callbacks so a partial
+    // entry batch doesn't drop the previously-in-band section.
+    const inBand = new Set<string>()
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
           const id = entry.target.id
           if (!id) continue
-          visibility.set(id, entry.isIntersecting ? entry.intersectionRatio : 0)
+          if (entry.isIntersecting) inBand.add(id)
+          else inBand.delete(id)
         }
         if (clickScrollingRef.current) return
-        // Pick the section with highest intersection ratio (most
-        // visible). Ties broken by section order.
-        let bestId = ""
-        let bestRatio = 0
+        if (inBand.size === 0) return // nothing active — keep current pill
+        // Of the sections currently in the band, the topmost in
+        // section-order wins (i.e. the first one the user encounters
+        // scrolling down).
         for (const sec of sections) {
-          const r = visibility.get(sec.id) ?? 0
-          if (r > bestRatio) {
-            bestRatio = r
-            bestId = sec.id
+          if (inBand.has(sec.id)) {
+            if (sec.id !== active) setActive(sec.id)
+            break
           }
         }
-        if (bestId && bestId !== active) setActive(bestId)
       },
       {
-        // -30% top -> the section currently sitting just below the
-        // sticky nav wins, not the one that just scrolled off.
-        rootMargin: "-30% 0px -55% 0px",
-        threshold: [0, 0.15, 0.3, 0.6, 1],
+        // -30% top, -65% bottom -> the band is the slice from ~30% to
+        // ~35% down the viewport. Sections become "active" the moment
+        // their top crosses 30% from the viewport top — matching how
+        // the user's eye lands when they scroll.
+        rootMargin: "-30% 0px -65% 0px",
+        threshold: 0,
       },
     )
     for (const sec of sections) {
