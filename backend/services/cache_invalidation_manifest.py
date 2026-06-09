@@ -1969,6 +1969,37 @@ MANIFEST: list[dict] = [
             "unchanged."
         ),
     },
+    {
+        # T3.11 Phase A — Telecom ARPU-driven valuation service.
+        # Standalone service in backend/services/telecom_arpu_service.py:
+        # 5-year subscriber × ARPU explicit DCF with Gordon terminal +
+        # EV/EBITDA cross-check. Phase A ships engine math only — no
+        # wiring into the analysis route. Phase B (separate PR) will
+        # branch the existing telecom path through this service.
+        #
+        # Scope: telecom universe (4 names). RELIANCE intentionally
+        # excluded — Jio is a segment of RIL and requires SOTP
+        # (T1.4 territory). Empty scope.fields because no existing
+        # cached payload field is touched by Phase A — the manifest
+        # entry exists only to record the engine change date so the
+        # Phase B wiring PR can reference the standalone service
+        # landing event.
+        "version_id": "v_t3_11_telecom_arpu_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": [
+                "BHARTIARTL", "VODAFONEIDEA", "BHARTIHEXA", "INDUSTOWER",
+            ],
+            "fields": [],
+        },
+        "rationale": (
+            "T3.11 Phase A: telecom ARPU-driven valuation standalone "
+            "service added. 5y subscriber × ARPU DCF + EV/EBITDA "
+            "cross-check. RELIANCE (Jio segment) excluded — needs "
+            "SOTP (T1.4 territory). Phase B wires into analysis route "
+            "in a separate PR."
+        ),
+    },
 ]
 
 
