@@ -39,11 +39,14 @@ const PREFERRED_ORDER = [
 // sending users to /discover (random stock picks). Same root cause for
 // the cells themselves — they rendered as static divs even though each
 // index has its own dashboard page. Map index names to existing routes;
-// fall back to a static cell when no dashboard exists yet (SENSEX, etc).
+// fall back to a static cell when no dashboard exists yet.
+// 2026-06-09: SENSEX wired to its own /sensex dashboard (Bug 3) — see
+// `frontend/src/app/(marketing)/sensex/page.tsx`.
 const INDEX_ROUTES: Record<string, string> = {
   "NIFTY 50": "/nifty50",
   "NIFTY BANK": "/nifty-bank",
   "NIFTY IT": "/nifty-it",
+  "SENSEX": "/sensex",
 }
 
 function indexHref(label: string): string | null {
@@ -148,12 +151,22 @@ function Skeleton() {
  * hub page passes sticky={false} because the page already has its
  * own hero band — letting the strip stick a second time creates a
  * visual double-band and conflicts with the page-level scroll layer.
+ *
+ * showHubLink: when true (default), the strip terminates with a
+ * "Markets →" link pointing at /markets. When the strip is mounted on
+ * /markets itself, that link is a self-reference and the page passes
+ * showHubLink={false} to omit it. Default behavior is preserved so the
+ * /home snapshot stays byte-identical (Bug 1, 2026-06-09).
  */
 export interface MarketsStripProps {
   sticky?: boolean
+  showHubLink?: boolean
 }
 
-export default function MarketsStrip({ sticky = true }: MarketsStripProps = {}) {
+export default function MarketsStrip({
+  sticky = true,
+  showHubLink = true,
+}: MarketsStripProps = {}) {
   const { data: pulse, isLoading } = useQuery({
     queryKey: ["markets-strip"],
     queryFn: () => getMarketPulse(true),
@@ -264,12 +277,14 @@ export default function MarketsStrip({ sticky = true }: MarketsStripProps = {}) 
           pct={pulse.crude_usd_change_pct ?? null}
           sparkline={macroSpark("CRUDE")}
         />
-        <Link
-          href="/markets"
-          className="flex items-center px-3 text-[11px] font-semibold text-brand hover:underline whitespace-nowrap"
-        >
-          Markets →
-        </Link>
+        {showHubLink && (
+          <Link
+            href="/markets"
+            className="flex items-center px-3 text-[11px] font-semibold text-brand hover:underline whitespace-nowrap"
+          >
+            Markets →
+          </Link>
+        )}
       </div>
     </div>
   )
