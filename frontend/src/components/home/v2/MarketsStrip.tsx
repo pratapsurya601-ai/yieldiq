@@ -1,5 +1,5 @@
 "use client"
-// Markets strip — sticky top row of indices + USD/INR.
+// Markets strip — sticky top row of indices + FX + commodities.
 // Data: /api/v1/market/pulse?include_macro=true
 // Bloomberg/Koyfin-style compact monospace.
 
@@ -7,6 +7,24 @@ import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { getMarketPulse } from "@/lib/api"
 import { formatPct } from "@/lib/utils"
+
+// Refresh cadence: 60s during NSE market hours, frozen after-hours.
+// Computed at query time so a user who leaves the tab open from 15:25
+// flips to "frozen" the moment markets close.
+function isMarketHoursIST(): boolean {
+  // IST is UTC+5:30 — convert by adding 330 minutes to the current
+  // UTC clock. Using the offset directly avoids tz database lookups
+  // and is correct for India (no DST since 1947).
+  const now = new Date()
+  const istMs = now.getTime() + (now.getTimezoneOffset() + 330) * 60 * 1000
+  const ist = new Date(istMs)
+  const day = ist.getUTCDay() // 0 = Sun, 6 = Sat
+  if (day === 0 || day === 6) return false
+  const hour = ist.getUTCHours()
+  // NSE open 09:15-15:30 IST. Round outward to 09:00-16:00 so the
+  // pre-open / post-close auctions still get fresh data.
+  return hour >= 9 && hour < 16
+}
 
 const PREFERRED_ORDER = [
   "NIFTY 50",
@@ -101,6 +119,11 @@ export default function MarketsStrip() {
     queryKey: ["markets-strip"],
     queryFn: () => getMarketPulse(true),
     staleTime: 60 * 1000,
+    // 2026-06-09 — auto-refresh during NSE hours only. After-hours the
+    // initial fetch resolves and freezes (no point hammering the API
+    // when bhavcopy/yfinance themselves aren't updating).
+    refetchInterval: () => (isMarketHoursIST() ? 60 * 1000 : false),
+    refetchIntervalInBackground: false,
     retry: 1,
   })
 
@@ -139,6 +162,40 @@ export default function MarketsStrip() {
             pct={null}
           />
         )}
+        {/*
+          Commodity tiles (Gold / Silver / Crude). Added 2026-06-09 for
+          daily-engagement. Gold and silver display in ₹/10g (server-
+          converted from USD/oz so the tile stays formatting-only).
+          Crude stays USD/bbl per spec. Each tile shows "—" if yfinance
+          rate-limited the upstream fetch — never crashes the strip.
+        */}
+        <Cell
+          label="GOLD"
+          value={
+            pulse.gold_inr_per_10g != null
+              ? `₹${Math.round(pulse.gold_inr_per_10g).toLocaleString("en-IN")}/10g`
+              : "—"
+          }
+          pct={pulse.gold_usd_change_pct ?? null}
+        />
+        <Cell
+          label="SILVER"
+          value={
+            pulse.silver_inr_per_10g != null
+              ? `₹${Math.round(pulse.silver_inr_per_10g).toLocaleString("en-IN")}/10g`
+              : "—"
+          }
+          pct={pulse.silver_usd_change_pct ?? null}
+        />
+        <Cell
+          label="CRUDE"
+          value={
+            pulse.crude_usd != null
+              ? `$${pulse.crude_usd.toFixed(1)}/bbl`
+              : "—"
+          }
+          pct={pulse.crude_usd_change_pct ?? null}
+        />
         <Link
           href="/markets"
           className="flex items-center px-3 text-[11px] font-semibold text-brand hover:underline whitespace-nowrap"

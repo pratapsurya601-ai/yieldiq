@@ -106,7 +106,14 @@ class MacroService:
             "usd_inr":                 fx.get("usd_inr"),
             "gold_usd":                comms.get("gold_usd"),
             "silver_usd":              comms.get("silver_usd"),
-            "crude_usd":               None,  # Deprecated — replaced by silver
+            # Restored 2026-06-09: crude is back as a first-class tile on
+            # the MarketsStrip (BZ=F Brent, displayed USD/bbl per spec).
+            # The previous "Deprecated — replaced by silver" comment dates
+            # from a prior strip layout that traded crude for silver.
+            "crude_usd":               comms.get("crude_usd"),
+            "gold_usd_change_pct":     comms.get("gold_usd_change_pct"),
+            "silver_usd_change_pct":   comms.get("silver_usd_change_pct"),
+            "crude_usd_change_pct":    comms.get("crude_usd_change_pct"),
             "risk_free_pct":           rf,
             "nifty_midcap_price":      midcap.get("price"),
             "nifty_midcap_change_pct": midcap.get("change_pct"),
@@ -174,22 +181,40 @@ class MacroService:
         }
 
     def _fetch_commodities(self) -> dict:
-        """Gold + Silver (DB-first, yfinance fallback)."""
+        """Gold, Silver, Brent crude (DB-first, yfinance fallback).
+
+        Each commodity carries both the raw USD spot price (legacy keys,
+        ``gold_usd`` / ``silver_usd``) and a `change_pct` field for the
+        MarketsStrip daily-engagement tiles. Crude is the only commodity
+        not displayed in INR (it stays USD/bbl per Phase-1 design).
+        """
         from backend.services import market_data_service as _mds
+        # (yfinance symbol, raw price key, change-pct key)
+        rows = (
+            ("GC=F", "gold_usd",   "gold_usd_change_pct"),
+            ("SI=F", "silver_usd", "silver_usd_change_pct"),
+            ("BZ=F", "crude_usd",  "crude_usd_change_pct"),
+        )
         out: dict = {}
-        for sym, key in (("GC=F", "gold_usd"), ("SI=F", "silver_usd")):
+        for sym, price_key, chg_key in rows:
             snap = _mds.get_index_snapshot(sym)
             if snap and snap.get("price"):
-                out[key] = round(float(snap["price"]), 2)
+                out[price_key] = round(float(snap["price"]), 2)
+                chg = snap.get("change_pct")
+                out[chg_key] = round(float(chg), 2) if chg is not None else None
                 continue
             log.warning("_fetch_commodities: DB miss on %s, falling back to yfinance", sym)
             try:
                 import yfinance as yf
                 fi = yf.Ticker(sym).fast_info
                 price = float(getattr(fi, "last_price", 0) or 0)
-                out[key] = round(price, 2) if price else None
+                prev = float(getattr(fi, "previous_close", 0) or 0)
+                chg = ((price - prev) / prev * 100) if prev else None
+                out[price_key] = round(price, 2) if price else None
+                out[chg_key] = round(chg, 2) if chg is not None else None
             except Exception:
-                out[key] = None
+                out[price_key] = None
+                out[chg_key] = None
         return out
 
     def _fetch_midcap(self) -> dict:

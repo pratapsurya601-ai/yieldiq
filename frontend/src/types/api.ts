@@ -584,10 +584,36 @@ export interface MarketPulseResponse {
   gold_usd?: number | null
   silver_usd?: number | null
   crude_usd?: number | null
+  // 24h % change for commodities (2026-06-09 — feat/home-commodities-movers).
+  gold_usd_change_pct?: number | null
+  silver_usd_change_pct?: number | null
+  crude_usd_change_pct?: number | null
+  // INR display values (₹/10g) — server pre-converts gold and silver
+  // from USD/oz so the MarketsStrip tile stays a dumb formatter.
+  gold_inr_per_10g?: number | null
+  silver_inr_per_10g?: number | null
   risk_free_pct?: number | null
   nifty_midcap_price?: number | null
   nifty_midcap_change_pct?: number | null
   ai_summary?: string | null
+}
+
+// Today's Movers — top gainers / losers from a cohort (default NIFTY 500).
+// Backed by /api/v1/market/today-movers, cached 60s server-side.
+export interface TodayMover {
+  ticker: string
+  company_name: string
+  change_pct: number
+  close: number
+  prev_close: number
+}
+
+export interface TodayMoversResponse {
+  as_of: string | null
+  gainers: TodayMover[]
+  losers: TodayMover[]
+  stale?: boolean
+  cohort?: string
 }
 
 export interface TokenResponse {
