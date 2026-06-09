@@ -2066,6 +2066,30 @@ MANIFEST: list[dict] = [
             "the audit trail."
         ),
     },
+    {
+        # T2.7 (2026-06-09): Monte Carlo sensitivity as 4th Confidence
+        # pillar. Adds `confidence_sensitivity` int to ValuationOutput
+        # for every non-holdco / non-bank ticker. Compute is a 200-run
+        # linear perturbation around (WACC, FCF growth, terminal growth,
+        # tax) at the cached base FV. The existing three pillars
+        # (data_quality_score, model_confidence_score,
+        # valuation_stability_score) are byte-identical; ADDITIVE only.
+        # No verdict-gate behavior change in this PR.
+        "version_id": "v_t2_7_confidence_sensitivity_2026_06_09",
+        "applied_at": datetime(2026, 6, 9, 16, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["*"],
+            "fields": ["confidence_sensitivity"],
+        },
+        "rationale": (
+            "New 4th confidence pillar (Monte Carlo sensitivity over "
+            "DCF inputs) — additive new field on the response. Existing "
+            "data_quality_score / model_confidence_score / "
+            "valuation_stability_score remain unchanged; banks and "
+            "holdcos return None for sensitivity by design (different "
+            "engine shape; SOTP perturbation deferred to T1.4)."
+        ),
+    },
 ]
 
 
