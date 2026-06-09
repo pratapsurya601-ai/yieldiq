@@ -513,6 +513,10 @@ export default function InsightCards({ quality, insights, valuation, currency, t
             className={cn(
               "rounded-xl bg-surface border border-border border-l-[3px] p-4",
               "shadow-sm",
+              // Premium Feel R1 — subtle hover lift on metric cards. 1.5%
+              // scale + medium shadow reads as "interactive" without the
+              // overstated 5% pop competitor sites use.
+              "transition-transform duration-200 ease-out hover:scale-[1.015] hover:shadow-md",
               card.borderColor
             )}
           >
@@ -569,6 +573,8 @@ export default function InsightCards({ quality, insights, valuation, currency, t
               key={card.title}
               className={cn(
                 "rounded-xl bg-surface border border-border border-l-[3px] p-4 shadow-sm",
+                // Premium Feel R1 — match the primary card grid hover lift.
+                "transition-transform duration-200 ease-out hover:scale-[1.015] hover:shadow-md",
                 card.borderColor,
                 card.disabled && "opacity-60",
               )}

@@ -61,7 +61,7 @@ function PeerCard({
   return (
     <Link
       href={`/analysis/${peer.ticker}`}
-      className="group block rounded-xl border border-border bg-bg hover:border-brand hover:bg-surface transition p-3"
+      className="group block rounded-xl border border-border bg-bg hover:border-brand hover:bg-surface transition p-3 transition-transform duration-200 ease-out hover:scale-[1.015] hover:shadow-md"
     >
       <div className="flex items-baseline justify-between gap-2 mb-1">
         <span className="flex items-center gap-1.5 min-w-0">

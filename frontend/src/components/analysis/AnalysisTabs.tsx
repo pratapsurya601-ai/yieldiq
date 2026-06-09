@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { useEffect, useState, type ReactNode } from "react"
 import { cn } from "@/lib/utils"
 
 export type AnalysisTabKey =
@@ -20,6 +20,13 @@ export interface AnalysisTabDef {
 interface AnalysisTabsProps {
   tabs: AnalysisTabDef[]
   initial?: AnalysisTabKey
+  /**
+   * Optional controlled tab — when set, AnalysisTabs syncs its internal
+   * state to it on change. Lets external nav surfaces (e.g. the Premium
+   * Feel R1 StickyAnalysisNav) drive tab switches without owning the
+   * full state machine.
+   */
+  active?: AnalysisTabKey
   /** Fires on tab change — parent can defer expensive queries until their tab is opened. */
   onTabChange?: (key: AnalysisTabKey) => void
 }
@@ -33,10 +40,21 @@ interface AnalysisTabsProps {
  * - Only renders the active tab's content — inactive tabs are unmounted.
  * - No external dependency.
  */
-export default function AnalysisTabs({ tabs, initial, onTabChange }: AnalysisTabsProps) {
+export default function AnalysisTabs({ tabs, initial, active: controlledActive, onTabChange }: AnalysisTabsProps) {
   const [active, setActive] = useState<AnalysisTabKey>(
     initial ?? tabs[0]?.key ?? "summary"
   )
+  // Sync to the controlled active prop. Lets the sticky pill-nav drive
+  // tab switches without owning the local state machine. Defer the flip
+  // through a microtask so the `react-hooks/set-state-in-effect` lint
+  // rule (cascading-render warning) is satisfied — same pattern as the
+  // useEffect microtask used in AnalysisBody for the personalization
+  // style picker.
+  useEffect(() => {
+    if (controlledActive && controlledActive !== active) {
+      queueMicrotask(() => setActive(controlledActive))
+    }
+  }, [controlledActive, active])
   const activeTab = tabs.find((t) => t.key === active) ?? tabs[0]
 
   const handleChange = (key: AnalysisTabKey) => {
@@ -78,16 +96,20 @@ export default function AnalysisTabs({ tabs, initial, onTabChange }: AnalysisTab
         </div>
       </div>
 
-      {/* Panel — only active tab is mounted */}
-      <div
-        id={`tabpanel-${activeTab?.key ?? "summary"}`}
-        role="tabpanel"
+      {/* Panel — only active tab is mounted. The wrapping <section> also
+          carries `id="section-<key>"` so the Premium Feel R1
+          StickyAnalysisNav can `scrollIntoView` directly to the active
+          tab content even when the tab swap re-mounts the children. */}
+      <section
+        id={`section-${activeTab?.key ?? "summary"}`}
         aria-labelledby={`tab-${activeTab?.key ?? "summary"}`}
+        role="tabpanel"
         className="pt-4"
         key={activeTab?.key}
+        data-tabpanel-key={activeTab?.key}
       >
         {activeTab?.content}
-      </div>
+      </section>
     </div>
   )
 }
