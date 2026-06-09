@@ -10,19 +10,22 @@
  * Fallback chain (each layer can be skipped if the URL is unknown; the
  * <img onError> handler advances to the next layer at runtime):
  *
- *   (a) Google s2/favicons for the canonical 261-entry domain map
+ *   (a) Self-hosted /logos/{TICKER}.png — 192px retina-sharp PNG
+ *       mass-fetched from Logo.dev at build time and committed under
+ *       `frontend/public/logos/`. Served from the Vercel edge cache,
+ *       no third-party hop per render. Added 2026-06-09.
+ *   (b) Google s2/favicons for the canonical 261-entry domain map
  *       (`getCompanyDomain` in `lib/logoUrl.ts`, reading
  *       `data/ticker_domains.json`). Always-on, free, returns a real
- *       PNG (~32-128px). 2026-06-07 HOTFIX: this layer replaces the
- *       defunct Clearbit hot-link, which started returning HTTP 000 /
- *       connection refused after Clearbit's free Logo API was retired.
- *   (b) DuckDuckGo icon service for the same domain
+ *       PNG (~32-128px). Long-tail fallback for tickers whose Logo.dev
+ *       fetch hit a placeholder (HTTP 202) or failed.
+ *   (c) DuckDuckGo icon service for the same domain
  *       (`icons.duckduckgo.com/ip3/{domain}.ico`). Independent crawler;
  *       saves the day when Google's favicon index is stale.
- *   (c) Google favicon for a `<cleanTicker>.com` guess when no curated
+ *   (d) Google favicon for a `<cleanTicker>.com` guess when no curated
  *       entry exists. Helps US-style tickers whose symbol IS the brand
  *       (GOOGL → google.com).
- *   (d) Sector-colored letter mark — final fallback. 1 letter for
+ *   (e) Sector-colored letter mark — final fallback. 1 letter for
  *       <=4-char tickers, 2 letters for longer (e.g. "HD" for HDFCBANK).
  *
  * A module-level URL cache (`logoStageCache`) prevents chips from
@@ -32,7 +35,7 @@
 
 import { useState } from "react"
 
-import { getCompanyDomain } from "@/lib/logoUrl"
+import { getCompanyDomain, getSelfHostedLogoUrl } from "@/lib/logoUrl"
 
 import {
   NSE_TICKER_SECTORS,
@@ -103,18 +106,20 @@ function letterMarkFor(cleaned: string): string {
  * Resolve the URL for a given fallback stage. Returns null when that
  * stage has no usable URL, signalling the caller to skip to the next.
  *
- *   stage 0 → Google s2/favicons keyed on the curated domain
- *             (preferred — high hit rate for the NSE universe).
- *   stage 1 → DuckDuckGo icons keyed on the curated domain
+ *   stage 0 → /logos/{TICKER}.png — self-hosted retina-sharp PNG
+ *             mass-fetched from Logo.dev (added 2026-06-09).
+ *   stage 1 → Google s2/favicons keyed on the curated domain.
+ *             Long-tail fallback for tickers whose Logo.dev fetch hit
+ *             a placeholder or fail at build time.
+ *   stage 2 → DuckDuckGo icons keyed on the curated domain
  *             (independent fallback for stale Google index entries).
- *   stage 2 → Google s2/favicons keyed on a `<cleanTicker>.com` guess
+ *   stage 3 → Google s2/favicons keyed on a `<cleanTicker>.com` guess
  *             — last-chance hop for non-curated US-style tickers.
- *   stage 3+ → null (letter-mark fallback)
+ *   stage 4+ → null (letter-mark fallback)
  *
- * 2026-06-07 HOTFIX: stages 0 and 1 used to be Clearbit + bare-domain
- * Brandfetch. Both endpoints died (Clearbit shut down its free Logo
- * API, Brandfetch's bare-domain URL now returns HTML, not an image).
- * The new stages use only image-returning endpoints.
+ * Stages 1+ kept verbatim from the 2026-06-07 hotfix (Clearbit and
+ * bare-domain Brandfetch both died — only image-returning endpoints
+ * are allowed in the chain).
  */
 function urlForStage(cleaned: string, stage: number): string | null {
   // Single source of truth for the curated ticker → domain map: the
@@ -124,18 +129,24 @@ function urlForStage(cleaned: string, stage: number): string | null {
   const domain = getCompanyDomain(cleaned)
   switch (stage) {
     case 0:
+      // Self-hosted PNG. Only meaningful when the ticker has a curated
+      // domain (i.e. a Logo.dev fetch was attempted for it). Returns
+      // null for non-curated tickers so the cascade skips straight to
+      // the `<ticker>.com`-guess at stage 3.
+      return getSelfHostedLogoUrl(cleaned)
+    case 1:
       return domain
         ? `https://www.google.com/s2/favicons?domain=${domain}&sz=128`
         : null
-    case 1:
+    case 2:
       return domain
         ? `https://icons.duckduckgo.com/ip3/${domain}.ico`
         : null
-    case 2: {
+    case 3: {
       // Non-curated ticker rescue — guess `<ticker>.com` and ask
       // Google. Works for US-style listings whose symbol IS the brand
       // (GOOGL → google.com). Skip when we already had a curated domain
-      // since stages 0/1 already covered it.
+      // since stages 0-2 already covered it.
       if (domain) return null
       return `https://www.google.com/s2/favicons?domain=${cleaned.toLowerCase()}.com&sz=64`
     }
@@ -145,14 +156,14 @@ function urlForStage(cleaned: string, stage: number): string | null {
 }
 
 /** Walk forward from `start` until we find a stage that has a URL or run
- *  out of layers. Lets the initial render skip Clearbit immediately when
- *  the ticker isn't in the curated map. Returns 3 (letter-mark sentinel)
- *  when no further URL is available. */
+ *  out of layers. Lets the initial render skip the self-hosted hop
+ *  immediately when the ticker isn't in the curated map. Returns 4
+ *  (letter-mark sentinel) when no further URL is available. */
 function firstUsableStage(cleaned: string, start: number): number {
-  for (let s = start; s <= 2; s++) {
+  for (let s = start; s <= 3; s++) {
     if (urlForStage(cleaned, s) !== null) return s
   }
-  return 3
+  return 4
 }
 
 export default function TickerAvatar({
@@ -195,7 +206,7 @@ export default function TickerAvatar({
     .filter(Boolean)
     .join(" ")
 
-  // Letter-mark fallback path. Hit when stage 3+ OR no URL available.
+  // Letter-mark fallback path. Hit when stage 4+ OR no URL available.
   if (!src) {
     const resolvedSector: TickerSector =
       ((typeof sector === "string" ? sector : null) as TickerSector) ||

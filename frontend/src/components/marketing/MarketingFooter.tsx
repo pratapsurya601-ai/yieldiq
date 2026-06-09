@@ -73,6 +73,7 @@ export default function MarketingFooter() {
           </div>
           <p className="text-[10px] text-gray-600 max-w-md text-center sm:text-right">
             Model output only &mdash; not investment advice. YieldIQ is not registered with SEBI as an investment adviser.
+            {" "}Company names and logos are trademarks of their respective owners and are used for identification purposes only. Logo data from logo.dev.
           </p>
         </div>
       </div>

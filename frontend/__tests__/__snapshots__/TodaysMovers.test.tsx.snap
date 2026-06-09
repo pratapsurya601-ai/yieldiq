@@ -50,7 +50,7 @@ exports[`TodaysMovers > renders 5 gainers + 5 losers with avatars + analysis lin
                 height="24"
                 loading="lazy"
                 referrerpolicy="no-referrer"
-                src="https://www.google.com/s2/favicons?domain=hdfcbank.com&sz=128"
+                src="/logos/HDFCBANK.png"
                 width="24"
               />
             </span>
@@ -82,7 +82,7 @@ exports[`TodaysMovers > renders 5 gainers + 5 losers with avatars + analysis lin
                 height="24"
                 loading="lazy"
                 referrerpolicy="no-referrer"
-                src="https://www.google.com/s2/favicons?domain=ril.com&sz=128"
+                src="/logos/RELIANCE.png"
                 width="24"
               />
             </span>
@@ -114,7 +114,7 @@ exports[`TodaysMovers > renders 5 gainers + 5 losers with avatars + analysis lin
                 height="24"
                 loading="lazy"
                 referrerpolicy="no-referrer"
-                src="https://www.google.com/s2/favicons?domain=tatamotors.com&sz=128"
+                src="/logos/TATAMOTORS.png"
                 width="24"
               />
             </span>
@@ -146,7 +146,7 @@ exports[`TodaysMovers > renders 5 gainers + 5 losers with avatars + analysis lin
                 height="24"
                 loading="lazy"
                 referrerpolicy="no-referrer"
-                src="https://www.google.com/s2/favicons?domain=marutisuzuki.com&sz=128"
+                src="/logos/MARUTI.png"
                 width="24"
               />
             </span>
@@ -178,7 +178,7 @@ exports[`TodaysMovers > renders 5 gainers + 5 losers with avatars + analysis lin
                 height="24"
                 loading="lazy"
                 referrerpolicy="no-referrer"
-                src="https://www.google.com/s2/favicons?domain=larsentoubro.com&sz=128"
+                src="/logos/LT.png"
                 width="24"
               />
             </span>
@@ -225,7 +225,7 @@ exports[`TodaysMovers > renders 5 gainers + 5 losers with avatars + analysis lin
                 height="24"
                 loading="lazy"
                 referrerpolicy="no-referrer"
-                src="https://www.google.com/s2/favicons?domain=airtel.in&sz=128"
+                src="/logos/BHARTIARTL.png"
                 width="24"
               />
             </span>
@@ -257,7 +257,7 @@ exports[`TodaysMovers > renders 5 gainers + 5 losers with avatars + analysis lin
                 height="24"
                 loading="lazy"
                 referrerpolicy="no-referrer"
-                src="https://www.google.com/s2/favicons?domain=tata.com&sz=128"
+                src="/logos/TCS.png"
                 width="24"
               />
             </span>
@@ -289,7 +289,7 @@ exports[`TodaysMovers > renders 5 gainers + 5 losers with avatars + analysis lin
                 height="24"
                 loading="lazy"
                 referrerpolicy="no-referrer"
-                src="https://www.google.com/s2/favicons?domain=infosys.com&sz=128"
+                src="/logos/INFY.png"
                 width="24"
               />
             </span>
@@ -321,7 +321,7 @@ exports[`TodaysMovers > renders 5 gainers + 5 losers with avatars + analysis lin
                 height="24"
                 loading="lazy"
                 referrerpolicy="no-referrer"
-                src="https://www.google.com/s2/favicons?domain=wipro.com&sz=128"
+                src="/logos/WIPRO.png"
                 width="24"
               />
             </span>
@@ -353,7 +353,7 @@ exports[`TodaysMovers > renders 5 gainers + 5 losers with avatars + analysis lin
                 height="24"
                 loading="lazy"
                 referrerpolicy="no-referrer"
-                src="https://www.google.com/s2/favicons?domain=hcltech.com&sz=128"
+                src="/logos/HCLTECH.png"
                 width="24"
               />
             </span>
