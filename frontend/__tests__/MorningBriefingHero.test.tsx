@@ -167,7 +167,7 @@ describe("MorningBriefingHero", () => {
       { timeout: 3500 },
     )
     // Fallback uses the display name + a neutral greeting word; no
-    // tiles or briefing card should leak through.
+    // tiles or briefing card must leak through.
     expect(screen.queryByTestId("morning-briefing-portfolio-tile")).not.toBeInTheDocument()
     expect(screen.queryByTestId("morning-briefing-nifty-tile")).not.toBeInTheDocument()
     expect(screen.queryByTestId("morning-briefing-card")).not.toBeInTheDocument()

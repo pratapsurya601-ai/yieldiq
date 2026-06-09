@@ -246,7 +246,7 @@ function FallbackGreeting({ name }: { name: string }) {
   // pre-hero greeting so the user never sees a broken-page banner.
   //
   // SSR-safe pattern (avoids `react-hooks/set-state-in-effect`):
-  // hold a "mounted" flag, compute the IST greeting only when it's
+  // keep a "mounted" flag, compute the IST greeting only when it's
   // true. The initial server-rendered HTML uses the neutral
   // "Welcome back" copy; the client swaps to the real time-of-day
   // greeting on first paint.
@@ -279,7 +279,7 @@ export default function MorningBriefingHero() {
   const displayName = useAuthStore((s) => s.displayName)
 
   // Hydration-safe caption — `formatISTCaption()` depends on the
-  // wall clock which differs server vs. client. We hold a "tick"
+  // wall clock which differs server vs. client. We keep a "tick"
   // counter that increments once a minute; the caption is then a
   // pure derivation off it. This avoids the `react-hooks/set-state-
   // in-effect` lint rule (we only setState in response to an
