@@ -282,15 +282,21 @@ describe("shouldGateVerdict — 2026-06-09 bull-side bypass", () => {
     ).toBe(true)
   })
 
-  it("does NOT bypass when bearCase is missing (bypass requires explicit bear read)", () => {
+  it("does NOT bypass when bearCase is missing AND wide-band gate would fire", () => {
+    // The bull-side bypass requires bearCase to be a finite number.
+    // Without bearCase the bypass clause cannot evaluate the
+    // "bear above price" condition, so the function falls through to
+    // the standard gates. Here we need to manufacture a case where
+    // the standard gates WOULD have fired (confidence < threshold)
+    // to confirm the bypass doesn't pull a true gate to false.
     expect(
       shouldGateVerdict({
         dataLimited: false,
-        confidence: 90,
+        confidence: 65, // below LOW_CONFIDENCE_THRESHOLD (70)
         marginOfSafety: 50,
         currentPrice: 100,
         bullCase: 200,
-        // bearCase intentionally omitted
+        // bearCase intentionally omitted → bypass cannot fire
       }),
     ).toBe(true)
   })
