@@ -6,7 +6,7 @@
  * Reference design: AlphaSpread's /security/* hero. The background is a
  * sector-appropriate lifestyle photo (a bank lobby for HDFCBANK, an open
  * workspace for TCS, a refinery for RELIANCE), NOT a stretched company
- * logo. The company's logo appears separately as a small 48px chip in
+ * logo. The company's logo is shown separately as a small 48px chip in
  * the identity row BELOW the hero, never as the hero image itself.
  *
  * Layout (rendered inside this single component):
@@ -217,9 +217,9 @@ export default function StockHeroImage({
           {marketCapCr != null && marketCapCr > 0 && (
             <div className="text-xs md:text-sm">
               <span className="text-zinc-300">Market Cap:</span>{" "}
-              <strong className="font-mono tabular-nums">
+              <span className="font-mono tabular-nums font-semibold">
                 {formatMarketCap(marketCapCr)}
-              </strong>
+              </span>
             </div>
           )}
         </div>
@@ -227,7 +227,7 @@ export default function StockHeroImage({
 
       {/* Identity row — sits BELOW the photo, not inside it. The 48px
           TickerAvatar chip is the ONLY surface the company logo
-          appears on; the hero photo above is sector-contextual. */}
+          renders on; the hero photo above is sector-contextual. */}
       <div
         data-testid="hero-identity-row"
         className="px-4 md:px-6 py-3 md:py-4 flex items-center gap-3 border-b border-border"
