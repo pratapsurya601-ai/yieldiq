@@ -144,6 +144,39 @@ function ScreenerInner() {
     [pushUrl]
   )
 
+  // Read preset from URL on first mount (deep-link entry).
+  // The home page's Quant Picks tiles use ?preset=<key> to land users
+  // directly in a filtered view. We honor both the frontend preset library
+  // keys (cheap_quality, deep_value, ...) AND a tolerant set of aliases
+  // the backend / home page use (buffett, deep-value, growth-quality, ...).
+  // Effect runs ONCE on mount — we explicitly do NOT want to react to
+  // subsequent searchParams changes (which happen on every Run, save-load,
+  // or preset-button click and would otherwise overwrite in-progress edits).
+  useEffect(() => {
+    const preset = searchParams.get("preset")
+    if (!preset) return
+    // Normalize aliases first.
+    const normalized = preset.toLowerCase().replace(/-/g, "_")
+    // Direct match against frontend preset library.
+    if (SCREENER_PRESETS.find((p) => p.key === normalized)) {
+      applyPreset(normalized)
+      return
+    }
+    // Aliases that home-page tiles use which don't have a 1:1 frontend twin.
+    // Map to the closest frontend preset by intent.
+    const ALIASES: Record<string, string> = {
+      buffett: "high_quality",       // wide-moat-at-discount → high-quality preset
+      growth_quality: "high_quality", // growth+quality → high_quality
+      // deep_value already matches directly after normalization
+    }
+    const aliasMatch = ALIASES[normalized]
+    if (aliasMatch && SCREENER_PRESETS.find((p) => p.key === aliasMatch)) {
+      applyPreset(aliasMatch)
+    }
+    // If no match, fall through to empty-state picker (current behavior).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const handleSave = useCallback(() => {
     if (clauses.length === 0) return
     const name = window.prompt("Name this query", `Screener ${new Date().toLocaleDateString()}`)

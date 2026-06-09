@@ -23,34 +23,46 @@ export interface QuantPresetConfig {
   href: string
 }
 
+// href values intentionally use frontend SCREENER_PRESETS keys (from
+// frontend/src/lib/screenerFilters.ts) rather than the backend preset
+// names used by the fetcher above. The screener page reads `?preset=<key>`
+// on mount via applyPreset, which looks up the frontend preset library;
+// the backend preset names (buffett / deep-value / growth-quality) are
+// only honored via the alias map in screener/page.tsx. By writing the
+// canonical frontend key here we skip the alias hop entirely.
+//
+// The 4th tile's previous href used `?min_score=...&min_mos=...` loose
+// query params that the screener page never read (it expects a
+// serialized DSL string in `?filters=`), so the link was a dead-end by
+// construction — fixed here to point at the closest frontend preset.
 export const QUANT_PRESETS: QuantPresetConfig[] = [
   {
     key: "buffett",
     title: "Wide-Moat at Discount",
     blurb: "Score ≥ 60 · Wide moat · MoS ≥ 0",
     fetcher: () => runPreset("buffett"),
-    href: "/screener?preset=buffett",
+    href: "/screener?preset=high_quality",
   },
   {
     key: "deep_value",
     title: "Deep Value",
     blurb: "MoS ≥ 30%",
     fetcher: () => runPreset("deep-value"),
-    href: "/screener?preset=deep-value",
+    href: "/screener?preset=deep_value",
   },
   {
     key: "growth_quality",
     title: "High-Margin Growers",
     blurb: "Revenue + margin filters",
     fetcher: () => runPreset("growth-quality"),
-    href: "/screener?preset=growth-quality",
+    href: "/screener?preset=high_quality",
   },
   {
     key: "quality_discount",
     title: "Quality at a Discount",
     blurb: "Score ≥ 65 · MoS ≥ 20%",
     fetcher: () => runScreener({ min_score: 65, min_mos: 20, page_size: 25 }),
-    href: "/screener?min_score=65&min_mos=20",
+    href: "/screener?preset=high_quality",
   },
 ]
 
