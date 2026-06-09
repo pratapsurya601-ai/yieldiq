@@ -822,6 +822,11 @@ class MarketPulseResponse(BaseModel):
     fii_date: Optional[str] = None
     fii_stale: bool = False
     usd_inr: Optional[float] = None
+    # 24h percent change vs previous trading day's close. Populated from
+    # the same cached daily-close series that backs the USD/INR
+    # macro_sparkline. Optional — pre-PR clients and yfinance-rate-limit
+    # outages render the tile with the pct cell showing "—".
+    usd_inr_change_pct: Optional[float] = None
     gold_usd: Optional[float] = None
     silver_usd: Optional[float] = None
     crude_usd: Optional[float] = None  # USD/bbl, Brent (BZ=F)
@@ -839,6 +844,10 @@ class MarketPulseResponse(BaseModel):
     gold_inr_per_10g: Optional[float] = None
     silver_inr_per_10g: Optional[float] = None
     risk_free_pct: Optional[float] = None
+    # 24h percent change vs previous trading day's close for the 10Y
+    # risk-free proxy. Optional — degrades to None when yfinance
+    # rate-limits or the proxy ticker has < 2 valid daily closes.
+    risk_free_change_pct: Optional[float] = None
     nifty_midcap_price: Optional[float] = None
     nifty_midcap_change_pct: Optional[float] = None
     ai_summary: Optional[str] = None
