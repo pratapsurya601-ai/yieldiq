@@ -649,6 +649,42 @@ export interface HoldingsLiveResponse {
 export const getHoldingsLive = (): Promise<HoldingsLiveResponse> =>
   api.get("/api/v1/portfolio/holdings-live").then(r => r.data)
 
+// ── Morning Briefing (home hero, 2026-06-09) ────────────────────
+// Personalized briefing block on /home — portfolio + NIFTY tiles
+// plus a 2-4 sentence observational briefing line composed
+// server-side from deterministic templates (no LLM). Cached 5 min
+// per user_id. SEBI-clean prose: drag/lift/moved/reported only.
+export interface MorningBriefingPortfolio {
+  total_value: number
+  day_change: number
+  day_change_pct: number
+  /** Last 7 daily basket totals. Empty array when history is cold. */
+  sparkline_7d: number[]
+}
+
+export interface MorningBriefingMarket {
+  nifty_value: number | null
+  nifty_change_pct: number | null
+  /** Last 7 daily closes for NIFTY 50. Empty when daily store is cold. */
+  nifty_sparkline_7d: number[]
+}
+
+export interface MorningBriefingResponse {
+  /** ISO 8601 IST timestamp the briefing was composed at. */
+  as_of: string
+  /** Display name — first token of the email local-part. The frontend
+   *  prefers the user's saved displayName when set; falls back to this. */
+  user_name: string
+  /** Null when the user has zero holdings (frontend hides the tile). */
+  portfolio: MorningBriefingPortfolio | null
+  market: MorningBriefingMarket
+  /** 2-4 observational sentences. Always non-empty. */
+  briefing_text: string
+}
+
+export const getMorningBriefing = (): Promise<MorningBriefingResponse> =>
+  api.get("/api/v1/home/morning-briefing").then(r => r.data)
+
 // ── Portfolio Updates Feed (P0 #1) ──────────────────────────────
 // Per-holding categorised event stream surfaced as the Portfolio >
 // Updates tab. Rows are pre-built nightly by

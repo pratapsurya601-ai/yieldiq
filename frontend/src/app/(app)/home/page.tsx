@@ -11,11 +11,11 @@ import { useEffect, useState } from "react"
 import { useAuthStore } from "@/store/authStore"
 import { TIER_LIMITS } from "@/lib/constants"
 import { priceLabel } from "@/config/pricing"
-import PersonalHeader from "@/components/home/PersonalHeader"
 import HomeSearchBar from "@/components/home/HomeSearchBar"
 import ErrorBoundary from "@/components/ErrorBoundary"
 import ModelDisclaimer from "@/components/ModelDisclaimer"
 import MarketsStrip from "@/components/home/v2/MarketsStrip"
+import MorningBriefingHero from "@/components/home/v2/MorningBriefingHero"
 import PortfolioPanel from "@/components/home/v2/PortfolioPanel"
 import WatchlistPanel from "@/components/home/v2/WatchlistPanel"
 import DailyInsightCard from "@/components/home/v2/DailyInsightCard"
@@ -98,7 +98,9 @@ export default function HomePage() {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
-  const email = useAuthStore(s => s.email)
+  // Greeting was previously rendered via <PersonalHeader email={email} />.
+  // The Morning Briefing hero now reads the email directly from the
+  // auth store, so the home page no longer needs it as a local var.
   const tier = useAuthStore(s => s.tier)
   const analysesToday = useAuthStore(s => s.analysesToday)
   const rawLimit = TIER_LIMITS[tier]
@@ -123,11 +125,25 @@ export default function HomePage() {
       <div className="max-w-7xl mx-auto px-4 pt-4 space-y-8">
         {showQuotaWarning && mounted && <QuotaBanner remaining={remaining ?? 0} />}
 
-        {/* Greeting + always-visible search bar (Task #193) */}
-        <div className="space-y-3">
-          <PersonalHeader email={email} />
-          <HomeSearchBar />
-        </div>
+        {/* Morning Briefing hero — replaces the bare "Good morning, {name}"
+            greeting with portfolio + NIFTY tiles + a 2-4 sentence
+            observational briefing line composed server-side. Wrapped in
+            its own ErrorBoundary so a flaky briefing API never kills
+            the home page; the boundary falls through to a plain
+            greeting in that case. */}
+        <ErrorBoundary
+          label="MorningBriefingHero"
+          fallback={
+            <div className="pt-2">
+              <h1 className="font-display text-2xl md:text-3xl font-bold text-ink leading-tight">
+                Welcome back.
+              </h1>
+            </div>
+          }
+        >
+          <MorningBriefingHero />
+        </ErrorBoundary>
+        <HomeSearchBar />
 
         {/* Today's Movers — sits between MarketsStrip and the
             Portfolio/Watchlist hero so the first thing a logged-in user

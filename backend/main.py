@@ -1016,6 +1016,13 @@ from backend.routers import valuation_history as valuation_history_router
 app.include_router(valuation_history_router.router)
 
 
+# Morning Briefing — personalized hero on /home (portfolio + NIFTY
+# tiles + 2-4 sentence observational briefing line). 5-min server
+# cache pinned to user_id; deterministic template prose (no LLM).
+from backend.routers import home_briefing as home_briefing_router
+app.include_router(home_briefing_router.router)
+
+
 @app.get("/health")
 async def health_check():
     """Health check endpoint for Railway/monitoring."""
