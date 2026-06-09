@@ -78,9 +78,48 @@ function FVPlaceholder({ variant }: { variant: "loading" | "empty" | "error" }) 
     <div className="bg-surface rounded-2xl border border-border p-4">
       <h2 className="text-sm font-semibold text-ink mb-3">Historical Fair Value</h2>
       {variant === "loading" ? (
-        <div className="space-y-3">
-          <div className="h-[220px] bg-bg rounded-xl animate-pulse" />
-          <div className="h-4 w-64 bg-border rounded animate-pulse" />
+        // Premium Feel R4 — shape-matching skeleton: window-toggle chip
+        // row, chart area with axis-tick placeholders, and a staggered
+        // bar wave that reads as a chart line, not a generic gray box.
+        // Each bar staggers its animation-delay so the shimmer cascades
+        // left-to-right like a wave.
+        <div data-testid="fv-history-skeleton" className="space-y-3">
+          {/* Year-window chip row (3y / 5y / 10y). */}
+          <div className="flex items-center gap-2">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="h-7 w-12 rounded-full bg-border/60 animate-pulse"
+                style={{ animationDelay: `${i * 40}ms` }}
+              />
+            ))}
+          </div>
+          {/* Chart panel with axis ticks + staggered bar wave. */}
+          <div className="relative h-[220px] rounded-xl bg-bg border border-border p-3 flex items-end gap-1.5">
+            {/* Y-axis tick placeholders pinned to the right edge. */}
+            <div className="absolute right-2 top-2 bottom-2 flex flex-col justify-between pointer-events-none">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="h-2 w-8 rounded bg-border/60 animate-pulse"
+                  style={{ animationDelay: `${i * 50}ms` }}
+                />
+              ))}
+            </div>
+            {/* Bar wave. */}
+            {[...Array(24)].map((_, i) => (
+              <div
+                key={i}
+                className="flex-1 bg-border/60 animate-pulse rounded-t"
+                style={{
+                  height: `${30 + ((i * 7) % 60)}%`,
+                  animationDelay: `${i * 30}ms`,
+                }}
+              />
+            ))}
+          </div>
+          {/* Caption / footnote line. */}
+          <div className="h-3 w-64 bg-border/60 rounded animate-pulse" />
         </div>
       ) : (
         <div className="py-8 text-center flex flex-col items-center gap-2">

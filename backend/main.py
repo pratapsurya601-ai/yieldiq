@@ -967,6 +967,14 @@ app.include_router(earnings_impact_router.router)
 #   GET /api/v1/analysis/{ticker}/eli15-thesis
 from backend.routers import eli15_thesis as eli15_thesis_router
 app.include_router(eli15_thesis_router.router)
+# Premium Feel R4 — AI prompt presets (AlphaSpread-style "Why does the
+# model see this value? / What would change this verdict? / How does
+# this compare to its peer cohort?" card grid). Reads the existing
+# analyze() cache; SEBI-filtered with template fallback.
+#   GET  /api/v1/public/ai-explain/presets
+#   POST /api/v1/public/ai-explain  { ticker, preset_id }
+from backend.routers import ai_explain as ai_explain_router
+app.include_router(ai_explain_router.router)
 # Phase I-frontend (Block II): bank-specific operational KPIs for
 # the PURE_BANK_TICKERS_FOR_DE cohort.
 #   GET /api/v1/banks/{ticker}/kpis

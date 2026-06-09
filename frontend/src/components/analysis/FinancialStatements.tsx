@@ -233,16 +233,66 @@ function cashflowRows(currency: string | null | undefined): RowDef[] {
 /* Skeleton                                                            */
 /* ------------------------------------------------------------------ */
 function Skeleton() {
+  // Premium Feel R4 — shape-matching skeleton. The final layout is:
+  // header + period toggle + tab strip (income / balance / cashflow) +
+  // a 6-column 8-row data table. The skeleton mirrors that exact
+  // structure so the loading state already reads as the eventual
+  // statements view, not a row of generic gray boxes.
   return (
-    <div className="bg-surface rounded-2xl border border-border p-4 space-y-3">
-      <div className="h-5 w-48 bg-border rounded animate-pulse" />
-      <div className="flex gap-2">
-        <div className="h-6 w-20 bg-bg rounded-full animate-pulse" />
-        <div className="h-6 w-24 bg-bg rounded-full animate-pulse" />
+    <div
+      data-testid="financial-statements-skeleton"
+      aria-busy="true"
+      aria-label="Loading"
+      className="bg-surface rounded-2xl border border-border p-4 space-y-3"
+    >
+      {/* Header line. */}
+      <div className="h-5 w-48 bg-border/60 rounded animate-pulse" />
+      {/* Period + tab pill row. */}
+      <div className="flex gap-2 flex-wrap">
+        {[0, 1].map((i) => (
+          <div
+            key={`p-${i}`}
+            className="h-6 w-20 bg-border/60 rounded-full animate-pulse"
+            style={{ animationDelay: `${i * 40}ms` }}
+          />
+        ))}
+        <div className="w-px h-6 bg-border mx-1" />
+        {[0, 1, 2].map((i) => (
+          <div
+            key={`t-${i}`}
+            className="h-6 w-24 bg-border/60 rounded-full animate-pulse"
+            style={{ animationDelay: `${(i + 2) * 40}ms` }}
+          />
+        ))}
       </div>
+      {/* Table header row — line-item label + 5 year columns. */}
+      <div className="grid grid-cols-6 gap-2 pt-2 border-t border-border">
+        {[0, 1, 2, 3, 4, 5].map((i) => (
+          <div
+            key={`th-${i}`}
+            className="h-3 bg-border/60 rounded animate-pulse"
+            style={{
+              animationDelay: `${i * 30}ms`,
+              gridColumn: i === 0 ? "span 2 / span 2" : undefined,
+            }}
+          />
+        ))}
+      </div>
+      {/* Eight data rows with shimmer cascading top-to-bottom. */}
       <div className="space-y-2">
-        {[...Array(5)].map((_, i) => (
-          <div key={i} className="h-6 bg-bg rounded animate-pulse" />
+        {[...Array(8)].map((_, row) => (
+          <div key={row} className="grid grid-cols-6 gap-2 items-center">
+            {[0, 1, 2, 3, 4, 5].map((col) => (
+              <div
+                key={col}
+                className="h-3.5 bg-border/60 rounded animate-pulse"
+                style={{
+                  animationDelay: `${row * 60 + col * 20}ms`,
+                  gridColumn: col === 0 ? "span 2 / span 2" : undefined,
+                }}
+              />
+            ))}
+          </div>
         ))}
       </div>
     </div>

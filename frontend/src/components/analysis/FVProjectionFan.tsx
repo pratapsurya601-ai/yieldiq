@@ -448,7 +448,48 @@ export default function FVProjectionFan({
       </div>
 
       {showSkeleton ? (
-        <div className="h-[280px] rounded-lg bg-surface animate-pulse" aria-label="Loading projection" />
+        // Premium Feel R4 — shape-matching skeleton: bear/base/bull chip
+        // row, chart area with axis ticks, and a staggered area-fan
+        // silhouette so the loading state already reads as the eventual
+        // 5Y projection chart.
+        <div data-testid="fv-projection-skeleton">
+          {/* Scenario chip row (Bear / Base / Bull). */}
+          <div className="flex items-center gap-2 mb-3">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="h-6 w-20 rounded-full bg-border/60 animate-pulse"
+                style={{ animationDelay: `${i * 50}ms` }}
+              />
+            ))}
+          </div>
+          {/* Chart panel with axis-tick placeholders + staggered fan
+              silhouette. The bars rise smoothly so they read as the
+              expected projection envelope, not a generic gray box. */}
+          <div className="relative h-[280px] rounded-lg border border-border bg-bg p-3 flex items-end gap-1">
+            <div className="absolute right-2 top-2 bottom-2 flex flex-col justify-between pointer-events-none">
+              {[0, 1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="h-2 w-8 rounded bg-border/60 animate-pulse"
+                  style={{ animationDelay: `${i * 50}ms` }}
+                />
+              ))}
+            </div>
+            {[...Array(28)].map((_, i) => (
+              <div
+                key={i}
+                className="flex-1 bg-border/60 animate-pulse rounded-t"
+                style={{
+                  // Smooth rise from ~25% to ~85% so the silhouette
+                  // looks like the eventual fan envelope.
+                  height: `${25 + i * 2}%`,
+                  animationDelay: `${i * 35}ms`,
+                }}
+              />
+            ))}
+          </div>
+        </div>
       ) : showEmpty || isError ? (
         <div className="h-[280px] rounded-lg border border-dashed border-border flex items-center justify-center text-xs text-caption">
           No price history available
