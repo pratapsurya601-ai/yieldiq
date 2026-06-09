@@ -125,10 +125,10 @@ const PrismTimeMachine = dynamic(
 /*  because these are all client-only chart/widget components.         */
 /* ------------------------------------------------------------------ */
 const chartSkeleton = () => (
-  <div className="h-64 animate-pulse rounded-lg bg-slate-100" />
+  <div className="h-64 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
 )
 const smallSkeleton = () => (
-  <div className="h-32 animate-pulse rounded-lg bg-slate-100" />
+  <div className="h-32 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
 )
 
 const RevenueSankey = dynamic(() => import("@/components/analysis/RevenueSankey"), {
@@ -795,7 +795,7 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         {paygToast && (
           <div
             className={`fixed bottom-20 md:top-20 md:bottom-auto left-1/2 -translate-x-1/2 text-white text-sm font-medium px-4 py-2.5 rounded-lg shadow-lg z-50 max-w-sm text-center ${
-              paygToast.tone === "err" ? "bg-red-600" : "bg-gray-900"
+              paygToast.tone === "err" ? "bg-red-600" : "bg-ink text-bg"
             }`}
             role="status"
           >

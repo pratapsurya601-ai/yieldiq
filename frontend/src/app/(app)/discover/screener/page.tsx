@@ -131,8 +131,8 @@ function ScreenerContent() {
 
       {/* Results */}
       {data && data.results && data.results.length > 0 && (
-        <div className="bg-bg dark:bg-surface rounded-2xl border border-gray-100 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+        <div className="bg-bg dark:bg-surface rounded-2xl border border-border overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex items-center justify-between">
             <span className="text-sm font-semibold text-ink">{data.total} stocks found</span>
             <div className="flex items-center gap-3">
               {tier !== "free" && (
@@ -146,7 +146,7 @@ function ScreenerContent() {
               <span className="text-xs text-caption">Page {data.page}</span>
             </div>
           </div>
-          <div className="divide-y divide-gray-50">
+          <div className="divide-y divide-border">
             {data.results.map((stock, i) => {
               const cleanTicker = stock.ticker.replace(".NS", "").replace(".BO", "")
               const mosColor = stock.margin_of_safety >= 15
@@ -161,7 +161,7 @@ function ScreenerContent() {
                 <Link
                   key={stock.ticker}
                   href={`/analysis/${stock.ticker.includes(".") ? stock.ticker : stock.ticker + ".NS"}`}
-                  className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors"
+                  className="flex items-center justify-between px-4 py-3 hover:bg-surface transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-caption w-6 text-right">{i + 1}</span>
@@ -188,7 +188,7 @@ function ScreenerContent() {
 
       {/* Empty */}
       {data && (!data.results || data.results.length === 0) && (
-        <div className="bg-bg dark:bg-surface border border-gray-100 rounded-xl p-8 text-center">
+        <div className="bg-bg dark:bg-surface border border-border rounded-xl p-8 text-center">
           <p className="text-sm text-caption">No stocks match this criteria.</p>
           <p className="text-xs text-caption mt-1">Try a different preset or lower the filters.</p>
         </div>
