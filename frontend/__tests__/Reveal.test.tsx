@@ -132,7 +132,7 @@ describe("Reveal", () => {
     const wrapper = container.querySelector('[data-reveal="up"]') as HTMLElement
     expect(wrapper.getAttribute("data-reveal-visible")).toBe("true")
     expect(wrapper.className).toMatch(/opacity-100/)
-    // No observer callback should ever have been registered.
+    // No observer callback must ever have been registered.
     expect(lastIOCallback).toBeNull()
   })
 
