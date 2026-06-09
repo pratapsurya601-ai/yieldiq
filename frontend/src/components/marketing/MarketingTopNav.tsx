@@ -94,16 +94,16 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
 
   const linkBase = isDark
     ? "text-gray-400 hover:text-white transition"
-    : "text-gray-600 hover:text-gray-900 transition"
+    : "text-body hover:text-ink transition"
   const linkActive = isDark ? "text-white font-semibold" : "text-tone-info-fg font-semibold"
 
   const ctaLink = isDark
     ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white font-semibold px-4 py-2 rounded-lg hover:opacity-90 transition shadow-lg shadow-blue-500/20"
-    : "bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 transition"
+    : "bg-blue-600 dark:bg-blue-500 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-400 transition"
 
   const signinLink = isDark
     ? "text-gray-400 hover:text-white text-sm transition"
-    : "text-gray-600 hover:text-gray-900 text-sm transition"
+    : "text-body hover:text-ink text-sm transition"
 
   return (
     <nav className={wrapperCls} aria-label="Primary navigation">
@@ -142,7 +142,7 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
                     "inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition",
                     isDark
                       ? "bg-white/10 text-gray-200 hover:bg-white/15"
-                      : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                      : "bg-surface text-body hover:bg-tone-neutral-bg"
                   )}
                   aria-label="Analyses used today"
                 >
@@ -161,7 +161,7 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
                     "h-8 w-8 rounded-full flex items-center justify-center transition",
                     isDark
                       ? "bg-white/10 text-white hover:bg-white/15"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      : "bg-surface text-body hover:bg-tone-neutral-bg"
                   )}
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -201,7 +201,7 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
         {/* Mobile hamburger */}
         <button
           onClick={() => setOpen(!open)}
-          className={cn("md:hidden p-2", isDark ? "text-white" : "text-gray-700")}
+          className={cn("md:hidden p-2", isDark ? "text-white" : "text-ink")}
           aria-label="Menu"
           aria-expanded={open}
         >
@@ -215,7 +215,7 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
       {open && (
         <div className={cn(
           "md:hidden border-t px-4 py-3 space-y-1",
-          isDark ? "border-white/5 bg-[#0F172A]" : "border-border bg-bg"
+          isDark ? "border-white/5 bg-[#0F172A]" : "border-border bg-bg dark:bg-surface"
         )}>
           {navItems.map((item) => (
             <Link
@@ -223,7 +223,7 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
               href={item.href}
               className={cn(
                 "block text-sm py-2",
-                isDark ? "text-gray-300" : "text-gray-700"
+                isDark ? "text-gray-300" : "text-body"
               )}
             >
               {item.label}
@@ -233,27 +233,27 @@ export default function MarketingTopNav({ variant = "light" }: Props) {
             {token ? (
               <>
                 {tier === "free" && dailyLimit !== null && (
-                  <div className={cn("text-xs mb-2", isDark ? "text-gray-400" : "text-gray-500")}>
+                  <div className={cn("text-xs mb-2", isDark ? "text-gray-400" : "text-caption")}>
                     <span className="font-mono">{analysesToday}/{dailyLimit}</span> analyses today
                   </div>
                 )}
-                <Link href="/account" className={cn("block text-sm py-2", isDark ? "text-gray-300" : "text-gray-700")}>Account</Link>
-                <Link href="/portfolio" className={cn("block text-sm py-2", isDark ? "text-gray-300" : "text-gray-700")}>Portfolio</Link>
-                <Link href="/compare" className={cn("block text-sm py-2", isDark ? "text-gray-300" : "text-gray-700")}>Compare</Link>
+                <Link href="/account" className={cn("block text-sm py-2", isDark ? "text-gray-300" : "text-body")}>Account</Link>
+                <Link href="/portfolio" className={cn("block text-sm py-2", isDark ? "text-gray-300" : "text-body")}>Portfolio</Link>
+                <Link href="/compare" className={cn("block text-sm py-2", isDark ? "text-gray-300" : "text-body")}>Compare</Link>
                 <button
                   type="button"
                   onClick={() => logout()}
-                  className={cn("block text-sm py-2 w-full text-left", isDark ? "text-gray-300" : "text-gray-700")}
+                  className={cn("block text-sm py-2 w-full text-left", isDark ? "text-gray-300" : "text-body")}
                 >
                   Sign out
                 </button>
               </>
             ) : (
               <>
-                <Link href="/auth/login" className={cn("block text-sm py-2", isDark ? "text-gray-300" : "text-gray-700")}>Sign in</Link>
+                <Link href="/auth/login" className={cn("block text-sm py-2", isDark ? "text-gray-300" : "text-body")}>Sign in</Link>
                 <Link href="/auth/signup" className={cn("block text-center text-sm font-semibold px-4 py-2 rounded-lg mt-2", isDark
                   ? "bg-gradient-to-r from-blue-600 to-cyan-500 text-white"
-                  : "bg-blue-600 text-white")}>
+                  : "bg-blue-600 dark:bg-blue-500 text-white")}>
                   Start Free &rarr;
                 </Link>
               </>

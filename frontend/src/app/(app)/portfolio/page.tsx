@@ -223,7 +223,7 @@ function PortfolioInner() {
     <div className="max-w-2xl md:max-w-4xl lg:max-w-5xl mx-auto px-4 py-6 space-y-4 pb-20">
       {/* Toast */}
       {toast && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-xs font-medium px-4 py-2 rounded-lg shadow-lg z-50 whitespace-nowrap">
+        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 bg-ink text-bg text-xs font-medium px-4 py-2 rounded-lg shadow-lg z-50 whitespace-nowrap">
           {toast}
         </div>
       )}
@@ -256,19 +256,19 @@ function PortfolioInner() {
       {/* Tabs — iOS segmented control style */}
       <div className="flex bg-surface rounded-xl p-1">
         <button onClick={() => setTab("holdings")}
-          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "holdings" ? "bg-bg dark:bg-surface text-ink shadow-sm ring-1 ring-black/5" : "text-caption hover:text-gray-700"}`}>
+          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "holdings" ? "bg-bg dark:bg-surface text-ink shadow-sm ring-1 ring-black/5" : "text-caption hover:text-ink"}`}>
           Holdings
         </button>
         <button onClick={() => setTab("watchlist")}
-          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "watchlist" ? "bg-bg dark:bg-surface text-ink shadow-sm ring-1 ring-black/5" : "text-caption hover:text-gray-700"}`}>
+          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "watchlist" ? "bg-bg dark:bg-surface text-ink shadow-sm ring-1 ring-black/5" : "text-caption hover:text-ink"}`}>
           Watchlist{watchlist && watchlist.length > 0 ? ` (${watchlist.length})` : ""}
         </button>
         <button onClick={() => setTab("alerts")}
-          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "alerts" ? "bg-bg dark:bg-surface text-ink shadow-sm ring-1 ring-black/5" : "text-caption hover:text-gray-700"}`}>
+          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "alerts" ? "bg-bg dark:bg-surface text-ink shadow-sm ring-1 ring-black/5" : "text-caption hover:text-ink"}`}>
           Alerts{alerts && alerts.length > 0 ? ` (${alerts.length})` : ""}
         </button>
         <button onClick={() => setTab("updates")}
-          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "updates" ? "bg-bg dark:bg-surface text-ink shadow-sm ring-1 ring-black/5" : "text-caption hover:text-gray-700"}`}>
+          className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${tab === "updates" ? "bg-bg dark:bg-surface text-ink shadow-sm ring-1 ring-black/5" : "text-caption hover:text-ink"}`}>
           Updates
         </button>
       </div>
@@ -279,7 +279,7 @@ function PortfolioInner() {
       {/* Holdings tab */}
       {tab === "holdings" && holdingsError && (
         <div className="text-center py-12">
-          <div className="w-16 h-16 mx-auto mb-4 text-gray-200">
+          <div className="w-16 h-16 mx-auto mb-4 text-caption">
             <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 14.15v4.25c0 1.094-.787 2.036-1.872 2.18-2.087.277-4.216.42-6.378.42s-4.291-.143-6.378-.42c-1.085-.144-1.872-1.086-1.872-2.18v-4.25m16.5 0a2.18 2.18 0 00.75-1.661V8.706c0-1.081-.768-2.015-1.837-2.175a48.114 48.114 0 00-3.413-.387m4.5 8.006c-.194.165-.42.295-.673.38A23.978 23.978 0 0112 15.75a23.978 23.978 0 01-7.577-1.22 2.016 2.016 0 01-.673-.38m0 0A2.18 2.18 0 013 12.489V8.706c0-1.081.768-2.015 1.837-2.175a48.111 48.111 0 013.413-.387m7.5 0V5.25A2.25 2.25 0 0013.5 3h-3a2.25 2.25 0 00-2.25 2.25v.894m7.5 0a48.667 48.667 0 00-7.5 0" />
             </svg>
@@ -290,7 +290,7 @@ function PortfolioInner() {
             <Link href="/portfolio/import" className="inline-flex items-center justify-center min-h-[40px] bg-blue-600 text-white text-sm font-semibold px-4 py-2 rounded-lg hover:bg-blue-700 active:scale-[0.98] transition">
               Import Zerodha / Groww CSV &rarr;
             </Link>
-            <Link href="/search" className="inline-flex items-center justify-center min-h-[40px] bg-bg dark:bg-surface border border-border text-ink text-sm font-semibold px-4 py-2 rounded-lg hover:bg-gray-50 active:scale-[0.98] transition">
+            <Link href="/search" className="inline-flex items-center justify-center min-h-[40px] bg-bg dark:bg-surface border border-border text-ink text-sm font-semibold px-4 py-2 rounded-lg hover:bg-surface active:scale-[0.98] transition">
               Analyse a stock
             </Link>
           </div>
@@ -302,7 +302,7 @@ function PortfolioInner() {
           <div className="skeleton rounded-2xl h-[148px]" />
           {/* Three holding-row skeletons — matches the real card layout */}
           {[0, 1, 2].map((i) => (
-            <div key={i} className="bg-bg dark:bg-surface rounded-xl border border-gray-100 p-4 space-y-3">
+            <div key={i} className="bg-bg dark:bg-surface rounded-xl border border-border p-4 space-y-3">
               <div className="flex items-start justify-between">
                 <div className="space-y-2">
                   <div className="skeleton h-4 w-24 rounded" />
@@ -386,7 +386,7 @@ function PortfolioInner() {
                 and rendering as one merged/averaged position. */}
             {holdings.map((h) => (
               <Link key={`${h.ticker}:${h.account_label || "default"}`} href={`/analysis/${h.ticker}`}
-                className="block bg-bg dark:bg-surface rounded-xl border border-gray-100 p-4 hover:border-blue-200 transition">
+                className="block bg-bg dark:bg-surface rounded-xl border border-border p-4 hover:border-blue-200 transition">
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
@@ -411,7 +411,7 @@ function PortfolioInner() {
                 <div className="flex items-center justify-between text-xs">
                   <div className="text-caption">
                     {h.quantity} × {formatCurrency(h.entry_price, "INR")}
-                    <span className="text-gray-300 mx-1">=</span>
+                    <span className="text-caption mx-1">=</span>
                     <span className="text-ink">{fmtRsCompact(h.invested_value)}</span>
                   </div>
                   <div className="text-right">
@@ -426,7 +426,7 @@ function PortfolioInner() {
                     explicit "not modeled" line instead of leaving a
                     blank gap that reads as a broken row. */}
                 {h.fair_value != null && h.mos_pct != null ? (
-                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-50 text-[10px] gap-2">
+                  <div className="flex items-center justify-between mt-2 pt-2 border-t border-border text-[10px] gap-2">
                     <span className="text-caption shrink-0">
                       Fair Value: <span className="font-mono text-ink">{formatCurrency(h.fair_value, "INR")}</span>
                     </span>
@@ -441,7 +441,7 @@ function PortfolioInner() {
                     </span>
                   </div>
                 ) : (
-                  <div className="mt-2 pt-2 border-t border-gray-50 text-[10px] text-caption">
+                  <div className="mt-2 pt-2 border-t border-border text-[10px] text-caption">
                     Fair Value: not modeled{isLikelyCommodity(h) ? " (commodity)" : ""}
                   </div>
                 )}
@@ -532,7 +532,7 @@ function PortfolioInner() {
                 autoFocus
                 onClick={() => setResetConfirm(false)}
                 disabled={resetHoldingsMut.isPending}
-                className="min-h-[36px] px-3 py-1.5 text-xs font-semibold text-ink bg-surface rounded-lg hover:bg-gray-200 disabled:opacity-50"
+                className="min-h-[36px] px-3 py-1.5 text-xs font-semibold text-ink bg-surface rounded-lg hover:bg-tone-neutral-bg disabled:opacity-50"
               >
                 Cancel
               </button>
@@ -554,7 +554,7 @@ function PortfolioInner() {
         watchlist && watchlist.length > 0 ? (
           <section aria-label="Watchlist" data-testid="watchlist-list" className="space-y-2">
             {watchlist.map((w: { ticker: string; company_name: string; target_price: number; added_price: number }) => (
-              <div key={w.ticker} className="flex items-center bg-bg dark:bg-surface rounded-xl border border-gray-100 hover:border-blue-200 transition">
+              <div key={w.ticker} className="flex items-center bg-bg dark:bg-surface rounded-xl border border-border hover:border-blue-200 transition">
                 <Link href={`/analysis/${w.ticker}`} className="flex-1 flex items-center justify-between p-4">
                   <div className="flex items-center gap-3 min-w-0">
                     <TickerAvatar ticker={w.ticker} size="md" />
@@ -614,7 +614,7 @@ function PortfolioInner() {
         alerts && alerts.length > 0 ? (
           <div className="space-y-2">
             {alerts.map((a: { id: number; ticker: string; alert_type: string; target_price: number; created_at: string }) => (
-              <div key={a.id} className="flex items-center bg-bg dark:bg-surface rounded-xl border border-gray-100 p-4">
+              <div key={a.id} className="flex items-center bg-bg dark:bg-surface rounded-xl border border-border p-4">
                 <Link href={`/analysis/${a.ticker}`} className="flex-1">
                   <div className="flex items-center gap-2">
                     <p className="font-medium text-ink">{a.ticker.replace(".NS", "")}</p>
@@ -642,7 +642,7 @@ function PortfolioInner() {
           </div>
         ) : (
           <div className="text-center py-12">
-            <div className="w-16 h-16 mx-auto mb-4 text-gray-200">
+            <div className="w-16 h-16 mx-auto mb-4 text-caption">
               <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
               </svg>

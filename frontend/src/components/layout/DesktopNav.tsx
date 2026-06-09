@@ -25,15 +25,15 @@ export default function DesktopNav() {
   const isNearLimit = tier === "free" && dailyLimit !== null && analysesToday >= dailyLimit - 1
 
   return (
-    <header className="hidden md:block sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-gray-200">
+    <header className="hidden md:block sticky top-0 z-40 bg-bg/95 dark:bg-bg/90 backdrop-blur-md border-b border-border">
       <div className="max-w-6xl mx-auto px-6 h-14 flex items-center gap-8">
         <Link href="/home" className="flex items-center gap-2 flex-shrink-0" aria-label="YieldIQ home">
           <span className="text-lg font-black tracking-tight">
-            <span className="text-gray-900">Yield</span>
-            <span className="text-blue-600">IQ</span>
+            <span className="text-ink">Yield</span>
+            <span className="text-blue-600 dark:text-blue-400">IQ</span>
           </span>
           {tier === "free" && (
-            <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider bg-gray-100 px-1.5 py-0.5 rounded">
+            <span className="text-[9px] font-bold text-caption uppercase tracking-wider bg-surface px-1.5 py-0.5 rounded">
               Free
             </span>
           )}
@@ -53,7 +53,7 @@ export default function DesktopNav() {
                   "px-3 py-1.5 rounded-lg text-sm font-medium transition-colors",
                   active
                     ? "bg-tone-info-bg text-tone-info-fg"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    : "text-body hover:text-ink hover:bg-surface"
                 )}
               >
                 {l.label}
@@ -69,8 +69,8 @@ export default function DesktopNav() {
               className={cn(
                 "hidden lg:inline-flex items-center gap-2 text-xs font-semibold px-3 py-1.5 rounded-lg transition",
                 isNearLimit
-                  ? "bg-tone-warn-bg text-tone-warn-fg hover:bg-amber-100 ring-1 ring-amber-200"
-                  : "bg-gray-50 text-gray-600 hover:bg-gray-100"
+                  ? "bg-tone-warn-bg text-tone-warn-fg hover:bg-amber-100 dark:hover:bg-amber-900/30 ring-1 ring-amber-200 dark:ring-amber-700/50"
+                  : "bg-surface text-body hover:bg-tone-neutral-bg"
               )}
               aria-label="Analyses used today"
             >
@@ -81,7 +81,7 @@ export default function DesktopNav() {
           )}
           <Link
             href="/search"
-            className="inline-flex items-center gap-2 bg-blue-600 text-white text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-blue-700 transition"
+            className="inline-flex items-center gap-2 bg-blue-600 dark:bg-blue-500 text-white text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-blue-700 dark:hover:bg-blue-400 transition"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path
@@ -100,8 +100,8 @@ export default function DesktopNav() {
             className={cn(
               "h-8 w-8 rounded-full flex items-center justify-center transition",
               pathname.startsWith("/account")
-                ? "bg-tone-info-bg text-tone-info-fg ring-2 ring-blue-100"
-                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                ? "bg-tone-info-bg text-tone-info-fg ring-2 ring-blue-100 dark:ring-blue-900/40"
+                : "bg-surface text-body hover:bg-tone-neutral-bg"
             )}
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>

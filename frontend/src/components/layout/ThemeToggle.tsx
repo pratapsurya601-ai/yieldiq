@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react"
 
 type Theme = "light" | "dark"
 const STORAGE_KEY = "yieldiq_theme"
-const DEFAULT_THEME: Theme = "light"
+const DEFAULT_THEME: Theme = "dark"
 
 /**
  * 2-way theme toggle (Light / Dark). Persists choice to localStorage
@@ -15,9 +15,12 @@ const DEFAULT_THEME: Theme = "light"
  * read on page load; this component only handles user interaction after
  * hydration.
  *
- * Migration (2026-05): the legacy "system" option was removed. Any
- * stored value other than "dark" — including the historical "system"
- * sentinel or a missing key — is normalised to "light" on next load.
+ * Migration (2026-06): dark is the premium-fintech default
+ * (Bloomberg / Koyfin / TradingView / AlphaSpread). Any stored value
+ * other than "light" — including the historical "system" sentinel,
+ * the legacy "light" default that was rewritten on every load, or a
+ * missing key — is normalised to "dark" on next load. An explicit
+ * "light" set by a returning user is honoured as-is.
  */
 function applyTheme(theme: Theme) {
   document.documentElement.classList.toggle("dark", theme === "dark")
@@ -26,11 +29,11 @@ function applyTheme(theme: Theme) {
 function readStoredTheme(): Theme {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
-    if (raw === "dark") return "dark"
+    if (raw === "light") return "light"
     // One-time migration: anything else (including "system" or null)
-    // becomes "light". Persist so we don't have to re-migrate on every
+    // becomes "dark". Persist so we don't have to re-migrate on every
     // page load.
-    if (raw !== "light") {
+    if (raw !== "dark") {
       localStorage.setItem(STORAGE_KEY, DEFAULT_THEME)
     }
     return DEFAULT_THEME

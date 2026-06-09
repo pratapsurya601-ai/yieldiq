@@ -60,15 +60,16 @@ const GA4_ID = process.env.NEXT_PUBLIC_GA4_ID || "";
 // const CLARITY_ID = process.env.NEXT_PUBLIC_CLARITY_ID || "";
 
 // Inline script string: reads the user's saved theme preference from
-// localStorage BEFORE React hydrates so we avoid a light-to-dark
+// localStorage BEFORE React hydrates so we avoid a dark-to-light
 // flash on first paint. Standard anti-FOUC pattern.
 //
-// Migration (2026-05): the legacy "system" option was removed and
-// "light" is now the only default. Anything other than "dark" — old
-// "system" sentinel, missing key, garbage — resolves to light, and
-// non-canonical values are rewritten to "light" so the migration only
-// runs once per browser.
-const themeInitScript = `(function(){try{var s=localStorage.getItem('yieldiq_theme');if(s!=='dark'&&s!=='light'){try{localStorage.setItem('yieldiq_theme','light');}catch(e){}}var e=document.documentElement;if(s==='dark'){e.classList.add('dark');}else{e.classList.remove('dark');}}catch(e){}})();`;
+// Migration (2026-06): dark is now the premium-fintech default
+// (Bloomberg / Koyfin / TradingView / AlphaSpread). Anything other
+// than "light" — missing key, garbage, legacy "system" sentinel —
+// resolves to dark, and non-canonical values are rewritten to "dark"
+// so the migration only runs once per browser. An explicit "light"
+// preference from a returning user is preserved as-is.
+const themeInitScript = `(function(){try{var s=localStorage.getItem('yieldiq_theme');if(s!=='dark'&&s!=='light'){try{localStorage.setItem('yieldiq_theme','dark');}catch(e){}s='dark';}var e=document.documentElement;if(s==='light'){e.classList.remove('dark');}else{e.classList.add('dark');}}catch(e){}})();`;
 
 export const metadata: Metadata = {
   // Root-level default title. Per-route layouts under (app)/ override
@@ -127,9 +128,17 @@ export const viewport: Viewport = {
   // Accessibility: do NOT set maximumScale or userScalable=false — that
   // blocks pinch-to-zoom and trips a Lighthouse a11y audit violation.
   // Keep the viewport minimal: device-width + initial-scale=1.
+  //
+  // themeColor pairs to the resolved theme: dark default uses --color-bg
+  // dark (#0B1220) so the mobile browser chrome (Android Chrome address
+  // bar, iOS status-bar tint) matches the page background; the light
+  // override applies for users who explicitly flip back via the toggle.
   width: "device-width",
   initialScale: 1,
-  themeColor: "#2563EB",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0B1220" },
+    { media: "(prefers-color-scheme: light)", color: "#0B1220" },
+  ],
 };
 
 export default function RootLayout({

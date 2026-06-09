@@ -67,7 +67,7 @@ const plans: Plan[] = [
       { text: "1 portfolio / 1 broker account", included: true },
       { text: "Discover rails (YieldIQ 50, Sector Leaders)", included: true },
     ],
-    ctaStyle: "border-2 border-border text-ink hover:bg-gray-50",
+    ctaStyle: "border-2 border-border text-ink hover:bg-surface",
   },
   {
     id: "analyst",
@@ -109,7 +109,7 @@ const plans: Plan[] = [
       { text: "Compare up to 5 stocks side-by-side", included: true },
       { text: "Early access to new features (beta ring)", included: true },
     ],
-    ctaStyle: "border-2 border-border text-ink hover:bg-gray-50",
+    ctaStyle: "border-2 border-border text-ink hover:bg-surface",
   },
 ]
 
@@ -195,16 +195,16 @@ export default function PricingPage() {
             <div className="inline-flex bg-bg dark:bg-surface border border-border rounded-xl p-1 shadow-sm">
               <button
                 onClick={() => handleBillingToggle("monthly")}
-                className={`px-4 py-2 min-h-[40px] rounded-lg text-sm font-semibold transition ${billing === "monthly" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
+                className={`px-4 py-2 min-h-[40px] rounded-lg text-sm font-semibold transition ${billing === "monthly" ? "bg-blue-600 text-white shadow" : "text-body hover:text-ink"}`}
               >
                 Monthly
               </button>
               <button
                 onClick={() => handleBillingToggle("annual")}
-                className={`px-4 py-2 min-h-[40px] rounded-lg text-sm font-semibold transition inline-flex items-center gap-2 ${billing === "annual" ? "bg-blue-600 text-white shadow" : "text-gray-600 hover:text-gray-900"}`}
+                className={`px-4 py-2 min-h-[40px] rounded-lg text-sm font-semibold transition inline-flex items-center gap-2 ${billing === "annual" ? "bg-blue-600 text-white shadow" : "text-body hover:text-ink"}`}
               >
                 Annual
-                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${billing === "annual" ? "bg-white text-blue-700" : "bg-green-100 text-green-700"}`}>
+                <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${billing === "annual" ? "bg-bg dark:bg-bg/90 text-blue-700 dark:text-blue-300" : "bg-green-100 text-green-700 dark:bg-emerald-950/40 dark:text-emerald-300"}`}>
                   Save ~17%
                 </span>
               </button>
@@ -257,7 +257,7 @@ export default function PricingPage() {
                     {plan.badge}
                   </div>
                 )}
-                <div className={`text-sm font-bold uppercase tracking-wider mb-3 ${plan.highlighted ? "text-blue-200" : "text-gray-500"}`}>
+                <div className={`text-sm font-bold uppercase tracking-wider mb-3 ${plan.highlighted ? "text-blue-200" : "text-caption"}`}>
                   {plan.name}
                 </div>
                 {launch && (
@@ -278,7 +278,7 @@ export default function PricingPage() {
                 )}
                 <div className="flex items-baseline gap-1 mb-2">
                   <span className="text-5xl font-black">{priceStr}</span>
-                  <span className={plan.highlighted ? "text-blue-200" : "text-gray-400"}>{period}</span>
+                  <span className={plan.highlighted ? "text-blue-200" : "text-caption"}>{period}</span>
                 </div>
                 {launch && (
                   <p
@@ -296,7 +296,7 @@ export default function PricingPage() {
                     Save ₹{annualSavings.toLocaleString("en-IN")}/year vs monthly (~17% off)
                   </p>
                 )}
-                <p className={`text-sm mb-8 ${plan.highlighted ? "text-blue-200" : "text-gray-400"}`}>{subtitle}</p>
+                <p className={`text-sm mb-8 ${plan.highlighted ? "text-blue-200" : "text-caption"}`}>{subtitle}</p>
 
                 <ul className="space-y-3 mb-8">
                   {plan.features.map((f) => (
@@ -310,7 +310,7 @@ export default function PricingPage() {
                 </ul>
 
                 {cta.disabled ? (
-                  <div className={`block w-full text-center py-3 rounded-xl font-semibold ${plan.highlighted ? "bg-bg dark:bg-surface/20 text-white" : "bg-gray-100 text-caption"}`}>
+                  <div className={`block w-full text-center py-3 rounded-xl font-semibold ${plan.highlighted ? "bg-bg dark:bg-surface/20 text-white" : "bg-surface text-caption"}`}>
                     {cta.label}
                   </div>
                 ) : (
@@ -339,7 +339,7 @@ export default function PricingPage() {
           and we don't want to clutter the primary upgrade decision.
           Acquisition logic: cheap CAC for a long-tail audience that
           graduates into full-price Analyst once they start earning. */}
-      <section className="py-8 md:py-10 bg-bg dark:bg-surface border-t border-gray-100">
+      <section className="py-8 md:py-10 bg-bg dark:bg-surface border-t border-border">
         <div className="max-w-4xl mx-auto px-4">
           <div className="rounded-2xl border-2 border-dashed border-blue-200 bg-bg dark:bg-surface p-6 md:p-8 shadow-sm">
             <div className="flex flex-col md:flex-row md:items-start gap-6">
@@ -388,7 +388,7 @@ export default function PricingPage() {
                 </div>
                 <a
                   href="mailto:hello@yieldiq.in?subject=Student%20%2F%20CA%20verification%20for%20YieldIQ&body=Hi%20YieldIQ%20team%2C%0A%0AI%27d%20like%20to%20apply%20for%20the%20%E2%82%B9199%2Fmo%20Student%20tier.%20Attached%20is%20my%20current%20student%20ID%20%2F%20articleship%20registration.%0A%0AYieldIQ%20signup%20email%3A%20%0AInstitution%20%2F%20firm%3A%20%0AExpected%20graduation%20%2F%20completion%20date%3A%20%0A%0AThanks."
-                  className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-gray-900 text-white font-semibold text-sm hover:bg-gray-800 transition"
+                  className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-ink text-bg font-semibold text-sm hover:opacity-90 transition"
                 >
                   Email verification &rarr;
                 </a>
@@ -405,7 +405,7 @@ export default function PricingPage() {
           analysis and isn't ready for a subscription. ₹99 for 24h
           access to a single ticker. At 8 PAYG analyses the math
           already favours Analyst — a natural self-serve upsell. */}
-      <section className="py-10 md:py-12 bg-gradient-to-br from-gray-50 to-white border-y border-gray-100">
+      <section className="py-10 md:py-12 bg-surface border-y border-border">
         <div className="max-w-4xl mx-auto px-4">
           <div className="rounded-2xl border border-border bg-bg dark:bg-surface p-6 md:p-8 flex flex-col md:flex-row md:items-center gap-4 shadow-sm">
             <div className="flex-1">
@@ -429,7 +429,7 @@ export default function PricingPage() {
               </div>
               <Link
                 href="/search"
-                className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-gray-900 text-white font-semibold text-sm hover:bg-gray-800 transition"
+                className="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-ink text-bg font-semibold text-sm hover:opacity-90 transition"
               >
                 Browse stocks &rarr;
               </Link>
