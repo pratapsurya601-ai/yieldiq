@@ -144,7 +144,7 @@ describe("ELI15ThesisPanel", () => {
       ...FULL_PAYLOAD,
       bullets: [
         ...FULL_PAYLOAD.bullets,
-        "An extra fourth bullet that should never render.",
+        "An extra fourth bullet that must never render.",
         "And a fifth one for good measure.",
       ],
     }
