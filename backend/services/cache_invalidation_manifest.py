@@ -2030,6 +2030,42 @@ MANIFEST: list[dict] = [
         ),
     },
     
+    {
+        # T1.5 Phase A — analyst calibration service (standalone module).
+        # Adds backend/services/analyst_calibration_service.py + its
+        # unit-test file. The service is READ-ONLY against the existing
+        # cache layer (uses get_cached_latest, never recomputes) and
+        # ships as a pure compute module — no router wiring, no new
+        # field on the analysis response, no consumer of the analysis
+        # payload's serialized shape changed.
+        #
+        # Phase B (separate PR) will add the /api/calibration/wall-st
+        # endpoint + frontend page. At that point a manifest entry
+        # for the wiring change may or may not be required depending on
+        # whether any analysis-payload field changes; today none do.
+        #
+        # Per the manifest-entry contract: scope.tickers='*' is the
+        # conservative all-tickers wildcard, but scope.fields=[] is
+        # empty because no cached response field is mutated. The empty
+        # fields list means _field_in_scope() returns False for any
+        # caller's fields_needed iterable, so this entry is effectively
+        # a documentation-only no-op for the read-validity gate.
+        "version_id": "v_t1_5a_analyst_calibration_service_2026_06_09",
+        "applied_at": datetime(2026, 6, 9, 16, 30, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": ["*"],
+            "fields": [],
+        },
+        "rationale": (
+            "T1.5 Phase A: new standalone service module computes "
+            "YieldIQ-vs-Wall-Street price-target deviation report. "
+            "Read-only against the existing analysis cache (no "
+            "recompute, no payload-field changes). Phase B (separate "
+            "PR) wires the UI and a new endpoint. No cache "
+            "invalidation required for this entry — documented for "
+            "the audit trail."
+        ),
+    },
 ]
 
 
