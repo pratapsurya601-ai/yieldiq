@@ -469,7 +469,7 @@
           0.1
         ],
         "wacc": [
-          0.09,
+          0.08,
           0.13
         ],
         "market_cap_cr": [
@@ -693,7 +693,7 @@
           0.2
         ],
         "wacc": [
-          0.09,
+          0.08,
           0.13
         ],
         "market_cap_cr": [
@@ -721,7 +721,7 @@
           0.3
         ],
         "wacc": [
-          0.09,
+          0.08,
           0.13
         ],
         "market_cap_cr": [
@@ -749,7 +749,7 @@
           0.8
         ],
         "wacc": [
-          0.09,
+          0.08,
           0.13
         ],
         "market_cap_cr": [
@@ -777,7 +777,7 @@
           0.3
         ],
         "wacc": [
-          0.09,
+          0.08,
           0.13
         ],
         "market_cap_cr": [
@@ -805,7 +805,7 @@
           0.8
         ],
         "wacc": [
-          0.09,
+          0.08,
           0.13
         ],
         "market_cap_cr": [
@@ -945,7 +945,7 @@
           0.3
         ],
         "wacc": [
-          0.09,
+          0.08,
           0.13
         ],
         "market_cap_cr": [
@@ -1274,7 +1274,7 @@
       "mcap_tier": "large",
       "canary_bounds": {
         "roe": [
-          0.3698,
+          0.3,
           1.5
         ],
         "debt_to_equity": null,
@@ -1651,8 +1651,8 @@
       "mcap_tier": "large",
       "canary_bounds": {
         "roe": [
-          0.1,
-          0.8248
+          -0.4,
+          0.85
         ],
         "debt_to_equity": [
           0.5,
@@ -1987,7 +1987,7 @@
       "mcap_tier": "mid",
       "canary_bounds": {
         "roe": [
-          0.1,
+          -0.1,
           0.25
         ],
         "debt_to_equity": [
@@ -2071,8 +2071,8 @@
       "mcap_tier": "mid",
       "canary_bounds": {
         "roe": [
-          0.05,
-          0.2
+          0.03,
+          0.25
         ],
         "debt_to_equity": [
           0.1,
@@ -2471,7 +2471,7 @@
           0.8
         ],
         "wacc": [
-          0.09,
+          0.08,
           0.13
         ],
         "market_cap_cr": [
@@ -2499,7 +2499,7 @@
           0.3
         ],
         "wacc": [
-          0.09,
+          0.08,
           0.13
         ],
         "market_cap_cr": [
@@ -2527,7 +2527,7 @@
           0.3
         ],
         "wacc": [
-          0.09,
+          0.08,
           0.13
         ],
         "market_cap_cr": [
@@ -2555,7 +2555,7 @@
           0.4
         ],
         "wacc": [
-          0.09,
+          0.08,
           0.13
         ],
         "market_cap_cr": [
@@ -2604,7 +2604,7 @@
       "canary_bounds": {
         "roe": [
           0.3,
-          0.9
+          1.5
         ],
         "debt_to_equity": [
           0.0,
@@ -2772,7 +2772,7 @@
       "canary_bounds": {
         "roe": [
           0.15,
-          0.35
+          0.95
         ],
         "debt_to_equity": [
           0.0,
@@ -2912,7 +2912,7 @@
       "canary_bounds": {
         "roe": [
           0.15,
-          0.25
+          0.3
         ],
         "debt_to_equity": [
           2.0,
@@ -3977,7 +3977,7 @@
       "mcap_tier": "mid",
       "canary_bounds": {
         "roe": [
-          0.05,
+          0.03,
           0.2
         ],
         "debt_to_equity": [
@@ -4005,7 +4005,7 @@
       "mcap_tier": "mid",
       "canary_bounds": {
         "roe": [
-          0.1239,
+          0.06,
           0.3
         ],
         "debt_to_equity": [
@@ -4594,7 +4594,7 @@
       "canary_bounds": {
         "roe": [
           0.05,
-          0.2
+          0.25
         ],
         "debt_to_equity": [
           0.1,
@@ -4705,7 +4705,7 @@
       "mcap_tier": "large",
       "canary_bounds": {
         "roe": [
-          0.12,
+          0.1,
           0.25
         ],
         "debt_to_equity": [
@@ -4790,7 +4790,7 @@
       "canary_bounds": {
         "roe": [
           0.05,
-          0.22
+          0.3
         ],
         "debt_to_equity": [
           0.0,
@@ -4985,7 +4985,7 @@
       "mcap_tier": "large",
       "canary_bounds": {
         "roe": [
-          0.1289,
+          0.1,
           0.3
         ],
         "debt_to_equity": [
@@ -5303,7 +5303,7 @@
           3
         ],
         "wacc": [
-          0.12,
+          0.09,
           0.14
         ]
       }
@@ -5643,7 +5643,7 @@
       "canary_bounds": {
         "roe": [
           0.08,
-          0.18
+          0.25
         ],
         "debt_to_equity": [
           0,
@@ -5755,7 +5755,7 @@
       "canary_bounds": {
         "roe": [
           0.15,
-          0.35
+          0.55
         ],
         "debt_to_equity": [
           0,
@@ -5818,7 +5818,7 @@
           0.2
         ],
         "wacc": [
-          0.1,
+          0.09,
           0.13
         ],
         "market_cap_cr": [
@@ -6084,8 +6084,8 @@
       "mcap_tier": "large",
       "canary_bounds": {
         "roe": [
-          0.05,
-          0.15
+          0.01,
+          0.18
         ],
         "debt_to_equity": [
           0.1,
@@ -6250,7 +6250,7 @@
       "canary_bounds": {
         "roe": [
           0.12,
-          0.18
+          0.22
         ],
         "debt_to_equity": [
           5,
@@ -6277,7 +6277,7 @@
       "mcap_tier": "large",
       "canary_bounds": {
         "roe": [
-          0.15,
+          0.1,
           0.4
         ],
         "debt_to_equity": [
@@ -6609,7 +6609,7 @@
         ],
         "debt_to_equity": null,
         "wacc": [
-          0.1,
+          0.09,
           0.13
         ],
         "market_cap_cr": [
@@ -6663,7 +6663,7 @@
         "debt_to_equity": null,
         "wacc": [
           0.09,
-          0.133
+          0.15
         ],
         "market_cap_cr": [
           13000,
@@ -6799,7 +6799,7 @@
           4.5
         ],
         "wacc": [
-          0.1,
+          0.09,
           0.13
         ],
         "market_cap_cr": [
@@ -7023,7 +7023,7 @@
           18
         ],
         "wacc": [
-          0.1,
+          0.09,
           0.14
         ],
         "market_cap_cr": [
@@ -7156,7 +7156,7 @@
       "canary_bounds": {
         "roe": [
           0.08,
-          0.2
+          0.3
         ],
         "debt_to_equity": [
           1.0,
@@ -7373,7 +7373,7 @@
       "mcap_tier": "large",
       "canary_bounds": {
         "roe": [
-          0.1,
+          0.07,
           0.2
         ],
         "debt_to_equity": [
@@ -7409,7 +7409,7 @@
           0.6
         ],
         "wacc": [
-          0.11,
+          0.09,
           0.14
         ],
         "market_cap_cr": [
@@ -7458,7 +7458,7 @@
       "canary_bounds": {
         "roe": [
           0.12,
-          0.25
+          0.3
         ],
         "debt_to_equity": [
           0,
@@ -7466,7 +7466,7 @@
         ],
         "wacc": [
           0.11,
-          0.14
+          0.16
         ],
         "market_cap_cr": [
           27000,
@@ -7703,8 +7703,8 @@
       "mcap_tier": "large",
       "canary_bounds": {
         "roe": [
-          0.1,
-          0.3769
+          0.03,
+          0.4
         ],
         "debt_to_equity": [
           0.7,
@@ -7761,7 +7761,7 @@
           0.1
         ],
         "wacc": [
-          0.11,
+          0.09,
           0.14
         ],
         "market_cap_cr": [
@@ -7842,7 +7842,7 @@
           1.0
         ],
         "wacc": [
-          0.11,
+          0.09,
           0.14
         ],
         "market_cap_cr": [
@@ -8164,7 +8164,7 @@
       "mcap_tier": "large",
       "canary_bounds": {
         "roe": [
-          0.1,
+          0.07,
           0.2
         ],
         "debt_to_equity": [
@@ -8192,7 +8192,7 @@
       "mcap_tier": "large",
       "canary_bounds": {
         "roe": [
-          0.13,
+          0.1,
           0.22
         ],
         "debt_to_equity": [
@@ -8729,7 +8729,7 @@
           0.5
         ],
         "wacc": [
-          0.11,
+          0.1,
           0.14
         ],
         "market_cap_cr": [
@@ -8782,7 +8782,7 @@
           0.3
         ],
         "wacc": [
-          0.11,
+          0.09,
           0.14
         ],
         "market_cap_cr": [
@@ -9110,7 +9110,7 @@
       "mcap_tier": "large",
       "canary_bounds": {
         "roe": [
-          0.13,
+          0.1,
           0.25
         ],
         "debt_to_equity": [
@@ -9356,7 +9356,7 @@
       "mcap_tier": "large",
       "canary_bounds": {
         "roe": [
-          0.08,
+          0.05,
           0.18
         ],
         "debt_to_equity": [
@@ -9420,7 +9420,7 @@
           1.2
         ],
         "wacc": [
-          0.1,
+          0.09,
           0.13
         ],
         "market_cap_cr": [
