@@ -145,14 +145,18 @@ const EMPTY_DATA = {
 
 describe("IndexDashboardClient — populated rendering", () => {
   it("renders all constituent rows with the documented columns", () => {
-    render(<IndexDashboardClient data={MULTI_SECTOR_DATA as never} />)
-    // Each ticker shows up as its display string.
-    expect(screen.getByText("RELIANCE")).toBeInTheDocument()
-    expect(screen.getByText("TCS")).toBeInTheDocument()
-    expect(screen.getByText("HDFCBANK")).toBeInTheDocument()
-    expect(screen.getByText("ITC")).toBeInTheDocument()
+    const { container } = render(<IndexDashboardClient data={MULTI_SECTOR_DATA as never} />)
+    // Each ticker shows up at least once. Some tickers (most-undervalued
+    // highlight card) appear twice — assert presence, not uniqueness.
+    expect(screen.getAllByText("RELIANCE").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("TCS").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("HDFCBANK").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("ITC").length).toBeGreaterThan(0)
     // Sector breakdown chip strip renders (4 sectors).
     expect(screen.getByTestId("sector-chip-strip")).toBeInTheDocument()
+    // Constituent tbody has 4 rows (one per ticker).
+    const tbody = container.querySelector("tbody")
+    expect(tbody?.querySelectorAll("tr").length).toBe(4)
   })
 
   it("default sort places the highest-MoS row at the top (Bug 2 spec)", () => {
@@ -167,12 +171,22 @@ describe("IndexDashboardClient — populated rendering", () => {
   })
 
   it("sector chip toggles the filter on click", () => {
-    render(<IndexDashboardClient data={MULTI_SECTOR_DATA as never} />)
-    // After clicking the Energy chip, only RELIANCE must remain.
-    const energyChip = screen.getByText(/Energy/)
-    fireEvent.click(energyChip)
-    expect(screen.getByText("RELIANCE")).toBeInTheDocument()
-    expect(screen.queryByText("TCS")).not.toBeInTheDocument()
+    const { container } = render(<IndexDashboardClient data={MULTI_SECTOR_DATA as never} />)
+    // The chip strip is scoped via data-testid so we don't accidentally
+    // click the sector-column text inside the constituent table. Find
+    // the Energy chip by walking the strip's direct children for one
+    // whose text matches Energy.
+    const chipStrip = screen.getByTestId("sector-chip-strip")
+    const energyChip = Array.from(
+      chipStrip.querySelectorAll("button, [role='button'], a, span") as NodeListOf<HTMLElement>,
+    ).find((el) => /Energy/.test(el.textContent ?? ""))
+    expect(energyChip).toBeTruthy()
+    fireEvent.click(energyChip!)
+    // After clicking Energy, only RELIANCE's row remains in tbody.
+    const tbody = container.querySelector("tbody")
+    const rows = tbody?.querySelectorAll("tr") ?? []
+    expect(rows.length).toBe(1)
+    expect(rows[0]?.textContent).toContain("RELIANCE")
   })
 })
 
