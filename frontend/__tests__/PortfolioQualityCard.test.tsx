@@ -288,12 +288,12 @@ describe("PortfolioQualityCard", () => {
       expect(screen.getAllByTestId("quality-card-row").length).toBe(1)
     })
     const text = (container.textContent || "").toLowerCase()
-    // The card must not contain any recommendation / advisory framing.
+    // The card must not contain any advisory framing. // sebi-allow: recommendation
     expect(text).not.toContain("buy")
     expect(text).not.toContain("sell")
     expect(text).not.toContain("recommend") // sebi-allow: recommend
-    expect(text).not.toContain("accumulate")
+    expect(text).not.toContain("accumulate") // sebi-allow: accumulate
     expect(text).not.toContain("strong")
-    expect(text).not.toContain("weak")
+    expect(text).not.toContain("weak") // sebi-allow: weak
   })
 })

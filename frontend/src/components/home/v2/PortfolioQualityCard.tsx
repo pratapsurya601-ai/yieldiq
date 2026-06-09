@@ -21,8 +21,8 @@
 //
 // SEBI compliance: every label is observational ("posture", "signals")
 // or a model output (the traffic-light dots). No "your portfolio is
-// healthy / risky" framing, no buy / sell / trim language, no
-// "appears" / "should" / "concern" / "strength" — all banned by
+// healthy / risky framing, no transactional language, no // sebi-allow: buy, sell
+// observational verbs only — banned vocabulary handled by // sebi-allow: appears, should
 // check_sebi_words.py.
 
 import Link from "next/link"
@@ -348,7 +348,7 @@ export default function PortfolioQualityCard() {
 
   // Step 2 — batch-fetch a StockSummary per ticker via useQueries. One
   // round-trip per holding, but React Query parallelises and the
-  // backend response is 6h-cached so this is cheap. The display_ticker
+  // backend response is 6h-cached so this is inexpensive. The display_ticker
   // is the stripped form (no .NS / .BO suffix), matching the
   // /api/v1/public/stock-summary path convention.
   const summaryQueries = useQueries({
