@@ -674,6 +674,30 @@ class AnalysisResponse(BaseModel):
     # cache, per-slug). Purely additive — pre-PR cached payloads
     # surface this as None and the frontend chip self-hides per metric.
     sector_medians: Optional[dict] = None
+    # ── DCF + Multiples cross-confirmation (Sprint A2, 2026-06-09) ──
+    # Peer-relative "what would this stock be worth if it traded at the
+    # sector-median multiple" — NOT a separate valuation model. Computed
+    # at response time from the response's own ticker PE/PB and the
+    # sector_medians cohort medians injected just above. Frontend renders
+    # a small horizontal pill row below the headline DCF fair value (see
+    # DcfMultiplesChip) so users can read DCF vs Multiples side-by-side
+    # — closes a positioning gap vs AlphaSpread's #1 pitch.
+    #
+    # `multiples_based_fv` — fair value implied by trading at the
+    # sector-median multiple. None when no peer cohort, when the
+    # ticker's own multiple is non-positive / missing, or when the
+    # cohort median is missing (banks special case, fresh listings).
+    # When None the frontend skips the entire pill row.
+    #
+    # `multiples_method` — which multiple drove the computation. "pe"
+    # is the default path; "pb" is the fallback when PE is unusable.
+    # "ev_ebitda" reserved for a future path. None mirrors
+    # multiples_based_fv being None.
+    #
+    # Purely additive — pre-PR cached payloads and clients that don't
+    # know about the field see it as None and the chip self-hides.
+    multiples_based_fv: Optional[float] = None
+    multiples_method: Optional[Literal["pe", "pb", "ev_ebitda"]] = None
 
 
 # ── The Honest Card response model ────────────────────────────

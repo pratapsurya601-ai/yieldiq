@@ -43,6 +43,7 @@ import Link from "next/link"
 
 import { NarrativeCard, DataCard } from "@/components/cards"
 import DegradedScenarioCard from "@/components/analysis/DegradedScenarioCard"
+import DcfMultiplesChip from "@/components/analysis/DcfMultiplesChip"
 import MetricTooltip from "@/components/common/MetricTooltip"
 import { cn, formatCurrency, formatPct } from "@/lib/utils"
 import {
@@ -275,6 +276,36 @@ export default function HonestHero({
               </div>
             </dl>
           )}
+
+          {/* DCF + Multiples cross-confirmation (Sprint A2, 2026-06-09).
+              Renders a small horizontal pill row showing DCF FV alongside
+              a peer-relative multiples FV — closes a key positioning gap
+              vs AlphaSpread. Self-hides when no peer cohort / no usable
+              multiple, when the page is degraded (the
+              DegradedScenarioCard already carries the explainer), or
+              when the FV is non-positive. Additive — never replaces the
+              FV/Discount row above. */}
+          {!signals.degraded &&
+            signals.fairValue != null &&
+            signals.fairValue > 0 &&
+            payload.valuation?.current_price != null &&
+            payload.valuation.current_price > 0 && (
+              <DcfMultiplesChip
+                ticker={ticker}
+                dcfValue={signals.fairValue}
+                multiplesValue={payload.multiples_based_fv ?? null}
+                multiplesMethod={payload.multiples_method ?? null}
+                currentPrice={payload.valuation.current_price}
+                currency={currency}
+                sectorMedianMultiple={
+                  payload.multiples_method === "pe"
+                    ? payload.sector_medians?.pe ?? null
+                    : payload.multiples_method === "pb"
+                      ? payload.sector_medians?.pb ?? null
+                      : null
+                }
+              />
+            )}
 
           {/* One-line caveat row — value-trap / data-limited / clamp.
               Spec §1 priority 5. Single most factual line; never directive. */}
