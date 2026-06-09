@@ -1018,8 +1018,17 @@ app.include_router(internal_router.admin_router)
 #   GET /api/valuation-history/{ticker}
 # Contract-first stub (Agent B). Returns empty shape until Agent A
 # wires the fair_value_history query in the follow-up PR.
+#
+# Premium Feel R3 (2026-06-09) — sibling public aggregate endpoint on
+# the same module:
+#   GET /api/v1/public/valuation-history/{ticker}
+# Returns a calibration series + descriptive hypothetical statistics
+# powered by backend/services/analysis/valuation_history_service.py.
+# Read-only aggregate over the existing fair_value_history table; no
+# engine output changes (cache-version: skip — see PR body).
 from backend.routers import valuation_history as valuation_history_router
 app.include_router(valuation_history_router.router)
+app.include_router(valuation_history_router.public_router)
 
 # Sparkline batch endpoint (2026-06-09 — feat/home-sparklines-everywhere).
 # Powers the 56×18 inline SVG trend charts on the home-page panels

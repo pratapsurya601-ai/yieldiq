@@ -897,3 +897,35 @@ export interface FairValueHistoryResponse {
   points_count: number
   is_sparse: boolean          // true when series has < 3 points
 }
+
+// ── Premium Feel R3 — Valuation-History backtest aggregate ──────
+// Mirrors backend/models/fair_value_history.py::ValuationHistoryResponse.
+// One observation per row in the calibration series; aggregated
+// descriptive statistics in `stats` (null when sparse). `caveats` is
+// always populated and rendered verbatim under the chart.
+export interface ValuationHistorySeriesPoint {
+  date: string            // ISO date, YYYY-MM-DD
+  price: number           // ₹/share, realized close
+  fair_value: number      // ₹/share, model estimate on that date
+  deviation_pct: number   // (price - fair_value) / fair_value * 100
+}
+
+export interface ValuationHistoryStats {
+  n_observations: number
+  n_signal_events: number
+  signal_threshold_pct: number
+  median_holding_days: number | null
+  median_realized_pct: number | null
+  median_abs_error_pct: number
+  pct_within_10: number   // 0..1
+  pct_within_20: number   // 0..1
+}
+
+export interface ValuationHistoryBacktestResponse {
+  ticker: string
+  as_of: string                        // ISO date
+  history_window_months: number
+  series: ValuationHistorySeriesPoint[]
+  stats: ValuationHistoryStats | null  // null when n_observations < 12
+  caveats: string[]
+}

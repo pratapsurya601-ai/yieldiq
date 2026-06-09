@@ -149,6 +149,13 @@ const FairValueHistory = dynamic(() => import("@/components/analysis/FairValueHi
   ssr: false,
   loading: chartSkeleton,
 })
+// Premium Feel R3 — calibration backtest panel. Sits at the top of
+// the History tab above the legacy FairValueHistory line chart and
+// the PriceChart so the read-only chips + caveats anchor the section.
+const ValuationHistoryPanel = dynamic(
+  () => import("@/components/analysis/ValuationHistoryPanel"),
+  { ssr: false, loading: chartSkeleton },
+)
 const FinancialBars = dynamic(() => import("@/components/analysis/FinancialBars"), {
   ssr: false,
   loading: chartSkeleton,
@@ -1456,6 +1463,12 @@ export default function AnalysisBody({ ticker, prism }: Props) {
       label: "History",
       content: (
         <div className="space-y-4">
+          {/* Premium Feel R3 — calibration backtest panel anchors the
+              History tab. Read-only stats chips + two-line calibration
+              chart + signal-event diamond markers. Renders an empty
+              state when fewer than 12 months of fair-value history are
+              on record. */}
+          <ValuationHistoryPanel ticker={ticker} currency={company.currency} />
           <FairValueHistory
             ticker={ticker}
             companyName={formatCompanyName(company.company_name)}

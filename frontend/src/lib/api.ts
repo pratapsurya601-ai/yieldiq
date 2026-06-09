@@ -1561,4 +1561,18 @@ import type { FairValueHistoryResponse } from "@/types/api"
 export const getValuationHistory = (ticker: string): Promise<FairValueHistoryResponse> =>
   api.get(`/api/valuation-history/${ticker}`).then(r => r.data)
 
+// ── Premium Feel R3 — Valuation-History backtest aggregate ────────
+// Read-only aggregate on top of fair_value_history. Returns a
+// calibration series + descriptive hypothetical statistics. Server
+// caches 1h; the React Query layer keeps a 5m staleTime so a single
+// page navigation doesn't refetch.
+import type { ValuationHistoryBacktestResponse } from "@/types/api"
+
+export const getValuationHistoryBacktest = (
+  ticker: string,
+): Promise<ValuationHistoryBacktestResponse> =>
+  api
+    .get(`/api/v1/public/valuation-history/${ticker}`)
+    .then((r) => r.data)
+
 export default api
