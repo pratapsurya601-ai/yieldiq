@@ -173,6 +173,32 @@ export const getAnalysis = (ticker: string): Promise<AnalysisResponse> =>
 export const getAISummary = (ticker: string): Promise<{ summary: string }> =>
   api.get(`/api/v1/analysis/${ticker}/summary`).then(r => r.data)
 
+// ── ELI15 thesis ───────────────────────────────────────────────
+// Plain-English 3-bullet explainer of the model's verdict, generated
+// by Claude with mandatory SEBI post-filtering server-side and a
+// deterministic template fallback when the LLM is unreachable or
+// trips the filter. Cached per (ticker, day) in the backend; the
+// frontend treats this as a 1-hour staleTime so a single page
+// re-render doesn't re-fetch.
+export interface ELI15ThesisResponse {
+  ticker: string
+  generated_at: string
+  model_version: string
+  // Wire-format enum, mirrors ValuationOutput.verdict.
+  verdict: "undervalued" | "fairly_valued" | "overvalued" | "avoid" | "data_limited" | "unavailable"
+  // SEBI-safe display label for direct rendering.
+  verdict_display: string
+  // Exactly 3 SEBI-filtered bullet strings on a successful response.
+  // Empty/missing when the backend genuinely has nothing to return
+  // (the panel hides itself in that case).
+  bullets: string[]
+  disclaimer: string
+  cached: boolean
+}
+
+export const getELI15Thesis = (ticker: string): Promise<ELI15ThesisResponse> =>
+  api.get(`/api/v1/analysis/${ticker}/eli15-thesis`).then(r => r.data)
+
 // Coverage Tier (feat/coverage-tier-system) — returns the full A/B/C
 // rubric breakdown. Backed by a 6h server cache; pass refresh=true only
 // for admin/methodology tooling.
