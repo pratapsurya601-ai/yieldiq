@@ -34,6 +34,14 @@ const EarningsWeekStrip = dynamic(() => import("@/components/home/v2/EarningsWee
 const TodaysMovers = dynamic(() => import("@/components/home/v2/TodaysMovers"))
 // User-specific: keep ssr:false (depends on client-only auth store).
 const RecentAnalyses = dynamic(() => import("@/components/home/v2/RecentAnalyses"), { ssr: false })
+// Portfolio Quality Card — consolidates YieldIQ Score / Piotroski / MoS /
+// Confidence / Moat into a single at-a-glance "quality posture" panel
+// for the user's holdings. Below-the-fold (between TodaysMovers and
+// Portfolio/Watchlist), user-specific, so ssr:false.
+const PortfolioQualityCard = dynamic(
+  () => import("@/components/home/v2/PortfolioQualityCard"),
+  { ssr: false },
+)
 
 function QuotaBanner({ remaining }: { remaining: number }) {
   return (
@@ -152,6 +160,20 @@ export default function HomePage() {
             a today-movers API outage. */}
         <ErrorBoundary label="TodaysMovers" fallback={<PanelFallback label="Today's Movers" />}>
           <TodaysMovers />
+        </ErrorBoundary>
+
+        {/* Portfolio Quality Card — slotted between TodaysMovers and the
+            Portfolio/Watchlist hero row. Consolidates the five quality
+            signals (Score, MoS, Piotroski, Confidence, Moat) into one
+            dense panel so the user can see their portfolio's quality
+            posture at a glance instead of clicking into each analysis
+            page. Wrapped in its own ErrorBoundary so a flaky summary
+            fetch never kills the home page. */}
+        <ErrorBoundary
+          label="PortfolioQualityCard"
+          fallback={<PanelFallback label="Portfolio quality" />}
+        >
+          <PortfolioQualityCard />
         </ErrorBoundary>
 
         {/* Section 2 — 2-column hero: Portfolio + Watchlist.
