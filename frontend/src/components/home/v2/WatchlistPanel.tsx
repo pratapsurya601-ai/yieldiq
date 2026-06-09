@@ -11,10 +11,25 @@
 
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
-import { getWatchlist } from "@/lib/api"
+import { getSparklines, getWatchlist } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
 import { Eye, Plus } from "lucide-react"
 import TickerAvatar from "@/components/common/TickerAvatar"
+import { Sparkline } from "@/components/common/Sparkline"
+
+// Refresh cadence mirrors MarketsStrip: 5min during NSE hours, frozen
+// after-hours. Daily closes don't change intraday — the only intra-day
+// movement happens on the current trading day's row, which the
+// bhavcopy ingest doesn't refresh more often than ~15min anyway.
+function isMarketHoursIST(): boolean {
+  const now = new Date()
+  const istMs = now.getTime() + (now.getTimezoneOffset() + 330) * 60 * 1000
+  const ist = new Date(istMs)
+  const day = ist.getUTCDay()
+  if (day === 0 || day === 6) return false
+  const hour = ist.getUTCHours()
+  return hour >= 9 && hour < 16
+}
 
 function Skeleton() {
   return (
@@ -56,8 +71,26 @@ export default function WatchlistPanel() {
     retry: 1,
   })
 
-  if (isLoading) return <Skeleton />
   const items = data ?? []
+  // Sparkline batch — one round-trip on mount per watchlist composition.
+  // We strip suffixes so the cache key collapses across the .NS / bare
+  // duality the backend already handles; staleTime keeps a re-render
+  // from refetching, and the in-market-hours refetchInterval keeps the
+  // 7-day series live across the trading day without burning the API
+  // when no one would benefit anyway.
+  const watchlistTickers = items.slice(0, 8).map(w => w.ticker.replace(/\.(NS|BO)$/, ""))
+  const { data: sparklinesResp } = useQuery({
+    queryKey: ["watchlist-sparklines", watchlistTickers.sort().join(",")],
+    queryFn: () => getSparklines(watchlistTickers, "7d"),
+    enabled: watchlistTickers.length > 0,
+    staleTime: 60 * 1000,
+    refetchInterval: () => (isMarketHoursIST() ? 5 * 60 * 1000 : false),
+    refetchIntervalInBackground: false,
+    retry: 1,
+  })
+  const sparkSeries = sparklinesResp?.series ?? {}
+
+  if (isLoading) return <Skeleton />
   if (items.length === 0) return <EmptyState />
 
   return (
@@ -74,6 +107,7 @@ export default function WatchlistPanel() {
       <ul className="divide-y divide-border">
         {items.slice(0, 8).map(w => {
           const display = w.ticker.replace(/\.(NS|BO)$/, "")
+          const series = sparkSeries[display]
           return (
             <li key={w.ticker}>
               <Link
@@ -89,7 +123,12 @@ export default function WatchlistPanel() {
                     )}
                   </div>
                 </div>
-                <span className="text-[11px] text-brand font-semibold">View →</span>
+                <div className="flex items-center gap-3 ml-2">
+                  {series && series.length >= 2 && (
+                    <Sparkline values={series} width={56} height={18} />
+                  )}
+                  <span className="text-[11px] text-brand font-semibold whitespace-nowrap">View →</span>
+                </div>
               </Link>
             </li>
           )

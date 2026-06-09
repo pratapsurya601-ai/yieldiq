@@ -564,6 +564,36 @@ export const getTodayMovers = (
     .get("/api/v1/market/today-movers", { params: { cohort, limit } })
     .then(r => r.data)
 
+// ── Sparklines (2026-06-09 — feat/home-sparklines-everywhere) ──
+// Batched 7-/30-day close-price series per ticker, powering the inline
+// SVG charts on the home-page panels. Server caps the list at 50; the
+// frontend calls it once per panel on mount with whichever tickers
+// the panel just rendered, never per-row.
+export interface SparklineResponse {
+  as_of: string | null
+  period: "7d" | "30d"
+  /** Series keyed by the SAME ticker string the caller asked for. */
+  series: Record<string, number[]>
+}
+
+export const getSparklines = (
+  tickers: string[],
+  period: "7d" | "30d" = "7d",
+): Promise<SparklineResponse> => {
+  if (!tickers || tickers.length === 0) {
+    // Cheap short-circuit — avoids a round-trip when the panel mounts
+    // with an empty watchlist / portfolio. React Query still memoises
+    // on the queryKey, so this is effectively free on subsequent
+    // renders within staleTime.
+    return Promise.resolve({ as_of: null, period, series: {} })
+  }
+  return api
+    .get("/api/v1/sparklines", {
+      params: { tickers: tickers.join(","), period },
+    })
+    .then(r => r.data)
+}
+
 // Portfolio
 export const getPortfolioHealth = (): Promise<PortfolioHealthResponse> =>
   api.get("/api/v1/portfolio/health").then(r => r.data)

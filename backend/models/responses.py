@@ -776,6 +776,13 @@ class MarketIndex(BaseModel):
     name: str
     price: float = 0
     change_pct: float = 0
+    # 7 daily closes oldest→newest for the inline sparkline on the
+    # MarketsStrip tile (2026-06-09 — feat/home-sparklines-everywhere).
+    # Optional + defaults to empty so pre-PR clients ignore the field
+    # gracefully. Populated by the router for indices the bhavcopy
+    # ingest tracks (NIFTY 50 / NIFTY BANK / etc.); empty for synthetic
+    # tiles (USD/INR, GOLD, etc.) where the macro service owns the data.
+    sparkline_7d: list[float] = Field(default_factory=list)
 
 
 class MarketPulseResponse(BaseModel):
@@ -811,6 +818,12 @@ class MarketPulseResponse(BaseModel):
     nifty_midcap_price: Optional[float] = None
     nifty_midcap_change_pct: Optional[float] = None
     ai_summary: Optional[str] = None
+    # 7-day sparkline series for the non-index MarketsStrip tiles
+    # (USD/INR, India 10Y, GOLD, SILVER, CRUDE). Optional + each key
+    # only present when the underlying ingest had ≥ 2 daily points to
+    # plot. Names mirror the JSON tile slugs the frontend already
+    # renders so the lookup is a direct dict hit.
+    macro_sparklines: Optional[dict[str, list[float]]] = None
 
 
 class SectorOverviewItem(BaseModel):

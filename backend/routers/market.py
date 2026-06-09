@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
+from typing import Dict, List
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
@@ -31,6 +32,144 @@ def _pipeline_session():
     except Exception:
         pass
     return None
+
+
+# ── Sparkline enrichment for /pulse (2026-06-09) ───────────────
+# Tiny 7-day close-price series per MarketsStrip tile, populated from
+# `nse_index_history` (broad + sectoral indices). Each MarketIndex on
+# the response carries its own `sparkline_7d` list so the frontend tile
+# can render the inline trend without a second fetch round-trip.
+#
+# Mapping is name-based (case-insensitive substring match against the
+# canonical NSE index name). The `data_service.get_market_pulse()`
+# tiles use the human-friendly names "NIFTY 50" / "SENSEX" / "NIFTY
+# Bank"; the `nse_index_history` table stores e.g. "Nifty 50" / "Nifty
+# Bank". A small alias map handles the SENSEX hop (BSE index, not in
+# the NSE history table — leaves the series empty rather than faking
+# data).
+
+# Tile-name → nse_index_history.index_name. Keys are uppercase-stripped
+# substrings; the lookup walks the keyspace and stops at the first hit.
+# Values are the EXACT case stored in the table.
+_INDEX_NAME_MAP: Dict[str, str] = {
+    "NIFTY 50": "Nifty 50",
+    "NIFTY BANK": "Nifty Bank",
+    "NIFTY IT": "Nifty IT",
+    "NIFTY AUTO": "Nifty Auto",
+    "NIFTY PHARMA": "Nifty Pharma",
+    "NIFTY FMCG": "Nifty FMCG",
+    "NIFTY METAL": "Nifty Metal",
+    "NIFTY ENERGY": "Nifty Energy",
+    "NIFTY MIDCAP 100": "Nifty Midcap 100",
+}
+
+
+def _canonical_index_name(label: str) -> str | None:
+    """Map a tile label (e.g. "NIFTY 50", "NIFTY Bank") to the case the
+    nse_index_history table uses. None for tiles not in the index map
+    (SENSEX — BSE; USD/INR / GOLD — macro feeds)."""
+    if not label:
+        return None
+    upper = label.upper().strip()
+    # Exact uppercase-key match first (cheap path for the common case).
+    if upper in _INDEX_NAME_MAP:
+        return _INDEX_NAME_MAP[upper]
+    # Substring match — catches "NIFTY 50 INDEX" or any future suffix.
+    for key, canonical in _INDEX_NAME_MAP.items():
+        if key in upper:
+            return canonical
+    return None
+
+
+def _fetch_index_sparklines(canonical_names: List[str]) -> Dict[str, List[float]]:
+    """Pull last 7 daily closes per canonical index name (oldest→newest).
+
+    Returns {} on any database/import failure — the /pulse endpoint
+    treats a missing sparkline as "no trend available" and renders the
+    tile as it did pre-PR. Never raises.
+    """
+    if not canonical_names:
+        return {}
+    sess = _pipeline_session()
+    if sess is None:
+        return {}
+    try:
+        rows = sess.execute(
+            text(
+                """
+                SELECT index_name, trade_date, close
+                FROM nse_index_history
+                WHERE index_name = ANY(:names)
+                  AND close IS NOT NULL
+                  AND trade_date >= :since
+                ORDER BY index_name, trade_date
+                """
+            ),
+            {
+                "names": canonical_names,
+                # 14-day lookback so weekends + a holiday still leave
+                # ≥ 7 trading days in the slice.
+                "since": (datetime.now(_IST).date() - timedelta(days=14)),
+            },
+        ).fetchall()
+
+        buckets: Dict[str, List[float]] = {n: [] for n in canonical_names}
+        for name, _trade_date, close_val in rows:
+            if name in buckets:
+                try:
+                    buckets[name].append(float(close_val))
+                except (TypeError, ValueError):
+                    continue
+
+        # Keep the trailing 7 entries per index (oldest→newest). Drop
+        # series shorter than 2 — Sparkline component renders null for
+        # those anyway.
+        return {
+            name: vals[-7:]
+            for name, vals in buckets.items()
+            if len(vals) >= 2
+        }
+    except Exception as exc:  # pragma: no cover — DB outage path
+        log.debug("index sparkline fetch failed: %s", exc)
+        return {}
+    finally:
+        try:
+            sess.close()
+        except Exception:
+            pass
+
+
+def _enrich_pulse_with_sparklines(
+    pulse: MarketPulseResponse,
+) -> MarketPulseResponse:
+    """Attach `sparkline_7d` arrays to each index tile in-place.
+
+    Macro tiles (USD/INR, GOLD, SILVER, CRUDE, India 10Y) currently
+    lack a daily-history table — they're populated by the macro service
+    from 15-min refreshed snapshots. We leave `macro_sparklines` as
+    None for those tiles; the frontend simply omits the sparkline cell.
+    Adding macro history is a follow-up that can ship without touching
+    this PR's response shape.
+    """
+    if not pulse or not pulse.indices:
+        return pulse
+    # Build lookup: tile-name → canonical history-table name.
+    lookups: Dict[str, str] = {}
+    for idx in pulse.indices:
+        canonical = _canonical_index_name(idx.name)
+        if canonical:
+            lookups[idx.name] = canonical
+    if not lookups:
+        return pulse
+    series_by_canonical = _fetch_index_sparklines(list(set(lookups.values())))
+    for idx in pulse.indices:
+        canonical = lookups.get(idx.name)
+        if not canonical:
+            continue
+        series = series_by_canonical.get(canonical)
+        if series:
+            idx.sparkline_7d = series
+    return pulse
 
 
 @router.get("/pulse", response_model=MarketPulseResponse)
@@ -70,6 +209,15 @@ async def get_market_pulse(
         )
 
     base = data_service.get_market_pulse()
+
+    # Enrich tile-by-tile with 7d sparkline series from
+    # nse_index_history. Safe to run on every miss — the helper bails
+    # silently when the DB is unavailable (offline tests) and skips
+    # tiles with no matching canonical name (SENSEX, USD/INR, etc.).
+    try:
+        base = _enrich_pulse_with_sparklines(base)
+    except Exception as _exc:  # pragma: no cover — defensive only
+        log.debug("sparkline enrichment skipped: %s", _exc)
 
     if not include_macro:
         try:

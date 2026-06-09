@@ -1015,6 +1015,13 @@ app.include_router(internal_router.admin_router)
 from backend.routers import valuation_history as valuation_history_router
 app.include_router(valuation_history_router.router)
 
+# Sparkline batch endpoint (2026-06-09 — feat/home-sparklines-everywhere).
+# Powers the 56×18 inline SVG trend charts on the home-page panels
+# (MarketsStrip / WatchlistPanel / PortfolioPanel / TodaysMovers).
+# Cached 60s router-side; the data only refreshes once a day post-close.
+from backend.routers import sparklines as sparklines_router
+app.include_router(sparklines_router.router)
+
 
 @app.get("/health")
 async def health_check():

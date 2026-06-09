@@ -6,11 +6,24 @@
 import Link from "next/link"
 import { useMemo, useState } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { getHoldingsLive, type LiveHolding } from "@/lib/api"
+import { getHoldingsLive, getSparklines, type LiveHolding } from "@/lib/api"
 import { useAuthStore } from "@/store/authStore"
 import { ArrowUpDown, Plus } from "lucide-react"
 import { formatPct } from "@/lib/utils"
 import TickerAvatar from "@/components/common/TickerAvatar"
+import { Sparkline } from "@/components/common/Sparkline"
+
+// Mirrors MarketsStrip / WatchlistPanel — 5min refresh during NSE
+// trading, idle after-hours. Daily closes don't move intraday.
+function isMarketHoursIST(): boolean {
+  const now = new Date()
+  const istMs = now.getTime() + (now.getTimezoneOffset() + 330) * 60 * 1000
+  const ist = new Date(istMs)
+  const day = ist.getUTCDay()
+  if (day === 0 || day === 6) return false
+  const hour = ist.getUTCHours()
+  return hour >= 9 && hour < 16
+}
 
 type SortKey = "ticker" | "current_price" | "day_change_pct" | "fair_value" | "mos_pct" | "pnl_pct"
 type SortDir = "asc" | "desc"
@@ -79,12 +92,12 @@ function Skeleton() {
         </div>
         <div className="h-3 w-14 bg-border/70 rounded animate-pulse" />
       </div>
-      {/* Table band — th row + 6 tr rows × 6 td cells */}
+      {/* Table band — th row + 6 tr rows × 7 td cells (added 7d trend col 2026-06-09). */}
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-bg/50 border-b border-border">
             <tr>
-              {[0, 1, 2, 3, 4, 5].map((i) => (
+              {[0, 1, 2, 3, 4, 5, 6].map((i) => (
                 <th key={i} className="px-2 py-2">
                   <div className="h-3 w-12 bg-border rounded animate-pulse" />
                 </th>
@@ -94,10 +107,10 @@ function Skeleton() {
           <tbody>
             {[0, 1, 2, 3, 4, 5].map((row) => (
               <tr key={row} className="border-b border-border last:border-b-0">
-                {[0, 1, 2, 3, 4, 5].map((col) => (
+                {[0, 1, 2, 3, 4, 5, 6].map((col) => (
                   <td key={col} className="px-2 py-2.5">
                     <div
-                      className={`h-3 ${col === 0 ? "w-14" : "w-10 ml-auto"} bg-border/80 rounded animate-pulse`}
+                      className={`h-3 ${col === 0 ? "w-14" : col === 3 ? "w-16 ml-auto" : "w-10 ml-auto"} bg-border/80 rounded animate-pulse`}
                     />
                   </td>
                 ))}
@@ -138,6 +151,23 @@ export default function PortfolioPanel() {
     })
     return arr
   }, [holdings, sortKey, sortDir])
+
+  // Batch sparkline fetch for the displayed holdings. Keyed by the
+  // display_ticker set (sorted for stable cache key under re-sorts of
+  // the table). One round-trip on mount, then 5min refresh during
+  // market hours so the 7d trend stays in sync with the post-close
+  // bhavcopy refresh without burning the API after-hours.
+  const sparkTickers = sorted.slice(0, 8).map(h => h.display_ticker)
+  const { data: sparkResp } = useQuery({
+    queryKey: ["portfolio-sparklines", [...sparkTickers].sort().join(",")],
+    queryFn: () => getSparklines(sparkTickers, "7d"),
+    enabled: sparkTickers.length > 0,
+    staleTime: 60 * 1000,
+    refetchInterval: () => (isMarketHoursIST() ? 5 * 60 * 1000 : false),
+    refetchIntervalInBackground: false,
+    retry: 1,
+  })
+  const sparkSeries = sparkResp?.series ?? {}
 
   if (isLoading) return <Skeleton />
   if (holdings.length === 0) return <EmptyState />
@@ -191,43 +221,82 @@ export default function PortfolioPanel() {
               <Th k="ticker" label="Ticker" />
               <Th k="current_price" label="Price" right />
               <Th k="day_change_pct" label="Today" right />
+              {/* 7d trend column is non-sortable — it's a visual cue, not
+                  a numeric key. Header uses the same tracking-wider
+                  uppercase styling as the sortable Th's for visual
+                  parity but no click handler. */}
+              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-caption whitespace-nowrap text-right">
+                7d
+              </th>
               <Th k="fair_value" label="FV" right />
               <Th k="mos_pct" label="MoS" right />
               <Th k="pnl_pct" label="Return" right />
             </tr>
           </thead>
           <tbody>
-            {sorted.slice(0, 8).map((h: LiveHolding) => (
-              <tr
-                key={h.ticker}
-                className="border-b border-border last:border-b-0 hover:bg-bg/50 transition"
-              >
-                <td className="px-2 py-2">
-                  <Link
-                    href={`/analysis/${h.display_ticker}`}
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink hover:text-brand"
-                  >
-                    <TickerAvatar ticker={h.ticker} sector={h.sector} size="sm" />
-                    <span>{h.display_ticker}</span>
-                  </Link>
-                </td>
-                <td className="px-2 py-2 text-right">
-                  <NumCell value={h.current_price} prefix="₹" />
-                </td>
-                <td className="px-2 py-2 text-right">
-                  <NumCell value={h.day_change_pct} pct />
-                </td>
-                <td className="px-2 py-2 text-right">
-                  <NumCell value={h.fair_value} prefix="₹" />
-                </td>
-                <td className="px-2 py-2 text-right">
-                  <NumCell value={h.mos_pct} pct />
-                </td>
-                <td className="px-2 py-2 text-right">
-                  <NumCell value={h.pnl_pct} pct />
-                </td>
-              </tr>
-            ))}
+            {sorted.slice(0, 8).map((h: LiveHolding) => {
+              const series = sparkSeries[h.display_ticker]
+              // 7-day period change derived from the same series we plot.
+              // Cheap to compute here (≤ 7 entries) and saves a second
+              // network field. Null when the series is missing or
+              // collapsed to a single point — UI hides the % then.
+              let periodPct: number | null = null
+              if (series && series.length >= 2 && series[0] > 0) {
+                periodPct = ((series[series.length - 1] - series[0]) / series[0]) * 100
+              }
+              return (
+                <tr
+                  key={h.ticker}
+                  className="border-b border-border last:border-b-0 hover:bg-bg/50 transition"
+                >
+                  <td className="px-2 py-2">
+                    <Link
+                      href={`/analysis/${h.display_ticker}`}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold text-ink hover:text-brand"
+                    >
+                      <TickerAvatar ticker={h.ticker} sector={h.sector} size="sm" />
+                      <span>{h.display_ticker}</span>
+                    </Link>
+                  </td>
+                  <td className="px-2 py-2 text-right">
+                    <NumCell value={h.current_price} prefix="₹" />
+                  </td>
+                  <td className="px-2 py-2 text-right">
+                    <NumCell value={h.day_change_pct} pct />
+                  </td>
+                  <td className="px-2 py-2 text-right">
+                    {series && series.length >= 2 ? (
+                      <div className="inline-flex items-center justify-end gap-1.5">
+                        <Sparkline values={series} width={56} height={18} />
+                        {periodPct !== null && (
+                          <span
+                            className={`font-mono text-[10px] tabular-nums ${
+                              periodPct >= 0
+                                ? "text-green-600 dark:text-green-400"
+                                : "text-red-600 dark:text-red-400"
+                            }`}
+                          >
+                            {periodPct >= 0 ? "+" : ""}
+                            {periodPct.toFixed(1)}%
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-caption font-mono text-xs">—</span>
+                    )}
+                  </td>
+                  <td className="px-2 py-2 text-right">
+                    <NumCell value={h.fair_value} prefix="₹" />
+                  </td>
+                  <td className="px-2 py-2 text-right">
+                    <NumCell value={h.mos_pct} pct />
+                  </td>
+                  <td className="px-2 py-2 text-right">
+                    <NumCell value={h.pnl_pct} pct />
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
