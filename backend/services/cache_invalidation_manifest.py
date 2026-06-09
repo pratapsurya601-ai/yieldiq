@@ -324,6 +324,27 @@ _DISABLED = os.environ.get("CACHE_MANIFEST_DISABLED", "").strip() in ("1", "true
 # ─────────────────────────────────────────────────────────────────
 MANIFEST: list[dict] = [
     {
+        # T5.7 — monthly accuracy report cron added. Runs 1st of each
+        # month and computes 30-day-forward direction accuracy +
+        # magnitude error per ticker for everything published in the
+        # prior calendar month, then writes a snapshot the
+        # /calibration page links to and emails the operator. Pure
+        # observability — no engine output changes — so scope.fields
+        # is empty (no cache rows need invalidation).
+        "version_id": "v_t5_7_monthly_accuracy_report_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "T5.7 — monthly accuracy report cron added. Runs 1st of "
+            "each month. Computes 30-day-forward direction accuracy "
+            "and magnitude error per ticker. Outputs to operator "
+            "email + /calibration page snapshot."
+        ),
+    },
+    {
         # Issue #204 — service-layer derivation of operating_income for
         # banks (Schedule III Div I doesn't carry a single op-income line;
         # we derive it from interest_earned − interest_expended +

@@ -1,0 +1,103 @@
+name: Monthly Accuracy Report
+
+# T5.7 — engine refinement roadmap.
+#
+# Runs once a month (1st at 06:00 UTC = 11:30 IST) and produces a
+# 30-day-forward accuracy report covering every fair_value_history
+# row published in the previous calendar month.
+#
+# Outputs:
+#   - JSON + markdown snapshot under /tmp/yieldiq-accuracy/
+#     (uploaded as a workflow artifact for retention).
+#   - Operator email summary (skipped cleanly if SENDGRID_API_KEY +
+#     OPERATOR_EMAIL aren't set on the repo).
+#
+# Connects directly to Aiven/Neon Postgres via DATABASE_URL.
+# Does NOT hit the live Railway API.
+#
+# Secrets used (all optional — job degrades cleanly):
+#   - DATABASE_URL    : pipeline DB (required for non-empty report)
+#   - SENDGRID_API_KEY: enables operator email
+#   - OPERATOR_EMAIL  : recipient address
+
+on:
+  schedule:
+    # 1st of each month, 06:00 UTC.
+    - cron: "0 6 1 * *"
+  workflow_dispatch:
+    inputs:
+      month:
+        description: "Target month YYYY-MM (default: previous calendar month)"
+        required: false
+        default: ""
+      send_email:
+        description: "Send operator email summary"
+        required: false
+        type: boolean
+        default: true
+
+concurrency:
+  group: monthly-accuracy-report
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install minimal deps
+        run: |
+          python -m pip install --upgrade pip
+          # Match fair_value_history_monthly.yml's minimal footprint.
+          pip install "sqlalchemy>=2.0" psycopg2-binary python-dateutil
+
+      - name: Install email deps (best-effort)
+        env:
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+        run: |
+          # Skip cleanly if no key is configured — the cron itself
+          # also no-ops on a missing key, so this just avoids
+          # bloating the install on repos that haven't wired email.
+          if [ -n "$SENDGRID_API_KEY" ]; then
+            pip install sendgrid
+          else
+            echo "SENDGRID_API_KEY unset — skipping sendgrid install"
+          fi
+
+      - name: Run monthly accuracy job
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SENDGRID_API_KEY: ${{ secrets.SENDGRID_API_KEY }}
+          SENDGRID_FROM_EMAIL: ${{ secrets.SENDGRID_FROM_EMAIL }}
+          OPERATOR_EMAIL: ${{ secrets.OPERATOR_EMAIL }}
+          ACCURACY_OUTPUT_DIR: ${{ github.workspace }}/.accuracy-snapshots
+          MONTHLY_ACCURACY_LOG_LEVEL: INFO
+          TARGET_MONTH: ${{ github.event.inputs.month }}
+          SEND_EMAIL: ${{ github.event.inputs.send_email }}
+        run: |
+          ARGS=""
+          if [ -n "$TARGET_MONTH" ]; then
+            ARGS="$ARGS --month $TARGET_MONTH"
+          fi
+          if [ "$SEND_EMAIL" = "false" ]; then
+            ARGS="$ARGS --no-email"
+          fi
+          python -m backend.jobs.monthly_accuracy_cron $ARGS
+
+      - name: Upload snapshot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monthly-accuracy-snapshot
+          path: ${{ github.workspace }}/.accuracy-snapshots/
+          if-no-files-found: warn
+          retention-days: 365
