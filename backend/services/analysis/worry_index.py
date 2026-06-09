@@ -158,10 +158,28 @@ def _score_solvency(quality: Any) -> tuple[int, str]:
     int_cov   = _as_float(_get(quality, "interest_coverage"))
     debt_ebit = _as_float(_get(quality, "debt_ebitda"))
     is_bank   = bool(_get(quality, "is_bank", False))
+    is_holdco = bool(_get(quality, "is_holdco", False))
 
     subs: list[float] = []
     detail_bits: list[str] = []
 
+    # Holdco precedence (2026-06-09) — pure holding companies have
+    # near-zero operating revenue, intermittent dividend-receipts CFO,
+    # and minimal external debt. Generic D/E + current-ratio +
+    # interest-coverage maths produce noise (the holdco has no
+    # operations to fund). Bank ROA framing is wrong by construction
+    # (no loan book). Surface NAV-cover / holdco-discount as the
+    # honest solvency angle. We don't have either metric on
+    # QualityOutput today, so we emit a neutral 40 (slightly calm —
+    # holdcos are structurally low-risk on solvency since they don't
+    # operate) with explanatory copy. Future PR: wire NAV cover from
+    # holdco_underlyings.json + live underlying prices.
+    if is_holdco:
+        return 40, (
+            "Solvency drivers: holdco — no loan book, no operating "
+            "WC, no meaningful D/E; risk is in NAV cover and "
+            "holdco discount to SOTP."
+        )
     # Banks: leverage maths differ. Use ROA as a thin proxy and skip
     # the generic ratios so we don't penalise deposit-funded firms.
     if is_bank:

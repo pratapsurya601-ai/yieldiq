@@ -94,12 +94,24 @@ def _count_null_pillars(hex_payload: Optional[dict]) -> int:
 def assign_verdict(
     hex_payload: Optional[dict],
     mos_pct: Optional[float],
+    *,
+    is_holdco: bool = False,
 ) -> tuple[str, str, Optional[float], Optional[str]]:
     """Return (verdict_band, verdict_label, composite_score, reason).
 
     P0 null-pillar gate: when 3 or more of the 6 pillars have no
     real score, force "Under Review" instead of letting MoS drive a
     misleading "Fair value region · 5.0/10" composite.
+
+    Holdco gate (2026-06-09): pure holding companies cannot have a
+    DCF-derived fair value (their value is driven by stakes in
+    underlying operating businesses — SOTP is the right framework).
+    When `is_holdco` is True we surface "Under Review" with the
+    SOTP rationale instead of letting the MoS-driven band render a
+    "Notably above / below fair value" label against a fair value
+    that the engine never legitimately computed. The same gate also
+    prevents the Pulse Spectrum from rendering "NOTABLY ABOVE FAIR
+    VALUE 6.6" when the page header above it says "Fair Value: —".
     """
     null_count = _count_null_pillars(hex_payload)
     if null_count >= 3:
@@ -108,6 +120,14 @@ def assign_verdict(
             "Under Review",
             None,
             f"Insufficient data — {6 - null_count} of 6 pillars scored",
+        )
+    if is_holdco:
+        return (
+            "data_limited",
+            "Under Review",
+            None,
+            "Holding company — fair value not computed at the parent "
+            "level. See underlying constituents.",
         )
     band, label = _verdict_from_mos(mos_pct)
     return band, label, None, None
@@ -730,8 +750,30 @@ def _build_prism(ticker: str, t0: float) -> dict:
 
     # P0 null-pillar gate: when ≥3 pillars are unscored, surface
     # "Under Review" instead of the misleading MoS-based default.
+    #
+    # Holdco gate (2026-06-09): pure holding companies cannot have a
+    # legitimately-computed DCF FV. Read the propagated `is_holdco`
+    # flag from the analysis payload AND check curated membership
+    # (belt-and-braces for cached payloads that predate the field).
+    # When True, assign_verdict forces "Under Review" and the Pulse
+    # Spectrum no longer renders "NOTABLY ABOVE FAIR VALUE 6.6" above
+    # an "FV: —" header.
+    _is_holdco_flag = bool(_dig(analysis, "quality", "is_holdco"))
+    if not _is_holdco_flag:
+        try:
+            from backend.services.analysis.constants import HOLDING_COMPANIES
+            _bare = (
+                (ticker or "")
+                .upper()
+                .replace(".NS", "")
+                .replace(".BO", "")
+            )
+            if _bare in HOLDING_COMPANIES:
+                _is_holdco_flag = True
+        except Exception:
+            pass
     verdict_band, verdict_label, _composite_override, verdict_reason = (
-        assign_verdict(hex_payload, mos_pct)
+        assign_verdict(hex_payload, mos_pct, is_holdco=_is_holdco_flag)
     )
 
     # 5. yieldiq_score_100 from hex overall

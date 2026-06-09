@@ -39,6 +39,48 @@ def _strip(t: str) -> str:
     return (t or "").replace(".NS", "").replace(".BO", "")
 
 
+# Holdco underlyings cache — populated lazily on first use.
+_HOLDCO_UNDERLYINGS_CACHE: dict | None = None
+
+
+def _maybe_holdco_underlyings(ticker: str) -> list | None:
+    """Return the holdco's underlying constituent tickers, or None.
+
+    Returns ``None`` (not ``[]``) when the ticker is NOT a curated
+    holdco — the empty-list distinction matters because some curated
+    holdcos (SUMMITSEC, NDTV, ...) genuinely have no listed
+    constituents, and the caller should still render the holdco-aware
+    "no peers because holdco" surface for those rather than the
+    generic "no peers" message.
+    """
+    global _HOLDCO_UNDERLYINGS_CACHE
+    bare = (ticker or "").upper().replace(".NS", "").replace(".BO", "")
+    if not bare:
+        return None
+    try:
+        from backend.services.analysis.constants import HOLDING_COMPANIES
+        if bare not in HOLDING_COMPANIES:
+            return None
+    except Exception:
+        return None
+    if _HOLDCO_UNDERLYINGS_CACHE is None:
+        try:
+            import json as _json
+            import pathlib as _pathlib
+            _path = (
+                _pathlib.Path(__file__).resolve().parent.parent
+                / "data" / "holdco_underlyings.json"
+            )
+            with open(_path, "r", encoding="utf-8") as _fh:
+                _HOLDCO_UNDERLYINGS_CACHE = _json.load(_fh) or {}
+        except Exception:
+            _HOLDCO_UNDERLYINGS_CACHE = {}
+    raw = _HOLDCO_UNDERLYINGS_CACHE.get(bare)
+    if not isinstance(raw, list):
+        return []  # holdco confirmed, just no curated underlyings
+    return [str(x) for x in raw if isinstance(x, str)]
+
+
 def _r1(v: Any) -> float | None:
     return round(v, 1) if v is not None else None
 
@@ -86,7 +128,30 @@ class PeersService:
         peers = get_peers_for_ticker(ticker)
         sector_label = get_sector_label_for_ticker(ticker)
 
+        # Holdco branch (2026-06-09) — for a pure holding company, peer
+        # comparison via sector cohort is the wrong frame (sector peers
+        # are not what drives the holdco's NAV). Surface the underlying
+        # listed constituents as "underlying holdings" instead so the
+        # surface is honest about WHY there are no peers.
         if not peers:
+            _holdco_underlyings = _maybe_holdco_underlyings(ticker)
+            if _holdco_underlyings is not None:
+                return {
+                    "ticker": ticker,
+                    "has_peers": False,
+                    "sector_label": "Holding company",
+                    "peers_count": 0,
+                    "best_in_sector": {},
+                    "peers": [],
+                    "is_holdco": True,
+                    "underlying_holdings": _holdco_underlyings,
+                    "message": (
+                        "Holding company — value is driven by the "
+                        "underlying listed constituents, not by a sector "
+                        "peer cohort. See 'Underlying holdings' for the "
+                        "names that actually drive NAV."
+                    ),
+                }
             return {
                 "ticker": ticker,
                 "has_peers": False,

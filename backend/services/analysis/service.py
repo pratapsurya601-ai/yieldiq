@@ -5516,6 +5516,27 @@ class AnalysisService(NarrativeMixin):
                 # Bank-native metrics — None for non-banks. See
                 # docs/bank_data_availability.md for the coverage matrix.
                 is_bank=_is_bank_like,
+                # ── Holdco propagation (2026-06-09) ───────────────
+                # Single source of truth for "this is a pure holding
+                # company". Read here, branched on in Honest Card,
+                # Worry Index, ELI15 thesis, and Pulse Spectrum. The
+                # `_holdco_skip` flag is set above when the override
+                # routes through the SOTP skip path; the
+                # `HOLDING_COMPANIES` membership check is the
+                # belt-and-braces fallback for auto-detected names.
+                is_holdco=bool(
+                    _holdco_skip
+                    or (
+                        (ticker or "")
+                        .replace(".NS", "")
+                        .replace(".BO", "")
+                        .upper()
+                        in __import__(
+                            "backend.services.analysis.constants",
+                            fromlist=["HOLDING_COMPANIES"],
+                        ).HOLDING_COMPANIES
+                    )
+                ),
                 roa=_bm_roa,
                 cost_to_income=_bm_cost_to_income,
                 advances_yoy=_bm_advances_yoy,
