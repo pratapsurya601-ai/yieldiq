@@ -29,11 +29,11 @@
  * migration, no canary needed.
  *
  * SEBI vocabulary note: every visible string avoids the
- * scripts/check_sebi_words.py banned list. Specifically — no
- * buy/sell/hold/recommend/strong/weak/cheap/expensive/etc. The phrase
- * "Below Fair Value" is borrowed from EditorialHero's existing verdict
- * label (lib/verdict-colors.ts), not coined here. "In Zone" replaces
- * any "Buy Zone" framing the AlphaSpread reference used.
+ * scripts/check_sebi_words.py banned list (the authoritative source).
+ * The phrase "Below Fair Value" is borrowed from EditorialHero's
+ * existing verdict label (lib/verdict-colors.ts), not coined here.
+ * "In Zone" replaces any advisory-zone framing the AlphaSpread
+ * reference used.
  */
 
 import { useCallback, useId, useMemo, useState } from "react"
