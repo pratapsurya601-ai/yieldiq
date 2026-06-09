@@ -78,10 +78,54 @@ describe("generatePrismNarrative", () => {
     )
   })
 
-  it("rule 10 — default balanced fall-through", () => {
-    expect(generatePrismNarrative(axes({}))).toBe(
-      "A balanced profile across the six pillars.",
-    )
+  // Bug 8 (P2, 2026-06-09): the rule-10 fall-through used to be a
+  // single sentence ("A balanced profile across the six pillars.")
+  // that fired regardless of actual pillar variance — confirmed
+  // misfiring on HDFCBANK whose pillars spanned 2..8. Replaced with
+  // three variance-keyed sub-cases.
+  describe("rule 10 fall-through — variance-discriminated", () => {
+    it("tight cluster (range < 1.5) → tightly-balanced copy", () => {
+      // All six axes at 5.0 — range = 0.
+      expect(generatePrismNarrative(axes({}))).toBe(
+        "Tightly balanced — every pillar within 1.5 of the others.",
+      )
+    })
+
+    it("moderate spread (1.5 <= range < 3.0) → mostly-balanced with leader/trailer", () => {
+      // value=6.5 leader, growth=4.5 trailer, range = 2.0. None of
+      // the explicit threshold rules trip (no axis >= 7 and no axis
+      // <= 4) so we land in the fall-through.
+      const out = generatePrismNarrative(
+        axes({ value: 6.5, growth: 4.5, quality: 5, moat: 5, safety: 5 }),
+      )
+      expect(out).toBe("Mostly balanced — Value leads at 6.5, Growth trails at 4.5.")
+    })
+
+    it("wide spread (range >= 3.0) → uneven-across-pillars with leader/lagger", () => {
+      // moat=6.5 leader, value=3.5 lagger, range = 3.0. None of the
+      // explicit threshold rules trip (need >= 7 / <= 3 etc.) so the
+      // fall-through runs.
+      const out = generatePrismNarrative(
+        axes({ moat: 6.5, value: 3.5, quality: 5, growth: 5, safety: 5 }),
+      )
+      expect(out).toBe("Moat leads (6.5) while Value lags (3.5) — uneven across pillars.")
+    })
+
+    it("never returns the old generic balanced copy", () => {
+      // Regression: any fall-through must NOT emit the bare
+      // "A balanced profile across the six pillars." string —
+      // that was the audit-flagged copy on HDFCBANK.
+      const banned = "A balanced profile across the six pillars."
+      const samples: PrismAxes[] = [
+        { pulse: 5, quality: 5, moat: 5, safety: 5, growth: 5, value: 5 },
+        { pulse: 4, quality: 5, moat: 5, safety: 5, growth: 5, value: 6 },
+        { pulse: 6, quality: 6.5, moat: 5, safety: 5, growth: 4.5, value: 5 },
+        { pulse: 3, quality: 5.5, moat: 6.5, safety: 5, growth: 4, value: 5 },
+      ]
+      for (const a of samples) {
+        expect(generatePrismNarrative(a)).not.toBe(banned)
+      }
+    })
   })
 
   it("priority — earlier rules win when multiple match", () => {

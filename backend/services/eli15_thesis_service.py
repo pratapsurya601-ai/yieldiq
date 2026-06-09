@@ -113,8 +113,15 @@ _SYSTEM_PROMPT = (
     "  attractive, poor, strong, weak, investable, investability.\n"
     "* Describe what the model SEES; never tell the user what to do.\n"
     "  Bad:  \"HDFC Bank looks undervalued — buy now.\"\n"
-    "  Good: \"HDFC Bank trades at Rs 747 vs the model's base-case\n"
-    "         fair value of Rs 1,146, a 53% gap.\"\n"
+    "  Good: \"HDFC Bank trades at a 53% discount to the model's\n"
+    "         base-case fair value of Rs 1,146.\"\n"
+    "* IMPORTANT — never cite the live price as a specific number in\n"
+    "  the bullets. The live quote moves intraday; the bullet text is\n"
+    "  cached per IST day. Instead, frame the gap as a discount or\n"
+    "  premium percentage relative to fair value, which stays correct\n"
+    "  even as the live quote ticks. Use \"discount to fair value\" when\n"
+    "  the model verdict is below fair value, \"premium over fair value\"\n"
+    "  when above, and \"in line with fair value\" when the gap is small.\n"
     "* Use the numbers from the context block VERBATIM. Do not invent\n"
     "  metrics that were not supplied.\n"
     "* 2-3 sentences per bullet. Each bullet ends with a period.\n"
@@ -404,18 +411,57 @@ def deterministic_template_bullets(ctx: ThesisContext) -> list[str]:
     construction — pure numeric description. As a belt-and-braces
     defense, any banned token that leaks through an upstream label
     is substituted with a neutral synonym at the end.
+
+    Bug 7 (P2, 2026-06-09) — bullet 1 used to embed the live current
+    price as a specific number ("trades at Rs 735") alongside the
+    model fair value. The bullet text is cached per IST day; the live
+    quote ticks intraday. The two diverge within minutes, which made
+    the hero (live quote) contradict the WHY narrative (cached price)
+    every single page render after market open.
+
+    Fix: drop the absolute price from the narrative. Reframe as a
+    discount / premium percentage which is invariant to intraday
+    quote movement so long as the FAIR value (the cached number) is
+    unchanged. The percentage carries the same meaning users care
+    about — "how far is the price from where the model thinks it
+    belongs" — without forging a specific quote that goes stale.
     """
     name = ctx.company_name or ctx.ticker
 
-    # Bullet 1: price vs fair value + gap.
-    price_str = _fmt_money(ctx.current_price)
+    # Bullet 1: discount / premium framing keyed off the wire verdict.
     fv_str = _fmt_money(ctx.fair_value)
-    gap_str = _fmt_pct(ctx.mos_pct)
-    b1 = (
-        f"{name} trades at {price_str} versus the model's "
-        f"fair value of {fv_str}, a gap of {gap_str}. The verdict "
-        f"is {ctx.verdict_display}."
-    )
+    gap_str = _fmt_pct(abs(ctx.mos_pct)) if ctx.mos_pct is not None else "n/a"
+    verdict_lc = (ctx.verdict or "").lower()
+    if ctx.fair_value is None or ctx.mos_pct is None:
+        # Edge case: the model couldn't produce a fair value or MoS.
+        # Fall back to a verdict-only sentence; never invent numbers.
+        b1 = (
+            f"{name} sits at a model verdict of "
+            f"{ctx.verdict_display}; the fair value gap is unavailable."
+        )
+    elif verdict_lc == "undervalued":
+        b1 = (
+            f"{name} trades at a {gap_str} discount to the model's "
+            f"fair value of {fv_str} — the verdict is {ctx.verdict_display}."
+        )
+    elif verdict_lc == "overvalued":
+        b1 = (
+            f"{name} trades at a {gap_str} premium over the model's "
+            f"fair value of {fv_str} — the verdict is {ctx.verdict_display}."
+        )
+    elif verdict_lc == "fairly_valued":
+        b1 = (
+            f"{name} trades in line with the model's fair value "
+            f"of {fv_str} (gap {gap_str}) — the verdict is "
+            f"{ctx.verdict_display}."
+        )
+    else:
+        # avoid / data_limited / unavailable — describe the verdict
+        # state without a directional framing.
+        b1 = (
+            f"{name} carries a model verdict of {ctx.verdict_display}; "
+            f"the model fair value reference is {fv_str}."
+        )
 
     # Bullet 2: DCF inputs and scenario range.
     parts2: list[str] = []

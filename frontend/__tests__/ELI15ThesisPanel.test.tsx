@@ -44,10 +44,13 @@ const FULL_PAYLOAD: ELI15ThesisResponse = {
   model_version: "eli15-thesis-v1-anthropic-2026-06-09",
   verdict: "undervalued",
   verdict_display: "below model fair value",
+  // Bug 7 (P2, 2026-06-09): bullet 1 now uses discount/premium
+  // framing relative to fair value, NOT a verbatim live current price
+  // — the latter goes stale within minutes of caching.
   bullets: [
-    "HDFC Bank trades at Rs 747; the model's base-case fair value is Rs 1,146, a 53% gap.",
+    "HDFC Bank trades at a 53% discount to the model's base-case fair value of Rs 1,146.",
     "The wide moat label sits at 72 and the DCF uses WACC 9.8% with terminal growth 3.0%.",
-    "Confidence is 90% with data quality as the top driver, and the bear case Rs 955 still sits above the current price.",
+    "Confidence is 90% with data quality as the top driver, and the bear case Rs 955 sits below fair value.",
   ],
   disclaimer:
     "Generated 2026-06-09. Not advice; for educational use. Adjust your own assumptions on the Reverse-DCF Playground.",

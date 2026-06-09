@@ -88,6 +88,41 @@ const STROKE = 14         // px — ring thickness
 const RADIUS = (SIZE - STROKE) / 2
 const CIRC = 2 * Math.PI * RADIUS
 
+// Per-pillar state label — translates a 0-100 WORRY score into a
+// word that reads in the correct direction without the user having
+// to recall "high = bad here, opposite of usual".
+//
+// Bands chosen to mirror the OVERALL worry-tier cascade (sleep_well /
+// normal / watch_closely / read_bears / significant_concerns) but
+// collapsed into 4 buckets — per-pillar copy doesn't need 5-way
+// granularity since the gauge headline already carries the nuance.
+//
+//   0-19    "Calm"      — pillar is dormant, not raising flags
+//   20-39   "Normal"    — pillar shows ordinary noise
+//   40-69   "Elevated"  — pillar is louder than normal
+//   70-100  "Loud"      — pillar is shouting
+//
+// SEBI-safe by construction: "Calm" / "Normal" / "Elevated" / "Loud"
+// are factual state descriptions, none on the banned-vocab list.
+export type WorryState = "Calm" | "Normal" | "Elevated" | "Loud"
+
+export function worryStateLabel(score: number): WorryState {
+  const s = Math.max(0, Math.min(100, Math.round(score)))
+  if (s < 20) return "Calm"
+  if (s < 40) return "Normal"
+  if (s < 70) return "Elevated"
+  return "Loud"
+}
+
+// Tailwind classes paired with each state so the caption text mirrors
+// the bar's gradient position — Calm leans green, Loud leans rose.
+const STATE_TEXT_CLASS: Record<WorryState, string> = {
+  Calm:     "text-emerald-700",
+  Normal:   "text-lime-700",
+  Elevated: "text-amber-700",
+  Loud:     "text-rose-800",
+}
+
 // Fallback skeleton when the API payload predates the contributors
 // field. We render 5 placeholder bars at 50/100 so the layout shape is
 // preserved, and surface a caption so nobody mistakes them for real
@@ -217,10 +252,25 @@ export default function WorryIndex({ worry }: Props) {
             <FadeStagger as="div" className="space-y-2.5" staggerMs={60}>
               {rows.map((c) => {
                 const clamped = Math.max(0, Math.min(100, c.score))
+                // Bug 5 (P2, 2026-06-09): per-pillar labels were
+                // semantically inverted — "Solvency: 0 out of 100" on
+                // a healthy bank read as "zero solvency" not "zero
+                // worry on solvency". Pivot to state-language labels
+                // (Calm / Normal / Elevated / Loud) that read in the
+                // correct direction without scale-recall. Raw 0-100
+                // score moves to a small secondary caption for power
+                // users who want the underlying number.
+                const state = hasRealData ? worryStateLabel(clamped) : null
+                const stateClass = state ? STATE_TEXT_CLASS[state] : ""
+                const ariaLabel = hasRealData && state
+                  ? c.detail
+                    ? `${c.label}: ${state} — ${c.detail}`
+                    : `${c.label}: ${state} (${clamped} of 100 worry signal)`
+                  : `${c.label}: breakdown pending`
                 return (
                   <div
                     key={c.component}
-                    className="grid grid-cols-[110px_1fr_36px] sm:grid-cols-[150px_1fr_42px] items-center gap-3 text-xs"
+                    className="grid grid-cols-[110px_1fr_56px] sm:grid-cols-[150px_1fr_72px] items-center gap-3 text-xs"
                   >
                     <span className="text-caption truncate" title={c.label}>
                       {c.label}
@@ -237,7 +287,7 @@ export default function WorryIndex({ worry }: Props) {
                     <div
                       className="relative h-2 rounded-full overflow-hidden bg-gradient-to-r from-emerald-500 via-amber-400 to-rose-600"
                       role="img"
-                      aria-label={`${c.label}: ${clamped} out of 100`}
+                      aria-label={ariaLabel}
                       title={c.detail || undefined}
                     >
                       <div
@@ -256,11 +306,18 @@ export default function WorryIndex({ worry }: Props) {
                     </div>
                     <span
                       className={cn(
-                        "text-right tabular-nums font-medium",
-                        hasRealData ? "text-ink" : "text-caption/70",
+                        "text-right font-semibold leading-tight flex flex-col items-end",
+                        hasRealData ? stateClass : "text-caption/70",
                       )}
                     >
-                      {hasRealData ? c.score : "—"}
+                      <span data-testid={`worry-state-${c.component}`}>
+                        {hasRealData && state ? state : "—"}
+                      </span>
+                      {hasRealData && (
+                        <span className="text-[10px] tabular-nums font-normal text-caption/70">
+                          {c.score}/100
+                        </span>
+                      )}
                     </span>
                     {hasRealData && c.detail && (
                       <span className="col-span-3 text-[11px] text-caption leading-snug -mt-1">
@@ -272,8 +329,8 @@ export default function WorryIndex({ worry }: Props) {
               })}
             </FadeStagger>
             <p className="mt-3 text-[10px] text-caption/70">
-              Each bar runs 0 (calmer) → 100 (louder). The marker shows
-              where this stock sits.
+              State labels: Calm (0-19) · Normal (20-39) · Elevated
+              (40-69) · Loud (70-100). Lower means quieter risk signal.
             </p>
           </div>
         )
