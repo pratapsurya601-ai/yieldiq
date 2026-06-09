@@ -48,27 +48,27 @@ function renderWithClient(ui: React.ReactElement) {
 // rather than imported because the script is Python — the assertion
 // here is the same regex applied to the rendered DOM, not to source.
 const SEBI_BANNED = [
-  "appears",
-  "should",
-  "concern",
-  "strength",
-  "weakness",
-  "buy",
-  "sell",
-  "hold",
-  "outperform",
-  "underperform",
-  "expensive",
-  "cheap",
-  "attractive",
-  "poor",
-  "strong",
-  "weak",
-  "accumulate",
-  "recommend",
-  "recommendation",
-  "investable",
-  "investability",
+  "appears", // sebi-allow: appears
+  "should", // sebi-allow: should
+  "concern", // sebi-allow: concern
+  "strength", // sebi-allow: strength
+  "weakness", // sebi-allow: weakness
+  "buy", // sebi-allow: buy
+  "sell", // sebi-allow: sell
+  "hold", // sebi-allow: hold
+  "outperform", // sebi-allow: outperform
+  "underperform", // sebi-allow: underperform
+  "expensive", // sebi-allow: expensive
+  "cheap", // sebi-allow: cheap
+  "attractive", // sebi-allow: attractive
+  "poor", // sebi-allow: poor
+  "strong", // sebi-allow: strong
+  "weak", // sebi-allow: weak
+  "accumulate", // sebi-allow: accumulate
+  "recommend", // sebi-allow: recommend
+  "recommendation", // sebi-allow: recommendation
+  "investable", // sebi-allow: investable
+  "investability", // sebi-allow: investability
 ]
 
 beforeEach(() => {
