@@ -37,7 +37,8 @@ import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query"
 import { RefreshCw } from "lucide-react"
 
 import TickerAvatar from "@/components/common/TickerAvatar"
-import { getTodayMovers } from "@/lib/api"
+import { Sparkline } from "@/components/common/Sparkline"
+import { getSparklines, getTodayMovers } from "@/lib/api"
 import { formatPct } from "@/lib/utils"
 import type { TodayMover, TodayMoversResponse, ScreenerResponse } from "@/types/api"
 import {
@@ -102,11 +103,24 @@ function writeCachedMovers(payload: TodayMoversResponse): void {
   }
 }
 
-function MoverRow({ mover }: { mover: TodayMover }) {
+function MoverRow({
+  mover,
+  sparkline,
+}: {
+  mover: TodayMover
+  /** 7-day close series; omitted when the batch fetch had no rows. */
+  sparkline?: number[]
+}) {
   const up = mover.change_pct >= 0
   const color = up
     ? "text-green-600 dark:text-green-400"
     : "text-red-600 dark:text-red-400"
+  // Sparkline color tracks today's % change (the rail's headline
+  // signal), not the 7d series direction — keeps the visual story
+  // coherent: green row = green sparkline. Falls back to the
+  // component's auto-derive when sparkline is empty.
+  const sparkColor: "green" | "red" = up ? "green" : "red"
+  const hasSpark = Array.isArray(sparkline) && sparkline.length >= 2
   return (
     <Link
       href={`/analysis/${mover.ticker}`}
@@ -117,6 +131,14 @@ function MoverRow({ mover }: { mover: TodayMover }) {
       <span className="font-mono font-semibold text-sm text-ink truncate min-w-0 flex-shrink">
         {mover.ticker}
       </span>
+      {hasSpark && (
+        <Sparkline
+          values={sparkline as number[]}
+          width={48}
+          height={16}
+          color={sparkColor}
+        />
+      )}
       <span className={`ml-auto font-mono text-sm tabular-nums ${color}`}>
         {formatPct(mover.change_pct)}
       </span>
@@ -128,10 +150,12 @@ function Column({
   title,
   movers,
   emptyMessage,
+  sparklines,
 }: {
   title: string
   movers: TodayMover[]
   emptyMessage: string
+  sparklines?: Record<string, number[]>
 }) {
   return (
     <div className="bg-surface border border-border rounded-xl overflow-hidden">
@@ -147,7 +171,11 @@ function Column({
       ) : (
         <div>
           {movers.map((m) => (
-            <MoverRow key={m.ticker} mover={m} />
+            <MoverRow
+              key={m.ticker}
+              mover={m}
+              sparkline={sparklines?.[m.ticker]}
+            />
           ))}
         </div>
       )}
@@ -374,6 +402,23 @@ export default function TodaysMovers() {
     )
   }
 
+  // Sparkline batch — ONLY when the live movers data is populated.
+  // Skipped during cached/preview/retry fallback paths since those
+  // rows render without sparklines (cleaner empty-state UX).
+  const moverTickers = mode === "live" && data
+    ? [...(data.gainers ?? []), ...(data.losers ?? [])].map(m => m.ticker)
+    : []
+  const { data: sparkResp } = useQuery({
+    queryKey: ["movers-sparklines", [...moverTickers].sort().join(",")],
+    queryFn: () => getSparklines(moverTickers, "7d"),
+    enabled: moverTickers.length > 0,
+    staleTime: 60 * 1000,
+    refetchInterval: () => (isMarketHoursIST() ? 5 * 60 * 1000 : false),
+    refetchIntervalInBackground: false,
+    retry: 1,
+  })
+  const sparkSeries = sparkResp?.series ?? {}
+
   return (
     <section>
       <div className="flex items-center justify-between mb-3">
@@ -409,11 +454,13 @@ export default function TodaysMovers() {
             title="Top Gainers"
             movers={data?.gainers ?? []}
             emptyMessage="No movers right now."
+            sparklines={sparkSeries}
           />
           <Column
             title="Top Losers"
             movers={data?.losers ?? []}
             emptyMessage="No movers right now."
+            sparklines={sparkSeries}
           />
         </div>
       ) : mode === "cached" && cached ? (

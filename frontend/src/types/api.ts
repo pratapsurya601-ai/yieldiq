@@ -568,6 +568,14 @@ export interface MarketIndex {
   name: string
   price: number
   change_pct: number
+  /**
+   * 7 daily closes oldest→newest for the inline MarketsStrip sparkline
+   * (2026-06-09 — feat/home-sparklines-everywhere). Empty array when
+   * the backend has no `nse_index_history` rows for this tile (SENSEX,
+   * synthetic indices, or fresh indices the ingestor hasn't backfilled
+   * yet). Frontend treats empty as "skip the sparkline cell".
+   */
+  sparkline_7d?: number[]
 }
 
 export interface MarketPulseResponse {
@@ -596,6 +604,14 @@ export interface MarketPulseResponse {
   nifty_midcap_price?: number | null
   nifty_midcap_change_pct?: number | null
   ai_summary?: string | null
+  /**
+   * 7-day sparkline series for non-index tiles (USD/INR, India 10Y,
+   * GOLD, SILVER, CRUDE). Optional + each key only present when the
+   * macro ingest had ≥ 2 daily points. Frontend looks up by tile
+   * slug ("USDINR", "GOLD", "SILVER", "CRUDE", "INDIA10Y"); a missing
+   * key means the tile renders without a sparkline cell.
+   */
+  macro_sparklines?: Record<string, number[]> | null
 }
 
 // Today's Movers — top gainers / losers from a cohort (default NIFTY 500).

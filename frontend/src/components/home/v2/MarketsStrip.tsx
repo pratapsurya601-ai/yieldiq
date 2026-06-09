@@ -6,6 +6,7 @@
 import Link from "next/link"
 import { useQuery } from "@tanstack/react-query"
 import { getMarketPulse } from "@/lib/api"
+import { Sparkline } from "@/components/common/Sparkline"
 import { formatPct } from "@/lib/utils"
 
 // Refresh cadence: 60s during NSE market hours, frozen after-hours.
@@ -58,11 +59,18 @@ function Cell({
   value,
   pct,
   href,
+  sparkline,
 }: {
   label: string
   value: string
   pct: number | null
   href?: string | null
+  /**
+   * 7 daily closes oldest→newest. Optional — when undefined or
+   * empty, the sparkline row collapses and the tile keeps its
+   * pre-PR vertical rhythm (no empty white gap).
+   */
+  sparkline?: number[]
 }) {
   const up = pct !== null && pct >= 0
   const color =
@@ -71,6 +79,14 @@ function Cell({
       : up
         ? "text-green-600 dark:text-green-400"
         : "text-red-600 dark:text-red-400"
+  // Force the sparkline color to match the % change badge above it
+  // (green when up, red when down, neutral when flat) so the two
+  // signals never visually disagree mid-render. When the badge is
+  // null (USD/INR with no delta available), let the sparkline
+  // derive its own color from the series direction.
+  const sparkColor: "green" | "red" | "neutral" | undefined =
+    pct === null ? undefined : up ? "green" : "red"
+  const hasSpark = Array.isArray(sparkline) && sparkline.length >= 2
   const inner = (
     <>
       <span className="text-[9px] font-bold uppercase tracking-wider text-caption truncate">
@@ -84,6 +100,16 @@ function Cell({
           {pct === null ? "—" : formatPct(pct)}
         </span>
       </div>
+      {hasSpark && (
+        <div className="mt-0.5">
+          <Sparkline
+            values={sparkline as number[]}
+            width={64}
+            height={16}
+            color={sparkColor}
+          />
+        </div>
+      )}
     </>
   )
   const className =
@@ -136,6 +162,16 @@ export default function MarketsStrip() {
     return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi)
   })
 
+  // Macro tiles (USD/INR, GOLD, SILVER, CRUDE, INDIA10Y) read their
+  // sparkline series out of pulse.macro_sparklines when present.
+  // Fallback to undefined → tile renders without a sparkline cell.
+  const macro = pulse.macro_sparklines ?? undefined
+  function macroSpark(key: string): number[] | undefined {
+    if (!macro) return undefined
+    const v = macro[key]
+    return Array.isArray(v) && v.length >= 2 ? v : undefined
+  }
+
   return (
     <div className="bg-surface border-y border-border overflow-x-auto sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-surface/95">
       <div className="flex items-stretch min-w-max">
@@ -146,6 +182,7 @@ export default function MarketsStrip() {
             value={idx.price.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
             pct={idx.change_pct ?? null}
             href={indexHref(idx.name)}
+            sparkline={idx.sparkline_7d}
           />
         ))}
         {pulse.usd_inr != null && (
@@ -153,6 +190,7 @@ export default function MarketsStrip() {
             label="USD/INR"
             value={`₹${pulse.usd_inr.toFixed(2)}`}
             pct={null}
+            sparkline={macroSpark("USDINR")}
           />
         )}
         {pulse.risk_free_pct != null && (
@@ -160,6 +198,7 @@ export default function MarketsStrip() {
             label="India 10Y"
             value={`${pulse.risk_free_pct.toFixed(2)}%`}
             pct={null}
+            sparkline={macroSpark("INDIA10Y")}
           />
         )}
         {/*
@@ -177,6 +216,7 @@ export default function MarketsStrip() {
               : "—"
           }
           pct={pulse.gold_usd_change_pct ?? null}
+          sparkline={macroSpark("GOLD")}
         />
         <Cell
           label="SILVER"
@@ -186,6 +226,7 @@ export default function MarketsStrip() {
               : "—"
           }
           pct={pulse.silver_usd_change_pct ?? null}
+          sparkline={macroSpark("SILVER")}
         />
         <Cell
           label="CRUDE"
@@ -195,6 +236,7 @@ export default function MarketsStrip() {
               : "—"
           }
           pct={pulse.crude_usd_change_pct ?? null}
+          sparkline={macroSpark("CRUDE")}
         />
         <Link
           href="/markets"
