@@ -4092,15 +4092,29 @@ class AnalysisService(NarrativeMixin):
         # smoothing commit) don't block the analysis response. If the
         # thread dies mid-write the response has already been returned;
         # worst case is a missing history row for that tick.
+        #
+        # Task #264 (2026-06-09): caller-side verdict gate as well as
+        # the inner gate in store_today_fair_value(). Belt-and-braces —
+        # the inner gate is the authoritative skip rule (NON_CHARTABLE_VERDICTS)
+        # but skipping the threading.Thread spawn entirely when we already
+        # know the row will be rejected saves a session checkout +
+        # connection round-trip on Neon's free-tier connection budget.
         try:
-            if iv and iv > 0 and price and price > 0:
+            from data_pipeline.sources.fv_history import NON_CHARTABLE_VERDICTS
+            _verdict_str = str(verdict) if verdict is not None else ""
+            _is_chartable = (
+                iv and iv > 0
+                and price and price > 0
+                and _verdict_str not in NON_CHARTABLE_VERDICTS
+            )
+            if _is_chartable:
                 import threading as _fv_threading
                 _fv_args = dict(
                     ticker=ticker,
                     fv=float(iv),
                     price=float(price),
                     mos=float(mos_pct),
-                    verdict=str(verdict),
+                    verdict=_verdict_str,
                     wacc=float(wacc),
                     confidence=int(confidence.get("score", 50)),
                 )

@@ -19,6 +19,22 @@ from data_pipeline.models import FairValueHistory
 log = logging.getLogger("yieldiq.fv_history")
 
 
+# ── Skip-rules for the live write-hook (Phase 1 task #264) ──────
+# Verdicts that mean "the engine could not produce a chartable point".
+# We refuse to persist a row when the verdict is one of these even if
+# the FV value technically passed the > 0 numeric gate, because the
+# value is either a clamp / floor / placeholder and persisting it
+# would pollute the per-ticker history that ValuationHistoryChart
+# (task #265) renders. Backfills bypass this filter — they have their
+# own provenance flag ('snapshot' / 'golden') and the live-hook gate
+# only applies to provenance='live'.
+NON_CHARTABLE_VERDICTS = frozenset({
+    "data_limited",   # bound-clamp tripped; FV is a sentinel, not a model output
+    "unavailable",    # collector returned no usable inputs
+    "under_review",   # transient quarantine — not a stable historical anchor
+})
+
+
 def _compute_smoothed_fv(
     ticker: str,
     today_fv: float,
@@ -117,9 +133,37 @@ def store_today_fair_value(
     /og-data still returns the raw FV from analysis_service).
     Also emits DCF_VOLATILITY WARN when FV drift is suspiciously
     high vs price drift.
+
+    Skip-rules (Phase 1 task #264 — write-hook hardening):
+      * fv <= 0 or price <= 0 — degenerate inputs, can't compute MoS.
+      * verdict in NON_CHARTABLE_VERDICTS — clamp / sentinel output
+        that would pollute the per-ticker chart (task #265).
+    Skipped rows DO NOT raise; they log at DEBUG and return cleanly so
+    the analyze() caller never sees a difference. Quarantine columns
+    on existing rows are NEVER overwritten — the UPDATE branch only
+    touches engine-output columns.
     """
     today = date.today()
     try:
+        # ── Gate: numeric inputs ─────────────────────────────────
+        if fv is None or price is None or fv <= 0 or price <= 0:
+            log.debug(
+                "FV history skipped for %s: degenerate inputs (fv=%s, price=%s)",
+                ticker, fv, price,
+            )
+            return
+
+        # ── Gate: verdict is chartable ───────────────────────────
+        # Verdicts like 'data_limited' carry clamped FV values that
+        # are not real model output; persisting them would corrupt
+        # the history chart.
+        if verdict in NON_CHARTABLE_VERDICTS:
+            log.debug(
+                "FV history skipped for %s: non-chartable verdict=%s",
+                ticker, verdict,
+            )
+            return
+
         # Observability before any mutation
         _warn_if_volatile(ticker, fv, price, today, db)
 
