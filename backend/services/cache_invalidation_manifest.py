@@ -1864,6 +1864,35 @@ MANIFEST: list[dict] = [
             "(separate PR)."
         ),
     },
+    {
+        # T2.4 Phase A (2026-06-10): probability-weighted fair value
+        # standalone service added at backend/services/
+        # probability_weighted_fv_service.py. Three- or four-scenario
+        # mix with beta / cyclical / earnings-revisions / macro-regime
+        # weight adjustments. Phase A is standalone — no wiring into the
+        # response payload, no engine path mutation. Phase B (separate
+        # PR) will fold weighted_fv into the composite intrinsic value
+        # and add it to the public AnalysisResponse.
+        #
+        # tickers="*" is the bare-string wildcard sentinel _ticker_in_scope
+        # recognises — list-of-asterisk would be a silent no-op (see the
+        # v_244 typo correction note above + PR #796 EPV agent's report).
+        # fields=[] documents that NO cached field is affected yet — the
+        # entry exists only to record the engine-services-touched event
+        # for the CI cache-bump gate.
+        "version_id": "v_t2_4_probability_weighted_fv_phase_a_2026_06_10",
+        "applied_at": datetime.now(timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "T2.4 Phase A — probability-weighted FV standalone service "
+            "added. Three- or four-scenario weighting with beta / "
+            "cyclical / revisions / macro adjustments. Phase B wires "
+            "into composite (separate PR)."
+        ),
+    },
 ]
 
 
