@@ -1146,6 +1146,26 @@ INDICES: dict[str, dict] = {
             "LTIM.NS", "MPHASIS.NS", "COFORGE.NS", "PERSISTENT.NS", "LTTS.NS",
         ],
     },
+    # 2026-06-09: SENSEX is the 30-stock BSE benchmark. There is no
+    # BSE-specific constituent JSON in backend/data/, so we list the
+    # canonical 30 inline (same shape as the NSE entries above). The
+    # tickers carry the ``.NS`` suffix because the analysis cache is
+    # keyed on NSE symbols — the same companies trade on both exchanges
+    # and our DCF inputs are sourced from NSE/yfinance regardless of
+    # which exchange the index nominally belongs to.
+    "sensex": {
+        "name": "Sensex Valuation Dashboard",
+        "description": "All 30 BSE Sensex stocks ranked by DCF fair value",
+        "tickers": [
+            "RELIANCE.NS", "TCS.NS", "HDFCBANK.NS", "INFY.NS", "ITC.NS",
+            "ICICIBANK.NS", "SBIN.NS", "BHARTIARTL.NS", "LT.NS", "HINDUNILVR.NS",
+            "KOTAKBANK.NS", "BAJFINANCE.NS", "AXISBANK.NS", "ASIANPAINT.NS",
+            "MARUTI.NS", "M&M.NS", "SUNPHARMA.NS", "TITAN.NS", "ULTRACEMCO.NS",
+            "NESTLEIND.NS", "HCLTECH.NS", "POWERGRID.NS", "NTPC.NS", "WIPRO.NS",
+            "TATASTEEL.NS", "INDUSINDBK.NS", "JSWSTEEL.NS", "TECHM.NS",
+            "TATAMOTORS.NS", "BAJAJFINSV.NS",
+        ],
+    },
 }
 
 
@@ -1187,9 +1207,45 @@ async def get_index_dashboard(index_id: str):
 
     hidden: list[dict] = []
 
+    # ── 2026-06-09 — Bug 2 root-cause fix ────────────────────────
+    # Pre-fix the loop ONLY consulted tier-1 (the in-process
+    # ``cache.get(f"analysis:{ticker}")``). On any worker whose
+    # tier-1 was cold (first request, post-redeploy, post-CACHE_VERSION
+    # bump) every ticker missed, leaving ``stocks=[]`` and the page
+    # rendering the empty-state fallback even though the persistent
+    # tier-2 cache (``analysis_cache``) had a valid row.
+    # The compare endpoint + the stock-summary endpoint already use
+    # the established three-tier pattern: tier-1 → tier-2 → response.
+    # The index dashboard is now wired into the same pattern. We do
+    # NOT add a lazy-recompute fallback here (unlike stock-summary)
+    # because this endpoint iterates 30+ tickers per request and a
+    # synchronous recompute fan-out would blow the request budget;
+    # missing tickers are simply omitted (same behaviour as before
+    # for legitimate misses), which the UI surfaces via
+    # ``available_stocks < total_stocks``.
+    def _load_analysis(ticker: str):
+        cached = cache.get(f"analysis:{ticker}")
+        if cached is not None and hasattr(cached, "valuation"):
+            return cached
+        try:
+            from backend.services import analysis_cache_service
+            from backend.models.responses import AnalysisResponse
+            payload = analysis_cache_service.get_canonical_payload(
+                ticker, allow_stale=True,
+            )
+            if payload:
+                obj = AnalysisResponse(**payload)
+                cache.set(f"analysis:{ticker}", obj, ttl=86400)
+                return obj
+        except Exception as exc:
+            logger.info(
+                "index-dashboard: tier-2 lookup failed for %s: %s",
+                ticker, exc,
+            )
+        return None
+
     for ticker in config["tickers"]:
-        # Try analysis cache
-        analysis = cache.get(f"analysis:{ticker}")
+        analysis = _load_analysis(ticker)
         if analysis and hasattr(analysis, "valuation"):
             v = analysis.valuation
             q = analysis.quality

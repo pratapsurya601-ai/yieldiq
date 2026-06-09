@@ -114,8 +114,9 @@ exports[`MarketsStrip — commodity tiles > renders GOLD, SILVER, and CRUDE tile
           </svg>
         </div>
       </a>
-      <div
-        class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0"
+      <a
+        class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0 hover:bg-bg/30 transition"
+        href="/sensex"
       >
         <span
           class="text-[9px] font-bold uppercase tracking-wider text-caption truncate"
@@ -165,7 +166,7 @@ exports[`MarketsStrip — commodity tiles > renders GOLD, SILVER, and CRUDE tile
             />
           </svg>
         </div>
-      </div>
+      </a>
       <div
         class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0"
       >

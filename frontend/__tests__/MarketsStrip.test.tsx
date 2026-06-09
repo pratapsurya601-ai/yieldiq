@@ -182,3 +182,50 @@ describe("MarketsStrip — commodity tiles", () => {
     expect(dashCount).toBeGreaterThanOrEqual(3)
   })
 })
+
+describe("MarketsStrip — showHubLink prop (Bug 1, 2026-06-09)", () => {
+  // The /markets hub itself renders the strip; before the fix the
+  // tail-end "Markets →" link pointed at the page the user was on.
+  // The prop defaults to true so /home stays byte-identical.
+  it("renders the 'Markets →' link by default", async () => {
+    vi.mocked(getMarketPulse).mockResolvedValue(FULL_PULSE as never)
+    renderWithClient(<MarketsStrip />)
+    await waitFor(() => {
+      expect(screen.getByText("GOLD")).toBeInTheDocument()
+    })
+    const links = screen.getAllByRole("link")
+    const hubLink = links.find(
+      (a) => a.getAttribute("href") === "/markets",
+    )
+    expect(hubLink).toBeDefined()
+  })
+
+  it("omits the 'Markets →' link when showHubLink={false}", async () => {
+    vi.mocked(getMarketPulse).mockResolvedValue(FULL_PULSE as never)
+    renderWithClient(<MarketsStrip showHubLink={false} />)
+    await waitFor(() => {
+      expect(screen.getByText("GOLD")).toBeInTheDocument()
+    })
+    const links = screen.getAllByRole("link")
+    const hubLink = links.find(
+      (a) => a.getAttribute("href") === "/markets",
+    )
+    expect(hubLink).toBeUndefined()
+  })
+
+  it("links the SENSEX tile to /sensex (Bug 3)", async () => {
+    // Pre-fix the SENSEX tile rendered as a non-clickable div because
+    // INDEX_ROUTES had no entry for it. After Bug 3 the new /sensex
+    // page is wired into INDEX_ROUTES and the tile becomes a real link.
+    vi.mocked(getMarketPulse).mockResolvedValue(FULL_PULSE as never)
+    renderWithClient(<MarketsStrip />)
+    await waitFor(() => {
+      expect(screen.getByText("SENSEX")).toBeInTheDocument()
+    })
+    const links = screen.getAllByRole("link")
+    const sensexLink = links.find(
+      (a) => a.getAttribute("href") === "/sensex",
+    )
+    expect(sensexLink).toBeDefined()
+  })
+})

@@ -66,9 +66,11 @@ export default function MarketsHubPage() {
         </div>
       </section>
 
-      {/* MarketsStrip — non-sticky on this page. The strip itself is a
+      {/* MarketsStrip — non-sticky on this page, and with the hub link
+          suppressed because clicking "Markets →" while ON /markets is a
+          self-reference (Bug 1, 2026-06-09). The strip itself is a
           client component that fetches /api/v1/market/pulse. */}
-      <MarketsStrip sticky={false} />
+      <MarketsStrip sticky={false} showHubLink={false} />
 
       <div className="max-w-5xl mx-auto px-4 py-10 space-y-10">
         {/* Index dashboards — enriched with live level + 1d change. */}
