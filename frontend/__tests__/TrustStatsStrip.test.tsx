@@ -6,8 +6,8 @@
  *      placeholder constants).
  *   2. Missing fields → "—" placeholder, NEVER "0" (a 0-tile
  *      reads as broken to a first-time visitor).
- *   3. Tile labels + disclaimer copy are SEBI-safe (no buy/sell/
- *      recommend etc.) — duplicated here so a copy regression
+ *   3. Tile labels + disclaimer copy are SEBI-safe — no advisory vocab // sebi-allow: buy, sell
+ *      (full banned list duplicated here so a copy regression // sebi-allow: recommend
  *      fails fast in the unit suite, not just on the GH lint.
  *   4. Each tile with an href renders an anchor pointing at the
  *      documented deeper-page route.
@@ -145,8 +145,8 @@ describe("TrustStatsStrip", () => {
     // runtime DOM independently.)
     const dom = (container.textContent || "").toLowerCase()
     for (const word of [
-      "buy", "sell", "recommend",
-      "outperform", "underperform", "accumulate", "investable",
+      "buy", "sell", "recommend", // sebi-allow: buy, sell, recommend
+      "outperform", "underperform", "accumulate", "investable", // sebi-allow: outperform, underperform, accumulate, investable
     ]) {
       expect(dom).not.toContain(word)
     }
