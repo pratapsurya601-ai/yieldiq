@@ -129,7 +129,7 @@ function parse(input: string | Date | null | undefined): Date | null {
 export interface PulseInfo {
   /** Tailwind background colour for the 8px dot. */
   colorCls: string
-  /** Whether the dot should animate (overridden by prefers-reduced-motion). */
+  /** True when the dot animates; prefers-reduced-motion overrides this to false at render time. */
   pulse: boolean
   /** Plain-English staleness band — drives aria-label for screen readers. */
   band: "live" | "recent" | "stale"
