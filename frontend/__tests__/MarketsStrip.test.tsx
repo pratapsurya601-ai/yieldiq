@@ -63,7 +63,7 @@ describe("MarketsStrip — commodity tiles", () => {
     // SEBI watch — neutral labels only.
     const text = container.textContent || ""
     expect(text.toLowerCase()).not.toContain("buy")
-    expect(text.toLowerCase()).not.toContain("recommend")
+    expect(text.toLowerCase()).not.toContain("recommend") // sebi-allow: recommend
     expect(container).toMatchSnapshot()
   })
 

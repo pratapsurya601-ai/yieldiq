@@ -82,7 +82,7 @@ describe("TodaysMovers", () => {
     // SEBI watch — verify no advisory copy snuck into the rendered DOM.
     const text = container.textContent || ""
     expect(text.toLowerCase()).not.toContain("buy")
-    expect(text.toLowerCase()).not.toContain("recommend")
+    expect(text.toLowerCase()).not.toContain("recommend") // sebi-allow: recommend
     expect(text).toContain("Today’s Movers")
     expect(container).toMatchSnapshot()
   })

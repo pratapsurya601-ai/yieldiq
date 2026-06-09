@@ -4,8 +4,8 @@
 // and the Portfolio/Watchlist hero. Rows link to /analysis/{ticker}.
 //
 // SEBI watch: the label is "Today's Movers" — never "Top Picks", never
-// "Buy these". The only on-row signal is the raw % change. There is no
-// implied recommendation in any string here.
+// "Buy these". The only on-row signal is the raw % change. There is no // sebi-allow: Buy
+// implied recommendation in any string here. // sebi-allow: recommendation
 //
 // Data: /api/v1/market/today-movers?cohort=nifty500&limit=5
 // Cached 60s server-side; client refetches every 60s during market hours.
