@@ -608,6 +608,11 @@ export interface MarketPulseResponse {
   fii_date?: string | null
   fii_stale?: boolean
   usd_inr?: number | null
+  // 24h % change for USD/INR vs previous trading day's close. Backed by
+  // the same cached yfinance series that fills macro_sparklines.USDINR
+  // — single source of truth, no extra round-trip. Optional + degrades
+  // to null when the upstream fetch is rate-limited.
+  usd_inr_change_pct?: number | null
   gold_usd?: number | null
   silver_usd?: number | null
   crude_usd?: number | null
@@ -620,6 +625,9 @@ export interface MarketPulseResponse {
   gold_inr_per_10g?: number | null
   silver_inr_per_10g?: number | null
   risk_free_pct?: number | null
+  // 24h % change for the 10Y risk-free proxy. Same cached-series
+  // pattern as usd_inr_change_pct above. Degrades to null gracefully.
+  risk_free_change_pct?: number | null
   nifty_midcap_price?: number | null
   nifty_midcap_change_pct?: number | null
   ai_summary?: string | null

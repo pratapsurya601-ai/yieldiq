@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timedelta, timezone
-from typing import Dict, List
+from typing import Dict, List, Optional, Tuple
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
@@ -144,12 +144,12 @@ def _enrich_pulse_with_sparklines(
 ) -> MarketPulseResponse:
     """Attach `sparkline_7d` arrays to each index tile in-place.
 
-    Macro tiles (USD/INR, GOLD, SILVER, CRUDE, India 10Y) currently
-    lack a daily-history table — they're populated by the macro service
-    from 15-min refreshed snapshots. We leave `macro_sparklines` as
-    None for those tiles; the frontend simply omits the sparkline cell.
-    Adding macro history is a follow-up that can ship without touching
-    this PR's response shape.
+    Macro tiles (USD/INR, GOLD, SILVER, CRUDE, India 10Y) lack a
+    persisted daily-history table — they're sourced from yfinance
+    directly via :func:`_macro_sparkline_yf` and surfaced through the
+    response's `macro_sparklines` dict. SENSEX (BSE index) is also
+    routed through the yfinance helper because the NSE bhavcopy that
+    feeds `nse_index_history` does not include the BSE composite.
     """
     if not pulse or not pulse.indices:
         return pulse
@@ -170,6 +170,124 @@ def _enrich_pulse_with_sparklines(
         if series:
             idx.sparkline_7d = series
     return pulse
+
+
+# ── Macro sparkline fetch (USD/INR, India 10Y, Gold, Silver, Crude, SENSEX) ──
+# `nse_index_history` only carries NSE-listed indices, so the macro
+# tiles + the BSE SENSEX tile sit outside its coverage. We pull a short
+# (≤ 10 trading day) close-price series from yfinance per symbol and
+# cache the result for 24h in the shared CacheService. The cache key is
+# per-symbol so a partial fetch (one yfinance call rate-limited, four
+# OK) still surfaces what it can on the next /pulse hit.
+#
+# yfinance symbol map — exposed module-level so tests can patch the
+# fetch path without touching the (private) helper.
+_MACRO_YF_SYMBOLS: Dict[str, str] = {
+    "USDINR":   "USDINR=X",
+    "INDIA10Y": "^TNX",      # US 10Y proxy — see comment in usage site
+    "GOLD":     "GC=F",
+    "SILVER":   "SI=F",
+    "CRUDE":    "BZ=F",      # Brent — matches MacroService crude_usd
+    "SENSEX":   "^BSESN",
+}
+
+
+def _macro_sparkline_yf(symbol: str, days: int = 7) -> Optional[List[float]]:
+    """Return last `days` daily closes (oldest→newest) for a yfinance
+    symbol, or None on failure / insufficient data.
+
+    Cached 24h per symbol. yfinance rate limits aggressively when called
+    in a tight loop, so we serve the cache aggressively; the data only
+    changes once per trading day anyway.
+    """
+    cache_key = f"macro_spark:{symbol}:{days}"
+    try:
+        cached = cache.get(cache_key)
+    except Exception:
+        cached = None
+    if cached is not None:
+        return cached if cached else None  # cached [] sentinel → no data
+    try:
+        import yfinance as yf
+        # Pull `days * 2` calendar days of history so weekends + 1 IST
+        # holiday still leave ≥ `days` valid closes.
+        hist = yf.Ticker(symbol).history(
+            period=f"{max(days * 2, 14)}d",
+            interval="1d",
+            auto_adjust=False,
+        )
+        if hist is None or hist.empty or "Close" not in hist:
+            try:
+                cache.set(cache_key, [], ttl=24 * 3600)
+            except Exception:
+                pass
+            return None
+        closes = [float(v) for v in hist["Close"].dropna().tolist() if v is not None]
+        if len(closes) < 2:
+            try:
+                cache.set(cache_key, [], ttl=24 * 3600)
+            except Exception:
+                pass
+            return None
+        series = closes[-days:]
+        try:
+            cache.set(cache_key, series, ttl=24 * 3600)
+        except Exception:
+            pass
+        return series
+    except Exception as exc:
+        log.debug("_macro_sparkline_yf(%s) failed: %s", symbol, exc)
+        return None
+
+
+def _change_pct_from_series(series: Optional[List[float]]) -> Optional[float]:
+    """Last-vs-previous percent change from a `_macro_sparkline_yf`-style
+    series. Returns None when the series is too short or the previous
+    close is non-positive (division would be undefined / misleading)."""
+    if not series or len(series) < 2:
+        return None
+    prev = series[-2]
+    if not prev or prev <= 0:
+        return None
+    try:
+        return round((series[-1] - prev) / prev * 100, 2)
+    except (TypeError, ValueError, ZeroDivisionError):
+        return None
+
+
+def _build_macro_sparklines() -> Tuple[Dict[str, List[float]], Dict[str, Optional[float]]]:
+    """Fetch all macro sparkline series + derived change_pct values.
+
+    Returns ``(sparklines_dict, change_pcts_dict)`` where:
+    - sparklines_dict is the compact mapping (only keys with usable
+      data) suitable for direct assignment to ``MarketPulseResponse
+      .macro_sparklines``.
+    - change_pcts_dict carries derived 24h % moves for USD/INR and
+      INDIA10Y so the same yfinance fetch backs both the inline
+      sparkline AND the pct badge — single source of truth, no second
+      round-trip.
+
+    Never raises. Either dict can be empty when yfinance is unavailable
+    (the response degrades to its pre-PR shape — tiles render values
+    without sparklines).
+    """
+    sparklines: Dict[str, List[float]] = {}
+    derived: Dict[str, Optional[float]] = {
+        "usd_inr_change_pct": None,
+        "risk_free_change_pct": None,
+    }
+    for tile_key, yf_sym in _MACRO_YF_SYMBOLS.items():
+        series = _macro_sparkline_yf(yf_sym)
+        if series:
+            sparklines[tile_key] = series
+        # Derive the change_pct for the two tiles the frontend was
+        # hardcoding to null pre-PR. Commodity change_pct already comes
+        # from MacroService (fast_info-derived), so we don't override.
+        if tile_key == "USDINR":
+            derived["usd_inr_change_pct"] = _change_pct_from_series(series)
+        elif tile_key == "INDIA10Y":
+            derived["risk_free_change_pct"] = _change_pct_from_series(series)
+    return sparklines, derived
 
 
 @router.get("/pulse", response_model=MarketPulseResponse)
@@ -250,6 +368,43 @@ async def get_market_pulse(
         cached_summary = cache.get("macro:ai_summary")
         if cached_summary:
             base_dict["ai_summary"] = cached_summary
+
+        # ── Macro sparklines + derived change_pct (2026-06-09) ────────
+        # Populates the 5 non-index MarketsStrip tiles (USD/INR, India
+        # 10Y, GOLD, SILVER, CRUDE) with 7-day inline-trend series, plus
+        # the SENSEX index tile (BSE composite, not in nse_index_history).
+        # Also derives 24h % change for USD/INR and India 10Y so those
+        # tiles get a delta badge — the rest of the strip already has
+        # one via the MacroService snapshot.
+        try:
+            macro_sparks, derived_pcts = _build_macro_sparklines()
+            if macro_sparks:
+                # Promote SENSEX series onto the matching index tile
+                # (frontend reads `idx.sparkline_7d` for indices and
+                # only looks at `macro_sparklines` for the non-index
+                # tiles). Strip SENSEX out of the dict afterwards so
+                # the wire payload stays compact.
+                sensex_series = macro_sparks.pop("SENSEX", None)
+                if sensex_series:
+                    # base.indices was just turned into base_dict via
+                    # model_dump — patch the dict form so the final
+                    # MarketPulseResponse(**base_dict) below picks it up.
+                    for idx_dict in base_dict.get("indices", []) or []:
+                        name = (idx_dict.get("name") or "").upper()
+                        if "SENSEX" in name and not idx_dict.get("sparkline_7d"):
+                            idx_dict["sparkline_7d"] = sensex_series
+                            break
+                if macro_sparks:
+                    base_dict["macro_sparklines"] = macro_sparks
+            # Only overwrite the derived pct fields when the helper
+            # returned a number — never clobber an already-populated
+            # value with None.
+            if derived_pcts.get("usd_inr_change_pct") is not None:
+                base_dict["usd_inr_change_pct"] = derived_pcts["usd_inr_change_pct"]
+            if derived_pcts.get("risk_free_change_pct") is not None:
+                base_dict["risk_free_change_pct"] = derived_pcts["risk_free_change_pct"]
+        except Exception as _spark_exc:  # pragma: no cover — defensive
+            log.debug("macro sparkline build skipped: %s", _spark_exc)
 
         # ── INR-conversion for Gold/Silver tile display (2026-06-09) ─
         # MarketsStrip shows commodities as ₹X/10g for the Indian

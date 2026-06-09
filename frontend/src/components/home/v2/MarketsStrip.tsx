@@ -189,7 +189,11 @@ export default function MarketsStrip() {
           <Cell
             label="USD/INR"
             value={`₹${pulse.usd_inr.toFixed(2)}`}
-            pct={null}
+            // 2026-06-09 — was hardcoded null pre-fix. Backend now
+            // derives the 24h delta from the same cached yfinance
+            // series that backs macro_sparklines.USDINR. Null still
+            // means "yfinance unavailable" and the tile shows "—".
+            pct={pulse.usd_inr_change_pct ?? null}
             sparkline={macroSpark("USDINR")}
           />
         )}
@@ -197,7 +201,10 @@ export default function MarketsStrip() {
           <Cell
             label="India 10Y"
             value={`${pulse.risk_free_pct.toFixed(2)}%`}
-            pct={null}
+            // 2026-06-09 — was hardcoded null pre-fix. Backend now
+            // derives the 24h delta from the yfinance ^TNX proxy
+            // (cached 24h). Null degrades to "—" on the tile.
+            pct={pulse.risk_free_change_pct ?? null}
             sparkline={macroSpark("INDIA10Y")}
           />
         )}

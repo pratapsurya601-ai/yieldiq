@@ -31,6 +31,35 @@ exports[`MarketsStrip — commodity tiles > renders GOLD, SILVER, and CRUDE tile
             +0.4%
           </span>
         </div>
+        <div
+          class="mt-0.5"
+        >
+          <svg
+            aria-label="7-day price trend"
+            data-testid="sparkline-svg"
+            height="16"
+            role="img"
+            viewBox="0 0 64 16"
+            width="64"
+          >
+            <path
+              d="M1.00,15.00 L11.33,11.50 L21.67,8.00 L32.00,6.60 L42.33,5.20 L52.67,2.40 L63.00,1.00 L63.00,15.00 L1.00,15.00 Z"
+              data-testid="sparkline-fill"
+              fill="#22c55e"
+              fill-opacity="0.15"
+              stroke="none"
+            />
+            <polyline
+              data-testid="sparkline-line"
+              fill="none"
+              points="1.00,15.00 11.33,11.50 21.67,8.00 32.00,6.60 42.33,5.20 52.67,2.40 63.00,1.00"
+              stroke="#22c55e"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+            />
+          </svg>
+        </div>
       </a>
       <a
         class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0 hover:bg-bg/30 transition"
@@ -55,6 +84,35 @@ exports[`MarketsStrip — commodity tiles > renders GOLD, SILVER, and CRUDE tile
             -0.2%
           </span>
         </div>
+        <div
+          class="mt-0.5"
+        >
+          <svg
+            aria-label="7-day price trend"
+            data-testid="sparkline-svg"
+            height="16"
+            role="img"
+            viewBox="0 0 64 16"
+            width="64"
+          >
+            <path
+              d="M1.00,1.00 L11.33,3.80 L21.67,8.00 L32.00,9.40 L42.33,10.80 L52.67,13.60 L63.00,15.00 L63.00,15.00 L1.00,15.00 Z"
+              data-testid="sparkline-fill"
+              fill="#ef4444"
+              fill-opacity="0.15"
+              stroke="none"
+            />
+            <polyline
+              data-testid="sparkline-line"
+              fill="none"
+              points="1.00,1.00 11.33,3.80 21.67,8.00 32.00,9.40 42.33,10.80 52.67,13.60 63.00,15.00"
+              stroke="#ef4444"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+            />
+          </svg>
+        </div>
       </a>
       <div
         class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0"
@@ -78,6 +136,35 @@ exports[`MarketsStrip — commodity tiles > renders GOLD, SILVER, and CRUDE tile
             +0.3%
           </span>
         </div>
+        <div
+          class="mt-0.5"
+        >
+          <svg
+            aria-label="7-day price trend"
+            data-testid="sparkline-svg"
+            height="16"
+            role="img"
+            viewBox="0 0 64 16"
+            width="64"
+          >
+            <path
+              d="M1.00,15.00 L11.33,12.45 L21.67,9.91 L32.00,7.36 L42.33,4.82 L52.67,2.27 L63.00,1.00 L63.00,15.00 L1.00,15.00 Z"
+              data-testid="sparkline-fill"
+              fill="#22c55e"
+              fill-opacity="0.15"
+              stroke="none"
+            />
+            <polyline
+              data-testid="sparkline-line"
+              fill="none"
+              points="1.00,15.00 11.33,12.45 21.67,9.91 32.00,7.36 42.33,4.82 52.67,2.27 63.00,1.00"
+              stroke="#22c55e"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+            />
+          </svg>
+        </div>
       </div>
       <div
         class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0"
@@ -96,10 +183,39 @@ exports[`MarketsStrip — commodity tiles > renders GOLD, SILVER, and CRUDE tile
             ₹83.50
           </span>
           <span
-            class="text-[11px] font-mono text-caption"
+            class="text-[11px] font-mono text-green-600 dark:text-green-400"
           >
-            —
+            +0.7%
           </span>
+        </div>
+        <div
+          class="mt-0.5"
+        >
+          <svg
+            aria-label="7-day price trend"
+            data-testid="sparkline-svg"
+            height="16"
+            role="img"
+            viewBox="0 0 64 16"
+            width="64"
+          >
+            <path
+              d="M1.00,15.00 L11.33,11.50 L21.67,8.00 L32.00,4.50 L42.33,6.60 L52.67,2.40 L63.00,1.00 L63.00,15.00 L1.00,15.00 Z"
+              data-testid="sparkline-fill"
+              fill="#22c55e"
+              fill-opacity="0.15"
+              stroke="none"
+            />
+            <polyline
+              data-testid="sparkline-line"
+              fill="none"
+              points="1.00,15.00 11.33,11.50 21.67,8.00 32.00,4.50 42.33,6.60 52.67,2.40 63.00,1.00"
+              stroke="#22c55e"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+            />
+          </svg>
         </div>
       </div>
       <div
@@ -119,10 +235,39 @@ exports[`MarketsStrip — commodity tiles > renders GOLD, SILVER, and CRUDE tile
             7.05%
           </span>
           <span
-            class="text-[11px] font-mono text-caption"
+            class="text-[11px] font-mono text-red-600 dark:text-red-400"
           >
-            —
+            -1.6%
           </span>
+        </div>
+        <div
+          class="mt-0.5"
+        >
+          <svg
+            aria-label="7-day price trend"
+            data-testid="sparkline-svg"
+            height="16"
+            role="img"
+            viewBox="0 0 64 16"
+            width="64"
+          >
+            <path
+              d="M1.00,1.00 L11.33,3.33 L21.67,8.00 L32.00,10.33 L42.33,10.33 L52.67,15.00 L63.00,12.67 L63.00,15.00 L1.00,15.00 Z"
+              data-testid="sparkline-fill"
+              fill="#ef4444"
+              fill-opacity="0.15"
+              stroke="none"
+            />
+            <polyline
+              data-testid="sparkline-line"
+              fill="none"
+              points="1.00,1.00 11.33,3.33 21.67,8.00 32.00,10.33 42.33,10.33 52.67,15.00 63.00,12.67"
+              stroke="#ef4444"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+            />
+          </svg>
         </div>
       </div>
       <div
@@ -147,6 +292,35 @@ exports[`MarketsStrip — commodity tiles > renders GOLD, SILVER, and CRUDE tile
             +0.8%
           </span>
         </div>
+        <div
+          class="mt-0.5"
+        >
+          <svg
+            aria-label="7-day price trend"
+            data-testid="sparkline-svg"
+            height="16"
+            role="img"
+            viewBox="0 0 64 16"
+            width="64"
+          >
+            <path
+              d="M1.00,15.00 L11.33,12.20 L21.67,9.40 L32.00,6.60 L42.33,5.20 L52.67,2.40 L63.00,1.00 L63.00,15.00 L1.00,15.00 Z"
+              data-testid="sparkline-fill"
+              fill="#22c55e"
+              fill-opacity="0.15"
+              stroke="none"
+            />
+            <polyline
+              data-testid="sparkline-line"
+              fill="none"
+              points="1.00,15.00 11.33,12.20 21.67,9.40 32.00,6.60 42.33,5.20 52.67,2.40 63.00,1.00"
+              stroke="#22c55e"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+            />
+          </svg>
+        </div>
       </div>
       <div
         class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0"
@@ -170,6 +344,35 @@ exports[`MarketsStrip — commodity tiles > renders GOLD, SILVER, and CRUDE tile
             -0.5%
           </span>
         </div>
+        <div
+          class="mt-0.5"
+        >
+          <svg
+            aria-label="7-day price trend"
+            data-testid="sparkline-svg"
+            height="16"
+            role="img"
+            viewBox="0 0 64 16"
+            width="64"
+          >
+            <path
+              d="M1.00,15.00 L11.33,12.20 L21.67,9.40 L32.00,6.60 L42.33,3.80 L52.67,2.40 L63.00,1.00 L63.00,15.00 L1.00,15.00 Z"
+              data-testid="sparkline-fill"
+              fill="#ef4444"
+              fill-opacity="0.15"
+              stroke="none"
+            />
+            <polyline
+              data-testid="sparkline-line"
+              fill="none"
+              points="1.00,15.00 11.33,12.20 21.67,9.40 32.00,6.60 42.33,3.80 52.67,2.40 63.00,1.00"
+              stroke="#ef4444"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+            />
+          </svg>
+        </div>
       </div>
       <div
         class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0"
@@ -192,6 +395,35 @@ exports[`MarketsStrip — commodity tiles > renders GOLD, SILVER, and CRUDE tile
           >
             +1.2%
           </span>
+        </div>
+        <div
+          class="mt-0.5"
+        >
+          <svg
+            aria-label="7-day price trend"
+            data-testid="sparkline-svg"
+            height="16"
+            role="img"
+            viewBox="0 0 64 16"
+            width="64"
+          >
+            <path
+              d="M1.00,15.00 L11.33,9.17 L21.67,5.67 L32.00,3.33 L42.33,2.17 L52.67,1.58 L63.00,1.00 L63.00,15.00 L1.00,15.00 Z"
+              data-testid="sparkline-fill"
+              fill="#22c55e"
+              fill-opacity="0.15"
+              stroke="none"
+            />
+            <polyline
+              data-testid="sparkline-line"
+              fill="none"
+              points="1.00,15.00 11.33,9.17 21.67,5.67 32.00,3.33 42.33,2.17 52.67,1.58 63.00,1.00"
+              stroke="#22c55e"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+            />
+          </svg>
         </div>
       </div>
       <a
