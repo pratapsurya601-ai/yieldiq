@@ -1,0 +1,92 @@
+{
+  "banking": {
+    "photo_id": "photo-1450101499163-c8848c66ca85",
+    "photographer": "Etienne Martin",
+    "handle": "etiennemartin"
+  },
+  "nbfc": {
+    "photo_id": "photo-1611974789855-9c2a0a7236a3",
+    "photographer": "Jakub \u017berdzicki",
+    "handle": "jakubzerdzicki"
+  },
+  "insurance": {
+    "photo_id": "photo-1450101499163-c8848c66ca85",
+    "photographer": "Etienne Martin",
+    "handle": "etiennemartin"
+  },
+  "it_services": {
+    "photo_id": "photo-1497366216548-37526070297c",
+    "photographer": "Copernico",
+    "handle": "copernicowork"
+  },
+  "fmcg": {
+    "photo_id": "photo-1542838132-92c53300491e",
+    "photographer": "nrd",
+    "handle": "nrd"
+  },
+  "auto": {
+    "photo_id": "photo-1492144534655-ae79c964c9d7",
+    "photographer": "Robin Vet",
+    "handle": "rvet"
+  },
+  "pharma": {
+    "photo_id": "photo-1576091160399-112ba8d25d1d",
+    "photographer": "National Cancer Institute",
+    "handle": "nci"
+  },
+  "energy_oil_gas": {
+    "photo_id": "photo-1503694978374-8a2fa686963a",
+    "photographer": "Robin Sommer",
+    "handle": "rommer"
+  },
+  "power_utilities": {
+    "photo_id": "photo-1473341304170-971dccb5ac1e",
+    "photographer": "Matthew Henry",
+    "handle": "matthewhenry"
+  },
+  "metals_mining": {
+    "photo_id": "photo-1581094271901-8022df4466f9",
+    "photographer": "Dominik Vanyi",
+    "handle": "dominikvanyi"
+  },
+  "cement_construction": {
+    "photo_id": "photo-1503387762-592deb58ef4e",
+    "photographer": "Scott Blake",
+    "handle": "sunburned_surveyor"
+  },
+  "industrials_capgoods": {
+    "photo_id": "photo-1565043666747-69f6646db940",
+    "photographer": "Lenny Kuhne",
+    "handle": "lennykuhne"
+  },
+  "telecom": {
+    "photo_id": "photo-1494522855154-9297ac14b55f",
+    "photographer": "Frantzou Fleurine",
+    "handle": "frantzou"
+  },
+  "realestate_reits": {
+    "photo_id": "photo-1486406146926-c627a92ad1ab",
+    "photographer": "Sean Pollock",
+    "handle": "seanpollock"
+  },
+  "consumer_retail": {
+    "photo_id": "photo-1481437156560-3205f6a55735",
+    "photographer": "Heidi Fin",
+    "handle": "heidifin"
+  },
+  "agri_chemicals": {
+    "photo_id": "photo-1500382017468-9049fed747ef",
+    "photographer": "Federico Respini",
+    "handle": "federicorespini"
+  },
+  "media_entertainment": {
+    "photo_id": "photo-1485846234645-a62644f84728",
+    "photographer": "Jakob Owens",
+    "handle": "jakobowens1"
+  },
+  "default": {
+    "photo_id": "photo-1444723121867-7a241cacace9",
+    "photographer": "Sean Pollock",
+    "handle": "seanpollock"
+  }
+}

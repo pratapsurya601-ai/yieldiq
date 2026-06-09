@@ -1717,6 +1717,8 @@ export default function AnalysisBody({ ticker, prism }: Props) {
                 ticker={data.ticker}
                 displayTicker={company.ticker}
                 companyName={formatCompanyName(company.company_name)}
+                sector={company.sector}
+                exchange={exchange}
                 currentPrice={displayPrice}
                 currency={company.currency}
                 marginOfSafetyPct={displayMos}
