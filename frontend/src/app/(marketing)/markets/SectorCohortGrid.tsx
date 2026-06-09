@@ -10,8 +10,8 @@
 // landing page.
 //
 // SEBI watch: the only on-tile signal is the descriptive median MoS
-// number plus the constituent count. No verbs like buy/sell, no
-// superlatives. The CTA reads "Sector page →" — purely navigational.
+// number plus the constituent count. Action verbs are absent, and
+// no superlatives. The CTA reads "Sector page →" — purely navigational.
 
 import { useQuery } from "@tanstack/react-query"
 import Link from "next/link"

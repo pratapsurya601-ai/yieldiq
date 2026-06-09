@@ -18,8 +18,8 @@
 //      a recent row. Hidden entirely on empty.
 //   7. Disclaimer.
 //
-// SEBI-safe throughout: descriptive language only. No buy/sell/pick
-// verbs, no superlatives. The model-output panels (movers, cohort
+// SEBI-safe throughout: descriptive language only. Action verbs and
+// superlatives are absent. The model-output panels (movers, cohort
 // medians) carry explicit "not advice" framing via the page-bottom
 // disclaimer.
 //
