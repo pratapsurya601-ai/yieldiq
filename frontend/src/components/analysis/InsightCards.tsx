@@ -58,6 +58,65 @@ interface CardData {
   freshnessPrefix?: string
 }
 
+// ── YieldIQ vs Street agreement classifier ──────────────────
+// Sprint A3 (2026-06-09): single source of truth for the
+// "We agree with the Street within +/- X%" copy rendered both on
+// the compact analyst card and on the larger AnalystConsensusPanel.
+// Three observation bands, factual framings only:
+//   - aligned  (< 5% gap)   -> "We agree with the Street within +/- 5%."
+//   - moderate (5-15% gap)  -> "Our model points X% above/below the Street consensus."
+//   - diverge  (>= 15% gap) -> "Our model diverges X% from the Street -- see Reverse-DCF for the implied growth gap."
+// All copy is SEBI-safe by construction. Above / below are used here
+// only as directional descriptors of one number relative to another
+// (third-party reference data), not as advisory verdicts.
+export type AgreementBand = "aligned" | "moderate" | "diverge"
+export interface Agreement {
+  band: AgreementBand
+  /** absolute percentage gap, e.g. 12.4 for 12.4% */
+  gapPct: number
+  /** signed direction relative to the Street: +X% means YieldIQ > Street */
+  signedPct: number
+  /** Short one-liner suitable for a compact card subtitle. */
+  short: string
+  /** Longer prose suitable for the larger AnalystConsensusPanel. */
+  long: string
+}
+export function classifyAgreement(
+  ourFv: number | null | undefined,
+  street: number | null | undefined,
+): Agreement | null {
+  if (ourFv === null || ourFv === undefined || !Number.isFinite(ourFv) || ourFv <= 0) return null
+  if (street === null || street === undefined || !Number.isFinite(street) || street <= 0) return null
+  const signed = ((ourFv - street) / street) * 100
+  const gap = Math.abs(signed)
+  const dir = signed >= 0 ? "above" : "below"
+  if (gap < 5) {
+    return {
+      band: "aligned",
+      gapPct: gap,
+      signedPct: signed,
+      short: "We agree with the Street within +/- 5%.",
+      long: "Our model points within +/- 5% of the Street consensus -- the two valuations corroborate one another.",
+    }
+  }
+  if (gap < 15) {
+    return {
+      band: "moderate",
+      gapPct: gap,
+      signedPct: signed,
+      short: `Our model points ${gap.toFixed(1)}% ${dir} the Street.`,
+      long: `Our model points ${gap.toFixed(1)}% ${dir} the Street consensus. See Reverse-DCF to dial in your own growth assumption and reconcile the gap.`,
+    }
+  }
+  return {
+    band: "diverge",
+    gapPct: gap,
+    signedPct: signed,
+    short: `Our model diverges ${gap.toFixed(1)}% from the Street.`,
+    long: `Our model diverges ${gap.toFixed(1)}% from the Street consensus. See Reverse-DCF for the implied growth gap that would close it.`,
+  }
+}
+
 // ── Helpers for the financial-ratio cards ────────────────────
 // NOTE (2026-04-22, fix/day2-stockdetail): ROCE / Debt-EBITDA /
 // Interest Coverage cards used to live here too. They duplicated
@@ -383,93 +442,123 @@ export default function InsightCards({ quality, insights, valuation, currency, t
       return empty
     })(),
     (() => {
-      // FIX-SEBI-COMPLIANCE (2026-04-23, Gap 3): renamed from
-      // "Wall Street Target" -> "Analyst Consensus (third-party)".
-      // 2026-04-29 (feat/analyst): when the backend returns a
-      // populated analyst_consensus block, surface the consensus
-      // RATING (Buy/Hold/Sell) on the card with a colored border;
-      // the dedicated <AnalystConsensusPanel/> below carries the
-      // full rating distribution + price-target detail. Falls back
-      // to the legacy median-target rendering for old cached
-      // payloads (no analyst_consensus field present).
+      // Sprint A3 (2026-06-09, feat/sprint-a3-analyst-target-reframe):
+      // Reframe the analyst card so it stops reading apologetically when
+      // no broker desk covers the name. Two states:
+      //
+      //   WITH-DATA  -> headline the YieldIQ FV (this product's number),
+      //                 show the Street median right next to it, and let
+      //                 the disagreement BE the insight via the
+      //                 classifyAgreement helper (<5% / 5-15% / >15%).
+      //   NO-DATA    -> keep the "Independent" framing but tighten the
+      //                 copy so it reads confidently. Many of the best
+      //                 opportunities sit outside the coverage universe.
+      //
+      // Both branches stay SEBI-clean: agreement copy routes through
+      // classifyAgreement so vocabulary lives in one place. The richer
+      // rating-distribution / price-target panel below
+      // (AnalystConsensusPanel) still renders in the with-data case and
+      // now carries the same agreement line for users who scroll past
+      // the compact card.
+      const ourFv =
+        valuation && Number.isFinite(valuation.fair_value) ? valuation.fair_value : null
+      const modelConf =
+        valuation && Number.isFinite(valuation.model_confidence_score as number)
+          ? (valuation.model_confidence_score as number)
+          : null
       if (hasCoverage && analystConsensus) {
-        // Backend sanitizes raw Finnhub Buy/Sell/Hold to SEBI-compliant
-        // neutral labels at the boundary (see
-        // backend/services/finnhub_analyst_service._consensus_label).
-        // We match on those neutral tokens here so display strings on
-        // this surface never carry advisory vocabulary.
-        const rating = analystConsensus.consensus_rating || "Coverage"
-        const rl = rating.toLowerCase()
-        const ratingColor =
-          rl.includes("favorable") ? "text-tone-info-fg"
-          : rl.includes("neutral")  ? "text-tone-warn-fg"
-          : rl.includes("cautious") ? "text-tone-bad-fg"
-          : "text-body"
-        const ratingBorder =
-          rl.includes("highly favorable") ? "border-l-blue-600"
-          : rl.includes("favorable")      ? "border-l-blue-500"
-          : rl.includes("neutral")        ? "border-l-amber-500"
-          : rl.includes("cautious")       ? "border-l-red-500"
-          : "border-l-border"
         const cnt = analystConsensus.coverage_count
-        const tgt = analystConsensus.price_target?.median ?? analystConsensus.price_target?.mean ?? null
-        const vsPct = analystConsensus.price_target?.vs_current_pct ?? null
-        const subBits: string[] = [`${cnt} analyst${cnt !== 1 ? "s" : ""}`]
-        if (tgt && tgt > 0) {
-          const pctSuffix = vsPct !== null
-            ? ` (${vsPct >= 0 ? "+" : ""}${vsPct.toFixed(1)}%)`
-            : ""
-          subBits.push(`Target ${formatCurrency(tgt, currency)}${pctSuffix}`)
+        const street =
+          analystConsensus.price_target?.median ?? analystConsensus.price_target?.mean ?? null
+        const ourFmt = ourFv !== null && ourFv > 0 ? formatCurrency(ourFv, currency) : null
+        const streetFmt = street !== null && street > 0 ? formatCurrency(street, currency) : null
+        const agreement = classifyAgreement(ourFv, street)
+        const subBits: string[] = []
+        if (streetFmt) {
+          subBits.push(`Street: ${streetFmt} (${cnt} analyst${cnt !== 1 ? "s" : ""})`)
         }
+        if (agreement) subBits.push(agreement.short)
+        const confidenceSuffix =
+          modelConf !== null ? `, model confidence ${Math.round(modelConf)}%` : ""
+        // Color + border come from the agreement band so the eye
+        // catches "Street aligns with us" vs "we diverge from the
+        // Street" without reading the subtitle.
+        const borderClass =
+          agreement?.band === "aligned" ? "border-l-blue-500"
+          : agreement?.band === "moderate" ? "border-l-amber-500"
+          : agreement?.band === "diverge" ? "border-l-red-500"
+          : "border-l-border"
+        const valueColor =
+          agreement?.band === "aligned" ? "text-tone-info-fg"
+          : agreement?.band === "moderate" ? "text-tone-warn-fg"
+          : agreement?.band === "diverge" ? "text-tone-bad-fg"
+          : "text-body"
         return {
           title: "Analyst Consensus (third-party)",
-          value: rating,
-          subtitle: subBits.join(" \u00b7 "),
+          // Value line = YieldIQ first (that is OUR number); Street
+          // shows up in the subtitle alongside the agreement framing.
+          value: ourFmt ? `YieldIQ: ${ourFmt}` : streetFmt ?? "\u2014",
+          subtitle:
+            subBits.length > 0 ? subBits.join(" \u00b7 ") : `DCF base case${confidenceSuffix}`,
           source: "Source: Finnhub \u2014 reference data only, not investment advice.",
           freshnessAt: analystConsensus.as_of ?? insights.analyst_target_as_of ?? null,
           freshnessPrefix: "As of",
-          color: ratingColor,
+          color: valueColor,
           icon: "\u{1f3af}",
-          borderColor: ratingBorder,
+          borderColor: borderClass,
         } as CardData
       }
-      // Explicit "no coverage" branch (analyst_consensus present but
-      // coverage_count == 0): de-emphasize per spec \u2014 italic caption,
-      // no scary "No coverage" headline.
-      if (analystConsensus && analystConsensus.coverage_count === 0) {
+      // Pre-feat/analyst legacy payload that DOES carry a Street number
+      // on the flat insights object -- render the same YieldIQ vs Street
+      // comparison off that field so older cached responses get the
+      // reframe too.
+      const legacyStreet = insights.wall_street_avg_target
+      if (legacyStreet !== null && legacyStreet !== undefined && legacyStreet > 0) {
+        const cnt = insights.wall_street_target_count
+        const ourFmt = ourFv !== null && ourFv > 0 ? formatCurrency(ourFv, currency) : null
+        const streetFmt = formatCurrency(legacyStreet, currency)
+        const agreement = classifyAgreement(ourFv, legacyStreet)
+        const analystCount =
+          cnt !== null && cnt !== undefined && cnt > 0
+            ? `${cnt} analyst${cnt !== 1 ? "s" : ""}`
+            : "Analyst consensus"
+        const subBits: string[] = [`Street: ${streetFmt} (${analystCount})`]
+        if (agreement) subBits.push(agreement.short)
+        const borderClass =
+          agreement?.band === "aligned" ? "border-l-blue-500"
+          : agreement?.band === "moderate" ? "border-l-amber-500"
+          : agreement?.band === "diverge" ? "border-l-red-500"
+          : "border-l-border"
         return {
           title: "Analyst Consensus (third-party)",
-          value: "Independent",
-          subtitle: "Not tracked by broker research desks \u2014 YieldIQ values this stock from first-principles DCF; broker coverage isn't an input to our fair value.",
-          subtitleColor: "text-caption italic",
+          value: ourFmt ? `YieldIQ: ${ourFmt}` : streetFmt,
+          subtitle: subBits.join(" \u00b7 "),
           source: "Source: Finnhub \u2014 reference data only, not investment advice.",
-          color: "text-caption",
+          freshnessAt: insights.analyst_target_as_of ?? null,
+          freshnessPrefix: "As of",
+          color: "text-body",
           icon: "\u{1f3af}",
-          borderColor: "border-l-border",
+          borderColor: borderClass,
         } as CardData
       }
-      // Legacy back-compat: pre-feat/analyst cached payloads have no
-      // analyst_consensus field; render off the historical
-      // wall_street_avg_target / wall_street_target_count fields.
+      // Truly no analyst coverage. Reframe as "Independent valuation":
+      // many of the best opportunities sit outside the coverage universe
+      // and broker coverage is not required for YieldIQ to estimate
+      // intrinsic value from first-principles DCF.
+      const ourFmt = ourFv !== null && ourFv > 0 ? formatCurrency(ourFv, currency) : null
+      const confidenceSuffix =
+        modelConf !== null ? `, model confidence ${Math.round(modelConf)}%` : ""
+      const indepSubtitle = ourFmt
+        ? `No third-party analyst coverage. YieldIQ values this name from first-principles DCF \u2014 many of the best opportunities sit outside the coverage universe. YieldIQ: ${ourFmt} (DCF base case${confidenceSuffix}).`
+        : "No third-party analyst coverage. YieldIQ values this name from first-principles DCF \u2014 many of the best opportunities sit outside the coverage universe."
       return {
-      title: "Analyst Consensus (third-party)",
-      value: insights.wall_street_avg_target !== null && insights.wall_street_avg_target > 0
-        ? formatCurrency(insights.wall_street_avg_target, currency)
-        : "Independent",
-      subtitle: insights.wall_street_target_count !== null && insights.wall_street_target_count > 0
-        ? `${insights.wall_street_target_count} analyst${insights.wall_street_target_count !== 1 ? "s" : ""}`
-        : insights.wall_street_avg_target !== null && insights.wall_street_avg_target > 0
-          ? "Analyst consensus"
-          : "Not tracked by broker research desks — YieldIQ values this stock from first-principles DCF; broker coverage isn't an input to our fair value.",
-      source: "Source: Finnhub \u2014 reference data only, not investment advice.",
-      // feat/freshness-stamps: tell the user how fresh the consensus
-      // number is. Backend stamps with compute time whenever any
-      // target data is present; null → stamp is omitted entirely.
-      freshnessAt: insights.analyst_target_as_of ?? null,
-      freshnessPrefix: "As of",
-      color: "text-body",
-      icon: "\u{1f3af}",
-      borderColor: "border-l-border",
+        title: "Analyst Coverage",
+        value: "Independent",
+        subtitle: indepSubtitle,
+        source: "Source: Finnhub \u2014 reference data only, not investment advice.",
+        color: "text-body",
+        icon: "\u{1f3af}",
+        borderColor: "border-l-border",
       } as CardData
     })(),
     (() => {
@@ -558,6 +647,7 @@ export default function InsightCards({ quality, insights, valuation, currency, t
           data={analystConsensus}
           currency={currency}
           ticker={ticker}
+          valuation={valuation}
         />
       ) : null}
 
@@ -627,9 +717,12 @@ interface AnalystConsensusPanelProps {
   data: import("@/types/api").AnalystConsensus
   currency?: string | null
   ticker?: string
+  /** Sprint A3: lets the panel render YieldIQ FV alongside the
+   *  Street median + the "We agree within +/- X%" agreement line. */
+  valuation?: ValuationOutput
 }
 
-function AnalystConsensusPanel({ data, currency, ticker: _ticker }: AnalystConsensusPanelProps) {
+function AnalystConsensusPanel({ data, currency, ticker: _ticker, valuation }: AnalystConsensusPanelProps) {
   const dist = data.rating_distribution
   const total = dist
     ? dist.strong_buy + dist.buy + dist.hold + dist.sell + dist.strong_sell
@@ -708,6 +801,108 @@ function AnalystConsensusPanel({ data, currency, ticker: _ticker }: AnalystConse
             ))}
           </div>
         </div>
+      ) : null}
+
+      {/* Sprint A3 (2026-06-09): YieldIQ vs Street headline pair +
+          agreement classification + inline low/avg/high vertical bar
+          with YieldIQ marker. Lifts the disagreement to the FIRST
+          thing the user reads inside this panel so the comparison
+          frame matches the compact card above. */}
+      {pt && (pt.median || pt.mean) && valuation && Number.isFinite(valuation.fair_value) && valuation.fair_value > 0 ? (
+        (() => {
+          const street = pt.median ?? pt.mean ?? null
+          const ourFv = valuation.fair_value
+          const modelConf =
+            Number.isFinite(valuation.model_confidence_score as number)
+              ? (valuation.model_confidence_score as number)
+              : null
+          const agreement = classifyAgreement(ourFv, street)
+          const ban = agreement?.band
+          const txtCls =
+            ban === "aligned" ? "text-tone-info-fg"
+            : ban === "moderate" ? "text-tone-warn-fg"
+            : ban === "diverge" ? "text-tone-bad-fg"
+            : "text-body"
+          return (
+            <div className="mb-4">
+              <div className="grid grid-cols-2 gap-3 mb-2">
+                <div>
+                  <p className="text-[11px] text-caption">Wall St avg target</p>
+                  <p className="text-base font-semibold text-body">
+                    {street ? formatCurrency(street, currency) : "—"}
+                  </p>
+                  <p className="text-[11px] text-caption">
+                    {data.coverage_count} analyst{data.coverage_count !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[11px] text-caption">YieldIQ fair value</p>
+                  <p className="text-base font-semibold text-body">
+                    {formatCurrency(ourFv, currency)}
+                  </p>
+                  <p className="text-[11px] text-caption">
+                    DCF base case{modelConf !== null ? `, model confidence ${Math.round(modelConf)}%` : ""}
+                  </p>
+                </div>
+              </div>
+              {/* Inline low/avg/high horizontal bar with markers. The
+                  filled span is the Street low->high range; a dot
+                  marks the consensus mean/median; a vertical line
+                  marks the YieldIQ FV. Skipped when low/high are
+                  missing -- the agreement line below still renders. */}
+              {pt.low && pt.high && pt.high > pt.low ? (
+                (() => {
+                  const lo = pt.low
+                  const hi = pt.high
+                  const mid = street ?? (lo + hi) / 2
+                  const span = hi - lo
+                  // Extend axis if YieldIQ falls outside the Street range
+                  // so the marker is always visible inside the bar.
+                  const axisLo = Math.min(lo, ourFv) - span * 0.05
+                  const axisHi = Math.max(hi, ourFv) + span * 0.05
+                  const axisSpan = axisHi - axisLo
+                  const pct = (v: number) => `${((v - axisLo) / axisSpan) * 100}%`
+                  return (
+                    <div className="relative mt-1 mb-3 px-1" aria-label="Wall St target range with YieldIQ fair value marker">
+                      <div className="relative h-2 rounded-full bg-muted/30">
+                        {/* Street low->high band */}
+                        <div
+                          className="absolute h-2 rounded-full bg-blue-200 dark:bg-blue-900/50"
+                          style={{ left: pct(lo), width: `calc(${pct(hi)} - ${pct(lo)})` }}
+                        />
+                        {/* Street median dot */}
+                        <div
+                          className="absolute -top-0.5 w-3 h-3 rounded-full bg-blue-500 border border-white dark:border-bg shadow-sm"
+                          style={{ left: `calc(${pct(mid)} - 6px)` }}
+                          title={`Street consensus: ${formatCurrency(mid, currency)}`}
+                        />
+                        {/* YieldIQ FV vertical tick */}
+                        <div
+                          className={cn(
+                            "absolute -top-1 w-0.5 h-4",
+                            ban === "aligned" ? "bg-tone-info-fg"
+                            : ban === "moderate" ? "bg-tone-warn-fg"
+                            : ban === "diverge" ? "bg-tone-bad-fg"
+                            : "bg-body",
+                          )}
+                          style={{ left: pct(ourFv) }}
+                          title={`YieldIQ fair value: ${formatCurrency(ourFv, currency)}`}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[10px] text-caption mt-1">
+                        <span>{formatCurrency(lo, currency)}</span>
+                        <span>{formatCurrency(hi, currency)}</span>
+                      </div>
+                    </div>
+                  )
+                })()
+              ) : null}
+              {agreement ? (
+                <p className={cn("text-xs leading-snug", txtCls)}>{agreement.long}</p>
+              ) : null}
+            </div>
+          )
+        })()
       ) : null}
 
       {/* Price target range */}

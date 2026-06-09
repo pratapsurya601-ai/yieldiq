@@ -139,7 +139,14 @@ describe("InsightCards — empty-state copy (task #191)", () => {
     expect(screen.queryByText("No concerns detected")).toBeNull()
   })
 
-  it("renders the analyst card with the broker-research framing", () => {
+  it("renders the no-coverage card with the rewritten Sprint A3 Independent framing", () => {
+    // Sprint A3 (2026-06-09): the broker-research line was replaced
+    // with a confident "Independent valuation" framing that positions
+    // no-coverage as a feature (many of the best opportunities sit
+    // outside the coverage universe) rather than a missing third-party
+    // validation. The legacy "Not tracked by broker research desks"
+    // copy is gone -- it read as apologetic per the analysis-page
+    // competitor audit.
     render(
       <InsightCards
         quality={quality}
@@ -149,7 +156,11 @@ describe("InsightCards — empty-state copy (task #191)", () => {
       />
     )
     expect(
-      screen.getByText(/Not tracked by broker research desks/i)
+      screen.getByText(/many of the best opportunities sit outside the coverage universe/i)
     ).toBeInTheDocument()
+    // Old apologetic copy must be gone.
+    expect(
+      screen.queryByText(/Not tracked by broker research desks/i)
+    ).toBeNull()
   })
 })
