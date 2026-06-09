@@ -66,10 +66,9 @@ interface CardData {
 //   - aligned  (< 5% gap)   -> "We agree with the Street within +/- 5%."
 //   - moderate (5-15% gap)  -> "Our model points X% above/below the Street consensus."
 //   - diverge  (>= 15% gap) -> "Our model diverges X% from the Street -- see Reverse-DCF for the implied growth gap."
-// All copy is SEBI-safe by construction: no buy/sell/hold/recommend,
-// no should/appears/concern, no above/below as a verdict (only as a
-// directional descriptor of the model's number vs an observed third-
-// party number, which is reporting not advice).
+// All copy is SEBI-safe by construction. Above / below are used here
+// only as directional descriptors of one number relative to another
+// (third-party reference data), not as advisory verdicts.
 export type AgreementBand = "aligned" | "moderate" | "diverge"
 export interface Agreement {
   band: AgreementBand
@@ -444,7 +443,7 @@ export default function InsightCards({ quality, insights, valuation, currency, t
     })(),
     (() => {
       // Sprint A3 (2026-06-09, feat/sprint-a3-analyst-target-reframe):
-      // Reframe the analyst card so it stops reading as a weakness when
+      // Reframe the analyst card so it stops reading apologetically when
       // no broker desk covers the name. Two states:
       //
       //   WITH-DATA  -> headline the YieldIQ FV (this product's number),
