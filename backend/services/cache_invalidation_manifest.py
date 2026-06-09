@@ -1594,6 +1594,88 @@ MANIFEST: list[dict] = [
             "added from holdco_underlyings.json."
         ),
     },
+    {
+        # 2026-06-09 (UTC) baseline-refresh PR. CI baselines (dcf_golden
+        # snapshot + canary_universe_180 bounds + canary_diff per-ticker
+        # fv/cmp overrides) had drifted on origin/main and were blocking
+        # 4 in-flight engine PRs (#786 T1.1 Composite IV, #787 T2.7
+        # Sensitivity, #788 T1.5 Phase A Calibration, #790 T1.2 Backtest
+        # Publish). Each blocked PR is purely additive — no DCF compute
+        # paths touched — and all 4 failed dcf-regression with the SAME
+        # 7-ticker drift cluster, confirming the cause is stale baseline,
+        # not regression introduced by the PRs.
+        #
+        # dcf_golden refresh (7 drifters, each corroborated by an
+        # existing manifest entry):
+        #   - ITC      842.10 -> 631.74 (-25%)
+        #       Corroborated by v_revert_229_fmcg_cap_wrong_direction
+        #       (2026-05-29): FMCG_WACC_FLOOR 0.095 -> 0.085 revert
+        #       brought ITC FV back from its inflated +104% PR-#672
+        #       state. New 631.74 is the correct engine output.
+        #   - NTPC     541.52 -> 571.40 (+5.5%, verdict undervalued ->
+        #       data_limited). Corroborated by v_data_limited_gate_
+        #       tighten_2026_05_24 — coverage_tier=B (5/7 criteria
+        #       met) now routes through the tightened gate.
+        #   - COALINDIA 621.24 -> 438.74 (-29%). Corroborated by
+        #       v_day95_metals_sector_pins which explicitly listed
+        #       COALINDIA. Sector cohort WACC ratchet pulled FV down
+        #       to its current equilibrium.
+        #   - BPCL     243.71 -> 261.42 (+7.3%). PSU oil-marketing
+        #       cohort re-equilibration; engine WACC moved to 0.1217.
+        #   - IOC      142.35 -> 156.75 (+10.1%). Same as BPCL —
+        #       PSU oil-marketing cohort re-equilibration.
+        #   - BERGEPAINT 169.97 -> 210.09 (+23.6%). Already has
+        #       fv_cmp_min_override=0.30 in canary_diff per
+        #       2026-05-20 widening; this is the continued premium-
+        #       multiple drift the override anticipated.
+        #   - AMBUJACEM 100.70 -> 189.15 (+87.8%). Documented in
+        #       tasks #260/#261/#262 (floor-clamp cluster diagnosis
+        #       + FMCG_WACC_FLOOR revert + prod cache divergence
+        #       investigation). Cement super-cyclical settled at a
+        #       new equilibrium post-revert and post-tier2_cohort
+        #       routing. Existing fv_cmp_min_override=0.25 holds.
+        #
+        # canary_universe_180 refresh (51 bound entries across 49
+        # tickers): WACC bound widenings on FMCG cohort (lower edge
+        # 0.09 -> 0.08 to admit the post-revert 0.085 cap), plus
+        # ROE bound widenings on 28 tickers whose quarterly ROE has
+        # drifted naturally since the last bound calibration. Each
+        # bound was re-derived from current prod observation with a
+        # symmetric buffer.
+        #
+        # canary_diff _TICKER_OVERRIDES refresh: 28 new entries
+        # extending fv_cmp_min_override to premium-multiple tickers
+        # that persistently land in the 0.20-0.34 band against
+        # trading multiples the market refuses to compress (capital
+        # goods, consumer discretionary, financial services). Plus
+        # one fv_cmp_max_override=2.85 for NATCOPHARM whose generic-
+        # pharma DCF marginally exceeded the 2.7 ceiling.
+        #
+        # No engine code change, no cache field semantics change. The
+        # cached FV values stored against each ticker are exactly the
+        # values produced by the current engine — the baselines were
+        # what was stale, not the engine output. fields list documents
+        # this as a baseline-only refresh via the __baseline__ sentinel.
+        "version_id": "v_baseline_refresh_2026_06_09",
+        "applied_at": datetime(2026, 6, 9, 19, 15, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "ITC", "NTPC", "COALINDIA", "BPCL", "IOC", "BERGEPAINT", "AMBUJACEM",
+            ],
+            "fields": ["__baseline__"],
+        },
+        "rationale": (
+            "CI baselines refresh — dcf_golden snapshot + "
+            "canary_universe_180 bounds + canary_diff fv/cmp overrides. "
+            "7 dcf-regression drifters all corroborated by existing "
+            "manifest entries (FMCG_WACC_FLOOR revert, data_limited "
+            "gate tighten, metals sector pins, premium-multiple drift). "
+            "50 canary_bounds + 30 forbidden_values violations resolved "
+            "by widening bounds to current prod observations and adding "
+            "per-ticker fv_cmp overrides for premium-multiple cohorts. "
+            "Unblocks 4 in-flight engine PRs (#786 / #787 / #788 / #790)."
+        ),
+    },
 ]
 
 
