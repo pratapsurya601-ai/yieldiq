@@ -590,6 +590,33 @@ export const getTodayMovers = (
     .get("/api/v1/market/today-movers", { params: { cohort, limit } })
     .then(r => r.data)
 
+// ── Landing trust strip — public coverage stats ──
+// Real numbers for the 4-tile "stocks/logos/updates/sectors" strip
+// on the logged-out landing page. Every field is OPTIONAL; the
+// frontend hides any tile whose value is missing rather than render
+// "0" (which would look broken). 1h router-side cache.
+export interface CoverageStatsResponse {
+  /** ISO-8601 — when this response was built (NOT when engine changed). */
+  as_of: string
+  /** Active stocks in the coverage universe. */
+  stocks_covered?: number
+  /** Percentage of NIFTY 500 constituents with a real PNG logo on disk. */
+  nifty500_logo_coverage_pct?: number
+  /** Total cached DCF analyses ever computed. */
+  dcf_valuations_generated?: number
+  /** Distinct active sectors. */
+  sectors_covered?: number
+  /** Distinct quarterly financials rows backfilled. */
+  bank_quarters_backfilled?: number
+  /** ISO-8601 — latest cache-invalidation manifest entry. */
+  last_engine_update?: string
+  /** Always-present list of upstream data sources. */
+  data_sources: string[]
+}
+
+export const getCoverageStats = (): Promise<CoverageStatsResponse> =>
+  api.get("/api/v1/public/coverage-stats").then(r => r.data)
+
 // ── Sparklines (2026-06-09 — feat/home-sparklines-everywhere) ──
 // Batched 7-/30-day close-price series per ticker, powering the inline
 // SVG charts on the home-page panels. Server caps the list at 50; the

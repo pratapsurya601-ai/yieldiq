@@ -1035,6 +1035,13 @@ app.include_router(sparklines_router.router)
 from backend.routers import home_briefing as home_briefing_router
 app.include_router(home_briefing_router.router)
 
+# Logged-out landing "trust strip" — real coverage counters (stocks,
+# logos, sectors, last-engine-update). 1h router cache. SEBI-safe:
+# every field is descriptive coverage; no pick-quality claims.
+#   GET /api/v1/public/coverage-stats
+from backend.routers import public_stats as public_stats_router
+app.include_router(public_stats_router.router)
+
 
 @app.get("/health")
 async def health_check():

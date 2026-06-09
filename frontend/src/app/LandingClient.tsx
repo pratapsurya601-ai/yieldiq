@@ -10,6 +10,7 @@ import { ArrowRight, Play, History } from "lucide-react"
 import MarketingTopNav from "@/components/marketing/MarketingTopNav"
 import HomeSearchBar from "@/components/home/HomeSearchBar"
 import TickerAvatar from "@/components/common/TickerAvatar"
+import TrustStatsStrip from "@/components/landing/TrustStatsStrip"
 import { priceLabel, getLaunchDiscount, tierById } from "@/config/pricing"
 
 /* ── Scroll animation hook ───────────────────────────── */
@@ -429,6 +430,12 @@ function LandingContent() {
           </div>
         </div>
       </section>
+
+      {/* ── 1b. Trust stats strip ───────────────────────────
+          4-tile coverage indicator immediately below the hero
+          and above the pricing/feature sections. Real numbers
+          from /api/v1/public/coverage-stats — not vanity copy. */}
+      <TrustStatsStrip />
 
       {/* ── 2. Here's what you'll see (kept from a4426ce) ── */}
       <section id="how-it-works" className="bg-bg dark:bg-surface py-20 border-b border-gray-100">
