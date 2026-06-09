@@ -140,7 +140,20 @@ function Skeleton() {
   )
 }
 
-export default function MarketsStrip() {
+/**
+ * MarketsStrip props.
+ *
+ * sticky: when true (default, preserves /home behavior) the strip pins
+ * to the top of the viewport with `sticky top-0 z-30`. The /markets
+ * hub page passes sticky={false} because the page already has its
+ * own hero band — letting the strip stick a second time creates a
+ * visual double-band and conflicts with the page-level scroll layer.
+ */
+export interface MarketsStripProps {
+  sticky?: boolean
+}
+
+export default function MarketsStrip({ sticky = true }: MarketsStripProps = {}) {
   const { data: pulse, isLoading } = useQuery({
     queryKey: ["markets-strip"],
     queryFn: () => getMarketPulse(true),
@@ -172,8 +185,14 @@ export default function MarketsStrip() {
     return Array.isArray(v) && v.length >= 2 ? v : undefined
   }
 
+  // Sticky-mode classes preserved verbatim so the existing /home
+  // surface (and its snapshot test) is byte-identical. Only the
+  // /markets hub passes sticky={false}.
+  const wrapperClass = sticky
+    ? "bg-surface border-y border-border overflow-x-auto sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-surface/95"
+    : "bg-surface border-y border-border overflow-x-auto"
   return (
-    <div className="bg-surface border-y border-border overflow-x-auto sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-surface/95">
+    <div className={wrapperClass}>
       <div className="flex items-stretch min-w-max">
         {indices.map(idx => (
           <Cell

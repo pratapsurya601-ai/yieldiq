@@ -1,109 +1,119 @@
-// Markets hub — 2026-06-07.
+// Markets hub — Tickertape-style overview (2026-06-09 rewrite).
 //
-// Operator caught the MarketsStrip "Markets →" link sending users to
-// /discover (which shows random stock picks) instead of a markets-
-// overview surface. Three index dashboards already exist (`/nifty50`,
-// `/nifty-bank`, `/nifty-it`) plus the sector hub at `/sector`. This
-// page is a minimal honest aggregator: lists the index dashboards and
-// links to the sector hub, no live data of its own.
+// Replaces the prior 90-LOC placeholder (3 static index links + 1
+// "all sectors" CTA). The new layout reuses existing widgets:
 //
-// Future build: full Tickertape-style markets page with sector heatmap,
-// top gainers/losers, FII/DII flows, USD/INR + India 10Y panel. Today
-// this page just provides a non-misleading destination so the strip's
-// "Markets →" link doesn't lie about what's behind it.
+//   1. Page hero — descriptive, tightened copy.
+//   2. MarketsStrip (non-sticky) — live indices + macro tiles +
+//      commodities. Same component /home uses; sticky disabled so
+//      it doesn't visually conflict with the hub's own hero band.
+//   3. Index dashboards row — three named dashboards (NIFTY 50,
+//      NIFTY BANK, NIFTY IT), each enriched with the live level +
+//      1d change % from the same /pulse call MarketsStrip uses.
+//   4. Today's Movers — gainers + losers from the NIFTY 500.
+//   5. Sector cohort grid — every Day-108c cohort with its current
+//      median MoS + constituent count. Reuses the existing
+//      /api/v1/public/sector-rotation endpoint.
+//   6. Institutional flows (FII/DII) — when the macro service has
+//      a recent row. Hidden entirely on empty.
+//   7. Disclaimer.
 //
-// Static. No API calls. SEBI-lint clean — descriptive copy only.
+// SEBI-safe throughout: descriptive language only. No buy/sell/pick
+// verbs, no superlatives. The model-output panels (movers, cohort
+// medians) carry explicit "not advice" framing via the page-bottom
+// disclaimer.
+//
+// Server-rendered shell + selective client islands for the live
+// widgets (which depend on React-Query). The page itself stays a
+// server component for SEO + initial bytes.
 
 import type { Metadata } from "next"
 import Link from "next/link"
 
+import MarketsStrip from "@/components/home/v2/MarketsStrip"
+import TodaysMovers from "@/components/home/v2/TodaysMovers"
+import IndexDashboardsRow from "./IndexDashboardsRow"
+import SectorCohortGrid from "./SectorCohortGrid"
+import FlowsPanel from "./FlowsPanel"
+
 export const metadata: Metadata = {
-  title: "Markets — Indian Indices & Sectors | YieldIQ",
+  title: "Markets — Indices, sectors, commodities | YieldIQ",
   description:
-    "Browse NIFTY 50, NIFTY BANK, NIFTY IT, and all sector cohorts tracked by YieldIQ. Each index dashboard shows constituents, performance, and the cohort median valuation lens.",
+    "Indian indices, sector cohorts, and commodity panel at a glance. NIFTY 50, NIFTY BANK, NIFTY IT, top movers, sector median margin-of-safety, and institutional flows.",
+  openGraph: {
+    title: "Markets — Indices, sectors, commodities | YieldIQ",
+    description:
+      "Indian indices, sector cohorts, and commodity panel at a glance.",
+    url: "https://yieldiq.in/markets",
+    siteName: "YieldIQ",
+    type: "website",
+  },
+  alternates: { canonical: "https://yieldiq.in/markets" },
 }
-
-interface IndexEntry {
-  href: string
-  name: string
-  description: string
-}
-
-const INDEX_DASHBOARDS: IndexEntry[] = [
-  {
-    href: "/nifty50",
-    name: "NIFTY 50",
-    description:
-      "The 50 largest NSE-listed companies by free-float market cap. Sector breakdown, constituent table, and cohort median valuation lens.",
-  },
-  {
-    href: "/nifty-bank",
-    name: "NIFTY BANK",
-    description:
-      "The 12-stock NIFTY Bank index — public-sector and private-sector banks side by side. P/B and residual-income lens (banks don't use DCF).",
-  },
-  {
-    href: "/nifty-it",
-    name: "NIFTY IT",
-    description:
-      "The Indian IT services cohort — TCS, Infosys, Wipro, HCLTech, and second-tier exporters. Tier-1 vs Tier-2 segmentation built in.",
-  },
-]
 
 export default function MarketsHubPage() {
   return (
     <div className="min-h-screen bg-bg dark:bg-surface">
+      {/* Hero — tightened copy per spec. */}
       <section className="bg-gradient-to-br from-[#080E1A] via-[#0F172A] to-[#1E293B] py-12 sm:py-16">
-        <div className="max-w-4xl mx-auto px-4 text-center">
+        <div className="max-w-5xl mx-auto px-4 text-center">
           <h1 className="text-3xl sm:text-4xl font-black text-white mb-3">
             Markets
           </h1>
           <p className="text-caption">
-            Indian indices and sector cohorts tracked by YieldIQ.
+            Indian indices, sectors, commodities — at a glance.
           </p>
         </div>
       </section>
 
-      <section className="max-w-4xl mx-auto px-4 py-10">
-        <h2 className="text-sm font-bold uppercase tracking-wider text-ink mb-4">
-          Index dashboards
-        </h2>
-        <div className="grid sm:grid-cols-2 gap-3">
-          {INDEX_DASHBOARDS.map(idx => (
+      {/* MarketsStrip — non-sticky on this page. The strip itself is a
+          client component that fetches /api/v1/market/pulse. */}
+      <MarketsStrip sticky={false} />
+
+      <div className="max-w-5xl mx-auto px-4 py-10 space-y-10">
+        {/* Index dashboards — enriched with live level + 1d change. */}
+        <section>
+          <h2 className="text-sm font-bold uppercase tracking-wider text-ink mb-4">
+            Index dashboards
+          </h2>
+          <IndexDashboardsRow />
+        </section>
+
+        {/* Today's Movers — reuses /home component verbatim. */}
+        <section>
+          <TodaysMovers />
+        </section>
+
+        {/* Sector cohort grid — replaces the old single "Browse all
+            sectors" link with a per-cohort tile carrying median MoS +
+            constituent count. */}
+        <section>
+          <div className="flex items-baseline justify-between gap-3 mb-4">
+            <h2 className="text-sm font-bold uppercase tracking-wider text-ink">
+              Sector cohorts
+            </h2>
             <Link
-              key={idx.href}
-              href={idx.href}
-              className="block bg-bg dark:bg-surface border border-border rounded-xl p-5 hover:border-blue-300 hover:shadow-sm transition"
+              href="/sector"
+              className="text-xs font-semibold text-brand hover:underline"
             >
-              <p className="text-base font-bold text-ink mb-1">{idx.name}</p>
-              <p className="text-xs text-caption">{idx.description}</p>
+              All sectors →
             </Link>
-          ))}
-        </div>
+          </div>
+          <SectorCohortGrid />
+        </section>
 
-        <h2 className="text-sm font-bold uppercase tracking-wider text-ink mt-12 mb-4">
-          Sector cohorts
-        </h2>
-        <Link
-          href="/sector"
-          className="block bg-bg dark:bg-surface border border-border rounded-xl p-5 hover:border-blue-300 hover:shadow-sm transition"
-        >
-          <p className="text-base font-bold text-ink mb-1">
-            Browse all sectors →
-          </p>
-          <p className="text-xs text-caption">
-            IT services, FMCG, auto, capital goods, pharma, utilities,
-            banking, metals, cyclical. Each sector page shows the cohort
-            median score, margin of safety, and a sortable constituent table.
-          </p>
-        </Link>
+        {/* Institutional flows — FII + DII net for the most recent
+            NSE day. Component returns null when data is missing so
+            we don't render an empty header on the page. */}
+        <FlowsPanel />
 
-        <p className="text-[10px] text-caption text-center mt-10 max-w-xl mx-auto">
-          Index and sector pages display model output for educational and
-          informational use. Not investment advice. YieldIQ is not a
-          SEBI-registered investment adviser.
+        <p className="text-[10px] text-caption text-center mt-10 max-w-2xl mx-auto">
+          Index, sector, and flow data display model output and
+          third-party feeds for educational and informational use. Not
+          investment advice. YieldIQ is not a SEBI-registered investment
+          adviser.
         </p>
-      </section>
+      </div>
     </div>
   )
 }
