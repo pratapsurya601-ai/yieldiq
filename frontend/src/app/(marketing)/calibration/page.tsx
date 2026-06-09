@@ -16,9 +16,8 @@ import Link from "next/link"
  * the actual price, sector by sector?" trust surface.
  *
  * SEBI: every field is a factual calibration metric. No advisory
- * vocabulary. No "best in class" / "strong accuracy" claims — the
- * copy is neutral throughout and the empty state is honest about
- * coverage gaps.
+ * vocabulary. No quality claims of any kind — the copy is neutral
+ * throughout and the empty state is honest about coverage gaps.
  */
 
 export const dynamic = "force-static"
