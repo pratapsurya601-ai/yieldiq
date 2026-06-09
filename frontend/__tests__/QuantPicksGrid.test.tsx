@@ -22,6 +22,8 @@ vi.mock("@/lib/api", () => ({
 
 import { runPreset, runScreener } from "@/lib/api"
 import QuantPicksGrid from "@/components/home/v2/QuantPicksGrid"
+import { QUANT_PRESETS } from "@/components/home/v2/quantPicksPresets"
+import { SCREENER_PRESETS } from "@/lib/screenerFilters"
 
 function renderWithClient(ui: React.ReactElement) {
   const client = new QueryClient({
@@ -185,5 +187,30 @@ describe("QuantPicksGrid", () => {
     expect(text).not.toContain("buy")
     expect(text).not.toContain("recommend") // sebi-allow: recommend
     expect(text).not.toContain("outperform") // sebi-allow: outperform
+  })
+
+  it("each tile href targets a frontend SCREENER_PRESETS key (deep-link bug fix)", () => {
+    // Pins the P1 fix: tile hrefs MUST use canonical frontend preset
+    // keys (high_quality / deep_value / ...) so /screener?preset=<key>
+    // resolves directly via applyPreset without depending on the alias
+    // map. The OLD hrefs used backend preset names (buffett /
+    // deep-value / growth-quality) and one tile used loose ?min_score
+    // / ?min_mos params that the screener page never read — every tile
+    // was a dead-link by construction.
+    const frontendKeys = new Set(SCREENER_PRESETS.map((p) => p.key))
+
+    for (const tile of QUANT_PRESETS) {
+      // href must be /screener?preset=<key> shape (no loose params).
+      expect(tile.href).toMatch(/^\/screener\?preset=[a-z_]+$/)
+
+      // The preset key portion must be a canonical frontend preset key.
+      const url = new URL(tile.href, "http://localhost")
+      const preset = url.searchParams.get("preset")
+      expect(preset, `tile ${tile.key} href ${tile.href}`).not.toBeNull()
+      expect(
+        frontendKeys.has(preset as string),
+        `tile ${tile.key} href preset "${preset}" must be a frontend SCREENER_PRESETS key`,
+      ).toBe(true)
+    }
   })
 })
