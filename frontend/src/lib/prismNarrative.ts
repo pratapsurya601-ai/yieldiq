@@ -24,6 +24,66 @@ export interface PrismAxes {
   value: number
 }
 
+// Display label for each axis key. Kept inside this module so the
+// narrative copy stays self-contained — Prism callers already deal
+// with their own labels at render time.
+const PILLAR_DISPLAY: Record<keyof PrismAxes, string> = {
+  pulse:   "Pulse",
+  quality: "Quality",
+  moat:    "Moat",
+  safety:  "Safety",
+  growth:  "Growth",
+  value:   "Value",
+}
+
+// Bug 8 (P2, 2026-06-09): the original fall-through "A balanced
+// profile across the six pillars." copy fired indiscriminately when
+// none of the explicit threshold rules above matched — even when the
+// underlying pillars ran from 2 to 8 (clearly not balanced).
+//
+// We re-derive the fall-through with three sub-cases keyed off the
+// max-min RANGE across the six axes:
+//
+//   range < 1.5   "Tightly balanced — every pillar within 1.5 of the others."
+//   range < 3.0   "Mostly balanced — {top} leads at X.X, {bottom} trails at Y.Y."
+//   range >= 3.0  "{top} leads (X.X) while {bottom} lags (Y.Y) — uneven across pillars."
+//
+// SEBI-safe: "leads", "trails", "lags", "uneven", "balanced" are
+// purely descriptive — none on the banned-vocab list. The threshold
+// at 1.5 is the same units the YieldIQ Prism pillar scoring uses
+// (0..10 scale, one decimal place), so "within 1.5" is meaningful.
+function fallbackBalancedNarrative(axes: PrismAxes): string {
+  // Six axes the Prism actually draws — Pulse is intentionally
+  // excluded from the explicit rules above ("pace, not shape") but
+  // it IS one of the six pillars the original copy referenced, so
+  // include it in the variance check.
+  const entries = (Object.keys(axes) as (keyof PrismAxes)[]).map((k) => ({
+    key: k,
+    score: axes[k],
+  }))
+  let topIdx = 0
+  let botIdx = 0
+  for (let i = 1; i < entries.length; i++) {
+    if (entries[i].score > entries[topIdx].score) topIdx = i
+    if (entries[i].score < entries[botIdx].score) botIdx = i
+  }
+  const top = entries[topIdx]
+  const bot = entries[botIdx]
+  const range = top.score - bot.score
+
+  if (range < 1.5) {
+    return "Tightly balanced — every pillar within 1.5 of the others."
+  }
+  const topName = PILLAR_DISPLAY[top.key]
+  const botName = PILLAR_DISPLAY[bot.key]
+  const topStr = top.score.toFixed(1)
+  const botStr = bot.score.toFixed(1)
+  if (range < 3.0) {
+    return `Mostly balanced — ${topName} leads at ${topStr}, ${botName} trails at ${botStr}.`
+  }
+  return `${topName} leads (${topStr}) while ${botName} lags (${botStr}) — uneven across pillars.`
+}
+
 /**
  * Build the one-sentence narrative caption for a Prism shape. Rules
  * are evaluated in priority order (first match wins) so the most
@@ -34,7 +94,9 @@ export interface PrismAxes {
  */
 export function generatePrismNarrative(axes: PrismAxes): string {
   const { pulse, quality, moat, safety, growth, value } = axes
-  void pulse // pulse intentionally unused in copy — pace, not shape
+  void pulse // pulse intentionally unused in the explicit threshold
+  // rules below — it's pace, not shape — but it IS factored into the
+  // fall-through variance check (Bug 8 fix).
 
   if (quality >= 7 && value >= 7) {
     return "Quality and value pillars both score above 7."
@@ -64,7 +126,9 @@ export function generatePrismNarrative(axes: PrismAxes): string {
     return "Value is above 6 while growth sits at or below 3."
   }
 
-  return "A balanced profile across the six pillars."
+  // Bug 8 fix: discriminate the fall-through by max-min variance so
+  // genuinely uneven pillar configurations stop reading as "balanced".
+  return fallbackBalancedNarrative(axes)
 }
 
 /**

@@ -195,9 +195,33 @@ def test_dirty_llm_response_falls_through_to_template(ctx):
         assert svc._find_banned(b) is None, (
             f"banned word leaked into template for {ctx.ticker}: {b!r}"
         )
-    # Template anchors on price/fair value.
+    # Template anchors on the model fair value reference. The bullet
+    # MUST NOT cite a specific live price as an absolute rupee figure
+    # (Bug 7 fix — that number goes stale within minutes of caching).
     joined = " ".join(result.bullets)
-    assert "trades at" in joined or "fair value" in joined
+    assert "fair value" in joined
+    # Discount or premium framing is the new contract for bullet 1
+    # whenever a verdict + MoS pair is available.
+    if ctx.verdict.lower() == "undervalued":
+        assert "discount" in joined.lower(), (
+            f"undervalued template should frame as discount: {joined!r}"
+        )
+    elif ctx.verdict.lower() == "overvalued":
+        assert "premium" in joined.lower(), (
+            f"overvalued template should frame as premium: {joined!r}"
+        )
+    elif ctx.verdict.lower() == "fairly_valued":
+        assert "in line" in joined.lower(), (
+            f"fairly_valued template should frame as in-line: {joined!r}"
+        )
+    # Live current price must NOT appear as a verbatim Rs figure in
+    # the template (the live quote ticks; this bullet is day-cached).
+    if ctx.current_price is not None:
+        price_token = f"Rs {ctx.current_price:,.0f}"
+        assert price_token not in joined, (
+            f"template leaked the live current price {price_token!r} into "
+            f"the bullets (Bug 7 regression): {joined!r}"
+        )
 
 
 # ── 3. Cache: missing client + missing call_llm -> template_no_llm.
@@ -369,3 +393,84 @@ def test_disclaimer_is_dated_and_links_playground():
     assert "Not advice" in msg
     assert "Reverse-DCF Playground" in msg
     assert svc._find_banned(msg) is None
+
+
+# ── 11. Bug 7 (P2, 2026-06-09) — bullet 1 uses discount/premium
+# framing so an intraday quote tick can't make the WHY narrative
+# contradict the hero's live price band.
+
+def test_template_bullet1_undervalued_frames_as_discount():
+    """Undervalued ticker -> "X% discount to fair value" copy."""
+    bullets = svc.deterministic_template_bullets(HDFCBANK_CTX)
+    assert len(bullets) == 3
+    b1 = bullets[0]
+    assert "discount" in b1.lower(), (
+        f"bullet 1 should frame undervalued as a discount: {b1!r}"
+    )
+    # Fair value must be cited (it's the stable anchor).
+    assert "Rs 1,146" in b1, f"bullet 1 should cite fair value: {b1!r}"
+    # Live current price (Rs 747) MUST NOT appear — it's the stale-able
+    # figure the audit caught.
+    assert "Rs 747" not in b1, (
+        f"bullet 1 leaked the live current price into a day-cached "
+        f"narrative (Bug 7 regression): {b1!r}"
+    )
+
+
+def test_template_bullet1_overvalued_frames_as_premium():
+    ctx = svc.ThesisContext(
+        ticker="OV.NS",
+        company_name="Overvalued Co",
+        verdict="overvalued",
+        verdict_display="above model fair value",
+        current_price=1200.0,
+        fair_value=800.0,
+        mos_pct=-50.0,
+        wacc_pct=9.0, fcf_growth_pct=6.0, terminal_growth_pct=3.0,
+        moat_label="Narrow", moat_score=40.0,
+        confidence_pct=75, top_confidence_driver="data quality",
+    )
+    bullets = svc.deterministic_template_bullets(ctx)
+    b1 = bullets[0]
+    assert "premium" in b1.lower(), (
+        f"bullet 1 should frame overvalued as a premium: {b1!r}"
+    )
+    # The absolute gap percentage is rendered without sign; the
+    # premium / discount word carries the direction.
+    assert "50.0%" in b1
+    assert "Rs 800" in b1
+    assert "Rs 1,200" not in b1
+
+
+def test_template_bullet1_fairly_valued_frames_as_in_line():
+    bullets = svc.deterministic_template_bullets(TCS_CTX)
+    b1 = bullets[0]
+    assert "in line" in b1.lower(), (
+        f"bullet 1 should frame fairly_valued as in-line: {b1!r}"
+    )
+    # Fair value cited; live price NOT cited.
+    assert "Rs 4,120" in b1
+    assert "Rs 3,890" not in b1
+
+
+def test_template_bullet1_handles_missing_fair_value():
+    """When the engine cannot value the stock, bullet 1 must NOT
+    invent a discount/premium percentage — it should fall through
+    to a verdict-only sentence."""
+    ctx = svc.ThesisContext(
+        ticker="NOVAL.NS",
+        company_name="Unvalued Co",
+        verdict="data_limited",
+        verdict_display="insufficient data",
+        current_price=100.0,
+        fair_value=None,
+        mos_pct=None,
+    )
+    bullets = svc.deterministic_template_bullets(ctx)
+    b1 = bullets[0]
+    assert "Rs 100" not in b1, (
+        f"bullet 1 must never cite the live current price: {b1!r}"
+    )
+    assert "discount" not in b1.lower() and "premium" not in b1.lower(), (
+        f"bullet 1 must not fake a discount/premium without fair value: {b1!r}"
+    )

@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, vi } from "vitest"
-import { render, screen, fireEvent } from "@testing-library/react"
-import WorryIndex, { type WorryIndexData } from "@/components/analysis/WorryIndex"
+import { render, screen } from "@testing-library/react"
+import WorryIndex, {
+  type WorryIndexData,
+  worryStateLabel,
+} from "@/components/analysis/WorryIndex"
 
 // Minimal IntersectionObserver stub so the inner FadeStagger doesn't
 // crash when contributors render.
@@ -68,5 +71,91 @@ describe("WorryIndex", () => {
   it("clamps out-of-range scores to 0-100", () => {
     render(<WorryIndex worry={{ ...sample, score: 150 }} />)
     expect(screen.getByText(/out of 100/i)).toBeInTheDocument()
+  })
+
+  // Bug 5 (P2, 2026-06-09) — state-language labels replace the raw
+  // "Solvency: 0 out of 100" copy that semantically inverted on
+  // healthy stocks. State words read in the correct direction
+  // without scale-recall (low score = calm, high score = loud).
+  describe("per-pillar state labels", () => {
+    function renderWithScores(scores: number[]) {
+      const labels = [
+        "Solvency", "Earnings quality", "Valuation stretch",
+        "Market signals", "Governance",
+      ]
+      const contributors = scores.map((score, i) => ({
+        component: `pillar_${i}`,
+        label: labels[i] ?? `Pillar ${i}`,
+        weight: 20,
+        score,
+        detail: `bank D/E 0.11 (test ${score})`,
+      }))
+      return render(
+        <WorryIndex
+          worry={{ ...sample, contributors }}
+        />,
+      )
+    }
+
+    it("score 0 renders the Calm state label", () => {
+      renderWithScores([0, 50, 50, 50, 50])
+      expect(screen.getByTestId("worry-state-pillar_0")).toHaveTextContent("Calm")
+    })
+
+    it("score 50 renders the Elevated state label", () => {
+      // 40-69 band per worryStateLabel().
+      renderWithScores([50, 0, 0, 0, 0])
+      expect(screen.getByTestId("worry-state-pillar_0")).toHaveTextContent("Elevated")
+    })
+
+    it("score 95 renders the Loud state label", () => {
+      renderWithScores([95, 0, 0, 0, 0])
+      expect(screen.getByTestId("worry-state-pillar_0")).toHaveTextContent("Loud")
+    })
+
+    it("score 25 renders the Normal state label", () => {
+      renderWithScores([25, 0, 0, 0, 0])
+      expect(screen.getByTestId("worry-state-pillar_0")).toHaveTextContent("Normal")
+    })
+
+    it("aria-label includes the state word, not just the raw number", () => {
+      renderWithScores([6, 0, 0, 0, 0])
+      // The bar role=img aria-label includes the Calm state word
+      // (and the detail copy when present).
+      const bars = screen.getAllByRole("img")
+      const solvencyBar = bars[0]
+      expect(solvencyBar.getAttribute("aria-label")).toMatch(/Solvency:\s*Calm/)
+      // Detail text gets appended after the state, NOT raw "/100".
+      expect(solvencyBar.getAttribute("aria-label")).toMatch(/bank D\/E 0\.11/)
+    })
+
+    it("raw 0-100 score still surfaces as secondary caption", () => {
+      // Power users / accessibility audits — the underlying number
+      // must remain visible somewhere, just not as the primary label.
+      renderWithScores([42, 0, 0, 0, 0])
+      expect(screen.getByText(/42\/100/)).toBeInTheDocument()
+    })
+  })
+
+  describe("worryStateLabel helper", () => {
+    it("bands map to the documented thresholds", () => {
+      // Calm: 0-19
+      expect(worryStateLabel(0)).toBe("Calm")
+      expect(worryStateLabel(19)).toBe("Calm")
+      // Normal: 20-39
+      expect(worryStateLabel(20)).toBe("Normal")
+      expect(worryStateLabel(39)).toBe("Normal")
+      // Elevated: 40-69
+      expect(worryStateLabel(40)).toBe("Elevated")
+      expect(worryStateLabel(69)).toBe("Elevated")
+      // Loud: 70-100
+      expect(worryStateLabel(70)).toBe("Loud")
+      expect(worryStateLabel(100)).toBe("Loud")
+    })
+
+    it("clamps out-of-range scores into the legal bands", () => {
+      expect(worryStateLabel(-50)).toBe("Calm")
+      expect(worryStateLabel(250)).toBe("Loud")
+    })
   })
 })
