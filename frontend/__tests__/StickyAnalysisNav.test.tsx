@@ -116,22 +116,67 @@ describe("StickyAnalysisNav", () => {
     })
   })
 
-  it("updates the active pill when scroll-driven intersection picks a new section", async () => {
+  it("updates the active pill when scroll-driven intersection enters the activation band", async () => {
     render(<StickyAnalysisNav sections={sections} />)
-    // The second observer is the per-section tracker (the first is for
-    // the hero — only attached when heroSelector is provided, so here
-    // the per-section tracker is observers[0]).
+    // Sprint A1: the per-section observer uses a thin activation band
+    // (rootMargin -30% top / -65% bottom). Sections become active the
+    // moment their top crosses into the band; when no section is in
+    // the band the active pill is preserved. We fire `isIntersecting`
+    // on a single section at a time to exercise the topmost-in-order
+    // rule.
     expect(observers.length).toBeGreaterThanOrEqual(1)
     const sectionObs = observers[0]
     const valuationEl = document.getElementById("valuation")!
+    const qualityEl = document.getElementById("quality")!
+    // 1) Summary scrolls out of band, valuation scrolls into the band.
     await act(async () => {
       sectionObs.cb([
-        { isIntersecting: true, intersectionRatio: 0.8, target: valuationEl },
-        {
-          isIntersecting: true,
-          intersectionRatio: 0.2,
-          target: document.getElementById("summary")!,
-        },
+        { isIntersecting: false, intersectionRatio: 0, target: document.getElementById("summary")! },
+        { isIntersecting: true, intersectionRatio: 0, target: valuationEl },
+      ])
+    })
+    expect(
+      screen.getByTestId("nav-pill-valuation").getAttribute("data-active"),
+    ).toBe("true")
+    // 2) Valuation leaves the band, quality enters — active pill follows.
+    await act(async () => {
+      sectionObs.cb([
+        { isIntersecting: false, intersectionRatio: 0, target: valuationEl },
+        { isIntersecting: true, intersectionRatio: 0, target: qualityEl },
+      ])
+    })
+    expect(
+      screen.getByTestId("nav-pill-quality").getAttribute("data-active"),
+    ).toBe("true")
+  })
+
+  it("keeps the current active pill when no section is in the activation band", async () => {
+    // Defensive: when the user is between sections (none currently
+    // intersecting the 30%-from-top band), we must NOT silently snap
+    // back to the first section.
+    render(<StickyAnalysisNav sections={sections} defaultActive="valuation" />)
+    const sectionObs = observers[0]
+    await act(async () => {
+      sectionObs.cb([
+        { isIntersecting: false, intersectionRatio: 0, target: document.getElementById("summary")! },
+        { isIntersecting: false, intersectionRatio: 0, target: document.getElementById("valuation")! },
+        { isIntersecting: false, intersectionRatio: 0, target: document.getElementById("quality")! },
+      ])
+    })
+    expect(
+      screen.getByTestId("nav-pill-valuation").getAttribute("data-active"),
+    ).toBe("true")
+  })
+
+  it("prefers the topmost section when multiple are in the band simultaneously", async () => {
+    // When two adjacent sections both have their tops inside the band
+    // (transient mid-scroll state), the topmost-in-order wins.
+    render(<StickyAnalysisNav sections={sections} />)
+    const sectionObs = observers[0]
+    await act(async () => {
+      sectionObs.cb([
+        { isIntersecting: true, intersectionRatio: 0, target: document.getElementById("valuation")! },
+        { isIntersecting: true, intersectionRatio: 0, target: document.getElementById("quality")! },
       ])
     })
     expect(
