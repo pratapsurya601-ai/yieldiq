@@ -1,13 +1,23 @@
 "use client"
 
 /**
- * FVProjectionFan — Alpha Spread style fan-out projection chart.
+ * FVProjectionFan — Alpha Spread parity fan-out projection chart.
  *
  * Renders the trailing 24 months of actual close prices as a solid line,
  * then three dashed projection lines (bear / base / bull) fanning out from
- * "today" to +60 months. Endpoint labels show terminal price, MoS%, and
- * implied CAGR for each case. Replaces the three bear/base/bull cards
- * with a single information-dense visualization.
+ * "today" to +60 months. Endpoint labels show terminal price next to each
+ * forecast line's terminal dot. Scenario chips below the chart retain the
+ * MoS% and implied CAGR breakdown.
+ *
+ * Visual contract (AlphaSpread parity, 2026-06-09):
+ *   • Calendar-month x-axis labels (e.g. "Jul 2025") at ~6m intervals
+ *   • Right-side y-axis labels
+ *   • Hover crosshair + floating tooltip with date + value(s)
+ *   • Endpoint price labels at the +5y terminus
+ *   • Actual line in brand-blue (var(--color-brand)), 2px solid
+ *   • Forecast lines thinner (1.5px) with refined "2 3" dash pattern
+ *   • 24 months of history (snapped to actual data extent)
+ *   • Light + dark mode via CSS variables
  *
  * Data sources:
  *   • Historical close prices — `getChartData(ticker, "1y")` (daily_prices
@@ -77,58 +87,106 @@ export interface FVProjectionFanProps {
 }
 
 interface ChartPoint {
-  // Months relative to today: -12 ... +60
+  // Months relative to today: -24 ... +60 (driven by data extent)
   m: number
+  // Unix epoch milliseconds for the calendar x-axis. Allows native
+  // Date locale formatting and continuous numeric scaling.
+  t: number
   // Actual close price for historic months only
   actual?: number
   // Projection lines start at month 0 (= currentPrice) and end at +60
   bear?: number
   base?: number
   bull?: number
-  // Tooltip helpers
-  label: string
+  // ISO date string for tooltip date display
+  date: string
 }
 
 const HORIZON_MONTHS = 60
 const HISTORY_MONTHS = 24
+// Average month length in ms. Used to convert month-offset arithmetic
+// into the timestamp domain the x-axis renders. Approximation is fine
+// here: tick positions are derived from the same constant so they stay
+// aligned with the data points.
+const MS_PER_MONTH = 30 * 24 * 3600 * 1000
 
 function impliedCagr(start: number, end: number, years: number): number {
   if (!start || start <= 0 || !end || end <= 0 || years <= 0) return 0
   return (Math.pow(end / start, 1 / years) - 1) * 100
 }
 
+/** Format a Date into the calendar tick label (e.g. "Jul 25"). Two-digit
+ *  year keeps the axis compact at typical viewport widths; the full year
+ *  remains visible in the tooltip's longer date string. */
+function formatTickDate(ts: number): string {
+  const d = new Date(ts)
+  return d.toLocaleDateString("en-IN", { month: "short", year: "2-digit" })
+}
+
+/** Format a timestamp into the full long date used in the tooltip header,
+ *  e.g. "Tuesday, Apr 28, 2026". en-IN locale matches the rest of the UI. */
+function formatTooltipDate(ts: number): string {
+  const d = new Date(ts)
+  return d.toLocaleDateString("en-IN", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  })
+}
+
+interface FanTooltipEntry {
+  name: string
+  value: number
+  color: string
+  payload: ChartPoint
+}
+
 function FanTooltip({
   active,
   payload,
   currency,
-  currentPrice,
+  ticker,
 }: {
   active?: boolean
-  payload?: Array<{ name: string; value: number; color: string; payload: ChartPoint }>
+  payload?: FanTooltipEntry[]
   currency: string
-  currentPrice: number
+  ticker: string
 }) {
   if (!active || !payload?.length) return null
   const p = payload[0]?.payload
   if (!p) return null
+  // De-dup entries that share a name (Recharts can include hidden
+  // duplicates when activeDot fires across multiple series).
+  const seen = new Set<string>()
+  const rows = payload.filter((entry) => {
+    if (entry.value == null || !Number.isFinite(entry.value)) return false
+    if (seen.has(entry.name)) return false
+    seen.add(entry.name)
+    return true
+  })
+  if (rows.length === 0) return null
+  // Display ticker minus the exchange suffix so the heading stays compact
+  // (e.g. "HDFCBANK" not "HDFCBANK.NS"). Falls back to the raw ticker.
+  const displayTicker = ticker.split(".")[0] || ticker
   return (
-    <div className="rounded-xl bg-gray-900 px-3 py-2 text-xs text-white shadow-lg min-w-[180px]">
-      <p className="text-gray-400 mb-1">{p.label}</p>
-      {payload.map((entry) => {
-        const v = entry.value
-        if (v == null || !Number.isFinite(v)) return null
-        const delta = currentPrice > 0 ? ((v - currentPrice) / currentPrice) * 100 : 0
-        return (
-          <p key={entry.name} className="font-medium" style={{ color: entry.color }}>
-            {entry.name}:{" "}
-            <span className="font-mono">{formatCurrency(v, currency)}</span>{" "}
-            <span className="opacity-80">
-              ({delta >= 0 ? "+" : ""}
-              {delta.toFixed(1)}% vs today)
+    <div
+      className="rounded-lg bg-white px-3 py-2 text-xs text-ink shadow-lg ring-1 ring-black/5 dark:bg-surface dark:ring-white/10 min-w-[180px]"
+      data-testid="fv-fan-tooltip"
+    >
+      <div className="space-y-1">
+        {rows.map((entry) => (
+          <div key={entry.name} className="flex items-baseline justify-between gap-3">
+            <span className="font-medium" style={{ color: entry.color }}>
+              {displayTicker} {entry.name}
             </span>
-          </p>
-        )
-      })}
+            <span className="font-mono tabular-nums text-ink">
+              {formatCurrency(entry.value, currency)}
+            </span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-1.5 text-[10px] text-caption">{formatTooltipDate(p.t)}</p>
     </div>
   )
 }
@@ -138,8 +196,9 @@ function buildSeries(
   currentPrice: number,
   scenarios: FVProjectionFanProps["scenarios"],
 ): ChartPoint[] {
+  const todayTs = Date.now()
   // Bucket history into the most recent ~24 monthly samples.
-  const monthly: { m: number; actual: number; label: string }[] = []
+  const monthly: { m: number; t: number; actual: number; date: string }[] = []
   if (history.length > 0) {
     // Sort ascending by date.
     const sorted = [...history].sort(
@@ -151,39 +210,42 @@ function buildSeries(
     // that month-window. O(n*24) — n is bounded by the payload
     // (~250 trading days/year ⇒ ~500 rows for 2y of daily_prices).
     for (let offset = HISTORY_MONTHS; offset >= 0; offset--) {
-      const upper = lastTs - (offset - 1) * 30 * 24 * 3600 * 1000
-      const lower = lastTs - offset * 30 * 24 * 3600 * 1000
+      const upper = lastTs - (offset - 1) * MS_PER_MONTH
+      const lower = lastTs - offset * MS_PER_MONTH
       const samples = sorted.filter((p) => {
         const t = new Date(p.date).getTime()
         return t > lower && t <= upper && Number.isFinite(p.price) && p.price > 0
       })
       if (samples.length > 0) {
         const pt = samples[samples.length - 1]
-        const d = new Date(pt.date)
+        const ts = new Date(pt.date).getTime()
         monthly.push({
           m: -offset,
+          t: ts,
           actual: pt.price,
-          label: d.toLocaleDateString("en-IN", { month: "short", year: "2-digit" }),
+          date: pt.date,
         })
       }
     }
   }
   const series: ChartPoint[] = monthly.map((p) => ({
     m: p.m,
+    t: p.t,
     actual: p.actual,
-    label: p.label,
+    date: p.date,
   }))
 
   // Ensure month 0 (today) has the current price + scenario starting points
   // so the dashed lines anchor cleanly to "today".
-  const todayLabel = "Today"
+  const todayDate = new Date(todayTs).toISOString().slice(0, 10)
   const today: ChartPoint = {
     m: 0,
+    t: todayTs,
     actual: currentPrice > 0 ? currentPrice : undefined,
     bear: currentPrice,
     base: currentPrice,
     bull: currentPrice,
-    label: todayLabel,
+    date: todayDate,
   }
   // Replace any synthetic m===0 entry that lacked projections.
   const existingTodayIdx = series.findIndex((p) => p.m === 0)
@@ -198,16 +260,48 @@ function buildSeries(
   // tooltips remain readable but the line stays smooth.
   for (let m = 6; m <= HORIZON_MONTHS; m += 6) {
     const t = m / HORIZON_MONTHS
+    const ts = todayTs + m * MS_PER_MONTH
     series.push({
       m,
+      t: ts,
       bear: currentPrice + (scenarios.bear.iv - currentPrice) * t,
       base: currentPrice + (scenarios.base.iv - currentPrice) * t,
       bull: currentPrice + (scenarios.bull.iv - currentPrice) * t,
-      label: m === HORIZON_MONTHS ? "+5y" : `+${m}m`,
+      date: new Date(ts).toISOString().slice(0, 10),
     })
   }
 
   return series.sort((a, b) => a.m - b.m)
+}
+
+/** Custom renderer for the endpoint price labels. Drops a small text
+ *  badge to the right of the terminal dot, color-matched to the line. */
+function EndpointLabel({
+  x,
+  y,
+  value,
+  fill,
+}: {
+  x?: number
+  y?: number
+  value?: string
+  fill?: string
+}) {
+  if (x == null || y == null || !value) return null
+  return (
+    <text
+      x={x + 6}
+      y={y}
+      dy={4}
+      fill={fill}
+      fontSize={11}
+      fontFamily="ui-monospace, SFMono-Regular, Menlo, monospace"
+      fontWeight={600}
+      textAnchor="start"
+    >
+      {value}
+    </text>
+  )
 }
 
 export default function FVProjectionFan({
@@ -292,12 +386,32 @@ export default function FVProjectionFan({
     const snapped = Math.floor(minM / 6) * 6
     return Math.max(-HISTORY_MONTHS, snapped || -HISTORY_MONTHS)
   }, [points])
-  const historyTicks = useMemo(() => {
-    // Build symmetric-ish ticks across the historical window: every 6m.
+
+  // Calendar-tick timestamps. Anchor on today's start-of-month so ticks
+  // land on month boundaries (e.g. "Jul 25") rather than mid-month dates.
+  // Spacing: 6 months — keeps the 24m back + 60m forward window readable
+  // at typical desktop widths (~14 ticks) and remains scannable on tablet.
+  // A 3-month spacing would push to ~28 ticks and crowd labels under
+  // ~900px viewport widths.
+  const { xDomain, xTicks } = useMemo(() => {
+    const now = new Date()
+    const anchor = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
     const ticks: number[] = []
-    for (let m = historyExtent; m < 0; m += 6) ticks.push(m)
-    return [...ticks, 0, 12, 24, 36, 48, 60]
+    for (let m = historyExtent; m <= HORIZON_MONTHS; m += 6) {
+      ticks.push(anchor + m * MS_PER_MONTH)
+    }
+    const domain: [number, number] = [
+      anchor + historyExtent * MS_PER_MONTH,
+      anchor + HORIZON_MONTHS * MS_PER_MONTH,
+    ]
+    return { xDomain: domain, xTicks: ticks }
   }, [historyExtent])
+
+  const todayTs = useMemo(() => {
+    const now = new Date()
+    return new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+  }, [])
+
   const showSkeleton = isLoading && !historyOverride
   const showEmpty =
     !showSkeleton &&
@@ -307,6 +421,12 @@ export default function FVProjectionFan({
   const bearCagr = impliedCagr(currentPrice, scenarios.bear.iv, 5)
   const baseCagr = impliedCagr(currentPrice, scenarios.base.iv, 5)
   const bullCagr = impliedCagr(currentPrice, scenarios.bull.iv, 5)
+
+  // Endpoint timestamp: same x-coordinate the projection lines terminate
+  // at, used by the ReferenceDot + label group on the right edge.
+  const endpointTs = useMemo(() => {
+    return todayTs + HORIZON_MONTHS * MS_PER_MONTH
+  }, [todayTs])
 
   return (
     <div className="bg-bg rounded-2xl border border-border p-4">
@@ -334,37 +454,49 @@ export default function FVProjectionFan({
           No price history available
         </div>
       ) : (
-        <div className="w-full" style={{ height: 280 }}>
+        <div className="w-full" style={{ height: 280 }} data-testid="fv-projection-chart">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart
               data={points}
-              margin={{ top: 12, right: 96, left: 8, bottom: 8 }}
+              // Right margin holds the endpoint price labels + right
+              // y-axis tick text. Left margin trimmed since axis moved.
+              margin={{ top: 12, right: 92, left: 8, bottom: 8 }}
             >
-              <CartesianGrid stroke="var(--color-border)" strokeDasharray="2 4" />
+              <CartesianGrid stroke="var(--color-border)" strokeDasharray="2 4" vertical={false} />
               <XAxis
-                dataKey="m"
+                dataKey="t"
                 type="number"
-                domain={[historyExtent, HORIZON_MONTHS]}
-                ticks={historyTicks}
-                tickFormatter={(m) =>
-                  m === 0 ? "Today" : m < 0 ? `${m}m` : `+${m / 12}y`
-                }
+                scale="time"
+                domain={xDomain}
+                ticks={xTicks}
+                tickFormatter={formatTickDate}
                 stroke="var(--color-caption)"
                 fontSize={10}
+                tickLine={false}
+                axisLine={{ stroke: "var(--color-border)" }}
+                allowDataOverflow
               />
               <YAxis
+                orientation="right"
                 stroke="var(--color-caption)"
                 fontSize={10}
                 tickFormatter={(v) => formatCurrency(v, currency)}
-                width={60}
+                width={64}
+                tickLine={false}
+                axisLine={false}
               />
               <Tooltip
+                cursor={{
+                  stroke: "var(--color-caption)",
+                  strokeDasharray: "3 3",
+                  strokeWidth: 1,
+                }}
                 content={
-                  <FanTooltip currency={currency} currentPrice={currentPrice} />
+                  <FanTooltip currency={currency} ticker={ticker} />
                 }
               />
               <ReferenceLine
-                x={0}
+                x={todayTs}
                 stroke="var(--color-caption)"
                 strokeDasharray="3 3"
               >
@@ -373,10 +505,16 @@ export default function FVProjectionFan({
               <Line
                 type="monotone"
                 dataKey="actual"
-                name="Actual"
-                stroke="var(--color-ink)"
+                name="Price"
+                stroke="var(--color-brand)"
                 strokeWidth={2}
                 dot={false}
+                activeDot={{
+                  r: 4,
+                  fill: "var(--color-brand)",
+                  stroke: "var(--color-bg)",
+                  strokeWidth: 2,
+                }}
                 connectNulls
                 isAnimationActive={false}
               />
@@ -385,9 +523,10 @@ export default function FVProjectionFan({
                 dataKey="bull"
                 name="Bull"
                 stroke="var(--color-success)"
-                strokeWidth={2}
-                strokeDasharray="5 4"
+                strokeWidth={1.5}
+                strokeDasharray="2 3"
                 dot={false}
+                activeDot={false}
                 connectNulls
                 isAnimationActive={false}
               />
@@ -396,9 +535,10 @@ export default function FVProjectionFan({
                 dataKey="base"
                 name="Base"
                 stroke="var(--color-brand)"
-                strokeWidth={2}
-                strokeDasharray="5 4"
+                strokeWidth={1.5}
+                strokeDasharray="2 3"
                 dot={false}
+                activeDot={false}
                 connectNulls
                 isAnimationActive={false}
               />
@@ -407,32 +547,56 @@ export default function FVProjectionFan({
                 dataKey="bear"
                 name="Bear"
                 stroke="var(--color-danger)"
-                strokeWidth={2}
-                strokeDasharray="5 4"
+                strokeWidth={1.5}
+                strokeDasharray="2 3"
                 dot={false}
+                activeDot={false}
                 connectNulls
                 isAnimationActive={false}
               />
+              {/* Endpoint dots + price labels at +5y. Rendered as
+                  ReferenceDot+text overlay rather than LabelList so the
+                  positioning is deterministic (LabelList anchors to the
+                  last data point in the series which may shift if the
+                  projection windows ever change). */}
               <ReferenceDot
-                x={HORIZON_MONTHS}
+                x={endpointTs}
                 y={scenarios.bull.iv}
-                r={3}
+                r={3.5}
                 fill="var(--color-success)"
                 stroke="none"
+                label={
+                  <EndpointLabel
+                    value={formatCurrency(scenarios.bull.iv, currency)}
+                    fill="var(--color-success)"
+                  />
+                }
               />
               <ReferenceDot
-                x={HORIZON_MONTHS}
+                x={endpointTs}
                 y={scenarios.base.iv}
-                r={3}
+                r={3.5}
                 fill="var(--color-brand)"
                 stroke="none"
+                label={
+                  <EndpointLabel
+                    value={formatCurrency(scenarios.base.iv, currency)}
+                    fill="var(--color-brand)"
+                  />
+                }
               />
               <ReferenceDot
-                x={HORIZON_MONTHS}
+                x={endpointTs}
                 y={scenarios.bear.iv}
-                r={3}
+                r={3.5}
                 fill="var(--color-danger)"
                 stroke="none"
+                label={
+                  <EndpointLabel
+                    value={formatCurrency(scenarios.bear.iv, currency)}
+                    fill="var(--color-danger)"
+                  />
+                }
               />
             </ComposedChart>
           </ResponsiveContainer>
