@@ -109,6 +109,30 @@ export default function MarketsHubPage() {
             we don't render an empty header on the page. */}
         <FlowsPanel />
 
+        {/* Calibration tile — surfaces the public per-sector accuracy
+            page (T1.2). Single tile only, no redesign of the hub. */}
+        <section>
+          <Link
+            href="/calibration"
+            className="block rounded-xl border border-[color:var(--color-border)] bg-[color:var(--color-surface)] p-5 hover:border-brand transition"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-wider text-caption mb-1">
+                  Calibration
+                </p>
+                <h3 className="font-semibold text-ink">
+                  How accurate is our valuation engine?
+                </h3>
+                <p className="text-xs text-caption mt-1">
+                  Per-sector calibration over the last 90 days, generated nightly.
+                </p>
+              </div>
+              <span className="text-xs font-semibold text-brand">View →</span>
+            </div>
+          </Link>
+        </section>
+
         <p className="text-[10px] text-caption text-center mt-10 max-w-2xl mx-auto">
           Index, sector, and flow data display model output and
           third-party feeds for educational and informational use. Not

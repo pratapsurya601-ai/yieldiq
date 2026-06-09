@@ -40,6 +40,7 @@ export default function MarketingFooter() {
               <li><Link href="/blog/margin-of-safety-explained" className="hover:text-white transition">Margin of Safety</Link></li>
               <li><Link href="/discount-rate-calculator" className="hover:text-white transition">WACC Calculator</Link></li>
               <li><Link href="/yiq50-backtest" className="hover:text-white transition">Backtest (YIQ-50 vs Nifty)</Link></li>
+              <li><Link href="/calibration" className="hover:text-white transition">Calibration (per-sector accuracy)</Link></li>
               <li><Link href="/how-it-works" className="hover:text-white transition">How YieldIQ works</Link></li>
               <li><Link href="/help" className="hover:text-white transition">Help &amp; documentation</Link></li>
               <li><Link href="/blog/stcg-ltcg-tax-fy-2025-26" className="hover:text-white transition">Capital Gains Tax</Link></li>
