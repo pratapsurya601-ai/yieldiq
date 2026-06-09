@@ -46,6 +46,12 @@ def test_market_pulse_requires_auth():
     assert r.status_code in (401, 403)
 
 
+def test_today_movers_requires_auth():
+    # Daily-engagement endpoint — same auth gate as /pulse.
+    r = client.get("/api/v1/market/today-movers")
+    assert r.status_code in (401, 403)
+
+
 def test_portfolio_requires_auth():
     r = client.get("/api/v1/portfolio/holdings")
     assert r.status_code in (401, 403)

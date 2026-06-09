@@ -1,6 +1,6 @@
 import axios from "axios"
 import Cookies from "js-cookie"
-import type { AnalysisResponse, TokenResponse, MarketPulseResponse, ScreenerResponse, PortfolioHealthResponse, HoldingResponse, SectorOverviewItem, WatchlistItemResponse, AlertResponse, SuccessResponse, ProfileUpdateResponse } from "@/types/api"
+import type { AnalysisResponse, TokenResponse, MarketPulseResponse, ScreenerResponse, PortfolioHealthResponse, HoldingResponse, SectorOverviewItem, WatchlistItemResponse, AlertResponse, SuccessResponse, ProfileUpdateResponse, TodayMoversResponse } from "@/types/api"
 // Static import — previously a dynamic import() was used here to avoid
 // a theoretical circular with authStore, but there's no circular (authStore
 // does not import api.ts) and the async path silently dropped counter
@@ -553,6 +553,16 @@ export const getMacroSummary = (): Promise<{ summary: string | null }> =>
 
 export const getSectorOverview = (): Promise<SectorOverviewItem[]> =>
   api.get("/api/v1/market/sectors").then(r => r.data)
+
+// Today's Movers — top gainers / losers in a cohort (default NIFTY 500).
+// Server-side cached 60s. Safe to refetchInterval at the same cadence.
+export const getTodayMovers = (
+  cohort: string = "nifty500",
+  limit: number = 5,
+): Promise<TodayMoversResponse> =>
+  api
+    .get("/api/v1/market/today-movers", { params: { cohort, limit } })
+    .then(r => r.data)
 
 // Portfolio
 export const getPortfolioHealth = (): Promise<PortfolioHealthResponse> =>

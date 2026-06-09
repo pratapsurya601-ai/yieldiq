@@ -47,6 +47,10 @@ INDEX_SYMBOLS: list[tuple[str, str]] = [
     ("^INDIAVIX",  "India VIX"),
     ("GC=F",       "Gold Futures"),
     ("SI=F",       "Silver Futures"),
+    # Brent crude (USD/bbl). Added 2026-06-09 for MarketsStrip crude tile.
+    # Daily-engagement surface; same yfinance cron treats it identically
+    # to GC=F / SI=F. Frontend renders as $X/bbl (no INR conversion).
+    ("BZ=F",       "Brent Crude Oil"),
     ("^NSEMDCP50", "Nifty Midcap 50"),
     # Sector benchmarks consumed by the per-sector retrospective.
     # See backend/services/sector_benchmarks.py — the source of

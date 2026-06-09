@@ -27,6 +27,11 @@ import DailyInsightCard from "@/components/home/v2/DailyInsightCard"
 const QuantPicksGrid = dynamic(() => import("@/components/home/v2/QuantPicksGrid"))
 const SectorHeatmap = dynamic(() => import("@/components/home/v2/SectorHeatmap"))
 const EarningsWeekStrip = dynamic(() => import("@/components/home/v2/EarningsWeekStrip"))
+// Today's Movers — daily-engagement widget, slotted between the
+// MarketsStrip and the Portfolio/Watchlist hero grid. Lazy-loaded
+// because it's a fresh API call distinct from /pulse — the user
+// shouldn't wait on it for the LCP-critical markets strip.
+const TodaysMovers = dynamic(() => import("@/components/home/v2/TodaysMovers"))
 // User-specific: keep ssr:false (depends on client-only auth store).
 const RecentAnalyses = dynamic(() => import("@/components/home/v2/RecentAnalyses"), { ssr: false })
 
@@ -123,6 +128,15 @@ export default function HomePage() {
           <PersonalHeader email={email} />
           <HomeSearchBar />
         </div>
+
+        {/* Today's Movers — sits between MarketsStrip and the
+            Portfolio/Watchlist hero so the first thing a logged-in user
+            sees is market activity (not just their own positions).
+            Wrapped in its own ErrorBoundary so the home page survives
+            a today-movers API outage. */}
+        <ErrorBoundary label="TodaysMovers" fallback={<PanelFallback label="Today's Movers" />}>
+          <TodaysMovers />
+        </ErrorBoundary>
 
         {/* Section 2 — 2-column hero: Portfolio + Watchlist.
             grid-cols-1 → lg:grid-cols-2 stacks cleanly on <lg viewports. */}

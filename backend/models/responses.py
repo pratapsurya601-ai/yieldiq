@@ -793,7 +793,20 @@ class MarketPulseResponse(BaseModel):
     usd_inr: Optional[float] = None
     gold_usd: Optional[float] = None
     silver_usd: Optional[float] = None
-    crude_usd: Optional[float] = None  # Deprecated — superseded by silver_usd
+    crude_usd: Optional[float] = None  # USD/bbl, Brent (BZ=F)
+    # 24h percent change for each commodity, populated alongside the raw
+    # spot prices above. All optional — pre-PR clients (and any
+    # yfinance-rate-limit outages) render the tile with no delta arrow.
+    gold_usd_change_pct: Optional[float] = None
+    silver_usd_change_pct: Optional[float] = None
+    crude_usd_change_pct: Optional[float] = None
+    # INR-converted display values for the Indian retail audience. Gold
+    # and silver are quoted USD/oz upstream but Indian investors think
+    # in ₹/10g — the conversion runs in the router so the frontend tile
+    # stays a dumb formatter. None when usd_inr or the source price is
+    # unavailable. Crude stays USD/bbl (no INR conversion).
+    gold_inr_per_10g: Optional[float] = None
+    silver_inr_per_10g: Optional[float] = None
     risk_free_pct: Optional[float] = None
     nifty_midcap_price: Optional[float] = None
     nifty_midcap_change_pct: Optional[float] = None

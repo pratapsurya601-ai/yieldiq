@@ -1,0 +1,206 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`MarketsStrip — commodity tiles > renders GOLD, SILVER, and CRUDE tiles after the index + FX cells 1`] = `
+<div>
+  <div
+    class="bg-surface border-y border-border overflow-x-auto sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-surface/95"
+  >
+    <div
+      class="flex items-stretch min-w-max"
+    >
+      <a
+        class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0 hover:bg-bg/30 transition"
+        href="/nifty50"
+      >
+        <span
+          class="text-[9px] font-bold uppercase tracking-wider text-caption truncate"
+        >
+          NIFTY 50
+        </span>
+        <div
+          class="flex items-baseline gap-1.5"
+        >
+          <span
+            class="text-sm font-mono font-semibold text-ink"
+          >
+            25,400
+          </span>
+          <span
+            class="text-[11px] font-mono text-green-600 dark:text-green-400"
+          >
+            +0.4%
+          </span>
+        </div>
+      </a>
+      <a
+        class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0 hover:bg-bg/30 transition"
+        href="/nifty-bank"
+      >
+        <span
+          class="text-[9px] font-bold uppercase tracking-wider text-caption truncate"
+        >
+          NIFTY BANK
+        </span>
+        <div
+          class="flex items-baseline gap-1.5"
+        >
+          <span
+            class="text-sm font-mono font-semibold text-ink"
+          >
+            53,100
+          </span>
+          <span
+            class="text-[11px] font-mono text-red-600 dark:text-red-400"
+          >
+            -0.2%
+          </span>
+        </div>
+      </a>
+      <div
+        class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0"
+      >
+        <span
+          class="text-[9px] font-bold uppercase tracking-wider text-caption truncate"
+        >
+          SENSEX
+        </span>
+        <div
+          class="flex items-baseline gap-1.5"
+        >
+          <span
+            class="text-sm font-mono font-semibold text-ink"
+          >
+            83,550
+          </span>
+          <span
+            class="text-[11px] font-mono text-green-600 dark:text-green-400"
+          >
+            +0.3%
+          </span>
+        </div>
+      </div>
+      <div
+        class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0"
+      >
+        <span
+          class="text-[9px] font-bold uppercase tracking-wider text-caption truncate"
+        >
+          USD/INR
+        </span>
+        <div
+          class="flex items-baseline gap-1.5"
+        >
+          <span
+            class="text-sm font-mono font-semibold text-ink"
+          >
+            ₹83.50
+          </span>
+          <span
+            class="text-[11px] font-mono text-caption"
+          >
+            —
+          </span>
+        </div>
+      </div>
+      <div
+        class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0"
+      >
+        <span
+          class="text-[9px] font-bold uppercase tracking-wider text-caption truncate"
+        >
+          India 10Y
+        </span>
+        <div
+          class="flex items-baseline gap-1.5"
+        >
+          <span
+            class="text-sm font-mono font-semibold text-ink"
+          >
+            7.05%
+          </span>
+          <span
+            class="text-[11px] font-mono text-caption"
+          >
+            —
+          </span>
+        </div>
+      </div>
+      <div
+        class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0"
+      >
+        <span
+          class="text-[9px] font-bold uppercase tracking-wider text-caption truncate"
+        >
+          GOLD
+        </span>
+        <div
+          class="flex items-baseline gap-1.5"
+        >
+          <span
+            class="text-sm font-mono font-semibold text-ink"
+          >
+            ₹63,080/10g
+          </span>
+          <span
+            class="text-[11px] font-mono text-green-600 dark:text-green-400"
+          >
+            +0.8%
+          </span>
+        </div>
+      </div>
+      <div
+        class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0"
+      >
+        <span
+          class="text-[9px] font-bold uppercase tracking-wider text-caption truncate"
+        >
+          SILVER
+        </span>
+        <div
+          class="flex items-baseline gap-1.5"
+        >
+          <span
+            class="text-sm font-mono font-semibold text-ink"
+          >
+            ₹818/10g
+          </span>
+          <span
+            class="text-[11px] font-mono text-red-600 dark:text-red-400"
+          >
+            -0.5%
+          </span>
+        </div>
+      </div>
+      <div
+        class="flex flex-col items-start min-w-[110px] flex-shrink-0 px-3 py-1.5 border-r border-border last:border-r-0"
+      >
+        <span
+          class="text-[9px] font-bold uppercase tracking-wider text-caption truncate"
+        >
+          CRUDE
+        </span>
+        <div
+          class="flex items-baseline gap-1.5"
+        >
+          <span
+            class="text-sm font-mono font-semibold text-ink"
+          >
+            $78.2/bbl
+          </span>
+          <span
+            class="text-[11px] font-mono text-green-600 dark:text-green-400"
+          >
+            +1.2%
+          </span>
+        </div>
+      </div>
+      <a
+        class="flex items-center px-3 text-[11px] font-semibold text-brand hover:underline whitespace-nowrap"
+        href="/markets"
+      >
+        Markets →
+      </a>
+    </div>
+  </div>
+</div>
+`;
