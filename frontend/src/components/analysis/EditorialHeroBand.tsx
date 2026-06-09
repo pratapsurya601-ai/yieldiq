@@ -14,7 +14,12 @@
  *   - The one-line "Every stock has a Signature..." brand caption
  *   - The Prism narrative caption (factual numeric description)
  *   - The risk / positive-signal counter chips
- *   - The MosAlertChip ("Notify me when discount reaches..." control)
+ *   - The PriceLadderPanel (horizontal Fair-Value / Target / Current
+ *     ladder + drag-to-set MoS slider + chip row + "Notify Me at X%"
+ *     control). Replaces the legacy MosAlertChip from PR #242 — the
+ *     old single-button chip is preserved at
+ *     @/components/analysis/MosAlertChip for rollback but is no longer
+ *     mounted from this band.
  *   - PrismNarrator ("Tell me the story")
  *   - The tap-to-explain PillarExplainer sheet
  *
@@ -50,9 +55,11 @@ import type {
 import { timeAgo } from "@/lib/dataFreshness"
 
 // Lazy-load — same pattern as the old EditorialHero so the bundle
-// budget on first paint is unchanged.
-const MosAlertChip = dynamic(
-  () => import("@/components/analysis/MosAlertChip"),
+// budget on first paint is unchanged. PriceLadderPanel replaces the
+// legacy MosAlertChip (kept in tree at @/components/analysis/MosAlertChip
+// for one-iteration rollback; no longer imported by the analysis page).
+const PriceLadderPanel = dynamic(
+  () => import("@/components/analysis/PriceLadderPanel"),
   { ssr: false },
 )
 const PrismNarrator = dynamic(
@@ -67,7 +74,9 @@ export interface EditorialHeroBandProps {
   fairValue: number
   /** Current price in company currency. */
   currentPrice: number
-  /** Signed (FV-CP)/CP*100 — passed through to MosAlertChip only. */
+  /** Signed (FV-CP)/CP*100 — used as the gate for rendering the
+   * PriceLadderPanel (suppressed when not finite, same way the legacy
+   * MosAlertChip was). */
   marginOfSafety: number
   currency: string
   /** Red flags array — drives the counter chips. */
@@ -79,7 +88,7 @@ export interface EditorialHeroBandProps {
 export default function EditorialHeroBand({
   data,
   fairValue,
-  currentPrice: _currentPrice,
+  currentPrice,
   marginOfSafety,
   currency,
   redFlags,
@@ -182,20 +191,31 @@ export default function EditorialHeroBand({
               />
             </div>
 
-            {/* MosAlertChip — "Notify me when discount reaches..." control.
-                Preserved per brief: this is the only place users can wire
-                up a price-alert from the hero region. Hidden when data is
-                limited (the discount itself isn't meaningful then) and
-                when FV is non-positive. */}
+            {/* PriceLadderPanel — horizontal Fair-Value / Target /
+                Current ladder + drag-to-set slider + chip row + Notify
+                Me button. Replaces the legacy MosAlertChip (which lives
+                on at @/components/analysis/MosAlertChip for rollback,
+                but is no longer mounted from this band).
+
+                Same render guards as before: hidden when the page is
+                in a data-limited state, when FV is non-positive, when
+                MoS isn't finite, AND additionally when currentPrice is
+                non-finite (the new component needs both endpoints).
+                When the prism payload doesn't include a current price
+                the ladder rail can't be laid out so we suppress it
+                rather than render a degenerate axis. */}
             {!dataLimited &&
               fairValue > 0 &&
-              Number.isFinite(marginOfSafety) && (
-                <div className="mt-3">
-                  <MosAlertChip
+              Number.isFinite(marginOfSafety) &&
+              Number.isFinite(currentPrice) &&
+              currentPrice > 0 && (
+                <div className="mt-3 w-full">
+                  <PriceLadderPanel
                     ticker={data.ticker}
+                    companyName={data.company_name}
+                    currentPrice={currentPrice}
                     fairValue={fairValue}
                     currency={currency}
-                    currentMos={marginOfSafety}
                   />
                 </div>
               )}
