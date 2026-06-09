@@ -1805,6 +1805,33 @@ MANIFEST: list[dict] = [
             "Cement 4.0% now anchored)."
         ),
     },
+    {
+        # T2.8 Phase A — liquidation value standalone service.
+        # backend/services/liquidation_value_service.py adds a Graham-
+        # style asset-recovery floor (sum(asset × recovery_rate) −
+        # liabilities) as a pure-math primitive. Phase A is the engine
+        # only — no wiring into the verdict gate or analysis response.
+        # Phase B (separate PR) will wire the floor into the verdict
+        # gate as a "hard floor" anchor on the analysis page when
+        # current_price < liquidation_per_share.
+        #
+        # Scope.tickers = "*" + scope.fields = [] documents the no-op
+        # invalidation intent: the manifest entry exists to satisfy
+        # the cache-version-bump CI gate (backend/services/ touched)
+        # and to anchor the timeline. No cached field is affected
+        # because the service is not yet called from any code path.
+        "version_id": "v_t2_8_liquidation_value_phase_a_2026_06_10",
+        "applied_at": datetime(2026, 6, 9, 19, 31, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": "*",
+            "fields": [],
+        },
+        "rationale": (
+            "T2.8 Phase A — liquidation value standalone service added "
+            "(Graham framework). Phase B wires into verdict gate as a "
+            "floor anchor (separate PR)."
+        ),
+    },
 ]
 
 
