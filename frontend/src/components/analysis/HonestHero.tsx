@@ -43,6 +43,7 @@ import Link from "next/link"
 
 import { NarrativeCard, DataCard } from "@/components/cards"
 import DegradedScenarioCard from "@/components/analysis/DegradedScenarioCard"
+import MetricTooltip from "@/components/common/MetricTooltip"
 import { cn, formatCurrency, formatPct } from "@/lib/utils"
 import {
   VERDICT_COLORS,
@@ -216,13 +217,28 @@ export default function HonestHero({
                 <dt className="text-[10px] uppercase tracking-[0.15em] text-caption">
                   Fair Value
                 </dt>
-                <dd className="font-mono tabular-nums text-2xl font-semibold text-ink mt-0.5">
-                  {fvDisplay}
-                  {showClampNote && (
-                    <span className="ml-2 inline-flex items-center rounded-full border border-amber-300 bg-tone-warn-bg px-1.5 py-0 text-[10px] font-medium text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200 align-middle">
-                      clamp
-                    </span>
-                  )}
+                {/* Premium Feel R2 — wrap the headline FV with the new
+                    MetricTooltip so users can hover the number to learn
+                    what "Fair Value" means as a model output. */}
+                <dd className="mt-0.5">
+                  <MetricTooltip
+                    label="Fair Value"
+                    showLabel={false}
+                    title="Fair Value"
+                    description="Our estimate of what one share is worth based on the cash the business looks set to generate in the future, discounted back to today."
+                    formula="Discounted Cash Flow — future FCF discounted at WACC"
+                    caveat="A DCF is only as good as its inputs — treat the number as a centre of gravity, not a precise figure."
+                    value={
+                      <span className="font-mono tabular-nums text-2xl font-semibold text-ink">
+                        {fvDisplay}
+                        {showClampNote && (
+                          <span className="ml-2 inline-flex items-center rounded-full border border-amber-300 bg-tone-warn-bg px-1.5 py-0 text-[10px] font-medium text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200 align-middle">
+                            clamp
+                          </span>
+                        )}
+                      </span>
+                    }
+                  />
                 </dd>
               </div>
               <div>
@@ -231,17 +247,30 @@ export default function HonestHero({
                     ? "Premium to FV"
                     : "Discount to FV"}
                 </dt>
-                <dd
-                  className={cn(
-                    "font-mono tabular-nums text-2xl font-semibold mt-0.5",
-                    discountTone === "good"
-                      ? "text-tone-good-fg"
-                      : discountTone === "bad"
-                        ? "text-rose-700"
-                        : "text-ink",
-                  )}
-                >
-                  {discountDisplay}
+                <dd className="mt-0.5">
+                  <MetricTooltip
+                    metric="mos"
+                    label={
+                      signals.discount != null && signals.discount < 0
+                        ? "Premium to FV"
+                        : "Discount to FV"
+                    }
+                    showLabel={false}
+                    value={
+                      <span
+                        className={cn(
+                          "font-mono tabular-nums text-2xl font-semibold",
+                          discountTone === "good"
+                            ? "text-tone-good-fg"
+                            : discountTone === "bad"
+                              ? "text-rose-700"
+                              : "text-ink",
+                        )}
+                      >
+                        {discountDisplay}
+                      </span>
+                    }
+                  />
                 </dd>
               </div>
             </dl>
@@ -282,45 +311,94 @@ export default function HonestHero({
         aria-label={`${displayTicker} side rail`}
       >
         <DataCard hover={false} className="flex flex-col gap-3">
+          {/* Premium Feel R2 — every metric on the rail is hover-explained.
+              MetricTooltip wraps the value with a subtle dotted underline;
+              hovering opens an explainer popover sourced from
+              metric-explainers.ts. */}
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
               YieldIQ Score
             </span>
-            <span className="font-mono tabular-nums text-base text-ink">
-              {signals.score != null ? `${Math.round(signals.score)} / 100` : "—"}
-            </span>
+            <MetricTooltip
+              metric="yieldiq_score"
+              label="YieldIQ Score"
+              showLabel={false}
+              value={
+                <span className="font-mono tabular-nums text-base text-ink">
+                  {signals.score != null ? `${Math.round(signals.score)} / 100` : "—"}
+                </span>
+              }
+            />
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
               Grade
             </span>
-            <span className="font-mono tabular-nums text-base text-ink">
-              {capGrade(signals.grade, distress)}
-            </span>
+            <MetricTooltip
+              label="Grade"
+              showLabel={false}
+              title="Grade"
+              description="A letter shorthand (A/B/C/D/F) mapped from the YieldIQ Score so the rail can be scanned at a glance."
+              threshold="A: top decile across pillars. B: healthy composite. C: mixed with trade-offs. D/F: one or more pillars failing badly."
+              caveat="A grade is a label, not a verdict. Distress-flag businesses are capped at B regardless of the underlying score."
+              value={
+                <span className="font-mono tabular-nums text-base text-ink">
+                  {capGrade(signals.grade, distress)}
+                </span>
+              }
+            />
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
               Moat
             </span>
-            <span className="text-[13px] text-ink">
-              {signals.moat ?? "—"}
-            </span>
+            <MetricTooltip
+              label="Moat"
+              showLabel={false}
+              title="Moat"
+              description="How durable the firm's competitive advantage looks — whether it can defend profit margins from rivals over the next 5-10 years."
+              threshold="Wide: pricing power proven over a full cycle. Moderate: some defenses. Narrow: limited and eroding. None: commodity-like economics."
+              value={
+                <span className="text-[13px] text-ink">
+                  {signals.moat ?? "—"}
+                </span>
+              }
+            />
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
               Red flags
             </span>
-            <span className="font-mono tabular-nums text-[13px] text-ink">
-              {signals.redFlags != null ? signals.redFlags : "—"}
-            </span>
+            <MetricTooltip
+              label="Red flags"
+              showLabel={false}
+              title="Red flags"
+              description="Count of structured red-flag signals raised by our quality engine — governance, accounting, leverage, and operating-trend issues."
+              caveat="A non-zero count means the engine raised at least one flag; the Risk & Quality deep-dive below explains each one in plain English."
+              value={
+                <span className="font-mono tabular-nums text-[13px] text-ink">
+                  {signals.redFlags != null ? signals.redFlags : "—"}
+                </span>
+              }
+            />
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[0.15em] text-caption">
               Worry
             </span>
-            <span className="text-[13px] text-ink">
-              {worryRailLabel(signals.worry)}
-            </span>
+            <MetricTooltip
+              label="Worry"
+              showLabel={false}
+              title="Worry signal"
+              description="Our holder-experience tier — translates a basket of volatility, drawdown, and quality inputs into a one-line owner-of-this-stock label."
+              threshold="Sleep well: low realized volatility, durable fundamentals. Watch closely: meaningful flags or volatility. Read bears: read the bear case before adding."
+              caveat="A label, not a forecast. The tier reflects historical risk-of-experience, not the next move in the price."
+              value={
+                <span className="text-[13px] text-ink">
+                  {worryRailLabel(signals.worry)}
+                </span>
+              }
+            />
           </div>
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[0.15em] text-caption">

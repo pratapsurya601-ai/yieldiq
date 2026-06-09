@@ -28,6 +28,7 @@
 
 import { formatCurrency } from "@/lib/utils"
 import { SummaryCard } from "@/components/cards"
+import MetricTooltip from "@/components/common/MetricTooltip"
 
 export interface ScenarioCase {
   fair_value: number
@@ -84,6 +85,15 @@ function mosTone(mos: number | null | undefined): string {
   return mos >= 0 ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
 }
 
+// Premium Feel R2 — metric keys mapping each scenario case to its
+// explainer entry in lib/metric-explainers.ts. Base case shares the
+// MoS explainer because it IS the centre of gravity of the DCF range.
+const CASE_METRIC_KEY: Record<CaseKey, string> = {
+  bear: "bear_case",
+  base: "mos",
+  bull: "bull_case",
+}
+
 export default function ValuationGrid({
   bear,
   base,
@@ -111,6 +121,9 @@ export default function ValuationGrid({
       <div className="grid grid-cols-3 gap-4">
         {cases.map(({ key, data }) => {
           const palette = CASE_PALETTE[key]
+          // Premium Feel R2 — wrap each scenario value with the
+          // MetricTooltip primitive so users can hover the Bear / Base
+          // / Bull figure to read what the case represents.
           return (
             <div
               key={key}
@@ -119,9 +132,16 @@ export default function ValuationGrid({
               <p className="text-[11px] uppercase tracking-wider text-caption mb-1">
                 {CASE_LABEL[key]}
               </p>
-              <p className={`text-xl font-bold font-mono tabular-nums ${palette.value}`}>
-                {formatCurrency(data.fair_value, currency, ticker)}
-              </p>
+              <MetricTooltip
+                metric={CASE_METRIC_KEY[key]}
+                label={CASE_LABEL[key]}
+                showLabel={false}
+                value={
+                  <span className={`text-xl font-bold font-mono tabular-nums ${palette.value}`}>
+                    {formatCurrency(data.fair_value, currency, ticker)}
+                  </span>
+                }
+              />
               <p className={`text-xs font-mono mt-1 ${mosTone(data.mos_pct)}`}>
                 Discount {fmtMos(data.mos_pct)}
               </p>
