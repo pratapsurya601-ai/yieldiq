@@ -282,6 +282,32 @@ export const WIDE_BAND_RATIO_THRESHOLD = 0.25
 export const BEAR_OVERVALUED_BYPASS_MOS = -25
 export const BEAR_OVERVALUED_BYPASS_CONFIDENCE = 40
 
+/**
+ * 2026-06-09 fix/analysis-ux-fixbatch: bull-side bypass thresholds.
+ *
+ * Symmetric counterpart to the bear-side bypass above. The original
+ * Day-94 rationale (bull-side intentionally conservative because
+ * "buying on a noisy deep-value signal is the larger trust risk")
+ * still applies, so this bypass is INTENTIONALLY STRICTER than the
+ * bear side: it requires HIGH confidence AND a bear case already
+ * trading above the current price (i.e. even the worst-case scenario
+ * is undervalued — there is no "noisy signal" to gate against).
+ *
+ * Concretely: HDFCBANK on 2026-06-09 carried FV +52.9% MoS, confidence
+ * 90, bear=941 / bull=1505 / price=738.65 — the wide-band gate fired
+ * because (bull-bear)/price = 0.76 > 0.25 even though bear (941) was
+ * already 27% above price. The sticky scorecard rendered "Under Review"
+ * while the hero pill / Memory Lane / Peer table all rendered
+ * "Undervalued" off the same payload — exactly the four-surface
+ * disagreement task #178 was supposed to retire. Bypass: when MoS >=
+ * 25%, confidence >= 70 (LOW_CONFIDENCE_THRESHOLD), AND bear_case >=
+ * current_price, render the directional verdict. The bear-above-price
+ * condition is what keeps this safe from the noisy-signal case the
+ * original bull-side gate was protecting against.
+ */
+export const BULL_UNDERVALUED_BYPASS_MOS = 25
+export const BULL_UNDERVALUED_BYPASS_CONFIDENCE = LOW_CONFIDENCE_THRESHOLD
+
 export interface VerdictGateInputs {
   dataLimited?: boolean | null
   confidence?: number | null
@@ -319,6 +345,25 @@ export function shouldGateVerdict(inputs: VerdictGateInputs): boolean {
     confidence >= BEAR_OVERVALUED_BYPASS_CONFIDENCE
 
   if (bearBypass) return false
+
+  // 2026-06-09 fix/analysis-ux-fixbatch — bull-side bypass.
+  // Stricter than bear-side: requires the bear case to already trade
+  // above the current price so there's no noisy-signal risk. See
+  // BULL_UNDERVALUED_BYPASS_* comment block above.
+  const bullBypass =
+    typeof marginOfSafety === "number" &&
+    Number.isFinite(marginOfSafety) &&
+    marginOfSafety >= BULL_UNDERVALUED_BYPASS_MOS &&
+    typeof confidence === "number" &&
+    Number.isFinite(confidence) &&
+    confidence >= BULL_UNDERVALUED_BYPASS_CONFIDENCE &&
+    typeof bearCase === "number" &&
+    Number.isFinite(bearCase) &&
+    typeof currentPrice === "number" &&
+    currentPrice > 0 &&
+    bearCase >= currentPrice
+
+  if (bullBypass) return false
 
   if (
     typeof confidence === "number" &&

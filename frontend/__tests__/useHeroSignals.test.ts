@@ -183,4 +183,29 @@ describe("resolveHeroSignals", () => {
     const s = resolveHeroSignals(p)
     expect(s.worry).toBe("watch_closely")
   })
+
+  // 2026-06-09 fix/analysis-ux-fixbatch — bug 1 regression. HDFCBANK
+  // on prod returned high confidence (90), strongly positive MoS
+  // (+52.9%), with bear case ALREADY above current price. The
+  // bull-side wide-band gate previously fired and the hero pill
+  // rendered "Under Review" while every other surface ("UNDERVALUED"
+  // hero pill, "Undervalued" memory lane, "Undervalued" peer row)
+  // disagreed. Pin: verdictGated is false on this input shape so the
+  // tier label routes through verdictTierLabel("undervalued") =
+  // "Undervalued" across all surfaces.
+  it("does NOT gate HDFCBANK-class (high conf, +MoS, bear above price)", () => {
+    const p = basePayload()
+    p.valuation.confidence_score = 90
+    p.valuation.margin_of_safety = 52.9
+    p.valuation.current_price = 738.65
+    p.valuation.fair_value = 1129.28
+    p.valuation.bear_case = 941.07
+    p.valuation.bull_case = 1505.71
+    p.valuation.base_case = 1129.28
+    p.valuation.verdict = "undervalued" as never
+    const s = resolveHeroSignals(p)
+    expect(s.verdictGated).toBe(false)
+    expect(s.dataLimited).toBe(false)
+    expect(s.discount).toBeCloseTo(52.9, 2)
+  })
 })

@@ -1521,19 +1521,26 @@ export default function AnalysisBody({ ticker, prism }: Props) {
         onShare={onShare}
         onTimeMachine={() => setTimeMachineOpen(true)}
       />
-      {/* feat/freshness-stamps: price/compute freshness beneath the
-          sticky header. Two stamps — one for the quote ("Delayed"),
-          one for the overall analysis recompute time ("Recomputed") —
-          give users immediate context on how stale the numbers are. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-1">
-        <FreshnessStamp
-          timestamp={valuation.current_price_as_of}
-          prefix="Delayed, as of"
-        />
+      {/* feat/freshness-stamps: model-compute freshness beneath the
+          sticky header. Two stacked stamps that shared the same
+          phrasing ("Delayed, as of 13h ago" + "Recomputed 13h ago")
+          read as duplication on /analysis/HDFCBANK (Chrome MCP audit
+          2026-06-09). Collapsed into a single line that distinguishes
+          MODEL recompute time from PRICE-QUOTE staleness — the latter
+          lives on the hero glass panel labelled "Price quote …", so
+          the two timestamps no longer look like the same value
+          presented twice. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-1 text-[11px] text-caption">
         <FreshnessStamp
           timestamp={data.timestamp}
-          prefix="Recomputed"
+          prefix="Model recomputed"
         />
+        {valuation.current_price_as_of && (
+          <span aria-hidden>·</span>
+        )}
+        {valuation.current_price_as_of && (
+          <span>Price delayed</span>
+        )}
       </div>
 
       {copiedShare && (

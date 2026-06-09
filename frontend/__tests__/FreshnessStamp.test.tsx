@@ -149,3 +149,62 @@ describe("FreshnessStamp pulse dot", () => {
     expect(dot.getAttribute("data-pulse-band")).toBe("live")
   })
 })
+
+// 2026-06-09 fix/analysis-ux-fixbatch — caller-prefix distinguishes
+// the "model recompute" vs "price quote" timestamps so the two stamps
+// on /analysis/[ticker] cannot read as a single value rendered twice
+// with different ages (Chrome MCP audit on HDFCBANK flagged "Delayed,
+// as of 13h ago" + "Delayed, as of 23h ago" as visually identical
+// captions with different timestamps).
+describe("FreshnessStamp — analysis-page dual-timestamp distinction", () => {
+  it("renders the toolbar model-recompute caption with the new prefix", () => {
+    render(
+      <FreshnessStamp
+        timestamp={isoAgo(13 * 60 * 60 * 1000)} // 13h ago
+        prefix="Model recomputed"
+      />,
+    )
+    // The body text format is `${prefix} ${phrase}` for relative-time
+    // captions (< 7 days), so the prefix word is the leading distinct
+    // copy users see.
+    expect(screen.getByText(/Model recomputed/)).toBeInTheDocument()
+    // The old shared "Delayed, as of" copy must NOT appear on the
+    // toolbar caller — that label is now reserved for the hero glass
+    // panel quote stamp, which uses "Price quote".
+    expect(screen.queryByText(/Delayed, as of/)).toBeNull()
+  })
+
+  it("renders the hero glass-panel price-quote caption with the distinct prefix", () => {
+    render(
+      <FreshnessStamp
+        timestamp={isoAgo(23 * 60 * 60 * 1000)} // 23h ago
+        prefix="Price quote"
+        fallback="Quote freshness unknown"
+      />,
+    )
+    expect(screen.getByText(/Price quote/)).toBeInTheDocument()
+    expect(screen.queryByText(/Model recomputed/)).toBeNull()
+    expect(screen.queryByText(/Delayed, as of/)).toBeNull()
+  })
+
+  it("the two captions render with non-overlapping copy when shown together", () => {
+    const { container } = render(
+      <div>
+        <FreshnessStamp
+          timestamp={isoAgo(13 * 60 * 60 * 1000)}
+          prefix="Model recomputed"
+        />
+        <FreshnessStamp
+          timestamp={isoAgo(23 * 60 * 60 * 1000)}
+          prefix="Price quote"
+        />
+      </div>,
+    )
+    // The two stamps must produce DIFFERENT prefixes so the user can
+    // distinguish them at a glance. Asserting both phrases appear
+    // exactly once each pins the copy contract.
+    const matches = container.textContent ?? ""
+    expect((matches.match(/Model recomputed/g) ?? []).length).toBe(1)
+    expect((matches.match(/Price quote/g) ?? []).length).toBe(1)
+  })
+})

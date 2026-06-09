@@ -106,18 +106,36 @@ function Tile({ spec, metric }: { spec: TileSpec; metric: {
   "3y": number | null
   "5y": number | null
   "10y": number | null
+  status?: string | null
 } | undefined }) {
   const headline = metric ? pickHeadline(metric) : null
 
   if (!headline) {
+    // 2026-06-09 fix/analysis-ux-fixbatch: the stock-CAGR tile carries
+    // a `status` field from the backend (cagr_service.py). When the
+    // backend signals "rebuild_pending" or "db_unavailable", the
+    // generic "Insufficient history" caption is misleading — it reads
+    // as "this stock hasn't existed long enough" when the truth is
+    // "the adj_close backfill hasn't covered this ticker yet". Show
+    // an honest empty-state instead. Other tiles (revenue / profit /
+    // roe_avg) keep the original "Insufficient history" copy because
+    // those genuinely come from filing history.
+    const status = metric?.status
+    const isPending = status === "rebuild_pending" || status === "db_unavailable"
+    const subLabel = isPending
+      ? "Awaiting data backfill"
+      : "Insufficient history"
+    const tileTitle = isPending
+      ? "Stock CAGR is awaiting the daily-prices adj_close backfill for this ticker."
+      : undefined
     return (
-      <div className="rounded-xl border border-border bg-bg p-3">
+      <div className="rounded-xl border border-border bg-bg p-3" title={tileTitle}>
         <div className="text-[10px] uppercase tracking-wider text-caption">
           {spec.label}
         </div>
         <div className="mt-1 text-xl font-semibold text-caption font-mono">—</div>
         <div className="mt-2 h-10" aria-hidden />
-        <div className="text-[10px] text-caption">Insufficient history</div>
+        <div className="text-[10px] text-caption">{subLabel}</div>
       </div>
     )
   }

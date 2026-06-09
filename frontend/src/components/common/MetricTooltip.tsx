@@ -94,6 +94,15 @@ export interface MetricTooltipProps {
   valueClassName?: string
   /** Render label first (default) or hide label inside the trigger. */
   showLabel?: boolean
+  /**
+   * 2026-06-09 fix/analysis-ux-fixbatch: when `value` is a JSX node
+   * (e.g. a styled <span>), the aria-label falls back to repeating
+   * the label (`"YieldIQ Score: YieldIQ Score"`) because the trigger
+   * cannot stringify a ReactNode safely. Pass the plain-text rendering
+   * of the value here so assistive tech announces the actual number.
+   * Optional; ignored when `value` is already a string.
+   */
+  ariaValueText?: string
 }
 
 function slugify(s: string): string {
@@ -142,6 +151,7 @@ export default function MetricTooltip({
   className,
   valueClassName,
   showLabel = true,
+  ariaValueText,
 }: MetricTooltipProps) {
   const reduced = useReducedMotion()
   const [open, setOpen] = useState(false)
@@ -228,7 +238,16 @@ export default function MetricTooltip({
       <button
         ref={triggerRef}
         type="button"
-        aria-label={`${copy.title}: ${typeof value === "string" ? value : label}`}
+        // 2026-06-09 fix/analysis-ux-fixbatch: prefer the explicit
+        // `ariaValueText` (passed when `value` is a JSX node), then
+        // the value itself when it's a string, then fall back to the
+        // label so the announcement remains meaningful even for
+        // unwired callers. Previously the JSX-value path produced
+        // accessibility labels like "YieldIQ Score: YieldIQ Score"
+        // (Chrome MCP audit of /analysis/HDFCBANK, 2026-06-09).
+        aria-label={`${copy.title}: ${
+          ariaValueText ?? (typeof value === "string" ? value : label)
+        }`}
         aria-describedby={open ? popoverId : undefined}
         aria-expanded={open}
         onClick={(e) => {
