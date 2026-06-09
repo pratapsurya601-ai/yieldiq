@@ -1559,6 +1559,41 @@ MANIFEST: list[dict] = [
             "manifest entry is a documentation no-op for the CI gate."
         ),
     },
+    {
+        # Holdco classification propagation. Single source of truth
+        # added: backend/services/analysis/constants.HOLDING_COMPANIES
+        # (13 holdcos). Every downstream consumer (honest_card_generator,
+        # worry_index, eli15_thesis, prism_service, peers_service) now
+        # branches on the classification. Bank-template copy removed
+        # for holdcos; underlying-holdings link-out added.
+        # Cached fields affected on HOLDCO tickers only: bear_thesis,
+        # worry_drivers, pulse_label, verdict_triggers, peers. Non-
+        # holdco tickers (the canary universe) unaffected by
+        # construction.
+        "version_id": "v_holdco_classification_propagation_2026_06_09",
+        "applied_at": datetime(2026, 6, 9, 14, 0, 0, tzinfo=timezone.utc),
+        "scope": {
+            "tickers": [
+                "BAJAJHLDNG", "TATAINVEST", "MAHSCOOTER", "PILANIINVS",
+                "KAMAHOLD", "SUMMITSEC", "WILLIAMAGR", "MCLEODRUSS",
+                "NDTV", "NETWORK18", "GAYAHWS", "MOIL", "GRASIM",
+            ],
+            "fields": [
+                "bear_thesis", "worry_drivers", "pulse_label",
+                "verdict_triggers", "peers", "underlying_holdings",
+            ],
+        },
+        "rationale": (
+            "Holdco classification now propagates from constants."
+            "HOLDING_COMPANIES through 5 downstream consumers. Kills "
+            "the bank-template leak on BAJAJHLDNG + 12 other holdcos "
+            "(bear-thesis 'Loan/advances' / 'Gross NPA' triggers, "
+            "Worry-Index 'bank ROA' Solvency driver, Pulse 'ABOVE/"
+            "BELOW FAIR VALUE' when FV null, peers cohort empty, "
+            "WHY narrative 'Rs 0' leak). Underlying-holdings link-out "
+            "added from holdco_underlyings.json."
+        ),
+    },
 ]
 
 
