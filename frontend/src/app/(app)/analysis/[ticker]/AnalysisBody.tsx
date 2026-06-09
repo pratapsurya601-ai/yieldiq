@@ -179,6 +179,15 @@ const BullsBearsPanel = dynamic(() => import("@/components/analysis/BullsBearsPa
   ssr: false,
   loading: smallSkeleton,
 })
+// ELI15ThesisPanel — 3-bullet plain-English explainer of why the
+// model produced its verdict. Sits directly below the hero band so
+// non-experts get the "what does this mean" before diving into the
+// numbered sections. Server-side SEBI-filtered; the component hides
+// itself on error.
+const ELI15ThesisPanel = dynamic(() => import("@/components/analysis/ELI15ThesisPanel"), {
+  ssr: false,
+  loading: smallSkeleton,
+})
 const ManifestHistoryPanel = dynamic(() => import("@/components/analysis/ManifestHistoryPanel"), {
   ssr: false,
   loading: smallSkeleton,
@@ -1761,6 +1770,14 @@ export default function AnalysisBody({ ticker, prism }: Props) {
             </>
           )
         })()}
+
+        {/* ELI15 thesis panel — "Why the model sees it this way".
+            Sits directly below the hero band / verdict pill and ABOVE
+            the confidence / methodology disclosure so non-experts get
+            the plain-English thesis BEFORE the deep-dive numbers.
+            Server-side SEBI-filtered with a deterministic template
+            fallback; hides itself on error / empty payload. */}
+        <ELI15ThesisPanel ticker={ticker} />
 
         {/* Confidence and methodology disclosure (chassis 2026-05-26).
             Collapsed by default per .audit/competitor-walk-hdfcbank-
