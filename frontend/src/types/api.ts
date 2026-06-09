@@ -482,6 +482,25 @@ export interface AnalysisResponse {
     op_margin: number | null
   } | null
   /**
+   * DCF + Multiples cross-confirmation (Sprint A2, 2026-06-09).
+   * `multiples_based_fv` is a peer-relative re-pricing of the current
+   * quote — "what would this stock be worth if it traded at the
+   * sector-median multiple?" — NOT a separate valuation model.
+   * Computed from the response's own PE / PB and the sector_medians
+   * cohort medians (backend/services/multiples_fv.py).
+   *
+   * Both fields are null when no peer cohort, when the ticker's own
+   * multiple is missing / non-positive, or when the cohort median
+   * is missing (banks special case, fresh listings). The
+   * <DcfMultiplesChip /> pill row self-hides in that case.
+   *
+   * `multiples_method` documents which multiple drove the path:
+   * "pe" by default, "pb" as fallback (banks / financial services),
+   * "ev_ebitda" reserved for a future path.
+   */
+  multiples_based_fv?: number | null
+  multiples_method?: "pe" | "pb" | "ev_ebitda" | null
+  /**
    * Backend-authored formula metadata, keyed by metric id (e.g.
    * "margin_of_safety", "roce"). Populated from
    * backend/services/analysis/formulas.py — the single source of

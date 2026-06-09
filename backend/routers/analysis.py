@@ -180,6 +180,59 @@ def _inject_sector_medians_model(result: "AnalysisResponse", ticker: str) -> "An
     return result
 
 
+def _inject_multiples_fv_dict(payload: dict) -> dict:
+    """Populate `multiples_based_fv` + `multiples_method` on a dict payload.
+
+    Sprint A2 (2026-06-09) — peer-relative cross-confirmation fair
+    value. MUST run AFTER `_inject_sector_medians_dict` because it
+    reads `payload["sector_medians"]`. Pure derivation from the
+    response's own ticker PE/PB + cohort medians — no DB / cache I/O,
+    so safe on every warm-path return (~microseconds).
+
+    Never raises — chip failure leaves both fields absent (frontend
+    pill row self-hides).
+    """
+    if not isinstance(payload, dict):
+        return payload
+    try:
+        from backend.services.multiples_fv import compute_multiples_fv
+        fv, method = compute_multiples_fv(payload, payload.get("sector_medians"))
+        payload["multiples_based_fv"] = fv
+        payload["multiples_method"] = method
+    except Exception:
+        # Field is purely descriptive — never break the response.
+        pass
+    return payload
+
+
+def _inject_multiples_fv_model(result: "AnalysisResponse") -> "AnalysisResponse":
+    """Pydantic-model variant of `_inject_multiples_fv_dict`.
+
+    Used on the cold-compute return path. MUST run AFTER
+    `_inject_sector_medians_model` so the sector medians are present
+    on the response. Mutates in place — both fields are Optional and
+    additive, no validation re-run required.
+    """
+    try:
+        from backend.services.multiples_fv import compute_multiples_fv
+        # Serialize the minimum needed slots — we only read
+        # quality.{pe,pb}_ratio + valuation.current_price + sector_medians.
+        # Using model_dump on the full result here would be cheap but a
+        # focused dict keeps the contract obvious.
+        _qual = result.quality.model_dump() if result.quality else {}
+        _val = result.valuation.model_dump() if result.valuation else {}
+        _payload_min = {
+            "quality": _qual,
+            "valuation": _val,
+        }
+        fv, method = compute_multiples_fv(_payload_min, result.sector_medians)
+        result.multiples_based_fv = fv
+        result.multiples_method = method
+    except Exception:
+        pass
+    return result
+
+
 @router.get("/analysis/{ticker}", response_model=AnalysisResponse)
 async def get_analysis(
     ticker: str,
@@ -328,11 +381,13 @@ async def get_analysis(
             _out = dict(_raw_cached)
             _out["ai_summary"] = None
             _inject_sector_medians_dict(_out, ticker)
+            _inject_multiples_fv_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
         # Shallow-copy so we don't mutate the cached dict in place
         # (other handlers may read it concurrently).
         _out = dict(_raw_cached)
         _inject_sector_medians_dict(_out, ticker)
+        _inject_multiples_fv_dict(_out)
         return _JSONResponse(content=_out, headers={"X-Cache": "HIT-MEM-RAW", **_usage_headers})
 
     # Tier 1: in-memory Pydantic cache (legacy, for paths that set
@@ -359,6 +414,7 @@ async def get_analysis(
         from fastapi.encoders import jsonable_encoder as _je
         _enc = _je(cached)
         _inject_sector_medians_dict(_enc, ticker)
+        _inject_multiples_fv_dict(_enc)
         return _JSONResponse(
             content=_enc,
             headers={"X-Cache": "HIT-MEM", **_usage_headers},
@@ -399,6 +455,7 @@ async def get_analysis(
             # across requests — only this response carries the field.
             _out = dict(_clean)
             _inject_sector_medians_dict(_out, ticker)
+            _inject_multiples_fv_dict(_out)
             return _JSONResponse(content=_out, headers={"X-Cache": "HIT-DB-FAST", **_usage_headers})
         except Exception as _exc:
             import logging as _logging
@@ -597,6 +654,7 @@ async def get_analysis(
         from fastapi.responses import JSONResponse as _JSONResponse
         from fastapi.encoders import jsonable_encoder as _je
         _inject_sector_medians_model(result, ticker)
+        _inject_multiples_fv_model(result)
         return _JSONResponse(
             content=_je(result),
             headers={"X-Cache": "MISS", **_usage_headers},
