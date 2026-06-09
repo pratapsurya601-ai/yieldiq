@@ -224,6 +224,35 @@ def compute_asset_turnover(revenue, total_assets) -> float | None:
     # legitimate company is ever clipped (real-world range 0.05–5×).
     if _ratio > 100 or _ratio < 0.001:
         import logging as _l
+        # FIX-ANTHEM-500-BUG1 (2026-06-09, P0): self-correction for
+        # known unit-mismatch fingerprint. ANTHEM surfaced
+        # revenue=19,541,900,000 (absolute rupees from one source) +
+        # total_assets=2,807.58 (Crores from another) → ratio 6,960,407.
+        # The exact factor here is 1e7 (rupees-to-Crores), which is the
+        # documented unit boundary in this codebase (search:
+        # FIX-ROCE-UNIT-MISMATCH, FIX-CURRENT-RATIO-UNIT). For ratios
+        # > 1000 (i.e. clearly outside the real-world 0.05x-5x band by
+        # 200x), try dividing revenue by 1e7 and re-check. If the
+        # corrected ratio lands in the sane band [0.01, 10] use it and
+        # log the per-ticker correction with full source attribution so
+        # the upstream data-layer fix (PR #741 source-priority normaliser)
+        # can be augmented later. Otherwise still return None — we don't
+        # ship a value we can't defend.
+        #
+        # Log signature for tracking the upstream fix: grep production
+        # logs for "asset_turnover_unit_self_correct".
+        if _ratio > 1000:
+            _corrected = _rev / 1e7 / _ta
+            if 0.01 <= _corrected <= 10:
+                _l.getLogger("yieldiq.ratios").warning(
+                    "asset_turnover_unit_self_correct: revenue=%s "
+                    "total_assets=%s raw_ratio=%.4f → divided revenue "
+                    "by 1e7 (rupees→Cr) → corrected_ratio=%.4f (sane). "
+                    "Upstream data-layer normaliser (PR #741) should "
+                    "be augmented for this ticker cohort.",
+                    _rev, _ta, _ratio, _corrected,
+                )
+                return round(_corrected, 2)
         _l.getLogger("yieldiq.ratios").warning(
             "asset_turnover sanity gate tripped: revenue=%s total_assets=%s "
             "ratio=%.4f — likely unit mismatch, returning None",

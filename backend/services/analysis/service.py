@@ -508,7 +508,7 @@ class AnalysisService(NarrativeMixin):
                     pass
             # FIX-TMPV-VERDICT (2026-04-22): when validators flag a critical
             # issue (e.g. TATAMOTORS→TMPV post-demerger with fv/cmp≈5.6),
-            # promote the verdict to "under_review". Previously only the
+            # promote the verdict to "data_limited". Previously only the
             # public /stock-summary endpoint applied this gate (via
             # check_and_quarantine), so the authed /analysis endpoint
             # kept shipping the raw bad-DCF verdict to admin callers and
@@ -518,10 +518,27 @@ class AnalysisService(NarrativeMixin):
             # data_issues list above) but signals the state consistently
             # across all endpoints so downstream code (canary's
             # _has_no_dcf, frontend render branches) handles it correctly.
+            #
+            # FIX-ANTHEM-500 (2026-06-09, P0): the prior emission of
+            # "under_review" violated ValuationOutput.verdict's Literal[…]
+            # in backend/models/responses.py (allowed set is
+            # undervalued|fairly_valued|overvalued|avoid|data_limited|
+            # unavailable). The downstream re-validation path (FastAPI
+            # response_model serialization + Pydantic model reconstruction)
+            # raised ValidationError → 500 on every cache-miss recompute
+            # for tickers that hit this branch (ANTHEM observed in
+            # Railway logs). Same precedent as confidence_service.py
+            # L644-673 Audit#7 P0 fix — clamp to a valid literal rather
+            # than widening the enum (which would touch validators,
+            # og-data, push, email-alerts, analytics, and every cached
+            # row). Frontend already handles `data_limited` correctly
+            # (see frontend/src/lib/verdict.ts: "Insufficient Data" /
+            # "warn" tone) so user impact is graceful — the response
+            # surfaces with caveat + data_issues instead of a 500.
             if not vr.ok and vr.severity == "critical":
                 try:
                     if getattr(result, "valuation", None) is not None:
-                        result.valuation.verdict = "under_review"
+                        result.valuation.verdict = "data_limited"
                 except Exception:
                     pass
         except Exception as _ve:
@@ -1820,6 +1837,27 @@ class AnalysisService(NarrativeMixin):
         _trough_anchor_fired = False
         _trough_anchor_bear_iv: float | None = None
         _trough_anchor_bull_iv: float | None = None
+
+        # FIX-ANTHEM-500-BUG2 (2026-06-09, P0): defensive initialization
+        # of the scenario-band locals so the dcf_collapse_safety_net call
+        # at L3344-3345 (`float(bull_iv or 0)`, `float(bear_iv or 0)`)
+        # can never raise UnboundLocalError. In the generic-DCF `else`
+        # branch at L2405-, `bear_iv` / `bull_iv` are ONLY assigned when
+        # one of {_post_demerger_route, _tier2_result, _auto_bear_floor}
+        # fires. ANTHEM's path hit the generic DCF block with none of
+        # those triggers — so `bull_iv` reached the safety-net call
+        # un-initialized → UnboundLocalError → the `except Exception`
+        # at L3482 swallowed it and logged "dcf_collapse_safety_net
+        # failed for ANTHEM.NS: cannot access local variable 'bull_iv'
+        # where it is not associated with a value". The chain then
+        # continued and tripped Bug 3 downstream. `iv` itself does NOT
+        # need this treatment because the engine paths above always
+        # assign it (or short-circuit to 0.0 on ETF/REIT), but bear_iv
+        # /bull_iv have multiple don't-fire paths in the generic
+        # else-branch. Initialize to 0.0 sentinel so the `or 0` fall-
+        # through at the safety-net call site behaves as intended.
+        bear_iv: float = 0.0
+        bull_iv: float = 0.0
 
         _record_step("step5_wacc_forecast")
 
