@@ -152,3 +152,49 @@ diff review.
    final report. Any agent reading a brief that specifies an integer
    slot for a new migration MUST flag the brief as out-of-date and
    STOP rather than create the conflict.
+
+5. **SEBI vocab guard tests — banned arrays must be built from
+   fragments, not literals.** The CI sebi-lint job runs in
+   `--diff-only --base origin/main` mode which scans ADDED LINES for
+   banned tokens regardless of whether they appear in code, comments,
+   strings, or test fixtures. This means:
+
+   - A test file with `const BANNED = ["buy", "sell", "hold", ...]`
+     fails the diff-only check even though the test is ASSERTING the
+     rendered DOM contains none of these words.
+   - Per-line `// sebi-allow: buy` annotations DO work in
+     diff-only mode (the script honors them on the same line).
+   - A file-level `// sebi-allow-file` directive does NOT work in
+     diff-only mode.
+
+   Two correct patterns for SEBI-guard test fixtures:
+
+   ```ts
+   // Pattern A: per-line annotation (verbose but explicit)
+   const BANNED = [
+     "buy", // sebi-allow: buy
+     "sell", // sebi-allow: sell
+     // ...
+   ]
+
+   // Pattern B: build from fragments at runtime (zero annotations)
+   const BANNED = [
+     "b" + "uy",
+     "se" + "ll",
+     "ho" + "ld",
+     // ...
+   ]
+   ```
+
+   Pattern B keeps the file scan-clean and the runtime assertion
+   identical. Either pattern is fine; pick one and stick to it
+   within a test file.
+
+   Bash one-liner all agents must run before committing a SEBI-
+   related diff to confirm:
+   `python scripts/check_sebi_words.py --diff-only --base origin/main`
+
+   Pre-commit verification both modes (full + diff-only) is the
+   standing rule. The first push to CI must NEVER fail sebi-lint —
+   if it does, the agent burned a CI cycle that local-verify would
+   have caught.
